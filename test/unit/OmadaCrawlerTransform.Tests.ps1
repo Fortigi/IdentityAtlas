@@ -238,6 +238,19 @@ Describe 'ConvertTo-OmadaResourceRecord' {
     It 'returns $null when the resource has no UId or name' {
         ConvertTo-OmadaResourceRecord -Resource ([pscustomobject]@{ NAME = 'No id' }) | Should -BeNullOrEmpty
     }
+
+    It 'carries skipProvisioning through, defaulting to $false when unset' {
+        $on  = ConvertTo-OmadaResourceRecord -Resource ([pscustomobject]@{ UId = 'res-sp1'; NAME = 'SP on'; SKIPPROVISIONING = $true })
+        $off = ConvertTo-OmadaResourceRecord -Resource ([pscustomobject]@{ UId = 'res-sp2'; NAME = 'SP off' })
+        $on.extendedAttributes.skipProvisioning  | Should -BeTrue
+        $off.extendedAttributes.skipProvisioning | Should -BeFalse
+    }
+
+    It 'leaves userGroupName empty when the usergroup ref is absent from the map' {
+        $res = [pscustomobject]@{ UId = 'res-ug'; NAME = 'UG'; USERGROUPREF = [pscustomobject]@{ UId = 'ug-missing' } }
+        $rec = ConvertTo-OmadaResourceRecord -Resource $res -UserGroupMap @{ 'ug-1' = 'Finance Group' }
+        $rec.extendedAttributes.userGroupName | Should -Be ''
+    }
 }
 
 Describe 'ConvertTo-OmadaEntitlementRelationships' {
