@@ -1,1 +1,0 @@
-- The Matrix now shows indirect members of nested Entra groups. When a security group is a member of another group, the child group's users now appear as indirect (I) members of the parent group — matching how access via an app role in a group already displayed. Previously group-in-group nesting showed no indirect members at all.

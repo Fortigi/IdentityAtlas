@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- The Matrix now shows indirect members of nested Entra groups. When a security group is a member of another group, the child group's users now appear as indirect (I) members of the parent group — matching how access via an app role in a group already displayed. Previously group-in-group nesting showed no indirect members at all.
+
+## Changes in this PR
+
 - Internal: added a cognitive-complexity ratchet to CI (alongside the existing cyclomatic one) that gates PowerShell and Python code on how deeply nested / hard-to-follow it is, not just how many branches it has — flagging readability debt the cyclomatic gate misses.
 - Internal: PowerShell complexity is now measured by the published PSComplexity module (a faithful, reference-validated SonarSource cognitive metric) feeding both ratchets, instead of a bundled measurer — `measure_ps.ps1` is now a thin selector over it.
 - Internal: added PowerShell mutation testing via the published PSMutant module (report-only) over the decomposed crawler transforms — the metric that proves the tests would catch a bug, not just execute the line.
