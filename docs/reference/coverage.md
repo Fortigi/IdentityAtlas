@@ -4,14 +4,14 @@
 
 Line coverage across the project's automated test suites, regenerated on every merge to `main`. The figures on this page reflect the version of the docs you are viewing — **edge** tracks `main`, a released version is frozen at its release tag.
 
-![Overall coverage](https://img.shields.io/badge/coverage-66.3%25-yellow)
+![Overall coverage](https://img.shields.io/badge/coverage-66.4%25-yellow)
 
 | Suite | Line | Branch | Method | Lines covered |
 |-------|------|--------|--------|---------------|
 | [API (Node / Vitest — unit + contract)](../coverage/api/index.html) | 73.3% | 61.9% | 76.0% | 6,581 / 8,978 |
 | [UI (React / Vitest)](../coverage/ui/index.html) | 66.8% | 55.1% | 53.4% | 4,704 / 7,034 |
-| [PowerShell (Pester)](../coverage/powershell/index.html) | 53.8% | — | 93.4% | 2,902 / 5,385 |
-| **Overall** | **66.3%** | | | **14,187 / 21,397** |
+| [PowerShell (Pester)](../coverage/powershell/index.html) | 54.2% | — | 93.4% | 2,946 / 5,433 |
+| **Overall** | **66.4%** | | | **14,231 / 21,445** |
 
 ## Browsable reports
 
@@ -21,4 +21,4 @@ Each suite links to a full per-file, line-by-line HTML report:
 - [UI (React / Vitest)](../coverage/ui/index.html)
 - [PowerShell (Pester)](../coverage/powershell/index.html)
 
-_Generated 2026-07-03 17:37 UTC from commit `75faec51`._
+_Generated 2026-07-04 07:51 UTC from commit `377deb89`._
