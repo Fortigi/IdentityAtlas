@@ -4,12 +4,14 @@
   "mutate": [
     "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
     "tools/crawlers/midpoint/MidpointCrawler.Transform.ps1",
-    "tools/crawlers/omada/OmadaCrawler.Transform.ps1"
+    "tools/crawlers/omada/OmadaCrawler.Transform.ps1",
+    "tools/crawlers/csv/CSVCrawler.Transform.ps1"
   ],
   "tests": {
     "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1": ["test/unit/EntraIDCrawlerTransform.Tests.ps1"],
     "tools/crawlers/midpoint/MidpointCrawler.Transform.ps1": ["test/unit/MidpointCrawlerTransform.Tests.ps1"],
-    "tools/crawlers/omada/OmadaCrawler.Transform.ps1": ["test/unit/OmadaCrawlerTransform.Tests.ps1"]
+    "tools/crawlers/omada/OmadaCrawler.Transform.ps1": ["test/unit/OmadaCrawlerTransform.Tests.ps1"],
+    "tools/crawlers/csv/CSVCrawler.Transform.ps1": ["test/unit/CSVCrawlerTransform.Tests.ps1"]
   },
   "coveredLinesOnly": true,
   "operators": ["BinaryOperator", "BooleanLiteral", "NumberLiteral", "NegationRemoval"],

@@ -32,13 +32,6 @@
       226,
       42
     ],
-    "tools/crawlers/csv/CSVCrawler.Functions.ps1": [
-      24,
-      18
-    ],
-    "tools/crawlers/csv/Start-CSVCrawler.ps1": [
-      311
-    ],
     "tools/crawlers/entra-id/EntraIDCrawler.Functions.ps1": [
       34,
       26,

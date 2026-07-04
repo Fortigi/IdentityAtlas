@@ -34,7 +34,10 @@ if (-not (Get-Module PSComplexity -ListAvailable | Where-Object Version -ge '0.1
 Import-Module PSComplexity
 
 # Production roots only. A path is measured when it matches an include root AND none of
-# the exclusion patterns (generated mirror, deps, build output, or non-prod scripts).
+# the exclusion patterns (generated mirror, deps, build output, git worktrees, or
+# non-prod scripts). `.claude/` holds gitignored agent git worktrees whose full repo
+# copies would otherwise be double-measured locally (they don't exist in CI), so exclude
+# it to keep local and CI measurement in agreement.
 $includeRx = 'crawlers|powershell-sdk|riskscoring|[\\/]setup[\\/]'
 $excludeRx = '[\\/](node_modules|dist|dist-node-launcher|bundled-scripts|\.claude)[\\/]' +
              '|\.Tests\.ps1$|[\\/]Test-[^\\/]*Crawler\.ps1$|[\\/]Seed-|MockODataServer|MockMidpointServer'
