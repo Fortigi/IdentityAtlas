@@ -460,70 +460,52 @@ function ConvertTo-EntraOAuth2ScopeGraph {
     $assignments      = [System.Collections.Generic.List[object]]::new()
 
     foreach ($g in $UserGrants) {
-        $clientId = $g.clientId
-        $targetId = $g.resourceId
-        $userId   = $g.principalId
-        if (-not $clientId -or -not $targetId -or -not $userId) { continue }
-
-        $clientInfo = $SpInfo[$clientId]
-        $targetInfo = $SpInfo[$targetId]
-        $clientName = if ($clientInfo) { $clientInfo.displayName } else { $clientId }
-        $targetName = if ($targetInfo) { $targetInfo.displayName } else { $targetId }
-
-        $scopeTokens = @()
-        if ($g.scope) {
-            $scopeTokens = @($g.scope -split '\s+' | Where-Object { $_ -ne '' })
-        }
-        if ($scopeTokens.Count -eq 0) { continue }
-
-        foreach ($scope in $scopeTokens) {
-            $scopeResId = New-OAuth2ScopeResourceId -ClientSpId $clientId -TargetApiSpId $targetId -Scope $scope
-            if (-not $scopeResourceMap.ContainsKey($scopeResId)) {
-                $scopeResourceMap[$scopeResId] = @{
-                    id           = $scopeResId
-                    displayName  = (Format-FGDelegatedPermissionName -Scope $scope -TargetName $targetName -ClientName $clientName)
-                    resourceType = 'DelegatedPermission'
-                    enabled      = $true
-                    extendedAttributes = @{
-                        clientSpId           = $clientId
-                        clientDisplayName    = $clientName
-                        targetApiSpId        = $targetId
-                        targetApiDisplayName = $targetName
-                        scope                = $scope
-                    }
-                }
-            }
-            $relKey = "$clientId|$scopeResId"
-            if (-not $relMap.ContainsKey($relKey)) {
-                $relMap[$relKey] = @{
-                    parentResourceId = $clientId
-                    childResourceId  = $scopeResId
-                    relationshipType = 'DelegatesScope'
-                    roleName         = $scope
-                    roleOriginSystem = 'OAuth2'
-                }
-            }
-            $assignments.Add(@{
-                resourceId     = $scopeResId
-                principalId    = $userId
-                principalType  = 'User'
-                assignmentType = 'Direct'
-                resourceType   = 'DelegatedPermission'
-                extendedAttributes = @{
-                    grantId              = $g.id
-                    clientSpId           = $clientId
-                    clientDisplayName    = $clientName
-                    targetApiSpId        = $targetId
-                    targetApiDisplayName = $targetName
-                    scope                = $scope
-                }
-            })
-        }
+        Add-EntraOAuth2GrantToScopeGraph -Grant $g -SpInfo $SpInfo `
+            -ScopeResourceMap $scopeResourceMap -RelMap $relMap -Assignments $assignments
     }
     return @{
         resources     = @($scopeResourceMap.Values)
         relationships = @($relMap.Values)
         assignments   = @($assignments)
+    }
+}
+
+# Fold one per-user OAuth2 grant into the scope graph: one DelegatedPermission
+# Resource + DelegatesScope relationship per (client, api, scope) and one Direct
+# assignment (user → scope resource) per scope. Maps/list are mutated in place.
+function Add-EntraOAuth2GrantToScopeGraph {
+    [CmdletBinding()]
+    param($Grant, [hashtable]$SpInfo, [hashtable]$ScopeResourceMap, [hashtable]$RelMap, $Assignments)
+    $clientId = $Grant.clientId; $targetId = $Grant.resourceId; $userId = $Grant.principalId
+    if (-not $clientId -or -not $targetId -or -not $userId) { return }
+
+    $clientName = if ($SpInfo[$clientId]) { $SpInfo[$clientId].displayName } else { $clientId }
+    $targetName = if ($SpInfo[$targetId]) { $SpInfo[$targetId].displayName } else { $targetId }
+    $scopeTokens = if ($Grant.scope) { @($Grant.scope -split '\s+' | Where-Object { $_ -ne '' }) } else { @() }
+
+    foreach ($scope in $scopeTokens) {
+        $scopeResId = New-OAuth2ScopeResourceId -ClientSpId $clientId -TargetApiSpId $targetId -Scope $scope
+        if (-not $ScopeResourceMap.ContainsKey($scopeResId)) {
+            $ScopeResourceMap[$scopeResId] = @{
+                id           = $scopeResId
+                displayName  = (Format-FGDelegatedPermissionName -Scope $scope -TargetName $targetName -ClientName $clientName)
+                resourceType = 'DelegatedPermission'
+                enabled      = $true
+                extendedAttributes = @{ clientSpId = $clientId; clientDisplayName = $clientName; targetApiSpId = $targetId; targetApiDisplayName = $targetName; scope = $scope }
+            }
+        }
+        $relKey = "$clientId|$scopeResId"
+        if (-not $RelMap.ContainsKey($relKey)) {
+            $RelMap[$relKey] = @{ parentResourceId = $clientId; childResourceId = $scopeResId; relationshipType = 'DelegatesScope'; roleName = $scope; roleOriginSystem = 'OAuth2' }
+        }
+        $Assignments.Add(@{
+            resourceId     = $scopeResId
+            principalId    = $userId
+            principalType  = 'User'
+            assignmentType = 'Direct'
+            resourceType   = 'DelegatedPermission'
+            extendedAttributes = @{ grantId = $Grant.id; clientSpId = $clientId; clientDisplayName = $clientName; targetApiSpId = $targetId; targetApiDisplayName = $targetName; scope = $scope }
+        })
     }
 }
 
@@ -742,8 +724,112 @@ function ConvertTo-EntraDirectoryRoleEligibility {
     }
 }
 
-# Builds the two adjacency maps the nested-group expansion walks, from the flat
-# direct-membership edge list: group -> its nested child groups, and group -> its
+# Resolve the access-package id an access-review definition targets, tolerating
+# both the old `scope.query` and newer `resourceScope.query` / `scopes[].query`
+# shapes, and both the path-style (.../accessPackages/<uuid>/...) and filter-style
+# ("accessPackage/id eq '<uuid>'") query forms. Returns
+# @{ apId; reason; queryStrings } where reason is 'ok' | 'noscope' | 'nomatch'.
+# Verbatim from the inline access-review scope-matching block.
+function Resolve-EntraAccessReviewApId {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] $Definition)
+    $queryStrings = Get-EntraReviewQueryStrings -Definition $Definition
+    if ($queryStrings.Count -eq 0) {
+        return @{ apId = $null; reason = 'noscope'; queryStrings = @() }
+    }
+    $apId = Find-EntraAccessPackageId -QueryStrings $queryStrings
+    if (-not $apId) {
+        return @{ apId = $null; reason = 'nomatch'; queryStrings = $queryStrings }
+    }
+    return @{ apId = $apId; reason = 'ok'; queryStrings = $queryStrings }
+}
+
+# Every OData filter query string on a review definition (scope / resourceScope / scopes[]).
+function Get-EntraReviewQueryStrings {
+    [CmdletBinding()]
+    param($Definition)
+    $q = @()
+    if ($Definition.scope         -and $Definition.scope.query)         { $q += $Definition.scope.query }
+    if ($Definition.resourceScope -and $Definition.resourceScope.query) { $q += $Definition.resourceScope.query }
+    foreach ($s in @($Definition.scopes)) {
+        if ($s.query) { $q += $s.query }
+    }
+    return $q
+}
+
+# The first access-package GUID matched in any query string (path-style or `id eq`), or $null.
+function Find-EntraAccessPackageId {
+    [CmdletBinding()]
+    param([string[]]$QueryStrings)
+    foreach ($q in $QueryStrings) {
+        if ($q -match "accessPackages/([0-9a-fA-F-]{36})")           { return $Matches[1] }
+        if ($q -match "accessPackage/id eq '([0-9a-fA-F-]{36})'")    { return $Matches[1] }
+    }
+    return $null
+}
+
+# Shape one filtered user into an Identities ingest record, carrying the
+# configured custom attributes into extendedAttributes. Verbatim from the inline
+# `$idRec = @{ ... }` block in the identity sub-sync. Get-UserAttrValue lives in
+# EntraIDCrawler.Functions.ps1.
+function ConvertTo-EntraIdentityRecord {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] $User,
+        [string[]]$CustomUserAttributes = @()
+    )
+    $u = $User
+    $idRec = @{
+        id          = $u.id
+        displayName = $u.displayName
+        email       = $u.mail ?? $u.userPrincipalName
+        department  = $u.department
+        jobTitle    = $u.jobTitle
+        companyName = $u.companyName
+        employeeId  = $u.employeeId
+    }
+    # Identities also get custom attributes in extendedAttributes
+    if ($CustomUserAttributes.Count -gt 0) {
+        $ext = @{}
+        foreach ($a in $CustomUserAttributes) {
+            $v = Get-UserAttrValue -User $u -AttrName $a
+            if ($null -ne $v -and $v -ne '') { $ext[$a] = $v }
+        }
+        if ($ext.Count -gt 0) { $idRec['extendedAttributes'] = $ext }
+    }
+    return $idRec
+}
+
+# Shape one access-review decision into a CertificationDecisions ingest record.
+# Verbatim from the inline `$certRecords += @{ ... }` block.
+function ConvertTo-EntraCertificationDecisionRecord {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] $Decision,
+        [Parameter(Mandatory)] $Definition,
+        [Parameter(Mandatory)] $Instance,
+        [string]$ApId
+    )
+    $d = $Decision
+    return @{
+        id                          = $d.id
+        resourceId                  = $ApId
+        principalId                 = if ($d.principal) { $d.principal.id } else { $null }
+        principalDisplayName        = if ($d.principal) { $d.principal.displayName } else { $null }
+        decision                    = $d.decision
+        recommendation              = $d.recommendation
+        justification               = $d.justification
+        reviewedBy                  = if ($d.reviewedBy) { $d.reviewedBy.id } else { $null }
+        reviewedByDisplayName       = if ($d.reviewedBy) { $d.reviewedBy.displayName } else { $null }
+        reviewedDateTime            = $d.reviewedDateTime
+        reviewDefinitionId          = $Definition.id
+        reviewInstanceId            = $Instance.id
+        reviewInstanceStatus        = $Instance.status
+        reviewInstanceStartDateTime = $Instance.startDateTime
+        reviewInstanceEndDateTime   = $Instance.endDateTime
+    }
+}
+
 # direct user members. Pure; no I/O. Extracted so the expansion below stays flat.
 function Get-EntraGroupAdjacency {
     [CmdletBinding()]

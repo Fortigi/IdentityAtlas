@@ -36,7 +36,7 @@ Import-Module PSComplexity
 # Production roots only. A path is measured when it matches an include root AND none of
 # the exclusion patterns (generated mirror, deps, build output, or non-prod scripts).
 $includeRx = 'crawlers|powershell-sdk|riskscoring|[\\/]setup[\\/]'
-$excludeRx = '[\\/](node_modules|dist|dist-node-launcher|bundled-scripts)[\\/]' +
+$excludeRx = '[\\/](node_modules|dist|dist-node-launcher|bundled-scripts|\.claude)[\\/]' +
              '|\.Tests\.ps1$|[\\/]Test-[^\\/]*Crawler\.ps1$|[\\/]Seed-|MockODataServer|MockMidpointServer'
 
 if ($Path) {

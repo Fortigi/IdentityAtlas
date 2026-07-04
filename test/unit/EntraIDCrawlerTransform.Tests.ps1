@@ -334,6 +334,26 @@ Describe 'Add-EntraSignInEventToAggregate' {
         $agg['u1|sp1'].lastFailedSignInDateTime     | Should -Be '2026-03-01T00:00:00Z'
         $agg['u1|sp1'].lastSuccessfulSignInDateTime | Should -BeNullOrEmpty
     }
+
+    It 'advances lastSuccessful/lastFailed when a newer event arrives' {
+        $agg = @{}; $map = @{ a1 = 'sp1' }
+        Add-EntraSignInEventToAggregate -SignInEvent ([pscustomobject]@{ userId='u1'; appId='a1'; createdDateTime='2026-01-01T00:00:00Z'; status=[pscustomobject]@{ errorCode=0 } })     -Aggregate $agg -AppIdToSpId $map | Out-Null
+        Add-EntraSignInEventToAggregate -SignInEvent ([pscustomobject]@{ userId='u1'; appId='a1'; createdDateTime='2026-02-01T00:00:00Z'; status=[pscustomobject]@{ errorCode=0 } })     -Aggregate $agg -AppIdToSpId $map | Out-Null
+        Add-EntraSignInEventToAggregate -SignInEvent ([pscustomobject]@{ userId='u1'; appId='a1'; createdDateTime='2026-04-01T00:00:00Z'; status=[pscustomobject]@{ errorCode=50126 } }) -Aggregate $agg -AppIdToSpId $map | Out-Null
+        Add-EntraSignInEventToAggregate -SignInEvent ([pscustomobject]@{ userId='u1'; appId='a1'; createdDateTime='2026-05-01T00:00:00Z'; status=[pscustomobject]@{ errorCode=50126 } }) -Aggregate $agg -AppIdToSpId $map | Out-Null
+        $agg['u1|sp1'].lastSuccessfulSignInDateTime | Should -Be '2026-02-01T00:00:00Z'
+        $agg['u1|sp1'].lastFailedSignInDateTime     | Should -Be '2026-05-01T00:00:00Z'
+    }
+
+    It 'does not downgrade lastSuccessful/lastFailed when an older event arrives' {
+        $agg = @{}; $map = @{ a1 = 'sp1' }
+        Add-EntraSignInEventToAggregate -SignInEvent ([pscustomobject]@{ userId='u1'; appId='a1'; createdDateTime='2026-02-01T00:00:00Z'; status=[pscustomobject]@{ errorCode=0 } })     -Aggregate $agg -AppIdToSpId $map | Out-Null
+        Add-EntraSignInEventToAggregate -SignInEvent ([pscustomobject]@{ userId='u1'; appId='a1'; createdDateTime='2026-01-01T00:00:00Z'; status=[pscustomobject]@{ errorCode=0 } })     -Aggregate $agg -AppIdToSpId $map | Out-Null
+        Add-EntraSignInEventToAggregate -SignInEvent ([pscustomobject]@{ userId='u1'; appId='a1'; createdDateTime='2026-05-01T00:00:00Z'; status=[pscustomobject]@{ errorCode=50126 } }) -Aggregate $agg -AppIdToSpId $map | Out-Null
+        Add-EntraSignInEventToAggregate -SignInEvent ([pscustomobject]@{ userId='u1'; appId='a1'; createdDateTime='2026-04-01T00:00:00Z'; status=[pscustomobject]@{ errorCode=50126 } }) -Aggregate $agg -AppIdToSpId $map | Out-Null
+        $agg['u1|sp1'].lastSuccessfulSignInDateTime | Should -Be '2026-02-01T00:00:00Z'
+        $agg['u1|sp1'].lastFailedSignInDateTime     | Should -Be '2026-05-01T00:00:00Z'
+    }
 }
 
 Describe 'ConvertTo-EntraPimRecord' {
@@ -525,6 +545,7 @@ Describe 'ConvertTo-EntraAppRoleApplicationResource' {
         $sp = [pscustomobject]@{ id = 'sp1'; displayName = 'CRM'; appId = 'app-1'; appRoleAssignmentRequired = $true; servicePrincipalType = 'Application' }
         $rec = ConvertTo-EntraAppRoleApplicationResource -ServicePrincipal $sp
         $rec['resourceType'] | Should -Be 'Application'
+        $rec['enabled']      | Should -BeTrue
         $rec['extendedAttributes']['appId']                     | Should -Be 'app-1'
         $rec['extendedAttributes']['appRoleAssignmentRequired'] | Should -BeTrue
     }
@@ -555,6 +576,7 @@ Describe 'New-EntraAppRoleResourceRecord' {
         $rec['id']           | Should -Be 'res-1'
         $rec['displayName']  | Should -Be 'Reader on CRM'
         $rec['resourceType'] | Should -Be 'AppRole'
+        $rec['enabled']      | Should -BeTrue
         $rec['extendedAttributes']['appRoleId']    | Should -Be 'r1'
         $rec['extendedAttributes']['appRoleValue'] | Should -Be 'Reader.Role'
     }
