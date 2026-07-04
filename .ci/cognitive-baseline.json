@@ -64,16 +64,6 @@
     "tools/crawlers/odata/Invoke-ODataGetRequest.ps1": [
       70
     ],
-    "tools/crawlers/omada/OmadaCrawler.Functions.ps1": [
-      18
-    ],
-    "tools/crawlers/omada/OmadaCrawler.Transform.ps1": [
-      23,
-      17
-    ],
-    "tools/crawlers/omada/Start-OmadaCrawler.ps1": [
-      450
-    ],
     "tools/crawlers/shared/Invoke-CrawlerIngest.ps1": [
       31
     ],
