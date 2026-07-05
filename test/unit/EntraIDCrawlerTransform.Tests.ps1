@@ -222,6 +222,80 @@ Describe 'ConvertTo-EntraSpActivityRecord' {
     }
 }
 
+Describe 'Get-EntraGroupClassification' {
+
+    It 'classifies an assigned cloud security group and marks it access-package eligible' {
+        $g = [pscustomobject]@{ groupTypes = @(); securityEnabled = $true; mailEnabled = $false }
+        $c = Get-EntraGroupClassification -Group $g
+        $c['groupCategory']         | Should -Be 'SecurityGroup'
+        $c['membershipType']        | Should -Be 'Assigned'
+        $c['sourceOfAuthority']     | Should -Be 'Cloud'
+        $c['accessPackageEligible'] | Should -BeTrue
+    }
+
+    It 'folds dynamic into the label and blocks access-package eligibility' {
+        $g = [pscustomobject]@{ groupTypes = @('DynamicMembership'); securityEnabled = $true; mailEnabled = $false }
+        $c = Get-EntraGroupClassification -Group $g
+        $c['groupCategory']         | Should -Be 'DynamicSecurityGroup'
+        $c['membershipType']        | Should -Be 'Dynamic'
+        $c['accessPackageEligible'] | Should -BeFalse
+    }
+
+    It 'classifies a Microsoft 365 group (no team) as Microsoft365, eligible' {
+        $g = [pscustomobject]@{ groupTypes = @('Unified'); securityEnabled = $false; mailEnabled = $true }
+        $c = Get-EntraGroupClassification -Group $g
+        $c['groupCategory']         | Should -Be 'Microsoft365'
+        $c['accessPackageEligible'] | Should -BeTrue
+    }
+
+    It 'classifies a dynamic Microsoft 365 group as DynamicMicrosoft365' {
+        $g = [pscustomobject]@{ groupTypes = @('Unified','DynamicMembership'); securityEnabled = $false; mailEnabled = $true }
+        (Get-EntraGroupClassification -Group $g)['groupCategory'] | Should -Be 'DynamicMicrosoft365'
+    }
+
+    It 'classifies a teamified Microsoft 365 group as Team' {
+        $g = [pscustomobject]@{ groupTypes = @('Unified'); securityEnabled = $false; mailEnabled = $true; resourceProvisioningOptions = @('Team') }
+        $c = Get-EntraGroupClassification -Group $g
+        $c['groupCategory']         | Should -Be 'Team'
+        $c['accessPackageEligible'] | Should -BeTrue
+    }
+
+    It 'classifies a dynamic team as DynamicTeam' {
+        $g = [pscustomobject]@{ groupTypes = @('Unified','DynamicMembership'); securityEnabled = $false; mailEnabled = $true; resourceProvisioningOptions = @('Team') }
+        (Get-EntraGroupClassification -Group $g)['groupCategory'] | Should -Be 'DynamicTeam'
+    }
+
+    It 'classifies a distribution list and never marks it dynamic or eligible' {
+        $g = [pscustomobject]@{ groupTypes = @(); securityEnabled = $false; mailEnabled = $true }
+        $c = Get-EntraGroupClassification -Group $g
+        $c['groupCategory']         | Should -Be 'DistributionList'
+        $c['accessPackageEligible'] | Should -BeFalse
+    }
+
+    It 'classifies a mail-enabled security group' {
+        $g = [pscustomobject]@{ groupTypes = @(); securityEnabled = $true; mailEnabled = $true }
+        $c = Get-EntraGroupClassification -Group $g
+        $c['groupCategory']         | Should -Be 'MailEnabledSecurity'
+        $c['accessPackageEligible'] | Should -BeFalse
+    }
+
+    It 'reports on-prem-synced source of authority and blocks eligibility' {
+        $g = [pscustomobject]@{ groupTypes = @(); securityEnabled = $true; mailEnabled = $false; onPremisesSyncEnabled = $true }
+        $c = Get-EntraGroupClassification -Group $g
+        $c['sourceOfAuthority']     | Should -Be 'OnPremises'
+        $c['accessPackageEligible'] | Should -BeFalse
+    }
+
+    It 'treats a group as assigned when only a stale membershipRule lingers (groupTypes has no DynamicMembership)' {
+        # membershipRule is left behind after a dynamic→assigned conversion;
+        # groupTypes is authoritative, so this must NOT classify as dynamic.
+        $g = [pscustomobject]@{ groupTypes = @(); securityEnabled = $true; mailEnabled = $false; membershipRule = 'user.department -eq "IT"' }
+        $c = Get-EntraGroupClassification -Group $g
+        $c['groupCategory']  | Should -Be 'SecurityGroup'
+        $c['membershipType'] | Should -Be 'Assigned'
+    }
+}
+
 Describe 'ConvertTo-EntraGroupResourceRecord' {
 
     It 'maps a group to an EntraGroup resource with joined groupTypes' {
@@ -238,6 +312,33 @@ Describe 'ConvertTo-EntraGroupResourceRecord' {
         $rec['extendedAttributes']['groupTypes']      | Should -Be 'Unified'
         $rec['extendedAttributes']['securityEnabled'] | Should -BeFalse
         $rec['extendedAttributes']['mailEnabled']     | Should -BeTrue
+    }
+
+    It 'stamps the derived groupCategory + facets into extendedAttributes' {
+        $group = [pscustomobject]@{
+            id = 'g1t'; displayName = 'Project Team'
+            groupTypes = @('Unified'); securityEnabled = $false; mailEnabled = $true
+            resourceProvisioningOptions = @('Team')
+        }
+        $ext = (ConvertTo-EntraGroupResourceRecord -Group $group)['extendedAttributes']
+        $ext['groupCategory']               | Should -Be 'Team'
+        $ext['membershipType']              | Should -Be 'Assigned'
+        $ext['sourceOfAuthority']           | Should -Be 'Cloud'
+        $ext['accessPackageEligible']       | Should -BeTrue
+        $ext['resourceProvisioningOptions'] | Should -Be 'Team'
+    }
+
+    It 'carries a lingering membershipRule into ext for display without classifying dynamic' {
+        $group = [pscustomobject]@{
+            id = 'g1r'; displayName = 'Ex-Dynamic'
+            groupTypes = @(); securityEnabled = $true; mailEnabled = $false
+            membershipRule = 'user.department -eq "IT"'; membershipRuleProcessingState = 'Paused'
+        }
+        $ext = (ConvertTo-EntraGroupResourceRecord -Group $group)['extendedAttributes']
+        $ext['membershipRule']                | Should -Be 'user.department -eq "IT"'
+        $ext['membershipRuleProcessingState'] | Should -Be 'Paused'
+        $ext['groupCategory']                 | Should -Be 'SecurityGroup'
+        $ext['membershipType']                | Should -Be 'Assigned'
     }
 
     It 'joins multiple groupTypes into a comma string' {
