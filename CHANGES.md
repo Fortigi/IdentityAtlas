@@ -1,5 +1,11 @@
 ## Changes in this PR
 
+- Added a `groupCategory` attribute to every Entra group (Team, Microsoft365, SecurityGroup, DistributionList, MailEnabledSecurity — with a `Dynamic` prefix where dynamic membership applies), so analysts can tell at a glance what kind of group they're dealing with and filter on it in the Excel export.
+- Added supporting group facets: `membershipType` (Assigned/Dynamic), `sourceOfAuthority` (Cloud/OnPremises, i.e. synced from on-prem AD or not), and `accessPackageEligible` (whether the group can be used in an access package).
+- Group dynamic-vs-assigned is now determined from the authoritative Entra flag, so a group that was converted from dynamic back to assigned is classified correctly even if a stale membership rule lingers.
+
+## Changes in this PR
+
 - Internal: extracted the CSV crawler's Systems, Contexts, and ContextMembers sync phases out of the monolithic entry point into unit-tested `Sync-Csv*` functions and pure `ConvertTo-Csv*Record` record-shapers (no functional change to what gets imported).
 - Internal: extracted the CSV crawler's Resources and ResourceRelationships sync phases into unit-tested `Sync-Csv*` functions and pure record-shapers (no functional change to what gets imported).
 - Internal: extracted the CSV crawler's Users (principals) and Assignments sync phases into unit-tested `Sync-Csv*` functions and pure record-shapers (no functional change to what gets imported).
