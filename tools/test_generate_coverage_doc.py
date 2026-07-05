@@ -73,6 +73,40 @@ def test_fmt_pct_and_badge_color():
     assert gcd.badge_color(10) == "red"
 
 
+# ── collect_rows / render_row ─────────────────────────────────────────────────
+
+def test_collect_rows_totals_and_side_inputs(tmp_path):
+    cov = tmp_path / "coverage"
+    _write(str(cov / "powershell" / "Summary.json"), {"summary": {
+        "linecoverage": 80.0, "coveredlines": 100, "coverablelines": 200,
+    }})
+    _write(str(cov / "powershell" / "complexity.json"), [{"cc": 4, "cog": 9}])
+    _write(str(cov / "powershell" / "mutation.json"), {"mutationScore": 50.0})
+
+    rows, covered, coverable = gcd.collect_rows(str(cov))
+    assert (covered, coverable) == (100, 200)
+    by_slug = {slug: data for slug, _, data in rows}
+    # PowerShell suite carries parsed coverage + aggregated side-inputs.
+    assert by_slug["powershell"]["line"] == 80.0
+    assert by_slug["powershell"]["complexity"]["cyclo_max"] == 4
+    assert by_slug["powershell"]["mutation"]["score"] == 50.0
+    # Suites with no Summary.json collapse to None.
+    assert by_slug["api"] is None and by_slug["ui"] is None
+
+
+def test_render_row_missing_suite_is_all_dashes():
+    assert gcd.render_row("ui", "UI", None, "../coverage") == \
+        "| UI | — | — | — | — | — | — | _no report_ |"
+
+
+def test_render_row_without_side_inputs_dashes_new_columns():
+    data = {"line": 73.3, "branch": None, "method": 76.0,
+            "covered": 10, "coverable": 20, "complexity": None, "mutation": None}
+    row = gcd.render_row("api", "API", data, "../coverage")
+    assert row.endswith("| — | — | — | 10 / 20 |")
+    assert "[API](../coverage/api/index.html)" in row
+
+
 # ── end-to-end render ─────────────────────────────────────────────────────────
 
 def _write(path, obj):

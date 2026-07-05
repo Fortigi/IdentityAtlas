@@ -149,47 +149,60 @@ def shield(label, value):
     return f"https://img.shields.io/badge/{safe_label}-{shown}-{color}"
 
 
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--coverage-dir", default="docs/coverage")
-    ap.add_argument("--out", default="docs/reference/coverage.md")
-    ap.add_argument("--commit", default=os.environ.get("GITHUB_SHA", ""))
-    ap.add_argument("--report-base", default="../coverage",
-                    help="Relative path from the page to the coverage report root.")
-    args = ap.parse_args()
-
+def collect_rows(coverage_dir):
+    """Load each suite's ReportGenerator summary plus its optional complexity /
+    mutation side-inputs into ``(slug, label, data|None)`` rows. Returns the rows
+    along with the running overall covered / coverable line totals."""
     rows = []
     overall_covered = 0
     overall_coverable = 0
     for slug, label in SUITES:
-        summary = load_summary(args.coverage_dir, slug)
+        summary = load_summary(coverage_dir, slug)
         if summary is None:
             rows.append((slug, label, None))
             continue
-        line_cov = pct(summary.get("linecoverage"))
-        branch_cov = pct(summary.get("branchcoverage"))
-        method_cov = pct(summary.get("methodcoverage"))
         covered = int(summary.get("coveredlines", 0) or 0)
         coverable = int(summary.get("coverablelines", 0) or 0)
         overall_covered += covered
         overall_coverable += coverable
         # Optional deeper-quality side-inputs (PowerShell supplies both today).
-        complexity = complexity_stats(load_json(args.coverage_dir, slug, "complexity.json"))
-        mutation = mutation_stats(load_json(args.coverage_dir, slug, "mutation.json"))
+        complexity = complexity_stats(load_json(coverage_dir, slug, "complexity.json"))
+        mutation = mutation_stats(load_json(coverage_dir, slug, "mutation.json"))
         rows.append((slug, label, {
-            "line": line_cov,
-            "branch": branch_cov,
-            "method": method_cov,
+            "line": pct(summary.get("linecoverage")),
+            "branch": pct(summary.get("branchcoverage")),
+            "method": pct(summary.get("methodcoverage")),
             "covered": covered,
             "coverable": coverable,
             "complexity": complexity,
             "mutation": mutation,
         }))
+    return rows, overall_covered, overall_coverable
 
+
+def render_row(slug, label, data, report_base):
+    """Render one suite's Markdown table row. ``data`` is None for a missing suite
+    (all-dash row); otherwise it is the dict assembled in ``collect_rows``."""
+    if data is None:
+        return f"| {label} | — | — | — | — | — | — | _no report_ |"
+    report_link = f"[{label}]({report_base}/{slug}/index.html)"
+    covered_cell = f"{data['covered']:,} / {data['coverable']:,}"
+    cx = data["complexity"]
+    cyclo_cell = fmt_avg_max(cx["cyclo_avg"], cx["cyclo_max"]) if cx else "—"
+    cog_cell = fmt_avg_max(cx["cog_avg"], cx["cog_max"]) if cx else "—"
+    mut = data["mutation"]
+    mut_cell = fmt_pct(mut["score"]) if mut else "—"
+    return (
+        f"| {report_link} | {fmt_pct(data['line'])} | {fmt_pct(data['branch'])} "
+        f"| {fmt_pct(data['method'])} | {cyclo_cell} | {cog_cell} | {mut_cell} "
+        f"| {covered_cell} |"
+    )
+
+
+def render_markdown(rows, overall_covered, overall_coverable, report_base, commit, generated):
+    """Assemble the full ``coverage.md`` text from collected rows."""
     overall = (100.0 * overall_covered / overall_coverable) if overall_coverable else None
-
-    generated = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-    commit = args.commit.strip()
+    commit = commit.strip()
     commit_short = commit[:8] if commit else ""
 
     lines = []
@@ -213,21 +226,7 @@ def main():
     lines.append("| Suite | Line | Branch | Method | Cyclomatic | Cognitive | Mutation | Lines covered |")
     lines.append("|-------|------|--------|--------|------------|-----------|----------|---------------|")
     for slug, label, data in rows:
-        if data is None:
-            lines.append(f"| {label} | — | — | — | — | — | — | _no report_ |")
-            continue
-        report_link = f"[{label}]({args.report_base}/{slug}/index.html)"
-        covered_cell = f"{data['covered']:,} / {data['coverable']:,}"
-        cx = data["complexity"]
-        cyclo_cell = fmt_avg_max(cx["cyclo_avg"], cx["cyclo_max"]) if cx else "—"
-        cog_cell = fmt_avg_max(cx["cog_avg"], cx["cog_max"]) if cx else "—"
-        mut = data["mutation"]
-        mut_cell = fmt_pct(mut["score"]) if mut else "—"
-        lines.append(
-            f"| {report_link} | {fmt_pct(data['line'])} | {fmt_pct(data['branch'])} "
-            f"| {fmt_pct(data['method'])} | {cyclo_cell} | {cog_cell} | {mut_cell} "
-            f"| {covered_cell} |"
-        )
+        lines.append(render_row(slug, label, data, report_base))
     lines.append(f"| **Overall** | **{fmt_pct(overall)}** | | | | | | "
                  f"**{overall_covered:,} / {overall_coverable:,}** |")
     lines.append("")
@@ -247,7 +246,7 @@ def main():
         if data is None:
             lines.append(f"- {label} — _no report for this version_")
         else:
-            lines.append(f"- [{label}]({args.report_base}/{slug}/index.html)")
+            lines.append(f"- [{label}]({report_base}/{slug}/index.html)")
     lines.append("")
     footer = f"_Generated {generated}"
     if commit_short:
@@ -255,10 +254,26 @@ def main():
     footer += "._"
     lines.append(footer)
     lines.append("")
+    return "\n".join(lines)
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--coverage-dir", default="docs/coverage")
+    ap.add_argument("--out", default="docs/reference/coverage.md")
+    ap.add_argument("--commit", default=os.environ.get("GITHUB_SHA", ""))
+    ap.add_argument("--report-base", default="../coverage",
+                    help="Relative path from the page to the coverage report root.")
+    args = ap.parse_args()
+
+    rows, overall_covered, overall_coverable = collect_rows(args.coverage_dir)
+    generated = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    text = render_markdown(rows, overall_covered, overall_coverable,
+                           args.report_base, args.commit, generated)
 
     os.makedirs(os.path.dirname(args.out), exist_ok=True)
     with open(args.out, "w", encoding="utf-8", newline="\n") as fh:
-        fh.write("\n".join(lines))
+        fh.write(text)
 
     print(f"Wrote {args.out} ({overall_coverable:,} coverable lines across "
           f"{sum(1 for _, _, d in rows if d)} suite(s))")
