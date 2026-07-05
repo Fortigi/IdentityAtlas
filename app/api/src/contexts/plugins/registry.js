@@ -14,6 +14,7 @@ import orphanedAccounts       from './orphaned-accounts.js';
 import scopeHierarchy        from './scope-hierarchy.js';
 import resourceTypeTree      from './resource-type-tree.js';
 import principalTypeTree     from './principal-type-tree.js';
+import entraGroupCategoryTree from './entra-group-category-tree.js';
 import riskyConsent          from './risky-consent.js';
 
 /** @type {import('./types.js').ContextPlugin[]} */
@@ -26,6 +27,7 @@ export const REGISTERED_PLUGINS = [
   scopeHierarchy,
   resourceTypeTree,
   principalTypeTree,
+  entraGroupCategoryTree,
   riskyConsent,
 ];
 

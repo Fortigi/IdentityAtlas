@@ -1,0 +1,1 @@
+- Added an "Entra Group Category Tree" context algorithm that auto-generates a browsable tree — an "EntraID Groups" root with a child context per group category — so you can filter Entra groups by their kind in the web UI and the matrix.
