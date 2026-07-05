@@ -11,6 +11,17 @@ edge (main) and release (tag) documentation sites — see the workflow header.
 This mirrors the SBOM docs pattern (tools/update-sbom-doc.py): CI regenerates a
 curated Markdown page from a generated artifact and commits it back to main.
 
+Alongside line/branch/method coverage, the page surfaces two deeper quality
+signals that the project already measures elsewhere, when a suite supplies them:
+
+* **Complexity** — ``<coverage-dir>/<slug>/complexity.json``, the per-unit
+  ``{file, unit, line, cc, cog}`` array emitted by ``tools/complexity/measure_ps.ps1``
+  (a thin wrapper over the PSComplexity module). We aggregate it to avg / max
+  cyclomatic and cognitive complexity per suite.
+* **Mutation** — ``<coverage-dir>/<slug>/mutation.json``, the PSMutant report
+  (``{mutationScore, killed, total, …}``): the share of injected faults the tests
+  actually catch. Both are PowerShell-only today; suites without the files show —.
+
 Usage:
     python3 tools/generate-coverage-doc.py \
         --coverage-dir docs/coverage \
@@ -19,7 +30,8 @@ Usage:
 
 Each suite is expected at ``<coverage-dir>/<slug>/Summary.json`` (the JsonSummary
 ReportGenerator emits). Missing suites are skipped with a note rather than failing
-the build, so the page still renders if one suite produced no coverage.
+the build, so the page still renders if one suite produced no coverage. The
+complexity/mutation inputs are likewise optional per suite.
 """
 import argparse
 import datetime
@@ -47,6 +59,54 @@ def load_summary(coverage_dir, slug):
     return data.get("summary", data)
 
 
+def load_json(coverage_dir, slug, filename):
+    """Return the parsed JSON at ``<coverage-dir>/<slug>/<filename>``, or None if
+    the file is absent. Used for the optional complexity/mutation side-inputs."""
+    path = os.path.join(coverage_dir, slug, filename)
+    if not os.path.isfile(path):
+        return None
+    with open(path, "r", encoding="utf-8") as fh:
+        return json.load(fh)
+
+
+def complexity_stats(units):
+    """Aggregate the per-unit complexity array from tools/complexity/measure_ps.ps1
+    ([{cc, cog, ...}, ...]) into avg / max for each metric. Returns None when there
+    is nothing usable to summarise (missing file, empty array, or no numeric rows)."""
+    if not units:
+        return None
+    ccs = [int(u["cc"]) for u in units if isinstance(u, dict) and u.get("cc") is not None]
+    cogs = [int(u["cog"]) for u in units if isinstance(u, dict) and u.get("cog") is not None]
+    if not ccs or not cogs:
+        return None
+    return {
+        "units": len(units),
+        "cyclo_avg": sum(ccs) / len(ccs),
+        "cyclo_max": max(ccs),
+        "cog_avg": sum(cogs) / len(cogs),
+        "cog_max": max(cogs),
+    }
+
+
+def mutation_stats(report):
+    """Pull the headline score from a PSMutant report ({mutationScore, killed,
+    total, ...}). Returns None if the report is absent or has no numeric score."""
+    if not report:
+        return None
+    score = report.get("mutationScore")
+    if score is None:
+        return None
+    try:
+        score = float(score)
+    except (TypeError, ValueError):
+        return None
+    return {
+        "score": score,
+        "killed": int(report.get("killed", 0) or 0),
+        "total": int(report.get("total", 0) or 0),
+    }
+
+
 def pct(value):
     """ReportGenerator emits coverage as a float percent or null (no branches)."""
     if value is None:
@@ -59,6 +119,13 @@ def pct(value):
 
 def fmt_pct(value):
     return "—" if value is None else f"{value:.1f}%"
+
+
+def fmt_avg_max(avg, mx):
+    """Render an 'average / max' complexity cell (e.g. '4.7 / 165'), or — if absent."""
+    if avg is None or mx is None:
+        return "—"
+    return f"{avg:.1f} / {mx}"
 
 
 def badge_color(value):
@@ -106,12 +173,17 @@ def main():
         coverable = int(summary.get("coverablelines", 0) or 0)
         overall_covered += covered
         overall_coverable += coverable
+        # Optional deeper-quality side-inputs (PowerShell supplies both today).
+        complexity = complexity_stats(load_json(args.coverage_dir, slug, "complexity.json"))
+        mutation = mutation_stats(load_json(args.coverage_dir, slug, "mutation.json"))
         rows.append((slug, label, {
             "line": line_cov,
             "branch": branch_cov,
             "method": method_cov,
             "covered": covered,
             "coverable": coverable,
+            "complexity": complexity,
+            "mutation": mutation,
         }))
 
     overall = (100.0 * overall_covered / overall_coverable) if overall_coverable else None
@@ -129,28 +201,43 @@ def main():
     )
     lines.append("")
     lines.append(
-        "Line coverage across the project's automated test suites, regenerated on "
-        "every merge to `main`. The figures on this page reflect the version of the "
-        "docs you are viewing — **edge** tracks `main`, a released version is frozen "
-        "at its release tag."
+        "Test quality across the project's automated suites — line/branch/method "
+        "coverage plus, where measured, code complexity and mutation score — "
+        "regenerated on every merge to `main`. The figures on this page reflect the "
+        "version of the docs you are viewing — **edge** tracks `main`, a released "
+        "version is frozen at its release tag."
     )
     lines.append("")
     lines.append(f"![Overall coverage]({shield('coverage', overall)})")
     lines.append("")
-    lines.append("| Suite | Line | Branch | Method | Lines covered |")
-    lines.append("|-------|------|--------|--------|---------------|")
+    lines.append("| Suite | Line | Branch | Method | Cyclomatic | Cognitive | Mutation | Lines covered |")
+    lines.append("|-------|------|--------|--------|------------|-----------|----------|---------------|")
     for slug, label, data in rows:
         if data is None:
-            lines.append(f"| {label} | — | — | — | _no report_ |")
+            lines.append(f"| {label} | — | — | — | — | — | — | _no report_ |")
             continue
         report_link = f"[{label}]({args.report_base}/{slug}/index.html)"
         covered_cell = f"{data['covered']:,} / {data['coverable']:,}"
+        cx = data["complexity"]
+        cyclo_cell = fmt_avg_max(cx["cyclo_avg"], cx["cyclo_max"]) if cx else "—"
+        cog_cell = fmt_avg_max(cx["cog_avg"], cx["cog_max"]) if cx else "—"
+        mut = data["mutation"]
+        mut_cell = fmt_pct(mut["score"]) if mut else "—"
         lines.append(
             f"| {report_link} | {fmt_pct(data['line'])} | {fmt_pct(data['branch'])} "
-            f"| {fmt_pct(data['method'])} | {covered_cell} |"
+            f"| {fmt_pct(data['method'])} | {cyclo_cell} | {cog_cell} | {mut_cell} "
+            f"| {covered_cell} |"
         )
-    lines.append(f"| **Overall** | **{fmt_pct(overall)}** | | | "
+    lines.append(f"| **Overall** | **{fmt_pct(overall)}** | | | | | | "
                  f"**{overall_covered:,} / {overall_coverable:,}** |")
+    lines.append("")
+    lines.append(
+        "**Cyclomatic** / **Cognitive** are _average / max_ per unit (each function, "
+        "plus each script/module body) via [PSComplexity](https://github.com/Fortigi/PSComplexity); "
+        "**Mutation** is the share of injected faults the tests catch via "
+        "[PSMutant](https://github.com/Fortigi/PSMutant). Both are measured for "
+        "PowerShell today — suites without them show —."
+    )
     lines.append("")
     lines.append("## Browsable reports")
     lines.append("")
