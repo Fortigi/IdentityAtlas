@@ -20,6 +20,7 @@ import { Router } from 'express';
 import { randomUUID } from 'crypto';
 import * as db from '../db/connection.js';
 import { recalcMemberCountsForChain } from '../contexts/memberCounts.js';
+import { wouldCreateCycle } from '../contexts/cycleGuard.js';
 import { enqueueRun } from '../contexts/plugins/runner.js';
 import { requirePermission } from '../middleware/auth.js';
 
@@ -318,13 +319,10 @@ router.patch('/contexts/:id', writeContexts, async (req, res) => {
       const parent = await db.queryOne(`SELECT "targetType" FROM "Contexts" WHERE id = $1`, [body.parentContextId]);
       if (!parent) return res.status(400).json({ error: 'Parent context not found' });
       if (parent.targetType !== ctx.targetType) return res.status(400).json({ error: 'Parent has a different targetType' });
-      // Prevent cycles — walk up from proposed parent, reject if we hit this id.
-      let p = body.parentContextId;
-      for (let hop = 0; hop < 50 && p; hop++) {
-        const up = await db.queryOne(`SELECT "parentContextId" FROM "Contexts" WHERE id = $1`, [p]);
-        if (!up) break;
-        if (up.parentContextId === req.params.id) return res.status(400).json({ error: 'Proposed parent would create a cycle' });
-        p = up.parentContextId;
+      // Prevent cycles at any depth. The old fixed-50-hop JS walk silently
+      // passed trees deeper than 50; the shared guard uses a CYCLE-safe query.
+      if (await wouldCreateCycle(db, req.params.id, body.parentContextId)) {
+        return res.status(400).json({ error: 'Proposed parent would create a cycle' });
       }
       newParentId = body.parentContextId;
       parentChanged = oldParentId !== newParentId;

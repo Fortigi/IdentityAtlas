@@ -20,6 +20,15 @@
 import * as db from '../../db/connection.js';
 import { randomUUID } from 'crypto';
 import { getPlugin } from './registry.js';
+import { breakCycles } from '../cycleGuard.js';
+
+// Repair any parentContextId cycle a plugin's parent structure introduced, and
+// log if anything was broken. Kept as a module-level helper so the reconcile
+// routine that calls it stays within its complexity budget.
+async function repairPluginCycles(client, pluginName) {
+  const n = await breakCycles(client);
+  if (n) console.warn(`[context-plugin] ${pluginName}: broke ${n} cyclic parentContextId link(s)`);
+}
 
 export async function enqueueRun(pluginName, params, triggeredBy, opts = {}) {
   const plugin = getPlugin(pluginName);
@@ -284,6 +293,11 @@ async function reconcile(plugin, algorithmId, runId, params, result, instanceKey
         [id, parentId]
       );
     }
+
+    // Fix-at-source: if the plugin's parentExternalId structure formed a loop,
+    // repair the stored tree now — before the member-count roll-up below
+    // recurses it — by NULLing the offending parent link(s).
+    await repairPluginCycles(client, plugin.name);
 
     // 4) Remove contexts that previously belonged to this (algorithm, scope)
     //    but are no longer in the plugin's output.
