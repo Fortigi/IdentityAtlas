@@ -189,19 +189,22 @@ Business roles, certifications, and access policies from any IGA platform. Busin
 
 ### GitHub Actions Secrets
 
-| Secret | Required scopes | Purpose |
-|--------|----------------|---------|
-| `VERSION_BUMP_PAT` | `repo` (includes `contents:write`) | Lets `bump-version.yml`, `cut-release.yml`, and `cut-hotfix.yml` push tags and commits to `main`. |
+The version/release workflows (`bump-version.yml`, `cut-release.yml`, `cut-hotfix.yml`)
+authenticate as a **GitHub App** — `actions/create-github-app-token` mints a
+short-lived installation token that pushes tags and commits to `main` (a PAT is
+no longer used).
+
+| Secret | Purpose |
+|--------|---------|
+| `BOT_APP_ID` | Client ID of the GitHub App used to mint the installation token. |
+| `BOT_PRIVATE_KEY` | Private key (PEM) for that GitHub App. |
 
 ### Branch Protection
 
-Run once after repo creation (requires `gh` CLI authenticated as admin):
-
-```bash
-bash tools/setup-branch-protection.sh Fortigi/IdentityAtlas
-```
-
-This sets: `main` — PR required (1 approval), `PR Summary` check required, admins bypass.
+Branch protection for `main` is configured via a GitHub **repository ruleset**
+(Settings → Rules → Rulesets) — there is no setup script. The ruleset requires a
+pull request with at least 1 approval before merging to `main`. Manage it in the
+GitHub UI.
 
 ---
 
