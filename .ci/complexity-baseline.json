@@ -188,20 +188,14 @@
     "tools/crawlers/azure-rm/Start-AzureRMCrawler.ps1": [
       84
     ],
-    "tools/crawlers/csv/Start-CSVCrawler.ps1": [
-      129
-    ],
     "tools/crawlers/entra-id/EntraIDCrawler.Functions.ps1": [
       18
     ],
-    "tools/crawlers/entra-id/Start-EntraIDCrawler.ps1": [
-      251
+    "tools/crawlers/midpoint/Start-MidpointCrawler.ps1": [
+      165
     ],
     "tools/crawlers/odata/Invoke-ODataGetRequest.ps1": [
       31
-    ],
-    "tools/crawlers/omada/Start-OmadaCrawler.ps1": [
-      184
     ],
     "tools/powershell-sdk/graph/Get-FGSecureConfigValue.ps1": [
       17

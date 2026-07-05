@@ -1,96 +1,66 @@
 <#
 .SYNOPSIS
-    Emit per-unit cyclomatic complexity for production PowerShell, as JSON, for the
-    complexity ratchet (tools/complexity/ratchet.py).
+    Emit per-unit cyclomatic AND cognitive complexity for production PowerShell as JSON,
+    for the complexity ratchet (tools/complexity/ratchet.py).
 
 .DESCRIPTION
-    Parses every production .ps1/.psm1 with the PowerShell AST and reports the
-    cyclomatic complexity of each UNIT: every function/filter body, plus a synthetic
-    '<script-body>' unit per file for the top-level code (the part that is NOT inside
-    any function — this is what makes a monolithic Start-*Crawler.ps1 body visible as
-    one high-CC unit instead of hiding between its helpers).
+    Measurement is delegated to the published PSComplexity module
+    (https://github.com/Fortigi/PSComplexity) -- a faithful, reference-validated
+    SonarSource cognitive metric plus classic cyclomatic -- instead of a bundled measurer.
+    This script only (a) selects the production PowerShell files (same include/exclude
+    scope as before) and (b) maps PSComplexity's output to the ratchet's JSON contract:
 
-    Cyclomatic complexity = 1 + decision points, where a decision point is: each
-    if/elseif clause, each switch clause, each foreach/for/while/do loop, each
-    catch/trap, each ternary, and each -and/-or in a boolean expression. Each
-    decision point is attributed to its NEAREST enclosing function (or the script
-    body), so nested functions are counted independently.
+        [ { "file": "<repo-relative>", "unit": "<name|<script-body>>", "line": <int>,
+            "cc": <int>, "cog": <int> }, ... ]
 
-    Excludes generated mirrors (bundled-scripts), dependencies, build output, and
-    non-production scripts (tests, CI test harnesses, mock servers, dev seeders) —
-    the ratchet gates production code only.
+    Cyclomatic numbers are identical to the previous bundled measurer; cognitive matches
+    except where PSComplexity is more faithful (it also counts recursion and labelled
+    break/continue). The baselines under .ci/ are generated from this output.
 
 .OUTPUTS
-    JSON array to stdout: [ { "file": "<repo-relative, forward-slash>", "unit":
-    "<name|<script-body>>", "line": <int>, "cc": <int> }, ... ]
+    JSON array to stdout.
 #>
 [CmdletBinding()]
-param()
+param(
+    # Optional: measure only this file/dir (no production filtering) -- for ad-hoc use.
+    [string]$Path
+)
 
 $ErrorActionPreference = 'Stop'
 
-function Get-NearestFunction {
-    param($Node)
-    $p = $Node.Parent
-    while ($p) {
-        if ($p -is [System.Management.Automation.Language.FunctionDefinitionAst]) { return $p }
-        $p = $p.Parent
-    }
-    return $null
+if (-not (Get-Module PSComplexity -ListAvailable | Where-Object Version -ge '0.1.0')) {
+    Install-Module PSComplexity -RequiredVersion 0.1.0 -Force -Scope CurrentUser
 }
+Import-Module PSComplexity
 
-# Production roots only. A path is measured when it matches an include root AND none
-# of the exclusion patterns (generated mirror, deps, build output, or non-prod scripts).
+# Production roots only. A path is measured when it matches an include root AND none of
+# the exclusion patterns (generated mirror, deps, build output, git worktrees, or
+# non-prod scripts). `.claude/` holds gitignored agent git worktrees whose full repo
+# copies would otherwise be double-measured locally (they don't exist in CI), so exclude
+# it to keep local and CI measurement in agreement.
 $includeRx = 'crawlers|powershell-sdk|riskscoring|[\\/]setup[\\/]'
-$excludeRx = '[\\/](node_modules|dist|dist-node-launcher|bundled-scripts)[\\/]' +
+$excludeRx = '[\\/](node_modules|dist|dist-node-launcher|bundled-scripts|\.claude)[\\/]' +
              '|\.Tests\.ps1$|[\\/]Test-[^\\/]*Crawler\.ps1$|[\\/]Seed-|MockODataServer|MockMidpointServer'
 
-$repoRoot = (Resolve-Path '.').Path
-$results  = [System.Collections.Generic.List[object]]::new()
+if ($Path) {
+    $files = @(Get-ChildItem -Path $Path -Recurse -Include *.ps1, *.psm1 -File)
+}
+else {
+    $files = @(Get-ChildItem -Recurse -Include *.ps1, *.psm1 -File |
+        Where-Object { $_.FullName -match $includeRx -and $_.FullName -notmatch $excludeRx })
+}
 
-$files = Get-ChildItem -Recurse -Include *.ps1, *.psm1 -File |
-    Where-Object { $_.FullName -match $includeRx -and $_.FullName -notmatch $excludeRx }
-
-foreach ($f in $files) {
-    $errs = $null
-    $ast = [System.Management.Automation.Language.Parser]::ParseFile($f.FullName, [ref]$null, [ref]$errs)
-    if ($errs) { continue }
-    $rel = $f.FullName.Substring($repoRoot.Length).TrimStart('\', '/').Replace('\', '/')
-
-    $dp   = @{}   # unitKey -> decision-point count
-    $meta = @{}   # unitKey -> @{ name; line }
-    $script:dp = $dp; $script:meta = $meta
-
-    function Add-Dp {
-        param($Node, [int]$Amount)
-        $fn = Get-NearestFunction $Node
-        if ($fn) {
-            $k = $fn.Name + '@' + $fn.Extent.StartLineNumber
-            if (-not $script:meta.ContainsKey($k)) { $script:meta[$k] = @{ name = $fn.Name; line = $fn.Extent.StartLineNumber } }
+$cwd = (Get-Location).Path
+$results = if ($files.Count) {
+    Measure-PSComplexity -Path $files.FullName | ForEach-Object {
+        [pscustomobject]@{
+            file = [System.IO.Path]::GetRelativePath($cwd, $_.File).Replace('\', '/')
+            unit = $_.Unit
+            line = $_.Line
+            cc   = $_.Cyclomatic
+            cog  = $_.Cognitive
         }
-        else {
-            $k = '<script-body>'
-            if (-not $script:meta.ContainsKey($k)) { $script:meta[$k] = @{ name = '<script-body>'; line = 1 } }
-        }
-        if (-not $script:dp.ContainsKey($k)) { $script:dp[$k] = 0 }
-        $script:dp[$k] += $Amount
-    }
-
-    foreach ($n in $ast.FindAll({ param($x) $x -is [System.Management.Automation.Language.IfStatementAst] }, $true)) { Add-Dp $n $n.Clauses.Count }
-    foreach ($n in $ast.FindAll({ param($x) $x -is [System.Management.Automation.Language.SwitchStatementAst] }, $true)) { Add-Dp $n $n.Clauses.Count }
-    foreach ($tn in 'ForEachStatementAst', 'ForStatementAst', 'WhileStatementAst', 'DoWhileStatementAst', 'DoUntilStatementAst', 'CatchClauseAst', 'TrapStatementAst', 'TernaryExpressionAst') {
-        foreach ($n in $ast.FindAll({ param($x) $x.GetType().Name -eq $tn }.GetNewClosure(), $true)) { Add-Dp $n 1 }
-    }
-    foreach ($n in $ast.FindAll({ param($x) $x -is [System.Management.Automation.Language.BinaryExpressionAst] }, $true)) {
-        if ($n.Operator -in 'And', 'Or') { Add-Dp $n 1 }
-    }
-
-    # Always emit the script body, even at CC 1 (a thin entry point should be visible).
-    if (-not $meta.ContainsKey('<script-body>')) { $meta['<script-body>'] = @{ name = '<script-body>'; line = 1 }; $dp['<script-body>'] = 0 }
-
-    foreach ($k in $dp.Keys) {
-        $results.Add([pscustomobject]@{ file = $rel; unit = $meta[$k].name; line = $meta[$k].line; cc = ($dp[$k] + 1) })
     }
 }
 
-$results | ConvertTo-Json -Depth 4 -Compress
+@($results) | ConvertTo-Json -Depth 4 -Compress

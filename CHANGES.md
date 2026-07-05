@@ -1,5 +1,58 @@
 ## Changes in this PR
 
+- Added an "Entra Group Category Tree" context algorithm that auto-generates a browsable tree — an "EntraID Groups" root with a child context per group category — so you can filter Entra groups by their kind in the web UI and the matrix.
+- Added a `groupCategory` attribute to every Entra group (Team, Microsoft365, SecurityGroup, DistributionList, MailEnabledSecurity — with a `Dynamic` prefix where dynamic membership applies), so analysts can tell at a glance what kind of group they're dealing with and filter on it in the Excel export.
+- Added supporting group facets: `membershipType` (Assigned/Dynamic), `sourceOfAuthority` (Cloud/OnPremises, i.e. synced from on-prem AD or not), and `accessPackageEligible` (whether the group can be used in an access package).
+- Group dynamic-vs-assigned is now determined from the authoritative Entra flag, so a group that was converted from dynamic back to assigned is classified correctly even if a stale membership rule lingers.
+
+## Changes in this PR
+
+- Added a `groupCategory` attribute to every Entra group (Team, Microsoft365, SecurityGroup, DistributionList, MailEnabledSecurity — with a `Dynamic` prefix where dynamic membership applies), so analysts can tell at a glance what kind of group they're dealing with and filter on it in the Excel export.
+- Added supporting group facets: `membershipType` (Assigned/Dynamic), `sourceOfAuthority` (Cloud/OnPremises, i.e. synced from on-prem AD or not), and `accessPackageEligible` (whether the group can be used in an access package).
+- Group dynamic-vs-assigned is now determined from the authoritative Entra flag, so a group that was converted from dynamic back to assigned is classified correctly even if a stale membership rule lingers.
+
+## Changes in this PR
+
+- Internal: extracted the CSV crawler's Systems, Contexts, and ContextMembers sync phases out of the monolithic entry point into unit-tested `Sync-Csv*` functions and pure `ConvertTo-Csv*Record` record-shapers (no functional change to what gets imported).
+- Internal: extracted the CSV crawler's Resources and ResourceRelationships sync phases into unit-tested `Sync-Csv*` functions and pure record-shapers (no functional change to what gets imported).
+- Internal: extracted the CSV crawler's Users (principals) and Assignments sync phases into unit-tested `Sync-Csv*` functions and pure record-shapers (no functional change to what gets imported).
+- Internal: extracted the CSV crawler's Identities, IdentityMembers, and Certifications sync phases into unit-tested `Sync-Csv*` functions and pure record-shapers (no functional change to what gets imported).
+- Internal: extracted the CSV crawler's config resolution, fallback-system registration, and post-import classify/refresh/log steps into unit-tested functions, reducing the entry point to pure orchestration below the complexity ceiling (no functional change).
+- Internal: flattened the CSV crawler's remaining deep helpers (fast-path reader, per-system dedup/send, and the resource/assignment/certification sync phases) so every unit clears the cognitive-complexity gate, with direct tests for the new column-index/dedup helpers and mutation-testing coverage of the CSV record-shapers.
+
+## Changes in this PR
+
+- Internal: extracted the Omada crawler's resource, entitlement, and view-refresh sync phases out of the monolithic entry point into unit-tested `Sync-Omada*` functions (no functional change to what gets synced).
+- Fixed: the Omada crawler's assignment phase referenced an undefined variable when computing its per-phase record summary, so the CRA-assignment count could be dropped from the sync-log breakdown.
+- Internal: extracted the Omada crawler's config resolution, connection/system-registration setup, and end-of-run summary out of the entry point into unit-tested helpers, so the entry point is now thin orchestration only.
+- Internal: flattened the Omada crawler's deepest transform and phase helpers (attribute mapping, CRA folding, role-assignment classification, resource ingest, run summary) so every unit now clears the cognitive-complexity gate, with direct tests for the new coalesce/merge/system-key helpers.
+
+## Changes in this PR
+
+- Internal: extracted the Entra ID crawler's user-principal, OAuth2 grants, app-role, directory-role, group-resource, group-assignment, PIM-eligibility, service-principal, sign-in-logs, and governance (catalogs, access packages, resource scopes, assignments, policies, access reviews) sync phases — including the filtered identity sub-sync — out of the monolithic entry point into unit-tested `Sync-Entra*` functions (no functional change to what gets synced).
+- Internal: extracted the Entra ID crawler's config resolution, run initialization, view-refresh, and end-of-run summary/finalization out of the entry point into unit-tested helpers, so the entry point is now thin orchestration only.
+- Fixed: PIM eligible group memberships were silently skipped on tenants where exactly one non-dynamic group survived filtering.
+
+## Changes in this PR
+
+- The Matrix now shows indirect members of nested Entra groups. When a security group is a member of another group, the child group's users now appear as indirect (I) members of the parent group — matching how access via an app role in a group already displayed. Previously group-in-group nesting showed no indirect members at all.
+
+## Changes in this PR
+
+- Internal: added a cognitive-complexity ratchet to CI (alongside the existing cyclomatic one) that gates PowerShell and Python code on how deeply nested / hard-to-follow it is, not just how many branches it has — flagging readability debt the cyclomatic gate misses.
+- Internal: PowerShell complexity is now measured by the published PSComplexity module (a faithful, reference-validated SonarSource cognitive metric) feeding both ratchets, instead of a bundled measurer — `measure_ps.ps1` is now a thin selector over it.
+- Internal: added PowerShell mutation testing via the published PSMutant module (report-only) over the decomposed crawler transforms — the metric that proves the tests would catch a bug, not just execute the line.
+
+## Changes in this PR
+
+- Fixed context plugins (e.g. Active Directory OU Tree) spawning a brand-new duplicate tree on every crawl instead of updating the existing one in place. Legacy trees created before per-tree instance keys were introduced now refresh onto themselves, so member counts and analyst edits are preserved and the tree list no longer explodes.
+
+## Changes in this PR
+
+- Fixed the **Next** button on the Users, Resources (Groups) and Identities list pages throwing an error when paging past the first page. The page count is only sent on the first page for export efficiency, and the UI was mishandling its absence on later pages — it now keeps the known total so pagination works across every page.
+
+## Changes in this PR
+
 - Internal maintainability: decomposed the core `/matrix/data` query handler — previously a single ~680-line function — into a thin dispatcher plus one focused function per view mode (flat grid, roll-up, context roll-up, attribute fold, inherited-access folds). Cyclomatic complexity of the largest function drops from 150 to 18. No change to matrix behaviour, endpoints, or output.
 - Internal maintainability: decomposed the risk-scoring engine's `runScoring` routine — previously a single ~600-line function — into a thin orchestrator plus one function per pass (load, score resources, score principals, membership analysis, propagation, persistence), each now separately unit-tested. Cyclomatic complexity of the largest function drops from 115 to 20. No change to risk scores, tiers, or explanations.
 - Internal maintainability: decomposed the Recent-Changes timeline builder into one focused, unit-tested handler per event type (attribute change, assignment, containment relationship, identity-link). Cyclomatic complexity of the largest function drops from 60 to 6. No change to timeline output.

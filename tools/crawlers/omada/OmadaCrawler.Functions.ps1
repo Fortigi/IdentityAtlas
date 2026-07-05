@@ -26,26 +26,33 @@ function Merge-TypeMappings {
     [CmdletBinding()]
     param($Defaults, $Overrides)
     if (-not $Overrides) { return $Defaults }
+    $overrideNames = $Overrides.PSObject.Properties.Name
     $Result = @{}
     foreach ($K in $Defaults.Keys) {
-        if ($Overrides.PSObject.Properties.Name -contains $K) {
-            $Ov = $Overrides.$K
-            if ($Ov -is [System.Management.Automation.PSCustomObject]) {
-                # Convert PSCustomObject to hashtable and merge
-                $Merged = @{}
-                foreach ($Dk in $Defaults[$K].Keys) { $Merged[$Dk] = $Defaults[$K][$Dk] }
-                foreach ($Ok in $Ov.PSObject.Properties) { $Merged[$Ok.Name] = $Ok.Value }
-                $Result[$K] = $Merged
-            } elseif ($Ov -is [array]) {
-                $Result[$K] = @($Ov)
-            } else {
-                $Result[$K] = $Ov
-            }
-        } else {
+        if ($overrideNames -contains $K) {
+            $Result[$K] = Merge-OmadaOverrideValue -DefaultValue $Defaults[$K] -Override $Overrides.$K
+        }
+        else {
             $Result[$K] = $Defaults[$K]
         }
     }
     return $Result
+}
+
+function Merge-OmadaOverrideValue {
+    # Resolve one config override against its default: a PSCustomObject is merged onto
+    # the default hashtable; an array replaces wholesale; a scalar replaces. Extracted
+    # from Merge-TypeMappings to keep both units flat.
+    [CmdletBinding()]
+    param($DefaultValue, $Override)
+    if ($Override -is [System.Management.Automation.PSCustomObject]) {
+        $Merged = @{}
+        foreach ($Dk in $DefaultValue.Keys) { $Merged[$Dk] = $DefaultValue[$Dk] }
+        foreach ($Ok in $Override.PSObject.Properties) { $Merged[$Ok.Name] = $Ok.Value }
+        return $Merged
+    }
+    if ($Override -is [array]) { return @($Override) }
+    return $Override
 }
 
 function Map-IdentityTypeToAtlas {
