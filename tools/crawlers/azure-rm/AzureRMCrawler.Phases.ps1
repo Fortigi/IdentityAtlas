@@ -145,6 +145,29 @@ function Build-AzureScopeIndex {
     return @{ rgsBySub = $rgsBySub; resByRg = $resByRg }
 }
 
+# Emit the (optional) resource-level scope nodes for one resource group.
+function Add-AzureResourceGroupResourceScopes {
+    [CmdletBinding()]
+    param([hashtable]$Ctx, [hashtable]$Index, $ResourceGroup)
+    if (-not $Ctx.Config.includeResourceLevel) { return }
+    $rgKey = ([string]$ResourceGroup.id).ToLowerInvariant()
+    $resources = if ($Index.resByRg.ContainsKey($rgKey)) { $Index.resByRg[$rgKey] } else { @() }
+    foreach ($r in $resources) {
+        Add-AzureScope -Ctx $Ctx -ArmPath $r.id -DisplayName $r.name -ResourceType 'AzureResource' -ParentArmPath $ResourceGroup.id -ScopeKind 'Resource' -ExtraExt (Get-ResourceAttributes -Resource $r) | Out-Null
+    }
+}
+
+# Emit the resource-group node (+ its resource subtree) for one subscription.
+function Add-AzureSubscriptionRgScopes {
+    [CmdletBinding()]
+    param([hashtable]$Ctx, [hashtable]$Index, $Sub, [string]$SubPath)
+    $rgs = if ($Index.rgsBySub.ContainsKey([string]$Sub.subscriptionId)) { $Index.rgsBySub[[string]$Sub.subscriptionId] } else { @() }
+    foreach ($rg in $rgs) {
+        Add-AzureScope -Ctx $Ctx -ArmPath $rg.id -DisplayName $rg.name -ResourceType 'AzureResourceGroup' -ParentArmPath $SubPath -ScopeKind 'ResourceGroup' | Out-Null
+        Add-AzureResourceGroupResourceScopes -Ctx $Ctx -Index $Index -ResourceGroup $rg
+    }
+}
+
 # Subscription → resource-group → (optional) resource scope nodes.
 function Add-AzureSubscriptionScopes {
     [CmdletBinding()]
@@ -152,17 +175,28 @@ function Add-AzureSubscriptionScopes {
     foreach ($sub in $Ctx.Subs) {
         $subPath = "/subscriptions/$($sub.subscriptionId)"
         Add-AzureScope -Ctx $Ctx -ArmPath $subPath -DisplayName $sub.displayName -ResourceType 'AzureSubscription' -ParentArmPath $null -ScopeKind 'Subscription' | Out-Null
-        $rgs = if ($Index.rgsBySub.ContainsKey([string]$sub.subscriptionId)) { $Index.rgsBySub[[string]$sub.subscriptionId] } else { @() }
-        foreach ($rg in $rgs) {
-            Add-AzureScope -Ctx $Ctx -ArmPath $rg.id -DisplayName $rg.name -ResourceType 'AzureResourceGroup' -ParentArmPath $subPath -ScopeKind 'ResourceGroup' | Out-Null
-            if ($Ctx.Config.includeResourceLevel) {
-                $rgKey = ([string]$rg.id).ToLowerInvariant()
-                $resources = if ($Index.resByRg.ContainsKey($rgKey)) { $Index.resByRg[$rgKey] } else { @() }
-                foreach ($r in $resources) {
-                    Add-AzureScope -Ctx $Ctx -ArmPath $r.id -DisplayName $r.name -ResourceType 'AzureResource' -ParentArmPath $rg.id -ScopeKind 'Resource' -ExtraExt (Get-ResourceAttributes -Resource $r) | Out-Null
-                }
-            }
-        }
+        Add-AzureSubscriptionRgScopes -Ctx $Ctx -Index $Index -Sub $sub -SubPath $subPath
+    }
+}
+
+# Process one node popped off the management-group walk stack: emit an MG scope node
+# (pushing its children back onto $Stack), or link a discovered subscription to its MG
+# parent. Subscriptions are edge-only — the node was built during discovery.
+function Add-AzureManagementGroupNode {
+    [CmdletBinding()]
+    param([hashtable]$Ctx, $Current, $Stack)
+    $node = $Current.node
+    $path = $node.id
+    if ($node.type -eq 'Microsoft.Management/managementGroups' -or $node.type -eq '/providers/Microsoft.Management/managementGroups') {
+        $name = if ($node.properties.displayName) { $node.properties.displayName } else { $node.name }
+        Add-AzureScope -Ctx $Ctx -ArmPath $path -DisplayName $name -ResourceType 'AzureManagementGroup' -ParentArmPath $Current.parentPath -ScopeKind 'ManagementGroup' | Out-Null
+        foreach ($child in @($node.properties.children)) { $Stack.Push(@{ node = $child; parentPath = $path }) }
+        return
+    }
+    if ($node.type -notmatch 'subscriptions') { return }
+    $subPath = "/subscriptions/$($node.name)"
+    if (($Ctx.ScopePaths -contains $subPath) -and $Current.parentPath) {
+        Add-AzureContainsEdge -Ctx $Ctx -ParentPath $Current.parentPath -ChildPath $subPath
     }
 }
 
@@ -176,18 +210,8 @@ function Add-AzureManagementGroupScopes {
     $stack = [System.Collections.Generic.Stack[object]]::new()
     $stack.Push(@{ node = $mgRoot; parentPath = $null })
     while ($stack.Count -gt 0) {
-        $cur = $stack.Pop(); $node = $cur.node
-        $path = $node.id
-        if ($node.type -eq 'Microsoft.Management/managementGroups' -or $node.type -eq '/providers/Microsoft.Management/managementGroups') {
-            $name = if ($node.properties.displayName) { $node.properties.displayName } else { $node.name }
-            Add-AzureScope -Ctx $Ctx -ArmPath $path -DisplayName $name -ResourceType 'AzureManagementGroup' -ParentArmPath $cur.parentPath -ScopeKind 'ManagementGroup' | Out-Null
-            foreach ($child in @($node.properties.children)) { $stack.Push(@{ node = $child; parentPath = $path }) }
-        } elseif ($node.type -match 'subscriptions') {
-            $subPath = "/subscriptions/$($node.name)"
-            if (($Ctx.ScopePaths -contains $subPath) -and $cur.parentPath) {
-                Add-AzureContainsEdge -Ctx $Ctx -ParentPath $cur.parentPath -ChildPath $subPath
-            }
-        }
+        $cur = $stack.Pop()
+        Add-AzureManagementGroupNode -Ctx $Ctx -Current $cur -Stack $stack
     }
 }
 
@@ -288,6 +312,42 @@ function Ensure-AzureAssignmentScope {
 # "visible set": an assignment in a subscription's own subtree is seen only by that
 # subscription; one at a management-group ancestor by every subscription beneath that
 # MG; one at the tenant root ('/') by all. Returns lowercase-subId → List[assignment].
+# Invert the per-subscription MG chains into lowercase-mgId → List[subId].
+function Get-AzureSubsByMg {
+    [CmdletBinding()]
+    param([hashtable]$Ctx, $MgChains)
+    $subsByMg = @{}
+    foreach ($sid in $Ctx.SubIds) {
+        foreach ($mg in @($MgChains[$sid])) {
+            $mgKey = ([string]$mg).ToLowerInvariant()
+            if (-not $subsByMg.ContainsKey($mgKey)) { $subsByMg[$mgKey] = [System.Collections.Generic.List[string]]::new() }
+            $subsByMg[$mgKey].Add($sid)
+        }
+    }
+    return $subsByMg
+}
+
+# Fan one assignment into every subscription bucket that should see it: its owning
+# subscription, all subscriptions (tenant root), or the subscriptions beneath its MG.
+function Add-AzureAssignmentToBuckets {
+    [CmdletBinding()]
+    param($BySub, $SubsByMg, $Assignment)
+    $scope = [string]$Assignment.properties.scope
+    if ($scope -match '^/subscriptions/([^/]+)') {
+        $owner = $matches[1].ToLowerInvariant()
+        if ($BySub.ContainsKey($owner)) { $BySub[$owner].Add($Assignment) }
+        return
+    }
+    if ($scope -eq '/') {
+        foreach ($k in $BySub.Keys) { $BySub[$k].Add($Assignment) }
+        return
+    }
+    if ($scope -notmatch '^/providers/[Mm]icrosoft\.[Mm]anagement/managementGroups/([^/]+)') { return }
+    $mgKey = $matches[1].ToLowerInvariant()
+    if (-not $SubsByMg.ContainsKey($mgKey)) { return }
+    foreach ($sid in $SubsByMg[$mgKey]) { $BySub[([string]$sid).ToLowerInvariant()].Add($Assignment) }
+}
+
 function Build-AzureAssignmentsBySub {
     [CmdletBinding()]
     param([hashtable]$Ctx)
@@ -295,28 +355,10 @@ function Build-AzureAssignmentsBySub {
     if ($Ctx.SubIds.Count -eq 0) { return $bySub }
     $allAssign = Get-ARGRoleAssignments -SubscriptionIds $Ctx.SubIds
     $mgChains  = Get-ARGSubscriptionMgChains -SubscriptionIds $Ctx.SubIds
-    $subsByMg  = @{}
-    foreach ($sid in $Ctx.SubIds) {
-        foreach ($mg in @($mgChains[$sid])) {
-            $mgKey = ([string]$mg).ToLowerInvariant()
-            if (-not $subsByMg.ContainsKey($mgKey)) { $subsByMg[$mgKey] = [System.Collections.Generic.List[string]]::new() }
-            $subsByMg[$mgKey].Add($sid)
-        }
-    }
+    $subsByMg  = Get-AzureSubsByMg -Ctx $Ctx -MgChains $mgChains
     foreach ($sid in $Ctx.SubIds) { $bySub[([string]$sid).ToLowerInvariant()] = [System.Collections.Generic.List[object]]::new() }
     foreach ($a in $allAssign) {
-        $scope = [string]$a.properties.scope
-        if ($scope -match '^/subscriptions/([^/]+)') {
-            $owner = $matches[1].ToLowerInvariant()
-            if ($bySub.ContainsKey($owner)) { $bySub[$owner].Add($a) }
-        } elseif ($scope -eq '/') {
-            foreach ($k in $bySub.Keys) { $bySub[$k].Add($a) }
-        } elseif ($scope -match '^/providers/[Mm]icrosoft\.[Mm]anagement/managementGroups/([^/]+)') {
-            $mgKey = $matches[1].ToLowerInvariant()
-            if ($subsByMg.ContainsKey($mgKey)) {
-                foreach ($sid in $subsByMg[$mgKey]) { $bySub[([string]$sid).ToLowerInvariant()].Add($a) }
-            }
-        }
+        Add-AzureAssignmentToBuckets -BySub $bySub -SubsByMg $subsByMg -Assignment $a
     }
     return $bySub
 }
