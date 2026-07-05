@@ -166,6 +166,68 @@ function ConvertTo-EntraSpActivityRecord {
     return $null
 }
 
+# Classifies a Graph group into a single, analyst-readable `groupCategory` plus a
+# few orthogonal facet fields, derived purely from the raw Graph flags. Returns a
+# hashtable that ConvertTo-EntraGroupResourceRecord folds into extendedAttributes.
+#
+# Two design rules baked in here:
+#   * Dynamic-ness is read ONLY from `groupTypes` containing 'DynamicMembership' —
+#     never from `membershipRule` being non-empty, because that rule text can
+#     linger after a group is converted back to assigned. `groupTypes` is the
+#     operative switch Azure AD itself evaluates, so it can't disagree with the
+#     group's real behaviour.
+#   * The dynamic aspect is folded into the single `groupCategory` label (e.g.
+#     'DynamicSecurityGroup'), but only onto the three categories that actually
+#     support Azure AD dynamic membership — a distribution list can never become
+#     'DynamicDistributionList' even on malformed input.
+function Get-EntraGroupClassification {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] $Group)
+
+    $types           = @($Group.groupTypes)
+    $isUnified       = $types -contains 'Unified'
+    $isDynamic       = $types -contains 'DynamicMembership'
+    $securityEnabled = [bool]$Group.securityEnabled
+    $mailEnabled     = [bool]$Group.mailEnabled
+    $isTeam          = @($Group.resourceProvisioningOptions) -contains 'Team'
+
+    # Base category — the mutually-exclusive "what kind of group is this".
+    if ($isUnified) {
+        $base = if ($isTeam) { 'Team' } else { 'Microsoft365' }
+    }
+    elseif ($mailEnabled -and $securityEnabled) {
+        $base = 'MailEnabledSecurity'
+    }
+    elseif ($mailEnabled -and -not $securityEnabled) {
+        $base = 'DistributionList'
+    }
+    else {
+        $base = 'SecurityGroup'
+    }
+
+    # Fold the dynamic aspect into the single readable label, guarded to the
+    # categories that support Azure AD dynamic membership.
+    $dynamicCapable = @('Team', 'Microsoft365', 'SecurityGroup')
+    $groupCategory  = if ($isDynamic -and $base -in $dynamicCapable) { "Dynamic$base" } else { $base }
+
+    # Cloud-mastered vs synced from on-prem AD (membership read-only in the cloud).
+    $sourceOfAuthority = if ([bool]$Group.onPremisesSyncEnabled) { 'OnPremises' } else { 'Cloud' }
+
+    # Entitlement-management can only assign membership through an assigned,
+    # cloud-mastered Security or Microsoft 365 group (Teams included). Dynamic,
+    # on-prem-synced, distribution and mail-enabled-security groups are ineligible.
+    $accessPackageEligible = (-not $isDynamic) -and
+                             ($sourceOfAuthority -eq 'Cloud') -and
+                             ($base -in @('SecurityGroup', 'Microsoft365', 'Team'))
+
+    return @{
+        groupCategory         = $groupCategory
+        membershipType        = if ($isDynamic) { 'Dynamic' } else { 'Assigned' }
+        sourceOfAuthority     = $sourceOfAuthority
+        accessPackageEligible = $accessPackageEligible
+    }
+}
+
 # Maps one Graph group → an ingest/resources record (resourceType='EntraGroup').
 # Verbatim from the inline `$groups | ForEach-Object { ... }` block.
 function ConvertTo-EntraGroupResourceRecord {
@@ -179,6 +241,19 @@ function ConvertTo-EntraGroupResourceRecord {
         securityEnabled = $Group.securityEnabled
         mailEnabled     = $Group.mailEnabled
     }
+    # Raw discriminators — kept for display + power-filtering in Excel (ext_*).
+    if ($null -ne $Group.onPremisesSyncEnabled) { $ext['onPremisesSyncEnabled'] = [bool]$Group.onPremisesSyncEnabled }
+    if ($Group.membershipRule)                  { $ext['membershipRule'] = $Group.membershipRule }
+    if ($Group.membershipRuleProcessingState)   { $ext['membershipRuleProcessingState'] = $Group.membershipRuleProcessingState }
+    if (@($Group.resourceProvisioningOptions).Count -gt 0) {
+        $ext['resourceProvisioningOptions'] = (@($Group.resourceProvisioningOptions) -join ',')
+    }
+    # Derived classification: one readable groupCategory + facets, computed once at
+    # the source so the Excel export and the web-portal context plugin read the
+    # same stamped value instead of each re-deriving it from the raw flags.
+    $classification = Get-EntraGroupClassification -Group $Group
+    foreach ($k in $classification.Keys) { $ext[$k] = $classification[$k] }
+
     foreach ($attr in $CustomGroupAttributes) {
         if ($null -ne $Group.$attr) { $ext[$attr] = $Group.$attr }
     }
