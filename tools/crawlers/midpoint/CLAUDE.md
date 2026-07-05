@@ -31,8 +31,8 @@ A crawler is a folder under `tools/crawlers/<type>/` with a `crawler.json` manif
 | `ShadowType kind=entitlement` | **Resources** (`resourceType=Entitlement`) | e.g. AD groups |
 | `ShadowType kind=generic`/other | **Skipped** | OU/container/DB rows — no user account |
 | Account → entitlement membership | **ResourceAssignments** (`assignmentType=Direct`) | Via `association[]` or (4.9+) `referenceAttributes.<name>[]`, consolidated on the owner focus principal, `viaAccount` in `extendedAttributes` |
-| `user.assignment[]` → Role/Service | **ResourceAssignments** (`assignmentType=Governed`, `extendedAttributes.grant=direct`) | Directly-assigned roles/services |
-| `user.roleMembershipRef[]` → Role/Service | **ResourceAssignments** (`assignmentType=Governed`, `extendedAttributes.grant=inherited`) | midPoint's fully-computed membership (role nesting, archetype/org inducements, …). Default-relation refs only — manager/owner/approver/meta are governance, not access. Direct OIDs keep `grant=direct` (first-pass wins) |
+| `user.assignment[]` → Role/Service | **ResourceAssignments** (`assignmentType=Direct`, `governed=true`, `extendedAttributes.grant=direct`) | Directly-assigned roles/services |
+| `user.roleMembershipRef[]` → Role/Service | **ResourceAssignments** (`assignmentType=Direct`, `governed=true`, `extendedAttributes.grant=inherited`) | midPoint's fully-computed membership (role nesting, archetype/org inducements, …). Default-relation refs only — manager/owner/approver/meta are governance, not access. Direct OIDs keep `grant=direct` (first-pass wins) |
 | `user.parentOrgRef[]` | **ContextMembers** | All org memberships |
 | `user.parentOrgRef` (default relation) | **Identity.department** + focus **Principal.department** | The user's primary org-unit name; see `Resolve-MidpointDepartment` |
 | `accessCertificationCampaigns` | **CertificationDecisions** | Requires `?include=case` |
@@ -47,7 +47,7 @@ midPoint OIDs are UUIDs and are reused 1-to-1 as `id`/`externalId` — every rec
 4. **Users** — `UserType` → Identities + focus Principals + IdentityMembers
 5. **Shadows** — `ShadowType` → account Principals + entitlement Resources + memberships (ResourceAssignments `Direct`)
 6. **Org membership** — `user.parentOrgRef[]` → ContextMembers
-7. **Assignments** — `user.assignment[]` (`grant=direct`) + `user.roleMembershipRef[]` (`grant=inherited`) → ResourceAssignments `Governed`. Two passes so birthright / nested / archetype-inherited memberships are captured, not just direct ones; default-relation refs only
+7. **Assignments** — `user.assignment[]` (`grant=direct`) + `user.roleMembershipRef[]` (`grant=inherited`) → ResourceAssignments `Direct` (`governed=true`). Two passes so birthright / nested / archetype-inherited memberships are captured, not just direct ones; default-relation refs only
 8. **Role nesting** — `RoleType.inducement[]` → ResourceRelationships `Contains`. `targetRef` inducements link to a Role/Service; `construction` inducements link to the Entitlement(s) they grant (the `associationTargetSearch` DN filter is resolved against the entitlement shadows from phase 5 via `$EntitlementByDn`, or a literal `shadowRef` is used directly). Needs the Shadows phase to have run for construction targets to resolve
 9. **Reviews** — certification campaigns → CertificationDecisions
 10. **`refresh-views`** — refreshes matrix materialized views

@@ -12,7 +12,7 @@
       ServiceType                      → Resources (Service)
       UserType (focus / person)        → Identities + a Principal (the midPoint account) + IdentityMembers
       ShadowType (accounts on systems) → Principals (per resource system) + IdentityMembers (via user.linkRef)
-      user.assignment[] → Role/Service → ResourceAssignments (Direct, governed=false)
+      user.assignment[] → Role/Service → ResourceAssignments (Direct, governed=true)
       user.parentOrgRef[]              → ContextMembers (org membership)
 
     midPoint object OIDs are UUIDs, so they are reused directly as Identity Atlas
