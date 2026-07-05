@@ -124,7 +124,13 @@ export default function useEntityPage({ authFetch, entityType, listEndpoint, col
       .then((json) => {
         if (json && version === fetchVersion.current) {
           setItems(json.data);
-          setTotal(json.total);
+          // The list endpoints only return `total` on the first page (offset 0)
+          // and send `total: null` on later pages to skip a redundant COUNT (the
+          // Excel export reads the count once and then pages by row count). The
+          // total doesn't change while paging, so keep the known value instead of
+          // clobbering it with null — otherwise the pager/header crash on
+          // `null.toLocaleString()` the moment you click Next.
+          if (json.total != null) setTotal(json.total);
         }
       })
       .catch((err) => console.error(`Failed to fetch ${entityType}s:`, err))
