@@ -22,6 +22,49 @@
     threaded through explicit params/return values instead of shared script vars.
 #>
 
+# One page of the system-scan shadow stream: record which resources hold an
+# account/entitlement shadow (those are the ones worth registering as systems).
+# Mutates the passed $ResWithData set.
+function Add-MidpointSystemScanPage {
+    [CmdletBinding()]
+    param($Page, $ResWithData)
+    foreach ($s in $Page) {
+        if (($s.kind -ne 'account') -and ($s.kind -ne 'entitlement')) { continue }
+        $ro = Get-MidpointRefOid $s.resourceRef $null
+        if ($ro) { [void]$ResWithData.Add($ro) }
+    }
+}
+
+# Turn one midPoint resource into a system record (or skip it when it holds no
+# account/entitlement shadows). Always records the oid->name mapping. Mutates
+# $ResourceOidToName and appends to $SysRecords when the resource qualifies.
+function Add-MidpointResourceSystem {
+    [CmdletBinding()]
+    param($Resource, $ResWithData, [hashtable]$ResourceOidToName, $SysRecords)
+    $roid  = [string]$Resource.oid
+    $rName = (Get-MidpointString $Resource.name "Resource $roid")
+    $ResourceOidToName[$roid] = $rName
+    if (-not $ResWithData.Contains($roid)) {
+        Write-Host "  Skipping system registration for '$rName' (no account/entitlement shadows)" -ForegroundColor DarkGray
+        return
+    }
+    $SysRecords.Add([PSCustomObject]@{ systemType = 'Midpoint'; displayName = $rName; tenantId = $roid; enabled = $true; syncEnabled = $false })
+}
+
+# Fold the Atlas /systems response into the midPoint system id + resource-OID ->
+# system.id map. Mutates $ResourceSystemId; returns the resolved midPoint id.
+function Resolve-MidpointSystemIds {
+    [CmdletBinding()]
+    param($AtlasSystems, [string]$RestRoot, [hashtable]$ResourceSystemId)
+    $midpointSystemId = 0
+    foreach ($s in $AtlasSystems) {
+        if ($s.systemType -ne 'Midpoint' -or -not $s.tenantId) { continue }
+        if ($s.tenantId -eq $RestRoot) { $midpointSystemId = [int]$s.id }
+        else { $ResourceSystemId[[string]$s.tenantId] = [int]$s.id }
+    }
+    return $midpointSystemId
+}
+
 # ─── Phase: Systems ──────────────────────────────────────────────
 # midPoint itself + each ResourceType that actually holds account/entitlement
 # shadows become Identity Atlas Systems. RETURNS @{ midpointSystemId;
@@ -55,26 +98,14 @@ function Sync-MidpointSystems {
         $swShRead = [System.Diagnostics.Stopwatch]::StartNew()
         $nShadowsScan = Invoke-MidpointSearchStream -Type 'shadows' -PageSize $PageSize -Options 'raw' -Include 'association' -OnPage {
             param($page)
-            foreach ($s in $page) {
-                if (($s.kind -eq 'account') -or ($s.kind -eq 'entitlement')) {
-                    $ro = Get-MidpointRefOid $s.resourceRef $null
-                    if ($ro) { [void]$resWithData.Add($ro) }
-                }
-            }
+            Add-MidpointSystemScanPage -Page $page -ResWithData $resWithData
         }
         $swShRead.Stop()
         $Script:fetchStats['shadows (system scan)'] = @{ seconds = $swShRead.Elapsed.TotalSeconds; count = $nShadowsScan }
         Write-Host "  scanned $nShadowsScan shadows ($($resWithData.Count) resources hold accounts/entitlements)" -ForegroundColor Gray
 
         foreach ($r in $resources) {
-            $roid  = [string]$r.oid
-            $rName = (Get-MidpointString $r.name "Resource $roid")
-            $ResourceOidToName[$roid] = $rName
-            if (-not $resWithData.Contains($roid)) {
-                Write-Host "  Skipping system registration for '$rName' (no account/entitlement shadows)" -ForegroundColor DarkGray
-                continue
-            }
-            $sysRecords.Add([PSCustomObject]@{ systemType = 'Midpoint'; displayName = $rName; tenantId = $roid; enabled = $true; syncEnabled = $false })
+            Add-MidpointResourceSystem -Resource $r -ResWithData $resWithData -ResourceOidToName $ResourceOidToName -SysRecords $sysRecords
         }
 
         Write-Step "Registering $($sysRecords.Count) systems..."
@@ -83,11 +114,7 @@ function Sync-MidpointSystems {
 
         # Build tenantId(OID) → system.id map.
         $atlasSystems = Invoke-RestMethod -Uri "$ApiBaseUrl/systems" -Headers @{ Authorization = "Bearer $ApiKey" } -TimeoutSec 30
-        foreach ($s in $atlasSystems) {
-            if ($s.systemType -ne 'Midpoint' -or -not $s.tenantId) { continue }
-            if ($s.tenantId -eq $RestRoot) { $MidpointSystemId = [int]$s.id }
-            else { $ResourceSystemId[[string]$s.tenantId] = [int]$s.id }
-        }
+        $MidpointSystemId = Resolve-MidpointSystemIds -AtlasSystems $atlasSystems -RestRoot $RestRoot -ResourceSystemId $ResourceSystemId
         if ($MidpointSystemId -eq 0) { throw "Could not resolve midPoint system id after registration" }
         Write-Host "  midPoint system id: $MidpointSystemId; resource systems: $($ResourceSystemId.Count)" -ForegroundColor Green
     } catch { Add-PhaseError 'Systems' $_.Exception.Message; throw }
@@ -267,6 +294,33 @@ function Sync-MidpointResources {
     return @{ allRoles = $AllRoles; syncedResourceIds = $SyncedResourceIds; resourceOidToType = $ResourceOidToType; archetypeLabels = $ArchetypeLabels }
 }
 
+# Fold one user into the identity/principal/member accumulators + capture its
+# linkRef shadow OIDs (for the Shadows phase). Mutates every passed accumulator.
+function Add-MidpointUser {
+    [CmdletBinding()]
+    param(
+        $User, [hashtable]$OrgOidToName, $IdentityTypeMapping,
+        [hashtable]$UserOidToName, $IdentRecs, $PrincByType, $MemberRecs,
+        [hashtable]$ShadowOidToUserOid
+    )
+    $oid  = [string]$User.oid
+    $name = (Get-MidpointString $User.fullName (Get-MidpointString $User.name $oid))
+    $UserOidToName[$oid] = $name
+    $department = (Resolve-MidpointDepartment -User $User -OrgMap $OrgOidToName)
+    $uTypes = Get-MidpointStringList $User.subtype; if ($uTypes.Count -eq 0) { $uTypes = Get-MidpointStringList $User.employeeType }
+    $pt = Resolve-MappedValue -Values $uTypes -Rows $IdentityTypeMapping -KeyName 'userType' -ValName 'principalType' -Default 'User'
+    $IdentRecs.Add((ConvertTo-MidpointIdentityRecord -User $User -DisplayName $name -Department $department))
+    if (-not $PrincByType.Contains($pt)) { $PrincByType[$pt] = [System.Collections.Generic.List[object]]::new() }
+    $PrincByType[$pt].Add((ConvertTo-MidpointFocusPrincipalRecord -User $User -DisplayName $name -Department $department -PrincipalType $pt))
+    $MemberRecs.Add((New-MidpointIdentityMemberRecord -Oid $oid))
+
+    # Capture linkRef (shadow OIDs) for the Shadows phase.
+    foreach ($lr in @($User.linkRef)) {
+        $shadowOid = Get-MidpointRefOid $lr $null
+        if ($shadowOid) { $ShadowOidToUserOid[$shadowOid] = $oid }
+    }
+}
+
 # ─── Phase: Users → Identities + Principals + IdentityMembers ────
 # UserType → Identities + one focus Principal per user (bucketed by principalType)
 # + IdentityMembers. Captures user.linkRef (shadow OIDs) for the Shadows phase.
@@ -293,25 +347,9 @@ function Sync-MidpointUsers {
         $memberRecs  = [System.Collections.Generic.List[object]]::new()
 
         foreach ($u in $AllUsers) {
-            $oid  = [string]$u.oid
-            $name = (Get-MidpointString $u.fullName (Get-MidpointString $u.name $oid))
-            $UserOidToName[$oid] = $name
-            $department = (Resolve-MidpointDepartment -User $u -OrgMap $OrgOidToName)
-            $uTypes = Get-MidpointStringList $u.subtype; if ($uTypes.Count -eq 0) { $uTypes = Get-MidpointStringList $u.employeeType }
-            $pt = Resolve-MappedValue -Values $uTypes -Rows $IdentityTypeMapping -KeyName 'userType' -ValName 'principalType' -Default 'User'
-            $identRecs.Add((ConvertTo-MidpointIdentityRecord -User $u -DisplayName $name -Department $department))
-            if (-not $princByType.Contains($pt)) { $princByType[$pt] = [System.Collections.Generic.List[object]]::new() }
-            $princByType[$pt].Add((ConvertTo-MidpointFocusPrincipalRecord -User $u -DisplayName $name -Department $department -PrincipalType $pt))
-            $memberRecs.Add((New-MidpointIdentityMemberRecord -Oid $oid))
-
-            # Capture linkRef (shadow OIDs) for the Shadows phase.
-            $links = $u.linkRef
-            if ($links) {
-                foreach ($lr in @($links)) {
-                    $shadowOid = Get-MidpointRefOid $lr $null
-                    if ($shadowOid) { $ShadowOidToUserOid[$shadowOid] = $oid }
-                }
-            }
+            Add-MidpointUser -User $u -OrgOidToName $OrgOidToName -IdentityTypeMapping $IdentityTypeMapping `
+                -UserOidToName $UserOidToName -IdentRecs $identRecs -PrincByType $princByType `
+                -MemberRecs $memberRecs -ShadowOidToUserOid $ShadowOidToUserOid
         }
 
         $R1 = Send-IngestBatch -Endpoint 'ingest/identities' -SystemId $MidpointSystemId -Records @($identRecs)
@@ -326,6 +364,40 @@ function Sync-MidpointUsers {
     } catch { Add-PhaseError 'Users' $_.Exception.Message }
 
     return @{ allUsers = $AllUsers; userOidToName = $UserOidToName; shadowOidToUserOid = $ShadowOidToUserOid }
+}
+
+# Fold one account shadow into the per-system principal bucket (+ identity-member
+# link when the owning user is known). Mutates $AcctBySystem / $ShadowMembers.
+function Add-MidpointAccountShadow {
+    [CmdletBinding()]
+    param(
+        $Shadow, [int]$SysId, [string]$ShadowOid, [string]$ResOid, [string]$Kind,
+        [hashtable]$ShadowOidToUserOid, [hashtable]$AcctBySystem, $ShadowMembers
+    )
+    if (-not $AcctBySystem.ContainsKey($SysId)) { $AcctBySystem[$SysId] = [System.Collections.Generic.List[object]]::new() }
+    $AcctBySystem[$SysId].Add((ConvertTo-MidpointAccountShadowRecord -Shadow $Shadow -ShadowOid $ShadowOid -ResourceOid $ResOid -Kind $Kind))
+    if ($ShadowOidToUserOid.ContainsKey($ShadowOid)) {
+        $ShadowMembers.Add([PSCustomObject]@{ identityId = $ShadowOidToUserOid[$ShadowOid]; principalId = $ShadowOid; accountType = 'Account'; isPrimary = $false })
+    }
+}
+
+# Fold one entitlement shadow into the per-system resource bucket, mark it synced,
+# and index it by DN (name + `dn` attr) so construction/associationTargetSearch
+# inducements resolve later. Mutates $EntBySystem / $SyncedResourceIds / $EntitlementByDn.
+function Add-MidpointEntitlementShadow {
+    [CmdletBinding()]
+    param(
+        $Shadow, [int]$SysId, [string]$ShadowOid, [string]$ResOid,
+        [hashtable]$EntBySystem, $SyncedResourceIds, [hashtable]$EntitlementByDn
+    )
+    if (-not $EntBySystem.ContainsKey($SysId)) { $EntBySystem[$SysId] = [System.Collections.Generic.List[object]]::new() }
+    $EntBySystem[$SysId].Add((ConvertTo-MidpointEntitlementResourceRecord -Shadow $Shadow -ShadowOid $ShadowOid -ResourceOid $ResOid))
+    [void]$SyncedResourceIds.Add($ShadowOid)
+    # Index by DN so construction/associationTargetSearch inducements resolve later.
+    $dnNameKey = ConvertTo-MidpointDnKey (Get-MidpointString $Shadow.name '')
+    if ($dnNameKey) { $EntitlementByDn[$dnNameKey] = $ShadowOid }
+    $riDnKey = ConvertTo-MidpointDnKey ([string](Get-MidpointAttrValue -Shadow $Shadow -Keys @('dn')))
+    if ($riDnKey) { $EntitlementByDn[$riDnKey] = $ShadowOid }
 }
 
 # Shadows pass A: fold one page of shadows into the account/entitlement/member
@@ -348,23 +420,40 @@ function Add-MidpointShadowPage {
         $kind      = if ($s.kind) { [string]$s.kind } else { '' }
 
         if ($kind -eq 'account') {
-            if (-not $AcctBySystem.ContainsKey($sysId)) { $AcctBySystem[$sysId] = [System.Collections.Generic.List[object]]::new() }
-            $AcctBySystem[$sysId].Add((ConvertTo-MidpointAccountShadowRecord -Shadow $s -ShadowOid $shadowOid -ResourceOid $resOid -Kind $kind))
-            if ($ShadowOidToUserOid.ContainsKey($shadowOid)) {
-                $ShadowMembers.Add([PSCustomObject]@{ identityId = $ShadowOidToUserOid[$shadowOid]; principalId = $shadowOid; accountType = 'Account'; isPrimary = $false })
-            }
+            Add-MidpointAccountShadow -Shadow $s -SysId $sysId -ShadowOid $shadowOid -ResOid $resOid -Kind $kind `
+                -ShadowOidToUserOid $ShadowOidToUserOid -AcctBySystem $AcctBySystem -ShadowMembers $ShadowMembers
         }
         elseif ($kind -eq 'entitlement') {
-            if (-not $EntBySystem.ContainsKey($sysId)) { $EntBySystem[$sysId] = [System.Collections.Generic.List[object]]::new() }
-            $EntBySystem[$sysId].Add((ConvertTo-MidpointEntitlementResourceRecord -Shadow $s -ShadowOid $shadowOid -ResourceOid $resOid))
-            [void]$SyncedResourceIds.Add($shadowOid)
-            # Index by DN so construction/associationTargetSearch inducements resolve later.
-            $dnNameKey = ConvertTo-MidpointDnKey (Get-MidpointString $s.name '')
-            if ($dnNameKey) { $EntitlementByDn[$dnNameKey] = $shadowOid }
-            $riDnKey = ConvertTo-MidpointDnKey ([string](Get-MidpointAttrValue -Shadow $s -Keys @('dn')))
-            if ($riDnKey) { $EntitlementByDn[$riDnKey] = $shadowOid }
+            Add-MidpointEntitlementShadow -Shadow $s -SysId $sysId -ShadowOid $shadowOid -ResOid $resOid `
+                -EntBySystem $EntBySystem -SyncedResourceIds $SyncedResourceIds -EntitlementByDn $EntitlementByDn
         }
         else { if ($kind -eq 'generic') { $Skipped.generic++ } else { $Skipped.other++ } }
+    }
+}
+
+# Legacy `association[]` form: each assoc points at an entitlement via shadowRef
+# (or identifier). Appends resolved OIDs to $Out.
+function Add-MidpointAssociationOids {
+    [CmdletBinding()]
+    param($Association, $Out)
+    foreach ($assoc in @($Association)) {
+        $entOid = Get-MidpointRefOid $assoc.shadowRef $null
+        if (-not $entOid) { $entOid = Get-MidpointRefOid $assoc.identifier $null }
+        if ($entOid) { $Out.Add($entOid) }
+    }
+}
+
+# midPoint 4.9 `referenceAttributes.<name>[]` form: each named reference-attribute
+# holds one or more entitlement refs. Appends resolved OIDs to $Out.
+function Add-MidpointReferenceAttributeOids {
+    [CmdletBinding()]
+    param($ReferenceAttributes, $Out)
+    foreach ($refProp in $ReferenceAttributes.PSObject.Properties) {
+        if ($refProp.Name -eq '@ns' -or $null -eq $refProp.Value) { continue }
+        foreach ($ref in @($refProp.Value)) {
+            $o = Get-MidpointRefOid $ref $null
+            if ($o) { $Out.Add($o) }
+        }
     }
 }
 
@@ -375,23 +464,23 @@ function Get-MidpointShadowEntitlementOids {
     [CmdletBinding()]
     param($Shadow)
     $out = [System.Collections.Generic.List[string]]::new()
-    if ($Shadow.association) {
-        foreach ($assoc in @($Shadow.association)) {
-            $entOid = Get-MidpointRefOid $assoc.shadowRef $null
-            if (-not $entOid) { $entOid = Get-MidpointRefOid $assoc.identifier $null }
-            if ($entOid) { $out.Add($entOid) }
-        }
-    }
-    if ($Shadow.referenceAttributes) {
-        foreach ($refProp in $Shadow.referenceAttributes.PSObject.Properties) {
-            if ($refProp.Name -eq '@ns' -or $null -eq $refProp.Value) { continue }
-            foreach ($ref in @($refProp.Value)) {
-                $o = Get-MidpointRefOid $ref $null
-                if ($o) { $out.Add($o) }
-            }
-        }
-    }
+    if ($Shadow.association) { Add-MidpointAssociationOids -Association $Shadow.association -Out $out }
+    if ($Shadow.referenceAttributes) { Add-MidpointReferenceAttributeOids -ReferenceAttributes $Shadow.referenceAttributes -Out $out }
     return @($out)
+}
+
+# One account shadow's entitlement refs -> Direct assignments on the owner focus
+# principal, deduped on (entitlementOid|ownerOid). Mutates $EntAssignStreams / $EntAssignSeen.
+function Add-MidpointAccountEntitlementAssignments {
+    [CmdletBinding()]
+    param([int]$SysId, [string]$ShadowOid, [string]$OwnerOid, $EntitlementOids, [hashtable]$EntAssignStreams, $EntAssignSeen)
+    foreach ($entOid in $EntitlementOids) {
+        if (-not $EntAssignSeen.Add("$entOid|$OwnerOid")) { continue }
+        if (-not $EntAssignStreams.ContainsKey($SysId)) {
+            $EntAssignStreams[$SysId] = New-IngestStream -Endpoint 'ingest/resource-assignments' -SystemId $SysId -Scope @{ assignmentType = 'Direct'; resourceType = 'Entitlement' }
+        }
+        Add-IngestStreamRecord -Stream $EntAssignStreams[$SysId] -Record (New-MidpointEntitlementAssignmentRecord -EntitlementOid $entOid -OwnerOid $OwnerOid -ViaAccount $ShadowOid)
+    }
 }
 
 # Shadows pass B: fold one page of account shadows into per-system entitlement-
@@ -408,13 +497,8 @@ function Add-MidpointEntitlementAssignmentPage {
         $sysId     = $ResourceSystemId[$resOid]
         $shadowOid = [string]$s.oid
         $ownerOid  = if ($ShadowOidToUserOid.ContainsKey($shadowOid)) { $ShadowOidToUserOid[$shadowOid] } else { $shadowOid }
-        foreach ($entOid in (Get-MidpointShadowEntitlementOids -Shadow $s)) {
-            if (-not $EntAssignSeen.Add("$entOid|$ownerOid")) { continue }
-            if (-not $EntAssignStreams.ContainsKey($sysId)) {
-                $EntAssignStreams[$sysId] = New-IngestStream -Endpoint 'ingest/resource-assignments' -SystemId $sysId -Scope @{ assignmentType = 'Direct'; resourceType = 'Entitlement' }
-            }
-            Add-IngestStreamRecord -Stream $EntAssignStreams[$sysId] -Record (New-MidpointEntitlementAssignmentRecord -EntitlementOid $entOid -OwnerOid $ownerOid -ViaAccount $shadowOid)
-        }
+        Add-MidpointAccountEntitlementAssignments -SysId $sysId -ShadowOid $shadowOid -OwnerOid $ownerOid `
+            -EntitlementOids (Get-MidpointShadowEntitlementOids -Shadow $s) -EntAssignStreams $EntAssignStreams -EntAssignSeen $EntAssignSeen
     }
 }
 
@@ -520,6 +604,22 @@ function Sync-MidpointOrgMembership {
     } catch { Add-PhaseError 'ContextMembers' $_.Exception.Message }
 }
 
+# One user.assignment[] entry → a direct governance assignment (or skipped when
+# it isn't a synced role/service targetRef, or is a dupe). Mutates $Ra/$Seen.
+function Add-MidpointDirectAssignment {
+    [CmdletBinding()]
+    param($Assignment, [string]$Uoid, $SyncedResourceIds, [hashtable]$ResourceOidToType, $Ra, $Seen)
+    $tr = $Assignment.targetRef
+    if (-not $tr) { return }
+    $targetType = Get-MidpointRefType $tr ''
+    $targetOid  = Get-MidpointRefOid $tr $null
+    if (-not $targetOid) { return }
+    if ($targetType -notin @('RoleType', 'ServiceType')) { return }   # Org -> context; Archetype -> skip
+    if (-not $SyncedResourceIds.Contains($targetOid)) { return }
+    if (-not $Seen.Add("$targetOid|$Uoid")) { return }
+    $Ra.Add((New-MidpointGovernanceAssignmentRecord -ResourceId $targetOid -PrincipalId $Uoid -ResourceType $ResourceOidToType[$targetOid] -Grant 'direct'))
+}
+
 # Assignments pass 1: user.assignment[] targetRef → the DIRECTLY assigned
 # roles/services (grant='direct'). Mutates $Ra/$Seen.
 function Add-MidpointDirectAssignments {
@@ -530,17 +630,26 @@ function Add-MidpointDirectAssignments {
         $assignments = $u.assignment
         if (-not $assignments) { continue }
         foreach ($a in @($assignments)) {
-            $tr = $a.targetRef
-            if (-not $tr) { continue }
-            $targetType = Get-MidpointRefType $tr ''
-            $targetOid  = Get-MidpointRefOid $tr $null
-            if (-not $targetOid) { continue }
-            if ($targetType -notin @('RoleType', 'ServiceType')) { continue }   # Org -> context; Archetype -> skip
-            if (-not $SyncedResourceIds.Contains($targetOid)) { continue }
-            if (-not $Seen.Add("$targetOid|$uoid")) { continue }
-            $Ra.Add((New-MidpointGovernanceAssignmentRecord -ResourceId $targetOid -PrincipalId $uoid -ResourceType $ResourceOidToType[$targetOid] -Grant 'direct'))
+            Add-MidpointDirectAssignment -Assignment $a -Uoid $uoid -SyncedResourceIds $SyncedResourceIds `
+                -ResourceOidToType $ResourceOidToType -Ra $Ra -Seen $Seen
         }
     }
+}
+
+# One user.roleMembershipRef[] entry → an inherited governance assignment (or
+# skipped when it isn't a synced default-relation role/service, or is a dupe).
+# Mutates $Ra/$Seen.
+function Add-MidpointInheritedAssignment {
+    [CmdletBinding()]
+    param($Membership, [string]$Uoid, $SyncedResourceIds, [hashtable]$ResourceOidToType, $Ra, $Seen)
+    $targetType = Get-MidpointRefType $Membership ''
+    $targetOid  = Get-MidpointRefOid $Membership $null
+    if (-not $targetOid) { return }
+    if ($targetType -notin @('RoleType', 'ServiceType')) { return }
+    if (-not (Test-MidpointDefaultRelation (Get-MidpointRefRelation $Membership ''))) { return }   # skip manager/owner/approver/meta
+    if (-not $SyncedResourceIds.Contains($targetOid)) { return }
+    if (-not $Seen.Add("$targetOid|$Uoid")) { return }   # already emitted as direct -> keep that
+    $Ra.Add((New-MidpointGovernanceAssignmentRecord -ResourceId $targetOid -PrincipalId $Uoid -ResourceType $ResourceOidToType[$targetOid] -Grant 'inherited'))
 }
 
 # Assignments pass 2: user.roleMembershipRef[] → midPoint's fully-computed
@@ -554,14 +663,8 @@ function Add-MidpointInheritedAssignments {
         $memberships = $u.roleMembershipRef
         if (-not $memberships) { continue }
         foreach ($m in @($memberships)) {
-            $targetType = Get-MidpointRefType $m ''
-            $targetOid  = Get-MidpointRefOid $m $null
-            if (-not $targetOid) { continue }
-            if ($targetType -notin @('RoleType', 'ServiceType')) { continue }
-            if (-not (Test-MidpointDefaultRelation (Get-MidpointRefRelation $m ''))) { continue }   # skip manager/owner/approver/meta
-            if (-not $SyncedResourceIds.Contains($targetOid)) { continue }
-            if (-not $Seen.Add("$targetOid|$uoid")) { continue }   # already emitted as direct -> keep that
-            $Ra.Add((New-MidpointGovernanceAssignmentRecord -ResourceId $targetOid -PrincipalId $uoid -ResourceType $ResourceOidToType[$targetOid] -Grant 'inherited'))
+            Add-MidpointInheritedAssignment -Membership $m -Uoid $uoid -SyncedResourceIds $SyncedResourceIds `
+                -ResourceOidToType $ResourceOidToType -Ra $Ra -Seen $Seen
         }
     }
 }
@@ -587,6 +690,38 @@ function Sync-MidpointAssignments {
     } catch { Add-PhaseError 'Assignments' $_.Exception.Message }
 }
 
+# targetRef inducement -> a Contains edge to another synced Role/Service, or $null
+# when it doesn't resolve / is a dupe. Mutates $Seen / $Stats.targetRef on a hit.
+function Get-MidpointRoleTargetEdge {
+    [CmdletBinding()]
+    param([string]$ParentOid, $TargetRef, $SyncedResourceIds, $Seen, [hashtable]$Stats)
+    $tt = Get-MidpointRefType $TargetRef ''
+    $childOid = Get-MidpointRefOid $TargetRef $null
+    if (-not $childOid -or $tt -notin @('RoleType', 'ServiceType')) { return $null }
+    if (-not $SyncedResourceIds.Contains($childOid)) { return $null }
+    if (-not $Seen.Add("$ParentOid|$childOid")) { return $null }
+    $Stats.targetRef++
+    return (New-MidpointContainsRelationship -ParentResourceId $ParentOid -ChildResourceId $childOid)
+}
+
+# construction inducement -> Contains edges to the entitlement(s) it grants
+# (literal shadowRef or an associationTargetSearch DN resolved via $EntitlementByDn).
+# Mutates $Seen / $Stats; appends any resolved edges to $Edges.
+function Add-MidpointRoleConstructionEdges {
+    [CmdletBinding()]
+    param([string]$ParentOid, $Construction, $SyncedResourceIds, [hashtable]$EntitlementByDn, $Seen, [hashtable]$Stats, $Edges)
+    foreach ($t in (Get-MidpointConstructionTargets -Construction $Construction)) {
+        $entOid = if ($t.shadowOid) { $t.shadowOid }
+                  elseif ($t.searchKey -and $EntitlementByDn.ContainsKey($t.searchKey)) { $EntitlementByDn[$t.searchKey] }
+                  else { '' }
+        if (-not $entOid) { $Stats.unresolved++; continue }
+        if (-not $SyncedResourceIds.Contains($entOid)) { $Stats.unresolved++; continue }
+        if (-not $Seen.Add("$ParentOid|$entOid")) { continue }
+        $Edges.Add((New-MidpointContainsRelationship -ParentResourceId $ParentOid -ChildResourceId $entOid))
+        $Stats.construction++
+    }
+}
+
 # Contains edges for one role's inducements: (1) targetRef -> another Role/Service;
 # (2) construction -> the entitlement(s) it grants (literal shadowRef or an
 # associationTargetSearch DN resolved via $EntitlementByDn). Mutates $Seen and the
@@ -599,27 +734,14 @@ function Get-MidpointRoleNestingEdges {
     foreach ($ind in @($Role.inducement)) {
         $tr = $ind.targetRef
         if ($tr) {
-            $tt = Get-MidpointRefType $tr ''
-            $childOid = Get-MidpointRefOid $tr $null
-            if (-not $childOid -or $tt -notin @('RoleType', 'ServiceType')) { continue }
-            if (-not $SyncedResourceIds.Contains($childOid)) { continue }
-            if (-not $Seen.Add("$parentOid|$childOid")) { continue }
-            $edges.Add((New-MidpointContainsRelationship -ParentResourceId $parentOid -ChildResourceId $childOid))
-            $Stats.targetRef++
+            $edge = Get-MidpointRoleTargetEdge -ParentOid $parentOid -TargetRef $tr -SyncedResourceIds $SyncedResourceIds -Seen $Seen -Stats $Stats
+            if ($edge) { $edges.Add($edge) }
             continue
         }
         $con = $ind.construction
         if (-not $con) { continue }
-        foreach ($t in (Get-MidpointConstructionTargets -Construction $con)) {
-            $entOid = if ($t.shadowOid) { $t.shadowOid }
-                      elseif ($t.searchKey -and $EntitlementByDn.ContainsKey($t.searchKey)) { $EntitlementByDn[$t.searchKey] }
-                      else { '' }
-            if (-not $entOid) { $Stats.unresolved++; continue }
-            if (-not $SyncedResourceIds.Contains($entOid)) { $Stats.unresolved++; continue }
-            if (-not $Seen.Add("$parentOid|$entOid")) { continue }
-            $edges.Add((New-MidpointContainsRelationship -ParentResourceId $parentOid -ChildResourceId $entOid))
-            $Stats.construction++
-        }
+        Add-MidpointRoleConstructionEdges -ParentOid $parentOid -Construction $con -SyncedResourceIds $SyncedResourceIds `
+            -EntitlementByDn $EntitlementByDn -Seen $Seen -Stats $Stats -Edges $edges
     }
     return @($edges)
 }
@@ -649,6 +771,43 @@ function Sync-MidpointRoleNesting {
     } catch { Add-PhaseError 'RoleNesting' $_.Exception.Message }
 }
 
+# One certification case → a CertificationDecision (or skipped when it's not a
+# role/service review on a synced resource, or a dupe). Mutates $Cd/$Seen.
+function Add-MidpointReviewCase {
+    [CmdletBinding()]
+    param(
+        $Case, [string]$CampOid, [string]$CampName, [string]$CampState,
+        $SyncedResourceIds, [hashtable]$UserOidToName, $Cd, $Seen
+    )
+    $principalOid = Get-MidpointRefOid $Case.objectRef $null
+    $targetOid    = Get-MidpointRefOid $Case.targetRef $null
+    $targetType   = Get-MidpointRefType $Case.targetRef ''
+    if (-not $principalOid -or -not $targetOid) { return }
+    if ($targetType -notin @('RoleType', 'ServiceType')) { return }   # org reviews aren't resource reviews
+    if (-not $SyncedResourceIds.Contains($targetOid)) { return }
+    $caseId = [string]$Case.'@id'
+    $key = "$CampOid|$caseId"
+    if (-not $Seen.Add($key)) { return }
+    $Cd.Add((ConvertTo-MidpointCertificationDecision -Case $Case -CaseKey $key -CaseId $caseId `
+        -PrincipalOid $principalOid -TargetOid $targetOid `
+        -CampaignName $CampName -CampaignOid $CampOid -CampaignState $CampState -UserOidToName $UserOidToName))
+}
+
+# One campaign's cases → CertificationDecisions. Normalises the case[] shape then
+# delegates each case to Add-MidpointReviewCase. Mutates $Cd/$Seen.
+function Add-MidpointReviewCampaign {
+    [CmdletBinding()]
+    param($Campaign, $SyncedResourceIds, [hashtable]$UserOidToName, $Cd, $Seen)
+    $campOid   = [string]$Campaign.oid
+    $campName  = (Get-MidpointString $Campaign.name $campOid)
+    $campState = (Get-MidpointString $Campaign.state '')
+    $cases = $Campaign.case; $cases = if ($cases -is [System.Array]) { $cases } elseif ($cases) { @($cases) } else { @() }
+    foreach ($case in $cases) {
+        Add-MidpointReviewCase -Case $case -CampOid $campOid -CampName $campName -CampState $campState `
+            -SyncedResourceIds $SyncedResourceIds -UserOidToName $UserOidToName -Cd $Cd -Seen $Seen
+    }
+}
+
 # ─── Phase: Reviews → CertificationDecisions ─────────────────────
 # midPoint access-certification campaign cases → CertificationDecisions (needs
 # ?include=case). Only role/service reviews on synced resources are kept.
@@ -663,24 +822,7 @@ function Sync-MidpointReviews {
         $seen = [System.Collections.Generic.HashSet[string]]::new()
         $cd   = [System.Collections.Generic.List[object]]::new()
         foreach ($camp in $campaigns) {
-            $campOid   = [string]$camp.oid
-            $campName  = (Get-MidpointString $camp.name $campOid)
-            $campState = (Get-MidpointString $camp.state '')
-            $cases = $camp.case; $cases = if ($cases -is [System.Array]) { $cases } elseif ($cases) { @($cases) } else { @() }
-            foreach ($case in $cases) {
-                $principalOid = Get-MidpointRefOid $case.objectRef $null
-                $targetOid    = Get-MidpointRefOid $case.targetRef $null
-                $targetType   = Get-MidpointRefType $case.targetRef ''
-                if (-not $principalOid -or -not $targetOid) { continue }
-                if ($targetType -notin @('RoleType', 'ServiceType')) { continue }   # org reviews aren't resource reviews
-                if (-not $SyncedResourceIds.Contains($targetOid)) { continue }
-                $caseId = [string]$case.'@id'
-                $key = "$campOid|$caseId"
-                if (-not $seen.Add($key)) { continue }
-                $cd.Add((ConvertTo-MidpointCertificationDecision -Case $case -CaseKey $key -CaseId $caseId `
-                    -PrincipalOid $principalOid -TargetOid $targetOid `
-                    -CampaignName $campName -CampaignOid $campOid -CampaignState $campState -UserOidToName $UserOidToName))
-            }
+            Add-MidpointReviewCampaign -Campaign $camp -SyncedResourceIds $SyncedResourceIds -UserOidToName $UserOidToName -Cd $cd -Seen $seen
         }
         $R = Send-IngestBatch -Endpoint 'ingest/governance/certifications' -SystemId $MidpointSystemId -Records @($cd)
         Write-Host "  CertificationDecisions: +$($R.inserted) ~$($R.updated) -$($R.deleted) (from $($cd.Count) decisions)" -ForegroundColor Green
