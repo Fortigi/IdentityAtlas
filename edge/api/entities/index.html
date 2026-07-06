@@ -4779,7 +4779,7 @@
 <a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a><span class="w">  </span><span class="p">]</span>
 <a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a><span class="p">}</span>
 </code></pre></div>
-<p><strong>Reads From:</strong> <code>ResourceAssignments</code> (<code>assignmentType='Governed'</code>) + <code>Resources</code> (<code>resourceType='BusinessRole'</code>) + <code>GovernanceCatalogs</code></p>
+<p><strong>Reads From:</strong> <code>ResourceAssignments</code> (<code>governed=true</code>) + <code>Resources</code> (<code>resourceType='BusinessRole'</code>) + <code>GovernanceCatalogs</code></p>
 <hr />
 <h4 id="get-apiuseridhistory">GET /api/user/:id/history<a class="headerlink" href="#get-apiuseridhistory" title="Permanent link">&para;</a></h4>
 <p>Version history for a user principal. Each entry represents a recorded change from the <code>_history</code> audit table, including the operation type and a JSONB snapshot of the row data.</p>
@@ -4832,7 +4832,7 @@
 <td><code>resourceType</code></td>
 <td>string</td>
 <td></td>
-<td>Filter by <code>resourceType</code> (e.g. <code>Group</code>, <code>DirectoryRole</code>, <code>AppRole</code>, <code>BusinessRole</code>)</td>
+<td>Filter by <code>resourceType</code> (e.g. <code>Group</code>, <code>EntraDirectoryRole</code>, <code>AppRole</code>, <code>BusinessRole</code>)</td>
 </tr>
 <tr>
 <td><code>systemId</code></td>
@@ -4901,7 +4901,7 @@
 <td><code>membershipType</code></td>
 <td>string</td>
 <td></td>
-<td>Filter by type: <code>Direct</code>, <code>Indirect</code>, <code>Eligible</code>, <code>Owner</code></td>
+<td>Filter by type: <code>Direct</code>, <code>Indirect</code>, <code>Eligible</code></td>
 </tr>
 <tr>
 <td><code>limit</code></td>
@@ -4985,7 +4985,7 @@
 <a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a><span class="w">  </span><span class="nt">&quot;total&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">48</span>
 <a id="__codelineno-7-14" name="__codelineno-7-14" href="#__codelineno-7-14"></a><span class="p">}</span>
 </code></pre></div>
-<p><strong>Reads From:</strong> <code>ResourceAssignments</code> (<code>assignmentType='Governed'</code>) + <code>Principals</code></p>
+<p><strong>Reads From:</strong> <code>ResourceAssignments</code> (<code>governed=true</code>) + <code>Principals</code></p>
 <hr />
 <h3 id="get-apiaccess-packageidresource-roles">GET /api/access-package/:id/resource-roles<a class="headerlink" href="#get-apiaccess-packageidresource-roles" title="Permanent link">&para;</a></h3>
 <p>Resources granted by this business role (the SOLL definition — what resources a user gets when this role is assigned).</p>
@@ -5103,7 +5103,7 @@
 <a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a><span class="w">      </span><span class="nt">&quot;enabled&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
 <a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a><span class="w">      </span><span class="nt">&quot;resourceCount&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">412</span><span class="p">,</span>
 <a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a><span class="w">      </span><span class="nt">&quot;assignmentCount&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">8903</span><span class="p">,</span>
-<a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a><span class="w">      </span><span class="nt">&quot;resourceTypes&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;Group&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;DirectoryRole&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;AppRole&quot;</span><span class="p">]</span>
+<a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a><span class="w">      </span><span class="nt">&quot;resourceTypes&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;Group&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;EntraDirectoryRole&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;AppRole&quot;</span><span class="p">]</span>
 <a id="__codelineno-11-10" name="__codelineno-11-10" href="#__codelineno-11-10"></a><span class="w">    </span><span class="p">}</span>
 <a id="__codelineno-11-11" name="__codelineno-11-11" href="#__codelineno-11-11"></a><span class="w">  </span><span class="p">]</span>
 <a id="__codelineno-11-12" name="__codelineno-11-12" href="#__codelineno-11-12"></a><span class="p">}</span>
