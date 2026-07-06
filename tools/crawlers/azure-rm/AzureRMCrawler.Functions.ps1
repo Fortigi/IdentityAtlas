@@ -38,6 +38,9 @@ function Get-ScopeNodeId {
     Get-CapabilityId -TargetNodeId $safe -CapabilityId 'azure-scope'
 }
 
+# Thin adapter over the shared Invoke-CrawlerIngestBatch (tools/crawlers/shared/
+# Invoke-CrawlerIngest.ps1). Azure RM sends small batches, so the shared chunking
+# never triggers; an empty batch is still sent as a full sync (no -SkipWhenEmpty).
 function Send-IngestBatch {
     [CmdletBinding()]
     param(
@@ -47,11 +50,7 @@ function Send-IngestBatch {
         [hashtable]$Scope = @{},
         [array]$Records = @()
     )
-    if (-not $Records -or $Records.Count -eq 0) {
-        return Invoke-IngestAPI -Endpoint $Endpoint -Body @{ systemId = $SystemId; syncMode = $SyncMode; scope = $Scope; records = @() }
-    }
-    $body = @{ systemId = $SystemId; syncMode = $SyncMode; scope = $Scope; records = ConvertTo-JsonArray $Records }
-    Invoke-IngestAPI -Endpoint $Endpoint -Body $body
+    Invoke-CrawlerIngestBatch -Endpoint $Endpoint -SystemId $SystemId -SyncMode $SyncMode -Scope $Scope -Records $Records
 }
 
 # Per-phase wall-clock + round-trip report — the call counts make the cross-subscription savings of

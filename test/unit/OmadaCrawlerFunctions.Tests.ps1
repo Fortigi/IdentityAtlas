@@ -233,15 +233,17 @@ Describe 'Send-IngestBatch' {
         }
     }
 
-    It 'sends a separate delta delete batch when DeletedIds are supplied' {
-        Mock Invoke-IngestAPI { return @{ inserted = 1; updated = 0; deleted = 0 } }
+    It 'sends deletes in-band with the records batch (unified protocol)' {
+        # The shared Send-IngestBatch carries the tombstones alongside the upserts
+        # in a single batch (the ingest API applies records first, then deletes),
+        # rather than a separate delta call — one round trip, identical end state.
+        Mock Invoke-IngestAPI { return @{ inserted = 1; updated = 0; deleted = 2 } }
         $recs = @([PSCustomObject]@{ id = 'keep' })
         Send-IngestBatch -Endpoint 'ingest/principals' -SystemId 1 `
             -Records $recs -DeletedIds @('gone1', 'gone2') | Out-Null
-        # One delete (delta) call + one upsert (full) call
-        Should -Invoke Invoke-IngestAPI -Times 2 -Exactly
+        Should -Invoke Invoke-IngestAPI -Times 1 -Exactly
         Should -Invoke Invoke-IngestAPI -Times 1 -Exactly -ParameterFilter {
-            $Body.syncMode -eq 'delta' -and $Body.deletedIds.Count -eq 2
+            $Body.records.Count -eq 1 -and $Body.deletedIds.Count -eq 2
         }
     }
 

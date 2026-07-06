@@ -97,6 +97,10 @@ function Write-Phase {
     $Script:phases.Add($Phase)
 }
 
+# Thin adapter over the shared Invoke-CrawlerIngestBatch (tools/crawlers/shared/
+# Invoke-CrawlerIngest.ps1). Omada's original behaviour is the shared default —
+# no -SkipWhenEmpty, so an empty batch is still sent as a full sync and the
+# server scoped-deletes stale rows.
 function Send-IngestBatch {
     [CmdletBinding()]
     param(
@@ -108,36 +112,8 @@ function Send-IngestBatch {
         [string[]]$DeletedIds = @(),
         [int]$BatchSize     = 5000
     )
-    if (-not $Records -or $Records.Count -eq 0) {
-        # Still send an empty full-sync batch so the server can scoped-delete stale data
-        $Body = @{ systemId = $SystemId; syncMode = $SyncMode; scope = $Scope; records = @() }
-        return Invoke-IngestAPI -Endpoint $Endpoint -Body $Body
-    }
-
-    if ($DeletedIds.Count -gt 0) {
-        $DelBody = @{ systemId = $SystemId; syncMode = 'delta'; scope = $Scope; records = @(); deletedIds = ConvertTo-JsonArray $DeletedIds }
-        Invoke-IngestAPI -Endpoint $Endpoint -Body $DelBody | Out-Null
-    }
-
-    if ($Records.Count -le $BatchSize) {
-        $Body = @{ systemId = $SystemId; syncMode = $SyncMode; scope = $Scope; records = ConvertTo-JsonArray $Records }
-        return Invoke-IngestAPI -Endpoint $Endpoint -Body $Body
-    }
-
-    # Chunked session for large batches
-    $SyncId = $Null; $TotalInserted = 0; $TotalUpdated = 0; $TotalDeleted = 0
-    for ($I = 0; $I -lt $Records.Count; $I += $BatchSize) {
-        $Chunk   = $Records[$I..([Math]::Min($I + $BatchSize - 1, $Records.Count - 1))]
-        $IsFirst = ($I -eq 0)
-        $IsLast  = ($I + $BatchSize -ge $Records.Count)
-        $Body    = @{ systemId = $SystemId; syncMode = $SyncMode; scope = $Scope; records = ConvertTo-JsonArray $Chunk
-                      syncSession = if ($IsFirst) { 'start' } elseif ($IsLast) { 'end' } else { 'continue' } }
-        if ($SyncId) { $Body.syncId = $SyncId }
-        $Result = Invoke-IngestAPI -Endpoint $Endpoint -Body $Body
-        if ($IsFirst -and $Result.syncId) { $SyncId = $Result.syncId }
-        $TotalInserted += ($Result.inserted ?? 0); $TotalUpdated += ($Result.updated ?? 0); $TotalDeleted += ($Result.deleted ?? 0)
-    }
-    return @{ inserted = $TotalInserted; updated = $TotalUpdated; deleted = $TotalDeleted }
+    Invoke-CrawlerIngestBatch -Endpoint $Endpoint -SystemId $SystemId -SyncMode $SyncMode -Scope $Scope `
+        -Records $Records -DeletedIds $DeletedIds -BatchSize $BatchSize
 }
 
 #endregion Functions

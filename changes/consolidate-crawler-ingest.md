@@ -1,0 +1,1 @@
+- Internal refactor: unified how all crawlers send data to the ingest API into one shared, tested implementation, removing duplicated batching logic that had drifted between crawlers. No change to what data is synced or how.

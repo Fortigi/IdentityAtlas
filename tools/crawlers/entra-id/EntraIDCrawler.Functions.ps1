@@ -16,6 +16,11 @@
     tools/crawlers/shared/Invoke-CrawlerIngest.ps1 — dot-source that file too.
 #>
 
+# Thin adapter over the shared Invoke-CrawlerIngestBatch (tools/crawlers/shared/
+# Invoke-CrawlerIngest.ps1), which now owns the one canonical ingest protocol
+# (single batch, chunked start/continue/end sessions, in-band delta tombstones).
+# Entra keeps the same call surface; -SkipWhenEmpty preserves the crawler's
+# original "no records and no deletes → no call" behaviour.
 function Send-IngestBatch {
     [CmdletBinding()]
     param(
@@ -24,95 +29,11 @@ function Send-IngestBatch {
         [string]$SyncMode = 'full',
         [hashtable]$Scope = @{},
         [array]$Records,
-        # Optional: a list of ids to DELETE at the target, alongside the
-        # upserts in $Records. The ingest API applies `records` first, then
-        # deletes any row matching `id IN (...)`. Used by delta flows where
-        # Graph `@removed` events give us tombstones that aren't deletable
-        # through the upsert path.
         [string[]]$DeletedIds = @(),
-        # 5000 strikes a balance between MERGE round-trip overhead and lock
-        # duration. With RCSI enabled on the database, readers don't block on
-        # writers, but smaller batches still make the crawler give back the
-        # CPU more often and reduce tempdb version-store pressure.
         [int]$BatchSize = 5000
     )
-
-    $haveRecords = $Records -and $Records.Count -gt 0
-    $haveDeletes = $DeletedIds -and $DeletedIds.Count -gt 0
-    if (-not $haveRecords -and -not $haveDeletes) {
-        Write-Host "  No records to send" -ForegroundColor Yellow
-        return @{ inserted = 0; updated = 0; deleted = 0 }
-    }
-
-    Write-FGIngestBatchHeader -Endpoint $Endpoint -Records $Records -DeletedIds $DeletedIds -HaveRecords $haveRecords -HaveDeletes $haveDeletes
-
-    # Single batch (includes the deletes-only case where $Records may be empty).
-    if (-not $haveRecords -or $Records.Count -le $BatchSize) {
-        return Send-FGSingleIngestBatch -Endpoint $Endpoint -SystemId $SystemId -SyncMode $SyncMode `
-            -Scope $Scope -Records $Records -DeletedIds $DeletedIds -HaveRecords $haveRecords -HaveDeletes $haveDeletes
-    }
-    return Send-FGChunkedIngestBatches -Endpoint $Endpoint -SystemId $SystemId -SyncMode $SyncMode `
-        -Scope $Scope -Records $Records -DeletedIds $DeletedIds -HaveDeletes $haveDeletes -BatchSize $BatchSize
-}
-
-# Print the "Sending N records/deletes to <endpoint>" header line for Send-IngestBatch.
-function Write-FGIngestBatchHeader {
-    [CmdletBinding()]
-    param($Endpoint, $Records, $DeletedIds, [bool]$HaveRecords, [bool]$HaveDeletes)
-    $count = if ($HaveRecords) { $Records.Count } else { $DeletedIds.Count }
-    $what  = if ($HaveRecords) { 'records' } else { 'deletes' }
-    Write-Host "  Sending $count $what to $Endpoint..." -NoNewline -ForegroundColor Cyan
-    if ($HaveRecords -and $HaveDeletes) { Write-Host " (+$($DeletedIds.Count) deletes)" -ForegroundColor Cyan }
-    else { Write-Host '' -ForegroundColor Cyan }
-}
-
-# One ingest call: all records (<= BatchSize) plus any deletes in the same body.
-function Send-FGSingleIngestBatch {
-    [CmdletBinding()]
-    param($Endpoint, [int]$SystemId, [string]$SyncMode, [hashtable]$Scope, $Records, [string[]]$DeletedIds, [bool]$HaveRecords, [bool]$HaveDeletes)
-    $body = @{
-        systemId = $SystemId
-        syncMode = $SyncMode
-        scope    = $Scope
-        records  = if ($HaveRecords) { ConvertTo-JsonArray $Records } else { ConvertTo-JsonArray $null }
-    }
-    if ($HaveDeletes) { $body['deletedIds'] = ConvertTo-JsonArray $DeletedIds }
-    $result = Invoke-IngestAPI -Endpoint $Endpoint -Body $body
-    Write-Host "  Result: $($result.inserted) inserted, $($result.updated) updated, $($result.deleted) deleted" -ForegroundColor Green
-    return $result
-}
-
-# Chunked start/continue/end session for records exceeding BatchSize. Any deletes go
-# as a SEPARATE call first — chunked sessions don't mesh with in-band deletes.
-function Send-FGChunkedIngestBatches {
-    [CmdletBinding()]
-    param($Endpoint, [int]$SystemId, [string]$SyncMode, [hashtable]$Scope, [array]$Records, [string[]]$DeletedIds, [bool]$HaveDeletes, [int]$BatchSize)
-    $totalDeleted = 0
-    if ($HaveDeletes) {
-        $delBody = @{ systemId = $SystemId; syncMode = $SyncMode; scope = $Scope; records = ConvertTo-JsonArray $null; deletedIds = ConvertTo-JsonArray $DeletedIds }
-        $totalDeleted = ((Invoke-IngestAPI -Endpoint $Endpoint -Body $delBody).deleted ?? 0)
-    }
-    $totalInserted = 0; $totalUpdated = 0; $syncId = $null; $result = $null
-    for ($i = 0; $i -lt $Records.Count; $i += $BatchSize) {
-        $batch = $Records[$i..([Math]::Min($i + $BatchSize - 1, $Records.Count - 1))]
-        $isFirst = ($i -eq 0)
-        $body = @{
-            systemId    = $SystemId
-            syncMode    = $SyncMode
-            scope       = $Scope
-            records     = ConvertTo-JsonArray $batch
-            syncSession = if ($isFirst) { 'start' } elseif ($i + $BatchSize -ge $Records.Count) { 'end' } else { 'continue' }
-        }
-        if ($syncId) { $body.syncId = $syncId }
-        $result = Invoke-IngestAPI -Endpoint $Endpoint -Body $body
-        if ($isFirst) { $syncId = $result.syncId }
-        $totalInserted += ($result.inserted ?? 0)
-        $totalUpdated += ($result.updated ?? 0)
-        Write-Host "  Batch $([Math]::Floor($i / $BatchSize) + 1)/$([Math]::Ceiling($Records.Count / $BatchSize)) done" -ForegroundColor Gray
-    }
-    $deleted = ($result.deleted ?? 0) + $totalDeleted
-    Write-Host "  Total: $totalInserted inserted, $totalUpdated updated, $deleted deleted" -ForegroundColor Green
-    return @{ inserted = $totalInserted; updated = $totalUpdated; deleted = $deleted }
+    Invoke-CrawlerIngestBatch -Endpoint $Endpoint -SystemId $SystemId -SyncMode $SyncMode -Scope $Scope `
+        -Records $Records -DeletedIds $DeletedIds -BatchSize $BatchSize -SkipWhenEmpty
 }
 
 # HTTP status code off a caught error's response, or $null if unavailable.

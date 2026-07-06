@@ -18,34 +18,16 @@
 
 # ─── Helpers ─────────────────────────────────────────────────────
 
+# Thin adapter over the shared Invoke-CrawlerIngestBatch (tools/crawlers/shared/
+# Invoke-CrawlerIngest.ps1). CSV uses deterministic ids (idPrefix becomes
+# "<SystemType>-<entity>", matching normalization.js's idGeneration contract), a
+# 10000 batch size, and skips empty batches. The original returned nothing, so
+# the shared result is swallowed here.
 function Send-IngestBatch {
     [CmdletBinding()]
     param([string]$Endpoint, [int]$SystemId, [string]$SyncMode = 'full', [hashtable]$Scope = @{}, $Records, [int]$BatchSize = 10000)
-    $count = if ($null -eq $Records) { 0 } else { $Records.Count }
-    if ($count -eq 0) { Write-Host "  No records to send" -ForegroundColor Yellow; return }
-    Write-Host "  Sending $count records to $Endpoint..." -ForegroundColor Cyan
-    if ($count -le $BatchSize) {
-        $body = @{ systemId = $SystemId; syncMode = $SyncMode; scope = $Scope; records = $Records; idGeneration = 'deterministic'; idPrefix = "$SystemType-$($Endpoint.Split('/')[-1])" }
-        $result = Invoke-IngestAPI -Endpoint $Endpoint -Body $body
-        Write-Host "  → $($result.inserted) inserted, $($result.updated) updated, $($result.deleted) deleted" -ForegroundColor Green
-        return
-    }
-    $syncId = $null
-    $totalIns = 0; $totalUpd = 0; $totalDel = 0
-    $batch = [System.Collections.Generic.List[object]]::new($BatchSize)
-    for ($i = 0; $i -lt $count; $i += $BatchSize) {
-        $end = [Math]::Min($i + $BatchSize - 1, $count - 1)
-        $batch.Clear()
-        for ($j = $i; $j -le $end; $j++) { [void]$batch.Add($Records[$j]) }
-        $isFirst = ($i -eq 0); $isLast = ($i + $BatchSize -ge $count)
-        $body = @{ systemId = $SystemId; syncMode = $SyncMode; scope = $Scope; records = $batch; idGeneration = 'deterministic'; idPrefix = "$SystemType-$($Endpoint.Split('/')[-1])"; syncSession = if ($isFirst) { 'start' } elseif ($isLast) { 'end' } else { 'continue' } }
-        if ($syncId) { $body.syncId = $syncId }
-        $result = Invoke-IngestAPI -Endpoint $Endpoint -Body $body
-        if ($isFirst) { $syncId = $result.syncId }
-        $totalIns += [int]$result.inserted; $totalUpd += [int]$result.updated; $totalDel += [int]$result.deleted
-        Write-Host "    batch $([int]($i / $BatchSize) + 1): +$($result.inserted) ins, $($result.updated) upd ($([int]($end + 1))/$count)" -ForegroundColor DarkGray
-    }
-    Write-Host "  → $totalIns inserted, $totalUpd updated, $totalDel deleted (chunked)" -ForegroundColor Green
+    Invoke-CrawlerIngestBatch -Endpoint $Endpoint -SystemId $SystemId -SyncMode $SyncMode -Scope $Scope `
+        -Records $Records -BatchSize $BatchSize -IdGeneration 'deterministic' -IdPrefix $SystemType -SkipWhenEmpty | Out-Null
 }
 
 function Read-CsvFile {
