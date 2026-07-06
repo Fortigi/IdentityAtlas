@@ -78,9 +78,6 @@
     "app/ui/src/components/AccessPackagesPage.jsx": [
       36
     ],
-    "app/ui/src/components/AdminPage.jsx": [
-      36
-    ],
     "app/ui/src/components/AuthSettingsPage.jsx": [
       26
     ],
@@ -134,6 +131,9 @@
     ],
     "app/ui/src/components/UpdatesSettings.jsx": [
       21
+    ],
+    "app/ui/src/components/admin/LLMSettingsSection.jsx": [
+      36
     ],
     "app/ui/src/components/contexts/ContextPicker.jsx": [
       26
