@@ -10,7 +10,7 @@ Test quality across the project's automated suites — line/branch/method covera
 |-------|------|--------|--------|------------|-----------|----------|---------------|
 | [API (Node / Vitest — unit + contract)](../coverage/api/index.html) | 73.5% | 62.2% | 76.1% | — | — | — | 6,642 / 9,025 |
 | [UI (React / Vitest)](../coverage/ui/index.html) | 66.8% | 55.1% | 53.4% | — | — | — | 4,704 / 7,034 |
-| [PowerShell (Pester)](../coverage/powershell/index.html) | 91.9% | — | 97.2% | 4.3 / 50 | 5.1 / 95 | 82.7% | 5,314 / 5,779 |
+| [PowerShell (Pester)](../coverage/powershell/index.html) | 91.9% | — | 97.2% | 4.3 / 50 | 5.1 / 95 | 84.7% | 5,314 / 5,779 |
 | **Overall** | **76.3%** | | | | | | **16,660 / 21,838** |
 
 **Cyclomatic** / **Cognitive** are _average / max_ per unit (each function, plus each script/module body) via [PSComplexity](https://github.com/Fortigi/PSComplexity); **Mutation** is the share of injected faults the tests catch via [PSMutant](https://github.com/Fortigi/PSMutant). Both are measured for PowerShell today — suites without them show —.
@@ -23,4 +23,4 @@ Each suite links to a full per-file, line-by-line HTML report:
 - [UI (React / Vitest)](../coverage/ui/index.html)
 - [PowerShell (Pester)](../coverage/powershell/index.html)
 
-_Generated 2026-07-06 07:03 UTC from commit `892e5209`._
+_Generated 2026-07-06 07:15 UTC from commit `9168c26c`._
