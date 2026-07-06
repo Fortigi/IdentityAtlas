@@ -28,10 +28,6 @@
     "tools/crawlers/azure-rm/Get-AzureRMHelpers.ps1": [
       21
     ],
-    "tools/crawlers/azure-rm/Start-AzureRMCrawler.ps1": [
-      226,
-      42
-    ],
     "tools/crawlers/entra-id/EntraIDCrawler.Functions.ps1": [
       34,
       26,

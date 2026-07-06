@@ -185,9 +185,6 @@
     "test/nightly/Test-RiskScoringLLM.ps1": [
       50
     ],
-    "tools/crawlers/azure-rm/Start-AzureRMCrawler.ps1": [
-      84
-    ],
     "tools/crawlers/entra-id/EntraIDCrawler.Functions.ps1": [
       18
     ],
