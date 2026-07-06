@@ -191,9 +191,6 @@
     "tools/crawlers/entra-id/EntraIDCrawler.Functions.ps1": [
       18
     ],
-    "tools/crawlers/midpoint/Start-MidpointCrawler.ps1": [
-      165
-    ],
     "tools/crawlers/odata/Invoke-ODataGetRequest.ps1": [
       31
     ],

@@ -51,9 +51,6 @@
     "tools/crawlers/midpoint/MidpointCrawler.Functions.ps1": [
       20
     ],
-    "tools/crawlers/midpoint/Start-MidpointCrawler.ps1": [
-      459
-    ],
     "tools/crawlers/odata/Invoke-ODataGetRequest.ps1": [
       70
     ],
