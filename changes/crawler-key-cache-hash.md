@@ -1,0 +1,1 @@
+- Hardened crawler API-key handling: the per-request authentication cache no longer keeps the plaintext key in memory (it now keys by a hash), reducing exposure if a process memory dump is captured.

@@ -8,18 +8,27 @@ const rateLimits = new Map();
 const RATE_WINDOW_MS = 60 * 1000;
 
 // Auth result cache: avoids running the expensive scrypt on every request.
-// Key: `${crawlerId}:${apiKey}`. TTL: 60 seconds.
-// On key rotation the new apiKey string is different → cache miss → re-verify.
+// TTL: 60 seconds. On key rotation the new apiKey string hashes differently →
+// cache miss → re-verify.
 const authCache = new Map();
 const AUTH_CACHE_TTL_MS = 60_000;
 
+// Cache key: `${crawlerId}:${sha256(apiKey)}`. We hash the apiKey so the
+// PLAINTEXT crawler key is never retained in memory (it would otherwise sit in
+// the Map's keys for the whole TTL, exposed to a heap dump). SHA-256 is cheap —
+// the cache exists to skip the expensive scrypt in hashKey(), not to avoid a
+// hash — so this doesn't defeat its purpose. Exported for unit testing.
+export function authCacheKey(crawlerId, apiKey) {
+  return `${crawlerId}:${crypto.createHash('sha256').update(String(apiKey)).digest('hex')}`;
+}
+
 function getCachedAuth(crawlerId, apiKey) {
-  const entry = authCache.get(`${crawlerId}:${apiKey}`);
+  const entry = authCache.get(authCacheKey(crawlerId, apiKey));
   return (entry && Date.now() < entry.expires) ? entry.valid : null;
 }
 
 function setCachedAuth(crawlerId, apiKey, valid) {
-  authCache.set(`${crawlerId}:${apiKey}`, { valid, expires: Date.now() + AUTH_CACHE_TTL_MS });
+  authCache.set(authCacheKey(crawlerId, apiKey), { valid, expires: Date.now() + AUTH_CACHE_TTL_MS });
   if (authCache.size > 2000) {
     const now = Date.now();
     for (const [k, v] of authCache) { if (now >= v.expires) authCache.delete(k); }
