@@ -3440,7 +3440,7 @@
 <h1 id="test-coverage">Test Coverage<a class="headerlink" href="#test-coverage" title="Permanent link">&para;</a></h1>
 <!-- GENERATED FILE — do not edit by hand. Produced by tools/generate-coverage-doc.py via .github/workflows/coverage.yml. -->
 
-<p>Line coverage across the project's automated test suites, regenerated on every merge to <code>main</code>. The figures on this page reflect the version of the docs you are viewing — <strong>edge</strong> tracks <code>main</code>, a released version is frozen at its release tag.</p>
+<p>Test quality across the project's automated suites — line/branch/method coverage plus, where measured, code complexity and mutation score — regenerated on every merge to <code>main</code>. The figures on this page reflect the version of the docs you are viewing — <strong>edge</strong> tracks <code>main</code>, a released version is frozen at its release tag.</p>
 <p><img alt="Overall coverage" src="https://img.shields.io/badge/coverage-73.4%25-yellow" /></p>
 <table>
 <thead>
@@ -3449,6 +3449,9 @@
 <th>Line</th>
 <th>Branch</th>
 <th>Method</th>
+<th>Cyclomatic</th>
+<th>Cognitive</th>
+<th>Mutation</th>
 <th>Lines covered</th>
 </tr>
 </thead>
@@ -3458,6 +3461,9 @@
 <td>73.3%</td>
 <td>61.9%</td>
 <td>76.0%</td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
 <td>6,607 / 9,004</td>
 </tr>
 <tr>
@@ -3465,6 +3471,9 @@
 <td>66.8%</td>
 <td>55.1%</td>
 <td>53.4%</td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
 <td>4,704 / 7,034</td>
 </tr>
 <tr>
@@ -3472,6 +3481,9 @@
 <td>81.6%</td>
 <td>—</td>
 <td>95.5%</td>
+<td>4.7 / 165</td>
+<td>6.4 / 459</td>
+<td>82.7%</td>
 <td>4,604 / 5,636</td>
 </tr>
 <tr>
@@ -3479,10 +3491,14 @@
 <td><strong>73.4%</strong></td>
 <td></td>
 <td></td>
+<td></td>
+<td></td>
+<td></td>
 <td><strong>15,915 / 21,674</strong></td>
 </tr>
 </tbody>
 </table>
+<p><strong>Cyclomatic</strong> / <strong>Cognitive</strong> are <em>average / max</em> per unit (each function, plus each script/module body) via <a href="https://github.com/Fortigi/PSComplexity">PSComplexity</a>; <strong>Mutation</strong> is the share of injected faults the tests catch via <a href="https://github.com/Fortigi/PSMutant">PSMutant</a>. Both are measured for PowerShell today — suites without them show —.</p>
 <h2 id="browsable-reports">Browsable reports<a class="headerlink" href="#browsable-reports" title="Permanent link">&para;</a></h2>
 <p>Each suite links to a full per-file, line-by-line HTML report:</p>
 <ul>
@@ -3490,7 +3506,7 @@
 <li><a href="../../coverage/ui/">UI (React / Vitest)</a></li>
 <li><a href="../../coverage/powershell/">PowerShell (Pester)</a></li>
 </ul>
-<p><em>Generated 2026-07-05 11:11 UTC from commit <code>f8ac8b69</code>.</em></p>
+<p><em>Generated 2026-07-05 13:17 UTC from commit <code>cf122032</code>.</em></p>
 
 
 
