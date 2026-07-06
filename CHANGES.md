@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Fixed imported context hierarchies (such as org-unit or department trees) not linking to their parent. A context's parent reference is now resolved into the correct context, so parent/child relationships persist on import instead of being silently dropped.
+
+## Changes in this PR
+
 - Cleaned up the access matrix legend: it now shows only the badges that can actually appear (Direct, Indirect, Eligible). The obsolete "Owner" badge and other retired assignment-type badges (Governed, OAuth2 grant, App role) were removed from both the on-screen legend and the Excel export legend. Ownership continues to appear as its own resource row.
 
 ## Changes in this PR
