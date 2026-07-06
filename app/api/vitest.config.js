@@ -30,6 +30,18 @@ export default defineConfig({
       reporter: ['text', 'lcov'],
       include: ['src/**/*.js'],
       exclude: ['src/**/*.test.js', 'src/index.js'],
+      // Coverage ratchet: a committed FLOOR that `npm run test:coverage` (run in
+      // the PR Checks job) enforces — a change that drops unit coverage below
+      // these fails CI. Set just under the current numbers so normal variance
+      // doesn't flake. When you raise coverage, RAISE these too (the same
+      // manual-ratchet discipline as the complexity baseline; never lower them).
+      // Measured on this suite (unit only; contract tests add more): S67.8 B59.9 F67.9 L71.2.
+      thresholds: {
+        statements: 67,
+        branches: 59,
+        functions: 67,
+        lines: 71,
+      },
     },
   },
 });
