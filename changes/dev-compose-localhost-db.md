@@ -1,1 +1,0 @@
-- Development Docker setup: the local PostgreSQL container is now bound to localhost only instead of all network interfaces, so the database (which uses a default local password) is no longer reachable from other machines on your network.
