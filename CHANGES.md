@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- API server errors (HTTP 500) no longer echo internal error details back to the client — they return a generic message while the full detail is still logged server-side, matching the project error-handling policy.
+
+## Changes in this PR
+
 - Internal refactor: unified how all crawlers send data to the ingest API into one shared, tested implementation, removing duplicated batching logic that had drifted between crawlers. No change to what data is synced or how.
 
 ## Changes in this PR
