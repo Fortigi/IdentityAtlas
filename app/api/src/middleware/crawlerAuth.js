@@ -13,13 +13,19 @@ const RATE_WINDOW_MS = 60 * 1000;
 const authCache = new Map();
 const AUTH_CACHE_TTL_MS = 60_000;
 
-// Cache key: `${crawlerId}:${sha256(apiKey)}`. We hash the apiKey so the
-// PLAINTEXT crawler key is never retained in memory (it would otherwise sit in
-// the Map's keys for the whole TTL, exposed to a heap dump). SHA-256 is cheap —
-// the cache exists to skip the expensive scrypt in hashKey(), not to avoid a
-// hash — so this doesn't defeat its purpose. Exported for unit testing.
+// Cache key: `${crawlerId}:${HMAC(apiKey)}`. We derive the key with a keyed HMAC
+// (not a bare SHA of the credential — CodeQL rightly flags a bare hash of a
+// credential as insufficient password hashing) so the PLAINTEXT crawler key is
+// never retained in memory — it would otherwise sit in the Map's keys for the
+// whole TTL, exposed to a heap dump. The HMAC secret is process-ephemeral: the
+// cache is a per-process in-memory Map, so a fresh random secret per process is
+// sufficient (and a cache key captured from one process can't be replayed
+// against another). This is a fast keyed MAC — the cache exists to skip the
+// *expensive* scrypt in hashKey(), not to avoid a hash — so it doesn't defeat
+// the cache. Exported for unit testing.
+const AUTH_CACHE_HMAC_SECRET = crypto.randomBytes(32);
 export function authCacheKey(crawlerId, apiKey) {
-  return `${crawlerId}:${crypto.createHash('sha256').update(String(apiKey)).digest('hex')}`;
+  return `${crawlerId}:${crypto.createHmac('sha256', AUTH_CACHE_HMAC_SECRET).update(String(apiKey)).digest('hex')}`;
 }
 
 function getCachedAuth(crawlerId, apiKey) {
