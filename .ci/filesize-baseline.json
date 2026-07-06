@@ -1,0 +1,12 @@
+{
+  "_comment": "File-length ratchet baseline. Files currently over the ceiling; each may only shrink. Only ever lowered (python tools/filesize/ratchet.py --update). See the tool header.",
+  "ceiling": 1000,
+  "files": {
+    "app/ui/src/components/AdminPage.jsx": 1726,
+    "app/ui/src/components/MatrixView.jsx": 1170,
+    "app/ui/src/components/matrix/MatrixFilterWizard.jsx": 1239,
+    "tools/crawlers/entra-id/EntraIDCrawler.Phases.ps1": 1873,
+    "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1": 1011,
+    "tools/crawlers/omada/OmadaCrawler.Phases.ps1": 1081
+  }
+}
