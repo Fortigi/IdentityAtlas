@@ -402,9 +402,11 @@ jobs:
         working-directory: app/ui
         run: npm ci
 
-      - name: Run Vitest
+      - name: Run Vitest (with coverage ratchet)
         working-directory: app/ui
-        run: npm test
+        # Coverage-enabled so the committed thresholds floor in vite.config.js is
+        # enforced — a change that drops UI coverage below the floor fails here.
+        run: npm run test:coverage
 
   # ── Stage 4c: Node-launcher UI build (crawler wizard bundling) ──────────
   # The portable/desktop build (app/desktop/scripts/build-node-launcher.mjs)
