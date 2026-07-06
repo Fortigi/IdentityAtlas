@@ -4428,6 +4428,16 @@ Business roles are not stored in a separate table. They are <code>Resources</cod
 <td>One synthetic resource per (clientSP, targetAPI, OAuth2 scope). Linked to its parent via <code>relationshipType='DelegatesScope'</code>.</td>
 </tr>
 <tr>
+<td><code>ServicePrincipalOwnership</code></td>
+<td>Entra ID</td>
+<td>Owners of an enterprise-app service principal — one resource per owned app, linked to its <code>Application</code> via <code>relationshipType='HasAppOwnership'</code>.</td>
+</tr>
+<tr>
+<td><code>ApplicationOwnership</code></td>
+<td>Entra ID</td>
+<td>Owners of an app registration (who can add a credential and authenticate as the app), matched to the app's SP by <code>appId</code> and linked via <code>HasAppOwnership</code>.</td>
+</tr>
+<tr>
 <td><code>BusinessRole</code></td>
 <td>Entra ID, Omada, MidPoint</td>
 <td>Entra ID access package; Omada business role; MidPoint role type. Contains child resources via <code>relationshipType='Contains'</code>; assigned via a <code>Direct</code> membership flagged <code>governed=true</code>.</td>
