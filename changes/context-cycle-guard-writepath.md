@@ -1,1 +1,0 @@
-- Made context hierarchies more resilient to parent-loops. Generated (plugin) context trees now skip any parent link that would create a cycle, and imported context batches self-repair a cyclic parent link immediately after the batch rather than waiting for the end-of-sync refresh — so a mis-parented tree can no longer leave a stored loop behind.

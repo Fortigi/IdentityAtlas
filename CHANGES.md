@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Made context hierarchies more resilient to parent-loops. Generated (plugin) context trees now skip any parent link that would create a cycle, and imported context batches self-repair a cyclic parent link immediately after the batch rather than waiting for the end-of-sync refresh — so a mis-parented tree can no longer leave a stored loop behind.
+
+## Changes in this PR
+
 - Fixed inconsistent risk-tier labels after an analyst override. The override path used a different Critical/High threshold (80/60) than the scoring engine (90/70), so overriding a score could re-tier an entity on a different scale than the batch run that produced its stored tier. Both now share a single source of truth, so a score of, say, 85 is labelled "High" everywhere. (Entities with scores between 60–89 may now show a corrected tier.)
 - The risk-score bar colour now follows the entity's risk tier, matching the tier badge, instead of a separate hardcoded set of score cutoffs.
 
