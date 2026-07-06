@@ -1,1 +1,0 @@
-- Internal: decomposed the Azure RM crawler's monolithic entry point into unit-tested phase functions (scope discovery, role definitions, role assignments, dedup, orphan handling, sends) threaded through a shared state object, plus pure record-shapers. Behaviour is unchanged — the same scope hierarchy, role-at-scope resources, grants and principal stubs are emitted.

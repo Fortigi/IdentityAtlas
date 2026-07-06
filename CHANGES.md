@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Internal: decomposed the Azure RM crawler's monolithic entry point into unit-tested phase functions (scope discovery, role definitions, role assignments, dedup, orphan handling, sends) threaded through a shared state object, plus pure record-shapers. Behaviour is unchanged — the same scope hierarchy, role-at-scope resources, grants and principal stubs are emitted.
+
+## Changes in this PR
+
 - Internal: extracted the midPoint crawler's system-registration, org-context, and view-refresh sync phases out of the monolithic entry point into unit-tested `Sync-Midpoint*` functions (no functional change to what gets synced).
 - Internal: extracted the midPoint crawler's role/service-resource and user (identities + principals) sync phases into unit-tested `Sync-Midpoint*` functions (no functional change to what gets synced).
 - Internal: extracted the midPoint crawler's two-pass streaming shadow phase (accounts + entitlements + entitlement memberships) into unit-tested `Sync-Midpoint*` functions (no functional change to what gets synced).
