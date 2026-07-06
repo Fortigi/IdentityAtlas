@@ -148,12 +148,12 @@ $catEmployee   = New-DemoGuid 'cat-employee-access'
 $catPrivileged = New-DemoGuid 'cat-privileged-access'
 
 $resources = @(
-    @{ id = $resAllEmp;      displayName = 'SG-AllEmployees';       resourceType = 'EntraGroup';        systemId = $sysEntraId; enabled = $true }
-    @{ id = $resEng;         displayName = 'SG-Engineering';        resourceType = 'EntraGroup';        systemId = $sysEntraId; enabled = $true }
-    @{ id = $resFin;         displayName = 'SG-Finance';            resourceType = 'EntraGroup';        systemId = $sysEntraId; enabled = $true }
-    @{ id = $resVPN;         displayName = 'SG-VPN-Access';         resourceType = 'EntraGroup';        systemId = $sysEntraId; enabled = $true }
-    @{ id = $resAdminTier0;  displayName = 'SG-Admin-Tier0';        resourceType = 'EntraGroup';        systemId = $sysEntraId; enabled = $true; description = 'Tier 0 administrative access - critical' }
-    @{ id = $resPAM;         displayName = 'SG-PAM-Users';          resourceType = 'EntraGroup';        systemId = $sysEntraId; enabled = $true }
+    @{ id = $resAllEmp;      displayName = 'SG-AllEmployees';       resourceType = 'Group';        systemId = $sysEntraId; enabled = $true }
+    @{ id = $resEng;         displayName = 'SG-Engineering';        resourceType = 'Group';        systemId = $sysEntraId; enabled = $true }
+    @{ id = $resFin;         displayName = 'SG-Finance';            resourceType = 'Group';        systemId = $sysEntraId; enabled = $true }
+    @{ id = $resVPN;         displayName = 'SG-VPN-Access';         resourceType = 'Group';        systemId = $sysEntraId; enabled = $true }
+    @{ id = $resAdminTier0;  displayName = 'SG-Admin-Tier0';        resourceType = 'Group';        systemId = $sysEntraId; enabled = $true; description = 'Tier 0 administrative access - critical' }
+    @{ id = $resPAM;         displayName = 'SG-PAM-Users';          resourceType = 'Group';        systemId = $sysEntraId; enabled = $true }
     @{ id = $resGlobalAdmin; displayName = 'Global Administrator';  resourceType = 'EntraDirectoryRole'; systemId = $sysEntraId; enabled = $true }
     @{ id = $resSPAdmin;     displayName = 'SharePoint Admin';      resourceType = 'EntraDirectoryRole'; systemId = $sysEntraId; enabled = $true }
     @{ id = $resAppFG;       displayName = 'FortigiGraph-App';      resourceType = 'EntraAppRole';      systemId = $sysEntraId; enabled = $true }

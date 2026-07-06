@@ -652,7 +652,7 @@ foreach ($scenario in $Scenarios) {
                     # legitimately be empty on the demo tenant).
                     Assert-ApiCount  -Name 'EntraID/Full-Sync/Context'          -Path '/contexts'                                    -MinExpected 1
                     Assert-ApiCount  -Name 'EntraID/Full-Sync/Identities'       -Path '/identities?pageSize=1'                       -MinExpected 1
-                    Assert-ApiCount  -Name 'EntraID/Full-Sync/UsersGroups'      -Path '/resources?resourceType=EntraGroup&limit=1'   -MinExpected 1
+                    Assert-ApiCount  -Name 'EntraID/Full-Sync/UsersGroups'      -Path '/resources?resourceType=Group&limit=1'   -MinExpected 1
 
                     # ServicePrincipals — the /users endpoint has no
                     # principalType filter, so we fetch a page and check the
@@ -696,13 +696,13 @@ foreach ($scenario in $Scenarios) {
                     Assert-ApiCount  -Name 'EntraID/Full-Sync/AppRoles'         -Path '/resources?resourceType=AppRole&limit=1'              -MinExpected 0
 
                     # Directory roles — the crawler imports the role catalog
-                    # (resourceType='EntraRole', with each role's granular
+                    # (resourceType='EntraDirectoryRole', with each role's granular
                     # allowedResourceActions in extendedAttributes) plus active
                     # and PIM-eligible assignments. A demo tenant always has the
                     # built-in role catalog, so this endpoint should respond;
                     # MinExpected=0 keeps it green if the selected object types
                     # for this run didn't include directoryRoles.
-                    Assert-ApiCount  -Name 'EntraID/Full-Sync/DirectoryRoles'    -Path '/resources?resourceType=EntraRole&limit=1'            -MinExpected 0
+                    Assert-ApiCount  -Name 'EntraID/Full-Sync/DirectoryRoles'    -Path '/resources?resourceType=EntraDirectoryRole&limit=1'            -MinExpected 0
 
                     # Dashboard timeseries endpoint — backs the Trends tab on
                     # the dashboard. The scheduler writes a snapshot row once

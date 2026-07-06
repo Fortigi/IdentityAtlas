@@ -228,7 +228,7 @@ function Get-EntraGroupClassification {
     }
 }
 
-# Maps one Graph group → an ingest/resources record (resourceType='EntraGroup').
+# Maps one Graph group → an ingest/resources record (resourceType='Group').
 # Verbatim from the inline `$groups | ForEach-Object { ... }` block.
 function ConvertTo-EntraGroupResourceRecord {
     [CmdletBinding()]
@@ -264,7 +264,7 @@ function ConvertTo-EntraGroupResourceRecord {
         id                 = $Group.id
         displayName        = $Group.displayName
         description        = $Group.description
-        resourceType       = 'EntraGroup'
+        resourceType       = 'Group'
         mail               = $Group.mail
         visibility         = $Group.visibility
         enabled            = $true
@@ -377,7 +377,7 @@ function ConvertTo-EntraPimRecord {
         principalId        = $EligibilityRow.principalId
         principalType      = $EligibilityRow.principalType
         assignmentType     = $EligibilityRow.assignmentType
-        resourceType       = 'EntraGroup'
+        resourceType       = 'Group'
         state              = $EligibilityRow.state
         expirationDateTime = $EligibilityRow.expirationDateTime
     }
@@ -727,7 +727,7 @@ function ConvertTo-EntraAppRoleIndirectAssignments {
     return @($out)
 }
 
-# Maps one directory roleDefinition → an EntraRole resource, flattening and
+# Maps one directory roleDefinition → an EntraDirectoryRole resource, flattening and
 # de-duping rolePermissions[].allowedResourceActions for risk scoring.
 # Verbatim from the inline `foreach ($rd in $roleDefs) { ... }` block.
 function ConvertTo-EntraRoleResourceRecord {
@@ -744,7 +744,7 @@ function ConvertTo-EntraRoleResourceRecord {
         id           = $RoleDefinition.id
         displayName  = $RoleDefinition.displayName
         description  = $RoleDefinition.description
-        resourceType = 'EntraRole'
+        resourceType = 'EntraDirectoryRole'
         enabled      = [bool]$RoleDefinition.isEnabled
         extendedAttributes = @{
             templateId             = $RoleDefinition.templateId
@@ -757,7 +757,7 @@ function ConvertTo-EntraRoleResourceRecord {
     }
 }
 
-# Maps one active directory-role assignment → a Direct EntraRole assignment, or
+# Maps one active directory-role assignment → a Direct EntraDirectoryRole assignment, or
 # $null when principal/role is missing. principalType comes from
 # Resolve-DirectoryRolePrincipalType (EntraIDCrawler.Functions.ps1).
 # Verbatim from the inline `foreach ($ra in $roleAssignments) { ... }` block.
@@ -770,7 +770,7 @@ function ConvertTo-EntraDirectoryRoleAssignment {
         principalId    = $RoleAssignment.principalId
         principalType  = (Resolve-DirectoryRolePrincipalType -Principal $RoleAssignment.principal)
         assignmentType = 'Direct'
-        resourceType   = 'EntraRole'
+        resourceType   = 'EntraDirectoryRole'
         extendedAttributes = @{
             roleAssignmentId = $RoleAssignment.id
             directoryScopeId = $RoleAssignment.directoryScopeId
@@ -778,7 +778,7 @@ function ConvertTo-EntraDirectoryRoleAssignment {
     }
 }
 
-# Maps one PIM-eligible directory-role schedule instance → an Eligible EntraRole
+# Maps one PIM-eligible directory-role schedule instance → an Eligible EntraDirectoryRole
 # assignment, or $null when principal/role is missing. Verbatim from the inline
 # `foreach ($e in $eligibility) { ... }` block.
 function ConvertTo-EntraDirectoryRoleEligibility {
@@ -790,7 +790,7 @@ function ConvertTo-EntraDirectoryRoleEligibility {
         principalId        = $Eligibility.principalId
         principalType      = (Resolve-DirectoryRolePrincipalType -Principal $Eligibility.principal)
         assignmentType     = 'Eligible'
-        resourceType       = 'EntraRole'
+        resourceType       = 'EntraDirectoryRole'
         expirationDateTime = $Eligibility.endDateTime
         extendedAttributes = @{
             memberType       = $Eligibility.memberType
@@ -966,7 +966,7 @@ function Get-EntraNestedGroupUserSet {
     return $users
 }
 
-# Expands group-in-group nesting into per-user Indirect EntraGroup assignments so
+# Expands group-in-group nesting into per-user Indirect Group assignments so
 # the matrix shows inherited members. Derived entirely from the direct-membership
 # edges the Sync-Assignments phase already fetched (every group's /members) — no
 # extra Graph calls. Mirrors how AppRole-via-group materializes Indirect rows,
@@ -1001,7 +1001,7 @@ function ConvertTo-EntraNestedGroupIndirectAssignments {
                 resourceId     = $rootId
                 principalId    = $u
                 assignmentType = 'Indirect'
-                resourceType   = 'EntraGroup'
+                resourceType   = 'Group'
                 principalType  = 'User'
             })
         }

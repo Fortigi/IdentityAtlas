@@ -298,7 +298,7 @@ Describe 'Get-EntraGroupClassification' {
 
 Describe 'ConvertTo-EntraGroupResourceRecord' {
 
-    It 'maps a group to an EntraGroup resource with joined groupTypes' {
+    It 'maps a group to a Group resource with joined groupTypes' {
         $group = [pscustomobject]@{
             id = 'g1'; displayName = 'Sales'; description = 'Sales team'; mail = 'sales@contoso.com'
             visibility = 'Private'; createdDateTime = '2019-01-01T00:00:00Z'
@@ -306,7 +306,7 @@ Describe 'ConvertTo-EntraGroupResourceRecord' {
         }
         $rec = ConvertTo-EntraGroupResourceRecord -Group $group
         $rec['id']                            | Should -Be 'g1'
-        $rec['resourceType']                  | Should -Be 'EntraGroup'
+        $rec['resourceType']                  | Should -Be 'Group'
         $rec['enabled']                       | Should -BeTrue
         $rec['mail']                          | Should -Be 'sales@contoso.com'
         $rec['extendedAttributes']['groupTypes']      | Should -Be 'Unified'
@@ -459,7 +459,7 @@ Describe 'Add-EntraSignInEventToAggregate' {
 
 Describe 'ConvertTo-EntraPimRecord' {
 
-    It 'maps an eligibility row to an Eligible EntraGroup assignment, carrying state/expiry' {
+    It 'maps an eligibility row to an Eligible Group assignment, carrying state/expiry' {
         $row = [pscustomobject]@{
             resourceId = 'g1'; principalId = 'u1'; principalType = 'User'
             assignmentType = 'Eligible'; state = 'Provisioned'; expirationDateTime = '2026-12-31T00:00:00Z'
@@ -468,7 +468,7 @@ Describe 'ConvertTo-EntraPimRecord' {
         $rec['resourceId']         | Should -Be 'g1'
         $rec['principalId']        | Should -Be 'u1'
         $rec['assignmentType']     | Should -Be 'Eligible'
-        $rec['resourceType']       | Should -Be 'EntraGroup'
+        $rec['resourceType']       | Should -Be 'Group'
         $rec['state']              | Should -Be 'Provisioned'
         $rec['expirationDateTime'] | Should -Be '2026-12-31T00:00:00Z'
     }
@@ -743,7 +743,7 @@ Describe 'ConvertTo-EntraAppRoleIndirectAssignments' {
 
 Describe 'ConvertTo-EntraRoleResourceRecord' {
 
-    It 'maps a roleDefinition to an EntraRole and flattens + dedups allowedResourceActions' {
+    It 'maps a roleDefinition to an EntraDirectoryRole and flattens + dedups allowedResourceActions' {
         $rd = [pscustomobject]@{
             id = 'rd1'; displayName = 'Global Administrator'; description = 'd'; isEnabled = $true
             templateId = 't1'; isBuiltIn = $true; version = '1'
@@ -753,7 +753,7 @@ Describe 'ConvertTo-EntraRoleResourceRecord' {
             )
         }
         $rec = ConvertTo-EntraRoleResourceRecord -RoleDefinition $rd
-        $rec['resourceType'] | Should -Be 'EntraRole'
+        $rec['resourceType'] | Should -Be 'EntraDirectoryRole'
         $rec['enabled']      | Should -BeTrue
         @($rec['extendedAttributes']['allowedResourceActions']).Count | Should -Be 3
         $rec['extendedAttributes']['permissionCount'] | Should -Be 3
@@ -763,12 +763,12 @@ Describe 'ConvertTo-EntraRoleResourceRecord' {
 
 Describe 'ConvertTo-EntraDirectoryRoleAssignment' {
 
-    It 'maps an active assignment to a Direct EntraRole assignment with resolved principalType' {
+    It 'maps an active assignment to a Direct EntraDirectoryRole assignment with resolved principalType' {
         $ra = [pscustomobject]@{ id = 'ra1'; roleDefinitionId = 'rd1'; principalId = 'u1'; directoryScopeId = '/'; principal = [pscustomobject]@{ '@odata.type' = '#microsoft.graph.user' } }
         $rec = ConvertTo-EntraDirectoryRoleAssignment -RoleAssignment $ra
         $rec['resourceId']     | Should -Be 'rd1'
         $rec['assignmentType'] | Should -Be 'Direct'
-        $rec['resourceType']   | Should -Be 'EntraRole'
+        $rec['resourceType']   | Should -Be 'EntraDirectoryRole'
         $rec['principalType']  | Should -Be 'User'
         $rec['extendedAttributes']['roleAssignmentId'] | Should -Be 'ra1'
     }
@@ -785,11 +785,11 @@ Describe 'ConvertTo-EntraDirectoryRoleAssignment' {
 
 Describe 'ConvertTo-EntraDirectoryRoleEligibility' {
 
-    It 'maps an eligibility instance to an Eligible EntraRole assignment carrying expiry' {
+    It 'maps an eligibility instance to an Eligible EntraDirectoryRole assignment carrying expiry' {
         $e = [pscustomobject]@{ roleDefinitionId = 'rd1'; principalId = 'u1'; endDateTime = '2026-12-31T00:00:00Z'; memberType = 'Direct'; directoryScopeId = '/'; principal = [pscustomobject]@{ '@odata.type' = '#microsoft.graph.user' } }
         $rec = ConvertTo-EntraDirectoryRoleEligibility -Eligibility $e
         $rec['assignmentType']     | Should -Be 'Eligible'
-        $rec['resourceType']       | Should -Be 'EntraRole'
+        $rec['resourceType']       | Should -Be 'EntraDirectoryRole'
         $rec['expirationDateTime'] | Should -Be '2026-12-31T00:00:00Z'
         $rec['extendedAttributes']['memberType'] | Should -Be 'Direct'
     }
@@ -821,7 +821,7 @@ Describe 'ConvertTo-EntraNestedGroupIndirectAssignments' {
         $gRows.Count               | Should -Be 1
         $gRows[0].principalId      | Should -Be 'u1'
         $gRows[0].assignmentType   | Should -Be 'Indirect'
-        $gRows[0].resourceType     | Should -Be 'EntraGroup'
+        $gRows[0].resourceType     | Should -Be 'Group'
         $gRows[0].principalType    | Should -Be 'User'
     }
 

@@ -427,7 +427,7 @@ function Sync-EntraAppRoles {
 # Entra ID directory roles (Global Administrator, Privileged Role
 # Administrator, etc.). Three Graph reads, modelled as:
 #
-#     Resources(EntraRole)            <-- one per roleDefinition (id = roleDefinitionId)
+#     Resources(EntraDirectoryRole)   <-- one per roleDefinition (id = roleDefinitionId)
 #       └─ ResourceAssignments(DirectoryRole)          <-- active (permanent or PIM-activated)
 #       └─ ResourceAssignments(DirectoryRoleEligible)  <-- PIM eligible (not yet active)
 #
@@ -479,11 +479,11 @@ function Sync-EntraDirectoryRoles {
         Write-Host "  Roles: $($roleRecords.Count) · Active: $($activeRecords.Count) · Eligible: $($eligibleRecords.Count)" -ForegroundColor Gray
 
         Send-EntraRecordsIfAny -Records $roleRecords -Endpoint 'ingest/resources' -SystemId $SystemId `
-            -Scope @{ resourceType = 'EntraRole' } -Detail "Uploading $($roleRecords.Count) directory roles..."
+            -Scope @{ resourceType = 'EntraDirectoryRole' } -Detail "Uploading $($roleRecords.Count) directory roles..."
         Send-EntraRecordsIfAny -Records $activeRecords -Endpoint 'ingest/resource-assignments' -SystemId $SystemId `
-            -Scope @{ assignmentType = 'Direct'; resourceType = 'EntraRole' } -Detail "Uploading $($activeRecords.Count) active role assignments..."
+            -Scope @{ assignmentType = 'Direct'; resourceType = 'EntraDirectoryRole' } -Detail "Uploading $($activeRecords.Count) active role assignments..."
         Send-EntraRecordsIfAny -Records $eligibleRecords -Endpoint 'ingest/resource-assignments' -SystemId $SystemId `
-            -Scope @{ assignmentType = 'Eligible'; resourceType = 'EntraRole' } -Detail "Uploading $($eligibleRecords.Count) eligible role assignments..."
+            -Scope @{ assignmentType = 'Eligible'; resourceType = 'EntraDirectoryRole' } -Detail "Uploading $($eligibleRecords.Count) eligible role assignments..."
     }
     catch {
         Write-Host "  Directory role sync failed: $($_.Exception.Message)" -ForegroundColor Red
@@ -525,7 +525,7 @@ function Send-EntraRecordsIfAny {
 }
 
 # ─── Sync Resources (Groups) ─────────────────────────────────────
-# Fetches all groups, uploads them as EntraGroup resources, and RETURNS the raw
+# Fetches all groups, uploads them as Group resources, and RETURNS the raw
 # group objects so the Assignments and PIM phases can reuse them without a second
 # Graph pass (preserving the original inline order where $groups was set here and
 # read by the later blocks). Returns whatever Graph returned (or nothing on a
@@ -553,7 +553,7 @@ function Sync-EntraResources {
 
         # Out-Null so the phase function returns ONLY $groups, not the ingest result.
         Send-IngestBatch -Endpoint 'ingest/resources' -SystemId $SystemId -SyncMode 'full' `
-            -Scope @{ resourceType = 'EntraGroup' } -Records $records | Out-Null
+            -Scope @{ resourceType = 'Group' } -Records $records | Out-Null
     } catch {
         $script:phaseErrors.Add("Resources: $($_.Exception.Message)")
         Write-Host "  Resources phase failed: $($_.Exception.Message)" -ForegroundColor Red
@@ -592,7 +592,7 @@ function Sync-EntraAssignments {
                 resourceId     = $o.resourceId
                 principalId    = $o.principalId
                 assignmentType = 'Direct'
-                resourceType   = 'EntraGroup'
+                resourceType   = 'Group'
                 principalType  = if ($o.childType -eq '#microsoft.graph.group') { 'Group' } else { 'User' }
             }
         }
@@ -603,7 +603,7 @@ function Sync-EntraAssignments {
 
     Update-CrawlerProgress -Detail "Uploading $($allMembers.Count) memberships to ingest API..."
     Send-IngestBatch -Endpoint 'ingest/resource-assignments' -SystemId $SystemId -SyncMode 'full' `
-        -Scope @{ assignmentType = 'Direct'; resourceType = 'EntraGroup' } -Records $allMembers
+        -Scope @{ assignmentType = 'Direct'; resourceType = 'Group' } -Records $allMembers
 
     # Nested-group indirect memberships — expand group-in-group nesting into
     # per-user Indirect rows so the matrix shows inherited members. Derived from
@@ -616,7 +616,7 @@ function Sync-EntraAssignments {
     $indirectMembers = @(ConvertTo-EntraNestedGroupIndirectAssignments -DirectMembers $allMembers)
     Update-CrawlerProgress -Detail "Uploading $($indirectMembers.Count) indirect (nested-group) memberships..."
     Send-IngestBatch -Endpoint 'ingest/resource-assignments' -SystemId $SystemId -SyncMode 'full' `
-        -Scope @{ assignmentType = 'Indirect'; resourceType = 'EntraGroup' } -Records $indirectMembers
+        -Scope @{ assignmentType = 'Indirect'; resourceType = 'Group' } -Records $indirectMembers
 
     # Group Owners — modelled as a Direct assignment to a synthetic
     # "Owner @ <group>" resource (resourceType='GroupOwnership'), linked to the
@@ -743,7 +743,7 @@ function Sync-EntraPim {
                 if ($seen.ContainsKey($k)) { $false } else { $seen[$k] = $true; $true }
             })
             Send-IngestBatch -Endpoint 'ingest/resource-assignments' -SystemId $SystemId -SyncMode 'full' `
-                -Scope @{ assignmentType = 'Eligible'; resourceType = 'EntraGroup' } -Records $pimRecords
+                -Scope @{ assignmentType = 'Eligible'; resourceType = 'Group' } -Records $pimRecords
         }
     } catch {
         Write-Host "  PIM sync failed: $($_.Exception.Message)" -ForegroundColor Red

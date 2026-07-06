@@ -53,7 +53,7 @@
     Sync Entra ID directory roles — the role catalog (roleDefinitions,
     including each role's granular allowedResourceActions), active role
     assignments, and PIM-eligible role assignments. Roles are stored as
-    Resources(resourceType='EntraRole'); assignments use 'DirectoryRole'
+    Resources(resourceType='EntraDirectoryRole'); assignments use 'DirectoryRole'
     (active) and 'DirectoryRoleEligible' (eligible). Group-typed assignments
     are recorded against the group principal but not yet expanded to members.
     Default: false.
@@ -260,7 +260,7 @@ if ($SyncAppRoles) {
 # Entra ID directory roles (Global Administrator, Privileged Role
 # Administrator, etc.). Three Graph reads, modelled as:
 #
-#     Resources(EntraRole)            <-- one per roleDefinition (id = roleDefinitionId)
+#     Resources(EntraDirectoryRole)   <-- one per roleDefinition (id = roleDefinitionId)
 #       └─ ResourceAssignments(DirectoryRole)          <-- active (permanent or PIM-activated)
 #       └─ ResourceAssignments(DirectoryRoleEligible)  <-- PIM eligible (not yet active)
 #

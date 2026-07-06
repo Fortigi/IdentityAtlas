@@ -14,18 +14,18 @@ function makeData() {
     {
       memberId: 'u1', memberDisplayName: 'Alice Eng', department: 'Engineering',
       jobTitle: 'Developer', resourceId: 'res-1', resourceDisplayName: 'Finance App',
-      resourceType: 'EntraGroup', systemName: 'EntraID', membershipType: 'Direct',
+      resourceType: 'Group', systemName: 'EntraID', membershipType: 'Direct',
       managedByAccessPackage: true,
     },
     {
       memberId: 'u1', memberDisplayName: 'Alice Eng', department: 'Engineering',
       jobTitle: 'Developer', resourceId: 'res-2', resourceDisplayName: 'HR Portal',
-      resourceType: 'EntraGroup', systemName: 'EntraID', membershipType: 'Indirect',
+      resourceType: 'Group', systemName: 'EntraID', membershipType: 'Indirect',
     },
     {
       memberId: 'u2', memberDisplayName: 'Bob Sales', department: 'Sales',
       jobTitle: 'Rep', resourceId: 'res-3', resourceDisplayName: 'CRM Role',
-      resourceType: 'EntraRole', systemName: 'EntraID', membershipType: 'Direct',
+      resourceType: 'EntraDirectoryRole', systemName: 'EntraID', membershipType: 'Direct',
     },
   ];
 }
@@ -83,8 +83,8 @@ describe('RotatedMatrixView (mounted)', () => {
 
   it('renders the merged resource-type top header spans', () => {
     renderView();
-    expect(screen.getByText('EntraGroup')).toBeInTheDocument();
-    expect(screen.getByText('EntraRole')).toBeInTheDocument();
+    expect(screen.getByText('Group')).toBeInTheDocument();
+    expect(screen.getByText('EntraDirectoryRole')).toBeInTheDocument();
   });
 
   it('shows the per-row department and job title values', () => {

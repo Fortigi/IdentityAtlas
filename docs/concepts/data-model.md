@@ -378,7 +378,7 @@ The `resourceType` column on the Resources table is a free-form string. The valu
 
 | Value | Crawler | What it represents |
 |---|---|---|
-| `EntraGroup` | Entra ID | Security group or Microsoft 365 group |
+| `Group` | Entra ID | Security group or Microsoft 365 group |
 | `Application` | Entra ID | Enterprise application / service principal. Parent of `AppRole` and `DelegatedPermission` — does not grant access on its own. |
 | `AppRole` | Entra ID | One synthetic resource per (Application, appRoleId). Linked to its parent via `relationshipType='HasAppRole'`. |
 | `DelegatedPermission` | Entra ID | One synthetic resource per (clientSP, targetAPI, OAuth2 scope). Linked to its parent via `relationshipType='DelegatesScope'`. |
@@ -416,7 +416,7 @@ The same tables (Resources, Principals, ResourceAssignments) absorb data from an
 
 | Source System | Crawler | resourceType | principalType | assignmentType |
 |---|---|---|---|---|
-| Entra ID groups | Entra ID | `EntraGroup` | `User` | `Direct` / `Owner` / `Eligible` |
+| Entra ID groups | Entra ID | `Group` | `User` | `Direct` / `Owner` / `Eligible` |
 | Entra ID enterprise apps | Entra ID | `Application` | — | — (parent only) |
 | Entra ID app roles | Entra ID | `AppRole` | `User` / `ServicePrincipal` | `AppRole` / `AppRoleViaGroup` |
 | Entra ID OAuth2 grants | Entra ID | `DelegatedPermission` | `User` | `OAuth2Grant` |

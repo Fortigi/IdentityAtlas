@@ -73,7 +73,7 @@ beforeAll(async () => {
   );
   await pool.query(
     `INSERT INTO "Resources" ("id","systemId","resourceType","displayName")
-     VALUES ($1,$2,'EntraGroup',$3)`,
+     VALUES ($1,$2,'Group',$3)`,
     [GROUP_GUID, systemId, GROUP_NAME],
   );
 });
@@ -178,7 +178,7 @@ describe('POST /api/admin/import/curated (tags → Contexts/ContextMembers)', ()
         tags: [{
           name: GROUP_TAG,
           entityType: 'group',
-          assignments: [{ entityId: GROUP_GUID, displayName: GROUP_NAME, resourceType: 'EntraGroup' }],
+          assignments: [{ entityId: GROUP_GUID, displayName: GROUP_NAME, resourceType: 'Group' }],
         }],
         categories: [],
       });

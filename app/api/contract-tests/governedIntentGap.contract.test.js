@@ -26,7 +26,7 @@ beforeAll(async () => {
   await pool.query(
     `INSERT INTO "Resources" ("id","systemId","resourceType","displayName","governanceResource") VALUES
        ($1,$2,'BusinessRole','Test Role', true),
-       ($3,$2,'EntraGroup','Test Group', false)`,
+       ($3,$2,'Group','Test Group', false)`,
     [BR, systemId, G],
   );
   await pool.query(

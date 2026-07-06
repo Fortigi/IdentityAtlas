@@ -129,10 +129,10 @@ Describe 'Sync-EntraDirectoryRoles' {
         $timings = [ordered]@{}
         Sync-EntraDirectoryRoles -SystemId 7 -Timings $timings
 
-        (Get-Sent { $_.Scope.resourceType -eq 'EntraRole' -and $_.Endpoint -eq 'ingest/resources' })[0].Records.Count | Should -Be 2
-        $active = Get-Sent { $_.Scope.assignmentType -eq 'Direct' -and $_.Scope.resourceType -eq 'EntraRole' }
+        (Get-Sent { $_.Scope.resourceType -eq 'EntraDirectoryRole' -and $_.Endpoint -eq 'ingest/resources' })[0].Records.Count | Should -Be 2
+        $active = Get-Sent { $_.Scope.assignmentType -eq 'Direct' -and $_.Scope.resourceType -eq 'EntraDirectoryRole' }
         $active[0].Records.Count | Should -Be 2   # (u1,r1) deduped, plus (u2,r2)
-        $eligible = Get-Sent { $_.Scope.assignmentType -eq 'Eligible' -and $_.Scope.resourceType -eq 'EntraRole' }
+        $eligible = Get-Sent { $_.Scope.assignmentType -eq 'Eligible' -and $_.Scope.resourceType -eq 'EntraDirectoryRole' }
         $eligible[0].Records.Count | Should -Be 1
 
         $timings.Contains('DirectoryRoles') | Should -BeTrue
@@ -152,7 +152,7 @@ Describe 'Sync-EntraDirectoryRoles' {
 
         Sync-EntraDirectoryRoles -SystemId 1 -Timings ([ordered]@{})
 
-        (Get-Sent { $_.Scope.resourceType -eq 'EntraRole' -and $_.Endpoint -eq 'ingest/resources' }).Count | Should -Be 1
+        (Get-Sent { $_.Scope.resourceType -eq 'EntraDirectoryRole' -and $_.Endpoint -eq 'ingest/resources' }).Count | Should -Be 1
         (Get-Sent { $_.Scope.assignmentType -eq 'Eligible' }).Count | Should -Be 0
         # Inner catch swallows PIM failure — the phase itself is not marked failed.
         $script:phaseErrors.Count | Should -Be 0
@@ -426,7 +426,7 @@ Describe 'Sync-EntraAppRoles' {
 Describe 'Sync-EntraResources' {
     BeforeEach { Reset-PhaseTestState; Mock Send-IngestBatch -MockWith $script:SendMock }
 
-    It 'uploads EntraGroup resources and returns the raw groups (only the groups)' {
+    It 'uploads Group resources and returns the raw groups (only the groups)' {
         $fixtureGroups = @(
             [pscustomobject]@{ id = 'g1'; displayName = 'Group One'; securityEnabled = $true }
             [pscustomobject]@{ id = 'g2'; displayName = 'Group Two'; securityEnabled = $true }
@@ -436,7 +436,7 @@ Describe 'Sync-EntraResources' {
         $timings = [ordered]@{}
         $returned = Sync-EntraResources -SystemId 2 -CustomGroupAttributes @() -Timings $timings
 
-        (Get-Sent { $_.Scope.resourceType -eq 'EntraGroup' })[0].Records.Count | Should -Be 2
+        (Get-Sent { $_.Scope.resourceType -eq 'Group' })[0].Records.Count | Should -Be 2
         # The function must return ONLY the groups — not the Send-IngestBatch result.
         @($returned).Count | Should -Be 2
         @($returned).id | Should -Contain 'g1'
@@ -465,8 +465,8 @@ Describe 'Sync-EntraAssignments' {
         # child path so the phase's orchestration (not the runspaces) is exercised.
         Mock Get-FGGroupChildrenParallel -ParameterFilter { $ChildPath -eq 'members' } -MockWith {
             @{ records = @(
-                @{ resourceId = 'g1'; principalId = 'u1'; assignmentType = 'Direct'; resourceType = 'EntraGroup'; principalType = 'User' }
-                @{ resourceId = 'g1'; principalId = 'u2'; assignmentType = 'Direct'; resourceType = 'EntraGroup'; principalType = 'User' }
+                @{ resourceId = 'g1'; principalId = 'u1'; assignmentType = 'Direct'; resourceType = 'Group'; principalType = 'User' }
+                @{ resourceId = 'g1'; principalId = 'u2'; assignmentType = 'Direct'; resourceType = 'Group'; principalType = 'User' }
               ); errorCount = 0 }
         }
         Mock Get-FGGroupChildrenParallel -ParameterFilter { $ChildPath -eq 'owners' } -MockWith {
@@ -477,7 +477,7 @@ Describe 'Sync-EntraAssignments' {
         $timings = [ordered]@{}
         Sync-EntraAssignments -SystemId 4 -Groups $groups -Timings $timings
 
-        (Get-Sent { $_.Scope.assignmentType -eq 'Direct' -and $_.Scope.resourceType -eq 'EntraGroup' })[0].Records.Count | Should -Be 2
+        (Get-Sent { $_.Scope.assignmentType -eq 'Direct' -and $_.Scope.resourceType -eq 'Group' })[0].Records.Count | Should -Be 2
         (Get-Sent { $_.Scope.resourceType -eq 'GroupOwnership' -and $_.Endpoint -eq 'ingest/resources' })[0].Records.Count | Should -Be 1
         (Get-Sent { $_.Scope.relationshipType -eq 'HasOwnership' })[0].Records.Count | Should -Be 1
         $ownerAssns = Get-Sent { $_.Scope.assignmentType -eq 'Direct' -and $_.Scope.resourceType -eq 'GroupOwnership' }
@@ -524,7 +524,7 @@ Describe 'Sync-EntraAssignments' {
         Sync-EntraAssignments -SystemId 4 -Groups @([pscustomobject]@{ id = 'g1'; displayName = 'G1' }) -Timings ([ordered]@{})
 
         # The member builder classifies a nested group child as principalType 'Group'.
-        (Get-Sent { $_.Scope.resourceType -eq 'EntraGroup' -and $_.Scope.assignmentType -eq 'Direct' })[0].Records[0].principalType | Should -Be 'Group'
+        (Get-Sent { $_.Scope.resourceType -eq 'Group' -and $_.Scope.assignmentType -eq 'Direct' })[0].Records[0].principalType | Should -Be 'Group'
         # The owner builder produced a raw owner row that became one owner assignment.
         (Get-Sent { $_.Scope.resourceType -eq 'GroupOwnership' -and $_.Endpoint -eq 'ingest/resource-assignments' })[0].Records[0].principalId | Should -Be 'o1'
         $script:phaseErrors.Count | Should -Be 0
@@ -535,7 +535,7 @@ Describe 'Sync-EntraAssignments' {
 Describe 'Sync-EntraPim' {
     BeforeEach { Reset-PhaseTestState; Mock Send-IngestBatch -MockWith $script:SendMock }
 
-    It 'uploads deduped Eligible EntraGroup assignments and skips dynamic groups' {
+    It 'uploads deduped Eligible Group assignments and skips dynamic groups' {
         # Invoke-FGGroupPimBatchParallel is the parallel-runspace boundary — mock
         # it to return raw eligibility rows (as the real one emits per group).
         Mock Invoke-FGGroupPimBatchParallel -MockWith {
@@ -555,9 +555,9 @@ Describe 'Sync-EntraPim' {
         $timings = [ordered]@{}
         Sync-EntraPim -SystemId 9 -Groups $groups -Timings $timings
 
-        $sent = Get-Sent { $_.Scope.assignmentType -eq 'Eligible' -and $_.Scope.resourceType -eq 'EntraGroup' }
+        $sent = Get-Sent { $_.Scope.assignmentType -eq 'Eligible' -and $_.Scope.resourceType -eq 'Group' }
         $sent[0].Records.Count | Should -Be 2   # (g1,u1) deduped + (g2,u2)
-        $sent[0].Records[0].resourceType | Should -Be 'EntraGroup'
+        $sent[0].Records[0].resourceType | Should -Be 'Group'
         # The dynamic group must be filtered out before the parallel fetch.
         Should -Invoke Invoke-FGGroupPimBatchParallel -Times 1 -ParameterFilter { @($Batch).id -notcontains 'gDyn' }
         $timings.Contains('PIM') | Should -BeTrue

@@ -291,7 +291,7 @@ describe('fetchCategoryItems — resource categories', () => {
     const af = stub({
       '/parent-resources': [
         { parentResourceId: 'x1', parentDisplayName: 'Role', parentResourceType: 'BusinessRole' },
-        { parentResourceId: 'x2', parentDisplayName: 'Grp', parentResourceType: 'EntraGroup' },
+        { parentResourceId: 'x2', parentDisplayName: 'Grp', parentResourceType: 'Group' },
       ],
     });
     const out = await fetchCategoryItems('resource', 'r1', 'parents', af, {});
@@ -371,7 +371,7 @@ describe('fetchCategoryItems — identity categories', () => {
     const af = stub({
       '/assignments': [
         {
-          resourceId: 'r1', resourceDisplayName: 'Res1', resourceType: 'EntraGroup',
+          resourceId: 'r1', resourceDisplayName: 'Res1', resourceType: 'Group',
           principalId: 'p1', principalDisplayName: 'Acct A', accountType: 'cloud', isPrimary: true,
         },
         {

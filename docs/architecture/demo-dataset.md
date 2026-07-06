@@ -100,12 +100,12 @@ AU-Contractors
 
 | Resource | Type | System | Purpose |
 |---|---|---|---|
-| SG-AllEmployees | EntraGroup | EntraID | All active employees |
-| SG-Engineering | EntraGroup | EntraID | Engineering department |
-| SG-Finance | EntraGroup | EntraID | Finance department |
-| SG-VPN-Access | EntraGroup | EntraID | VPN access group |
-| SG-Admin-Tier0 | EntraGroup | EntraID | Tier 0 admin — high risk |
-| SG-PAM-Users | EntraGroup | EntraID | PAM access |
+| SG-AllEmployees | Group | EntraID | All active employees |
+| SG-Engineering | Group | EntraID | Engineering department |
+| SG-Finance | Group | EntraID | Finance department |
+| SG-VPN-Access | Group | EntraID | VPN access group |
+| SG-Admin-Tier0 | Group | EntraID | Tier 0 admin — high risk |
+| SG-PAM-Users | Group | EntraID | PAM access |
 | Global Administrator | EntraDirectoryRole | EntraID | Entra directory role |
 | SharePoint Admin | EntraDirectoryRole | EntraID | Entra directory role |
 | IdentityAtlas-App | EntraAppRole | EntraID | App role for this product |
