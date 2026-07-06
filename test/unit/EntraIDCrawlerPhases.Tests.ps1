@@ -41,6 +41,8 @@ BeforeAll {
     . (Join-Path $script:repoRoot 'tools' 'powershell-sdk' 'helpers' 'Get-FGServicePrincipalType.ps1')
     # The unit under test.
     . (Join-Path $script:entraDir 'EntraIDCrawler.Phases.ps1')
+    # Sync-EntraAppOwners + its helpers live in their own file (extracted for the ratchets).
+    . (Join-Path $script:entraDir 'EntraIDCrawler.AppOwners.ps1')
 
     # Script-scope state the phases + shared helpers read at call time.
     $script:ApiKey     = 'fgc_testkey'
