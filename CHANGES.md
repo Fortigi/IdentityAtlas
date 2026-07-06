@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- The published Docker images (`:edge`, `:latest`, `:beta`, and the versioned tags) are now the exact images that passed the release smoke test, rather than a fresh rebuild made after testing. What you pull is now guaranteed to be what was verified.
+
+## Changes in this PR
+
 - Made context hierarchies more resilient to parent-loops. Generated (plugin) context trees now skip any parent link that would create a cycle, and imported context batches self-repair a cyclic parent link immediately after the batch rather than waiting for the end-of-sync refresh — so a mis-parented tree can no longer leave a stored loop behind.
 
 ## Changes in this PR

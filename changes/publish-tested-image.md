@@ -1,1 +1,0 @@
-- The published Docker images (`:edge`, `:latest`, `:beta`, and the versioned tags) are now the exact images that passed the release smoke test, rather than a fresh rebuild made after testing. What you pull is now guaranteed to be what was verified.
