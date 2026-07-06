@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { stripNativeExtensions } from './migrate.js';
+import { stripNativeExtensions, alreadyExistsWarning } from './migrate.js';
 
 describe('stripNativeExtensions', () => {
   it('replaces CREATE EXTENSION pg_trgm with a comment', () => {
@@ -34,5 +34,18 @@ describe('stripNativeExtensions', () => {
   it('is a no-op when no CREATE EXTENSION statements are present', () => {
     const sql = 'SELECT 1;';
     expect(stripNativeExtensions(sql)).toBe(sql);
+  });
+});
+
+describe('alreadyExistsWarning', () => {
+  it('names the migration file so a skipped backfill is greppable', () => {
+    const msg = alreadyExistsWarning('038_effective_access_columns.sql');
+    expect(msg).toContain('038_effective_access_columns.sql');
+  });
+
+  it('flags that data changes may have been SKIPPED', () => {
+    const msg = alreadyExistsWarning('050_update_log.sql');
+    expect(msg).toContain('SKIPPED');
+    expect(msg).toMatch(/backfill|UPDATE|REFRESH/);
   });
 });

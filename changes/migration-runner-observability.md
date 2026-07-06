@@ -1,0 +1,1 @@
+- Improved database migration logging: when a migration is recorded as applied because its objects already exist, the log now names the specific migration file and warns that any data backfill it contained may have been skipped — making a previously silent situation visible in the container startup logs.
