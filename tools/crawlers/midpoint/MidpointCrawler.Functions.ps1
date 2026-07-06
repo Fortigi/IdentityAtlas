@@ -20,6 +20,13 @@ function Get-EntitySyncMode {
     return $SyncMode
 }
 
+# Thin adapter over the shared Invoke-CrawlerIngestBatch (tools/crawlers/shared/
+# Invoke-CrawlerIngest.ps1), wiring midPoint's crawler-specific bits:
+#   • per-endpoint sync mode via Get-EntitySyncMode (unless -SyncModeOverride)
+#     — cross-system tables are forced to delta so a full sync never wipes
+#     another source's data;
+#   • -SkipWhenEmpty (a phase with no records must NOT scoped-delete);
+#   • Add-IngestStat timing via -OnStat.
 function Send-IngestBatch {
     [CmdletBinding()]
     param(
@@ -30,39 +37,18 @@ function Send-IngestBatch {
         [array]$Records     = @(),
         [int]$BatchSize     = 5000
     )
-    $entity = ($Endpoint -replace '^ingest/', '')
-    $mode   = if ($SyncModeOverride) { $SyncModeOverride } else { Get-EntitySyncMode -Entity $entity }
-
-    if (-not $Records -or $Records.Count -eq 0) {
-        # The ingest API rejects an empty records array (no scoped-delete-only mode),
-        # so skip the call entirely when a phase produced no records.
-        Write-Host "  (no records for $Endpoint — skipping)" -ForegroundColor DarkGray
-        return @{ inserted = 0; updated = 0; deleted = 0 }
+    $params = @{
+        Endpoint      = $Endpoint
+        SystemId      = $SystemId
+        Scope         = $Scope
+        Records       = $Records
+        BatchSize     = $BatchSize
+        SkipWhenEmpty = $true
+        OnStat        = { param($e, $s, $c) Add-IngestStat -Endpoint $e -Seconds $s -Records $c }
     }
-    $swIngest = [System.Diagnostics.Stopwatch]::StartNew()
-    if ($Records.Count -le $BatchSize) {
-        $Body   = @{ systemId = $SystemId; syncMode = $mode; scope = $Scope; records = ConvertTo-JsonArray $Records }
-        $Result = Invoke-IngestAPI -Endpoint $Endpoint -Body $Body
-    }
-    else {
-        # Chunked session for large batches
-        $SyncId = $null; $TotIns = 0; $TotUpd = 0; $TotDel = 0
-        for ($i = 0; $i -lt $Records.Count; $i += $BatchSize) {
-            $Chunk   = $Records[$i..([Math]::Min($i + $BatchSize - 1, $Records.Count - 1))]
-            $IsFirst = ($i -eq 0)
-            $IsLast  = ($i + $BatchSize -ge $Records.Count)
-            $Body    = @{ systemId = $SystemId; syncMode = $mode; scope = $Scope; records = ConvertTo-JsonArray $Chunk
-                          syncSession = if ($IsFirst) { 'start' } elseif ($IsLast) { 'end' } else { 'continue' } }
-            if ($SyncId) { $Body.syncId = $SyncId }
-            $R = Invoke-IngestAPI -Endpoint $Endpoint -Body $Body
-            if ($IsFirst -and $R.syncId) { $SyncId = $R.syncId }
-            $TotIns += ($R.inserted ?? 0); $TotUpd += ($R.updated ?? 0); $TotDel += ($R.deleted ?? 0)
-        }
-        $Result = @{ inserted = $TotIns; updated = $TotUpd; deleted = $TotDel }
-    }
-    $swIngest.Stop()
-    Add-IngestStat -Endpoint $entity -Seconds $swIngest.Elapsed.TotalSeconds -Records $Records.Count
-    return $Result
+    if ($SyncModeOverride) { $params['SyncMode'] = $SyncModeOverride }
+    else { $params['SyncModeResolver'] = { param($e) Get-EntitySyncMode -Entity $e } }
+    Invoke-CrawlerIngestBatch @params
 }
 
 # ── Streaming ingest ──────────────────────────────────────────────────────────
