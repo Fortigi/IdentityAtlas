@@ -1,9 +1,9 @@
 {
   "generatedFrom": "PSMutant",
-  "mutationScore": 82.7,
-  "total": 202,
-  "killed": 167,
-  "survived": 35,
+  "mutationScore": 84.7,
+  "total": 215,
+  "killed": 182,
+  "survived": 33,
   "thresholds": {
     "high": 80,
     "low": 60,
@@ -147,14 +147,6 @@
       "Status": "Survived"
     },
     {
-      "Id": 4,
-      "File": "tools/crawlers/midpoint/MidpointCrawler.Transform.ps1",
-      "Line": 121,
-      "Operator": "BinaryOperator",
-      "Description": "-and -> -or",
-      "Status": "Survived"
-    },
-    {
       "Id": 6,
       "File": "tools/crawlers/midpoint/MidpointCrawler.Transform.ps1",
       "Line": 303,
@@ -174,14 +166,6 @@
       "Id": 11,
       "File": "tools/crawlers/midpoint/MidpointCrawler.Transform.ps1",
       "Line": 114,
-      "Operator": "NumberLiteral",
-      "Description": "1 -> 2",
-      "Status": "Survived"
-    },
-    {
-      "Id": 12,
-      "File": "tools/crawlers/midpoint/MidpointCrawler.Transform.ps1",
-      "Line": 302,
       "Operator": "NumberLiteral",
       "Description": "1 -> 2",
       "Status": "Survived"
@@ -1146,7 +1130,7 @@
       "Line": 121,
       "Operator": "BinaryOperator",
       "Description": "-and -> -or",
-      "Status": "Survived"
+      "Status": "Killed"
     },
     {
       "Id": 5,
@@ -1210,7 +1194,7 @@
       "Line": 302,
       "Operator": "NumberLiteral",
       "Description": "1 -> 2",
-      "Status": "Survived"
+      "Status": "Killed"
     },
     {
       "Id": 13,
@@ -1904,6 +1888,110 @@
       "Id": 56,
       "File": "tools/crawlers/csv/CSVCrawler.Transform.ps1",
       "Line": 183,
+      "Operator": "NegationRemoval",
+      "Description": "remove negation",
+      "Status": "Killed"
+    },
+    {
+      "Id": 1,
+      "File": "tools/crawlers/azure-rm/AzureRMCrawler.Transform.ps1",
+      "Line": 25,
+      "Operator": "BinaryOperator",
+      "Description": "-and -> -or",
+      "Status": "Killed"
+    },
+    {
+      "Id": 2,
+      "File": "tools/crawlers/azure-rm/AzureRMCrawler.Transform.ps1",
+      "Line": 25,
+      "Operator": "BinaryOperator",
+      "Description": "-gt -> -le",
+      "Status": "Killed"
+    },
+    {
+      "Id": 3,
+      "File": "tools/crawlers/azure-rm/AzureRMCrawler.Transform.ps1",
+      "Line": 25,
+      "Operator": "BinaryOperator",
+      "Description": "-gt -> -le",
+      "Status": "Killed"
+    },
+    {
+      "Id": 4,
+      "File": "tools/crawlers/azure-rm/AzureRMCrawler.Transform.ps1",
+      "Line": 26,
+      "Operator": "BinaryOperator",
+      "Description": "-gt -> -le",
+      "Status": "Killed"
+    },
+    {
+      "Id": 5,
+      "File": "tools/crawlers/azure-rm/AzureRMCrawler.Transform.ps1",
+      "Line": 36,
+      "Operator": "BinaryOperator",
+      "Description": "-eq -> -ne",
+      "Status": "Killed"
+    },
+    {
+      "Id": 6,
+      "File": "tools/crawlers/azure-rm/AzureRMCrawler.Transform.ps1",
+      "Line": 115,
+      "Operator": "BinaryOperator",
+      "Description": "-eq -> -ne",
+      "Status": "Killed"
+    },
+    {
+      "Id": 7,
+      "File": "tools/crawlers/azure-rm/AzureRMCrawler.Transform.ps1",
+      "Line": 79,
+      "Operator": "BooleanLiteral",
+      "Description": "$true -> $false",
+      "Status": "Killed"
+    },
+    {
+      "Id": 8,
+      "File": "tools/crawlers/azure-rm/AzureRMCrawler.Transform.ps1",
+      "Line": 114,
+      "Operator": "BooleanLiteral",
+      "Description": "$true -> $false",
+      "Status": "Killed"
+    },
+    {
+      "Id": 9,
+      "File": "tools/crawlers/azure-rm/AzureRMCrawler.Transform.ps1",
+      "Line": 25,
+      "Operator": "NumberLiteral",
+      "Description": "0 -> 1",
+      "Status": "Killed"
+    },
+    {
+      "Id": 10,
+      "File": "tools/crawlers/azure-rm/AzureRMCrawler.Transform.ps1",
+      "Line": 25,
+      "Operator": "NumberLiteral",
+      "Description": "0 -> 1",
+      "Status": "Killed"
+    },
+    {
+      "Id": 11,
+      "File": "tools/crawlers/azure-rm/AzureRMCrawler.Transform.ps1",
+      "Line": 26,
+      "Operator": "NumberLiteral",
+      "Description": "0 -> 1",
+      "Status": "Killed"
+    },
+    {
+      "Id": 12,
+      "File": "tools/crawlers/azure-rm/AzureRMCrawler.Transform.ps1",
+      "Line": 64,
+      "Operator": "NumberLiteral",
+      "Description": "-1 -> 0",
+      "Status": "Killed"
+    },
+    {
+      "Id": 13,
+      "File": "tools/crawlers/azure-rm/AzureRMCrawler.Transform.ps1",
+      "Line": 61,
       "Operator": "NegationRemoval",
       "Description": "remove negation",
       "Status": "Killed"
