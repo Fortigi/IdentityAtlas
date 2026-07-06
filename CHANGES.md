@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Hardened the Docker deployment: the web/API container now reports a health status, and the worker waits for the API to be healthy (migrations applied and responding) before it starts running crawler jobs, instead of starting as soon as the API container launches.
+
+## Changes in this PR
+
 - Fixed imported context hierarchies (such as org-unit or department trees) not linking to their parent. A context's parent reference is now resolved into the correct context, so parent/child relationships persist on import instead of being silently dropped.
 
 ## Changes in this PR
