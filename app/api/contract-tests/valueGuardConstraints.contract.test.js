@@ -11,8 +11,11 @@ import pg from 'pg';
 let pool;
 let systemId;
 
-const RES = '11111111-1111-1111-1111-111111111111';
-const PRI = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+// UUIDs unique to this file: uq_RA_principal is global (not system-scoped), so
+// reusing another test's (resourceId, principalId) would collide on the shared
+// DB container under some run orders.
+const RES = 'faded054-0000-0000-0000-000000000001';
+const PRI = 'faded054-0000-0000-0000-000000000002';
 
 // 23514 = check_violation (a value blocked by a CHECK constraint).
 const CHECK_VIOLATION = { code: '23514' };
