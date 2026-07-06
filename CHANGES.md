@@ -1,5 +1,10 @@
 ## Changes in this PR
 
+- Added an **Application Permissions** object type to the Entra ID crawler (opt-in). It captures the app-only, admin-consented permissions each service principal holds on other APIs — the tenant-wide kind such as `Mail.Read` on Microsoft Graph that works with no user signed in — modelled as **ApplicationPermission** resources linked to the holding app. This is the app-only sibling of the existing delegated (OAuth2) permissions.
+- Each application permission shows up as a Direct assignment on the service principal that holds it, so a managed identity's or AI agent's tenant-wide API access is now visible, relatable, and certifiable like any other access.
+
+## Changes in this PR
+
 - Added an **App Owners** object type to the Entra ID crawler (opt-in). It captures who controls your applications, modelled as two resource types: **ApplicationOwnership** — owners of the app registration, i.e. the people who can add a credential and sign in *as* the app — and **ServicePrincipalOwnership** — owners of the enterprise-app service principal. Each owner appears as a Direct assignment on an ownership resource linked to the app, so app ownership can be listed, related, and certified like any other access.
 - Apps that have owners but no app roles or delegated grants now still appear as resources, so their owners are visible rather than hidden.
 
