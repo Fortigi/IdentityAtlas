@@ -23,14 +23,14 @@ export function getAccessPackageColor(index, isDark) {
   return palette[index % palette.length];
 }
 
+// Matrix cell / legend badge colours, keyed by membershipType. The matrix view
+// (vw_ResourceUserPermissionAssignments) collapses every source assignment type
+// onto how the access is HELD, so only these three ever render as badges — on
+// screen and in the Excel export legend alike. The retired types that used to
+// have swatches here (Owner/Governed/OAuth2Grant/AppRole/AppRoleViaGroup) can no
+// longer appear in the data; see app/api/src/ingest/assignmentTypes.guard.test.js.
 export const TYPE_COLORS = {
-  Direct:          { letter: 'D', bg: '#166534', text: '#fff' },
-  Indirect:        { letter: 'I', bg: '#1e40af', text: '#fff' },
-  Eligible:        { letter: 'E', bg: '#854d0e', text: '#fff' },
-  Owner:           { letter: 'O', bg: '#9d174d', text: '#fff' },
-  Governed:        { letter: 'G', bg: '#5b21b6', text: '#fff' },
-  OAuth2Grant:     { letter: 'A', bg: '#0e7490', text: '#fff' },
-  // App role assignments: direct (R) and via group membership (R*).
-  AppRole:         { letter: 'R', bg: '#a16207', text: '#fff' },
-  AppRoleViaGroup: { letter: 'R', bg: '#ca8a04', text: '#fff' },
+  Direct:   { letter: 'D', bg: '#166534', text: '#fff' },
+  Indirect: { letter: 'I', bg: '#1e40af', text: '#fff' },
+  Eligible: { letter: 'E', bg: '#854d0e', text: '#fff' },
 };

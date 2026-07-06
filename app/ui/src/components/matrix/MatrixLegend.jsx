@@ -9,13 +9,14 @@ import { TYPE_COLORS } from '@ui/utils/colors';
 
 // The matrix shows only HOW access is held. Source-attribute types collapse
 // onto these in MatrixView (business role / OAuth2 grant / direct app role →
-// Direct; app role via group → Indirect), so the legend only lists the four
-// real badges. Whether access is governed is shown by the cell colour below.
+// Direct; app role via group → Indirect), so the legend only lists the three
+// real badges. Ownership is no longer a badge — it is its own resource
+// (resourceType='GroupOwnership') shown as a normal row. Whether access is
+// governed is shown by the cell colour below.
 const TYPE_LABELS = [
   ['Direct', 'Direct membership'],
   ['Indirect', 'Indirect (via a nested resource)'],
   ['Eligible', 'Eligible — just-in-time access'],
-  ['Owner', 'Owner of the resource'],
 ];
 
 function Badge({ type }) {
