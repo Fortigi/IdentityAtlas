@@ -45,6 +45,8 @@ BeforeAll {
     . (Join-Path $script:entraDir 'EntraIDCrawler.AppOwners.ps1')
     # Sync-EntraAppPermissions + its helpers live in their own file too.
     . (Join-Path $script:entraDir 'EntraIDCrawler.AppPermissions.ps1')
+    # Invoke-EntraApplicationPhases — dispatch for the four application phases.
+    . (Join-Path $script:entraDir 'EntraIDCrawler.Orchestration.ps1')
 
     # Script-scope state the phases + shared helpers read at call time.
     $script:ApiKey     = 'fgc_testkey'
@@ -280,6 +282,45 @@ Describe 'Sync-EntraAppPermissions' {
         $script:phaseErrors | Should -HaveCount 1
         $script:phaseErrors[0] | Should -BeLike 'AppPermissions:*'
         ($script:phases | Where-Object { $_.name -eq 'AppPermissions' }).status | Should -Be 'failed'
+    }
+}
+
+# ─── Invoke-EntraApplicationPhases (dispatch) ───────────────────────────────────
+Describe 'Invoke-EntraApplicationPhases' {
+    BeforeEach {
+        Reset-PhaseTestState
+        # Mock the four phases the dispatcher fans out to — each has its own tests
+        # above; here we assert only that the toggles gate them and shared args flow.
+        Mock Sync-EntraOAuth2Grants   -MockWith { }
+        Mock Sync-EntraAppRoles       -MockWith { }
+        Mock Sync-EntraAppOwners      -MockWith { }
+        Mock Sync-EntraAppPermissions -MockWith { }
+    }
+
+    It 'runs every phase when all toggles are on, forwarding AINamePatterns to app permissions' {
+        Invoke-EntraApplicationPhases -SystemId 7 -AINamePatterns @('*copilot*') -Timings ([ordered]@{}) `
+            -SyncOAuth2Grants $true -SyncAppRoles $true -SyncAppOwners $true -SyncAppPermissions $true
+
+        Should -Invoke Sync-EntraOAuth2Grants   -Times 1 -ParameterFilter { $SystemId -eq 7 }
+        Should -Invoke Sync-EntraAppRoles       -Times 1 -ParameterFilter { $SystemId -eq 7 }
+        Should -Invoke Sync-EntraAppOwners      -Times 1 -ParameterFilter { $SystemId -eq 7 }
+        Should -Invoke Sync-EntraAppPermissions -Times 1 -ParameterFilter { $SystemId -eq 7 -and @($AINamePatterns) -contains '*copilot*' }
+    }
+
+    It 'runs nothing when every toggle is off (all default to false)' {
+        Invoke-EntraApplicationPhases -SystemId 1 -Timings ([ordered]@{})
+        Should -Invoke Sync-EntraOAuth2Grants   -Times 0
+        Should -Invoke Sync-EntraAppRoles       -Times 0
+        Should -Invoke Sync-EntraAppOwners      -Times 0
+        Should -Invoke Sync-EntraAppPermissions -Times 0
+    }
+
+    It 'runs only the phases whose toggle is on' {
+        Invoke-EntraApplicationPhases -SystemId 2 -Timings ([ordered]@{}) -SyncAppPermissions $true
+        Should -Invoke Sync-EntraAppPermissions -Times 1
+        Should -Invoke Sync-EntraOAuth2Grants   -Times 0
+        Should -Invoke Sync-EntraAppRoles       -Times 0
+        Should -Invoke Sync-EntraAppOwners      -Times 0
     }
 }
 
