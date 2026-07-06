@@ -1,5 +1,10 @@
 ## Changes in this PR
 
+- Added an **App Owners** object type to the Entra ID crawler (opt-in). It captures who controls your applications, modelled as two resource types: **ApplicationOwnership** — owners of the app registration, i.e. the people who can add a credential and sign in *as* the app — and **ServicePrincipalOwnership** — owners of the enterprise-app service principal. Each owner appears as a Direct assignment on an ownership resource linked to the app, so app ownership can be listed, related, and certified like any other access.
+- Apps that have owners but no app roles or delegated grants now still appear as resources, so their owners are visible rather than hidden.
+
+## Changes in this PR
+
 - The published Docker images (`:edge`, `:latest`, `:beta`, and the versioned tags) are now the exact images that passed the release smoke test, rather than a fresh rebuild made after testing. What you pull is now guaranteed to be what was verified.
 
 ## Changes in this PR
