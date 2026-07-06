@@ -393,6 +393,84 @@ Describe 'ConvertTo-EntraGroupOwnership' {
     }
 }
 
+Describe 'ConvertTo-EntraAppOwnershipGraph' {
+
+    It 'maps SP owners to a ServicePrincipalOwnership resource, HasAppOwnership rel, and Direct assignments' {
+        $owners = @(
+            @{ appResourceId = 'sp1'; principalId = 'u1' },
+            @{ appResourceId = 'sp1'; principalId = 'u2' }
+        )
+        $out = ConvertTo-EntraAppOwnershipGraph -RawOwners $owners -AppNameById @{ sp1 = 'Payroll App' } `
+            -ResourceType 'ServicePrincipalOwnership' -SeedPrefix 'entraid-sp-ownership'
+
+        # One ownership resource per app (both owners aggregate onto it), two assignments.
+        $out.resources.Count     | Should -Be 1
+        $out.relationships.Count | Should -Be 1
+        $out.assignments.Count   | Should -Be 2
+
+        $res = $out.resources[0]
+        $res.displayName        | Should -Be 'Payroll App'
+        $res.resourceType       | Should -Be 'ServicePrincipalOwnership'
+        $res.externalId         | Should -Be 'entraid-sp-ownership:sp1'
+        $res.extendedAttributes.ownedResourceId | Should -Be 'sp1'
+
+        $out.relationships[0].parentResourceId | Should -Be 'sp1'
+        $out.relationships[0].childResourceId  | Should -Be $res.id
+        $out.relationships[0].relationshipType | Should -Be 'HasAppOwnership'
+
+        $out.assignments | ForEach-Object {
+            $_.assignmentType | Should -Be 'Direct'
+            $_.resourceType   | Should -Be 'ServicePrincipalOwnership'
+            $_.resourceId     | Should -Be $res.id
+        }
+        $out.assignments.principalId | Should -Contain 'u1'
+        $out.assignments.principalId | Should -Contain 'u2'
+    }
+
+    It 'maps app-registration owners to an ApplicationOwnership resource with a distinct id from the SP variant' {
+        $spOut  = ConvertTo-EntraAppOwnershipGraph -RawOwners @(@{ appResourceId = 'sp1'; principalId = 'u1' }) `
+            -AppNameById @{ sp1 = 'Payroll App' } -ResourceType 'ServicePrincipalOwnership' -SeedPrefix 'entraid-sp-ownership'
+        $appOut = ConvertTo-EntraAppOwnershipGraph -RawOwners @(@{ appResourceId = 'sp1'; principalId = 'u1' }) `
+            -AppNameById @{ sp1 = 'Payroll App' } -ResourceType 'ApplicationOwnership' -SeedPrefix 'entraid-app-ownership'
+
+        $appOut.resources[0].resourceType | Should -Be 'ApplicationOwnership'
+        $appOut.resources[0].externalId   | Should -Be 'entraid-app-ownership:sp1'
+        # Same parent app, but the two ownership kinds are distinct resources.
+        $appOut.resources[0].id           | Should -Not -Be $spOut.resources[0].id
+        $appOut.relationships[0].parentResourceId | Should -Be 'sp1'
+    }
+
+    It 'is deterministic — the same app yields the same ownership id across runs' {
+        $a = ConvertTo-EntraAppOwnershipGraph -RawOwners @(@{ appResourceId = 'sp9'; principalId = 'u1' }) -ResourceType 'ServicePrincipalOwnership' -SeedPrefix 'entraid-sp-ownership'
+        $b = ConvertTo-EntraAppOwnershipGraph -RawOwners @(@{ appResourceId = 'sp9'; principalId = 'u2' }) -ResourceType 'ServicePrincipalOwnership' -SeedPrefix 'entraid-sp-ownership'
+        $a.resources[0].id | Should -Be $b.resources[0].id
+    }
+
+    It 'falls back to "(app)" when the app name is unknown' {
+        $out = ConvertTo-EntraAppOwnershipGraph -RawOwners @(@{ appResourceId = 'spX'; principalId = 'u1' }) -ResourceType 'ApplicationOwnership' -SeedPrefix 'entraid-app-ownership'
+        $out.resources[0].displayName | Should -Be '(app)'
+    }
+
+    It 'skips owner rows missing appResourceId or principalId' {
+        $owners = @(
+            @{ appResourceId = 'sp1'; principalId = 'u1' },
+            @{ appResourceId = '';    principalId = 'u2' },
+            @{ appResourceId = 'sp2'; principalId = '' }
+        )
+        $out = ConvertTo-EntraAppOwnershipGraph -RawOwners $owners -ResourceType 'ServicePrincipalOwnership' -SeedPrefix 'entraid-sp-ownership'
+        $out.assignments.Count | Should -Be 1
+        $out.resources.Count   | Should -Be 1
+        $out.resources[0].extendedAttributes.ownedResourceId | Should -Be 'sp1'
+    }
+
+    It 'returns empty collections for no owners' {
+        $out = ConvertTo-EntraAppOwnershipGraph -RawOwners @() -ResourceType 'ApplicationOwnership' -SeedPrefix 'entraid-app-ownership'
+        $out.resources.Count     | Should -Be 0
+        $out.relationships.Count | Should -Be 0
+        $out.assignments.Count   | Should -Be 0
+    }
+}
+
 Describe 'Add-EntraSignInEventToAggregate' {
 
     It 'returns $false and leaves the aggregate untouched when userId/appId is missing' {

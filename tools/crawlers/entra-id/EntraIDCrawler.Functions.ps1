@@ -464,14 +464,15 @@ function ConvertTo-FilterValue {
     return $Value
 }
 
-# Deterministic UUID for a group's synthetic GroupOwnership resource (named after the group).
-function New-OwnershipResourceId {
+# Deterministic UUID (v3-style, MD5 over a seed string) for synthetic resource ids.
+# Mirrors the API's normalizeRecords formatting. Shared by every synthetic-resource
+# id helper below so the md5→uuid formatting lives in exactly one place.
+function ConvertTo-FGDeterministicUuid {
     [CmdletBinding()]
-    param([string]$GroupId)
-    $seed = "entraid-ownership:${GroupId}"
+    param([Parameter(Mandatory)][string]$Seed)
     $md5 = [System.Security.Cryptography.MD5]::Create()
     try {
-        $bytes = [System.Text.Encoding]::UTF8.GetBytes($seed)
+        $bytes = [System.Text.Encoding]::UTF8.GetBytes($Seed)
         $hex = ([System.BitConverter]::ToString($md5.ComputeHash($bytes)) -replace '-','').ToLower()
     } finally {
         $md5.Dispose()
@@ -479,19 +480,18 @@ function New-OwnershipResourceId {
     return "$($hex.Substring(0,8))-$($hex.Substring(8,4))-$($hex.Substring(12,4))-$($hex.Substring(16,4))-$($hex.Substring(20,12))"
 }
 
+# Deterministic UUID for a group's synthetic GroupOwnership resource (named after the group).
+function New-OwnershipResourceId {
+    [CmdletBinding()]
+    param([string]$GroupId)
+    return ConvertTo-FGDeterministicUuid -Seed "entraid-ownership:${GroupId}"
+}
+
 # Deterministic UUID for a (clientSP, targetApiSP, scope) DelegatedPermission resource.
 function New-OAuth2ScopeResourceId {
     [CmdletBinding()]
     param([string]$ClientSpId, [string]$TargetApiSpId, [string]$Scope)
-    $hashInput = "entraid-oauth2-scope:${ClientSpId}:${TargetApiSpId}:${Scope}"
-    $md5 = [System.Security.Cryptography.MD5]::Create()
-    try {
-        $bytes = [System.Text.Encoding]::UTF8.GetBytes($hashInput)
-        $hex = ([System.BitConverter]::ToString($md5.ComputeHash($bytes)) -replace '-','').ToLower()
-    } finally {
-        $md5.Dispose()
-    }
-    return "$($hex.Substring(0,8))-$($hex.Substring(8,4))-$($hex.Substring(12,4))-$($hex.Substring(16,4))-$($hex.Substring(20,12))"
+    return ConvertTo-FGDeterministicUuid -Seed "entraid-oauth2-scope:${ClientSpId}:${TargetApiSpId}:${Scope}"
 }
 
 # Deterministic UUID for a (servicePrincipal, appRole) AppRole resource.

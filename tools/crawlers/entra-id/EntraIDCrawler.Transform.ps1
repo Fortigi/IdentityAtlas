@@ -320,6 +320,58 @@ function ConvertTo-EntraGroupOwnership {
     }
 }
 
+# Builds an app-ownership graph from raw (appResourceId, principalId) owner pairs:
+# one ownership resource per owned app, a HasAppOwnership relationship to the app's
+# Application resource, and a Direct owner assignment per pair. Returns a hashtable
+# with .resources / .relationships / .assignments. Generic over the two app-ownership
+# kinds — the caller passes the resourceType and the id/externalId seed prefix.
+# Mirrors ConvertTo-EntraGroupOwnership. $ow.appResourceId is the SP-keyed Application
+# resource id the ownership hangs off, resolved by the caller (the SP id for SP owners,
+# the appId-matched SP id for app-registration owners).
+function ConvertTo-EntraAppOwnershipGraph {
+    [CmdletBinding()]
+    param(
+        $RawOwners,
+        [hashtable]$AppNameById = @{},
+        [Parameter(Mandatory)] [string]$ResourceType,   # 'ApplicationOwnership' | 'ServicePrincipalOwnership'
+        [Parameter(Mandatory)] [string]$SeedPrefix       # 'entraid-app-ownership' | 'entraid-sp-ownership'
+    )
+    $resMap = @{}   # ownershipId -> resource record
+    $relMap = @{}   # "appResourceId|ownershipId" -> relationship record
+    $assns  = [System.Collections.Generic.List[object]]::new()
+    foreach ($ow in $RawOwners) {
+        if (-not $ow.appResourceId -or -not $ow.principalId) { continue }
+        $ownId = ConvertTo-FGDeterministicUuid -Seed "${SeedPrefix}:$($ow.appResourceId)"
+        if (-not $resMap.ContainsKey($ownId)) {
+            $name = $AppNameById[$ow.appResourceId]
+            if (-not $name) { $name = '(app)' }
+            $resMap[$ownId] = @{
+                id                 = $ownId
+                displayName        = $name
+                resourceType       = $ResourceType
+                externalId         = "${SeedPrefix}:$($ow.appResourceId)"
+                extendedAttributes = @{ ownedResourceId = $ow.appResourceId }
+            }
+            $relMap["$($ow.appResourceId)|$ownId"] = @{
+                parentResourceId = $ow.appResourceId
+                childResourceId  = $ownId
+                relationshipType = 'HasAppOwnership'
+            }
+        }
+        $assns.Add(@{
+            resourceId     = $ownId
+            principalId    = $ow.principalId
+            assignmentType = 'Direct'
+            resourceType   = $ResourceType
+        })
+    }
+    return @{
+        resources     = @($resMap.Values)
+        relationships = @($relMap.Values)
+        assignments   = @($assns)
+    }
+}
+
 # Folds one /auditLogs/signIns event into the per-(user, app) aggregate hashtable
 # (passed by reference and mutated in place). Returns $true if the event was
 # aggregated, $false if skipped (missing userId/appId, or the app's SP isn't in
