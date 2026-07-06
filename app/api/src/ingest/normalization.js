@@ -94,7 +94,19 @@ export function normalizeRecords(records, coreColumns, options = {}) {
       // ContextMembers_contextId_fkey on the context-members upsert).
       const sysPrefix = systemPrefix || idPrefix.split('-')[0];
 
-      if (rec.parentExternalId && !normalized.parentResourceId) {
+      // A parentExternalId names the record's parent in the SAME entity family,
+      // so it must resolve into that family's namespace and land on that table's
+      // parent FK column — not always Resources. A Context's parent is another
+      // Context ("<sys>-contexts" → parentContextId); a resource-relationship's
+      // parent is another Resource ("<sys>-resources" → parentResourceId). Key
+      // off whichever parent column the target table actually has (coreSet) so a
+      // context tree's parentExternalId no longer mis-resolves to a Resources id
+      // (which left the hierarchy unset — the parent link only survived as raw
+      // text in extendedAttributes).
+      if (rec.parentExternalId && coreSet.has('parentContextId') && !normalized.parentContextId) {
+        normalized.parentContextId = deterministicGuid(`${sysPrefix}-contexts`, String(rec.parentExternalId));
+      }
+      if (rec.parentExternalId && coreSet.has('parentResourceId') && !normalized.parentResourceId) {
         normalized.parentResourceId = deterministicGuid(`${sysPrefix}-resources`, String(rec.parentExternalId));
       }
       if (rec.childExternalId && !normalized.childResourceId) {
