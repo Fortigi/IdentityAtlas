@@ -33,15 +33,16 @@ on:
     branches:
       - main
       - 'release/**'
-    paths-ignore:
-      - '.github/workflows/**'
-      - 'app/desktop/scripts/**'
-      - 'changes/**'
-      - 'docs/**'
-      - 'mkdocs.yml'
-      - 'setup/IdentityAtlas.psd1'
-      - '**.md'
-      - '.ci/**'
+    # NO top-level paths-ignore. The workflow must run on EVERY PR so its
+    # `if: always()` gate job (Integration CI Passed) always posts a status —
+    # a required status check whose job is skipped stays "pending" forever and
+    # deadlocks the merge, so a paths-ignore here (which skips the whole workflow
+    # for docs-only PRs) is incompatible with making the gate required.
+    # The EXPENSIVE suites are still scoped: the `changes` (commit-range) and
+    # `filter` (dorny path-scope) jobs gate integration / e2e / load-soak, so a
+    # docs-only or PowerShell-only PR skips whichever aren't relevant. Skipped
+    # jobs pass the gate (it only fails on `failure`/`cancelled`), so the gate
+    # goes green without running them. See docs/architecture/ci-scope-testing.md.
 
 # Cancel superseded runs when a PR branch is pushed again — these Docker/load
 # suites are expensive, so don't let a stale run keep burning a runner (F4).
