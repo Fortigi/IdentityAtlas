@@ -12,6 +12,7 @@ import { validateEnvelope, validateRecords, ENTITY_TABLE_MAP, ENTITY_KEY_MAP, EN
 import { startSession, continueSession, endSession, hasSession } from '../ingest/sessions.js';
 import { crawlerHasSystemAccess, crawlerHasPermission } from '../middleware/crawlerAuth.js';
 import { bumpSyncVersion } from '../lib/syncVersion.js';
+import { breakCycles } from '../contexts/cycleGuard.js';
 import { normalizePresenceQuery, lookupCrawlerPresence } from '../ingest/crawlerPresence.js';
 
 const router = Router();
@@ -407,6 +408,18 @@ router.post('/ingest/refresh-views', async (req, res) => {
       `);
     } catch (tsErr) {
       console.warn('lastSyncDateTime update failed (non-fatal):', tsErr.message);
+    }
+
+    // Fix-at-source: a crawler can emit a mis-parented context tree (or an IGA
+    // export with a loop), persisting a cyclic parentContextId. The roll-up
+    // below is CYCLE-guarded so it won't hang, but a stored cycle would still
+    // leave totalMemberCount undefined for the looped subtree — so repair the
+    // stored state first (NULL the offending parent link, logged).
+    try {
+      const broken = await breakCycles(db);
+      if (broken) console.warn(`Context cycle guard: broke ${broken} cyclic parentContextId link(s) after ingest`);
+    } catch (cycErr) {
+      console.warn('Context cycle repair failed (non-fatal):', cycErr.message);
     }
 
     // Recalculate directMemberCount and totalMemberCount on all Contexts
