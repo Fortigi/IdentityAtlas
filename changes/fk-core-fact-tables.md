@@ -1,1 +1,0 @@
-- Cleaned up orphaned access assignments and resource relationships whose underlying resource no longer exists, so stale rows can no longer linger in storage (they were already hidden from the matrix). Legitimate assignments to external, guest, and service-principal members are preserved.

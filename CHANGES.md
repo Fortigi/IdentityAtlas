@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Cleaned up orphaned access assignments and resource relationships whose underlying resource no longer exists, so stale rows can no longer linger in storage (they were already hidden from the matrix). Legitimate assignments to external, guest, and service-principal members are preserved.
+
+## Changes in this PR
+
 - Fixed curated data import so tags and their assignments are saved again. Previously, importing a curated JSON file that contained tags failed with a server error, and even when the import appeared to succeed, tag assignments were never attached to any user, group, or resource.
 - Curated tag imports now resolve entities both by ID and by display name, and re-importing an existing tag updates its colour without creating duplicate assignments.
 
