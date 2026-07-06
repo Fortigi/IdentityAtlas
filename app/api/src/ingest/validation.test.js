@@ -286,7 +286,7 @@ describe('validateRecords — resource-relationships', () => {
 
   it('accepts all valid relationshipType values', () => {
     // Keep this in sync with RELATIONSHIP_TYPES in validation.js.
-    const allTypes = ['Contains', 'GrantsAccessTo', 'DelegatesScope', 'HasAppRole', 'HasOwnership'];
+    const allTypes = ['Contains', 'GrantsAccessTo', 'DelegatesScope', 'HasAppRole', 'HasOwnership', 'HasAppOwnership'];
     for (const t of allTypes) {
       const result = validateRecords([{ ...validRel, relationshipType: t }], 'resource-relationships');
       expect(result.valid, `Expected valid for relationshipType=${t}`).toBe(true);

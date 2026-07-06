@@ -41,6 +41,8 @@ BeforeAll {
     . (Join-Path $script:repoRoot 'tools' 'powershell-sdk' 'helpers' 'Get-FGServicePrincipalType.ps1')
     # The unit under test.
     . (Join-Path $script:entraDir 'EntraIDCrawler.Phases.ps1')
+    # Sync-EntraAppOwners + its helpers live in their own file (extracted for the ratchets).
+    . (Join-Path $script:entraDir 'EntraIDCrawler.AppOwners.ps1')
 
     # Script-scope state the phases + shared helpers read at call time.
     $script:ApiKey     = 'fgc_testkey'
@@ -94,6 +96,79 @@ BeforeAll {
     function Get-Sent {
         param([scriptblock]$Where)
         @($script:sent | Where-Object $Where)
+    }
+}
+
+# ─── Sync-EntraAppOwners ────────────────────────────────────────────────────────
+Describe 'Sync-EntraAppOwners' {
+    BeforeEach { Reset-PhaseTestState; Mock Send-IngestBatch -MockWith $script:SendMock }
+
+    It 'models SP + app-registration owners as ownership resources hanging off the Application' {
+        # One service principal (Payroll), appId app-guid-1.
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'servicePrincipals\?' } -MockWith {
+            @([pscustomobject]@{ id = 'sp1'; appId = 'app-guid-1'; displayName = 'Payroll'; servicePrincipalType = 'Application' })
+        }
+        # One app registration, same appId → resolves to sp1.
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'applications\?' } -MockWith {
+            @([pscustomobject]@{ id = 'app1obj'; appId = 'app-guid-1'; displayName = 'Payroll' })
+        }
+        # Owner fetches — the mock bypasses the RecordBuilder, so return final-shape records.
+        Mock Get-FGGroupChildrenParallel -ParameterFilter { $EntityType -eq 'servicePrincipals' } -MockWith {
+            @{ records = @(@{ appResourceId = 'sp1'; principalId = 'u1' }, @{ appResourceId = 'sp1'; principalId = 'u2' }); errorCount = 0 }
+        }
+        Mock Get-FGGroupChildrenParallel -ParameterFilter { $EntityType -eq 'applications' } -MockWith {
+            @{ records = @(@{ appObjectId = 'app1obj'; principalId = 'u3' }); errorCount = 0 }
+        }
+
+        Sync-EntraAppOwners -SystemId 7 -Timings ([ordered]@{})
+        $script:phaseErrors.Count | Should -Be 0
+
+        # Parent Application upserted WITHOUT reconcile (SyncMode 'delta').
+        $appUpsert = Get-Sent { $_.Endpoint -eq 'ingest/resources' -and $_.Scope.resourceType -eq 'Application' }
+        $appUpsert.Count            | Should -Be 1
+        $appUpsert[0].SyncMode      | Should -Be 'delta'
+        $appUpsert[0].Records.Count | Should -Be 1
+        $appUpsert[0].Records[0].id | Should -Be 'sp1'
+
+        # ServicePrincipalOwnership: one resource (full-sync), two Direct assignments.
+        $spRes = Get-Sent { $_.Endpoint -eq 'ingest/resources' -and $_.Scope.resourceType -eq 'ServicePrincipalOwnership' }
+        $spRes.Count                     | Should -Be 1
+        $spRes[0].SyncMode               | Should -Be 'full'
+        $spRes[0].Records.Count          | Should -Be 1
+        $spRes[0].Records[0].displayName | Should -Be 'Payroll'
+        $spAssn = Get-Sent { $_.Endpoint -eq 'ingest/resource-assignments' -and $_.Scope.resourceType -eq 'ServicePrincipalOwnership' }
+        $spAssn[0].Records.Count         | Should -Be 2
+        $spAssn[0].Scope.assignmentType  | Should -Be 'Direct'
+
+        # ApplicationOwnership: one resource, one Direct assignment (u3, via appId match).
+        (Get-Sent { $_.Endpoint -eq 'ingest/resources' -and $_.Scope.resourceType -eq 'ApplicationOwnership' })[0].Records.Count | Should -Be 1
+        $appAssn = Get-Sent { $_.Endpoint -eq 'ingest/resource-assignments' -and $_.Scope.resourceType -eq 'ApplicationOwnership' }
+        $appAssn[0].Records.Count       | Should -Be 1
+        $appAssn[0].Records[0].principalId | Should -Be 'u3'
+
+        # One HasAppOwnership batch, two relationships (both parent = sp1).
+        $rels = Get-Sent { $_.Scope.relationshipType -eq 'HasAppOwnership' }
+        $rels.Count              | Should -Be 1
+        $rels[0].Records.Count   | Should -Be 2
+        $rels[0].Records | ForEach-Object { $_.parentResourceId | Should -Be 'sp1' }
+    }
+
+    It 'skips app-registration owners whose appId has no matching service principal' {
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'servicePrincipals\?' } -MockWith { @() }
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'applications\?' } -MockWith {
+            @([pscustomobject]@{ id = 'orphanObj'; appId = 'no-sp-guid'; displayName = 'Orphan' })
+        }
+        Mock Get-FGGroupChildrenParallel -ParameterFilter { $EntityType -eq 'servicePrincipals' } -MockWith { @{ records = @(); errorCount = 0 } }
+        Mock Get-FGGroupChildrenParallel -ParameterFilter { $EntityType -eq 'applications' } -MockWith {
+            @{ records = @(@{ appObjectId = 'orphanObj'; principalId = 'u9' }); errorCount = 0 }
+        }
+
+        Sync-EntraAppOwners -SystemId 7 -Timings ([ordered]@{})
+        $script:phaseErrors.Count | Should -Be 0
+
+        # Orphan app owner has no SP → no ApplicationOwnership assignment, no owned app.
+        (Get-Sent { $_.Endpoint -eq 'ingest/resource-assignments' -and $_.Scope.resourceType -eq 'ApplicationOwnership' })[0].Records.Count | Should -Be 0
+        (Get-Sent { $_.Scope.resourceType -eq 'Application' }).Count | Should -Be 0
     }
 }
 

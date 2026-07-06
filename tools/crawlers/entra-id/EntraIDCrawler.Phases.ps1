@@ -1662,7 +1662,7 @@ function Resolve-EntraSyncConfig {
         Set-EntraTogglesFrom -Cfg $cfg -Source $objects -Map ([ordered]@{
             identity = 'SyncPrincipals'; servicePrincipals = 'SyncServicePrincipals'
             identityGovernance = 'SyncGovernance'; pim = 'SyncPim'; signInLogs = 'SyncSignInLogs'
-            oauth2Grants = 'SyncOAuth2Grants'; appsAppRoles = 'SyncAppRoles'; directoryRoles = 'SyncDirectoryRoles'
+            oauth2Grants = 'SyncOAuth2Grants'; appsAppRoles = 'SyncAppRoles'; appOwners = 'SyncAppOwners'; directoryRoles = 'SyncDirectoryRoles'
         })
         # usersGroupsMembers drives three toggles at once (applied after `identity` so it wins on SyncPrincipals).
         if ($objects.ContainsKey('usersGroupsMembers')) {
@@ -1676,7 +1676,7 @@ function Resolve-EntraSyncConfig {
         syncPrincipals = 'SyncPrincipals'; syncServicePrincipals = 'SyncServicePrincipals'
         syncResources = 'SyncResources'; syncAssignments = 'SyncAssignments'; syncGovernance = 'SyncGovernance'
         syncSignInLogs = 'SyncSignInLogs'; syncOAuth2Grants = 'SyncOAuth2Grants'
-        syncAppRoles = 'SyncAppRoles'; syncDirectoryRoles = 'SyncDirectoryRoles'
+        syncAppRoles = 'SyncAppRoles'; syncAppOwners = 'SyncAppOwners'; syncDirectoryRoles = 'SyncDirectoryRoles'
     })
     Set-EntraConfigExtras -Cfg $cfg -RawConfig $RawConfig
     return $cfg

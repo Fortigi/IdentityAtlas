@@ -242,11 +242,12 @@ function Invoke-FGGroupChildFetch {
     param(
         [Parameter(Mandatory)] $Group,
         [Parameter(Mandatory)] [string]$Token,
-        [Parameter(Mandatory)] [string]$ChildPath
+        [Parameter(Mandatory)] [string]$ChildPath,
+        [string]$EntityType = 'groups'   # 'groups' | 'servicePrincipals' | 'applications'
     )
 
     $headers = @{ Authorization = "Bearer $Token" }
-    $uri     = "https://graph.microsoft.com/beta/groups/$($Group.id)/$ChildPath`?`$select=id&`$top=999"
+    $uri     = "https://graph.microsoft.com/beta/$EntityType/$($Group.id)/$ChildPath`?`$select=id&`$top=999"
 
     $items = [System.Collections.Generic.List[object]]::new()
     $attempt = 0
@@ -295,13 +296,14 @@ function Invoke-FGGroupChildBatchParallel {
         [Parameter(Mandatory)] [array]$Batch,
         [Parameter(Mandatory)] [string]$Token,
         [Parameter(Mandatory)] [string]$ChildPath,
+        [string]$EntityType = 'groups',
         [int]$ThrottleLimit = 16
     )
 
     $fetchDef = ${function:Invoke-FGGroupChildFetch}.ToString()
     $Batch | ForEach-Object -Parallel {
         ${function:Invoke-FGGroupChildFetch} = $using:fetchDef
-        Invoke-FGGroupChildFetch -Group $_ -Token $using:Token -ChildPath $using:ChildPath
+        Invoke-FGGroupChildFetch -Group $_ -Token $using:Token -ChildPath $using:ChildPath -EntityType $using:EntityType
     } -ThrottleLimit $ThrottleLimit
 }
 
@@ -311,6 +313,7 @@ function Get-FGGroupChildrenParallel {
         [Parameter(Mandatory)] [array]$Groups,
         [Parameter(Mandatory)] [string]$ChildPath,    # 'members' or 'owners'
         [Parameter(Mandatory)] [scriptblock]$RecordBuilder,  # builds a record from $args=@($groupId,$child)
+        [string]$EntityType = 'groups',   # 'groups' | 'servicePrincipals' | 'applications'
         [int]$ThrottleLimit = 16,
         [int]$BatchSize = 200,
         [string]$ProgressStep,
@@ -339,7 +342,7 @@ function Get-FGGroupChildrenParallel {
         # Fetch each group's children in parallel. Each result is a [pscustomobject]
         # with kind='record' (a child) or kind='error' (a group that failed after
         # retries). See Invoke-FGGroupChildBatchParallel / Invoke-FGGroupChildFetch.
-        $batchOutput = Invoke-FGGroupChildBatchParallel -Batch $batch -Token $token -ChildPath $ChildPath -ThrottleLimit $ThrottleLimit
+        $batchOutput = Invoke-FGGroupChildBatchParallel -Batch $batch -Token $token -ChildPath $ChildPath -EntityType $EntityType -ThrottleLimit $ThrottleLimit
         $totalErrors += Add-FGGroupChildResults -BatchOutput $batchOutput -RecordBuilder $RecordBuilder -AllRecords $allRecords
 
         $checked = [Math]::Min($i + $BatchSize, $totalGroups)
@@ -464,14 +467,15 @@ function ConvertTo-FilterValue {
     return $Value
 }
 
-# Deterministic UUID for a group's synthetic GroupOwnership resource (named after the group).
-function New-OwnershipResourceId {
+# Deterministic UUID (v3-style, MD5 over a seed string) for synthetic resource ids.
+# Mirrors the API's normalizeRecords formatting. Shared by every synthetic-resource
+# id helper below so the md5→uuid formatting lives in exactly one place.
+function ConvertTo-FGDeterministicUuid {
     [CmdletBinding()]
-    param([string]$GroupId)
-    $seed = "entraid-ownership:${GroupId}"
+    param([Parameter(Mandatory)][string]$Seed)
     $md5 = [System.Security.Cryptography.MD5]::Create()
     try {
-        $bytes = [System.Text.Encoding]::UTF8.GetBytes($seed)
+        $bytes = [System.Text.Encoding]::UTF8.GetBytes($Seed)
         $hex = ([System.BitConverter]::ToString($md5.ComputeHash($bytes)) -replace '-','').ToLower()
     } finally {
         $md5.Dispose()
@@ -479,19 +483,18 @@ function New-OwnershipResourceId {
     return "$($hex.Substring(0,8))-$($hex.Substring(8,4))-$($hex.Substring(12,4))-$($hex.Substring(16,4))-$($hex.Substring(20,12))"
 }
 
+# Deterministic UUID for a group's synthetic GroupOwnership resource (named after the group).
+function New-OwnershipResourceId {
+    [CmdletBinding()]
+    param([string]$GroupId)
+    return ConvertTo-FGDeterministicUuid -Seed "entraid-ownership:${GroupId}"
+}
+
 # Deterministic UUID for a (clientSP, targetApiSP, scope) DelegatedPermission resource.
 function New-OAuth2ScopeResourceId {
     [CmdletBinding()]
     param([string]$ClientSpId, [string]$TargetApiSpId, [string]$Scope)
-    $hashInput = "entraid-oauth2-scope:${ClientSpId}:${TargetApiSpId}:${Scope}"
-    $md5 = [System.Security.Cryptography.MD5]::Create()
-    try {
-        $bytes = [System.Text.Encoding]::UTF8.GetBytes($hashInput)
-        $hex = ([System.BitConverter]::ToString($md5.ComputeHash($bytes)) -replace '-','').ToLower()
-    } finally {
-        $md5.Dispose()
-    }
-    return "$($hex.Substring(0,8))-$($hex.Substring(8,4))-$($hex.Substring(12,4))-$($hex.Substring(16,4))-$($hex.Substring(20,12))"
+    return ConvertTo-FGDeterministicUuid -Seed "entraid-oauth2-scope:${ClientSpId}:${TargetApiSpId}:${Scope}"
 }
 
 # Deterministic UUID for a (servicePrincipal, appRole) AppRole resource.

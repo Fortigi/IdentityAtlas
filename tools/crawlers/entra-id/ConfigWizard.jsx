@@ -183,6 +183,7 @@ export const ENTRA_OBJECT_TYPES_FALLBACK = [
   { key: 'servicePrincipals', label: 'Service Principals', description: 'Non-human identities (enterprise app SPs, managed identities, AI agents)' },
   { key: 'identityGovernance', label: 'Identity Governance', description: 'Access Packages, assignments, policies, reviews' },
   { key: 'appsAppRoles', label: 'Apps & AppRoles', description: 'Application registrations and role assignments' },
+  { key: 'appOwners', label: 'App Owners', description: 'Owners of app registrations (who can add credentials and impersonate the app) and enterprise-app service principals' },
   { key: 'directoryRoles', label: 'Directory Roles', description: 'Entra ID directory role assignments' },
   { key: 'pim', label: 'PIM', description: 'Privileged Identity Management eligible group memberships' },
   { key: 'signInLogs', label: 'Sign-in Logs (per-app activity)', description: 'Aggregated sign-in events — last activity per (user, app) pair' },
