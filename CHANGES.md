@@ -1,5 +1,12 @@
 ## Changes in this PR
 
+- Entra security and Microsoft 365 groups now use the resource type **Group** instead of **EntraGroup**. The connector each resource came from is already tracked separately, so the type no longer restates it — matching the other shared resource types (Application, AppRole, Business Role).
+- Entra directory roles now use the resource type **EntraDirectoryRole** instead of **EntraRole** — the accurate name, and it now matches its colour badge in the Resources view.
+- Existing data is updated automatically on upgrade; the Resource Type filter shows the new names and no re-crawl is required.
+- Group-ownership resources are now named after the group itself (e.g. "Sales") rather than "Owner @ Sales" — the resource type already marks it as an ownership, so the prefix was redundant.
+
+## Changes in this PR
+
 - Development Docker setup: the local PostgreSQL container is now bound to localhost only instead of all network interfaces, so the database (which uses a default local password) is no longer reachable from other machines on your network.
 
 ## Changes in this PR
