@@ -324,6 +324,41 @@ Describe 'Invoke-EntraApplicationPhases' {
     }
 }
 
+# ─── Invoke-EntraApplicationPhases — shared-scope transparency ───────────────────
+# Guards the refactor that moved these four phase guards behind a dispatcher: a REAL
+# phase (not mocked) invoked THROUGH Invoke-EntraApplicationPhases must still read/write
+# the same $script:phaseErrors / $script:phases the entry-point owns. If the extra call
+# layer changed $script: resolution, the phase's catch would write to the wrong (or a
+# null) accumulator — which the mocked dispatch tests above can't catch. This is the
+# path the live crawler actually runs.
+Describe 'Invoke-EntraApplicationPhases (real phase through the dispatcher)' {
+    BeforeEach { Reset-PhaseTestState; Mock Send-IngestBatch -MockWith $script:SendMock }
+
+    It 'a real phase error raised via the dispatcher lands in the shared $script:phaseErrors + $script:phases' {
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'oauth2PermissionGrants' } -MockWith { throw 'Graph 403' }
+
+        Invoke-EntraApplicationPhases -SystemId 3 -Timings ([ordered]@{}) -SyncOAuth2Grants $true
+
+        $script:phaseErrors | Should -HaveCount 1
+        $script:phaseErrors[0] | Should -BeLike 'OAuth2Grants:*'
+        ($script:phases | Where-Object { $_.name -eq 'OAuth2Grants' }).status | Should -Be 'failed'
+    }
+
+    It 'a real successful phase via the dispatcher records its timing + an ok phase' {
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'oauth2PermissionGrants' } -MockWith {
+            @([pscustomobject]@{ id = 'g1'; consentType = 'Principal'; principalId = 'u1'; clientId = 'cli'; resourceId = 'api'; scope = 'Mail.Read' })
+        }
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'servicePrincipals/' } -MockWith { [pscustomobject]@{ id = 'x'; displayName = 'X'; appId = 'ax'; publisherName = 'p' } }
+
+        $timings = [ordered]@{}
+        Invoke-EntraApplicationPhases -SystemId 3 -Timings $timings -SyncOAuth2Grants $true
+
+        $timings.Contains('OAuth2Grants') | Should -BeTrue
+        ($script:phases | Where-Object { $_.name -eq 'OAuth2Grants' }).status | Should -Be 'ok'
+        $script:phaseErrors.Count | Should -Be 0
+    }
+}
+
 # ─── Sync-EntraDirectoryRoles ───────────────────────────────────────────────────
 Describe 'Sync-EntraDirectoryRoles' {
     BeforeEach { Reset-PhaseTestState; Mock Send-IngestBatch -MockWith $script:SendMock }
