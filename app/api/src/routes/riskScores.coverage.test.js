@@ -183,7 +183,10 @@ describe('DELETE /risk-scores/:type/:id/override', () => {
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
     expect(res.body.riskScore).toBe(85); // sum=85
-    expect(res.body.riskTier).toBe('Critical');
+    // 85 is High on the canonical 90/70 scale (engine tierFor). Previously this
+    // route used a divergent 80/60 computeTier that mis-labelled 85 as Critical —
+    // that drift is now fixed by sharing riskscoring/tiers.js.
+    expect(res.body.riskTier).toBe('High');
   });
 
   it('200 — clears an override on a Resource', async () => {

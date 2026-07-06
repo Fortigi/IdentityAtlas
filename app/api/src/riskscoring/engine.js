@@ -53,6 +53,7 @@
 
 import * as db from '../db/connection.js';
 import RE2 from 're2';
+import { tierFor } from './tiers.js';
 
 // v4 weights (Invoke-FGRiskScoring.ps1 lines 885-888)
 const W_DIRECT      = 0.50;
@@ -68,15 +69,10 @@ const CAP_STRUCTURAL = 25;
 const PROP_GROUP_TO_USER = 0.30;
 const PROP_USER_TO_GROUP = 0.25;
 
-// Exported for unit tests.
-export function tierFor(score) {
-  if (score >= 90) return 'Critical';
-  if (score >= 70) return 'High';
-  if (score >= 40) return 'Medium';
-  if (score >= 20) return 'Low';
-  if (score >= 1)  return 'Minimal';
-  return 'None';
-}
+// tierFor (score → tier label) is the single source of truth in ./tiers.js,
+// shared with the risk-scores override API. Imported above for internal use
+// (scoreOne below) and re-exported here for external callers + unit tests.
+export { tierFor };
 
 // ─── Non-production detection ─────────────────────────────────────────
 // Direct port of v4's $nonProdPatterns (Invoke-FGRiskScoring.ps1 lines 463-467).

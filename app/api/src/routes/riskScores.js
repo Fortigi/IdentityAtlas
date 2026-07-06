@@ -18,6 +18,7 @@ import { Router } from 'express';
 import { timedRequest } from '../perf/sqlTimer.js';
 import { requirePermission } from '../middleware/auth.js';
 import { queryRiskScoresPage } from '../db/queryHelpers.js';
+import { tierFor } from '../riskscoring/tiers.js';
 
 const router = Router();
 const writeRisk = requirePermission('data.write.risk');
@@ -93,16 +94,6 @@ function parseJsonColumns(row) {
     : r.riskScore;
 
   return r;
-}
-
-// Compute tier label from numeric score
-function computeTier(score) {
-  if (score >= 80) return 'Critical';
-  if (score >= 60) return 'High';
-  if (score >= 40) return 'Medium';
-  if (score >= 20) return 'Low';
-  if (score >= 1)  return 'Minimal';
-  return 'None';
 }
 
 // In v5 (postgres) temporal tables are gone, so the ValidTo filter is a no-op.
@@ -501,7 +492,7 @@ router.put('/risk-scores/:type/:id/override', writeRisk, async (req, res) => {
     const baseScore = (row.riskDirectScore || 0) + (row.riskMembershipScore || 0)
       + (row.riskStructuralScore || 0) + (row.riskPropagatedScore || 0);
     const newScore = Math.max(0, Math.min(100, baseScore + adjustment));
-    const newTier = computeTier(newScore);
+    const newTier = tierFor(newScore);
 
     // Update RiskScores table
     await timedRequest(p, 'risk-override-set', res)
@@ -579,7 +570,7 @@ router.delete('/risk-scores/:type/:id/override', writeRisk, async (req, res) => 
     const newScore = Math.max(0, Math.min(100,
       (row.riskDirectScore || 0) + (row.riskMembershipScore || 0)
       + (row.riskStructuralScore || 0) + (row.riskPropagatedScore || 0)));
-    const newTier = computeTier(newScore);
+    const newTier = tierFor(newScore);
 
     // Clear override in RiskScores table
     await timedRequest(p, 'risk-override-clear', res)
