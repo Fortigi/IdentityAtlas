@@ -619,7 +619,7 @@ function Sync-EntraAssignments {
         -Scope @{ assignmentType = 'Indirect'; resourceType = 'Group' } -Records $indirectMembers
 
     # Group Owners — modelled as a Direct assignment to a synthetic
-    # "Owner @ <group>" resource (resourceType='GroupOwnership'), linked to the
+    # GroupOwnership resource (named after the group), linked to the
     # group by a HasOwnership relationship — mirroring how an AppRole hangs off
     # its Application. The ownership resource id is deterministic over the group
     # id (same scheme as New-AppRoleResourceId and migration 046), so re-syncs

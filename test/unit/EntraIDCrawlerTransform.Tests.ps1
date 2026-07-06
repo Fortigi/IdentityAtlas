@@ -371,7 +371,7 @@ Describe 'ConvertTo-EntraGroupOwnership' {
         $out.assignments.Count   | Should -Be 3
 
         $out.resources | ForEach-Object { $_.resourceType | Should -Be 'GroupOwnership' }
-        ($out.resources | Where-Object { $_.displayName -eq 'Owner @ Sales' }) | Should -Not -BeNullOrEmpty
+        ($out.resources | Where-Object { $_.displayName -eq 'Sales' }) | Should -Not -BeNullOrEmpty
         $out.relationships | ForEach-Object { $_.relationshipType | Should -Be 'HasOwnership' }
         $out.assignments | ForEach-Object {
             $_.assignmentType | Should -Be 'Direct'
@@ -381,7 +381,7 @@ Describe 'ConvertTo-EntraGroupOwnership' {
 
     It 'falls back to "(group)" when the group name is unknown' {
         $out = ConvertTo-EntraGroupOwnership -RawOwners @(@{ groupId = 'gX'; principalId = 'u1' }) -GroupNameById @{}
-        $out.resources[0].displayName | Should -Be 'Owner @ (group)'
+        $out.resources[0].displayName | Should -Be '(group)'
         $out.resources[0].externalId  | Should -Be 'entraid-ownership:gX'
     }
 

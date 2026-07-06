@@ -543,7 +543,7 @@ function ConvertTo-FilterValue {
     return $Value
 }
 
-# Deterministic UUID for a group's synthetic "Owner @ <group>" GroupOwnership resource.
+# Deterministic UUID for a group's synthetic GroupOwnership resource (named after the group).
 function New-OwnershipResourceId {
     [CmdletBinding()]
     param([string]$GroupId)

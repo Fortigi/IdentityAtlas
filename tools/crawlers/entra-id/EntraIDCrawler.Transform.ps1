@@ -295,7 +295,7 @@ function ConvertTo-EntraGroupOwnership {
             if (-not $gname) { $gname = '(group)' }
             $resMap[$ownId] = @{
                 id                 = $ownId
-                displayName        = "Owner @ $gname"
+                displayName        = $gname
                 resourceType       = 'GroupOwnership'
                 externalId         = "entraid-ownership:$($ow.groupId)"
                 extendedAttributes = @{ ownedResourceId = $ow.groupId }
