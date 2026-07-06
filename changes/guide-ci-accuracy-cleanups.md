@@ -1,1 +1,0 @@
-- Documentation and CI hygiene: corrected stale references in the developer guide and CI configuration (test framework, branch triggers, retired assignment-type terms in crawler comments) and documented which coding-principle rules are enforced by CI vs. reviewer judgement. No change to application behaviour.

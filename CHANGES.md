@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Documentation and CI hygiene: corrected stale references in the developer guide and CI configuration (test framework, branch triggers, retired assignment-type terms in crawler comments) and documented which coding-principle rules are enforced by CI vs. reviewer judgement. No change to application behaviour.
+
+## Changes in this PR
+
 - Entra security and Microsoft 365 groups now use the resource type **Group** instead of **EntraGroup**. The connector each resource came from is already tracked separately, so the type no longer restates it — matching the other shared resource types (Application, AppRole, Business Role).
 - Entra directory roles now use the resource type **EntraDirectoryRole** instead of **EntraRole** — the accurate name, and it now matches its colour badge in the Resources view.
 - Existing data is updated automatically on upgrade; the Resource Type filter shows the new names and no re-crawl is required.
