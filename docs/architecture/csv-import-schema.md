@@ -33,7 +33,7 @@ Permissions, roles, groups, apps — anything a user can be assigned to.
 |--------|------|----------|-------------|
 | `ExternalId` | string | yes | Unique identifier in the source system |
 | `DisplayName` | string | yes | Human-readable name |
-| `ResourceType` | string | no | Classification: `EntraGroup`, `SAPRole`, `BusinessRole`, `ApplicationRole`, etc. Free-form; `BusinessRole` has special treatment (shown on the Business Roles page) |
+| `ResourceType` | string | no | Classification: `Group`, `SAPRole`, `BusinessRole`, `ApplicationRole`, etc. Free-form; `BusinessRole` has special treatment (shown on the Business Roles page) |
 | `Description` | string | no | Free text |
 | `SystemName` | string | no | Must match a `DisplayName` from `Systems.csv` or the wizard's system name. Omit when all resources belong to the same system |
 | `Enabled` | bool | no | `true`/`false`. Default: `true` |

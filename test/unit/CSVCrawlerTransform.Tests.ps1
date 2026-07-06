@@ -114,8 +114,8 @@ Describe 'ConvertTo-CsvResourceRecord' {
     }
 
     It 'returns $null when ExternalId or DisplayName is blank' {
-        ConvertTo-CsvResourceRecord -Row @('', 'Name', 'EntraGroup', 'true', 'd') -Idx $script:fullIdx -SystemId 2 | Should -BeNullOrEmpty
-        ConvertTo-CsvResourceRecord -Row @('r1', '', 'EntraGroup', 'true', 'd') -Idx $script:fullIdx -SystemId 2 | Should -BeNullOrEmpty
+        ConvertTo-CsvResourceRecord -Row @('', 'Name', 'Group', 'true', 'd') -Idx $script:fullIdx -SystemId 2 | Should -BeNullOrEmpty
+        ConvertTo-CsvResourceRecord -Row @('r1', '', 'Group', 'true', 'd') -Idx $script:fullIdx -SystemId 2 | Should -BeNullOrEmpty
     }
 
     It 'defaults resourceType=$null, enabled=$true, description=$null when columns absent' {

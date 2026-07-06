@@ -100,7 +100,7 @@ Browse all synced principals with pagination, search, tagging, and attribute fil
 
 Browse all synced resources (groups, directory roles, app roles, etc.) with pagination.
 
-- **Resource Type filter:** EntraGroup, EntraDirectoryRole, EntraAppRole, and others
+- **Resource Type filter:** Group, EntraDirectoryRole, AppRole, and others
 - **System filter:** restrict to a specific connected system
 - **Tag management:** same as the Users page
 

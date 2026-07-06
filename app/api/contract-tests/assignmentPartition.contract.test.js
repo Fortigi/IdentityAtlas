@@ -78,8 +78,8 @@ const U2 = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
 
 describe('ResourceAssignments reconcile — resource-axis partition', () => {
   it('scoping by resourceType keeps the delete inside its own partition (AppRole Direct survives a group-members reconcile)', async () => {
-    await insertRA(GROUP, U1, 'Direct', 'EntraGroup');   // in the batch -> keep
-    await insertRA(GROUP, U2, 'Direct', 'EntraGroup');   // absent from batch -> soft-delete
+    await insertRA(GROUP, U1, 'Direct', 'Group');   // in the batch -> keep
+    await insertRA(GROUP, U2, 'Direct', 'Group');   // absent from batch -> soft-delete
     await insertRA(APPROLE, U1, 'Direct', 'AppRole');    // other partition -> MUST survive
 
     const client = await pool.connect();
@@ -90,12 +90,12 @@ describe('ResourceAssignments reconcile — resource-axis partition', () => {
         client, 'ResourceAssignments',
         ['resourceId', 'principalId', 'assignmentType'],
         'tmp_ra_keep', systemId,
-        { assignmentType: 'Direct', resourceType: 'EntraGroup' },
+        { assignmentType: 'Direct', resourceType: 'Group' },
         'systemId', RA_COLS,
       );
       await client.query('COMMIT');
 
-      expect(deleted).toBe(1);                                          // only the absent EntraGroup row
+      expect(deleted).toBe(1);                                          // only the absent Group row
       expect(await deletedAt(GROUP, U1, 'Direct')).toBeNull();         // present -> kept
       expect(await deletedAt(GROUP, U2, 'Direct')).not.toBeNull();     // absent  -> soft-deleted
       expect(await deletedAt(APPROLE, U1, 'Direct')).toBeNull();       // other partition -> SURVIVES
@@ -105,7 +105,7 @@ describe('ResourceAssignments reconcile — resource-axis partition', () => {
   });
 
   it('WITHOUT resourceType the same reconcile would cross partitions and wipe the AppRole Direct row (why resourceType is load-bearing)', async () => {
-    await insertRA(GROUP, U1, 'Direct', 'EntraGroup');   // in batch
+    await insertRA(GROUP, U1, 'Direct', 'Group');   // in batch
     await insertRA(APPROLE, U1, 'Direct', 'AppRole');    // other partition
 
     const client = await pool.connect();

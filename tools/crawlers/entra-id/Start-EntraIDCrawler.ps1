@@ -54,8 +54,8 @@
     Sync Entra ID directory roles — the role catalog (roleDefinitions,
     including each role's granular allowedResourceActions), active role
     assignments, and PIM-eligible role assignments. Roles are stored as
-    Resources(resourceType='EntraRole'); assignments use 'Direct'
-    (active) and 'Eligible' (eligible), both with resourceType='EntraRole'.
+    Resources(resourceType='EntraDirectoryRole'); assignments use 'Direct'
+    (active) and 'Eligible' (eligible), both with resourceType='EntraDirectoryRole'.
     Group-typed assignments are recorded against the group principal but not
     yet expanded to members. Default: false.
 
@@ -261,9 +261,9 @@ if ($SyncAppRoles) {
 # Entra ID directory roles (Global Administrator, Privileged Role
 # Administrator, etc.). Three Graph reads, modelled as:
 #
-#     Resources(EntraRole)            <-- one per roleDefinition (id = roleDefinitionId)
-#       └─ ResourceAssignments(Direct, resourceType=EntraRole)     <-- active (permanent or PIM-activated)
-#       └─ ResourceAssignments(Eligible, resourceType=EntraRole)   <-- PIM eligible (not yet active)
+#     Resources(EntraDirectoryRole)   <-- one per roleDefinition (id = roleDefinitionId)
+#       └─ ResourceAssignments(Direct, resourceType=EntraDirectoryRole)     <-- active (permanent or PIM-activated)
+#       └─ ResourceAssignments(Eligible, resourceType=EntraDirectoryRole)   <-- PIM eligible (not yet active)
 #
 # Each role Resource stores its granular permission actions
 # (rolePermissions[].allowedResourceActions, flattened + de-duped) in
@@ -271,7 +271,7 @@ if ($SyncAppRoles) {
 # it can actually do (EAM Control/Management plane), not just its name.
 #
 # Assignments use the universal 'Direct' / 'Eligible' types, with the source
-# detail carried by resourceType='EntraRole'. The scoped full-sync delete keys
+# detail carried by resourceType='EntraDirectoryRole'. The scoped full-sync delete keys
 # on (assignmentType, resourceType) together, so it targets only these role
 # rows without wiping group memberships or PIM-group eligibilities — the same
 # way AppRole scopes on resourceType='AppRole'.

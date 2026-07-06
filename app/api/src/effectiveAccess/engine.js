@@ -25,7 +25,7 @@ export const DEFAULTS = {
 // member. Extend as more group-like sources land (Azure AD groups, Omada usergroups, ...).
 // NOTE (P1): this list is the current interpretation of "group"; the nested-group parity tests
 // (slice 6) validate it against the legacy endpoint's behavior.
-export const GROUP_RESOURCE_TYPES = ['EntraGroup'];
+export const GROUP_RESOURCE_TYPES = ['Group'];
 
 // ── Minimal count-bounded LRU ────────────────────────────────────────────────
 // P1 placeholder for the `lru-cache` package (spec D3/D8 prescribe a byte-bounded cache); the

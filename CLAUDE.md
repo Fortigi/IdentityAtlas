@@ -147,8 +147,8 @@ The data model supports importing authorization data from any system. Resources,
 
 | `resourceType` | Source | What it represents |
 |---|---|---|
-| `EntraGroup` | Entra crawler | Security / Microsoft 365 group |
-| `EntraRole` | `SyncDirectoryRoles` phase | One resource per Entra directory role (`id` = roleDefinitionId). `extendedAttributes` holds the role's granular `allowedResourceActions`, `isBuiltIn`, and `templateId`. Assigned to principals via `Direct` (active) or `Eligible` (PIM-eligible) |
+| `Group` | Entra crawler | Security / Microsoft 365 group |
+| `EntraDirectoryRole` | `SyncDirectoryRoles` phase | One resource per Entra directory role (`id` = roleDefinitionId). `extendedAttributes` holds the role's granular `allowedResourceActions`, `isBuiltIn`, and `templateId`. Assigned to principals via `Direct` (active) or `Eligible` (PIM-eligible) |
 | `BusinessRole` | Governance sync (Entra access packages, Omada business roles) | Wraps groups via `relationshipType='Contains'`; flagged `governanceResource=true`; assigned to users via a `Direct` membership flagged `governed=true` |
 | `Application` | OAuth2 / AppRoles phases | Enterprise application (service principal). Doesn't grant access by itself — it's the parent of AppRole / DelegatedPermission children |
 | `AppRole` | `SyncAppRoles` phase | One synthetic resource per (Application, appRoleId). Parent app linked via `relationshipType='HasAppRole'`. Assigned to users via `Direct` (direct) or `Indirect` (expanded from a group's role) |
@@ -157,7 +157,7 @@ The data model supports importing authorization data from any system. Resources,
 **Assignment types in use:**
 
 `Direct`, `Indirect`, `Eligible` — the three universal "how does this user have it" values, and the **only** accepted ones (ingest rejects anything else; `app/api/src/ingest/assignmentTypes.guard.test.js` statically scans the crawlers so a retired type can't be reintroduced). Everything that used to be its own assignmentType is now modelled differently:
-- **Ownership** → a `Direct` membership on a `GroupOwnership` resource (an "Owner @ <group>" resource), not an `Owner` type.
+- **Ownership** → a `Direct` membership on a `GroupOwnership` resource (named after the owned group), not an `Owner` type.
 - **Governance** → the `governed` boolean flag on the assignment (the business role / access package itself is flagged `governanceResource`), not a `Governed` type.
 - **Source-attribute detail** (former `OAuth2Grant`, `AppRole`, `AppRoleViaGroup`, `DirectoryRole`, `DirectoryRoleEligible`) → collapse to `Direct`/`Indirect`/`Eligible`, with `resourceType` carrying the source detail.
 

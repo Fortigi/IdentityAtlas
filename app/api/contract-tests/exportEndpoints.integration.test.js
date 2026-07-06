@@ -56,7 +56,7 @@ beforeAll(async () => {
   // 2 resources + a couple of assignments (for /groups + /assignments).
   const rs = await pool.query(
     `INSERT INTO "Resources" ("systemId","resourceType","displayName")
-     VALUES ($1,'EntraGroup','AAA Export Group'),($1,'EntraGroup','BBB Export Group')
+     VALUES ($1,'Group','AAA Export Group'),($1,'Group','BBB Export Group')
      RETURNING id`,
     [systemId],
   );
