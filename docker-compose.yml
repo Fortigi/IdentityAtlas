@@ -74,8 +74,11 @@ services:
       - ./setup/docker/crontab:/app/setup/docker/crontab:ro
       - job_data:/data/uploads
     depends_on:
+      # Wait for the API to pass its healthcheck (migrations applied, /api/version
+      # answering) before the worker starts firing crawler jobs at it — not merely
+      # for the container to have started.
       web:
-        condition: service_started
+        condition: service_healthy
     restart: unless-stopped
 
 volumes:
