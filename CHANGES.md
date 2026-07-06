@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- The Test Coverage docs page now shows code-complexity and mutation-testing columns alongside line/branch/method coverage: average and maximum cyclomatic and cognitive complexity per unit (via PSComplexity) and the PowerShell mutation score — the share of injected faults the tests actually catch (via PSMutant). These are measured for the PowerShell suite today; suites that don't supply them show a dash.
+
+## Changes in this PR
+
 - Internal: decomposed the Azure RM crawler's monolithic entry point into unit-tested phase functions (scope discovery, role definitions, role assignments, dedup, orphan handling, sends) threaded through a shared state object, plus pure record-shapers. Behaviour is unchanged — the same scope hierarchy, role-at-scope resources, grants and principal stubs are emitted.
 
 ## Changes in this PR
