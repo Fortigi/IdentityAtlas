@@ -1,0 +1,1 @@
+- Cleaned up the access matrix legend: it now shows only the badges that can actually appear (Direct, Indirect, Eligible). The obsolete "Owner" badge and other retired assignment-type badges (Governed, OAuth2 grant, App role) were removed from both the on-screen legend and the Excel export legend. Ownership continues to appear as its own resource row.
