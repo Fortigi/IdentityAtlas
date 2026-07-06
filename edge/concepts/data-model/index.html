@@ -4428,6 +4428,11 @@ Business roles are not stored in a separate table. They are <code>Resources</cod
 <td>One synthetic resource per (clientSP, targetAPI, OAuth2 scope). Linked to its parent via <code>relationshipType='DelegatesScope'</code>.</td>
 </tr>
 <tr>
+<td><code>ApplicationPermission</code></td>
+<td>Entra ID</td>
+<td>One synthetic resource per (clientSP, targetAPI, appRole) — the app-only (admin-consented) permission a service principal holds on another API (e.g. <code>Mail.Read</code> on Microsoft Graph). The app-only sibling of <code>DelegatedPermission</code>; linked to its parent client app via <code>relationshipType='HasApplicationPermission'</code>.</td>
+</tr>
+<tr>
 <td><code>ServicePrincipalOwnership</code></td>
 <td>Entra ID</td>
 <td>Owners of an enterprise-app service principal — one resource per owned app, linked to its <code>Application</code> via <code>relationshipType='HasAppOwnership'</code>.</td>
@@ -4547,6 +4552,13 @@ Business roles are not stored in a separate table. They are <code>Resources</cod
 <td>Entra ID</td>
 <td><code>DelegatedPermission</code></td>
 <td><code>User</code></td>
+<td><code>Direct</code></td>
+</tr>
+<tr>
+<td>Entra ID app permissions</td>
+<td>Entra ID</td>
+<td><code>ApplicationPermission</code></td>
+<td><code>ServicePrincipal</code> / <code>ManagedIdentity</code> / <code>AIAgent</code></td>
 <td><code>Direct</code></td>
 </tr>
 <tr>
