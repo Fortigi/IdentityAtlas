@@ -382,6 +382,8 @@ The `resourceType` column on the Resources table is a free-form string. The valu
 | `Application` | Entra ID | Enterprise application / service principal. Parent of `AppRole` and `DelegatedPermission` — does not grant access on its own. |
 | `AppRole` | Entra ID | One synthetic resource per (Application, appRoleId). Linked to its parent via `relationshipType='HasAppRole'`. |
 | `DelegatedPermission` | Entra ID | One synthetic resource per (clientSP, targetAPI, OAuth2 scope). Linked to its parent via `relationshipType='DelegatesScope'`. |
+| `ServicePrincipalOwnership` | Entra ID | Owners of an enterprise-app service principal — one resource per owned app, linked to its `Application` via `relationshipType='HasAppOwnership'`. |
+| `ApplicationOwnership` | Entra ID | Owners of an app registration (who can add a credential and authenticate as the app), matched to the app's SP by `appId` and linked via `HasAppOwnership`. |
 | `BusinessRole` | Entra ID, Omada, MidPoint | Entra ID access package; Omada business role; MidPoint role type. Contains child resources via `relationshipType='Contains'`; assigned via `assignmentType='Governed'`. |
 | `Entitlement` | MidPoint | AD group or other entitlement synced as a MidPoint shadow (kind=entitlement). |
 | `Resource` | Omada | Omada resource. |

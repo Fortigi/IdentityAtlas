@@ -49,6 +49,16 @@
     assignments are skipped (those would need SP-as-principal which the
     data model doesn't yet support). Default: false.
 
+.PARAMETER SyncAppOwners
+    Sync application + service-principal owners — modelled as ownership
+    resources (ApplicationOwnership for app-registration owners, who can add a
+    credential and authenticate as the app; ServicePrincipalOwnership for
+    enterprise-app owners) hanging off the app's Application resource via a
+    distinct 'HasAppOwnership' relationship, with a Direct assignment per owner.
+    Ensures the parent Application resource exists for owned apps that have no
+    roles/grants. Owners are fetched per app/SP (no bulk Graph endpoint), so this
+    can be slow on large tenants. Default: false.
+
 .PARAMETER SyncDirectoryRoles
     Sync Entra ID directory roles — the role catalog (roleDefinitions,
     including each role's granular allowedResourceActions), active role
@@ -112,6 +122,7 @@ $SyncPim               = $cfg.SyncPim
 $SyncSignInLogs        = $cfg.SyncSignInLogs
 $SyncOAuth2Grants      = $cfg.SyncOAuth2Grants
 $SyncAppRoles          = $cfg.SyncAppRoles
+$SyncAppOwners         = $cfg.SyncAppOwners
 $SyncDirectoryRoles    = $cfg.SyncDirectoryRoles
 $RefreshViews          = $cfg.RefreshViews
 $SignInLogsDays        = $cfg.SignInLogsDays
@@ -254,6 +265,17 @@ if ($SyncOAuth2Grants) {
 # from wiping out Access Package 'Contains' relationships.
 if ($SyncAppRoles) {
     Sync-EntraAppRoles -SystemId $systemId -Timings $phaseTimings
+}
+
+# ─── Sync App Owners ─────────────────────────────────────────────
+# Owners of Entra apps + service principals, modelled as ownership resources
+# (ApplicationOwnership / ServicePrincipalOwnership) hanging off the Application
+# resource via a distinct 'HasAppOwnership' relationship. Runs after AppRoles /
+# OAuth2 so its ensure-exists Application upsert (SyncMode 'delta') is the final
+# word rather than clobbering their full-sync. Opt-in — owners are fetched
+# per-SP / per-app (no bulk Graph endpoint), so this can be slow on large tenants.
+if ($SyncAppOwners) {
+    Sync-EntraAppOwners -SystemId $systemId -Timings $phaseTimings
 }
 
 # ─── Sync Directory Roles ────────────────────────────────────────

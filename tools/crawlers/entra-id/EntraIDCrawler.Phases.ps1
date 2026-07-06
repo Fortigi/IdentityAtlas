@@ -423,6 +423,164 @@ function Sync-EntraAppRoles {
     Write-Phase -Name 'AppRoles' -Duration $__phaseSW.Elapsed -ErrorMsg $__appRoleErrMsg
 }
 
+# ─── Sync App Owners ─────────────────────────────────────────────
+# Owners of Entra applications, modelled as ownership resources hanging off the
+# app's Application resource (mirroring group ownership):
+#
+#     Resources(Application)   <-- the enterprise app (SP), ensured to exist
+#       └─ ResourceRelationships(HasAppOwnership)
+#            └─ Resources(ServicePrincipalOwnership | ApplicationOwnership)
+#                 └─ ResourceAssignments(Direct)   <-- one per owner
+#
+# Two ownership kinds, genuinely different:
+#   * ServicePrincipalOwnership — owners of the enterprise-app SP
+#     (/servicePrincipals/{id}/owners); manage the tenant instance.
+#   * ApplicationOwnership — owners of the app registration
+#     (/applications/{id}/owners), matched to the SP by appId; they can add a
+#     credential and authenticate AS the app (the classic priv-esc), so this is
+#     the security-relevant one.
+#
+# The Application resource is keyed by SP id. For an owned app that isn't already
+# an Application resource (no app-roles / OAuth2 grants), a minimal Application
+# record is upserted with SyncMode 'delta' — the app-roles + OAuth2 phases own the
+# resourceType='Application' full-sync, so a reconcile here would clobber theirs.
+# This phase runs after those so its upsert is the final word. A distinct
+# 'HasAppOwnership' relationshipType keeps the group-owners full-sync (HasOwnership)
+# from wiping these links — same reason AppRole uses 'HasAppRole' not 'Contains'.
+#
+# NOTE: owners are fetched per-SP and per-app (no bulk endpoint), like group
+# owners. On a large tenant with many first-party SPs this is a lot of calls;
+# the phase is opt-in via SyncAppOwners. Scoping the fetch to tenant-owned SPs is
+# a future optimisation.
+function Sync-EntraAppOwners {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] [int]$SystemId,
+        $Timings
+    )
+    $__phaseSW = [Diagnostics.Stopwatch]::StartNew()
+    Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Syncing app owners..." -ForegroundColor Cyan
+    Update-CrawlerProgress -Step 'Syncing app owners' -Pct 75 -Detail 'Fetching service principals from Microsoft Graph...'
+    try {
+        # 1. All service principals — id, appId, displayName (+ fields for a minimal
+        #    Application record). Build appId→spId index (the SP id is the Application
+        #    resource id) and spById (for names / ensure-exists).
+        $sps = @(Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/servicePrincipals?`$select=id,appId,displayName,servicePrincipalType,appRoleAssignmentRequired,accountEnabled&`$top=999")
+        $appIdToSpId = @{}
+        $spById      = @{}
+        $appNameById = @{}
+        foreach ($sp in $sps) {
+            $spById[$sp.id]      = $sp
+            $appNameById[$sp.id] = $sp.displayName
+            if ($sp.appId) { $appIdToSpId[$sp.appId] = $sp.id }
+        }
+        Write-Host "  Service principals: $($sps.Count)" -ForegroundColor Gray
+
+        # 2. SP owners (parallel) → (appResourceId = spId, principalId) pairs.
+        $spOwnerPairs = @()
+        if ($sps.Count -gt 0) {
+            $spOwnerResult = Get-FGGroupChildrenParallel -Groups $sps -EntityType 'servicePrincipals' -ChildPath 'owners' -ThrottleLimit 16 `
+                -ProgressStep 'Syncing app owners' -ProgressStartPct 75 -ProgressEndPct 79 `
+                -RecordBuilder { param($o) @{ appResourceId = $o.resourceId; principalId = $o.principalId } }
+            $spOwnerPairs = @($spOwnerResult.records)
+            if ($spOwnerResult.errorCount -gt 0) {
+                Write-Host "  WARNING: $($spOwnerResult.errorCount) service principals failed during owner fetch (skipped)" -ForegroundColor Yellow
+            }
+        }
+
+        # 3. App registrations + their owners (parallel), matched to the SP by appId.
+        $apps = @(Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/applications?`$select=id,appId,displayName&`$top=999")
+        Write-Host "  App registrations: $($apps.Count)" -ForegroundColor Gray
+        $appIdByObjectId = @{}
+        foreach ($a in $apps) { $appIdByObjectId[$a.id] = $a.appId }
+
+        $appOwnerRecords = @()
+        if ($apps.Count -gt 0) {
+            $appOwnerResult = Get-FGGroupChildrenParallel -Groups $apps -EntityType 'applications' -ChildPath 'owners' -ThrottleLimit 16 `
+                -ProgressStep 'Syncing app owners' -ProgressStartPct 79 -ProgressEndPct 83 `
+                -RecordBuilder { param($o) @{ appObjectId = $o.resourceId; principalId = $o.principalId } }
+            $appOwnerRecords = @($appOwnerResult.records)
+            if ($appOwnerResult.errorCount -gt 0) {
+                Write-Host "  WARNING: $($appOwnerResult.errorCount) app registrations failed during owner fetch (skipped)" -ForegroundColor Yellow
+            }
+        }
+        $appOwnerPairs = [System.Collections.Generic.List[object]]::new()
+        $unmatched = 0
+        foreach ($r in $appOwnerRecords) {
+            $appId = $appIdByObjectId[$r.appObjectId]
+            $spId  = if ($appId) { $appIdToSpId[$appId] } else { $null }
+            if ($spId) { $appOwnerPairs.Add(@{ appResourceId = $spId; principalId = $r.principalId }) }
+            else { $unmatched++ }
+        }
+        if ($unmatched -gt 0) {
+            Write-Host "  ($unmatched app-registration owner rows had no matching service principal — skipped)" -ForegroundColor DarkGray
+        }
+
+        # 4. Shape the two ownership graphs (ConvertTo-EntraAppOwnershipGraph, Transform).
+        $spOwnership  = ConvertTo-EntraAppOwnershipGraph -RawOwners $spOwnerPairs -AppNameById $appNameById `
+            -ResourceType 'ServicePrincipalOwnership' -SeedPrefix 'entraid-sp-ownership'
+        $appOwnership = ConvertTo-EntraAppOwnershipGraph -RawOwners @($appOwnerPairs) -AppNameById $appNameById `
+            -ResourceType 'ApplicationOwnership' -SeedPrefix 'entraid-app-ownership'
+
+        # 5. Ensure the parent Application resource exists for every owned app
+        #    (delta upsert — see the note above). Reuse the app-roles shaper so the
+        #    record matches what SyncAppRoles would produce.
+        $ownedSpIds = [System.Collections.Generic.HashSet[string]]::new()
+        foreach ($p in $spOwnerPairs)  { [void]$ownedSpIds.Add($p.appResourceId) }
+        foreach ($p in $appOwnerPairs) { [void]$ownedSpIds.Add($p.appResourceId) }
+        $appResources = @($ownedSpIds | Where-Object { $spById.ContainsKey($_) } | ForEach-Object { ConvertTo-EntraAppRoleApplicationResource -ServicePrincipal $spById[$_] })
+
+        Write-Host "  SP owners: $($spOwnership.assignments.Count) · App-reg owners: $($appOwnership.assignments.Count) · Owned apps: $($appResources.Count)" -ForegroundColor Gray
+
+        Send-EntraAppOwnerBatches -SystemId $SystemId -AppResources $appResources -SpOwnership $spOwnership -AppOwnership $appOwnership
+    }
+    catch {
+        Write-Host "  App owner sync failed: $($_.Exception.Message)" -ForegroundColor Red
+        $script:phaseErrors.Add("AppOwners: $($_.Exception.Message)")
+        Write-Host "  (Requires Application.Read.All to read app + service-principal owners.)" -ForegroundColor Yellow
+    }
+    $__phaseSW.Stop(); if ($Timings) { $Timings['AppOwners'] = $__phaseSW.Elapsed }
+    $__appOwnerErr = $script:phaseErrors | Where-Object { $_.StartsWith('AppOwners:') } | Select-Object -Last 1
+    $__appOwnerErrMsg = if ($__appOwnerErr) { $__appOwnerErr.Substring('AppOwners:'.Length).Trim() } else { $null }
+    Write-Phase -Name 'AppOwners' -Duration $__phaseSW.Elapsed -ErrorMsg $__appOwnerErrMsg
+}
+
+# Upload the app-ownership graph. The parent Application resources are upserted
+# with SyncMode 'delta' (non-reconciling — the app-roles/OAuth2 phases own the
+# resourceType='Application' full-sync). The two ownership resource types, the
+# HasAppOwnership relationships, and the Direct owner assignments are each
+# full-synced on their own phase-exclusive scope, sent unconditionally so a
+# reconcile clears ownership for apps that lost all owners.
+function Send-EntraAppOwnerBatches {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] [int]$SystemId,
+        [array]$AppResources = @(),
+        [Parameter(Mandatory)] [hashtable]$SpOwnership,
+        [Parameter(Mandatory)] [hashtable]$AppOwnership
+    )
+    if ($AppResources.Count -gt 0) {
+        Update-CrawlerProgress -Detail "Ensuring $($AppResources.Count) owned-app resources exist..."
+        Send-IngestBatch -Endpoint 'ingest/resources' -SystemId $SystemId -SyncMode 'delta' `
+            -Scope @{ resourceType = 'Application' } -Records $AppResources
+    }
+
+    Update-CrawlerProgress -Detail "Uploading app ownership resources..."
+    Send-IngestBatch -Endpoint 'ingest/resources' -SystemId $SystemId -SyncMode 'full' `
+        -Scope @{ resourceType = 'ServicePrincipalOwnership' } -Records @($SpOwnership.resources)
+    Send-IngestBatch -Endpoint 'ingest/resources' -SystemId $SystemId -SyncMode 'full' `
+        -Scope @{ resourceType = 'ApplicationOwnership' } -Records @($AppOwnership.resources)
+
+    Send-IngestBatch -Endpoint 'ingest/resource-relationships' -SystemId $SystemId -SyncMode 'full' `
+        -Scope @{ relationshipType = 'HasAppOwnership' } -Records @($SpOwnership.relationships + $AppOwnership.relationships)
+
+    Update-CrawlerProgress -Detail "Uploading app owner assignments..."
+    Send-IngestBatch -Endpoint 'ingest/resource-assignments' -SystemId $SystemId -SyncMode 'full' `
+        -Scope @{ assignmentType = 'Direct'; resourceType = 'ServicePrincipalOwnership' } -Records @($SpOwnership.assignments)
+    Send-IngestBatch -Endpoint 'ingest/resource-assignments' -SystemId $SystemId -SyncMode 'full' `
+        -Scope @{ assignmentType = 'Direct'; resourceType = 'ApplicationOwnership' } -Records @($AppOwnership.assignments)
+}
+
 # ─── Sync Directory Roles ────────────────────────────────────────
 # Entra ID directory roles (Global Administrator, Privileged Role
 # Administrator, etc.). Three Graph reads, modelled as:
@@ -1647,6 +1805,7 @@ function Resolve-EntraSyncConfig {
         SyncSignInLogs        = $false
         SyncOAuth2Grants      = $false
         SyncAppRoles          = $false
+        SyncAppOwners         = $false
         SyncDirectoryRoles    = $false
         RefreshViews          = $true
         SignInLogsDays        = 7
@@ -1662,7 +1821,7 @@ function Resolve-EntraSyncConfig {
         Set-EntraTogglesFrom -Cfg $cfg -Source $objects -Map ([ordered]@{
             identity = 'SyncPrincipals'; servicePrincipals = 'SyncServicePrincipals'
             identityGovernance = 'SyncGovernance'; pim = 'SyncPim'; signInLogs = 'SyncSignInLogs'
-            oauth2Grants = 'SyncOAuth2Grants'; appsAppRoles = 'SyncAppRoles'; directoryRoles = 'SyncDirectoryRoles'
+            oauth2Grants = 'SyncOAuth2Grants'; appsAppRoles = 'SyncAppRoles'; appOwners = 'SyncAppOwners'; directoryRoles = 'SyncDirectoryRoles'
         })
         # usersGroupsMembers drives three toggles at once (applied after `identity` so it wins on SyncPrincipals).
         if ($objects.ContainsKey('usersGroupsMembers')) {
@@ -1676,7 +1835,7 @@ function Resolve-EntraSyncConfig {
         syncPrincipals = 'SyncPrincipals'; syncServicePrincipals = 'SyncServicePrincipals'
         syncResources = 'SyncResources'; syncAssignments = 'SyncAssignments'; syncGovernance = 'SyncGovernance'
         syncSignInLogs = 'SyncSignInLogs'; syncOAuth2Grants = 'SyncOAuth2Grants'
-        syncAppRoles = 'SyncAppRoles'; syncDirectoryRoles = 'SyncDirectoryRoles'
+        syncAppRoles = 'SyncAppRoles'; syncAppOwners = 'SyncAppOwners'; syncDirectoryRoles = 'SyncDirectoryRoles'
     })
     Set-EntraConfigExtras -Cfg $cfg -RawConfig $RawConfig
     return $cfg
