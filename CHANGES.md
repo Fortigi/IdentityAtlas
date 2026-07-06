@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Internal refactor: unified how all crawlers send data to the ingest API into one shared, tested implementation, removing duplicated batching logic that had drifted between crawlers. No change to what data is synced or how.
+
+## Changes in this PR
+
 - Internal refactor: split the large Admin settings page into focused per-section components for maintainability. No functional change — every Admin tab and section works exactly as before.
 
 ## Changes in this PR
