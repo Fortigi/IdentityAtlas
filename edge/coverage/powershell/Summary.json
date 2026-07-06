@@ -1,30 +1,32 @@
 {
   "summary": {
-    "generatedon": "2026-07-05T11:11:28Z",
+    "generatedon": "2026-07-06T06:43:37Z",
     "parser": "JaCoCo",
     "assemblies": 11,
-    "classes": 130,
-    "files": 130,
-    "coveredlines": 4604,
-    "uncoveredlines": 1032,
-    "coverablelines": 5636,
-    "totallines": 14280,
-    "linecoverage": 81.6,
+    "classes": 133,
+    "files": 133,
+    "coveredlines": 5314,
+    "uncoveredlines": 465,
+    "coverablelines": 5779,
+    "totallines": 14937,
+    "linecoverage": 91.9,
     "coveredbranches": 0,
     "totalbranches": 0,
-    "coveredmethods": 383,
-    "fullcoveredmethods": 346,
-    "totalmethods": 401,
-    "methodcoverage": 95.5,
-    "fullmethodcoverage": 86.2
+    "coveredmethods": 457,
+    "fullcoveredmethods": 416,
+    "totalmethods": 470,
+    "methodcoverage": 97.2,
+    "fullmethodcoverage": 88.5
  },
   "coverage": {
     "assemblies": [
-      { "name": "tools/crawlers/azure-rm", "classes": 4, "coverage": 35.1, "coveredlines": 145, "coverablelines": 413, "totallines": 973, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 81.4, "fullmethodcoverage": 77.7, "coveredmethods": 22, "fullcoveredmethods": 21, "totalmethods": 27, "classesinassembly": [
+      { "name": "tools/crawlers/azure-rm", "classes": 6, "coverage": 95.1, "coveredlines": 447, "coverablelines": 470, "totallines": 1216, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 98.2, "fullmethodcoverage": 96.5, "coveredmethods": 57, "fullcoveredmethods": 56, "totalmethods": 58, "classesinassembly": [
         { "name": "tools/crawlers/azure-rm/AzureRMCrawler.Functions", "coverage": 100, "coveredlines": 38, "coverablelines": 38, "totallines": 147, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 8, "fullcoveredmethods": 8, "totalmethods": 8 },
+        { "name": "tools/crawlers/azure-rm/AzureRMCrawler.Phases", "coverage": 100, "coveredlines": 252, "coverablelines": 252, "totallines": 529, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 29, "fullcoveredmethods": 29, "totalmethods": 29 },
+        { "name": "tools/crawlers/azure-rm/AzureRMCrawler.Transform", "coverage": 100, "coveredlines": 50, "coverablelines": 50, "totallines": 117, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 6, "fullcoveredmethods": 6, "totalmethods": 6 },
         { "name": "tools/crawlers/azure-rm/Get-AzureRGHelpers", "coverage": 98.5, "coveredlines": 66, "coverablelines": 67, "totallines": 219, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 85.7, "coveredmethods": 7, "fullcoveredmethods": 6, "totalmethods": 7 },
         { "name": "tools/crawlers/azure-rm/Get-AzureRMHelpers", "coverage": 100, "coveredlines": 41, "coverablelines": 41, "totallines": 121, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 7, "fullcoveredmethods": 7, "totalmethods": 7 },
-        { "name": "tools/crawlers/azure-rm/Start-AzureRMCrawler", "coverage": 0, "coveredlines": 0, "coverablelines": 267, "totallines": 486, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 0, "fullmethodcoverage": 0, "coveredmethods": 0, "fullcoveredmethods": 0, "totalmethods": 5 } ] },
+        { "name": "tools/crawlers/azure-rm/Start-AzureRMCrawler", "coverage": 0, "coveredlines": 0, "coverablelines": 22, "totallines": 83, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 0, "fullmethodcoverage": 0, "coveredmethods": 0, "fullcoveredmethods": 0, "totalmethods": 1 } ] },
       { "name": "tools/crawlers/csv", "classes": 4, "coverage": 93.3, "coveredlines": 408, "coverablelines": 437, "totallines": 871, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 96.9, "fullmethodcoverage": 96.9, "coveredmethods": 32, "fullcoveredmethods": 32, "totalmethods": 33, "classesinassembly": [
         { "name": "tools/crawlers/csv/CSVCrawler.Functions", "coverage": 100, "coveredlines": 113, "coverablelines": 113, "totallines": 243, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 9, "fullcoveredmethods": 9, "totalmethods": 9 },
         { "name": "tools/crawlers/csv/CSVCrawler.Phases", "coverage": 100, "coveredlines": 200, "coverablelines": 200, "totallines": 338, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 13, "fullcoveredmethods": 13, "totalmethods": 13 },
@@ -39,11 +41,12 @@
         { "name": "tools/crawlers/entra-id/EntraIDCrawler.Phases", "coverage": 97.5, "coveredlines": 785, "coverablelines": 805, "totallines": 1871, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 77.2, "coveredmethods": 44, "fullcoveredmethods": 34, "totalmethods": 44 },
         { "name": "tools/crawlers/entra-id/EntraIDCrawler.Transform", "coverage": 100, "coveredlines": 487, "coverablelines": 487, "totallines": 1011, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 34, "fullcoveredmethods": 34, "totalmethods": 34 },
         { "name": "tools/crawlers/entra-id/Start-EntraIDCrawler", "coverage": 0, "coveredlines": 0, "coverablelines": 71, "totallines": 308, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 0, "fullmethodcoverage": 0, "coveredmethods": 0, "fullcoveredmethods": 0, "totalmethods": 1 } ] },
-      { "name": "tools/crawlers/midpoint", "classes": 4, "coverage": 52.2, "coveredlines": 451, "coverablelines": 863, "totallines": 1893, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 96.3, "fullmethodcoverage": 87.2, "coveredmethods": 53, "fullcoveredmethods": 48, "totalmethods": 55, "classesinassembly": [
+      { "name": "tools/crawlers/midpoint", "classes": 5, "coverage": 90.5, "coveredlines": 859, "coverablelines": 949, "totallines": 2307, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 98.9, "fullmethodcoverage": 89.2, "coveredmethods": 92, "fullcoveredmethods": 83, "totalmethods": 93, "classesinassembly": [
         { "name": "tools/crawlers/midpoint/Invoke-MidpointApi", "coverage": 96.7, "coveredlines": 239, "coverablelines": 247, "totallines": 689, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 82.7, "coveredmethods": 29, "fullcoveredmethods": 24, "totalmethods": 29 },
         { "name": "tools/crawlers/midpoint/MidpointCrawler.Functions", "coverage": 100, "coveredlines": 77, "coverablelines": 77, "totallines": 173, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 11, "fullcoveredmethods": 11, "totalmethods": 11 },
+        { "name": "tools/crawlers/midpoint/MidpointCrawler.Phases", "coverage": 98.3, "coveredlines": 408, "coverablelines": 415, "totallines": 923, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 89.7, "coveredmethods": 39, "fullcoveredmethods": 35, "totalmethods": 39 },
         { "name": "tools/crawlers/midpoint/MidpointCrawler.Transform", "coverage": 100, "coveredlines": 135, "coverablelines": 135, "totallines": 321, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 13, "fullcoveredmethods": 13, "totalmethods": 13 },
-        { "name": "tools/crawlers/midpoint/Start-MidpointCrawler", "coverage": 0, "coveredlines": 0, "coverablelines": 404, "totallines": 710, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 0, "fullmethodcoverage": 0, "coveredmethods": 0, "fullcoveredmethods": 0, "totalmethods": 2 } ] },
+        { "name": "tools/crawlers/midpoint/Start-MidpointCrawler", "coverage": 0, "coveredlines": 0, "coverablelines": 75, "totallines": 201, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 0, "fullmethodcoverage": 0, "coveredmethods": 0, "fullcoveredmethods": 0, "totalmethods": 1 } ] },
       { "name": "tools/crawlers/odata", "classes": 4, "coverage": 83.8, "coveredlines": 140, "coverablelines": 167, "totallines": 476, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 90.9, "fullmethodcoverage": 45.4, "coveredmethods": 10, "fullcoveredmethods": 5, "totalmethods": 11, "classesinassembly": [
         { "name": "tools/crawlers/odata/Invoke-ODataAuth", "coverage": 81.9, "coveredlines": 77, "coverablelines": 94, "totallines": 244, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 50, "coveredmethods": 8, "fullcoveredmethods": 4, "totalmethods": 8 },
         { "name": "tools/crawlers/odata/Invoke-ODataGetRequest", "coverage": 88.5, "coveredlines": 54, "coverablelines": 61, "totallines": 141, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 0, "coveredmethods": 1, "fullcoveredmethods": 0, "totalmethods": 1 },
