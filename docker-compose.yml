@@ -14,7 +14,11 @@ services:
       POSTGRES_USER:     "${POSTGRES_USER:-identity_atlas}"
       POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-identity_atlas_local}"
     ports:
-      - "5432:5432"
+      # Bind Postgres to loopback only — the dev stack ships a known default
+      # password, so publishing 5432 on 0.0.0.0 would let anyone on the same
+      # network reach the database. Local tools (psql, a GUI) still connect via
+      # localhost:5432; nothing needs it exposed to the LAN.
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
