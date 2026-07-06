@@ -37,9 +37,8 @@ Each cell shows all membership types that apply, side by side:
 | `D` | Direct member |
 | `I` | Indirect (transitive) member |
 | `E` | Eligible (PIM) member |
-| `O` | Owner |
 
-Cells with multiple types show all badges. Owner (`O`) memberships appear in separate rows suffixed with `(Owner)` — ownership is a fundamentally different relationship from membership.
+Cells with multiple types show all badges. Ownership is its own resource (`resourceType='GroupOwnership'`) shown as a normal row, so an owner appears as a `Direct` membership on that ownership resource rather than a separate badge.
 
 #### Business Role Columns (SOLL View)
 
