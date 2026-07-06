@@ -46,4 +46,12 @@ EXPOSE 3001
 # if it doesn't exist, and the node user can't write to it.
 RUN mkdir -p /data/uploads && chown -R node:node /data
 USER node
+
+# Container health: the API is up once /api/version (public, unauthenticated)
+# answers 200. Uses node directly — the slim base image ships no curl/wget — and
+# honours $PORT. Orchestrators / compose can then gate dependents on readiness
+# via `depends_on: { condition: service_healthy }`.
+HEALTHCHECK --interval=15s --timeout=5s --start-period=40s --retries=5 \
+  CMD ["node", "-e", "require('http').get('http://127.0.0.1:'+(process.env.PORT||3001)+'/api/version',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+
 CMD ["node", "src/index.js"]

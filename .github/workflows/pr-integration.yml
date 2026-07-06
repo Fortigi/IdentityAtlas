@@ -82,7 +82,7 @@ jobs:
           NON_HOUSEKEEPING=$(
             git log "${{ github.event.before }}..${{ github.sha }}" --format="%s" \
               | grep -v '^$' \
-              | grep -vE "^chore: bump version to [0-9]|^Merge branch 'main' into " \
+              | grep -vE "^chore: bump version to [0-9]|^Merge (remote-tracking )?branch '" \
               | wc -l \
               | tr -d ' '
           )
@@ -763,7 +763,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
-          node-version: '22'
+          node-version: '24'
           cache: 'npm'
           cache-dependency-path: app/ui/package-lock.json
 

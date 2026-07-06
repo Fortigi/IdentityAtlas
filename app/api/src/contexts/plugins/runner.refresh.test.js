@@ -87,3 +87,31 @@ describe('refreshGeneratedContexts', () => {
     expect(runInsert()).toBeFalsy();
   });
 });
+
+describe('refreshGeneratedContexts — parent-cycle prevention (A3)', () => {
+  it('skips a parent link that would create a cycle, writes the acyclic one', async () => {
+    wire([tree({ ikey: 'k1' })]);
+    // P is a root; C->P is a normal link; S->S is a self-loop (a cycle). The
+    // guard skips S (wouldCreateCycle short-circuits when id === parentId),
+    // leaving it a root, while the acyclic C->P link is written.
+    PLUGIN.run.mockResolvedValue({
+      contexts: [
+        { externalId: 'P', displayName: 'Parent' },
+        { externalId: 'C', parentExternalId: 'P', displayName: 'Child' },
+        { externalId: 'S', parentExternalId: 'S', displayName: 'Self' },
+      ],
+      members: [],
+    });
+
+    await refreshGeneratedContexts('crawl-refresh', { awaitCompletion: true });
+
+    const parentUpdates = query.mock.calls.filter(([sql]) =>
+      /UPDATE\s+"Contexts"\s+SET\s+"parentContextId"\s*=\s*\$2\s+WHERE\s+id\s*=\s*\$1/.test(sql));
+    // Exactly one parent link written — the acyclic C->P.
+    expect(parentUpdates).toHaveLength(1);
+    // ...and it is not a self-loop (id !== parentId).
+    expect(parentUpdates[0][1][0]).not.toBe(parentUpdates[0][1][1]);
+    // No self-loop link slipped through the guard.
+    expect(parentUpdates.some(([, params]) => params[0] === params[1])).toBe(false);
+  });
+});

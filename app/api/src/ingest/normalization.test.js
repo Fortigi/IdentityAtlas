@@ -189,3 +189,75 @@ describe('normalizeRecords — context-member externalId resolution', () => {
     expect(oldBehaviour[0].contextId).not.toBe(ctx[0].id);
   });
 });
+
+describe('normalizeRecords — context parentExternalId resolution', () => {
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  // Contexts are ingested with idPrefix "<sys>-contexts".
+  const contextOpts = { idGeneration: 'deterministic', idPrefix: 'Omada-contexts', systemId: 1 };
+  const contextCols = ['id', 'externalId', 'displayName', 'variant', 'targetType', 'contextType', 'parentContextId', 'systemId'];
+
+  it('resolves a context parentExternalId to a deterministic UUID in parentContextId', () => {
+    const r = normalizeRecords(
+      [{ externalId: 'child', displayName: 'Child', contextType: 'OrgUnit', parentExternalId: 'root' }],
+      contextCols, contextOpts
+    );
+    expect(r[0].parentContextId).toMatch(UUID_RE);
+  });
+
+  it('child parentContextId matches the id the Contexts endpoint generates for the parent (the FK that was broken)', () => {
+    // A parented context tree must link child→parent by the exact UUID the parent
+    // context row got. Both are sent with idPrefix "<sys>-contexts", so the child's
+    // resolved parentContextId has to equal the parent's generated id.
+    const parentKey = 'root';
+    const parent = normalizeRecords(
+      [{ externalId: parentKey, displayName: 'Root', contextType: 'OrgUnit' }],
+      contextCols, contextOpts
+    );
+    const child = normalizeRecords(
+      [{ externalId: 'child', displayName: 'Child', contextType: 'OrgUnit', parentExternalId: parentKey }],
+      contextCols, contextOpts
+    );
+    expect(child[0].parentContextId).toBe(parent[0].id);
+  });
+
+  it('does NOT mis-resolve a context parent into parentResourceId (the bug)', () => {
+    // Before the fix, every deterministic parentExternalId became a parentResourceId
+    // under "<sys>-resources" — wrong table, wrong namespace — so the context
+    // hierarchy silently never persisted (the parent survived only as raw text in
+    // extendedAttributes).
+    const r = normalizeRecords(
+      [{ externalId: 'child', displayName: 'Child', contextType: 'OrgUnit', parentExternalId: 'root' }],
+      contextCols, contextOpts
+    );
+    expect(r[0].parentResourceId).toBeUndefined();
+  });
+
+  it('does not overwrite an explicit parentContextId', () => {
+    const explicit = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee';
+    const r = normalizeRecords(
+      [{ externalId: 'child', parentContextId: explicit, parentExternalId: 'root', contextType: 'OrgUnit' }],
+      contextCols, contextOpts
+    );
+    expect(r[0].parentContextId).toBe(explicit);
+  });
+
+  it('still resolves a resource-relationship parentExternalId to parentResourceId (table has no parentContextId column)', () => {
+    // Regression guard: the resource-relationships table carries parentResourceId,
+    // not parentContextId, so parentExternalId must keep resolving into
+    // "<sys>-resources" and match the id the Resources endpoint generates.
+    const relOpts = { idGeneration: 'deterministic', idPrefix: 'Omada-resource-relationships', systemPrefix: 'Omada', systemId: 1 };
+    const relCols = ['parentResourceId', 'childResourceId', 'relationshipType', 'systemId'];
+    const r = normalizeRecords(
+      [{ parentExternalId: 'grp', childExternalId: 'sub', relationshipType: 'Contains' }],
+      relCols, relOpts
+    );
+    expect(r[0].parentResourceId).toMatch(UUID_RE);
+    expect(r[0].parentContextId).toBeUndefined();
+    const resource = normalizeRecords(
+      [{ externalId: 'grp', displayName: 'Grp' }],
+      ['id', 'externalId', 'displayName'],
+      { idGeneration: 'deterministic', idPrefix: 'Omada-resources', systemId: 1 }
+    );
+    expect(r[0].parentResourceId).toBe(resource[0].id);
+  });
+});

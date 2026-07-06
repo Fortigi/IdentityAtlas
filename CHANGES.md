@@ -1,5 +1,34 @@
 ## Changes in this PR
 
+- The published Docker images (`:edge`, `:latest`, `:beta`, and the versioned tags) are now the exact images that passed the release smoke test, rather than a fresh rebuild made after testing. What you pull is now guaranteed to be what was verified.
+
+## Changes in this PR
+
+- Made context hierarchies more resilient to parent-loops. Generated (plugin) context trees now skip any parent link that would create a cycle, and imported context batches self-repair a cyclic parent link immediately after the batch rather than waiting for the end-of-sync refresh — so a mis-parented tree can no longer leave a stored loop behind.
+
+## Changes in this PR
+
+- Fixed inconsistent risk-tier labels after an analyst override. The override path used a different Critical/High threshold (80/60) than the scoring engine (90/70), so overriding a score could re-tier an entity on a different scale than the batch run that produced its stored tier. Both now share a single source of truth, so a score of, say, 85 is labelled "High" everywhere. (Entities with scores between 60–89 may now show a corrected tier.)
+- The risk-score bar colour now follows the entity's risk tier, matching the tier badge, instead of a separate hardcoded set of score cutoffs.
+
+## Changes in this PR
+
+- Hardened the Docker deployment: the web/API container now reports a health status, and the worker waits for the API to be healthy (migrations applied and responding) before it starts running crawler jobs, instead of starting as soon as the API container launches.
+
+## Changes in this PR
+
+- Fixed imported context hierarchies (such as org-unit or department trees) not linking to their parent. A context's parent reference is now resolved into the correct context, so parent/child relationships persist on import instead of being silently dropped.
+
+## Changes in this PR
+
+- Cleaned up the access matrix legend: it now shows only the badges that can actually appear (Direct, Indirect, Eligible). The obsolete "Owner" badge and other retired assignment-type badges (Governed, OAuth2 grant, App role) were removed from both the on-screen legend and the Excel export legend. Ownership continues to appear as its own resource row.
+
+## Changes in this PR
+
+- Documentation and CI hygiene: corrected stale references in the developer guide and CI configuration (test framework, branch triggers, retired assignment-type terms in crawler comments) and documented which coding-principle rules are enforced by CI vs. reviewer judgement. No change to application behaviour.
+
+## Changes in this PR
+
 - Entra security and Microsoft 365 groups now use the resource type **Group** instead of **EntraGroup**. The connector each resource came from is already tracked separately, so the type no longer restates it — matching the other shared resource types (Application, AppRole, Business Role).
 - Entra directory roles now use the resource type **EntraDirectoryRole** instead of **EntraRole** — the accurate name, and it now matches its colour badge in the Resources view.
 - Existing data is updated automatically on upgrade; the Resource Type filter shows the new names and no re-crawl is required.

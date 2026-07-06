@@ -44,8 +44,9 @@
 .PARAMETER SyncAppRoles
     Sync application role assignments — for each enterprise application,
     fetch the catalog of appRoles[] and the assignments to users/groups.
-    Group-typed assignments are expanded to per-user 'AppRoleViaGroup'
-    rows so the matrix surfaces indirect access. ServicePrincipal-typed
+    Direct user assignments become 'Direct' rows; group-typed assignments
+    are expanded to per-user 'Indirect' rows so the matrix surfaces indirect
+    access. Both carry resourceType='AppRole'. ServicePrincipal-typed
     assignments are skipped (those would need SP-as-principal which the
     data model doesn't yet support). Default: false.
 
@@ -63,10 +64,10 @@
     Sync Entra ID directory roles — the role catalog (roleDefinitions,
     including each role's granular allowedResourceActions), active role
     assignments, and PIM-eligible role assignments. Roles are stored as
-    Resources(resourceType='EntraDirectoryRole'); assignments use 'DirectoryRole'
-    (active) and 'DirectoryRoleEligible' (eligible). Group-typed assignments
-    are recorded against the group principal but not yet expanded to members.
-    Default: false.
+    Resources(resourceType='EntraDirectoryRole'); assignments use 'Direct'
+    (active) and 'Eligible' (eligible), both with resourceType='EntraDirectoryRole'.
+    Group-typed assignments are recorded against the group principal but not
+    yet expanded to members. Default: false.
 
 .PARAMETER RefreshViews
     Refresh materialized SQL views after sync (default: true)
@@ -232,7 +233,7 @@ if ($SyncGovernance) {
 #     Resources(Application)           <-- client SP (the app that got delegated-to)
 #       └─ ResourceRelationships(DelegatesScope)
 #            └─ Resources(DelegatedPermission)   <-- synthetic per (client, api, scope)
-#                 └─ ResourceAssignments(OAuth2Grant)  <-- one row per consenting user
+#                 └─ ResourceAssignments(Direct, resourceType=DelegatedPermission)  <-- one row per consenting user
 #
 # The scope resource ID is deterministic over (clientSpId, targetApiSpId, scope)
 # so re-runs idempotently overwrite the same rows. Tenant-wide consents
@@ -252,11 +253,11 @@ if ($SyncOAuth2Grants) {
 #     Resources(Application)          <-- the enterprise app (SP)
 #       └─ ResourceRelationships(HasAppRole)
 #            └─ Resources(AppRole)    <-- synthetic per (SP, appRoleId)
-#                 └─ ResourceAssignments(AppRole | AppRoleViaGroup)
+#                 └─ ResourceAssignments(Direct | Indirect, resourceType=AppRole)
 #
 # Group-typed assignments are expanded server-side from /transitiveMembers,
-# emitted as `AppRoleViaGroup` rows per member so the matrix can show
-# indirect access without a recursive matview. ServicePrincipal-typed
+# emitted as `Indirect` rows per member (resourceType=AppRole) so the matrix
+# can show indirect access without a recursive matview. ServicePrincipal-typed
 # assignments are skipped — the data model doesn't support SP-as-principal
 # yet, and they're rare.
 #
@@ -284,19 +285,19 @@ if ($SyncAppOwners) {
 # Administrator, etc.). Three Graph reads, modelled as:
 #
 #     Resources(EntraDirectoryRole)   <-- one per roleDefinition (id = roleDefinitionId)
-#       └─ ResourceAssignments(DirectoryRole)          <-- active (permanent or PIM-activated)
-#       └─ ResourceAssignments(DirectoryRoleEligible)  <-- PIM eligible (not yet active)
+#       └─ ResourceAssignments(Direct, resourceType=EntraDirectoryRole)     <-- active (permanent or PIM-activated)
+#       └─ ResourceAssignments(Eligible, resourceType=EntraDirectoryRole)   <-- PIM eligible (not yet active)
 #
 # Each role Resource stores its granular permission actions
 # (rolePermissions[].allowedResourceActions, flattened + de-duped) in
 # extendedAttributes so a later risk-scoring pass can tier a role by what
 # it can actually do (EAM Control/Management plane), not just its name.
 #
-# Distinct assignment types ('DirectoryRole' / 'DirectoryRoleEligible')
-# rather than reusing 'Direct' / 'Eligible' so the scoped full-sync delete
-# keys on them without wiping group memberships or PIM-group eligibilities —
-# the same reason AppRole uses a distinct type. The matrix view collapses
-# them to Direct/Eligible badges (migration 043).
+# Assignments use the universal 'Direct' / 'Eligible' types, with the source
+# detail carried by resourceType='EntraDirectoryRole'. The scoped full-sync delete keys
+# on (assignmentType, resourceType) together, so it targets only these role
+# rows without wiping group memberships or PIM-group eligibilities — the same
+# way AppRole scopes on resourceType='AppRole'.
 #
 # Group-typed assignments (a role-assignable group granted a role) are
 # recorded against the group principal but NOT yet expanded to per-member
