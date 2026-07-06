@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- The database now structurally enforces the universal data model: `assignmentType` is constrained to `Direct`/`Indirect`/`Eligible`, and the renamed Entra-era resource types (`EntraGroup`, `EntraRole`) can no longer be stored on resources or assignments. This guards against a bad migration or manual database change reintroducing a retired value — a path the ingest API validation could not cover.
+
+## Changes in this PR
+
 - Added an **Application Permissions** object type to the Entra ID crawler (opt-in). It captures the app-only, admin-consented permissions each service principal holds on other APIs — the tenant-wide kind such as `Mail.Read` on Microsoft Graph that works with no user signed in — modelled as **ApplicationPermission** resources linked to the holding app. This is the app-only sibling of the existing delegated (OAuth2) permissions.
 - Each application permission shows up as a Direct assignment on the service principal that holds it, so a managed identity's or AI agent's tenant-wide API access is now visible, relatable, and certifiable like any other access.
 
