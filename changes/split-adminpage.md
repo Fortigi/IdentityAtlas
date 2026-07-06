@@ -1,1 +1,0 @@
-- Internal refactor: split the large Admin settings page into focused per-section components for maintainability. No functional change — every Admin tab and section works exactly as before.
