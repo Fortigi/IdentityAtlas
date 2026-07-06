@@ -11,9 +11,12 @@ function TierBadge({ tier }) {
   );
 }
 
-function ScoreBar({ score, maxScore = 100, width = 'w-32' }) {
+function ScoreBar({ score, tier, maxScore = 100, width = 'w-32' }) {
   const pct = Math.min(100, Math.max(0, (score / maxScore) * 100));
-  const color = score >= 90 ? 'bg-red-500' : score >= 70 ? 'bg-orange-500' : score >= 40 ? 'bg-yellow-500' : score >= 20 ? 'bg-blue-400' : 'bg-gray-300';
+  // Colour by the backend-provided tier via the shared TIER_STYLES map — the
+  // single UI source of tier→colour — rather than re-deriving cutoffs here (they
+  // used to duplicate, and drift from, the engine's tierFor thresholds).
+  const color = (TIER_STYLES[tier] || TIER_STYLES.None).dot;
   return (
     <div className="flex items-center gap-2">
       <div className={`${width} h-2 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden`}>
@@ -130,7 +133,7 @@ export default function RiskScoreSection({ attributes, entityType, entityId, aut
       <div className="flex items-center gap-4 mb-3">
         <TierBadge tier={tier} />
         <div className="flex-1">
-          <ScoreBar score={effectiveScore} width="w-full" />
+          <ScoreBar score={effectiveScore} tier={tier} width="w-full" />
         </div>
         {localOverride != null && (
           <span className={`text-xs font-mono px-1.5 py-0.5 rounded ${

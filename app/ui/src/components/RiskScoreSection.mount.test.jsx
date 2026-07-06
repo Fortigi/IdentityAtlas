@@ -39,6 +39,18 @@ describe('RiskScoreSection (mounted)', () => {
     expect(screen.getByText('82')).toBeInTheDocument(); // score readout
   });
 
+  it('colours the score bar from the backend tier (shared TIER_STYLES, not a client cutoff)', () => {
+    // The bar's fill colour must come from the tier via TIER_STYLES so it can't
+    // drift from the badge or the engine's tierFor thresholds.
+    const { container } = render({ ...baseAttrs, riskTier: 'High' });
+    const bar = container.querySelector('.h-full.rounded-full');
+    expect(bar).toBeTruthy();
+    expect(bar.className).toContain('bg-orange-500'); // TIER_STYLES.High.dot
+
+    const { container: crit } = render({ ...baseAttrs, riskTier: 'Critical' });
+    expect(crit.querySelector('.h-full.rounded-full').className).toContain('bg-red-500'); // TIER_STYLES.Critical.dot
+  });
+
   it('toggles the details panel showing classifier matches and explanation', async () => {
     render();
     const user = userEvent.setup();
