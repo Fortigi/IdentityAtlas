@@ -243,11 +243,12 @@ function Invoke-FGGroupChildFetch {
         [Parameter(Mandatory)] $Group,
         [Parameter(Mandatory)] [string]$Token,
         [Parameter(Mandatory)] [string]$ChildPath,
-        [string]$EntityType = 'groups'   # 'groups' | 'servicePrincipals' | 'applications'
+        [string]$EntityType = 'groups',   # 'groups' | 'servicePrincipals' | 'applications'
+        [string]$Select     = 'id'        # $select fields; the raw child object is returned as .raw for richer shapes
     )
 
     $headers = @{ Authorization = "Bearer $Token" }
-    $uri     = "https://graph.microsoft.com/beta/$EntityType/$($Group.id)/$ChildPath`?`$select=id&`$top=999"
+    $uri     = "https://graph.microsoft.com/beta/$EntityType/$($Group.id)/$ChildPath`?`$select=$Select&`$top=999"
 
     $items = [System.Collections.Generic.List[object]]::new()
     $attempt = 0
@@ -281,6 +282,7 @@ function Invoke-FGGroupChildFetch {
             resourceId  = $Group.id
             principalId = $child.id
             childType   = $child.'@odata.type'
+            raw         = $child
         }
     }
 }
@@ -297,13 +299,14 @@ function Invoke-FGGroupChildBatchParallel {
         [Parameter(Mandatory)] [string]$Token,
         [Parameter(Mandatory)] [string]$ChildPath,
         [string]$EntityType = 'groups',
+        [string]$Select     = 'id',
         [int]$ThrottleLimit = 16
     )
 
     $fetchDef = ${function:Invoke-FGGroupChildFetch}.ToString()
     $Batch | ForEach-Object -Parallel {
         ${function:Invoke-FGGroupChildFetch} = $using:fetchDef
-        Invoke-FGGroupChildFetch -Group $_ -Token $using:Token -ChildPath $using:ChildPath -EntityType $using:EntityType
+        Invoke-FGGroupChildFetch -Group $_ -Token $using:Token -ChildPath $using:ChildPath -EntityType $using:EntityType -Select $using:Select
     } -ThrottleLimit $ThrottleLimit
 }
 
@@ -314,6 +317,7 @@ function Get-FGGroupChildrenParallel {
         [Parameter(Mandatory)] [string]$ChildPath,    # 'members' or 'owners'
         [Parameter(Mandatory)] [scriptblock]$RecordBuilder,  # builds a record from $args=@($groupId,$child)
         [string]$EntityType = 'groups',   # 'groups' | 'servicePrincipals' | 'applications'
+        [string]$Select     = 'id',       # $select fields for the child fetch
         [int]$ThrottleLimit = 16,
         [int]$BatchSize = 200,
         [string]$ProgressStep,
@@ -342,7 +346,7 @@ function Get-FGGroupChildrenParallel {
         # Fetch each group's children in parallel. Each result is a [pscustomobject]
         # with kind='record' (a child) or kind='error' (a group that failed after
         # retries). See Invoke-FGGroupChildBatchParallel / Invoke-FGGroupChildFetch.
-        $batchOutput = Invoke-FGGroupChildBatchParallel -Batch $batch -Token $token -ChildPath $ChildPath -EntityType $EntityType -ThrottleLimit $ThrottleLimit
+        $batchOutput = Invoke-FGGroupChildBatchParallel -Batch $batch -Token $token -ChildPath $ChildPath -EntityType $EntityType -Select $Select -ThrottleLimit $ThrottleLimit
         $totalErrors += Add-FGGroupChildResults -BatchOutput $batchOutput -RecordBuilder $RecordBuilder -AllRecords $allRecords
 
         $checked = [Math]::Min($i + $BatchSize, $totalGroups)

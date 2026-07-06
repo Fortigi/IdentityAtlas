@@ -60,6 +60,15 @@
     roles/grants. Owners are fetched per app/SP (no bulk Graph endpoint), so this
     can be slow on large tenants. Default: false.
 
+.PARAMETER SyncAppPermissions
+    Sync application permissions — the app-only (admin-consented) permissions each
+    service principal, managed identity, or AI agent holds on other APIs (e.g. an SP
+    with Mail.Read on Microsoft Graph), the sibling of the delegated OAuth2 grants.
+    Modelled as ApplicationPermission resources (one per clientSP, target API, appRole)
+    linked to the client Application via 'HasApplicationPermission', with a Direct
+    assignment whose principal is the holding SP. Fetched per-SP (no bulk endpoint),
+    so slow on large tenants. Default: false.
+
 .PARAMETER SyncDirectoryRoles
     Sync Entra ID directory roles — the role catalog (roleDefinitions,
     including each role's granular allowedResourceActions), active role
@@ -111,6 +120,8 @@ $ApiBaseUrl = $ApiBaseUrl.TrimEnd('/')
 . (Join-Path $PSScriptRoot 'EntraIDCrawler.Transform.ps1')
 . (Join-Path $PSScriptRoot 'EntraIDCrawler.Phases.ps1')
 . (Join-Path $PSScriptRoot 'EntraIDCrawler.AppOwners.ps1')
+. (Join-Path $PSScriptRoot 'EntraIDCrawler.AppPermissions.ps1')
+. (Join-Path $PSScriptRoot 'EntraIDCrawler.Orchestration.ps1')
 
 # Resolve all sync toggles + attribute lists from the job config.
 $cfg = Resolve-EntraSyncConfig -RawConfig $RawConfig
@@ -125,6 +136,7 @@ $SyncSignInLogs        = $cfg.SyncSignInLogs
 $SyncOAuth2Grants      = $cfg.SyncOAuth2Grants
 $SyncAppRoles          = $cfg.SyncAppRoles
 $SyncAppOwners         = $cfg.SyncAppOwners
+$SyncAppPermissions    = $cfg.SyncAppPermissions
 $SyncDirectoryRoles    = $cfg.SyncDirectoryRoles
 $RefreshViews          = $cfg.RefreshViews
 $SignInLogsDays        = $cfg.SignInLogsDays
@@ -242,9 +254,8 @@ if ($SyncGovernance) {
 # 'DelegatesScope' not 'Contains') keeps the scoped full-sync delete from
 # wiping out the Access Package 'Contains' relationships produced by the
 # governance sync above.
-if ($SyncOAuth2Grants) {
-    Sync-EntraOAuth2Grants -SystemId $systemId -Timings $phaseTimings
-}
+# (dispatched together with the other application phases below, via
+# Invoke-EntraApplicationPhases — grouped to keep this entry-point body thin)
 
 # ─── Sync App Role Assignments ───────────────────────────────────
 # For each enterprise application (servicePrincipal), pull the appRoles[]
@@ -265,9 +276,7 @@ if ($SyncOAuth2Grants) {
 # idempotently overwrite the same rows. A distinct relationshipType
 # ('HasAppRole' not 'Contains') prevents the scoped full-sync delete
 # from wiping out Access Package 'Contains' relationships.
-if ($SyncAppRoles) {
-    Sync-EntraAppRoles -SystemId $systemId -Timings $phaseTimings
-}
+# (dispatched below via Invoke-EntraApplicationPhases)
 
 # ─── Sync App Owners ─────────────────────────────────────────────
 # Owners of Entra apps + service principals, modelled as ownership resources
@@ -276,9 +285,22 @@ if ($SyncAppRoles) {
 # OAuth2 so its ensure-exists Application upsert (SyncMode 'delta') is the final
 # word rather than clobbering their full-sync. Opt-in — owners are fetched
 # per-SP / per-app (no bulk Graph endpoint), so this can be slow on large tenants.
-if ($SyncAppOwners) {
-    Sync-EntraAppOwners -SystemId $systemId -Timings $phaseTimings
-}
+# (dispatched below via Invoke-EntraApplicationPhases)
+
+# ─── Sync Application Permissions ────────────────────────────────
+# The app-only (admin-consented) permissions each service principal — including
+# managed identities and AI agents — holds on other APIs (e.g. an SP with Mail.Read
+# on Microsoft Graph). The sibling of the delegated OAuth2 grants. Modelled as
+# ApplicationPermission resources hung off the client Application via
+# 'HasApplicationPermission', with a Direct assignment whose principal is the SP
+# itself. Runs after AppRoles/OAuth2 so its ensure-exists Application upsert (delta)
+# is the final word. Opt-in — fetched per-SP (no bulk endpoint).
+# The four application / service-principal permission phases above run here, in order,
+# each gated by its own toggle. Grouped into one dispatcher so this body stays under the
+# per-unit complexity ratchet (every inline `if ($SyncX)` guard is a decision point).
+Invoke-EntraApplicationPhases -SystemId $systemId -AINamePatterns $AINamePatterns -Timings $phaseTimings `
+    -SyncOAuth2Grants $SyncOAuth2Grants -SyncAppRoles $SyncAppRoles `
+    -SyncAppOwners $SyncAppOwners -SyncAppPermissions $SyncAppPermissions
 
 # ─── Sync Directory Roles ────────────────────────────────────────
 # Entra ID directory roles (Global Administrator, Privileged Role

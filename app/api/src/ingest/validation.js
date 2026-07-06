@@ -17,7 +17,7 @@ const PRINCIPAL_TYPES = ['User', 'ServicePrincipal', 'ManagedIdentity', 'Workloa
 // Ingest REJECTS any other value; assignmentTypes.guard.test.js statically
 // scans the crawlers so a retired type can't be reintroduced at the source.
 const ASSIGNMENT_TYPES = ['Direct', 'Indirect', 'Eligible'];
-const RELATIONSHIP_TYPES = ['Contains', 'GrantsAccessTo', 'DelegatesScope', 'HasAppRole', 'HasOwnership', 'HasAppOwnership'];
+const RELATIONSHIP_TYPES = ['Contains', 'GrantsAccessTo', 'DelegatesScope', 'HasAppRole', 'HasOwnership', 'HasAppOwnership', 'HasApplicationPermission'];
 
 // Schema definitions per entity type
 const SCHEMAS = {

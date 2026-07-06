@@ -382,6 +382,7 @@ The `resourceType` column on the Resources table is a free-form string. The valu
 | `Application` | Entra ID | Enterprise application / service principal. Parent of `AppRole` and `DelegatedPermission` — does not grant access on its own. |
 | `AppRole` | Entra ID | One synthetic resource per (Application, appRoleId). Linked to its parent via `relationshipType='HasAppRole'`. |
 | `DelegatedPermission` | Entra ID | One synthetic resource per (clientSP, targetAPI, OAuth2 scope). Linked to its parent via `relationshipType='DelegatesScope'`. |
+| `ApplicationPermission` | Entra ID | One synthetic resource per (clientSP, targetAPI, appRole) — the app-only (admin-consented) permission a service principal holds on another API (e.g. `Mail.Read` on Microsoft Graph). The app-only sibling of `DelegatedPermission`; linked to its parent client app via `relationshipType='HasApplicationPermission'`. |
 | `ServicePrincipalOwnership` | Entra ID | Owners of an enterprise-app service principal — one resource per owned app, linked to its `Application` via `relationshipType='HasAppOwnership'`. |
 | `ApplicationOwnership` | Entra ID | Owners of an app registration (who can add a credential and authenticate as the app), matched to the app's SP by `appId` and linked via `HasAppOwnership`. |
 | `BusinessRole` | Entra ID, Omada, MidPoint | Entra ID access package; Omada business role; MidPoint role type. Contains child resources via `relationshipType='Contains'`; assigned via a `Direct` membership flagged `governed=true`. |
@@ -426,6 +427,7 @@ The same tables (Resources, Principals, ResourceAssignments) absorb data from an
 | Entra ID enterprise apps | Entra ID | `Application` | — | — (parent only) |
 | Entra ID app roles | Entra ID | `AppRole` | `User` / `ServicePrincipal` | `Direct` / `Indirect` |
 | Entra ID OAuth2 grants | Entra ID | `DelegatedPermission` | `User` | `Direct` |
+| Entra ID app permissions | Entra ID | `ApplicationPermission` | `ServicePrincipal` / `ManagedIdentity` / `AIAgent` | `Direct` |
 | Entra ID access packages | Entra ID | `BusinessRole` | `User` | `Direct` (`governed`) |
 | Omada business roles | Omada | `BusinessRole` | `User` | `Direct` (`governed`) |
 | Omada resources | Omada | `Resource` | `User` | `Direct` (`governed`) |

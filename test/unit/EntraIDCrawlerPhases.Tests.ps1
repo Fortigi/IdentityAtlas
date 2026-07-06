@@ -43,6 +43,10 @@ BeforeAll {
     . (Join-Path $script:entraDir 'EntraIDCrawler.Phases.ps1')
     # Sync-EntraAppOwners + its helpers live in their own file (extracted for the ratchets).
     . (Join-Path $script:entraDir 'EntraIDCrawler.AppOwners.ps1')
+    # Sync-EntraAppPermissions + its helpers live in their own file too.
+    . (Join-Path $script:entraDir 'EntraIDCrawler.AppPermissions.ps1')
+    # Invoke-EntraApplicationPhases — dispatch for the four application phases.
+    . (Join-Path $script:entraDir 'EntraIDCrawler.Orchestration.ps1')
 
     # Script-scope state the phases + shared helpers read at call time.
     $script:ApiKey     = 'fgc_testkey'
@@ -169,6 +173,211 @@ Describe 'Sync-EntraAppOwners' {
         # Orphan app owner has no SP → no ApplicationOwnership assignment, no owned app.
         (Get-Sent { $_.Endpoint -eq 'ingest/resource-assignments' -and $_.Scope.resourceType -eq 'ApplicationOwnership' })[0].Records.Count | Should -Be 0
         (Get-Sent { $_.Scope.resourceType -eq 'Application' }).Count | Should -Be 0
+    }
+}
+
+# ─── Sync-EntraAppPermissions ───────────────────────────────────────────────────
+Describe 'Sync-EntraAppPermissions' {
+    BeforeEach { Reset-PhaseTestState; Mock Send-IngestBatch -MockWith $script:SendMock }
+
+    It 'models each SP''s app-only permissions as ApplicationPermission resources off the client app, resolving the permission name from the target API catalog' {
+        # Microsoft Graph is just an SP whose appRoles catalog names role-mailread → Mail.Read.
+        # payrollSp (Application) and kvMi (ManagedIdentity) each hold that role on Graph.
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'servicePrincipals\?' } -MockWith {
+            @(
+                [pscustomobject]@{ id = 'graphSp'; displayName = 'Microsoft Graph'; appId = 'graph-app'; servicePrincipalType = 'Application'
+                    appRoles = @([pscustomobject]@{ id = 'role-mailread'; value = 'Mail.Read'; displayName = 'Read mail' }) }
+                [pscustomobject]@{ id = 'payrollSp'; displayName = 'Payroll App'; appId = 'payroll-app'; servicePrincipalType = 'Application' }
+                [pscustomobject]@{ id = 'kvMi'; displayName = 'kv-reader-mi'; appId = 'kv-app'; servicePrincipalType = 'ManagedIdentity' }
+            )
+        }
+        # The parallel per-SP appRoleAssignments fetch — mock bypasses the RecordBuilder,
+        # so return the final-shape (raw) rows the builder would have emitted.
+        Mock Get-FGGroupChildrenParallel -ParameterFilter { $EntityType -eq 'servicePrincipals' -and $ChildPath -eq 'appRoleAssignments' } -MockWith {
+            @{ records = @(
+                @{ id = 'ara1'; principalId = 'payrollSp'; resourceId = 'graphSp'; resourceDisplayName = 'Microsoft Graph'; appRoleId = 'role-mailread' }
+                @{ id = 'ara2'; principalId = 'kvMi';      resourceId = 'graphSp'; resourceDisplayName = 'Microsoft Graph'; appRoleId = 'role-mailread' }
+              ); errorCount = 0 }
+        }
+
+        $timings = [ordered]@{}
+        Sync-EntraAppPermissions -SystemId 8 -Timings $timings
+        $script:phaseErrors.Count | Should -Be 0
+
+        # Two ApplicationPermission resources (distinct client SPs), full-synced for reconcile.
+        $permRes = Get-Sent { $_.Endpoint -eq 'ingest/resources' -and $_.Scope.resourceType -eq 'ApplicationPermission' }
+        $permRes.Count            | Should -Be 1
+        $permRes[0].SyncMode      | Should -Be 'full'
+        $permRes[0].Records.Count | Should -Be 2
+        $permRes[0].Records.displayName | Should -Contain 'Mail.Read on Microsoft Graph (via Payroll App)'
+
+        # HasApplicationPermission relationships hang off the client SP (full-sync).
+        $rels = Get-Sent { $_.Scope.relationshipType -eq 'HasApplicationPermission' }
+        $rels[0].Records.Count | Should -Be 2
+        $rels[0].Records | ForEach-Object { $_.relationshipType | Should -Be 'HasApplicationPermission' }
+
+        # Direct assignments whose principal is the holding SP itself — the managed
+        # identity keeps its classified principalType, not a flat ServicePrincipal.
+        $assns = Get-Sent { $_.Endpoint -eq 'ingest/resource-assignments' -and $_.Scope.resourceType -eq 'ApplicationPermission' }
+        $assns[0].SyncMode              | Should -Be 'full'
+        $assns[0].Scope.assignmentType  | Should -Be 'Direct'
+        $assns[0].Records.Count         | Should -Be 2
+        ($assns[0].Records | Where-Object { $_.principalId -eq 'kvMi' }).principalType | Should -Be 'ManagedIdentity'
+
+        # Holder Application resources are ensured-exists via a non-reconciling delta
+        # upsert (payrollSp + kvMi hold a permission; graphSp is only a target, so it
+        # is NOT upserted here).
+        $appUpsert = Get-Sent { $_.Endpoint -eq 'ingest/resources' -and $_.Scope.resourceType -eq 'Application' }
+        $appUpsert.Count            | Should -Be 1
+        $appUpsert[0].SyncMode      | Should -Be 'delta'
+        $appUpsert[0].Records.Count | Should -Be 2
+        $appUpsert[0].Records.id    | Should -Not -Contain 'graphSp'
+
+        $timings.Contains('AppPermissions') | Should -BeTrue
+        ($script:phases | Where-Object { $_.name -eq 'AppPermissions' }).status | Should -Be 'ok'
+    }
+
+    It 'runs the raw-child RecordBuilder and warns (non-fatally) on SPs that failed the appRoleAssignments fetch' {
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'servicePrincipals\?' } -MockWith {
+            @([pscustomobject]@{ id = 'spX'; displayName = 'App X'; appId = 'ax'; servicePrincipalType = 'Application' })
+        }
+        # Exercise the { param($o) $o.raw } builder the phase passes, and report a
+        # non-zero errorCount to hit the soft-warning branch.
+        Mock Get-FGGroupChildrenParallel -ParameterFilter { $ChildPath -eq 'appRoleAssignments' } -MockWith {
+            $rec = & $RecordBuilder ([pscustomobject]@{ raw = @{ id = 'ara9'; principalId = 'spX'; resourceId = 'apiY'; appRoleId = 'role-z' } })
+            @{ records = @($rec); errorCount = 1 }
+        }
+
+        Sync-EntraAppPermissions -SystemId 2 -Timings ([ordered]@{})
+
+        # The raw row shaped into one ApplicationPermission grant (falls back to the
+        # appRoleId as the permission name — apiY had no catalog entry).
+        $assns = Get-Sent { $_.Endpoint -eq 'ingest/resource-assignments' -and $_.Scope.resourceType -eq 'ApplicationPermission' }
+        $assns[0].Records.Count            | Should -Be 1
+        $assns[0].Records[0].principalId   | Should -Be 'spX'
+        # A per-SP fetch failure is a warning, not a phase failure.
+        $script:phaseErrors.Count | Should -Be 0
+    }
+
+    It 'still sends the full-sync batches when no SP holds a permission (reconcile clears revoked grants) and upserts no holder apps' {
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'servicePrincipals\?' } -MockWith { @() }
+
+        Sync-EntraAppPermissions -SystemId 1 -Timings ([ordered]@{})
+
+        # Resource / relationship / assignment batches are still sent (empty) so a
+        # reconcile clears any grant that was revoked since the last run.
+        (Get-Sent { $_.Endpoint -eq 'ingest/resources' -and $_.Scope.resourceType -eq 'ApplicationPermission' })[0].Records.Count | Should -Be 0
+        (Get-Sent { $_.Scope.relationshipType -eq 'HasApplicationPermission' }).Count | Should -Be 1
+        (Get-Sent { $_.Endpoint -eq 'ingest/resource-assignments' -and $_.Scope.resourceType -eq 'ApplicationPermission' }).Count | Should -Be 1
+        # No holder held a permission → no Application delta upsert at all.
+        (Get-Sent { $_.Endpoint -eq 'ingest/resources' -and $_.Scope.resourceType -eq 'Application' }).Count | Should -Be 0
+        $script:phaseErrors.Count | Should -Be 0
+    }
+
+    It 'records a phase failure when the service-principal fetch throws' {
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'servicePrincipals\?' } -MockWith { throw 'Graph 403' }
+
+        Sync-EntraAppPermissions -SystemId 1 -Timings ([ordered]@{})
+
+        $script:phaseErrors | Should -HaveCount 1
+        $script:phaseErrors[0] | Should -BeLike 'AppPermissions:*'
+        ($script:phases | Where-Object { $_.name -eq 'AppPermissions' }).status | Should -Be 'failed'
+    }
+}
+
+# ─── Invoke-EntraApplicationPhases (dispatch) ───────────────────────────────────
+Describe 'Invoke-EntraApplicationPhases' {
+    BeforeEach {
+        Reset-PhaseTestState
+        # Mock the four phases the dispatcher fans out to — each has its own tests
+        # above; here we assert only that the toggles gate them and shared args flow.
+        Mock Sync-EntraOAuth2Grants   -MockWith { }
+        Mock Sync-EntraAppRoles       -MockWith { }
+        Mock Sync-EntraAppOwners      -MockWith { }
+        Mock Sync-EntraAppPermissions -MockWith { }
+    }
+
+    It 'runs every phase when all toggles are on, forwarding AINamePatterns to app permissions' {
+        Invoke-EntraApplicationPhases -SystemId 7 -AINamePatterns @('*copilot*') -Timings ([ordered]@{}) `
+            -SyncOAuth2Grants $true -SyncAppRoles $true -SyncAppOwners $true -SyncAppPermissions $true
+
+        Should -Invoke Sync-EntraOAuth2Grants   -Times 1 -ParameterFilter { $SystemId -eq 7 }
+        Should -Invoke Sync-EntraAppRoles       -Times 1 -ParameterFilter { $SystemId -eq 7 }
+        Should -Invoke Sync-EntraAppOwners      -Times 1 -ParameterFilter { $SystemId -eq 7 }
+        Should -Invoke Sync-EntraAppPermissions -Times 1 -ParameterFilter { $SystemId -eq 7 -and @($AINamePatterns) -contains '*copilot*' }
+    }
+
+    It 'runs nothing when every toggle is off (all default to false)' {
+        Invoke-EntraApplicationPhases -SystemId 1 -Timings ([ordered]@{})
+        Should -Invoke Sync-EntraOAuth2Grants   -Times 0
+        Should -Invoke Sync-EntraAppRoles       -Times 0
+        Should -Invoke Sync-EntraAppOwners      -Times 0
+        Should -Invoke Sync-EntraAppPermissions -Times 0
+    }
+
+    It 'runs only the phases whose toggle is on' {
+        Invoke-EntraApplicationPhases -SystemId 2 -Timings ([ordered]@{}) -SyncAppPermissions $true
+        Should -Invoke Sync-EntraAppPermissions -Times 1
+        Should -Invoke Sync-EntraOAuth2Grants   -Times 0
+        Should -Invoke Sync-EntraAppRoles       -Times 0
+        Should -Invoke Sync-EntraAppOwners      -Times 0
+    }
+
+    It 'treats an empty-string toggle (the shape the resolved config yields for an unset object) as OFF, not a binding error' {
+        # Regression: [bool]-typed toggle params rejected '' with "Cannot convert value ''
+        # to type System.Boolean" and crashed the entire crawl before any phase ran. The
+        # replaced inline `if ($SyncX)` guards used truthiness, where '' is falsy. This is
+        # exactly what the resolved config passes for an object the user did not select.
+        { Invoke-EntraApplicationPhases -SystemId 1 -Timings ([ordered]@{}) `
+            -SyncOAuth2Grants '' -SyncAppRoles '' -SyncAppOwners '' -SyncAppPermissions '' } | Should -Not -Throw
+        Should -Invoke Sync-EntraOAuth2Grants   -Times 0
+        Should -Invoke Sync-EntraAppRoles       -Times 0
+        Should -Invoke Sync-EntraAppOwners      -Times 0
+        Should -Invoke Sync-EntraAppPermissions -Times 0
+    }
+
+    It 'preserves the inline guards'' truthiness for every config shape ('''' / $null skip; "true" / $true run)' {
+        Invoke-EntraApplicationPhases -SystemId 1 -Timings ([ordered]@{}) `
+            -SyncOAuth2Grants '' -SyncAppRoles $null -SyncAppOwners 'true' -SyncAppPermissions $true
+        Should -Invoke Sync-EntraOAuth2Grants   -Times 0   # '' → skip
+        Should -Invoke Sync-EntraAppRoles       -Times 0   # $null → skip
+        Should -Invoke Sync-EntraAppOwners      -Times 1   # 'true' → run
+        Should -Invoke Sync-EntraAppPermissions -Times 1   # $true → run
+    }
+}
+
+# ─── Invoke-EntraApplicationPhases — shared-scope transparency ───────────────────
+# Guards the refactor that moved these four phase guards behind a dispatcher: a REAL
+# phase (not mocked) invoked THROUGH Invoke-EntraApplicationPhases must still read/write
+# the same $script:phaseErrors / $script:phases the entry-point owns. If the extra call
+# layer changed $script: resolution, the phase's catch would write to the wrong (or a
+# null) accumulator — which the mocked dispatch tests above can't catch. This is the
+# path the live crawler actually runs.
+Describe 'Invoke-EntraApplicationPhases (real phase through the dispatcher)' {
+    BeforeEach { Reset-PhaseTestState; Mock Send-IngestBatch -MockWith $script:SendMock }
+
+    It 'a real phase error raised via the dispatcher lands in the shared $script:phaseErrors + $script:phases' {
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'oauth2PermissionGrants' } -MockWith { throw 'Graph 403' }
+
+        Invoke-EntraApplicationPhases -SystemId 3 -Timings ([ordered]@{}) -SyncOAuth2Grants $true
+
+        $script:phaseErrors | Should -HaveCount 1
+        $script:phaseErrors[0] | Should -BeLike 'OAuth2Grants:*'
+        ($script:phases | Where-Object { $_.name -eq 'OAuth2Grants' }).status | Should -Be 'failed'
+    }
+
+    It 'a real successful phase via the dispatcher records its timing + an ok phase' {
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'oauth2PermissionGrants' } -MockWith {
+            @([pscustomobject]@{ id = 'g1'; consentType = 'Principal'; principalId = 'u1'; clientId = 'cli'; resourceId = 'api'; scope = 'Mail.Read' })
+        }
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'servicePrincipals/' } -MockWith { [pscustomobject]@{ id = 'x'; displayName = 'X'; appId = 'ax'; publisherName = 'p' } }
+
+        $timings = [ordered]@{}
+        Invoke-EntraApplicationPhases -SystemId 3 -Timings $timings -SyncOAuth2Grants $true
+
+        $timings.Contains('OAuth2Grants') | Should -BeTrue
+        ($script:phases | Where-Object { $_.name -eq 'OAuth2Grants' }).status | Should -Be 'ok'
+        $script:phaseErrors.Count | Should -Be 0
     }
 }
 
