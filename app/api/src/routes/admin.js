@@ -577,7 +577,7 @@ router.post('/admin/clean-database', writeSystems, adminDestructiveLimiter, asyn
     res.json({ message: 'Database cleaned', wiped, skipped });
   } catch (err) {
     console.error('Clean database failed:', err.message);
-    res.status(500).json({ error: 'Clean database failed: ' + err.message });
+    res.status(500).json({ error: 'Clean database failed' });
   }
 });
 
