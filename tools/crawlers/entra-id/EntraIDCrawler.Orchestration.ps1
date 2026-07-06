@@ -30,10 +30,17 @@ function Invoke-EntraApplicationPhases {
         [Parameter(Mandatory)] [int]$SystemId,
         [string[]]$AINamePatterns = @(),
         $Timings,
-        [bool]$SyncOAuth2Grants   = $false,
-        [bool]$SyncAppRoles       = $false,
-        [bool]$SyncAppOwners      = $false,
-        [bool]$SyncAppPermissions = $false
+        # Deliberately NOT [bool]-typed. The resolved config hands these through as an
+        # empty string '' for an un-selected object, and [bool] PARAMETER binding rejects
+        # '' outright ("Cannot convert value """" to type System.Boolean") — which would
+        # abort the whole crawl before any phase runs. The inline `if ($SyncX)` guards
+        # these replaced relied on PowerShell truthiness (where '' and $null are falsy),
+        # so we keep the params untyped and gate with a truthiness `if` below to preserve
+        # that exact behaviour for every shape the config yields ('', $null, $true, 'true').
+        $SyncOAuth2Grants   = $false,
+        $SyncAppRoles       = $false,
+        $SyncAppOwners      = $false,
+        $SyncAppPermissions = $false
     )
     if ($SyncOAuth2Grants) {
         Sync-EntraOAuth2Grants -SystemId $SystemId -Timings $Timings

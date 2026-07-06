@@ -322,6 +322,28 @@ Describe 'Invoke-EntraApplicationPhases' {
         Should -Invoke Sync-EntraAppRoles       -Times 0
         Should -Invoke Sync-EntraAppOwners      -Times 0
     }
+
+    It 'treats an empty-string toggle (the shape the resolved config yields for an unset object) as OFF, not a binding error' {
+        # Regression: [bool]-typed toggle params rejected '' with "Cannot convert value ''
+        # to type System.Boolean" and crashed the entire crawl before any phase ran. The
+        # replaced inline `if ($SyncX)` guards used truthiness, where '' is falsy. This is
+        # exactly what the resolved config passes for an object the user did not select.
+        { Invoke-EntraApplicationPhases -SystemId 1 -Timings ([ordered]@{}) `
+            -SyncOAuth2Grants '' -SyncAppRoles '' -SyncAppOwners '' -SyncAppPermissions '' } | Should -Not -Throw
+        Should -Invoke Sync-EntraOAuth2Grants   -Times 0
+        Should -Invoke Sync-EntraAppRoles       -Times 0
+        Should -Invoke Sync-EntraAppOwners      -Times 0
+        Should -Invoke Sync-EntraAppPermissions -Times 0
+    }
+
+    It 'preserves the inline guards'' truthiness for every config shape ('''' / $null skip; "true" / $true run)' {
+        Invoke-EntraApplicationPhases -SystemId 1 -Timings ([ordered]@{}) `
+            -SyncOAuth2Grants '' -SyncAppRoles $null -SyncAppOwners 'true' -SyncAppPermissions $true
+        Should -Invoke Sync-EntraOAuth2Grants   -Times 0   # '' → skip
+        Should -Invoke Sync-EntraAppRoles       -Times 0   # $null → skip
+        Should -Invoke Sync-EntraAppOwners      -Times 1   # 'true' → run
+        Should -Invoke Sync-EntraAppPermissions -Times 1   # $true → run
+    }
 }
 
 # ─── Invoke-EntraApplicationPhases — shared-scope transparency ───────────────────
