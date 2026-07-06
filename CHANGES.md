@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Cleaned up the access matrix legend: it now shows only the badges that can actually appear (Direct, Indirect, Eligible). The obsolete "Owner" badge and other retired assignment-type badges (Governed, OAuth2 grant, App role) were removed from both the on-screen legend and the Excel export legend. Ownership continues to appear as its own resource row.
+
+## Changes in this PR
+
 - Documentation and CI hygiene: corrected stale references in the developer guide and CI configuration (test framework, branch triggers, retired assignment-type terms in crawler comments) and documented which coding-principle rules are enforced by CI vs. reviewer judgement. No change to application behaviour.
 
 ## Changes in this PR
