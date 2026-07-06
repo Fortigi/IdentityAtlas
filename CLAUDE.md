@@ -15,6 +15,19 @@
 
 > **Keep source files small enough to reason about — split before they sprawl.** A source file past ~600 lines is a smell; past ~1000 lines it must be broken into focused files/functions *before* more is added to it. Split by responsibility — extract helpers, sub-routines, and distinct phases into their own files. The monolithic `Start-*Crawler.ps1` crawlers (up to ~2,700 lines, with functions trapped inside a top-level `Main` body) are the cautionary example: their size is exactly what makes them untestable without a refactor. Don't add to that pattern; new code lands in small, single-responsibility units.
 
+### Enforcement
+
+The four principles above are framed identically ("MUST"), but they are **not** enforced identically. Some are hard CI gates that fail your PR; others rely on reviewer judgement. Know which is which:
+
+| Principle | How it's actually enforced |
+|-----------|----------------------------|
+| **Reuse before creating** | Reviewer judgement, backed by the `jscpd` duplication gate — `Lint: Code duplication (jscpd)` in `.github/workflows/pr.yml`, threshold in `.jscpd.json`. It catches copy-paste, not all missed-reuse. |
+| **Fix at the source, not the surface** | Reviewer only — no automated gate. Call out in the PR when you took a surface fix and why. |
+| **Coverage never down** | Hard gate — the coverage ratchet: committed Vitest thresholds in `app/api/vitest.config.js` + `app/ui/vite.config.js`, enforced by the `Unit Tests: Vitest (API)` / `Unit Tests: Vitest (UI)` PR Checks jobs (`npm run test:coverage`). A drop below the floor fails the PR. |
+| **Keep files small (>1000 must split)** | Hard gate — the file-length ratchet: `.github/workflows/filesize.yml` + `tools/filesize/ratchet.py` + `.ci/filesize-baseline.json`. Grandfathered files may only shrink; a new/crossing-the-ceiling oversized file fails. |
+
+**Related gate — per-function complexity ratchet:** `.github/workflows/complexity.yml` + `tools/complexity/ratchet.py`, with baselines in `.ci/complexity-baseline.json` (cyclomatic) and `.ci/cognitive-baseline.json` (cognitive). No unit may exceed its grandfathered baseline, and new/touched units must stay under the per-language threshold. Both baselines only ratchet down.
+
 ## Project Overview
 
 Identity Atlas is a Docker-deployed application that pulls authorization data from Microsoft Graph (and other systems via CSV) into a **PostgreSQL** database, then surfaces it through a React role-mining UI. The worker container ships PowerShell crawler scripts; all persistence flows through the Node.js API.
@@ -288,23 +301,3 @@ curl -O https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/docker-comp
 docker compose -f docker-compose.prod.yml up -d --pull always
 # Open http://localhost:3001 → Admin → Crawlers → Add Crawler
 ```
-
-## Skill routing
-
-When the user's request matches an available skill, ALWAYS invoke it using the Skill
-tool as your FIRST action. Do NOT answer directly, do NOT use other tools first.
-The skill has specialized workflows that produce better results than ad-hoc answers.
-
-Key routing rules:
-- Product ideas, "is this worth building", brainstorming → invoke office-hours
-- Bugs, errors, "why is this broken", 500 errors → invoke investigate
-- Ship, deploy, push, create PR → invoke ship
-- QA, test the site, find bugs → invoke qa
-- Code review, check my diff → invoke review
-- Update docs after shipping → invoke document-release
-- Weekly retro → invoke retro
-- Design system, brand → invoke design-consultation
-- Visual audit, design polish → invoke design-review
-- Architecture review → invoke plan-eng-review
-- Save progress, checkpoint, resume → invoke checkpoint
-- Code quality, health check → invoke health
