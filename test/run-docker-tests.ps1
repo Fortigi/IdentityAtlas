@@ -294,8 +294,8 @@ Test-Check 'BusinessLogic' 'Has AIAgent' ($aiCount -ge 1) "count=$aiCount"
 $brCount = Get-SqlScalar "SELECT COUNT(*) FROM Resources WHERE resourceType = 'BusinessRole' AND ValidTo = $CURRENT"
 Test-Check 'BusinessLogic' 'Has BusinessRole resources' ($brCount -ge 2) "count=$brCount"
 
-$groupCount = Get-SqlScalar "SELECT COUNT(*) FROM Resources WHERE resourceType = 'EntraGroup' AND ValidTo = $CURRENT"
-Test-Check 'BusinessLogic' 'Has EntraGroup resources' ($groupCount -ge 3) "count=$groupCount"
+$groupCount = Get-SqlScalar "SELECT COUNT(*) FROM Resources WHERE resourceType = 'Group' AND ValidTo = $CURRENT"
+Test-Check 'BusinessLogic' 'Has Group resources' ($groupCount -ge 3) "count=$groupCount"
 
 # Assignment types
 $govCount = Get-SqlScalar "SELECT COUNT(*) FROM ResourceAssignments WHERE assignmentType = 'Governed' AND ValidTo = $CURRENT"

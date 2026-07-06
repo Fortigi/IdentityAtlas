@@ -57,7 +57,7 @@ beforeAll(async () => {
 
   await pool.query(
     `INSERT INTO "Resources" ("id","systemId","resourceType","displayName")
-     VALUES ($1,$3,'EntraGroup','Live A'), ($2,$3,'EntraGroup','Live B')`,
+     VALUES ($1,$3,'Group','Live A'), ($2,$3,'Group','Live B')`,
     [R_LIVE_A, R_LIVE_B, systemId],
   );
   await pool.query(

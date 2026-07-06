@@ -3,7 +3,7 @@
 // Groups Entra groups by their crawler-derived `groupCategory` (Team,
 // Microsoft365, SecurityGroup, DistributionList, MailEnabledSecurity and the
 // Dynamic* variants) into a two-level tree: a single "EntraID Groups" root with
-// one child context per distinct category, each holding the matching EntraGroup
+// one child context per distinct category, each holding the matching Group
 // resources as members. Lets an analyst browse/filter "all the Teams", "all the
 // dynamic security groups", etc.
 //
@@ -28,7 +28,7 @@ export default {
     type: 'object',
     properties: {
       rootName: { type: 'string', default: 'EntraID Groups', description: 'Display name of the synthetic root node.' },
-      scopeSystemId: { type: 'integer', description: 'Optional Systems.id to restrict to one Entra system. Blank = all EntraGroup resources.' },
+      scopeSystemId: { type: 'integer', description: 'Optional Systems.id to restrict to one Entra system. Blank = all Group resources.' },
     },
   },
   async run(params, ctx) {
@@ -39,7 +39,7 @@ export default {
       throw new Error('scopeSystemId must be an integer when provided');
     }
 
-    const conds = [`"resourceType" = 'EntraGroup'`, `"extendedAttributes" ->> 'groupCategory' IS NOT NULL`];
+    const conds = [`"resourceType" = 'Group'`, `"extendedAttributes" ->> 'groupCategory' IS NOT NULL`];
     const qp = [];
     if (scopeSystemId !== null) { qp.push(scopeSystemId); conds.push(`"systemId" = $${qp.length}`); }
 
@@ -49,7 +49,7 @@ export default {
       qp,
     )).rows;
     if (rows.length === 0) {
-      ctx.log?.('No EntraGroup resources carry a groupCategory attribute yet — run the Entra crawler first.');
+      ctx.log?.('No Group resources carry a groupCategory attribute yet — run the Entra crawler first.');
       return { contexts: [], members: [] };
     }
 

@@ -68,7 +68,7 @@ describe('risk-scores lists — filter/pagination branches', () => {
   });
 
   it('groups — applies resourceType filter', async () => {
-    const res = await request(app).get('/api/risk-scores/groups?resourceType=EntraGroup&search=x&tier=Low');
+    const res = await request(app).get('/api/risk-scores/groups?resourceType=Group&search=x&tier=Low');
     expect(res.status).toBe(200);
     expect(res.body.useResources).toBe(true);
     expect(queryRiskScoresPage.mock.calls[0][2].whereClause).toContain('resourceType');

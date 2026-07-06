@@ -63,7 +63,7 @@ describe('GET /resources — list', () => {
   it('returns { data, total } with parsed tags and backward-compat aliases', async () => {
     nextListResult = {
       recordsets: [
-        [{ id: 'r1', displayName: 'Eng', description: 'd', resourceType: 'EntraGroup', extendedAttributes: null, tagString: null }],
+        [{ id: 'r1', displayName: 'Eng', description: 'd', resourceType: 'Group', extendedAttributes: null, tagString: null }],
         [{ total: 1 }],
       ],
     };
@@ -71,13 +71,13 @@ describe('GET /resources — list', () => {
     expect(res.status).toBe(200);
     expect(res.body.total).toBe(1);
     expect(res.body.data).toHaveLength(1);
-    expect(res.body.data[0]).toMatchObject({ id: 'r1', groupId: 'r1', groupTypeCalculated: 'EntraGroup', tags: [] });
+    expect(res.body.data[0]).toMatchObject({ id: 'r1', groupId: 'r1', groupTypeCalculated: 'Group', tags: [] });
   });
 
   it('filters by resourceType when supplied', async () => {
-    await request(app).get('/api/resources?resourceType=EntraGroup');
+    await request(app).get('/api/resources?resourceType=Group');
     expect(captured.sql).toContain('r."resourceType" = @resourceType');
-    expect(captured.inputs.resourceType).toBe('EntraGroup');
+    expect(captured.inputs.resourceType).toBe('Group');
   });
 
   it('excludes BusinessRole resources when no resourceType filter is given', async () => {
