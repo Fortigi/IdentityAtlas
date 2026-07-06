@@ -175,6 +175,22 @@ export function writeAuditLog(req, body) {
   ).catch(() => {});
 }
 
+// Contexts self-reference via parentContextId; a mis-parented synced tree can
+// persist a cycle. True prevention isn't feasible for a set-based bulk upsert (a
+// batch-internal A->B->A loop is invisible pre-persist), so repair reactively per
+// contexts batch — don't wait for the end-of-sync refresh-views call, which a
+// delta/partial crawl may never make. No-op on a clean tree. Extracted from the
+// handler so the generic ingest path stays under the complexity ceiling.
+async function repairContextCyclesAfterIngest(entityType, result) {
+  if (entityType !== 'contexts' || (result.inserted + result.updated) <= 0) return;
+  try {
+    const broken = await breakCycles(db);
+    if (broken) console.warn(`Ingest contexts: broke ${broken} cyclic parentContextId link(s)`);
+  } catch (cycErr) {
+    console.warn('Ingest contexts cycle repair failed (non-fatal):', cycErr.message);
+  }
+}
+
 function createIngestHandler(entityType) {
   const tableName = ENTITY_TABLE_MAP[entityType];   // snake_case in v5
   const keyColumns = ENTITY_KEY_MAP[entityType];     // camelCase from caller; engine converts
@@ -229,6 +245,8 @@ function createIngestHandler(entityType) {
 
       const delErr = await applyDeleteByIds(body, tableName, result);
       if (delErr) return res.status(delErr.status).json(delErr.body);
+
+      await repairContextCyclesAfterIngest(entityType, result);
 
       await writeSyncLog(null, `API-${entityType}`, tableName, startTime,
                          body.records.length, result.inserted, result.updated, result.deleted, null);
