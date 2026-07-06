@@ -1,5 +1,10 @@
 ## Changes in this PR
 
+- Fixed curated data import so tags and their assignments are saved again. Previously, importing a curated JSON file that contained tags failed with a server error, and even when the import appeared to succeed, tag assignments were never attached to any user, group, or resource.
+- Curated tag imports now resolve entities both by ID and by display name, and re-importing an existing tag updates its colour without creating duplicate assignments.
+
+## Changes in this PR
+
 - The Test Coverage docs page now shows code-complexity and mutation-testing columns alongside line/branch/method coverage: average and maximum cyclomatic and cognitive complexity per unit (via PSComplexity) and the PowerShell mutation score — the share of injected faults the tests actually catch (via PSMutant). These are measured for the PowerShell suite today; suites that don't supply them show a dash.
 
 ## Changes in this PR
