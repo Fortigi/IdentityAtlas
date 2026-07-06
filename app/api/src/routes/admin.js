@@ -38,6 +38,85 @@ async function tableExists(_pool, tableName) {
   return r.rows[0].oid !== null;
 }
 
+// Colour validation shared by the curated import + category handlers.
+const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
+
+// Import one curated tag and its assignments into Contexts / ContextMembers.
+// Extracted from POST /admin/import/curated to keep that handler within its
+// complexity budget and to make the tag path independently testable. `deps`
+// carries the handler-local bindings (dynamic imports + the pool-bound
+// resolveEntity closure); persistence uses the module-level db pool.
+// GraphTags / GraphTagAssignments are read-only views, so writes target the
+// base Contexts / ContextMembers tables directly, exactly as routes/tags.js does.
+async function importCuratedTag(tag, deps, stats) {
+  const { ENTITY_TO_TARGET, UUID_RE, resolveEntity, getOrCreateTagRoot, recalcMemberCountsForChain, randomUUID, createdBy } = deps;
+  if (!tag.name || !tag.entityType) return;
+  const targetType = ENTITY_TO_TARGET[tag.entityType];
+  if (!targetType) { stats.tagsSkipped++; return; }
+  const name = String(tag.name).trim().slice(0, 100);
+  if (!name) { stats.tagsSkipped++; return; }
+  const color = HEX_COLOR_RE.test(tag.color || '') ? tag.color : '#3b82f6';
+
+  // Upsert the tag (name unique per targetType — the old UQ_GraphTags_Name_Type
+  // constraint): update colour if it exists, else create it under the Tag root.
+  let tagId;
+  const existingTag = await db.queryOne(
+    `SELECT id FROM "Contexts"
+       WHERE "contextType" = 'Tag' AND "variant" = 'manual'
+         AND "targetType" = $1 AND "displayName" = $2`,
+    [targetType, name]
+  );
+  if (existingTag) {
+    tagId = existingTag.id;
+    await db.query(
+      `UPDATE "Contexts"
+          SET "extendedAttributes" = COALESCE("extendedAttributes", '{}'::jsonb) || $2::jsonb
+        WHERE id = $1`,
+      [tagId, JSON.stringify({ tagColor: color })]
+    );
+    stats.tagsSkipped++;
+  } else {
+    const parentId = await getOrCreateTagRoot(targetType);
+    const ins = await db.query(
+      `INSERT INTO "Contexts"
+         (id, variant, "targetType", "contextType", "displayName", "parentContextId", "createdByUser", "extendedAttributes")
+       VALUES ($1, 'manual', $2, 'Tag', $3, $4, $5, $6::jsonb)
+       RETURNING id`,
+      [randomUUID(), targetType, name, parentId, createdBy, JSON.stringify({ tagColor: color })]
+    );
+    tagId = ins.rows[0]?.id;
+    if (!tagId) return;
+    stats.tagsInserted++;
+  }
+
+  // Resolve + attach each assignment as a ContextMember.
+  let assignedAny = false;
+  for (const a of (tag.assignments || [])) {
+    if (!a.entityId) continue;
+    const resolved = await resolveEntity(a.entityId, tag.entityType, a.displayName, a.resourceType);
+    if (!resolved) { stats.assignmentsNotFound++; continue; }
+    // ContextMembers.memberId is a uuid column; a non-uuid id can't be a member,
+    // so skip it rather than let the ::uuid cast abort the import.
+    const memberId = String(resolved.id).toLowerCase();
+    if (!UUID_RE.test(memberId)) { stats.assignmentsNotFound++; continue; }
+    const ins = await db.query(
+      `INSERT INTO "ContextMembers" ("contextId", "memberType", "memberId", "addedBy")
+       VALUES ($1, $2, $3::uuid, 'analyst')
+       ON CONFLICT ("contextId", "memberId") DO NOTHING
+       RETURNING 1 AS inserted`,
+      [tagId, targetType, memberId]
+    );
+    if (ins.rows.length > 0) {
+      assignedAny = true;
+      stats.assignmentsInserted++;
+      if (resolved.softMatched) stats.assignmentsSoftMatched++;
+    } else {
+      stats.assignmentsSkipped++;
+    }
+  }
+  if (assignedAny) await recalcMemberCountsForChain(tagId);
+}
+
 // ── GET /api/admin/risk-profile ───────────────────────────────────
 // Returns the active v5 risk profile (or the most recent one if none is active).
 // v5 moved off the legacy GraphRiskProfiles table — profiles now live in
@@ -242,7 +321,6 @@ router.post('/admin/import/curated', writeCsv, async (req, res) => {
     return res.status(400).json({ error: 'tags and categories must be arrays' });
   }
 
-  const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
   const stats = {
     tagsInserted: 0, tagsSkipped: 0,
     assignmentsInserted: 0, assignmentsSkipped: 0,
@@ -256,8 +334,11 @@ router.post('/admin/import/curated', writeCsv, async (req, res) => {
     const pool = await db.getPool();
 
     // Ensure tag + category tables exist
-    const { ensureTagTables }      = await import('./tags.js');
+    const { ensureTagTables, ENTITY_TO_TARGET, UUID_RE } = await import('./tags.js');
     const { ensureCategoryTables } = await import('./categories.js');
+    const { getOrCreateTagRoot }         = await import('../bootstrap.js');
+    const { recalcMemberCountsForChain } = await import('../contexts/memberCounts.js');
+    const { randomUUID }                 = await import('crypto');
     await ensureTagTables(pool);
     await ensureCategoryTables(pool);
 
@@ -266,25 +347,21 @@ router.post('/admin/import/curated', writeCsv, async (req, res) => {
     const hasResources  = await tableExists(pool, 'Resources');
 
     // ── Helper: resolve entity GUID ──────────────────────────────
+    // NB: no temporal (ValidTo) filter — the SQL-Server-era system-versioned
+    // columns were dropped in the postgres migration, so a `ValidTo` predicate
+    // here throws "column does not exist", which the catch swallowed, making
+    // every lookup silently miss (all assignments landed as "not found").
     async function resolveEntity(entityId, entityType, displayName, resourceType) {
       // 1. GUID match — check if the entity still exists with this ID
       let exists = false;
       try {
-        if (entityType === 'user') {
-          const tbl = hasPrincipals ? 'Principals' : 'GraphUsers';
-          const vtFilter = hasPrincipals ? `AND ValidTo = '9999-12-31 23:59:59.9999999'` : '';
-          const r = await pool.request()
-            .input('id', entityId)
-            .query(`SELECT COUNT(*) AS n FROM ${tbl} WHERE UPPER((id)::text) = UPPER(@id) ${vtFilter}`);
-          exists = r.recordset[0].n > 0;
-        } else {
-          const tbl = hasResources ? 'Resources' : 'GraphGroups';
-          const vtFilter = hasResources ? `AND ValidTo = '9999-12-31 23:59:59.9999999'` : '';
-          const r = await pool.request()
-            .input('id', entityId)
-            .query(`SELECT COUNT(*) AS n FROM ${tbl} WHERE UPPER((id)::text) = UPPER(@id) ${vtFilter}`);
-          exists = r.recordset[0].n > 0;
-        }
+        const tbl = entityType === 'user'
+          ? (hasPrincipals ? 'Principals' : 'GraphUsers')
+          : (hasResources ? 'Resources' : 'GraphGroups');
+        const r = await pool.request()
+          .input('id', entityId)
+          .query(`SELECT COUNT(*) AS n FROM "${tbl}" WHERE UPPER((id)::text) = UPPER(@id)`);
+        exists = r.recordset[0].n > 0;
       } catch { /* table might not exist */ }
 
       if (exists) return { id: entityId.toUpperCase(), softMatched: false };
@@ -294,25 +371,23 @@ router.post('/admin/import/curated', writeCsv, async (req, res) => {
       try {
         if (entityType === 'user') {
           const tbl = hasPrincipals ? 'Principals' : 'GraphUsers';
-          const vtFilter = hasPrincipals ? `AND ValidTo = '9999-12-31 23:59:59.9999999'` : '';
           const r = await pool.request()
             .input('displayName', displayName)
-            .query(`SELECT UPPER((id)::text) AS id FROM ${tbl}
-                    WHERE "displayName" = @displayName ${vtFilter}`);
+            .query(`SELECT UPPER((id)::text) AS id FROM "${tbl}"
+                    WHERE "displayName" = @displayName`);
           if (r.recordset.length > 0) return { id: r.recordset[0].id, softMatched: true };
         } else {
           // group / resource — match on displayName + resourceType if available
           const tbl = hasResources ? 'Resources' : 'GraphGroups';
-          const vtFilter = hasResources ? `AND ValidTo = '9999-12-31 23:59:59.9999999'` : '';
           let req2 = pool.request().input('displayName', displayName);
           let rtClause = '';
           if (resourceType && hasResources) {
             req2 = req2.input('resourceType', resourceType);
-            rtClause = 'AND resourceType = @resourceType';
+            rtClause = 'AND "resourceType" = @resourceType';
           }
           const r = await req2.query(
-            `SELECT UPPER((id)::text) AS id FROM ${tbl}
-             WHERE "displayName" = @displayName ${rtClause} ${vtFilter}`
+            `SELECT UPPER((id)::text) AS id FROM "${tbl}"
+             WHERE "displayName" = @displayName ${rtClause}`
           );
           if (r.recordset.length > 0) return { id: r.recordset[0].id, softMatched: true };
         }
@@ -322,43 +397,14 @@ router.post('/admin/import/curated', writeCsv, async (req, res) => {
     }
 
     // ── Tags ─────────────────────────────────────────────────────
-    for (const tag of tags) {
-      if (!tag.name || !tag.entityType) continue;
-      const color = HEX_COLOR_RE.test(tag.color || '') ? tag.color : '#3b82f6';
-
-      // Upsert tag (name + entityType unique). xmax = 0 → fresh INSERT, otherwise UPDATE.
-      const upsert = await db.query(
-        `INSERT INTO "GraphTags" (name, color, "entityType")
-         VALUES ($1, $2, $3)
-         ON CONFLICT (name, "entityType") DO UPDATE SET color = EXCLUDED.color
-         RETURNING id, (xmax = 0) AS "wasInsert"`,
-        [String(tag.name).slice(0, 100), color, tag.entityType]
-      );
-      const tagId = upsert.rows[0]?.id;
-      if (!tagId) continue;
-      if (upsert.rows[0].wasInsert) stats.tagsInserted++;
-      else stats.tagsSkipped++;
-
-      for (const a of (tag.assignments || [])) {
-        if (!a.entityId) continue;
-        const resolved = await resolveEntity(a.entityId, tag.entityType, a.displayName, a.resourceType);
-        if (!resolved) { stats.assignmentsNotFound++; continue; }
-
-        const ins = await db.query(
-          `INSERT INTO "GraphTagAssignments" ("tagId", "entityId")
-           VALUES ($1, $2)
-           ON CONFLICT ("tagId", "entityId") DO NOTHING
-           RETURNING 1 AS inserted`,
-          [tagId, resolved.id]
-        );
-        if (ins.rows.length > 0) {
-          stats.assignmentsInserted++;
-          if (resolved.softMatched) stats.assignmentsSoftMatched++;
-        } else {
-          stats.assignmentsSkipped++;
-        }
-      }
-    }
+    // Per-tag work lives in importCuratedTag() (module scope) to keep this
+    // handler within its complexity budget. Hand it the handler-local bindings.
+    const tagDeps = {
+      ENTITY_TO_TARGET, UUID_RE, resolveEntity, getOrCreateTagRoot,
+      recalcMemberCountsForChain, randomUUID,
+      createdBy: (req.user && (req.user.email || req.user.upn || req.user.name)) || 'import',
+    };
+    for (const tag of tags) await importCuratedTag(tag, tagDeps, stats);
 
     // ── Categories ───────────────────────────────────────────────
     for (const cat of categories) {

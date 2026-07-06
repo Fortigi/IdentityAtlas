@@ -94,8 +94,8 @@ router.get('/tags', async (req, res) => {
 // ContextMembers directly because Postgres views are not updatable by
 // default.
 
-const ENTITY_TO_TARGET = { user: 'Principal', group: 'Resource', resource: 'Resource', identity: 'Identity' };
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export const ENTITY_TO_TARGET = { user: 'Principal', group: 'Resource', resource: 'Resource', identity: 'Identity' };
+export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // Reverse map for emitting back the entityType value the UI sends in.
 const TARGET_TO_ENTITY = { Principal: 'user', Resource: 'resource', Identity: 'identity' };
