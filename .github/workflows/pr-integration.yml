@@ -82,7 +82,7 @@ jobs:
           NON_HOUSEKEEPING=$(
             git log "${{ github.event.before }}..${{ github.sha }}" --format="%s" \
               | grep -v '^$' \
-              | grep -vE "^chore: bump version to [0-9]|^Merge branch 'main' into " \
+              | grep -vE "^chore: bump version to [0-9]|^Merge (remote-tracking )?branch '" \
               | wc -l \
               | tr -d ' '
           )

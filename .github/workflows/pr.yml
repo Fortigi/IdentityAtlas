@@ -24,7 +24,7 @@
 #  11. docs-nav   — crawler docs registered in mkdocs.yml nav
 #  12. duplication — jscpd clone detection; threshold in .jscpd.json
 #
-# Target branches: PRs into main or dev
+# Target branches: PRs into main
 # ─────────────────────────────────────────────────────────────────────────────
 
 name: PR Checks
@@ -33,7 +33,6 @@ on:
   pull_request:
     branches:
       - main
-      - dev
       - 'release/**'
 
 # Cancel superseded runs when a PR branch is pushed again, so a stale run can't
@@ -81,7 +80,7 @@ jobs:
           NON_HOUSEKEEPING=$(
             git log "${{ github.event.before }}..${{ github.sha }}" --format="%s" \
               | grep -v '^$' \
-              | grep -vE "^chore: bump version to [0-9]|^Merge branch 'main' into " \
+              | grep -vE "^chore: bump version to [0-9]|^Merge (remote-tracking )?branch '" \
               | wc -l \
               | tr -d ' '
           )

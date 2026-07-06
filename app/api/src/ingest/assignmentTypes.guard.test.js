@@ -18,7 +18,13 @@ import { fileURLToPath } from 'url';
 import { validateRecords } from './validation.js';
 
 const ALLOWED = ['Direct', 'Indirect', 'Eligible'];
-const RETIRED = ['Owner', 'Governed', 'OAuth2Grant', 'AppRole', 'AppRoleViaGroup', 'DirectoryRole', 'DirectoryRoleEligible'];
+// Single source of truth: every assignmentType token the model has ever had.
+// RETIRED is DERIVED (known-ever minus the accepted set) so the two lists can't
+// drift — add a new type to ALLOWED and it automatically drops out of RETIRED,
+// retire one by leaving it here and out of ALLOWED. The static-scan regex below
+// is also built from RETIRED, so there is nothing to hand-sync.
+const KNOWN_EVER = [...ALLOWED, 'Owner', 'Governed', 'OAuth2Grant', 'AppRole', 'AppRoleViaGroup', 'DirectoryRole', 'DirectoryRoleEligible'];
+const RETIRED = KNOWN_EVER.filter(t => !ALLOWED.includes(t));
 
 const R = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
 const P = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
@@ -59,10 +65,11 @@ describe('assignment-type hard rule — static emission scan', () => {
   it('no crawler or fixture emits a retired assignmentType', () => {
     // Match an emission (assignmentType = 'X' / "assignmentType": "X"), not a
     // comparison/comment/phase-toggle name, so historical handling and
-    // SyncOAuth2Grants-style params don't trip it. Static literal (keep the
-    // alternation in sync with RETIRED above); longer variants first so the
+    // SyncOAuth2Grants-style params don't trip it. The alternation is built
+    // from RETIRED (no hand-synced literal); longer variants first so the
     // closing-quote anchor resolves AppRole vs AppRoleViaGroup correctly.
-    const emitRe = /["']?assignmentType["']?\s*[=:]\s*['"](Owner|Governed|OAuth2Grant|AppRoleViaGroup|AppRole|DirectoryRoleEligible|DirectoryRole)['"]/;
+    const alternation = [...RETIRED].sort((a, b) => b.length - a.length).join('|');
+    const emitRe = new RegExp(`["']?assignmentType["']?\\s*[=:]\\s*['"](${alternation})['"]`);
     const files = SCAN_ROOTS.flatMap(walk).filter(f => /\.(ps1|js|jsx|json)$/.test(f) && !/\.test\./.test(f));
     const offenders = [];
     for (const f of files) {
