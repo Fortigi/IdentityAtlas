@@ -60,6 +60,15 @@
     roles/grants. Owners are fetched per app/SP (no bulk Graph endpoint), so this
     can be slow on large tenants. Default: false.
 
+.PARAMETER SyncAppPermissions
+    Sync application permissions — the app-only (admin-consented) permissions each
+    service principal, managed identity, or AI agent holds on other APIs (e.g. an SP
+    with Mail.Read on Microsoft Graph), the sibling of the delegated OAuth2 grants.
+    Modelled as ApplicationPermission resources (one per clientSP, target API, appRole)
+    linked to the client Application via 'HasApplicationPermission', with a Direct
+    assignment whose principal is the holding SP. Fetched per-SP (no bulk endpoint),
+    so slow on large tenants. Default: false.
+
 .PARAMETER SyncDirectoryRoles
     Sync Entra ID directory roles — the role catalog (roleDefinitions,
     including each role's granular allowedResourceActions), active role
@@ -111,6 +120,7 @@ $ApiBaseUrl = $ApiBaseUrl.TrimEnd('/')
 . (Join-Path $PSScriptRoot 'EntraIDCrawler.Transform.ps1')
 . (Join-Path $PSScriptRoot 'EntraIDCrawler.Phases.ps1')
 . (Join-Path $PSScriptRoot 'EntraIDCrawler.AppOwners.ps1')
+. (Join-Path $PSScriptRoot 'EntraIDCrawler.AppPermissions.ps1')
 
 # Resolve all sync toggles + attribute lists from the job config.
 $cfg = Resolve-EntraSyncConfig -RawConfig $RawConfig
@@ -125,6 +135,7 @@ $SyncSignInLogs        = $cfg.SyncSignInLogs
 $SyncOAuth2Grants      = $cfg.SyncOAuth2Grants
 $SyncAppRoles          = $cfg.SyncAppRoles
 $SyncAppOwners         = $cfg.SyncAppOwners
+$SyncAppPermissions    = $cfg.SyncAppPermissions
 $SyncDirectoryRoles    = $cfg.SyncDirectoryRoles
 $RefreshViews          = $cfg.RefreshViews
 $SignInLogsDays        = $cfg.SignInLogsDays
@@ -278,6 +289,18 @@ if ($SyncAppRoles) {
 # per-SP / per-app (no bulk Graph endpoint), so this can be slow on large tenants.
 if ($SyncAppOwners) {
     Sync-EntraAppOwners -SystemId $systemId -Timings $phaseTimings
+}
+
+# ─── Sync Application Permissions ────────────────────────────────
+# The app-only (admin-consented) permissions each service principal — including
+# managed identities and AI agents — holds on other APIs (e.g. an SP with Mail.Read
+# on Microsoft Graph). The sibling of the delegated OAuth2 grants. Modelled as
+# ApplicationPermission resources hung off the client Application via
+# 'HasApplicationPermission', with a Direct assignment whose principal is the SP
+# itself. Runs after AppRoles/OAuth2 so its ensure-exists Application upsert (delta)
+# is the final word. Opt-in — fetched per-SP (no bulk endpoint).
+if ($SyncAppPermissions) {
+    Sync-EntraAppPermissions -SystemId $systemId -AINamePatterns $AINamePatterns -Timings $phaseTimings
 }
 
 # ─── Sync Directory Roles ────────────────────────────────────────

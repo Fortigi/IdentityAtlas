@@ -110,4 +110,30 @@ Describe 'ConvertTo-EntraAppPermissionGraph' {
         $out.relationships.Count | Should -Be 0
         $out.assignments.Count   | Should -Be 0
     }
+
+    It 'dedupes to one resource + one relationship when the same (clientSP, targetAPI, appRole) appears twice' {
+        $assignments = @(
+            [pscustomobject]@{ id = '1'; principalId = 'sp1'; resourceId = 'g'; appRoleId = 'r1' },
+            [pscustomobject]@{ id = '2'; principalId = 'sp1'; resourceId = 'g'; appRoleId = 'r1' }
+        )
+        $out = ConvertTo-EntraAppPermissionGraph -Assignments $assignments
+        $out.resources.Count     | Should -Be 1   # collapsed
+        $out.relationships.Count | Should -Be 1   # collapsed
+        $out.assignments.Count   | Should -Be 2   # both grant rows kept (distinct assignmentId)
+    }
+
+    It 'falls back to the target SP''s SpInfo displayName when the assignment carries no resourceDisplayName' {
+        $out = ConvertTo-EntraAppPermissionGraph `
+            -Assignments @([pscustomobject]@{ id = '1'; principalId = 'sp1'; resourceId = 'graphSp'; appRoleId = 'r1' }) `
+            -SpInfo @{ graphSp = @{ displayName = 'Microsoft Graph' } }
+        $out.resources[0].displayName | Should -Match 'on Microsoft Graph'
+    }
+}
+
+Describe 'Get-EntraAppRoleName' {
+    It 'prefers the scope value, then displayName, then the raw guid' {
+        Get-EntraAppRoleName -AppRole ([pscustomobject]@{ value = 'Mail.Read'; displayName = 'Read mail'; id = 'guid-1' }) | Should -Be 'Mail.Read'
+        Get-EntraAppRoleName -AppRole ([pscustomobject]@{ displayName = 'Read mail'; id = 'guid-1' })                     | Should -Be 'Read mail'
+        Get-EntraAppRoleName -AppRole ([pscustomobject]@{ id = 'guid-1' })                                               | Should -Be 'guid-1'
+    }
 }
