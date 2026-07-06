@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Improved database migration logging: when a migration is recorded as applied because its objects already exist, the log now names the specific migration file and warns that any data backfill it contained may have been skipped — making a previously silent situation visible in the container startup logs.
+
+## Changes in this PR
+
 - Cleaned up orphaned access assignments and resource relationships whose underlying resource no longer exists, so stale rows can no longer linger in storage (they were already hidden from the matrix). Legitimate assignments to external, guest, and service-principal members are preserved.
 
 ## Changes in this PR
