@@ -405,7 +405,7 @@ router.post('/contexts/:id/sync', writeContexts, async (req, res) => {
     res.status(202).json({ runId, instanceKey });
   } catch (err) {
     console.error('POST /contexts/:id/sync failed:', err.message);
-    res.status(500).json({ error: err.message || 'Failed to sync tree' });
+    res.status(500).json({ error: 'Failed to sync tree' });
   }
 });
 

@@ -249,11 +249,12 @@ describe('POST /admin/clean-database', () => {
     expect(res.body.skipped.length).toBeGreaterThan(0);
   });
 
-  it('500 when the existence batch check rejects', async () => {
+  it('500 when the existence batch check rejects (generic error, no leak)', async () => {
     query.mockRejectedValueOnce(new Error('boom'));
     const res = await request(app).post('/api/admin/clean-database');
     expect(res.status).toBe(500);
-    expect(res.body.error).toMatch(/Clean database failed/);
+    expect(res.body.error).toBe('Clean database failed');
+    expect(JSON.stringify(res.body)).not.toContain('boom'); // internal detail not leaked
   });
 });
 

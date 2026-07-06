@@ -1,0 +1,1 @@
+- API server errors (HTTP 500) no longer echo internal error details back to the client — they return a generic message while the full detail is still logged server-side, matching the project error-handling policy.
