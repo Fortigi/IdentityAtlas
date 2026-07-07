@@ -577,8 +577,12 @@ jobs:
           echo "Changed files:"; echo "${CHANGED}" | sed 's/^/  /'
 
           # Product (non-test) source that ought to be covered by a test.
+          # .sql = schema migrations (cover with a contract test); .mjs = the
+          # desktop build/launcher scripts. Both previously slipped the gate.
           CODE=$(echo "${CHANGED}" | grep -E \
             -e '^app/api/src/.*\.js$' \
+            -e '^app/api/src/.*\.sql$' \
+            -e '^app/.*\.mjs$' \
             -e '^app/ui/src/.*\.(js|jsx)$' \
             -e '^tools/.*\.ps1$' \
             -e '^setup/docker/.*\.ps1$' \
