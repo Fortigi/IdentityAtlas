@@ -116,10 +116,13 @@ router.get('/user/:id', async (req, res) => {
       tags = r.recordset;
     } catch (e) { if (!isMissingSchema(e)) throw e; /* table may not exist */ }
 
-    // 3. Counts — membership broken down by type so the entity graph can
-    //    show a node per type (Direct / Indirect / Owner / Eligible) without
-    //    pulling the full membership list.
-    const membershipByType = { Direct: 0, Indirect: 0, Owner: 0, Eligible: 0 };
+    // 3. Counts — assignments broken down by the universal assignmentType so the
+    //    entity graph can show a node per type (Direct / Indirect / Eligible) without
+    //    pulling the full list. Each bucket spans every resourceType held that way
+    //    (Group, GroupOwnership, AppRole, DelegatedPermission, …). Owner / OAuth2Grant
+    //    are retired types — those rows now collapse into Direct with their own
+    //    resourceType, so no separate bucket here.
+    const membershipByType = { Direct: 0, Indirect: 0, Eligible: 0 };
     let membershipCount = 0;
     try {
       const r = await timedRequest(pool, 'user-membership-breakdown', res)
@@ -171,15 +174,22 @@ router.get('/user/:id', async (req, res) => {
 
     // Context-membership count (v6 — replaces the old Principals.contextId
     // single-context column with a many-to-many ContextMembers join).
+    // A user belongs to a context either directly as a Principal member
+    // (memberType='Principal', memberId=principalId — how Principal-targeted
+    // contexts like Tags store it) or, for an Identity-targeted context, via their
+    // linked Identity. The old query only checked the Identity path, but Principal
+    // is what the write path (contexts.js: memberType=targetType) actually stores —
+    // so every user showed 0 contexts.
     let contextCount = 0;
     try {
       const r = await timedRequest(pool, 'user-context-count', res)
         .input('id', userId)
         .query(`SELECT COUNT(DISTINCT cm."contextId")::int AS cnt
-                  FROM "IdentityMembers" im
-                  JOIN "ContextMembers" cm ON cm."memberId"::text = im."identityId"::text
-                                          AND cm."memberType" = 'Identity'
-                 WHERE im."principalId"::text = @id`);
+                  FROM "ContextMembers" cm
+                 WHERE (cm."memberType" = 'Principal' AND cm."memberId"::text = @id)
+                    OR (cm."memberType" = 'Identity'  AND cm."memberId"::text IN (
+                          SELECT im."identityId"::text FROM "IdentityMembers" im
+                           WHERE im."principalId"::text = @id))`);
       contextCount = r.recordset[0].cnt;
     } catch (e) { if (!isMissingSchema(e)) throw e; /* ContextMembers may not exist on older deployments */ }
 
@@ -213,11 +223,12 @@ router.get('/user/:id/contexts', async (req, res) => {
     const r = await timedRequest(pool, 'user-contexts', res)
       .input('id', req.params.id)
       .query(`SELECT DISTINCT ON (c.id) c.id, c."displayName", c."contextType", c."targetType", c.variant
-                FROM "IdentityMembers" im
-                JOIN "ContextMembers" cm ON cm."memberId"::text = im."identityId"::text
-                                        AND cm."memberType" = 'Identity'
+                FROM "ContextMembers" cm
                 JOIN "Contexts" c ON c.id = cm."contextId"
-               WHERE im."principalId"::text = @id
+               WHERE (cm."memberType" = 'Principal' AND cm."memberId"::text = @id)
+                  OR (cm."memberType" = 'Identity'  AND cm."memberId"::text IN (
+                        SELECT im."identityId"::text FROM "IdentityMembers" im
+                         WHERE im."principalId"::text = @id))
                ORDER BY c.id, c."contextType", c."displayName"`);
     res.json(r.recordset);
   } catch (err) {

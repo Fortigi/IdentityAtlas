@@ -51,11 +51,10 @@ describe('getRootNodes', () => {
 
   it('builds user root nodes from core counts/extras', () => {
     const core = {
-      membershipByType: { Direct: 3, Indirect: 2, Owner: 1, Eligible: 4 },
+      membershipByType: { Direct: 3, Indirect: 2, Eligible: 4 },
       directReportCount: 5,
       contextCount: 7,
       accessPackageCount: 2,
-      oauth2GrantCount: 1,
     };
     const nodes = getRootNodes('user', core, {
       manager: { id: 'm1', displayName: 'Boss' },
@@ -65,13 +64,15 @@ describe('getRootNodes', () => {
     expect(by.manager.count).toBe(1);
     expect(by.reports.count).toBe(5);
     expect(by.contexts.count).toBe(7);
-    expect(by['groups-direct'].count).toBe(3);
-    expect(by['groups-indirect'].count).toBe(2);
-    expect(by['groups-owner'].count).toBe(1);
-    expect(by['groups-eligible'].count).toBe(4);
+    // Buckets are the universal assignmentTypes now, not "Groups (…)".
+    expect(by['assignments-direct'].count).toBe(3);
+    expect(by['assignments-indirect'].count).toBe(2);
+    expect(by['assignments-eligible'].count).toBe(4);
     expect(by['access-packages'].count).toBe(2);
-    expect(by['oauth2-grants'].count).toBe(1);
     expect(by.identity.count).toBe(1);
+    // Retired buckets are gone.
+    expect(by['groups-owner']).toBeUndefined();
+    expect(by['oauth2-grants']).toBeUndefined();
     // Every root node is a category.
     expect(nodes.every((n) => n.kind === 'category')).toBe(true);
   });
@@ -85,16 +86,17 @@ describe('getRootNodes', () => {
 
   it('builds resource root nodes from assignmentByType', () => {
     const core = {
-      assignmentByType: { Direct: 4, Governed: 3, Owner: 2, Eligible: 1 },
+      assignmentByType: { Direct: 4, Indirect: 3, Eligible: 1 },
       accessPackageCount: 6,
       parentResourceCount: 9,
       contextCount: 8,
     };
     const by = Object.fromEntries(getRootNodes('resource', core).map((n) => [n.key, n]));
     expect(by['members-direct'].count).toBe(4);
-    expect(by['members-governed'].count).toBe(3);
-    expect(by['members-owner'].count).toBe(2);
+    expect(by['members-indirect'].count).toBe(3);
     expect(by['members-eligible'].count).toBe(1);
+    expect(by['members-governed']).toBeUndefined();
+    expect(by['members-owner']).toBeUndefined();
     expect(by['business-roles'].count).toBe(6);
     expect(by.parents.count).toBe(9);
     expect(by.contexts.count).toBe(8);
@@ -209,23 +211,29 @@ describe('fetchCategoryItems — user categories', () => {
     expect(out[0]).toMatchObject({ key: 'context:c1', entityKind: 'context' });
   });
 
-  it('groups-direct filters memberships by membershipType', async () => {
+  it('assignments-direct filters memberships by type and carries resourceType', async () => {
     const af = stub({
       '/memberships': [
-        { resourceId: 'g1', resourceDisplayName: 'G1', membershipType: 'Direct' },
-        { resourceId: 'g2', groupDisplayName: 'G2', membershipType: 'Indirect' },
+        { resourceId: 'g1', resourceDisplayName: 'G1', resourceType: 'Group', membershipType: 'Direct' },
+        { resourceId: 'o1', resourceDisplayName: 'O1', resourceType: 'GroupOwnership', membershipType: 'Direct' },
+        { resourceId: 'br1', resourceDisplayName: 'BR', resourceType: 'BusinessRole', membershipType: 'Direct' },
+        { resourceId: 'g2', groupDisplayName: 'G2', resourceType: 'Group', membershipType: 'Indirect' },
       ],
     });
-    const out = await fetchCategoryItems('user', 'u1', 'groups-direct', af, {});
-    expect(out).toHaveLength(1);
-    expect(out[0]).toMatchObject({ key: 'resource:g1', label: 'G1', entityKind: 'resource' });
+    const out = await fetchCategoryItems('user', 'u1', 'assignments-direct', af, {});
+    expect(out).toHaveLength(3);
+    // resourceType rides along so the list can show what KIND each row is.
+    expect(out[0]).toMatchObject({ key: 'resource:g1', label: 'G1', entityKind: 'resource', resourceType: 'Group' });
+    expect(out[1]).toMatchObject({ resourceType: 'GroupOwnership' });
+    // A BusinessRole assignment opens the access-package detail page.
+    expect(out[2]).toMatchObject({ entityKind: 'access-package', resourceType: 'BusinessRole' });
   });
 
-  it('groups-indirect falls back to groupDisplayName', async () => {
+  it('assignments-indirect falls back to groupDisplayName', async () => {
     const af = stub({
       '/memberships': [{ resourceId: 'g2', groupDisplayName: 'G2', membershipType: 'Indirect' }],
     });
-    const out = await fetchCategoryItems('user', 'u1', 'groups-indirect', af, {});
+    const out = await fetchCategoryItems('user', 'u1', 'assignments-indirect', af, {});
     expect(out[0].label).toBe('G2');
   });
 
@@ -233,20 +241,6 @@ describe('fetchCategoryItems — user categories', () => {
     const af = stub({ '/access-packages': [{ resourceId: 'ap1', accessPackageName: 'AP' }] });
     const out = await fetchCategoryItems('user', 'u1', 'access-packages', af, {});
     expect(out[0]).toMatchObject({ key: 'access-package:ap1', label: 'AP', entityKind: 'access-package' });
-  });
-
-  it('oauth2-grants use the scope resource id/name with fallbacks', async () => {
-    const af = stub({
-      '/oauth2-grants': [
-        { scopeResourceId: 's1', scopeDisplayName: 'User.Read on Graph', clientDisplayName: 'App' },
-        { scopeResourceId: 's2', clientDisplayName: 'OnlyClient' },
-        { scopeResourceId: 's3' },
-      ],
-    });
-    const out = await fetchCategoryItems('user', 'u1', 'oauth2-grants', af, {});
-    expect(out[0].label).toBe('User.Read on Graph');
-    expect(out[1].label).toBe('OnlyClient'); // falls back to client name
-    expect(out[2].label).toBe('OAuth2 grant'); // final fallback
   });
 
   it('identity from extras', async () => {
@@ -380,13 +374,13 @@ describe('fetchCategoryItems — identity categories', () => {
         },
       ],
     });
-    const out = await fetchCategoryItems('identity', 'i1', 'groups-direct', af, {});
+    const out = await fetchCategoryItems('identity', 'i1', 'assignments-direct', af, {});
     expect(out[0]).toMatchObject({
-      key: 'resource:r1:p1', entityKind: 'resource', via: 'Acct A', viaType: 'cloud', viaPrimary: true,
+      key: 'resource:r1:p1', entityKind: 'resource', resourceType: 'Group', via: 'Acct A', viaType: 'cloud', viaPrimary: true,
     });
     // BusinessRole resourceType → access-package kind; via falls back to UPN; no principalId in key.
     expect(out[1]).toMatchObject({
-      key: 'access-package:r2:', entityKind: 'access-package', via: 'upn@x', viaPrimary: false,
+      key: 'access-package:r2:', entityKind: 'access-package', resourceType: 'BusinessRole', via: 'upn@x', viaPrimary: false,
     });
   });
 
