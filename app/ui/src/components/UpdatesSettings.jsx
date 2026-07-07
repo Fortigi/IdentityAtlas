@@ -205,11 +205,11 @@ function AutoUpdateToggle({ enabled, pinned, saving, onToggle }) {
     <div className={CARD}>
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200">Automatic updates</h3>
+          <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200">Auto-detect updates</h3>
           <p className="text-[11px] text-gray-600 dark:text-gray-400 mt-1">
-            Identity Atlas never installs updates itself. When on, it tells your deployment's separate
-            update agent it may install newer versions on this channel. When off, new versions are only
-            reported here and nothing is installed.
+            Identity Atlas checks its release channel daily and reports any newer version here — it never
+            installs updates itself. When on, a separate update agent on your deployment may install a
+            detected update automatically; when off, new versions are only reported.
           </p>
         </div>
         <label className="inline-flex items-center gap-2 text-xs text-gray-700 dark:text-gray-300 cursor-pointer">
