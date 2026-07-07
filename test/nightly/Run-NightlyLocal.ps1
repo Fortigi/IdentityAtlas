@@ -147,7 +147,7 @@ try {
 #       -SkipIntegration -SkipE2E` to get "did I break lint?" in seconds.
 #
 # When npm is missing on the host we fall back to a one-shot
-# `node:20-slim` container (same pattern as Phase 2 / Phase 3).
+# `node:24-slim` container (same pattern as Phase 2 / Phase 3).
 if (-not $SkipStaticChecks) {
     Write-Phase "Phase 0: Static Checks"
 
@@ -199,7 +199,7 @@ if (-not $SkipStaticChecks) {
             Pop-Location
         } else {
             $uiPath = $frontendDir -replace '\\','/' -replace '^([A-Za-z]):','/$1'
-            $null = & docker run --rm -v "${uiPath}:/work" -w /work node:20-slim sh -c "npm ci >/dev/null 2>&1; npm run lint" 2>&1 |
+            $null = & docker run --rm -v "${uiPath}:/work" -w /work node:24-slim sh -c "npm ci >/dev/null 2>&1; npm run lint" 2>&1 |
                 Tee-Object -FilePath $eslintLog
             $eslintExit = $LASTEXITCODE
         }
@@ -230,7 +230,7 @@ if (-not $SkipStaticChecks) {
             # Docker fallback: mount the whole repo read-only so the spec
             # file and any $ref targets remain resolvable.
             $repoPath = $RepoRoot -replace '\\','/' -replace '^([A-Za-z]):','/$1'
-            $null = & docker run --rm -v "${repoPath}:/work:ro" -w /work node:20-slim sh -c "npx -y @stoplight/spectral-cli lint app/api/src/openapi.yaml" 2>&1 |
+            $null = & docker run --rm -v "${repoPath}:/work:ro" -w /work node:24-slim sh -c "npx -y @stoplight/spectral-cli lint app/api/src/openapi.yaml" 2>&1 |
                 Tee-Object -FilePath $spectralLog
             $spectralExit = $LASTEXITCODE
             Write-Result 'Static-Spectral' ($spectralExit -eq 0) $(if ($spectralExit -ne 0) { "exit code $spectralExit (via docker)" })
@@ -257,7 +257,7 @@ if (-not $SkipStaticChecks) {
                 Pop-Location
             } else {
                 $pkgPath = $pkg.Dir -replace '\\','/' -replace '^([A-Za-z]):','/$1'
-                $null = & docker run --rm -v "${pkgPath}:/work" -w /work node:20-slim sh -c "npm ci --omit=dev >/dev/null 2>&1; npm audit --audit-level=high" 2>&1 |
+                $null = & docker run --rm -v "${pkgPath}:/work" -w /work node:24-slim sh -c "npm ci --omit=dev >/dev/null 2>&1; npm audit --audit-level=high" 2>&1 |
                     Tee-Object -FilePath $auditLog
                 $auditExit = $LASTEXITCODE
             }
@@ -348,7 +348,7 @@ if (-not $SkipBackendUnit) {
     Write-Phase "Phase 2: Backend Unit Tests"
 
     # When npm isn't on the PATH (common on a Docker-only host) we run vitest
-    # inside a one-shot node:20-slim container that mounts the api source.
+    # inside a one-shot node:24-slim container that mounts the api source.
     $hasNpm = $null -ne (Get-Command npm -ErrorAction SilentlyContinue)
     try {
         if ($hasNpm) {
@@ -358,7 +358,7 @@ if (-not $SkipBackendUnit) {
             Pop-Location
         } else {
             $apiPath = $backendDir -replace '\\','/' -replace '^([A-Za-z]):','/$1'
-            $null = & docker run --rm -v "${apiPath}:/work" -w /work node:20-slim sh -c "npm ci >/dev/null 2>&1; npm test -- --reporter=verbose" 2>&1 |
+            $null = & docker run --rm -v "${apiPath}:/work" -w /work node:24-slim sh -c "npm ci >/dev/null 2>&1; npm test -- --reporter=verbose" 2>&1 |
                 Tee-Object -FilePath (Join-Path $LogFolder 'backend-unit.log')
             Write-Result 'Backend-Unit-Tests' ($LASTEXITCODE -eq 0) $(if ($LASTEXITCODE -ne 0) { "exit code $LASTEXITCODE (via docker)" })
         }

@@ -72,6 +72,11 @@ def _kind(path):
         return scan_dockerfile
     if base == "package.json":
         return scan_package_json
+    if path.endswith(".ps1"):
+        # CI/helper PowerShell scripts pin Node via `docker run ... node:<v>-slim`
+        # (e.g. test/nightly/Run-NightlyLocal.ps1). Same image-ref pattern as a
+        # Dockerfile, so reuse the Dockerfile scanner.
+        return scan_dockerfile
     return None
 
 

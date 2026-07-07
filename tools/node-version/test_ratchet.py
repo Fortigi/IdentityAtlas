@@ -32,6 +32,13 @@ def test_scan_dockerfile_matches_tags_and_stages():
     assert [v for _, v in scan_dockerfile(text)] == [24, 24]
 
 
+def test_scan_dockerfile_matches_docker_run_refs_in_scripts():
+    # .ps1 CI/helper scripts pin Node via `docker run ... node:<v>-slim`; the same
+    # scanner is applied to .ps1 files so a stale pin (node:20) is caught.
+    text = '$null = & docker run --rm -w /work node:20-slim sh -c "npm ci"\n'
+    assert [v for _, v in scan_dockerfile(text)] == [20]
+
+
 def test_scan_package_json_extracts_engines_major():
     assert [v for _, v in scan_package_json('{"engines":{"node":">=24"}}')] == [24]
     assert [v for _, v in scan_package_json('{"engines":{"node":"24.x"}}')] == [24]
