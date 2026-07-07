@@ -85,12 +85,18 @@ export default function UpdatesSettings() {
   if (loading) return <p className="mt-4 text-sm text-gray-600 dark:text-gray-400">Loading…</p>;
 
   const channel = status?.channel || 'unknown';
-  const current = status?.currentVersion || 'unknown';
+  const webVersion = status?.currentVersion || 'unknown';
   const last = status?.lastCheck || null;
-  const updateAvailable = !!last?.updateAvailable;
-  const latest = last?.latestVersion || null;
+  const updateAvailable = !!status?.updateAvailable;
+  const latest = status?.latestVersion || last?.latestVersion || null;
   const enabled = !!status?.autoUpdateEnabled;
   const pinned = channel === 'pinned';
+  const worker = status?.components?.worker || null;
+  const workerVersion = worker?.version || null;
+  const workerLastSeen = worker?.lastSeenAt || null;
+  const workerStale = !!status?.skew?.workerStale;
+  const skewMismatch = !!status?.skew?.mismatch;
+  const applyStalled = !!status?.applyStalled;
 
   return (
     <div className="mt-4 space-y-4">
@@ -98,9 +104,9 @@ export default function UpdatesSettings() {
         <div className="text-sm font-medium text-blue-900 dark:text-blue-200">Updates</div>
         <div className="text-xs text-blue-700 dark:text-blue-300 mt-0.5">
           Identity Atlas checks once a day for a newer version on its release channel
-          (<span className="font-mono">{channel}</span>). With automatic updates on, a newer version is
-          installed nightly by your deployment's update agent; with it off, the newest available version is
-          shown here so you can update on your own schedule. Updates stay on the same channel — edge stays on
+          (<span className="font-mono">{channel}</span>) and reports it here — but it never installs updates
+          itself. Installing is done by a separate update agent running on your deployment; the switch below
+          tells that agent whether it may apply new versions. Updates stay on the same channel — edge stays on
           edge, beta on beta, latest on latest.
         </div>
       </div>
@@ -109,13 +115,55 @@ export default function UpdatesSettings() {
         <div className="text-sm text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded p-3">{error}</div>
       )}
 
-      {/* Current version + availability */}
+      {applyStalled && (
+        <div className="text-sm text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded p-3">
+          <span className="font-semibold">Automatic updates are on, but nothing is installing them.</span>{' '}
+          Version <span className="font-mono">{latest}</span> has been available for a while and hasn't been
+          applied. Installing updates needs a separate update agent running on your deployment — check that
+          it's installed and running.
+        </div>
+      )}
+
+      {skewMismatch && (
+        <div className="text-sm text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded p-3">
+          <span className="font-semibold">Web and worker are running different versions.</span>{' '}
+          The web app is on <span className="font-mono">{webVersion}</span> and the worker on{' '}
+          <span className="font-mono">{workerVersion}</span>. These are updated together and should match —
+          a mismatch usually means an update was interrupted or only half-applied, and normally clears on the
+          next successful update.
+        </div>
+      )}
+
+      {/* Component versions + availability */}
       <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200">Current version</h3>
-            <p className="text-sm font-mono text-gray-900 dark:text-white mt-0.5">{current}</p>
-            <p className="text-[11px] text-gray-600 dark:text-gray-400 mt-1">
+            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200">Version</h3>
+            <div className="mt-1 space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="inline-block w-14 text-[11px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Web</span>
+                <span className="text-sm font-mono text-gray-900 dark:text-white">{webVersion}</span>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="inline-block w-14 text-[11px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Worker</span>
+                {workerVersion ? (
+                  <span className="text-sm font-mono text-gray-900 dark:text-white">{workerVersion}</span>
+                ) : (
+                  <span className="text-xs italic text-gray-500 dark:text-gray-400">not reported yet</span>
+                )}
+                {workerVersion && (skewMismatch ? (
+                  <span className="inline-block px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300">Mismatch</span>
+                ) : (
+                  <span className="inline-block px-2 py-0.5 rounded text-[11px] font-semibold bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-300">Matched</span>
+                ))}
+                {workerLastSeen && (
+                  <span className={`text-[11px] ${workerStale ? 'text-amber-700 dark:text-amber-300' : 'text-gray-600 dark:text-gray-400'}`}>
+                    · last seen {formatRelativeTime(workerLastSeen)}{workerStale ? ' (stale)' : ''}
+                  </span>
+                )}
+              </div>
+            </div>
+            <p className="text-[11px] text-gray-600 dark:text-gray-400 mt-2">
               Channel <span className="font-mono">{channel}</span>
               {last?.createdAt && <> · last checked {formatRelativeTime(last.createdAt)}</>}
             </p>
@@ -151,8 +199,9 @@ export default function UpdatesSettings() {
           <div>
             <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200">Automatic updates</h3>
             <p className="text-[11px] text-gray-600 dark:text-gray-400 mt-1">
-              When on, the daily check applies a newer version automatically (via your deployment's update
-              agent). When off, updates are only reported here.
+              Identity Atlas never installs updates itself. When on, it tells your deployment's separate
+              update agent it may install newer versions on this channel. When off, new versions are only
+              reported here and nothing is installed.
             </p>
           </div>
           <label className="inline-flex items-center gap-2 text-xs text-gray-700 dark:text-gray-300 cursor-pointer">
