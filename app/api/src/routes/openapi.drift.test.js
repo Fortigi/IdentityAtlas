@@ -81,31 +81,42 @@ const ROUTER_CLASSIFICATION = {
   'updates.js': UNDOCUMENTED,
 };
 
+// The bounded set of reasons an endpoint in a DOCUMENTED router may be absent
+// from the public spec. Adding a NEW category is itself a visible, reviewed
+// change — which is the point: it stops the allow-list from becoming a silent
+// escape hatch for arbitrary public-looking routes.
+const UNDOCUMENTED_REASONS = {
+  'worker-protocol': 'web<->worker job-orchestration protocol (crawlers.js) — not a public API',
+  'delta-token': 'Graph delta-token persistence (crawlers.js) — internal crawler state',
+  'internal-ingest': 'internal computed/seed ingest helper (ingest.js) — not a public entity endpoint',
+};
+
 // Endpoints that live in the DOCUMENTED routers but are DELIBERATELY not in the
-// public spec — the web<->worker job-orchestration protocol, Graph delta-token
-// persistence, and internal ingest/seed helpers. Adding a genuinely public
-// endpoint here to silence the guard is a review red flag; document it instead.
-const INTENTIONALLY_UNDOCUMENTED = new Set([
+// public spec. Each MUST declare WHY, from UNDOCUMENTED_REASONS — so silencing
+// the guard for a genuinely public endpoint requires mis-categorising it (a
+// review red flag) rather than just appending a line.
+const INTENTIONALLY_UNDOCUMENTED = {
   // web<->worker job protocol (crawlers.js)
-  'POST /crawlers/jobs/claim',
-  'POST /crawlers/jobs/{id}/complete',
-  'POST /crawlers/jobs/{id}/fail',
-  'POST /crawlers/jobs/{id}/phases',
-  'POST /crawlers/job-progress',
-  'POST /crawlers/configs/{id}/mark-delta-mode',
+  'POST /crawlers/jobs/claim': 'worker-protocol',
+  'POST /crawlers/jobs/{id}/complete': 'worker-protocol',
+  'POST /crawlers/jobs/{id}/fail': 'worker-protocol',
+  'POST /crawlers/jobs/{id}/phases': 'worker-protocol',
+  'POST /crawlers/job-progress': 'worker-protocol',
+  'POST /crawlers/configs/{id}/mark-delta-mode': 'worker-protocol',
   // Graph delta-token persistence (crawlers.js)
-  'GET /crawlers/delta-tokens/{endpoint}',
-  'PUT /crawlers/delta-tokens/{endpoint}',
-  'DELETE /crawlers/delta-tokens/{endpoint}',
+  'GET /crawlers/delta-tokens/{endpoint}': 'delta-token',
+  'PUT /crawlers/delta-tokens/{endpoint}': 'delta-token',
+  'DELETE /crawlers/delta-tokens/{endpoint}': 'delta-token',
   // internal ingest / seed helpers (ingest.js)
-  'POST /ingest/classify-business-role-assignments',
-  'POST /ingest/context-members',
-  'POST /ingest/matrix-default-filter',
-  'POST /ingest/principal-activity',
-  'POST /ingest/principals-presence',
-  'POST /ingest/resource-assignments-identity',
-  'POST /ingest/sync-log',
-]);
+  'POST /ingest/classify-business-role-assignments': 'internal-ingest',
+  'POST /ingest/context-members': 'internal-ingest',
+  'POST /ingest/matrix-default-filter': 'internal-ingest',
+  'POST /ingest/principal-activity': 'internal-ingest',
+  'POST /ingest/principals-presence': 'internal-ingest',
+  'POST /ingest/resource-assignments-identity': 'internal-ingest',
+  'POST /ingest/sync-log': 'internal-ingest',
+};
+const ALLOWLISTED_OPS = new Set(Object.keys(INTENTIONALLY_UNDOCUMENTED));
 
 // Express `:param` -> OpenAPI `{param}` so the two sides compare apples to apples.
 const toOpenApiPath = (p) => p.replace(/:([A-Za-z0-9_]+)/g, '{$1}');
@@ -180,7 +191,7 @@ describe('OpenAPI route <-> spec drift', () => {
 
   it('every route in the documented surface is documented or explicitly allow-listed', () => {
     const undocumented = [...registered]
-      .filter((op) => !documented.has(op) && !INTENTIONALLY_UNDOCUMENTED.has(op))
+      .filter((op) => !documented.has(op) && !ALLOWLISTED_OPS.has(op))
       .sort();
     expect(
       undocumented,
@@ -193,13 +204,30 @@ describe('OpenAPI route <-> spec drift', () => {
   it('the allow-list has no stale entries', () => {
     // Keeps the allow-list honest: if a route is deleted or later documented,
     // its allow-list entry must go too.
-    const stale = [...INTENTIONALLY_UNDOCUMENTED]
+    const stale = [...ALLOWLISTED_OPS]
       .filter((op) => !registered.has(op) || documented.has(op))
       .sort();
     expect(
       stale,
       `INTENTIONALLY_UNDOCUMENTED lists entries that are no longer ` +
       `undocumented registered routes:\n${stale.join('\n')}`,
+    ).toEqual([]);
+  });
+
+  it('every allow-list entry declares a known internal reason', () => {
+    // Bounds WHY an endpoint may be undocumented: an entry must be one of the
+    // recognised internal surfaces (worker-protocol / delta-token / internal-
+    // ingest), not an arbitrary public-looking route slipped in to silence the
+    // guard. A genuinely new internal surface means a reviewed UNDOCUMENTED_REASONS
+    // addition — deliberately a visible change, not a one-line append.
+    const badReasons = Object.entries(INTENTIONALLY_UNDOCUMENTED)
+      .filter(([, reason]) => !(reason in UNDOCUMENTED_REASONS))
+      .map(([op, reason]) => `${op} -> '${reason}'`)
+      .sort();
+    expect(
+      badReasons,
+      `allow-list entry with an unknown reason. Use one of ` +
+      `${Object.keys(UNDOCUMENTED_REASONS).join(', ')}, or document the route:\n${badReasons.join('\n')}`,
     ).toEqual([]);
   });
 });
