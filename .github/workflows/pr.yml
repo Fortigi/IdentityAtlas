@@ -550,14 +550,15 @@ jobs:
   # ── Stage 7: PR hygiene (tests + changelog required for code changes) ────
   # Blocks merging a code change that ships without tests or a changelog
   # fragment — the gap that let an undocumented, untested feature reach main.
-  # Escape hatch: a maintainer can apply the 'skip-hygiene' label, which
-  # skips the job entirely (job-level if, so it is never even scheduled).
+  # Escape hatch: a maintainer can apply the 'skip-hygiene' label. The label does
+  # NOT skip the job (a job-level skip left the bypass invisible and let ci-passed
+  # treat it as green). Instead the job always runs on product changes and honours
+  # the label internally — on a would-be failure it prints exactly what was waived
+  # and passes, so every bypass is recorded and provable in the job log.
   hygiene:
     name: 'PR Hygiene'
     needs: [changes]
-    if: |
-      needs.changes.outputs.has_product_changes == 'true' &&
-      !contains(github.event.pull_request.labels.*.name, 'skip-hygiene')
+    if: needs.changes.outputs.has_product_changes == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -568,6 +569,7 @@ jobs:
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          SKIP_HYGIENE: ${{ contains(github.event.pull_request.labels.*.name, 'skip-hygiene') }}
         run: |
           set -euo pipefail
 
@@ -594,28 +596,35 @@ jobs:
           # Changelog fragment (the project mandates one per branch).
           FRAGMENT=$(echo "${CHANGED}" | grep -E '^changes/.*\.md$' || true)
 
-          FAIL=0
+          # Accumulate the human-readable reasons; severity is decided at the end
+          # so the 'skip-hygiene' bypass can downgrade them from error to warning.
+          REASONS=""
+          add_reason() { REASONS="${REASONS}${REASONS:+$'\n'}$1"; }
+
           if [ -n "${CODE}" ]; then
             if [ -z "${TESTS}" ]; then
-              echo "::error::Source code changed but no test files were added or modified."
-              echo "Add or extend a test: *.test.js (API), app/ui/e2e/*.spec.js (UI), *.Tests.ps1 (Pester unit), or Test-*.ps1 (crawler integration)."
-              FAIL=1
+              add_reason "Source code changed but no test files were added or modified. Add or extend a test: *.test.js (API), app/ui/e2e/*.spec.js (UI), *.Tests.ps1 (Pester unit), or Test-*.ps1 (crawler integration)."
             fi
             if [ -z "${FRAGMENT}" ]; then
-              echo "::error::Code changed but no changelog fragment found. Add a bullet to changes/<branch>.md (never edit CHANGES.md)."
-              FAIL=1
+              add_reason "Code changed but no changelog fragment found. Add a bullet to changes/<branch>.md (never edit CHANGES.md)."
             elif ! grep -qE '^[[:space:]]*[-*][[:space:]]+[^[:space:]]' ${FRAGMENT}; then
               # A fragment file exists but is empty / has no bullet — that silently
               # satisfied the gate before. Require at least one real bullet line.
-              echo "::error::A changelog fragment exists but has no bullet line. Add at least one '- ...' bullet describing the change to changes/<branch>.md:"
-              echo "${FRAGMENT}" | sed 's/^/  /'
-              FAIL=1
+              add_reason "A changelog fragment exists but has no bullet line. Add at least one '- ...' bullet describing the change to: ${FRAGMENT}"
             fi
           else
             echo "No product code changed — tests/changelog not required."
           fi
 
-          if [ "${FAIL}" = "1" ]; then
+          if [ -n "${REASONS}" ]; then
+            if [ "${SKIP_HYGIENE}" = "true" ]; then
+              # Observable bypass: the job runs, records what was waived, and passes.
+              echo "::warning::PR hygiene requirements NOT met, but BYPASSED via the 'skip-hygiene' label. The following would otherwise block merge:"
+              printf '%s\n' "${REASONS}" | sed 's/^/  - /'
+              echo "This bypass is intentional and is now recorded in this job's log rather than the job being silently skipped."
+              exit 0
+            fi
+            while IFS= read -r reason; do echo "::error::PR hygiene: ${reason}"; done <<< "${REASONS}"
             echo "If this change genuinely needs neither, a maintainer can add the 'skip-hygiene' label."
             exit 1
           fi

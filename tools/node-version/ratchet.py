@@ -31,6 +31,10 @@ EXCLUDE = ("node_modules/", "/dist", "bundled-scripts/", "coverage/", "docs/cove
 _WF_RE = re.compile(r"node-version:\s*['\"]?v?(\d+)")
 # `FROM node:24-slim`, `FROM node:24.1.0 AS build`, `--from=node:24 …`
 _DOCKER_RE = re.compile(r"\bnode:v?(\d+)")
+# `const NODE_VERSION = '24.16.0'` — a build/launcher .mjs pins the exact Node
+# runtime it bundles (e.g. app/desktop/scripts/build-node-launcher.mjs, which
+# also carries a matching ABI + SHA). Only the major is gated against .nvmrc.
+_MJS_RE = re.compile(r"NODE_VERSION\s*=\s*['\"]v?(\d+)")
 
 
 def parse_expected(nvmrc_text):
@@ -55,6 +59,10 @@ def scan_dockerfile(text):
     return [(m.start(), int(m.group(1))) for m in _DOCKER_RE.finditer(text)]
 
 
+def scan_mjs(text):
+    return [(m.start(), int(m.group(1))) for m in _MJS_RE.finditer(text)]
+
+
 def scan_package_json(text):
     try:
         node = json.loads(text).get("engines", {}).get("node")
@@ -77,6 +85,9 @@ def _kind(path):
         # (e.g. test/nightly/Run-NightlyLocal.ps1). Same image-ref pattern as a
         # Dockerfile, so reuse the Dockerfile scanner.
         return scan_dockerfile
+    if path.endswith(".mjs"):
+        # Build/launcher scripts pin the bundled Node via `const NODE_VERSION`.
+        return scan_mjs
     return None
 
 
