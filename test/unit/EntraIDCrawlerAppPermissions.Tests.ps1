@@ -137,3 +137,85 @@ Describe 'Get-EntraAppRoleName' {
         Get-EntraAppRoleName -AppRole ([pscustomobject]@{ id = 'guid-1' })                                               | Should -Be 'guid-1'
     }
 }
+
+Describe 'Get-EntraAppPermissionIndex' {
+
+    It 'builds spInfo, spById, and appRoleNameById (target APIs are just SPs with an appRoles catalog)' {
+        $sps = @(
+            [pscustomobject]@{ id = 'sp1'; displayName = 'Payroll App' },
+            [pscustomobject]@{ id = 'graphSp'; displayName = 'Microsoft Graph';
+                appRoles = @(
+                    [pscustomobject]@{ id = 'role-mailread'; value = 'Mail.Read' },
+                    [pscustomobject]@{ id = 'role-dirread';  displayName = 'Read directory data' }  # no value -> displayName
+                ) }
+        )
+        $idx = Get-EntraAppPermissionIndex -Sps $sps
+
+        $idx.spInfo['sp1'].displayName                | Should -Be 'Payroll App'
+        $idx.spInfo['sp1'].principalType              | Should -Not -BeNullOrEmpty  # classifier or fallback
+        $idx.spById['graphSp'].displayName            | Should -Be 'Microsoft Graph'
+        $idx.appRoleNameById['graphSp|role-mailread'] | Should -Be 'Mail.Read'
+        $idx.appRoleNameById['graphSp|role-dirread']  | Should -Be 'Read directory data'
+    }
+
+    It 'skips appRoles that have no id' {
+        $sps = @(
+            [pscustomobject]@{ id = 'api1'; displayName = 'API';
+                appRoles = @([pscustomobject]@{ value = 'NoId.Scope' }) }   # missing id
+        )
+        $idx = Get-EntraAppPermissionIndex -Sps $sps
+        $idx.appRoleNameById.Count | Should -Be 0
+    }
+
+    It 'returns empty maps for no service principals' {
+        $idx = Get-EntraAppPermissionIndex -Sps @()
+        $idx.spInfo.Count          | Should -Be 0
+        $idx.appRoleNameById.Count | Should -Be 0
+        $idx.spById.Count          | Should -Be 0
+    }
+}
+
+Describe 'Resolve-EntraAppPermissionFields' {
+
+    It 'resolves the permission name, client name/type, and target name from the maps' {
+        $a = [pscustomobject]@{ principalId = 'sp1'; resourceId = 'graphSp'; appRoleId = 'role-x'; resourceDisplayName = 'Microsoft Graph' }
+        $f = Resolve-EntraAppPermissionFields -Assignment $a `
+            -AppRoleNameById @{ 'graphSp|role-x' = 'Mail.Read' } `
+            -SpInfo @{ sp1 = @{ displayName = 'Payroll App'; principalType = 'AIAgent' } }
+
+        $f.permName   | Should -Be 'Mail.Read'
+        $f.clientName | Should -Be 'Payroll App'
+        $f.clientType | Should -Be 'AIAgent'      # carried from SpInfo, not flattened
+        $f.targetName | Should -Be 'Microsoft Graph'
+    }
+
+    It 'falls back to the appRole guid, the client SP id, ServicePrincipal, and the target id when the maps are empty' {
+        $a = [pscustomobject]@{ principalId = 'spX'; resourceId = 'apiX'; appRoleId = 'guid-9' }
+        $f = Resolve-EntraAppPermissionFields -Assignment $a
+
+        $f.permName   | Should -Be 'guid-9'
+        $f.clientName | Should -Be 'spX'
+        $f.clientType | Should -Be 'ServicePrincipal'
+        $f.targetName | Should -Be 'apiX'
+    }
+
+    It 'falls back to the target SP''s SpInfo displayName when the assignment has no resourceDisplayName' {
+        $a = [pscustomobject]@{ principalId = 'sp1'; resourceId = 'graphSp'; appRoleId = 'r1' }
+        $f = Resolve-EntraAppPermissionFields -Assignment $a `
+            -SpInfo @{ graphSp = @{ displayName = 'Microsoft Graph' } }
+        $f.targetName | Should -Be 'Microsoft Graph'
+    }
+}
+
+Describe 'Format-FGApplicationPermissionName' {
+
+    It 'includes the holder SP when a client name is supplied' {
+        Format-FGApplicationPermissionName -Permission 'Mail.Read' -TargetName 'Microsoft Graph' -ClientName 'Payroll App' |
+            Should -Be 'Mail.Read on Microsoft Graph (via Payroll App)'
+    }
+
+    It 'omits the "(via ...)" suffix when there is no client name' {
+        Format-FGApplicationPermissionName -Permission 'Mail.Read' -TargetName 'Microsoft Graph' |
+            Should -Be 'Mail.Read on Microsoft Graph'
+    }
+}
