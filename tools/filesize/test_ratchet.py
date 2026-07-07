@@ -6,7 +6,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from ratchet import evaluate, CEILING  # noqa: E402
+from ratchet import evaluate, smelly, CEILING, SMELL  # noqa: E402
 
 
 def test_new_file_over_ceiling_fails():
@@ -35,6 +35,23 @@ def test_grandfathered_file_at_exactly_baseline_passes():
 
 def test_no_files_over_ceiling_passes():
     assert evaluate({}, baseline={"src/legacy.jsx": 1200}) == []
+
+
+def test_smelly_flags_the_600_to_1000_band_only():
+    sizes = {
+        "at_smell.js": SMELL,        # exactly 600 — not yet smelly
+        "smelly.js": SMELL + 1,      # 601 — smelly
+        "at_ceiling.js": CEILING,    # 1000 — smelly (still <= ceiling)
+        "over.js": CEILING + 1,      # 1001 — over-ceiling, handled by evaluate(), not smell
+        "small.js": 100,             # fine
+    }
+    assert set(smelly(sizes, baseline={})) == {"smelly.js", "at_ceiling.js"}
+
+
+def test_smelly_excludes_already_grandfathered_files():
+    # A file recorded in the baseline is governed by the ceiling ratchet, not the
+    # soft smell warning — don't nag about it.
+    assert smelly({"legacy.js": 800}, baseline={"legacy.js": 1200}) == {}
 
 
 if __name__ == "__main__":

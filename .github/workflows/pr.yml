@@ -23,6 +23,11 @@
 #  10. crawler-manifest — CrawlerMeta.js completeness check
 #  11. docs-nav   — crawler docs registered in mkdocs.yml nav
 #  12. duplication — jscpd clone detection; threshold in .jscpd.json
+#  13. filesize   — file-length ratchet (folded in from filesize.yml)
+#  14. complexity — cyclomatic + cognitive complexity ratchet (from complexity.yml)
+#
+# All of the above feed ci-passed, so none needs to be an individual required
+# check — mark only ci-passed required, and it self-skips per the filter scopes.
 #
 # Target branches: PRs into main
 # ─────────────────────────────────────────────────────────────────────────────
@@ -107,6 +112,7 @@ jobs:
       api:     ${{ steps.f.outputs.api }}
       ui:      ${{ steps.f.outputs.ui }}
       openapi: ${{ steps.f.outputs.openapi }}
+      code:    ${{ steps.f.outputs.code }}
       outcome: ${{ steps.f.outcome }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -145,6 +151,16 @@ jobs:
               - 'tools/crawlers/**/*.test.jsx'
             openapi:
               - 'app/api/src/openapi.yaml'
+            # Any source file the file-length / complexity ratchets measure, keyed
+            # by extension. A docs-only / version-bump / baseline PR matches none
+            # of these, so `code` is false and both ratchets skip (they re-measure
+            # the whole tree, so there's nothing new to check).
+            code:
+              - '**/*.ps1'
+              - '**/*.js'
+              - '**/*.jsx'
+              - '**/*.sql'
+              - '**/*.py'
 
   # ── Stage 1: PowerShell linting ──────────────────────────────────────────
   lint-ps:
@@ -753,6 +769,75 @@ jobs:
             exit 1
           fi
 
+  # ── Stage 13: File-length ratchet ────────────────────────────────────────
+  # Enforces the CLAUDE.md "split before ~1000 lines" rule via a per-file baseline
+  # that only shrinks. Runs only when a measured source file changed (the `code`
+  # scope); part of ci-passed, so it blocks merge without a separate required
+  # check. See tools/filesize/ratchet.py.
+  filesize:
+    name: 'File-length ratchet'
+    needs: [filter]
+    if: |
+      needs.filter.outputs.code == 'true' ||
+      needs.filter.result == 'failure'
+    runs-on: ubuntu-latest   # git + python3 are preinstalled on the GitHub runner
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      # Validate the ratchet gate logic (Python) before it gates anything.
+      - name: Test the ratchet gate logic
+        run: |
+          python3 -m pip install --quiet pytest
+          python3 -m pytest tools/filesize/test_ratchet.py -q
+
+      - name: Run file-length ratchet
+        run: python3 tools/filesize/ratchet.py
+
+  # ── Stage 14: Complexity ratchet (cyclomatic + cognitive) ────────────────
+  # Per-unit complexity baselines that only ratchet down. Same `code` scope and
+  # ci-passed membership as the file-length ratchet. See tools/complexity/ratchet.py.
+  complexity:
+    name: 'Complexity ratchet'
+    needs: [filter]
+    if: |
+      needs.filter.outputs.code == 'true' ||
+      needs.filter.result == 'failure'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: |
+            app/api/package-lock.json
+            app/ui/package-lock.json
+
+      # ESLint (with the project's configs/plugins) is the JS/TS measurer, so the
+      # workspaces it lints must have their dependencies installed.
+      - name: Install JS dependencies
+        run: |
+          npm ci --prefix app/api
+          npm ci --prefix app/ui
+
+      # The PowerShell measurer is the published PSComplexity module.
+      - name: Install PSComplexity (PowerShell complexity measurer)
+        shell: pwsh
+        run: Install-Module PSComplexity -RequiredVersion 0.1.0 -Force -Scope CurrentUser
+
+      # Validate the ratchet gate logic (Python) before it gates anything.
+      - name: Test the ratchet gate logic
+        run: |
+          python3 -m pip install --quiet pytest
+          python3 -m pytest tools/complexity/test_ratchet.py -q
+
+      - name: Run cyclomatic-complexity ratchet
+        run: python3 tools/complexity/ratchet.py
+
+      - name: Run cognitive-complexity ratchet
+        run: python3 tools/complexity/ratchet.py --metric cognitive
+
   # ── Gate: single required check for branch protection ───────────────────
   # Replaces the individual job requirements in branch protection. Update branch
   # protection to require only "ci-passed" — not each individual job name.
@@ -781,6 +866,8 @@ jobs:
       - crawler-manifest
       - docs-nav
       - duplication
+      - filesize
+      - complexity
     if: always()
     runs-on: ubuntu-latest
     steps:
