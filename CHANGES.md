@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Made the **Timeline** tab and the recent-changes panel load much faster on user, resource, access-package and identity detail pages. They previously scanned the entire change-history table on every open, so they got slower as history grew; they now use targeted indexes and stay fast regardless of how much history has accumulated.
+
+## Changes in this PR
+
 - The database now structurally enforces the universal data model: `assignmentType` is constrained to `Direct`/`Indirect`/`Eligible`, and the renamed Entra-era resource types (`EntraGroup`, `EntraRole`) can no longer be stored on resources or assignments. This guards against a bad migration or manual database change reintroducing a retired value — a path the ingest API validation could not cover.
 
 ## Changes in this PR
