@@ -240,6 +240,24 @@ describe('exportToExcel', () => {
     expect(legend.getCell(2, 2).value).toBe('D');
   });
 
+  it('lists ONLY the three current membership types — no retired badge rows', async () => {
+    await exportToExcel(baseInput());
+    const wb = await loadCapturedWorkbook();
+    const legend = wb.getWorksheet('Legend');
+
+    // Membership-type rows are contiguous from row 2 to the first blank row.
+    const typeRows = [];
+    for (let r = 2; legend.getCell(r, 1).value; r++) {
+      typeRows.push(legend.getCell(r, 1).value);
+    }
+    expect([...typeRows].sort()).toEqual(['Direct', 'Eligible', 'Indirect']);
+
+    const retired = ['Owner', 'Governed', 'OAuth2Grant', 'AppRole', 'AppRoleViaGroup', 'DirectoryRole', 'DirectoryRoleEligible'];
+    for (const t of retired) {
+      expect(typeRows, `retired '${t}' must not appear in the Excel legend`).not.toContain(t);
+    }
+  });
+
   it('writes active filters and a shareable link into the Legend', async () => {
     const activeFilters = [{ field: 'dept', value: 'HR' }];
     const filterFields = [{ key: 'dept', label: 'Department' }];
