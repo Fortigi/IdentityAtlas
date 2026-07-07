@@ -20,6 +20,7 @@ import { resolveChannel, getCurrentVersion } from '../updates/channel.js';
 import { runUpdateCheck, recordLog } from '../updates/checkForUpdates.js';
 import { isNewer } from '../updates/versionCompare.js';
 import { getComponentVersion, computeSkew } from '../updates/componentVersions.js';
+import { getMigrationStatus } from '../db/migrate.js';
 
 const router = Router();
 const writeUpdates = requirePermission('admin.systems');
@@ -42,10 +43,11 @@ async function getAutoUpdateEnabled() {
 router.get('/admin/updates/status', async (_req, res) => {
   try {
     const runningVersion = getCurrentVersion();
-    const [enabled, last, workerRow] = await Promise.all([
+    const [enabled, last, workerRow, database] = await Promise.all([
       getAutoUpdateEnabled(),
       db.queryOne(`SELECT * FROM "UpdateLog" ORDER BY "createdAt" DESC LIMIT 1`),
       getComponentVersion('worker'),
+      getMigrationStatus().catch(() => null), // best-effort — never fail status on it
     ]);
     const latestVersion = last?.latestVersion || null;
     // Recompute against the running version rather than trusting the stored
@@ -81,6 +83,7 @@ router.get('/admin/updates/status', async (_req, res) => {
           lastSeenAt: workerRow?.lastSeenAt || null,
           stale: skew.workerStale,
         },
+        database: database || null,
       },
       skew,
       applyStalled,

@@ -97,6 +97,9 @@ export default function UpdatesSettings() {
   const workerStale = !!status?.skew?.workerStale;
   const skewMismatch = !!status?.skew?.mismatch;
   const applyStalled = !!status?.applyStalled;
+  const database = status?.components?.database || null;
+  const dbAhead = !!database?.ahead;
+  const dbPending = !!database?.pending;
 
   return (
     <div className="mt-4 space-y-4">
@@ -134,6 +137,15 @@ export default function UpdatesSettings() {
         </div>
       )}
 
+      {dbAhead && (
+        <div className="text-sm text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded p-3">
+          <span className="font-semibold">The database schema is newer than the running app.</span>{' '}
+          The database has migrations this version doesn't ship — usually a sign the app was rolled back or an
+          update was only half-applied. Some features may misbehave until the app is back on a build that
+          matches the schema.
+        </div>
+      )}
+
       {/* Component versions + availability */}
       <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -162,6 +174,22 @@ export default function UpdatesSettings() {
                   </span>
                 )}
               </div>
+              {database && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="inline-block w-14 text-[11px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Database</span>
+                  <span className="text-sm text-gray-900 dark:text-white">{`${database.applied} migration${database.applied === 1 ? '' : 's'}`}</span>
+                  {database.latest && (
+                    <span className="text-[11px] font-mono text-gray-600 dark:text-gray-400">· {database.latest}</span>
+                  )}
+                  {dbAhead ? (
+                    <span className="inline-block px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300">Schema ahead of app</span>
+                  ) : dbPending ? (
+                    <span className="inline-block px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300">Migrations pending</span>
+                  ) : (
+                    <span className="inline-block px-2 py-0.5 rounded text-[11px] font-semibold bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-300">Up to date</span>
+                  )}
+                </div>
+              )}
             </div>
             <p className="text-[11px] text-gray-600 dark:text-gray-400 mt-2">
               Channel <span className="font-mono">{channel}</span>

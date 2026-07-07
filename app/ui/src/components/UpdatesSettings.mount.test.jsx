@@ -18,6 +18,7 @@ const statusAvailable = {
   components: {
     web: { version: '5.310.20260629.1221' },
     worker: { version: '5.310.20260629.1221', lastSeenAt: '2026-06-30T07:00:00Z', stale: false },
+    database: { applied: 56, latest: '056_component_versions.sql', ahead: false, pending: false },
   },
   skew: { mismatch: false, workerStale: false, workerKnown: true },
   applyStalled: false,
@@ -63,7 +64,8 @@ describe('UpdatesSettings (mounted)', () => {
   it('shows "Up to date" when no update is available', async () => {
     const s = { ...statusAvailable, updateAvailable: false, lastCheck: { ...statusAvailable.lastCheck, status: 'up-to-date', updateAvailable: false } };
     renderWithProviders(h(UpdatesSettings), { auth: { authFetch: fetchFor(s) } });
-    expect(await screen.findByText('Up to date')).toBeInTheDocument();
+    // Both the availability badge and the database badge read "Up to date" here.
+    expect((await screen.findAllByText('Up to date')).length).toBeGreaterThan(0);
   });
 
   it('flags web/worker version skew with a Mismatch badge and a banner', async () => {
@@ -93,6 +95,23 @@ describe('UpdatesSettings (mounted)', () => {
     };
     renderWithProviders(h(UpdatesSettings), { auth: { authFetch: fetchFor(s) } });
     expect(await screen.findByText('not reported yet')).toBeInTheDocument();
+  });
+
+  it('shows the database migration status', async () => {
+    renderWithProviders(h(UpdatesSettings), { auth: { authFetch: fetchFor() } });
+    expect(await screen.findByText('Database')).toBeInTheDocument();
+    expect(screen.getByText('56 migrations')).toBeInTheDocument();
+    expect(screen.getByText('Up to date')).toBeInTheDocument(); // DB badge (availability badge reads "Update available" here)
+  });
+
+  it('warns when the database schema is ahead of the running app', async () => {
+    const s = {
+      ...statusAvailable,
+      components: { ...statusAvailable.components, database: { applied: 57, latest: '057_future.sql', ahead: true, pending: false } },
+    };
+    renderWithProviders(h(UpdatesSettings), { auth: { authFetch: fetchFor(s) } });
+    expect(await screen.findByText(/database schema is newer/i)).toBeInTheDocument();
+    expect(screen.getByText('Schema ahead of app')).toBeInTheDocument();
   });
 
   it('states honestly that the app never installs updates itself', async () => {

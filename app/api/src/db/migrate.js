@@ -90,6 +90,34 @@ async function applyMigration(filename) {
   });
 }
 
+// Compare the migrations the DB has applied against the ones THIS web image
+// ships. Pure so it's trivially unit-testable.
+//   - ahead:   an applied migration this image does not ship → the DB schema is
+//              NEWER than the running code (a rollback or half-applied update).
+//   - pending: a shipped migration not yet applied → migrations haven't run.
+//              Can't happen for a healthy web (fail-closed at boot), but surfaced
+//              for completeness.
+export function computeMigrationStatus(applied, shipped) {
+  const appliedSet = new Set(applied);
+  const shippedSet = new Set(shipped);
+  return {
+    applied: applied.length,
+    latest: [...applied].sort().pop() || null,
+    ahead: applied.some((f) => !shippedSet.has(f)),
+    pending: shipped.some((f) => !appliedSet.has(f)),
+  };
+}
+
+// Snapshot of the schema's migration state for the Admin → Updates "database"
+// indicator. `client` is injectable for tests / contract tests.
+export async function getMigrationStatus(client = db) {
+  const r = await client.query(`SELECT filename FROM _migrations`);
+  return computeMigrationStatus(
+    r.rows.map((row) => row.filename),
+    listMigrationFiles()
+  );
+}
+
 export async function runMigrations(_pool) {
   await ensureMigrationsTable();
   const applied   = await listAppliedMigrations();

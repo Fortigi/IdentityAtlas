@@ -33,11 +33,15 @@ describe('updates routes', () => {
     mockDb.queryOne
       .mockResolvedValueOnce({ configValue: 'false' })                                  // auto flag
       .mockResolvedValueOnce({ id: 1, status: 'up-to-date', latestVersion: RUNNING });  // last check
-      mockDb.query.mockResolvedValueOnce({ rows: [{ component: 'worker', version: RUNNING, lastSeenAt: seenNow() }] });
+    mockDb.query
+      .mockResolvedValueOnce({ rows: [{ component: 'worker', version: RUNNING, lastSeenAt: seenNow() }] }) // worker
+      .mockResolvedValueOnce({ rows: [{ filename: '001_core_schema.sql' }, { filename: '002_governance.sql' }] }); // _migrations
     const res = await request(app).get('/api/admin/updates/status');
     expect(res.status).toBe(200);
     expect(res.body.components.web.version).toBe(RUNNING);
     expect(res.body.components.worker.version).toBe(RUNNING);
+    expect(res.body.components.database.applied).toBe(2);
+    expect(res.body.components.database.ahead).toBe(false);
     expect(res.body.skew.mismatch).toBe(false);
     expect(res.body.updateAvailable).toBe(false);
   });
@@ -46,7 +50,9 @@ describe('updates routes', () => {
     mockDb.queryOne
       .mockResolvedValueOnce({ configValue: 'false' })
       .mockResolvedValueOnce({ id: 1, status: 'up-to-date', latestVersion: RUNNING });
-    mockDb.query.mockResolvedValueOnce({ rows: [{ component: 'worker', version: '5.309.20260628.1000', lastSeenAt: seenNow() }] });
+    mockDb.query
+      .mockResolvedValueOnce({ rows: [{ component: 'worker', version: '5.309.20260628.1000', lastSeenAt: seenNow() }] })
+      .mockResolvedValueOnce({ rows: [{ filename: '001_core_schema.sql' }] });
     const res = await request(app).get('/api/admin/updates/status');
     expect(res.body.skew.mismatch).toBe(true);
     expect(res.body.components.worker.version).toBe('5.309.20260628.1000');
@@ -58,7 +64,9 @@ describe('updates routes', () => {
       .mockResolvedValueOnce({ configValue: 'true' })                                   // enabled
       .mockResolvedValueOnce({ id: 1, status: 'available', latestVersion: NEWER })      // newer available
       .mockResolvedValueOnce({ since: threeDaysAgo });                                  // MIN(available since)
-    mockDb.query.mockResolvedValueOnce({ rows: [{ component: 'worker', version: RUNNING, lastSeenAt: seenNow() }] });
+    mockDb.query
+      .mockResolvedValueOnce({ rows: [{ component: 'worker', version: RUNNING, lastSeenAt: seenNow() }] })
+      .mockResolvedValueOnce({ rows: [{ filename: '001_core_schema.sql' }] });
     const res = await request(app).get('/api/admin/updates/status');
     expect(res.body.updateAvailable).toBe(true);
     expect(res.body.applyStalled).toBe(true);
@@ -69,7 +77,9 @@ describe('updates routes', () => {
       .mockResolvedValueOnce({ configValue: 'true' })
       .mockResolvedValueOnce({ id: 1, status: 'available', latestVersion: NEWER })
       .mockResolvedValueOnce({ since: seenNow() });                                     // available just now
-    mockDb.query.mockResolvedValueOnce({ rows: [{ component: 'worker', version: RUNNING, lastSeenAt: seenNow() }] });
+    mockDb.query
+      .mockResolvedValueOnce({ rows: [{ component: 'worker', version: RUNNING, lastSeenAt: seenNow() }] })
+      .mockResolvedValueOnce({ rows: [{ filename: '001_core_schema.sql' }] });
     const res = await request(app).get('/api/admin/updates/status');
     expect(res.body.updateAvailable).toBe(true);
     expect(res.body.applyStalled).toBe(false);
