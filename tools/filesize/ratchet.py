@@ -25,6 +25,7 @@ import sys
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 BASELINE = os.path.join(REPO, ".ci", "filesize-baseline.json")
 CEILING = 1000
+SMELL = 600   # CLAUDE.md "smell" threshold — a soft heads-up (warning), never a failure.
 EXTS = (".ps1", ".js", ".jsx", ".sql")
 # Substrings marking a path as out of scope: vendored, build output, generated,
 # and test files (tests legitimately grow as cases are added; the rule is about
@@ -62,6 +63,12 @@ def over_ceiling(sizes):
     return {p: n for p, n in sizes.items() if n > CEILING}
 
 
+def smelly(sizes, baseline):
+    """Tracked files in the (SMELL, CEILING] band that aren't already grandfathered
+    over the ceiling — a heads-up to split them before they cross it. Not a failure."""
+    return {p: n for p, n in sizes.items() if SMELL < n <= CEILING and p not in baseline}
+
+
 def load_baseline():
     if not os.path.exists(BASELINE):
         return {}
@@ -89,7 +96,8 @@ def main():
                     help="re-baseline: record current over-ceiling files (ratchets down only)")
     args = ap.parse_args()
 
-    over = over_ceiling(measure())
+    sizes = measure()
+    over = over_ceiling(sizes)
 
     if args.update:
         os.makedirs(os.path.dirname(BASELINE), exist_ok=True)
@@ -109,6 +117,10 @@ def main():
     fails = evaluate(over, baseline)
     print(f"[filesize] {len(over)} file(s) over {CEILING} lines "
           f"({len(baseline)} grandfathered).")
+    # Soft 'smell' heads-up (never fails the gate): files creeping toward the ceiling.
+    for p, n in sorted(smelly(sizes, baseline).items()):
+        print(f"::warning file={p}::{p} is {n} lines, over the {SMELL}-line smell "
+              f"threshold — split it before it reaches the {CEILING}-line ceiling.")
     if fails:
         print(f"File-length ratchet FAILED: {len(fails)} violation(s). Split the file(s), "
               f"or - only for an intentional, reviewed increase - re-baseline with: "
