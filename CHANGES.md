@@ -1,5 +1,13 @@
 ## Changes in this PR
 
+- Reworked the **Relationships** graph and drill-down lists on entity detail pages (users, resources, identities) to match the current access model. Access is now grouped by how it's held — **Direct / Indirect / Eligible** — instead of the outdated "Groups (Direct)", "Groups (Indirect)", "Groups Owned" and "OAuth2 Grants" buckets (the latter two were retired concepts that always showed 0).
+- When you drill into a bucket, each row now shows **what kind of resource the assignment is for** — Group, Group ownership, App role, Delegated permission, App permission, Directory role, Business role, and so on — instead of a generic "Resource" label. This makes a Direct bucket that spans many resource types readable at a glance.
+- Resource detail pages now show an **Indirect Members** bucket that was previously missing.
+- The drill-down list is now **sortable** (click the Name or Type column header) and **exportable to CSV**, so a large Direct/Indirect bucket can be scanned, ordered by resource type or name, and pulled out for review.
+- Fixed a bug where entity detail pages showed **0 Contexts** even when the person was a member of one. The count and list now correctly include contexts you belong to directly (as a principal, e.g. tags) as well as through your linked identity — previously only the (unused) identity path was checked, so every user and identity showed no contexts.
+
+## Changes in this PR
+
 - The built-in demo/mock dataset no longer uses the retired `Owner` membership type, so mock mode matches the current data model (group ownership is represented as its own resource, not a membership type).
 
 ## Changes in this PR
