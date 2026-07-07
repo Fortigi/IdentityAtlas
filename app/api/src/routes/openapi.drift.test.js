@@ -1,14 +1,17 @@
 // Route <-> OpenAPI spec drift guard.
 //
 // `.spectral.yaml` lints the spec's SYNTAX. It cannot tell whether a documented
-// operation still has a live route handler, nor whether a newly-added route in
-// the documented surface got left out of the spec. This test closes that gap.
+// operation still has a live route handler, whether a newly-added route in the
+// documented surface got left out of the spec, or whether a brand-new router was
+// added that nobody decided to document. This test closes all three gaps.
 //
 // The spec deliberately covers only the "ingest + crawler-admin" surface (see the
-// Scope note in openapi.yaml) — NOT the 100+ read-API routes. So we scope the
-// check to exactly the routers that back that surface, and keep an explicit
-// allow-list of endpoints in those routers that are intentionally internal /
-// undocumented (the web<->worker job protocol, delta-token CRUD, seed helpers).
+// Scope note in openapi.yaml) — NOT the 100+ read-API routes. So rather than
+// documenting everything, we require every router module under routes/ to be
+// EXPLICITLY classified as either `documented` (its routes must be in the spec)
+// or `undocumented` (read API / internal). A new router file that nobody
+// classified fails the test — so a new public surface can't silently escape the
+// drift guard, and the "documented vs not" decision is always a conscious one.
 //
 // Enumeration is runtime introspection of each Router's `.stack` (Express 5
 // exposes layer.route.path + layer.route.methods on a bare router) — robust
@@ -16,7 +19,7 @@
 // regex scan would miss.
 
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'fs';
+import { readFileSync, readdirSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 import YAML from 'yamljs';
@@ -30,17 +33,55 @@ const SPEC_PATH = join(__dirname, '..', 'openapi.yaml');
 
 const HTTP_METHODS = ['get', 'post', 'put', 'patch', 'delete'];
 
-// The routers whose surface the spec is meant to document. Anything registered
-// OUTSIDE these routers (jobs.js, crawlerFiles.js, the read API, …) is out of
-// scope and correctly ignored.
-const SCOPED_ROUTERS = [
-  ingestRouter,
-  selfServiceCrawlersRouter,
-  adminCrawlersRouter,
-  effectiveAccessRouter,
-];
+// Router modules whose surface the spec documents, keyed by filename so the
+// classification below stays honest against the file tree. The value is the
+// router(s) that file exports (crawlers.js exports two).
+const DOCUMENTED_ROUTERS = {
+  'ingest.js': [ingestRouter],
+  'crawlers.js': [adminCrawlersRouter, selfServiceCrawlersRouter],
+  'effectiveAccess.js': [effectiveAccessRouter],
+};
 
-// Endpoints that live in the scoped routers but are DELIBERATELY not in the
+// EVERY router module under routes/ must appear here. `documented` => all its
+// routes must be in openapi.yaml (or the allow-list); `undocumented` => the read
+// API / internal surface the public spec intentionally omits. Adding a router
+// file without classifying it fails the completeness test below — the point is
+// that "should this be in the public API spec?" is never answered by omission.
+const DOCUMENTED = 'documented';
+const UNDOCUMENTED = 'undocumented';
+const ROUTER_CLASSIFICATION = {
+  ...Object.fromEntries(Object.keys(DOCUMENTED_ROUTERS).map((f) => [f, DOCUMENTED])),
+  // ── intentionally undocumented: read API, internal, worker job protocol ──
+  'accountLinking.js': UNDOCUMENTED,
+  'admin.js': UNDOCUMENTED,
+  'authRoles.js': UNDOCUMENTED,
+  'bulkLists.js': UNDOCUMENTED,
+  'categories.js': UNDOCUMENTED,
+  'contextPlugins.js': UNDOCUMENTED,
+  'contexts.js': UNDOCUMENTED,
+  'crawlerFiles.js': UNDOCUMENTED,
+  'dataExport.js': UNDOCUMENTED,
+  'details.js': UNDOCUMENTED,
+  'governance.js': UNDOCUMENTED,
+  'identities.js': UNDOCUMENTED,
+  'jobs.js': UNDOCUMENTED,
+  'llm.js': UNDOCUMENTED,
+  'matrix.js': UNDOCUMENTED,
+  'orgChart.js': UNDOCUMENTED,
+  'perf.js': UNDOCUMENTED,
+  'permissions.js': UNDOCUMENTED,
+  'preferences.js': UNDOCUMENTED,
+  'recentChanges.js': UNDOCUMENTED,
+  'resources.js': UNDOCUMENTED,
+  'riskProfiles.js': UNDOCUMENTED,
+  'riskScores.js': UNDOCUMENTED,
+  'riskScoringRuns.js': UNDOCUMENTED,
+  'systems.js': UNDOCUMENTED,
+  'tags.js': UNDOCUMENTED,
+  'updates.js': UNDOCUMENTED,
+};
+
+// Endpoints that live in the DOCUMENTED routers but are DELIBERATELY not in the
 // public spec — the web<->worker job-orchestration protocol, Graph delta-token
 // persistence, and internal ingest/seed helpers. Adding a genuinely public
 // endpoint here to silence the guard is a review red flag; document it instead.
@@ -70,15 +111,17 @@ const INTENTIONALLY_UNDOCUMENTED = new Set([
 const toOpenApiPath = (p) => p.replace(/:([A-Za-z0-9_]+)/g, '{$1}');
 const key = (method, path) => `${method.toUpperCase()} ${path}`;
 
-// "METHOD /path" for every route registered on the scoped routers.
+// "METHOD /path" for every route registered on the documented routers.
 function registeredOps() {
   const ops = new Set();
-  for (const router of SCOPED_ROUTERS) {
-    for (const layer of router.stack) {
-      if (!layer.route) continue;
-      const path = toOpenApiPath(layer.route.path);
-      for (const m of HTTP_METHODS) {
-        if (layer.route.methods[m]) ops.add(key(m, path));
+  for (const routers of Object.values(DOCUMENTED_ROUTERS)) {
+    for (const router of routers) {
+      for (const layer of router.stack) {
+        if (!layer.route) continue;
+        const path = toOpenApiPath(layer.route.path);
+        for (const m of HTTP_METHODS) {
+          if (layer.route.methods[m]) ops.add(key(m, path));
+        }
       }
     }
   }
@@ -97,9 +140,34 @@ function documentedOps() {
   return ops;
 }
 
+// Every router module on disk (excludes tests and the non-router helpers).
+function routerFilesOnDisk() {
+  return readdirSync(__dirname)
+    .filter((f) => f.endsWith('.js') && !/\.test\.js$/.test(f) && f !== 'openapi.drift.test.js');
+}
+
 describe('OpenAPI route <-> spec drift', () => {
   const registered = registeredOps();
   const documented = documentedOps();
+
+  it('every router module is classified as documented or undocumented', () => {
+    // Closes the "new public surface ships undocumented" gap: a router file
+    // nobody classified fails here, forcing the documented-vs-not decision.
+    const files = routerFilesOnDisk();
+    const unclassified = files.filter((f) => !(f in ROUTER_CLASSIFICATION)).sort();
+    expect(
+      unclassified,
+      `router module(s) under routes/ are not classified in openapi.drift.test.js. ` +
+      `Add each as DOCUMENTED_ROUTERS (and put its routes in openapi.yaml) or mark it ` +
+      `UNDOCUMENTED:\n${unclassified.join('\n')}`,
+    ).toEqual([]);
+
+    const stale = Object.keys(ROUTER_CLASSIFICATION).filter((f) => !files.includes(f)).sort();
+    expect(
+      stale,
+      `ROUTER_CLASSIFICATION lists router file(s) that no longer exist:\n${stale.join('\n')}`,
+    ).toEqual([]);
+  });
 
   it('every documented operation maps to a live registered route', () => {
     const missing = [...documented].filter((op) => !registered.has(op)).sort();
@@ -110,7 +178,7 @@ describe('OpenAPI route <-> spec drift', () => {
     ).toEqual([]);
   });
 
-  it('every in-scope registered route is documented or explicitly allow-listed', () => {
+  it('every route in the documented surface is documented or explicitly allow-listed', () => {
     const undocumented = [...registered]
       .filter((op) => !documented.has(op) && !INTENTIONALLY_UNDOCUMENTED.has(op))
       .sort();
