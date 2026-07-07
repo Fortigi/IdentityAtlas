@@ -142,7 +142,7 @@ function WorkerRow({ worker, mismatch }) {
       showBadge={!!version}
       mismatch={mismatch}
       extra={worker && worker.lastSeenAt
-        ? <LastSeen at={worker.lastSeenAt} stale={!!(worker && worker.stale)} />
+        ? <LastSeen at={worker.lastSeenAt} stale={!!worker.stale} />
         : null}
     />
   );
