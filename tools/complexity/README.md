@@ -52,7 +52,7 @@ guard clauses); cyclomatic is the better proxy for *test-case count*. They agree
 |---|---|---|---|
 | PowerShell | 15 | 15 | Already near-clean per function. |
 | Python | 15 | 15 | Tiny surface. |
-| JS / TS | 20 | — | Cyclomatic starts looser (many 16–20 handlers); cognitive not yet gated (needs `eslint-plugin-sonarjs` — see below). |
+| JS / TS | 20 | 15 | Cyclomatic starts looser (many 16–20 handlers); cognitive uses `eslint-plugin-sonarjs` at the S3776 default of 15. |
 
 15 is the SonarSource default for cognitive complexity (rule `S3776`).
 
@@ -85,8 +85,11 @@ installed (`npm ci`). PowerShell and Python need no setup.
   `Measure-PSComplexity`'s output to the ratchet's `{cc, cog}` contract. Run
   `measure_ps.ps1 -Path <file|dir>` to measure just that path.
 - Python — `ratchet.py` itself (`ast`); both metrics in one parse.
-- JS / TS — ESLint's built-in [`complexity`](https://eslint.org/docs/latest/rules/complexity)
-  rule (cyclomatic only).
+- JS / TS — ESLint, in a single pass: the built-in [`complexity`](https://eslint.org/docs/latest/rules/complexity)
+  rule (cyclomatic) and [`eslint-plugin-sonarjs`](https://github.com/SonarSource/eslint-plugin-sonarjs)'s
+  `sonarjs/cognitive-complexity` (cognitive). The plugin is registered in each `eslint.config.js`
+  but **no rule is enabled there** — the ratchet injects both rules via `--rule`, so `npm run lint`
+  stays green while the ratchet still measures every function.
 
 Generated mirrors (`bundled-scripts/`), dependencies, build output, and non-production
 scripts (tests, CI harnesses, mocks, dev seeders) are excluded.
@@ -103,12 +106,5 @@ The measurers gate the whole repo, so they're tested themselves:
   ones (same worked example → cc 9 / cog 11) so the two measurers stay in agreement.
 
 CI runs the Python tests in the `Complexity ratchet` workflow (before the gate); the
-PowerShell tests run in the `Unit Tests: Pester` job.
-
-## Not yet done: JS/TS cognitive
-
-ESLint core has no cognitive-complexity rule. The reference implementation is
-[`eslint-plugin-sonarjs`](https://github.com/SonarSource/eslint-plugin-sonarjs)'s
-`sonarjs/cognitive-complexity`. Wiring it (add the dev-dep + a rule entry to each
-`eslint.config.js`, then have `measure_js` read it) is the next step to bring JS/TS into
-the cognitive gate.
+PowerShell tests run in the `Unit Tests: Pester` job. The `parse_js_units` ESLint-message
+parser (the pure core of the JS/TS measurer) is covered by `test_ratchet.py` too.

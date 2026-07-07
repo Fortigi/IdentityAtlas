@@ -1,0 +1,1 @@
+- The complexity CI gate now measures **cognitive** complexity (how hard code is to follow) for JavaScript/TypeScript, not just cyclomatic — via `eslint-plugin-sonarjs` at the SonarSource S3776 default threshold of 15. Current offenders are grandfathered into the baseline and can only ratchet down; new or newly-over-threshold functions must stay at or under 15.

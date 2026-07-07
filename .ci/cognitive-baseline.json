@@ -3,9 +3,201 @@
   "metric": "cog",
   "thresholds": {
     "ps": 15,
-    "py": 15
+    "py": 15,
+    "js": 15
   },
   "files": {
+    "app/api/src/accountlinking/engine.js": [
+      19,
+      17
+    ],
+    "app/api/src/contexts/plugins/manager-hierarchy.js": [
+      34
+    ],
+    "app/api/src/contexts/plugins/principal-type-tree.js": [
+      17
+    ],
+    "app/api/src/contexts/plugins/resource-type-tree.js": [
+      40
+    ],
+    "app/api/src/contexts/plugins/runner.js": [
+      24
+    ],
+    "app/api/src/effectiveAccess/engine.js": [
+      30,
+      21
+    ],
+    "app/api/src/effectiveAccess/engineContainment.test.js": [
+      17
+    ],
+    "app/api/src/ingest/normalization.js": [
+      20
+    ],
+    "app/api/src/ingest/sessions.js": [
+      17
+    ],
+    "app/api/src/ingest/validation.js": [
+      65,
+      20
+    ],
+    "app/api/src/llm/scraper.js": [
+      21
+    ],
+    "app/api/src/matrix/inheritedAccess.js": [
+      30,
+      25,
+      22,
+      21
+    ],
+    "app/api/src/middleware/crawlerAuth.js": [
+      17
+    ],
+    "app/api/src/perf/collector.js": [
+      17
+    ],
+    "app/api/src/riskscoring/engine.js": [
+      31,
+      19,
+      16
+    ],
+    "app/api/src/routes/admin.js": [
+      46,
+      26,
+      22,
+      22,
+      18
+    ],
+    "app/api/src/routes/authRoles.js": [
+      16
+    ],
+    "app/api/src/routes/contexts.js": [
+      40
+    ],
+    "app/api/src/routes/crawlers.js": [
+      16,
+      16
+    ],
+    "app/api/src/routes/details.js": [
+      55,
+      33,
+      21
+    ],
+    "app/api/src/routes/identities.js": [
+      33,
+      25,
+      20
+    ],
+    "app/api/src/routes/matrix/data.js": [
+      32,
+      21,
+      16
+    ],
+    "app/api/src/routes/openapi.drift.test.js": [
+      19
+    ],
+    "app/api/src/routes/permissions.js": [
+      104,
+      28,
+      18,
+      17
+    ],
+    "app/api/src/routes/recentChanges.js": [
+      42,
+      38,
+      17
+    ],
+    "app/api/src/routes/resources.js": [
+      37,
+      18
+    ],
+    "app/api/src/routes/riskProfiles.js": [
+      28,
+      17
+    ],
+    "app/api/src/routes/tags.js": [
+      29
+    ],
+    "app/api/src/scheduler.js": [
+      27
+    ],
+    "app/ui/src/App.jsx": [
+      109,
+      16
+    ],
+    "app/ui/src/components/AccessPackagesPage.jsx": [
+      46,
+      17
+    ],
+    "app/ui/src/components/CrawlersPage.jsx": [
+      18
+    ],
+    "app/ui/src/components/DashboardPage.jsx": [
+      20
+    ],
+    "app/ui/src/components/EntityGraph.jsx": [
+      20,
+      16
+    ],
+    "app/ui/src/components/GovernancePage.jsx": [
+      23
+    ],
+    "app/ui/src/components/MatrixView.jsx": [
+      75,
+      24,
+      19,
+      19,
+      18,
+      16,
+      16,
+      16
+    ],
+    "app/ui/src/components/RiskProfileWizard.jsx": [
+      20
+    ],
+    "app/ui/src/components/RiskScoringPage.jsx": [
+      16
+    ],
+    "app/ui/src/components/RollupMatrixView.jsx": [
+      48,
+      40,
+      34,
+      22,
+      19
+    ],
+    "app/ui/src/components/RotatedMatrixView.jsx": [
+      16
+    ],
+    "app/ui/src/components/admin/LLMSettingsSection.jsx": [
+      23
+    ],
+    "app/ui/src/components/contexts/ContextTreeView.helpers.js": [
+      21
+    ],
+    "app/ui/src/components/contexts/ContextTreeView.jsx": [
+      38
+    ],
+    "app/ui/src/components/contexts/NewContextWizard.jsx": [
+      47
+    ],
+    "app/ui/src/components/matrix/MatrixCell.jsx": [
+      22
+    ],
+    "app/ui/src/components/matrix/MatrixColumnHeaders.jsx": [
+      58
+    ],
+    "app/ui/src/components/matrix/MatrixFilterSummary.jsx": [
+      24
+    ],
+    "app/ui/src/components/matrix/MatrixFilterWizard.jsx": [
+      21
+    ],
+    "app/ui/src/utils/exportAccessPackagesToExcel.js": [
+      16
+    ],
+    "app/ui/src/utils/exportToExcel.js": [
+      32,
+      20
+    ],
     "setup/docker/Invoke-CrawlerJob.ps1": [
       46
     ],
@@ -17,9 +209,6 @@
     ],
     "test/nightly/Test-RiskScoringLLM.ps1": [
       95
-    ],
-    "tools/complexity/ratchet.py": [
-      21
     ],
     "tools/crawlers/azure-rm/Get-AzureRGHelpers.ps1": [
       32,
@@ -52,9 +241,6 @@
     ],
     "tools/crawlers/shared/Invoke-CrawlerIngest.ps1": [
       31
-    ],
-    "tools/generate-coverage-doc.py": [
-      17
     ],
     "tools/powershell-sdk/graph/Get-FGAccessToken.ps1": [
       18

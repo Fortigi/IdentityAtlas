@@ -63,14 +63,9 @@ def test_fmt_avg_max():
     assert gcd.fmt_avg_max(5, None) == "—"
 
 
-def test_fmt_pct_and_badge_color():
+def test_fmt_pct():
     assert gcd.fmt_pct(None) == "—"
     assert gcd.fmt_pct(82.7) == "82.7%"
-    assert gcd.badge_color(None) == "lightgrey"
-    assert gcd.badge_color(85) == "brightgreen"
-    assert gcd.badge_color(65) == "yellow"
-    assert gcd.badge_color(45) == "orange"
-    assert gcd.badge_color(10) == "red"
 
 
 # ── collect_rows / render_row ─────────────────────────────────────────────────
@@ -165,4 +160,6 @@ def test_main_handles_no_reports(tmp_path, monkeypatch):
     assert gcd.main() == 0
     text = out.read_text(encoding="utf-8")
     assert "_no report_" in text
-    assert "**Overall**" in text
+    # No cross-suite aggregate: no overall row and no top coverage badge.
+    assert "**Overall**" not in text
+    assert "img.shields.io" not in text

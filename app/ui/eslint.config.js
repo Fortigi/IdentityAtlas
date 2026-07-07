@@ -1,6 +1,7 @@
 import globals from 'globals';
 import reactHooks from 'eslint-plugin-react-hooks';
 import reactRefresh from 'eslint-plugin-react-refresh';
+import sonarjs from 'eslint-plugin-sonarjs';
 import noLowContrastText from './eslint-rules/no-low-contrast-text.js';
 import noNativeDialogs from './eslint-rules/no-native-dialogs.js';
 import noLegacyJargon from './eslint-rules/no-legacy-jargon.js';
@@ -23,6 +24,15 @@ const NATIVE_DIALOG_ALLOWLIST = [
 
 export default [
   { ignores: ['dist', 'playwright-report', 'test-results', 'coverage'] },
+  {
+    // Register the sonarjs plugin WITHOUT enabling any of its rules, so the
+    // `sonarjs/cognitive-complexity` rule id resolves when the complexity
+    // ratchet injects it via `--rule` (tools/complexity/ratchet.py measure_js).
+    // Deliberately not `sonarjs.configs.recommended` — that would enable a raft
+    // of rules and fail `npm run lint`. Same treatment as the core `complexity`
+    // (cyclomatic) rule: measured by the ratchet, never enforced in the lint job.
+    plugins: { sonarjs },
+  },
   {
     files: ['**/*.{js,jsx}'],
     languageOptions: {

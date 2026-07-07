@@ -16,15 +16,14 @@ Two independent metrics, each with its own baseline, selected with --metric:
   cognitive              — how hard the code is to *follow* (SonarSource model):
       nesting-weighted (a branch 3 levels deep costs 4, not 1), else-if chains read
       flat, a switch counts once, a run of the same boolean operator counts once.
-      Thresholds  PowerShell 15 · Python 15   (the SonarSource S3776 default)
+      Thresholds  PowerShell 15 · Python 15 · JS/TS 15   (the SonarSource S3776 default)
       Baseline    .ci/cognitive-baseline.json
-      JS/TS is measured for cyclomatic only for now — cognitive needs
-      eslint-plugin-sonarjs; see tools/complexity/README.md.
 
 Measurers (both metrics in one pass):
   * PowerShell  - tools/complexity/measure_ps.ps1 (AST; functions + <script-body>)
   * Python      - this file (ast; functions + <module>)
-  * JS/TS       - ESLint's built-in `complexity` rule (cyclomatic only)
+  * JS/TS       - ESLint: the built-in `complexity` rule (cyclomatic) and
+                  eslint-plugin-sonarjs's `sonarjs/cognitive-complexity` (cognitive)
 
 Usage:
   python tools/complexity/ratchet.py                       # cyclomatic check (CI gate)
@@ -56,8 +55,8 @@ METRICS = {
     },
     "cognitive": {
         "field": "cog",
-        "thresholds": {"ps": 15, "py": 15},
-        "langs": ("ps", "py"),
+        "thresholds": {"ps": 15, "py": 15, "js": 15},
+        "langs": ("ps", "py", "js"),
         "baseline": os.path.join(REPO, ".ci", "cognitive-baseline.json"),
         "label": "cognitive complexity",
     },
@@ -258,34 +257,116 @@ def measure_py():
     return units
 
 
-# ─── JS / TS (ESLint complexity rule — cyclomatic only) ──────────────────────
-def measure_js():
+# ─── JS / TS (ESLint: `complexity` = cyclomatic, sonarjs = cognitive) ─────────
+# Both metrics come from ONE eslint pass by injecting both rules. The core
+# `complexity` message names the function ("Function 'foo' has a complexity of
+# 21"); the sonarjs message does not ("Refactor this function to reduce its
+# Cognitive Complexity from 19 to the 15 allowed"), so a cognitive unit borrows
+# the cyclomatic message's name when one landed on the same line.
+_JS_CC_RE = re.compile(r"complexity of (\d+)")
+_JS_COG_RE = re.compile(r"Cognitive Complexity from (\d+)")
+
+
+def parse_js_units(file_rel, messages):
+    """One file's ESLint messages -> ratchet units (pure; unit-tested).
+
+    Cyclomatic and cognitive findings become separate units — the two metrics
+    have independent baselines, and a function can breach one without the other.
+    A cyclomatic unit carries cc (cog=None); a cognitive unit carries cog
+    (cc=None) and reuses the same-line function name if the cyclomatic rule also
+    fired there, else falls back to a line label.
+    """
+    names = {}
+    for m in messages:
+        if m.get("ruleId") == "complexity" and _JS_CC_RE.search(m.get("message", "")):
+            names[m.get("line")] = m["message"].split(" has a complexity")[0].strip()
+    units = []
+    for m in messages:
+        rid, msg, line = m.get("ruleId"), m.get("message", ""), m.get("line")
+        if rid == "complexity":
+            mt = _JS_CC_RE.search(msg)
+            if mt:
+                units.append(dict(file=file_rel, unit=msg.split(" has a complexity")[0].strip(),
+                                  line=line, cc=int(mt.group(1)), cog=None, lang="js"))
+        elif rid == "sonarjs/cognitive-complexity":
+            mt = _JS_COG_RE.search(msg)
+            if mt:
+                units.append(dict(file=file_rel, unit=names.get(line) or f"function (line {line})",
+                                  line=line, cc=None, cog=int(mt.group(1)), lang="js"))
+    return units
+
+
+def _eslint_json(sub, rule):
+    """Run ESLint over <sub>/src with the given --rule JSON; return the parsed
+    report array (or None if npx / node_modules / output is unavailable)."""
     npx = shutil.which("npx") or shutil.which("npx.cmd")
     if not npx:
         print("warning: npx not found - skipping JS/TS", file=sys.stderr)
-        return []
-    rule = json.dumps({"complexity": ["warn", METRICS["cyclomatic"]["thresholds"]["js"]]})
+        return None
+    d = os.path.join(REPO, sub)
+    if not os.path.isdir(os.path.join(d, "node_modules")):
+        print(f"warning: {sub}/node_modules missing - skipping its JS", file=sys.stderr)
+        return None
+    out = subprocess.run([npx, "eslint", "src", "--rule", rule, "--format", "json"],
+                         cwd=d, capture_output=True, text=True, encoding="utf-8", errors="replace")
+    if not out.stdout.strip():
+        print(f"warning: eslint produced no output for {sub}:\n{out.stderr[:400]}", file=sys.stderr)
+        return None
+    return json.loads(out.stdout)
+
+
+def measure_js():
+    rule = json.dumps({
+        "complexity": ["warn", METRICS["cyclomatic"]["thresholds"]["js"]],
+        "sonarjs/cognitive-complexity": ["warn", METRICS["cognitive"]["thresholds"]["js"]],
+    })
     units = []
     for sub in ("app/api", "app/ui"):
-        d = os.path.join(REPO, sub)
-        if not os.path.isdir(os.path.join(d, "node_modules")):
-            print(f"warning: {sub}/node_modules missing - skipping its JS", file=sys.stderr)
-            continue
-        out = subprocess.run([npx, "eslint", "src", "--rule", rule, "--format", "json"],
-                             cwd=d, capture_output=True, text=True, encoding="utf-8", errors="replace")
-        if not out.stdout.strip():
-            print(f"warning: eslint produced no output for {sub}:\n{out.stderr[:400]}", file=sys.stderr)
-            continue
-        for fobj in json.loads(out.stdout):
-            fr = relpath(fobj["filePath"])
-            for m in fobj.get("messages", []):
-                if m.get("ruleId") == "complexity":
-                    mt = re.search(r"complexity of (\d+)", m["message"])
-                    if mt:
-                        unit = m["message"].split(" has a complexity")[0].strip()
-                        # cog=None → JS does not participate in the cognitive gate yet.
-                        units.append(dict(file=fr, unit=unit, line=m.get("line"),
-                                          cc=int(mt.group(1)), cog=None, lang="js"))
+        report = _eslint_json(sub, rule)
+        for fobj in report or []:
+            units.extend(parse_js_units(relpath(fobj["filePath"]), fobj.get("messages", [])))
+    return units
+
+
+# ─── JS/TS full measurement (for the coverage docs, NOT the gate) ─────────────
+# The gate's measure_js only surfaces over-threshold outliers (ESLint reports a
+# rule only when it's breached). The coverage page instead wants avg/max over
+# EVERY function, so we run both rules at threshold 0: the cyclomatic rule then
+# reports every function (cc >= 1 always), and cognitive is merged in by line,
+# defaulting to 0 for a straight-line function the cognitive rule doesn't flag.
+_JS_TEST_RE = re.compile(r"(?:\.test\.|\.spec\.|/__tests__/|/e2e/|/test-utils/)")
+
+
+def merge_js_units(file_rel, messages):
+    """One unit per function carrying BOTH cc and cog (cog defaults to 0). Keyed
+    off the cyclomatic messages (one per function); pure, so it's unit-tested."""
+    cog_by_line = {}
+    for m in messages:
+        if m.get("ruleId") == "sonarjs/cognitive-complexity":
+            mt = _JS_COG_RE.search(m.get("message", ""))
+            if mt:
+                cog_by_line[m.get("line")] = int(mt.group(1))
+    units = []
+    for m in messages:
+        if m.get("ruleId") == "complexity":
+            mt = _JS_CC_RE.search(m.get("message", ""))
+            if mt:
+                units.append(dict(file=file_rel, unit=m["message"].split(" has a complexity")[0].strip(),
+                                  line=m.get("line"), cc=int(mt.group(1)),
+                                  cog=cog_by_line.get(m.get("line"), 0)))
+    return units
+
+
+def measure_js_all_units(sub):
+    """Every product function in <sub>/src as {file,unit,line,cc,cog} — feeds the
+    coverage docs' avg/max columns. Test files are excluded (product code only,
+    matching the PowerShell measurer)."""
+    rule = json.dumps({"complexity": ["warn", 0], "sonarjs/cognitive-complexity": ["warn", 0]})
+    units = []
+    for fobj in _eslint_json(sub, rule) or []:
+        fr = relpath(fobj["filePath"])
+        if not _JS_TEST_RE.search("/" + fr):
+            units.extend(merge_js_units(fr, fobj.get("messages", [])))
     return units
 
 
@@ -362,7 +443,16 @@ def main():
                     help="which complexity metric to gate (default: cyclomatic)")
     ap.add_argument("--update", action="store_true", help="regenerate/lower the baseline")
     ap.add_argument("--baseline", default=None, help="override the baseline path")
+    ap.add_argument("--emit-complexity-json", metavar="WORKSPACE", default=None,
+                    help="print the full per-unit {file,unit,line,cc,cog} JSON for one JS "
+                         "workspace's src (e.g. app/api) and exit — feeds the coverage docs, "
+                         "not the gate. Measures every function, not just over-threshold ones.")
     args = ap.parse_args()
+
+    if args.emit_complexity_json:
+        json.dump(measure_js_all_units(args.emit_complexity_json), sys.stdout)
+        sys.stdout.write("\n")
+        return 0
 
     metric = METRICS[args.metric]
     baseline_path = args.baseline or metric["baseline"]
