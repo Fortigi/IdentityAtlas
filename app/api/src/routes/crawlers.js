@@ -6,6 +6,7 @@ import { injectJobSecret, deleteJobSecret } from '../secrets/crawlerSecrets.js';
 import { getPushModeType } from '../crawlerManifests.js';
 import { runPostCrawlJobs } from '../postCrawlJobs.js';
 import { crawlerHasPermission, crawlerHasSystemAccess } from '../middleware/crawlerAuth.js';
+import { recordComponentVersion } from '../updates/componentVersions.js';
 
 const adminCrawlersRouter = Router();
 const gate = requirePermission('admin.crawlers');
@@ -402,6 +403,13 @@ function requireWorkerCrawler(req, res, next) {
 selfServiceCrawlersRouter.post('/crawlers/jobs/claim', requireWorkerCrawler, async (req, res) => {
   if (!req.crawler) return res.status(401).json({ error: 'Not authenticated' });
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
+
+  // Piggyback worker-version reporting on the regular claim poll (every ~30s):
+  // the worker has no DB access, so this header is how the app learns which
+  // version the worker is running, for skew detection on Admin → Updates.
+  // Best-effort and fire-and-forget — it must never block or fail the claim.
+  const workerVersion = req.get('X-Worker-Version');
+  if (workerVersion) recordComponentVersion('worker', workerVersion).catch(() => {});
 
   try {
     // Atomic claim using FOR UPDATE SKIP LOCKED — postgres-native pattern that

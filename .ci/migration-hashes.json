@@ -58,6 +58,7 @@
     "052_rename_resource_types.sql": "c55720a1e59d968d1ef0c4fade7a74e0e5a06dbf6fe914234faa515d3b358136",
     "053_group_ownership_display_name.sql": "1d34d9bd69b876dddeaff2e0ae93e71d419b02d4c9237652771bb0a025c1c9f5",
     "054_value_guard_constraints.sql": "e1154b081c1228cbde8588d6afa740c1965d122bc61ff077d7203ab0330e6368",
-    "055_history_timeline_indexes.sql": "2e238c636f986982243a09b6f33ff84c29dcfb92f093fb3efddaf5536db1a72f"
+    "055_history_timeline_indexes.sql": "2e238c636f986982243a09b6f33ff84c29dcfb92f093fb3efddaf5536db1a72f",
+    "056_component_versions.sql": "82359f4155eaa216dd8b98f89b9ff46db66031a7a8e1efcb2c114267f68593fc"
   }
 }

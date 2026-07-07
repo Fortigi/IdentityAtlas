@@ -18,6 +18,7 @@ import { writeFileSync, mkdirSync } from 'fs';
 import { dirname } from 'path';
 import * as db from './db/connection.js';
 import { runMigrations } from './db/migrate.js';
+import { stampSchemaVersion } from './updates/componentVersions.js';
 import { selfTest as vaultSelfTest } from './secrets/vault.js';
 import { startScheduler } from './scheduler.js';
 import { seedContextAlgorithms } from './contexts/seedAlgorithms.js';
@@ -335,6 +336,15 @@ export async function migrateDatabase() {
   if (process.env.USE_SQL !== 'true') return;
   const pool = await db.getPool();
   await runMigrations(pool);
+  // Stamp the DB's schema version now that migrations are confirmed applied.
+  // Best-effort — a stamp failure must never block startup (it's a display value,
+  // not a correctness gate; the runner already prevents double-running migrations).
+  try {
+    const stamped = await stampSchemaVersion();
+    if (stamped) console.log(`Database schema version stamped: ${stamped}`);
+  } catch (err) {
+    console.warn('Schema-version stamp skipped:', err.message);
+  }
 }
 
 export async function bootstrapWorker() {

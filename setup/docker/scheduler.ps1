@@ -43,6 +43,25 @@ try {
     Write-Host "  Module load failed: $($_.Exception.Message)" -ForegroundColor Yellow
 }
 
+# Resolve this worker's version so it can report it to the API on every poll
+# (the web container has no way to know the worker's version otherwise — it's
+# what powers web/worker skew detection on Admin → Updates). Prefer a baked env
+# var if a published image ever sets one; fall back to the imported module's
+# ModuleVersion (from setup/IdentityAtlas.psd1, bumped at build time — the same
+# source the web container's version.js falls back to).
+function Get-WorkerVersion {
+    $v = $env:MODULE_VERSION
+    if (-not $v) {
+        try {
+            $mod = Get-Module IdentityAtlas
+            if ($mod) { $v = $mod.Version.ToString() }
+        } catch { }
+    }
+    if ($v) { Write-Host "  Worker version: $v" -ForegroundColor Gray }
+    return $v
+}
+$Global:WorkerVersion = Get-WorkerVersion
+
 # ── Discover the built-in API key ─────────────────────────────────────────────
 # Read priority: env var → shared volume file. Startup polls for 5 minutes so
 # the common case (volume mount missing) surfaces a loud warning quickly. If
@@ -120,6 +139,10 @@ function Invoke-PendingJob {
     if (-not $Global:BuiltinApiKey) { return }
 
     $headers = @{ 'Authorization' = "Bearer $Global:BuiltinApiKey" }
+    # Report the worker's version on every poll (~30s) so the API can detect
+    # web/worker version skew after a partial update. Best-effort — the header is
+    # simply absent if the version couldn't be resolved.
+    if ($Global:WorkerVersion) { $headers['X-Worker-Version'] = $Global:WorkerVersion }
 
     # 1. Atomically claim next job
     $resp = $null
