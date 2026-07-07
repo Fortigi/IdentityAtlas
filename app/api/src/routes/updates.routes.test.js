@@ -34,14 +34,14 @@ describe('updates routes', () => {
       .mockResolvedValueOnce({ configValue: 'false' })                                  // auto flag
       .mockResolvedValueOnce({ id: 1, status: 'up-to-date', latestVersion: RUNNING });  // last check
     mockDb.query
-      .mockResolvedValueOnce({ rows: [{ component: 'worker', version: RUNNING, lastSeenAt: seenNow() }] }) // worker
-      .mockResolvedValueOnce({ rows: [{ filename: '001_core_schema.sql' }, { filename: '002_governance.sql' }] }); // _migrations
+      .mockResolvedValueOnce({ rows: [{ component: 'worker', version: RUNNING, lastSeenAt: seenNow() }] })   // worker
+      .mockResolvedValueOnce({ rows: [{ component: 'database', version: RUNNING, lastSeenAt: seenNow() }] }); // database
     const res = await request(app).get('/api/admin/updates/status');
     expect(res.status).toBe(200);
     expect(res.body.components.web.version).toBe(RUNNING);
     expect(res.body.components.worker.version).toBe(RUNNING);
-    expect(res.body.components.database.applied).toBe(2);
-    expect(res.body.components.database.ahead).toBe(false);
+    expect(res.body.components.database.version).toBe(RUNNING);
+    expect(res.body.components.database.mismatch).toBe(false);
     expect(res.body.skew.mismatch).toBe(false);
     expect(res.body.updateAvailable).toBe(false);
   });
@@ -52,10 +52,23 @@ describe('updates routes', () => {
       .mockResolvedValueOnce({ id: 1, status: 'up-to-date', latestVersion: RUNNING });
     mockDb.query
       .mockResolvedValueOnce({ rows: [{ component: 'worker', version: '5.309.20260628.1000', lastSeenAt: seenNow() }] })
-      .mockResolvedValueOnce({ rows: [{ filename: '001_core_schema.sql' }] });
+      .mockResolvedValueOnce({ rows: [{ component: 'database', version: RUNNING, lastSeenAt: seenNow() }] });
     const res = await request(app).get('/api/admin/updates/status');
     expect(res.body.skew.mismatch).toBe(true);
     expect(res.body.components.worker.version).toBe('5.309.20260628.1000');
+  });
+
+  it('GET /admin/updates/status flags the database as ahead when its stamped version is newer than web', async () => {
+    mockDb.queryOne
+      .mockResolvedValueOnce({ configValue: 'false' })
+      .mockResolvedValueOnce({ id: 1, status: 'up-to-date', latestVersion: RUNNING });
+    mockDb.query
+      .mockResolvedValueOnce({ rows: [{ component: 'worker', version: RUNNING, lastSeenAt: seenNow() }] })
+      .mockResolvedValueOnce({ rows: [{ component: 'database', version: NEWER, lastSeenAt: seenNow() }] });
+    const res = await request(app).get('/api/admin/updates/status');
+    expect(res.body.components.database.version).toBe(NEWER);
+    expect(res.body.components.database.mismatch).toBe(true);
+    expect(res.body.components.database.ahead).toBe(true);
   });
 
   it('GET /admin/updates/status flags applyStalled when auto-update is on and an update sits available', async () => {
@@ -66,7 +79,7 @@ describe('updates routes', () => {
       .mockResolvedValueOnce({ since: threeDaysAgo });                                  // MIN(available since)
     mockDb.query
       .mockResolvedValueOnce({ rows: [{ component: 'worker', version: RUNNING, lastSeenAt: seenNow() }] })
-      .mockResolvedValueOnce({ rows: [{ filename: '001_core_schema.sql' }] });
+      .mockResolvedValueOnce({ rows: [{ component: 'database', version: RUNNING, lastSeenAt: seenNow() }] });
     const res = await request(app).get('/api/admin/updates/status');
     expect(res.body.updateAvailable).toBe(true);
     expect(res.body.applyStalled).toBe(true);
@@ -79,7 +92,7 @@ describe('updates routes', () => {
       .mockResolvedValueOnce({ since: seenNow() });                                     // available just now
     mockDb.query
       .mockResolvedValueOnce({ rows: [{ component: 'worker', version: RUNNING, lastSeenAt: seenNow() }] })
-      .mockResolvedValueOnce({ rows: [{ filename: '001_core_schema.sql' }] });
+      .mockResolvedValueOnce({ rows: [{ component: 'database', version: RUNNING, lastSeenAt: seenNow() }] });
     const res = await request(app).get('/api/admin/updates/status');
     expect(res.body.updateAvailable).toBe(true);
     expect(res.body.applyStalled).toBe(false);

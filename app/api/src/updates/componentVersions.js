@@ -8,6 +8,9 @@
 // `client` is injectable so unit/contract tests can pass a test pool.
 
 import * as db from '../db/connection.js';
+import { getMigrationStatus } from '../db/migrate.js';
+import { getCurrentVersion } from './channel.js';
+import { isNewer } from './versionCompare.js';
 
 // How long since the worker last checked in before we treat it as stale. The
 // worker polls the claim endpoint every ~30s, but there is a startup gap while
@@ -41,6 +44,37 @@ export async function getComponentVersion(component, client = db) {
     [component]
   );
   return r.rows[0] || null;
+}
+
+// Pure guard for stamping the DB's schema version. Stamp only when it stays
+// trustworthy:
+//   - a known running version;
+//   - every shipped migration applied and none pending (the migrations that were
+//     needed have actually run — this is the check the caller asked for);
+//   - the DB is not structurally AHEAD of this code (no applied migrations this
+//     image doesn't ship) — that's a rollback, so keep the higher stamp and let
+//     the UI show the mismatch rather than silently downgrading;
+//   - never downgrade over a newer existing stamp.
+export function shouldStampSchemaVersion(version, status, existing) {
+  if (!version || !status) return false;
+  if (status.pending || status.ahead) return false;
+  if (existing?.version && isNewer(existing.version, version)) return false;
+  return true;
+}
+
+// Stamp the running app version onto the DB as its "schema version" — the version
+// that last successfully migrated it. Called once after migrations complete
+// (before the port binds). Idempotent: re-stamping the same version just refreshes
+// the row. Migrations themselves are guarded against double-running by the
+// per-file `_migrations` table in the runner, independent of this stamp.
+export async function stampSchemaVersion(version = getCurrentVersion(), client = db) {
+  const [status, existing] = await Promise.all([
+    getMigrationStatus(client),
+    getComponentVersion('database', client),
+  ]);
+  if (!shouldStampSchemaVersion(version, status, existing)) return null;
+  await recordComponentVersion('database', version, client);
+  return version;
 }
 
 // Given the running web version and the worker's last-seen row, compute the

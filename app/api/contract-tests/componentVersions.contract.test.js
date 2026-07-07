@@ -4,7 +4,7 @@
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import pg from 'pg';
-import { recordComponentVersion, getComponentVersion } from '../src/updates/componentVersions.js';
+import { recordComponentVersion, getComponentVersion, stampSchemaVersion } from '../src/updates/componentVersions.js';
 
 let pool;
 
@@ -41,5 +41,14 @@ describe('ComponentVersions', () => {
 
   it('getComponentVersion returns null for a component that never reported', async () => {
     expect(await getComponentVersion('worker', pool)).toBeNull();
+  });
+
+  it('stampSchemaVersion stamps the running version once all migrations are applied', async () => {
+    // The contract harness applies every migration, so the guard (pending/ahead)
+    // passes and the version is stamped as the "database" component.
+    const v = await stampSchemaVersion('5.999.20260707.0000', pool);
+    expect(v).toBe('5.999.20260707.0000');
+    const row = await getComponentVersion('database', pool);
+    expect(row.version).toBe('5.999.20260707.0000');
   });
 });

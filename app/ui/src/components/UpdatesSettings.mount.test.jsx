@@ -18,7 +18,7 @@ const statusAvailable = {
   components: {
     web: { version: '5.310.20260629.1221' },
     worker: { version: '5.310.20260629.1221', lastSeenAt: '2026-06-30T07:00:00Z', stale: false },
-    database: { applied: 56, latest: '056_component_versions.sql', ahead: false, pending: false },
+    database: { version: '5.310.20260629.1221', mismatch: false, ahead: false },
   },
   skew: { mismatch: false, workerStale: false, workerKnown: true },
   applyStalled: false,
@@ -53,7 +53,7 @@ describe('UpdatesSettings (mounted)', () => {
     await screen.findByText('Check now');
     // Web + worker both on 5.310 → the version appears more than once, plus a Matched badge.
     expect(screen.getAllByText('5.310.20260629.1221').length).toBeGreaterThan(1);
-    expect(screen.getByText('Matched')).toBeInTheDocument();
+    expect(screen.getAllByText('Matched').length).toBeGreaterThan(0); // worker + database
     expect(screen.getAllByText('edge').length).toBeGreaterThan(0);
     expect(screen.getByText(/Update available:/i)).toBeInTheDocument();
     expect(screen.getAllByText('5.324.20260630.0743').length).toBeGreaterThan(0);
@@ -97,21 +97,24 @@ describe('UpdatesSettings (mounted)', () => {
     expect(await screen.findByText('not reported yet')).toBeInTheDocument();
   });
 
-  it('shows the database migration status', async () => {
+  it('shows the database version, matched to web', async () => {
     renderWithProviders(h(UpdatesSettings), { auth: { authFetch: fetchFor() } });
     expect(await screen.findByText('Database')).toBeInTheDocument();
-    expect(screen.getByText('56 migrations')).toBeInTheDocument();
-    expect(screen.getByText('Up to date')).toBeInTheDocument(); // DB badge (availability badge reads "Update available" here)
+    // Web, worker, and database all on 5.310 → the version string appears several times…
+    expect(screen.getAllByText('5.310.20260629.1221').length).toBeGreaterThan(2);
+    // …and both worker and database show a Matched badge.
+    expect(screen.getAllByText('Matched').length).toBeGreaterThan(1);
   });
 
   it('warns when the database schema is ahead of the running app', async () => {
     const s = {
       ...statusAvailable,
-      components: { ...statusAvailable.components, database: { applied: 57, latest: '057_future.sql', ahead: true, pending: false } },
+      components: { ...statusAvailable.components, database: { version: '5.999.20260707.0000', mismatch: true, ahead: true } },
     };
     renderWithProviders(h(UpdatesSettings), { auth: { authFetch: fetchFor(s) } });
     expect(await screen.findByText(/database schema is newer/i)).toBeInTheDocument();
-    expect(screen.getByText('Schema ahead of app')).toBeInTheDocument();
+    // The stamped DB version appears in the row and again in the banner.
+    expect(screen.getAllByText('5.999.20260707.0000').length).toBeGreaterThan(0);
   });
 
   it('states honestly that the app never installs updates itself', async () => {

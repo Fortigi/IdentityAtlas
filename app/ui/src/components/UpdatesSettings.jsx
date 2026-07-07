@@ -98,8 +98,9 @@ export default function UpdatesSettings() {
   const skewMismatch = !!status?.skew?.mismatch;
   const applyStalled = !!status?.applyStalled;
   const database = status?.components?.database || null;
+  const dbVersion = database?.version || null;
+  const dbMismatch = !!database?.mismatch;
   const dbAhead = !!database?.ahead;
-  const dbPending = !!database?.pending;
 
   return (
     <div className="mt-4 space-y-4">
@@ -140,8 +141,9 @@ export default function UpdatesSettings() {
       {dbAhead && (
         <div className="text-sm text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded p-3">
           <span className="font-semibold">The database schema is newer than the running app.</span>{' '}
-          The database has migrations this version doesn't ship — usually a sign the app was rolled back or an
-          update was only half-applied. Some features may misbehave until the app is back on a build that
+          The database was last migrated by <span className="font-mono">{dbVersion}</span> but the app is
+          running <span className="font-mono">{webVersion}</span> — usually a sign the app was rolled back or
+          an update was only half-applied. Some features may misbehave until the app is back on a build that
           matches the schema.
         </div>
       )}
@@ -177,17 +179,16 @@ export default function UpdatesSettings() {
               {database && (
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="inline-block w-14 text-[11px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Database</span>
-                  <span className="text-sm text-gray-900 dark:text-white">{`${database.applied} migration${database.applied === 1 ? '' : 's'}`}</span>
-                  {database.latest && (
-                    <span className="text-[11px] font-mono text-gray-600 dark:text-gray-400">· {database.latest}</span>
-                  )}
-                  {dbAhead ? (
-                    <span className="inline-block px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300">Schema ahead of app</span>
-                  ) : dbPending ? (
-                    <span className="inline-block px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300">Migrations pending</span>
+                  {dbVersion ? (
+                    <span className="text-sm font-mono text-gray-900 dark:text-white">{dbVersion}</span>
                   ) : (
-                    <span className="inline-block px-2 py-0.5 rounded text-[11px] font-semibold bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-300">Up to date</span>
+                    <span className="text-xs italic text-gray-500 dark:text-gray-400">not stamped yet</span>
                   )}
+                  {dbVersion && (dbMismatch ? (
+                    <span className="inline-block px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300">Mismatch</span>
+                  ) : (
+                    <span className="inline-block px-2 py-0.5 rounded text-[11px] font-semibold bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-300">Matched</span>
+                  ))}
                 </div>
               )}
             </div>

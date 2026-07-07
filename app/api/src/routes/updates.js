@@ -20,7 +20,6 @@ import { resolveChannel, getCurrentVersion } from '../updates/channel.js';
 import { runUpdateCheck, recordLog } from '../updates/checkForUpdates.js';
 import { isNewer } from '../updates/versionCompare.js';
 import { getComponentVersion, computeSkew } from '../updates/componentVersions.js';
-import { getMigrationStatus } from '../db/migrate.js';
 
 const router = Router();
 const writeUpdates = requirePermission('admin.systems');
@@ -43,13 +42,22 @@ async function getAutoUpdateEnabled() {
 router.get('/admin/updates/status', async (_req, res) => {
   try {
     const runningVersion = getCurrentVersion();
-    const [enabled, last, workerRow, database] = await Promise.all([
+    const [enabled, last, workerRow, dbRow] = await Promise.all([
       getAutoUpdateEnabled(),
       db.queryOne(`SELECT * FROM "UpdateLog" ORDER BY "createdAt" DESC LIMIT 1`),
       getComponentVersion('worker'),
-      getMigrationStatus().catch(() => null), // best-effort — never fail status on it
+      getComponentVersion('database'),
     ]);
     const latestVersion = last?.latestVersion || null;
+    // The DB's stamped schema version (set after migrations complete). Compared to
+    // the running web version the same way worker is — Matched / Mismatch, with
+    // `ahead` distinguishing a rollback (DB newer than the running code).
+    const dbVersion = dbRow?.version || null;
+    const database = {
+      version: dbVersion,
+      mismatch: !!(dbVersion && runningVersion && dbVersion !== runningVersion),
+      ahead: !!(dbVersion && runningVersion && isNewer(dbVersion, runningVersion)),
+    };
     // Recompute against the running version rather than trusting the stored
     // boolean (see /updates/intent) so the UI never shows a stale "available".
     const updateAvailable = !!(latestVersion && isNewer(latestVersion, runningVersion));
@@ -83,7 +91,7 @@ router.get('/admin/updates/status', async (_req, res) => {
           lastSeenAt: workerRow?.lastSeenAt || null,
           stale: skew.workerStale,
         },
-        database: database || null,
+        database,
       },
       skew,
       applyStalled,
