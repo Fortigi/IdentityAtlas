@@ -1,0 +1,2 @@
+- Fixed risk scoring so group ownership counts again — owners had silently stopped contributing to risk after ownership moved to its own resource type, so the "user owns many groups" and "group has members but no owner" signals had gone dead.
+- Corrected group member counts and risk propagation to no longer treat group owners as if they were group members.
