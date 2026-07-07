@@ -400,15 +400,20 @@ router.get('/identities/:id', async (req, res) => {
       }
     } catch (e) { if (!isMissingSchema(e)) throw e; /* ResourceAssignments may not exist */ }
 
-    // Context-membership count across the identity's linked principal IDs.
+    // An identity belongs to a context either as an Identity member directly, or
+    // through any of its linked principals (Principal-targeted contexts like Tags
+    // store the principal, not the identity). The old query only checked the
+    // Identity path — of which there are typically none — so it always read 0.
     let contextCount = 0;
     try {
       const r = await timedRequest(p, 'identity-context-count', res)
         .input('identityId', identityId)
         .query(`SELECT COUNT(DISTINCT cm."contextId")::int AS cnt
                   FROM "ContextMembers" cm
-                 WHERE cm."memberId"::text = @identityId
-                   AND cm."memberType" = 'Identity'`);
+                 WHERE (cm."memberType" = 'Identity'  AND cm."memberId"::text = @identityId)
+                    OR (cm."memberType" = 'Principal' AND cm."memberId"::text IN (
+                          SELECT im."principalId"::text FROM "IdentityMembers" im
+                           WHERE im."identityId"::text = @identityId))`);
       contextCount = r.recordset[0]?.cnt || 0;
     } catch (e) { if (!isMissingSchema(e)) throw e; /* ContextMembers may not exist */ }
 
@@ -425,8 +430,9 @@ router.get('/identities/:id', async (req, res) => {
 });
 
 // GET /api/identities/:id/contexts — Lazy-loaded context memberships.
-// ContextMembers are stored with memberType='Identity' and memberId=Identity.UId
-// so we can look up directly without going through IdentityMembers.
+// An identity's contexts are those it is an Identity member of directly, plus any
+// its linked principals are Principal members of (Principal-targeted contexts like
+// Tags store the principal, not the identity).
 router.get('/identities/:id/contexts', async (req, res) => {
   if (!useSql) return res.json([]);
   try {
@@ -437,8 +443,10 @@ router.get('/identities/:id/contexts', async (req, res) => {
                      c."targetType", c.variant
                 FROM "ContextMembers" cm
                 JOIN "Contexts" c ON c.id = cm."contextId"
-               WHERE cm."memberId"::text = @identityId
-                 AND cm."memberType" = 'Identity'
+               WHERE (cm."memberType" = 'Identity'  AND cm."memberId"::text = @identityId)
+                  OR (cm."memberType" = 'Principal' AND cm."memberId"::text IN (
+                        SELECT im."principalId"::text FROM "IdentityMembers" im
+                         WHERE im."identityId"::text = @identityId))
                ORDER BY c.id, c."contextType", c."displayName"`);
     res.json(r.recordset);
   } catch (err) {
