@@ -49,18 +49,18 @@ try {
 # var if a published image ever sets one; fall back to the imported module's
 # ModuleVersion (from setup/IdentityAtlas.psd1, bumped at build time — the same
 # source the web container's version.js falls back to).
-$Global:WorkerVersion = $null
-if ($env:MODULE_VERSION) {
-    $Global:WorkerVersion = $env:MODULE_VERSION
-} else {
-    try {
-        $mod = Get-Module IdentityAtlas
-        if ($mod) { $Global:WorkerVersion = $mod.Version.ToString() }
-    } catch { }
+function Get-WorkerVersion {
+    $v = $env:MODULE_VERSION
+    if (-not $v) {
+        try {
+            $mod = Get-Module IdentityAtlas
+            if ($mod) { $v = $mod.Version.ToString() }
+        } catch { }
+    }
+    if ($v) { Write-Host "  Worker version: $v" -ForegroundColor Gray }
+    return $v
 }
-if ($Global:WorkerVersion) {
-    Write-Host "  Worker version: $Global:WorkerVersion" -ForegroundColor Gray
-}
+$Global:WorkerVersion = Get-WorkerVersion
 
 # ── Discover the built-in API key ─────────────────────────────────────────────
 # Read priority: env var → shared volume file. Startup polls for 5 minutes so
