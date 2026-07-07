@@ -236,19 +236,22 @@ router.get('/resources/:id', async (req, res) => {
       tags = r.recordset;
     } catch (e) { if (!isMissingSchema(e)) throw e; /* table may not exist */ }
 
-    // 3. Member count — broken down by assignmentType so the entity graph
-    //    can show a node per type (Direct / Governed / Owner / Eligible).
+    // 3. Member count — broken down by the universal assignmentType so the entity
+    //    graph can show a node per type (Direct / Indirect / Eligible). governed is
+    //    a flag on a Direct assignment, not a type of its own, so a governed grant
+    //    counts as Direct (its governed-ness shows on the assignment, not here);
+    //    Owner is retired (ownership is its own GroupOwnership resource).
     let memberCount = 0;
-    const assignmentByType = { Direct: 0, Governed: 0, Owner: 0, Eligible: 0 };
+    const assignmentByType = { Direct: 0, Indirect: 0, Eligible: 0 };
     try {
       const r = await timedRequest(pool, 'resource-member-breakdown', res)
         .input('id', resourceId)
         .query(`
-          SELECT CASE WHEN "governed" THEN 'Governed' ELSE "assignmentType" END AS "assignmentType",
+          SELECT "assignmentType",
                  COUNT(DISTINCT "principalId")::int AS cnt
           FROM "ResourceAssignments"
           WHERE "resourceId" = @id
-          GROUP BY 1
+          GROUP BY "assignmentType"
         `);
       for (const row of r.recordset) {
         if (row.assignmentType in assignmentByType) assignmentByType[row.assignmentType] = row.cnt;

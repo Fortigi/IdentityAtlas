@@ -116,10 +116,13 @@ router.get('/user/:id', async (req, res) => {
       tags = r.recordset;
     } catch (e) { if (!isMissingSchema(e)) throw e; /* table may not exist */ }
 
-    // 3. Counts — membership broken down by type so the entity graph can
-    //    show a node per type (Direct / Indirect / Owner / Eligible) without
-    //    pulling the full membership list.
-    const membershipByType = { Direct: 0, Indirect: 0, Owner: 0, Eligible: 0 };
+    // 3. Counts — assignments broken down by the universal assignmentType so the
+    //    entity graph can show a node per type (Direct / Indirect / Eligible) without
+    //    pulling the full list. Each bucket spans every resourceType held that way
+    //    (Group, GroupOwnership, AppRole, DelegatedPermission, …). Owner / OAuth2Grant
+    //    are retired types — those rows now collapse into Direct with their own
+    //    resourceType, so no separate bucket here.
+    const membershipByType = { Direct: 0, Indirect: 0, Eligible: 0 };
     let membershipCount = 0;
     try {
       const r = await timedRequest(pool, 'user-membership-breakdown', res)

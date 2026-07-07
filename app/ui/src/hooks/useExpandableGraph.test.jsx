@@ -5,7 +5,7 @@ import useExpandableGraph from '@ui/hooks/useExpandableGraph';
 
 // Root-ring spec for a user page: two categories we can drill into.
 const ROOT_NODES = [
-  { key: 'groups-direct', label: 'Groups (Direct)', count: 2, kind: 'category' },
+  { key: 'assignments-direct', label: 'Direct', count: 2, kind: 'category' },
   { key: 'contexts', label: 'Contexts', count: 1, kind: 'category' },
 ];
 
@@ -49,20 +49,20 @@ describe('useExpandableGraph — category expansion', () => {
     const { result } = setup({ authFetch: af });
 
     await act(async () => {
-      await result.current.handleNodeClick({ key: 'groups-direct', kind: 'category' });
+      await result.current.handleNodeClick({ key: 'assignments-direct', kind: 'category' });
     });
 
     expect(result.current.pathDepth).toBe(1);
-    expect(result.current.expandedPath).toEqual(['groups-direct']);
+    expect(result.current.expandedPath).toEqual(['assignments-direct']);
 
     // Only the Direct membership survives the filter.
     expect(result.current.activeListItems).toHaveLength(1);
     expect(result.current.activeListItems[0]).toMatchObject({ key: 'resource:g1', label: 'Finance' });
-    expect(result.current.activeListLabel).toBe('Groups (Direct)');
-    expect(result.current.activeListKind).toBe('groups-direct');
+    expect(result.current.activeListLabel).toBe('Direct');
+    expect(result.current.activeListKind).toBe('assignments-direct');
 
     // The nested tree carries the children under the matching root node.
-    const direct = result.current.nodesWithExpansion.find((n) => n.key === 'groups-direct');
+    const direct = result.current.nodesWithExpansion.find((n) => n.key === 'assignments-direct');
     expect(direct.children).toHaveLength(1);
   });
 
@@ -74,10 +74,10 @@ describe('useExpandableGraph — category expansion', () => {
     const { result } = setup({ authFetch: af });
 
     await act(async () => {
-      await result.current.handleNodeClick({ key: 'groups-direct', kind: 'category' });
+      await result.current.handleNodeClick({ key: 'assignments-direct', kind: 'category' });
     });
 
-    const direct = result.current.nodesWithExpansion.find((n) => n.key === 'groups-direct');
+    const direct = result.current.nodesWithExpansion.find((n) => n.key === 'assignments-direct');
     expect(direct.children).toHaveLength(10); // capped
     expect(direct.children[9].overflow).toBe(true);
     // The list below the graph keeps the full set.
@@ -91,12 +91,12 @@ describe('useExpandableGraph — category expansion', () => {
     const { result } = setup({ authFetch: af });
 
     await act(async () => {
-      await result.current.handleNodeClick({ key: 'groups-direct', kind: 'category' });
+      await result.current.handleNodeClick({ key: 'assignments-direct', kind: 'category' });
     });
     expect(result.current.pathDepth).toBe(1);
 
     await act(async () => {
-      await result.current.handleNodeClick({ key: 'groups-direct', kind: 'category' });
+      await result.current.handleNodeClick({ key: 'assignments-direct', kind: 'category' });
     });
     expect(result.current.pathDepth).toBe(0);
     expect(result.current.activeListItems).toBeNull();
@@ -117,7 +117,7 @@ describe('useExpandableGraph — item drill-down', () => {
 
     // Expand the category first to surface the item.
     await act(async () => {
-      await result.current.handleNodeClick({ key: 'groups-direct', kind: 'category' });
+      await result.current.handleNodeClick({ key: 'assignments-direct', kind: 'category' });
     });
     const item = result.current.activeListItems[0];
     expect(item.kind).toBe('item');
@@ -128,16 +128,16 @@ describe('useExpandableGraph — item drill-down', () => {
     });
 
     expect(result.current.pathDepth).toBe(2);
-    expect(result.current.expandedPath).toEqual(['groups-direct', item.key]);
+    expect(result.current.expandedPath).toEqual(['assignments-direct', item.key]);
 
     // The item step attaches the resource's root category nodes as children.
-    const direct = result.current.nodesWithExpansion.find((n) => n.key === 'groups-direct');
+    const direct = result.current.nodesWithExpansion.find((n) => n.key === 'assignments-direct');
     const itemNode = direct.children.find((c) => c.key === item.key);
     expect(itemNode.children.some((c) => c.key === 'members-direct')).toBe(true);
 
     // The active list still reflects the deepest CATEGORY step (depth 0), since the
     // item step is not a category.
-    expect(result.current.activeListKind).toBe('groups-direct');
+    expect(result.current.activeListKind).toBe('assignments-direct');
   });
 
   it('does nothing for a non-expandable item kind', async () => {
@@ -171,7 +171,7 @@ describe('useExpandableGraph — item drill-down', () => {
     });
     const { result } = setup({ authFetch: af });
     await act(async () => {
-      await result.current.handleNodeClick({ key: 'groups-direct', kind: 'category' });
+      await result.current.handleNodeClick({ key: 'assignments-direct', kind: 'category' });
     });
     const item = result.current.activeListItems[0];
     await act(async () => {
@@ -197,7 +197,7 @@ describe('useExpandableGraph — deriveLabel breadcrumb + reset', () => {
     const { result } = setup({ authFetch: af });
 
     await act(async () => {
-      await result.current.handleNodeClick({ key: 'groups-direct', kind: 'category' });
+      await result.current.handleNodeClick({ key: 'assignments-direct', kind: 'category' });
     });
     const item = result.current.activeListItems[0];
     await act(async () => {
@@ -211,7 +211,7 @@ describe('useExpandableGraph — deriveLabel breadcrumb + reset', () => {
     expect(result.current.pathDepth).toBe(3);
     expect(result.current.activeListKind).toBe('members-direct');
     // Breadcrumb spans all three drilled steps.
-    expect(result.current.activeListLabel).toBe('Groups (Direct) → Finance → Direct Members');
+    expect(result.current.activeListLabel).toBe('Direct → Finance → Direct Members');
     expect(result.current.activeListItems[0]).toMatchObject({ key: 'user:p1', label: 'Alice' });
   });
 
@@ -221,7 +221,7 @@ describe('useExpandableGraph — deriveLabel breadcrumb + reset', () => {
     });
     const { result } = setup({ authFetch: af });
     await act(async () => {
-      await result.current.handleNodeClick({ key: 'groups-direct', kind: 'category' });
+      await result.current.handleNodeClick({ key: 'assignments-direct', kind: 'category' });
     });
     expect(result.current.pathDepth).toBe(1);
     act(() => {

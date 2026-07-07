@@ -9,6 +9,8 @@
 // Rows link to the corresponding entity detail tab when the entity
 // kind has one; leaves just render the label.
 
+import { friendlyLabel } from '@ui/utils/formatters';
+
 const ENTITY_LABELS = {
   user:             'User',
   resource:         'Resource',
@@ -53,7 +55,11 @@ export default function ExpandedItemsList({ label, items, loading, onOpenDetail 
           <tbody>
             {items.map((it, i) => {
               const target = DETAIL_TARGET[it.entityKind];
-              const typeLabel = ENTITY_LABELS[it.entityKind] || '';
+              // Prefer the assignment's resourceType (Group / Group Ownership / App
+              // Role / Delegated Permission / …) so a mixed Direct/Indirect list makes
+              // clear what KIND each row is; fall back to the counterparty entity kind
+              // (e.g. "User" on a resource's member list, where there is no resourceType).
+              const typeLabel = it.resourceType ? friendlyLabel(it.resourceType) : (ENTITY_LABELS[it.entityKind] || '');
               const clickable = target && !it.overflow && it.entityId;
               return (
                 <tr key={it.key + ':' + i} className="border-b border-gray-50 dark:border-gray-700/50 last:border-b-0 hover:bg-gray-50 dark:hover:bg-gray-700/40">

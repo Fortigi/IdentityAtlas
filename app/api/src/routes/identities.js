@@ -447,14 +447,16 @@ router.get('/identities/:id/contexts', async (req, res) => {
   }
 });
 
-// GET /api/identities/:id/assignments?type=Direct|Governed|Owner|Eligible|OAuth2Grant
+// GET /api/identities/:id/assignments?type=Direct|Indirect|Eligible
 // Flattens assignments across every linked account — used by the identity
-// detail graph when the user clicks a relationship node.
+// detail graph when the user clicks a relationship node. The universal
+// assignmentTypes are the only valid filters (Governed is a flag, Owner /
+// OAuth2Grant are retired — their rows collapse into Direct).
 router.get('/identities/:id/assignments', async (req, res) => {
   if (!useSql) return res.json([]);
   const identityId = req.params.id;
   if (!UUID_RE.test(identityId)) return res.status(400).json({ error: 'Invalid identity ID' });
-  const ALLOWED = ['Direct', 'Governed', 'Owner', 'Eligible', 'OAuth2Grant'];
+  const ALLOWED = ['Direct', 'Indirect', 'Eligible'];
   const type = req.query.type;
   if (!ALLOWED.includes(type)) return res.status(400).json({ error: 'Invalid assignment type' });
 
