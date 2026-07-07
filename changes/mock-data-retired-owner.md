@@ -1,1 +1,0 @@
-- The built-in demo/mock dataset no longer uses the retired `Owner` membership type, so mock mode matches the current data model (group ownership is represented as its own resource, not a membership type).

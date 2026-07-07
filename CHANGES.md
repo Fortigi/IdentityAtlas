@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- The built-in demo/mock dataset no longer uses the retired `Owner` membership type, so mock mode matches the current data model (group ownership is represented as its own resource, not a membership type).
+
+## Changes in this PR
+
 - Made the **Timeline** tab and the recent-changes panel load much faster on user, resource, access-package and identity detail pages. They previously scanned the entire change-history table on every open, so they got slower as history grew; they now use targeted indexes and stay fast regardless of how much history has accumulated.
 
 ## Changes in this PR
