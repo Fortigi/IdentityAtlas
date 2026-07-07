@@ -21,6 +21,13 @@ export default defineConfig({
     // require per-test isolation that adds complexity. Keep it simple.
     pool: 'forks',
     forks: { singleFork: true },
+    // singleFork puts every file in ONE process but does NOT serialise them —
+    // Vitest still interleaves files' async hooks/tests on the event loop, so
+    // multiple files hit the shared DB at once and race on global constraints
+    // (uq_RA_principal isn't systemId-scoped) and shared tables (ContextAlgorithms),
+    // which made the full suite flaky while each file passed alone. Files must run
+    // strictly one at a time against the single shared DB.
+    fileParallelism: false,
     // Container startup + migrations take ~30-60s; allow enough headroom.
     testTimeout: 30000,
     hookTimeout: 120000,
