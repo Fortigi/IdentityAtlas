@@ -578,6 +578,12 @@ jobs:
             if [ -z "${FRAGMENT}" ]; then
               echo "::error::Code changed but no changelog fragment found. Add a bullet to changes/<branch>.md (never edit CHANGES.md)."
               FAIL=1
+            elif ! grep -qE '^[[:space:]]*[-*][[:space:]]+[^[:space:]]' ${FRAGMENT}; then
+              # A fragment file exists but is empty / has no bullet — that silently
+              # satisfied the gate before. Require at least one real bullet line.
+              echo "::error::A changelog fragment exists but has no bullet line. Add at least one '- ...' bullet describing the change to changes/<branch>.md:"
+              echo "${FRAGMENT}" | sed 's/^/  /'
+              FAIL=1
             fi
           else
             echo "No product code changed — tests/changelog not required."
@@ -706,8 +712,36 @@ jobs:
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
-      - name: Check code duplication
+      - name: Check code duplication (aggregate threshold)
         run: npx --yes jscpd@3 . --config .jscpd.json
+
+      # PR-delta: catch a NEW clone this PR introduces even when total duplication
+      # stays under the aggregate threshold (minTokens=50/minLines=10 means small
+      # pastes never move the 2% average). Compares clone counts head-vs-base and
+      # degrades to a warning (the aggregate check above still gates) if a report
+      # can't be parsed — so it can never make CI worse.
+      - name: Fail on new clones vs base
+        run: |
+          set -uo pipefail
+          clones() {
+            npx --yes jscpd@3 . --config .jscpd.json --threshold 100 \
+              --reporters json --output "$1" >/dev/null 2>&1 || true
+            node -e "try{console.log(require(process.cwd()+'/'+process.argv[1]+'/jscpd-report.json').statistics.total.clones)}catch(e){console.log(-1)}" "$1"
+          }
+          HEAD_CLONES=$(clones jscpd-head)
+          git fetch --no-tags --depth=1 origin "${{ github.base_ref }}" || true
+          git checkout -q FETCH_HEAD || true
+          BASE_CLONES=$(clones jscpd-base)
+          git checkout -q "${GITHUB_SHA}" 2>/dev/null || git checkout -q - 2>/dev/null || true
+          echo "jscpd clones — base: ${BASE_CLONES}, head: ${HEAD_CLONES}"
+          if [ "${HEAD_CLONES}" = "-1" ] || [ "${BASE_CLONES}" = "-1" ]; then
+            echo "::warning::jscpd delta check couldn't parse a report; relying on the aggregate threshold only."
+            exit 0
+          fi
+          if [ "${HEAD_CLONES}" -gt "${BASE_CLONES}" ]; then
+            echo "::error::This PR introduces $((HEAD_CLONES - BASE_CLONES)) new code clone(s) (base ${BASE_CLONES} -> head ${HEAD_CLONES}) below the aggregate threshold. Extract the shared code instead (Reuse before creating)."
+            exit 1
+          fi
 
   # ── Gate: single required check for branch protection ───────────────────
   # Replaces the individual job requirements in branch protection. Update branch
