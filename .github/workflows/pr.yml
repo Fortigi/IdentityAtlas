@@ -301,8 +301,18 @@ jobs:
           $cfg.CodeCoverage.OutputPath = 'pester-coverage.xml'
           $cfg.CodeCoverage.OutputFormat = 'JaCoCo'
           $result = Invoke-Pester -Configuration $cfg
-          Write-Host "Coverage: $([Math]::Round($result.CodeCoverage.CoveragePercent, 1))%"
+          $pct = [Math]::Round($result.CodeCoverage.CoveragePercent, 1)
+          Write-Host "Coverage: $pct%"
           if ($result.FailedCount -gt 0) { exit 1 }
+          # PowerShell coverage floor — the "coverage never down" ratchet for the
+          # PS side (the JS side already has committed vitest thresholds). RAISE
+          # this when coverage rises; only ever lower it as a reviewed, justified
+          # change. Measured ~91.9%.
+          $FLOOR = 90.0
+          if ($pct -lt $FLOOR) {
+            Write-Host "::error::Pester coverage $pct% is below the floor of $FLOOR%. Add tests for the PowerShell you changed, or lower the floor in pr.yml with justification."
+            exit 1
+          }
 
       - name: Upload test results
         if: always()
