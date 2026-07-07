@@ -1,5 +1,12 @@
 ## Changes in this PR
 
+- Admin → Updates now shows the web and worker version numbers side by side with a Matched / Mismatch badge, so you can confirm the two are in sync. A banner appears if they drift out of step — a sign an update was interrupted or only half-applied.
+- Added a Database version to Admin → Updates, shown next to web and worker with a Matched / Mismatch badge. The app stamps its version onto the database once the required migrations have run, so you can confirm at a glance that all three are on the same version. It warns if the database schema is newer than the running app (e.g. after a rollback or a half-applied update).
+- Made the Updates screen honest about how updating works: Identity Atlas checks for and reports new versions but never installs them itself — a separate update agent does that. The automatic-updates switch wording now reflects this, and a warning appears when automatic updates are on but nothing has actually been installing them.
+- Fixed the update signal so it re-checks against the running version: after an update lands (or the app restarts) it no longer keeps reporting the same version as available, which could otherwise make an update agent re-apply the same version repeatedly.
+
+## Changes in this PR
+
 - Reworked the **Relationships** graph and drill-down lists on entity detail pages (users, resources, identities) to match the current access model. Access is now grouped by how it's held — **Direct / Indirect / Eligible** — instead of the outdated "Groups (Direct)", "Groups (Indirect)", "Groups Owned" and "OAuth2 Grants" buckets (the latter two were retired concepts that always showed 0).
 - When you drill into a bucket, each row now shows **what kind of resource the assignment is for** — Group, Group ownership, App role, Delegated permission, App permission, Directory role, Business role, and so on — instead of a generic "Resource" label. This makes a Direct bucket that spans many resource types readable at a glance.
 - Resource detail pages now show an **Indirect Members** bucket that was previously missing.
