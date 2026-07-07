@@ -3770,7 +3770,7 @@
 <tr>
 <td><code>data[].membershipType</code></td>
 <td>string</td>
-<td><code>Direct</code>, <code>Indirect</code>, <code>Eligible</code>, or <code>Owner</code></td>
+<td><code>Direct</code>, <code>Indirect</code>, or <code>Eligible</code></td>
 </tr>
 <tr>
 <td><code>data[].managedByAccessPackage</code></td>
@@ -3943,8 +3943,8 @@
 <h2 id="matrix-rendering-notes">Matrix Rendering Notes<a class="headerlink" href="#matrix-rendering-notes" title="Permanent link">&para;</a></h2>
 <p>The frontend builds the matrix from the flat <code>/api/permissions</code> response:</p>
 <ol>
-<li><strong>Row deduplication</strong> — multiple rows for the same user (e.g. <code>Direct</code> + <code>Owner</code>) are merged into a single user row with multi-type badges per cell.</li>
-<li><strong>Owner rows</strong> — <code>membershipType='Owner'</code> rows are separated into synthetic rows with suffix <code>(Owner)</code> and <code>id: groupId__owner</code>.</li>
+<li><strong>Row deduplication</strong> — multiple rows for the same user (e.g. <code>Direct</code> + <code>Eligible</code>) are merged into a single user row with multi-type badges per cell.</li>
+<li><strong>Ownership rows</strong> — group ownership is its own resource (<code>resourceType='GroupOwnership'</code>), so an owner appears as a <code>Direct</code> membership on that ownership resource — a normal row, not a synthetic <code>Owner</code>-type split.</li>
 <li><strong>SOLL columns</strong> — built from <code>/api/access-package-groups</code>. Each business role becomes a column. Resources within a role determine which cells are "managed".</li>
 <li><strong>AP coloring</strong> — each business role column gets a color from a 15-color palette defined in <code>MatrixColumnHeaders.jsx</code>.</li>
 <li><strong>Staircase sort</strong> — default row order groups users by their leftmost AP bucket. Custom drag order persists via versioned localStorage.</li>

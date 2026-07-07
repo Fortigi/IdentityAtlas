@@ -4067,13 +4067,9 @@
 <td><code>E</code></td>
 <td>Eligible (PIM) member</td>
 </tr>
-<tr>
-<td><code>O</code></td>
-<td>Owner</td>
-</tr>
 </tbody>
 </table>
-<p>Cells with multiple types show all badges. Owner (<code>O</code>) memberships appear in separate rows suffixed with <code>(Owner)</code> — ownership is a fundamentally different relationship from membership.</p>
+<p>Cells with multiple types show all badges. Ownership is its own resource (<code>resourceType='GroupOwnership'</code>) shown as a normal row, so an owner appears as a <code>Direct</code> membership on that ownership resource rather than a separate badge.</p>
 <h4 id="business-role-columns-soll-view">Business Role Columns (SOLL View)<a class="headerlink" href="#business-role-columns-soll-view" title="Permanent link">&para;</a></h4>
 <p>When the IST/SOLL toggle is set to <strong>SOLL</strong>, the matrix adds columns for each business role that governs user-resource assignments. Each business role gets a distinct color from a 15-color palette. Cells managed by multiple business roles show a count badge.</p>
 <h4 id="staircase-sort">Staircase Sort<a class="headerlink" href="#staircase-sort" title="Permanent link">&para;</a></h4>
@@ -4135,7 +4131,7 @@
 <h3 id="resources-page">Resources Page<a class="headerlink" href="#resources-page" title="Permanent link">&para;</a></h3>
 <p>Browse all synced resources (groups, directory roles, app roles, etc.) with pagination.</p>
 <ul>
-<li><strong>Resource Type filter:</strong> EntraGroup, EntraDirectoryRole, EntraAppRole, and others</li>
+<li><strong>Resource Type filter:</strong> Group, EntraDirectoryRole, AppRole, and others</li>
 <li><strong>System filter:</strong> restrict to a specific connected system</li>
 <li><strong>Tag management:</strong> same as the Users page</li>
 </ul>

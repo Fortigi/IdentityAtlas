@@ -3871,7 +3871,7 @@ All core tables are tracked by a shared <code>_history</code> audit table popula
 <p><strong>Core + JSON</strong>
 Frequently queried attributes (<code>displayName</code>, <code>resourceType</code>, <code>department</code>) are real SQL columns with indexes. System-specific fields that vary by source live in an <code>extendedAttributes</code> TEXT (JSON) column. This gives you index performance on hot paths without a rigid, source-specific schema.</p>
 <p><strong>Unified business roles</strong>
-Business roles are not stored in a separate table. They are <code>Resources</code> with <code>resourceType = 'BusinessRole'</code>. Their assignments are <code>ResourceAssignments</code> with <code>assignmentType = 'Governed'</code>. Their resource grants are <code>ResourceRelationships</code> with <code>relationshipType = 'Contains'</code>. The result is a single set of views, risk scores, and queries that apply to all resource types equally.</p>
+Business roles are not stored in a separate table. They are <code>Resources</code> with <code>resourceType = 'BusinessRole'</code>. Their assignments are <code>ResourceAssignments</code> flagged <code>governed = true</code> (with a <code>Direct</code> <code>assignmentType</code>). Their resource grants are <code>ResourceRelationships</code> with <code>relationshipType = 'Contains'</code>. The result is a single set of views, risk scores, and queries that apply to all resource types equally.</p>
 <hr />
 <h2 id="conceptual-hierarchy">Conceptual Hierarchy<a class="headerlink" href="#conceptual-hierarchy" title="Permanent link">&para;</a></h2>
 <p>The model is organized around real people, not system accounts:</p>
@@ -4408,7 +4408,7 @@ Business roles are not stored in a separate table. They are <code>Resources</cod
 </thead>
 <tbody>
 <tr>
-<td><code>EntraGroup</code></td>
+<td><code>Group</code></td>
 <td>Entra ID</td>
 <td>Security group or Microsoft 365 group</td>
 </tr>
@@ -4428,9 +4428,24 @@ Business roles are not stored in a separate table. They are <code>Resources</cod
 <td>One synthetic resource per (clientSP, targetAPI, OAuth2 scope). Linked to its parent via <code>relationshipType='DelegatesScope'</code>.</td>
 </tr>
 <tr>
+<td><code>ApplicationPermission</code></td>
+<td>Entra ID</td>
+<td>One synthetic resource per (clientSP, targetAPI, appRole) — the app-only (admin-consented) permission a service principal holds on another API (e.g. <code>Mail.Read</code> on Microsoft Graph). The app-only sibling of <code>DelegatedPermission</code>; linked to its parent client app via <code>relationshipType='HasApplicationPermission'</code>.</td>
+</tr>
+<tr>
+<td><code>ServicePrincipalOwnership</code></td>
+<td>Entra ID</td>
+<td>Owners of an enterprise-app service principal — one resource per owned app, linked to its <code>Application</code> via <code>relationshipType='HasAppOwnership'</code>.</td>
+</tr>
+<tr>
+<td><code>ApplicationOwnership</code></td>
+<td>Entra ID</td>
+<td>Owners of an app registration (who can add a credential and authenticate as the app), matched to the app's SP by <code>appId</code> and linked via <code>HasAppOwnership</code>.</td>
+</tr>
+<tr>
 <td><code>BusinessRole</code></td>
 <td>Entra ID, Omada, MidPoint</td>
-<td>Entra ID access package; Omada business role; MidPoint role type. Contains child resources via <code>relationshipType='Contains'</code>; assigned via <code>assignmentType='Governed'</code>.</td>
+<td>Entra ID access package; Omada business role; MidPoint role type. Contains child resources via <code>relationshipType='Contains'</code>; assigned via a <code>Direct</code> membership flagged <code>governed=true</code>.</td>
 </tr>
 <tr>
 <td><code>Entitlement</code></td>
@@ -4460,7 +4475,7 @@ Business roles are not stored in a separate table. They are <code>Resources</cod
 </div>
 <hr />
 <h2 id="assignmenttype-values">assignmentType Values<a class="headerlink" href="#assignmenttype-values" title="Permanent link">&para;</a></h2>
-<p>The <code>assignmentType</code> column on ResourceAssignments describes how the assignment was created and what it means.</p>
+<p>The <code>assignmentType</code> column on ResourceAssignments describes <em>how</em> a principal holds the access. <strong>Only three values are accepted — ingest rejects anything else</strong> (see <code>app/api/src/ingest/assignmentTypes.guard.test.js</code>):</p>
 <table>
 <thead>
 <tr>
@@ -4471,38 +4486,25 @@ Business roles are not stored in a separate table. They are <code>Resources</cod
 <tbody>
 <tr>
 <td><code>Direct</code></td>
-<td>Direct group or role membership</td>
+<td>Directly held — a group/role membership, a directly-assigned app role, an OAuth2 grant, or ownership (modelled as a <code>Direct</code> membership on a <code>GroupOwnership</code> resource)</td>
 </tr>
 <tr>
-<td><code>Owner</code></td>
-<td>Group owner relationship</td>
+<td><code>Indirect</code></td>
+<td>Inherited through a nested resource (e.g. an app role held via group membership)</td>
 </tr>
 <tr>
 <td><code>Eligible</code></td>
 <td>PIM-eligible membership — granted but not yet activated</td>
 </tr>
-<tr>
-<td><code>Governed</code></td>
-<td>Assigned through a business role or access package</td>
-</tr>
-<tr>
-<td><code>AppRole</code></td>
-<td>Direct app role assignment to a principal</td>
-</tr>
-<tr>
-<td><code>AppRoleViaGroup</code></td>
-<td>App role inherited through group membership</td>
-</tr>
-<tr>
-<td><code>OAuth2Grant</code></td>
-<td>Delegated OAuth2 permission grant</td>
-</tr>
-<tr>
-<td>Custom</td>
-<td>Any string for CSV-imported assignments</td>
-</tr>
 </tbody>
 </table>
+<p>Everything that used to be its own <code>assignmentType</code> is now modelled differently — the source detail is carried elsewhere, not in <code>assignmentType</code>:</p>
+<ul>
+<li><strong>Ownership</strong> → a <code>Direct</code> membership on a <code>GroupOwnership</code> resource (not an <code>Owner</code> type).</li>
+<li><strong>Governance</strong> → the <code>governed</code> boolean flag on the assignment, with the business role / access package flagged <code>governanceResource</code> (not a <code>Governed</code> type).</li>
+<li><strong>Source-attribute detail</strong> (former <code>OAuth2Grant</code>, <code>AppRole</code>, <code>AppRoleViaGroup</code>, <code>DirectoryRole</code>, <code>DirectoryRoleEligible</code>) → collapses to <code>Direct</code> / <code>Indirect</code> / <code>Eligible</code>, with <code>resourceType</code> carrying the source detail.</li>
+</ul>
+<p>CSV and custom crawlers follow the same rule — map onto one of the three accepted values (they can't invent their own <code>assignmentType</code>).</p>
 <hr />
 <h2 id="source-system-mapping">Source System Mapping<a class="headerlink" href="#source-system-mapping" title="Permanent link">&para;</a></h2>
 <p>The same tables (Resources, Principals, ResourceAssignments) absorb data from any source. The crawler and the <code>resourceType</code> / <code>assignmentType</code> values are the only things that differ.</p>
@@ -4520,9 +4522,16 @@ Business roles are not stored in a separate table. They are <code>Resources</cod
 <tr>
 <td>Entra ID groups</td>
 <td>Entra ID</td>
-<td><code>EntraGroup</code></td>
+<td><code>Group</code></td>
 <td><code>User</code></td>
-<td><code>Direct</code> / <code>Owner</code> / <code>Eligible</code></td>
+<td><code>Direct</code> / <code>Eligible</code></td>
+</tr>
+<tr>
+<td>Entra ID group ownership</td>
+<td>Entra ID</td>
+<td><code>GroupOwnership</code></td>
+<td><code>User</code></td>
+<td><code>Direct</code></td>
 </tr>
 <tr>
 <td>Entra ID enterprise apps</td>
@@ -4536,42 +4545,49 @@ Business roles are not stored in a separate table. They are <code>Resources</cod
 <td>Entra ID</td>
 <td><code>AppRole</code></td>
 <td><code>User</code> / <code>ServicePrincipal</code></td>
-<td><code>AppRole</code> / <code>AppRoleViaGroup</code></td>
+<td><code>Direct</code> / <code>Indirect</code></td>
 </tr>
 <tr>
 <td>Entra ID OAuth2 grants</td>
 <td>Entra ID</td>
 <td><code>DelegatedPermission</code></td>
 <td><code>User</code></td>
-<td><code>OAuth2Grant</code></td>
+<td><code>Direct</code></td>
+</tr>
+<tr>
+<td>Entra ID app permissions</td>
+<td>Entra ID</td>
+<td><code>ApplicationPermission</code></td>
+<td><code>ServicePrincipal</code> / <code>ManagedIdentity</code> / <code>AIAgent</code></td>
+<td><code>Direct</code></td>
 </tr>
 <tr>
 <td>Entra ID access packages</td>
 <td>Entra ID</td>
 <td><code>BusinessRole</code></td>
 <td><code>User</code></td>
-<td><code>Governed</code></td>
+<td><code>Direct</code> (<code>governed</code>)</td>
 </tr>
 <tr>
 <td>Omada business roles</td>
 <td>Omada</td>
 <td><code>BusinessRole</code></td>
 <td><code>User</code></td>
-<td><code>Governed</code></td>
+<td><code>Direct</code> (<code>governed</code>)</td>
 </tr>
 <tr>
 <td>Omada resources</td>
 <td>Omada</td>
 <td><code>Resource</code></td>
 <td><code>User</code></td>
-<td><code>Governed</code></td>
+<td><code>Direct</code> (<code>governed</code>)</td>
 </tr>
 <tr>
 <td>MidPoint roles</td>
 <td>MidPoint</td>
 <td><code>BusinessRole</code></td>
 <td><code>User</code></td>
-<td><code>Governed</code></td>
+<td><code>Direct</code> (<code>governed</code>)</td>
 </tr>
 <tr>
 <td>MidPoint entitlements (AD groups etc.)</td>
@@ -4585,14 +4601,14 @@ Business roles are not stored in a separate table. They are <code>Resources</cod
 <td>MidPoint</td>
 <td><code>Service</code></td>
 <td><code>User</code></td>
-<td><code>Governed</code></td>
+<td><code>Direct</code> (<code>governed</code>)</td>
 </tr>
 <tr>
 <td>Any system</td>
 <td>CSV / custom crawler</td>
 <td>Any string</td>
 <td>Any</td>
-<td>Any</td>
+<td><code>Direct</code> / <code>Indirect</code> / <code>Eligible</code></td>
 </tr>
 </tbody>
 </table>

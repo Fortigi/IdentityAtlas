@@ -3578,19 +3578,19 @@ disease.</p>
 <td><code>Direct</code></td>
 <td>group members (<code>:1350</code>); Omada (<code>omada/…:1184</code>); Azure (<code>azure-rm/…:462</code>); CSV</td>
 <td>the group itself / a resource</td>
-<td><code>EntraGroup</code>, <code>AzureRoleAssignment</code>, …</td>
+<td><code>Group</code>, <code>AzureRoleAssignment</code>, …</td>
 </tr>
 <tr>
 <td><code>Owner</code></td>
 <td>group owners (<code>:1375</code>)</td>
 <td><strong>the group itself</strong></td>
-<td><code>EntraGroup</code></td>
+<td><code>Group</code></td>
 </tr>
 <tr>
 <td><code>Eligible</code></td>
 <td>PIM-eligible group members (<code>:1442</code>)</td>
 <td>the group itself</td>
-<td><code>EntraGroup</code></td>
+<td><code>Group</code></td>
 </tr>
 <tr>
 <td><code>Governed</code></td>
@@ -3620,13 +3620,13 @@ disease.</p>
 <td><code>DirectoryRole</code></td>
 <td>active directory role (<code>:2444</code>)</td>
 <td><strong>synthetic</strong></td>
-<td><code>EntraRole</code></td>
+<td><code>EntraDirectoryRole</code></td>
 </tr>
 <tr>
 <td><code>DirectoryRoleEligible</code></td>
 <td>PIM-eligible directory role (<code>:2466</code>)</td>
 <td><strong>synthetic</strong></td>
-<td><code>EntraRole</code></td>
+<td><code>EntraDirectoryRole</code></td>
 </tr>
 </tbody>
 </table>
@@ -3635,14 +3635,14 @@ disease.</p>
 <li>
 <p><strong>The "source" types already point at synthetic resources.</strong> <code>OAuth2Grant</code>,
    <code>AppRole</code>, <code>DirectoryRole</code>, and <code>DirectoryRoleEligible</code> all target a resource
-   (<code>DelegatedPermission</code>, <code>AppRole</code>, <code>EntraRole</code>) that <em>already</em> carries the
+   (<code>DelegatedPermission</code>, <code>AppRole</code>, <code>EntraDirectoryRole</code>) that <em>already</em> carries the
    "what." Their distinct <code>assignmentType</code> is <strong>redundant for "what"</strong> — it only
    survives as the sync-partition key (job #2) plus the direct/indirect/eligible
    distinction (job #1). The codebase is already halfway to the target model.</p>
 </li>
 <li>
 <p><strong>Owner is purely a flag.</strong> Group owners are written against the group's
-   <strong>own</strong> <code>EntraGroup</code> resourceId with <code>assignmentType='Owner'</code>. There is <strong>no</strong>
+   <strong>own</strong> <code>Group</code> resourceId with <code>assignmentType='Owner'</code>. There is <strong>no</strong>
    "ownership of group X" resource. So owner-as-resource is genuinely new
    modeling — but it is the <em>only</em> "how" that isn't already
    direct/indirect/eligible.</p>
@@ -3733,8 +3733,8 @@ already clean.</p>
 <ul>
 <li><strong><code>assignmentType</code> ∈ <code>{ Direct, Indirect, Eligible }</code></strong> — the universal "how,"
   and nothing else.</li>
-<li><strong>"What kind" lives entirely on <code>resourceType</code></strong> (<code>EntraGroup</code>, <code>AppRole</code>,
-  <code>DelegatedPermission</code>, <code>EntraRole</code>, <code>AccessPackage</code>, <code>BusinessRole</code>, … plus a
+<li><strong>"What kind" lives entirely on <code>resourceType</code></strong> (<code>Group</code>, <code>AppRole</code>,
+  <code>DelegatedPermission</code>, <code>EntraDirectoryRole</code>, <code>AccessPackage</code>, <code>BusinessRole</code>, … plus a
   <strong>new ownership resource</strong>).</li>
 <li><strong>Owner → <code>Direct</code> assignment to an <code>Owner @ &lt;name&gt;</code> resource</strong>, linked to the
   owned resource by a <code>ResourceRelationship</code> (mirroring <code>AppRole --HasAppRole--&gt;
@@ -3790,7 +3790,7 @@ every current phase:</p>
 <tbody>
 <tr>
 <td>group members</td>
-<td>EntraGroup</td>
+<td>Group</td>
 <td>Direct</td>
 </tr>
 <tr>
@@ -3800,7 +3800,7 @@ every current phase:</p>
 </tr>
 <tr>
 <td>group PIM-eligible</td>
-<td>EntraGroup</td>
+<td>Group</td>
 <td>Eligible</td>
 </tr>
 <tr>
@@ -3815,7 +3815,7 @@ every current phase:</p>
 </tr>
 <tr>
 <td>directory role (active / eligible)</td>
-<td>EntraRole</td>
+<td>EntraDirectoryRole</td>
 <td>Direct / Eligible</td>
 </tr>
 <tr>

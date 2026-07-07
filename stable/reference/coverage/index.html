@@ -3440,8 +3440,8 @@
 <h1 id="test-coverage">Test Coverage<a class="headerlink" href="#test-coverage" title="Permanent link">&para;</a></h1>
 <!-- GENERATED FILE — do not edit by hand. Produced by tools/generate-coverage-doc.py via .github/workflows/coverage.yml. -->
 
-<p>Line coverage across the project's automated test suites, regenerated on every merge to <code>main</code>. The figures on this page reflect the version of the docs you are viewing — <strong>edge</strong> tracks <code>main</code>, a released version is frozen at its release tag.</p>
-<p><img alt="Overall coverage" src="https://img.shields.io/badge/coverage-66.0%25-yellow" /></p>
+<p>Test quality across the project's automated suites — line/branch/method coverage plus, where measured, code complexity and mutation score — regenerated on every merge to <code>main</code>. The figures on this page reflect the version of the docs you are viewing — <strong>edge</strong> tracks <code>main</code>, a released version is frozen at its release tag.</p>
+<p><img alt="Overall coverage" src="https://img.shields.io/badge/coverage-76.5%25-yellow" /></p>
 <table>
 <thead>
 <tr>
@@ -3449,40 +3449,56 @@
 <th>Line</th>
 <th>Branch</th>
 <th>Method</th>
+<th>Cyclomatic</th>
+<th>Cognitive</th>
+<th>Mutation</th>
 <th>Lines covered</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td><a href="../../coverage/api/">API (Node / Vitest — unit + contract)</a></td>
-<td>72.7%</td>
-<td>61.2%</td>
-<td>75.9%</td>
-<td>6,529 / 8,974</td>
+<td>73.8%</td>
+<td>62.6%</td>
+<td>76.5%</td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
+<td>6,694 / 9,068</td>
 </tr>
 <tr>
 <td><a href="../../coverage/ui/">UI (React / Vitest)</a></td>
-<td>66.5%</td>
-<td>54.8%</td>
-<td>53.1%</td>
-<td>4,681 / 7,034</td>
+<td>67.0%</td>
+<td>55.5%</td>
+<td>53.7%</td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
+<td>4,761 / 7,099</td>
 </tr>
 <tr>
 <td><a href="../../coverage/powershell/">PowerShell (Pester)</a></td>
-<td>53.8%</td>
+<td>91.9%</td>
 <td>—</td>
-<td>93.4%</td>
-<td>2,902 / 5,385</td>
+<td>97.3%</td>
+<td>4.2 / 50</td>
+<td>5.0 / 95</td>
+<td>84.7%</td>
+<td>5,405 / 5,880</td>
 </tr>
 <tr>
 <td><strong>Overall</strong></td>
-<td><strong>66.0%</strong></td>
+<td><strong>76.5%</strong></td>
 <td></td>
 <td></td>
-<td><strong>14,112 / 21,393</strong></td>
+<td></td>
+<td></td>
+<td></td>
+<td><strong>16,860 / 22,047</strong></td>
 </tr>
 </tbody>
 </table>
+<p><strong>Cyclomatic</strong> / <strong>Cognitive</strong> are <em>average / max</em> per unit (each function, plus each script/module body) via <a href="https://github.com/Fortigi/PSComplexity">PSComplexity</a>; <strong>Mutation</strong> is the share of injected faults the tests catch via <a href="https://github.com/Fortigi/PSMutant">PSMutant</a>. Both are measured for PowerShell today — suites without them show —.</p>
 <h2 id="browsable-reports">Browsable reports<a class="headerlink" href="#browsable-reports" title="Permanent link">&para;</a></h2>
 <p>Each suite links to a full per-file, line-by-line HTML report:</p>
 <ul>
@@ -3490,7 +3506,7 @@
 <li><a href="../../coverage/ui/">UI (React / Vitest)</a></li>
 <li><a href="../../coverage/powershell/">PowerShell (Pester)</a></li>
 </ul>
-<p><em>Generated 2026-07-02 09:55 UTC from commit <code>7a3cefe9</code>.</em></p>
+<p><em>Generated 2026-07-07 17:44 UTC from commit <code>a0505d2c</code>.</em></p>
 
 
 
