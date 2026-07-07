@@ -10,18 +10,10 @@
 // kind has one; leaves just render the label. The list is sortable by
 // Name or Type and exportable to CSV — a Direct/Indirect bucket can mix
 // many resourceTypes, so being able to sort/scan/export it matters.
+// Pure logic (rowType / sortItems / itemsToCsv) lives in the .helpers file.
 
 import { useMemo, useState } from 'react';
-import { friendlyLabel } from '@ui/utils/formatters';
-
-const ENTITY_LABELS = {
-  user:             'User',
-  resource:         'Resource',
-  'access-package': 'Business Role',
-  identity:         'Identity',
-  context:          'Context',
-  leaf:             '',
-};
+import { rowType, sortItems, itemsToCsv } from './ExpandedItemsList.helpers';
 
 const DETAIL_TARGET = {
   user:             'user',
@@ -30,37 +22,6 @@ const DETAIL_TARGET = {
   identity:         'identity',
   context:          'context',
 };
-
-// The type label for a row: the assignment's resourceType (Group / Group
-// Ownership / App Role / …) when present, else the counterparty entity kind
-// (e.g. "User" on a resource's member list). Exported + pure so it's testable.
-export function rowType(it) {
-  return it.resourceType ? friendlyLabel(it.resourceType) : (ENTITY_LABELS[it.entityKind] || '');
-}
-
-// Sort a copy of the items by 'name' (label) or 'type' (rowType), asc/desc,
-// case-insensitive, with the other column as a stable tiebreak. Pure.
-export function sortItems(items, key, dir) {
-  const mult = dir === 'desc' ? -1 : 1;
-  const val = (it) => (key === 'type' ? rowType(it) : (it.label || '')).toLowerCase();
-  const tie = (it) => (it.label || '').toLowerCase();
-  return [...(items || [])].sort((a, b) => {
-    const av = val(a), bv = val(b);
-    if (av !== bv) return av < bv ? -mult : mult;
-    const at = tie(a), bt = tie(b);
-    return at < bt ? -1 : at > bt ? 1 : 0;
-  });
-}
-
-// Build a CSV (Name, Type, Via) from the items. RFC-4180 quoting. Pure.
-export function itemsToCsv(items) {
-  const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-  const lines = ['Name,Type,Via'];
-  for (const it of items || []) {
-    lines.push([it.label || '', rowType(it), it.via || ''].map(esc).join(','));
-  }
-  return lines.join('\r\n');
-}
 
 function downloadCsv(filename, csv) {
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -83,7 +44,8 @@ function SortHeader({ label, active, dir, onClick, align = 'left' }) {
       aria-sort={active ? (dir === 'asc' ? 'ascending' : 'descending') : 'none'}
     >
       {label}
-      <span className="ml-1 inline-block w-2 text-gray-400 dark:text-gray-500">{active ? (dir === 'asc' ? '▲' : '▼') : ''}</span>
+      {/* Arrow inherits the header's compliant colour (no bare light-mode -400). */}
+      <span className="ml-1 inline-block w-2">{active ? (dir === 'asc' ? '▲' : '▼') : ''}</span>
     </th>
   );
 }

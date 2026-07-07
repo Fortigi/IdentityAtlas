@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { createElement as h } from 'react';
-import ExpandedItemsList, { rowType, sortItems, itemsToCsv } from './ExpandedItemsList.jsx';
+import ExpandedItemsList from './ExpandedItemsList.jsx';
+import { rowType, sortItems, itemsToCsv } from './ExpandedItemsList.helpers.js';
 
 const ITEMS = [
   { key: 'resource:g1', label: 'ABN AMRO', kind: 'item', entityKind: 'resource', entityId: 'g1', resourceType: 'Group' },
