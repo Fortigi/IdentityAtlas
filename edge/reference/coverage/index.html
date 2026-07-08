@@ -3441,7 +3441,6 @@
 <!-- GENERATED FILE — do not edit by hand. Produced by tools/generate-coverage-doc.py via .github/workflows/coverage.yml. -->
 
 <p>Test quality across the project's automated suites — line/branch/method coverage plus, where measured, code complexity and mutation score — regenerated on every merge to <code>main</code>. The figures on this page reflect the version of the docs you are viewing — <strong>edge</strong> tracks <code>main</code>, a released version is frozen at its release tag.</p>
-<p><img alt="Overall coverage" src="https://img.shields.io/badge/coverage-76.5%25-yellow" /></p>
 <table>
 <thead>
 <tr>
@@ -3461,8 +3460,8 @@
 <td>73.8%</td>
 <td>62.6%</td>
 <td>76.5%</td>
-<td>—</td>
-<td>—</td>
+<td>4.6 / 46</td>
+<td>3.3 / 104</td>
 <td>—</td>
 <td>6,694 / 9,068</td>
 </tr>
@@ -3471,8 +3470,8 @@
 <td>67.0%</td>
 <td>55.5%</td>
 <td>53.7%</td>
-<td>—</td>
-<td>—</td>
+<td>3.1 / 52</td>
+<td>1.5 / 109</td>
 <td>—</td>
 <td>4,761 / 7,099</td>
 </tr>
@@ -3486,19 +3485,9 @@
 <td>84.7%</td>
 <td>5,405 / 5,880</td>
 </tr>
-<tr>
-<td><strong>Overall</strong></td>
-<td><strong>76.5%</strong></td>
-<td></td>
-<td></td>
-<td></td>
-<td></td>
-<td></td>
-<td><strong>16,860 / 22,047</strong></td>
-</tr>
 </tbody>
 </table>
-<p><strong>Cyclomatic</strong> / <strong>Cognitive</strong> are <em>average / max</em> per unit (each function, plus each script/module body) via <a href="https://github.com/Fortigi/PSComplexity">PSComplexity</a>; <strong>Mutation</strong> is the share of injected faults the tests catch via <a href="https://github.com/Fortigi/PSMutant">PSMutant</a>. Both are measured for PowerShell today — suites without them show —.</p>
+<p><strong>Cyclomatic</strong> / <strong>Cognitive</strong> are <em>average / max</em> per unit (each function, and for PowerShell each script/module body too): PowerShell via <a href="https://github.com/Fortigi/PSComplexity">PSComplexity</a>, JS/TS via ESLint's <code>complexity</code> rule + <a href="https://github.com/SonarSource/eslint-plugin-sonarjs">eslint-plugin-sonarjs</a>. <strong>Mutation</strong> is the share of injected faults the tests catch via <a href="https://github.com/Fortigi/PSMutant">PSMutant</a>, PowerShell-only today. A suite without a given signal shows —.</p>
 <h2 id="browsable-reports">Browsable reports<a class="headerlink" href="#browsable-reports" title="Permanent link">&para;</a></h2>
 <p>Each suite links to a full per-file, line-by-line HTML report:</p>
 <ul>
@@ -3506,7 +3495,7 @@
 <li><a href="../../coverage/ui/">UI (React / Vitest)</a></li>
 <li><a href="../../coverage/powershell/">PowerShell (Pester)</a></li>
 </ul>
-<p><em>Generated 2026-07-07 17:44 UTC from commit <code>a0505d2c</code>.</em></p>
+<p><em>Generated 2026-07-07 18:59 UTC from commit <code>03819c8e</code>.</em></p>
 
 
 
