@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- The complexity CI gate now measures **cognitive** complexity (how hard code is to follow) for JavaScript/TypeScript, not just cyclomatic — via `eslint-plugin-sonarjs` at the SonarSource S3776 default threshold of 15. Current offenders are grandfathered into the baseline and can only ratchet down; new or newly-over-threshold functions must stay at or under 15.
+
+## Changes in this PR
+
 - Fixed risk scoring so group ownership counts again — owners had silently stopped contributing to risk after ownership moved to its own resource type, so the "user owns many groups" and "group has members but no owner" signals had gone dead.
 - Corrected group member counts and risk propagation to no longer treat group owners as if they were group members.
 
