@@ -217,24 +217,12 @@
     "tools/crawlers/azure-rm/Get-AzureRMHelpers.ps1": [
       21
     ],
-    "tools/crawlers/entra-id/EntraIDCrawler.Functions.ps1": [
-      34,
-      26,
-      18,
-      17
-    ],
     "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1": [
-      22
-    ],
-    "tools/crawlers/entra-id/Start-EntraIDCrawler.ps1": [
-      618
+      17
     ],
     "tools/crawlers/midpoint/Invoke-MidpointApi.ps1": [
       22,
       22
-    ],
-    "tools/crawlers/midpoint/MidpointCrawler.Functions.ps1": [
-      20
     ],
     "tools/crawlers/odata/Invoke-ODataGetRequest.ps1": [
       70
