@@ -25,7 +25,7 @@ This document lists all major software components, dependencies, and infrastruct
 | pg | ^8.22.0 | PostgreSQL client | MIT |
 | pg-copy-streams | ^7.0.0 | High-performance bulk import | MIT |
 | ajv | ^8.20.0 | JSON Schema validation for crawler configs | MIT |
-| re2 | ^1.25.0 | Safe regex engine (ReDoS protection) | BSD-3-Clause |
+| re2 | ^1.26.0 | Safe regex engine (ReDoS protection) | BSD-3-Clause |
 
 ### Security & Authentication
 
@@ -95,7 +95,7 @@ This document lists all major software components, dependencies, and infrastruct
 | @dnd-kit/modifiers | ^9.0.0 | DnD position modifiers | MIT |
 | @dnd-kit/sortable | ^10.0.0 | Sortable list implementation | MIT |
 | @dnd-kit/utilities | ^3.2.2 | DnD utility functions | MIT |
-| @tanstack/react-virtual | ^3.14.3 | Virtual scrolling for large tables | MIT |
+| @tanstack/react-virtual | ^3.14.5 | Virtual scrolling for large tables | MIT |
 
 ### Data Export
 
