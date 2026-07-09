@@ -12,11 +12,11 @@ import { mountRouter } from '../../test-utils/routeTestKit.js';
 
 process.env.USE_SQL = 'true';
 
-const query = vi.fn();
-const queryOne = vi.fn();
+const dbQuery = vi.fn();
+const dbQueryOne = vi.fn();
 vi.mock('../db/connection.js', () => ({
-  query: (...a) => query(...a),
-  queryOne: (...a) => queryOne(...a),
+  query: (...a) => dbQuery(...a),
+  queryOne: (...a) => dbQueryOne(...a),
 }));
 
 const { default: router } = await import('./recentChanges.js');
@@ -27,20 +27,20 @@ const OTHER = '22222222-2222-2222-2222-222222222222';
 const ev = (tableName, operation, rowData, prevData = {}) =>
   ({ tableName, operation, changedAt: '2026-01-01T00:00:00Z', rowData, prevData });
 
-// query() serves the main _history pull and (for governance timelines) the
-// CertificationDecisions review-instance pull; queryOne() serves the label
+// dbQuery() serves the main _history pull and (for governance timelines) the
+// CertificationDecisions review-instance pull; dbQueryOne() serves the label
 // lookups. Route both by the table they touch.
 function stage(historyRows, reviewRows = []) {
-  query.mockImplementation((sql) =>
+  dbQuery.mockImplementation((sql) =>
     /_history/.test(sql) ? Promise.resolve({ rows: historyRows })
       : /CertificationDecisions/.test(sql) ? Promise.resolve({ rows: reviewRows })
         : Promise.resolve({ rows: [] }));
 }
 
 beforeEach(() => {
-  query.mockReset();
-  queryOne.mockReset();
-  queryOne.mockImplementation((sql) => {
+  dbQuery.mockReset();
+  dbQueryOne.mockReset();
+  dbQueryOne.mockImplementation((sql) => {
     if (/"Principals"/.test(sql)) return Promise.resolve({ displayName: 'Alice' });
     if (/"Resources"/.test(sql)) return Promise.resolve({ displayName: 'ResX', resourceType: 'BusinessRole' });
     if (/"Identities"/.test(sql)) return Promise.resolve({ displayName: 'IdY' });
