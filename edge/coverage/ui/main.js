@@ -290,7 +290,7 @@ var assemblies = [
   {
     "name": "Default",
     "classes": [
-      { "name": "src/App.jsx", "rp": "src_App.jsx.html", "cl": 0, "ucl": 224, "cal": 224, "tl": 674, "cb": 0, "tb": 226, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
+      { "name": "src/App.jsx", "rp": "src_App.jsx.html", "cl": 0, "ucl": 225, "cal": 225, "tl": 674, "cb": 0, "tb": 226, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
       { "name": "src/auth/AuthGate.js", "rp": "src_auth_AuthGate.js.html", "cl": 2, "ucl": 1, "cal": 3, "tl": 20, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
       { "name": "src/auth/AuthGateProvider.jsx", "rp": "src_auth_AuthGateProvider.jsx.html", "cl": 0, "ucl": 78, "cal": 78, "tl": 318, "cb": 0, "tb": 57, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
       { "name": "src/auth/usePermissions.js", "rp": "src_auth_usePermissions.js.html", "cl": 7, "ucl": 13, "cal": 20, "tl": 55, "cb": 6, "tb": 6, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
@@ -387,7 +387,7 @@ var assemblies = [
       { "name": "src/components/UserDetailPage.jsx", "rp": "src_components_UserDetailPage.jsx.html", "cl": 0, "ucl": 34, "cal": 34, "tl": 145, "cb": 0, "tb": 48, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
       { "name": "src/components/UsersPage.jsx", "rp": "src_components_UsersPage.jsx.html", "cl": 0, "ucl": 29, "cal": 29, "tl": 118, "cb": 0, "tb": 26, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
       { "name": "src/components/WizardShell.jsx", "rp": "src_components_WizardShell.jsx.html", "cl": 1, "ucl": 0, "cal": 1, "tl": 31, "cb": 3, "tb": 4, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
-      { "name": "src/contexts/ThemeContext.jsx", "rp": "src_contexts_ThemeContext.jsx.html", "cl": 2, "ucl": 1, "cal": 3, "tl": 10, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
+      { "name": "src/contexts/ThemeContext.jsx", "rp": "src_contexts_ThemeContext.jsx.html", "cl": 3, "ucl": 0, "cal": 3, "tl": 10, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
       { "name": "src/hooks/useContextTrees.js", "rp": "src_hooks_useContextTrees.js.html", "cl": 13, "ucl": 1, "cal": 14, "tl": 42, "cb": 15, "tb": 22, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
       { "name": "src/hooks/useDebouncedValue.js", "rp": "src_hooks_useDebouncedValue.js.html", "cl": 5, "ucl": 0, "cal": 5, "tl": 10, "cb": 1, "tb": 1, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
       { "name": "src/hooks/useDocsUrl.js", "rp": "src_hooks_useDocsUrl.js.html", "cl": 3, "ucl": 5, "cal": 8, "tl": 19, "cb": 0, "tb": 7, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
