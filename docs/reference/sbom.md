@@ -55,7 +55,7 @@ This document lists all major software components, dependencies, and infrastruct
 
 | Package | Version | Purpose | License |
 |---------|---------|---------|---------|
-| vitest | ^4.1.9 | Unit testing framework | MIT |
+| vitest | ^4.1.10 | Unit testing framework | MIT |
 | supertest | ^7.2.2 | HTTP integration testing | MIT |
 | eslint | ^10.6.0 | JavaScript linter | MIT |
 | eslint-plugin-security | ^4.0.1 | Security-focused lint rules | Apache 2.0 |
