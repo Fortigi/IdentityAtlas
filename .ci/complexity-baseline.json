@@ -1,5 +1,6 @@
 {
-  "_comment": "Cyclomatic-complexity ratchet baseline. Per file: the sorted list of unit CCs over the language threshold. Only ever lowered (python tools/complexity/ratchet.py --update). See the tool header.",
+  "_comment": "Cyclomatic complexity ratchet baseline. Per file: the sorted list of unit values over the language threshold. Only ever lowered (--update). See tools/complexity/ratchet.py header.",
+  "metric": "cc",
   "thresholds": {
     "ps": 15,
     "py": 15,
@@ -13,13 +14,10 @@
       32
     ],
     "app/api/src/contexts/plugins/runner.js": [
-      27
+      22
     ],
     "app/api/src/effectiveAccess/engine.js": [
       25
-    ],
-    "app/api/src/ingest/normalization.js": [
-      35
     ],
     "app/api/src/ingest/validation.js": [
       42,
@@ -34,10 +32,10 @@
       22
     ],
     "app/api/src/routes/admin.js": [
-      39
+      30
     ],
     "app/api/src/routes/contexts.js": [
-      33,
+      30,
       22,
       21
     ],
@@ -129,9 +127,6 @@
     "app/ui/src/components/TimeSeriesChart.jsx": [
       25
     ],
-    "app/ui/src/components/UpdatesSettings.jsx": [
-      21
-    ],
     "app/ui/src/components/admin/LLMSettingsSection.jsx": [
       36
     ],
@@ -184,9 +179,6 @@
     ],
     "test/nightly/Test-RiskScoringLLM.ps1": [
       50
-    ],
-    "tools/crawlers/entra-id/EntraIDCrawler.Functions.ps1": [
-      18
     ],
     "tools/crawlers/odata/Invoke-ODataGetRequest.ps1": [
       31
