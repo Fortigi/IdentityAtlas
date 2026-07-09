@@ -8,7 +8,7 @@
 
 import { Router } from 'express';
 import * as db from '../../db/connection.js';
-import { useSql, UUID_RE, clampTimelineDays, clampLimit, toEvent, lookupPrincipal, lookupResource, lookupIdentity, resourceCounterpartyKind } from './shared.js';
+import { useSql, UUID_RE, clampTimelineDays, clampLimit, toEvent, resourceCounterpartyKind } from './shared.js';
 
 const router = Router();
 
