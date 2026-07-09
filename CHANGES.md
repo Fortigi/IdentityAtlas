@@ -1,5 +1,16 @@
 ## Changes in this PR
 
+- Internal maintainability: split the large user/group/access-package detail API controller into focused per-entity modules (user, group, access-package) sharing one helpers module, with the original file kept as a thin barrel so every endpoint mounts and behaves exactly as before. No functional change.
+- Internal maintainability: split the large permissions API controller into focused modules (permission grid + user columns, access-package resource mapping, sync log, and matrix nested-group expansion) behind a thin barrel. No functional change — every permissions endpoint behaves exactly as before.
+- Internal maintainability: split the large admin API controller into focused modules (curated-data export/import, risk-config reads, database maintenance, dashboard stats, and settings) behind a thin barrel. No functional change — every admin endpoint behaves exactly as before.
+- Internal maintainability: split the large identities API controller into focused modules (identity list + columns, identity detail, and per-account analyst overrides) behind a thin barrel. No functional change — every identities endpoint behaves exactly as before.
+- Internal maintainability: split the large tags API controller into focused modules (tag CRUD + assignment, and the users/groups/entity-tags list endpoints) behind a thin barrel. No functional change — every tags/users/groups endpoint behaves exactly as before.
+- Internal maintainability: split the large recent-changes API controller into focused modules (the recent-changes panels and the timeline endpoints, sharing common label-resolution helpers) behind a thin barrel, and added tests covering the event-building paths. No functional change — every recent-changes and timeline endpoint behaves exactly as before.
+- Internal maintainability: split the large contexts API controller into focused modules (context reads, context create/update/sync/delete, and membership management) behind a thin barrel. No functional change — every contexts endpoint behaves exactly as before.
+- Internal maintainability: split the large risk-scores API controller into focused modules (the summary/list endpoints and the single-entity detail + analyst-override endpoints) behind a thin barrel. No functional change — every risk-scores endpoint behaves exactly as before.
+
+## Changes in this PR
+
 - The complexity CI gate now measures **cognitive** complexity (how hard code is to follow) for JavaScript/TypeScript, not just cyclomatic — via `eslint-plugin-sonarjs` at the SonarSource S3776 default threshold of 15. Current offenders are grandfathered into the baseline and can only ratchet down; new or newly-over-threshold functions must stay at or under 15.
 
 ## Changes in this PR
