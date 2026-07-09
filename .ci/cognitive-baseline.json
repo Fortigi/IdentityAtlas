@@ -113,7 +113,7 @@
     "app/api/src/routes/permissions/syncLog.js": [
       17
     ],
-    "app/api/src/routes/recentChanges.js": [
+    "app/api/src/routes/recentChanges/changes.js": [
       42,
       38,
       17
