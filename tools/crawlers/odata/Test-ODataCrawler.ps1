@@ -80,9 +80,9 @@ try {
             Connect-ODataAPI -BaseUrl $baseUrl -AuthMethod $case.Method @extraParams
             $result = Invoke-ODataGetRequest -Path '/TestEntities'
             $passed = $null -ne $result -and $result.Count -gt 0
-            Report-Result "OData/$($case.Method) — auth + data fetch" $passed "($($result.Count) entities returned)"
+            Write-Result "OData/$($case.Method) — auth + data fetch" $passed "($($result.Count) entities returned)"
         } catch {
-            Report-Result "OData/$($case.Method) — auth + data fetch" $false $_.Exception.Message
+            Write-Result "OData/$($case.Method) — auth + data fetch" $false $_.Exception.Message
         }
     }
 
@@ -92,9 +92,9 @@ try {
         Connect-ODataAPI -BaseUrl $baseUrl -AuthMethod BasicAuth -Username testuser -Password testpass
         $result = Invoke-ODataGetRequest -Path '/Paginated'
         $passed = $null -ne $result -and $result.Count -eq 2
-        Report-Result 'OData/Pagination — @odata.nextLink followed' $passed "($($result.Count) total entities across pages)"
+        Write-Result 'OData/Pagination — @odata.nextLink followed' $passed "($($result.Count) total entities across pages)"
     } catch {
-        Report-Result 'OData/Pagination — @odata.nextLink followed' $false $_.Exception.Message
+        Write-Result 'OData/Pagination — @odata.nextLink followed' $false $_.Exception.Message
     }
 
     # ── 401 error handling ────────────────────────────────────────────────────
@@ -103,9 +103,9 @@ try {
     try {
         Connect-ODataAPI -BaseUrl $baseUrl -AuthMethod ApiToken -ApiToken 'mock-api-token'
         Invoke-ODataGetRequest -Path '/TestEntities' -MaxRetries 0 | Out-Null
-        Report-Result 'OData/Error — 401 throws exception' $false '(expected throw, but succeeded)'
+        Write-Result 'OData/Error — 401 throws exception' $false '(expected throw, but succeeded)'
     } catch {
-        Report-Result 'OData/Error — 401 throws exception' $true "($($_.Exception.Message.Split('.')[0]))"
+        Write-Result 'OData/Error — 401 throws exception' $true "($($_.Exception.Message.Split('.')[0]))"
     }
     Set-MockControl @{ reset = $true }
 
@@ -123,10 +123,10 @@ try {
             -TokenEndpoint "http://localhost:$($mock.Port)/oauth/token"
         $result = Invoke-ODataGetRequest -Path '/TestEntities'
         $passed = $null -ne $result -and $result.Count -gt 0
-        Report-Result 'OData/TokenRefresh — OAuth2CC proactive refresh on expired token' $passed `
+        Write-Result 'OData/TokenRefresh — OAuth2CC proactive refresh on expired token' $passed `
             "($($result.Count) entities returned after auto-refresh)"
     } catch {
-        Report-Result 'OData/TokenRefresh — OAuth2CC proactive refresh on expired token' $false $_.Exception.Message
+        Write-Result 'OData/TokenRefresh — OAuth2CC proactive refresh on expired token' $false $_.Exception.Message
     } finally {
         Set-MockControl @{ reset = $true }   # restore default token TTL for remaining tests
     }
@@ -136,9 +136,9 @@ try {
         Connect-ODataAPI -BaseUrl $baseUrl -AuthMethod BasicAuth -Username testuser -Password testpass
         $result = Invoke-ODataPagedRequest -Path '/Items' -PageSize 2
         $passed = $null -ne $result -and $result.Count -eq 3
-        Report-Result 'OData/Pagination — $skip walk (Invoke-ODataPagedRequest)' $passed "($($result.Count) total entities)"
+        Write-Result 'OData/Pagination — $skip walk (Invoke-ODataPagedRequest)' $passed "($($result.Count) total entities)"
     } catch {
-        Report-Result 'OData/Pagination — $skip walk (Invoke-ODataPagedRequest)' $false $_.Exception.Message
+        Write-Result 'OData/Pagination — $skip walk (Invoke-ODataPagedRequest)' $false $_.Exception.Message
     }
 
 } finally {
@@ -157,9 +157,9 @@ try {
         $passed = $null -ne $result -and $result -is [array] -and $result.Count -eq 0
         $detail = if ($null -eq $result) { '(null — function returned $null for empty collection)' }
                   else { "(type: $($result.GetType().Name), count: $($result.Count))" }
-        Report-Result 'OData/EdgeCase — empty value array returns empty array (not null/throw)' $passed $detail
+        Write-Result 'OData/EdgeCase — empty value array returns empty array (not null/throw)' $passed $detail
     } catch {
-        Report-Result 'OData/EdgeCase — empty value array returns empty array (not null/throw)' $false $_.Exception.Message
+        Write-Result 'OData/EdgeCase — empty value array returns empty array (not null/throw)' $false $_.Exception.Message
     }
 } finally {
     if ($mock) { Stop-MockODataServer -Mock $mock }
@@ -174,10 +174,10 @@ try {
     try {
         $sets = Get-ODataEntitySets
         $passed = $sets -contains 'Users' -and $sets -contains 'Roles'
-        Report-Result 'OData/EntitySets — $metadata discovery' $passed `
+        Write-Result 'OData/EntitySets — $metadata discovery' $passed `
             "($($sets.Count) entity sets: $($sets -join ', '))"
     } catch {
-        Report-Result 'OData/EntitySets — $metadata discovery' $false $_.Exception.Message
+        Write-Result 'OData/EntitySets — $metadata discovery' $false $_.Exception.Message
     }
 } finally {
     if ($mock) { Stop-MockODataServer -Mock $mock }

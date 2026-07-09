@@ -143,7 +143,7 @@ function Sync-MidpointOrgs {
         $raw = @($orgs | ForEach-Object {
             ConvertTo-MidpointOrgContextRecord -Org $_ -OrgContextMapping $OrgContextMapping -SystemId $MidpointSystemId
         } | Where-Object { $_.id -and $_.displayName })
-        $records = Sort-MidpointContextsTopologically -Records $raw
+        $records = Get-MidpointContextsInTopologicalOrder -Records $raw
 
         # Scope the reconcile by variant + scopeSystemId only (a single sync can emit
         # several context types under org->contextType remapping; the crawler owns

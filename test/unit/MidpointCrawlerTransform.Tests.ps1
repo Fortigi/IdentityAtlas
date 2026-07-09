@@ -110,7 +110,7 @@ Describe 'ConvertTo-MidpointOrgContextRecord' {
     }
 }
 
-Describe 'Sort-MidpointContextsTopologically' {
+Describe 'Get-MidpointContextsInTopologicalOrder' {
 
     It 'orders parents before children regardless of input order' {
         $records = @(
@@ -118,13 +118,13 @@ Describe 'Sort-MidpointContextsTopologically' {
             [pscustomobject]@{ id = 'b'; parentContextId = 'a' }
             [pscustomobject]@{ id = 'a'; parentContextId = $null }
         )
-        $sorted = Sort-MidpointContextsTopologically -Records $records
+        $sorted = Get-MidpointContextsInTopologicalOrder -Records $records
         ($sorted | ForEach-Object { $_.id }) -join '' | Should -Be 'abc'
     }
 
     It 'nulls out a parent that is outside the synced set (treats it as a root)' {
         $records = @([pscustomobject]@{ id = 'x'; parentContextId = 'not-synced' })
-        $sorted = Sort-MidpointContextsTopologically -Records $records
+        $sorted = Get-MidpointContextsInTopologicalOrder -Records $records
         $sorted[0].parentContextId | Should -BeNullOrEmpty
     }
 
@@ -133,12 +133,12 @@ Describe 'Sort-MidpointContextsTopologically' {
             [pscustomobject]@{ id = 'b'; parentContextId = 'a' }
             [pscustomobject]@{ id = 'a'; parentContextId = $null }
         )
-        $sorted = Sort-MidpointContextsTopologically -Records $records
+        $sorted = Get-MidpointContextsInTopologicalOrder -Records $records
         ($sorted | Where-Object { $_.id -eq 'b' }).parentContextId | Should -Be 'a'
     }
 
     It 'returns an empty array for no records' {
-        @(Sort-MidpointContextsTopologically -Records @()).Count | Should -Be 0
+        @(Get-MidpointContextsInTopologicalOrder -Records @()).Count | Should -Be 0
     }
 }
 

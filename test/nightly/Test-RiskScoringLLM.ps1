@@ -46,7 +46,7 @@ Param(
 $ErrorActionPreference = 'Continue'
 $standaloneFailures = 0
 
-function Report-Result {
+function Write-Result {
     param([string]$Name, [bool]$Passed, [string]$Detail = '')
     $color = if ($Passed) { 'Green' } else { 'Red' }
     $status = if ($Passed) { 'PASS' } else { 'FAIL' }
@@ -85,12 +85,12 @@ Write-Host "`n=== Risk Scoring — full LLM flow ===" -ForegroundColor Cyan
 try {
     $status = Invoke-LocalApi -Path '/admin/llm/status' -TimeoutSec 10
     if (-not $status.configured) {
-        Report-Result 'RiskLLM/LLMConfigured' $true 'skipped (no LLM configured)'
+        Write-Result 'RiskLLM/LLMConfigured' $true 'skipped (no LLM configured)'
         if (-not $WriteResult) { exit 0 } else { return }
     }
-    Report-Result 'RiskLLM/LLMConfigured' $true 'yes'
+    Write-Result 'RiskLLM/LLMConfigured' $true 'yes'
 } catch {
-    Report-Result 'RiskLLM/LLMConfigured' $true "skipped (status check failed: $($_.Exception.Message))"
+    Write-Result 'RiskLLM/LLMConfigured' $true "skipped (status check failed: $($_.Exception.Message))"
     if (-not $WriteResult) { exit 0 } else { return }
 }
 
@@ -98,12 +98,12 @@ try {
 try {
     $users = Invoke-LocalApi -Path '/users?pageSize=1' -TimeoutSec 10
     if ([int]$users.total -eq 0) {
-        Report-Result 'RiskLLM/DemoData' $true 'skipped (no users loaded)'
+        Write-Result 'RiskLLM/DemoData' $true 'skipped (no users loaded)'
         if (-not $WriteResult) { exit 0 } else { return }
     }
-    Report-Result 'RiskLLM/DemoData' $true "users=$($users.total)"
+    Write-Result 'RiskLLM/DemoData' $true "users=$($users.total)"
 } catch {
-    Report-Result 'RiskLLM/DemoData' $true "skipped: $($_.Exception.Message)"
+    Write-Result 'RiskLLM/DemoData' $true "skipped: $($_.Exception.Message)"
     if (-not $WriteResult) { exit 0 } else { return }
 }
 
@@ -121,7 +121,7 @@ if (-not $TestDomain) {
     }
 }
 if (-not $TestDomain) { $TestDomain = 'novastream-fi.net' }
-Report-Result 'RiskLLM/TestDomain' $true $TestDomain
+Write-Result 'RiskLLM/TestDomain' $true $TestDomain
 
 # ─── Step 1: Generate profile (real LLM call) ────────────────────
 $generateStart = Get-Date
@@ -132,25 +132,25 @@ try {
     } -TimeoutSec 180
     $elapsed = [Math]::Round(((Get-Date) - $generateStart).TotalSeconds)
     if (-not $genResp.profile) {
-        Report-Result 'RiskLLM/GenerateProfile' $false "no profile field (${elapsed}s)"
+        Write-Result 'RiskLLM/GenerateProfile' $false "no profile field (${elapsed}s)"
         if (-not $WriteResult) { exit 1 } else { return }
     }
     $profile = $genResp.profile
     $regCount = if ($profile.regulations) { @($profile.regulations).Count } else { 0 }
     $roleCount = if ($profile.critical_roles) { @($profile.critical_roles).Count } else { 0 }
-    Report-Result 'RiskLLM/GenerateProfile' $true "model=$($genResp.llmModel) ${elapsed}s regulations=$regCount roles=$roleCount"
+    Write-Result 'RiskLLM/GenerateProfile' $true "model=$($genResp.llmModel) ${elapsed}s regulations=$regCount roles=$roleCount"
     if ($regCount -lt 1) {
-        Report-Result 'RiskLLM/ProfileHasRegulations' $false "expected >=1, got $regCount"
+        Write-Result 'RiskLLM/ProfileHasRegulations' $false "expected >=1, got $regCount"
     } else {
-        Report-Result 'RiskLLM/ProfileHasRegulations' $true $regCount
+        Write-Result 'RiskLLM/ProfileHasRegulations' $true $regCount
     }
     if ($roleCount -lt 3) {
-        Report-Result 'RiskLLM/ProfileHasCriticalRoles' $false "expected >=3, got $roleCount"
+        Write-Result 'RiskLLM/ProfileHasCriticalRoles' $false "expected >=3, got $roleCount"
     } else {
-        Report-Result 'RiskLLM/ProfileHasCriticalRoles' $true $roleCount
+        Write-Result 'RiskLLM/ProfileHasCriticalRoles' $true $roleCount
     }
 } catch {
-    Report-Result 'RiskLLM/GenerateProfile' $false $_.Exception.Message
+    Write-Result 'RiskLLM/GenerateProfile' $false $_.Exception.Message
     if (-not $WriteResult) { exit 1 } else { return }
 }
 
@@ -162,9 +162,9 @@ try {
         makeActive  = $true
     } -TimeoutSec 30
     $script:profileId = $saveResp.id
-    Report-Result 'RiskLLM/SaveProfile' $true "id=$($saveResp.id)"
+    Write-Result 'RiskLLM/SaveProfile' $true "id=$($saveResp.id)"
 } catch {
-    Report-Result 'RiskLLM/SaveProfile' $false $_.Exception.Message
+    Write-Result 'RiskLLM/SaveProfile' $false $_.Exception.Message
     if (-not $WriteResult) { exit 1 } else { return }
 }
 
@@ -176,21 +176,21 @@ try {
     } -TimeoutSec 240
     $elapsed = [Math]::Round(((Get-Date) - $generateStart).TotalSeconds)
     if (-not $clsResp.classifiers) {
-        Report-Result 'RiskLLM/GenerateClassifiers' $false "no classifiers field (${elapsed}s)"
+        Write-Result 'RiskLLM/GenerateClassifiers' $false "no classifiers field (${elapsed}s)"
         if (-not $WriteResult) { exit 1 } else { return }
     }
     $cls = $clsResp.classifiers
     $gc = if ($cls.groupClassifiers) { @($cls.groupClassifiers).Count } else { 0 }
     $uc = if ($cls.userClassifiers)  { @($cls.userClassifiers).Count }  else { 0 }
     $ac = if ($cls.agentClassifiers) { @($cls.agentClassifiers).Count } else { 0 }
-    Report-Result 'RiskLLM/GenerateClassifiers' $true "${elapsed}s groups=$gc users=$uc agents=$ac"
+    Write-Result 'RiskLLM/GenerateClassifiers' $true "${elapsed}s groups=$gc users=$uc agents=$ac"
     if ($gc -lt 3) {
-        Report-Result 'RiskLLM/HasGroupClassifiers' $false "expected >=3, got $gc"
+        Write-Result 'RiskLLM/HasGroupClassifiers' $false "expected >=3, got $gc"
     } else {
-        Report-Result 'RiskLLM/HasGroupClassifiers' $true $gc
+        Write-Result 'RiskLLM/HasGroupClassifiers' $true $gc
     }
 } catch {
-    Report-Result 'RiskLLM/GenerateClassifiers' $false $_.Exception.Message
+    Write-Result 'RiskLLM/GenerateClassifiers' $false $_.Exception.Message
     if (-not $WriteResult) { exit 1 } else { return }
 }
 
@@ -203,9 +203,9 @@ try {
         makeActive  = $true
     } -TimeoutSec 30
     $script:classifierId = $saveResp.id
-    Report-Result 'RiskLLM/SaveClassifiers' $true "id=$($saveResp.id)"
+    Write-Result 'RiskLLM/SaveClassifiers' $true "id=$($saveResp.id)"
 } catch {
-    Report-Result 'RiskLLM/SaveClassifiers' $false $_.Exception.Message
+    Write-Result 'RiskLLM/SaveClassifiers' $false $_.Exception.Message
     if (-not $WriteResult) { exit 1 } else { return }
 }
 
@@ -215,9 +215,9 @@ try {
         classifierId = $script:classifierId
     } -TimeoutSec 30
     $script:runId = $runResp.id
-    Report-Result 'RiskLLM/StartRun' $true "id=$($runResp.id)"
+    Write-Result 'RiskLLM/StartRun' $true "id=$($runResp.id)"
 } catch {
-    Report-Result 'RiskLLM/StartRun' $false $_.Exception.Message
+    Write-Result 'RiskLLM/StartRun' $false $_.Exception.Message
     if (-not $WriteResult) { exit 1 } else { return }
 }
 
@@ -235,11 +235,11 @@ for ($i = 0; $i -lt 60; $i++) {
 }
 
 if (-not $finalRun) {
-    Report-Result 'RiskLLM/RunCompletes' $false 'timed out after 120s'
+    Write-Result 'RiskLLM/RunCompletes' $false 'timed out after 120s'
 } elseif ($finalRun.status -ne 'completed') {
-    Report-Result 'RiskLLM/RunCompletes' $false "status=$($finalRun.status): $($finalRun.errorMessage)"
+    Write-Result 'RiskLLM/RunCompletes' $false "status=$($finalRun.status): $($finalRun.errorMessage)"
 } else {
-    Report-Result 'RiskLLM/RunCompletes' $true "scored=$($finalRun.scoredEntities)"
+    Write-Result 'RiskLLM/RunCompletes' $true "scored=$($finalRun.scoredEntities)"
 
     # Assert at least some classifier matches were produced. The LLM-generated
     # classifiers SHOULD match the example/demo data since they were generated for
@@ -253,12 +253,12 @@ if (-not $finalRun) {
             if ($scores.summary.usersByTier.$tier)  { $matched += [int]$scores.summary.usersByTier.$tier }
         }
         if ($matched -gt 0) {
-            Report-Result 'RiskLLM/EntitiesMatched' $true "$matched entities Minimal+"
+            Write-Result 'RiskLLM/EntitiesMatched' $true "$matched entities Minimal+"
         } else {
-            Report-Result 'RiskLLM/EntitiesMatched' $false "ZERO matches (regex compile or LLM output broken)"
+            Write-Result 'RiskLLM/EntitiesMatched' $false "ZERO matches (regex compile or LLM output broken)"
         }
     } catch {
-        Report-Result 'RiskLLM/EntitiesMatched' $false $_.Exception.Message
+        Write-Result 'RiskLLM/EntitiesMatched' $false $_.Exception.Message
     }
 }
 

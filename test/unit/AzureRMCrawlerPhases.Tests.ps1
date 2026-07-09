@@ -202,13 +202,13 @@ Describe 'Get-AzureMgDisplayName' {
     }
 }
 
-Describe 'Ensure-AzureAssignmentScope' {
+Describe 'Confirm-AzureAssignmentScope' {
     It 'creates a resource-group node + ancestor sub edge, tracked in KnownPaths' {
         $ctx = New-TestCtx
         [void]$ctx.KnownPaths.Add('/subscriptions/sub-1')
         $ctx.ScopePaths.Add('/subscriptions/sub-1')
         $rg = '/subscriptions/sub-1/resourceGroups/rg1'
-        $id = Ensure-AzureAssignmentScope -Ctx $ctx -ScopePath $rg -OwningSubPath '/subscriptions/sub-1'
+        $id = Confirm-AzureAssignmentScope -Ctx $ctx -ScopePath $rg -OwningSubPath '/subscriptions/sub-1'
         $id | Should -Be (Get-ScopeNodeId -ArmScopePath $rg)
         $ctx.KnownPaths.Contains($rg) | Should -BeTrue
         @($ctx.ScopeResources | Where-Object { $_.resourceType -eq 'AzureResourceGroup' }).Count | Should -Be 1
@@ -219,7 +219,7 @@ Describe 'Ensure-AzureAssignmentScope' {
         Mock Invoke-ARMGet { @{ properties = @{ displayName = 'Platform MG' } } }
         $ctx = New-TestCtx
         $mg = '/providers/Microsoft.Management/managementGroups/mg1'
-        Ensure-AzureAssignmentScope -Ctx $ctx -ScopePath $mg -OwningSubPath '/subscriptions/sub-1' | Out-Null
+        Confirm-AzureAssignmentScope -Ctx $ctx -ScopePath $mg -OwningSubPath '/subscriptions/sub-1' | Out-Null
         @($ctx.ScopeResources | Where-Object { $_.resourceType -eq 'AzureManagementGroup' }).Count | Should -Be 1
         $edge = $ctx.ContainsEdges | Where-Object { $_.parentResourceId -eq (Get-ScopeNodeId -ArmScopePath $mg) -and $_.childResourceId -eq (Get-ScopeNodeId -ArmScopePath '/subscriptions/sub-1') }
         @($edge).Count | Should -Be 1
@@ -227,7 +227,7 @@ Describe 'Ensure-AzureAssignmentScope' {
 
     It 'shapes the tenant root (/) as an AzureScope named Tenant Root' {
         $ctx = New-TestCtx
-        Ensure-AzureAssignmentScope -Ctx $ctx -ScopePath '/' -OwningSubPath '/subscriptions/sub-1' | Out-Null
+        Confirm-AzureAssignmentScope -Ctx $ctx -ScopePath '/' -OwningSubPath '/subscriptions/sub-1' | Out-Null
         $root = $ctx.ScopeResources | Where-Object { $_.externalId -eq '/' }
         @($root).Count | Should -Be 1
         $root.displayName  | Should -Be 'Tenant Root'

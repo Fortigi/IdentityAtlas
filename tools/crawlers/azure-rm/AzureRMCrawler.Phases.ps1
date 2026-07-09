@@ -284,7 +284,7 @@ function Get-AzureMgDisplayName {
 # missing ancestors) so the effective-access engine can inherit through the Contains
 # hierarchy. Management groups / the tenant root sit above the subscription, so they
 # link down to the owning subscription. Returns the scope node id.
-function Ensure-AzureAssignmentScope {
+function Confirm-AzureAssignmentScope {
     [CmdletBinding()]
     param([hashtable]$Ctx, [string]$ScopePath, [string]$OwningSubPath)
     $aboveSub = ($ScopePath -eq '/' -or $ScopePath -match '^/providers/Microsoft\.Management/managementGroups/')
@@ -296,7 +296,7 @@ function Ensure-AzureAssignmentScope {
             $parentPath = Get-ParentScopePath -ScopePath $ScopePath
             $Ctx.ScopeResources.Add((New-AzureBelowSubScopeRecord -ScopePath $ScopePath))
             if ($parentPath) {
-                [void](Ensure-AzureAssignmentScope -Ctx $Ctx -ScopePath $parentPath -OwningSubPath $OwningSubPath)
+                [void](Confirm-AzureAssignmentScope -Ctx $Ctx -ScopePath $parentPath -OwningSubPath $OwningSubPath)
                 Add-AzureContainsEdge -Ctx $Ctx -ParentPath $parentPath -ChildPath $ScopePath
             }
         }
@@ -373,7 +373,7 @@ function Add-AzureAssignment {
     $roleDefId = ($Assignment.properties.roleDefinitionId -split '/')[-1]
     if (-not $Ctx.RoleDefs.ContainsKey($roleDefId)) { return }   # filtered (e.g. custom role excluded)
 
-    $scopeNodeId = Ensure-AzureAssignmentScope -Ctx $Ctx -ScopePath $declaredScope -OwningSubPath $SubPath
+    $scopeNodeId = Confirm-AzureAssignmentScope -Ctx $Ctx -ScopePath $declaredScope -OwningSubPath $SubPath
     if (-not $Ctx.AssignSeen.Add([string]$Assignment.name)) { return }   # same Azure assignment via another sub
 
     $roleName = $Ctx.RoleDefs[$roleDefId].name

@@ -103,7 +103,7 @@ function ConvertTo-MidpointOrgContextRecord {
 # Topologically sorts context records so a parent precedes its children. A parent
 # OID outside the synced set is treated as a root (its parentContextId is nulled
 # out to avoid an FK violation). Verbatim from the inline Orgs-phase sort.
-function Sort-MidpointContextsTopologically {
+function Get-MidpointContextsInTopologicalOrder {
     [CmdletBinding()]
     param($Records)
     $recs      = @($Records)

@@ -183,8 +183,7 @@ jobs:
           # Scan all production PowerShell roots.
           #
           # Excluded paths:
-          #   test/               — test-harness scripts use non-approved verbs
-          #                         (Report-Result) intentionally; not production code
+          #   test/               — test-harness scripts, not production code
           #   setup/CreatePSD.ps1 — developer-only manifest regeneration tool with
           #                         hardcoded local paths; not shipped in the container
           #
@@ -207,7 +206,6 @@ jobs:
             'PSUseSingularNouns'                       # internal naming convention; not module exports
             'PSAvoidDefaultValueSwitchParameter'       # crawler phase switches default to $true intentionally
             'PSUseProcessBlockForPipelineCommand'      # these functions are not designed for pipeline use
-            'PSUseApprovedVerbs'                       # Map- prefix used for private script-level helpers
             'PSAvoidUsingEmptyCatchBlock'              # empty catches are intentional for non-critical operations
             'PSUseDeclaredVarsMoreThanAssignments'     # investigate separately; too noisy for CI gate
             'PSAvoidUsingInvokeExpression'             # scheduler crontab is image-baked, not dynamic user input

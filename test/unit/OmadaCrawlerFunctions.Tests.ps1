@@ -47,23 +47,23 @@ BeforeAll {
     $script:phases = [System.Collections.Generic.List[object]]::new()
 }
 
-# ─── Map-ResourceCategory ─────────────────────────────────────────────────────
-Describe 'Map-ResourceCategory' {
+# ─── ConvertTo-AtlasResourceCategory ─────────────────────────────────────────────────────
+Describe 'ConvertTo-AtlasResourceCategory' {
     It "maps 'Role' to BusinessRole" {
-        Map-ResourceCategory -Category 'Role' | Should -Be 'BusinessRole'
+        ConvertTo-AtlasResourceCategory -Category 'Role' | Should -Be 'BusinessRole'
     }
     It "maps 'Permission' to Resource" {
-        Map-ResourceCategory -Category 'Permission' | Should -Be 'Resource'
+        ConvertTo-AtlasResourceCategory -Category 'Permission' | Should -Be 'Resource'
     }
     It 'maps an unknown category to the catch-all (Resource)' {
-        Map-ResourceCategory -Category 'SomethingElse' | Should -Be 'Resource'
+        ConvertTo-AtlasResourceCategory -Category 'SomethingElse' | Should -Be 'Resource'
     }
     It 'maps an empty category to the catch-all (Resource)' {
-        Map-ResourceCategory -Category '' | Should -Be 'Resource'
+        ConvertTo-AtlasResourceCategory -Category '' | Should -Be 'Resource'
     }
     It 'returns the literal Resource fallback when no catch-all entry exists' {
         $script:ResourceCategoryMapping = @( @{ category = 'Role'; resourceType = 'BusinessRole' } )
-        Map-ResourceCategory -Category 'Unmapped' | Should -Be 'Resource'
+        ConvertTo-AtlasResourceCategory -Category 'Unmapped' | Should -Be 'Resource'
         # restore for other tests
         $script:ResourceCategoryMapping = @(
             @{ category = 'Role';       resourceType = 'BusinessRole' }
@@ -73,51 +73,51 @@ Describe 'Map-ResourceCategory' {
     }
 }
 
-# ─── Map-IdentityTypeToAtlas ──────────────────────────────────────────────────
-Describe 'Map-IdentityTypeToAtlas' {
+# ─── ConvertTo-AtlasIdentityType ──────────────────────────────────────────────────
+Describe 'ConvertTo-AtlasIdentityType' {
     It "maps 'Employee' to User" {
-        Map-IdentityTypeToAtlas -OmadaType 'Employee' | Should -Be 'User'
+        ConvertTo-AtlasIdentityType -OmadaType 'Employee' | Should -Be 'User'
     }
     It "maps 'Contractor' to ExternalUser" {
-        Map-IdentityTypeToAtlas -OmadaType 'Contractor' | Should -Be 'ExternalUser'
+        ConvertTo-AtlasIdentityType -OmadaType 'Contractor' | Should -Be 'ExternalUser'
     }
     It "maps 'Service Account' to ServicePrincipal" {
-        Map-IdentityTypeToAtlas -OmadaType 'Service Account' | Should -Be 'ServicePrincipal'
+        ConvertTo-AtlasIdentityType -OmadaType 'Service Account' | Should -Be 'ServicePrincipal'
     }
     It "maps 'Machine' to ServicePrincipal" {
-        Map-IdentityTypeToAtlas -OmadaType 'Machine' | Should -Be 'ServicePrincipal'
+        ConvertTo-AtlasIdentityType -OmadaType 'Machine' | Should -Be 'ServicePrincipal'
     }
     It "defaults an unknown type to 'User' (with a warning)" {
-        Map-IdentityTypeToAtlas -OmadaType 'Wizard' | Should -Be 'User'
+        ConvertTo-AtlasIdentityType -OmadaType 'Wizard' | Should -Be 'User'
     }
 }
 
-# ─── Map-ResourceTypeToAtlas ──────────────────────────────────────────────────
-Describe 'Map-ResourceTypeToAtlas' {
+# ─── ConvertTo-AtlasResourceType ──────────────────────────────────────────────────
+Describe 'ConvertTo-AtlasResourceType' {
     It "maps the configured 'Business Role' to BusinessRole" {
-        Map-ResourceTypeToAtlas -OmadaType 'Business Role' | Should -Be 'BusinessRole'
+        ConvertTo-AtlasResourceType -OmadaType 'Business Role' | Should -Be 'BusinessRole'
     }
     It 'strips whitespace from an unmapped multi-word type' {
-        Map-ResourceTypeToAtlas -OmadaType 'Custom Resource Type' | Should -Be 'CustomResourceType'
+        ConvertTo-AtlasResourceType -OmadaType 'Custom Resource Type' | Should -Be 'CustomResourceType'
     }
     It 'returns a single-word unmapped type unchanged' {
-        Map-ResourceTypeToAtlas -OmadaType 'Widget' | Should -Be 'Widget'
+        ConvertTo-AtlasResourceType -OmadaType 'Widget' | Should -Be 'Widget'
     }
 }
 
-# ─── Map-ContextTypeToAtlas ───────────────────────────────────────────────────
-Describe 'Map-ContextTypeToAtlas' {
+# ─── ConvertTo-AtlasContextType ───────────────────────────────────────────────────
+Describe 'ConvertTo-AtlasContextType' {
     It "maps 'Organisational Unit' to OrgUnit" {
-        Map-ContextTypeToAtlas -OmadaType 'Organisational Unit' | Should -Be 'OrgUnit'
+        ConvertTo-AtlasContextType -OmadaType 'Organisational Unit' | Should -Be 'OrgUnit'
     }
     It "maps 'Cost Center' to CostCenter" {
-        Map-ContextTypeToAtlas -OmadaType 'Cost Center' | Should -Be 'CostCenter'
+        ConvertTo-AtlasContextType -OmadaType 'Cost Center' | Should -Be 'CostCenter'
     }
     It "maps 'Department' to Department" {
-        Map-ContextTypeToAtlas -OmadaType 'Department' | Should -Be 'Department'
+        ConvertTo-AtlasContextType -OmadaType 'Department' | Should -Be 'Department'
     }
     It 'strips whitespace from an unmapped multi-word context type' {
-        Map-ContextTypeToAtlas -OmadaType 'Some Region' | Should -Be 'SomeRegion'
+        ConvertTo-AtlasContextType -OmadaType 'Some Region' | Should -Be 'SomeRegion'
     }
 }
 
