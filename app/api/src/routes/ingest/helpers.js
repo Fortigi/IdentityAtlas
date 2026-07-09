@@ -7,7 +7,7 @@
 // behaviour change — pure code move.
 
 import * as db from '../../db/connection.js';
-import { ingest, SOFT_DELETE_TABLES } from '../../ingest/engine.js';
+import { SOFT_DELETE_TABLES } from '../../ingest/engine.js';
 import { startSession, continueSession, endSession, hasSession } from '../../ingest/sessions.js';
 import { breakCycles } from '../../contexts/cycleGuard.js';
 

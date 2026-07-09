@@ -121,7 +121,7 @@ export function refreshKeyword(viewName, populatedSet, isDesktop) {
   return !isDesktop && populatedSet.has(viewName) ? 'CONCURRENTLY' : '';
 }
 
-async function refreshMatrixViews() {
+export async function refreshMatrixViews() {
   const views = [
     '"vw_ResourceUserPermissionAssignments"',
     '"vw_UserPermissionAssignmentViaBusinessRole"',
