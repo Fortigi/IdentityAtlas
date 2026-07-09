@@ -1,0 +1,1 @@
+- Internal maintainability: split the large crawler-jobs API controller into focused modules (crawler-config CRUD, crawler-job lifecycle + status + live-discovery, and the shared job-config helpers) behind a thin barrel, and added tests covering the config/job/status/log handlers. No functional change — every crawler-config and crawler-job endpoint behaves exactly as before.
