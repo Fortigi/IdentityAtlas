@@ -16,6 +16,10 @@ coverage-contract/
 # `coverage/` ignore above, which otherwise matches a `coverage` dir at any depth.
 !docs/coverage/
 !docs/coverage/**
+# The per-file coverage ratchet TOOL lives under tools/coverage/ and IS committed
+# (only the generated app/*/coverage report dirs should be ignored).
+!tools/coverage/
+!tools/coverage/**
 tools/csv-templates/demodata/
 tools/csv-templates/demodataTransformed/
 .claude/settings.local.json
