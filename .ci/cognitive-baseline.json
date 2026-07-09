@@ -99,10 +99,14 @@
     "app/api/src/routes/openapi.drift.test.js": [
       19
     ],
-    "app/api/src/routes/permissions.js": [
+    "app/api/src/routes/permissions/accessPackages.js": [
+      18
+    ],
+    "app/api/src/routes/permissions/grid.js": [
       104,
-      28,
-      18,
+      28
+    ],
+    "app/api/src/routes/permissions/syncLog.js": [
       17
     ],
     "app/api/src/routes/recentChanges.js": [

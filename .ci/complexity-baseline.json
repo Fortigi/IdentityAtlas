@@ -49,7 +49,7 @@
       30,
       21
     ],
-    "app/api/src/routes/permissions.js": [
+    "app/api/src/routes/permissions/grid.js": [
       46
     ],
     "app/api/src/routes/recentChanges.js": [
