@@ -45,9 +45,11 @@
     "app/api/src/routes/details/user.js": [
       25
     ],
-    "app/api/src/routes/identities.js": [
-      30,
+    "app/api/src/routes/identities/detail.js": [
       21
+    ],
+    "app/api/src/routes/identities/list.js": [
+      30
     ],
     "app/api/src/routes/permissions/grid.js": [
       46
