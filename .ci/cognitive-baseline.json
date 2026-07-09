@@ -126,7 +126,7 @@
       28,
       17
     ],
-    "app/api/src/routes/tags.js": [
+    "app/api/src/routes/tags/crud.js": [
       29
     ],
     "app/api/src/scheduler.js": [

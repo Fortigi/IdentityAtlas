@@ -70,8 +70,10 @@
       37,
       27
     ],
-    "app/api/src/routes/tags.js": [
-      23,
+    "app/api/src/routes/tags/crud.js": [
+      23
+    ],
+    "app/api/src/routes/tags/entities.js": [
       22
     ],
     "app/ui/src/App.jsx": [
