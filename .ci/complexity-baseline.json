@@ -39,8 +39,10 @@
       22,
       21
     ],
-    "app/api/src/routes/details.js": [
-      46,
+    "app/api/src/routes/details/accessPackage.js": [
+      46
+    ],
+    "app/api/src/routes/details/user.js": [
       25
     ],
     "app/api/src/routes/identities.js": [

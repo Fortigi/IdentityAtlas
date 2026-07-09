@@ -1,0 +1,1 @@
+- Internal maintainability: split the large user/group/access-package detail API controller into focused per-entity modules (user, group, access-package) sharing one helpers module, with the original file kept as a thin barrel so every endpoint mounts and behaves exactly as before. No functional change.

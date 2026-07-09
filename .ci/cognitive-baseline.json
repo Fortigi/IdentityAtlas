@@ -77,10 +77,14 @@
       16,
       16
     ],
-    "app/api/src/routes/details.js": [
-      55,
-      33,
+    "app/api/src/routes/details/accessPackage.js": [
+      55
+    ],
+    "app/api/src/routes/details/group.js": [
       21
+    ],
+    "app/api/src/routes/details/user.js": [
+      33
     ],
     "app/api/src/routes/identities.js": [
       33,
