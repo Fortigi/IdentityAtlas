@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Reduced code duplication in the category API endpoints — the two category-list reads and the assign/unassign handlers now share their setup logic. No change to behaviour or responses.
+
+## Changes in this PR
+
 - Reduced code duplication in the risk-score API endpoints — the five per-type list endpoints now share one implementation, and the single-entity read/override handlers share their validation and score-recompute logic. No change to behaviour or responses.
 
 ## Changes in this PR
