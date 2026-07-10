@@ -1,5 +1,5 @@
 {
-  "_comment": "PSMutant mutation-testing config for IdentityAtlas's decomposed PowerShell crawler transforms (the pure ConvertTo-* record-shapers). Report-only to start (break=null) — set a floor once the scores are understood. Run: Install-Module PSMutant; Invoke-PSMutation -ConfigFile .ci/psmutant.config.json -SourceRoot .",
+  "_comment": "PSMutant mutation-testing config for IdentityAtlas's decomposed PowerShell crawler transforms (the pure ConvertTo-* record-shapers). Enforced: the build fails when the mutation score drops below break (80% — the transforms sit around 85%, so this locks in the current bar and forces new transform logic to be mutation-tested, not just line-covered). Run: Install-Module PSMutant; Invoke-PSMutation -ConfigFile .ci/psmutant.config.json -SourceRoot .",
   "sandboxSubtrees": ["tools", "test", "setup"],
   "mutate": [
     "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
@@ -17,6 +17,6 @@
   },
   "coveredLinesOnly": true,
   "operators": ["BinaryOperator", "BooleanLiteral", "NumberLiteral", "NegationRemoval"],
-  "thresholds": { "high": 80, "low": 60, "break": null },
+  "thresholds": { "high": 80, "low": 60, "break": 80 },
   "reportPath": "reports/ps-mutation.json"
 }

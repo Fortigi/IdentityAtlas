@@ -3,17 +3,18 @@
 # transforms (the pure ConvertTo-* record-shapers) against their Pester suites --
 # the metric that proves the tests would CATCH a bug, not just execute the line.
 #
-# REPORT-ONLY for now (.ci/psmutant.config.json has thresholds.break = null): it
-# prints the score and uploads the report, but does not fail the build. Set a floor
-# once the scores are understood. Mutation is heavier than unit tests, so it runs
-# weekly, on demand, and on PRs that touch the mutated transforms (not every PR).
+# ENFORCED (.ci/psmutant.config.json has thresholds.break = 80): the run FAILS when
+# the mutation score drops below the floor — PSMutant returns a non-zero exit code,
+# which the step below rethrows. PR runs gate but never commit; weekly/on-demand runs
+# gate AND publish the score. Mutation is heavier than unit tests, so it runs weekly,
+# on demand, and on PRs that touch the mutated transforms (not every PR).
 #
 # Because it's the ONLY place mutation runs, the weekly/on-demand run also owns the
 # mutation figure on the Test Coverage docs page: it writes the score to
 # docs/coverage/powershell/mutation.json, re-renders docs/reference/coverage.md from
 # the already-committed coverage summaries (tools/generate-coverage-doc.py), and
 # commits both back to main. coverage.yml (every merge) just reads that file back —
-# it never runs mutation itself. PR runs stay report-only (no commit). Same
+# it never runs mutation itself. PR runs gate but do not commit. Same
 # protected-main push mechanics as coverage.yml / sbom-update.yml: the GitHub App
 # token is required (GITHUB_TOKEN can't bypass branch protection) and the push
 # rebases-and-retries to absorb a concurrent commit.
@@ -44,8 +45,8 @@ jobs:
     name: Mutation testing (PSMutant)
     runs-on: ubuntu-latest
     steps:
-      # Bot token only for the publishing (non-PR) runs — PR runs are report-only
-      # and never push, so they don't need it.
+      # Bot token only for the publishing (non-PR) runs — PR runs gate on the
+      # score but never push, so they do not need it.
       - name: Generate bot token
         id: bot-token
         if: github.event_name != 'pull_request'
@@ -67,7 +68,7 @@ jobs:
           Install-Module Pester -RequiredVersion 5.8.0 -Force -Scope CurrentUser
           Install-Module PSMutant -RequiredVersion 0.1.0 -Force -Scope CurrentUser
 
-      - name: Run mutation testing (report-only)
+      - name: Run mutation testing (enforced — fails below the break floor)
         shell: pwsh
         run: |
           Import-Module PSMutant -Force
