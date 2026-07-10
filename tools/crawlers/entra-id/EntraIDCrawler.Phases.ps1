@@ -1647,8 +1647,7 @@ function Resolve-EntraSyncConfig {
         SyncSignInLogs        = $false
         SyncOAuth2Grants      = $false
         SyncAppRoles          = $false
-        SyncPrincipalRelationships = $false
-        SyncDirectoryRoles    = $false
+        SyncPrincipalRelationships = $false; SyncDirectoryRoles = $false
         RefreshViews          = $true
         SignInLogsDays        = 7
         CustomUserAttributes  = @()
@@ -1663,8 +1662,7 @@ function Resolve-EntraSyncConfig {
         Set-EntraTogglesFrom -Cfg $cfg -Source $objects -Map ([ordered]@{
             identity = 'SyncPrincipals'; servicePrincipals = 'SyncServicePrincipals'
             identityGovernance = 'SyncGovernance'; pim = 'SyncPim'; signInLogs = 'SyncSignInLogs'
-            oauth2Grants = 'SyncOAuth2Grants'; appsAppRoles = 'SyncAppRoles'; appOwners = 'SyncAppOwners'; appPermissions = 'SyncAppPermissions'
-            principalRelationships = 'SyncPrincipalRelationships'; directoryRoles = 'SyncDirectoryRoles'
+            oauth2Grants = 'SyncOAuth2Grants'; appsAppRoles = 'SyncAppRoles'; appOwners = 'SyncAppOwners'; appPermissions = 'SyncAppPermissions'; principalRelationships = 'SyncPrincipalRelationships'; directoryRoles = 'SyncDirectoryRoles'
         })
         # usersGroupsMembers drives three toggles at once (applied after `identity` so it wins on SyncPrincipals).
         if ($objects.ContainsKey('usersGroupsMembers')) {
@@ -1678,8 +1676,7 @@ function Resolve-EntraSyncConfig {
         syncPrincipals = 'SyncPrincipals'; syncServicePrincipals = 'SyncServicePrincipals'
         syncResources = 'SyncResources'; syncAssignments = 'SyncAssignments'; syncGovernance = 'SyncGovernance'
         syncSignInLogs = 'SyncSignInLogs'; syncOAuth2Grants = 'SyncOAuth2Grants'
-        syncAppRoles = 'SyncAppRoles'; syncAppOwners = 'SyncAppOwners'; syncAppPermissions = 'SyncAppPermissions'
-        syncPrincipalRelationships = 'SyncPrincipalRelationships'; syncDirectoryRoles = 'SyncDirectoryRoles'
+        syncAppRoles = 'SyncAppRoles'; syncAppOwners = 'SyncAppOwners'; syncAppPermissions = 'SyncAppPermissions'; syncPrincipalRelationships = 'SyncPrincipalRelationships'; syncDirectoryRoles = 'SyncDirectoryRoles'
     })
     Set-EntraConfigExtras -Cfg $cfg -RawConfig $RawConfig
     return $cfg
