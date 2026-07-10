@@ -1,5 +1,13 @@
 ## Changes in this PR
 
+- Added crawling of **AI agent owners** and **guest account sponsors** from Microsoft Graph — the person accountable for each non-human or external identity is now captured, not just the identity itself.
+- On an AI agent's detail page, the Relationships tab now shows its **Owners** and a **Linked Resource** node that bridges to the agent's enterprise-application view.
+- On a guest account's detail page, the Relationships tab now shows its **Sponsors**.
+- The reverse links appear too: a person's Relationships tab shows the **Owned Agents** and **Sponsored Guests** they are responsible for (only when there are any).
+- Added an "Agent Owners & Guest Sponsors" option to the Entra ID crawler's Object Types step to enable this (off by default).
+
+## Changes in this PR
+
 - Standardized PowerShell function names across the crawlers and test harnesses to use PowerShell approved verbs (no behaviour change).
 - Re-enabled the `PSUseApprovedVerbs` PowerShell lint gate in CI so unapproved-verb function names are flagged going forward.
 
