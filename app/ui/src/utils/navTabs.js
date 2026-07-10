@@ -6,14 +6,14 @@
 //   optional  — hidden by default; the user opts in via Settings → tabs, which
 //               adds the tab key to their `visibleTabs` preference.
 //
-// Systems and Sync Log are optional: most users live in the Matrix / Users /
+// Systems and Sync Log are optional: most users live in the Matrix / Principals /
 // Contexts surfaces, so these admin-leaning views are off by default and can be
 // switched on per-user when needed.
 
 export const ALL_NAV_TABS = [
   { key: 'dashboard',        label: 'Dashboard' },
   { key: 'matrix',           label: 'Matrix' },
-  { key: 'users',            label: 'Users' },
+  { key: 'principals',       label: 'Principals' },
   { key: 'resources',        label: 'Resources' },
   { key: 'systems',          label: 'Systems',      optional: true },
   { key: 'access-packages',  label: 'Business Roles' },

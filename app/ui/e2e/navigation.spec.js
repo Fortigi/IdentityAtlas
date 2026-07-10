@@ -21,7 +21,7 @@ test.describe('App Navigation', () => {
 
   test('all always-visible tabs are present', async ({ page }) => {
     // Optional tabs (Risk Scores, Identities, Org Chart, Performance, Admin) are hidden by default
-    const tabs = ['Matrix', 'Users', 'Resources', 'Systems', 'Business Roles', 'Logs'];
+    const tabs = ['Matrix', 'Principals', 'Resources', 'Systems', 'Business Roles', 'Logs'];
 
     for (const tab of tabs) {
       await expect(page.getByRole('button', { name: tab, exact: true })).toBeVisible();
@@ -29,9 +29,9 @@ test.describe('App Navigation', () => {
   });
 
   test('clicking tabs changes the page', async ({ page }) => {
-    // Navigate to Users
-    await page.getByRole('button', { name: 'Users', exact: true }).click();
-    await expect(page.locator('h2')).toContainText('Users');
+    // Navigate to Principals
+    await page.getByRole('button', { name: 'Principals', exact: true }).click();
+    await expect(page.locator('h2')).toContainText('Principals');
 
     // Navigate to Resources (formerly Groups)
     await page.getByRole('button', { name: 'Resources', exact: true }).click();
@@ -44,8 +44,8 @@ test.describe('App Navigation', () => {
 
   test('hash-based routing works', async ({ page }) => {
     // Navigate via hash
-    await page.goto('/#users');
-    await expect(page.locator('h2')).toContainText('Users');
+    await page.goto('/#principals');
+    await expect(page.locator('h2')).toContainText('Principals');
 
     await page.goto('/#resources');
     await expect(page.locator('h2')).toContainText('Resources');

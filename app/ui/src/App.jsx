@@ -40,10 +40,16 @@ const AdminPage = lazy(() => import('./components/AdminPage'));
 
 // ─── URL helpers ──────────────────────────────────────────────────
 
+// Legacy page-key aliases: the "Users" tab was renamed to "Principals" (#126).
+// Old #users deep links still resolve to it, and the hash is canonicalized to
+// #principals in place (see useHashRoute).
+const PAGE_ALIASES = { users: 'principals' };
+const canonicalPageKey = (p) => PAGE_ALIASES[p] || p;
+
 function parseHash() {
   const raw = decodeURIComponent(window.location.hash.replace('#', '') || 'dashboard');
   const qIndex = raw.indexOf('?');
-  const page = qIndex >= 0 ? raw.substring(0, qIndex) : raw;
+  const page = canonicalPageKey(qIndex >= 0 ? raw.substring(0, qIndex) : raw);
   const params = new URLSearchParams(qIndex >= 0 ? raw.substring(qIndex + 1) : '');
   return { page, params };
 }
@@ -85,11 +91,22 @@ function useHashRoute() {
   const getPage = () => {
     const raw = decodeURIComponent(window.location.hash.replace('#', '') || 'dashboard');
     const qIndex = raw.indexOf('?');
-    return qIndex >= 0 ? raw.substring(0, qIndex) : raw;
+    return canonicalPageKey(qIndex >= 0 ? raw.substring(0, qIndex) : raw);
   };
   const [page, setPage] = useState(getPage());
   useEffect(() => {
-    const onHash = () => setPage(getPage());
+    // Canonicalize a legacy #users hash to #principals in place (no history entry).
+    const canonicalizeHash = () => {
+      const raw = window.location.hash.replace('#', '');
+      const qIndex = raw.indexOf('?');
+      const key = qIndex >= 0 ? raw.substring(0, qIndex) : raw;
+      const canon = canonicalPageKey(key);
+      if (canon !== key) {
+        window.history.replaceState(null, '', '#' + canon + (qIndex >= 0 ? raw.substring(qIndex) : ''));
+      }
+    };
+    const onHash = () => { canonicalizeHash(); setPage(getPage()); };
+    canonicalizeHash();
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
   }, []);
@@ -588,7 +605,7 @@ export default function App() {
             <DashboardPage onNavigate={navigate} />
           ) : page === 'sync-log' ? (
             <SyncLogPage navigate={navigate} onOpenDetail={openDetailTab} />
-          ) : page === 'users' ? (
+          ) : page === 'principals' ? (
             <UsersPage onOpenDetail={openDetailTab} />
           ) : page === 'resources' || page === 'groups' ? (
             <GroupsPage onOpenDetail={openDetailTab} />

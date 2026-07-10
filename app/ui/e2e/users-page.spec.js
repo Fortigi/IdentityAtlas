@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test';
 
 test.describe('Users Page', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/#users');
+    await page.goto('/#principals');
     // Wait for data to load
     await page.waitForTimeout(500);
   });

@@ -23,7 +23,7 @@ test.describe('Entity Detail Pages', () => {
   });
 
   test('detail tab appears in navigation when opened from Users page', async ({ page }) => {
-    await page.goto('/#users');
+    await page.goto('/#principals');
     await page.waitForTimeout(500);
 
     // Click first clickable user name in the table
@@ -47,7 +47,7 @@ test.describe('Entity Detail Pages', () => {
     await page.waitForTimeout(500);
 
     // Navigate to users page and open another
-    await page.goto('/#users');
+    await page.goto('/#principals');
     await page.waitForTimeout(500);
 
     // Open group detail
@@ -87,7 +87,7 @@ test.describe('Entity Detail Pages', () => {
 
     test('closing the active tab navigates to its originating page', async ({ page }) => {
       // Go to Users page first so openDetailTab records returnPage='users'
-      await page.goto('/#users');
+      await page.goto('/#principals');
       await page.waitForTimeout(500);
 
       // Click the first user link to open a detail tab with returnPage='users'
@@ -111,7 +111,7 @@ test.describe('Entity Detail Pages', () => {
       await page.waitForTimeout(300);
 
       // Should have returned to the Users page
-      expect(page.url()).toContain('#users');
+      expect(page.url()).toContain('#principals');
     });
 
     test('closing an inactive tab does not change the current page', async ({ page }) => {
@@ -152,7 +152,7 @@ test.describe('Entity Detail Pages', () => {
       // Use evaluate to set up the chain programmatically via the app's openDetailTab path.
 
       // Step 1: land on users, open user tab (returnPage='users')
-      await page.goto('/#users');
+      await page.goto('/#principals');
       await page.waitForTimeout(300);
       const userLinks = page.locator('table tbody tr td a, table tbody tr td button').first();
       if (await userLinks.count() === 0) { test.skip(); return; }
@@ -191,7 +191,7 @@ test.describe('Entity Detail Pages', () => {
       await page.waitForTimeout(300);
 
       // Should have landed on users (the grandparent), not matrix
-      expect(page.url()).toContain('#users');
+      expect(page.url()).toContain('#principals');
     });
 
   });

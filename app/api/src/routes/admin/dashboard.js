@@ -50,7 +50,7 @@ router.get('/admin/dashboard-stats', async (_req, res) => {
         (SELECT COUNT(*)::int FROM "Systems")                                                              AS "systems",
         GREATEST(COALESCE((SELECT est FROM estimates WHERE relname = 'Resources'), 0), 0)::int              AS "resources",
         (SELECT COUNT(*)::int FROM "Resources" WHERE "resourceType" = 'BusinessRole')          AS "businessRoles",
-        GREATEST(COALESCE((SELECT est FROM estimates WHERE relname = 'Principals'), 0), 0)::int             AS "users",
+        GREATEST(COALESCE((SELECT est FROM estimates WHERE relname = 'Principals'), 0), 0)::int             AS "principals",
         GREATEST(COALESCE((SELECT est FROM estimates WHERE relname = 'Identities'), 0), 0)::int             AS "identities",
         GREATEST(COALESCE((SELECT est FROM estimates WHERE relname = 'ResourceAssignments'), 0), 0)::int    AS "assignments",
         (SELECT COUNT(*)::int FROM "ResourceAssignments" WHERE "governed" = true)  AS "governedAssignments",
@@ -82,7 +82,7 @@ router.get('/admin/dashboard-stats', async (_req, res) => {
 
     // pg_class.reltuples is always 0 in PGlite (no stats collector process),
     // so fall back to an exact COUNT when DESKTOP_MODE is set and reltuples says empty.
-    let hasData = (stats.users || 0) + (stats.resources || 0) > 0;
+    let hasData = (stats.principals || 0) + (stats.resources || 0) > 0;
     if (!hasData && process.env.DESKTOP_MODE === 'true') {
       const check = await db.queryOne(
         `SELECT (SELECT COUNT(*)::int FROM "Principals") + (SELECT COUNT(*)::int FROM "Resources") AS total`

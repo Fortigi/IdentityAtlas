@@ -220,7 +220,7 @@ test.describe('Identities Page', () => {
 
   test('navigating away and back does not crash', async ({ page }) => {
     // Go to Users via hash, then back to Identities via hash
-    await page.goto('/#users');
+    await page.goto('/#principals');
     await page.waitForTimeout(500);
     await page.goto('/#identities');
     await page.waitForTimeout(500);
