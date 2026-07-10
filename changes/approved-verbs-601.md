@@ -1,2 +1,0 @@
-- Standardized PowerShell function names across the crawlers and test harnesses to use PowerShell approved verbs (no behaviour change).
-- Re-enabled the `PSUseApprovedVerbs` PowerShell lint gate in CI so unapproved-verb function names are flagged going forward.
