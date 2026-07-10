@@ -1,0 +1,1 @@
+- Corrected the Risk Scoring page's data-source note to reference the current `Principals` and `Resources` tables (it previously named the removed `GraphUsers` / `GraphGroups` tables).

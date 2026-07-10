@@ -293,17 +293,17 @@ pwsh -File _Test\Test-RiskScoring.ps1 -ConfigFile _Test\config.test.json -LLMPro
 ### Manual Risk Scoring Verification
 
 ```powershell
-# Check risk scores exist on users
-Invoke-FGSQLQuery -Query "SELECT TOP 10 displayName, riskScore, riskTier FROM GraphUsers WHERE riskScore IS NOT NULL ORDER BY riskScore DESC"
+# Check risk scores exist on users (accounts live in Principals; users are principalType='User')
+Invoke-FGSQLQuery -Query "SELECT \"displayName\", \"riskScore\", \"riskTier\" FROM \"Principals\" WHERE \"principalType\" = 'User' AND \"riskScore\" IS NOT NULL ORDER BY \"riskScore\" DESC LIMIT 10"
 
-# Check risk scores exist on groups
-Invoke-FGSQLQuery -Query "SELECT TOP 10 displayName, riskScore, riskTier FROM GraphGroups WHERE riskScore IS NOT NULL ORDER BY riskScore DESC"
+# Check risk scores exist on groups (groups live in Resources as resourceType='Group')
+Invoke-FGSQLQuery -Query "SELECT \"displayName\", \"riskScore\", \"riskTier\" FROM \"Resources\" WHERE \"resourceType\" = 'Group' AND \"riskScore\" IS NOT NULL ORDER BY \"riskScore\" DESC LIMIT 10"
 
 # Check tier distribution
-Invoke-FGSQLQuery -Query "SELECT riskTier, COUNT(*) AS Count FROM GraphUsers WHERE riskScore IS NOT NULL GROUP BY riskTier ORDER BY MIN(riskScore) DESC"
+Invoke-FGSQLQuery -Query "SELECT \"riskTier\", COUNT(*) AS Count FROM \"Principals\" WHERE \"riskScore\" IS NOT NULL GROUP BY \"riskTier\" ORDER BY MIN(\"riskScore\") DESC"
 
 # Check an analyst override
-Invoke-FGSQLQuery -Query "SELECT displayName, riskScore, riskOverride, riskOverrideReason FROM GraphUsers WHERE riskOverride IS NOT NULL"
+Invoke-FGSQLQuery -Query "SELECT \"displayName\", \"riskScore\", \"riskOverride\", \"riskOverrideReason\" FROM \"Principals\" WHERE \"riskOverride\" IS NOT NULL"
 ```
 
 ---
