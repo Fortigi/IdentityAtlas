@@ -366,6 +366,16 @@ jobs:
         working-directory: app/api
         run: npm run test:coverage
 
+      - name: Per-file coverage ratchet (API)
+        # Committed per-file line-coverage floor (.ci/coverage-baseline.json) so an
+        # EXISTING file can't quietly shed coverage — the complement to the
+        # diff-coverage gate (which only judges changed lines). See
+        # tools/coverage/ratchet.py. Reads the deterministic unit lcov just produced.
+        run: |
+          python3 -m pip install --quiet pytest
+          python3 -m pytest tools/coverage/test_ratchet.py -q
+          python3 tools/coverage/ratchet.py --lcov app/api/coverage/lcov.info --prefix app/api/
+
       - name: Upload coverage (lcov + text)
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -432,6 +442,12 @@ jobs:
         # Coverage-enabled so the committed thresholds floor in vite.config.js is
         # enforced — a change that drops UI coverage below the floor fails here.
         run: npm run test:coverage
+
+      - name: Per-file coverage ratchet (UI)
+        # Per-file line-coverage floor (.ci/coverage-baseline.json), same gate as
+        # the API job — the aggregate vite.config.js floor above can't tell that one
+        # file quietly regressed while another rose. See tools/coverage/ratchet.py.
+        run: python3 tools/coverage/ratchet.py --lcov app/ui/coverage/lcov.info --prefix app/ui/
 
   # ── Stage 4c: Node-launcher UI build (crawler wizard bundling) ──────────
   # The portable/desktop build (app/desktop/scripts/build-node-launcher.mjs)
