@@ -26,13 +26,35 @@ const TAG_COLORS = [
 // Validate hex color format (#000000 – #ffffff)
 const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
 
+// Shared body for the read-only category list endpoints: honour SQL mode (sends
+// an empty list and returns null when off), ensure the tables, then run `sql`.
+// Returns the recordset, or null when it already responded — the caller sends
+// the rows only when non-null, keeping its own catch behaviour.
+async function fetchCategoryRows(res, sql) {
+  if (!useSql) { res.json([]); return null; }
+  const p = await db.getPool();
+  await ensureCategoryTables(p);
+  return (await p.request().query(sql)).recordset;
+}
+
+// Shared preamble for the assign/unassign endpoints: require SQL mode, resolve
+// the target resource id (accepting the legacy `businessRoleId` alias), ensure
+// the tables. On a validation failure it sends the 400 and returns null;
+// otherwise returns the resource id, already lowercased for storage.
+async function prepareAssignment(req, res) {
+  if (!useSql) { res.status(400).json({ error: 'SQL mode required' }); return null; }
+  const { businessRoleId, resourceId: bodyResourceId } = req.body;
+  const resId = bodyResourceId || businessRoleId;
+  if (!resId) { res.status(400).json({ error: 'resourceId required' }); return null; }
+  const p = await db.getPool();
+  await ensureCategoryTables(p);
+  return String(resId).toLowerCase();
+}
+
 // ─── GET /api/categories ─────────────────────────────────────────
 router.get('/categories', async (req, res) => {
   try {
-    if (!useSql) return res.json([]);
-    const p = await db.getPool();
-    await ensureCategoryTables(p);
-    const result = await p.request().query(`
+    const rows = await fetchCategoryRows(res, `
       SELECT c.id, c."name", c."color", c."createdAt",
              COALESCE(COUNT(ca."categoryId"), 0)::int AS "assignmentCount"
         FROM "GovernanceCategories" c
@@ -40,7 +62,7 @@ router.get('/categories', async (req, res) => {
        GROUP BY c.id, c."name", c."color", c."createdAt"
        ORDER BY c."name"
     `);
-    res.json(result.recordset);
+    if (rows) res.json(rows);
   } catch (err) {
     console.error('GET /categories failed:', err.message);
     res.status(500).json({ error: 'Internal server error' });
@@ -123,13 +145,8 @@ router.delete('/categories/:id', writeCategories, async (req, res) => {
 // this replaces any existing assignment for that AP.
 router.post('/categories/:id/assign', writeCategories, async (req, res) => {
   try {
-    if (!useSql) return res.status(400).json({ error: 'SQL mode required' });
-    const { businessRoleId, resourceId: bodyResourceId } = req.body;
-    const resId = bodyResourceId || businessRoleId;
-    if (!resId) return res.status(400).json({ error: 'resourceId required' });
-
-    const p = await db.getPool();
-    await ensureCategoryTables(p);
+    const resId = await prepareAssignment(req, res);
+    if (!resId) return;
     const categoryId = parseInt(req.params.id, 10);
     if (isNaN(categoryId)) return res.status(400).json({ error: 'Invalid category ID' });
 
@@ -139,11 +156,11 @@ router.post('/categories/:id/assign', writeCategories, async (req, res) => {
     await db.tx(async (client) => {
       await client.query(
         `DELETE FROM "GovernanceCategoryAssignments" WHERE "resourceId" = $1`,
-        [String(resId).toLowerCase()]
+        [resId]
       );
       await client.query(
         `INSERT INTO "GovernanceCategoryAssignments" ("resourceId", "categoryId") VALUES ($1, $2)`,
-        [String(resId).toLowerCase(), categoryId]
+        [resId, categoryId]
       );
     });
     res.json({ ok: true });
@@ -157,17 +174,12 @@ router.post('/categories/:id/assign', writeCategories, async (req, res) => {
 // Removes the category assignment from a business role.
 router.post('/categories/unassign', writeCategories, async (req, res) => {
   try {
-    if (!useSql) return res.status(400).json({ error: 'SQL mode required' });
-    const { businessRoleId, resourceId: bodyResourceId } = req.body;
-    const resId = bodyResourceId || businessRoleId;
-    if (!resId) return res.status(400).json({ error: 'resourceId required' });
-
-    const p = await db.getPool();
-    await ensureCategoryTables(p);
+    const resId = await prepareAssignment(req, res);
+    if (!resId) return;
 
     await db.query(
       `DELETE FROM "GovernanceCategoryAssignments" WHERE "resourceId" = $1`,
-      [String(resId).toLowerCase()]
+      [resId]
     );
     res.json({ ok: true });
   } catch (err) {
@@ -370,16 +382,13 @@ router.get('/access-packages', async (req, res) => {
 // Returns all category assignments as a flat list (for matrix column ordering)
 router.get('/category-assignments', async (req, res) => {
   try {
-    if (!useSql) return res.json([]);
-    const p = await db.getPool();
-    await ensureCategoryTables(p);
-    const result = await p.request().query(`
+    const rows = await fetchCategoryRows(res, `
       SELECT ca."resourceId", ca."resourceId" AS businessRoleId, c.id AS "categoryId", c.name AS categoryName, c.color AS categoryColor
       FROM "GovernanceCategoryAssignments" ca
       INNER JOIN "GovernanceCategories" c ON ca."categoryId" = c.id
       ORDER BY c.name, ca."resourceId"
     `);
-    res.json(result.recordset);
+    if (rows) res.json(rows);
   } catch (err) {
     console.error('GET /category-assignments failed:', err.message);
     res.json([]);
