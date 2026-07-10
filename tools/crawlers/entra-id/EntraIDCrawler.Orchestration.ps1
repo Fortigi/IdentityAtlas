@@ -40,7 +40,8 @@ function Invoke-EntraApplicationPhases {
         $SyncOAuth2Grants   = $false,
         $SyncAppRoles       = $false,
         $SyncAppOwners      = $false,
-        $SyncAppPermissions = $false
+        $SyncAppPermissions = $false,
+        $SyncPrincipalRelationships = $false
     )
     if ($SyncOAuth2Grants) {
         Sync-EntraOAuth2Grants -SystemId $SystemId -Timings $Timings
@@ -53,5 +54,8 @@ function Invoke-EntraApplicationPhases {
     }
     if ($SyncAppPermissions) {
         Sync-EntraAppPermissions -SystemId $SystemId -AINamePatterns $AINamePatterns -Timings $Timings
+    }
+    if ($SyncPrincipalRelationships) {
+        Sync-EntraPrincipalRelationships -SystemId $SystemId -AINamePatterns $AINamePatterns -Timings $Timings
     }
 }

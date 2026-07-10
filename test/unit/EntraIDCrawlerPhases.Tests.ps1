@@ -45,7 +45,9 @@ BeforeAll {
     . (Join-Path $script:entraDir 'EntraIDCrawler.AppOwners.ps1')
     # Sync-EntraAppPermissions + its helpers live in their own file too.
     . (Join-Path $script:entraDir 'EntraIDCrawler.AppPermissions.ps1')
-    # Invoke-EntraApplicationPhases — dispatch for the four application phases.
+    # Sync-EntraPrincipalRelationships (agent owners / guest sponsors) — its own file.
+    . (Join-Path $script:entraDir 'EntraIDCrawler.PrincipalRelationships.ps1')
+    # Invoke-EntraApplicationPhases — dispatch for the application + principal-relationship phases.
     . (Join-Path $script:entraDir 'EntraIDCrawler.Orchestration.ps1')
 
     # Script-scope state the phases + shared helpers read at call time.
@@ -295,16 +297,18 @@ Describe 'Invoke-EntraApplicationPhases' {
         Mock Sync-EntraAppRoles       -MockWith { }
         Mock Sync-EntraAppOwners      -MockWith { }
         Mock Sync-EntraAppPermissions -MockWith { }
+        Mock Sync-EntraPrincipalRelationships -MockWith { }
     }
 
-    It 'runs every phase when all toggles are on, forwarding AINamePatterns to app permissions' {
+    It 'runs every phase when all toggles are on, forwarding AINamePatterns to app permissions + principal relationships' {
         Invoke-EntraApplicationPhases -SystemId 7 -AINamePatterns @('*copilot*') -Timings ([ordered]@{}) `
-            -SyncOAuth2Grants $true -SyncAppRoles $true -SyncAppOwners $true -SyncAppPermissions $true
+            -SyncOAuth2Grants $true -SyncAppRoles $true -SyncAppOwners $true -SyncAppPermissions $true -SyncPrincipalRelationships $true
 
         Should -Invoke Sync-EntraOAuth2Grants   -Times 1 -ParameterFilter { $SystemId -eq 7 }
         Should -Invoke Sync-EntraAppRoles       -Times 1 -ParameterFilter { $SystemId -eq 7 }
         Should -Invoke Sync-EntraAppOwners      -Times 1 -ParameterFilter { $SystemId -eq 7 }
         Should -Invoke Sync-EntraAppPermissions -Times 1 -ParameterFilter { $SystemId -eq 7 -and @($AINamePatterns) -contains '*copilot*' }
+        Should -Invoke Sync-EntraPrincipalRelationships -Times 1 -ParameterFilter { $SystemId -eq 7 -and @($AINamePatterns) -contains '*copilot*' }
     }
 
     It 'runs nothing when every toggle is off (all default to false)' {
@@ -313,6 +317,7 @@ Describe 'Invoke-EntraApplicationPhases' {
         Should -Invoke Sync-EntraAppRoles       -Times 0
         Should -Invoke Sync-EntraAppOwners      -Times 0
         Should -Invoke Sync-EntraAppPermissions -Times 0
+        Should -Invoke Sync-EntraPrincipalRelationships -Times 0
     }
 
     It 'runs only the phases whose toggle is on' {
@@ -1488,6 +1493,12 @@ Describe 'Resolve-EntraSyncConfig' {
         $c.SyncPrincipals | Should -BeFalse
         $c.SyncResources | Should -BeFalse
         $c.SyncAssignments | Should -BeFalse
+    }
+
+    It 'defaults SyncPrincipalRelationships off and honours both toggle shapes' {
+        (Resolve-EntraSyncConfig -RawConfig @{}).SyncPrincipalRelationships | Should -BeFalse
+        (Resolve-EntraSyncConfig -RawConfig @{ selectedObjects = @{ principalRelationships = $true } }).SyncPrincipalRelationships | Should -BeTrue
+        (Resolve-EntraSyncConfig -RawConfig @{ syncPrincipalRelationships = $true }).SyncPrincipalRelationships | Should -BeTrue
     }
 
     It 'applies direct backward-compat toggles and signInLogsDays' {

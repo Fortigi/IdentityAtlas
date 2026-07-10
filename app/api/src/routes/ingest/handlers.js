@@ -109,6 +109,7 @@ router.post('/ingest/resources',                createIngestHandler('resources')
 router.post('/ingest/resource-assignments',          createIngestHandler('resource-assignments'));
 router.post('/ingest/resource-assignments-identity', createIngestHandler('resource-assignments-identity'));
 router.post('/ingest/resource-relationships',   createIngestHandler('resource-relationships'));
+router.post('/ingest/principal-relationships',  createIngestHandler('principal-relationships'));
 router.post('/ingest/identities',               createIngestHandler('identities'));
 router.post('/ingest/identity-members',         createIngestHandler('identity-members'));
 router.post('/ingest/contexts',                 createIngestHandler('contexts'));

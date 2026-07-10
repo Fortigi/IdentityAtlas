@@ -69,6 +69,16 @@
     assignment whose principal is the holding SP. Fetched per-SP (no bulk endpoint),
     so slow on large tenants. Default: false.
 
+.PARAMETER SyncPrincipalRelationships
+    Sync principal→principal relationships — the owners of AI agents and the
+    sponsors of guest accounts, stored in PrincipalRelationships. Owners are read
+    from /servicePrincipals/{agent}/owners (for SPs classified principalType=
+    'AIAgent'); sponsors from /users/{guest}/sponsors. Modelled as an Owner /
+    Sponsor link between two Principals (the agent/guest is the subject, the
+    owner/sponsor the related principal), surfaced on the entity's relations tab.
+    Fetched per-agent / per-guest (no bulk Graph endpoint) but only over agents +
+    guests, so much cheaper than SyncAppOwners. Default: false.
+
 .PARAMETER SyncDirectoryRoles
     Sync Entra ID directory roles — the role catalog (roleDefinitions,
     including each role's granular allowedResourceActions), active role
@@ -121,6 +131,7 @@ $ApiBaseUrl = $ApiBaseUrl.TrimEnd('/')
 . (Join-Path $PSScriptRoot 'EntraIDCrawler.Phases.ps1')
 . (Join-Path $PSScriptRoot 'EntraIDCrawler.AppOwners.ps1')
 . (Join-Path $PSScriptRoot 'EntraIDCrawler.AppPermissions.ps1')
+. (Join-Path $PSScriptRoot 'EntraIDCrawler.PrincipalRelationships.ps1')
 . (Join-Path $PSScriptRoot 'EntraIDCrawler.Orchestration.ps1')
 
 # Resolve all sync toggles + attribute lists from the job config.
@@ -137,6 +148,7 @@ $SyncOAuth2Grants      = $cfg.SyncOAuth2Grants
 $SyncAppRoles          = $cfg.SyncAppRoles
 $SyncAppOwners         = $cfg.SyncAppOwners
 $SyncAppPermissions    = $cfg.SyncAppPermissions
+$SyncPrincipalRelationships = $cfg.SyncPrincipalRelationships
 $SyncDirectoryRoles    = $cfg.SyncDirectoryRoles
 $RefreshViews          = $cfg.RefreshViews
 $SignInLogsDays        = $cfg.SignInLogsDays
@@ -300,7 +312,8 @@ if ($SyncGovernance) {
 # per-unit complexity ratchet (every inline `if ($SyncX)` guard is a decision point).
 Invoke-EntraApplicationPhases -SystemId $systemId -AINamePatterns $AINamePatterns -Timings $phaseTimings `
     -SyncOAuth2Grants $SyncOAuth2Grants -SyncAppRoles $SyncAppRoles `
-    -SyncAppOwners $SyncAppOwners -SyncAppPermissions $SyncAppPermissions
+    -SyncAppOwners $SyncAppOwners -SyncAppPermissions $SyncAppPermissions `
+    -SyncPrincipalRelationships $SyncPrincipalRelationships
 
 # ─── Sync Directory Roles ────────────────────────────────────────
 # Entra ID directory roles (Global Administrator, Privileged Role

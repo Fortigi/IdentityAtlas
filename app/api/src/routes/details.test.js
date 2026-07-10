@@ -81,6 +81,28 @@ describe('details — happy paths (200)', () => {
     expect(res.status).toBe(200);
     expect(res.body).toHaveProperty('attributes');
     expect(res.body).toHaveProperty('membershipCount');
+    // Principal→principal relationship counts + linked resource (migration 057).
+    expect(res.body).toHaveProperty('ownerCount');
+    expect(res.body).toHaveProperty('sponsorCount');
+    expect(res.body).toHaveProperty('ownedAgentCount');
+    expect(res.body).toHaveProperty('sponsoredGuestCount');
+    expect(res.body).toHaveProperty('linkedResource');
+  });
+
+  it.each([
+    ['?type=Owner', 'Owner-subject'],
+    ['?type=Sponsor&reverse=true', 'Sponsor-reverse'],
+    ['', 'default'],
+  ])('GET /user/:id/principal-relationships %s returns 200', async (qs) => {
+    const res = await request(app).get(`/api/user/${VALID_ID}/principal-relationships${qs}`);
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+  });
+
+  it('GET /user/:id/principal-relationships → 500 when the query fails', async () => {
+    timedQuery.mockRejectedValueOnce(new Error('boom'));
+    const res = await request(app).get(`/api/user/${VALID_ID}/principal-relationships`);
+    expect(res.status).toBe(500);
   });
 
   it('GET /group/:id returns the detail payload', async () => {

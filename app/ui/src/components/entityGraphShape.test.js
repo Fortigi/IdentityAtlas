@@ -467,9 +467,57 @@ describe('extrasFromCore', () => {
       .toEqual({ members: [1], subContexts: [2] });
   });
 
-  it('user/resource get no extras', () => {
-    expect(extrasFromCore('user', { foo: 1 })).toEqual({});
+  it('user carries linkedResource; resource gets no extras', () => {
+    expect(extrasFromCore('user', { foo: 1 })).toEqual({ linkedResource: undefined });
+    expect(extrasFromCore('user', { linkedResource: { id: 'r1' } })).toEqual({ linkedResource: { id: 'r1' } });
     expect(extrasFromCore('resource', { foo: 1 })).toEqual({});
+  });
+});
+
+describe('principal→principal relationship nodes (owners / sponsors / linked resource)', () => {
+  it('adds owner/sponsor/reverse + linked-resource nodes only when present', () => {
+    const core = {
+      ownerCount: 2, sponsorCount: 1, ownedAgentCount: 3, sponsoredGuestCount: 4,
+      linkedResource: { id: 'app1', displayName: 'HR Copilot', resourceType: 'Application' },
+    };
+    const by = Object.fromEntries(getRootNodes('user', core).map((n) => [n.key, n]));
+    expect(by.owners.count).toBe(2);
+    expect(by.sponsors.count).toBe(1);
+    expect(by['owned-agents'].count).toBe(3);
+    expect(by['sponsored-guests'].count).toBe(4);
+    expect(by['linked-resource'].count).toBe(1);
+  });
+
+  it('omits every relationship node when the counts are zero / absent', () => {
+    const by = Object.fromEntries(getRootNodes('user', {}).map((n) => [n.key, n]));
+    for (const k of ['owners', 'sponsors', 'owned-agents', 'sponsored-guests', 'linked-resource']) {
+      expect(by[k]).toBeUndefined();
+    }
+  });
+
+  it('linked-resource item comes from extras and opens the resource page', async () => {
+    const out = await fetchCategoryItems('user', 'u1', 'linked-resource', stub(), {
+      linkedResource: { id: 'app1', displayName: 'HR Copilot', resourceType: 'Application' },
+    });
+    expect(out[0]).toMatchObject({ key: 'resource:app1', entityKind: 'resource', resourceType: 'Application' });
+    expect(await fetchCategoryItems('user', 'u1', 'linked-resource', stub(), {})).toEqual([]);
+  });
+
+  it.each([
+    ['owners', 'type=Owner&reverse=false'],
+    ['sponsors', 'type=Sponsor&reverse=false'],
+    ['owned-agents', 'type=Owner&reverse=true'],
+    ['sponsored-guests', 'type=Sponsor&reverse=true'],
+  ])('%s hits the principal-relationships endpoint with %s', async (categoryKey, query) => {
+    let calledUrl = '';
+    const af = async (url) => {
+      calledUrl = String(url);
+      return { ok: true, status: 200, json: async () => [{ principalId: 'p9', displayName: 'Counterparty' }] };
+    };
+    const out = await fetchCategoryItems('user', 'u1', categoryKey, af, {});
+    expect(calledUrl).toContain('/api/user/u1/principal-relationships?');
+    expect(calledUrl).toContain(query);
+    expect(out[0]).toMatchObject({ key: 'user:p9', label: 'Counterparty', entityKind: 'user' });
   });
 });
 

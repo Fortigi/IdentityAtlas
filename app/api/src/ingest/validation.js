@@ -18,6 +18,12 @@ const PRINCIPAL_TYPES = ['User', 'ServicePrincipal', 'ManagedIdentity', 'Workloa
 // scans the crawlers so a retired type can't be reintroduced at the source.
 const ASSIGNMENT_TYPES = ['Direct', 'Indirect', 'Eligible'];
 const RELATIONSHIP_TYPES = ['Contains', 'GrantsAccessTo', 'DelegatesScope', 'HasAppRole', 'HasOwnership', 'HasAppOwnership', 'HasApplicationPermission'];
+// Principal→principal links (see migrations/057_principal_relationships.sql).
+// A closed allow-list like assignmentType: ownership of an AI agent and
+// sponsorship of a guest are the two responsibility links between two Principals.
+// Add a value here (and to the CHECK in migration 057) to introduce a new kind —
+// ingest REJECTS anything else.
+const PRINCIPAL_RELATIONSHIP_TYPES = ['Owner', 'Sponsor'];
 
 // Schema definitions per entity type
 const SCHEMAS = {
@@ -140,6 +146,26 @@ const SCHEMAS = {
       relationshipType: { type: 'string', enum: RELATIONSHIP_TYPES },
       roleName: { type: 'string', maxLength: 255 },
       roleOriginSystem: { type: 'string', maxLength: 255 },
+      extendedAttributes: { type: 'json' },
+    },
+  },
+  'principal-relationships': {
+    required: ['relationshipType'],
+    // principalId / relatedPrincipalId are required, but a deterministic-id
+    // crawler can supply them as *ExternalId aliases instead (resolved in
+    // normalization). principalId = the subject that HAS the owner/sponsor
+    // (the AI agent / the guest); relatedPrincipalId = the owner / sponsor.
+    requiredOneOf: [
+      { fields: ['principalId', 'principalExternalId'] },
+      { fields: ['relatedPrincipalId', 'relatedPrincipalExternalId'] },
+    ],
+    fields: {
+      principalId: { type: 'uuid' },
+      relatedPrincipalId: { type: 'uuid' },
+      principalExternalId: { type: 'string', maxLength: 500 },
+      relatedPrincipalExternalId: { type: 'string', maxLength: 500 },
+      relationshipType: { type: 'string', enum: PRINCIPAL_RELATIONSHIP_TYPES },
+      externalId: { type: 'string', maxLength: 500 },
       extendedAttributes: { type: 'json' },
     },
   },
@@ -318,6 +344,7 @@ export const ENTITY_TABLE_MAP = {
   'resource-assignments': 'ResourceAssignments',
   'resource-assignments-identity': 'ResourceAssignments',
   'resource-relationships': 'ResourceRelationships',
+  'principal-relationships': 'PrincipalRelationships',
   'identities': 'Identities',
   'identity-members': 'IdentityMembers',
   'contexts': 'Contexts',
@@ -337,6 +364,7 @@ export const ENTITY_KEY_MAP = {
   'resource-assignments': ['resourceId', 'principalId', 'assignmentType', 'governed'],
   'resource-assignments-identity': ['resourceId', 'identityId', 'assignmentType', 'governed'],
   'resource-relationships': ['parentResourceId', 'childResourceId', 'relationshipType'],
+  'principal-relationships': ['principalId', 'relatedPrincipalId', 'relationshipType'],
   'identities': ['id'],
   'identity-members': ['identityId', 'principalId'],
   'contexts': ['id'],
@@ -364,6 +392,9 @@ export const ENTITY_SCOPE_MAP = {
   'resource-assignments': ['assignmentType', 'resourceType', 'governed'],
   'resource-assignments-identity': ['assignmentType', 'resourceType', 'governed'],
   'resource-relationships': ['relationshipType'],
+  // Scope full-sync reconcile by relationshipType so an Owner-only sync never
+  // wipes Sponsor links (mirrors resource-relationships' HasAppOwnership split).
+  'principal-relationships': ['relationshipType'],
   'contexts': ['variant', 'contextType', 'scopeSystemId', 'sourceAlgorithmId'],
   'context-members': ['contextId'],
 };

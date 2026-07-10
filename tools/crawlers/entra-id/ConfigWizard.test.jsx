@@ -39,7 +39,8 @@ describe('Entra ID crawler ConfigWizard', () => {
     expect(keys).toContain('directoryRoles');
     expect(keys).toEqual([
       'identity', 'usersGroupsMembers', 'servicePrincipals', 'identityGovernance',
-      'appsAppRoles', 'appOwners', 'appPermissions', 'directoryRoles', 'pim', 'signInLogs', 'oauth2Grants',
+      'appsAppRoles', 'appOwners', 'appPermissions', 'principalRelationships',
+      'directoryRoles', 'pim', 'signInLogs', 'oauth2Grants',
     ]);
     // Every entry needs key + label + description for the step-2 checkbox row.
     for (const o of ENTRA_OBJECT_TYPES_FALLBACK) {
