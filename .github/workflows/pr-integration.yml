@@ -783,8 +783,7 @@ jobs:
           npx playwright test \
             --config=playwright.ci.config.js \
             --project=chromium \
-            --reporter=html,list \
-            --ignore-snapshots
+            --reporter=html,list
 
       - name: Upload Playwright report
         if: always()
