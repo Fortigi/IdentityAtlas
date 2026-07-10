@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Reduced code duplication in the risk-score API endpoints — the five per-type list endpoints now share one implementation, and the single-entity read/override handlers share their validation and score-recompute logic. No change to behaviour or responses.
+
+## Changes in this PR
+
 - Added crawling of **AI agent owners** and **guest account sponsors** from Microsoft Graph — the person accountable for each non-human or external identity is now captured, not just the identity itself.
 - On an AI agent's detail page, the Relationships tab now shows its **Owners** and a **Linked Resource** node that bridges to the agent's enterprise-application view.
 - On a guest account's detail page, the Relationships tab now shows its **Sponsors**.
