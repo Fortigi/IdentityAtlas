@@ -30,20 +30,71 @@ function mapEntityType(urlType) {
   }
 }
 
+// Shared preamble for all three :type/:id handlers: require SQL mode and validate
+// the path params. On any failure it sends the 400 and returns null (caller
+// should `return`); otherwise returns { type, id, entityType }.
+function parseEntityParams(req, res) {
+  if (!useSql) { res.status(400).json({ error: 'SQL mode required' }); return null; }
+  const { type, id } = req.params;
+  if (!VALID_TYPES.has(type)) {
+    res.status(400).json({ error: `Type must be one of: ${[...VALID_TYPES].join(', ')}` });
+    return null;
+  }
+  if (!UUID_RE.test(id)) {
+    res.status(400).json({ error: 'Invalid entity ID format' });
+    return null;
+  }
+  return { type, id, entityType: mapEntityType(type) };
+}
+
+// Read the four component scores for an entity and recompute its effective score
+// (clamped 0–100) plus tier, applying `adjustment` (0 for a clear). On a missing
+// row it sends the 404 and returns null; otherwise returns { newScore, newTier }.
+async function recomputeScore(p, res, id, entityType, adjustment = 0) {
+  const current = await timedRequest(p, 'risk-override-read', res)
+    .input('id', id)
+    .input('entityType', entityType)
+    .query(`
+        SELECT "riskDirectScore", "riskMembershipScore", "riskStructuralScore", "riskPropagatedScore"
+        FROM "RiskScores"
+        WHERE "entityId" = @id AND "entityType" = @entityType
+      `);
+
+  if (current.recordset.length === 0) {
+    res.status(404).json({ error: 'Entity not found or not yet scored' });
+    return null;
+  }
+
+  const row = current.recordset[0];
+  const baseScore = (row.riskDirectScore || 0) + (row.riskMembershipScore || 0)
+    + (row.riskStructuralScore || 0) + (row.riskPropagatedScore || 0);
+  const newScore = Math.max(0, Math.min(100, baseScore + adjustment));
+  return { newScore, newTier: tierFor(newScore) };
+}
+
+// Denormalize a recomputed score/tier onto the entity's own table (best-effort —
+// the entity table may not carry risk columns yet, so failures are swallowed).
+async function denormalizeScore(p, res, id, entityType, newScore, newTier) {
+  try {
+    if (entityType === 'Principal') {
+      await timedRequest(p, 'risk-override-denorm', res)
+        .input('id', id).input('newScore', newScore).input('newTier', newTier)
+        .query(`UPDATE "Principals" SET "riskScore" = @newScore, "riskTier" = @newTier WHERE id = @id`);
+    } else if (entityType === 'Resource') {
+      await timedRequest(p, 'risk-override-denorm', res)
+        .input('id', id).input('newScore', newScore).input('newTier', newTier)
+        .query(`UPDATE "Resources" SET "riskScore" = @newScore, "riskTier" = @newTier WHERE id = @id`);
+    }
+  } catch { /* entity table may not have risk columns yet */ }
+}
+
 // ─── GET /api/risk-scores/:type/:id ──────────────────────────────────
 router.get('/risk-scores/:type/:id', async (req, res) => {
   try {
-    if (!useSql) return res.status(400).json({ error: 'SQL mode required' });
+    const parsed = parseEntityParams(req, res);
+    if (!parsed) return;
+    const { id, entityType } = parsed;
 
-    const { type, id } = req.params;
-    if (!VALID_TYPES.has(type)) {
-      return res.status(400).json({ error: `Type must be one of: ${[...VALID_TYPES].join(', ')}` });
-    }
-    if (!UUID_RE.test(id)) {
-      return res.status(400).json({ error: 'Invalid entity ID format' });
-    }
-
-    const entityType = mapEntityType(type);
     const p = await db.getPool();
     if (!await riskTableExists(p, res)) {
       return res.status(404).json({ error: 'Risk scores not available' });
@@ -95,15 +146,9 @@ router.get('/risk-scores/:type/:id', async (req, res) => {
 // Body: { adjustment: number (-50 to +50), reason: string (required) }
 router.put('/risk-scores/:type/:id/override', writeRisk, async (req, res) => {
   try {
-    if (!useSql) return res.status(400).json({ error: 'SQL mode required' });
-
-    const { type, id } = req.params;
-    if (!VALID_TYPES.has(type)) {
-      return res.status(400).json({ error: `Type must be one of: ${[...VALID_TYPES].join(', ')}` });
-    }
-    if (!UUID_RE.test(id)) {
-      return res.status(400).json({ error: 'Invalid entity ID format' });
-    }
+    const parsed = parseEntityParams(req, res);
+    if (!parsed) return;
+    const { id, entityType } = parsed;
 
     const { adjustment, reason } = req.body || {};
     if (typeof adjustment !== 'number' || adjustment < -50 || adjustment > 50 || !Number.isInteger(adjustment)) {
@@ -116,33 +161,15 @@ router.put('/risk-scores/:type/:id/override', writeRisk, async (req, res) => {
       return res.status(400).json({ error: 'Reason must be 500 characters or fewer' });
     }
 
-    const entityType = mapEntityType(type);
     const assignedBy = req.user?.preferred_username || req.user?.name || 'Unknown';
     const p = await db.getPool();
-
     if (!await riskTableExists(p, res)) {
       return res.status(404).json({ error: 'Risk scores not available' });
     }
 
-    // Read current component scores
-    const current = await timedRequest(p, 'risk-override-read', res)
-      .input('id', id)
-      .input('entityType', entityType)
-      .query(`
-        SELECT "riskDirectScore", "riskMembershipScore", "riskStructuralScore", "riskPropagatedScore"
-        FROM "RiskScores"
-        WHERE "entityId" = @id AND "entityType" = @entityType
-      `);
-
-    if (current.recordset.length === 0) {
-      return res.status(404).json({ error: 'Entity not found or not yet scored' });
-    }
-
-    const row = current.recordset[0];
-    const baseScore = (row.riskDirectScore || 0) + (row.riskMembershipScore || 0)
-      + (row.riskStructuralScore || 0) + (row.riskPropagatedScore || 0);
-    const newScore = Math.max(0, Math.min(100, baseScore + adjustment));
-    const newTier = tierFor(newScore);
+    const recomputed = await recomputeScore(p, res, id, entityType, adjustment);
+    if (!recomputed) return;
+    const { newScore, newTier } = recomputed;
 
     // Update RiskScores table
     await timedRequest(p, 'risk-override-set', res)
@@ -161,18 +188,7 @@ router.put('/risk-scores/:type/:id/override', writeRisk, async (req, res) => {
         WHERE "entityId" = @id AND "entityType" = @entityType
       `);
 
-    // Denormalize to entity table
-    try {
-      if (entityType === 'Principal') {
-        await timedRequest(p, 'risk-override-denorm', res)
-          .input('id', id).input('newScore', newScore).input('newTier', newTier)
-          .query(`UPDATE "Principals" SET "riskScore" = @newScore, "riskTier" = @newTier WHERE id = @id`);
-      } else if (entityType === 'Resource') {
-        await timedRequest(p, 'risk-override-denorm', res)
-          .input('id', id).input('newScore', newScore).input('newTier', newTier)
-          .query(`UPDATE "Resources" SET "riskScore" = @newScore, "riskTier" = @newTier WHERE id = @id`);
-      }
-    } catch { /* entity table may not have risk columns yet */ }
+    await denormalizeScore(p, res, id, entityType, newScore, newTier);
 
     return res.json({ success: true, adjustment, reason: reason.trim(), riskScore: newScore, riskTier: newTier, assignedBy });
   } catch (err) {
@@ -185,42 +201,18 @@ router.put('/risk-scores/:type/:id/override', writeRisk, async (req, res) => {
 // Remove an analyst override from an entity.
 router.delete('/risk-scores/:type/:id/override', writeRisk, async (req, res) => {
   try {
-    if (!useSql) return res.status(400).json({ error: 'SQL mode required' });
+    const parsed = parseEntityParams(req, res);
+    if (!parsed) return;
+    const { id, entityType } = parsed;
 
-    const { type, id } = req.params;
-    if (!VALID_TYPES.has(type)) {
-      return res.status(400).json({ error: `Type must be one of: ${[...VALID_TYPES].join(', ')}` });
-    }
-    if (!UUID_RE.test(id)) {
-      return res.status(400).json({ error: 'Invalid entity ID format' });
-    }
-
-    const entityType = mapEntityType(type);
     const p = await db.getPool();
-
     if (!await riskTableExists(p, res)) {
       return res.status(404).json({ error: 'Risk scores not available' });
     }
 
-    // Read current component scores
-    const current = await timedRequest(p, 'risk-override-read', res)
-      .input('id', id)
-      .input('entityType', entityType)
-      .query(`
-        SELECT "riskDirectScore", "riskMembershipScore", "riskStructuralScore", "riskPropagatedScore"
-        FROM "RiskScores"
-        WHERE "entityId" = @id AND "entityType" = @entityType
-      `);
-
-    if (current.recordset.length === 0) {
-      return res.status(404).json({ error: 'Entity not found or not yet scored' });
-    }
-
-    const row = current.recordset[0];
-    const newScore = Math.max(0, Math.min(100,
-      (row.riskDirectScore || 0) + (row.riskMembershipScore || 0)
-      + (row.riskStructuralScore || 0) + (row.riskPropagatedScore || 0)));
-    const newTier = tierFor(newScore);
+    const recomputed = await recomputeScore(p, res, id, entityType);
+    if (!recomputed) return;
+    const { newScore, newTier } = recomputed;
 
     // Clear override in RiskScores table
     await timedRequest(p, 'risk-override-clear', res)
@@ -237,18 +229,7 @@ router.delete('/risk-scores/:type/:id/override', writeRisk, async (req, res) => 
         WHERE "entityId" = @id AND "entityType" = @entityType
       `);
 
-    // Denormalize to entity table
-    try {
-      if (entityType === 'Principal') {
-        await timedRequest(p, 'risk-override-denorm', res)
-          .input('id', id).input('newScore', newScore).input('newTier', newTier)
-          .query(`UPDATE "Principals" SET "riskScore" = @newScore, "riskTier" = @newTier WHERE id = @id`);
-      } else if (entityType === 'Resource') {
-        await timedRequest(p, 'risk-override-denorm', res)
-          .input('id', id).input('newScore', newScore).input('newTier', newTier)
-          .query(`UPDATE "Resources" SET "riskScore" = @newScore, "riskTier" = @newTier WHERE id = @id`);
-      }
-    } catch { /* entity table may not have risk columns yet */ }
+    await denormalizeScore(p, res, id, entityType, newScore, newTier);
 
     return res.json({ success: true, riskScore: newScore, riskTier: newTier });
   } catch (err) {

@@ -126,171 +126,95 @@ router.get('/risk-scores', async (req, res) => {
   }
 });
 
-// ─── GET /api/risk-scores/users ───────────────────────────────────────
-router.get('/risk-scores/users', async (req, res) => {
-  try {
-    if (!useSql) return res.json({ data: [], total: 0, available: false });
-    const p = await db.getPool();
-    if (!await riskTableExists(p, res)) return res.json({ data: [], total: 0, available: false });
+// ─── Per-type paginated lists ─────────────────────────────────────────
+// The five /risk-scores/<type> endpoints are structurally identical — same
+// availability guards, same limit/offset/tier/search/overridesOnly parsing,
+// same queryRiskScoresPage call and error handling. Only the entity table it
+// joins, the columns it selects, the search columns, one optional extra filter,
+// and the response's `useResources` flag differ. `defineListRoute` captures the
+// shared shape; RISK_LIST_TYPES holds the per-type differences.
+//
+// Every derived string comes from `name`:
+//   path  = /risk-scores/<name>   label = risk-<name>   log = "Risk <name> query failed"
+function defineListRoute({ name, entityType, fromClause, selectCols, searchColumns, extraFilter = null, responseExtra = {} }) {
+  router.get(`/risk-scores/${name}`, async (req, res) => {
+    try {
+      if (!useSql) return res.json({ data: [], total: 0, available: false });
+      const p = await db.getPool();
+      if (!await riskTableExists(p, res)) return res.json({ data: [], total: 0, available: false });
 
-    const limit  = Math.min(parseInt(req.query.limit,  10) || 100, 500);
-    const offset = parseInt(req.query.offset, 10) || 0;
-    const tier         = req.query.tier || '';
-    const search       = req.query.search || '';
-    const department   = req.query.department || '';
-    const overridesOnly = req.query.overridesOnly === 'true';
+      const limit  = Math.min(parseInt(req.query.limit,  10) || 100, 500);
+      const offset = parseInt(req.query.offset, 10) || 0;
+      const tier          = req.query.tier || '';
+      const search        = req.query.search || '';
+      const overridesOnly = req.query.overridesOnly === 'true';
 
-    let whereClause = `WHERE rs."entityType" = 'Principal'`;
-    const params = [];
-    if (tier)        { whereClause += ' AND rs."riskTier" = @tier';                                                                                 params.push({ name: 'tier',       value: tier }); }
-    if (search)      { whereClause += ' AND (p."displayName" ILIKE @search OR p.email ILIKE @search OR p.department ILIKE @search)';                params.push({ name: 'search',     value: `%${search}%` }); }
-    if (department)  { whereClause += ' AND p.department = @department';                                                                            params.push({ name: 'department', value: department }); }
-    if (overridesOnly) whereClause += ' AND rs."riskOverride" IS NOT NULL';
+      let whereClause = `WHERE rs."entityType" = '${entityType}'`;
+      const params = [];
+      if (tier)   { whereClause += ' AND rs."riskTier" = @tier';  params.push({ name: 'tier',   value: tier }); }
+      if (search) { whereClause += ` AND ${searchColumns}`;       params.push({ name: 'search', value: `%${search}%` }); }
+      if (extraFilter) {
+        const value = req.query[extraFilter.name] || '';
+        if (value) { whereClause += ` AND ${extraFilter.clause}`; params.push({ name: extraFilter.name, value }); }
+      }
+      if (overridesOnly) whereClause += ' AND rs."riskOverride" IS NOT NULL';
 
-    const { data, total } = await queryRiskScoresPage(p, res, {
-      label:      'risk-users',
-      fromClause: `INNER JOIN "Principals" p ON rs."entityId" = p.id AND ${TEMPORAL_FILTER}`,
-      selectCols: `p."displayName", p.email AS "userPrincipalName", p.department, p."jobTitle", p."companyName"`,
-      whereClause, params, limit, offset,
-    });
-    return res.json({ data: data.map(parseJsonColumns), total, available: true });
-  } catch (err) {
-    console.error('Risk users query failed:', err.message);
-    return res.status(500).json({ error: 'Failed to load risk scores' });
-  }
-});
+      const { data, total } = await queryRiskScoresPage(p, res, {
+        label: `risk-${name}`,
+        fromClause, selectCols, whereClause, params, limit, offset,
+      });
+      return res.json({ data: data.map(parseJsonColumns), total, available: true, ...responseExtra });
+    } catch (err) {
+      console.error(`Risk ${name} query failed:`, err.message);
+      return res.status(500).json({ error: 'Failed to load risk scores' });
+    }
+  });
+}
 
-// ─── GET /api/risk-scores/groups ──────────────────────────────────────
-router.get('/risk-scores/groups', async (req, res) => {
-  try {
-    if (!useSql) return res.json({ data: [], total: 0, available: false });
-    const p = await db.getPool();
-    if (!await riskTableExists(p, res)) return res.json({ data: [], total: 0, available: false });
-
-    const limit  = Math.min(parseInt(req.query.limit,  10) || 100, 500);
-    const offset = parseInt(req.query.offset, 10) || 0;
-    const tier          = req.query.tier || '';
-    const search        = req.query.search || '';
-    const resourceType  = req.query.resourceType || '';
-    const overridesOnly = req.query.overridesOnly === 'true';
-
-    let whereClause = `WHERE rs."entityType" = 'Resource'`;
-    const params = [];
-    if (tier)          { whereClause += ' AND rs."riskTier" = @tier';                                              params.push({ name: 'tier',          value: tier }); }
-    if (search)        { whereClause += ' AND (r."displayName" ILIKE @search OR r.description ILIKE @search)';    params.push({ name: 'search',        value: `%${search}%` }); }
-    if (resourceType)  { whereClause += ' AND r.resourceType = @resourceType';                                     params.push({ name: 'resourceType',  value: resourceType }); }
-    if (overridesOnly) whereClause += ' AND rs."riskOverride" IS NOT NULL';
-
-    const { data, total } = await queryRiskScoresPage(p, res, {
-      label:      'risk-groups',
-      fromClause: `INNER JOIN "Resources" r ON rs."entityId" = r.id AND ${TEMPORAL_FILTER}`,
-      selectCols: `r."displayName", r.description, r."resourceType", r.mail`,
-      whereClause, params, limit, offset,
-    });
-    return res.json({ data: data.map(parseJsonColumns), total, available: true, useResources: true });
-  } catch (err) {
-    console.error('Risk groups query failed:', err.message);
-    return res.status(500).json({ error: 'Failed to load risk scores' });
-  }
-});
-
-// ─── GET /api/risk-scores/business-roles ─────────────────────────────
-router.get('/risk-scores/business-roles', async (req, res) => {
-  try {
-    if (!useSql) return res.json({ data: [], total: 0, available: false });
-    const p = await db.getPool();
-    if (!await riskTableExists(p, res)) return res.json({ data: [], total: 0, available: false });
-
-    const limit  = Math.min(parseInt(req.query.limit,  10) || 100, 500);
-    const offset = parseInt(req.query.offset, 10) || 0;
-    const tier          = req.query.tier || '';
-    const search        = req.query.search || '';
-    const overridesOnly = req.query.overridesOnly === 'true';
-
-    let whereClause = `WHERE rs."entityType" = 'BusinessRole'`;
-    const params = [];
-    if (tier)        { whereClause += ' AND rs."riskTier" = @tier';                                                params.push({ name: 'tier',    value: tier }); }
-    if (search)      { whereClause += ' AND (br."displayName" ILIKE @search OR br.description ILIKE @search)';    params.push({ name: 'search',  value: `%${search}%` }); }
-    if (overridesOnly) whereClause += ' AND rs."riskOverride" IS NOT NULL';
-
-    const { data, total } = await queryRiskScoresPage(p, res, {
-      label:      'risk-business-roles',
-      fromClause: `INNER JOIN "Resources" br ON rs."entityId" = br.id AND br."resourceType" = 'BusinessRole' AND ${TEMPORAL_FILTER}
+const RISK_LIST_TYPES = [
+  {
+    name: 'users',
+    entityType: 'Principal',
+    fromClause: `INNER JOIN "Principals" p ON rs."entityId" = p.id AND ${TEMPORAL_FILTER}`,
+    selectCols: `p."displayName", p.email AS "userPrincipalName", p.department, p."jobTitle", p."companyName"`,
+    searchColumns: '(p."displayName" ILIKE @search OR p.email ILIKE @search OR p.department ILIKE @search)',
+    extraFilter: { name: 'department', clause: 'p.department = @department' },
+  },
+  {
+    name: 'groups',
+    entityType: 'Resource',
+    fromClause: `INNER JOIN "Resources" r ON rs."entityId" = r.id AND ${TEMPORAL_FILTER}`,
+    selectCols: `r."displayName", r.description, r."resourceType", r.mail`,
+    searchColumns: '(r."displayName" ILIKE @search OR r.description ILIKE @search)',
+    extraFilter: { name: 'resourceType', clause: 'r.resourceType = @resourceType' },
+    responseExtra: { useResources: true },
+  },
+  {
+    name: 'business-roles',
+    entityType: 'BusinessRole',
+    fromClause: `INNER JOIN "Resources" br ON rs."entityId" = br.id AND br."resourceType" = 'BusinessRole' AND ${TEMPORAL_FILTER}
       LEFT JOIN "GovernanceCatalogs" c ON br."catalogId" = c.id AND ${TEMPORAL_FILTER}`,
-      selectCols: `br."displayName", br.description, br."catalogId", c."displayName" AS "catalogName"`,
-      whereClause, params, limit, offset,
-    });
-    return res.json({ data: data.map(parseJsonColumns), total, available: true });
-  } catch (err) {
-    console.error('Risk business-roles query failed:', err.message);
-    return res.status(500).json({ error: 'Failed to load risk scores' });
-  }
-});
-
-// ─── GET /api/risk-scores/contexts ──────────────────────────────────
-router.get('/risk-scores/contexts', async (req, res) => {
-  try {
-    if (!useSql) return res.json({ data: [], total: 0, available: false });
-    const p = await db.getPool();
-    if (!await riskTableExists(p, res)) return res.json({ data: [], total: 0, available: false });
-
-    const limit  = Math.min(parseInt(req.query.limit,  10) || 100, 500);
-    const offset = parseInt(req.query.offset, 10) || 0;
-    const tier          = req.query.tier || '';
-    const search        = req.query.search || '';
-    const overridesOnly = req.query.overridesOnly === 'true';
-
-    let whereClause = `WHERE rs."entityType" = 'Context'`;
-    const params = [];
-    if (tier)        { whereClause += ' AND rs."riskTier" = @tier';                                                    params.push({ name: 'tier',   value: tier }); }
-    if (search)      { whereClause += ' AND (ou."displayName" ILIKE @search OR ou.department ILIKE @search)';          params.push({ name: 'search', value: `%${search}%` }); }
-    if (overridesOnly) whereClause += ' AND rs."riskOverride" IS NOT NULL';
-
-    const { data, total } = await queryRiskScoresPage(p, res, {
-      label:      'risk-contexts',
-      fromClause: `INNER JOIN "Contexts" ou ON rs."entityId" = ou.id AND ${TEMPORAL_FILTER}
+    selectCols: `br."displayName", br.description, br."catalogId", c."displayName" AS "catalogName"`,
+    searchColumns: '(br."displayName" ILIKE @search OR br.description ILIKE @search)',
+  },
+  {
+    name: 'contexts',
+    entityType: 'Context',
+    fromClause: `INNER JOIN "Contexts" ou ON rs."entityId" = ou.id AND ${TEMPORAL_FILTER}
       LEFT JOIN "Principals" p ON ou."managerId" = p.id AND ${TEMPORAL_FILTER}`,
-      selectCols: `ou."displayName", ou.department, ou."memberCount", ou."managerId", p."displayName" AS "managerName"`,
-      whereClause, params, limit, offset,
-    });
-    return res.json({ data: data.map(parseJsonColumns), total, available: true });
-  } catch (err) {
-    console.error('Risk contexts query failed:', err.message);
-    return res.status(500).json({ error: 'Failed to load risk scores' });
-  }
-});
+    selectCols: `ou."displayName", ou.department, ou."memberCount", ou."managerId", p."displayName" AS "managerName"`,
+    searchColumns: '(ou."displayName" ILIKE @search OR ou.department ILIKE @search)',
+  },
+  {
+    name: 'identities',
+    entityType: 'Identity',
+    fromClause: `INNER JOIN "Identities" i ON rs."entityId" = i.id AND ${TEMPORAL_FILTER}`,
+    selectCols: `i."displayName", i."accountCount", i."linkConfidence", i.department, i."jobTitle", i.email`,
+    searchColumns: '(i."displayName" ILIKE @search OR i.department ILIKE @search OR i.email ILIKE @search)',
+  },
+];
 
-// ─── GET /api/risk-scores/identities ────────────────────────────────
-router.get('/risk-scores/identities', async (req, res) => {
-  try {
-    if (!useSql) return res.json({ data: [], total: 0, available: false });
-    const p = await db.getPool();
-    if (!await riskTableExists(p, res)) return res.json({ data: [], total: 0, available: false });
-
-    const limit  = Math.min(parseInt(req.query.limit,  10) || 100, 500);
-    const offset = parseInt(req.query.offset, 10) || 0;
-    const tier          = req.query.tier || '';
-    const search        = req.query.search || '';
-    const overridesOnly = req.query.overridesOnly === 'true';
-
-    let whereClause = `WHERE rs."entityType" = 'Identity'`;
-    const params = [];
-    if (tier)        { whereClause += ' AND rs."riskTier" = @tier';                                                                             params.push({ name: 'tier',   value: tier }); }
-    if (search)      { whereClause += ' AND (i."displayName" ILIKE @search OR i.department ILIKE @search OR i.email ILIKE @search)';            params.push({ name: 'search', value: `%${search}%` }); }
-    if (overridesOnly) whereClause += ' AND rs."riskOverride" IS NOT NULL';
-
-    const { data, total } = await queryRiskScoresPage(p, res, {
-      label:      'risk-identities',
-      fromClause: `INNER JOIN "Identities" i ON rs."entityId" = i.id AND ${TEMPORAL_FILTER}`,
-      selectCols: `i."displayName", i."accountCount", i."linkConfidence", i.department, i."jobTitle", i.email`,
-      whereClause, params, limit, offset,
-    });
-    return res.json({ data: data.map(parseJsonColumns), total, available: true });
-  } catch (err) {
-    console.error('Risk identities query failed:', err.message);
-    return res.status(500).json({ error: 'Failed to load risk scores' });
-  }
-});
+for (const type of RISK_LIST_TYPES) defineListRoute(type);
 
 
 export default router;

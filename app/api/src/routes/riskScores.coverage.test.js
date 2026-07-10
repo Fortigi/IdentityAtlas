@@ -26,8 +26,10 @@ vi.mock('../perf/sqlTimer.js', () => ({
         return { recordset: [{ tbl: tableExists ? 'public.RiskScores' : null }] };
       }
       // Pop the next scripted response (if any) for non-table-check queries.
+      // Push an Error to simulate a failing query (exercises the 500 catch paths).
       const next = queryScript.shift();
       if (next === undefined) return { recordset: [] };
+      if (next instanceof Error) throw next;
       return { recordset: next };
     },
   }),
@@ -152,6 +154,13 @@ describe('PUT /risk-scores/:type/:id/override', () => {
     expect(res.status).toBe(404);
   });
 
+  it('500 when the update query fails', async () => {
+    queryScript.push([{ riskDirectScore: 10, riskMembershipScore: 0, riskStructuralScore: 0, riskPropagatedScore: 0 }]); // read ok
+    queryScript.push(new Error('update boom')); // risk-override-set throws
+    const res = await request(app).put(`/api/risk-scores/users/${VALID}/override`).send({ adjustment: 5, reason: 'valid reason' });
+    expect(res.status).toBe(500);
+  });
+
   it('400 on an invalid type', async () => {
     expect((await request(app).put(`/api/risk-scores/bogus/${VALID}/override`).send({ adjustment: 5, reason: 'valid reason' })).status).toBe(400);
   });
@@ -202,6 +211,13 @@ describe('DELETE /risk-scores/:type/:id/override', () => {
     queryScript.push([]);
     const res = await request(app).delete(`/api/risk-scores/users/${VALID}/override`);
     expect(res.status).toBe(404);
+  });
+
+  it('500 when the clear query fails', async () => {
+    queryScript.push([{ riskDirectScore: 10, riskMembershipScore: 0, riskStructuralScore: 0, riskPropagatedScore: 0 }]); // read ok
+    queryScript.push(new Error('clear boom')); // risk-override-clear throws
+    const res = await request(app).delete(`/api/risk-scores/users/${VALID}/override`);
+    expect(res.status).toBe(500);
   });
 
   it('400 on an invalid type', async () => {

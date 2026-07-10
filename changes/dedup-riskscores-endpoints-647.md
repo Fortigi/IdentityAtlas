@@ -1,0 +1,1 @@
+- Reduced code duplication in the risk-score API endpoints — the five per-type list endpoints now share one implementation, and the single-entity read/override handlers share their validation and score-recompute logic. No change to behaviour or responses.
