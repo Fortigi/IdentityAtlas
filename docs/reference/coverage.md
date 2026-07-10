@@ -20,4 +20,4 @@ Each suite links to a full per-file, line-by-line HTML report:
 - [UI (React / Vitest)](../coverage/ui/index.html)
 - [PowerShell (Pester)](../coverage/powershell/index.html)
 
-_Generated 2026-07-09 17:56 UTC from commit `d5bf5a07`._
+_Generated 2026-07-10 11:01 UTC from commit `b3f58c4f`._
