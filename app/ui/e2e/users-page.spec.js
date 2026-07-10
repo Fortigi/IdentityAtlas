@@ -1,7 +1,7 @@
 // @ts-check
 import { test, expect } from '@playwright/test';
 
-test.describe('Users Page', () => {
+test.describe('Principals Page', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/#principals');
     // Wait for data to load
@@ -9,7 +9,7 @@ test.describe('Users Page', () => {
   });
 
   test('page renders with title and user count', async ({ page }) => {
-    await expect(page.locator('h2')).toContainText('Users');
+    await expect(page.locator('h2')).toContainText('Principals');
     // Mock data has 80 users — count should appear somewhere
     const totalText = page.getByText(/total/i);
     await expect(totalText.first()).toBeVisible({ timeout: 5000 });

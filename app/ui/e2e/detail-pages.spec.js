@@ -22,7 +22,7 @@ test.describe('Entity Detail Pages', () => {
     await expect(nav).toBeVisible();
   });
 
-  test('detail tab appears in navigation when opened from Users page', async ({ page }) => {
+  test('detail tab appears in navigation when opened from Principals page', async ({ page }) => {
     await page.goto('/#principals');
     await page.waitForTimeout(500);
 
