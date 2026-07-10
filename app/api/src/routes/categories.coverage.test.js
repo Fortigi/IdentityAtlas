@@ -58,6 +58,25 @@ describe('GET /categories', () => {
   });
 });
 
+// The other consumer of the shared fetchCategoryRows helper. Unlike
+// GET /categories it degrades to an empty array on error rather than a 500.
+describe('GET /category-assignments', () => {
+  it('200 returns the flat assignment list', async () => {
+    nextResult = { recordset: [{ resourceId: RES, businessRoleId: RES, categoryId: 2, categoryName: 'Finance', categoryColor: '#3b82f6' }] };
+    const res = await request(app).get('/api/category-assignments');
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(1);
+    expect(res.body[0]).toMatchObject({ categoryId: 2, categoryName: 'Finance' });
+  });
+
+  it('returns [] when the query rejects (defensive)', async () => {
+    poolQuery.mockRejectedValueOnce(new Error('boom'));
+    const res = await request(app).get('/api/category-assignments');
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual([]);
+  });
+});
+
 describe('POST /categories', () => {
   it('201 creates a category (default color)', async () => {
     nextResult = { recordset: [{ id: 5, name: 'HR', color: '#3b82f6' }] };
