@@ -1,0 +1,1 @@
+- Reduced code duplication in the category API endpoints — the two category-list reads and the assign/unassign handlers now share their setup logic. No change to behaviour or responses.
