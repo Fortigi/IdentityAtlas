@@ -7,7 +7,7 @@ import { renderWithProviders, makeAuthFetch, jsonResponse, screen, userEvent } f
 const fullStats = {
   hasData: true,
   systems: 3,
-  users: 1200,
+  principals: 1200,
   resources: 450,
   businessRoles: 12,
   identities: 1100,
