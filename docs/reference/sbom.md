@@ -25,7 +25,7 @@ This document lists all major software components, dependencies, and infrastruct
 | pg | ^8.22.0 | PostgreSQL client | MIT |
 | pg-copy-streams | ^7.0.0 | High-performance bulk import | MIT |
 | ajv | ^8.20.0 | JSON Schema validation for crawler configs | MIT |
-| re2 | ^1.25.0 | Safe regex engine (ReDoS protection) | BSD-3-Clause |
+| re2 | ^1.26.0 | Safe regex engine (ReDoS protection) | BSD-3-Clause |
 
 ### Security & Authentication
 
@@ -55,7 +55,7 @@ This document lists all major software components, dependencies, and infrastruct
 
 | Package | Version | Purpose | License |
 |---------|---------|---------|---------|
-| vitest | ^4.1.9 | Unit testing framework | MIT |
+| vitest | ^4.1.10 | Unit testing framework | MIT |
 | supertest | ^7.2.2 | HTTP integration testing | MIT |
 | eslint | ^10.6.0 | JavaScript linter | MIT |
 | eslint-plugin-security | ^4.0.1 | Security-focused lint rules | Apache 2.0 |
@@ -72,7 +72,7 @@ This document lists all major software components, dependencies, and infrastruct
 |---------|---------|---------|---------|
 | react | ^19.2.7 | UI framework | MIT |
 | react-dom | ^19.2.7 | React DOM renderer | MIT |
-| vite | ^8.1.3 | Build tool and dev server | MIT |
+| vite | ^8.1.4 | Build tool and dev server | MIT |
 
 ### Styling
 
@@ -85,7 +85,7 @@ This document lists all major software components, dependencies, and infrastruct
 
 | Package | Version | Purpose | License |
 |---------|---------|---------|---------|
-| @azure/msal-browser | ^5.16.0 | Microsoft Authentication Library | MIT |
+| @azure/msal-browser | ^5.17.0 | Microsoft Authentication Library | MIT |
 
 ### UI Interactions
 
@@ -95,7 +95,7 @@ This document lists all major software components, dependencies, and infrastruct
 | @dnd-kit/modifiers | ^9.0.0 | DnD position modifiers | MIT |
 | @dnd-kit/sortable | ^10.0.0 | Sortable list implementation | MIT |
 | @dnd-kit/utilities | ^3.2.2 | DnD utility functions | MIT |
-| @tanstack/react-virtual | ^3.14.3 | Virtual scrolling for large tables | MIT |
+| @tanstack/react-virtual | ^3.14.5 | Virtual scrolling for large tables | MIT |
 
 ### Data Export
 

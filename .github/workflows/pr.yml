@@ -117,7 +117,7 @@ jobs:
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
-      - uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v3
+      - uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706 # v3
         id: f
         with:
           filters: |
@@ -183,8 +183,7 @@ jobs:
           # Scan all production PowerShell roots.
           #
           # Excluded paths:
-          #   test/               — test-harness scripts use non-approved verbs
-          #                         (Report-Result) intentionally; not production code
+          #   test/               — test-harness scripts, not production code
           #   setup/CreatePSD.ps1 — developer-only manifest regeneration tool with
           #                         hardcoded local paths; not shipped in the container
           #
@@ -207,7 +206,6 @@ jobs:
             'PSUseSingularNouns'                       # internal naming convention; not module exports
             'PSAvoidDefaultValueSwitchParameter'       # crawler phase switches default to $true intentionally
             'PSUseProcessBlockForPipelineCommand'      # these functions are not designed for pipeline use
-            'PSUseApprovedVerbs'                       # Map- prefix used for private script-level helpers
             'PSAvoidUsingEmptyCatchBlock'              # empty catches are intentional for non-critical operations
             'PSUseDeclaredVarsMoreThanAssignments'     # investigate separately; too noisy for CI gate
             'PSAvoidUsingInvokeExpression'             # scheduler crontab is image-baked, not dynamic user input
@@ -366,6 +364,16 @@ jobs:
         working-directory: app/api
         run: npm run test:coverage
 
+      - name: Per-file coverage ratchet (API)
+        # Committed per-file line-coverage floor (.ci/coverage-baseline.json) so an
+        # EXISTING file can't quietly shed coverage — the complement to the
+        # diff-coverage gate (which only judges changed lines). See
+        # tools/coverage/ratchet.py. Reads the deterministic unit lcov just produced.
+        run: |
+          python3 -m pip install --quiet pytest
+          python3 -m pytest tools/coverage/test_ratchet.py -q
+          python3 tools/coverage/ratchet.py --lcov app/api/coverage/lcov.info --prefix app/api/
+
       - name: Upload coverage (lcov + text)
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -432,6 +440,12 @@ jobs:
         # Coverage-enabled so the committed thresholds floor in vite.config.js is
         # enforced — a change that drops UI coverage below the floor fails here.
         run: npm run test:coverage
+
+      - name: Per-file coverage ratchet (UI)
+        # Per-file line-coverage floor (.ci/coverage-baseline.json), same gate as
+        # the API job — the aggregate vite.config.js floor above can't tell that one
+        # file quietly regressed while another rose. See tools/coverage/ratchet.py.
+        run: python3 tools/coverage/ratchet.py --lcov app/ui/coverage/lcov.info --prefix app/ui/
 
   # ── Stage 4c: Node-launcher UI build (crawler wizard bundling) ──────────
   # The portable/desktop build (app/desktop/scripts/build-node-launcher.mjs)
@@ -550,14 +564,15 @@ jobs:
   # ── Stage 7: PR hygiene (tests + changelog required for code changes) ────
   # Blocks merging a code change that ships without tests or a changelog
   # fragment — the gap that let an undocumented, untested feature reach main.
-  # Escape hatch: a maintainer can apply the 'skip-hygiene' label, which
-  # skips the job entirely (job-level if, so it is never even scheduled).
+  # Escape hatch: a maintainer can apply the 'skip-hygiene' label. The label does
+  # NOT skip the job (a job-level skip left the bypass invisible and let ci-passed
+  # treat it as green). Instead the job always runs on product changes and honours
+  # the label internally — on a would-be failure it prints exactly what was waived
+  # and passes, so every bypass is recorded and provable in the job log.
   hygiene:
     name: 'PR Hygiene'
     needs: [changes]
-    if: |
-      needs.changes.outputs.has_product_changes == 'true' &&
-      !contains(github.event.pull_request.labels.*.name, 'skip-hygiene')
+    if: needs.changes.outputs.has_product_changes == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -568,6 +583,7 @@ jobs:
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          SKIP_HYGIENE: ${{ contains(github.event.pull_request.labels.*.name, 'skip-hygiene') }}
         run: |
           set -euo pipefail
 
@@ -575,8 +591,12 @@ jobs:
           echo "Changed files:"; echo "${CHANGED}" | sed 's/^/  /'
 
           # Product (non-test) source that ought to be covered by a test.
+          # .sql = schema migrations (cover with a contract test); .mjs = the
+          # desktop build/launcher scripts. Both previously slipped the gate.
           CODE=$(echo "${CHANGED}" | grep -E \
             -e '^app/api/src/.*\.js$' \
+            -e '^app/api/src/.*\.sql$' \
+            -e '^app/.*\.mjs$' \
             -e '^app/ui/src/.*\.(js|jsx)$' \
             -e '^tools/.*\.ps1$' \
             -e '^setup/docker/.*\.ps1$' \
@@ -594,28 +614,35 @@ jobs:
           # Changelog fragment (the project mandates one per branch).
           FRAGMENT=$(echo "${CHANGED}" | grep -E '^changes/.*\.md$' || true)
 
-          FAIL=0
+          # Accumulate the human-readable reasons; severity is decided at the end
+          # so the 'skip-hygiene' bypass can downgrade them from error to warning.
+          REASONS=""
+          add_reason() { REASONS="${REASONS}${REASONS:+$'\n'}$1"; }
+
           if [ -n "${CODE}" ]; then
             if [ -z "${TESTS}" ]; then
-              echo "::error::Source code changed but no test files were added or modified."
-              echo "Add or extend a test: *.test.js (API), app/ui/e2e/*.spec.js (UI), *.Tests.ps1 (Pester unit), or Test-*.ps1 (crawler integration)."
-              FAIL=1
+              add_reason "Source code changed but no test files were added or modified. Add or extend a test: *.test.js (API), app/ui/e2e/*.spec.js (UI), *.Tests.ps1 (Pester unit), or Test-*.ps1 (crawler integration)."
             fi
             if [ -z "${FRAGMENT}" ]; then
-              echo "::error::Code changed but no changelog fragment found. Add a bullet to changes/<branch>.md (never edit CHANGES.md)."
-              FAIL=1
+              add_reason "Code changed but no changelog fragment found. Add a bullet to changes/<branch>.md (never edit CHANGES.md)."
             elif ! grep -qE '^[[:space:]]*[-*][[:space:]]+[^[:space:]]' ${FRAGMENT}; then
               # A fragment file exists but is empty / has no bullet — that silently
               # satisfied the gate before. Require at least one real bullet line.
-              echo "::error::A changelog fragment exists but has no bullet line. Add at least one '- ...' bullet describing the change to changes/<branch>.md:"
-              echo "${FRAGMENT}" | sed 's/^/  /'
-              FAIL=1
+              add_reason "A changelog fragment exists but has no bullet line. Add at least one '- ...' bullet describing the change to: ${FRAGMENT}"
             fi
           else
             echo "No product code changed — tests/changelog not required."
           fi
 
-          if [ "${FAIL}" = "1" ]; then
+          if [ -n "${REASONS}" ]; then
+            if [ "${SKIP_HYGIENE}" = "true" ]; then
+              # Observable bypass: the job runs, records what was waived, and passes.
+              echo "::warning::PR hygiene requirements NOT met, but BYPASSED via the 'skip-hygiene' label. The following would otherwise block merge:"
+              printf '%s\n' "${REASONS}" | sed 's/^/  - /'
+              echo "This bypass is intentional and is now recorded in this job's log rather than the job being silently skipped."
+              exit 0
+            fi
+            while IFS= read -r reason; do echo "::error::PR hygiene: ${reason}"; done <<< "${REASONS}"
             echo "If this change genuinely needs neither, a maintainer can add the 'skip-hygiene' label."
             exit 1
           fi

@@ -45,7 +45,7 @@ Param(
 $ErrorActionPreference = 'Continue'
 $standaloneFailures = 0
 
-function Report-Result {
+function Write-Result {
     param([string]$Name, [bool]$Passed, [string]$Detail = '')
     $color = if ($Passed) { 'Green' } else { 'Red' }
     $status = if ($Passed) { 'PASS' } else { 'FAIL' }
@@ -80,12 +80,12 @@ try {
     $userCount = if ($null -ne $users.total) { [int]$users.total } else { 0 }
     $resourceCount = if ($null -ne $resources.total) { [int]$resources.total } else { 0 }
     if ($userCount -eq 0 -or $resourceCount -eq 0) {
-        Report-Result 'Risk/DemoDataLoaded' $true "skipped (no demo data: $userCount users, $resourceCount resources)"
+        Write-Result 'Risk/DemoDataLoaded' $true "skipped (no demo data: $userCount users, $resourceCount resources)"
         if (-not $WriteResult) { exit 0 } else { return }
     }
-    Report-Result 'Risk/DemoDataLoaded' $true "users=$userCount resources=$resourceCount"
+    Write-Result 'Risk/DemoDataLoaded' $true "users=$userCount resources=$resourceCount"
 } catch {
-    Report-Result 'Risk/DemoDataLoaded' $true "skipped (pre-flight failed: $($_.Exception.Message))"
+    Write-Result 'Risk/DemoDataLoaded' $true "skipped (pre-flight failed: $($_.Exception.Message))"
     if (-not $WriteResult) { exit 0 } else { return }
 }
 
@@ -113,14 +113,14 @@ $profilePayload = @{
 try {
     $profileResp = Invoke-LocalApi -Path '/risk-profiles' -Method Post -Body $profilePayload
     if ($profileResp.id) {
-        Report-Result 'Risk/SaveProfile' $true "id=$($profileResp.id)"
+        Write-Result 'Risk/SaveProfile' $true "id=$($profileResp.id)"
         $script:profileId = $profileResp.id
     } else {
-        Report-Result 'Risk/SaveProfile' $false 'no id in response'
+        Write-Result 'Risk/SaveProfile' $false 'no id in response'
         if (-not $WriteResult) { exit 1 } else { return }
     }
 } catch {
-    Report-Result 'Risk/SaveProfile' $false $_.Exception.Message
+    Write-Result 'Risk/SaveProfile' $false $_.Exception.Message
     if (-not $WriteResult) { exit 1 } else { return }
 }
 
@@ -172,14 +172,14 @@ $classifierPayload = @{
 try {
     $clsResp = Invoke-LocalApi -Path '/risk-classifiers' -Method Post -Body $classifierPayload
     if ($clsResp.id) {
-        Report-Result 'Risk/SaveClassifiers' $true "id=$($clsResp.id)"
+        Write-Result 'Risk/SaveClassifiers' $true "id=$($clsResp.id)"
         $script:classifierId = $clsResp.id
     } else {
-        Report-Result 'Risk/SaveClassifiers' $false 'no id in response'
+        Write-Result 'Risk/SaveClassifiers' $false 'no id in response'
         if (-not $WriteResult) { exit 1 } else { return }
     }
 } catch {
-    Report-Result 'Risk/SaveClassifiers' $false $_.Exception.Message
+    Write-Result 'Risk/SaveClassifiers' $false $_.Exception.Message
     if (-not $WriteResult) { exit 1 } else { return }
 }
 
@@ -187,14 +187,14 @@ try {
 try {
     $runResp = Invoke-LocalApi -Path '/risk-scoring/runs' -Method Post -Body @{ classifierId = $script:classifierId }
     if ($runResp.id) {
-        Report-Result 'Risk/StartRun' $true "id=$($runResp.id) status=$($runResp.status)"
+        Write-Result 'Risk/StartRun' $true "id=$($runResp.id) status=$($runResp.status)"
         $script:runId = $runResp.id
     } else {
-        Report-Result 'Risk/StartRun' $false 'no id in response'
+        Write-Result 'Risk/StartRun' $false 'no id in response'
         if (-not $WriteResult) { exit 1 } else { return }
     }
 } catch {
-    Report-Result 'Risk/StartRun' $false $_.Exception.Message
+    Write-Result 'Risk/StartRun' $false $_.Exception.Message
     if (-not $WriteResult) { exit 1 } else { return }
 }
 
@@ -212,22 +212,22 @@ for ($i = 0; $i -lt 30; $i++) {
 }
 
 if (-not $finalRun) {
-    Report-Result 'Risk/RunCompletes' $false 'timed out after 60 seconds'
+    Write-Result 'Risk/RunCompletes' $false 'timed out after 60 seconds'
     if (-not $WriteResult) { exit 1 } else { return }
 }
 if ($finalRun.status -ne 'completed') {
-    Report-Result 'Risk/RunCompletes' $false "ended in '$($finalRun.status)': $($finalRun.errorMessage)"
+    Write-Result 'Risk/RunCompletes' $false "ended in '$($finalRun.status)': $($finalRun.errorMessage)"
     if (-not $WriteResult) { exit 1 } else { return }
 }
-Report-Result 'Risk/RunCompletes' $true "scored=$($finalRun.scoredEntities) total=$($finalRun.totalEntities)"
+Write-Result 'Risk/RunCompletes' $true "scored=$($finalRun.scoredEntities) total=$($finalRun.totalEntities)"
 
 # ─── Step 5: Assert expected outcomes via /api/risk-scores ───────
 try {
     $scores = Invoke-LocalApi -Path '/risk-scores'
     if ($scores.available -and $scores.summary) {
-        Report-Result 'Risk/ScoresEndpoint' $true 'returned summary'
+        Write-Result 'Risk/ScoresEndpoint' $true 'returned summary'
     } else {
-        Report-Result 'Risk/ScoresEndpoint' $false 'no summary in response'
+        Write-Result 'Risk/ScoresEndpoint' $false 'no summary in response'
     }
 
     # Count entities that scored at least Minimal (direct classifier match)
@@ -254,9 +254,9 @@ try {
     # (?i) patterns (the April 2026 bug), no entity will score above None and
     # this assertion fails.
     if ($matchedCount -gt 0) {
-        Report-Result 'Risk/ClassifierMatchesRecorded' $true "entities with matches: $matchedCount (Minimal+)"
+        Write-Result 'Risk/ClassifierMatchesRecorded' $true "entities with matches: $matchedCount (Minimal+)"
     } else {
-        Report-Result 'Risk/ClassifierMatchesRecorded' $false 'ZERO matches recorded — regex compile may be broken'
+        Write-Result 'Risk/ClassifierMatchesRecorded' $false 'ZERO matches recorded — regex compile may be broken'
     }
 
     # We expect at least one Medium since we have a broad `admin` pattern.
@@ -264,12 +264,12 @@ try {
     # min(100, round(0.6 * 80)) = 48 = Medium tier.
     $mediumPlus = ($tiers['Medium'] ?? 0) + ($tiers['High'] ?? 0) + ($tiers['Critical'] ?? 0)
     if ($mediumPlus -gt 0) {
-        Report-Result 'Risk/HasMediumOrHigher' $true "Medium+: $mediumPlus"
+        Write-Result 'Risk/HasMediumOrHigher' $true "Medium+: $mediumPlus"
     } else {
-        Report-Result 'Risk/HasMediumOrHigher' $false "expected at least one Medium+, got $mediumPlus"
+        Write-Result 'Risk/HasMediumOrHigher' $false "expected at least one Medium+, got $mediumPlus"
     }
 } catch {
-    Report-Result 'Risk/ScoresEndpoint' $false $_.Exception.Message
+    Write-Result 'Risk/ScoresEndpoint' $false $_.Exception.Message
 }
 
 # ─── Cleanup ─────────────────────────────────────────────────────

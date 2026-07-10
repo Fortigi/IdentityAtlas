@@ -44,7 +44,7 @@ Param(
 $ErrorActionPreference = 'Continue'
 $standaloneFailures = 0
 
-function Report-Result {
+function Write-Result {
     param([string]$Name, [bool]$Passed, [string]$Detail = '')
     $color = if ($Passed) { 'Green' } else { 'Red' }
     $status = if ($Passed) { 'PASS' } else { 'FAIL' }
@@ -90,9 +90,9 @@ try {
     $lineCount = if (Test-Path $assignmentsFile) {
         ([System.IO.File]::ReadAllLines($assignmentsFile).Count - 1)  # minus header
     } else { 0 }
-    Report-Result 'LoadTest/DataGenerated' ($lineCount -gt 1000000) "rows=$lineCount time=$([math]::Round($genDuration,1))s"
+    Write-Result 'LoadTest/DataGenerated' ($lineCount -gt 1000000) "rows=$lineCount time=$([math]::Round($genDuration,1))s"
 } catch {
-    Report-Result 'LoadTest/DataGenerated' $false $_.Exception.Message
+    Write-Result 'LoadTest/DataGenerated' $false $_.Exception.Message
     Write-Host "  Cannot continue load test without data." -ForegroundColor Red
     if (-not $WriteResult) { exit 1 }
     return
@@ -115,9 +115,9 @@ try {
         -ConfigPath $tempConfig `
         -ErrorAction Stop
     $ingestDuration = ((Get-Date) - $ingestStart).TotalSeconds
-    Report-Result 'LoadTest/CrawlerCompleted' $true "time=$([math]::Round($ingestDuration / 60, 1))min"
+    Write-Result 'LoadTest/CrawlerCompleted' $true "time=$([math]::Round($ingestDuration / 60, 1))min"
 } catch {
-    Report-Result 'LoadTest/CrawlerCompleted' $false $_.Exception.Message
+    Write-Result 'LoadTest/CrawlerCompleted' $false $_.Exception.Message
     Write-Host "  Cannot continue — crawler failed." -ForegroundColor Red
     if (-not $WriteResult) { exit 1 }
     return
@@ -130,12 +130,12 @@ Write-Host "  Step 3: Verifying dashboard counts..." -ForegroundColor Cyan
 try {
     $stats = Invoke-LocalApi -Path '/admin/dashboard-stats'
     $ok = $stats.assignments -ge 1400000
-    Report-Result 'LoadTest/AssignmentCount' $ok "assignments=$($stats.assignments) (expected >=1,400,000)"
-    Report-Result 'LoadTest/UserCount' ($stats.users -ge 75000) "users=$($stats.users)"
-    Report-Result 'LoadTest/ResourceCount' ($stats.resources -ge 75000) "resources=$($stats.resources)"
-    Report-Result 'LoadTest/SystemCount' ($stats.systems -ge 20) "systems=$($stats.systems)"
+    Write-Result 'LoadTest/AssignmentCount' $ok "assignments=$($stats.assignments) (expected >=1,400,000)"
+    Write-Result 'LoadTest/UserCount' ($stats.users -ge 75000) "users=$($stats.users)"
+    Write-Result 'LoadTest/ResourceCount' ($stats.resources -ge 75000) "resources=$($stats.resources)"
+    Write-Result 'LoadTest/SystemCount' ($stats.systems -ge 20) "systems=$($stats.systems)"
 } catch {
-    Report-Result 'LoadTest/AssignmentCount' $false $_.Exception.Message
+    Write-Result 'LoadTest/AssignmentCount' $false $_.Exception.Message
 }
 
 # ─── 4. Refresh materialized views ──────────────────────────────
@@ -144,9 +144,9 @@ try {
     $refreshStart = Get-Date
     $r = Invoke-LocalApi -Path '/ingest/refresh-views' -Method 'Post'
     $refreshDuration = ((Get-Date) - $refreshStart).TotalSeconds
-    Report-Result 'LoadTest/ViewRefresh' $true "time=$([math]::Round($refreshDuration,1))s"
+    Write-Result 'LoadTest/ViewRefresh' $true "time=$([math]::Round($refreshDuration,1))s"
 } catch {
-    Report-Result 'LoadTest/ViewRefresh' $false $_.Exception.Message
+    Write-Result 'LoadTest/ViewRefresh' $false $_.Exception.Message
 }
 
 # ─── 5. Test matrix performance at scale ─────────────────────────
@@ -156,9 +156,9 @@ try {
     $null = Invoke-LocalApi -Path '/permissions?userLimit=25'
     $matrixDuration = ((Get-Date) - $matrixStart).TotalSeconds
     $ok = $matrixDuration -lt 15  # must respond within 15 seconds
-    Report-Result 'LoadTest/MatrixPerformance' $ok "time=$([math]::Round($matrixDuration, 2))s (limit=15s)"
+    Write-Result 'LoadTest/MatrixPerformance' $ok "time=$([math]::Round($matrixDuration, 2))s (limit=15s)"
 } catch {
-    Report-Result 'LoadTest/MatrixPerformance' $false $_.Exception.Message
+    Write-Result 'LoadTest/MatrixPerformance' $false $_.Exception.Message
 }
 
 # ─── 6. Run benchmark suite ──────────────────────────────────────
@@ -168,12 +168,12 @@ if (Test-Path $benchmarkScript) {
         $benchLogFolder = Join-Path $LogFolder 'benchmark'
         if (-not (Test-Path $benchLogFolder)) { New-Item -ItemType Directory -Path $benchLogFolder -Force | Out-Null }
         & $benchmarkScript -ApiBaseUrl $ApiBaseUrl -OutputFolder $benchLogFolder -ErrorAction Stop
-        Report-Result 'LoadTest/BenchmarkCompleted' $true ''
+        Write-Result 'LoadTest/BenchmarkCompleted' $true ''
     } catch {
-        Report-Result 'LoadTest/BenchmarkCompleted' $false $_.Exception.Message
+        Write-Result 'LoadTest/BenchmarkCompleted' $false $_.Exception.Message
     }
 } else {
-    Report-Result 'LoadTest/BenchmarkCompleted' $true 'skipped (script missing)'
+    Write-Result 'LoadTest/BenchmarkCompleted' $true 'skipped (script missing)'
 }
 
 # ─── 7. Dashboard-stats query performance ────────────────────────
@@ -183,9 +183,9 @@ try {
     $null = Invoke-LocalApi -Path '/admin/dashboard-stats'
     $dashDuration = ((Get-Date) - $dashStart).TotalSeconds
     $ok = $dashDuration -lt 5  # reltuples path should be fast
-    Report-Result 'LoadTest/DashboardPerformance' $ok "time=$([math]::Round($dashDuration, 2))s (limit=5s)"
+    Write-Result 'LoadTest/DashboardPerformance' $ok "time=$([math]::Round($dashDuration, 2))s (limit=5s)"
 } catch {
-    Report-Result 'LoadTest/DashboardPerformance' $false $_.Exception.Message
+    Write-Result 'LoadTest/DashboardPerformance' $false $_.Exception.Message
 }
 
 Write-Host "`n  Load test complete." -ForegroundColor Green

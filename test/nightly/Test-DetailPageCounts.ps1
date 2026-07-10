@@ -50,7 +50,7 @@ Param(
 $ErrorActionPreference = 'Continue'
 $standaloneFailures = 0
 
-function Report-Result {
+function Write-Result {
     param([string]$Name, [bool]$Passed, [string]$Detail = '')
     $color  = if ($Passed) { 'Green' } else { 'Red' }
     $status = if ($Passed) { 'PASS'  } else { 'FAIL' }
@@ -123,9 +123,9 @@ try {
         records      = @(@{ displayName = "DPC-Test-$ts"; systemType = 'Test'; enabled = $true; syncEnabled = $true })
     }
     $systemId = @($r.systemIds)[0]
-    Report-Result 'Setup/System' ($null -ne $systemId) "id=$systemId"
+    Write-Result 'Setup/System' ($null -ne $systemId) "id=$systemId"
 } catch {
-    Report-Result 'Setup/System' $false $_.Exception.Message
+    Write-Result 'Setup/System' $false $_.Exception.Message
 }
 
 if (-not $systemId) {
@@ -147,9 +147,9 @@ try {
             @{ externalId = $charlieExtId; displayName = 'DPC Charlie'; principalType = 'User'; accountEnabled = $true }
         )
     }
-    Report-Result 'Setup/Principals' ($r.inserted -ge 3 -or $r.upserted -ge 3) "inserted=$($r.inserted)"
+    Write-Result 'Setup/Principals' ($r.inserted -ge 3 -or $r.upserted -ge 3) "inserted=$($r.inserted)"
 } catch {
-    Report-Result 'Setup/Principals' $false $_.Exception.Message
+    Write-Result 'Setup/Principals' $false $_.Exception.Message
 }
 
 # 3. Create resources (GroupA, BusinessRoleA, OtherParent)
@@ -165,9 +165,9 @@ try {
             @{ externalId = $otherExtId;  displayName = 'DPC OtherParent';   resourceType = 'Group' }
         )
     }
-    Report-Result 'Setup/Resources' ($r.inserted -ge 3 -or $r.upserted -ge 3) "inserted=$($r.inserted)"
+    Write-Result 'Setup/Resources' ($r.inserted -ge 3 -or $r.upserted -ge 3) "inserted=$($r.inserted)"
 } catch {
-    Report-Result 'Setup/Resources' $false $_.Exception.Message
+    Write-Result 'Setup/Resources' $false $_.Exception.Message
 }
 
 # 4. Look up database IDs for Alice, GroupA, BusinessRoleA
@@ -177,9 +177,9 @@ try {
     $rows  = if ($users -is [array]) { $users } else { $users.data }
     $alice = $rows | Where-Object { $_.displayName -like '*DPC Alice*' } | Select-Object -First 1
     $aliceId = $alice.id
-    Report-Result 'Setup/LookupAlice' ($null -ne $aliceId) "id=$aliceId"
+    Write-Result 'Setup/LookupAlice' ($null -ne $aliceId) "id=$aliceId"
 } catch {
-    Report-Result 'Setup/LookupAlice' $false $_.Exception.Message
+    Write-Result 'Setup/LookupAlice' $false $_.Exception.Message
 }
 
 try {
@@ -198,10 +198,10 @@ try {
     $other  = $rows3 | Where-Object { $_.displayName -like '*DPC OtherParent*' } | Select-Object -First 1
     $otherId = $other.id
 
-    Report-Result 'Setup/LookupResources' ($null -ne $groupAId -and $null -ne $brId -and $null -ne $otherId) `
+    Write-Result 'Setup/LookupResources' ($null -ne $groupAId -and $null -ne $brId -and $null -ne $otherId) `
         "groupA=$groupAId br=$brId other=$otherId"
 } catch {
-    Report-Result 'Setup/LookupResources' $false $_.Exception.Message
+    Write-Result 'Setup/LookupResources' $false $_.Exception.Message
 }
 
 # 5. Assign Alice + Bob to GroupA (Charlie intentionally gets no assignment)
@@ -217,9 +217,9 @@ if ($groupAId -and $aliceId) {
                 @{ resourceExternalId = $groupAExtId; principalExternalId = $bobExtId;   assignmentType = 'Direct' }
             )
         }
-        Report-Result 'Setup/Assignments' $true "ok"
+        Write-Result 'Setup/Assignments' $true "ok"
     } catch {
-        Report-Result 'Setup/Assignments' $false $_.Exception.Message
+        Write-Result 'Setup/Assignments' $false $_.Exception.Message
     }
 }
 
@@ -238,9 +238,9 @@ if ($groupAId -and $brId -and $otherId) {
                 @{ parentExternalId = $otherExtId; childExternalId = $groupAExtId; relationshipType = 'Contains' }
             )
         }
-        Report-Result 'Setup/Relationships' $true "ok"
+        Write-Result 'Setup/Relationships' $true "ok"
     } catch {
-        Report-Result 'Setup/Relationships' $false $_.Exception.Message
+        Write-Result 'Setup/Relationships' $false $_.Exception.Message
     }
 }
 
@@ -266,7 +266,7 @@ try {
     $dataCount  = @($r.data).Count
 
     # totalUsers must be a positive integer
-    Report-Result 'Permissions/NoLimit/TotalUsersIsInt' `
+    Write-Result 'Permissions/NoLimit/TotalUsersIsInt' `
         ($totalUsers -is [int] -or $totalUsers -is [long] -or ($totalUsers -match '^\d+$')) `
         "totalUsers=$totalUsers"
 
@@ -274,18 +274,18 @@ try {
     # dataRows is the number of assignment rows (one user can appear many times).
     # In a real dataset users have multiple assignments, so dataRows > totalUsers
     # is normal. We just verify totalUsers is a positive number.
-    Report-Result 'Permissions/NoLimit/TotalUsersGtDataRows' `
+    Write-Result 'Permissions/NoLimit/TotalUsersGtDataRows' `
         ([int]$totalUsers -gt 0) `
         "totalUsers=$totalUsers dataRows=$dataCount"
 
     # If we got a ground-truth count, verify totalUsers >= it
     if ($null -ne $principalTotal) {
-        Report-Result 'Permissions/NoLimit/TotalUsersMatchesPrincipalCount' `
+        Write-Result 'Permissions/NoLimit/TotalUsersMatchesPrincipalCount' `
             ([int]$totalUsers -ge [int]$principalTotal) `
             "totalUsers=$totalUsers principalTotal=$principalTotal"
     }
 } catch {
-    Report-Result 'Permissions/NoLimit/TotalUsersIsInt' $false $_.Exception.Message
+    Write-Result 'Permissions/NoLimit/TotalUsersIsInt' $false $_.Exception.Message
 }
 
 # 1b. Binding limit (userLimit=1): totalUsers must be the same full count as above
@@ -298,18 +298,18 @@ try {
     # userLimit=1 means "show data for up to 1 user" — but that user
     # can have multiple assignment rows. Count distinct users instead.
     $distinctUsers = @($limited.data | ForEach-Object { $_.memberId ?? $_.userId ?? $_.principalId } | Sort-Object -Unique).Count
-    Report-Result 'Permissions/Limit1/DataRespectsCap' `
+    Write-Result 'Permissions/Limit1/DataRespectsCap' `
         ($distinctUsers -le 1) `
         "distinctUsers=$distinctUsers dataRows=$dataLtd (expected <= 1 distinct user)"
 
     # totalUsers is NOT capped — must equal the no-limit totalUsers
     if ($null -ne $totalUsers) {
-        Report-Result 'Permissions/Limit1/TotalUsersUnchanged' `
+        Write-Result 'Permissions/Limit1/TotalUsersUnchanged' `
             ([int]$totalLtd -eq [int]$totalUsers) `
             "limited=$totalLtd noLimit=$totalUsers (must match)"
     }
 } catch {
-    Report-Result 'Permissions/Limit1/DataRespectsCap' $false $_.Exception.Message
+    Write-Result 'Permissions/Limit1/DataRespectsCap' $false $_.Exception.Message
 }
 
 # ─── Section 2: User detail — historyCount shape (PR #16 regression) ──────────
@@ -325,18 +325,18 @@ if ($aliceId) {
 
         # historyCount must be present and be an integer (not a boolean, not null)
         $hc = $u.historyCount
-        Report-Result 'UserDetail/HistoryCountPresent' `
+        Write-Result 'UserDetail/HistoryCountPresent' `
             ($null -ne $hc) `
             "historyCount=$hc"
 
-        Report-Result 'UserDetail/HistoryCountIsInt' `
+        Write-Result 'UserDetail/HistoryCountIsInt' `
             ($hc -is [int] -or $hc -is [long] -or $hc -match '^\d+$') `
             "type=$($hc.GetType().Name) value=$hc"
 
         # hasHistory must be the boolean equivalent of historyCount > 0
         $hh = $u.hasHistory
         $expected = ([int]$hc -gt 0)
-        Report-Result 'UserDetail/HasHistoryDerivesFromCount' `
+        Write-Result 'UserDetail/HasHistoryDerivesFromCount' `
             ($hh -eq $expected) `
             "hasHistory=$hh historyCount=$hc expected=$expected"
 
@@ -344,11 +344,11 @@ if ($aliceId) {
         # a freshly ingested principal may already have historyCount >= 1.
         # We just verify the field is a non-negative integer and that
         # hasHistory is consistent with it.
-        Report-Result 'UserDetail/FreshDataNoHistory' `
+        Write-Result 'UserDetail/FreshDataNoHistory' `
             ([int]$hc -ge 0 -and $hh -eq ([int]$hc -gt 0)) `
             "historyCount=$hc hasHistory=$hh"
     } catch {
-        Report-Result 'UserDetail/HistoryCountPresent' $false $_.Exception.Message
+        Write-Result 'UserDetail/HistoryCountPresent' $false $_.Exception.Message
     }
 } else {
     Write-Host "    SKIP  UserDetail tests — aliceId not resolved" -ForegroundColor Yellow
@@ -371,32 +371,32 @@ if ($groupAId) {
 
         # parentResourceCount must be present and be an integer
         $prc = $g.parentResourceCount
-        Report-Result 'ResourceDetail/ParentResourceCountPresent' `
+        Write-Result 'ResourceDetail/ParentResourceCountPresent' `
             ($null -ne $prc) `
             "parentResourceCount=$prc"
 
         # accessPackageCount must be present and be an integer
         $apc = $g.accessPackageCount
-        Report-Result 'ResourceDetail/AccessPackageCountPresent' `
+        Write-Result 'ResourceDetail/AccessPackageCountPresent' `
             ($null -ne $apc) `
             "accessPackageCount=$apc"
 
         # GroupA has 2 parents total
-        Report-Result 'ResourceDetail/ParentResourceCountCorrect' `
+        Write-Result 'ResourceDetail/ParentResourceCountCorrect' `
             ([int]$prc -eq 2) `
             "got $prc, expected 2 (BusinessRoleA + OtherParent)"
 
         # Only 1 of those parents is a BusinessRole
-        Report-Result 'ResourceDetail/AccessPackageCountOnlyCountsBR' `
+        Write-Result 'ResourceDetail/AccessPackageCountOnlyCountsBR' `
             ([int]$apc -eq 1) `
             "got $apc, expected 1 (BusinessRoleA only, not OtherParent which is Group)"
 
         # accessPackageCount must be <= parentResourceCount
-        Report-Result 'ResourceDetail/AccessPackageCountLeParentCount' `
+        Write-Result 'ResourceDetail/AccessPackageCountLeParentCount' `
             ([int]$apc -le [int]$prc) `
             "accessPackageCount=$apc parentResourceCount=$prc"
     } catch {
-        Report-Result 'ResourceDetail/ParentResourceCountPresent' $false $_.Exception.Message
+        Write-Result 'ResourceDetail/ParentResourceCountPresent' $false $_.Exception.Message
     }
 } else {
     Write-Host "    SKIP  ResourceDetail tests — groupAId not resolved" -ForegroundColor Yellow
@@ -415,32 +415,32 @@ if ($brId) {
 
         # historyCount must be a non-null integer
         $hc = $ap.historyCount
-        Report-Result 'APDetail/HistoryCountPresent' `
+        Write-Result 'APDetail/HistoryCountPresent' `
             ($null -ne $hc) `
             "historyCount=$hc"
 
-        Report-Result 'APDetail/HistoryCountIsInt' `
+        Write-Result 'APDetail/HistoryCountIsInt' `
             ($hc -is [int] -or $hc -is [long] -or ($hc -match '^\d+$')) `
             "type=$($hc.GetType().Name) value=$hc"
 
         # hasHistory consistent with historyCount
         $hh       = $ap.hasHistory
         $expected = ([int]$hc -gt 0)
-        Report-Result 'APDetail/HasHistoryDerivesFromCount' `
+        Write-Result 'APDetail/HasHistoryDerivesFromCount' `
             ($hh -eq $expected) `
             "hasHistory=$hh historyCount=$hc expected=$expected"
 
         # pendingRequestCount must be a non-null number (could be 0 — no pending requests)
         $prc = $ap.pendingRequestCount
-        Report-Result 'APDetail/PendingRequestCountPresent' `
+        Write-Result 'APDetail/PendingRequestCountPresent' `
             ($null -ne $prc) `
             "pendingRequestCount=$prc (was null before PR #16)"
 
-        Report-Result 'APDetail/PendingRequestCountIsInt' `
+        Write-Result 'APDetail/PendingRequestCountIsInt' `
             ($prc -is [int] -or $prc -is [long] -or $prc -match '^\d+$') `
             "type=$($prc.GetType().Name) value=$prc"
     } catch {
-        Report-Result 'APDetail/HistoryCountPresent' $false $_.Exception.Message
+        Write-Result 'APDetail/HistoryCountPresent' $false $_.Exception.Message
     }
 } else {
     Write-Host "    SKIP  APDetail tests — brId not resolved" -ForegroundColor Yellow

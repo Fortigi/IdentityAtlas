@@ -123,19 +123,28 @@ const ALLOWLISTED_OPS = new Set(Object.keys(INTENTIONALLY_UNDOCUMENTED));
 const toOpenApiPath = (p) => p.replace(/:([A-Za-z0-9_]+)/g, '{$1}');
 const key = (method, path) => `${method.toUpperCase()} ${path}`;
 
+// Walk a router's layer stack, collecting "METHOD /path" for every route.
+// Recurses into nested sub-routers so a barrel that composes focused routers via
+// `router.use(subRouter)` (e.g. routes/ingest.js after its C1 split) is enumerated
+// just like a router with its routes registered directly.
+function collectRoutes(stack, ops) {
+  for (const layer of stack) {
+    if (layer.route) {
+      const path = toOpenApiPath(layer.route.path);
+      for (const m of HTTP_METHODS) {
+        if (layer.route.methods[m]) ops.add(key(m, path));
+      }
+    } else if (layer.handle && Array.isArray(layer.handle.stack)) {
+      collectRoutes(layer.handle.stack, ops);
+    }
+  }
+}
+
 // "METHOD /path" for every route registered on the documented routers.
 function registeredOps() {
   const ops = new Set();
   for (const routers of Object.values(DOCUMENTED_ROUTERS)) {
-    for (const router of routers) {
-      for (const layer of router.stack) {
-        if (!layer.route) continue;
-        const path = toOpenApiPath(layer.route.path);
-        for (const m of HTTP_METHODS) {
-          if (layer.route.methods[m]) ops.add(key(m, path));
-        }
-      }
-    }
+    for (const router of routers) collectRoutes(router.stack, ops);
   }
   return ops;
 }

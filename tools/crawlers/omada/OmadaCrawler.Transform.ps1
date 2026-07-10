@@ -91,7 +91,7 @@ function ConvertTo-OmadaIdentityRecord {
 }
 
 # Maps one Omada Orgunit entity → a synced context record, carrying the parent
-# hierarchy link. Map-ContextTypeToAtlas (OmadaCrawler.Functions.ps1) resolves the
+# hierarchy link. ConvertTo-AtlasContextType (OmadaCrawler.Functions.ps1) resolves the
 # context type. Verbatim from the inline Orgunit `ForEach-Object { ... }` block.
 function ConvertTo-OmadaOrgUnitContextRecord {
     [CmdletBinding()]
@@ -99,7 +99,7 @@ function ConvertTo-OmadaOrgUnitContextRecord {
         [Parameter(Mandatory)] $OrgUnit,
         [string]$DefaultContextType
     )
-    $CtxType   = Map-ContextTypeToAtlas -OmadaType (Get-OmadaRefValue -Ref $OrgUnit.OUTYPE -Fallback $DefaultContextType)
+    $CtxType   = ConvertTo-AtlasContextType -OmadaType (Get-OmadaRefValue -Ref $OrgUnit.OUTYPE -Fallback $DefaultContextType)
     $ParentUid = Get-OmadaRefUid -Ref $OrgUnit.PARENTOU
     return [PSCustomObject]@{
         id              = [string]$OrgUnit.UId
@@ -133,7 +133,7 @@ function ConvertTo-OmadaFlatContextRecord {
 # Topologically sorts context records so a parent always precedes its children
 # (records with an unresolved/absent parent come first). Any records left in a
 # cycle after MaxPasses are appended as-is. Verbatim from the inline sort.
-function Sort-OmadaContextsTopologically {
+function Get-OmadaContextsInTopologicalOrder {
     [CmdletBinding()]
     param($Records)
     $Sorted    = [System.Collections.Generic.List[object]]::new()
@@ -157,7 +157,7 @@ function Sort-OmadaContextsTopologically {
 
 # Maps one Omada User entity → an ingest/principals record, resolving principalType
 # from the linked Identity's type via $IdentityLookup (IDENTITYID -> { uid; identityType })
-# and Map-IdentityTypeToAtlas. Verbatim from the inline account `ForEach-Object`.
+# and ConvertTo-AtlasIdentityType. Verbatim from the inline account `ForEach-Object`.
 function ConvertTo-OmadaAccountRecord {
     [CmdletBinding()]
     param(
@@ -171,7 +171,7 @@ function ConvertTo-OmadaAccountRecord {
     $PrincipalType = 'User'
     $IdentId = if ($Account.IDENTITYREF) { [string]$Account.IDENTITYREF.IDENTITYID } else { $Null }
     if ($IdentId -and $IdentityLookup.ContainsKey($IdentId)) {
-        $PrincipalType = Map-IdentityTypeToAtlas -OmadaType $IdentityLookup[$IdentId].identityType
+        $PrincipalType = ConvertTo-AtlasIdentityType -OmadaType $IdentityLookup[$IdentId].identityType
     }
 
     return [PSCustomObject]@{
@@ -209,7 +209,7 @@ function ConvertTo-OmadaIdentityMemberRecord {
 }
 
 # Maps one Omada Resource entity → an ingest/resources record, or $null when it has
-# no UId/name. Map-ResourceCategory (OmadaCrawler.Functions.ps1) resolves the Atlas
+# no UId/name. ConvertTo-AtlasResourceCategory (OmadaCrawler.Functions.ps1) resolves the Atlas
 # resourceType; $UserGroupMap resolves USERGROUPREF -> display name. The caller keeps
 # the system-grouping. Verbatim from the inline `foreach ($Item in $AllResources)`.
 function ConvertTo-OmadaResourceRecord {
@@ -219,7 +219,7 @@ function ConvertTo-OmadaResourceRecord {
         [hashtable]$UserGroupMap = @{}
     )
     $OmadaCat   = Get-OmadaEnumStr $Resource.ROLECATEGORY
-    $AtlasType  = Map-ResourceCategory -Category $OmadaCat
+    $AtlasType  = ConvertTo-AtlasResourceCategory -Category $OmadaCat
     $SysName    = Get-OmadaRefValue -Ref $Resource.SYSTEMREF   -Fallback ''
     $RoleType   = Get-OmadaRefValue -Ref $Resource.ROLETYPEREF -Fallback ''
     $FolderName = Get-OmadaRefValue -Ref $Resource.ROLEFOLDER  -Fallback ''

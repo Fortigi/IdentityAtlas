@@ -1,5 +1,36 @@
 ## Changes in this PR
 
+- Standardized PowerShell function names across the crawlers and test harnesses to use PowerShell approved verbs (no behaviour change).
+- Re-enabled the `PSUseApprovedVerbs` PowerShell lint gate in CI so unapproved-verb function names are flagged going forward.
+
+## Changes in this PR
+
+- Internal maintainability: split the large crawler-jobs API controller into focused modules (crawler-config CRUD, crawler-job lifecycle + status + live-discovery, and the shared job-config helpers) behind a thin barrel, and added tests covering the config/job/status/log handlers. No functional change — every crawler-config and crawler-job endpoint behaves exactly as before.
+- Internal maintainability: split the large crawlers API controller into focused modules (admin crawler management, crawler self-service + worker job-claim protocol + delta-token persistence, and shared key helpers) behind a thin barrel that re-exports both routers, and added tests covering the admin and self-service handlers. No functional change — every crawler-management and crawler self-service endpoint behaves exactly as before.
+- Internal maintainability: split the large ingest API controller into focused modules (the per-entity ingest handlers, the matrix materialized-view refresh + default-filter endpoints, and the shared ingest engine helpers) behind a thin barrel. No functional change — every ingest endpoint behaves exactly as before.
+
+## Changes in this PR
+
+- Internal maintainability: split the large user/group/access-package detail API controller into focused per-entity modules (user, group, access-package) sharing one helpers module, with the original file kept as a thin barrel so every endpoint mounts and behaves exactly as before. No functional change.
+- Internal maintainability: split the large permissions API controller into focused modules (permission grid + user columns, access-package resource mapping, sync log, and matrix nested-group expansion) behind a thin barrel. No functional change — every permissions endpoint behaves exactly as before.
+- Internal maintainability: split the large admin API controller into focused modules (curated-data export/import, risk-config reads, database maintenance, dashboard stats, and settings) behind a thin barrel. No functional change — every admin endpoint behaves exactly as before.
+- Internal maintainability: split the large identities API controller into focused modules (identity list + columns, identity detail, and per-account analyst overrides) behind a thin barrel. No functional change — every identities endpoint behaves exactly as before.
+- Internal maintainability: split the large tags API controller into focused modules (tag CRUD + assignment, and the users/groups/entity-tags list endpoints) behind a thin barrel. No functional change — every tags/users/groups endpoint behaves exactly as before.
+- Internal maintainability: split the large recent-changes API controller into focused modules (the recent-changes panels and the timeline endpoints, sharing common label-resolution helpers) behind a thin barrel, and added tests covering the event-building paths. No functional change — every recent-changes and timeline endpoint behaves exactly as before.
+- Internal maintainability: split the large contexts API controller into focused modules (context reads, context create/update/sync/delete, and membership management) behind a thin barrel. No functional change — every contexts endpoint behaves exactly as before.
+- Internal maintainability: split the large risk-scores API controller into focused modules (the summary/list endpoints and the single-entity detail + analyst-override endpoints) behind a thin barrel. No functional change — every risk-scores endpoint behaves exactly as before.
+
+## Changes in this PR
+
+- The complexity CI gate now measures **cognitive** complexity (how hard code is to follow) for JavaScript/TypeScript, not just cyclomatic — via `eslint-plugin-sonarjs` at the SonarSource S3776 default threshold of 15. Current offenders are grandfathered into the baseline and can only ratchet down; new or newly-over-threshold functions must stay at or under 15.
+
+## Changes in this PR
+
+- Fixed risk scoring so group ownership counts again — owners had silently stopped contributing to risk after ownership moved to its own resource type, so the "user owns many groups" and "group has members but no owner" signals had gone dead.
+- Corrected group member counts and risk propagation to no longer treat group owners as if they were group members.
+
+## Changes in this PR
+
 - Admin → Updates now shows the web and worker version numbers side by side with a Matched / Mismatch badge, so you can confirm the two are in sync. A banner appears if they drift out of step — a sign an update was interrupted or only half-applied.
 - Added a Database version to Admin → Updates, shown next to web and worker with a Matched / Mismatch badge. The app stamps its version onto the database once the required migrations have run, so you can confirm at a glance that all three are on the same version. It warns if the database schema is newer than the running app (e.g. after a rollback or a half-applied update).
 - Made the Updates screen honest about how updating works: Identity Atlas checks for and reports new versions but never installs them itself — a separate update agent does that. The automatic-updates switch wording now reflects this, and a warning appears when automatic updates are on but nothing has actually been installing them.

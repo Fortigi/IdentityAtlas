@@ -7,7 +7,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from ratchet import (  # noqa: E402
-    parse_expected, scan_workflow, scan_dockerfile, scan_package_json, evaluate,
+    parse_expected, scan_workflow, scan_dockerfile, scan_package_json, scan_mjs, evaluate,
 )
 
 
@@ -47,6 +47,22 @@ def test_scan_package_json_extracts_engines_major():
 def test_scan_package_json_without_engines_is_empty():
     assert scan_package_json('{"name":"x"}') == []
     assert scan_package_json('not json') == []
+
+
+def test_scan_mjs_extracts_node_version_major():
+    # A launcher .mjs pins the bundled runtime as `const NODE_VERSION = '24.16.0'`;
+    # only the major (24) is gated against .nvmrc.
+    text = "const NODE_VERSION   = '24.16.0';\nconst NODE_ABI = '137';\n"
+    assert [v for _, v in scan_mjs(text)] == [24]
+
+
+def test_scan_mjs_matches_double_quotes_and_v_prefix():
+    assert [v for _, v in scan_mjs('const NODE_VERSION = "v22.1.0"')] == [22]
+
+
+def test_scan_mjs_without_pin_is_empty():
+    # An .mjs that doesn't pin a Node version contributes no finding.
+    assert scan_mjs("import { join } from 'node:path';\nconst X = 1;\n") == []
 
 
 def test_evaluate_flags_mismatch_only():

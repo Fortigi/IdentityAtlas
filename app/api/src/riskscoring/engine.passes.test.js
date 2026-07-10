@@ -136,10 +136,10 @@ describe('loadScoringData', () => {
       if (sql.includes('FROM "Principals"')) return Promise.resolve({ rows: [{ id: 'p1', managerId: 'm1' }, { id: 'm1', managerId: null }] });
       if (sql.includes('PrincipalActivity')) return Promise.resolve({ rows: [] });
       if (sql.includes('FROM "Resources"')) return Promise.resolve({ rows: [{ id: 'r1' }] });
+      // Ownership now traverses GroupOwnership → HasOwnership (migration 046).
+      if (sql.includes('HasOwnership')) return Promise.resolve({ rows: [] });
       if (sql.includes('COUNT') && sql.includes("'Direct'")) return Promise.resolve({ rows: [{ rid: 'r1', cnt: 3 }] });
-      if (sql.includes('COUNT') && sql.includes("'Owner'")) return Promise.resolve({ rows: [] });
       if (sql.includes("'Direct'")) return Promise.resolve({ rows: [{ pid: 'p1', rid: 'r1' }] });
-      if (sql.includes("'Owner'")) return Promise.resolve({ rows: [] });
       return Promise.resolve({ rows: [] });
     });
     const data = await loadScoringData('c1', noop);

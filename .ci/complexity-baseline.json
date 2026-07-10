@@ -1,5 +1,6 @@
 {
-  "_comment": "Cyclomatic-complexity ratchet baseline. Per file: the sorted list of unit CCs over the language threshold. Only ever lowered (python tools/complexity/ratchet.py --update). See the tool header.",
+  "_comment": "Cyclomatic complexity ratchet baseline. Per file: the sorted list of unit values over the language threshold. Only ever lowered (--update). See tools/complexity/ratchet.py header.",
+  "metric": "cc",
   "thresholds": {
     "ps": 15,
     "py": 15,
@@ -13,13 +14,10 @@
       32
     ],
     "app/api/src/contexts/plugins/runner.js": [
-      27
+      22
     ],
     "app/api/src/effectiveAccess/engine.js": [
       25
-    ],
-    "app/api/src/ingest/normalization.js": [
-      35
     ],
     "app/api/src/ingest/validation.js": [
       42,
@@ -33,26 +31,32 @@
       24,
       22
     ],
-    "app/api/src/routes/admin.js": [
-      39
+    "app/api/src/routes/admin/curatedData.js": [
+      30
     ],
-    "app/api/src/routes/contexts.js": [
-      33,
-      22,
-      21
-    ],
-    "app/api/src/routes/details.js": [
-      46,
-      25
-    ],
-    "app/api/src/routes/identities.js": [
+    "app/api/src/routes/contexts/crud.js": [
       30,
+      22
+    ],
+    "app/api/src/routes/contexts/members.js": [
       21
     ],
-    "app/api/src/routes/permissions.js": [
+    "app/api/src/routes/details/accessPackage.js": [
       46
     ],
-    "app/api/src/routes/recentChanges.js": [
+    "app/api/src/routes/details/user.js": [
+      25
+    ],
+    "app/api/src/routes/identities/detail.js": [
+      21
+    ],
+    "app/api/src/routes/identities/list.js": [
+      30
+    ],
+    "app/api/src/routes/permissions/grid.js": [
+      46
+    ],
+    "app/api/src/routes/recentChanges/changes.js": [
       30,
       27
     ],
@@ -64,12 +68,16 @@
       25,
       24
     ],
-    "app/api/src/routes/riskScores.js": [
-      37,
+    "app/api/src/routes/riskScores/entity.js": [
       27
     ],
-    "app/api/src/routes/tags.js": [
-      23,
+    "app/api/src/routes/riskScores/list.js": [
+      37
+    ],
+    "app/api/src/routes/tags/crud.js": [
+      23
+    ],
+    "app/api/src/routes/tags/entities.js": [
       22
     ],
     "app/ui/src/App.jsx": [
@@ -129,9 +137,6 @@
     "app/ui/src/components/TimeSeriesChart.jsx": [
       25
     ],
-    "app/ui/src/components/UpdatesSettings.jsx": [
-      21
-    ],
     "app/ui/src/components/admin/LLMSettingsSection.jsx": [
       36
     ],
@@ -184,9 +189,6 @@
     ],
     "test/nightly/Test-RiskScoringLLM.ps1": [
       50
-    ],
-    "tools/crawlers/entra-id/EntraIDCrawler.Functions.ps1": [
-      18
     ],
     "tools/crawlers/odata/Invoke-ODataGetRequest.ps1": [
       31

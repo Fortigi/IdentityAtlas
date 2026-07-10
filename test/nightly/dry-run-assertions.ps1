@@ -11,7 +11,7 @@
 
 $ApiBaseUrl = 'http://localhost:3001/api'
 
-function Report-Result {
+function Write-Result {
     param([string]$Name, [bool]$Passed, [string]$Detail = '')
     $color = if ($Passed) { 'Green' } else { 'Red' }
     $status = if ($Passed) { 'PASS' } else { 'FAIL' }

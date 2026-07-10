@@ -84,3 +84,82 @@ describe('self-service crawlers — auth + validation', () => {
     expect((await crawlerApp(WORKER).post('/api/crawlers/configs/abc/mark-delta-mode')).status).toBe(400);
   });
 });
+
+describe('admin crawlers — happy paths', () => {
+  it('GET/:id/audit returns the paginated log + total', async () => {
+    // The handler batches two SELECTs and reads result.recordsets[0]/[1].
+    nextResult = { recordsets: [[{ action: 'created' }], [{ total: 1 }]] };
+    const res = await request(adminApp).get('/api/admin/crawlers/42/audit');
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ data: [{ action: 'created' }], total: 1 });
+  });
+  it('PATCH/:id updates a crawler', async () => {
+    nextResult = { recordset: [{ id: 42, displayName: 'X', enabled: true }], rowsAffected: [1] };
+    expect((await request(adminApp).patch('/api/admin/crawlers/42').send({ displayName: 'Y' })).status).toBe(200);
+  });
+  it('POST/:id/reset regenerates the key', async () => {
+    nextResult = { recordset: [{ id: 42, displayName: 'X' }], rowsAffected: [1] };
+    const res = await request(adminApp).post('/api/admin/crawlers/42/reset');
+    expect(res.status).toBe(200);
+    expect(res.body.apiKey).toMatch(/^fgc_/);
+  });
+});
+
+describe('self-service crawlers — happy paths (worker key)', () => {
+  const asWorker = () => crawlerApp(WORKER);
+  it('rotate returns a new key', async () => {
+    nextResult = { recordset: [], rowsAffected: [1] };
+    const res = await asWorker().post('/api/crawlers/rotate');
+    expect(res.status).toBe(200);
+    expect(res.body.apiKey).toMatch(/^fgc_/);
+  });
+  it('job-progress merges progress into a running job', async () => {
+    nextResult = { recordset: [{ status: 'running', progress: '{}' }], rowsAffected: [1] };
+    const res = await asWorker().post('/api/crawlers/job-progress').send({ jobId: 5, step: 'x', pct: 50, detail: 'd' });
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ ok: true });
+  });
+  it('claim returns null on an empty queue', async () => {
+    query.mockResolvedValue({ rows: [] });
+    const res = await asWorker().post('/api/crawlers/jobs/claim');
+    expect(res.status).toBe(200);
+    expect(res.body.job).toBeNull();
+  });
+  it('claim returns the next job with its secret injected', async () => {
+    query.mockResolvedValue({ rows: [{ id: 9, jobType: 'demo', config: {} }] });
+    const res = await asWorker().post('/api/crawlers/jobs/claim');
+    expect(res.status).toBe(200);
+    expect(res.body.job.id).toBe(9);
+  });
+  it('mark-delta-mode flips the config', async () => {
+    query.mockResolvedValue({ rowCount: 1 });
+    expect((await asWorker().post('/api/crawlers/configs/3/mark-delta-mode')).status).toBe(200);
+  });
+  it('GET delta-token returns null when absent', async () => {
+    query.mockResolvedValue({ rows: [] });
+    const res = await asWorker().get('/api/crawlers/delta-tokens/users?systemId=1');
+    expect(res.body).toEqual({ token: null, lastSyncAt: null });
+  });
+  it('PUT delta-token stores it', async () => {
+    query.mockResolvedValue({ rowCount: 1 });
+    expect((await asWorker().put('/api/crawlers/delta-tokens/users').send({ systemId: 1, token: 'tok' })).status).toBe(200);
+  });
+  it('DELETE delta-token removes it', async () => {
+    query.mockResolvedValue({ rowCount: 1 });
+    expect((await asWorker().delete('/api/crawlers/delta-tokens/users?systemId=1')).status).toBe(200);
+  });
+  it('phases stores the array', async () => {
+    query.mockResolvedValue({ rowCount: 1 });
+    const res = await asWorker().post('/api/crawlers/jobs/5/phases').send({ phases: [{ name: 'a' }] });
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ ok: true, count: 1 });
+  });
+  it('complete marks the job completed', async () => {
+    query.mockResolvedValue({ rowCount: 1 });
+    expect((await asWorker().post('/api/crawlers/jobs/5/complete').send({ result: { ok: 1 } })).status).toBe(200);
+  });
+  it('fail marks the job failed', async () => {
+    query.mockResolvedValue({ rowCount: 1 });
+    expect((await asWorker().post('/api/crawlers/jobs/5/fail').send({ errorMessage: 'boom' })).status).toBe(200);
+  });
+});

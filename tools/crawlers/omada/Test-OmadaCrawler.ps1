@@ -146,7 +146,7 @@ try {
         $configId = $cfgResult.id
         Write-Host "  Crawler config registered: $configId" -ForegroundColor Gray
     } catch {
-        Report-Result 'Omada/Setup — register crawler config' $false $_.Exception.Message
+        Write-Result 'Omada/Setup — register crawler config' $false $_.Exception.Message
         throw
     }
 
@@ -159,19 +159,19 @@ try {
         }
         Write-Host "  Job queued: $($job.id)" -ForegroundColor Gray
     } catch {
-        Report-Result 'Omada/Setup — queue crawler job' $false $_.Exception.Message
+        Write-Result 'Omada/Setup — queue crawler job' $false $_.Exception.Message
         throw
     }
 
     # ── Wait for completion ───────────────────────────────────────────────────
     $completed = Wait-JobComplete -JobId $job.id -TimeoutSec 120
     if ($null -eq $completed) {
-        Report-Result 'Omada/Job — completed within 120s' $false '(timed out)'
+        Write-Result 'Omada/Job — completed within 120s' $false '(timed out)'
         throw 'Job timed out'
     }
 
     $passed = $completed.status -eq 'completed'
-    Report-Result 'Omada/Job — completed successfully' $passed "(status: $($completed.status))"
+    Write-Result 'Omada/Job — completed successfully' $passed "(status: $($completed.status))"
 
     if (-not $passed) {
         Write-Host "  Job log: $ApiBaseUrl/admin/crawler-jobs/$($job.id)/log" -ForegroundColor Yellow
@@ -188,10 +188,10 @@ try {
         $systems = Invoke-RestMethod -Uri "$ApiBaseUrl/systems" `
             -Headers @{ Authorization = "Bearer $ApiKey" } -ErrorAction Stop
         $thisSystem = @($systems) | Where-Object { $_.displayName -like "*:$($mock.Port)/*" } | Select-Object -First 1
-        Report-Result 'Omada/Data — system registered' ($null -ne $thisSystem) `
+        Write-Result 'Omada/Data — system registered' ($null -ne $thisSystem) `
             "$(if ($thisSystem) { "($($thisSystem.displayName))" } else { '(not found — port $($mock.Port) not in any system displayName)' })"
     } catch {
-        Report-Result 'Omada/Data — system registered' $false $_.Exception.Message
+        Write-Result 'Omada/Data — system registered' $false $_.Exception.Message
     }
 
     # Diagnostic: log the systems API's own principalCount/resourceCount so we can
@@ -211,10 +211,10 @@ try {
                           elseif ($usersResp.data)        { $usersResp.data.Count }
                           elseif ($usersResp -is [array]) { $usersResp.Count }
                           else { 0 }
-        Report-Result 'Omada/Data — principal ingested' ($principalCount -ge 1) `
+        Write-Result 'Omada/Data — principal ingested' ($principalCount -ge 1) `
             "($principalCount user(s) matching 'integration.testuser')"
     } catch {
-        Report-Result 'Omada/Data — principal ingested' $false $_.Exception.Message
+        Write-Result 'Omada/Data — principal ingested' $false $_.Exception.Message
     }
 
     # ── Assert: resource ingested (scoped to this run's system via systemId) ───
@@ -226,10 +226,10 @@ try {
         $resourceCount = if ($resResp.data)           { $resResp.data.Count }
                          elseif ($resResp -is [array]) { $resResp.Count }
                          else { 0 }
-        Report-Result 'Omada/Data — resource ingested' ($resourceCount -ge 1) `
+        Write-Result 'Omada/Data — resource ingested' ($resourceCount -ge 1) `
             "($resourceCount resource(s) in system $systemId)"
     } catch {
-        Report-Result 'Omada/Data — resource ingested' $false $_.Exception.Message
+        Write-Result 'Omada/Data — resource ingested' $false $_.Exception.Message
     }
 
     # ── Assert: sync log entry created ───────────────────────────────────────
@@ -239,10 +239,10 @@ try {
         $syncEntries = if ($syncLog -is [array]) { $syncLog.Count }
                        elseif ($syncLog.data) { $syncLog.data.Count }
                        else { 0 }
-        Report-Result 'Omada/Data — sync log entry created' ($syncEntries -ge 1) `
+        Write-Result 'Omada/Data — sync log entry created' ($syncEntries -ge 1) `
             "($syncEntries sync log entries)"
     } catch {
-        Report-Result 'Omada/Data — sync log entry created' $false $_.Exception.Message
+        Write-Result 'Omada/Data — sync log entry created' $false $_.Exception.Message
     }
 
     # ── Test: partial failure (mock returns 500 mid-crawl) ────────────────────
@@ -275,10 +275,10 @@ try {
         }
         $completed2 = Wait-JobComplete -JobId $job2.id -TimeoutSec 60
         $pfPassed = ($null -ne $completed2) -and ($completed2.status -eq 'failed')
-        Report-Result 'Omada/Error — partial failure (500 mid-crawl) detected' $pfPassed `
+        Write-Result 'Omada/Error — partial failure (500 mid-crawl) detected' $pfPassed `
             "(status: $($completed2.status))"
     } catch {
-        Report-Result 'Omada/Error — partial failure setup' $false $_.Exception.Message
+        Write-Result 'Omada/Error — partial failure setup' $false $_.Exception.Message
     } finally {
         # Reset mock to normal state for any tests that might follow
         try {

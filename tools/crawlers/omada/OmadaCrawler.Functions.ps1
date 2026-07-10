@@ -11,7 +11,7 @@
 
 #region Functions
 
-function Map-ResourceCategory {
+function ConvertTo-AtlasResourceCategory {
     [CmdletBinding()]
     param([string]$Category)
     foreach ($M in $ResourceCategoryMapping) {
@@ -55,7 +55,7 @@ function Merge-OmadaOverrideValue {
     return $Override
 }
 
-function Map-IdentityTypeToAtlas {
+function ConvertTo-AtlasIdentityType {
     [CmdletBinding()]
     param([string]$OmadaType)
     $Map = $TypeMappings['identityTypeToIdentityAtlas']
@@ -64,7 +64,7 @@ function Map-IdentityTypeToAtlas {
     return 'User'
 }
 
-function Map-ResourceTypeToAtlas {
+function ConvertTo-AtlasResourceType {
     [CmdletBinding()]
     param([string]$OmadaType)
     $Map = $TypeMappings['resourceTypeToIdentityAtlas']
@@ -73,7 +73,7 @@ function Map-ResourceTypeToAtlas {
     return $OmadaType -replace '\s+', ''
 }
 
-function Map-ContextTypeToAtlas {
+function ConvertTo-AtlasContextType {
     [CmdletBinding()]
     param([string]$OmadaType)
     $Map = $TypeMappings['contextTypeToIdentityAtlas']

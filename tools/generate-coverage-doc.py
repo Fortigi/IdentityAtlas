@@ -15,12 +15,14 @@ Alongside line/branch/method coverage, the page surfaces two deeper quality
 signals that the project already measures elsewhere, when a suite supplies them:
 
 * **Complexity** — ``<coverage-dir>/<slug>/complexity.json``, the per-unit
-  ``{file, unit, line, cc, cog}`` array emitted by ``tools/complexity/measure_ps.ps1``
-  (a thin wrapper over the PSComplexity module). We aggregate it to avg / max
+  ``{file, unit, line, cc, cog}`` array. PowerShell emits it via
+  ``tools/complexity/measure_ps.ps1`` (a thin wrapper over the PSComplexity module);
+  the Node suites emit it via ``tools/complexity/ratchet.py --emit-complexity-json``
+  (ESLint's ``complexity`` rule + eslint-plugin-sonarjs). We aggregate it to avg / max
   cyclomatic and cognitive complexity per suite.
 * **Mutation** — ``<coverage-dir>/<slug>/mutation.json``, the PSMutant report
   (``{mutationScore, killed, total, …}``): the share of injected faults the tests
-  actually catch. Both are PowerShell-only today; suites without the files show —.
+  actually catch. PowerShell-only today; suites without the file show —.
 
 Usage:
     python3 tools/generate-coverage-doc.py \
@@ -128,27 +130,6 @@ def fmt_avg_max(avg, mx):
     return f"{avg:.1f} / {mx}"
 
 
-def badge_color(value):
-    if value is None:
-        return "lightgrey"
-    if value >= 80:
-        return "brightgreen"
-    if value >= 60:
-        return "yellow"
-    if value >= 40:
-        return "orange"
-    return "red"
-
-
-def shield(label, value):
-    """A static shields.io badge URL. Renders alt text if the image can't load."""
-    color = badge_color(value)
-    shown = "n%2Fa" if value is None else f"{value:.1f}%25"
-    # Spaces → underscores per shields.io static-badge escaping.
-    safe_label = label.replace("-", "--").replace(" ", "_")
-    return f"https://img.shields.io/badge/{safe_label}-{shown}-{color}"
-
-
 def collect_rows(coverage_dir):
     """Load each suite's ReportGenerator summary plus its optional complexity /
     mutation side-inputs into ``(slug, label, data|None)`` rows. Returns the rows
@@ -199,9 +180,10 @@ def render_row(slug, label, data, report_base):
     )
 
 
-def render_markdown(rows, overall_covered, overall_coverable, report_base, commit, generated):
-    """Assemble the full ``coverage.md`` text from collected rows."""
-    overall = (100.0 * overall_covered / overall_coverable) if overall_coverable else None
+def render_markdown(rows, report_base, commit, generated):
+    """Assemble the full ``coverage.md`` text from collected rows. Per-suite only —
+    no cross-suite 'overall' figure: line coverage averaged across three unrelated
+    languages/runners isn't a number worth quoting."""
     commit = commit.strip()
     commit_short = commit[:8] if commit else ""
 
@@ -221,21 +203,19 @@ def render_markdown(rows, overall_covered, overall_coverable, report_base, commi
         "version is frozen at its release tag."
     )
     lines.append("")
-    lines.append(f"![Overall coverage]({shield('coverage', overall)})")
-    lines.append("")
     lines.append("| Suite | Line | Branch | Method | Cyclomatic | Cognitive | Mutation | Lines covered |")
     lines.append("|-------|------|--------|--------|------------|-----------|----------|---------------|")
     for slug, label, data in rows:
         lines.append(render_row(slug, label, data, report_base))
-    lines.append(f"| **Overall** | **{fmt_pct(overall)}** | | | | | | "
-                 f"**{overall_covered:,} / {overall_coverable:,}** |")
     lines.append("")
     lines.append(
-        "**Cyclomatic** / **Cognitive** are _average / max_ per unit (each function, "
-        "plus each script/module body) via [PSComplexity](https://github.com/Fortigi/PSComplexity); "
+        "**Cyclomatic** / **Cognitive** are _average / max_ per unit (each function, and "
+        "for PowerShell each script/module body too): PowerShell via "
+        "[PSComplexity](https://github.com/Fortigi/PSComplexity), JS/TS via ESLint's "
+        "`complexity` rule + [eslint-plugin-sonarjs](https://github.com/SonarSource/eslint-plugin-sonarjs). "
         "**Mutation** is the share of injected faults the tests catch via "
-        "[PSMutant](https://github.com/Fortigi/PSMutant). Both are measured for "
-        "PowerShell today — suites without them show —."
+        "[PSMutant](https://github.com/Fortigi/PSMutant), PowerShell-only today. A suite "
+        "without a given signal shows —."
     )
     lines.append("")
     lines.append("## Browsable reports")
@@ -266,10 +246,9 @@ def main():
                     help="Relative path from the page to the coverage report root.")
     args = ap.parse_args()
 
-    rows, overall_covered, overall_coverable = collect_rows(args.coverage_dir)
+    rows, _covered, overall_coverable = collect_rows(args.coverage_dir)
     generated = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-    text = render_markdown(rows, overall_covered, overall_coverable,
-                           args.report_base, args.commit, generated)
+    text = render_markdown(rows, args.report_base, args.commit, generated)
 
     os.makedirs(os.path.dirname(args.out), exist_ok=True)
     with open(args.out, "w", encoding="utf-8", newline="\n") as fh:

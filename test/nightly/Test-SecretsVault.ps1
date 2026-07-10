@@ -38,7 +38,7 @@ Param(
 $ErrorActionPreference = 'Continue'
 $standaloneFailures = 0
 
-function Report-Result {
+function Write-Result {
     param([string]$Name, [bool]$Passed, [string]$Detail = '')
     $color = if ($Passed) { 'Green' } else { 'Red' }
     $status = if ($Passed) { 'PASS' } else { 'FAIL' }
@@ -89,13 +89,13 @@ try {
         apiKey   = $testPlaintext
     }
     if ($r.ok -eq $true) {
-        Report-Result 'Vault/SaveSecret' $true 'saved with ok=true'
+        Write-Result 'Vault/SaveSecret' $true 'saved with ok=true'
     } else {
-        Report-Result 'Vault/SaveSecret' $false "unexpected response: $($r | ConvertTo-Json -Depth 5 -Compress)"
+        Write-Result 'Vault/SaveSecret' $false "unexpected response: $($r | ConvertTo-Json -Depth 5 -Compress)"
         $abortRemaining = $true
     }
 } catch {
-    Report-Result 'Vault/SaveSecret' $false $_.Exception.Message
+    Write-Result 'Vault/SaveSecret' $false $_.Exception.Message
     $abortRemaining = $true
 }
 
@@ -105,13 +105,13 @@ if (-not $abortRemaining) {
         $r = Invoke-LocalApi -Path '/admin/llm/status'
         $keyIsSet = ($r.apiKeySet -eq $true) -or ($r.configured -eq $true)
         if ($keyIsSet) {
-            Report-Result 'Vault/KeyIsSet' $true "apiKeySet=$($r.apiKeySet) configured=$($r.configured)"
+            Write-Result 'Vault/KeyIsSet' $true "apiKeySet=$($r.apiKeySet) configured=$($r.configured)"
         } else {
-            Report-Result 'Vault/KeyIsSet' $false "apiKeySet=$($r.apiKeySet) configured=$($r.configured)"
+            Write-Result 'Vault/KeyIsSet' $false "apiKeySet=$($r.apiKeySet) configured=$($r.configured)"
             $abortRemaining = $true
         }
     } catch {
-        Report-Result 'Vault/KeyIsSet' $false $_.Exception.Message
+        Write-Result 'Vault/KeyIsSet' $false $_.Exception.Message
         $abortRemaining = $true
     }
 }
@@ -121,16 +121,16 @@ if (-not $abortRemaining) {
     try {
         $ciphertext = Invoke-Psql -Sql "SELECT ciphertext FROM ""Secrets"" WHERE id = 'llm.apikey'"
         if ([string]::IsNullOrWhiteSpace($ciphertext)) {
-            Report-Result 'Vault/EncryptionVerified' $false 'no ciphertext row found in Secrets table'
+            Write-Result 'Vault/EncryptionVerified' $false 'no ciphertext row found in Secrets table'
             $abortRemaining = $true
         } elseif ($ciphertext -eq $testPlaintext) {
-            Report-Result 'Vault/EncryptionVerified' $false 'ciphertext equals plaintext — secret stored unencrypted!'
+            Write-Result 'Vault/EncryptionVerified' $false 'ciphertext equals plaintext — secret stored unencrypted!'
             $abortRemaining = $true
         } else {
-            Report-Result 'Vault/EncryptionVerified' $true "ciphertext differs from plaintext (len=$($ciphertext.Length))"
+            Write-Result 'Vault/EncryptionVerified' $true "ciphertext differs from plaintext (len=$($ciphertext.Length))"
         }
     } catch {
-        Report-Result 'Vault/EncryptionVerified' $false $_.Exception.Message
+        Write-Result 'Vault/EncryptionVerified' $false $_.Exception.Message
         $abortRemaining = $true
     }
 }
@@ -141,7 +141,7 @@ if (-not $abortRemaining) {
         $updateResult = Invoke-Psql -Sql "UPDATE ""Secrets"" SET ""authTag"" = 'tampered' WHERE id = 'llm.apikey'"
         # psql should return something like "UPDATE 1"
         if ($updateResult -notmatch 'UPDATE\s+1') {
-            Report-Result 'Vault/TamperDetected' $false "psql UPDATE did not affect 1 row: $updateResult"
+            Write-Result 'Vault/TamperDetected' $false "psql UPDATE did not affect 1 row: $updateResult"
         } else {
             # Try to USE the key — /admin/llm/test decrypts the secret to make
             # an LLM call. With a tampered authTag, GCM decryption should fail.
@@ -150,28 +150,28 @@ if (-not $abortRemaining) {
             try {
                 $null = Invoke-LocalApi -Path '/admin/llm/test' -Method Post
                 # If it somehow succeeds, tamper wasn't detected (bad)
-                Report-Result 'Vault/TamperDetected' $false 'LLM test succeeded after tamper — integrity check failed'
+                Write-Result 'Vault/TamperDetected' $false 'LLM test succeeded after tamper — integrity check failed'
             } catch {
                 # Any error is good — it means decryption/use of the tampered key failed
                 $statusCode = if ($_.Exception.Response) { [int]$_.Exception.Response.StatusCode } else { 0 }
-                Report-Result 'Vault/TamperDetected' $true "LLM test failed after tamper (status=$statusCode) — integrity check worked"
+                Write-Result 'Vault/TamperDetected' $true "LLM test failed after tamper (status=$statusCode) — integrity check worked"
             }
         }
     } catch {
-        Report-Result 'Vault/TamperDetected' $false $_.Exception.Message
+        Write-Result 'Vault/TamperDetected' $false $_.Exception.Message
     }
 }
 
 # ─── 5. Cleanup ──────────────────────────────────────────────────
 try {
     $r = Invoke-LocalApi -Path '/admin/llm/config' -Method Delete
-    Report-Result 'Vault/Cleanup' $true 'test secret deleted'
+    Write-Result 'Vault/Cleanup' $true 'test secret deleted'
 } catch {
     $statusCode = if ($_.Exception.Response) { [int]$_.Exception.Response.StatusCode } else { 0 }
     if ($statusCode -eq 200 -or $statusCode -eq 204 -or $statusCode -eq 404) {
-        Report-Result 'Vault/Cleanup' $true "cleanup ok (status=$statusCode)"
+        Write-Result 'Vault/Cleanup' $true "cleanup ok (status=$statusCode)"
     } else {
-        Report-Result 'Vault/Cleanup' $false "DELETE failed: $($_.Exception.Message)"
+        Write-Result 'Vault/Cleanup' $false "DELETE failed: $($_.Exception.Message)"
         # Best-effort: try to wipe via psql so we don't leave test data behind
         try { Invoke-Psql -Sql "DELETE FROM ""Secrets"" WHERE id = 'llm.apikey'" | Out-Null } catch { }
     }

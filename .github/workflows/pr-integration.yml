@@ -113,7 +113,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v3
+      - uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706 # v3
         id: f
         with:
           filters: |
@@ -783,8 +783,7 @@ jobs:
           npx playwright test \
             --config=playwright.ci.config.js \
             --project=chromium \
-            --reporter=html,list \
-            --ignore-snapshots
+            --reporter=html,list
 
       - name: Upload Playwright report
         if: always()

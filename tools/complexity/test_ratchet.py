@@ -118,6 +118,61 @@ def test_same_cyclomatic_different_cognitive():
     assert cog(nested) == 6                        # 1 + 2 + 3
 
 
+# ─── JS/TS measurer: ESLint-message parsing ──────────────────────────────────
+# `measure_js` runs one ESLint pass with both the core `complexity` rule
+# (cyclomatic; message names the function) and `sonarjs/cognitive-complexity`
+# (cognitive; message has no name). `parse_js_units` turns those messages into
+# ratchet units — this is the pure, testable core of that measurer.
+_CC = {"ruleId": "complexity", "line": 10,
+       "message": "Function 'foo' has a complexity of 21. Maximum allowed is 20."}
+_COG_SAME_LINE = {"ruleId": "sonarjs/cognitive-complexity", "line": 10,
+                  "message": "Refactor this function to reduce its Cognitive Complexity from 19 to the 15 allowed."}
+_COG_ONLY = {"ruleId": "sonarjs/cognitive-complexity", "line": 42,
+             "message": "Refactor this function to reduce its Cognitive Complexity from 17 to the 15 allowed."}
+
+
+class TestParseJsUnits:
+    def test_cyclomatic_message_becomes_a_cc_unit(self):
+        (u,) = ratchet.parse_js_units("app/api/src/x.js", [_CC])
+        assert (u["cc"], u["cog"], u["lang"], u["line"]) == (21, None, "js", 10)
+        assert u["unit"] == "Function 'foo'"
+
+    def test_cognitive_message_becomes_a_cog_unit_borrowing_the_same_line_name(self):
+        units = ratchet.parse_js_units("app/api/src/x.js", [_CC, _COG_SAME_LINE])
+        assert len(units) == 2                                   # cyclomatic + cognitive are separate units
+        cog_unit = next(u for u in units if u["cog"] is not None)
+        assert (cog_unit["cog"], cog_unit["cc"]) == (19, None)
+        assert cog_unit["unit"] == "Function 'foo'"             # borrowed from the same-line cyclomatic message
+
+    def test_cognitive_only_function_falls_back_to_a_line_label(self):
+        (u,) = ratchet.parse_js_units("app/api/src/x.js", [_COG_ONLY])
+        assert (u["cog"], u["cc"], u["unit"]) == (17, None, "function (line 42)")
+
+    def test_unrelated_rule_ids_are_ignored(self):
+        assert ratchet.parse_js_units("x.js", [{"ruleId": "no-unused-vars", "line": 3, "message": "x"}]) == []
+
+
+class TestMergeJsUnits:
+    """merge_js_units feeds the coverage docs (avg/max over EVERY function): one
+    merged unit per function carrying both cc and cog, cog defaulting to 0."""
+
+    def test_merges_cc_and_cog_for_the_same_function(self):
+        (u,) = ratchet.merge_js_units("app/api/src/x.js", [_CC, _COG_SAME_LINE])
+        assert (u["cc"], u["cog"], u["unit"], u["line"]) == (21, 19, "Function 'foo'", 10)
+
+    def test_straight_line_function_defaults_cog_to_zero(self):
+        # The cyclomatic rule reports every function (cc>=1); a function the
+        # cognitive rule doesn't flag is genuinely cog 0, not missing.
+        cc_only = {"ruleId": "complexity", "line": 5,
+                   "message": "Arrow function has a complexity of 1. Maximum allowed is 0."}
+        (u,) = ratchet.merge_js_units("x.js", [cc_only])
+        assert (u["cc"], u["cog"]) == (1, 0)
+
+    def test_one_unit_per_function_not_per_message(self):
+        # Unlike parse_js_units (separate cc/cog units), merge yields ONE row/function.
+        assert len(ratchet.merge_js_units("x.js", [_CC, _COG_SAME_LINE, _COG_ONLY])) == 1
+
+
 # ─── Gate logic ──────────────────────────────────────────────────────────────
 def _u(lang, cc, cog, file="x", unit="fn", line=1):
     return dict(file=file, unit=unit, line=line, cc=cc, cog=cog, lang=lang)
@@ -125,17 +180,21 @@ def _u(lang, cc, cog, file="x", unit="fn", line=1):
 
 class TestGate:
     def test_over_threshold_uses_the_metric_field_and_langs(self):
-        units = [_u("ps", cc=20, cog=5), _u("js", cc=25, cog=5), _u("py", cc=10, cog=30)]
+        units = [_u("ps", cc=20, cog=5), _u("js", cc=25, cog=30), _u("py", cc=10, cog=30)]
         cyc_over = ratchet.over_threshold(units, ratchet.METRICS["cyclomatic"])
         cog_over = ratchet.over_threshold(units, ratchet.METRICS["cognitive"])
         # cyclomatic: ps 20>15 and js 25>20 are over; py 10 is not.
         assert sum(len(v) for v in cyc_over.values()) == 2
-        # cognitive: only py 30>15 (js excluded from the cognitive gate entirely).
-        assert sum(len(v) for v in cog_over.values()) == 1
+        # cognitive: js 30>15 and py 30>15 are over; ps 5 is not.
+        assert sum(len(v) for v in cog_over.values()) == 2
 
-    def test_js_is_excluded_from_cognitive_even_with_a_cog_value(self):
+    def test_js_participates_in_the_cognitive_gate(self):
+        # JS/TS is now gated on cognitive too (threshold 15), via eslint-plugin-sonarjs.
         units = [_u("js", cc=5, cog=99)]
-        assert ratchet.over_threshold(units, ratchet.METRICS["cognitive"]) == {}
+        over = ratchet.over_threshold(units, ratchet.METRICS["cognitive"])
+        assert sum(len(v) for v in over.values()) == 1
+        # ...but a JS cog value at/under the threshold is not over.
+        assert ratchet.over_threshold([_u("js", cc=5, cog=15)], ratchet.METRICS["cognitive"]) == {}
 
     def test_check_passes_at_or_below_ceiling_and_fails_above(self):
         metric = ratchet.METRICS["cognitive"]

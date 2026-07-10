@@ -235,7 +235,7 @@ If your test doesn't use `$ApiKey` (e.g. a library-only test like `Test-ODataCra
 
 ### Failure contract
 
-Test scripts MUST `throw` or call `exit 1` on failure. The CI runner uses `try/catch` to detect failures — a test that runs clean but never asserts anything will silently pass. Use `Write-Error` + `exit 1` or the `Report-Result` helper pattern from existing tests.
+Test scripts MUST `throw` or call `exit 1` on failure. The CI runner uses `try/catch` to detect failures — a test that runs clean but never asserts anything will silently pass. Use `Write-Error` + `exit 1` or the `Write-Result` helper pattern from existing tests.
 
 ### Shared utilities
 
