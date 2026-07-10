@@ -1,5 +1,11 @@
 ## Changes in this PR
 
+- Internal maintainability: split the large crawler-jobs API controller into focused modules (crawler-config CRUD, crawler-job lifecycle + status + live-discovery, and the shared job-config helpers) behind a thin barrel, and added tests covering the config/job/status/log handlers. No functional change — every crawler-config and crawler-job endpoint behaves exactly as before.
+- Internal maintainability: split the large crawlers API controller into focused modules (admin crawler management, crawler self-service + worker job-claim protocol + delta-token persistence, and shared key helpers) behind a thin barrel that re-exports both routers, and added tests covering the admin and self-service handlers. No functional change — every crawler-management and crawler self-service endpoint behaves exactly as before.
+- Internal maintainability: split the large ingest API controller into focused modules (the per-entity ingest handlers, the matrix materialized-view refresh + default-filter endpoints, and the shared ingest engine helpers) behind a thin barrel. No functional change — every ingest endpoint behaves exactly as before.
+
+## Changes in this PR
+
 - Internal maintainability: split the large user/group/access-package detail API controller into focused per-entity modules (user, group, access-package) sharing one helpers module, with the original file kept as a thin barrel so every endpoint mounts and behaves exactly as before. No functional change.
 - Internal maintainability: split the large permissions API controller into focused modules (permission grid + user columns, access-package resource mapping, sync log, and matrix nested-group expansion) behind a thin barrel. No functional change — every permissions endpoint behaves exactly as before.
 - Internal maintainability: split the large admin API controller into focused modules (curated-data export/import, risk-config reads, database maintenance, dashboard stats, and settings) behind a thin barrel. No functional change — every admin endpoint behaves exactly as before.
