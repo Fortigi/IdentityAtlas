@@ -84,6 +84,50 @@ describe('normalizeRecords — identityExternalId resolution', () => {
   });
 });
 
+// ── relatedPrincipalExternalId resolution (principal-relationships) ───────────
+
+describe('normalizeRecords — relatedPrincipalExternalId resolution', () => {
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const coreColumns = ['principalId', 'relatedPrincipalId', 'relationshipType', 'systemId'];
+  // systemPrefix is what the ingest route recovers by stripping the entity suffix
+  // off idPrefix — pass it explicitly so both principal ids resolve in 'csv-sys1-principals'.
+  const opts = { idGeneration: 'deterministic', idPrefix: 'csv-sys1', systemPrefix: 'csv-sys1', systemId: 1 };
+
+  it('resolves both principal external ids into the principals namespace', () => {
+    const result = normalizeRecords(
+      [{ principalExternalId: 'agent-1', relatedPrincipalExternalId: 'owner-1', relationshipType: 'Owner' }],
+      coreColumns, opts,
+    );
+    expect(result[0].principalId).toMatch(UUID_RE);
+    expect(result[0].relatedPrincipalId).toMatch(UUID_RE);
+    expect(result[0].principalId).not.toBe(result[0].relatedPrincipalId);
+  });
+
+  it('resolves relatedPrincipalExternalId to the SAME UUID a principals ingest would', () => {
+    // The link's relatedPrincipalId must match the principal row keyed off the
+    // same externalId, or the owner would never resolve to a real principal.
+    const link = normalizeRecords(
+      [{ principalExternalId: 'agent-1', relatedPrincipalExternalId: 'owner-1', relationshipType: 'Owner' }],
+      coreColumns, opts,
+    );
+    const principal = normalizeRecords(
+      [{ externalId: 'owner-1', displayName: 'Owner One' }],
+      ['id', 'displayName'],
+      { idGeneration: 'deterministic', idPrefix: 'csv-sys1-principals', systemPrefix: 'csv-sys1', systemId: 1 },
+    );
+    expect(link[0].relatedPrincipalId).toBe(principal[0].id);
+  });
+
+  it('does not overwrite an explicit relatedPrincipalId', () => {
+    const explicit = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee';
+    const result = normalizeRecords(
+      [{ principalExternalId: 'agent-1', relatedPrincipalId: explicit, relatedPrincipalExternalId: 'owner-1', relationshipType: 'Owner' }],
+      coreColumns, opts,
+    );
+    expect(result[0].relatedPrincipalId).toBe(explicit);
+  });
+});
+
 describe('normalizeRecords — boolean fields', () => {
   it('preserves boolean true as boolean in core columns', () => {
     const result = normalizeRecords(

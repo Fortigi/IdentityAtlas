@@ -78,6 +78,16 @@ function userRootNodes(core, identityInfo, manager) {
     { key: 'assignments-eligible', label: 'Eligible', count: m.Eligible || 0, kind: 'category' },
     { key: 'access-packages', label: 'Access Packages',   count: core.accessPackageCount || 0, kind: 'category' },
     { key: 'identity',        label: 'Identity',          count: identityInfo?.identity ? 1 : 0, kind: 'category' },
+    // Principal→principal relationships (migration 057). Shown only when present,
+    // so a normal user's graph is unchanged. "Owners"/"Sponsors" appear on the
+    // subject (an AI agent / a guest); the reverse "Owned Agents"/"Sponsored
+    // Guests" on whoever is the owner/sponsor. "Linked Resource" is the agent's
+    // enterprise-app Resource (same id), bridging its Principal ↔ Resource views.
+    ...(core.linkedResource ? [{ key: 'linked-resource',   label: 'Linked Resource',  count: 1, kind: 'category' }] : []),
+    ...((core.ownerCount || 0) > 0          ? [{ key: 'owners',            label: 'Owners',            count: core.ownerCount,          kind: 'category' }] : []),
+    ...((core.sponsorCount || 0) > 0        ? [{ key: 'sponsors',          label: 'Sponsors',          count: core.sponsorCount,        kind: 'category' }] : []),
+    ...((core.ownedAgentCount || 0) > 0     ? [{ key: 'owned-agents',      label: 'Owned Agents',      count: core.ownedAgentCount,     kind: 'category' }] : []),
+    ...((core.sponsoredGuestCount || 0) > 0 ? [{ key: 'sponsored-guests',  label: 'Sponsored Guests',  count: core.sponsoredGuestCount, kind: 'category' }] : []),
   ];
 }
 
@@ -131,6 +141,25 @@ async function fetchUserItems(userId, categoryKey, authFetch, extras = {}) {
   }
   if (categoryKey === 'identity') {
     return identityInfo?.identity ? [toItem(identityInfo.identity, 'identity')] : [];
+  }
+  if (categoryKey === 'linked-resource') {
+    return extras.linkedResource
+      ? [toItem(extras.linkedResource, 'resource', extras.linkedResource.resourceType)]
+      : [];
+  }
+  // Principal→principal relationships (migration 057). Each maps to one call of
+  // the shared endpoint with the right type + direction; the counterparty is a
+  // principal, so it opens the user detail page.
+  const prMap = {
+    'owners':           { type: 'Owner',   reverse: false },
+    'sponsors':         { type: 'Sponsor', reverse: false },
+    'owned-agents':     { type: 'Owner',   reverse: true },
+    'sponsored-guests': { type: 'Sponsor', reverse: true },
+  };
+  if (prMap[categoryKey]) {
+    const { type, reverse } = prMap[categoryKey];
+    const rows = await get(`/api/user/${encodeURIComponent(userId)}/principal-relationships?type=${type}&reverse=${reverse}`);
+    return rows.map(p => toItem({ id: p.principalId, displayName: p.displayName }, 'user'));
   }
   return [];
 }
@@ -410,6 +439,10 @@ export function extrasFromCore(entityKind, core) {
   // more; the contexts category fetches its list lazily via the dedicated
   // endpoint, so no per-core extras are needed here for it.
   switch (entityKind) {
+    case 'user':
+      // So the "Linked Resource" node resolves when you drill into a user node
+      // from another entity's graph (not just on the user's own detail page).
+      return { linkedResource: core.linkedResource };
     case 'access-package':
       return { catalogId: core.attributes?.catalogId, catalogName: core.attributes?.catalogName };
     case 'identity':

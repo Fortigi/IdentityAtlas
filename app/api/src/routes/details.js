@@ -193,6 +193,41 @@ router.get('/user/:id', async (req, res) => {
       contextCount = r.recordset[0].cnt;
     } catch (e) { if (!isMissingSchema(e)) throw e; /* ContextMembers may not exist on older deployments */ }
 
+    // Principal→principal relationships (migration 057). Four counts from one
+    // scan of PrincipalRelationships so the relations graph can show a node per
+    // direction without pulling the lists:
+    //   ownerCount          — this principal's owners       (I'm an AI agent)
+    //   sponsorCount        — this principal's sponsors     (I'm a guest)
+    //   ownedAgentCount     — agents this principal owns     (I'm an owner)
+    //   sponsoredGuestCount — guests this principal sponsors (I'm a sponsor)
+    const principalRel = { ownerCount: 0, sponsorCount: 0, ownedAgentCount: 0, sponsoredGuestCount: 0 };
+    try {
+      const r = await timedRequest(pool, 'user-principal-relationships', res)
+        .input('id', userId)
+        .query(`SELECT
+                  COUNT(*) FILTER (WHERE "principalId"::text = @id        AND "relationshipType" = 'Owner')::int   AS "ownerCount",
+                  COUNT(*) FILTER (WHERE "principalId"::text = @id        AND "relationshipType" = 'Sponsor')::int AS "sponsorCount",
+                  COUNT(*) FILTER (WHERE "relatedPrincipalId"::text = @id AND "relationshipType" = 'Owner')::int   AS "ownedAgentCount",
+                  COUNT(*) FILTER (WHERE "relatedPrincipalId"::text = @id AND "relationshipType" = 'Sponsor')::int AS "sponsoredGuestCount"
+                  FROM "PrincipalRelationships"
+                 WHERE "principalId"::text = @id OR "relatedPrincipalId"::text = @id`);
+      Object.assign(principalRel, r.recordset[0] || {});
+    } catch (e) { if (!isMissingSchema(e)) throw e; /* PrincipalRelationships may not exist on older deployments */ }
+
+    // Linked resource: an AI agent / service principal is BOTH a Principal and,
+    // as an enterprise app, an Application Resource with the SAME id (the SP id).
+    // Surface it so the agent's relations tab can jump to its resource view.
+    let linkedResource = null;
+    try {
+      const r = await timedRequest(pool, 'user-linked-resource', res)
+        .input('id', userId)
+        .query(`SELECT id, "displayName", "resourceType"
+                  FROM "Resources"
+                 WHERE id = @id AND "resourceType" = 'Application'
+                 LIMIT 1`);
+      if (r.recordset.length > 0) linkedResource = r.recordset[0];
+    } catch (e) { if (!isMissingSchema(e)) throw e; /* Resources always exists, but be defensive */ }
+
     res.json({
       attributes,
       tags,
@@ -204,6 +239,8 @@ router.get('/user/:id', async (req, res) => {
       oauth2GrantCount,
       directReportCount,
       contextCount,
+      ...principalRel,
+      linkedResource,
       lastActivity: null,
     });
   } catch (err) {
@@ -234,6 +271,43 @@ router.get('/user/:id/contexts', async (req, res) => {
   } catch (err) {
     console.error('Error fetching user contexts:', err.message);
     res.status(500).json({ error: 'Failed to fetch user contexts' });
+  }
+});
+
+// ────────────────────────────────────────────────────────────────
+// GET /api/user/:id/principal-relationships — owners / sponsors and
+// their reverse (agents owned / guests sponsored). One handler for all
+// four directions (migration 057):
+//   ?type=Owner|Sponsor  — which link kind (default Owner)
+//   ?reverse=true        — I'm the related principal (owner/sponsor); return
+//                          the subjects (agents I own / guests I sponsor).
+//                          Default false — I'm the subject; return my owners/sponsors.
+// ────────────────────────────────────────────────────────────────
+router.get('/user/:id/principal-relationships', async (req, res) => {
+  if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'Invalid ID format' });
+  if (!useSql) return res.json([]);
+  const type = req.query.type === 'Sponsor' ? 'Sponsor' : 'Owner';
+  const reverse = req.query.reverse === 'true';
+  // reverse=false: match on principalId (subject), join the related principal.
+  // reverse=true:  match on relatedPrincipalId, join the subject principal.
+  const matchCol = reverse ? 'relatedPrincipalId' : 'principalId';
+  const joinCol  = reverse ? 'principalId' : 'relatedPrincipalId';
+  try {
+    const pool = await db.getPool();
+    const r = await timedRequest(pool, 'user-principal-relationships-list', res)
+      .input('id', req.params.id)
+      .input('type', type)
+      .query(`SELECT p.id AS "principalId", p."displayName", p."principalType",
+                     p."accountEnabled", pr."relationshipType"
+                FROM "PrincipalRelationships" pr
+                JOIN "Principals" p ON p.id = pr."${joinCol}"
+               WHERE pr."${matchCol}"::text = @id AND pr."relationshipType" = @type
+               ORDER BY p."displayName"`);
+    res.json(r.recordset);
+  } catch (err) {
+    if (isMissingSchema(err)) return res.json([]);
+    console.error('Error fetching principal relationships:', err.message);
+    res.status(500).json({ error: 'Failed to fetch principal relationships' });
   }
 });
 

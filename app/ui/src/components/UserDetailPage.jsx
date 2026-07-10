@@ -116,6 +116,9 @@ export default function UserDetailPage({ userId, cachedData, onCacheData, onClos
   const getGraphRootExtras = useCallback((data) => ({
     manager,
     identityInfo,
+    // The agent's enterprise-app Resource (same id) — powers the "Linked
+    // Resource" relations node so its Principal and Resource views cross-link.
+    linkedResource: data?.linkedResource,
     contextId: data?.attributes?.contextId,
     recent: null,
   }), [manager, identityInfo]);

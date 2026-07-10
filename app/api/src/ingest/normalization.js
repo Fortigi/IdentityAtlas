@@ -38,6 +38,7 @@ const SIMPLE_EXTERNAL_REFS = [
   { field: 'userExternalId',      target: 'principalId',     ns: 'principals' },
   { field: 'resourceExternalId',  target: 'resourceId',      ns: 'resources' },
   { field: 'principalExternalId', target: 'principalId',     ns: 'principals' },
+  { field: 'relatedPrincipalExternalId', target: 'relatedPrincipalId', ns: 'principals' },
   { field: 'contextExternalId',   target: 'contextId',       ns: 'contexts' },
 ];
 

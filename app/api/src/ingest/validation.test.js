@@ -294,6 +294,41 @@ describe('validateRecords — resource-relationships', () => {
   });
 });
 
+// ── validateRecords — principal-relationships ─────────────────────────────────
+
+describe('validateRecords — principal-relationships', () => {
+  const validPR = {
+    principalId:        'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+    relatedPrincipalId: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+    relationshipType:   'Owner',
+  };
+
+  it('accepts a valid Owner record', () => {
+    expect(validateRecords([validPR], 'principal-relationships').valid).toBe(true);
+  });
+
+  it('accepts a valid Sponsor record', () => {
+    expect(validateRecords([{ ...validPR, relationshipType: 'Sponsor' }], 'principal-relationships').valid).toBe(true);
+  });
+
+  it('rejects an unknown relationshipType', () => {
+    expect(validateRecords([{ ...validPR, relationshipType: 'Manager' }], 'principal-relationships').valid).toBe(false);
+  });
+
+  it('rejects a record missing both principalId and its external alias', () => {
+    const r = validateRecords([{ relatedPrincipalId: validPR.relatedPrincipalId, relationshipType: 'Owner' }], 'principal-relationships');
+    expect(r.valid).toBe(false);
+  });
+
+  it('accepts external-id aliases in place of the UUIDs', () => {
+    const r = validateRecords(
+      [{ principalExternalId: 'agent-1', relatedPrincipalExternalId: 'owner-1', relationshipType: 'Owner' }],
+      'principal-relationships',
+    );
+    expect(r.valid).toBe(true);
+  });
+});
+
 // ── validateRecords — resources governanceResource ──────────────────────────
 
 describe('validateRecords — resources governanceResource', () => {

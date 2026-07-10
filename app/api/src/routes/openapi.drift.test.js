@@ -113,6 +113,7 @@ const INTENTIONALLY_UNDOCUMENTED = {
   'POST /ingest/matrix-default-filter': 'internal-ingest',
   'POST /ingest/principal-activity': 'internal-ingest',
   'POST /ingest/principals-presence': 'internal-ingest',
+  'POST /ingest/principal-relationships': 'internal-ingest',
   'POST /ingest/resource-assignments-identity': 'internal-ingest',
   'POST /ingest/sync-log': 'internal-ingest',
 };
