@@ -4,7 +4,7 @@
 
 .DESCRIPTION
     Dot-source this file from any Test-*.ps1 script that needs the
-    Report-Result helper. Expects $WriteResult (scriptblock or $null) and
+    Write-Result helper. Expects $WriteResult (scriptblock or $null) and
     $script:standaloneFailures to be defined in the caller's scope.
 
     Usage:
@@ -14,7 +14,7 @@
 [CmdletBinding()]
 param()
 
-function Report-Result {
+function Write-Result {
     param([string]$Name, [bool]$Passed, [string]$Detail = '')
     $color  = if ($Passed) { 'Green' } else { 'Red' }
     $status = if ($Passed) { 'PASS' } else { 'FAIL' }

@@ -45,7 +45,7 @@ Param(
 $ErrorActionPreference = 'Continue'
 $standaloneFailures = 0
 
-function Report-Result {
+function Write-Result {
     param([string]$Name, [bool]$Passed, [string]$Detail = '')
     $color = if ($Passed) { 'Green' } else { 'Red' }
     $status = if ($Passed) { 'PASS' } else { 'FAIL' }
@@ -117,15 +117,15 @@ try {
         )
     } | Out-Null
     # If we get here the API accepted it — that could be valid (systemType not strictly enforced at API level)
-    Report-Result 'CSV/MissingColumns' $true 'API accepted record (systemType not enforced at ingest level)'
+    Write-Result 'CSV/MissingColumns' $true 'API accepted record (systemType not enforced at ingest level)'
 } catch {
     $statusCode = if ($_.Exception.Response) { [int]$_.Exception.Response.StatusCode } else { 0 }
     if ($statusCode -eq 400) {
-        Report-Result 'CSV/MissingColumns' $true "got 400 (expected validation error)"
+        Write-Result 'CSV/MissingColumns' $true "got 400 (expected validation error)"
     } elseif ($statusCode -eq 500) {
-        Report-Result 'CSV/MissingColumns' $false "got 500 — API should return 400 for missing required columns"
+        Write-Result 'CSV/MissingColumns' $false "got 500 — API should return 400 for missing required columns"
     } else {
-        Report-Result 'CSV/MissingColumns' $false "unexpected status $statusCode : $($_.Exception.Message)"
+        Write-Result 'CSV/MissingColumns' $false "unexpected status $statusCode : $($_.Exception.Message)"
     }
 }
 
@@ -140,15 +140,15 @@ try {
         records  = @()
     } | Out-Null
     # 200 with inserted:0 is acceptable
-    Report-Result 'CSV/HeaderOnly' $true 'API accepted empty records (graceful)'
+    Write-Result 'CSV/HeaderOnly' $true 'API accepted empty records (graceful)'
 } catch {
     $statusCode = if ($_.Exception.Response) { [int]$_.Exception.Response.StatusCode } else { 0 }
     if ($statusCode -eq 400) {
-        Report-Result 'CSV/HeaderOnly' $true "got 400 (empty records rejected, expected)"
+        Write-Result 'CSV/HeaderOnly' $true "got 400 (empty records rejected, expected)"
     } elseif ($statusCode -eq 500) {
-        Report-Result 'CSV/HeaderOnly' $false "got 500 — API should return 400 or 200 for empty records"
+        Write-Result 'CSV/HeaderOnly' $false "got 500 — API should return 400 or 200 for empty records"
     } else {
-        Report-Result 'CSV/HeaderOnly' $false "unexpected status $statusCode : $($_.Exception.Message)"
+        Write-Result 'CSV/HeaderOnly' $false "unexpected status $statusCode : $($_.Exception.Message)"
     }
 }
 
@@ -163,15 +163,15 @@ try {
             }
         )
     } | Out-Null
-    Report-Result 'CSV/EmptyDisplayName' $true 'API accepted empty displayName (graceful)'
+    Write-Result 'CSV/EmptyDisplayName' $true 'API accepted empty displayName (graceful)'
 } catch {
     $statusCode = if ($_.Exception.Response) { [int]$_.Exception.Response.StatusCode } else { 0 }
     if ($statusCode -eq 400) {
-        Report-Result 'CSV/EmptyDisplayName' $true "got 400 (empty displayName rejected, expected)"
+        Write-Result 'CSV/EmptyDisplayName' $true "got 400 (empty displayName rejected, expected)"
     } elseif ($statusCode -eq 500) {
-        Report-Result 'CSV/EmptyDisplayName' $false "got 500 — API should return 400 for empty required field"
+        Write-Result 'CSV/EmptyDisplayName' $false "got 500 — API should return 400 for empty required field"
     } else {
-        Report-Result 'CSV/EmptyDisplayName' $false "unexpected status $statusCode : $($_.Exception.Message)"
+        Write-Result 'CSV/EmptyDisplayName' $false "unexpected status $statusCode : $($_.Exception.Message)"
     }
 }
 
@@ -191,15 +191,15 @@ try {
             }
         )
     } | Out-Null
-    Report-Result 'CSV/LongField' $true 'API accepted 10K-char description'
+    Write-Result 'CSV/LongField' $true 'API accepted 10K-char description'
 } catch {
     $statusCode = if ($_.Exception.Response) { [int]$_.Exception.Response.StatusCode } else { 0 }
     if ($statusCode -eq 400) {
-        Report-Result 'CSV/LongField' $true "got 400 (long field rejected with clear error)"
+        Write-Result 'CSV/LongField' $true "got 400 (long field rejected with clear error)"
     } elseif ($statusCode -eq 500) {
-        Report-Result 'CSV/LongField' $false "got 500 — API should handle long fields gracefully (accept or 400)"
+        Write-Result 'CSV/LongField' $false "got 500 — API should handle long fields gracefully (accept or 400)"
     } else {
-        Report-Result 'CSV/LongField' $false "unexpected status $statusCode : $($_.Exception.Message)"
+        Write-Result 'CSV/LongField' $false "unexpected status $statusCode : $($_.Exception.Message)"
     }
 }
 
@@ -218,13 +218,13 @@ try {
             }
         )
     } | Out-Null
-    Report-Result 'CSV/SpecialChars' $true 'API accepted special characters (no SQL injection, no crash)'
+    Write-Result 'CSV/SpecialChars' $true 'API accepted special characters (no SQL injection, no crash)'
 } catch {
     $statusCode = if ($_.Exception.Response) { [int]$_.Exception.Response.StatusCode } else { 0 }
     if ($statusCode -eq 500) {
-        Report-Result 'CSV/SpecialChars' $false "got 500 — possible SQL injection vulnerability or unescaped special chars"
+        Write-Result 'CSV/SpecialChars' $false "got 500 — possible SQL injection vulnerability or unescaped special chars"
     } else {
-        Report-Result 'CSV/SpecialChars' $false "unexpected status $statusCode : $($_.Exception.Message)"
+        Write-Result 'CSV/SpecialChars' $false "unexpected status $statusCode : $($_.Exception.Message)"
     }
 }
 
@@ -248,18 +248,18 @@ try {
             }
         )
     } | Out-Null
-    Report-Result 'CSV/DuplicateIds' $true 'API handled duplicate externalIds in batch (upsert)'
+    Write-Result 'CSV/DuplicateIds' $true 'API handled duplicate externalIds in batch (upsert)'
 } catch {
     $statusCode = if ($_.Exception.Response) { [int]$_.Exception.Response.StatusCode } else { 0 }
     if ($statusCode -eq 400) {
-        Report-Result 'CSV/DuplicateIds' $true "got 400 (duplicates rejected explicitly)"
+        Write-Result 'CSV/DuplicateIds' $true "got 400 (duplicates rejected explicitly)"
     } elseif ($statusCode -eq 500) {
         # Sending two records with the same UUID in one batch is a degenerate
         # edge case. Postgres can't handle duplicate keys in a single
         # INSERT...ON CONFLICT statement. Acceptable known limitation.
-        Report-Result 'CSV/DuplicateIds' $true "got 500 (known limitation: duplicate UUIDs in single batch)"
+        Write-Result 'CSV/DuplicateIds' $true "got 500 (known limitation: duplicate UUIDs in single batch)"
     } else {
-        Report-Result 'CSV/DuplicateIds' $false "unexpected status $statusCode : $($_.Exception.Message)"
+        Write-Result 'CSV/DuplicateIds' $false "unexpected status $statusCode : $($_.Exception.Message)"
     }
 }
 
@@ -285,13 +285,13 @@ try {
         records  = @(@{ contextExternalId = $posKey; memberExternalId = 'edge-ID1'; memberType = 'Identity'; addedBy = 'sync' })
     }
     if ($r.inserted -ge 1 -or $r.updated -ge 1) {
-        Report-Result 'CSV/ContextMemberExternalId' $true "context-member resolved by externalId (inserted=$($r.inserted) updated=$($r.updated))"
+        Write-Result 'CSV/ContextMemberExternalId' $true "context-member resolved by externalId (inserted=$($r.inserted) updated=$($r.updated))"
     } else {
-        Report-Result 'CSV/ContextMemberExternalId' $false "call succeeded but nothing written: $($r | ConvertTo-Json -Compress)"
+        Write-Result 'CSV/ContextMemberExternalId' $false "call succeeded but nothing written: $($r | ConvertTo-Json -Compress)"
     }
 } catch {
     $statusCode = if ($_.Exception.Response) { [int]$_.Exception.Response.StatusCode } else { 0 }
-    Report-Result 'CSV/ContextMemberExternalId' $false "context-member by externalId failed (status $statusCode) — externalId resolution regression: $($_.Exception.Message)"
+    Write-Result 'CSV/ContextMemberExternalId' $false "context-member by externalId failed (status $statusCode) — externalId resolution regression: $($_.Exception.Message)"
 }
 
 # ─── Cleanup ─────────────────────────────────────────────────────

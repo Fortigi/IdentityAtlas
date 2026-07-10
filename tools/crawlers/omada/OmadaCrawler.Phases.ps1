@@ -212,7 +212,7 @@ function Sync-OmadaContexts {
                 $RawRecords = @($Items | ForEach-Object {
                     ConvertTo-OmadaOrgUnitContextRecord -OrgUnit $_ -DefaultContextType $ContextType
                 } | Where-Object { $_.externalId -and $_.displayName })
-                $Records = Sort-OmadaContextsTopologically -Records $RawRecords
+                $Records = Get-OmadaContextsInTopologicalOrder -Records $RawRecords
             } else {
                 $Records = @($Items | ForEach-Object {
                     ConvertTo-OmadaFlatContextRecord -Item $_ -ContextType $ContextType

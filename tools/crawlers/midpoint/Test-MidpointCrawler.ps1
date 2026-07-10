@@ -128,29 +128,29 @@ try {
         $cfg = Invoke-AtlasApi -Method POST -Path '/admin/crawler-configs' -Body @{ crawlerType = 'midpoint'; displayName = "midpoint-it-$runTag"; config = $config }
         $configId = $cfg.id
         Write-Host "  Crawler config registered: $configId" -ForegroundColor Gray
-    } catch { Report-Result 'Midpoint/Setup — register crawler config' $false $_.Exception.Message; throw }
+    } catch { Write-Result 'Midpoint/Setup — register crawler config' $false $_.Exception.Message; throw }
 
     $job = Invoke-AtlasApi -Method POST -Path '/admin/crawler-jobs' -Body @{ jobType = 'midpoint'; configId = $configId }
     Write-Host "  Job queued: $($job.id)" -ForegroundColor Gray
 
     $completed = Wait-JobComplete -JobId $job.id -TimeoutSec 120
-    if ($null -eq $completed) { Report-Result 'Midpoint/Job — completed within 120s' $false '(timed out)'; throw 'Job timed out' }
-    Report-Result 'Midpoint/Job — completed successfully' ($completed.status -eq 'completed') "(status: $($completed.status))"
+    if ($null -eq $completed) { Write-Result 'Midpoint/Job — completed within 120s' $false '(timed out)'; throw 'Job timed out' }
+    Write-Result 'Midpoint/Job — completed successfully' ($completed.status -eq 'completed') "(status: $($completed.status))"
 
     # ── Assert: midPoint system registered (identified by the unique mock port) ──
     $thisSystem = $null
     try {
         $systems    = Invoke-RestMethod -Uri "$ApiBaseUrl/systems" -Headers @{ Authorization = "Bearer $ApiKey" } -ErrorAction Stop
         $thisSystem = @($systems) | Where-Object { $_.displayName -like "*:$($mock.Port)*" } | Select-Object -First 1
-        Report-Result 'Midpoint/Data — system registered' ($null -ne $thisSystem) "$(if ($thisSystem) { "($($thisSystem.displayName))" } else { '(not found)' })"
-    } catch { Report-Result 'Midpoint/Data — system registered' $false $_.Exception.Message }
+        Write-Result 'Midpoint/Data — system registered' ($null -ne $thisSystem) "$(if ($thisSystem) { "($($thisSystem.displayName))" } else { '(not found)' })"
+    } catch { Write-Result 'Midpoint/Data — system registered' $false $_.Exception.Message }
 
     # ── Assert: user principal ingested (unique email) ──
     try {
         $usersResp = Invoke-RestMethod -Uri "$ApiBaseUrl/users?search=midpoint.citest&limit=5" -Headers @{ Authorization = "Bearer $ApiKey" } -ErrorAction Stop
         $cnt = if ($usersResp.users) { $usersResp.users.Count } elseif ($usersResp.data) { $usersResp.data.Count } elseif ($usersResp -is [array]) { $usersResp.Count } else { 0 }
-        Report-Result 'Midpoint/Data — user principal ingested' ($cnt -ge 1) "($cnt matching 'midpoint.citest')"
-    } catch { Report-Result 'Midpoint/Data — user principal ingested' $false $_.Exception.Message }
+        Write-Result 'Midpoint/Data — user principal ingested' ($cnt -ge 1) "($cnt matching 'midpoint.citest')"
+    } catch { Write-Result 'Midpoint/Data — user principal ingested' $false $_.Exception.Message }
 
     # ── Assert: department derived from the user's org membership (parentOrgRef → org name) ──
     # The mock user sits in 'midPoint CI Org' via parentOrgRef; Resolve-MidpointDepartment
@@ -161,16 +161,16 @@ try {
         $focus     = @($ident.members) | Where-Object { $_.principalId -eq $userOid } | Select-Object -First 1
         $princDept = if ($focus) { $focus.department } else { $null }
         $ok = ($identDept -eq 'midPoint CI Org') -and ($princDept -eq 'midPoint CI Org')
-        Report-Result 'Midpoint/Data — department from org membership (Identity + Principal)' $ok "(identity: '$identDept', principal: '$princDept'; expected 'midPoint CI Org')"
-    } catch { Report-Result 'Midpoint/Data — department from org membership (Identity + Principal)' $false $_.Exception.Message }
+        Write-Result 'Midpoint/Data — department from org membership (Identity + Principal)' $ok "(identity: '$identDept', principal: '$princDept'; expected 'midPoint CI Org')"
+    } catch { Write-Result 'Midpoint/Data — department from org membership (Identity + Principal)' $false $_.Exception.Message }
 
     # ── Assert: role resource ingested (scoped to this run's system) ──
     try {
         $sid = if ($thisSystem) { $thisSystem.id } else { 0 }
         $res = Invoke-RestMethod -Uri "$ApiBaseUrl/resources?systemId=$sid&limit=20" -Headers @{ Authorization = "Bearer $ApiKey" } -ErrorAction Stop
         $rcnt = if ($res.data) { $res.data.Count } elseif ($res -is [array]) { $res.Count } else { 0 }
-        Report-Result 'Midpoint/Data — resource ingested' ($rcnt -ge 1) "($rcnt resource(s) in system $sid)"
-    } catch { Report-Result 'Midpoint/Data — resource ingested' $false $_.Exception.Message }
+        Write-Result 'Midpoint/Data — resource ingested' ($rcnt -ge 1) "($rcnt resource(s) in system $sid)"
+    } catch { Write-Result 'Midpoint/Data — resource ingested' $false $_.Exception.Message }
 
     # ── Assert: entitlement shadow became a Resource (Entitlement), not a user ──
     try {
@@ -183,8 +183,8 @@ try {
         $ents = @($list) | Where-Object { $_.resourceType -eq 'Entitlement' }
         # Two entitlements expected: one reached via legacy association[], one via 4.9
         # referenceAttributes.group[]. Both code paths must have produced a resource.
-        Report-Result 'Midpoint/Data — entitlements mapped as resources (assoc + referenceAttributes)' ($ents.Count -ge 2) "($($ents.Count) Entitlement resource(s) in system $resSid; expected >= 2)"
-    } catch { Report-Result 'Midpoint/Data — entitlement mapped as resource' $false $_.Exception.Message }
+        Write-Result 'Midpoint/Data — entitlements mapped as resources (assoc + referenceAttributes)' ($ents.Count -ge 2) "($($ents.Count) Entitlement resource(s) in system $resSid; expected >= 2)"
+    } catch { Write-Result 'Midpoint/Data — entitlement mapped as resource' $false $_.Exception.Message }
 
     # ── Assert: inherited role membership imported as a Direct membership ──
     # The user is only DIRECTLY assigned $roleOid, but midPoint's roleMembershipRef also
@@ -197,8 +197,8 @@ try {
         $inhHit = @($inhAssign) | Where-Object { $_.principalId -eq $userOid -and $_.assignmentType -eq 'Direct' }
         $mgrHit = @($mgrAssign) | Where-Object { $_.principalId -eq $userOid }
         $ok = ($inhHit.Count -ge 1) -and ($mgrHit.Count -eq 0)
-        Report-Result 'Midpoint/Data — inherited role membership imported (manager relation excluded)' $ok "(inherited: $($inhHit.Count) Direct; manager: $($mgrHit.Count) — expected inherited>=1, manager=0)"
-    } catch { Report-Result 'Midpoint/Data — inherited role membership imported (manager relation excluded)' $false $_.Exception.Message }
+        Write-Result 'Midpoint/Data — inherited role membership imported (manager relation excluded)' $ok "(inherited: $($inhHit.Count) Direct; manager: $($mgrHit.Count) — expected inherited>=1, manager=0)"
+    } catch { Write-Result 'Midpoint/Data — inherited role membership imported (manager relation excluded)' $false $_.Exception.Message }
 
     # ── Assert: construction inducements became Contains edges (role → entitlements) ──
     # The role grants two AD groups via construction: $entOid by associationTargetSearch DN
@@ -210,8 +210,8 @@ try {
         $searchHit  = @($brSearch)  | Where-Object { $_.businessRoleId -eq $roleOid }
         $literalHit = @($brLiteral) | Where-Object { $_.businessRoleId -eq $roleOid }
         $ok = ($searchHit.Count -ge 1) -and ($literalHit.Count -ge 1)
-        Report-Result 'Midpoint/Data — construction inducements → Contains edges (associationTargetSearch + shadowRef)' $ok "(targetSearch: $($searchHit.Count), shadowRef: $($literalHit.Count) — both expected >= 1)"
-    } catch { Report-Result 'Midpoint/Data — construction inducements → Contains edges (associationTargetSearch + shadowRef)' $false $_.Exception.Message }
+        Write-Result 'Midpoint/Data — construction inducements → Contains edges (associationTargetSearch + shadowRef)' $ok "(targetSearch: $($searchHit.Count), shadowRef: $($literalHit.Count) — both expected >= 1)"
+    } catch { Write-Result 'Midpoint/Data — construction inducements → Contains edges (associationTargetSearch + shadowRef)' $false $_.Exception.Message }
 
 } catch {
     Write-Host "  Fatal test error: $($_.Exception.Message)" -ForegroundColor Red

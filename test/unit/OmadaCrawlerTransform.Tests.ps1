@@ -20,7 +20,7 @@ BeforeAll {
 
     # Omada reference helpers used by the transforms.
     . (Join-Path $script:omadaRoot 'Get-OmadaHelpers.ps1')
-    # Map-ContextTypeToAtlas (reads $script:TypeMappings) — used by the Orgunit mapper.
+    # ConvertTo-AtlasContextType (reads $script:TypeMappings) — used by the Orgunit mapper.
     . (Join-Path $script:omadaRoot 'OmadaCrawler.Functions.ps1')
     # The unit under test.
     . (Join-Path $script:omadaRoot 'OmadaCrawler.Transform.ps1')
@@ -31,7 +31,7 @@ BeforeAll {
         contextTypeToIdentityAtlas  = @{ 'OrgUnit' = 'OrgUnit'; 'Organisational Unit' = 'OrgUnit'; Department = 'Department' }
         identityTypeToIdentityAtlas = @{ Employee = 'User'; Contractor = 'ExternalUser'; 'Service Account' = 'ServicePrincipal' }
     }
-    # Map-ResourceCategory iterates this ordered list; '' is the catch-all.
+    # ConvertTo-AtlasResourceCategory iterates this ordered list; '' is the catch-all.
     $script:ResourceCategoryMapping = @(
         @{ category = 'Business Role'; resourceType = 'BusinessRole' }
         @{ category = '';             resourceType = 'Resource' }
@@ -143,7 +143,7 @@ Describe 'ConvertTo-OmadaFlatContextRecord' {
     }
 }
 
-Describe 'Sort-OmadaContextsTopologically' {
+Describe 'Get-OmadaContextsInTopologicalOrder' {
 
     It 'orders parents before their children regardless of input order' {
         $records = @(
@@ -151,7 +151,7 @@ Describe 'Sort-OmadaContextsTopologically' {
             [pscustomobject]@{ id = 'b'; parentContextId = 'a' }
             [pscustomobject]@{ id = 'a'; parentContextId = $null }
         )
-        $sorted = Sort-OmadaContextsTopologically -Records $records
+        $sorted = Get-OmadaContextsInTopologicalOrder -Records $records
         ($sorted | ForEach-Object { $_.id }) -join '' | Should -Be 'abc'
     }
 
@@ -160,11 +160,11 @@ Describe 'Sort-OmadaContextsTopologically' {
             [pscustomobject]@{ id = 'x'; parentContextId = 'y' }
             [pscustomobject]@{ id = 'y'; parentContextId = 'x' }
         )
-        @(Sort-OmadaContextsTopologically -Records $records).Count | Should -Be 2
+        @(Get-OmadaContextsInTopologicalOrder -Records $records).Count | Should -Be 2
     }
 
     It 'returns an empty array for no records' {
-        @(Sort-OmadaContextsTopologically -Records @()).Count | Should -Be 0
+        @(Get-OmadaContextsInTopologicalOrder -Records @()).Count | Should -Be 0
     }
 }
 

@@ -38,7 +38,7 @@ Param(
 $ErrorActionPreference = 'Continue'
 $standaloneFailures = 0
 
-function Report-Result {
+function Write-Result {
     param([string]$Name, [bool]$Passed, [string]$Detail = '')
     $color = if ($Passed) { 'Green' } else { 'Red' }
     $status = if ($Passed) { 'PASS' } else { 'FAIL' }
@@ -104,12 +104,12 @@ try {
     }
 
     if ($systemAId -and $systemBId) {
-        Report-Result 'Correlation/SystemsCreated' $true "A=$systemAId B=$systemBId"
+        Write-Result 'Correlation/SystemsCreated' $true "A=$systemAId B=$systemBId"
     } else {
-        Report-Result 'Correlation/SystemsCreated' $false "could not resolve system IDs (A=$systemAId B=$systemBId)"
+        Write-Result 'Correlation/SystemsCreated' $false "could not resolve system IDs (A=$systemAId B=$systemBId)"
     }
 } catch {
-    Report-Result 'Correlation/SystemsCreated' $false $_.Exception.Message
+    Write-Result 'Correlation/SystemsCreated' $false $_.Exception.Message
 }
 
 # --- 2. Create 1 principal in each system via /ingest/principals ------
@@ -142,9 +142,9 @@ try {
             }
         )
     }
-    Report-Result 'Correlation/PrincipalsCreated' $true "SystemA + SystemB principals ingested"
+    Write-Result 'Correlation/PrincipalsCreated' $true "SystemA + SystemB principals ingested"
 } catch {
-    Report-Result 'Correlation/PrincipalsCreated' $false $_.Exception.Message
+    Write-Result 'Correlation/PrincipalsCreated' $false $_.Exception.Message
 }
 
 # --- 3. Create 1 identity via /ingest/identities ---------------------
@@ -161,9 +161,9 @@ try {
             }
         )
     }
-    Report-Result 'Correlation/IdentityCreated' $true 'identity ingested'
+    Write-Result 'Correlation/IdentityCreated' $true 'identity ingested'
 } catch {
-    Report-Result 'Correlation/IdentityCreated' $false $_.Exception.Message
+    Write-Result 'Correlation/IdentityCreated' $false $_.Exception.Message
 }
 
 # --- 4. Link both principals to the identity via /ingest/identity-members
@@ -184,9 +184,9 @@ try {
             }
         )
     }
-    Report-Result 'Correlation/MembersLinked' $true '2 identity-members ingested'
+    Write-Result 'Correlation/MembersLinked' $true '2 identity-members ingested'
 } catch {
-    Report-Result 'Correlation/MembersLinked' $false $_.Exception.Message
+    Write-Result 'Correlation/MembersLinked' $false $_.Exception.Message
 }
 
 # --- 5. GET /identities and verify at least 1 identity exists --------
@@ -194,12 +194,12 @@ try {
     $rList = Invoke-LocalApi -Path '/identities?limit=100'
     $identities = if ($rList.data) { @($rList.data) } else { @($rList) }
     if ($identities.Count -ge 1) {
-        Report-Result 'Correlation/IdentityExists' $true "count=$($identities.Count)"
+        Write-Result 'Correlation/IdentityExists' $true "count=$($identities.Count)"
     } else {
-        Report-Result 'Correlation/IdentityExists' $false 'no identities returned'
+        Write-Result 'Correlation/IdentityExists' $false 'no identities returned'
     }
 } catch {
-    Report-Result 'Correlation/IdentityExists' $false $_.Exception.Message
+    Write-Result 'Correlation/IdentityExists' $false $_.Exception.Message
 }
 
 # --- 6. Verify the identity is queryable -----------------------------
@@ -210,12 +210,12 @@ try {
         $_.displayName -eq 'Alice Correlation' -or $_.externalId -eq 'corr-identity-1'
     }
     if ($match) {
-        Report-Result 'Correlation/IdentityQueryable' $true "found identity displayName=$($match.displayName)"
+        Write-Result 'Correlation/IdentityQueryable' $true "found identity displayName=$($match.displayName)"
     } else {
-        Report-Result 'Correlation/IdentityQueryable' $false 'corr-identity-1 not found in identity list'
+        Write-Result 'Correlation/IdentityQueryable' $false 'corr-identity-1 not found in identity list'
     }
 } catch {
-    Report-Result 'Correlation/IdentityQueryable' $false $_.Exception.Message
+    Write-Result 'Correlation/IdentityQueryable' $false $_.Exception.Message
 }
 
 if (-not $WriteResult) { exit $standaloneFailures }
