@@ -110,6 +110,7 @@ const ENTRA_OBJECT_TYPES = [
   { key: 'appsAppRoles', label: 'Apps & AppRoles', description: 'Application registrations and role assignments' },
   { key: 'appOwners', label: 'App Owners', description: 'Owners of app registrations (who can add credentials and impersonate the app) and enterprise-app service principals' },
   { key: 'appPermissions', label: 'Application Permissions', description: 'App-only permissions each service principal / managed identity / AI agent holds on other APIs (e.g. Mail.Read on Microsoft Graph) — the admin-consented, tenant-wide kind' },
+  { key: 'principalRelationships', label: 'Agent Owners & Guest Sponsors', description: 'Owners of AI agents and sponsors of guest accounts — the person accountable for each non-human / external identity, shown on its relations tab' },
   { key: 'directoryRoles', label: 'Directory Roles', description: 'Entra ID directory role assignments' },
   { key: 'pim', label: 'PIM', description: 'Privileged Identity Management eligible group memberships' },
   { key: 'signInLogs', label: 'Sign-in Logs (per-app activity)', description: 'Aggregated sign-in events — last activity per (user, app) pair' },
