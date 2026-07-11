@@ -20,6 +20,40 @@
 import * as db from '../../db/connection.js';
 import { randomUUID } from 'crypto';
 import { getPlugin } from './registry.js';
+import { breakCycles, wouldCreateCycle } from '../cycleGuard.js';
+
+// Repair any parentContextId cycle a plugin's parent structure introduced, and
+// log if anything was broken. Kept as a module-level helper so the reconcile
+// routine that calls it stays within its complexity budget.
+async function repairPluginCycles(client, pluginName) {
+  const n = await breakCycles(client);
+  if (n) console.warn(`[context-plugin] ${pluginName}: broke ${n} cyclic parentContextId link(s)`);
+}
+
+// Second pass of reconcile: set parent pointers now that every target row exists.
+// Skips analyst-reparented nodes and unresolved parents, and — via wouldCreateCycle
+// — any link that would close a loop against the tree written so far this pass
+// (client sees the in-transaction rows), leaving that node a root rather than
+// writing-then-NULLing it. Extracted from reconcile to keep it under the
+// complexity ceiling; repairPluginCycles stays as the net for a batch-internal
+// cycle prevention can't see pre-persist.
+async function linkContextParents(client, contexts, newByExternalId, reparentedIds, pluginName) {
+  for (const node of contexts) {
+    if (!node.externalId || !node.parentExternalId) continue;
+    const id = newByExternalId.get(node.externalId);
+    if (reparentedIds.has(id)) continue; // analyst moved this node — keep their placement
+    const parentId = newByExternalId.get(node.parentExternalId);
+    if (!parentId) continue; // parent wasn't in the output — leave NULL
+    if (await wouldCreateCycle(client, id, parentId)) {
+      console.warn(`[context-plugin] ${pluginName}: skipped cyclic parent ${node.parentExternalId} -> ${node.externalId}`);
+      continue;
+    }
+    await client.query(
+      `UPDATE "Contexts" SET "parentContextId" = $2 WHERE id = $1`,
+      [id, parentId]
+    );
+  }
+}
 
 export async function enqueueRun(pluginName, params, triggeredBy, opts = {}) {
   const plugin = getPlugin(pluginName);
@@ -74,6 +108,8 @@ export async function enqueueRun(pluginName, params, triggeredBy, opts = {}) {
 export async function refreshGeneratedContexts(triggeredBy = 'crawl-refresh', { awaitCompletion = false } = {}) {
   const trees = (await db.query(`
     SELECT a.name AS algo,
+           c."sourceAlgorithmId" AS "algorithmId",
+           c."scopeSystemId" AS "scopeSystemId",
            c."sourceInstanceKey" AS ikey,
            (array_agg(r.parameters ORDER BY c."createdAt" DESC))[1] AS params
       FROM "Contexts" c
@@ -88,7 +124,23 @@ export async function refreshGeneratedContexts(triggeredBy = 'crawl-refresh', { 
     if (!t.params) continue;                       // no recoverable parameters
     if (t.params.autoRefresh === false) continue;  // opted out
     try {
-      await enqueueRun(t.algo, { ...t.params, instanceKey: t.ikey || undefined }, triggeredBy, { awaitCompletion });
+      // Legacy trees (created before migration 034) have a NULL instance key.
+      // Passing `undefined` to enqueueRun would make it mint a fresh random key
+      // every crawl — reconcile then matches nothing and inserts a brand-new
+      // duplicate tree each run (the "explode" bug). Backfill a stable key onto
+      // the existing tree first (same as the manual /sync path), so the refresh
+      // reconciles onto it in place instead of spawning a copy.
+      let ikey = t.ikey;
+      if (!ikey) {
+        ikey = randomUUID();
+        await db.query(`
+          UPDATE "Contexts" SET "sourceInstanceKey" = $1
+           WHERE "sourceAlgorithmId" = $2
+             AND ($3::int IS NULL OR "scopeSystemId" = $3)
+             AND "sourceInstanceKey" IS NULL
+        `, [ikey, t.algorithmId, t.scopeSystemId]);
+      }
+      await enqueueRun(t.algo, { ...t.params, instanceKey: ikey }, triggeredBy, { awaitCompletion });
       started++;
     } catch (err) {
       console.error(`[context-refresh] ${t.algo} (${t.ikey || 'no-key'}) failed:`, err.message);
@@ -255,17 +307,12 @@ async function reconcile(plugin, algorithmId, runId, params, result, instanceKey
     }
 
     // 3b) Second pass: set parent pointers now that every target row exists.
-    for (const node of result.contexts) {
-      if (!node.externalId || !node.parentExternalId) continue;
-      const id = newByExternalId.get(node.externalId);
-      if (reparentedIds.has(id)) continue; // analyst moved this node — keep their placement
-      const parentId = newByExternalId.get(node.parentExternalId);
-      if (!parentId) continue; // parent wasn't in the output — leave NULL
-      await client.query(
-        `UPDATE "Contexts" SET "parentContextId" = $2 WHERE id = $1`,
-        [id, parentId]
-      );
-    }
+    await linkContextParents(client, result.contexts, newByExternalId, reparentedIds, plugin.name);
+
+    // Fix-at-source: if the plugin's parentExternalId structure formed a loop,
+    // repair the stored tree now — before the member-count roll-up below
+    // recurses it — by NULLing the offending parent link(s).
+    await repairPluginCycles(client, plugin.name);
 
     // 4) Remove contexts that previously belonged to this (algorithm, scope)
     //    but are no longer in the plugin's output.

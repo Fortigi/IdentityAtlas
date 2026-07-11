@@ -1,0 +1,1648 @@
+#Requires -Modules @{ ModuleName='Pester'; ModuleVersion='5.0.0' }
+<#
+.SYNOPSIS
+    Pester unit tests for the extracted Entra ID crawler sync phases
+    (EntraIDCrawler.Phases.ps1).
+
+.DESCRIPTION
+    Covers the "leaf" sync phases moved verbatim out of Start-EntraIDCrawler.ps1's
+    top-level body — the ones that consume no earlier-phase state and return
+    nothing to a later phase:
+
+        Sync-EntraOAuth2Grants, Sync-EntraAppRoles (+ its helpers
+        Add-EntraAppRoleAssignment, Expand-EntraAppRoleGroupAssignments,
+        Get-EntraAppRoleAssignmentData, Send-EntraAppRoleBatches),
+        Sync-EntraDirectoryRoles.
+
+    The Start script's body is NOT run — only the dot-sourced sibling files are.
+    The Graph boundary (Invoke-FGGetRequest) and the ingest boundary
+    (Send-IngestBatch) are mocked, so no real HTTP is performed; the pure record
+    shapers in EntraIDCrawler.Transform.ps1 run for real. The phases read/write
+    the same $script:phaseErrors / $script:phases state they do when dot-sourced
+    into the Start script.
+
+.USAGE
+    Invoke-Pester -Path test/unit/EntraIDCrawlerPhases.Tests.ps1 -Output Detailed
+#>
+
+BeforeAll {
+    $script:repoRoot = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
+    $script:entraDir = Join-Path $script:repoRoot 'tools' 'crawlers' 'entra-id'
+
+    # Update-CrawlerProgress / ConvertTo-JsonArray / Invoke-IngestAPI live here.
+    . (Join-Path $script:repoRoot 'tools' 'crawlers' 'shared' 'Invoke-CrawlerIngest.ps1')
+    # Send-IngestBatch, Write-Phase, New-AppRoleResourceId, New-OAuth2ScopeResourceId,
+    # Format-FGDelegatedPermissionName, Resolve-DirectoryRolePrincipalType.
+    . (Join-Path $script:entraDir 'EntraIDCrawler.Functions.ps1')
+    # ConvertTo-*/New-* pure record shapers the phases call.
+    . (Join-Path $script:entraDir 'EntraIDCrawler.Transform.ps1')
+    # Get-FGServicePrincipalType (pure SDK classifier) — used by
+    # ConvertTo-EntraServicePrincipalRecord inside the ServicePrincipals phase.
+    . (Join-Path $script:repoRoot 'tools' 'powershell-sdk' 'helpers' 'Get-FGServicePrincipalType.ps1')
+    # The unit under test.
+    . (Join-Path $script:entraDir 'EntraIDCrawler.Phases.ps1')
+    # Sync-EntraAppOwners + its helpers live in their own file (extracted for the ratchets).
+    . (Join-Path $script:entraDir 'EntraIDCrawler.AppOwners.ps1')
+    # Sync-EntraAppPermissions + its helpers live in their own file too.
+    . (Join-Path $script:entraDir 'EntraIDCrawler.AppPermissions.ps1')
+    # Sync-EntraPrincipalRelationships (agent owners / guest sponsors) — its own file.
+    . (Join-Path $script:entraDir 'EntraIDCrawler.PrincipalRelationships.ps1')
+    # Invoke-EntraApplicationPhases — dispatch for the application + principal-relationship phases.
+    . (Join-Path $script:entraDir 'EntraIDCrawler.Orchestration.ps1')
+
+    # Script-scope state the phases + shared helpers read at call time.
+    $script:ApiKey     = 'fgc_testkey'
+    $script:ApiBaseUrl = 'https://example.test/api'
+    $script:JobId      = 0   # Update-CrawlerProgress no-ops when JobId <= 0
+    $Global:AccessToken = 'test-token'   # PIM passes this as the (Mandatory) -Token
+
+    # Token-refresh helper the PIM phase probes via Get-Command; stub so the
+    # refresh branch runs without the Graph SDK loaded.
+    function Update-FGAccessTokenIfExpired { param([string]$DebugFlag) }
+
+    # Graph auth stub for the run-init phase + tenant id for system registration.
+    function Get-FGAccessToken { param($ConfigFile) }
+    $Global:TenantId = 'tenant-123'
+
+    # The Graph SDK functions the phases call. Defined as stubs so Pester can Mock
+    # them; every test overrides with -ParameterFilter on the URI.
+    function Invoke-FGGetRequest { param([string]$URI, [int]$MaxRetries, [int]$TimeoutSec) }
+    function Invoke-FGGetRequestStream { param([string]$URI) }
+
+    # Add-FGEntraCalculatedAttributes is a Graph SDK helper (own tests) that
+    # ConvertTo-EntraGroupResourceRecord calls. Stub it so the group shaper stays
+    # hermetic — same stub the Transform suite uses.
+    function Add-FGEntraCalculatedAttributes {
+        param($Object, $Ext, $Type)
+        if ($Object.onPremisesDistinguishedName) { $Ext['_calc'] = $Type }
+    }
+
+    # Reset the shared per-phase accumulators (Pester forbids a root-level
+    # BeforeEach, so each Describe calls this from its own BeforeEach).
+    function Reset-PhaseTestState {
+        $script:phaseErrors = [System.Collections.Generic.List[string]]::new()
+        $script:phases      = [System.Collections.Generic.List[object]]::new()
+        $script:sent        = [System.Collections.Generic.List[object]]::new()
+    }
+
+    # MockWith body for Send-IngestBatch: captures every upload so tests can
+    # assert what was sent (records + scope), without any real HTTP.
+    $script:SendMock = {
+        $script:sent.Add([pscustomobject]@{
+            Endpoint = $Endpoint
+            SystemId = $SystemId
+            SyncMode = $SyncMode
+            Scope    = $Scope
+            Records  = @($Records)
+        })
+        return @{ inserted = @($Records).Count; updated = 0; deleted = 0 }
+    }
+
+    # Small helper: the captured Send-IngestBatch call(s) whose scope matches a filter.
+    function Get-Sent {
+        param([scriptblock]$Where)
+        @($script:sent | Where-Object $Where)
+    }
+}
+
+# ─── Sync-EntraAppOwners ────────────────────────────────────────────────────────
+Describe 'Sync-EntraAppOwners' {
+    BeforeEach { Reset-PhaseTestState; Mock Send-IngestBatch -MockWith $script:SendMock }
+
+    It 'models SP + app-registration owners as ownership resources hanging off the Application' {
+        # One service principal (Payroll), appId app-guid-1.
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'servicePrincipals\?' } -MockWith {
+            @([pscustomobject]@{ id = 'sp1'; appId = 'app-guid-1'; displayName = 'Payroll'; servicePrincipalType = 'Application' })
+        }
+        # One app registration, same appId → resolves to sp1.
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'applications\?' } -MockWith {
+            @([pscustomobject]@{ id = 'app1obj'; appId = 'app-guid-1'; displayName = 'Payroll' })
+        }
+        # Owner fetches — the mock bypasses the RecordBuilder, so return final-shape records.
+        Mock Get-FGGroupChildrenParallel -ParameterFilter { $EntityType -eq 'servicePrincipals' } -MockWith {
+            @{ records = @(@{ appResourceId = 'sp1'; principalId = 'u1' }, @{ appResourceId = 'sp1'; principalId = 'u2' }); errorCount = 0 }
+        }
+        Mock Get-FGGroupChildrenParallel -ParameterFilter { $EntityType -eq 'applications' } -MockWith {
+            @{ records = @(@{ appObjectId = 'app1obj'; principalId = 'u3' }); errorCount = 0 }
+        }
+
+        Sync-EntraAppOwners -SystemId 7 -Timings ([ordered]@{})
+        $script:phaseErrors.Count | Should -Be 0
+
+        # Parent Application upserted WITHOUT reconcile (SyncMode 'delta').
+        $appUpsert = Get-Sent { $_.Endpoint -eq 'ingest/resources' -and $_.Scope.resourceType -eq 'Application' }
+        $appUpsert.Count            | Should -Be 1
+        $appUpsert[0].SyncMode      | Should -Be 'delta'
+        $appUpsert[0].Records.Count | Should -Be 1
+        $appUpsert[0].Records[0].id | Should -Be 'sp1'
+
+        # ServicePrincipalOwnership: one resource (full-sync), two Direct assignments.
+        $spRes = Get-Sent { $_.Endpoint -eq 'ingest/resources' -and $_.Scope.resourceType -eq 'ServicePrincipalOwnership' }
+        $spRes.Count                     | Should -Be 1
+        $spRes[0].SyncMode               | Should -Be 'full'
+        $spRes[0].Records.Count          | Should -Be 1
+        $spRes[0].Records[0].displayName | Should -Be 'Payroll'
+        $spAssn = Get-Sent { $_.Endpoint -eq 'ingest/resource-assignments' -and $_.Scope.resourceType -eq 'ServicePrincipalOwnership' }
+        $spAssn[0].Records.Count         | Should -Be 2
+        $spAssn[0].Scope.assignmentType  | Should -Be 'Direct'
+
+        # ApplicationOwnership: one resource, one Direct assignment (u3, via appId match).
+        (Get-Sent { $_.Endpoint -eq 'ingest/resources' -and $_.Scope.resourceType -eq 'ApplicationOwnership' })[0].Records.Count | Should -Be 1
+        $appAssn = Get-Sent { $_.Endpoint -eq 'ingest/resource-assignments' -and $_.Scope.resourceType -eq 'ApplicationOwnership' }
+        $appAssn[0].Records.Count       | Should -Be 1
+        $appAssn[0].Records[0].principalId | Should -Be 'u3'
+
+        # One HasAppOwnership batch, two relationships (both parent = sp1).
+        $rels = Get-Sent { $_.Scope.relationshipType -eq 'HasAppOwnership' }
+        $rels.Count              | Should -Be 1
+        $rels[0].Records.Count   | Should -Be 2
+        $rels[0].Records | ForEach-Object { $_.parentResourceId | Should -Be 'sp1' }
+    }
+
+    It 'skips app-registration owners whose appId has no matching service principal' {
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'servicePrincipals\?' } -MockWith { @() }
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'applications\?' } -MockWith {
+            @([pscustomobject]@{ id = 'orphanObj'; appId = 'no-sp-guid'; displayName = 'Orphan' })
+        }
+        Mock Get-FGGroupChildrenParallel -ParameterFilter { $EntityType -eq 'servicePrincipals' } -MockWith { @{ records = @(); errorCount = 0 } }
+        Mock Get-FGGroupChildrenParallel -ParameterFilter { $EntityType -eq 'applications' } -MockWith {
+            @{ records = @(@{ appObjectId = 'orphanObj'; principalId = 'u9' }); errorCount = 0 }
+        }
+
+        Sync-EntraAppOwners -SystemId 7 -Timings ([ordered]@{})
+        $script:phaseErrors.Count | Should -Be 0
+
+        # Orphan app owner has no SP → no ApplicationOwnership assignment, no owned app.
+        (Get-Sent { $_.Endpoint -eq 'ingest/resource-assignments' -and $_.Scope.resourceType -eq 'ApplicationOwnership' })[0].Records.Count | Should -Be 0
+        (Get-Sent { $_.Scope.resourceType -eq 'Application' }).Count | Should -Be 0
+    }
+}
+
+# ─── Sync-EntraAppPermissions ───────────────────────────────────────────────────
+Describe 'Sync-EntraAppPermissions' {
+    BeforeEach { Reset-PhaseTestState; Mock Send-IngestBatch -MockWith $script:SendMock }
+
+    It 'models each SP''s app-only permissions as ApplicationPermission resources off the client app, resolving the permission name from the target API catalog' {
+        # Microsoft Graph is just an SP whose appRoles catalog names role-mailread → Mail.Read.
+        # payrollSp (Application) and kvMi (ManagedIdentity) each hold that role on Graph.
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'servicePrincipals\?' } -MockWith {
+            @(
+                [pscustomobject]@{ id = 'graphSp'; displayName = 'Microsoft Graph'; appId = 'graph-app'; servicePrincipalType = 'Application'
+                    appRoles = @([pscustomobject]@{ id = 'role-mailread'; value = 'Mail.Read'; displayName = 'Read mail' }) }
+                [pscustomobject]@{ id = 'payrollSp'; displayName = 'Payroll App'; appId = 'payroll-app'; servicePrincipalType = 'Application' }
+                [pscustomobject]@{ id = 'kvMi'; displayName = 'kv-reader-mi'; appId = 'kv-app'; servicePrincipalType = 'ManagedIdentity' }
+            )
+        }
+        # The parallel per-SP appRoleAssignments fetch — mock bypasses the RecordBuilder,
+        # so return the final-shape (raw) rows the builder would have emitted.
+        Mock Get-FGGroupChildrenParallel -ParameterFilter { $EntityType -eq 'servicePrincipals' -and $ChildPath -eq 'appRoleAssignments' } -MockWith {
+            @{ records = @(
+                @{ id = 'ara1'; principalId = 'payrollSp'; resourceId = 'graphSp'; resourceDisplayName = 'Microsoft Graph'; appRoleId = 'role-mailread' }
+                @{ id = 'ara2'; principalId = 'kvMi';      resourceId = 'graphSp'; resourceDisplayName = 'Microsoft Graph'; appRoleId = 'role-mailread' }
+              ); errorCount = 0 }
+        }
+
+        $timings = [ordered]@{}
+        Sync-EntraAppPermissions -SystemId 8 -Timings $timings
+        $script:phaseErrors.Count | Should -Be 0
+
+        # Two ApplicationPermission resources (distinct client SPs), full-synced for reconcile.
+        $permRes = Get-Sent { $_.Endpoint -eq 'ingest/resources' -and $_.Scope.resourceType -eq 'ApplicationPermission' }
+        $permRes.Count            | Should -Be 1
+        $permRes[0].SyncMode      | Should -Be 'full'
+        $permRes[0].Records.Count | Should -Be 2
+        $permRes[0].Records.displayName | Should -Contain 'Mail.Read on Microsoft Graph (via Payroll App)'
+
+        # HasApplicationPermission relationships hang off the client SP (full-sync).
+        $rels = Get-Sent { $_.Scope.relationshipType -eq 'HasApplicationPermission' }
+        $rels[0].Records.Count | Should -Be 2
+        $rels[0].Records | ForEach-Object { $_.relationshipType | Should -Be 'HasApplicationPermission' }
+
+        # Direct assignments whose principal is the holding SP itself — the managed
+        # identity keeps its classified principalType, not a flat ServicePrincipal.
+        $assns = Get-Sent { $_.Endpoint -eq 'ingest/resource-assignments' -and $_.Scope.resourceType -eq 'ApplicationPermission' }
+        $assns[0].SyncMode              | Should -Be 'full'
+        $assns[0].Scope.assignmentType  | Should -Be 'Direct'
+        $assns[0].Records.Count         | Should -Be 2
+        ($assns[0].Records | Where-Object { $_.principalId -eq 'kvMi' }).principalType | Should -Be 'ManagedIdentity'
+
+        # Holder Application resources are ensured-exists via a non-reconciling delta
+        # upsert (payrollSp + kvMi hold a permission; graphSp is only a target, so it
+        # is NOT upserted here).
+        $appUpsert = Get-Sent { $_.Endpoint -eq 'ingest/resources' -and $_.Scope.resourceType -eq 'Application' }
+        $appUpsert.Count            | Should -Be 1
+        $appUpsert[0].SyncMode      | Should -Be 'delta'
+        $appUpsert[0].Records.Count | Should -Be 2
+        $appUpsert[0].Records.id    | Should -Not -Contain 'graphSp'
+
+        $timings.Contains('AppPermissions') | Should -BeTrue
+        ($script:phases | Where-Object { $_.name -eq 'AppPermissions' }).status | Should -Be 'ok'
+    }
+
+    It 'runs the raw-child RecordBuilder and warns (non-fatally) on SPs that failed the appRoleAssignments fetch' {
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'servicePrincipals\?' } -MockWith {
+            @([pscustomobject]@{ id = 'spX'; displayName = 'App X'; appId = 'ax'; servicePrincipalType = 'Application' })
+        }
+        # Exercise the { param($o) $o.raw } builder the phase passes, and report a
+        # non-zero errorCount to hit the soft-warning branch.
+        Mock Get-FGGroupChildrenParallel -ParameterFilter { $ChildPath -eq 'appRoleAssignments' } -MockWith {
+            $rec = & $RecordBuilder ([pscustomobject]@{ raw = @{ id = 'ara9'; principalId = 'spX'; resourceId = 'apiY'; appRoleId = 'role-z' } })
+            @{ records = @($rec); errorCount = 1 }
+        }
+
+        Sync-EntraAppPermissions -SystemId 2 -Timings ([ordered]@{})
+
+        # The raw row shaped into one ApplicationPermission grant (falls back to the
+        # appRoleId as the permission name — apiY had no catalog entry).
+        $assns = Get-Sent { $_.Endpoint -eq 'ingest/resource-assignments' -and $_.Scope.resourceType -eq 'ApplicationPermission' }
+        $assns[0].Records.Count            | Should -Be 1
+        $assns[0].Records[0].principalId   | Should -Be 'spX'
+        # A per-SP fetch failure is a warning, not a phase failure.
+        $script:phaseErrors.Count | Should -Be 0
+    }
+
+    It 'still sends the full-sync batches when no SP holds a permission (reconcile clears revoked grants) and upserts no holder apps' {
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'servicePrincipals\?' } -MockWith { @() }
+
+        Sync-EntraAppPermissions -SystemId 1 -Timings ([ordered]@{})
+
+        # Resource / relationship / assignment batches are still sent (empty) so a
+        # reconcile clears any grant that was revoked since the last run.
+        (Get-Sent { $_.Endpoint -eq 'ingest/resources' -and $_.Scope.resourceType -eq 'ApplicationPermission' })[0].Records.Count | Should -Be 0
+        (Get-Sent { $_.Scope.relationshipType -eq 'HasApplicationPermission' }).Count | Should -Be 1
+        (Get-Sent { $_.Endpoint -eq 'ingest/resource-assignments' -and $_.Scope.resourceType -eq 'ApplicationPermission' }).Count | Should -Be 1
+        # No holder held a permission → no Application delta upsert at all.
+        (Get-Sent { $_.Endpoint -eq 'ingest/resources' -and $_.Scope.resourceType -eq 'Application' }).Count | Should -Be 0
+        $script:phaseErrors.Count | Should -Be 0
+    }
+
+    It 'records a phase failure when the service-principal fetch throws' {
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'servicePrincipals\?' } -MockWith { throw 'Graph 403' }
+
+        Sync-EntraAppPermissions -SystemId 1 -Timings ([ordered]@{})
+
+        $script:phaseErrors | Should -HaveCount 1
+        $script:phaseErrors[0] | Should -BeLike 'AppPermissions:*'
+        ($script:phases | Where-Object { $_.name -eq 'AppPermissions' }).status | Should -Be 'failed'
+    }
+}
+
+# ─── Invoke-EntraApplicationPhases (dispatch) ───────────────────────────────────
+Describe 'Invoke-EntraApplicationPhases' {
+    BeforeEach {
+        Reset-PhaseTestState
+        # Mock the four phases the dispatcher fans out to — each has its own tests
+        # above; here we assert only that the toggles gate them and shared args flow.
+        Mock Sync-EntraOAuth2Grants   -MockWith { }
+        Mock Sync-EntraAppRoles       -MockWith { }
+        Mock Sync-EntraAppOwners      -MockWith { }
+        Mock Sync-EntraAppPermissions -MockWith { }
+        Mock Sync-EntraPrincipalRelationships -MockWith { }
+    }
+
+    It 'runs every phase when all toggles are on, forwarding AINamePatterns to app permissions + principal relationships' {
+        Invoke-EntraApplicationPhases -SystemId 7 -AINamePatterns @('*copilot*') -Timings ([ordered]@{}) `
+            -SyncOAuth2Grants $true -SyncAppRoles $true -SyncAppOwners $true -SyncAppPermissions $true -SyncPrincipalRelationships $true
+
+        Should -Invoke Sync-EntraOAuth2Grants   -Times 1 -ParameterFilter { $SystemId -eq 7 }
+        Should -Invoke Sync-EntraAppRoles       -Times 1 -ParameterFilter { $SystemId -eq 7 }
+        Should -Invoke Sync-EntraAppOwners      -Times 1 -ParameterFilter { $SystemId -eq 7 }
+        Should -Invoke Sync-EntraAppPermissions -Times 1 -ParameterFilter { $SystemId -eq 7 -and @($AINamePatterns) -contains '*copilot*' }
+        Should -Invoke Sync-EntraPrincipalRelationships -Times 1 -ParameterFilter { $SystemId -eq 7 -and @($AINamePatterns) -contains '*copilot*' }
+    }
+
+    It 'runs nothing when every toggle is off (all default to false)' {
+        Invoke-EntraApplicationPhases -SystemId 1 -Timings ([ordered]@{})
+        Should -Invoke Sync-EntraOAuth2Grants   -Times 0
+        Should -Invoke Sync-EntraAppRoles       -Times 0
+        Should -Invoke Sync-EntraAppOwners      -Times 0
+        Should -Invoke Sync-EntraAppPermissions -Times 0
+        Should -Invoke Sync-EntraPrincipalRelationships -Times 0
+    }
+
+    It 'runs only the phases whose toggle is on' {
+        Invoke-EntraApplicationPhases -SystemId 2 -Timings ([ordered]@{}) -SyncAppPermissions $true
+        Should -Invoke Sync-EntraAppPermissions -Times 1
+        Should -Invoke Sync-EntraOAuth2Grants   -Times 0
+        Should -Invoke Sync-EntraAppRoles       -Times 0
+        Should -Invoke Sync-EntraAppOwners      -Times 0
+    }
+
+    It 'treats an empty-string toggle (the shape the resolved config yields for an unset object) as OFF, not a binding error' {
+        # Regression: [bool]-typed toggle params rejected '' with "Cannot convert value ''
+        # to type System.Boolean" and crashed the entire crawl before any phase ran. The
+        # replaced inline `if ($SyncX)` guards used truthiness, where '' is falsy. This is
+        # exactly what the resolved config passes for an object the user did not select.
+        { Invoke-EntraApplicationPhases -SystemId 1 -Timings ([ordered]@{}) `
+            -SyncOAuth2Grants '' -SyncAppRoles '' -SyncAppOwners '' -SyncAppPermissions '' } | Should -Not -Throw
+        Should -Invoke Sync-EntraOAuth2Grants   -Times 0
+        Should -Invoke Sync-EntraAppRoles       -Times 0
+        Should -Invoke Sync-EntraAppOwners      -Times 0
+        Should -Invoke Sync-EntraAppPermissions -Times 0
+    }
+
+    It 'preserves the inline guards'' truthiness for every config shape ('''' / $null skip; "true" / $true run)' {
+        Invoke-EntraApplicationPhases -SystemId 1 -Timings ([ordered]@{}) `
+            -SyncOAuth2Grants '' -SyncAppRoles $null -SyncAppOwners 'true' -SyncAppPermissions $true
+        Should -Invoke Sync-EntraOAuth2Grants   -Times 0   # '' → skip
+        Should -Invoke Sync-EntraAppRoles       -Times 0   # $null → skip
+        Should -Invoke Sync-EntraAppOwners      -Times 1   # 'true' → run
+        Should -Invoke Sync-EntraAppPermissions -Times 1   # $true → run
+    }
+}
+
+# ─── Invoke-EntraApplicationPhases — shared-scope transparency ───────────────────
+# Guards the refactor that moved these four phase guards behind a dispatcher: a REAL
+# phase (not mocked) invoked THROUGH Invoke-EntraApplicationPhases must still read/write
+# the same $script:phaseErrors / $script:phases the entry-point owns. If the extra call
+# layer changed $script: resolution, the phase's catch would write to the wrong (or a
+# null) accumulator — which the mocked dispatch tests above can't catch. This is the
+# path the live crawler actually runs.
+Describe 'Invoke-EntraApplicationPhases (real phase through the dispatcher)' {
+    BeforeEach { Reset-PhaseTestState; Mock Send-IngestBatch -MockWith $script:SendMock }
+
+    It 'a real phase error raised via the dispatcher lands in the shared $script:phaseErrors + $script:phases' {
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'oauth2PermissionGrants' } -MockWith { throw 'Graph 403' }
+
+        Invoke-EntraApplicationPhases -SystemId 3 -Timings ([ordered]@{}) -SyncOAuth2Grants $true
+
+        $script:phaseErrors | Should -HaveCount 1
+        $script:phaseErrors[0] | Should -BeLike 'OAuth2Grants:*'
+        ($script:phases | Where-Object { $_.name -eq 'OAuth2Grants' }).status | Should -Be 'failed'
+    }
+
+    It 'a real successful phase via the dispatcher records its timing + an ok phase' {
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'oauth2PermissionGrants' } -MockWith {
+            @([pscustomobject]@{ id = 'g1'; consentType = 'Principal'; principalId = 'u1'; clientId = 'cli'; resourceId = 'api'; scope = 'Mail.Read' })
+        }
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'servicePrincipals/' } -MockWith { [pscustomobject]@{ id = 'x'; displayName = 'X'; appId = 'ax'; publisherName = 'p' } }
+
+        $timings = [ordered]@{}
+        Invoke-EntraApplicationPhases -SystemId 3 -Timings $timings -SyncOAuth2Grants $true
+
+        $timings.Contains('OAuth2Grants') | Should -BeTrue
+        ($script:phases | Where-Object { $_.name -eq 'OAuth2Grants' }).status | Should -Be 'ok'
+        $script:phaseErrors.Count | Should -Be 0
+    }
+}
+
+# ─── Sync-EntraDirectoryRoles ───────────────────────────────────────────────────
+Describe 'Sync-EntraDirectoryRoles' {
+    BeforeEach { Reset-PhaseTestState; Mock Send-IngestBatch -MockWith $script:SendMock }
+
+
+    It 'uploads role resources + deduped active + eligible assignments' {
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'roleDefinitions' } -MockWith {
+            @(
+                [pscustomobject]@{ id = 'r1'; displayName = 'Global Admin'; isEnabled = $true
+                    rolePermissions = @([pscustomobject]@{ allowedResourceActions = @('microsoft.directory/x') }) }
+                [pscustomobject]@{ id = 'r2'; displayName = 'Reader'; isEnabled = $true }
+            )
+        }
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'roleAssignments' } -MockWith {
+            @(
+                [pscustomobject]@{ id = 'ra1'; principalId = 'u1'; roleDefinitionId = 'r1'
+                    principal = [pscustomobject]@{ '@odata.type' = '#microsoft.graph.user' } }
+                # Duplicate (u1,r1) at a different scope — must collapse to one row.
+                [pscustomobject]@{ id = 'ra2'; principalId = 'u1'; roleDefinitionId = 'r1'
+                    principal = [pscustomobject]@{ '@odata.type' = '#microsoft.graph.user' } }
+                [pscustomobject]@{ id = 'ra3'; principalId = 'u2'; roleDefinitionId = 'r2'
+                    principal = [pscustomobject]@{ '@odata.type' = '#microsoft.graph.group' } }
+            )
+        }
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'roleEligibilityScheduleInstances' } -MockWith {
+            @([pscustomobject]@{ id = 'e1'; principalId = 'u3'; roleDefinitionId = 'r1'; endDateTime = '2026-01-01T00:00:00Z'
+                principal = [pscustomobject]@{ '@odata.type' = '#microsoft.graph.user' } })
+        }
+
+        $timings = [ordered]@{}
+        Sync-EntraDirectoryRoles -SystemId 7 -Timings $timings
+
+        (Get-Sent { $_.Scope.resourceType -eq 'EntraDirectoryRole' -and $_.Endpoint -eq 'ingest/resources' })[0].Records.Count | Should -Be 2
+        $active = Get-Sent { $_.Scope.assignmentType -eq 'Direct' -and $_.Scope.resourceType -eq 'EntraDirectoryRole' }
+        $active[0].Records.Count | Should -Be 2   # (u1,r1) deduped, plus (u2,r2)
+        $eligible = Get-Sent { $_.Scope.assignmentType -eq 'Eligible' -and $_.Scope.resourceType -eq 'EntraDirectoryRole' }
+        $eligible[0].Records.Count | Should -Be 1
+
+        $timings.Contains('DirectoryRoles') | Should -BeTrue
+        ($script:phases | Where-Object { $_.name -eq 'DirectoryRoles' }).status | Should -Be 'ok'
+        $script:phaseErrors.Count | Should -Be 0
+    }
+
+    It 'still uploads roles + active when PIM eligibility is unavailable (soft-fail)' {
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'roleDefinitions' } -MockWith {
+            @([pscustomobject]@{ id = 'r1'; displayName = 'Global Admin'; isEnabled = $true })
+        }
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'roleAssignments' } -MockWith {
+            @([pscustomobject]@{ id = 'ra1'; principalId = 'u1'; roleDefinitionId = 'r1'
+                principal = [pscustomobject]@{ '@odata.type' = '#microsoft.graph.user' } })
+        }
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'roleEligibilityScheduleInstances' } -MockWith { throw 'HTTP 403 (no P2)' }
+
+        Sync-EntraDirectoryRoles -SystemId 1 -Timings ([ordered]@{})
+
+        (Get-Sent { $_.Scope.resourceType -eq 'EntraDirectoryRole' -and $_.Endpoint -eq 'ingest/resources' }).Count | Should -Be 1
+        (Get-Sent { $_.Scope.assignmentType -eq 'Eligible' }).Count | Should -Be 0
+        # Inner catch swallows PIM failure — the phase itself is not marked failed.
+        $script:phaseErrors.Count | Should -Be 0
+    }
+
+    It 'records a phase failure when the role catalog fetch throws' {
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'roleDefinitions' } -MockWith { throw 'Graph 500' }
+
+        Sync-EntraDirectoryRoles -SystemId 1 -Timings ([ordered]@{})
+
+        $script:phaseErrors | Should -HaveCount 1
+        $script:phaseErrors[0] | Should -BeLike 'DirectoryRoles:*'
+        ($script:phases | Where-Object { $_.name -eq 'DirectoryRoles' }).status | Should -Be 'failed'
+    }
+}
+
+# ─── Sync-EntraOAuth2Grants ─────────────────────────────────────────────────────
+Describe 'Sync-EntraOAuth2Grants' {
+    BeforeEach { Reset-PhaseTestState; Mock Send-IngestBatch -MockWith $script:SendMock }
+
+
+    It 'ingests per-user consents as apps, scope resources, relationships and assignments' {
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'oauth2PermissionGrants' } -MockWith {
+            @(
+                [pscustomobject]@{ id = 'g1'; consentType = 'Principal'; principalId = 'u1'
+                    clientId = 'cli'; resourceId = 'api'; scope = 'Mail.Read User.Read' }
+                # Tenant-wide consent — must be skipped.
+                [pscustomobject]@{ id = 'g2'; consentType = 'AllPrincipals'; principalId = $null
+                    clientId = 'cli'; resourceId = 'api'; scope = 'Directory.Read.All' }
+            )
+        }
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'servicePrincipals/cli' } -MockWith {
+            [pscustomobject]@{ id = 'cli'; displayName = 'Client App'; appId = 'app-cli'; publisherName = 'Acme' }
+        }
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'servicePrincipals/api' } -MockWith {
+            [pscustomobject]@{ id = 'api'; displayName = 'Graph API'; appId = 'app-api'; publisherName = 'MS' }
+        }
+
+        Sync-EntraOAuth2Grants -SystemId 3 -Timings ([ordered]@{})
+
+        (Get-Sent { $_.Scope.resourceType -eq 'Application' })[0].Records.Count | Should -Be 1
+        # Two scopes -> two DelegatedPermission resources + two assignments.
+        (Get-Sent { $_.Scope.resourceType -eq 'DelegatedPermission' -and $_.Endpoint -eq 'ingest/resources' })[0].Records.Count | Should -Be 2
+        (Get-Sent { $_.Scope.relationshipType -eq 'DelegatesScope' })[0].Records.Count | Should -Be 2
+        $assigns = Get-Sent { $_.Scope.assignmentType -eq 'Direct' -and $_.Scope.resourceType -eq 'DelegatedPermission' }
+        $assigns[0].Records.Count | Should -Be 2
+        $assigns[0].Records[0].principalId | Should -Be 'u1'
+        $script:phaseErrors.Count | Should -Be 0
+    }
+
+    It 'ingests nothing when there are no per-user consents' {
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'oauth2PermissionGrants' } -MockWith {
+            @([pscustomobject]@{ id = 'g2'; consentType = 'AllPrincipals'; principalId = $null; clientId = 'c'; resourceId = 'a'; scope = 'X' })
+        }
+
+        Sync-EntraOAuth2Grants -SystemId 1 -Timings ([ordered]@{})
+
+        (Get-Sent { $_.Scope.resourceType -eq 'DelegatedPermission' }).Count | Should -Be 0
+        $script:phaseErrors.Count | Should -Be 0
+    }
+
+    It 'records a phase failure when the grants fetch throws' {
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'oauth2PermissionGrants' } -MockWith { throw 'Graph 403' }
+
+        Sync-EntraOAuth2Grants -SystemId 1 -Timings ([ordered]@{})
+
+        $script:phaseErrors | Should -HaveCount 1
+        $script:phaseErrors[0] | Should -BeLike 'OAuth2Grants:*'
+    }
+
+    It 'falls back to the raw id when a service-principal lookup fails (still ingests the grant)' {
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'oauth2PermissionGrants' } -MockWith {
+            @([pscustomobject]@{ id = 'g1'; consentType = 'Principal'; principalId = 'u1'; clientId = 'cli'; resourceId = 'api'; scope = 'Mail.Read' })
+        }
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'servicePrincipals/' } -MockWith { throw 'SP deleted' }
+
+        Sync-EntraOAuth2Grants -SystemId 3 -Timings ([ordered]@{})
+
+        (Get-Sent { $_.Scope.resourceType -eq 'Application' })[0].Records.Count | Should -Be 1
+        $script:phaseErrors.Count | Should -Be 0
+    }
+
+    It 'dedupes grant assignments that collide on (resource, principal)' {
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'oauth2PermissionGrants' } -MockWith {
+            @(
+                [pscustomobject]@{ id = 'g1'; consentType = 'Principal'; principalId = 'u1'; clientId = 'cli'; resourceId = 'api'; scope = 'Mail.Read' }
+                [pscustomobject]@{ id = 'g3'; consentType = 'Principal'; principalId = 'u1'; clientId = 'cli'; resourceId = 'api'; scope = 'Mail.Read Calendar.Read' }
+            )
+        }
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'servicePrincipals/' } -MockWith { [pscustomobject]@{ id = 'x'; displayName = 'X'; appId = 'ax'; publisherName = 'p' } }
+
+        Sync-EntraOAuth2Grants -SystemId 3 -Timings ([ordered]@{})
+
+        # Raw: Mail.Read(u1) from both grants + Calendar.Read(u1) = 3; deduped to 2 unique.
+        $assigns = Get-Sent { $_.Scope.assignmentType -eq 'Direct' -and $_.Scope.resourceType -eq 'DelegatedPermission' }
+        $assigns[0].Records.Count | Should -Be 2
+    }
+}
+
+# ─── Add-EntraAppRoleAssignment ─────────────────────────────────────────────────
+Describe 'Add-EntraAppRoleAssignment' {
+
+    BeforeEach {
+        Reset-PhaseTestState
+        $script:sp = [pscustomobject]@{ id = 'sp1'; displayName = 'App One' }
+        $script:rolesByGuid = @{ 'role-a' = [pscustomobject]@{ id = 'role-a'; displayName = 'Admin'; value = 'admin' } }
+        $script:appRoleMap = @{}
+        $script:relMap     = @{}
+        $script:directAssns = [System.Collections.Generic.List[object]]::new()
+        $script:groupAssns  = @{}
+    }
+
+    It 'adds a User assignment plus the AppRole resource and HasAppRole relationship' {
+        $a = [pscustomobject]@{ id = 'aa1'; appRoleId = 'role-a'; principalId = 'u1'; principalType = 'User' }
+        Add-EntraAppRoleAssignment -Assignment $a -ServicePrincipal $script:sp -RolesByGuid $script:rolesByGuid `
+            -DefaultRoleId '00000000-0000-0000-0000-000000000000' -AppRoleMap $script:appRoleMap `
+            -RelMap $script:relMap -DirectAssns $script:directAssns -GroupAssns $script:groupAssns
+
+        $script:directAssns.Count | Should -Be 1
+        $script:directAssns[0].principalType | Should -Be 'User'
+        $script:appRoleMap.Count | Should -Be 1
+        $script:relMap.Count | Should -Be 1
+        $script:groupAssns.Count | Should -Be 0
+    }
+
+    It 'buckets a Group assignment and also emits the group->AppRole edge' {
+        $a = [pscustomobject]@{ id = 'aa2'; appRoleId = 'role-a'; principalId = 'grp1'; principalType = 'Group' }
+        Add-EntraAppRoleAssignment -Assignment $a -ServicePrincipal $script:sp -RolesByGuid $script:rolesByGuid `
+            -DefaultRoleId '00000000-0000-0000-0000-000000000000' -AppRoleMap $script:appRoleMap `
+            -RelMap $script:relMap -DirectAssns $script:directAssns -GroupAssns $script:groupAssns
+
+        $script:groupAssns.ContainsKey('grp1') | Should -BeTrue
+        $script:groupAssns['grp1'].Count | Should -Be 1
+        $script:directAssns[0].principalType | Should -Be 'Group'
+    }
+
+    It 'synthesizes a placeholder role for an appRoleId absent from the catalog' {
+        $a = [pscustomobject]@{ id = 'aa3'; appRoleId = 'unknown-role'; principalId = 'u2'; principalType = 'User' }
+        Add-EntraAppRoleAssignment -Assignment $a -ServicePrincipal $script:sp -RolesByGuid $script:rolesByGuid `
+            -DefaultRoleId '00000000-0000-0000-0000-000000000000' -AppRoleMap $script:appRoleMap `
+            -RelMap $script:relMap -DirectAssns $script:directAssns -GroupAssns $script:groupAssns
+
+        $script:rolesByGuid.ContainsKey('unknown-role') | Should -BeTrue
+        $script:directAssns.Count | Should -Be 1
+    }
+
+    It 'skips a ServicePrincipal-typed assignment (no direct row) but still catalogs the role' {
+        $a = [pscustomobject]@{ id = 'aa4'; appRoleId = 'role-a'; principalId = 'sp2'; principalType = 'ServicePrincipal' }
+        Add-EntraAppRoleAssignment -Assignment $a -ServicePrincipal $script:sp -RolesByGuid $script:rolesByGuid `
+            -DefaultRoleId '00000000-0000-0000-0000-000000000000' -AppRoleMap $script:appRoleMap `
+            -RelMap $script:relMap -DirectAssns $script:directAssns -GroupAssns $script:groupAssns
+
+        $script:directAssns.Count | Should -Be 0
+        $script:appRoleMap.Count | Should -Be 1
+    }
+}
+
+# ─── Expand-EntraAppRoleGroupAssignments ────────────────────────────────────────
+Describe 'Expand-EntraAppRoleGroupAssignments' {
+    BeforeEach { Reset-PhaseTestState }
+
+    It 'fans a group role assignment out to one row per transitive user member' {
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'transitiveMembers' } -MockWith {
+            @(
+                [pscustomobject]@{ id = 'u1'; '@odata.type' = '#microsoft.graph.user' }
+                [pscustomobject]@{ id = 'u2'; '@odata.type' = '#microsoft.graph.user' }
+                [pscustomobject]@{ id = 'nestedGrp'; '@odata.type' = '#microsoft.graph.group' }  # filtered out
+            )
+        }
+        $groupAssns = @{ 'grp1' = [System.Collections.Generic.List[object]]::new() }
+        $groupAssns['grp1'].Add(@{ roleResId = 'rr1'; roleId = 'role-a'; sourceAssignmentId = 'aa1'; appName = 'App One' })
+
+        $out = Expand-EntraAppRoleGroupAssignments -GroupAssns $groupAssns
+
+        @($out).Count | Should -Be 2
+        @($out)[0].assignmentType | Should -Be 'Indirect'
+        @($out).principalId | Should -Contain 'u1'
+        @($out).principalId | Should -Contain 'u2'
+    }
+
+    It 'skips a group whose transitiveMembers call fails' {
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'transitiveMembers' } -MockWith { throw 'Graph 404' }
+        $groupAssns = @{ 'grp1' = [System.Collections.Generic.List[object]]::new() }
+        $groupAssns['grp1'].Add(@{ roleResId = 'rr1'; roleId = 'role-a'; sourceAssignmentId = 'aa1'; appName = 'App One' })
+
+        $out = Expand-EntraAppRoleGroupAssignments -GroupAssns $groupAssns
+        @($out).Count | Should -Be 0
+    }
+}
+
+# ─── Send-EntraAppRoleBatches ───────────────────────────────────────────────────
+Describe 'Send-EntraAppRoleBatches' {
+    BeforeEach { Reset-PhaseTestState; Mock Send-IngestBatch -MockWith $script:SendMock }
+
+
+    It 'sends one batch per non-empty record set and skips the empty ones' {
+        Send-EntraAppRoleBatches -SystemId 1 `
+            -AppRecords @(@{ id = 'a' }) -RoleRecords @() -RelRecords @(@{ id = 'r' }) `
+            -DirectRecords @() -IndirectRecords @(@{ id = 'i' })
+
+        $script:sent.Count | Should -Be 3
+        (Get-Sent { $_.Scope.resourceType -eq 'Application' }).Count | Should -Be 1
+        (Get-Sent { $_.Scope.relationshipType -eq 'HasAppRole' }).Count | Should -Be 1
+        (Get-Sent { $_.Scope.assignmentType -eq 'Indirect' -and $_.Scope.resourceType -eq 'AppRole' }).Count | Should -Be 1
+    }
+
+    It 'sends nothing when every set is empty' {
+        Send-EntraAppRoleBatches -SystemId 1 -AppRecords @() -RoleRecords @() -RelRecords @() -DirectRecords @() -IndirectRecords @()
+        $script:sent.Count | Should -Be 0
+    }
+}
+
+# ─── Sync-EntraAppRoles (integration over the helpers) ──────────────────────────
+Describe 'Sync-EntraAppRoles' {
+    BeforeEach { Reset-PhaseTestState; Mock Send-IngestBatch -MockWith $script:SendMock }
+
+
+    It 'discovers an enterprise app and uploads its app, role, relationship and direct assignment' {
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'servicePrincipals\?' } -MockWith {
+            @([pscustomobject]@{
+                id = 'sp1'; displayName = 'App One'; appId = 'app1'; appRoleAssignmentRequired = $true
+                appRoles = @([pscustomobject]@{ id = 'role-a'; displayName = 'Admin'; value = 'admin' })
+            })
+        }
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'appRoleAssignedTo' } -MockWith {
+            @([pscustomobject]@{ id = 'aa1'; appRoleId = 'role-a'; principalId = 'u1'; principalType = 'User'; createdDateTime = '2026-01-01T00:00:00Z' })
+        }
+
+        $timings = [ordered]@{}
+        Sync-EntraAppRoles -SystemId 5 -Timings $timings
+
+        (Get-Sent { $_.Scope.resourceType -eq 'Application' })[0].Records.Count | Should -Be 1
+        (Get-Sent { $_.Scope.resourceType -eq 'AppRole' -and $_.Endpoint -eq 'ingest/resources' })[0].Records.Count | Should -Be 1
+        (Get-Sent { $_.Scope.relationshipType -eq 'HasAppRole' })[0].Records.Count | Should -Be 1
+        (Get-Sent { $_.Scope.assignmentType -eq 'Direct' -and $_.Scope.resourceType -eq 'AppRole' })[0].Records.Count | Should -Be 1
+        $timings.Contains('AppRoles') | Should -BeTrue
+        $script:phaseErrors.Count | Should -Be 0
+    }
+
+    It 'records a phase failure when the SP enumeration throws' {
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'servicePrincipals\?' } -MockWith { throw 'Graph 403' }
+
+        Sync-EntraAppRoles -SystemId 1 -Timings ([ordered]@{})
+
+        $script:phaseErrors | Should -HaveCount 1
+        $script:phaseErrors[0] | Should -BeLike 'AppRoles:*'
+    }
+
+    It 'skips a single app whose appRoleAssignedTo fetch fails, without failing the phase' {
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'servicePrincipals\?' } -MockWith {
+            @(
+                [pscustomobject]@{ id = 'spBad'; displayName = 'Bad'; appId = 'aB'; appRoleAssignmentRequired = $true; appRoles = @() }
+                [pscustomobject]@{ id = 'spGood'; displayName = 'Good'; appId = 'aG'; appRoleAssignmentRequired = $true
+                    appRoles = @([pscustomobject]@{ id = 'role-a'; displayName = 'Admin'; value = 'admin' }) }
+            )
+        }
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'servicePrincipals/spBad/appRoleAssignedTo' } -MockWith { throw 'Graph 500' }
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'servicePrincipals/spGood/appRoleAssignedTo' } -MockWith {
+            @([pscustomobject]@{ id = 'aa1'; appRoleId = 'role-a'; principalId = 'u1'; principalType = 'User'; createdDateTime = '2026-01-01T00:00:00Z' })
+        }
+
+        Sync-EntraAppRoles -SystemId 5 -Timings ([ordered]@{})
+
+        # Only the good app emitted an Application resource; the bad one was skipped, not fatal.
+        (Get-Sent { $_.Scope.resourceType -eq 'Application' })[0].Records.Count | Should -Be 1
+        $script:phaseErrors.Count | Should -Be 0
+    }
+}
+
+# ─── Sync-EntraResources ────────────────────────────────────────────────────────
+Describe 'Sync-EntraResources' {
+    BeforeEach { Reset-PhaseTestState; Mock Send-IngestBatch -MockWith $script:SendMock }
+
+    It 'uploads Group resources and returns the raw groups (only the groups)' {
+        $fixtureGroups = @(
+            [pscustomobject]@{ id = 'g1'; displayName = 'Group One'; securityEnabled = $true }
+            [pscustomobject]@{ id = 'g2'; displayName = 'Group Two'; securityEnabled = $true }
+        )
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match '/groups\?' } -MockWith { $fixtureGroups }
+
+        $timings = [ordered]@{}
+        $returned = Sync-EntraResources -SystemId 2 -CustomGroupAttributes @() -Timings $timings
+
+        (Get-Sent { $_.Scope.resourceType -eq 'Group' })[0].Records.Count | Should -Be 2
+        # The function must return ONLY the groups — not the Send-IngestBatch result.
+        @($returned).Count | Should -Be 2
+        @($returned).id | Should -Contain 'g1'
+        @($returned).id | Should -Contain 'g2'
+        $timings.Contains('Resources') | Should -BeTrue
+        $script:phaseErrors.Count | Should -Be 0
+    }
+
+    It 'records a phase failure and returns empty when the group fetch throws' {
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match '/groups\?' } -MockWith { throw 'Graph 500' }
+
+        $returned = Sync-EntraResources -SystemId 1 -Timings ([ordered]@{})
+
+        @($returned).Count | Should -Be 0
+        $script:phaseErrors | Should -HaveCount 1
+        $script:phaseErrors[0] | Should -BeLike 'Resources:*'
+    }
+}
+
+# ─── Sync-EntraAssignments ──────────────────────────────────────────────────────
+Describe 'Sync-EntraAssignments' {
+    BeforeEach { Reset-PhaseTestState; Mock Send-IngestBatch -MockWith $script:SendMock }
+
+    It 'uploads memberships plus ownership resources, relationships and owner assignments' {
+        # Get-FGGroupChildrenParallel is the parallel-fetch boundary — mock it per
+        # child path so the phase's orchestration (not the runspaces) is exercised.
+        Mock Get-FGGroupChildrenParallel -ParameterFilter { $ChildPath -eq 'members' } -MockWith {
+            @{ records = @(
+                @{ resourceId = 'g1'; principalId = 'u1'; assignmentType = 'Direct'; resourceType = 'Group'; principalType = 'User' }
+                @{ resourceId = 'g1'; principalId = 'u2'; assignmentType = 'Direct'; resourceType = 'Group'; principalType = 'User' }
+              ); errorCount = 0 }
+        }
+        Mock Get-FGGroupChildrenParallel -ParameterFilter { $ChildPath -eq 'owners' } -MockWith {
+            @{ records = @(@{ groupId = 'g1'; principalId = 'o1' }); errorCount = 0 }
+        }
+
+        $groups = @([pscustomobject]@{ id = 'g1'; displayName = 'Group One' })
+        $timings = [ordered]@{}
+        Sync-EntraAssignments -SystemId 4 -Groups $groups -Timings $timings
+
+        (Get-Sent { $_.Scope.assignmentType -eq 'Direct' -and $_.Scope.resourceType -eq 'Group' })[0].Records.Count | Should -Be 2
+        (Get-Sent { $_.Scope.resourceType -eq 'GroupOwnership' -and $_.Endpoint -eq 'ingest/resources' })[0].Records.Count | Should -Be 1
+        (Get-Sent { $_.Scope.relationshipType -eq 'HasOwnership' })[0].Records.Count | Should -Be 1
+        $ownerAssns = Get-Sent { $_.Scope.assignmentType -eq 'Direct' -and $_.Scope.resourceType -eq 'GroupOwnership' }
+        $ownerAssns[0].Records.Count | Should -Be 1
+        $ownerAssns[0].Records[0].principalId | Should -Be 'o1'
+        $timings.Contains('Assignments') | Should -BeTrue
+        $script:phaseErrors.Count | Should -Be 0
+    }
+
+    It 'sends ownership batches even when there are no owners (full-sync reconcile)' {
+        Mock Get-FGGroupChildrenParallel -ParameterFilter { $ChildPath -eq 'members' } -MockWith { @{ records = @(); errorCount = 0 } }
+        Mock Get-FGGroupChildrenParallel -ParameterFilter { $ChildPath -eq 'owners' } -MockWith { @{ records = @(); errorCount = 0 } }
+
+        Sync-EntraAssignments -SystemId 1 -Groups @([pscustomobject]@{ id = 'g1'; displayName = 'G1' }) -Timings ([ordered]@{})
+
+        # Ownership resource/relationship/assignment batches are still sent (empty)
+        # so the reconcile clears rows for groups that lost owners.
+        (Get-Sent { $_.Scope.resourceType -eq 'GroupOwnership' -and $_.Endpoint -eq 'ingest/resources' }).Count | Should -Be 1
+        (Get-Sent { $_.Scope.relationshipType -eq 'HasOwnership' }).Count | Should -Be 1
+        $script:phaseErrors.Count | Should -Be 0
+    }
+
+    It 'records a phase failure when the member fetch throws' {
+        Mock Get-FGGroupChildrenParallel -MockWith { throw 'runspace boom' }
+
+        Sync-EntraAssignments -SystemId 1 -Groups @([pscustomobject]@{ id = 'g1'; displayName = 'G1' }) -Timings ([ordered]@{})
+
+        $script:phaseErrors | Should -HaveCount 1
+        $script:phaseErrors[0] | Should -BeLike 'Assignments:*'
+    }
+
+    It 'runs the member/owner record-builders and warns on groups that failed after retries' {
+        # Invoke the passed -RecordBuilder so the shaping scriptblocks are exercised,
+        # and report a non-zero errorCount to hit the WARNING branches.
+        Mock Get-FGGroupChildrenParallel -ParameterFilter { $ChildPath -eq 'members' } -MockWith {
+            $rec = & $RecordBuilder ([pscustomobject]@{ resourceId = 'g1'; principalId = 'grp2'; childType = '#microsoft.graph.group' })
+            @{ records = @($rec); errorCount = 1 }
+        }
+        Mock Get-FGGroupChildrenParallel -ParameterFilter { $ChildPath -eq 'owners' } -MockWith {
+            $rec = & $RecordBuilder ([pscustomobject]@{ resourceId = 'g1'; principalId = 'o1' })
+            @{ records = @($rec); errorCount = 2 }
+        }
+
+        Sync-EntraAssignments -SystemId 4 -Groups @([pscustomobject]@{ id = 'g1'; displayName = 'G1' }) -Timings ([ordered]@{})
+
+        # The member builder classifies a nested group child as principalType 'Group'.
+        (Get-Sent { $_.Scope.resourceType -eq 'Group' -and $_.Scope.assignmentType -eq 'Direct' })[0].Records[0].principalType | Should -Be 'Group'
+        # The owner builder produced a raw owner row that became one owner assignment.
+        (Get-Sent { $_.Scope.resourceType -eq 'GroupOwnership' -and $_.Endpoint -eq 'ingest/resource-assignments' })[0].Records[0].principalId | Should -Be 'o1'
+        $script:phaseErrors.Count | Should -Be 0
+    }
+}
+
+# ─── Sync-EntraPim ──────────────────────────────────────────────────────────────
+Describe 'Sync-EntraPim' {
+    BeforeEach { Reset-PhaseTestState; Mock Send-IngestBatch -MockWith $script:SendMock }
+
+    It 'uploads deduped Eligible Group assignments and skips dynamic groups' {
+        # Invoke-FGGroupPimBatchParallel is the parallel-runspace boundary — mock
+        # it to return raw eligibility rows (as the real one emits per group).
+        Mock Invoke-FGGroupPimBatchParallel -MockWith {
+            @(
+                [pscustomobject]@{ resourceId = 'g1'; principalId = 'u1'; principalType = 'User'; assignmentType = 'Eligible'; state = 'Provisioned'; expirationDateTime = $null }
+                # Duplicate (g1,u1) — must collapse.
+                [pscustomobject]@{ resourceId = 'g1'; principalId = 'u1'; principalType = 'User'; assignmentType = 'Eligible'; state = 'Provisioned'; expirationDateTime = $null }
+                [pscustomobject]@{ resourceId = 'g2'; principalId = 'u2'; principalType = 'User'; assignmentType = 'Eligible'; state = 'Provisioned'; expirationDateTime = $null }
+            )
+        }
+        $groups = @(
+            [pscustomobject]@{ id = 'g1'; displayName = 'Group One'; groupTypes = @() }
+            [pscustomobject]@{ id = 'g2'; displayName = 'Group Two'; groupTypes = @() }
+            [pscustomobject]@{ id = 'gDyn'; displayName = 'Dynamic'; groupTypes = @('DynamicMembership') }
+        )
+
+        $timings = [ordered]@{}
+        Sync-EntraPim -SystemId 9 -Groups $groups -Timings $timings
+
+        $sent = Get-Sent { $_.Scope.assignmentType -eq 'Eligible' -and $_.Scope.resourceType -eq 'Group' }
+        $sent[0].Records.Count | Should -Be 2   # (g1,u1) deduped + (g2,u2)
+        $sent[0].Records[0].resourceType | Should -Be 'Group'
+        # The dynamic group must be filtered out before the parallel fetch.
+        Should -Invoke Invoke-FGGroupPimBatchParallel -Times 1 -ParameterFilter { @($Batch).id -notcontains 'gDyn' }
+        $timings.Contains('PIM') | Should -BeTrue
+        $script:phaseErrors.Count | Should -Be 0
+    }
+
+    It 'sends nothing when no group has eligibilities' {
+        Mock Invoke-FGGroupPimBatchParallel -MockWith { @() }
+
+        Sync-EntraPim -SystemId 1 -Groups @([pscustomobject]@{ id = 'g1'; displayName = 'G1'; groupTypes = @() }) -Timings ([ordered]@{})
+
+        (Get-Sent { $_.Scope.assignmentType -eq 'Eligible' }).Count | Should -Be 0
+        $script:phaseErrors.Count | Should -Be 0
+    }
+
+    It 'records a phase failure when the parallel fetch throws' {
+        Mock Invoke-FGGroupPimBatchParallel -MockWith { throw 'runspace boom' }
+
+        Sync-EntraPim -SystemId 1 -Groups @([pscustomobject]@{ id = 'g1'; displayName = 'G1'; groupTypes = @() }) -Timings ([ordered]@{})
+
+        $script:phaseErrors | Should -HaveCount 1
+        $script:phaseErrors[0] | Should -BeLike 'PIM:*'
+    }
+}
+
+# ─── Send-EntraServicePrincipalBatches ──────────────────────────────────────────
+Describe 'Send-EntraServicePrincipalBatches' {
+    BeforeEach { Reset-PhaseTestState; Mock Send-IngestBatch -MockWith $script:SendMock }
+
+    It 'buckets by principalType and rides delta tombstones on the first non-empty bucket only' {
+        $sps = @(
+            [pscustomobject]@{ id = 'sp1'; appId = 'a1'; displayName = 'App One'; servicePrincipalType = 'Application'; accountEnabled = $true }
+            [pscustomobject]@{ id = 'mi1'; appId = 'a2'; displayName = 'Managed'; servicePrincipalType = 'ManagedIdentity'; accountEnabled = $true }
+        )
+        Send-EntraServicePrincipalBatches -SystemId 3 -Sps $sps -RemovedSpIds @('gone1') -SpDeltaHit $true
+
+        $spCall = Get-Sent { $_.Scope.principalType -eq 'ServicePrincipal' }
+        $miCall = Get-Sent { $_.Scope.principalType -eq 'ManagedIdentity' }
+        $spCall[0].Records.Count | Should -Be 1
+        $miCall[0].Records.Count | Should -Be 1
+        # syncMode is 'delta' in a delta-hit run.
+        $spCall[0].SyncMode | Should -Be 'delta'
+        # Only ONE bucket carries the deleted ids (id-scoped delete runs once).
+        @($script:sent | Where-Object { $_.Records }).Count | Should -BeGreaterThan 0
+        Should -Invoke Send-IngestBatch -Times 1 -ParameterFilter { @($DeletedIds).Count -gt 0 }
+    }
+
+    It 'uses full syncMode and sends no deletes on a non-delta run' {
+        $sps = @([pscustomobject]@{ id = 'sp1'; appId = 'a1'; displayName = 'App One'; servicePrincipalType = 'Application'; accountEnabled = $true })
+        Send-EntraServicePrincipalBatches -SystemId 1 -Sps $sps -RemovedSpIds @() -SpDeltaHit $false
+
+        (Get-Sent { $_.Scope.principalType -eq 'ServicePrincipal' })[0].SyncMode | Should -Be 'full'
+        Should -Invoke Send-IngestBatch -Times 0 -ParameterFilter { @($DeletedIds).Count -gt 0 }
+    }
+}
+
+# ─── Sync-EntraServicePrincipals (integration over the sub-helpers) ─────────────
+Describe 'Sync-EntraServicePrincipals' {
+    BeforeEach {
+        Reset-PhaseTestState
+        Mock Send-IngestBatch -MockWith $script:SendMock
+        # Delta-token persistence boundary (would hit Invoke-RestMethod) — stub out.
+        Mock Get-FGDeltaToken -MockWith { $null }
+        Mock Remove-FGDeltaToken -MockWith { }
+        Mock Set-FGDeltaToken -MockWith { }
+        Mock Invoke-FGGetDeltaRequest -MockWith { @{ value = @(); deltaToken = 'primed-tok' } }
+    }
+
+    It 'full mode: fetches, classifies, uploads, primes the delta token and returns the SPs' {
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'servicePrincipals\?\$select' } -MockWith {
+            @(
+                [pscustomobject]@{ id = 'sp1'; appId = 'a1'; displayName = 'App One'; servicePrincipalType = 'Application'; accountEnabled = $true }
+                [pscustomobject]@{ id = 'mi1'; appId = 'a2'; displayName = 'Managed'; servicePrincipalType = 'ManagedIdentity'; accountEnabled = $true }
+            )
+        }
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'servicePrincipalSignInActivities' } -MockWith { @() }
+
+        $timings = [ordered]@{}
+        $returned = Sync-EntraServicePrincipals -SystemId 5 -SyncMode 'full' -AINamePatterns @() -AggregateResourceId '00000000-0000-0000-0000-000000000000' -Timings $timings
+
+        (Get-Sent { $_.Scope.principalType -eq 'ServicePrincipal' })[0].Records.Count | Should -Be 1
+        (Get-Sent { $_.Scope.principalType -eq 'ManagedIdentity' })[0].Records.Count | Should -Be 1
+        # Returns ONLY the SPs (not the ingest results).
+        @($returned).Count | Should -Be 2
+        @($returned).id | Should -Contain 'sp1'
+        Should -Invoke Set-FGDeltaToken -Times 1 -ParameterFilter { $Token -eq 'primed-tok' }
+        $timings.Contains('ServicePrincipals') | Should -BeTrue
+        $script:phaseErrors.Count | Should -Be 0
+    }
+
+    It 'uploads SP sign-in activity joined by appId' {
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'servicePrincipals\?\$select' } -MockWith {
+            @([pscustomobject]@{ id = 'sp1'; appId = 'a1'; displayName = 'App One'; servicePrincipalType = 'Application'; accountEnabled = $true })
+        }
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'servicePrincipalSignInActivities' } -MockWith {
+            @([pscustomobject]@{ appId = 'a1'; lastSignInActivity = [pscustomobject]@{ lastSignInDateTime = '2026-06-01T00:00:00Z' } })
+        }
+
+        Sync-EntraServicePrincipals -SystemId 1 -SyncMode 'full' -AggregateResourceId '00000000-0000-0000-0000-000000000000' -Timings ([ordered]@{})
+
+        (Get-Sent { $_.Endpoint -eq 'ingest/principal-activity' }).Count | Should -BeGreaterThan 0
+        $script:phaseErrors.Count | Should -Be 0
+    }
+
+    It 'soft-fails SP activity (WARN) without failing the whole phase' {
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'servicePrincipals\?\$select' } -MockWith {
+            @([pscustomobject]@{ id = 'sp1'; appId = 'a1'; displayName = 'App One'; servicePrincipalType = 'Application'; accountEnabled = $true })
+        }
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'servicePrincipalSignInActivities' } -MockWith { throw 'HTTP 403' }
+
+        Sync-EntraServicePrincipals -SystemId 1 -SyncMode 'full' -AggregateResourceId 'x' -Timings ([ordered]@{})
+
+        # SP records still landed; the activity 403 is swallowed, not a phase error.
+        (Get-Sent { $_.Scope.principalType -eq 'ServicePrincipal' }).Count | Should -Be 1
+        $script:phaseErrors.Count | Should -Be 0
+    }
+
+    It 'records a phase failure and returns empty when the SP fetch throws' {
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'servicePrincipals\?\$select' } -MockWith { throw 'Graph 500' }
+
+        $returned = Sync-EntraServicePrincipals -SystemId 1 -SyncMode 'full' -AggregateResourceId 'x' -Timings ([ordered]@{})
+
+        @($returned).Count | Should -Be 0
+        $script:phaseErrors | Should -HaveCount 1
+        $script:phaseErrors[0] | Should -BeLike 'ServicePrincipals:*'
+    }
+}
+
+# ─── Get-EntraServicePrincipalData (delta paths) ────────────────────────────────
+Describe 'Get-EntraServicePrincipalData' {
+    BeforeEach {
+        Reset-PhaseTestState
+        Mock Remove-FGDeltaToken -MockWith { }
+    }
+
+    It 'delta mode with a stored token fetches only changed SPs and collects @removed tombstones' {
+        Mock Get-FGDeltaToken -MockWith { 'stored-tok' }
+        Mock Invoke-FGGetDeltaRequest -MockWith {
+            @{ value = @(
+                [pscustomobject]@{ id = 'sp1'; displayName = 'Changed' }
+                [pscustomobject]@{ id = 'sp2'; '@removed' = [pscustomobject]@{ reason = 'deleted' } }
+            ); deltaToken = 'next-tok' }
+        }
+        $r = Get-EntraServicePrincipalData -SystemId 5 -SyncMode 'delta'
+        $r.spDeltaHit       | Should -BeTrue
+        @($r.sps).Count     | Should -Be 1
+        @($r.removedSpIds)  | Should -Be @('sp2')
+        $r.newSpsToken      | Should -Be 'next-tok'
+    }
+
+    It 'falls back to a full fetch when the delta token is rejected (InvalidOperationException)' {
+        Mock Get-FGDeltaToken -MockWith { 'bad-tok' }
+        Mock Invoke-FGGetDeltaRequest -ParameterFilter { $URI -match 'deltatoken=' } -MockWith { throw [System.InvalidOperationException]::new('token rejected') }
+        Mock Invoke-FGGetDeltaRequest -ParameterFilter { $URI -match 'select=id' } -MockWith { @{ deltaToken = 'primed' } }
+        Mock Invoke-FGGetRequest -MockWith { @([pscustomobject]@{ id = 'sp1'; displayName = 'Full' }) }
+        $r = Get-EntraServicePrincipalData -SystemId 5 -SyncMode 'delta'
+        $r.spDeltaHit   | Should -BeFalse
+        @($r.sps).Count | Should -Be 1
+        Should -Invoke Remove-FGDeltaToken -Times 1
+    }
+
+    It 'falls back to a full fetch on a generic delta failure' {
+        Mock Get-FGDeltaToken -MockWith { 'tok' }
+        Mock Invoke-FGGetDeltaRequest -ParameterFilter { $URI -match 'deltatoken=' } -MockWith { throw 'network glitch' }
+        Mock Invoke-FGGetDeltaRequest -ParameterFilter { $URI -match 'select=id' } -MockWith { @{ deltaToken = 'primed' } }
+        Mock Invoke-FGGetRequest -MockWith { @([pscustomobject]@{ id = 'sp1' }) }
+        (Get-EntraServicePrincipalData -SystemId 5 -SyncMode 'delta').spDeltaHit | Should -BeFalse
+    }
+
+    It 'swallows a delta-token priming failure on the full path' {
+        Mock Get-FGDeltaToken -MockWith { $null }
+        Mock Invoke-FGGetRequest -MockWith { @([pscustomobject]@{ id = 'sp1' }) }
+        Mock Invoke-FGGetDeltaRequest -MockWith { throw 'prime failed' }
+        { Get-EntraServicePrincipalData -SystemId 5 -SyncMode 'full' } | Should -Not -Throw
+    }
+}
+
+# ─── Get-EntraSpAppIdIndex ──────────────────────────────────────────────────────
+Describe 'Get-EntraSpAppIdIndex' {
+
+    It 'builds the appId -> spId map from provided SPs without a Graph call' {
+        Mock Invoke-FGGetRequest -MockWith { throw 'should not be called' }
+        $sps = @(
+            [pscustomobject]@{ id = 'sp1'; appId = 'a1' }
+            [pscustomobject]@{ id = 'sp2'; appId = 'a2' }
+            [pscustomobject]@{ id = 'sp3'; appId = $null }   # no appId -> skipped
+        )
+        $idx = Get-EntraSpAppIdIndex -Sps $sps
+        $idx['a1'] | Should -Be 'sp1'
+        $idx['a2'] | Should -Be 'sp2'
+        $idx.Count | Should -Be 2
+    }
+
+    It 'falls back to a Graph fetch when no SPs are supplied' {
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'servicePrincipals' } -MockWith {
+            @([pscustomobject]@{ id = 'spX'; appId = 'aX' })
+        }
+        $idx = Get-EntraSpAppIdIndex -Sps @()
+        $idx['aX'] | Should -Be 'spX'
+        Should -Invoke Invoke-FGGetRequest -Times 1
+    }
+}
+
+# ─── Sync-EntraSignInLogs ───────────────────────────────────────────────────────
+Describe 'Sync-EntraSignInLogs' {
+    BeforeEach { Reset-PhaseTestState; Mock Send-IngestBatch -MockWith $script:SendMock }
+
+    It 'aggregates streamed events into per-(user, app) activity rows' {
+        Mock Invoke-FGGetRequestStream -MockWith {
+            @(
+                [pscustomobject]@{ userId = 'u1'; appId = 'a1'; createdDateTime = '2026-06-01T10:00:00Z'; status = [pscustomobject]@{ errorCode = 0 } }
+                [pscustomobject]@{ userId = 'u1'; appId = 'a1'; createdDateTime = '2026-06-02T10:00:00Z'; status = [pscustomobject]@{ errorCode = 0 } }
+                [pscustomobject]@{ userId = 'u2'; appId = 'a1'; createdDateTime = '2026-06-02T11:00:00Z'; status = [pscustomobject]@{ errorCode = 0 } }
+            )
+        }
+        $sps = @([pscustomobject]@{ id = 'sp1'; appId = 'a1' })
+        $timings = [ordered]@{}
+        Sync-EntraSignInLogs -SystemId 6 -Sps $sps -SignInLogsDays 1 -Timings $timings
+
+        $act = Get-Sent { $_.Endpoint -eq 'ingest/principal-activity' }
+        $act[0].Records.Count | Should -Be 2   # (u1,sp1) collapsed from 2 events + (u2,sp1)
+        ($act[0].Records | Where-Object { $_.principalId -eq 'u1' }).signInCount | Should -Be 2
+        $timings.Contains('SignInLogs') | Should -BeTrue
+        $script:phaseErrors.Count | Should -Be 0
+    }
+
+    It 'skips events whose appId is not in the index (no activity uploaded)' {
+        Mock Invoke-FGGetRequestStream -MockWith {
+            @([pscustomobject]@{ userId = 'u1'; appId = 'unknown'; createdDateTime = '2026-06-01T10:00:00Z'; status = [pscustomobject]@{ errorCode = 0 } })
+        }
+        Sync-EntraSignInLogs -SystemId 1 -Sps @([pscustomobject]@{ id = 'sp1'; appId = 'a1' }) -SignInLogsDays 1 -Timings ([ordered]@{})
+
+        (Get-Sent { $_.Endpoint -eq 'ingest/principal-activity' }).Count | Should -Be 0
+        $script:phaseErrors.Count | Should -Be 0
+    }
+
+    It 'records a phase failure when every day slice fails' {
+        Mock Invoke-FGGetRequestStream -MockWith { throw 'Graph 400 skiptoken expired' }
+        Sync-EntraSignInLogs -SystemId 1 -Sps @([pscustomobject]@{ id = 'sp1'; appId = 'a1' }) -SignInLogsDays 2 -Timings ([ordered]@{})
+
+        $script:phaseErrors | Should -HaveCount 1
+        $script:phaseErrors[0] | Should -BeLike 'SignInLogs:*'
+    }
+}
+
+# ─── Resolve-EntraAccessReviewApId (pure) ───────────────────────────────────────
+Describe 'Resolve-EntraAccessReviewApId' {
+    BeforeAll { $uuid = '11111111-1111-1111-1111-111111111111' }
+
+    It 'returns noscope when the definition has no query' {
+        $r = Resolve-EntraAccessReviewApId -Definition ([pscustomobject]@{ id = 'rd1' })
+        $r.reason | Should -Be 'noscope'
+        $r.apId | Should -BeNullOrEmpty
+    }
+
+    It 'matches a path-style accessPackages/<uuid> in resourceScope.query' {
+        $def = [pscustomobject]@{ id = 'rd1'; resourceScope = [pscustomobject]@{ query = "/identityGovernance/.../accessPackages/$uuid/resourceRoleScopes" } }
+        (Resolve-EntraAccessReviewApId -Definition $def).apId | Should -Be $uuid
+    }
+
+    It "matches a filter-style accessPackage/id eq '<uuid>' in scope.query" {
+        $def = [pscustomobject]@{ id = 'rd1'; scope = [pscustomobject]@{ query = "accessPackage/id eq '$uuid'" } }
+        (Resolve-EntraAccessReviewApId -Definition $def).apId | Should -Be $uuid
+    }
+
+    It 'returns nomatch when a query exists but carries no access-package id' {
+        $def = [pscustomobject]@{ id = 'rd1'; scope = [pscustomobject]@{ query = '/users' } }
+        $r = Resolve-EntraAccessReviewApId -Definition $def
+        $r.reason | Should -Be 'nomatch'
+        $r.queryStrings | Should -Contain '/users'
+    }
+}
+
+# ─── Governance sub-phases ──────────────────────────────────────────────────────
+Describe 'Governance phases' {
+    BeforeEach { Reset-PhaseTestState; Mock Send-IngestBatch -MockWith $script:SendMock }
+
+    It 'Sync-EntraGovernanceCatalogs uploads catalogs + BusinessRole resources and returns the access packages' {
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'accessPackageCatalogs' } -MockWith {
+            @([pscustomobject]@{ id = 'c1'; displayName = 'Cat'; isPublished = $true })
+        }
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'entitlementManagement/accessPackages\?' } -MockWith {
+            @([pscustomobject]@{ id = 'ap1'; displayName = 'AP1'; catalogId = 'c1' })
+        }
+
+        $aps = Sync-EntraGovernanceCatalogs -SystemId 2
+
+        (Get-Sent { $_.Endpoint -eq 'ingest/governance/catalogs' })[0].Records.Count | Should -Be 1
+        (Get-Sent { $_.Scope.resourceType -eq 'BusinessRole' -and $_.Endpoint -eq 'ingest/resources' })[0].Records.Count | Should -Be 1
+        # Returns only the access packages, not the ingest results.
+        @($aps).Count | Should -Be 1
+        @($aps).id | Should -Contain 'ap1'
+    }
+
+    It 'Sync-EntraGovernanceResourceScopes uploads deduped Contains relationships' {
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'accessPackages/ap1' } -MockWith {
+            [pscustomobject]@{ accessPackageResourceRoleScopes = @(
+                [pscustomobject]@{ accessPackageResourceScope = [pscustomobject]@{ originId = 'grp1' }; accessPackageResourceRole = [pscustomobject]@{ displayName = 'Member'; originSystem = 'AadGroup' } }
+                # Duplicate (ap1 -> grp1) — must collapse.
+                [pscustomobject]@{ accessPackageResourceScope = [pscustomobject]@{ originId = 'grp1' }; accessPackageResourceRole = [pscustomobject]@{ displayName = 'Owner'; originSystem = 'AadGroup' } }
+            ) }
+        }
+        $aps = @([pscustomobject]@{ id = 'ap1'; displayName = 'AP1' })
+        Sync-EntraGovernanceResourceScopes -SystemId 1 -AccessPackages $aps
+
+        (Get-Sent { $_.Scope.relationshipType -eq 'Contains' })[0].Records.Count | Should -Be 1
+        $script:phaseErrors.Count | Should -Be 0
+    }
+
+    It 'Sync-EntraGovernanceResourceScopes skips an access package whose detail fetch fails' {
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'accessPackages/apGood' } -MockWith {
+            [pscustomobject]@{ accessPackageResourceRoleScopes = @(
+                [pscustomobject]@{ accessPackageResourceScope = [pscustomobject]@{ originId = 'grp1' }; accessPackageResourceRole = [pscustomobject]@{ displayName = 'Member'; originSystem = 'AadGroup' } }
+            ) }
+        }
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'accessPackages/apBad' } -MockWith { throw 'AP fetch 504' }
+        $aps = @([pscustomobject]@{ id = 'apBad'; displayName = 'Bad AP' }, [pscustomobject]@{ id = 'apGood'; displayName = 'Good AP' })
+        Sync-EntraGovernanceResourceScopes -SystemId 1 -AccessPackages $aps
+
+        # The good AP still produced its relationship; the failing AP was skipped, not fatal.
+        (Get-Sent { $_.Scope.relationshipType -eq 'Contains' })[0].Records.Count | Should -Be 1
+        $script:phaseErrors.Count | Should -Be 0
+    }
+
+    It 'Sync-EntraGovernanceAssignments streams + dedups active AP assignments' {
+        Mock Invoke-FGGetRequestStream -ParameterFilter { $URI -match 'accessPackageAssignments' } -MockWith {
+            @(
+                [pscustomobject]@{ accessPackage = [pscustomobject]@{ id = 'ap1' }; target = [pscustomobject]@{ objectId = 'u1' }; assignmentState = 'Delivered' }
+                [pscustomobject]@{ accessPackage = [pscustomobject]@{ id = 'ap1' }; target = [pscustomobject]@{ objectId = 'u1' }; assignmentState = 'Delivered' }   # dup
+                [pscustomobject]@{ accessPackage = [pscustomobject]@{ id = 'ap1' }; target = [pscustomobject]@{ objectId = 'u2' }; assignmentState = 'Expired' }     # skipped
+            )
+        }
+        Sync-EntraGovernanceAssignments -SystemId 1
+
+        (Get-Sent { $_.Scope.assignmentType -eq 'Direct' -and $_.Scope.resourceType -eq 'BusinessRole' })[0].Records.Count | Should -Be 1
+        $script:phaseErrors.Count | Should -Be 0
+    }
+
+    It 'Sync-EntraGovernancePolicies uploads assignment policies' {
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'assignmentPolicies' } -MockWith {
+            @([pscustomobject]@{ id = 'pol1'; accessPackage = [pscustomobject]@{ id = 'ap1' }; displayName = 'P' })
+        }
+        Sync-EntraGovernancePolicies -SystemId 1
+
+        (Get-Sent { $_.Endpoint -eq 'ingest/governance/policies' })[0].Records.Count | Should -Be 1
+        $script:phaseErrors.Count | Should -Be 0
+    }
+
+    It 'Get-EntraAccessReviewCertRecords builds decision records and skips failed instances' {
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'definitions/rd1/instances\?' } -MockWith {
+            @([pscustomobject]@{ id = 'inst1'; status = 'Applied' })
+        }
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'instances/inst1/decisions' } -MockWith {
+            @([pscustomobject]@{ id = 'dec1'; principal = [pscustomobject]@{ id = 'u1'; displayName = 'U' }; decision = 'Approve' })
+        }
+        $def = [pscustomobject]@{ id = 'rd1' }
+        $recs = Get-EntraAccessReviewCertRecords -Definition $def -ApId 'ap1'
+
+        @($recs).Count | Should -Be 1
+        @($recs)[0].resourceId | Should -Be 'ap1'
+        @($recs)[0].principalId | Should -Be 'u1'
+    }
+
+    It 'Sync-EntraGovernanceReviews uploads certification decisions for AP-scoped reviews' {
+        $uuid = '11111111-1111-1111-1111-111111111111'
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'accessReviews/definitions\?' } -MockWith {
+            @(
+                [pscustomobject]@{ id = 'rd1'; resourceScope = [pscustomobject]@{ query = "/accessPackages/$uuid/x" } }
+                [pscustomobject]@{ id = 'rd2' }   # no scope -> skipped
+            )
+        }
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'definitions/rd1/instances\?' } -MockWith { @([pscustomobject]@{ id = 'inst1'; status = 'Applied' }) }
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'instances/inst1/decisions' } -MockWith {
+            @([pscustomobject]@{ id = 'dec1'; principal = [pscustomobject]@{ id = 'u1' }; decision = 'Approve' })
+        }
+        Sync-EntraGovernanceReviews -SystemId 1
+
+        (Get-Sent { $_.Endpoint -eq 'ingest/governance/certifications' })[0].Records.Count | Should -Be 1
+        $script:phaseErrors.Count | Should -Be 0
+    }
+
+    It 'Sync-EntraGovernance runs all sub-phases and records the phase timing' {
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'accessPackageCatalogs' } -MockWith { @() }
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'entitlementManagement/accessPackages\?' } -MockWith { @() }
+        Mock Invoke-FGGetRequestStream -MockWith { @() }
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'assignmentPolicies' } -MockWith { @() }
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'accessReviews/definitions\?' } -MockWith { @() }
+
+        $timings = [ordered]@{}
+        Sync-EntraGovernance -SystemId 1 -Timings $timings
+
+        $timings.Contains('Governance') | Should -BeTrue
+        # Sub-phases report individually; no top-level 'Governance' Write-Phase.
+        @($script:phases.name) | Should -Not -Contain 'Governance'
+        @($script:phases.name) | Should -Contain 'Governance/ResourceScopes'
+        @($script:phases.name) | Should -Contain 'Governance/AccessReviews'
+    }
+
+    It 'Sync-EntraGovernance swallows a missing-Entitlement-Management tenant (outer catch)' {
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'accessPackageCatalogs' } -MockWith { throw 'HTTP 400 not enabled' }
+
+        $timings = [ordered]@{}
+        Sync-EntraGovernance -SystemId 1 -Timings $timings
+
+        # Outer catch is silent (no phase error), still records the timing.
+        $script:phaseErrors.Count | Should -Be 0
+        $timings.Contains('Governance') | Should -BeTrue
+    }
+}
+
+# ─── Sync-EntraGovernanceReviews + Get-EntraAccessReviewCertRecords ─────────────
+Describe 'Sync-EntraGovernanceReviews' {
+    BeforeEach { Reset-PhaseTestState; Mock Send-IngestBatch -MockWith $script:SendMock }
+
+    It 'walks AP-scoped review definitions and uploads certification decisions' {
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'accessReviews/definitions\?' } -MockWith { @([pscustomobject]@{ id = 'rd1' }) }
+        Mock Resolve-EntraAccessReviewApId -MockWith { @{ apId = 'ap-1' } }
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match '/instances\?' } -MockWith { @([pscustomobject]@{ id = 'inst1' }) }
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match '/decisions' } -MockWith {
+            @([pscustomobject]@{ id = 'dec1'; decision = 'Approve'; principal = [pscustomobject]@{ id = 'u1'; displayName = 'Alice' } })
+        }
+        Sync-EntraGovernanceReviews -SystemId 3
+        (Get-Sent { $_.Endpoint -eq 'ingest/governance/certifications' }).Count | Should -BeGreaterThan 0
+        $script:phaseErrors.Count | Should -Be 0
+    }
+
+    It 'skips definitions with no access-package id and uploads nothing' {
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'accessReviews/definitions\?' } -MockWith { @([pscustomobject]@{ id = 'rd1' }) }
+        Mock Resolve-EntraAccessReviewApId -MockWith { @{ apId = $null; reason = 'nomatch'; queryStrings = @('someQuery') } }
+        Sync-EntraGovernanceReviews -SystemId 3
+        (Get-Sent { $_.Endpoint -eq 'ingest/governance/certifications' }).Count | Should -Be 0
+        $script:phaseErrors.Count | Should -Be 0
+    }
+
+    It 'records a phase failure when the definitions fetch throws' {
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'accessReviews/definitions\?' } -MockWith { throw 'Graph 400' }
+        Sync-EntraGovernanceReviews -SystemId 3
+        $script:phaseErrors[0] | Should -BeLike 'Governance/AccessReviews:*'
+    }
+
+    It 'Get-EntraAccessReviewCertRecords skips an instance whose decisions call fails' {
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match '/instances\?' } -MockWith { @([pscustomobject]@{ id = 'inst1' }) }
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match '/decisions' } -MockWith { throw 'HTTP 400 bad decisions' }
+        @(Get-EntraAccessReviewCertRecords -Definition ([pscustomobject]@{ id = 'rd1' }) -ApId 'ap-1').Count | Should -Be 0
+    }
+}
+
+# ─── Get-EntraUserSelect (pure) ─────────────────────────────────────────────────
+Describe 'Get-EntraUserSelect' {
+
+    It 'includes the core attributes and a plain custom attribute' {
+        $sel = Get-EntraUserSelect -CustomUserAttributes @('costCenter')
+        $sel | Should -Match 'signInActivity'
+        $sel | Should -Match 'costCenter'
+        $sel | Should -Not -Match 'onPremisesExtensionAttributes'
+    }
+
+    It 'adds onPremisesExtensionAttributes when a custom attribute is extensionAttributeN' {
+        (Get-EntraUserSelect -CustomUserAttributes @('extensionAttribute5')) | Should -Match 'onPremisesExtensionAttributes'
+    }
+
+    It 'adds onPremisesExtensionAttributes when the identity filter targets an extensionAttributeN' {
+        (Get-EntraUserSelect -IdentityFilter @{ attribute = 'extensionAttribute3' }) | Should -Match 'onPremisesExtensionAttributes'
+    }
+}
+
+# ─── Select-EntraIdentityUsers (pure filter) ────────────────────────────────────
+Describe 'Select-EntraIdentityUsers' {
+    BeforeAll {
+        $users = @(
+            [pscustomobject]@{ id = 'u1'; department = 'Sales'; employeeId = '100' }
+            [pscustomobject]@{ id = 'u2'; department = 'Eng';   employeeId = $null }
+            [pscustomobject]@{ id = 'u3'; department = 'Sales'; employeeId = '300' }
+        )
+    }
+
+    It "matches 'equals'" {
+        $m = Select-EntraIdentityUsers -Users $users -IdentityFilter @{ attribute = 'department'; condition = 'equals'; value = 'Sales' }
+        @($m).id | Should -Be @('u1','u3')
+    }
+
+    It "matches 'isNotNull'" {
+        $m = Select-EntraIdentityUsers -Users $users -IdentityFilter @{ attribute = 'employeeId'; condition = 'isNotNull' }
+        @($m).id | Should -Be @('u1','u3')
+    }
+
+    It "matches 'inValues'" {
+        $m = Select-EntraIdentityUsers -Users $users -IdentityFilter @{ attribute = 'department'; condition = 'inValues'; values = @('Eng') }
+        @($m).id | Should -Be @('u2')
+    }
+}
+
+# ─── ConvertTo-EntraIdentityRecord (pure) ───────────────────────────────────────
+Describe 'ConvertTo-EntraIdentityRecord' {
+
+    It 'maps core fields and falls back to UPN for email' {
+        $u = [pscustomobject]@{ id = 'u1'; displayName = 'Alice'; mail = $null; userPrincipalName = 'alice@x'; department = 'Sales' }
+        $rec = ConvertTo-EntraIdentityRecord -User $u
+        $rec.id | Should -Be 'u1'
+        $rec.email | Should -Be 'alice@x'
+        $rec.ContainsKey('extendedAttributes') | Should -BeFalse
+    }
+
+    It 'carries non-empty custom attributes into extendedAttributes' {
+        $u = [pscustomobject]@{ id = 'u1'; displayName = 'Alice'; mail = 'a@x'; costCenter = 'CC1'; empty = '' }
+        $rec = ConvertTo-EntraIdentityRecord -User $u -CustomUserAttributes @('costCenter','empty')
+        $rec.extendedAttributes['costCenter'] | Should -Be 'CC1'
+        $rec.extendedAttributes.ContainsKey('empty') | Should -BeFalse
+    }
+}
+
+# ─── Get-EntraUserData ──────────────────────────────────────────────────────────
+Describe 'Get-EntraUserData' {
+    BeforeEach {
+        Reset-PhaseTestState
+        Mock Get-FGDeltaToken -MockWith { $null }
+        Mock Remove-FGDeltaToken -MockWith { }
+        Mock Set-FGDeltaToken -MockWith { }
+    }
+
+    It 'full mode fetches with manager expand and primes a fresh delta token' {
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match '/users\?\$select' } -MockWith {
+            @([pscustomobject]@{ id = 'u1'; displayName = 'Alice' })
+        }
+        Mock Invoke-FGGetDeltaRequest -MockWith { @{ value = @(); deltaToken = 'primed' } }
+
+        $data = Get-EntraUserData -SystemId 1 -SyncMode 'full' -UserSelect 'id,displayName'
+        $data.deltaHit | Should -BeFalse
+        @($data.users).Count | Should -Be 1
+        $data.newUsersToken | Should -Be 'primed'
+    }
+
+    It 'delta mode returns changed users and @removed tombstones' {
+        Mock Get-FGDeltaToken -MockWith { 'stored-token' }
+        Mock Invoke-FGGetDeltaRequest -MockWith {
+            @{ value = @(
+                [pscustomobject]@{ id = 'u1'; displayName = 'Alice' }
+                [pscustomobject]@{ id = 'gone'; '@removed' = [pscustomobject]@{ reason = 'deleted' } }
+              ); deltaToken = 'next-token' }
+        }
+
+        $data = Get-EntraUserData -SystemId 1 -SyncMode 'delta' -UserSelect 'id'
+        $data.deltaHit | Should -BeTrue
+        @($data.users).id | Should -Be @('u1')
+        @($data.removedUserIds) | Should -Contain 'gone'
+    }
+
+    It 'falls back to full when the stored delta token is rejected' {
+        Mock Get-FGDeltaToken -MockWith { 'bad-token' }
+        Mock Invoke-FGGetDeltaRequest -ParameterFilter { $URI -match 'deltatoken=' } -MockWith { throw [System.InvalidOperationException]::new('token rejected') }
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match '/users\?\$select' } -MockWith { @([pscustomobject]@{ id = 'u1' }) }
+        Mock Invoke-FGGetDeltaRequest -ParameterFilter { $URI -match 'select=id' } -MockWith { @{ value = @(); deltaToken = 'primed' } }
+
+        $data = Get-EntraUserData -SystemId 1 -SyncMode 'delta' -UserSelect 'id'
+        $data.deltaHit | Should -BeFalse
+        @($data.users).Count | Should -Be 1
+        Should -Invoke Remove-FGDeltaToken -Times 1
+    }
+}
+
+# ─── Sync-EntraPrincipals (integration) ─────────────────────────────────────────
+Describe 'Sync-EntraPrincipals' {
+    BeforeEach {
+        Reset-PhaseTestState
+        Mock Send-IngestBatch -MockWith $script:SendMock
+        Mock Get-FGDeltaToken -MockWith { $null }
+        Mock Remove-FGDeltaToken -MockWith { }
+        Mock Set-FGDeltaToken -MockWith { }
+        Mock Invoke-FGGetDeltaRequest -MockWith { @{ value = @(); deltaToken = 'primed' } }
+    }
+
+    It 'full mode uploads User principals with tombstones and primes the token' {
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match '/users\?\$select' } -MockWith {
+            @(
+                [pscustomobject]@{ id = 'u1'; displayName = 'Alice'; userPrincipalName = 'a@x'; accountEnabled = $true }
+                [pscustomobject]@{ id = 'u2'; displayName = 'Bob';   userPrincipalName = 'b@x'; accountEnabled = $true }
+            )
+        }
+        $timings = [ordered]@{}
+        Sync-EntraPrincipals -SystemId 5 -SyncMode 'full' -Timings $timings
+
+        $p = Get-Sent { $_.Scope.principalType -eq 'User' }
+        $p[0].Records.Count | Should -Be 2
+        $p[0].SyncMode | Should -Be 'full'
+        Should -Invoke Set-FGDeltaToken -Times 1 -ParameterFilter { $Token -eq 'primed' }
+        $timings.Contains('Principals') | Should -BeTrue
+        $script:phaseErrors.Count | Should -Be 0
+    }
+
+    It 'runs the identity sub-sync when an identity filter is configured' {
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match '/users\?\$select' } -MockWith {
+            @(
+                [pscustomobject]@{ id = 'u1'; displayName = 'Alice'; userPrincipalName = 'a@x'; department = 'Sales'; accountEnabled = $true }
+                [pscustomobject]@{ id = 'u2'; displayName = 'Bob';   userPrincipalName = 'b@x'; department = 'Eng';   accountEnabled = $true }
+            )
+        }
+        Sync-EntraPrincipals -SystemId 1 -SyncMode 'full' -IdentityFilter @{ attribute = 'department'; condition = 'equals'; value = 'Sales' } -Timings ([ordered]@{})
+
+        (Get-Sent { $_.Endpoint -eq 'ingest/identities' })[0].Records.Count | Should -Be 1
+        (Get-Sent { $_.Endpoint -eq 'ingest/identity-members' })[0].Records.Count | Should -Be 1
+    }
+
+    It 'records a phase failure when the user fetch throws' {
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match '/users\?\$select' } -MockWith { throw 'Graph 500' }
+
+        Sync-EntraPrincipals -SystemId 1 -SyncMode 'full' -Timings ([ordered]@{})
+
+        $script:phaseErrors | Should -HaveCount 1
+        $script:phaseErrors[0] | Should -BeLike 'Principals:*'
+    }
+}
+
+# ─── Resolve-EntraSyncConfig (pure) ─────────────────────────────────────────────
+Describe 'Resolve-EntraSyncConfig' {
+
+    It 'applies the documented defaults for an empty config' {
+        $c = Resolve-EntraSyncConfig -RawConfig @{}
+        $c.SyncMode | Should -Be 'delta'
+        $c.SyncPrincipals | Should -BeTrue
+        $c.SyncServicePrincipals | Should -BeFalse
+        $c.SyncResources | Should -BeTrue
+        $c.SyncGovernance | Should -BeTrue
+        $c.SyncPim | Should -BeFalse
+        $c.RefreshViews | Should -BeTrue
+        $c.SignInLogsDays | Should -Be 7
+        @($c.CustomUserAttributes).Count | Should -Be 0
+        $c.IdentityFilter.Count | Should -Be 0
+    }
+
+    It 'honours _syncMode=full and ignores an invalid value' {
+        (Resolve-EntraSyncConfig -RawConfig @{ _syncMode = 'full' }).SyncMode | Should -Be 'full'
+        (Resolve-EntraSyncConfig -RawConfig @{ _syncMode = 'bogus' }).SyncMode | Should -Be 'delta'
+    }
+
+    It 'applies selectedObjects overrides' {
+        $c = Resolve-EntraSyncConfig -RawConfig @{ selectedObjects = @{ servicePrincipals = $true; pim = $true; identity = $false } }
+        $c.SyncServicePrincipals | Should -BeTrue
+        $c.SyncPim | Should -BeTrue
+        $c.SyncPrincipals | Should -BeFalse
+    }
+
+    It 'lets usersGroupsMembers drive the three user/group toggles (after identity)' {
+        $c = Resolve-EntraSyncConfig -RawConfig @{ selectedObjects = @{ identity = $true; usersGroupsMembers = $false } }
+        $c.SyncPrincipals | Should -BeFalse
+        $c.SyncResources | Should -BeFalse
+        $c.SyncAssignments | Should -BeFalse
+    }
+
+    It 'defaults SyncPrincipalRelationships off and honours both toggle shapes' {
+        (Resolve-EntraSyncConfig -RawConfig @{}).SyncPrincipalRelationships | Should -BeFalse
+        (Resolve-EntraSyncConfig -RawConfig @{ selectedObjects = @{ principalRelationships = $true } }).SyncPrincipalRelationships | Should -BeTrue
+        (Resolve-EntraSyncConfig -RawConfig @{ syncPrincipalRelationships = $true }).SyncPrincipalRelationships | Should -BeTrue
+    }
+
+    It 'applies direct backward-compat toggles and signInLogsDays' {
+        $c = Resolve-EntraSyncConfig -RawConfig @{ syncGovernance = $false; syncSignInLogs = $true; signInLogsDays = 14 }
+        $c.SyncGovernance | Should -BeFalse
+        $c.SyncSignInLogs | Should -BeTrue
+        $c.SignInLogsDays | Should -Be 14
+    }
+
+    It 'merges customUserAttributes + identityAttributes uniquely' {
+        $c = Resolve-EntraSyncConfig -RawConfig @{ customUserAttributes = @('a','b'); identityAttributes = @('b','c') }
+        @($c.CustomUserAttributes) | Should -Be @('a','b','c')
+    }
+
+    It 'adopts an identity filter only when it has an attribute' {
+        (Resolve-EntraSyncConfig -RawConfig @{ identityFilter = @{ attribute = 'dept'; condition = 'equals'; value = 'x' } }).IdentityFilter.attribute | Should -Be 'dept'
+        (Resolve-EntraSyncConfig -RawConfig @{ identityFilter = @{ condition = 'equals' } }).IdentityFilter.Count | Should -Be 0
+    }
+
+    It 'reads customGroupAttributes and aiNamePatterns' {
+        $c = Resolve-EntraSyncConfig -RawConfig @{ customGroupAttributes = @('extensionAttribute1'); aiNamePatterns = @('bot*', '*copilot*') }
+        @($c.CustomGroupAttributes) | Should -Be @('extensionAttribute1')
+        @($c.AINamePatterns) | Should -Be @('bot*', '*copilot*')
+    }
+}
+
+# ─── Initialize-EntraCrawlerRun ─────────────────────────────────────────────────
+Describe 'Initialize-EntraCrawlerRun' {
+
+    It 'returns the systemId from ingest/systems' {
+        Mock Invoke-RestMethod -ParameterFilter { $Uri -match 'whoami' } -MockWith { @{ displayName = 'Worker' } }
+        Mock Get-FGAccessToken -MockWith { }
+        Mock Invoke-IngestAPI -ParameterFilter { $Endpoint -eq 'ingest/systems' } -MockWith { @{ systemIds = @(42) } }
+
+        Initialize-EntraCrawlerRun -ApiBaseUrl 'http://x/api' -ApiKey 'k' -ConfigFile 'c.json' | Should -Be 42
+    }
+
+    It 'falls back to systemId 1 when none is returned' {
+        Mock Invoke-RestMethod -ParameterFilter { $Uri -match 'whoami' } -MockWith { @{ displayName = 'Worker' } }
+        Mock Get-FGAccessToken -MockWith { }
+        Mock Invoke-IngestAPI -ParameterFilter { $Endpoint -eq 'ingest/systems' } -MockWith { @{ systemIds = @() } }
+
+        Initialize-EntraCrawlerRun -ApiBaseUrl 'http://x/api' -ApiKey 'k' -ConfigFile 'c.json' | Should -Be 1
+    }
+}
+
+# ─── Sync-EntraRefreshViews ─────────────────────────────────────────────────────
+Describe 'Sync-EntraRefreshViews' {
+    BeforeEach { Reset-PhaseTestState }
+
+    It 'calls the refresh-views endpoint and records the phase timing' {
+        Mock Invoke-IngestAPI -MockWith { @{} }
+        $timings = [ordered]@{}
+        Sync-EntraRefreshViews -Timings $timings
+        Should -Invoke Invoke-IngestAPI -Times 1 -ParameterFilter { $Endpoint -eq 'ingest/refresh-views' }
+        $timings.Contains('RefreshViews') | Should -BeTrue
+    }
+
+    It 'soft-fails when the refresh endpoint throws' {
+        Mock Invoke-IngestAPI -MockWith { throw 'view refresh 500' }
+        { Sync-EntraRefreshViews -Timings ([ordered]@{}) } | Should -Not -Throw
+    }
+}
+
+# ─── Write-EntraPhaseSummary ────────────────────────────────────────────────────
+Describe 'Write-EntraPhaseSummary' {
+
+    It 'prints a per-phase breakdown including an "Other" row for unaccounted time' {
+        $timings = [ordered]@{ Principals = [TimeSpan]::FromSeconds(2); Resources = [TimeSpan]::FromSeconds(3) }
+        { Write-EntraPhaseSummary -PhaseTimings $timings -SyncStart (Get-Date).AddSeconds(-10) } | Should -Not -Throw
+    }
+
+    It 'handles an empty timing set without a breakdown' {
+        { Write-EntraPhaseSummary -PhaseTimings ([ordered]@{}) -SyncStart (Get-Date).AddSeconds(-5) } | Should -Not -Throw
+    }
+}
+
+# ─── Write-EntraSyncLog ─────────────────────────────────────────────────────────
+Describe 'Write-EntraSyncLog' {
+    BeforeEach { Reset-PhaseTestState }
+
+    It 'writes a sync-log entry and posts phases when a job id is present' {
+        Mock Invoke-IngestAPI -MockWith { @{} }
+        Mock Invoke-RestMethod -MockWith { @{} }
+        $script:phases.Add(@{ name = 'Principals'; status = 'ok'; durationMs = 5 })
+
+        Write-EntraSyncLog -SyncStart (Get-Date) -JobId 7 -ApiKey 'k' -ApiBaseUrl 'http://x/api'
+
+        Should -Invoke Invoke-IngestAPI -Times 1 -ParameterFilter { $Endpoint -eq 'ingest/sync-log' }
+        Should -Invoke Invoke-RestMethod -Times 1 -ParameterFilter { $Uri -match '/jobs/7/phases' }
+    }
+
+    It 'skips the phases post when there is no job id' {
+        Mock Invoke-IngestAPI -MockWith { @{} }
+        Mock Invoke-RestMethod -MockWith { @{} }
+
+        Write-EntraSyncLog -SyncStart (Get-Date) -JobId 0 -ApiKey 'k' -ApiBaseUrl 'http://x/api'
+
+        Should -Invoke Invoke-RestMethod -Times 0
+    }
+
+    It 'records status=Warning with the joined errors when phases failed' {
+        Mock Invoke-IngestAPI -MockWith { @{} }
+        $script:phaseErrors.Add('Principals: boom')
+        Write-EntraSyncLog -SyncStart (Get-Date) -JobId 0 -ApiKey 'k' -ApiBaseUrl 'http://x/api'
+        Should -Invoke Invoke-IngestAPI -Times 1 -ParameterFilter { $Body.status -eq 'Warning' -and $Body.errorMessage -match 'boom' }
+    }
+
+    It 'soft-fails when the phases POST throws' {
+        Mock Invoke-IngestAPI -MockWith { @{} }
+        Mock Invoke-RestMethod -MockWith { throw 'jobs api 500' }
+        $script:phases.Add(@{ name = 'Principals'; status = 'ok'; durationMs = 5 })
+        { Write-EntraSyncLog -SyncStart (Get-Date) -JobId 7 -ApiKey 'k' -ApiBaseUrl 'http://x/api' } | Should -Not -Throw
+    }
+
+    It 'soft-fails when the sync-log write throws' {
+        Mock Invoke-IngestAPI -MockWith { throw 'ingest 500' }
+        { Write-EntraSyncLog -SyncStart (Get-Date) -JobId 0 -ApiKey 'k' -ApiBaseUrl 'http://x/api' } | Should -Not -Throw
+    }
+}
+
+# ─── Complete-EntraDeltaModeFlip ────────────────────────────────────────────────
+Describe 'Complete-EntraDeltaModeFlip' {
+
+    It 'flips to delta after a full run scheduled by a config' {
+        Mock Invoke-RestMethod -MockWith { @{} }
+        Complete-EntraDeltaModeFlip -SyncMode 'full' -RawConfig @{ _scheduledByConfigId = 9 } -ApiBaseUrl 'http://x/api' -ApiKey 'k'
+        Should -Invoke Invoke-RestMethod -Times 1 -ParameterFilter { $Uri -match '/configs/9/mark-delta-mode' }
+    }
+
+    It 'does nothing on a delta run' {
+        Mock Invoke-RestMethod -MockWith { @{} }
+        Complete-EntraDeltaModeFlip -SyncMode 'delta' -RawConfig @{ _scheduledByConfigId = 9 } -ApiBaseUrl 'http://x/api' -ApiKey 'k'
+        Should -Invoke Invoke-RestMethod -Times 0
+    }
+
+    It 'does nothing on a full run that was not scheduled by a config' {
+        Mock Invoke-RestMethod -MockWith { @{} }
+        Complete-EntraDeltaModeFlip -SyncMode 'full' -RawConfig @{} -ApiBaseUrl 'http://x/api' -ApiKey 'k'
+        Should -Invoke Invoke-RestMethod -Times 0
+    }
+
+    It 'soft-fails when the mark-delta-mode call throws' {
+        Mock Invoke-RestMethod -MockWith { throw 'mark 500' }
+        { Complete-EntraDeltaModeFlip -SyncMode 'full' -RawConfig @{ _scheduledByConfigId = 9 } -ApiBaseUrl 'http://x/api' -ApiKey 'k' } | Should -Not -Throw
+    }
+}

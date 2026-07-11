@@ -6,9 +6,17 @@
 #        - Pester (test/unit) → JaCoCo XML
 #   2. Converts each suite to a consistent browsable HTML report + a
 #      machine-readable Summary.json via ReportGenerator, under docs/coverage/.
-#   3. Renders the curated docs page (docs/reference/coverage.md) from those
+#   3. Measures code complexity and drops it beside each suite's summary as
+#      complexity.json — reusing the SAME measurers the complexity gate uses:
+#      tools/complexity/measure_ps.ps1 (PSComplexity) for PowerShell, and
+#      tools/complexity/ratchet.py --emit-complexity-json (ESLint + sonarjs) for
+#      the API/UI suites. The page surfaces it as avg/max cyclomatic + cognitive
+#      columns. (Mutation is the heavier signal, so it is NOT run here: the weekly
+#      ps-mutation.yml refreshes docs/coverage/powershell/mutation.json, which
+#      this page just reads back — see that workflow.)
+#   4. Renders the curated docs page (docs/reference/coverage.md) from those
 #      summaries (tools/generate-coverage-doc.py).
-#   4. Commits docs/reference/coverage.md + docs/coverage/** back to main.
+#   5. Commits docs/reference/coverage.md + docs/coverage/** back to main.
 #
 # Why commit into docs/ rather than publish a one-off artifact: the docs site is
 # versioned with mike (edge = main, stable = release tag). Committing the page and
@@ -33,6 +41,8 @@ on:
       - 'tools/powershell-sdk/**'
       - 'tools/riskscoring/**'
       - 'test/unit/**'
+      - 'tools/complexity/**'
+      - '.ci/psmutant.config.json'
       - 'tools/generate-coverage-doc.py'
       - '.github/workflows/coverage.yml'
   workflow_dispatch:
@@ -160,6 +170,38 @@ jobs:
           gen api        "API"        app/api/coverage/lcov.info app/api/coverage-contract/lcov.info
           gen ui         "UI"         app/ui/coverage/lcov.info
           gen powershell "PowerShell" pester-coverage.xml
+
+      # ── PowerShell complexity (avg/max cyclomatic + cognitive columns) ──────
+      # Reuses the SAME measurer the complexity gate uses (a thin wrapper over the
+      # published PSComplexity module), so the coverage page can never drift from
+      # complexity.yml. Emits the per-unit {file,unit,line,cc,cog} array;
+      # generate-coverage-doc.py aggregates it to avg/max per suite. Cheap (a few
+      # seconds), so it refreshes every merge. Mutation is deliberately NOT run
+      # here — the weekly ps-mutation.yml owns docs/coverage/powershell/mutation.json,
+      # which the render step below reads back. continue-on-error keeps a
+      # measurement hiccup from blocking the docs commit, matching the suites above.
+      - name: PowerShell complexity
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          Install-Module PSComplexity -RequiredVersion 0.1.0 -Force -Scope CurrentUser
+          $psDir = 'docs/coverage/powershell'
+          New-Item -ItemType Directory -Path $psDir -Force | Out-Null
+          & tools/complexity/measure_ps.ps1 | Set-Content (Join-Path $psDir 'complexity.json') -Encoding utf8
+
+      # ── JS/TS complexity (avg/max cyclomatic + cognitive for API + UI) ──────
+      # The Node analogue of the PowerShell step above, reusing the SAME measurer
+      # the complexity gate uses (tools/complexity/ratchet.py) in its
+      # --emit-complexity-json mode: ESLint's `complexity` rule + eslint-plugin-sonarjs
+      # at threshold 0, so EVERY product function is scored (not just the gate's
+      # over-threshold outliers). node_modules is already installed by the API/UI
+      # coverage steps. continue-on-error keeps a hiccup from blocking the commit.
+      - name: JS/TS complexity (API + UI)
+        continue-on-error: true
+        run: |
+          mkdir -p docs/coverage/api docs/coverage/ui
+          python3 tools/complexity/ratchet.py --emit-complexity-json app/api > docs/coverage/api/complexity.json
+          python3 tools/complexity/ratchet.py --emit-complexity-json app/ui > docs/coverage/ui/complexity.json
 
       - name: Render coverage docs page
         env:

@@ -47,4 +47,26 @@ function Get-OmadaRefUid {
     return $Fallback
 }
 
+function Get-OmadaStr {
+    # Truthiness-coalesce a scalar to a string: [string]$Value when set, else $Fallback.
+    # Replaces the inline `if ($x) { [string]$x } else { '' }` attribute-mapping pattern.
+    [CmdletBinding()]
+    param($Value, [string]$Fallback = '')
+    if ($Value) { [string]$Value } else { $Fallback }
+}
+
+function Get-OmadaEnumStr {
+    # Same, for an Omada OIS.SetValue enum: [string]$Value.Value when set, else $Fallback.
+    [CmdletBinding()]
+    param($Value, [string]$Fallback = '')
+    if ($Value) { [string]$Value.Value } else { $Fallback }
+}
+
+function Join-OmadaDisplayNames {
+    # '; '-joined DisplayName of a (possibly empty/null) collection; '' when empty.
+    [CmdletBinding()]
+    param($Collection)
+    ($Collection | ForEach-Object { $_.DisplayName }) -join '; '
+}
+
 #endregion Functions

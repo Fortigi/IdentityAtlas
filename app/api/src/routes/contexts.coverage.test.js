@@ -296,8 +296,9 @@ describe('PATCH /contexts/:id', () => {
   it('400 when the reparent would create a cycle', async () => {
     queryOne.mockResolvedValueOnce({ variant: 'manual', targetType: 'Identity', displayName: 'X', parentContextId: null });
     queryOne.mockResolvedValueOnce({ targetType: 'Identity' }); // parent lookup OK
-    // Walk-up: the proposed parent's parent points back at this id → cycle.
-    queryOne.mockResolvedValueOnce({ parentContextId: ID });
+    // wouldCreateCycle() runs a single ancestor-walk query; a non-empty result
+    // means the proposed parent is a descendant of this node → reparent loops.
+    query.mockResolvedValueOnce({ rows: [{ '?column?': 1 }] });
     const res = await request(app).patch(`/api/contexts/${ID}`).send({ parentContextId: ID2 });
     expect(res.status).toBe(400);
     expect(res.body.error).toMatch(/cycle/i);

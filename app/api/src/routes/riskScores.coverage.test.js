@@ -26,8 +26,10 @@ vi.mock('../perf/sqlTimer.js', () => ({
         return { recordset: [{ tbl: tableExists ? 'public.RiskScores' : null }] };
       }
       // Pop the next scripted response (if any) for non-table-check queries.
+      // Push an Error to simulate a failing query (exercises the 500 catch paths).
       const next = queryScript.shift();
       if (next === undefined) return { recordset: [] };
+      if (next instanceof Error) throw next;
       return { recordset: next };
     },
   }),
@@ -68,7 +70,7 @@ describe('risk-scores lists — filter/pagination branches', () => {
   });
 
   it('groups — applies resourceType filter', async () => {
-    const res = await request(app).get('/api/risk-scores/groups?resourceType=EntraGroup&search=x&tier=Low');
+    const res = await request(app).get('/api/risk-scores/groups?resourceType=Group&search=x&tier=Low');
     expect(res.status).toBe(200);
     expect(res.body.useResources).toBe(true);
     expect(queryRiskScoresPage.mock.calls[0][2].whereClause).toContain('resourceType');
@@ -152,6 +154,13 @@ describe('PUT /risk-scores/:type/:id/override', () => {
     expect(res.status).toBe(404);
   });
 
+  it('500 when the update query fails', async () => {
+    queryScript.push([{ riskDirectScore: 10, riskMembershipScore: 0, riskStructuralScore: 0, riskPropagatedScore: 0 }]); // read ok
+    queryScript.push(new Error('update boom')); // risk-override-set throws
+    const res = await request(app).put(`/api/risk-scores/users/${VALID}/override`).send({ adjustment: 5, reason: 'valid reason' });
+    expect(res.status).toBe(500);
+  });
+
   it('400 on an invalid type', async () => {
     expect((await request(app).put(`/api/risk-scores/bogus/${VALID}/override`).send({ adjustment: 5, reason: 'valid reason' })).status).toBe(400);
   });
@@ -183,7 +192,10 @@ describe('DELETE /risk-scores/:type/:id/override', () => {
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
     expect(res.body.riskScore).toBe(85); // sum=85
-    expect(res.body.riskTier).toBe('Critical');
+    // 85 is High on the canonical 90/70 scale (engine tierFor). Previously this
+    // route used a divergent 80/60 computeTier that mis-labelled 85 as Critical —
+    // that drift is now fixed by sharing riskscoring/tiers.js.
+    expect(res.body.riskTier).toBe('High');
   });
 
   it('200 — clears an override on a Resource', async () => {
@@ -199,6 +211,13 @@ describe('DELETE /risk-scores/:type/:id/override', () => {
     queryScript.push([]);
     const res = await request(app).delete(`/api/risk-scores/users/${VALID}/override`);
     expect(res.status).toBe(404);
+  });
+
+  it('500 when the clear query fails', async () => {
+    queryScript.push([{ riskDirectScore: 10, riskMembershipScore: 0, riskStructuralScore: 0, riskPropagatedScore: 0 }]); // read ok
+    queryScript.push(new Error('clear boom')); // risk-override-clear throws
+    const res = await request(app).delete(`/api/risk-scores/users/${VALID}/override`);
+    expect(res.status).toBe(500);
   });
 
   it('400 on an invalid type', async () => {

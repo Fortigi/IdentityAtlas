@@ -16,6 +16,10 @@ coverage-contract/
 # `coverage/` ignore above, which otherwise matches a `coverage` dir at any depth.
 !docs/coverage/
 !docs/coverage/**
+# The per-file coverage ratchet TOOL lives under tools/coverage/ and IS committed
+# (only the generated app/*/coverage report dirs should be ignored).
+!tools/coverage/
+!tools/coverage/**
 tools/csv-templates/demodata/
 tools/csv-templates/demodataTransformed/
 .claude/settings.local.json
@@ -35,3 +39,10 @@ app/desktop/node_modules/
 app/api/.stryker-tmp/
 app/api/reports/mutation/
 app/api/.stryker-incremental.json
+
+# Python bytecode cache (complexity tooling)
+__pycache__/
+*.pyc
+
+# PowerShell mutation testing reports (PSMutant)
+reports/

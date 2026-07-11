@@ -26,9 +26,11 @@ export default defineConfig({
     include: ['src/ingest/**/*.test.js'],
     exclude: [
       '**/node_modules/**',
-      // Static emission scan that walks the repo-root tools/crawlers tree —
-      // ENOENTs in the Stryker sandbox and covers none of the mutated logic.
-      'src/ingest/assignmentTypes.guard.test.js',
+      // Static emission-scan guards (assignmentTypes/resourceTypes/…) walk the
+      // repo-root tools/crawlers tree — they ENOENT in the Stryker sandbox and
+      // cover none of the mutated logic. Glob-exclude so new *.guard.test.js
+      // files don't silently break the mutation run.
+      'src/ingest/**/*.guard.test.js',
     ],
   },
 });

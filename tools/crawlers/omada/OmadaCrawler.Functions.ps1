@@ -11,7 +11,7 @@
 
 #region Functions
 
-function Map-ResourceCategory {
+function ConvertTo-AtlasResourceCategory {
     [CmdletBinding()]
     param([string]$Category)
     foreach ($M in $ResourceCategoryMapping) {
@@ -26,29 +26,36 @@ function Merge-TypeMappings {
     [CmdletBinding()]
     param($Defaults, $Overrides)
     if (-not $Overrides) { return $Defaults }
+    $overrideNames = $Overrides.PSObject.Properties.Name
     $Result = @{}
     foreach ($K in $Defaults.Keys) {
-        if ($Overrides.PSObject.Properties.Name -contains $K) {
-            $Ov = $Overrides.$K
-            if ($Ov -is [System.Management.Automation.PSCustomObject]) {
-                # Convert PSCustomObject to hashtable and merge
-                $Merged = @{}
-                foreach ($Dk in $Defaults[$K].Keys) { $Merged[$Dk] = $Defaults[$K][$Dk] }
-                foreach ($Ok in $Ov.PSObject.Properties) { $Merged[$Ok.Name] = $Ok.Value }
-                $Result[$K] = $Merged
-            } elseif ($Ov -is [array]) {
-                $Result[$K] = @($Ov)
-            } else {
-                $Result[$K] = $Ov
-            }
-        } else {
+        if ($overrideNames -contains $K) {
+            $Result[$K] = Merge-OmadaOverrideValue -DefaultValue $Defaults[$K] -Override $Overrides.$K
+        }
+        else {
             $Result[$K] = $Defaults[$K]
         }
     }
     return $Result
 }
 
-function Map-IdentityTypeToAtlas {
+function Merge-OmadaOverrideValue {
+    # Resolve one config override against its default: a PSCustomObject is merged onto
+    # the default hashtable; an array replaces wholesale; a scalar replaces. Extracted
+    # from Merge-TypeMappings to keep both units flat.
+    [CmdletBinding()]
+    param($DefaultValue, $Override)
+    if ($Override -is [System.Management.Automation.PSCustomObject]) {
+        $Merged = @{}
+        foreach ($Dk in $DefaultValue.Keys) { $Merged[$Dk] = $DefaultValue[$Dk] }
+        foreach ($Ok in $Override.PSObject.Properties) { $Merged[$Ok.Name] = $Ok.Value }
+        return $Merged
+    }
+    if ($Override -is [array]) { return @($Override) }
+    return $Override
+}
+
+function ConvertTo-AtlasIdentityType {
     [CmdletBinding()]
     param([string]$OmadaType)
     $Map = $TypeMappings['identityTypeToIdentityAtlas']
@@ -57,7 +64,7 @@ function Map-IdentityTypeToAtlas {
     return 'User'
 }
 
-function Map-ResourceTypeToAtlas {
+function ConvertTo-AtlasResourceType {
     [CmdletBinding()]
     param([string]$OmadaType)
     $Map = $TypeMappings['resourceTypeToIdentityAtlas']
@@ -66,7 +73,7 @@ function Map-ResourceTypeToAtlas {
     return $OmadaType -replace '\s+', ''
 }
 
-function Map-ContextTypeToAtlas {
+function ConvertTo-AtlasContextType {
     [CmdletBinding()]
     param([string]$OmadaType)
     $Map = $TypeMappings['contextTypeToIdentityAtlas']
@@ -90,6 +97,10 @@ function Write-Phase {
     $Script:phases.Add($Phase)
 }
 
+# Thin adapter over the shared Invoke-CrawlerIngestBatch (tools/crawlers/shared/
+# Invoke-CrawlerIngest.ps1). Omada's original behaviour is the shared default —
+# no -SkipWhenEmpty, so an empty batch is still sent as a full sync and the
+# server scoped-deletes stale rows.
 function Send-IngestBatch {
     [CmdletBinding()]
     param(
@@ -101,36 +112,8 @@ function Send-IngestBatch {
         [string[]]$DeletedIds = @(),
         [int]$BatchSize     = 5000
     )
-    if (-not $Records -or $Records.Count -eq 0) {
-        # Still send an empty full-sync batch so the server can scoped-delete stale data
-        $Body = @{ systemId = $SystemId; syncMode = $SyncMode; scope = $Scope; records = @() }
-        return Invoke-IngestAPI -Endpoint $Endpoint -Body $Body
-    }
-
-    if ($DeletedIds.Count -gt 0) {
-        $DelBody = @{ systemId = $SystemId; syncMode = 'delta'; scope = $Scope; records = @(); deletedIds = ConvertTo-JsonArray $DeletedIds }
-        Invoke-IngestAPI -Endpoint $Endpoint -Body $DelBody | Out-Null
-    }
-
-    if ($Records.Count -le $BatchSize) {
-        $Body = @{ systemId = $SystemId; syncMode = $SyncMode; scope = $Scope; records = ConvertTo-JsonArray $Records }
-        return Invoke-IngestAPI -Endpoint $Endpoint -Body $Body
-    }
-
-    # Chunked session for large batches
-    $SyncId = $Null; $TotalInserted = 0; $TotalUpdated = 0; $TotalDeleted = 0
-    for ($I = 0; $I -lt $Records.Count; $I += $BatchSize) {
-        $Chunk   = $Records[$I..([Math]::Min($I + $BatchSize - 1, $Records.Count - 1))]
-        $IsFirst = ($I -eq 0)
-        $IsLast  = ($I + $BatchSize -ge $Records.Count)
-        $Body    = @{ systemId = $SystemId; syncMode = $SyncMode; scope = $Scope; records = ConvertTo-JsonArray $Chunk
-                      syncSession = if ($IsFirst) { 'start' } elseif ($IsLast) { 'end' } else { 'continue' } }
-        if ($SyncId) { $Body.syncId = $SyncId }
-        $Result = Invoke-IngestAPI -Endpoint $Endpoint -Body $Body
-        if ($IsFirst -and $Result.syncId) { $SyncId = $Result.syncId }
-        $TotalInserted += ($Result.inserted ?? 0); $TotalUpdated += ($Result.updated ?? 0); $TotalDeleted += ($Result.deleted ?? 0)
-    }
-    return @{ inserted = $TotalInserted; updated = $TotalUpdated; deleted = $TotalDeleted }
+    Invoke-CrawlerIngestBatch -Endpoint $Endpoint -SystemId $SystemId -SyncMode $SyncMode -Scope $Scope `
+        -Records $Records -DeletedIds $DeletedIds -BatchSize $BatchSize
 }
 
 #endregion Functions

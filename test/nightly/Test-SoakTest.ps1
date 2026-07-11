@@ -41,7 +41,7 @@ Param(
 $ErrorActionPreference = 'Continue'
 $standaloneFailures = 0
 
-function Report-Result {
+function Write-Result {
     param([string]$Name, [bool]$Passed, [string]$Detail = '')
     $color = if ($Passed) { 'Green' } else { 'Red' }
     $status = if ($Passed) { 'PASS' } else { 'FAIL' }
@@ -74,13 +74,13 @@ $initialMemory = Get-WebContainerMemory
 if ($null -eq $initialMemory) {
     $msg = '/admin/container-stats unavailable — skipping soak test'
     Write-Host "    SKIP  $msg" -ForegroundColor Yellow
-    Report-Result 'Soak/InitialMemory' $true "skipped: container stats unavailable"
+    Write-Result 'Soak/InitialMemory' $true "skipped: container stats unavailable"
     if (-not $WriteResult) { exit $standaloneFailures }
     return
 }
 
 $initialMB = [math]::Round($initialMemory / 1MB, 1)
-Report-Result 'Soak/InitialMemory' $true "${initialMB} MB"
+Write-Result 'Soak/InitialMemory' $true "${initialMB} MB"
 
 # ─── 2. Sustained request loop ───────────────────────────────────
 $endpoints = @(
@@ -135,10 +135,10 @@ while ((Get-Date) -lt $deadline) {
 # ─── 3. Final memory ─────────────────────────────────────────────
 $finalMemory = Get-WebContainerMemory
 if ($null -eq $finalMemory) {
-    Report-Result 'Soak/FinalMemory' $false 'could not read final memory'
+    Write-Result 'Soak/FinalMemory' $false 'could not read final memory'
 } else {
     $finalMB = [math]::Round($finalMemory / 1MB, 1)
-    Report-Result 'Soak/FinalMemory' $true "${finalMB} MB"
+    Write-Result 'Soak/FinalMemory' $true "${finalMB} MB"
     $memorySamples += [PSCustomObject]@{
         timestamp     = (Get-Date).ToString('o')
         memUsageBytes = $finalMemory
@@ -149,20 +149,20 @@ if ($null -eq $finalMemory) {
 if ($null -ne $finalMemory -and $initialMemory -gt 0) {
     $ratio = [math]::Round($finalMemory / $initialMemory, 2)
     if ($finalMemory -lt (2 * $initialMemory)) {
-        Report-Result 'Soak/NoMemoryLeak' $true "ratio=${ratio}x (${initialMB} MB -> ${finalMB} MB)"
+        Write-Result 'Soak/NoMemoryLeak' $true "ratio=${ratio}x (${initialMB} MB -> ${finalMB} MB)"
     } else {
-        Report-Result 'Soak/NoMemoryLeak' $false "ratio=${ratio}x exceeds 2x threshold (${initialMB} MB -> ${finalMB} MB)"
+        Write-Result 'Soak/NoMemoryLeak' $false "ratio=${ratio}x exceeds 2x threshold (${initialMB} MB -> ${finalMB} MB)"
     }
 } else {
-    Report-Result 'Soak/NoMemoryLeak' $false 'could not compare memory (missing final reading)'
+    Write-Result 'Soak/NoMemoryLeak' $false 'could not compare memory (missing final reading)'
 }
 
 # ─── 5. Throughput and error rate ─────────────────────────────────
 $errorRate = if ($totalRequests -gt 0) { [math]::Round(($totalErrors / $totalRequests) * 100, 2) } else { 100 }
 if ($errorRate -lt 1) {
-    Report-Result 'Soak/ThroughputOK' $true "$totalRequests requests, ${errorRate}% error rate"
+    Write-Result 'Soak/ThroughputOK' $true "$totalRequests requests, ${errorRate}% error rate"
 } else {
-    Report-Result 'Soak/ThroughputOK' $false "$totalRequests requests, ${errorRate}% error rate (threshold: <1%)"
+    Write-Result 'Soak/ThroughputOK' $false "$totalRequests requests, ${errorRate}% error rate (threshold: <1%)"
 }
 
 # ─── 6. Memory samples CSV ───────────────────────────────────────

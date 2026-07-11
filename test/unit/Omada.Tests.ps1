@@ -168,10 +168,15 @@ Describe 'Get-ODataAuthRoot' {
     }
 }
 
-# ─── URL normalisation — System.Uri logic (in Start-OmadaCrawler) ─────────────
+# ─── URL normalisation — System.Uri logic (Resolve-OmadaConfig in Phases) ─────
 Describe 'Omada URL normalisation' {
     BeforeAll {
-        $script:crawlerContent = Get-Content (Join-Path $script:repoRoot 'tools\crawlers\omada\Start-OmadaCrawler.ps1') -Raw
+        # The base-URL normalisation moved into Resolve-OmadaConfig
+        # (OmadaCrawler.Phases.ps1); read both the entry point and the phases
+        # file so the assertions track the logic wherever it lives.
+        $omadaDir = Join-Path $script:repoRoot 'tools\crawlers\omada'
+        $script:crawlerContent = (Get-Content (Join-Path $omadaDir 'Start-OmadaCrawler.ps1') -Raw) +
+                                 (Get-Content (Join-Path $omadaDir 'OmadaCrawler.Phases.ps1') -Raw)
     }
 
     It 'crawler normalises base URL using System.Uri' {
@@ -204,8 +209,11 @@ Describe 'Omada file structure' {
     It 'Start-OmadaCrawler.ps1 exists' {
         $script:crawlerPath | Should -Exist
     }
-    It 'Start-OmadaCrawler.ps1 uses Connect-ODataAPI (not Connect-OmadaAPI)' {
-        $content = Get-Content $script:crawlerPath -Raw
+    It 'the crawler uses Connect-ODataAPI (not Connect-OmadaAPI)' {
+        # The auth call moved into Connect-OmadaSession (OmadaCrawler.Phases.ps1);
+        # read both files so the assertion tracks the OData connect wherever it lives.
+        $content = (Get-Content $script:crawlerPath -Raw) +
+                   (Get-Content (Join-Path $script:omadaRoot 'OmadaCrawler.Phases.ps1') -Raw)
         $content | Should -Match 'Connect-ODataAPI'
         $content | Should -Not -Match 'Connect-OmadaAPI'
     }

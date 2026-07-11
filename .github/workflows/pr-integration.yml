@@ -33,15 +33,16 @@ on:
     branches:
       - main
       - 'release/**'
-    paths-ignore:
-      - '.github/workflows/**'
-      - 'app/desktop/scripts/**'
-      - 'changes/**'
-      - 'docs/**'
-      - 'mkdocs.yml'
-      - 'setup/IdentityAtlas.psd1'
-      - '**.md'
-      - '.ci/**'
+    # NO top-level paths-ignore. The workflow must run on EVERY PR so its
+    # `if: always()` gate job (Integration CI Passed) always posts a status —
+    # a required status check whose job is skipped stays "pending" forever and
+    # deadlocks the merge, so a paths-ignore here (which skips the whole workflow
+    # for docs-only PRs) is incompatible with making the gate required.
+    # The EXPENSIVE suites are still scoped: the `changes` (commit-range) and
+    # `filter` (dorny path-scope) jobs gate integration / e2e / load-soak, so a
+    # docs-only or PowerShell-only PR skips whichever aren't relevant. Skipped
+    # jobs pass the gate (it only fails on `failure`/`cancelled`), so the gate
+    # goes green without running them. See docs/architecture/ci-scope-testing.md.
 
 # Cancel superseded runs when a PR branch is pushed again — these Docker/load
 # suites are expensive, so don't let a stale run keep burning a runner (F4).
@@ -81,7 +82,7 @@ jobs:
           NON_HOUSEKEEPING=$(
             git log "${{ github.event.before }}..${{ github.sha }}" --format="%s" \
               | grep -v '^$' \
-              | grep -vE "^chore: bump version to [0-9]|^Merge branch 'main' into " \
+              | grep -vE "^chore: bump version to [0-9]|^Merge (remote-tracking )?branch '" \
               | wc -l \
               | tr -d ' '
           )
@@ -112,7 +113,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v3
+      - uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706 # v3
         id: f
         with:
           filters: |
@@ -762,7 +763,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
-          node-version: '22'
+          node-version: '24'
           cache: 'npm'
           cache-dependency-path: app/ui/package-lock.json
 
@@ -782,8 +783,7 @@ jobs:
           npx playwright test \
             --config=playwright.ci.config.js \
             --project=chromium \
-            --reporter=html,list \
-            --ignore-snapshots
+            --reporter=html,list
 
       - name: Upload Playwright report
         if: always()

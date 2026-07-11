@@ -18,10 +18,18 @@ import * as db from '../db/connection.js';
 import { requirePermission } from '../middleware/auth.js';
 import { resolveChannel, getCurrentVersion } from '../updates/channel.js';
 import { runUpdateCheck, recordLog } from '../updates/checkForUpdates.js';
+import { isNewer } from '../updates/versionCompare.js';
+import { getComponentVersion, computeSkew } from '../updates/componentVersions.js';
 
 const router = Router();
 const writeUpdates = requirePermission('admin.systems');
 const AUTO_UPDATE_KEY = 'AUTO_UPDATE_ENABLED';
+
+// How long the current version can sit "available" with auto-update on and no
+// install before we flag that nothing is applying it (a best-effort honesty
+// signal until the apply-agent heartbeat lands). One agent window is nightly, so
+// a couple of days means at least one window passed with nothing happening.
+const APPLY_STALL_MS = 2 * 24 * 60 * 60 * 1000;
 
 async function getAutoUpdateEnabled() {
   const r = await db.queryOne(
@@ -33,15 +41,60 @@ async function getAutoUpdateEnabled() {
 
 router.get('/admin/updates/status', async (_req, res) => {
   try {
-    const [enabled, last] = await Promise.all([
+    const runningVersion = getCurrentVersion();
+    const [enabled, last, workerRow, dbRow] = await Promise.all([
       getAutoUpdateEnabled(),
       db.queryOne(`SELECT * FROM "UpdateLog" ORDER BY "createdAt" DESC LIMIT 1`),
+      getComponentVersion('worker'),
+      getComponentVersion('database'),
     ]);
+    const latestVersion = last?.latestVersion || null;
+    // The DB's stamped schema version (set after migrations complete). Compared to
+    // the running web version the same way worker is — Matched / Mismatch, with
+    // `ahead` distinguishing a rollback (DB newer than the running code).
+    const dbVersion = dbRow?.version || null;
+    const database = {
+      version: dbVersion,
+      mismatch: !!(dbVersion && runningVersion && dbVersion !== runningVersion),
+      ahead: !!(dbVersion && runningVersion && isNewer(dbVersion, runningVersion)),
+    };
+    // Recompute against the running version rather than trusting the stored
+    // boolean (see /updates/intent) so the UI never shows a stale "available".
+    const updateAvailable = !!(latestVersion && isNewer(latestVersion, runningVersion));
+    const skew = computeSkew(runningVersion, workerRow);
+
+    // "Auto-update is on but nothing is applying": the current version has been
+    // advertised as available longer than the stall window with no install. A
+    // best-effort honesty signal until the apply-agent heartbeat (PR2) makes it
+    // precise. Only computed when it could actually fire.
+    let applyStalled = false;
+    if (enabled && updateAvailable) {
+      const since = await db.queryOne(
+        `SELECT MIN("createdAt") AS since FROM "UpdateLog"
+          WHERE "updateAvailable" = TRUE AND "latestVersion" = $1`,
+        [latestVersion]
+      );
+      applyStalled = !!(since?.since && Date.now() - new Date(since.since).getTime() > APPLY_STALL_MS);
+    }
+
     res.json({
       channel: resolveChannel(),
-      currentVersion: getCurrentVersion(),
+      currentVersion: runningVersion,
       autoUpdateEnabled: enabled,
+      updateAvailable,
+      latestVersion,
       lastCheck: last || null,
+      components: {
+        web: { version: runningVersion },
+        worker: {
+          version: workerRow?.version || null,
+          lastSeenAt: workerRow?.lastSeenAt || null,
+          stale: skew.workerStale,
+        },
+        database,
+      },
+      skew,
+      applyStalled,
     });
   } catch (err) {
     console.error('updates status failed:', err.message);
@@ -90,18 +143,24 @@ router.post('/admin/updates/check', writeUpdates, async (_req, res) => {
 
 router.get('/updates/intent', async (_req, res) => {
   try {
+    const runningVersion = getCurrentVersion();
     const [enabled, last] = await Promise.all([
       getAutoUpdateEnabled(),
       db.queryOne(
-        `SELECT "latestVersion","updateAvailable" FROM "UpdateLog" ORDER BY "createdAt" DESC LIMIT 1`
+        `SELECT "latestVersion" FROM "UpdateLog" ORDER BY "createdAt" DESC LIMIT 1`
       ),
     ]);
-    const updateAvailable = !!last?.updateAvailable;
+    const latestVersion = last?.latestVersion || null;
+    // Recompute against the RUNNING version rather than trusting the last check's
+    // stored `updateAvailable`. After an update lands (or a plain restart) the
+    // stored row can still read true until the next daily check — which would
+    // make an agent re-apply the same tag every run, in a loop.
+    const updateAvailable = !!(latestVersion && isNewer(latestVersion, runningVersion));
     res.json({
       autoUpdateEnabled: enabled,
       channel: resolveChannel(),
-      currentVersion: getCurrentVersion(),
-      latestVersion: last?.latestVersion || null,
+      currentVersion: runningVersion,
+      latestVersion,
       updateAvailable,
       shouldUpdate: enabled && updateAvailable,
     });

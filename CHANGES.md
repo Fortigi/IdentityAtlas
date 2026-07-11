@@ -1,5 +1,227 @@
 ## Changes in this PR
 
+- Reduced code duplication in the category API endpoints — the two category-list reads and the assign/unassign handlers now share their setup logic. No change to behaviour or responses.
+
+## Changes in this PR
+
+- Reduced code duplication in the risk-score API endpoints — the five per-type list endpoints now share one implementation, and the single-entity read/override handlers share their validation and score-recompute logic. No change to behaviour or responses.
+
+## Changes in this PR
+
+- Added crawling of **AI agent owners** and **guest account sponsors** from Microsoft Graph — the person accountable for each non-human or external identity is now captured, not just the identity itself.
+- On an AI agent's detail page, the Relationships tab now shows its **Owners** and a **Linked Resource** node that bridges to the agent's enterprise-application view.
+- On a guest account's detail page, the Relationships tab now shows its **Sponsors**.
+- The reverse links appear too: a person's Relationships tab shows the **Owned Agents** and **Sponsored Guests** they are responsible for (only when there are any).
+- Added an "Agent Owners & Guest Sponsors" option to the Entra ID crawler's Object Types step to enable this (off by default).
+
+## Changes in this PR
+
+- Standardized PowerShell function names across the crawlers and test harnesses to use PowerShell approved verbs (no behaviour change).
+- Re-enabled the `PSUseApprovedVerbs` PowerShell lint gate in CI so unapproved-verb function names are flagged going forward.
+
+## Changes in this PR
+
+- Internal maintainability: split the large crawler-jobs API controller into focused modules (crawler-config CRUD, crawler-job lifecycle + status + live-discovery, and the shared job-config helpers) behind a thin barrel, and added tests covering the config/job/status/log handlers. No functional change — every crawler-config and crawler-job endpoint behaves exactly as before.
+- Internal maintainability: split the large crawlers API controller into focused modules (admin crawler management, crawler self-service + worker job-claim protocol + delta-token persistence, and shared key helpers) behind a thin barrel that re-exports both routers, and added tests covering the admin and self-service handlers. No functional change — every crawler-management and crawler self-service endpoint behaves exactly as before.
+- Internal maintainability: split the large ingest API controller into focused modules (the per-entity ingest handlers, the matrix materialized-view refresh + default-filter endpoints, and the shared ingest engine helpers) behind a thin barrel. No functional change — every ingest endpoint behaves exactly as before.
+
+## Changes in this PR
+
+- Internal maintainability: split the large user/group/access-package detail API controller into focused per-entity modules (user, group, access-package) sharing one helpers module, with the original file kept as a thin barrel so every endpoint mounts and behaves exactly as before. No functional change.
+- Internal maintainability: split the large permissions API controller into focused modules (permission grid + user columns, access-package resource mapping, sync log, and matrix nested-group expansion) behind a thin barrel. No functional change — every permissions endpoint behaves exactly as before.
+- Internal maintainability: split the large admin API controller into focused modules (curated-data export/import, risk-config reads, database maintenance, dashboard stats, and settings) behind a thin barrel. No functional change — every admin endpoint behaves exactly as before.
+- Internal maintainability: split the large identities API controller into focused modules (identity list + columns, identity detail, and per-account analyst overrides) behind a thin barrel. No functional change — every identities endpoint behaves exactly as before.
+- Internal maintainability: split the large tags API controller into focused modules (tag CRUD + assignment, and the users/groups/entity-tags list endpoints) behind a thin barrel. No functional change — every tags/users/groups endpoint behaves exactly as before.
+- Internal maintainability: split the large recent-changes API controller into focused modules (the recent-changes panels and the timeline endpoints, sharing common label-resolution helpers) behind a thin barrel, and added tests covering the event-building paths. No functional change — every recent-changes and timeline endpoint behaves exactly as before.
+- Internal maintainability: split the large contexts API controller into focused modules (context reads, context create/update/sync/delete, and membership management) behind a thin barrel. No functional change — every contexts endpoint behaves exactly as before.
+- Internal maintainability: split the large risk-scores API controller into focused modules (the summary/list endpoints and the single-entity detail + analyst-override endpoints) behind a thin barrel. No functional change — every risk-scores endpoint behaves exactly as before.
+
+## Changes in this PR
+
+- The complexity CI gate now measures **cognitive** complexity (how hard code is to follow) for JavaScript/TypeScript, not just cyclomatic — via `eslint-plugin-sonarjs` at the SonarSource S3776 default threshold of 15. Current offenders are grandfathered into the baseline and can only ratchet down; new or newly-over-threshold functions must stay at or under 15.
+
+## Changes in this PR
+
+- Fixed risk scoring so group ownership counts again — owners had silently stopped contributing to risk after ownership moved to its own resource type, so the "user owns many groups" and "group has members but no owner" signals had gone dead.
+- Corrected group member counts and risk propagation to no longer treat group owners as if they were group members.
+
+## Changes in this PR
+
+- Admin → Updates now shows the web and worker version numbers side by side with a Matched / Mismatch badge, so you can confirm the two are in sync. A banner appears if they drift out of step — a sign an update was interrupted or only half-applied.
+- Added a Database version to Admin → Updates, shown next to web and worker with a Matched / Mismatch badge. The app stamps its version onto the database once the required migrations have run, so you can confirm at a glance that all three are on the same version. It warns if the database schema is newer than the running app (e.g. after a rollback or a half-applied update).
+- Made the Updates screen honest about how updating works: Identity Atlas checks for and reports new versions but never installs them itself — a separate update agent does that. The automatic-updates switch wording now reflects this, and a warning appears when automatic updates are on but nothing has actually been installing them.
+- Fixed the update signal so it re-checks against the running version: after an update lands (or the app restarts) it no longer keeps reporting the same version as available, which could otherwise make an update agent re-apply the same version repeatedly.
+
+## Changes in this PR
+
+- Reworked the **Relationships** graph and drill-down lists on entity detail pages (users, resources, identities) to match the current access model. Access is now grouped by how it's held — **Direct / Indirect / Eligible** — instead of the outdated "Groups (Direct)", "Groups (Indirect)", "Groups Owned" and "OAuth2 Grants" buckets (the latter two were retired concepts that always showed 0).
+- When you drill into a bucket, each row now shows **what kind of resource the assignment is for** — Group, Group ownership, App role, Delegated permission, App permission, Directory role, Business role, and so on — instead of a generic "Resource" label. This makes a Direct bucket that spans many resource types readable at a glance.
+- Resource detail pages now show an **Indirect Members** bucket that was previously missing.
+- The drill-down list is now **sortable** (click the Name or Type column header) and **exportable to CSV**, so a large Direct/Indirect bucket can be scanned, ordered by resource type or name, and pulled out for review.
+- Fixed a bug where entity detail pages showed **0 Contexts** even when the person was a member of one. The count and list now correctly include contexts you belong to directly (as a principal, e.g. tags) as well as through your linked identity — previously only the (unused) identity path was checked, so every user and identity showed no contexts.
+
+## Changes in this PR
+
+- The built-in demo/mock dataset no longer uses the retired `Owner` membership type, so mock mode matches the current data model (group ownership is represented as its own resource, not a membership type).
+
+## Changes in this PR
+
+- Made the **Timeline** tab and the recent-changes panel load much faster on user, resource, access-package and identity detail pages. They previously scanned the entire change-history table on every open, so they got slower as history grew; they now use targeted indexes and stay fast regardless of how much history has accumulated.
+
+## Changes in this PR
+
+- The database now structurally enforces the universal data model: `assignmentType` is constrained to `Direct`/`Indirect`/`Eligible`, and the renamed Entra-era resource types (`EntraGroup`, `EntraRole`) can no longer be stored on resources or assignments. This guards against a bad migration or manual database change reintroducing a retired value — a path the ingest API validation could not cover.
+
+## Changes in this PR
+
+- Added an **Application Permissions** object type to the Entra ID crawler (opt-in). It captures the app-only, admin-consented permissions each service principal holds on other APIs — the tenant-wide kind such as `Mail.Read` on Microsoft Graph that works with no user signed in — modelled as **ApplicationPermission** resources linked to the holding app. This is the app-only sibling of the existing delegated (OAuth2) permissions.
+- Each application permission shows up as a Direct assignment on the service principal that holds it, so a managed identity's or AI agent's tenant-wide API access is now visible, relatable, and certifiable like any other access.
+
+## Changes in this PR
+
+- Added an **App Owners** object type to the Entra ID crawler (opt-in). It captures who controls your applications, modelled as two resource types: **ApplicationOwnership** — owners of the app registration, i.e. the people who can add a credential and sign in *as* the app — and **ServicePrincipalOwnership** — owners of the enterprise-app service principal. Each owner appears as a Direct assignment on an ownership resource linked to the app, so app ownership can be listed, related, and certified like any other access.
+- Apps that have owners but no app roles or delegated grants now still appear as resources, so their owners are visible rather than hidden.
+
+## Changes in this PR
+
+- The published Docker images (`:edge`, `:latest`, `:beta`, and the versioned tags) are now the exact images that passed the release smoke test, rather than a fresh rebuild made after testing. What you pull is now guaranteed to be what was verified.
+
+## Changes in this PR
+
+- Made context hierarchies more resilient to parent-loops. Generated (plugin) context trees now skip any parent link that would create a cycle, and imported context batches self-repair a cyclic parent link immediately after the batch rather than waiting for the end-of-sync refresh — so a mis-parented tree can no longer leave a stored loop behind.
+
+## Changes in this PR
+
+- Fixed inconsistent risk-tier labels after an analyst override. The override path used a different Critical/High threshold (80/60) than the scoring engine (90/70), so overriding a score could re-tier an entity on a different scale than the batch run that produced its stored tier. Both now share a single source of truth, so a score of, say, 85 is labelled "High" everywhere. (Entities with scores between 60–89 may now show a corrected tier.)
+- The risk-score bar colour now follows the entity's risk tier, matching the tier badge, instead of a separate hardcoded set of score cutoffs.
+
+## Changes in this PR
+
+- Hardened the Docker deployment: the web/API container now reports a health status, and the worker waits for the API to be healthy (migrations applied and responding) before it starts running crawler jobs, instead of starting as soon as the API container launches.
+
+## Changes in this PR
+
+- Fixed imported context hierarchies (such as org-unit or department trees) not linking to their parent. A context's parent reference is now resolved into the correct context, so parent/child relationships persist on import instead of being silently dropped.
+
+## Changes in this PR
+
+- Cleaned up the access matrix legend: it now shows only the badges that can actually appear (Direct, Indirect, Eligible). The obsolete "Owner" badge and other retired assignment-type badges (Governed, OAuth2 grant, App role) were removed from both the on-screen legend and the Excel export legend. Ownership continues to appear as its own resource row.
+
+## Changes in this PR
+
+- Documentation and CI hygiene: corrected stale references in the developer guide and CI configuration (test framework, branch triggers, retired assignment-type terms in crawler comments) and documented which coding-principle rules are enforced by CI vs. reviewer judgement. No change to application behaviour.
+
+## Changes in this PR
+
+- Entra security and Microsoft 365 groups now use the resource type **Group** instead of **EntraGroup**. The connector each resource came from is already tracked separately, so the type no longer restates it — matching the other shared resource types (Application, AppRole, Business Role).
+- Entra directory roles now use the resource type **EntraDirectoryRole** instead of **EntraRole** — the accurate name, and it now matches its colour badge in the Resources view.
+- Existing data is updated automatically on upgrade; the Resource Type filter shows the new names and no re-crawl is required.
+- Group-ownership resources are now named after the group itself (e.g. "Sales") rather than "Owner @ Sales" — the resource type already marks it as an ownership, so the prefix was redundant.
+
+## Changes in this PR
+
+- Development Docker setup: the local PostgreSQL container is now bound to localhost only instead of all network interfaces, so the database (which uses a default local password) is no longer reachable from other machines on your network.
+
+## Changes in this PR
+
+- API server errors (HTTP 500) no longer echo internal error details back to the client — they return a generic message while the full detail is still logged server-side, matching the project error-handling policy.
+
+## Changes in this PR
+
+- Internal refactor: unified how all crawlers send data to the ingest API into one shared, tested implementation, removing duplicated batching logic that had drifted between crawlers. No change to what data is synced or how.
+
+## Changes in this PR
+
+- Internal refactor: split the large Admin settings page into focused per-section components for maintainability. No functional change — every Admin tab and section works exactly as before.
+
+## Changes in this PR
+
+- Hardened the context hierarchy against cycles: a context can no longer be re-parented under its own descendant (the check now works at any tree depth, not just the first 50 levels), and a mis-parented or looped context tree arriving from a crawler or generated by a plugin is now automatically repaired instead of leaving member counts stuck as undefined for the affected branch.
+
+## Changes in this PR
+
+- Improved database migration logging: when a migration is recorded as applied because its objects already exist, the log now names the specific migration file and warns that any data backfill it contained may have been skipped — making a previously silent situation visible in the container startup logs.
+
+## Changes in this PR
+
+- Cleaned up orphaned access assignments and resource relationships whose underlying resource no longer exists, so stale rows can no longer linger in storage (they were already hidden from the matrix). Legitimate assignments to external, guest, and service-principal members are preserved.
+
+## Changes in this PR
+
+- Fixed curated data import so tags and their assignments are saved again. Previously, importing a curated JSON file that contained tags failed with a server error, and even when the import appeared to succeed, tag assignments were never attached to any user, group, or resource.
+- Curated tag imports now resolve entities both by ID and by display name, and re-importing an existing tag updates its colour without creating duplicate assignments.
+
+## Changes in this PR
+
+- The Test Coverage docs page now shows code-complexity and mutation-testing columns alongside line/branch/method coverage: average and maximum cyclomatic and cognitive complexity per unit (via PSComplexity) and the PowerShell mutation score — the share of injected faults the tests actually catch (via PSMutant). These are measured for the PowerShell suite today; suites that don't supply them show a dash.
+
+## Changes in this PR
+
+- Internal: decomposed the Azure RM crawler's monolithic entry point into unit-tested phase functions (scope discovery, role definitions, role assignments, dedup, orphan handling, sends) threaded through a shared state object, plus pure record-shapers. Behaviour is unchanged — the same scope hierarchy, role-at-scope resources, grants and principal stubs are emitted.
+
+## Changes in this PR
+
+- Internal: extracted the midPoint crawler's system-registration, org-context, and view-refresh sync phases out of the monolithic entry point into unit-tested `Sync-Midpoint*` functions (no functional change to what gets synced).
+- Internal: extracted the midPoint crawler's role/service-resource and user (identities + principals) sync phases into unit-tested `Sync-Midpoint*` functions (no functional change to what gets synced).
+- Internal: extracted the midPoint crawler's two-pass streaming shadow phase (accounts + entitlements + entitlement memberships) into unit-tested `Sync-Midpoint*` functions (no functional change to what gets synced).
+- Internal: extracted the midPoint crawler's org-membership, assignment (direct + inherited), role-nesting, and certification-review sync phases into unit-tested `Sync-Midpoint*` functions (no functional change to what gets synced).
+- Internal: extracted the midPoint crawler's config resolution, authentication, performance-summary, and run-finalization steps into unit-tested functions, shrinking the entry-point body below the complexity ceiling (no functional change).
+
+## Changes in this PR
+
+- Added an "Entra Group Category Tree" context algorithm that auto-generates a browsable tree — an "EntraID Groups" root with a child context per group category — so you can filter Entra groups by their kind in the web UI and the matrix.
+- Added a `groupCategory` attribute to every Entra group (Team, Microsoft365, SecurityGroup, DistributionList, MailEnabledSecurity — with a `Dynamic` prefix where dynamic membership applies), so analysts can tell at a glance what kind of group they're dealing with and filter on it in the Excel export.
+- Added supporting group facets: `membershipType` (Assigned/Dynamic), `sourceOfAuthority` (Cloud/OnPremises, i.e. synced from on-prem AD or not), and `accessPackageEligible` (whether the group can be used in an access package).
+- Group dynamic-vs-assigned is now determined from the authoritative Entra flag, so a group that was converted from dynamic back to assigned is classified correctly even if a stale membership rule lingers.
+
+## Changes in this PR
+
+- Added a `groupCategory` attribute to every Entra group (Team, Microsoft365, SecurityGroup, DistributionList, MailEnabledSecurity — with a `Dynamic` prefix where dynamic membership applies), so analysts can tell at a glance what kind of group they're dealing with and filter on it in the Excel export.
+- Added supporting group facets: `membershipType` (Assigned/Dynamic), `sourceOfAuthority` (Cloud/OnPremises, i.e. synced from on-prem AD or not), and `accessPackageEligible` (whether the group can be used in an access package).
+- Group dynamic-vs-assigned is now determined from the authoritative Entra flag, so a group that was converted from dynamic back to assigned is classified correctly even if a stale membership rule lingers.
+
+## Changes in this PR
+
+- Internal: extracted the CSV crawler's Systems, Contexts, and ContextMembers sync phases out of the monolithic entry point into unit-tested `Sync-Csv*` functions and pure `ConvertTo-Csv*Record` record-shapers (no functional change to what gets imported).
+- Internal: extracted the CSV crawler's Resources and ResourceRelationships sync phases into unit-tested `Sync-Csv*` functions and pure record-shapers (no functional change to what gets imported).
+- Internal: extracted the CSV crawler's Users (principals) and Assignments sync phases into unit-tested `Sync-Csv*` functions and pure record-shapers (no functional change to what gets imported).
+- Internal: extracted the CSV crawler's Identities, IdentityMembers, and Certifications sync phases into unit-tested `Sync-Csv*` functions and pure record-shapers (no functional change to what gets imported).
+- Internal: extracted the CSV crawler's config resolution, fallback-system registration, and post-import classify/refresh/log steps into unit-tested functions, reducing the entry point to pure orchestration below the complexity ceiling (no functional change).
+- Internal: flattened the CSV crawler's remaining deep helpers (fast-path reader, per-system dedup/send, and the resource/assignment/certification sync phases) so every unit clears the cognitive-complexity gate, with direct tests for the new column-index/dedup helpers and mutation-testing coverage of the CSV record-shapers.
+
+## Changes in this PR
+
+- Internal: extracted the Omada crawler's resource, entitlement, and view-refresh sync phases out of the monolithic entry point into unit-tested `Sync-Omada*` functions (no functional change to what gets synced).
+- Fixed: the Omada crawler's assignment phase referenced an undefined variable when computing its per-phase record summary, so the CRA-assignment count could be dropped from the sync-log breakdown.
+- Internal: extracted the Omada crawler's config resolution, connection/system-registration setup, and end-of-run summary out of the entry point into unit-tested helpers, so the entry point is now thin orchestration only.
+- Internal: flattened the Omada crawler's deepest transform and phase helpers (attribute mapping, CRA folding, role-assignment classification, resource ingest, run summary) so every unit now clears the cognitive-complexity gate, with direct tests for the new coalesce/merge/system-key helpers.
+
+## Changes in this PR
+
+- Internal: extracted the Entra ID crawler's user-principal, OAuth2 grants, app-role, directory-role, group-resource, group-assignment, PIM-eligibility, service-principal, sign-in-logs, and governance (catalogs, access packages, resource scopes, assignments, policies, access reviews) sync phases — including the filtered identity sub-sync — out of the monolithic entry point into unit-tested `Sync-Entra*` functions (no functional change to what gets synced).
+- Internal: extracted the Entra ID crawler's config resolution, run initialization, view-refresh, and end-of-run summary/finalization out of the entry point into unit-tested helpers, so the entry point is now thin orchestration only.
+- Fixed: PIM eligible group memberships were silently skipped on tenants where exactly one non-dynamic group survived filtering.
+
+## Changes in this PR
+
+- The Matrix now shows indirect members of nested Entra groups. When a security group is a member of another group, the child group's users now appear as indirect (I) members of the parent group — matching how access via an app role in a group already displayed. Previously group-in-group nesting showed no indirect members at all.
+
+## Changes in this PR
+
+- Internal: added a cognitive-complexity ratchet to CI (alongside the existing cyclomatic one) that gates PowerShell and Python code on how deeply nested / hard-to-follow it is, not just how many branches it has — flagging readability debt the cyclomatic gate misses.
+- Internal: PowerShell complexity is now measured by the published PSComplexity module (a faithful, reference-validated SonarSource cognitive metric) feeding both ratchets, instead of a bundled measurer — `measure_ps.ps1` is now a thin selector over it.
+- Internal: added PowerShell mutation testing via the published PSMutant module (report-only) over the decomposed crawler transforms — the metric that proves the tests would catch a bug, not just execute the line.
+
+## Changes in this PR
+
+- Fixed context plugins (e.g. Active Directory OU Tree) spawning a brand-new duplicate tree on every crawl instead of updating the existing one in place. Legacy trees created before per-tree instance keys were introduced now refresh onto themselves, so member counts and analyst edits are preserved and the tree list no longer explodes.
+
+## Changes in this PR
+
+- Fixed the **Next** button on the Users, Resources (Groups) and Identities list pages throwing an error when paging past the first page. The page count is only sent on the first page for export efficiency, and the UI was mishandling its absence on later pages — it now keeps the known total so pagination works across every page.
+
+## Changes in this PR
+
 - Internal maintainability: decomposed the core `/matrix/data` query handler — previously a single ~680-line function — into a thin dispatcher plus one focused function per view mode (flat grid, roll-up, context roll-up, attribute fold, inherited-access folds). Cyclomatic complexity of the largest function drops from 150 to 18. No change to matrix behaviour, endpoints, or output.
 - Internal maintainability: decomposed the risk-scoring engine's `runScoring` routine — previously a single ~600-line function — into a thin orchestrator plus one function per pass (load, score resources, score principals, membership analysis, propagation, persistence), each now separately unit-tested. Cyclomatic complexity of the largest function drops from 115 to 20. No change to risk scores, tiers, or explanations.
 - Internal maintainability: decomposed the Recent-Changes timeline builder into one focused, unit-tested handler per event type (attribute change, assignment, containment relationship, identity-link). Cyclomatic complexity of the largest function drops from 60 to 6. No change to timeline output.

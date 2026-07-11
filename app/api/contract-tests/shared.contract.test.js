@@ -29,6 +29,8 @@ afterAll(async () => {
 
 beforeEach(async () => {
   await pool.query(`DELETE FROM "Principals" WHERE "systemId" = $1`, [systemId]);
+  await pool.query(`DELETE FROM "Resources"  WHERE "systemId" = $1`, [systemId]);
+  await pool.query(`DELETE FROM "Identities" WHERE "displayName" = $1`, [`c3-identity-${systemId}`]);
 });
 
 // ── helpers ──────────────────────────────────────────────────────────────────
@@ -88,14 +90,28 @@ describe('scopeCounts — Principals', () => {
 });
 
 describe('scopeCounts — Identities and Resources', () => {
-  it('counts Identities and returns an integer', async () => {
-    const r = await pool.query(`SELECT COUNT(*)::int AS c FROM "Identities"`);
-    expect(typeof r.rows[0].c).toBe('number');
+  // A bare COUNT(*) over the whole table is non-deterministic here — the contract
+  // suite shares one DB container, so sibling files' rows leak in. Seed one
+  // uniquely-identifiable row and count only that, exercising the real table +
+  // column names (the point of a contract test) without a global assertion.
+  it('counts a uniquely-seeded Identity scoped to its own displayName', async () => {
+    const marker = `c3-identity-${systemId}`;
+    await pool.query(`INSERT INTO "Identities" ("id", "displayName") VALUES (gen_random_uuid(), $1)`, [marker]);
+    const r = await pool.query(`SELECT COUNT(*)::int AS c FROM "Identities" WHERE "displayName" = $1`, [marker]);
+    expect(r.rows[0].c).toBe(1);
   });
 
-  it('counts Resources and returns an integer', async () => {
-    const r = await pool.query(`SELECT COUNT(*)::int AS c FROM "Resources"`);
-    expect(typeof r.rows[0].c).toBe('number');
+  it('counts a uniquely-seeded Resource scoped to this file\'s systemId', async () => {
+    const marker = `c3-resource-${systemId}`;
+    await pool.query(
+      `INSERT INTO "Resources" ("id", "systemId", "displayName", "resourceType") VALUES (gen_random_uuid(), $1, $2, 'Group')`,
+      [systemId, marker],
+    );
+    const r = await pool.query(
+      `SELECT COUNT(*)::int AS c FROM "Resources" WHERE "systemId" = $1 AND "displayName" = $2`,
+      [systemId, marker],
+    );
+    expect(r.rows[0].c).toBe(1);
   });
 });
 

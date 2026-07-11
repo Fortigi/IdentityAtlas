@@ -110,7 +110,7 @@ Describe 'ConvertTo-MidpointOrgContextRecord' {
     }
 }
 
-Describe 'Sort-MidpointContextsTopologically' {
+Describe 'Get-MidpointContextsInTopologicalOrder' {
 
     It 'orders parents before children regardless of input order' {
         $records = @(
@@ -118,18 +118,27 @@ Describe 'Sort-MidpointContextsTopologically' {
             [pscustomobject]@{ id = 'b'; parentContextId = 'a' }
             [pscustomobject]@{ id = 'a'; parentContextId = $null }
         )
-        $sorted = Sort-MidpointContextsTopologically -Records $records
+        $sorted = Get-MidpointContextsInTopologicalOrder -Records $records
         ($sorted | ForEach-Object { $_.id }) -join '' | Should -Be 'abc'
     }
 
     It 'nulls out a parent that is outside the synced set (treats it as a root)' {
         $records = @([pscustomobject]@{ id = 'x'; parentContextId = 'not-synced' })
-        $sorted = Sort-MidpointContextsTopologically -Records $records
+        $sorted = Get-MidpointContextsInTopologicalOrder -Records $records
         $sorted[0].parentContextId | Should -BeNullOrEmpty
     }
 
+    It 'preserves parentContextId for a child whose parent IS in the synced set' {
+        $records = @(
+            [pscustomobject]@{ id = 'b'; parentContextId = 'a' }
+            [pscustomobject]@{ id = 'a'; parentContextId = $null }
+        )
+        $sorted = Get-MidpointContextsInTopologicalOrder -Records $records
+        ($sorted | Where-Object { $_.id -eq 'b' }).parentContextId | Should -Be 'a'
+    }
+
     It 'returns an empty array for no records' {
-        @(Sort-MidpointContextsTopologically -Records @()).Count | Should -Be 0
+        @(Get-MidpointContextsInTopologicalOrder -Records @()).Count | Should -Be 0
     }
 }
 
@@ -251,6 +260,23 @@ Describe 'ConvertTo-MidpointCertificationDecision' {
         $rec.reviewedByDisplayName  | Should -Be 'Bob'
         $rec.extendedAttributes.campaign | Should -Be 'Q1 Review'
         $rec.extendedAttributes.caseId   | Should -Be 'c-1'
+    }
+
+    It 'takes only the first work item from an array (a later item does not leak in)' {
+        # The first work item has no output; a later one does. First-item-wins means the
+        # comment stays empty — proving exactly one work item (the first) is consulted.
+        $case = [pscustomobject]@{
+            outcome  = 'accept'
+            workItem = @(
+                [pscustomobject]@{ assigneeRef = [pscustomobject]@{ oid = 'rev-1' } }
+                [pscustomobject]@{ output = [pscustomobject]@{ comment = 'second reviewer note' }; assigneeRef = [pscustomobject]@{ oid = 'rev-2' } }
+            )
+        }
+        $rec = ConvertTo-MidpointCertificationDecision -Case $case -CaseKey 'camp-1|c-3' -CaseId 'c-3' `
+            -PrincipalOid 'u-1' -TargetOid 'r-1' -CampaignName 'Q1' -CampaignOid 'camp-1' -CampaignState 'inReview' `
+            -UserOidToName @{ 'u-1' = 'Alice'; 'rev-1' = 'Bob'; 'rev-2' = 'Carol' }
+        $rec.justification | Should -Be ''
+        $rec.reviewedBy    | Should -Be 'rev-1'
     }
 
     It 'omits display names and reviewedBy when the OIDs are not synced principals' {

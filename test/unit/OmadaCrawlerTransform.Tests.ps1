@@ -20,7 +20,7 @@ BeforeAll {
 
     # Omada reference helpers used by the transforms.
     . (Join-Path $script:omadaRoot 'Get-OmadaHelpers.ps1')
-    # Map-ContextTypeToAtlas (reads $script:TypeMappings) — used by the Orgunit mapper.
+    # ConvertTo-AtlasContextType (reads $script:TypeMappings) — used by the Orgunit mapper.
     . (Join-Path $script:omadaRoot 'OmadaCrawler.Functions.ps1')
     # The unit under test.
     . (Join-Path $script:omadaRoot 'OmadaCrawler.Transform.ps1')
@@ -31,7 +31,7 @@ BeforeAll {
         contextTypeToIdentityAtlas  = @{ 'OrgUnit' = 'OrgUnit'; 'Organisational Unit' = 'OrgUnit'; Department = 'Department' }
         identityTypeToIdentityAtlas = @{ Employee = 'User'; Contractor = 'ExternalUser'; 'Service Account' = 'ServicePrincipal' }
     }
-    # Map-ResourceCategory iterates this ordered list; '' is the catch-all.
+    # ConvertTo-AtlasResourceCategory iterates this ordered list; '' is the catch-all.
     $script:ResourceCategoryMapping = @(
         @{ category = 'Business Role'; resourceType = 'BusinessRole' }
         @{ category = '';             resourceType = 'Resource' }
@@ -143,7 +143,7 @@ Describe 'ConvertTo-OmadaFlatContextRecord' {
     }
 }
 
-Describe 'Sort-OmadaContextsTopologically' {
+Describe 'Get-OmadaContextsInTopologicalOrder' {
 
     It 'orders parents before their children regardless of input order' {
         $records = @(
@@ -151,7 +151,7 @@ Describe 'Sort-OmadaContextsTopologically' {
             [pscustomobject]@{ id = 'b'; parentContextId = 'a' }
             [pscustomobject]@{ id = 'a'; parentContextId = $null }
         )
-        $sorted = Sort-OmadaContextsTopologically -Records $records
+        $sorted = Get-OmadaContextsInTopologicalOrder -Records $records
         ($sorted | ForEach-Object { $_.id }) -join '' | Should -Be 'abc'
     }
 
@@ -160,11 +160,11 @@ Describe 'Sort-OmadaContextsTopologically' {
             [pscustomobject]@{ id = 'x'; parentContextId = 'y' }
             [pscustomobject]@{ id = 'y'; parentContextId = 'x' }
         )
-        @(Sort-OmadaContextsTopologically -Records $records).Count | Should -Be 2
+        @(Get-OmadaContextsInTopologicalOrder -Records $records).Count | Should -Be 2
     }
 
     It 'returns an empty array for no records' {
-        @(Sort-OmadaContextsTopologically -Records @()).Count | Should -Be 0
+        @(Get-OmadaContextsInTopologicalOrder -Records @()).Count | Should -Be 0
     }
 }
 
@@ -237,6 +237,19 @@ Describe 'ConvertTo-OmadaResourceRecord' {
 
     It 'returns $null when the resource has no UId or name' {
         ConvertTo-OmadaResourceRecord -Resource ([pscustomobject]@{ NAME = 'No id' }) | Should -BeNullOrEmpty
+    }
+
+    It 'carries skipProvisioning through, defaulting to $false when unset' {
+        $on  = ConvertTo-OmadaResourceRecord -Resource ([pscustomobject]@{ UId = 'res-sp1'; NAME = 'SP on'; SKIPPROVISIONING = $true })
+        $off = ConvertTo-OmadaResourceRecord -Resource ([pscustomobject]@{ UId = 'res-sp2'; NAME = 'SP off' })
+        $on.extendedAttributes.skipProvisioning  | Should -BeTrue
+        $off.extendedAttributes.skipProvisioning | Should -BeFalse
+    }
+
+    It 'leaves userGroupName empty when the usergroup ref is absent from the map' {
+        $res = [pscustomobject]@{ UId = 'res-ug'; NAME = 'UG'; USERGROUPREF = [pscustomobject]@{ UId = 'ug-missing' } }
+        $rec = ConvertTo-OmadaResourceRecord -Resource $res -UserGroupMap @{ 'ug-1' = 'Finance Group' }
+        $rec.extendedAttributes.userGroupName | Should -Be ''
     }
 }
 

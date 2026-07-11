@@ -17,9 +17,15 @@ updates:
       # "Loaded a configuration file for version X, but running version Y".
       # Group them so Dependabot bumps all three in a single PR instead of one
       # PR per sub-action (which is never internally consistent).
+      #
+      # Dependabot identifies these by their FULL sub-paths — `github/codeql-action/init`,
+      # `.../autobuild`, `.../analyze` (see the per-PR dependabot branch names). The bare
+      # `github/codeql-action*` glob did NOT match those sub-paths, so Dependabot still cut
+      # one PR per sub-action (#635/#639). Match the sub-paths explicitly instead.
       codeql-action:
         patterns:
-          - "github/codeql-action*"
+          - "github/codeql-action"
+          - "github/codeql-action/*"
 
   # Worker container (PowerShell)
   - package-ecosystem: "docker"

@@ -41,7 +41,7 @@ Param(
 $ErrorActionPreference = 'Continue'
 $standaloneFailures = 0
 
-function Report-Result {
+function Write-Result {
     param([string]$Name, [bool]$Passed, [string]$Detail = '')
     $color = if ($Passed) { 'Green' } else { 'Red' }
     $status = if ($Passed) { 'PASS' } else { 'FAIL' }
@@ -96,12 +96,12 @@ try {
     }
     if ($r.systemIds -and @($r.systemIds).Count -ge 1) {
         $systemId = @($r.systemIds)[0]
-        Report-Result 'Ingest/Systems/HappyPath' $true "systemId=$systemId"
+        Write-Result 'Ingest/Systems/HappyPath' $true "systemId=$systemId"
     } else {
-        Report-Result 'Ingest/Systems/HappyPath' $false 'response missing systemIds'
+        Write-Result 'Ingest/Systems/HappyPath' $false 'response missing systemIds'
     }
 } catch {
-    Report-Result 'Ingest/Systems/HappyPath' $false $_.Exception.Message
+    Write-Result 'Ingest/Systems/HappyPath' $false $_.Exception.Message
 }
 
 # ─── 2. POST /ingest/principals — happy path ─────────────────────
@@ -123,12 +123,12 @@ try {
     }
     $inserted = if ($r.PSObject.Properties.Name -contains 'inserted') { $r.inserted } else { 0 }
     if ($inserted -ge 1) {
-        Report-Result 'Ingest/Principals/HappyPath' $true "inserted=$inserted"
+        Write-Result 'Ingest/Principals/HappyPath' $true "inserted=$inserted"
     } else {
-        Report-Result 'Ingest/Principals/HappyPath' $false "inserted=$inserted (expected >= 1)"
+        Write-Result 'Ingest/Principals/HappyPath' $false "inserted=$inserted (expected >= 1)"
     }
 } catch {
-    Report-Result 'Ingest/Principals/HappyPath' $false $_.Exception.Message
+    Write-Result 'Ingest/Principals/HappyPath' $false $_.Exception.Message
 }
 
 # ─── 3. POST /ingest/resources — happy path ──────────────────────
@@ -150,12 +150,12 @@ try {
     }
     $inserted = if ($r.PSObject.Properties.Name -contains 'inserted') { $r.inserted } else { 0 }
     if ($inserted -ge 1) {
-        Report-Result 'Ingest/Resources/HappyPath' $true "inserted=$inserted"
+        Write-Result 'Ingest/Resources/HappyPath' $true "inserted=$inserted"
     } else {
-        Report-Result 'Ingest/Resources/HappyPath' $false "inserted=$inserted (expected >= 1)"
+        Write-Result 'Ingest/Resources/HappyPath' $false "inserted=$inserted (expected >= 1)"
     }
 } catch {
-    Report-Result 'Ingest/Resources/HappyPath' $false $_.Exception.Message
+    Write-Result 'Ingest/Resources/HappyPath' $false $_.Exception.Message
 }
 
 # ─── 4. POST /ingest/resource-assignments — happy path ───────────
@@ -174,21 +174,21 @@ try {
             }
         )
     }
-    Report-Result 'Ingest/ResourceAssignments/HappyPath' $true "ok"
+    Write-Result 'Ingest/ResourceAssignments/HappyPath' $true "ok"
 } catch {
-    Report-Result 'Ingest/ResourceAssignments/HappyPath' $false $_.Exception.Message
+    Write-Result 'Ingest/ResourceAssignments/HappyPath' $false $_.Exception.Message
 }
 
 # ─── 5. POST /ingest/systems — empty body → 400 ─────────────────
 try {
     Invoke-LocalApi -Path '/ingest/systems' -Method Post -Body @{} | Out-Null
-    Report-Result 'Ingest/Systems/EmptyBody' $false 'expected 400, got success'
+    Write-Result 'Ingest/Systems/EmptyBody' $false 'expected 400, got success'
 } catch {
     $statusCode = if ($_.Exception.Response) { [int]$_.Exception.Response.StatusCode } else { 0 }
     if ($statusCode -eq 400) {
-        Report-Result 'Ingest/Systems/EmptyBody' $true "got 400 (expected)"
+        Write-Result 'Ingest/Systems/EmptyBody' $true "got 400 (expected)"
     } else {
-        Report-Result 'Ingest/Systems/EmptyBody' $false "got $statusCode (expected 400)"
+        Write-Result 'Ingest/Systems/EmptyBody' $false "got $statusCode (expected 400)"
     }
 }
 
@@ -200,13 +200,13 @@ try {
             @{ externalId = 'x'; displayName = 'X'; principalType = 'User' }
         )
     } | Out-Null
-    Report-Result 'Ingest/Principals/MissingSysId' $false 'expected 400, got success'
+    Write-Result 'Ingest/Principals/MissingSysId' $false 'expected 400, got success'
 } catch {
     $statusCode = if ($_.Exception.Response) { [int]$_.Exception.Response.StatusCode } else { 0 }
     if ($statusCode -eq 400) {
-        Report-Result 'Ingest/Principals/MissingSysId' $true "got 400 (expected)"
+        Write-Result 'Ingest/Principals/MissingSysId' $true "got 400 (expected)"
     } else {
-        Report-Result 'Ingest/Principals/MissingSysId' $false "got $statusCode (expected 400)"
+        Write-Result 'Ingest/Principals/MissingSysId' $false "got $statusCode (expected 400)"
     }
 }
 
@@ -219,13 +219,13 @@ try {
             @{ externalId = 'x'; displayName = 'X'; principalType = 'User' }
         )
     } | Out-Null
-    Report-Result 'Ingest/Principals/InvalidSyncMode' $false 'expected 400, got success'
+    Write-Result 'Ingest/Principals/InvalidSyncMode' $false 'expected 400, got success'
 } catch {
     $statusCode = if ($_.Exception.Response) { [int]$_.Exception.Response.StatusCode } else { 0 }
     if ($statusCode -eq 400) {
-        Report-Result 'Ingest/Principals/InvalidSyncMode' $true "got 400 (expected)"
+        Write-Result 'Ingest/Principals/InvalidSyncMode' $true "got 400 (expected)"
     } else {
-        Report-Result 'Ingest/Principals/InvalidSyncMode' $false "got $statusCode (expected 400)"
+        Write-Result 'Ingest/Principals/InvalidSyncMode' $false "got $statusCode (expected 400)"
     }
 }
 
@@ -238,13 +238,13 @@ try {
             @{ externalId = 'x'; displayName = 'X'; resourceType = 'Group' }
         )
     } | Out-Null
-    Report-Result 'Ingest/Resources/NoAuth' $false 'expected 401, got success'
+    Write-Result 'Ingest/Resources/NoAuth' $false 'expected 401, got success'
 } catch {
     $statusCode = if ($_.Exception.Response) { [int]$_.Exception.Response.StatusCode } else { 0 }
     if ($statusCode -eq 401) {
-        Report-Result 'Ingest/Resources/NoAuth' $true "got 401 (expected)"
+        Write-Result 'Ingest/Resources/NoAuth' $true "got 401 (expected)"
     } else {
-        Report-Result 'Ingest/Resources/NoAuth' $false "got $statusCode (expected 401)"
+        Write-Result 'Ingest/Resources/NoAuth' $false "got $statusCode (expected 401)"
     }
 }
 

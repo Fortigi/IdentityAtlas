@@ -20,8 +20,8 @@ beforeAll(async () => {
   systemId = sys.rows[0].id;
 
   const seed = [
-    ['Engineering', 'EntraGroup'],
-    ['Finance', 'EntraGroup'],
+    ['Engineering', 'Group'],
+    ['Finance', 'Group'],
     ['Global Admin', 'DirectoryRole'],
     ['Sales App', 'Application'],
     ['Joiner Package', 'BusinessRole'],
@@ -44,12 +44,12 @@ afterAll(async () => {
 
 describe('GET /resources', () => {
   it('filters to exactly the requested resourceType', async () => {
-    const res = await agent.get(`/api/resources?resourceType=EntraGroup&systemId=${systemId}`);
+    const res = await agent.get(`/api/resources?resourceType=Group&systemId=${systemId}`);
 
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body.data)).toBe(true);
     expect(res.body.data.length).toBe(2);
-    expect(res.body.data.every(r => r.resourceType === 'EntraGroup')).toBe(true);
+    expect(res.body.data.every(r => r.resourceType === 'Group')).toBe(true);
     expect(typeof res.body.total).toBe('number');
     expect(res.body.total).toBe(2);
   });

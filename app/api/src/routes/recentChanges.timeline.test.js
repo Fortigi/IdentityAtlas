@@ -29,7 +29,7 @@ describe('diffRow', () => {
 });
 
 const labels = {
-  resource: id => ({ 'res-1': { displayName: 'Finance App', resourceType: 'EntraGroup' } }[id] || null),
+  resource: id => ({ 'res-1': { displayName: 'Finance App', resourceType: 'Group' } }[id] || null),
   principal: id => ({ 'mgr-1': 'Alice Boss', 'u': 'Bob User' }[id] || null),
   identity: id => ({ 'id-1': 'Wim (person)' }[id] || null),
 };

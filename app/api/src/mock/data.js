@@ -167,17 +167,15 @@ addAssignment(userId(5), groupId(18), 'Direct');   // Finance user with Jira
 // A Sales person with SAP Admin (over-provisioned!)
 addAssignment(userId(40), groupId(12), 'Direct');  // Sales person with SAP Admin
 
-// An HR person who is Owner of a Finance group
-addAssignment(userId(25), groupId(1), 'Owner');    // HR person owns Finance base group
+// An HR person directly in a Finance group (cross-department over-permission)
+addAssignment(userId(25), groupId(1), 'Direct');   // HR person directly in the Finance base group
 
 // Marketing person with VPN (only IT should have this)
 addAssignment(userId(55), groupId(40), 'Direct');  // Marketing with VPN
 
-// Pattern 12: Group Owners
-for (const user of users.filter(u => u.jobTitle.includes('Manager'))) {
-  const deptIndex = departments.indexOf(user.department);
-  addAssignment(user.id, groupId(deptIndex + 1), 'Owner');
-}
+// (Group ownership is modelled as a separate GroupOwnership resource in the real
+// data, not a membership type — the retired 'Owner' membershipType is gone, and
+// department managers already hold their base group as 'Direct' via Pattern 1.)
 
 // Build unmanaged permissions (mock vw_UnmanagedPermissions)
 // These are direct assignments that aren't governed by access packages

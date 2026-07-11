@@ -33,7 +33,7 @@ describe('applyIngestDefaults', () => {
     expect(body.records[1].governed).toBe(true);
   });
   it('derives governanceResource from resourceType on resources', () => {
-    const body = { records: [{ resourceType: 'BusinessRole' }, { resourceType: 'EntraGroup' }] };
+    const body = { records: [{ resourceType: 'BusinessRole' }, { resourceType: 'Group' }] };
     applyIngestDefaults('resources', body);
     expect(body.records[0].governanceResource).toBe(true);
     expect(body.records[1].governanceResource).toBe(false);

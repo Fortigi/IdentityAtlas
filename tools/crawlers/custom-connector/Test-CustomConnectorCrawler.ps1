@@ -40,7 +40,7 @@ Param(
 $ErrorActionPreference = 'Continue'
 $standaloneFailures = 0
 
-function Report-Result {
+function Write-Result {
     param([string]$Name, [bool]$Passed, [string]$Detail = '')
     $color = if ($Passed) { 'Green' } else { 'Red' }
     $status = if ($Passed) { 'PASS' } else { 'FAIL' }
@@ -64,16 +64,16 @@ try {
         -Body (@{ displayName = 'Nightly-Test-Connector'; description = 'Automated test — safe to delete' } | ConvertTo-Json)
     $connectorKey = $r.apiKey
     $ok = $null -ne $connectorKey -and $connectorKey.StartsWith('fgc_')
-    Report-Result 'CustomConnector/Register' $ok "id=$($r.id) keyPrefix=$($connectorKey.Substring(0,8))..."
+    Write-Result 'CustomConnector/Register' $ok "id=$($r.id) keyPrefix=$($connectorKey.Substring(0,8))..."
 } catch {
-    Report-Result 'CustomConnector/Register' $false $_.Exception.Message
+    Write-Result 'CustomConnector/Register' $false $_.Exception.Message
 }
 
 if (-not $connectorKey) {
-    Report-Result 'CustomConnector/Whoami' $false 'skipped: no API key from registration'
-    Report-Result 'CustomConnector/IngestSystem' $false 'skipped: no API key'
-    Report-Result 'CustomConnector/IngestUser' $false 'skipped: no API key'
-    Report-Result 'CustomConnector/DataLanded' $false 'skipped: no API key'
+    Write-Result 'CustomConnector/Whoami' $false 'skipped: no API key from registration'
+    Write-Result 'CustomConnector/IngestSystem' $false 'skipped: no API key'
+    Write-Result 'CustomConnector/IngestUser' $false 'skipped: no API key'
+    Write-Result 'CustomConnector/DataLanded' $false 'skipped: no API key'
     if (-not $WriteResult) { exit $standaloneFailures }
     return
 }
@@ -84,9 +84,9 @@ $headers = @{ 'Authorization' = "Bearer $connectorKey"; 'Content-Type' = 'applic
 try {
     $whoami = Invoke-RestMethod -Uri "$ApiBaseUrl/crawlers/whoami" -Headers $headers -TimeoutSec 10
     $ok = $whoami.displayName -eq 'Nightly-Test-Connector'
-    Report-Result 'CustomConnector/Whoami' $ok "name=$($whoami.displayName)"
+    Write-Result 'CustomConnector/Whoami' $ok "name=$($whoami.displayName)"
 } catch {
-    Report-Result 'CustomConnector/Whoami' $false $_.Exception.Message
+    Write-Result 'CustomConnector/Whoami' $false $_.Exception.Message
 }
 
 # ─── 3. Push a test system ───────────────────────────────────────
@@ -103,9 +103,9 @@ try {
         } | ConvertTo-Json -Depth 5) -TimeoutSec 30
     $systemId = if ($r.systemIds) { $r.systemIds[0] } else { $null }
     $ok = $null -ne $systemId
-    Report-Result 'CustomConnector/IngestSystem' $ok "systemId=$systemId"
+    Write-Result 'CustomConnector/IngestSystem' $ok "systemId=$systemId"
 } catch {
-    Report-Result 'CustomConnector/IngestSystem' $false $_.Exception.Message
+    Write-Result 'CustomConnector/IngestSystem' $false $_.Exception.Message
 }
 
 # ─── 4. Push a test user ─────────────────────────────────────────
@@ -123,12 +123,12 @@ if ($systemId) {
                 })
             } | ConvertTo-Json -Depth 5) -TimeoutSec 30
         $ok = $r.inserted -ge 1 -or $r.updated -ge 1
-        Report-Result 'CustomConnector/IngestUser' $ok "inserted=$($r.inserted) updated=$($r.updated)"
+        Write-Result 'CustomConnector/IngestUser' $ok "inserted=$($r.inserted) updated=$($r.updated)"
     } catch {
-        Report-Result 'CustomConnector/IngestUser' $false $_.Exception.Message
+        Write-Result 'CustomConnector/IngestUser' $false $_.Exception.Message
     }
 } else {
-    Report-Result 'CustomConnector/IngestUser' $false 'skipped: no systemId'
+    Write-Result 'CustomConnector/IngestUser' $false 'skipped: no systemId'
 }
 
 # ─── 5. Verify data landed ──────────────────────────────────────
@@ -136,9 +136,9 @@ try {
     $users = Invoke-RestMethod -Uri "$ApiBaseUrl/users?search=Custom+Connector+Test" -TimeoutSec 10
     $list = if ($users.data) { $users.data } else { $users }
     $found = @($list | Where-Object { $_.displayName -like '*Custom Connector Test*' })
-    Report-Result 'CustomConnector/DataLanded' ($found.Count -ge 1) "found=$($found.Count)"
+    Write-Result 'CustomConnector/DataLanded' ($found.Count -ge 1) "found=$($found.Count)"
 } catch {
-    Report-Result 'CustomConnector/DataLanded' $false $_.Exception.Message
+    Write-Result 'CustomConnector/DataLanded' $false $_.Exception.Message
 }
 
 Write-Host "`n  Custom connector round-trip complete." -ForegroundColor Green

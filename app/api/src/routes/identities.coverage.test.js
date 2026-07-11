@@ -177,7 +177,7 @@ describe('GET /identities/:id/assignments', () => {
 
   it('returns assignment rows for a valid type', async () => {
     mockReq.query.mockResolvedValueOnce({ recordset: [{ resourceId: VALID_ID2 }] });
-    const res = await request(app).get(`/identities/${VALID_ID}/assignments?type=Governed`);
+    const res = await request(app).get(`/identities/${VALID_ID}/assignments?type=Direct`);
     expect(res.status).toBe(200);
     expect(res.body).toHaveLength(1);
   });

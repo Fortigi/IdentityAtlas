@@ -1,0 +1,2000 @@
+{
+  "generatedFrom": "PSMutant",
+  "mutationScore": 84.7,
+  "total": 215,
+  "killed": 182,
+  "survived": 33,
+  "thresholds": {
+    "high": 80,
+    "low": 60,
+    "break": null
+  },
+  "survivors": [
+    {
+      "Id": 1,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 44,
+      "Operator": "BinaryOperator",
+      "Description": "-and -> -or",
+      "Status": "Survived"
+    },
+    {
+      "Id": 9,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 121,
+      "Operator": "BinaryOperator",
+      "Description": "-and -> -or",
+      "Status": "Survived"
+    },
+    {
+      "Id": 11,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 124,
+      "Operator": "BinaryOperator",
+      "Description": "-and -> -or",
+      "Status": "Survived"
+    },
+    {
+      "Id": 17,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 201,
+      "Operator": "BinaryOperator",
+      "Description": "-and -> -or",
+      "Status": "Survived"
+    },
+    {
+      "Id": 22,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 245,
+      "Operator": "BinaryOperator",
+      "Description": "-ne -> -eq",
+      "Status": "Survived"
+    },
+    {
+      "Id": 39,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 555,
+      "Operator": "BinaryOperator",
+      "Description": "-or -> -and",
+      "Status": "Survived"
+    },
+    {
+      "Id": 42,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 617,
+      "Operator": "BinaryOperator",
+      "Description": "-and -> -or",
+      "Status": "Survived"
+    },
+    {
+      "Id": 62,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 430,
+      "Operator": "BooleanLiteral",
+      "Description": "$false -> $true",
+      "Status": "Survived"
+    },
+    {
+      "Id": 66,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 568,
+      "Operator": "BooleanLiteral",
+      "Description": "$true -> $false",
+      "Status": "Survived"
+    },
+    {
+      "Id": 70,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 54,
+      "Operator": "NumberLiteral",
+      "Description": "0 -> 1",
+      "Status": "Survived"
+    },
+    {
+      "Id": 72,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 88,
+      "Operator": "NumberLiteral",
+      "Description": "3 -> 4",
+      "Status": "Survived"
+    },
+    {
+      "Id": 73,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 121,
+      "Operator": "NumberLiteral",
+      "Description": "0 -> 1",
+      "Status": "Survived"
+    },
+    {
+      "Id": 74,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 124,
+      "Operator": "NumberLiteral",
+      "Description": "0 -> 1",
+      "Status": "Survived"
+    },
+    {
+      "Id": 75,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 128,
+      "Operator": "NumberLiteral",
+      "Description": "0 -> 1",
+      "Status": "Survived"
+    },
+    {
+      "Id": 76,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 164,
+      "Operator": "NumberLiteral",
+      "Description": "0 -> 1",
+      "Status": "Survived"
+    },
+    {
+      "Id": 81,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 516,
+      "Operator": "NumberLiteral",
+      "Description": "0 -> 1",
+      "Status": "Survived"
+    },
+    {
+      "Id": 82,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 602,
+      "Operator": "NumberLiteral",
+      "Description": "0 -> 1",
+      "Status": "Survived"
+    },
+    {
+      "Id": 6,
+      "File": "tools/crawlers/midpoint/MidpointCrawler.Transform.ps1",
+      "Line": 303,
+      "Operator": "BinaryOperator",
+      "Description": "-and -> -or",
+      "Status": "Survived"
+    },
+    {
+      "Id": 10,
+      "File": "tools/crawlers/midpoint/MidpointCrawler.Transform.ps1",
+      "Line": 114,
+      "Operator": "NumberLiteral",
+      "Description": "0 -> 1",
+      "Status": "Survived"
+    },
+    {
+      "Id": 11,
+      "File": "tools/crawlers/midpoint/MidpointCrawler.Transform.ps1",
+      "Line": 114,
+      "Operator": "NumberLiteral",
+      "Description": "1 -> 2",
+      "Status": "Survived"
+    },
+    {
+      "Id": 1,
+      "File": "tools/crawlers/omada/OmadaCrawler.Transform.ps1",
+      "Line": 142,
+      "Operator": "BinaryOperator",
+      "Description": "+ -> -",
+      "Status": "Survived"
+    },
+    {
+      "Id": 17,
+      "File": "tools/crawlers/omada/OmadaCrawler.Transform.ps1",
+      "Line": 142,
+      "Operator": "NumberLiteral",
+      "Description": "0 -> 1",
+      "Status": "Survived"
+    },
+    {
+      "Id": 18,
+      "File": "tools/crawlers/omada/OmadaCrawler.Transform.ps1",
+      "Line": 142,
+      "Operator": "NumberLiteral",
+      "Description": "1 -> 2",
+      "Status": "Survived"
+    },
+    {
+      "Id": 19,
+      "File": "tools/crawlers/omada/OmadaCrawler.Transform.ps1",
+      "Line": 312,
+      "Operator": "NumberLiteral",
+      "Description": "1 -> 2",
+      "Status": "Survived"
+    },
+    {
+      "Id": 31,
+      "File": "tools/crawlers/csv/CSVCrawler.Transform.ps1",
+      "Line": 81,
+      "Operator": "NumberLiteral",
+      "Description": "0 -> 1",
+      "Status": "Survived"
+    },
+    {
+      "Id": 32,
+      "File": "tools/crawlers/csv/CSVCrawler.Transform.ps1",
+      "Line": 84,
+      "Operator": "NumberLiteral",
+      "Description": "0 -> 1",
+      "Status": "Survived"
+    },
+    {
+      "Id": 33,
+      "File": "tools/crawlers/csv/CSVCrawler.Transform.ps1",
+      "Line": 91,
+      "Operator": "NumberLiteral",
+      "Description": "0 -> 1",
+      "Status": "Survived"
+    },
+    {
+      "Id": 34,
+      "File": "tools/crawlers/csv/CSVCrawler.Transform.ps1",
+      "Line": 138,
+      "Operator": "NumberLiteral",
+      "Description": "0 -> 1",
+      "Status": "Survived"
+    },
+    {
+      "Id": 35,
+      "File": "tools/crawlers/csv/CSVCrawler.Transform.ps1",
+      "Line": 187,
+      "Operator": "NumberLiteral",
+      "Description": "0 -> 1",
+      "Status": "Survived"
+    },
+    {
+      "Id": 36,
+      "File": "tools/crawlers/csv/CSVCrawler.Transform.ps1",
+      "Line": 188,
+      "Operator": "NumberLiteral",
+      "Description": "0 -> 1",
+      "Status": "Survived"
+    },
+    {
+      "Id": 37,
+      "File": "tools/crawlers/csv/CSVCrawler.Transform.ps1",
+      "Line": 189,
+      "Operator": "NumberLiteral",
+      "Description": "0 -> 1",
+      "Status": "Survived"
+    },
+    {
+      "Id": 38,
+      "File": "tools/crawlers/csv/CSVCrawler.Transform.ps1",
+      "Line": 190,
+      "Operator": "NumberLiteral",
+      "Description": "0 -> 1",
+      "Status": "Survived"
+    },
+    {
+      "Id": 39,
+      "File": "tools/crawlers/csv/CSVCrawler.Transform.ps1",
+      "Line": 191,
+      "Operator": "NumberLiteral",
+      "Description": "0 -> 1",
+      "Status": "Survived"
+    }
+  ],
+  "mutants": [
+    {
+      "Id": 1,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 44,
+      "Operator": "BinaryOperator",
+      "Description": "-and -> -or",
+      "Status": "Survived"
+    },
+    {
+      "Id": 2,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 54,
+      "Operator": "BinaryOperator",
+      "Description": "-gt -> -le",
+      "Status": "Killed"
+    },
+    {
+      "Id": 3,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 57,
+      "Operator": "BinaryOperator",
+      "Description": "-and -> -or",
+      "Status": "Killed"
+    },
+    {
+      "Id": 4,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 57,
+      "Operator": "BinaryOperator",
+      "Description": "-ne -> -eq",
+      "Status": "Killed"
+    },
+    {
+      "Id": 5,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 57,
+      "Operator": "BinaryOperator",
+      "Description": "-ne -> -eq",
+      "Status": "Killed"
+    },
+    {
+      "Id": 6,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 63,
+      "Operator": "BinaryOperator",
+      "Description": "-gt -> -le",
+      "Status": "Killed"
+    },
+    {
+      "Id": 7,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 77,
+      "Operator": "BinaryOperator",
+      "Description": "-eq -> -ne",
+      "Status": "Killed"
+    },
+    {
+      "Id": 8,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 88,
+      "Operator": "BinaryOperator",
+      "Description": "-gt -> -le",
+      "Status": "Killed"
+    },
+    {
+      "Id": 9,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 121,
+      "Operator": "BinaryOperator",
+      "Description": "-and -> -or",
+      "Status": "Survived"
+    },
+    {
+      "Id": 10,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 121,
+      "Operator": "BinaryOperator",
+      "Description": "-gt -> -le",
+      "Status": "Killed"
+    },
+    {
+      "Id": 11,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 124,
+      "Operator": "BinaryOperator",
+      "Description": "-and -> -or",
+      "Status": "Survived"
+    },
+    {
+      "Id": 12,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 124,
+      "Operator": "BinaryOperator",
+      "Description": "-gt -> -le",
+      "Status": "Killed"
+    },
+    {
+      "Id": 13,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 128,
+      "Operator": "BinaryOperator",
+      "Description": "-gt -> -le",
+      "Status": "Killed"
+    },
+    {
+      "Id": 14,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 164,
+      "Operator": "BinaryOperator",
+      "Description": "-gt -> -le",
+      "Status": "Killed"
+    },
+    {
+      "Id": 15,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 165,
+      "Operator": "BinaryOperator",
+      "Description": "-gt -> -le",
+      "Status": "Killed"
+    },
+    {
+      "Id": 16,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 198,
+      "Operator": "BinaryOperator",
+      "Description": "-and -> -or",
+      "Status": "Killed"
+    },
+    {
+      "Id": 17,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 201,
+      "Operator": "BinaryOperator",
+      "Description": "-and -> -or",
+      "Status": "Survived"
+    },
+    {
+      "Id": 18,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 211,
+      "Operator": "BinaryOperator",
+      "Description": "-and -> -or",
+      "Status": "Killed"
+    },
+    {
+      "Id": 19,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 220,
+      "Operator": "BinaryOperator",
+      "Description": "-and -> -or",
+      "Status": "Killed"
+    },
+    {
+      "Id": 20,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 219,
+      "Operator": "BinaryOperator",
+      "Description": "-and -> -or",
+      "Status": "Killed"
+    },
+    {
+      "Id": 21,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 220,
+      "Operator": "BinaryOperator",
+      "Description": "-eq -> -ne",
+      "Status": "Killed"
+    },
+    {
+      "Id": 22,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 245,
+      "Operator": "BinaryOperator",
+      "Description": "-ne -> -eq",
+      "Status": "Survived"
+    },
+    {
+      "Id": 23,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 248,
+      "Operator": "BinaryOperator",
+      "Description": "-gt -> -le",
+      "Status": "Killed"
+    },
+    {
+      "Id": 24,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 258,
+      "Operator": "BinaryOperator",
+      "Description": "-ne -> -eq",
+      "Status": "Killed"
+    },
+    {
+      "Id": 25,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 335,
+      "Operator": "BinaryOperator",
+      "Description": "-or -> -and",
+      "Status": "Killed"
+    },
+    {
+      "Id": 26,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 352,
+      "Operator": "BinaryOperator",
+      "Description": "-gt -> -le",
+      "Status": "Killed"
+    },
+    {
+      "Id": 27,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 357,
+      "Operator": "BinaryOperator",
+      "Description": "-and -> -or",
+      "Status": "Killed"
+    },
+    {
+      "Id": 28,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 357,
+      "Operator": "BinaryOperator",
+      "Description": "-ne -> -eq",
+      "Status": "Killed"
+    },
+    {
+      "Id": 29,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 357,
+      "Operator": "BinaryOperator",
+      "Description": "-eq -> -ne",
+      "Status": "Killed"
+    },
+    {
+      "Id": 30,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 358,
+      "Operator": "BinaryOperator",
+      "Description": "-or -> -and",
+      "Status": "Killed"
+    },
+    {
+      "Id": 31,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 358,
+      "Operator": "BinaryOperator",
+      "Description": "-gt -> -le",
+      "Status": "Killed"
+    },
+    {
+      "Id": 32,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 362,
+      "Operator": "BinaryOperator",
+      "Description": "-or -> -and",
+      "Status": "Killed"
+    },
+    {
+      "Id": 33,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 362,
+      "Operator": "BinaryOperator",
+      "Description": "-gt -> -le",
+      "Status": "Killed"
+    },
+    {
+      "Id": 34,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 464,
+      "Operator": "BinaryOperator",
+      "Description": "-or -> -and",
+      "Status": "Killed"
+    },
+    {
+      "Id": 35,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 482,
+      "Operator": "BinaryOperator",
+      "Description": "-or -> -and",
+      "Status": "Killed"
+    },
+    {
+      "Id": 36,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 485,
+      "Operator": "BinaryOperator",
+      "Description": "-and -> -or",
+      "Status": "Killed"
+    },
+    {
+      "Id": 37,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 516,
+      "Operator": "BinaryOperator",
+      "Description": "-gt -> -le",
+      "Status": "Killed"
+    },
+    {
+      "Id": 38,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 555,
+      "Operator": "BinaryOperator",
+      "Description": "-or -> -and",
+      "Status": "Killed"
+    },
+    {
+      "Id": 39,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 555,
+      "Operator": "BinaryOperator",
+      "Description": "-or -> -and",
+      "Status": "Survived"
+    },
+    {
+      "Id": 40,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 559,
+      "Operator": "BinaryOperator",
+      "Description": "-ne -> -eq",
+      "Status": "Killed"
+    },
+    {
+      "Id": 41,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 602,
+      "Operator": "BinaryOperator",
+      "Description": "-gt -> -le",
+      "Status": "Killed"
+    },
+    {
+      "Id": 42,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 617,
+      "Operator": "BinaryOperator",
+      "Description": "-and -> -or",
+      "Status": "Survived"
+    },
+    {
+      "Id": 43,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 767,
+      "Operator": "BinaryOperator",
+      "Description": "-or -> -and",
+      "Status": "Killed"
+    },
+    {
+      "Id": 44,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 787,
+      "Operator": "BinaryOperator",
+      "Description": "-or -> -and",
+      "Status": "Killed"
+    },
+    {
+      "Id": 53,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 917,
+      "Operator": "BinaryOperator",
+      "Description": "-eq -> -ne",
+      "Status": "Killed"
+    },
+    {
+      "Id": 54,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 997,
+      "Operator": "BinaryOperator",
+      "Description": "-and -> -or",
+      "Status": "Killed"
+    },
+    {
+      "Id": 55,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 270,
+      "Operator": "BooleanLiteral",
+      "Description": "$true -> $false",
+      "Status": "Killed"
+    },
+    {
+      "Id": 56,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 335,
+      "Operator": "BooleanLiteral",
+      "Description": "$false -> $true",
+      "Status": "Killed"
+    },
+    {
+      "Id": 57,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 337,
+      "Operator": "BooleanLiteral",
+      "Description": "$false -> $true",
+      "Status": "Killed"
+    },
+    {
+      "Id": 58,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 366,
+      "Operator": "BooleanLiteral",
+      "Description": "$true -> $false",
+      "Status": "Killed"
+    },
+    {
+      "Id": 59,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 412,
+      "Operator": "BooleanLiteral",
+      "Description": "$true -> $false",
+      "Status": "Killed"
+    },
+    {
+      "Id": 60,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 415,
+      "Operator": "BooleanLiteral",
+      "Description": "$true -> $false",
+      "Status": "Killed"
+    },
+    {
+      "Id": 61,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 429,
+      "Operator": "BooleanLiteral",
+      "Description": "$false -> $true",
+      "Status": "Killed"
+    },
+    {
+      "Id": 62,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 430,
+      "Operator": "BooleanLiteral",
+      "Description": "$false -> $true",
+      "Status": "Survived"
+    },
+    {
+      "Id": 63,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 435,
+      "Operator": "BooleanLiteral",
+      "Description": "$false -> $true",
+      "Status": "Killed"
+    },
+    {
+      "Id": 64,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 492,
+      "Operator": "BooleanLiteral",
+      "Description": "$true -> $false",
+      "Status": "Killed"
+    },
+    {
+      "Id": 65,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 511,
+      "Operator": "BooleanLiteral",
+      "Description": "$true -> $false",
+      "Status": "Killed"
+    },
+    {
+      "Id": 66,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 568,
+      "Operator": "BooleanLiteral",
+      "Description": "$true -> $false",
+      "Status": "Survived"
+    },
+    {
+      "Id": 67,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 596,
+      "Operator": "BooleanLiteral",
+      "Description": "$true -> $false",
+      "Status": "Killed"
+    },
+    {
+      "Id": 68,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 600,
+      "Operator": "BooleanLiteral",
+      "Description": "$true -> $false",
+      "Status": "Killed"
+    },
+    {
+      "Id": 69,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 644,
+      "Operator": "BooleanLiteral",
+      "Description": "$true -> $false",
+      "Status": "Killed"
+    },
+    {
+      "Id": 70,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 54,
+      "Operator": "NumberLiteral",
+      "Description": "0 -> 1",
+      "Status": "Survived"
+    },
+    {
+      "Id": 71,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 63,
+      "Operator": "NumberLiteral",
+      "Description": "0 -> 1",
+      "Status": "Killed"
+    },
+    {
+      "Id": 72,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 88,
+      "Operator": "NumberLiteral",
+      "Description": "3 -> 4",
+      "Status": "Survived"
+    },
+    {
+      "Id": 73,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 121,
+      "Operator": "NumberLiteral",
+      "Description": "0 -> 1",
+      "Status": "Survived"
+    },
+    {
+      "Id": 74,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 124,
+      "Operator": "NumberLiteral",
+      "Description": "0 -> 1",
+      "Status": "Survived"
+    },
+    {
+      "Id": 75,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 128,
+      "Operator": "NumberLiteral",
+      "Description": "0 -> 1",
+      "Status": "Survived"
+    },
+    {
+      "Id": 76,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 164,
+      "Operator": "NumberLiteral",
+      "Description": "0 -> 1",
+      "Status": "Survived"
+    },
+    {
+      "Id": 77,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 165,
+      "Operator": "NumberLiteral",
+      "Description": "3 -> 4",
+      "Status": "Killed"
+    },
+    {
+      "Id": 78,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 248,
+      "Operator": "NumberLiteral",
+      "Description": "0 -> 1",
+      "Status": "Killed"
+    },
+    {
+      "Id": 79,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 348,
+      "Operator": "NumberLiteral",
+      "Description": "0 -> 1",
+      "Status": "Killed"
+    },
+    {
+      "Id": 80,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 357,
+      "Operator": "NumberLiteral",
+      "Description": "0 -> 1",
+      "Status": "Killed"
+    },
+    {
+      "Id": 81,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 516,
+      "Operator": "NumberLiteral",
+      "Description": "0 -> 1",
+      "Status": "Survived"
+    },
+    {
+      "Id": 82,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 602,
+      "Operator": "NumberLiteral",
+      "Description": "0 -> 1",
+      "Status": "Survived"
+    },
+    {
+      "Id": 88,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 143,
+      "Operator": "NegationRemoval",
+      "Description": "remove negation",
+      "Status": "Killed"
+    },
+    {
+      "Id": 89,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 201,
+      "Operator": "NegationRemoval",
+      "Description": "remove negation",
+      "Status": "Killed"
+    },
+    {
+      "Id": 90,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 219,
+      "Operator": "NegationRemoval",
+      "Description": "remove negation",
+      "Status": "Killed"
+    },
+    {
+      "Id": 91,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 293,
+      "Operator": "NegationRemoval",
+      "Description": "remove negation",
+      "Status": "Killed"
+    },
+    {
+      "Id": 92,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 295,
+      "Operator": "NegationRemoval",
+      "Description": "remove negation",
+      "Status": "Killed"
+    },
+    {
+      "Id": 93,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 335,
+      "Operator": "NegationRemoval",
+      "Description": "remove negation",
+      "Status": "Killed"
+    },
+    {
+      "Id": 94,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 335,
+      "Operator": "NegationRemoval",
+      "Description": "remove negation",
+      "Status": "Killed"
+    },
+    {
+      "Id": 95,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 337,
+      "Operator": "NegationRemoval",
+      "Description": "remove negation",
+      "Status": "Killed"
+    },
+    {
+      "Id": 96,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 340,
+      "Operator": "NegationRemoval",
+      "Description": "remove negation",
+      "Status": "Killed"
+    },
+    {
+      "Id": 97,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 358,
+      "Operator": "NegationRemoval",
+      "Description": "remove negation",
+      "Status": "Killed"
+    },
+    {
+      "Id": 98,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 362,
+      "Operator": "NegationRemoval",
+      "Description": "remove negation",
+      "Status": "Killed"
+    },
+    {
+      "Id": 99,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 428,
+      "Operator": "NegationRemoval",
+      "Description": "remove negation",
+      "Status": "Killed"
+    },
+    {
+      "Id": 100,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 464,
+      "Operator": "NegationRemoval",
+      "Description": "remove negation",
+      "Status": "Killed"
+    },
+    {
+      "Id": 101,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 464,
+      "Operator": "NegationRemoval",
+      "Description": "remove negation",
+      "Status": "Killed"
+    },
+    {
+      "Id": 102,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 482,
+      "Operator": "NegationRemoval",
+      "Description": "remove negation",
+      "Status": "Killed"
+    },
+    {
+      "Id": 103,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 482,
+      "Operator": "NegationRemoval",
+      "Description": "remove negation",
+      "Status": "Killed"
+    },
+    {
+      "Id": 104,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 555,
+      "Operator": "NegationRemoval",
+      "Description": "remove negation",
+      "Status": "Killed"
+    },
+    {
+      "Id": 105,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 555,
+      "Operator": "NegationRemoval",
+      "Description": "remove negation",
+      "Status": "Killed"
+    },
+    {
+      "Id": 106,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 555,
+      "Operator": "NegationRemoval",
+      "Description": "remove negation",
+      "Status": "Killed"
+    },
+    {
+      "Id": 107,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 563,
+      "Operator": "NegationRemoval",
+      "Description": "remove negation",
+      "Status": "Killed"
+    },
+    {
+      "Id": 108,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 573,
+      "Operator": "NegationRemoval",
+      "Description": "remove negation",
+      "Status": "Killed"
+    },
+    {
+      "Id": 109,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 619,
+      "Operator": "NegationRemoval",
+      "Description": "remove negation",
+      "Status": "Killed"
+    },
+    {
+      "Id": 110,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 767,
+      "Operator": "NegationRemoval",
+      "Description": "remove negation",
+      "Status": "Killed"
+    },
+    {
+      "Id": 111,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 767,
+      "Operator": "NegationRemoval",
+      "Description": "remove negation",
+      "Status": "Killed"
+    },
+    {
+      "Id": 112,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 787,
+      "Operator": "NegationRemoval",
+      "Description": "remove negation",
+      "Status": "Killed"
+    },
+    {
+      "Id": 113,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 787,
+      "Operator": "NegationRemoval",
+      "Description": "remove negation",
+      "Status": "Killed"
+    },
+    {
+      "Id": 115,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 918,
+      "Operator": "NegationRemoval",
+      "Description": "remove negation",
+      "Status": "Killed"
+    },
+    {
+      "Id": 116,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 924,
+      "Operator": "NegationRemoval",
+      "Description": "remove negation",
+      "Status": "Killed"
+    },
+    {
+      "Id": 117,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+      "Line": 952,
+      "Operator": "NegationRemoval",
+      "Description": "remove negation",
+      "Status": "Killed"
+    },
+    {
+      "Id": 1,
+      "File": "tools/crawlers/midpoint/MidpointCrawler.Transform.ps1",
+      "Line": 114,
+      "Operator": "BinaryOperator",
+      "Description": "+ -> -",
+      "Status": "Killed"
+    },
+    {
+      "Id": 2,
+      "File": "tools/crawlers/midpoint/MidpointCrawler.Transform.ps1",
+      "Line": 120,
+      "Operator": "BinaryOperator",
+      "Description": "-or -> -and",
+      "Status": "Killed"
+    },
+    {
+      "Id": 3,
+      "File": "tools/crawlers/midpoint/MidpointCrawler.Transform.ps1",
+      "Line": 120,
+      "Operator": "BinaryOperator",
+      "Description": "-or -> -and",
+      "Status": "Killed"
+    },
+    {
+      "Id": 4,
+      "File": "tools/crawlers/midpoint/MidpointCrawler.Transform.ps1",
+      "Line": 121,
+      "Operator": "BinaryOperator",
+      "Description": "-and -> -or",
+      "Status": "Killed"
+    },
+    {
+      "Id": 5,
+      "File": "tools/crawlers/midpoint/MidpointCrawler.Transform.ps1",
+      "Line": 146,
+      "Operator": "BinaryOperator",
+      "Description": "-eq -> -ne",
+      "Status": "Killed"
+    },
+    {
+      "Id": 6,
+      "File": "tools/crawlers/midpoint/MidpointCrawler.Transform.ps1",
+      "Line": 303,
+      "Operator": "BinaryOperator",
+      "Description": "-and -> -or",
+      "Status": "Survived"
+    },
+    {
+      "Id": 7,
+      "File": "tools/crawlers/midpoint/MidpointCrawler.Transform.ps1",
+      "Line": 316,
+      "Operator": "BinaryOperator",
+      "Description": "-and -> -or",
+      "Status": "Killed"
+    },
+    {
+      "Id": 8,
+      "File": "tools/crawlers/midpoint/MidpointCrawler.Transform.ps1",
+      "Line": 77,
+      "Operator": "BooleanLiteral",
+      "Description": "$true -> $false",
+      "Status": "Killed"
+    },
+    {
+      "Id": 9,
+      "File": "tools/crawlers/midpoint/MidpointCrawler.Transform.ps1",
+      "Line": 264,
+      "Operator": "BooleanLiteral",
+      "Description": "$true -> $false",
+      "Status": "Killed"
+    },
+    {
+      "Id": 10,
+      "File": "tools/crawlers/midpoint/MidpointCrawler.Transform.ps1",
+      "Line": 114,
+      "Operator": "NumberLiteral",
+      "Description": "0 -> 1",
+      "Status": "Survived"
+    },
+    {
+      "Id": 11,
+      "File": "tools/crawlers/midpoint/MidpointCrawler.Transform.ps1",
+      "Line": 114,
+      "Operator": "NumberLiteral",
+      "Description": "1 -> 2",
+      "Status": "Survived"
+    },
+    {
+      "Id": 12,
+      "File": "tools/crawlers/midpoint/MidpointCrawler.Transform.ps1",
+      "Line": 302,
+      "Operator": "NumberLiteral",
+      "Description": "1 -> 2",
+      "Status": "Killed"
+    },
+    {
+      "Id": 13,
+      "File": "tools/crawlers/midpoint/MidpointCrawler.Transform.ps1",
+      "Line": 120,
+      "Operator": "NegationRemoval",
+      "Description": "remove negation",
+      "Status": "Killed"
+    },
+    {
+      "Id": 14,
+      "File": "tools/crawlers/midpoint/MidpointCrawler.Transform.ps1",
+      "Line": 120,
+      "Operator": "NegationRemoval",
+      "Description": "remove negation",
+      "Status": "Killed"
+    },
+    {
+      "Id": 15,
+      "File": "tools/crawlers/midpoint/MidpointCrawler.Transform.ps1",
+      "Line": 121,
+      "Operator": "NegationRemoval",
+      "Description": "remove negation",
+      "Status": "Killed"
+    },
+    {
+      "Id": 1,
+      "File": "tools/crawlers/omada/OmadaCrawler.Transform.ps1",
+      "Line": 142,
+      "Operator": "BinaryOperator",
+      "Description": "+ -> -",
+      "Status": "Survived"
+    },
+    {
+      "Id": 2,
+      "File": "tools/crawlers/omada/OmadaCrawler.Transform.ps1",
+      "Line": 148,
+      "Operator": "BinaryOperator",
+      "Description": "-or -> -and",
+      "Status": "Killed"
+    },
+    {
+      "Id": 3,
+      "File": "tools/crawlers/omada/OmadaCrawler.Transform.ps1",
+      "Line": 173,
+      "Operator": "BinaryOperator",
+      "Description": "-and -> -or",
+      "Status": "Killed"
+    },
+    {
+      "Id": 4,
+      "File": "tools/crawlers/omada/OmadaCrawler.Transform.ps1",
+      "Line": 201,
+      "Operator": "BinaryOperator",
+      "Description": "-or -> -and",
+      "Status": "Killed"
+    },
+    {
+      "Id": 5,
+      "File": "tools/crawlers/omada/OmadaCrawler.Transform.ps1",
+      "Line": 230,
+      "Operator": "BinaryOperator",
+      "Description": "-or -> -and",
+      "Status": "Killed"
+    },
+    {
+      "Id": 6,
+      "File": "tools/crawlers/omada/OmadaCrawler.Transform.ps1",
+      "Line": 233,
+      "Operator": "BinaryOperator",
+      "Description": "-and -> -or",
+      "Status": "Killed"
+    },
+    {
+      "Id": 7,
+      "File": "tools/crawlers/omada/OmadaCrawler.Transform.ps1",
+      "Line": 243,
+      "Operator": "BinaryOperator",
+      "Description": "-eq -> -ne",
+      "Status": "Killed"
+    },
+    {
+      "Id": 8,
+      "File": "tools/crawlers/omada/OmadaCrawler.Transform.ps1",
+      "Line": 250,
+      "Operator": "BinaryOperator",
+      "Description": "-ne -> -eq",
+      "Status": "Killed"
+    },
+    {
+      "Id": 9,
+      "File": "tools/crawlers/omada/OmadaCrawler.Transform.ps1",
+      "Line": 320,
+      "Operator": "BinaryOperator",
+      "Description": "-eq -> -ne",
+      "Status": "Killed"
+    },
+    {
+      "Id": 10,
+      "File": "tools/crawlers/omada/OmadaCrawler.Transform.ps1",
+      "Line": 343,
+      "Operator": "BinaryOperator",
+      "Description": "-eq -> -ne",
+      "Status": "Killed"
+    },
+    {
+      "Id": 11,
+      "File": "tools/crawlers/omada/OmadaCrawler.Transform.ps1",
+      "Line": 183,
+      "Operator": "BooleanLiteral",
+      "Description": "$True -> $false",
+      "Status": "Killed"
+    },
+    {
+      "Id": 12,
+      "File": "tools/crawlers/omada/OmadaCrawler.Transform.ps1",
+      "Line": 250,
+      "Operator": "BooleanLiteral",
+      "Description": "$False -> $true",
+      "Status": "Killed"
+    },
+    {
+      "Id": 13,
+      "File": "tools/crawlers/omada/OmadaCrawler.Transform.ps1",
+      "Line": 294,
+      "Operator": "BooleanLiteral",
+      "Description": "$true -> $false",
+      "Status": "Killed"
+    },
+    {
+      "Id": 14,
+      "File": "tools/crawlers/omada/OmadaCrawler.Transform.ps1",
+      "Line": 320,
+      "Operator": "BooleanLiteral",
+      "Description": "$True -> $false",
+      "Status": "Killed"
+    },
+    {
+      "Id": 15,
+      "File": "tools/crawlers/omada/OmadaCrawler.Transform.ps1",
+      "Line": 343,
+      "Operator": "BooleanLiteral",
+      "Description": "$True -> $false",
+      "Status": "Killed"
+    },
+    {
+      "Id": 16,
+      "File": "tools/crawlers/omada/OmadaCrawler.Transform.ps1",
+      "Line": 353,
+      "Operator": "BooleanLiteral",
+      "Description": "$true -> $false",
+      "Status": "Killed"
+    },
+    {
+      "Id": 17,
+      "File": "tools/crawlers/omada/OmadaCrawler.Transform.ps1",
+      "Line": 142,
+      "Operator": "NumberLiteral",
+      "Description": "0 -> 1",
+      "Status": "Survived"
+    },
+    {
+      "Id": 18,
+      "File": "tools/crawlers/omada/OmadaCrawler.Transform.ps1",
+      "Line": 142,
+      "Operator": "NumberLiteral",
+      "Description": "1 -> 2",
+      "Status": "Survived"
+    },
+    {
+      "Id": 19,
+      "File": "tools/crawlers/omada/OmadaCrawler.Transform.ps1",
+      "Line": 312,
+      "Operator": "NumberLiteral",
+      "Description": "1 -> 2",
+      "Status": "Survived"
+    },
+    {
+      "Id": 20,
+      "File": "tools/crawlers/omada/OmadaCrawler.Transform.ps1",
+      "Line": 40,
+      "Operator": "NegationRemoval",
+      "Description": "remove negation",
+      "Status": "Killed"
+    },
+    {
+      "Id": 21,
+      "File": "tools/crawlers/omada/OmadaCrawler.Transform.ps1",
+      "Line": 148,
+      "Operator": "NegationRemoval",
+      "Description": "remove negation",
+      "Status": "Killed"
+    },
+    {
+      "Id": 22,
+      "File": "tools/crawlers/omada/OmadaCrawler.Transform.ps1",
+      "Line": 169,
+      "Operator": "NegationRemoval",
+      "Description": "remove negation",
+      "Status": "Killed"
+    },
+    {
+      "Id": 23,
+      "File": "tools/crawlers/omada/OmadaCrawler.Transform.ps1",
+      "Line": 201,
+      "Operator": "NegationRemoval",
+      "Description": "remove negation",
+      "Status": "Killed"
+    },
+    {
+      "Id": 24,
+      "File": "tools/crawlers/omada/OmadaCrawler.Transform.ps1",
+      "Line": 201,
+      "Operator": "NegationRemoval",
+      "Description": "remove negation",
+      "Status": "Killed"
+    },
+    {
+      "Id": 25,
+      "File": "tools/crawlers/omada/OmadaCrawler.Transform.ps1",
+      "Line": 230,
+      "Operator": "NegationRemoval",
+      "Description": "remove negation",
+      "Status": "Killed"
+    },
+    {
+      "Id": 26,
+      "File": "tools/crawlers/omada/OmadaCrawler.Transform.ps1",
+      "Line": 230,
+      "Operator": "NegationRemoval",
+      "Description": "remove negation",
+      "Status": "Killed"
+    },
+    {
+      "Id": 27,
+      "File": "tools/crawlers/omada/OmadaCrawler.Transform.ps1",
+      "Line": 265,
+      "Operator": "NegationRemoval",
+      "Description": "remove negation",
+      "Status": "Killed"
+    },
+    {
+      "Id": 28,
+      "File": "tools/crawlers/omada/OmadaCrawler.Transform.ps1",
+      "Line": 313,
+      "Operator": "NegationRemoval",
+      "Description": "remove negation",
+      "Status": "Killed"
+    },
+    {
+      "Id": 1,
+      "File": "tools/crawlers/csv/CSVCrawler.Transform.ps1",
+      "Line": 35,
+      "Operator": "BinaryOperator",
+      "Description": "-and -> -or",
+      "Status": "Killed"
+    },
+    {
+      "Id": 2,
+      "File": "tools/crawlers/csv/CSVCrawler.Transform.ps1",
+      "Line": 50,
+      "Operator": "BinaryOperator",
+      "Description": "-and -> -or",
+      "Status": "Killed"
+    },
+    {
+      "Id": 3,
+      "File": "tools/crawlers/csv/CSVCrawler.Transform.ps1",
+      "Line": 51,
+      "Operator": "BinaryOperator",
+      "Description": "-and -> -or",
+      "Status": "Killed"
+    },
+    {
+      "Id": 4,
+      "File": "tools/crawlers/csv/CSVCrawler.Transform.ps1",
+      "Line": 63,
+      "Operator": "BinaryOperator",
+      "Description": "-or -> -and",
+      "Status": "Killed"
+    },
+    {
+      "Id": 5,
+      "File": "tools/crawlers/csv/CSVCrawler.Transform.ps1",
+      "Line": 80,
+      "Operator": "BinaryOperator",
+      "Description": "-or -> -and",
+      "Status": "Killed"
+    },
+    {
+      "Id": 6,
+      "File": "tools/crawlers/csv/CSVCrawler.Transform.ps1",
+      "Line": 81,
+      "Operator": "BinaryOperator",
+      "Description": "-ge -> -lt",
+      "Status": "Killed"
+    },
+    {
+      "Id": 7,
+      "File": "tools/crawlers/csv/CSVCrawler.Transform.ps1",
+      "Line": 82,
+      "Operator": "BinaryOperator",
+      "Description": "-eq -> -ne",
+      "Status": "Killed"
+    },
+    {
+      "Id": 8,
+      "File": "tools/crawlers/csv/CSVCrawler.Transform.ps1",
+      "Line": 84,
+      "Operator": "BinaryOperator",
+      "Description": "-and -> -or",
+      "Status": "Killed"
+    },
+    {
+      "Id": 9,
+      "File": "tools/crawlers/csv/CSVCrawler.Transform.ps1",
+      "Line": 84,
+      "Operator": "BinaryOperator",
+      "Description": "-ge -> -lt",
+      "Status": "Killed"
+    },
+    {
+      "Id": 10,
+      "File": "tools/crawlers/csv/CSVCrawler.Transform.ps1",
+      "Line": 91,
+      "Operator": "BinaryOperator",
+      "Description": "-ge -> -lt",
+      "Status": "Killed"
+    },
+    {
+      "Id": 11,
+      "File": "tools/crawlers/csv/CSVCrawler.Transform.ps1",
+      "Line": 99,
+      "Operator": "BinaryOperator",
+      "Description": "-or -> -and",
+      "Status": "Killed"
+    },
+    {
+      "Id": 12,
+      "File": "tools/crawlers/csv/CSVCrawler.Transform.ps1",
+      "Line": 104,
+      "Operator": "BinaryOperator",
+      "Description": "-and -> -or",
+      "Status": "Killed"
+    },
+    {
+      "Id": 13,
+      "File": "tools/crawlers/csv/CSVCrawler.Transform.ps1",
+      "Line": 113,
+      "Operator": "BinaryOperator",
+      "Description": "-or -> -and",
+      "Status": "Killed"
+    },
+    {
+      "Id": 14,
+      "File": "tools/crawlers/csv/CSVCrawler.Transform.ps1",
+      "Line": 115,
+      "Operator": "BinaryOperator",
+      "Description": "-and -> -or",
+      "Status": "Killed"
+    },
+    {
+      "Id": 15,
+      "File": "tools/crawlers/csv/CSVCrawler.Transform.ps1",
+      "Line": 117,
+      "Operator": "BinaryOperator",
+      "Description": "-and -> -or",
+      "Status": "Killed"
+    },
+    {
+      "Id": 16,
+      "File": "tools/crawlers/csv/CSVCrawler.Transform.ps1",
+      "Line": 136,
+      "Operator": "BinaryOperator",
+      "Description": "-or -> -and",
+      "Status": "Killed"
+    },
+    {
+      "Id": 17,
+      "File": "tools/crawlers/csv/CSVCrawler.Transform.ps1",
+      "Line": 138,
+      "Operator": "BinaryOperator",
+      "Description": "-ge -> -lt",
+      "Status": "Killed"
+    },
+    {
+      "Id": 18,
+      "File": "tools/crawlers/csv/CSVCrawler.Transform.ps1",
+      "Line": 151,
+      "Operator": "BinaryOperator",
+      "Description": "-or -> -and",
+      "Status": "Killed"
+    },
+    {
+      "Id": 19,
+      "File": "tools/crawlers/csv/CSVCrawler.Transform.ps1",
+      "Line": 167,
+      "Operator": "BinaryOperator",
+      "Description": "-or -> -and",
+      "Status": "Killed"
+    },
+    {
+      "Id": 20,
+      "File": "tools/crawlers/csv/CSVCrawler.Transform.ps1",
+      "Line": 187,
+      "Operator": "BinaryOperator",
+      "Description": "-ge -> -lt",
+      "Status": "Killed"
+    },
+    {
+      "Id": 21,
+      "File": "tools/crawlers/csv/CSVCrawler.Transform.ps1",
+      "Line": 188,
+      "Operator": "BinaryOperator",
+      "Description": "-ge -> -lt",
+      "Status": "Killed"
+    },
+    {
+      "Id": 22,
+      "File": "tools/crawlers/csv/CSVCrawler.Transform.ps1",
+      "Line": 189,
+      "Operator": "BinaryOperator",
+      "Description": "-ge -> -lt",
+      "Status": "Killed"
+    },
+    {
+      "Id": 23,
+      "File": "tools/crawlers/csv/CSVCrawler.Transform.ps1",
+      "Line": 190,
+      "Operator": "BinaryOperator",
+      "Description": "-ge -> -lt",
+      "Status": "Killed"
+    },
+    {
+      "Id": 24,
+      "File": "tools/crawlers/csv/CSVCrawler.Transform.ps1",
+      "Line": 191,
+      "Operator": "BinaryOperator",
+      "Description": "-ge -> -lt",
+      "Status": "Killed"
+    },
+    {
+      "Id": 25,
+      "File": "tools/crawlers/csv/CSVCrawler.Transform.ps1",
+      "Line": 33,
+      "Operator": "BooleanLiteral",
+      "Description": "$true -> $false",
+      "Status": "Killed"
+    },
+    {
+      "Id": 26,
+      "File": "tools/crawlers/csv/CSVCrawler.Transform.ps1",
+      "Line": 34,
+      "Operator": "BooleanLiteral",
+      "Description": "$true -> $false",
+      "Status": "Killed"
+    },
+    {
+      "Id": 27,
+      "File": "tools/crawlers/csv/CSVCrawler.Transform.ps1",
+      "Line": 83,
+      "Operator": "BooleanLiteral",
+      "Description": "$true -> $false",
+      "Status": "Killed"
+    },
+    {
+      "Id": 28,
+      "File": "tools/crawlers/csv/CSVCrawler.Transform.ps1",
+      "Line": 84,
+      "Operator": "BooleanLiteral",
+      "Description": "$false -> $true",
+      "Status": "Killed"
+    },
+    {
+      "Id": 29,
+      "File": "tools/crawlers/csv/CSVCrawler.Transform.ps1",
+      "Line": 116,
+      "Operator": "BooleanLiteral",
+      "Description": "$true -> $false",
+      "Status": "Killed"
+    },
+    {
+      "Id": 30,
+      "File": "tools/crawlers/csv/CSVCrawler.Transform.ps1",
+      "Line": 117,
+      "Operator": "BooleanLiteral",
+      "Description": "$false -> $true",
+      "Status": "Killed"
+    },
+    {
+      "Id": 31,
+      "File": "tools/crawlers/csv/CSVCrawler.Transform.ps1",
+      "Line": 81,
+      "Operator": "NumberLiteral",
+      "Description": "0 -> 1",
+      "Status": "Survived"
+    },
+    {
+      "Id": 32,
+      "File": "tools/crawlers/csv/CSVCrawler.Transform.ps1",
+      "Line": 84,
+      "Operator": "NumberLiteral",
+      "Description": "0 -> 1",
+      "Status": "Survived"
+    },
+    {
+      "Id": 33,
+      "File": "tools/crawlers/csv/CSVCrawler.Transform.ps1",
+      "Line": 91,
+      "Operator": "NumberLiteral",
+      "Description": "0 -> 1",
+      "Status": "Survived"
+    },
+    {
+      "Id": 34,
+      "File": "tools/crawlers/csv/CSVCrawler.Transform.ps1",
+      "Line": 138,
+      "Operator": "NumberLiteral",
+      "Description": "0 -> 1",
+      "Status": "Survived"
+    },
+    {
+      "Id": 35,
+      "File": "tools/crawlers/csv/CSVCrawler.Transform.ps1",
+      "Line": 187,
+      "Operator": "NumberLiteral",
+      "Description": "0 -> 1",
+      "Status": "Survived"
+    },
+    {
+      "Id": 36,
+      "File": "tools/crawlers/csv/CSVCrawler.Transform.ps1",
+      "Line": 188,
+      "Operator": "NumberLiteral",
+      "Description": "0 -> 1",
+      "Status": "Survived"
+    },
+    {
+      "Id": 37,
+      "File": "tools/crawlers/csv/CSVCrawler.Transform.ps1",
+      "Line": 189,
+      "Operator": "NumberLiteral",
+      "Description": "0 -> 1",
+      "Status": "Survived"
+    },
+    {
+      "Id": 38,
+      "File": "tools/crawlers/csv/CSVCrawler.Transform.ps1",
+      "Line": 190,
+      "Operator": "NumberLiteral",
+      "Description": "0 -> 1",
+      "Status": "Survived"
+    },
+    {
+      "Id": 39,
+      "File": "tools/crawlers/csv/CSVCrawler.Transform.ps1",
+      "Line": 191,
+      "Operator": "NumberLiteral",
+      "Description": "0 -> 1",
+      "Status": "Survived"
+    },
+    {
+      "Id": 40,
+      "File": "tools/crawlers/csv/CSVCrawler.Transform.ps1",
+      "Line": 28,
+      "Operator": "NegationRemoval",
+      "Description": "remove negation",
+      "Status": "Killed"
+    },
+    {
+      "Id": 41,
+      "File": "tools/crawlers/csv/CSVCrawler.Transform.ps1",
+      "Line": 44,
+      "Operator": "NegationRemoval",
+      "Description": "remove negation",
+      "Status": "Killed"
+    },
+    {
+      "Id": 42,
+      "File": "tools/crawlers/csv/CSVCrawler.Transform.ps1",
+      "Line": 63,
+      "Operator": "NegationRemoval",
+      "Description": "remove negation",
+      "Status": "Killed"
+    },
+    {
+      "Id": 43,
+      "File": "tools/crawlers/csv/CSVCrawler.Transform.ps1",
+      "Line": 63,
+      "Operator": "NegationRemoval",
+      "Description": "remove negation",
+      "Status": "Killed"
+    },
+    {
+      "Id": 44,
+      "File": "tools/crawlers/csv/CSVCrawler.Transform.ps1",
+      "Line": 80,
+      "Operator": "NegationRemoval",
+      "Description": "remove negation",
+      "Status": "Killed"
+    },
+    {
+      "Id": 45,
+      "File": "tools/crawlers/csv/CSVCrawler.Transform.ps1",
+      "Line": 80,
+      "Operator": "NegationRemoval",
+      "Description": "remove negation",
+      "Status": "Killed"
+    },
+    {
+      "Id": 46,
+      "File": "tools/crawlers/csv/CSVCrawler.Transform.ps1",
+      "Line": 99,
+      "Operator": "NegationRemoval",
+      "Description": "remove negation",
+      "Status": "Killed"
+    },
+    {
+      "Id": 47,
+      "File": "tools/crawlers/csv/CSVCrawler.Transform.ps1",
+      "Line": 99,
+      "Operator": "NegationRemoval",
+      "Description": "remove negation",
+      "Status": "Killed"
+    },
+    {
+      "Id": 48,
+      "File": "tools/crawlers/csv/CSVCrawler.Transform.ps1",
+      "Line": 113,
+      "Operator": "NegationRemoval",
+      "Description": "remove negation",
+      "Status": "Killed"
+    },
+    {
+      "Id": 49,
+      "File": "tools/crawlers/csv/CSVCrawler.Transform.ps1",
+      "Line": 113,
+      "Operator": "NegationRemoval",
+      "Description": "remove negation",
+      "Status": "Killed"
+    },
+    {
+      "Id": 50,
+      "File": "tools/crawlers/csv/CSVCrawler.Transform.ps1",
+      "Line": 136,
+      "Operator": "NegationRemoval",
+      "Description": "remove negation",
+      "Status": "Killed"
+    },
+    {
+      "Id": 51,
+      "File": "tools/crawlers/csv/CSVCrawler.Transform.ps1",
+      "Line": 136,
+      "Operator": "NegationRemoval",
+      "Description": "remove negation",
+      "Status": "Killed"
+    },
+    {
+      "Id": 52,
+      "File": "tools/crawlers/csv/CSVCrawler.Transform.ps1",
+      "Line": 151,
+      "Operator": "NegationRemoval",
+      "Description": "remove negation",
+      "Status": "Killed"
+    },
+    {
+      "Id": 53,
+      "File": "tools/crawlers/csv/CSVCrawler.Transform.ps1",
+      "Line": 151,
+      "Operator": "NegationRemoval",
+      "Description": "remove negation",
+      "Status": "Killed"
+    },
+    {
+      "Id": 54,
+      "File": "tools/crawlers/csv/CSVCrawler.Transform.ps1",
+      "Line": 167,
+      "Operator": "NegationRemoval",
+      "Description": "remove negation",
+      "Status": "Killed"
+    },
+    {
+      "Id": 55,
+      "File": "tools/crawlers/csv/CSVCrawler.Transform.ps1",
+      "Line": 167,
+      "Operator": "NegationRemoval",
+      "Description": "remove negation",
+      "Status": "Killed"
+    },
+    {
+      "Id": 56,
+      "File": "tools/crawlers/csv/CSVCrawler.Transform.ps1",
+      "Line": 183,
+      "Operator": "NegationRemoval",
+      "Description": "remove negation",
+      "Status": "Killed"
+    },
+    {
+      "Id": 1,
+      "File": "tools/crawlers/azure-rm/AzureRMCrawler.Transform.ps1",
+      "Line": 25,
+      "Operator": "BinaryOperator",
+      "Description": "-and -> -or",
+      "Status": "Killed"
+    },
+    {
+      "Id": 2,
+      "File": "tools/crawlers/azure-rm/AzureRMCrawler.Transform.ps1",
+      "Line": 25,
+      "Operator": "BinaryOperator",
+      "Description": "-gt -> -le",
+      "Status": "Killed"
+    },
+    {
+      "Id": 3,
+      "File": "tools/crawlers/azure-rm/AzureRMCrawler.Transform.ps1",
+      "Line": 25,
+      "Operator": "BinaryOperator",
+      "Description": "-gt -> -le",
+      "Status": "Killed"
+    },
+    {
+      "Id": 4,
+      "File": "tools/crawlers/azure-rm/AzureRMCrawler.Transform.ps1",
+      "Line": 26,
+      "Operator": "BinaryOperator",
+      "Description": "-gt -> -le",
+      "Status": "Killed"
+    },
+    {
+      "Id": 5,
+      "File": "tools/crawlers/azure-rm/AzureRMCrawler.Transform.ps1",
+      "Line": 36,
+      "Operator": "BinaryOperator",
+      "Description": "-eq -> -ne",
+      "Status": "Killed"
+    },
+    {
+      "Id": 6,
+      "File": "tools/crawlers/azure-rm/AzureRMCrawler.Transform.ps1",
+      "Line": 115,
+      "Operator": "BinaryOperator",
+      "Description": "-eq -> -ne",
+      "Status": "Killed"
+    },
+    {
+      "Id": 7,
+      "File": "tools/crawlers/azure-rm/AzureRMCrawler.Transform.ps1",
+      "Line": 79,
+      "Operator": "BooleanLiteral",
+      "Description": "$true -> $false",
+      "Status": "Killed"
+    },
+    {
+      "Id": 8,
+      "File": "tools/crawlers/azure-rm/AzureRMCrawler.Transform.ps1",
+      "Line": 114,
+      "Operator": "BooleanLiteral",
+      "Description": "$true -> $false",
+      "Status": "Killed"
+    },
+    {
+      "Id": 9,
+      "File": "tools/crawlers/azure-rm/AzureRMCrawler.Transform.ps1",
+      "Line": 25,
+      "Operator": "NumberLiteral",
+      "Description": "0 -> 1",
+      "Status": "Killed"
+    },
+    {
+      "Id": 10,
+      "File": "tools/crawlers/azure-rm/AzureRMCrawler.Transform.ps1",
+      "Line": 25,
+      "Operator": "NumberLiteral",
+      "Description": "0 -> 1",
+      "Status": "Killed"
+    },
+    {
+      "Id": 11,
+      "File": "tools/crawlers/azure-rm/AzureRMCrawler.Transform.ps1",
+      "Line": 26,
+      "Operator": "NumberLiteral",
+      "Description": "0 -> 1",
+      "Status": "Killed"
+    },
+    {
+      "Id": 12,
+      "File": "tools/crawlers/azure-rm/AzureRMCrawler.Transform.ps1",
+      "Line": 64,
+      "Operator": "NumberLiteral",
+      "Description": "-1 -> 0",
+      "Status": "Killed"
+    },
+    {
+      "Id": 13,
+      "File": "tools/crawlers/azure-rm/AzureRMCrawler.Transform.ps1",
+      "Line": 61,
+      "Operator": "NegationRemoval",
+      "Description": "remove negation",
+      "Status": "Killed"
+    }
+  ]
+}

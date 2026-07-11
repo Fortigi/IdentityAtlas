@@ -61,6 +61,18 @@ export function stripNativeExtensions(sql) {
   );
 }
 
+// Warning emitted when a migration aborts with "already exists" and is recorded
+// as applied WITHOUT re-running its body. The message names the file and calls
+// out the real hazard: a mixed DDL+DML migration whose DML half (backfill /
+// UPDATE / REFRESH) was silently skipped. It's built here as a pure function so
+// the wording (and the presence of the filename) is unit-tested, and so a
+// skipped backfill is greppable in boot logs by filename or by "SKIPPED".
+export function alreadyExistsWarning(filename) {
+  return `⚠ ${filename}: objects already exist — recorded as applied WITHOUT re-running its body. `
+    + `If this migration also made data changes (backfill / UPDATE / REFRESH), they were SKIPPED — verify manually. `
+    + `Make new migrations idempotent (IF NOT EXISTS) so this branch is never load-bearing.`;
+}
+
 // Apply a single migration file inside a transaction. The transaction wraps
 // the whole file so a failure halfway leaves nothing partial — the next run
 // will see the file as not-applied and try again from the top.
@@ -76,6 +88,34 @@ async function applyMigration(filename) {
       [filename]
     );
   });
+}
+
+// Compare the migrations the DB has applied against the ones THIS web image
+// ships. Pure so it's trivially unit-testable.
+//   - ahead:   an applied migration this image does not ship → the DB schema is
+//              NEWER than the running code (a rollback or half-applied update).
+//   - pending: a shipped migration not yet applied → migrations haven't run.
+//              Can't happen for a healthy web (fail-closed at boot), but surfaced
+//              for completeness.
+export function computeMigrationStatus(applied, shipped) {
+  const appliedSet = new Set(applied);
+  const shippedSet = new Set(shipped);
+  return {
+    applied: applied.length,
+    latest: [...applied].sort().pop() || null,
+    ahead: applied.some((f) => !shippedSet.has(f)),
+    pending: shipped.some((f) => !appliedSet.has(f)),
+  };
+}
+
+// Snapshot of the schema's migration state for the Admin → Updates "database"
+// indicator. `client` is injectable for tests / contract tests.
+export async function getMigrationStatus(client = db) {
+  const r = await client.query(`SELECT filename FROM _migrations`);
+  return computeMigrationStatus(
+    r.rows.map((row) => row.filename),
+    listMigrationFiles()
+  );
 }
 
 export async function runMigrations(_pool) {
@@ -100,7 +140,7 @@ export async function runMigrations(_pool) {
       // migration (transaction boundary quirk). If objects already exist,
       // record the migration as applied and continue rather than aborting.
       if (/already exists/i.test(err.message)) {
-        console.warn(`    (objects already exist — recording as applied and continuing)`);
+        console.warn(`    ${alreadyExistsWarning(filename)}`);
         await db.query(
           `INSERT INTO _migrations (filename) VALUES ($1) ON CONFLICT DO NOTHING`,
           [filename]

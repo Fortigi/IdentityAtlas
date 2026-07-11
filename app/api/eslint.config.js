@@ -1,10 +1,20 @@
 import security from 'eslint-plugin-security';
+import sonarjs from 'eslint-plugin-sonarjs';
 
 export default [
   security.configs.recommended,
   {
     // app-bundle.mjs is a generated desktop bundle — not hand-written source
     ignores: ['node_modules/', 'patches/', 'src/app-bundle.mjs'],
+  },
+  {
+    // Register the sonarjs plugin WITHOUT enabling any of its rules, so the
+    // `sonarjs/cognitive-complexity` rule id resolves when the complexity
+    // ratchet injects it via `--rule` (tools/complexity/ratchet.py measure_js).
+    // Deliberately not `sonarjs.configs.recommended` — that would enable a raft
+    // of rules and fail `npm run lint`. Same treatment as the core `complexity`
+    // (cyclomatic) rule: measured by the ratchet, never enforced in the lint job.
+    plugins: { sonarjs },
   },
   {
     rules: {

@@ -261,3 +261,35 @@ Describe 'Send-GroupedBySystem' {
         Should -Invoke Invoke-IngestAPI -Times 1 -ParameterFilter { $Body.records.Count -eq 2 }
     }
 }
+
+Describe 'Get-CsvColIndex' {
+    It 'returns the column index when the column is present' {
+        Get-CsvColIndex @{ 'ExternalId' = 0; 'DisplayName' = 2 } 'DisplayName' | Should -Be 2
+    }
+    It 'returns -1 when the column is absent' {
+        Get-CsvColIndex @{ 'ExternalId' = 0 } 'Missing' | Should -Be -1
+    }
+}
+
+Describe 'Get-CsvDedupedBatch' {
+    It 'dedups records that share an externalId, keeping one per key' {
+        $batch = [System.Collections.Generic.List[object]]::new()
+        $batch.Add(@{ externalId = 'a'; v = 1 }); $batch.Add(@{ externalId = 'b'; v = 2 }); $batch.Add(@{ externalId = 'a'; v = 3 })
+        $out = Get-CsvDedupedBatch -Batch $batch
+        $out.Count | Should -Be 2
+    }
+    It 'returns the batch unchanged when there are no duplicates' {
+        $batch = [System.Collections.Generic.List[object]]::new()
+        $batch.Add(@{ externalId = 'a' }); $batch.Add(@{ externalId = 'b' })
+        $out = Get-CsvDedupedBatch -Batch $batch
+        $out.Count | Should -Be 2
+    }
+    It 'falls back to a composite key for keyless (relationship-style) rows' {
+        $batch = [System.Collections.Generic.List[object]]::new()
+        $batch.Add(@{ parentExternalId = 'p'; childExternalId = 'c' })
+        $batch.Add(@{ parentExternalId = 'p'; childExternalId = 'c' })   # duplicate composite
+        $batch.Add(@{ parentExternalId = 'p'; childExternalId = 'd' })
+        $out = Get-CsvDedupedBatch -Batch $batch
+        $out.Count | Should -Be 2
+    }
+}

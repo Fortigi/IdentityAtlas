@@ -26,6 +26,61 @@ export function deterministicGuid(prefix, externalId) {
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+// External-ID → target-column mappings that resolve 1:1 into a fixed entity
+// namespace. Each entry: the caller-supplied field, the normalized column it
+// fills, and the entity suffix whose "<sys>-<suffix>" namespace generated that
+// entity's deterministic id. Resolved only when the field is present and the
+// target isn't already set. parentExternalId and memberExternalId are handled
+// separately in resolveExternalRefs (their target/namespace is dynamic).
+const SIMPLE_EXTERNAL_REFS = [
+  { field: 'childExternalId',     target: 'childResourceId', ns: 'resources' },
+  { field: 'identityExternalId',  target: 'identityId',      ns: 'identities' },
+  { field: 'userExternalId',      target: 'principalId',     ns: 'principals' },
+  { field: 'resourceExternalId',  target: 'resourceId',      ns: 'resources' },
+  { field: 'principalExternalId', target: 'principalId',     ns: 'principals' },
+  { field: 'relatedPrincipalExternalId', target: 'relatedPrincipalId', ns: 'principals' },
+  { field: 'contextExternalId',   target: 'contextId',       ns: 'contexts' },
+];
+
+/**
+ * Resolve a record's external-ID references to deterministic UUIDs in the same
+ * "<sys>-<entity>" namespace the target entity used, so the generated FKs line
+ * up with the rows the other endpoints created. Mutates `normalized`.
+ *
+ * All target column names come from trusted constants (never the record), so the
+ * dynamic `normalized[target]` writes can't be remote-property-injected.
+ */
+function resolveExternalRefs(rec, normalized, coreSet, sysPrefix) {
+  // A parentExternalId names the record's parent in the SAME entity family, so it
+  // must land on whichever parent FK the target table has: a Context's parent is
+  // another Context ("<sys>-contexts" → parentContextId); a resource
+  // relationship's parent is another Resource ("<sys>-resources" →
+  // parentResourceId). Keying off coreSet stops a context tree's parentExternalId
+  // mis-resolving to a Resources id (which left the hierarchy unset, surviving
+  // only as raw text in extendedAttributes).
+  if (rec.parentExternalId) {
+    if (coreSet.has('parentContextId') && !normalized.parentContextId) {
+      normalized.parentContextId = deterministicGuid(`${sysPrefix}-contexts`, String(rec.parentExternalId));
+    } else if (coreSet.has('parentResourceId') && !normalized.parentResourceId) {
+      normalized.parentResourceId = deterministicGuid(`${sysPrefix}-resources`, String(rec.parentExternalId));
+    }
+  }
+
+  for (const { field, target, ns } of SIMPLE_EXTERNAL_REFS) {
+    if (rec[field] && !normalized[target]) {
+      normalized[target] = deterministicGuid(`${sysPrefix}-${ns}`, String(rec[field]));
+    }
+  }
+
+  // A context-member's memberId namespace depends on what kind of entity it is.
+  if (rec.memberExternalId && !normalized.memberId) {
+    const memberNs = { Identity: 'identities', Principal: 'principals', Resource: 'resources' }[rec.memberType];
+    if (memberNs) {
+      normalized.memberId = deterministicGuid(`${sysPrefix}-${memberNs}`, String(rec.memberExternalId));
+    }
+  }
+}
+
 /**
  * Normalize a batch of records for a given entity type.
  *
@@ -72,62 +127,16 @@ export function normalizeRecords(records, coreColumns, options = {}) {
       normalized.externalId = String(rec.externalId);
     }
 
-    // Handle external-ID-based references for resource-relationships and
-    // resource-assignments. When the caller sends parentExternalId /
-    // childExternalId / resourceExternalId / principalExternalId, convert
-    // them to deterministic UUIDs using the same prefix namespace so the FKs
-    // match the IDs generated for the parent/child entities.
+    // Resolve external-ID references (parent/child/resource/principal/identity/
+    // context/member) to deterministic UUIDs so the generated FKs match the ids
+    // the other endpoints created for the same externalId — see resolveExternalRefs.
     if (idGeneration === 'deterministic') {
-      // Cross-entity ID resolution: derive the prefix used to generate the
-      // target entity's deterministic GUID. The convention is that the ingest
-      // caller sets idPrefix = "<systemPrefix>-<endpointSuffix>", e.g.
-      // "<sys>-resources", "<sys>-principals", "<sys>-resource-assignments".
-      //
-      // To resolve a resourceExternalId we need "<sys>-resources" — i.e. keep
-      // the system prefix and swap the entity suffix. Same for principals.
-      //
       // Prefer the explicit systemPrefix the route recovers by stripping the
-      // known entity suffix off idPrefix — that survives a system prefix that
-      // itself contains hyphens. Splitting on the first hyphen only works when
-      // the system prefix is hyphen-free, and otherwise resolves references to
-      // the wrong namespace, causing FK violations (e.g.
-      // ContextMembers_contextId_fkey on the context-members upsert).
+      // known entity suffix off idPrefix — it survives a system prefix that
+      // itself contains hyphens (splitting on the first hyphen would resolve to
+      // the wrong namespace, e.g. a ContextMembers_contextId_fkey violation).
       const sysPrefix = systemPrefix || idPrefix.split('-')[0];
-
-      if (rec.parentExternalId && !normalized.parentResourceId) {
-        normalized.parentResourceId = deterministicGuid(`${sysPrefix}-resources`, String(rec.parentExternalId));
-      }
-      if (rec.childExternalId && !normalized.childResourceId) {
-        normalized.childResourceId = deterministicGuid(`${sysPrefix}-resources`, String(rec.childExternalId));
-      }
-      // Identity-member external IDs
-      if (rec.identityExternalId && !normalized.identityId) {
-        normalized.identityId = deterministicGuid(`${sysPrefix}-identities`, String(rec.identityExternalId));
-      }
-      if (rec.userExternalId && !normalized.principalId) {
-        normalized.principalId = deterministicGuid(`${sysPrefix}-principals`, String(rec.userExternalId));
-      }
-      if (rec.resourceExternalId && !normalized.resourceId) {
-        normalized.resourceId = deterministicGuid(`${sysPrefix}-resources`, String(rec.resourceExternalId));
-      }
-      if (rec.principalExternalId && !normalized.principalId) {
-        normalized.principalId = deterministicGuid(`${sysPrefix}-principals`, String(rec.principalExternalId));
-      }
-      // Context-member references (ingest/context-members). The context endpoint
-      // generates context IDs under "<sys>-contexts" and each member entity under
-      // "<sys>-<entity>", so re-derive the same namespaces here to make the FKs
-      // line up. The CSV crawler sends these externalIds expecting resolution
-      // here — see tools/crawlers/csv/Start-CSVCrawler.ps1 → ContextMembers.csv.
-      if (rec.contextExternalId && !normalized.contextId) {
-        normalized.contextId = deterministicGuid(`${sysPrefix}-contexts`, String(rec.contextExternalId));
-      }
-      if (rec.memberExternalId && !normalized.memberId) {
-        // memberId's namespace depends on what kind of entity the member is.
-        const memberNs = { Identity: 'identities', Principal: 'principals', Resource: 'resources' }[rec.memberType];
-        if (memberNs) {
-          normalized.memberId = deterministicGuid(`${sysPrefix}-${memberNs}`, String(rec.memberExternalId));
-        }
-      }
+      resolveExternalRefs(rec, normalized, coreSet, sysPrefix);
     }
 
     // Set systemId if provided, the record doesn't override it, AND the table has the column

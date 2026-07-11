@@ -41,7 +41,7 @@ Param(
 $ErrorActionPreference = 'Continue'
 $standaloneFailures = 0
 
-function Report-Result {
+function Write-Result {
     param([string]$Name, [bool]$Passed, [string]$Detail = '')
     $color = if ($Passed) { 'Green' } else { 'Red' }
     $status = if ($Passed) { 'PASS' } else { 'FAIL' }
@@ -66,7 +66,7 @@ if (Test-Path $SecretsPath) {
     try {
         $secrets = Get-Content $SecretsPath -Raw | ConvertFrom-Json
     } catch {
-        Report-Result 'LLM-Config/LoadSecrets' $false "failed to parse: $($_.Exception.Message)"
+        Write-Result 'LLM-Config/LoadSecrets' $false "failed to parse: $($_.Exception.Message)"
         if (-not $WriteResult) { exit 1 } else { return }
     }
 }
@@ -84,11 +84,11 @@ $apiVersion  = if ($secrets.llm.apiVersion) { $secrets.llm.apiVersion } else { $
 
 # Treat placeholder values as "not configured"
 if ($apiKey -eq 'sk-ant-...' -or $apiKey -eq '' -or -not $apiKey) {
-    Report-Result 'LLM-Config/Available' $true 'skipped (no API key in secrets or env)'
+    Write-Result 'LLM-Config/Available' $true 'skipped (no API key in secrets or env)'
     if (-not $WriteResult) { exit 0 } else { return }
 }
 
-Report-Result 'LLM-Config/Available' $true "provider=$provider model=$model"
+Write-Result 'LLM-Config/Available' $true "provider=$provider model=$model"
 
 # ─── Save config via API ─────────────────────────────────────────
 $body = @{
@@ -98,7 +98,7 @@ $body = @{
 }
 if ($provider -eq 'azure-openai') {
     if (-not $endpoint -or -not $deployment) {
-        Report-Result 'LLM-Config/AzureFields' $false 'azure-openai requires endpoint + deployment'
+        Write-Result 'LLM-Config/AzureFields' $false 'azure-openai requires endpoint + deployment'
         if (-not $WriteResult) { exit 1 } else { return }
     }
     $body.endpoint   = $endpoint
@@ -118,7 +118,7 @@ for ($attempt = 1; $attempt -le 2; $attempt++) {
             -Body ($body | ConvertTo-Json -Compress) -TimeoutSec 30
         if ($resp.ok) {
             $suffix = if ($attempt -gt 1) { " (retry $attempt)" } else { '' }
-            Report-Result 'LLM-Config/Save' $true "provider=$($resp.config.provider) model=$($resp.config.model)$suffix"
+            Write-Result 'LLM-Config/Save' $true "provider=$($resp.config.provider) model=$($resp.config.model)$suffix"
             $saved = $true
             break
         } else {
@@ -131,7 +131,7 @@ for ($attempt = 1; $attempt -le 2; $attempt++) {
         } else {
             $detail = $_.Exception.Message
             if ($_.ErrorDetails.Message) { $detail += " — $($_.ErrorDetails.Message)" }
-            Report-Result 'LLM-Config/Save' $false $detail
+            Write-Result 'LLM-Config/Save' $false $detail
             if (-not $WriteResult) { exit 1 } else { return }
         }
     }
@@ -146,12 +146,12 @@ try {
         -Method Post -ContentType 'application/json' `
         -Body '{}' -TimeoutSec 30
     if ($testResp.ok) {
-        Report-Result 'LLM-Config/TestConnection' $true "model=$($testResp.model) latency=$($testResp.latencyMs)ms"
+        Write-Result 'LLM-Config/TestConnection' $true "model=$($testResp.model) latency=$($testResp.latencyMs)ms"
     } else {
-        Report-Result 'LLM-Config/TestConnection' $false $testResp.error
+        Write-Result 'LLM-Config/TestConnection' $false $testResp.error
     }
 } catch {
-    Report-Result 'LLM-Config/TestConnection' $false $_.Exception.Message
+    Write-Result 'LLM-Config/TestConnection' $false $_.Exception.Message
 }
 
 if (-not $WriteResult) { exit $standaloneFailures }

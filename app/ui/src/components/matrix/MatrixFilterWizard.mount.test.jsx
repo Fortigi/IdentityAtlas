@@ -18,7 +18,7 @@ const principalCols = [
 ];
 const resourceCols = [
   { column: 'displayName', values: [] },
-  { column: 'resourceType', values: ['EntraGroup', 'Application'] },
+  { column: 'resourceType', values: ['Group', 'Application'] },
 ];
 const identityCols = [
   { column: 'displayName', values: [] },

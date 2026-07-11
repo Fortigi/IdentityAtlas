@@ -338,7 +338,7 @@ describe('GET /groups', () => {
       ],
     };
     const filters = encodeURIComponent(JSON.stringify({ __groupTag: 'Sensitive' }));
-    const res = await request(app).get(`/api/groups?search=g&tagId=${VALID}&resourceType=EntraGroup&filters=${filters}`);
+    const res = await request(app).get(`/api/groups?search=g&tagId=${VALID}&resourceType=Group&filters=${filters}`);
     expect(res.status).toBe(200);
     expect(res.body.total).toBe(1);
   });

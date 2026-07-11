@@ -47,23 +47,23 @@ BeforeAll {
     $script:phases = [System.Collections.Generic.List[object]]::new()
 }
 
-# ─── Map-ResourceCategory ─────────────────────────────────────────────────────
-Describe 'Map-ResourceCategory' {
+# ─── ConvertTo-AtlasResourceCategory ─────────────────────────────────────────────────────
+Describe 'ConvertTo-AtlasResourceCategory' {
     It "maps 'Role' to BusinessRole" {
-        Map-ResourceCategory -Category 'Role' | Should -Be 'BusinessRole'
+        ConvertTo-AtlasResourceCategory -Category 'Role' | Should -Be 'BusinessRole'
     }
     It "maps 'Permission' to Resource" {
-        Map-ResourceCategory -Category 'Permission' | Should -Be 'Resource'
+        ConvertTo-AtlasResourceCategory -Category 'Permission' | Should -Be 'Resource'
     }
     It 'maps an unknown category to the catch-all (Resource)' {
-        Map-ResourceCategory -Category 'SomethingElse' | Should -Be 'Resource'
+        ConvertTo-AtlasResourceCategory -Category 'SomethingElse' | Should -Be 'Resource'
     }
     It 'maps an empty category to the catch-all (Resource)' {
-        Map-ResourceCategory -Category '' | Should -Be 'Resource'
+        ConvertTo-AtlasResourceCategory -Category '' | Should -Be 'Resource'
     }
     It 'returns the literal Resource fallback when no catch-all entry exists' {
         $script:ResourceCategoryMapping = @( @{ category = 'Role'; resourceType = 'BusinessRole' } )
-        Map-ResourceCategory -Category 'Unmapped' | Should -Be 'Resource'
+        ConvertTo-AtlasResourceCategory -Category 'Unmapped' | Should -Be 'Resource'
         # restore for other tests
         $script:ResourceCategoryMapping = @(
             @{ category = 'Role';       resourceType = 'BusinessRole' }
@@ -73,51 +73,51 @@ Describe 'Map-ResourceCategory' {
     }
 }
 
-# ─── Map-IdentityTypeToAtlas ──────────────────────────────────────────────────
-Describe 'Map-IdentityTypeToAtlas' {
+# ─── ConvertTo-AtlasIdentityType ──────────────────────────────────────────────────
+Describe 'ConvertTo-AtlasIdentityType' {
     It "maps 'Employee' to User" {
-        Map-IdentityTypeToAtlas -OmadaType 'Employee' | Should -Be 'User'
+        ConvertTo-AtlasIdentityType -OmadaType 'Employee' | Should -Be 'User'
     }
     It "maps 'Contractor' to ExternalUser" {
-        Map-IdentityTypeToAtlas -OmadaType 'Contractor' | Should -Be 'ExternalUser'
+        ConvertTo-AtlasIdentityType -OmadaType 'Contractor' | Should -Be 'ExternalUser'
     }
     It "maps 'Service Account' to ServicePrincipal" {
-        Map-IdentityTypeToAtlas -OmadaType 'Service Account' | Should -Be 'ServicePrincipal'
+        ConvertTo-AtlasIdentityType -OmadaType 'Service Account' | Should -Be 'ServicePrincipal'
     }
     It "maps 'Machine' to ServicePrincipal" {
-        Map-IdentityTypeToAtlas -OmadaType 'Machine' | Should -Be 'ServicePrincipal'
+        ConvertTo-AtlasIdentityType -OmadaType 'Machine' | Should -Be 'ServicePrincipal'
     }
     It "defaults an unknown type to 'User' (with a warning)" {
-        Map-IdentityTypeToAtlas -OmadaType 'Wizard' | Should -Be 'User'
+        ConvertTo-AtlasIdentityType -OmadaType 'Wizard' | Should -Be 'User'
     }
 }
 
-# ─── Map-ResourceTypeToAtlas ──────────────────────────────────────────────────
-Describe 'Map-ResourceTypeToAtlas' {
+# ─── ConvertTo-AtlasResourceType ──────────────────────────────────────────────────
+Describe 'ConvertTo-AtlasResourceType' {
     It "maps the configured 'Business Role' to BusinessRole" {
-        Map-ResourceTypeToAtlas -OmadaType 'Business Role' | Should -Be 'BusinessRole'
+        ConvertTo-AtlasResourceType -OmadaType 'Business Role' | Should -Be 'BusinessRole'
     }
     It 'strips whitespace from an unmapped multi-word type' {
-        Map-ResourceTypeToAtlas -OmadaType 'Custom Resource Type' | Should -Be 'CustomResourceType'
+        ConvertTo-AtlasResourceType -OmadaType 'Custom Resource Type' | Should -Be 'CustomResourceType'
     }
     It 'returns a single-word unmapped type unchanged' {
-        Map-ResourceTypeToAtlas -OmadaType 'Widget' | Should -Be 'Widget'
+        ConvertTo-AtlasResourceType -OmadaType 'Widget' | Should -Be 'Widget'
     }
 }
 
-# ─── Map-ContextTypeToAtlas ───────────────────────────────────────────────────
-Describe 'Map-ContextTypeToAtlas' {
+# ─── ConvertTo-AtlasContextType ───────────────────────────────────────────────────
+Describe 'ConvertTo-AtlasContextType' {
     It "maps 'Organisational Unit' to OrgUnit" {
-        Map-ContextTypeToAtlas -OmadaType 'Organisational Unit' | Should -Be 'OrgUnit'
+        ConvertTo-AtlasContextType -OmadaType 'Organisational Unit' | Should -Be 'OrgUnit'
     }
     It "maps 'Cost Center' to CostCenter" {
-        Map-ContextTypeToAtlas -OmadaType 'Cost Center' | Should -Be 'CostCenter'
+        ConvertTo-AtlasContextType -OmadaType 'Cost Center' | Should -Be 'CostCenter'
     }
     It "maps 'Department' to Department" {
-        Map-ContextTypeToAtlas -OmadaType 'Department' | Should -Be 'Department'
+        ConvertTo-AtlasContextType -OmadaType 'Department' | Should -Be 'Department'
     }
     It 'strips whitespace from an unmapped multi-word context type' {
-        Map-ContextTypeToAtlas -OmadaType 'Some Region' | Should -Be 'SomeRegion'
+        ConvertTo-AtlasContextType -OmadaType 'Some Region' | Should -Be 'SomeRegion'
     }
 }
 
@@ -233,15 +233,17 @@ Describe 'Send-IngestBatch' {
         }
     }
 
-    It 'sends a separate delta delete batch when DeletedIds are supplied' {
-        Mock Invoke-IngestAPI { return @{ inserted = 1; updated = 0; deleted = 0 } }
+    It 'sends deletes in-band with the records batch (unified protocol)' {
+        # The shared Send-IngestBatch carries the tombstones alongside the upserts
+        # in a single batch (the ingest API applies records first, then deletes),
+        # rather than a separate delta call — one round trip, identical end state.
+        Mock Invoke-IngestAPI { return @{ inserted = 1; updated = 0; deleted = 2 } }
         $recs = @([PSCustomObject]@{ id = 'keep' })
         Send-IngestBatch -Endpoint 'ingest/principals' -SystemId 1 `
             -Records $recs -DeletedIds @('gone1', 'gone2') | Out-Null
-        # One delete (delta) call + one upsert (full) call
-        Should -Invoke Invoke-IngestAPI -Times 2 -Exactly
+        Should -Invoke Invoke-IngestAPI -Times 1 -Exactly
         Should -Invoke Invoke-IngestAPI -Times 1 -Exactly -ParameterFilter {
-            $Body.syncMode -eq 'delta' -and $Body.deletedIds.Count -eq 2
+            $Body.records.Count -eq 1 -and $Body.deletedIds.Count -eq 2
         }
     }
 
@@ -264,5 +266,39 @@ Describe 'Send-IngestBatch' {
         Should -Invoke Invoke-IngestAPI -Times 1 -Exactly -ParameterFilter {
             $Body.syncSession -eq 'end'
         }
+    }
+}
+
+Describe 'Get-OmadaStr / Get-OmadaEnumStr / Join-OmadaDisplayNames' {
+    It 'Get-OmadaStr coalesces a set scalar to string, else the fallback' {
+        Get-OmadaStr 'hello'            | Should -Be 'hello'
+        Get-OmadaStr $null             | Should -Be ''
+        Get-OmadaStr 0                 | Should -Be ''        # 0 is falsy -> fallback
+        Get-OmadaStr '' -Fallback 'x'  | Should -Be 'x'
+    }
+    It 'Get-OmadaEnumStr reads .Value of a set enum ref, else the fallback' {
+        Get-OmadaEnumStr ([pscustomobject]@{ Value = 'Active' })    | Should -Be 'Active'
+        Get-OmadaEnumStr $null                                      | Should -Be ''
+        Get-OmadaEnumStr $null -Fallback 'Active'                   | Should -Be 'Active'
+    }
+    It 'Join-OmadaDisplayNames joins DisplayName with "; ", empty for null/empty' {
+        Join-OmadaDisplayNames @([pscustomobject]@{ DisplayName = 'A' }, [pscustomobject]@{ DisplayName = 'B' }) | Should -Be 'A; B'
+        Join-OmadaDisplayNames $null | Should -Be ''
+        Join-OmadaDisplayNames @()   | Should -Be ''
+    }
+}
+
+Describe 'Merge-OmadaOverrideValue' {
+    It 'merges a PSCustomObject override onto the default hashtable' {
+        $r = Merge-OmadaOverrideValue -DefaultValue @{ a = 1; b = 2 } -Override ([pscustomobject]@{ b = 3; c = 4 })
+        $r.a | Should -Be 1
+        $r.b | Should -Be 3
+        $r.c | Should -Be 4
+    }
+    It 'replaces wholesale for an array override' {
+        (Merge-OmadaOverrideValue -DefaultValue @(1) -Override @(2, 3)) | Should -Be @(2, 3)
+    }
+    It 'replaces for a scalar override' {
+        Merge-OmadaOverrideValue -DefaultValue 'x' -Override 'y' | Should -Be 'y'
     }
 }

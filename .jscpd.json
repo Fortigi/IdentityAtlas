@@ -4,7 +4,7 @@
   "minTokens": 50,
   "reporters": ["console"],
   "ignore": [
-    "**/*.sql",
+    "**/migrations/**/*.sql",
     "**/node_modules/**",
     "**/dist/**",
     "**/build/**",

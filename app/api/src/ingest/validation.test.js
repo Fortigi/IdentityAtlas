@@ -286,11 +286,46 @@ describe('validateRecords — resource-relationships', () => {
 
   it('accepts all valid relationshipType values', () => {
     // Keep this in sync with RELATIONSHIP_TYPES in validation.js.
-    const allTypes = ['Contains', 'GrantsAccessTo', 'DelegatesScope', 'HasAppRole', 'HasOwnership'];
+    const allTypes = ['Contains', 'GrantsAccessTo', 'DelegatesScope', 'HasAppRole', 'HasOwnership', 'HasAppOwnership'];
     for (const t of allTypes) {
       const result = validateRecords([{ ...validRel, relationshipType: t }], 'resource-relationships');
       expect(result.valid, `Expected valid for relationshipType=${t}`).toBe(true);
     }
+  });
+});
+
+// ── validateRecords — principal-relationships ─────────────────────────────────
+
+describe('validateRecords — principal-relationships', () => {
+  const validPR = {
+    principalId:        'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+    relatedPrincipalId: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+    relationshipType:   'Owner',
+  };
+
+  it('accepts a valid Owner record', () => {
+    expect(validateRecords([validPR], 'principal-relationships').valid).toBe(true);
+  });
+
+  it('accepts a valid Sponsor record', () => {
+    expect(validateRecords([{ ...validPR, relationshipType: 'Sponsor' }], 'principal-relationships').valid).toBe(true);
+  });
+
+  it('rejects an unknown relationshipType', () => {
+    expect(validateRecords([{ ...validPR, relationshipType: 'Manager' }], 'principal-relationships').valid).toBe(false);
+  });
+
+  it('rejects a record missing both principalId and its external alias', () => {
+    const r = validateRecords([{ relatedPrincipalId: validPR.relatedPrincipalId, relationshipType: 'Owner' }], 'principal-relationships');
+    expect(r.valid).toBe(false);
+  });
+
+  it('accepts external-id aliases in place of the UUIDs', () => {
+    const r = validateRecords(
+      [{ principalExternalId: 'agent-1', relatedPrincipalExternalId: 'owner-1', relationshipType: 'Owner' }],
+      'principal-relationships',
+    );
+    expect(r.valid).toBe(true);
   });
 });
 

@@ -33,9 +33,9 @@ function ConvertTo-OmadaIdentityRecord {
     [CmdletBinding()]
     param([Parameter(Mandatory)] $Identity)
     $IdType = Get-OmadaIdentityType -Identity $Identity
-    $IdCat  = if ($Identity.IDENTITYCATEGORY) { [string]$Identity.IDENTITYCATEGORY.Value } else { '' }
-    $FName  = if ($Identity.FIRSTNAME)        { [string]$Identity.FIRSTNAME } else { '' }
-    $LName  = if ($Identity.LASTNAME)         { [string]$Identity.LASTNAME  } else { '' }
+    $IdCat  = Get-OmadaEnumStr $Identity.IDENTITYCATEGORY
+    $FName  = Get-OmadaStr $Identity.FIRSTNAME
+    $LName  = Get-OmadaStr $Identity.LASTNAME
     $Name   = "$FName $LName".Trim()
     if (-not $Name) { $Name = $Identity.DisplayName }
     return [PSCustomObject]@{
@@ -48,19 +48,19 @@ function ConvertTo-OmadaIdentityRecord {
         employeeId         = $Identity.EMPLOYEEID
         jobTitle           = $Identity.JOBTITLE
         companyName        = Get-OmadaRefValue -Ref $Identity.COMPANY -Fallback ''
-        city               = if ($Identity.CITY)    { [string]$Identity.CITY    } else { '' }
+        city               = Get-OmadaStr $Identity.CITY
         country            = Get-OmadaRefValue -Ref $Identity.COUNTRY -Fallback ''
         extendedAttributes = @{
             # Identity type/category/status
             identityType     = $IdType
             identityCategory = $IdCat
-            identityStatus   = if ($Identity.IDENTITYSTATUS)   { [string]$Identity.IDENTITYSTATUS.Value }   else { '' }
-            identityId       = if ($Identity.IDENTITYID)        { [string]$Identity.IDENTITYID }             else { '' }
-            oisId            = if ($Identity.OISID)             { [string]$Identity.OISID }                  else { '' }
+            identityStatus   = Get-OmadaEnumStr $Identity.IDENTITYSTATUS
+            identityId       = Get-OmadaStr $Identity.IDENTITYID
+            oisId            = Get-OmadaStr $Identity.OISID
             # Contact / location
-            email2           = if ($Identity.EMAIL2)            { [string]$Identity.EMAIL2 }                 else { '' }
-            city             = if ($Identity.CITY)              { [string]$Identity.CITY }                   else { '' }
-            zipCode          = if ($Identity.ZIPCODE)           { [string]$Identity.ZIPCODE }                else { '' }
+            email2           = Get-OmadaStr $Identity.EMAIL2
+            city             = Get-OmadaStr $Identity.CITY
+            zipCode          = Get-OmadaStr $Identity.ZIPCODE
             # Validity
             validFrom        = $Identity.VALIDFROM
             validTo          = $Identity.VALIDTO
@@ -80,18 +80,18 @@ function ConvertTo-OmadaIdentityRecord {
             countryName      = Get-OmadaRefValue -Ref $Identity.COUNTRY       -Fallback ''
             jobTitleRef      = Get-OmadaRefValue -Ref $Identity.JOBTITLE_REF  -Fallback ''
             # Risk
-            riskScore        = if ($Identity.RISKSCORE)         { [string]$Identity.RISKSCORE }              else { '' }
+            riskScore        = Get-OmadaStr $Identity.RISKSCORE
             riskLevel        = Get-OmadaRefValue -Ref $Identity.RISKLEVEL     -Fallback ''
             # People references
-            manager          = ($Identity.MANAGER        | ForEach-Object { $_.DisplayName }) -join '; '
+            manager          = Join-OmadaDisplayNames $Identity.MANAGER
             identityOwner    = Get-OmadaRefValue -Ref $Identity.IDENTITYOWNER  -Fallback ''
-            explicitOwners   = ($Identity.EXPLICITOWNER   | ForEach-Object { $_.DisplayName }) -join '; '
+            explicitOwners   = Join-OmadaDisplayNames $Identity.EXPLICITOWNER
         }
     }
 }
 
 # Maps one Omada Orgunit entity → a synced context record, carrying the parent
-# hierarchy link. Map-ContextTypeToAtlas (OmadaCrawler.Functions.ps1) resolves the
+# hierarchy link. ConvertTo-AtlasContextType (OmadaCrawler.Functions.ps1) resolves the
 # context type. Verbatim from the inline Orgunit `ForEach-Object { ... }` block.
 function ConvertTo-OmadaOrgUnitContextRecord {
     [CmdletBinding()]
@@ -99,7 +99,7 @@ function ConvertTo-OmadaOrgUnitContextRecord {
         [Parameter(Mandatory)] $OrgUnit,
         [string]$DefaultContextType
     )
-    $CtxType   = Map-ContextTypeToAtlas -OmadaType (Get-OmadaRefValue -Ref $OrgUnit.OUTYPE -Fallback $DefaultContextType)
+    $CtxType   = ConvertTo-AtlasContextType -OmadaType (Get-OmadaRefValue -Ref $OrgUnit.OUTYPE -Fallback $DefaultContextType)
     $ParentUid = Get-OmadaRefUid -Ref $OrgUnit.PARENTOU
     return [PSCustomObject]@{
         id              = [string]$OrgUnit.UId
@@ -133,7 +133,7 @@ function ConvertTo-OmadaFlatContextRecord {
 # Topologically sorts context records so a parent always precedes its children
 # (records with an unresolved/absent parent come first). Any records left in a
 # cycle after MaxPasses are appended as-is. Verbatim from the inline sort.
-function Sort-OmadaContextsTopologically {
+function Get-OmadaContextsInTopologicalOrder {
     [CmdletBinding()]
     param($Records)
     $Sorted    = [System.Collections.Generic.List[object]]::new()
@@ -157,7 +157,7 @@ function Sort-OmadaContextsTopologically {
 
 # Maps one Omada User entity → an ingest/principals record, resolving principalType
 # from the linked Identity's type via $IdentityLookup (IDENTITYID -> { uid; identityType })
-# and Map-IdentityTypeToAtlas. Verbatim from the inline account `ForEach-Object`.
+# and ConvertTo-AtlasIdentityType. Verbatim from the inline account `ForEach-Object`.
 function ConvertTo-OmadaAccountRecord {
     [CmdletBinding()]
     param(
@@ -171,7 +171,7 @@ function ConvertTo-OmadaAccountRecord {
     $PrincipalType = 'User'
     $IdentId = if ($Account.IDENTITYREF) { [string]$Account.IDENTITYREF.IDENTITYID } else { $Null }
     if ($IdentId -and $IdentityLookup.ContainsKey($IdentId)) {
-        $PrincipalType = Map-IdentityTypeToAtlas -OmadaType $IdentityLookup[$IdentId].identityType
+        $PrincipalType = ConvertTo-AtlasIdentityType -OmadaType $IdentityLookup[$IdentId].identityType
     }
 
     return [PSCustomObject]@{
@@ -209,7 +209,7 @@ function ConvertTo-OmadaIdentityMemberRecord {
 }
 
 # Maps one Omada Resource entity → an ingest/resources record, or $null when it has
-# no UId/name. Map-ResourceCategory (OmadaCrawler.Functions.ps1) resolves the Atlas
+# no UId/name. ConvertTo-AtlasResourceCategory (OmadaCrawler.Functions.ps1) resolves the Atlas
 # resourceType; $UserGroupMap resolves USERGROUPREF -> display name. The caller keeps
 # the system-grouping. Verbatim from the inline `foreach ($Item in $AllResources)`.
 function ConvertTo-OmadaResourceRecord {
@@ -218,12 +218,12 @@ function ConvertTo-OmadaResourceRecord {
         [Parameter(Mandatory)] $Resource,
         [hashtable]$UserGroupMap = @{}
     )
-    $OmadaCat   = if ($Resource.ROLECATEGORY)   { [string]$Resource.ROLECATEGORY.Value }   else { '' }
-    $AtlasType  = Map-ResourceCategory -Category $OmadaCat
+    $OmadaCat   = Get-OmadaEnumStr $Resource.ROLECATEGORY
+    $AtlasType  = ConvertTo-AtlasResourceCategory -Category $OmadaCat
     $SysName    = Get-OmadaRefValue -Ref $Resource.SYSTEMREF   -Fallback ''
     $RoleType   = Get-OmadaRefValue -Ref $Resource.ROLETYPEREF -Fallback ''
     $FolderName = Get-OmadaRefValue -Ref $Resource.ROLEFOLDER  -Fallback ''
-    $Status     = if ($Resource.RESOURCESTATUS) { [string]$Resource.RESOURCESTATUS.Value } else { 'Active' }
+    $Status     = Get-OmadaEnumStr $Resource.RESOURCESTATUS -Fallback 'Active'
     $Enabled    = $Status -notin @('Inactive', 'Disabled', 'Deleted')
     $ExtId      = [string]$Resource.UId
     $DispName   = if ($Resource.NAME) { $Resource.NAME } else { $Resource.DisplayName }
@@ -232,14 +232,8 @@ function ConvertTo-OmadaResourceRecord {
     $UgUId  = Get-OmadaRefUid -Ref $Resource.USERGROUPREF
     $UgName = if ($UgUId -and $UserGroupMap.ContainsKey($UgUId)) { $UserGroupMap[$UgUId] } else { '' }
 
-    $ExplicitOwner = ''
-    if ($Resource.EXPLICITOWNER -and $Resource.EXPLICITOWNER.Count -gt 0) {
-        $ExplicitOwner = ($Resource.EXPLICITOWNER | ForEach-Object { $_.DisplayName }) -join '; '
-    }
-    $ManualOwner = ''
-    if ($Resource.MANUALOWNER -and $Resource.MANUALOWNER.Count -gt 0) {
-        $ManualOwner = ($Resource.MANUALOWNER | ForEach-Object { $_.DisplayName }) -join '; '
-    }
+    $ExplicitOwner = Join-OmadaDisplayNames $Resource.EXPLICITOWNER
+    $ManualOwner   = Join-OmadaDisplayNames $Resource.MANUALOWNER
 
     return [PSCustomObject]@{
         id                 = $ExtId

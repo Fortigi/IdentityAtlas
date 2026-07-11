@@ -15,8 +15,16 @@
 // (migration 026); collapsing the STORED value forces the same dedup here. This
 // test runs the real 044a + 045 SQL against the real schema, in order, and
 // proves the pair dedupes-then-collapses instead of throwing.
+//
+// Isolation: to reconstruct the pre-045 world this test must insert retired
+// assignmentTypes (AppRole / OAuth2Grant / …) that migration 054's
+// ck_RA_assignmentType now forbids. Each scenario therefore runs inside its own
+// transaction that DROPs the constraint LOCALLY and is ROLLED BACK in afterEach.
+// Postgres DDL is transactional, so the drop — and every retired row — vanishes
+// on rollback: no other contract file ever observes the constraint missing or a
+// stray row (which would race the value-guard tests on the shared DB container).
 
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
 import pg from 'pg';
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
@@ -27,13 +35,9 @@ const migDir = join(__dirname, '..', 'src', 'db', 'migrations');
 const dedupSql    = readFileSync(join(migDir, '044a_dedup_before_source_collapse.sql'), 'utf8');
 const collapseSql = readFileSync(join(migDir, '045_collapse_source_assignment_types.sql'), 'utf8');
 
-// Apply the two migrations in the order the runner would (044a before 045).
-async function dedupThenCollapse(pool) {
-  await pool.query(dedupSql);
-  return pool.query(collapseSql);
-}
-
 let pool;
+let client; // dedicated connection so the per-test transaction (and its local
+            // constraint drop) is isolated from every other pool query.
 let systemId;
 
 const R  = '11111111-1111-1111-1111-111111111111'; // resource A
@@ -41,26 +45,41 @@ const R2 = '22222222-2222-2222-2222-222222222222'; // resource B
 const U  = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'; // principal
 const I  = 'cccccccc-cccc-cccc-cccc-cccccccccccc'; // identity
 
+// Apply the two migrations in the order the runner would (044a before 045).
+async function dedupThenCollapse() {
+  await client.query(dedupSql);
+  return client.query(collapseSql);
+}
+
 beforeAll(async () => {
   pool = new pg.Pool({ connectionString: process.env.CONTRACT_DB_URL });
   const sys = await pool.query(
     `INSERT INTO "Systems" ("systemType", "displayName") VALUES ('test', 'collapse-045') RETURNING "id"`,
   );
   systemId = sys.rows[0].id;
+  client = await pool.connect();
 });
 
 afterAll(async () => {
+  client?.release();
   await pool?.query(`DELETE FROM "ResourceAssignments" WHERE "systemId" = $1`, [systemId]);
   await pool?.query(`DELETE FROM "Systems" WHERE "id" = $1`, [systemId]);
   await pool?.end();
 });
 
 beforeEach(async () => {
-  await pool.query(`DELETE FROM "ResourceAssignments" WHERE "systemId" = $1`, [systemId]);
+  await client.query('BEGIN');
+  // Local, transaction-scoped: forbidden retired values can be inserted below;
+  // the ROLLBACK in afterEach restores the constraint automatically.
+  await client.query(`ALTER TABLE "ResourceAssignments" DROP CONSTRAINT IF EXISTS "ck_RA_assignmentType"`);
+});
+
+afterEach(async () => {
+  await client.query('ROLLBACK');
 });
 
 async function insertRA({ resourceId = R, principalId = null, identityId = null, assignmentType, deletedAt = null }) {
-  await pool.query(
+  await client.query(
     `INSERT INTO "ResourceAssignments"
        ("systemId", "resourceId", "principalId", "identityId", "assignmentType", "deletedAt")
      VALUES ($1, $2, $3, $4, $5, $6)`,
@@ -69,7 +88,7 @@ async function insertRA({ resourceId = R, principalId = null, identityId = null,
 }
 
 async function rows(resourceId, { principalId = null, identityId = null }) {
-  const r = await pool.query(
+  const r = await client.query(
     `SELECT "assignmentType", "deletedAt" FROM "ResourceAssignments"
       WHERE "resourceId" = $1
         AND "principalId" IS NOT DISTINCT FROM $2
@@ -85,7 +104,7 @@ describe('migration 045 — collision-safe source-type collapse', () => {
     await insertRA({ principalId: U, assignmentType: 'AppRole' });
     await insertRA({ principalId: U, assignmentType: 'OAuth2Grant' });
 
-    await expect(dedupThenCollapse(pool)).resolves.toBeDefined(); // must NOT throw
+    await expect(dedupThenCollapse()).resolves.toBeDefined(); // must NOT throw
 
     const result = await rows(R, { principalId: U });
     expect(result).toHaveLength(1);
@@ -96,7 +115,7 @@ describe('migration 045 — collision-safe source-type collapse', () => {
     await insertRA({ identityId: I, assignmentType: 'DirectoryRole' });
     await insertRA({ identityId: I, assignmentType: 'AppRole' });
 
-    await expect(dedupThenCollapse(pool)).resolves.toBeDefined(); // must NOT throw
+    await expect(dedupThenCollapse()).resolves.toBeDefined(); // must NOT throw
 
     const result = await rows(R, { identityId: I });
     expect(result).toHaveLength(1);
@@ -107,7 +126,7 @@ describe('migration 045 — collision-safe source-type collapse', () => {
     await insertRA({ principalId: U, assignmentType: 'Direct' });   // already the target
     await insertRA({ principalId: U, assignmentType: 'AppRole' });  // collapses to Direct
 
-    await dedupThenCollapse(pool);
+    await dedupThenCollapse();
 
     const result = await rows(R, { principalId: U });
     expect(result).toHaveLength(1);
@@ -118,7 +137,7 @@ describe('migration 045 — collision-safe source-type collapse', () => {
     await insertRA({ principalId: U, assignmentType: 'OAuth2Grant', deletedAt: new Date('2020-01-01T00:00:00Z') });
     await insertRA({ principalId: U, assignmentType: 'AppRole' }); // live
 
-    await dedupThenCollapse(pool);
+    await dedupThenCollapse();
 
     const result = await rows(R, { principalId: U });
     expect(result).toHaveLength(1);
@@ -132,15 +151,15 @@ describe('migration 045 — collision-safe source-type collapse', () => {
     // (resource, principal). When 044a runs as a pending file on an install that
     // already passed 045-049, it must leave that pair alone — the source-row
     // guard ensures it does (neither row is a source type).
-    await pool.query(
+    await client.query(
       `INSERT INTO "ResourceAssignments" ("systemId","resourceId","principalId","assignmentType","governed")
        VALUES ($1,$2,$3,'Direct',false), ($1,$2,$3,'Direct',true)`,
       [systemId, R, U],
     );
 
-    await dedupThenCollapse(pool);
+    await dedupThenCollapse();
 
-    const r = await pool.query(
+    const r = await client.query(
       `SELECT "governed" FROM "ResourceAssignments"
         WHERE "resourceId"=$1 AND "principalId"=$2 ORDER BY "governed"`,
       [R, U],
@@ -152,7 +171,7 @@ describe('migration 045 — collision-safe source-type collapse', () => {
     await insertRA({ principalId: U, assignmentType: 'AppRoleViaGroup' });        // -> Indirect
     await insertRA({ resourceId: R2, principalId: U, assignmentType: 'DirectoryRoleEligible' }); // -> Eligible
 
-    await dedupThenCollapse(pool);
+    await dedupThenCollapse();
 
     expect((await rows(R,  { principalId: U }))[0].assignmentType).toBe('Indirect');
     expect((await rows(R2, { principalId: U }))[0].assignmentType).toBe('Eligible');

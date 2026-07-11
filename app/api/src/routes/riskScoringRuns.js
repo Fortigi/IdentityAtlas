@@ -47,7 +47,7 @@ router.post('/risk-scoring/runs', requirePermission('admin.crawlers'), async (re
     res.status(202).json(run);
   } catch (err) {
     console.error('start scoring run failed:', err.message);
-    res.status(500).json({ error: 'Failed to start scoring run', message: err.message });
+    res.status(500).json({ error: 'Failed to start scoring run' });
   }
 });
 

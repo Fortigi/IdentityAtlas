@@ -129,7 +129,7 @@ Business role (access package) assignments for a user. Only returns active gover
 }
 ```
 
-**Reads From:** `ResourceAssignments` (`assignmentType='Governed'`) + `Resources` (`resourceType='BusinessRole'`) + `GovernanceCatalogs`
+**Reads From:** `ResourceAssignments` (`governed=true`) + `Resources` (`resourceType='BusinessRole'`) + `GovernanceCatalogs`
 
 ---
 
@@ -189,7 +189,7 @@ Paginated resource list with optional type and system filters. Used by the Resou
 | Parameter | Type | Default | Description |
 |---|---|---|---|
 | `search` | string | | Search `displayName` (SQL `LIKE`) |
-| `resourceType` | string | | Filter by `resourceType` (e.g. `Group`, `DirectoryRole`, `AppRole`, `BusinessRole`) |
+| `resourceType` | string | | Filter by `resourceType` (e.g. `Group`, `EntraDirectoryRole`, `AppRole`, `BusinessRole`) |
 | `systemId` | string | | Filter by originating system |
 | `limit` | int | 100 | Page size. Maximum: 500. |
 | `offset` | int | 0 | Pagination offset. |
@@ -237,7 +237,7 @@ Paginated list of principals assigned to this resource, with membership type bad
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
-| `membershipType` | string | | Filter by type: `Direct`, `Indirect`, `Eligible`, `Owner` |
+| `membershipType` | string | | Filter by type: `Direct`, `Indirect`, `Eligible` |
 | `limit` | int | 100 | Page size. Maximum: 500. |
 | `offset` | int | 0 | Pagination offset. |
 
@@ -317,7 +317,7 @@ Active governed assignments for a business role. Only assignments with `state='D
 }
 ```
 
-**Reads From:** `ResourceAssignments` (`assignmentType='Governed'`) + `Principals`
+**Reads From:** `ResourceAssignments` (`governed=true`) + `Principals`
 
 ---
 
@@ -439,7 +439,7 @@ Version history for the business role resource record. Same format as [`GET /api
       "enabled": true,
       "resourceCount": 412,
       "assignmentCount": 8903,
-      "resourceTypes": ["Group", "DirectoryRole", "AppRole"]
+      "resourceTypes": ["Group", "EntraDirectoryRole", "AppRole"]
     }
   ]
 }

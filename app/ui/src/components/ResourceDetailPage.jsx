@@ -8,7 +8,7 @@ import DeletedBadge from './DeletedBadge';
 import { buildAttributeEntries } from '@ui/utils/attributeEntries';
 
 const RESOURCE_TYPE_COLORS = {
-  EntraGroup:          'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300',
+  Group:               'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300',
   EntraAppRole:        'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300',
   EntraDirectoryRole:  'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300',
   EntraAdminUnit:      'bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300',

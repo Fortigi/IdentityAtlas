@@ -206,6 +206,12 @@ jobs:
         id: create-pr
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # The issue title is attacker-controlled (any outside contributor can set
+          # it). Pass it through the environment and reference it as a quoted shell
+          # variable below — NEVER interpolate ${{ matrix.title }} directly into a
+          # run: script, which is GitHub Actions expression injection (arbitrary code
+          # execution on a runner that holds contents:write + pull-requests:write).
+          ISSUE_TITLE: ${{ matrix.title }}
         run: |
           # Check for changes
           HAS_UNCOMMITTED=$(git diff --quiet HEAD && echo "no" || echo "yes")
@@ -221,7 +227,7 @@ jobs:
           if [ "$HAS_UNCOMMITTED" = "yes" ]; then
             echo "Found uncommitted changes — committing them"
             git add -A
-            git commit -m "Fix #${{ matrix.number }}: ${{ matrix.title }}"
+            git commit -m "Fix #${{ matrix.number }}: ${ISSUE_TITLE}"
           fi
 
           echo "Changes detected — creating branch and PR"
@@ -229,7 +235,7 @@ jobs:
 
           git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git"
 
-          SLUG=$(echo "${{ matrix.title }}" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g' | sed 's/--*/-/g' | head -c 40)
+          SLUG=$(echo "$ISSUE_TITLE" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g' | sed 's/--*/-/g' | head -c 40)
           BRANCH="bugfixes/autofix-issue-${{ matrix.number }}-${SLUG}"
           echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
 
@@ -241,7 +247,7 @@ jobs:
             --base main \
             --head "$BRANCH" \
             --draft \
-            --title "Fix #${{ matrix.number }}: ${{ matrix.title }}" \
+            --title "Fix #${{ matrix.number }}: ${ISSUE_TITLE}" \
             --body "$(cat <<EOF
           ## Summary
 

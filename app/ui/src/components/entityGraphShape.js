@@ -66,13 +66,28 @@ function userRootNodes(core, identityInfo, manager) {
     // per membership). The count comes from /api/user/:id (contextCount);
     // the items are loaded lazily via /api/user/:id/contexts.
     { key: 'contexts',        label: 'Contexts',          count: core.contextCount || 0, kind: 'category' },
-    { key: 'groups-direct',   label: 'Groups (Direct)',   count: m.Direct || 0, kind: 'category' },
-    { key: 'groups-indirect', label: 'Groups (Indirect)', count: m.Indirect || 0, kind: 'category' },
-    { key: 'groups-owner',    label: 'Groups Owned',      count: m.Owner || 0, kind: 'category' },
-    { key: 'groups-eligible', label: 'Eligible',          count: m.Eligible || 0, kind: 'category' },
+    // Access this principal holds, bucketed by the universal assignmentType.
+    // Each bucket spans every resourceType held that way — Group, GroupOwnership,
+    // AppRole, DelegatedPermission, ApplicationPermission, EntraDirectoryRole,
+    // BusinessRole, … — with the resourceType shown per row in the list below.
+    // (Owner and OAuth2Grant are retired assignmentTypes: ownership is now a
+    // GroupOwnership resource, delegated consent a DelegatedPermission resource —
+    // both surface here under Direct with their own resourceType.)
+    { key: 'assignments-direct',   label: 'Direct',   count: m.Direct || 0,   kind: 'category' },
+    { key: 'assignments-indirect', label: 'Indirect', count: m.Indirect || 0, kind: 'category' },
+    { key: 'assignments-eligible', label: 'Eligible', count: m.Eligible || 0, kind: 'category' },
     { key: 'access-packages', label: 'Access Packages',   count: core.accessPackageCount || 0, kind: 'category' },
-    { key: 'oauth2-grants',   label: 'OAuth2 Grants',     count: core.oauth2GrantCount || 0, kind: 'category' },
     { key: 'identity',        label: 'Identity',          count: identityInfo?.identity ? 1 : 0, kind: 'category' },
+    // Principal→principal relationships (migration 057). Shown only when present,
+    // so a normal user's graph is unchanged. "Owners"/"Sponsors" appear on the
+    // subject (an AI agent / a guest); the reverse "Owned Agents"/"Sponsored
+    // Guests" on whoever is the owner/sponsor. "Linked Resource" is the agent's
+    // enterprise-app Resource (same id), bridging its Principal ↔ Resource views.
+    ...(core.linkedResource ? [{ key: 'linked-resource',   label: 'Linked Resource',  count: 1, kind: 'category' }] : []),
+    ...((core.ownerCount || 0) > 0          ? [{ key: 'owners',            label: 'Owners',            count: core.ownerCount,          kind: 'category' }] : []),
+    ...((core.sponsorCount || 0) > 0        ? [{ key: 'sponsors',          label: 'Sponsors',          count: core.sponsorCount,        kind: 'category' }] : []),
+    ...((core.ownedAgentCount || 0) > 0     ? [{ key: 'owned-agents',      label: 'Owned Agents',      count: core.ownedAgentCount,     kind: 'category' }] : []),
+    ...((core.sponsoredGuestCount || 0) > 0 ? [{ key: 'sponsored-guests',  label: 'Sponsored Guests',  count: core.sponsoredGuestCount, kind: 'category' }] : []),
   ];
 }
 
@@ -107,30 +122,44 @@ async function fetchUserItems(userId, categoryKey, authFetch, extras = {}) {
     const rows = await get(`/api/user/${encodeURIComponent(userId)}/contexts`);
     return rows.map(c => toItem(c, 'context'));
   }
-  if (categoryKey?.startsWith('groups-')) {
+  if (categoryKey?.startsWith('assignments-')) {
     const all = await get(`/api/user/${encodeURIComponent(userId)}/memberships`);
-    const want = { 'groups-direct': 'Direct', 'groups-indirect': 'Indirect', 'groups-owner': 'Owner', 'groups-eligible': 'Eligible' }[categoryKey];
-    return all.filter(m => m.membershipType === want).map(m => toItem({
-      id: m.resourceId, displayName: m.resourceDisplayName || m.groupDisplayName,
-    }, 'resource'));
+    const want = { 'assignments-direct': 'Direct', 'assignments-indirect': 'Indirect', 'assignments-eligible': 'Eligible' }[categoryKey];
+    // One row per resource held this way. Carry resourceType so the list shows what
+    // KIND each assignment is (group / group-ownership / app-role / delegated- or
+    // app-permission / directory-role / business-role …). A BusinessRole opens the
+    // access-package detail page; everything else the resource page.
+    return all.filter(m => m.membershipType === want).map(m => toItem(
+      { id: m.resourceId, displayName: m.resourceDisplayName || m.groupDisplayName },
+      m.resourceType === 'BusinessRole' ? 'access-package' : 'resource',
+      m.resourceType,
+    ));
   }
   if (categoryKey === 'access-packages') {
     const rows = await get(`/api/user/${encodeURIComponent(userId)}/access-packages`);
     return rows.map(ap => toItem({ id: ap.resourceId, displayName: ap.accessPackageName }, 'access-package'));
   }
-  if (categoryKey === 'oauth2-grants') {
-    const rows = await get(`/api/user/${encodeURIComponent(userId)}/oauth2-grants`);
-    // Each grant is a per-scope DelegatedPermission Resource (e.g.
-    // "User.Read.All on Microsoft Graph"). Use the scope's Resource id and
-    // displayName so the satellite nodes are distinct and clicking opens
-    // the scope's detail page — not the shared client app.
-    return rows.map(g => toItem({
-      id: g.scopeResourceId,
-      displayName: g.scopeDisplayName || g.clientDisplayName || 'OAuth2 grant',
-    }, 'resource'));
-  }
   if (categoryKey === 'identity') {
     return identityInfo?.identity ? [toItem(identityInfo.identity, 'identity')] : [];
+  }
+  if (categoryKey === 'linked-resource') {
+    return extras.linkedResource
+      ? [toItem(extras.linkedResource, 'resource', extras.linkedResource.resourceType)]
+      : [];
+  }
+  // Principal→principal relationships (migration 057). Each maps to one call of
+  // the shared endpoint with the right type + direction; the counterparty is a
+  // principal, so it opens the user detail page.
+  const prMap = {
+    'owners':           { type: 'Owner',   reverse: false },
+    'sponsors':         { type: 'Sponsor', reverse: false },
+    'owned-agents':     { type: 'Owner',   reverse: true },
+    'sponsored-guests': { type: 'Sponsor', reverse: true },
+  };
+  if (prMap[categoryKey]) {
+    const { type, reverse } = prMap[categoryKey];
+    const rows = await get(`/api/user/${encodeURIComponent(userId)}/principal-relationships?type=${type}&reverse=${reverse}`);
+    return rows.map(p => toItem({ id: p.principalId, displayName: p.displayName }, 'user'));
   }
   return [];
 }
@@ -140,10 +169,12 @@ async function fetchUserItems(userId, categoryKey, authFetch, extras = {}) {
 function resourceRootNodes(core) {
   const a = core.assignmentByType || {};
   return [
-    { key: 'members-direct',   label: 'Direct Members', count: a.Direct || 0, kind: 'category' },
-    { key: 'members-governed', label: 'Governed',        count: a.Governed || 0, kind: 'category' },
-    { key: 'members-owner',    label: 'Owners',          count: a.Owner || 0, kind: 'category' },
-    { key: 'members-eligible', label: 'Eligible',        count: a.Eligible || 0, kind: 'category' },
+    // Principals assigned to this resource, bucketed by the universal assignmentType.
+    // (Governed and Owner are no longer assignmentTypes — governed is a flag on a
+    // Direct assignment, ownership its own GroupOwnership resource.)
+    { key: 'members-direct',   label: 'Direct Members',   count: a.Direct || 0,   kind: 'category' },
+    { key: 'members-indirect', label: 'Indirect Members', count: a.Indirect || 0, kind: 'category' },
+    { key: 'members-eligible', label: 'Eligible',          count: a.Eligible || 0, kind: 'category' },
     { key: 'business-roles',   label: 'Business Roles',  count: core.accessPackageCount || 0, kind: 'category' },
     { key: 'parents',          label: 'Member Of',       count: core.parentResourceCount || 0, kind: 'category' },
     // v6: many-to-many context membership via ContextMembers, not a single
@@ -157,7 +188,7 @@ async function fetchResourceItems(resourceId, categoryKey, authFetch, _extras = 
 
   if (categoryKey?.startsWith('members-')) {
     const all = await get(`/api/resources/${encodeURIComponent(resourceId)}/assignments`);
-    const want = { 'members-direct': 'Direct', 'members-governed': 'Governed', 'members-owner': 'Owner', 'members-eligible': 'Eligible' }[categoryKey];
+    const want = { 'members-direct': 'Direct', 'members-indirect': 'Indirect', 'members-eligible': 'Eligible' }[categoryKey];
     return all.filter(a => a.assignmentType === want).map(a => toItem({
       id: a.principalId, displayName: a.principalDisplayName,
     }, 'user'));
@@ -261,11 +292,9 @@ async function fetchIdentityItems(identityId, categoryKey, authFetch, extras = {
     return rows.map(c => toItem(c, 'context'));
   }
   const typeMap = {
-    'groups-direct':   'Direct',
-    'groups-governed': 'Governed',
-    'groups-owner':    'Owner',
-    'groups-eligible': 'Eligible',
-    'oauth2-grants':   'OAuth2Grant',
+    'assignments-direct':   'Direct',
+    'assignments-indirect': 'Indirect',
+    'assignments-eligible': 'Eligible',
   };
   if (typeMap[categoryKey]) {
     const rows = await authFetch(`/api/identities/${encodeURIComponent(identityId)}/assignments?type=${typeMap[categoryKey]}`)
@@ -274,7 +303,7 @@ async function fetchIdentityItems(identityId, categoryKey, authFetch, extras = {
     // through so the list can show "via <account>". Keep keys unique per pair.
     return rows.map(r => {
       const base = toItem({ id: r.resourceId, displayName: r.resourceDisplayName },
-        r.resourceType === 'BusinessRole' ? 'access-package' : 'resource');
+        r.resourceType === 'BusinessRole' ? 'access-package' : 'resource', r.resourceType);
       return {
         ...base,
         key: `${base.key}:${r.principalId || ''}`,
@@ -311,15 +340,20 @@ async function fetchContextItems(_contextId, categoryKey, _authFetch, extras = {
 
 // ─── Public API ──────────────────────────────────────────────────────
 
-function toItem(row, entityKind) {
+function toItem(row, entityKind, resourceType = null) {
   const id = row?.id || '';
-  return {
+  const item = {
     key: `${entityKind}:${id}`,
     label: row?.displayName || id || '(unknown)',
     kind: 'item',
     entityKind,
     entityId: id,
   };
+  // resourceType is the assignment's target kind (Group / GroupOwnership / AppRole /
+  // …) so the list can show what KIND of thing this row is, distinct from the
+  // counterparty's entityKind (which is always 'resource'/'access-package' here).
+  if (resourceType) item.resourceType = resourceType;
+  return item;
 }
 
 export function getRootNodes(entityKind, core, extras = {}) {
@@ -405,6 +439,10 @@ export function extrasFromCore(entityKind, core) {
   // more; the contexts category fetches its list lazily via the dedicated
   // endpoint, so no per-core extras are needed here for it.
   switch (entityKind) {
+    case 'user':
+      // So the "Linked Resource" node resolves when you drill into a user node
+      // from another entity's graph (not just on the user's own detail page).
+      return { linkedResource: core.linkedResource };
     case 'access-package':
       return { catalogId: core.attributes?.catalogId, catalogName: core.attributes?.catalogName };
     case 'identity':

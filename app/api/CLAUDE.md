@@ -27,6 +27,16 @@ curl -s -X POST http://localhost:3001/api/ingest/contexts \
 
 Only proceed to branch/commit/push once the endpoint returns a 2xx response. The prod compose file (`docker-compose.prod.yml`) uses a pre-built image from ghcr.io — source file changes have no effect until the image is rebuilt with `docker compose build`.
 
+### Windows: rebuild `re2` before running the unit tests
+
+The `re2` dependency ships a **platform-specific native binary**, and `node_modules` is populated for Linux (the Docker/CI target). On Windows, importing the app — which several unit tests do transitively (`re2` is used by `accountlinking/classifier.js`, `contexts/plugins/manager-hierarchy.js`, and `riskscoring/engine.js`) — crashes with a native-module load error until you rebuild it for your platform:
+
+```bash
+cd app/api && npm rebuild re2
+```
+
+Run it once after `npm install` (and again after any `npm install` that repopulates `node_modules`). CI and Docker are unaffected — they install and run on Linux.
+
 ## Database Schema
 
 **Never modify the schema manually.** All schema changes go through versioned migration files in `app/api/src/db/migrations/`. The web container applies them automatically at startup.

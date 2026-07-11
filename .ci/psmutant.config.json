@@ -1,0 +1,22 @@
+{
+  "_comment": "PSMutant mutation-testing config for IdentityAtlas's decomposed PowerShell crawler transforms (the pure ConvertTo-* record-shapers). Enforced: the build fails when the mutation score drops below break (80% — the transforms sit around 85%, so this locks in the current bar and forces new transform logic to be mutation-tested, not just line-covered). Run: Install-Module PSMutant; Invoke-PSMutation -ConfigFile .ci/psmutant.config.json -SourceRoot .",
+  "sandboxSubtrees": ["tools", "test", "setup"],
+  "mutate": [
+    "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+    "tools/crawlers/midpoint/MidpointCrawler.Transform.ps1",
+    "tools/crawlers/omada/OmadaCrawler.Transform.ps1",
+    "tools/crawlers/csv/CSVCrawler.Transform.ps1",
+    "tools/crawlers/azure-rm/AzureRMCrawler.Transform.ps1"
+  ],
+  "tests": {
+    "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1": ["test/unit/EntraIDCrawlerTransform.Tests.ps1"],
+    "tools/crawlers/midpoint/MidpointCrawler.Transform.ps1": ["test/unit/MidpointCrawlerTransform.Tests.ps1"],
+    "tools/crawlers/omada/OmadaCrawler.Transform.ps1": ["test/unit/OmadaCrawlerTransform.Tests.ps1"],
+    "tools/crawlers/csv/CSVCrawler.Transform.ps1": ["test/unit/CSVCrawlerTransform.Tests.ps1"],
+    "tools/crawlers/azure-rm/AzureRMCrawler.Transform.ps1": ["test/unit/AzureRMCrawlerTransform.Tests.ps1"]
+  },
+  "coveredLinesOnly": true,
+  "operators": ["BinaryOperator", "BooleanLiteral", "NumberLiteral", "NegationRemoval"],
+  "thresholds": { "high": 80, "low": 60, "break": 80 },
+  "reportPath": "reports/ps-mutation.json"
+}

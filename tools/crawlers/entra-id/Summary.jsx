@@ -6,6 +6,8 @@ export default function Summary({ cfg }) {
   if (cfg.selectedObjects?.usersGroupsMembers) objectLabels.push('Users & Groups');
   if (cfg.selectedObjects?.identityGovernance) objectLabels.push('Governance');
   if (cfg.selectedObjects?.appsAppRoles) objectLabels.push('Apps');
+  if (cfg.selectedObjects?.appOwners) objectLabels.push('App Owners');
+  if (cfg.selectedObjects?.appPermissions) objectLabels.push('App Permissions');
   if (cfg.selectedObjects?.directoryRoles) objectLabels.push('Dir Roles');
 
   return (

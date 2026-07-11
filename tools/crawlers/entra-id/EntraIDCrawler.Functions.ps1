@@ -16,6 +16,11 @@
     tools/crawlers/shared/Invoke-CrawlerIngest.ps1 — dot-source that file too.
 #>
 
+# Thin adapter over the shared Invoke-CrawlerIngestBatch (tools/crawlers/shared/
+# Invoke-CrawlerIngest.ps1), which now owns the one canonical ingest protocol
+# (single batch, chunked start/continue/end sessions, in-band delta tombstones).
+# Entra keeps the same call surface; -SkipWhenEmpty preserves the crawler's
+# original "no records and no deletes → no call" behaviour.
 function Send-IngestBatch {
     [CmdletBinding()]
     param(
@@ -24,100 +29,49 @@ function Send-IngestBatch {
         [string]$SyncMode = 'full',
         [hashtable]$Scope = @{},
         [array]$Records,
-        # Optional: a list of ids to DELETE at the target, alongside the
-        # upserts in $Records. The ingest API applies `records` first, then
-        # deletes any row matching `id IN (...)`. Used by delta flows where
-        # Graph `@removed` events give us tombstones that aren't deletable
-        # through the upsert path.
         [string[]]$DeletedIds = @(),
-        # 5000 strikes a balance between MERGE round-trip overhead and lock
-        # duration. With RCSI enabled on the database, readers don't block on
-        # writers, but smaller batches still make the crawler give back the
-        # CPU more often and reduce tempdb version-store pressure.
         [int]$BatchSize = 5000
     )
+    Invoke-CrawlerIngestBatch -Endpoint $Endpoint -SystemId $SystemId -SyncMode $SyncMode -Scope $Scope `
+        -Records $Records -DeletedIds $DeletedIds -BatchSize $BatchSize -SkipWhenEmpty
+}
 
-    $haveRecords = $Records -and $Records.Count -gt 0
-    $haveDeletes = $DeletedIds -and $DeletedIds.Count -gt 0
-    if (-not $haveRecords -and -not $haveDeletes) {
-        Write-Host "  No records to send" -ForegroundColor Yellow
-        return @{ inserted = 0; updated = 0; deleted = 0 }
+# HTTP status code off a caught error's response, or $null if unavailable.
+function Get-FGHttpStatus {
+    [CmdletBinding()]
+    param($ErrorRecord)
+    if (-not $ErrorRecord.Exception.Response) { return $null }
+    try { return [int]$ErrorRecord.Exception.Response.StatusCode } catch { return $null }
+}
+
+# Distinct items by a caller-supplied key (a `{ $_ ... }` scriptblock), preserving
+# first-seen order. Replaces the `$seen=@{}; Where-Object { ... if contains ... }`
+# dedup idiom the phases repeat. The key is run via ForEach-Object so `$_` binds to
+# the current item (ScriptBlock.Invoke() does NOT set `$_`).
+function Select-FGDistinct {
+    [CmdletBinding()]
+    param($Items, [scriptblock]$Key)
+    $seen = [System.Collections.Generic.HashSet[string]]::new()
+    $out  = [System.Collections.Generic.List[object]]::new()
+    foreach ($it in $Items) {
+        if ($seen.Add([string]($it | ForEach-Object $Key))) { $out.Add($it) }
     }
+    return @($out)
+}
 
-    if ($haveRecords) {
-        Write-Host "  Sending $($Records.Count) records to $Endpoint..." -NoNewline -ForegroundColor Cyan
-    } else {
-        Write-Host "  Sending $($DeletedIds.Count) deletes to $Endpoint..." -NoNewline -ForegroundColor Cyan
+# Human-readable detail for a caught Graph error. PS7 drains the response stream
+# before the exception bubbles, so the real Graph error JSON is in ErrorDetails.Message
+# (truncated to 300 chars); fall back to the plain exception message.
+function Get-FGGraphErrorDetail {
+    [CmdletBinding()]
+    param($ErrorRecord)
+    $body = $null
+    if ($ErrorRecord.ErrorDetails -and $ErrorRecord.ErrorDetails.Message) {
+        $body = $ErrorRecord.ErrorDetails.Message
+        if ($body.Length -gt 300) { $body = $body.Substring(0, 300) + '...' }
     }
-    if ($haveRecords -and $haveDeletes) {
-        Write-Host " (+$($DeletedIds.Count) deletes)" -ForegroundColor Cyan
-    } else {
-        Write-Host '' -ForegroundColor Cyan
-    }
-
-    if (-not $haveRecords -or $Records.Count -le $BatchSize) {
-        # Single batch (includes the deletes-only case where $Records may be empty)
-        $body = @{
-            systemId = $SystemId
-            syncMode = $SyncMode
-            scope    = $Scope
-            records  = if ($haveRecords) { ConvertTo-JsonArray $Records } else { ConvertTo-JsonArray $null }
-        }
-        if ($haveDeletes) { $body['deletedIds'] = ConvertTo-JsonArray $DeletedIds }
-        $result = Invoke-IngestAPI -Endpoint $Endpoint -Body $body
-        Write-Host "  Result: $($result.inserted) inserted, $($result.updated) updated, $($result.deleted) deleted" -ForegroundColor Green
-        return $result
-    }
-
-    # Chunked session (records exceed BatchSize)
-    # If $DeletedIds is also set, send them as a SEPARATE ingest call first
-    # — chunked sessions have start/continue/end semantics that don't mesh
-    # with in-band deletes, and the delete API call is small and fast.
-    $totalDeleted = 0
-    if ($haveDeletes) {
-        $delBody = @{
-            systemId   = $SystemId
-            syncMode   = $SyncMode
-            scope      = $Scope
-            records    = ConvertTo-JsonArray $null
-            deletedIds = ConvertTo-JsonArray $DeletedIds
-        }
-        $delRes = Invoke-IngestAPI -Endpoint $Endpoint -Body $delBody
-        $totalDeleted = ($delRes.deleted ?? 0)
-    }
-
-    $totalInserted = 0
-    $totalUpdated = 0
-    $syncId = $null
-
-    for ($i = 0; $i -lt $Records.Count; $i += $BatchSize) {
-        $batch = $Records[$i..([Math]::Min($i + $BatchSize - 1, $Records.Count - 1))]
-        $isFirst = ($i -eq 0)
-        $isLast = ($i + $BatchSize -ge $Records.Count)
-
-        $body = @{
-            systemId    = $SystemId
-            syncMode    = $SyncMode
-            scope       = $Scope
-            records     = ConvertTo-JsonArray $batch
-            syncSession = if ($isFirst) { 'start' } elseif ($isLast) { 'end' } else { 'continue' }
-        }
-        if ($syncId) { $body.syncId = $syncId }
-
-        $result = Invoke-IngestAPI -Endpoint $Endpoint -Body $body
-        if ($isFirst) { $syncId = $result.syncId }
-
-        $totalInserted += ($result.inserted ?? 0)
-        $totalUpdated += ($result.updated ?? 0)
-
-        $batchNum = [Math]::Floor($i / $BatchSize) + 1
-        $totalBatches = [Math]::Ceiling($Records.Count / $BatchSize)
-        Write-Host "  Batch $batchNum/$totalBatches done" -ForegroundColor Gray
-    }
-
-    $deleted = ($result.deleted ?? 0) + $totalDeleted
-    Write-Host "  Total: $totalInserted inserted, $totalUpdated updated, $deleted deleted" -ForegroundColor Green
-    return @{ inserted = $totalInserted; updated = $totalUpdated; deleted = $deleted }
+    if ($body) { return "$($ErrorRecord.Exception.Message) | $body" }
+    return $ErrorRecord.Exception.Message
 }
 
 # ─── Delta-token helpers ─────────────────────────────────────────
@@ -199,9 +153,7 @@ function Invoke-FGGetDeltaRequest {
         Throw "No Access Token found."
     }
     Update-FGAccessTokenIfExpired -DebugFlag 'G'
-    $AccessToken = $Global:AccessToken
 
-    $retryDelays = @(3, 10, 30, 60, 120, 180)
     $collected = [System.Collections.Generic.List[object]]::new()
     $nextUri = $URI
     $deltaLink = $null
@@ -209,54 +161,10 @@ function Invoke-FGGetDeltaRequest {
 
     while ($nextUri) {
         $pageCount++
-        $retryCount = 0
-        $success = $false
-        $Result = $null
-
-        while (-not $success -and $retryCount -le $MaxRetries) {
-            try {
-                $rmParams = @{
-                    Method  = 'Get'
-                    Uri     = $nextUri
-                    Headers = @{ 'Authorization' = "Bearer $AccessToken" }
-                }
-                if ($TimeoutSec -gt 0) { $rmParams['TimeoutSec'] = $TimeoutSec }
-                $Result = Invoke-RestMethod @rmParams
-                $success = $true
-            }
-            catch {
-                $statusCode = $null
-                if ($_.Exception.Response) {
-                    $statusCode = [int]$_.Exception.Response.StatusCode
-                }
-                $isTransient = $statusCode -in @(429, 500, 502, 503, 504) -or
-                               $_.Exception.Message -match 'UnknownError|ServiceNotAvailable|GatewayTimeout'
-                if ($isTransient -and $retryCount -lt $MaxRetries) {
-                    $retryCount++
-                    $waitTime = $retryDelays[$retryCount - 1]
-                    Write-Warning "[Invoke-FGGetDeltaRequest] Page ${pageCount}: Transient error (Status: $statusCode). Retry $retryCount/$MaxRetries after ${waitTime}s..."
-                    Start-Sleep -Seconds $waitTime
-                    Update-FGAccessTokenIfExpired -DebugFlag 'G'
-                    $AccessToken = $Global:AccessToken
-                } else {
-                    # 400/410 on a stored token is how Graph signals "token no
-                    # longer usable". Surface as a typed exception so the
-                    # caller can detect it and fall back to full fetch.
-                    if ($statusCode -in @(400, 410)) {
-                        throw [System.InvalidOperationException]::new("Delta token rejected by Graph (HTTP $statusCode): $($_.Exception.Message)")
-                    }
-                    throw $_
-                }
-            }
-        }
-
-        if ($Result.value) {
-            foreach ($v in $Result.value) { $collected.Add($v) }
-        }
+        $Result = Invoke-FGGraphDeltaPage -Uri $nextUri -MaxRetries $MaxRetries -TimeoutSec $TimeoutSec -PageCount $pageCount
+        if ($Result.value) { foreach ($v in $Result.value) { $collected.Add($v) } }
         $nextUri = $Result.'@odata.nextLink'
-        if (-not $nextUri) {
-            $deltaLink = $Result.'@odata.deltaLink'
-        }
+        if (-not $nextUri) { $deltaLink = $Result.'@odata.deltaLink' }
     }
 
     $token = Get-FGDeltaTokenFromLink -DeltaLink $deltaLink
@@ -264,6 +172,39 @@ function Invoke-FGGetDeltaRequest {
         value      = $collected
         deltaLink  = $deltaLink
         deltaToken = $token
+    }
+}
+
+# Fetch one delta page, retrying transient errors (429/5xx) with backoff and
+# refreshing the token between attempts. A 400/410 (Graph's "token no longer usable"
+# signal) is re-thrown as InvalidOperationException so the caller can fall back to a
+# full fetch. Reads/refreshes $Global:AccessToken each attempt.
+function Invoke-FGGraphDeltaPage {
+    [CmdletBinding()]
+    param([string]$Uri, [int]$MaxRetries, [int]$TimeoutSec, [int]$PageCount)
+    $retryDelays = @(3, 10, 30, 60, 120, 180)
+    $retryCount = 0
+    while ($true) {
+        try {
+            $rmParams = @{ Method = 'Get'; Uri = $Uri; Headers = @{ 'Authorization' = "Bearer $($Global:AccessToken)" } }
+            if ($TimeoutSec -gt 0) { $rmParams['TimeoutSec'] = $TimeoutSec }
+            return Invoke-RestMethod @rmParams
+        }
+        catch {
+            $statusCode = Get-FGHttpStatus $_
+            $isTransient = ($statusCode -in @(429, 500, 502, 503, 504)) -or
+                           ($_.Exception.Message -match 'UnknownError|ServiceNotAvailable|GatewayTimeout')
+            if (-not ($isTransient -and $retryCount -lt $MaxRetries)) {
+                if ($statusCode -in @(400, 410)) {
+                    throw [System.InvalidOperationException]::new("Delta token rejected by Graph (HTTP $statusCode): $($_.Exception.Message)")
+                }
+                throw
+            }
+            $retryCount++
+            Write-Warning "[Invoke-FGGetDeltaRequest] Page ${PageCount}: Transient error (Status: $statusCode). Retry $retryCount/$MaxRetries after $($retryDelays[$retryCount - 1])s..."
+            Start-Sleep -Seconds $retryDelays[$retryCount - 1]
+            Update-FGAccessTokenIfExpired -DebugFlag 'G'
+        }
     }
 }
 
@@ -301,11 +242,13 @@ function Invoke-FGGroupChildFetch {
     param(
         [Parameter(Mandatory)] $Group,
         [Parameter(Mandatory)] [string]$Token,
-        [Parameter(Mandatory)] [string]$ChildPath
+        [Parameter(Mandatory)] [string]$ChildPath,
+        [string]$EntityType = 'groups',   # 'groups' | 'servicePrincipals' | 'applications'
+        [string]$Select     = 'id'        # $select fields; the raw child object is returned as .raw for richer shapes
     )
 
     $headers = @{ Authorization = "Bearer $Token" }
-    $uri     = "https://graph.microsoft.com/beta/groups/$($Group.id)/$ChildPath`?`$select=id&`$top=999"
+    $uri     = "https://graph.microsoft.com/beta/$EntityType/$($Group.id)/$ChildPath`?`$select=$Select&`$top=999"
 
     $items = [System.Collections.Generic.List[object]]::new()
     $attempt = 0
@@ -315,16 +258,15 @@ function Invoke-FGGroupChildFetch {
         $attempt++
         try {
             $resp = Invoke-RestMethod -Uri $uri -Headers $headers -Method Get -TimeoutSec 60 -ErrorAction Stop
-            if ($resp.value) { foreach ($v in $resp.value) { $items.Add($v) } }
+            if ($resp.value) { $items.AddRange([object[]]@($resp.value)) }
             $uri = $resp.'@odata.nextLink'
             $attempt = 0  # reset on success for nextLink retries
         }
         catch {
-            $status = $null
-            try { $status = $_.Exception.Response.StatusCode.value__ } catch {}
-            # Retry transient errors with backoff. Skip the group entirely
-            # if we're still failing after maxAttempts.
-            if (($status -eq 429 -or ($status -ge 500 -and $status -lt 600) -or -not $status) -and $attempt -lt $maxAttempts) {
+            $status = Get-FGHttpStatus $_
+            # Retry transient errors with backoff; skip the group after maxAttempts.
+            $isTransient = ($status -eq 429) -or ($status -ge 500 -and $status -lt 600) -or (-not $status)
+            if ($isTransient -and $attempt -lt $maxAttempts) {
                 Start-Sleep -Seconds ([Math]::Pow(2, $attempt))
                 continue
             }
@@ -340,6 +282,7 @@ function Invoke-FGGroupChildFetch {
             resourceId  = $Group.id
             principalId = $child.id
             childType   = $child.'@odata.type'
+            raw         = $child
         }
     }
 }
@@ -355,13 +298,15 @@ function Invoke-FGGroupChildBatchParallel {
         [Parameter(Mandatory)] [array]$Batch,
         [Parameter(Mandatory)] [string]$Token,
         [Parameter(Mandatory)] [string]$ChildPath,
+        [string]$EntityType = 'groups',
+        [string]$Select     = 'id',
         [int]$ThrottleLimit = 16
     )
 
     $fetchDef = ${function:Invoke-FGGroupChildFetch}.ToString()
     $Batch | ForEach-Object -Parallel {
         ${function:Invoke-FGGroupChildFetch} = $using:fetchDef
-        Invoke-FGGroupChildFetch -Group $_ -Token $using:Token -ChildPath $using:ChildPath
+        Invoke-FGGroupChildFetch -Group $_ -Token $using:Token -ChildPath $using:ChildPath -EntityType $using:EntityType -Select $using:Select
     } -ThrottleLimit $ThrottleLimit
 }
 
@@ -371,6 +316,8 @@ function Get-FGGroupChildrenParallel {
         [Parameter(Mandatory)] [array]$Groups,
         [Parameter(Mandatory)] [string]$ChildPath,    # 'members' or 'owners'
         [Parameter(Mandatory)] [scriptblock]$RecordBuilder,  # builds a record from $args=@($groupId,$child)
+        [string]$EntityType = 'groups',   # 'groups' | 'servicePrincipals' | 'applications'
+        [string]$Select     = 'id',       # $select fields for the child fetch
         [int]$ThrottleLimit = 16,
         [int]$BatchSize = 200,
         [string]$ProgressStep,
@@ -399,32 +346,79 @@ function Get-FGGroupChildrenParallel {
         # Fetch each group's children in parallel. Each result is a [pscustomobject]
         # with kind='record' (a child) or kind='error' (a group that failed after
         # retries). See Invoke-FGGroupChildBatchParallel / Invoke-FGGroupChildFetch.
-        $batchOutput = Invoke-FGGroupChildBatchParallel -Batch $batch -Token $token -ChildPath $ChildPath -ThrottleLimit $ThrottleLimit
-
-        # Fold parallel results into the totals (parent thread, not parallel).
-        # Note: PowerShell's parser rejects `$list.Add(& $sb $arg)` because the
-        # call-operator syntax is ambiguous inside a method call. Invoke the
-        # script block via .Invoke() and store the result in a temp first.
-        foreach ($o in $batchOutput) {
-            if ($o.kind -eq 'error') {
-                $totalErrors++
-            } else {
-                $rec = $RecordBuilder.Invoke($o)[0]
-                $allRecords.Add($rec)
-            }
-        }
+        $batchOutput = Invoke-FGGroupChildBatchParallel -Batch $batch -Token $token -ChildPath $ChildPath -EntityType $EntityType -Select $Select -ThrottleLimit $ThrottleLimit
+        $totalErrors += Add-FGGroupChildResults -BatchOutput $batchOutput -RecordBuilder $RecordBuilder -AllRecords $allRecords
 
         $checked = [Math]::Min($i + $BatchSize, $totalGroups)
-        if ($ProgressStep) {
-            $span    = $ProgressEndPct - $ProgressStartPct
-            $subPct  = $ProgressStartPct + [int](([double]$checked / $totalGroups) * $span)
-            $errorTag = if ($totalErrors -gt 0) { " · $totalErrors errors" } else { '' }
-            Update-CrawlerProgress -Step $ProgressStep -Pct $subPct `
-                -Detail "$checked of $totalGroups groups · $($allRecords.Count) results$errorTag"
-        }
+        Write-FGGroupChildProgress -ProgressStep $ProgressStep -StartPct $ProgressStartPct -EndPct $ProgressEndPct `
+            -Checked $checked -Total $totalGroups -ResultCount $allRecords.Count -ErrorCount $totalErrors
     }
 
     return @{ records = $allRecords; errorCount = $totalErrors }
+}
+
+# Fold one parallel batch's output into $AllRecords (mutated in place); returns the
+# number of failed groups (kind='error') in the batch. A record is built by invoking
+# $RecordBuilder — via .Invoke() into a temp, because PowerShell's parser rejects
+# `$list.Add(& $sb $arg)` (ambiguous call-operator inside a method call).
+function Add-FGGroupChildResults {
+    [CmdletBinding()]
+    param($BatchOutput, [scriptblock]$RecordBuilder, $AllRecords)
+    $errors = 0
+    foreach ($o in $BatchOutput) {
+        if ($o.kind -eq 'error') { $errors++; continue }
+        $AllRecords.Add($RecordBuilder.Invoke($o)[0])
+    }
+    return $errors
+}
+
+# Emit the per-batch progress line for Get-FGGroupChildrenParallel (no-op without a step).
+function Write-FGGroupChildProgress {
+    [CmdletBinding()]
+    param([string]$ProgressStep, [int]$StartPct, [int]$EndPct, [int]$Checked, [int]$Total, [int]$ResultCount, [int]$ErrorCount)
+    if (-not $ProgressStep) { return }
+    $subPct   = $StartPct + [int](([double]$Checked / $Total) * ($EndPct - $StartPct))
+    $errorTag = if ($ErrorCount -gt 0) { " · $ErrorCount errors" } else { '' }
+    Update-CrawlerProgress -Step $ProgressStep -Pct $subPct -Detail "$Checked of $Total groups · $ResultCount results$errorTag"
+}
+
+# Query PIM group-eligibility schedules for a batch of groups in parallel
+# runspaces, emitting one raw eligibility row per (group, principal). Pulled out
+# of the inline ForEach-Object -Parallel block in the PIM phase so the phase's
+# batching / fold / dedup logic is unit-testable by mocking this (the -Parallel
+# body itself can't be mocked or coverage-instrumented). Per-group errors are
+# normal (most groups aren't PIM-enabled) and silently dropped.
+function Invoke-FGGroupPimBatchParallel {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] [array]$Batch,
+        [Parameter(Mandatory)] [string]$Token,
+        [int]$ThrottleLimit = 16
+    )
+
+    $Batch | ForEach-Object -Parallel {
+        $g = $_
+        $token = $using:Token
+        $headers = @{ Authorization = "Bearer $token" }
+        $uri = "https://graph.microsoft.com/beta/identityGovernance/privilegedAccess/group/eligibilitySchedules?`$filter=groupId eq '$($g.id)'"
+        try {
+            $resp = Invoke-RestMethod -Uri $uri -Headers $headers -Method Get -TimeoutSec 30 -ErrorAction Stop
+            if ($resp.value -and $resp.value.Count -gt 0) {
+                foreach ($e in $resp.value) {
+                    [pscustomobject]@{
+                        resourceId         = $e.groupId
+                        principalId        = $e.principalId
+                        principalType      = 'User'
+                        assignmentType     = 'Eligible'
+                        state              = $e.status
+                        expirationDateTime = $e.scheduleInfo.expiration.endDateTime
+                    }
+                }
+            }
+        } catch {
+            # Most groups are not PIM-enabled — silently skip
+        }
+    } -ThrottleLimit $ThrottleLimit
 }
 
 function Write-Phase {
@@ -477,14 +471,15 @@ function ConvertTo-FilterValue {
     return $Value
 }
 
-# Deterministic UUID for a group's synthetic "Owner @ <group>" GroupOwnership resource.
-function New-OwnershipResourceId {
+# Deterministic UUID (v3-style, MD5 over a seed string) for synthetic resource ids.
+# Mirrors the API's normalizeRecords formatting. Shared by every synthetic-resource
+# id helper below so the md5→uuid formatting lives in exactly one place.
+function ConvertTo-FGDeterministicUuid {
     [CmdletBinding()]
-    param([string]$GroupId)
-    $seed = "entraid-ownership:${GroupId}"
+    param([Parameter(Mandatory)][string]$Seed)
     $md5 = [System.Security.Cryptography.MD5]::Create()
     try {
-        $bytes = [System.Text.Encoding]::UTF8.GetBytes($seed)
+        $bytes = [System.Text.Encoding]::UTF8.GetBytes($Seed)
         $hex = ([System.BitConverter]::ToString($md5.ComputeHash($bytes)) -replace '-','').ToLower()
     } finally {
         $md5.Dispose()
@@ -492,19 +487,18 @@ function New-OwnershipResourceId {
     return "$($hex.Substring(0,8))-$($hex.Substring(8,4))-$($hex.Substring(12,4))-$($hex.Substring(16,4))-$($hex.Substring(20,12))"
 }
 
+# Deterministic UUID for a group's synthetic GroupOwnership resource (named after the group).
+function New-OwnershipResourceId {
+    [CmdletBinding()]
+    param([string]$GroupId)
+    return ConvertTo-FGDeterministicUuid -Seed "entraid-ownership:${GroupId}"
+}
+
 # Deterministic UUID for a (clientSP, targetApiSP, scope) DelegatedPermission resource.
 function New-OAuth2ScopeResourceId {
     [CmdletBinding()]
     param([string]$ClientSpId, [string]$TargetApiSpId, [string]$Scope)
-    $hashInput = "entraid-oauth2-scope:${ClientSpId}:${TargetApiSpId}:${Scope}"
-    $md5 = [System.Security.Cryptography.MD5]::Create()
-    try {
-        $bytes = [System.Text.Encoding]::UTF8.GetBytes($hashInput)
-        $hex = ([System.BitConverter]::ToString($md5.ComputeHash($bytes)) -replace '-','').ToLower()
-    } finally {
-        $md5.Dispose()
-    }
-    return "$($hex.Substring(0,8))-$($hex.Substring(8,4))-$($hex.Substring(12,4))-$($hex.Substring(16,4))-$($hex.Substring(20,12))"
+    return ConvertTo-FGDeterministicUuid -Seed "entraid-oauth2-scope:${ClientSpId}:${TargetApiSpId}:${Scope}"
 }
 
 # Deterministic UUID for a (servicePrincipal, appRole) AppRole resource.

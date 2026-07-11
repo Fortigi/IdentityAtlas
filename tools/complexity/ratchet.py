@@ -1,31 +1,35 @@
 #!/usr/bin/env python3
-"""Cyclomatic-complexity ratchet for PowerShell, JS/TS and Python.
+"""Complexity ratchet for PowerShell, JS/TS and Python — cyclomatic AND cognitive.
 
 A *ratchet*, not an absolute gate: every unit (function, plus each PowerShell
-script/module body) that is currently over its language threshold is grandfathered
-into a committed baseline (.ci/complexity-baseline.json). CI then enforces, per file:
+script/module body) currently over its language threshold is grandfathered into a
+committed baseline. CI then enforces, per file: no unit may exceed its grandfathered
+ceiling (complexity can only fall), and a new / newly-over-threshold unit must be
+<= the language threshold. The baseline only ever ratchets DOWN.
 
-  * no unit may exceed its grandfathered ceiling  (complexity can only fall), and
-  * a new or newly-over-threshold unit must be <= the language threshold.
+Two independent metrics, each with its own baseline, selected with --metric:
 
-So the baseline can only ratchet DOWN. Nothing red-builds on adoption; the codebase
-is squeezed toward "every unit <= 15" over time. Run with --update after a real
-refactor to lock in the lower numbers.
+  cyclomatic  (default)  — number of independent paths; every branch counts equally.
+      Thresholds  PowerShell 15 · Python 15 · JS/TS 20   (JS looser; tighten later)
+      Baseline    .ci/complexity-baseline.json
 
-Thresholds (the ceiling a new/clean unit must meet) differ by language because the
-honest starting points differ: PowerShell and Python are close to clean per-function,
-the JS app is not, so JS starts looser and is tightened later.
+  cognitive              — how hard the code is to *follow* (SonarSource model):
+      nesting-weighted (a branch 3 levels deep costs 4, not 1), else-if chains read
+      flat, a switch counts once, a run of the same boolean operator counts once.
+      Thresholds  PowerShell 15 · Python 15 · JS/TS 15   (the SonarSource S3776 default)
+      Baseline    .ci/cognitive-baseline.json
 
-  PowerShell : 15        Python : 15        JS/TS : 20  (lower to 15 once squeezed)
-
-Measurers:
+Measurers (both metrics in one pass):
   * PowerShell  - tools/complexity/measure_ps.ps1 (AST; functions + <script-body>)
   * Python      - this file (ast; functions + <module>)
-  * JS/TS       - ESLint's built-in `complexity` rule (--format json)
+  * JS/TS       - ESLint: the built-in `complexity` rule (cyclomatic) and
+                  eslint-plugin-sonarjs's `sonarjs/cognitive-complexity` (cognitive)
 
 Usage:
-  python tools/complexity/ratchet.py            # check (CI gate); exit 1 on regression
-  python tools/complexity/ratchet.py --update   # regenerate/lower the baseline
+  python tools/complexity/ratchet.py                       # cyclomatic check (CI gate)
+  python tools/complexity/ratchet.py --update              # re-baseline cyclomatic
+  python tools/complexity/ratchet.py --metric cognitive    # cognitive check
+  python tools/complexity/ratchet.py --metric cognitive --update
 """
 import argparse
 import ast
@@ -38,8 +42,25 @@ import subprocess
 import sys
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-BASELINE_PATH = os.path.join(REPO, ".ci", "complexity-baseline.json")
-THRESHOLDS = {"ps": 15, "py": 15, "js": 20}
+
+# Per-metric config: the unit field to gate, the language thresholds, the languages
+# that participate, and the baseline file. cyclomatic is the default (unchanged CI).
+METRICS = {
+    "cyclomatic": {
+        "field": "cc",
+        "thresholds": {"ps": 15, "py": 15, "js": 20},
+        "langs": ("ps", "py", "js"),
+        "baseline": os.path.join(REPO, ".ci", "complexity-baseline.json"),
+        "label": "cyclomatic complexity",
+    },
+    "cognitive": {
+        "field": "cog",
+        "thresholds": {"ps": 15, "py": 15, "js": 15},
+        "langs": ("ps", "py", "js"),
+        "baseline": os.path.join(REPO, ".ci", "cognitive-baseline.json"),
+        "label": "cognitive complexity",
+    },
+}
 
 # Paths never measured: dependencies, build output, and the generated bundled-scripts
 # mirror (a copy of tools/** that is regenerated for the API image).
@@ -50,7 +71,7 @@ def relpath(p):
     return os.path.relpath(p, REPO).replace(os.sep, "/")
 
 
-# ─── PowerShell ──────────────────────────────────────────────────────────────
+# ─── PowerShell (measure_ps.ps1 emits cc + cog) ──────────────────────────────
 def measure_ps():
     script = os.path.join(REPO, "tools", "complexity", "measure_ps.ps1")
     exe = shutil.which("pwsh") or shutil.which("powershell")
@@ -66,20 +87,20 @@ def measure_ps():
     data = json.loads(txt) if txt else []
     if isinstance(data, dict):
         data = [data]
-    return [dict(file=u["file"], unit=u["unit"], line=u["line"], cc=u["cc"], lang="ps")
-            for u in data]
+    return [dict(file=u["file"], unit=u["unit"], line=u["line"],
+                 cc=u["cc"], cog=u.get("cog"), lang="ps") for u in data]
 
 
-# ─── Python ──────────────────────────────────────────────────────────────────
-def _py_units(tree):
+# ─── Python (cyclomatic + cognitive, one parse) ──────────────────────────────
+def _py_cyclomatic(tree):
+    """{unit-key: ((name, line), cc)} — every branch counts equally (+1 base)."""
     counts, names, stack = {}, {}, []
 
     def here():
         return stack[-1] if stack else "<module>"
 
     def bump(n=1):
-        k = here()
-        counts[k] = counts.get(k, 0) + n
+        counts[here()] = counts.get(here(), 0) + n
 
     class V(ast.NodeVisitor):
         def _fn(self, node):
@@ -104,7 +125,115 @@ def _py_units(tree):
     counts.setdefault("<module>", 0)
     names["<module>"] = ("<module>", 1)
     V().visit(tree)
-    return [(names.get(k, (k, 1)), v + 1) for k, v in counts.items()]
+    return {k: (names.get(k, (k, 1)), v + 1) for k, v in counts.items()}
+
+
+class _PyCognitive(ast.NodeVisitor):
+    """Cognitive complexity per unit — nesting-weighted; else-if flat; boolean runs.
+
+    Mirrors the SonarSource model and the PowerShell measurer: a structure that
+    introduces nesting (if / ternary / loop / except / lambda / comprehension) adds
+    +1 for each enclosing nesting level; else / elif get a flat +1; each BoolOp node
+    (Python already groups a run of one operator into a single node) is +1.
+
+    Dispatch is `_<NodeType>` methods; anything without one just recurses its children
+    at the same depth (via `_recurse`).
+    """
+
+    def run(self, tree):
+        self.scores = {"<module>": 0}
+        self.names = {"<module>": ("<module>", 1)}
+        self._recurse(tree, "<module>", 0)
+        return {k: (self.names.get(k, (k, 1)), v) for k, v in self.scores.items()}
+
+    def handle(self, node, unit, depth):
+        m = getattr(self, "_" + type(node).__name__, None)
+        (m or self._recurse)(node, unit, depth)
+
+    def _recurse(self, node, unit, depth):
+        for c in ast.iter_child_nodes(node):
+            self.handle(c, unit, depth)
+
+    def _FunctionDef(self, node, unit, depth):
+        key = f"{node.name}@{node.lineno}"
+        self.scores.setdefault(key, 0)
+        self.names[key] = (node.name, node.lineno)
+        for c in node.body:
+            self.handle(c, key, 0)
+    _AsyncFunctionDef = _FunctionDef
+
+    def _If(self, node, unit, depth):
+        self.scores[unit] += 1 + depth          # the `if`: +1 + nesting
+        self.handle(node.test, unit, depth)
+        for c in node.body:
+            self.handle(c, unit, depth + 1)
+        orelse = node.orelse
+        while orelse:
+            is_elif = len(orelse) == 1 and isinstance(orelse[0], ast.If)
+            self.scores[unit] += 1              # elif / else: flat +1, no nesting
+            branch = orelse[0] if is_elif else None
+            if branch:
+                self.handle(branch.test, unit, depth)
+            body = branch.body if branch else orelse
+            for c in body:
+                self.handle(c, unit, depth + 1)
+            orelse = branch.orelse if branch else []
+
+    def _While(self, node, unit, depth):
+        self.scores[unit] += 1 + depth
+        self.handle(node.test, unit, depth)
+        self._loop_body(node, unit, depth)
+
+    def _For(self, node, unit, depth):
+        self.scores[unit] += 1 + depth
+        self.handle(node.iter, unit, depth)
+        self._loop_body(node, unit, depth)
+    _AsyncFor = _For
+
+    def _loop_body(self, node, unit, depth):
+        for c in node.body:
+            self.handle(c, unit, depth + 1)
+        for c in node.orelse:
+            self.handle(c, unit, depth)
+
+    def _ExceptHandler(self, node, unit, depth):
+        self.scores[unit] += 1 + depth
+        for c in node.body:
+            self.handle(c, unit, depth + 1)
+
+    def _IfExp(self, node, unit, depth):        # ternary
+        self.scores[unit] += 1 + depth
+        self.handle(node.test, unit, depth)
+        self.handle(node.body, unit, depth + 1)
+        self.handle(node.orelse, unit, depth + 1)
+
+    def _BoolOp(self, node, unit, depth):       # one node == one operator run
+        self.scores[unit] += 1
+        for v in node.values:
+            self.handle(v, unit, depth)
+
+    def _Lambda(self, node, unit, depth):
+        self.handle(node.body, unit, depth + 1)
+
+    def _comp(self, node, unit, depth):
+        self.scores[unit] += 1 + depth
+        for gen in node.generators:
+            self.handle(gen.iter, unit, depth)
+            for cond in gen.ifs:
+                self.scores[unit] += 1
+                self.handle(cond, unit, depth)
+        for f in ("elt", "key", "value"):
+            sub = getattr(node, f, None)
+            if sub is not None:
+                self.handle(sub, unit, depth + 1)
+    _ListComp = _comp
+    _SetComp = _comp
+    _GeneratorExp = _comp
+    _DictComp = _comp
+
+
+def _py_cognitive(tree):
+    return _PyCognitive().run(tree)
 
 
 def measure_py():
@@ -113,121 +242,243 @@ def measure_py():
         r = relpath(f)
         if any(x in r for x in EXCLUDE):
             continue
+        base = os.path.basename(f)
+        if base.startswith("test_") or base.endswith("_test.py") or base == "conftest.py":
+            continue   # test files are not production code — same as .Tests.ps1 for PowerShell
         try:
             tree = ast.parse(open(f, encoding="utf-8").read())
         except (SyntaxError, UnicodeDecodeError):
             continue
-        for (name, line), cc in _py_units(tree):
-            units.append(dict(file=r, unit=name, line=line, cc=cc, lang="py"))
+        cyc = _py_cyclomatic(tree)
+        cog = _py_cognitive(tree)
+        for k, ((name, line), cc) in cyc.items():
+            units.append(dict(file=r, unit=name, line=line, cc=cc,
+                              cog=cog.get(k, (None, 0))[1], lang="py"))
     return units
 
 
-# ─── JS / TS (ESLint complexity rule) ────────────────────────────────────────
-def measure_js():
+# ─── JS / TS (ESLint: `complexity` = cyclomatic, sonarjs = cognitive) ─────────
+# Both metrics come from ONE eslint pass by injecting both rules. The core
+# `complexity` message names the function ("Function 'foo' has a complexity of
+# 21"); the sonarjs message does not ("Refactor this function to reduce its
+# Cognitive Complexity from 19 to the 15 allowed"), so a cognitive unit borrows
+# the cyclomatic message's name when one landed on the same line.
+_JS_CC_RE = re.compile(r"complexity of (\d+)")
+_JS_COG_RE = re.compile(r"Cognitive Complexity from (\d+)")
+
+
+def parse_js_units(file_rel, messages):
+    """One file's ESLint messages -> ratchet units (pure; unit-tested).
+
+    Cyclomatic and cognitive findings become separate units — the two metrics
+    have independent baselines, and a function can breach one without the other.
+    A cyclomatic unit carries cc (cog=None); a cognitive unit carries cog
+    (cc=None) and reuses the same-line function name if the cyclomatic rule also
+    fired there, else falls back to a line label.
+    """
+    names = {}
+    for m in messages:
+        if m.get("ruleId") == "complexity" and _JS_CC_RE.search(m.get("message", "")):
+            names[m.get("line")] = m["message"].split(" has a complexity")[0].strip()
+    units = []
+    for m in messages:
+        rid, msg, line = m.get("ruleId"), m.get("message", ""), m.get("line")
+        if rid == "complexity":
+            mt = _JS_CC_RE.search(msg)
+            if mt:
+                units.append(dict(file=file_rel, unit=msg.split(" has a complexity")[0].strip(),
+                                  line=line, cc=int(mt.group(1)), cog=None, lang="js"))
+        elif rid == "sonarjs/cognitive-complexity":
+            mt = _JS_COG_RE.search(msg)
+            if mt:
+                units.append(dict(file=file_rel, unit=names.get(line) or f"function (line {line})",
+                                  line=line, cc=None, cog=int(mt.group(1)), lang="js"))
+    return units
+
+
+def _eslint_json(sub, rule):
+    """Run ESLint over <sub>/src with the given --rule JSON; return the parsed
+    report array (or None if npx / node_modules / output is unavailable)."""
     npx = shutil.which("npx") or shutil.which("npx.cmd")
     if not npx:
         print("warning: npx not found - skipping JS/TS", file=sys.stderr)
-        return []
-    rule = json.dumps({"complexity": ["warn", THRESHOLDS["js"]]})
+        return None
+    d = os.path.join(REPO, sub)
+    if not os.path.isdir(os.path.join(d, "node_modules")):
+        print(f"warning: {sub}/node_modules missing - skipping its JS", file=sys.stderr)
+        return None
+    out = subprocess.run([npx, "eslint", "src", "--rule", rule, "--format", "json"],
+                         cwd=d, capture_output=True, text=True, encoding="utf-8", errors="replace")
+    if not out.stdout.strip():
+        print(f"warning: eslint produced no output for {sub}:\n{out.stderr[:400]}", file=sys.stderr)
+        return None
+    return json.loads(out.stdout)
+
+
+def measure_js():
+    rule = json.dumps({
+        "complexity": ["warn", METRICS["cyclomatic"]["thresholds"]["js"]],
+        "sonarjs/cognitive-complexity": ["warn", METRICS["cognitive"]["thresholds"]["js"]],
+    })
     units = []
     for sub in ("app/api", "app/ui"):
-        d = os.path.join(REPO, sub)
-        if not os.path.isdir(os.path.join(d, "node_modules")):
-            print(f"warning: {sub}/node_modules missing - skipping its JS", file=sys.stderr)
-            continue
-        out = subprocess.run([npx, "eslint", "src", "--rule", rule, "--format", "json"],
-                             cwd=d, capture_output=True, text=True, encoding="utf-8", errors="replace")
-        if not out.stdout.strip():
-            print(f"warning: eslint produced no output for {sub}:\n{out.stderr[:400]}", file=sys.stderr)
-            continue
-        for fobj in json.loads(out.stdout):
-            fr = relpath(fobj["filePath"])
-            for m in fobj.get("messages", []):
-                if m.get("ruleId") == "complexity":
-                    mt = re.search(r"complexity of (\d+)", m["message"])
-                    if mt:
-                        unit = m["message"].split(" has a complexity")[0].strip()
-                        units.append(dict(file=fr, unit=unit, line=m.get("line"),
-                                          cc=int(mt.group(1)), lang="js"))
+        report = _eslint_json(sub, rule)
+        for fobj in report or []:
+            units.extend(parse_js_units(relpath(fobj["filePath"]), fobj.get("messages", [])))
     return units
 
 
-# ─── Ratchet ─────────────────────────────────────────────────────────────────
-def over_threshold(units):
-    """file -> list of unit dicts whose cc exceeds the language threshold."""
+# ─── JS/TS full measurement (for the coverage docs, NOT the gate) ─────────────
+# The gate's measure_js only surfaces over-threshold outliers (ESLint reports a
+# rule only when it's breached). The coverage page instead wants avg/max over
+# EVERY function, so we run both rules at threshold 0: the cyclomatic rule then
+# reports every function (cc >= 1 always), and cognitive is merged in by line,
+# defaulting to 0 for a straight-line function the cognitive rule doesn't flag.
+_JS_TEST_RE = re.compile(r"(?:\.test\.|\.spec\.|/__tests__/|/e2e/|/test-utils/)")
+
+
+def merge_js_units(file_rel, messages):
+    """One unit per function carrying BOTH cc and cog (cog defaults to 0). Keyed
+    off the cyclomatic messages (one per function); pure, so it's unit-tested."""
+    cog_by_line = {}
+    for m in messages:
+        if m.get("ruleId") == "sonarjs/cognitive-complexity":
+            mt = _JS_COG_RE.search(m.get("message", ""))
+            if mt:
+                cog_by_line[m.get("line")] = int(mt.group(1))
+    units = []
+    for m in messages:
+        if m.get("ruleId") == "complexity":
+            mt = _JS_CC_RE.search(m.get("message", ""))
+            if mt:
+                units.append(dict(file=file_rel, unit=m["message"].split(" has a complexity")[0].strip(),
+                                  line=m.get("line"), cc=int(mt.group(1)),
+                                  cog=cog_by_line.get(m.get("line"), 0)))
+    return units
+
+
+def measure_js_all_units(sub):
+    """Every product function in <sub>/src as {file,unit,line,cc,cog} — feeds the
+    coverage docs' avg/max columns. Test files are excluded (product code only,
+    matching the PowerShell measurer)."""
+    rule = json.dumps({"complexity": ["warn", 0], "sonarjs/cognitive-complexity": ["warn", 0]})
+    units = []
+    for fobj in _eslint_json(sub, rule) or []:
+        fr = relpath(fobj["filePath"])
+        if not _JS_TEST_RE.search("/" + fr):
+            units.extend(merge_js_units(fr, fobj.get("messages", [])))
+    return units
+
+
+# ─── Ratchet (metric-parameterised) ──────────────────────────────────────────
+def over_threshold(units, metric):
+    """file -> list of (unit, value) over the language threshold, for this metric."""
+    field, thresholds, langs = metric["field"], metric["thresholds"], metric["langs"]
     out = {}
     for u in units:
-        if u["cc"] > THRESHOLDS[u["lang"]]:
-            out.setdefault(u["file"], []).append(u)
+        if u["lang"] not in langs:
+            continue
+        val = u.get(field)
+        if val is None:
+            continue
+        if val > thresholds[u["lang"]]:
+            out.setdefault(u["file"], []).append((u, val))
     return out
 
 
-def build_baseline(over):
-    files = {f: sorted((u["cc"] for u in us), reverse=True) for f, us in over.items()}
+def build_baseline(over, metric):
+    files = {f: sorted((v for _, v in us), reverse=True) for f, us in over.items()}
     return {
-        "_comment": "Cyclomatic-complexity ratchet baseline. Per file: the sorted "
-                    "list of unit CCs over the language threshold. Only ever lowered "
-                    "(python tools/complexity/ratchet.py --update). See the tool header.",
-        "thresholds": THRESHOLDS,
+        "_comment": f"{metric['label'].capitalize()} ratchet baseline. Per file: the "
+                    "sorted list of unit values over the language threshold. Only ever "
+                    "lowered (--update). See tools/complexity/ratchet.py header.",
+        "metric": metric["field"],
+        "thresholds": metric["thresholds"],
         "files": dict(sorted(files.items())),
     }
 
 
-def check(over, baseline_files):
-    """Return a list of (unit, ceiling) violations."""
+def check(over, baseline_files, metric):
+    """Return a list of (unit, value, ceiling) violations."""
+    thresholds = metric["thresholds"]
     violations = []
     for f, us in over.items():
-        cur = sorted(us, key=lambda u: u["cc"], reverse=True)
+        cur = sorted(us, key=lambda uv: uv[1], reverse=True)
         base = sorted(baseline_files.get(f, []), reverse=True)
-        for i, u in enumerate(cur):
-            ceiling = base[i] if i < len(base) else THRESHOLDS[u["lang"]]
-            if u["cc"] > ceiling:
-                violations.append((u, ceiling))
+        for i, (u, val) in enumerate(cur):
+            ceiling = base[i] if i < len(base) else thresholds[u["lang"]]
+            if val > ceiling:
+                violations.append((u, val, ceiling))
     return violations
 
 
+def print_summary(args, metric, units, over):
+    field, langs, thresholds = metric["field"], metric["langs"], metric["thresholds"]
+    counted = [u for u in units if u["lang"] in langs and u.get(field) is not None]
+    per_str = " ".join(f"{lang}={sum(1 for u in counted if u['lang'] == lang)}" for lang in langs)
+    thr_str = " ".join(f"{lang}>{thresholds[lang]}" for lang in langs)
+    n_over = sum(len(v) for v in over.values())
+    print(f"[{args.metric}] Measured {len(counted)} units ({per_str}); "
+          f"{n_over} over threshold ({thr_str}).")
+
+
+def report_violations(args, metric, violations):
+    thresholds, label = metric["thresholds"], metric["label"]
+    for u, val, ceiling in sorted(violations, key=lambda x: x[1], reverse=True):
+        why = ("exceeds this file's grandfathered ceiling"
+               if ceiling > thresholds[u["lang"]] else
+               f"is a new/over-threshold unit (max {ceiling} for {u['lang']})")
+        print(f"::error file={u['file']},line={u['line']}::{label.capitalize()} "
+              f"ratchet: {u['unit']} has {label} {val} - {why} ({ceiling}). "
+              f"Refactor it down, or split it.")
+    print(f"\n{label.capitalize()} ratchet FAILED: {len(violations)} unit(s) above "
+          f"ceiling. Lower the complexity, or - only for an intentional, reviewed "
+          f"increase - re-baseline with: python tools/complexity/ratchet.py "
+          f"--metric {args.metric} --update", file=sys.stderr)
+
+
 def main():
-    ap = argparse.ArgumentParser(description="Cyclomatic-complexity ratchet.")
+    ap = argparse.ArgumentParser(description="Complexity ratchet (cyclomatic / cognitive).")
+    ap.add_argument("--metric", choices=list(METRICS), default="cyclomatic",
+                    help="which complexity metric to gate (default: cyclomatic)")
     ap.add_argument("--update", action="store_true", help="regenerate/lower the baseline")
-    ap.add_argument("--baseline", default=BASELINE_PATH)
+    ap.add_argument("--baseline", default=None, help="override the baseline path")
+    ap.add_argument("--emit-complexity-json", metavar="WORKSPACE", default=None,
+                    help="print the full per-unit {file,unit,line,cc,cog} JSON for one JS "
+                         "workspace's src (e.g. app/api) and exit — feeds the coverage docs, "
+                         "not the gate. Measures every function, not just over-threshold ones.")
     args = ap.parse_args()
 
+    if args.emit_complexity_json:
+        json.dump(measure_js_all_units(args.emit_complexity_json), sys.stdout)
+        sys.stdout.write("\n")
+        return 0
+
+    metric = METRICS[args.metric]
+    baseline_path = args.baseline or metric["baseline"]
+
     units = measure_ps() + measure_py() + measure_js()
-    over = over_threshold(units)
-    n_over = sum(len(v) for v in over.values())
-    per_lang = {lang: sum(1 for u in units if u["lang"] == lang) for lang in THRESHOLDS}
-    print(f"Measured {len(units)} units (ps={per_lang['ps']} py={per_lang['py']} "
-          f"js={per_lang['js']}); {n_over} over threshold "
-          f"(ps>{THRESHOLDS['ps']} py>{THRESHOLDS['py']} js>{THRESHOLDS['js']}).")
+    over = over_threshold(units, metric)
+    print_summary(args, metric, units, over)
 
     if args.update:
-        os.makedirs(os.path.dirname(args.baseline), exist_ok=True)
-        with open(args.baseline, "w", encoding="utf-8", newline="\n") as fh:
-            json.dump(build_baseline(over), fh, indent=2)
+        os.makedirs(os.path.dirname(baseline_path), exist_ok=True)
+        with open(baseline_path, "w", encoding="utf-8", newline="\n") as fh:
+            json.dump(build_baseline(over, metric), fh, indent=2)
             fh.write("\n")
-        print(f"Wrote baseline: {relpath(args.baseline)} ({len(over)} files).")
+        print(f"Wrote baseline: {relpath(baseline_path)} ({len(over)} files).")
         return 0
 
-    if not os.path.isfile(args.baseline):
-        print(f"ERROR: no baseline at {relpath(args.baseline)} - run with --update first.",
+    if not os.path.isfile(baseline_path):
+        print(f"ERROR: no baseline at {relpath(baseline_path)} - run with --update first.",
               file=sys.stderr)
         return 2
-    baseline = json.load(open(args.baseline, encoding="utf-8")).get("files", {})
-    violations = check(over, baseline)
+    baseline = json.load(open(baseline_path, encoding="utf-8")).get("files", {})
+    violations = check(over, baseline, metric)
     if not violations:
-        print("Complexity ratchet OK - no unit exceeds its ceiling.")
+        print(f"{metric['label'].capitalize()} ratchet OK - no unit exceeds its ceiling.")
         return 0
-
-    for u, ceiling in sorted(violations, key=lambda x: x[0]["cc"], reverse=True):
-        why = ("exceeds this file's grandfathered ceiling"
-               if ceiling > THRESHOLDS[u["lang"]] else
-               f"is a new/over-threshold unit (max {ceiling} for {u['lang']})")
-        print(f"::error file={u['file']},line={u['line']}::Complexity ratchet: "
-              f"{u['unit']} has cyclomatic complexity {u['cc']} - {why} ({ceiling}). "
-              f"Refactor it down, or split it.")
-    print(f"\nComplexity ratchet FAILED: {len(violations)} unit(s) above ceiling. "
-          f"Lower the complexity, or - only for an intentional, reviewed increase - "
-          f"re-baseline with: python tools/complexity/ratchet.py --update", file=sys.stderr)
+    report_violations(args, metric, violations)
     return 1
 
 

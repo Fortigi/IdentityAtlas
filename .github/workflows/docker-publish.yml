@@ -99,7 +99,7 @@ jobs:
           fi
 
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@c99871dec2022cc055c062a10cc1a1310835ceb4 # v4
+        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -194,83 +194,44 @@ jobs:
         run: docker compose -f docker-compose.qa.yml down -v 2>/dev/null || true
 
       # ── Push images (only reached if smoke test passed) ─────────────
-      - name: Push web image (release tag → latest)
-        if: steps.config.outputs.channel == 'release'
-        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
-        with:
-          context: .
-          file: ./app/api/Dockerfile
-          push: true
-          tags: |
-            ${{ env.REGISTRY }}/fortigi/identity-atlas:latest
-            ${{ env.REGISTRY }}/fortigi/identity-atlas:${{ steps.version.outputs.version }}
-          build-args: MODULE_VERSION=${{ steps.version.outputs.version }}
-          cache-from: type=gha,scope=web
-          cache-to: type=gha,mode=min,scope=web,ignore-error=true
+      # Push the EXACT images that were built, loaded and smoke-tested above by
+      # retagging the local :qa images — NOT by rebuilding. A rebuild (even a
+      # cached one) can diverge from the tested bits on a cache miss, a
+      # best-effort cache-export failure, or base-image drift between the two
+      # builds, so "published" would no longer equal "tested".
+      #
+      # Safe because the build steps above use buildx `load: true`, which only
+      # works for a single-platform image (this workflow sets no `platforms:`), so
+      # the loaded :qa image IS the artifact. `Tear down` runs `compose down -v`
+      # (containers/volumes only), so the images survive. If this workflow ever
+      # goes multi-arch, `load` can't hold a manifest list — switch to a
+      # build-once, smoke-test-by-digest, push-by-digest flow instead.
+      - name: Resolve channel's floating tag
+        id: tags
+        run: |
+          case "${{ steps.config.outputs.channel }}" in
+            release) FLOAT=latest ;;
+            beta)    FLOAT=beta   ;;
+            *)       FLOAT=edge   ;;
+          esac
+          echo "float=$FLOAT" >> "$GITHUB_OUTPUT"
 
-      - name: Push worker image (release tag → latest)
-        if: steps.config.outputs.channel == 'release'
-        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
-        with:
-          context: .
-          file: ./setup/docker/Dockerfile.powershell
-          push: true
-          tags: |
-            ${{ env.REGISTRY }}/fortigi/identity-atlas-worker:latest
-            ${{ env.REGISTRY }}/fortigi/identity-atlas-worker:${{ steps.version.outputs.version }}
-          cache-from: type=gha,scope=worker
-          cache-to: type=gha,mode=min,scope=worker,ignore-error=true
+      - name: Push web image (tested artifact)
+        run: |
+          FLOAT="${{ steps.tags.outputs.float }}"
+          VERSION="${{ steps.version.outputs.version }}"
+          REPO="${{ env.REGISTRY }}/fortigi/identity-atlas"
+          docker tag identity-atlas-web:qa "$REPO:$FLOAT"
+          docker tag identity-atlas-web:qa "$REPO:$VERSION"
+          docker push "$REPO:$FLOAT"
+          docker push "$REPO:$VERSION"
 
-      - name: Push web image (pre-release tag → beta)
-        if: steps.config.outputs.channel == 'beta'
-        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
-        with:
-          context: .
-          file: ./app/api/Dockerfile
-          push: true
-          tags: |
-            ${{ env.REGISTRY }}/fortigi/identity-atlas:beta
-            ${{ env.REGISTRY }}/fortigi/identity-atlas:${{ steps.version.outputs.version }}
-          build-args: MODULE_VERSION=${{ steps.version.outputs.version }}
-          cache-from: type=gha,scope=web
-          cache-to: type=gha,mode=min,scope=web,ignore-error=true
-
-      - name: Push worker image (pre-release tag → beta)
-        if: steps.config.outputs.channel == 'beta'
-        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
-        with:
-          context: .
-          file: ./setup/docker/Dockerfile.powershell
-          push: true
-          tags: |
-            ${{ env.REGISTRY }}/fortigi/identity-atlas-worker:beta
-            ${{ env.REGISTRY }}/fortigi/identity-atlas-worker:${{ steps.version.outputs.version }}
-          cache-from: type=gha,scope=worker
-          cache-to: type=gha,mode=min,scope=worker,ignore-error=true
-
-      - name: Push web image (main → edge)
-        if: steps.config.outputs.channel == 'main'
-        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
-        with:
-          context: .
-          file: ./app/api/Dockerfile
-          push: true
-          tags: |
-            ${{ env.REGISTRY }}/fortigi/identity-atlas:edge
-            ${{ env.REGISTRY }}/fortigi/identity-atlas:${{ steps.version.outputs.version }}
-          build-args: MODULE_VERSION=${{ steps.version.outputs.version }}
-          cache-from: type=gha,scope=web
-          cache-to: type=gha,mode=min,scope=web,ignore-error=true
-
-      - name: Push worker image (main → edge)
-        if: steps.config.outputs.channel == 'main'
-        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
-        with:
-          context: .
-          file: ./setup/docker/Dockerfile.powershell
-          push: true
-          tags: |
-            ${{ env.REGISTRY }}/fortigi/identity-atlas-worker:edge
-            ${{ env.REGISTRY }}/fortigi/identity-atlas-worker:${{ steps.version.outputs.version }}
-          cache-from: type=gha,scope=worker
-          cache-to: type=gha,mode=min,scope=worker,ignore-error=true
+      - name: Push worker image (tested artifact)
+        run: |
+          FLOAT="${{ steps.tags.outputs.float }}"
+          VERSION="${{ steps.version.outputs.version }}"
+          REPO="${{ env.REGISTRY }}/fortigi/identity-atlas-worker"
+          docker tag identity-atlas-worker:qa "$REPO:$FLOAT"
+          docker tag identity-atlas-worker:qa "$REPO:$VERSION"
+          docker push "$REPO:$FLOAT"
+          docker push "$REPO:$VERSION"

@@ -40,9 +40,17 @@ vi.mock('../config/authConfig.js', () => ({
 const purgeExpiredTombstones = vi.fn(async () => ({ purged: { Principals: 3 } }));
 vi.mock('../ingest/tombstonePurge.js', () => ({ purgeExpiredTombstones: (...a) => purgeExpiredTombstones(...a) }));
 
-// tags.js / categories.js are dynamically imported by the curated-import handler.
-vi.mock('./tags.js', () => ({ ensureTagTables: vi.fn(async () => {}) }));
+// tags.js / categories.js / bootstrap / memberCounts are dynamically imported by
+// the curated-import handler. Tags are written to Contexts + ContextMembers
+// (GraphTags/GraphTagAssignments are read-only views), reusing tags.js helpers.
+vi.mock('./tags.js', () => ({
+  ensureTagTables: vi.fn(async () => {}),
+  ENTITY_TO_TARGET: { user: 'Principal', group: 'Resource', resource: 'Resource', identity: 'Identity' },
+  UUID_RE: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+}));
 vi.mock('./categories.js', () => ({ ensureCategoryTables: vi.fn(async () => {}) }));
+vi.mock('../bootstrap.js', () => ({ getOrCreateTagRoot: vi.fn(async () => 'tag-root') }));
+vi.mock('../contexts/memberCounts.js', () => ({ recalcMemberCountsForChain: vi.fn(async () => {}) }));
 
 const { default: router } = await import('./admin.js');
 const app = mountRouter(router);
@@ -241,11 +249,12 @@ describe('POST /admin/clean-database', () => {
     expect(res.body.skipped.length).toBeGreaterThan(0);
   });
 
-  it('500 when the existence batch check rejects', async () => {
+  it('500 when the existence batch check rejects (generic error, no leak)', async () => {
     query.mockRejectedValueOnce(new Error('boom'));
     const res = await request(app).post('/api/admin/clean-database');
     expect(res.status).toBe(500);
-    expect(res.body.error).toMatch(/Clean database failed/);
+    expect(res.body.error).toBe('Clean database failed');
+    expect(JSON.stringify(res.body)).not.toContain('boom'); // internal detail not leaked
   });
 });
 
@@ -277,17 +286,19 @@ describe('POST /admin/import/curated', () => {
   it('imports tags + categories and returns stats', async () => {
     // tableExists() calls (Principals, Resources) -> default poolQuery returns
     // empty recordset, so resolveEntity treats entities as non-existent.
-    // db.query is used for: to_regclass checks, tag upsert, category upsert,
-    // assignment lookups/inserts. Drive them through a default + specific mocks.
+    // db.query is used for: to_regclass checks, tag upsert (Contexts), category
+    // upsert, assignment lookups/inserts (ContextMembers). queryOne is used for
+    // the existing-tag lookup. Drive them through a default + specific mocks.
     query.mockImplementation(async (sql) => {
-      if (/to_regclass/i.test(sql)) return { rows: [{ oid: 1 }] };          // tables exist
-      if (/INSERT INTO "GraphTags"/i.test(sql)) return { rows: [{ id: 'tag1', wasInsert: true }] };
+      if (/to_regclass/i.test(sql)) return { rows: [{ oid: 1 }] };            // tables exist
+      if (/INSERT INTO "Contexts"/i.test(sql)) return { rows: [{ id: 'tag1' }] };
       if (/INSERT INTO "GovernanceCategories"/i.test(sql)) return { rows: [{ id: 'cat1' }] };
-      if (/INSERT INTO "GraphTagAssignments"/i.test(sql)) return { rows: [{ inserted: 1 }] };
-      if (/FROM "Resources"/i.test(sql)) return { rows: [{ id: 'apid' }] };  // GUID match
+      if (/INSERT INTO "ContextMembers"/i.test(sql)) return { rows: [{ inserted: 1 }] };
+      if (/FROM "Resources"/i.test(sql)) return { rows: [{ id: 'apid' }] };    // GUID match
       if (/INSERT INTO "GovernanceCategoryAssignments"/i.test(sql)) return { rows: [{ inserted: 1 }] };
       return { rows: [] };
     });
+    queryOne.mockResolvedValue(undefined); // no existing tag → insert path
     // resolveEntity uses pool.request().query -> return a hit so the tag
     // assignment resolves via GUID match.
     poolQuery = vi.fn(async () => ({ recordset: [{ n: 1 }] }));
@@ -295,7 +306,7 @@ describe('POST /admin/import/curated', () => {
     const body = {
       tags: [{
         name: 'Sensitive', entityType: 'user', color: '#abcdef',
-        assignments: [{ entityId: 'guid-1', displayName: 'Alice' }],
+        assignments: [{ entityId: '11111111-1111-1111-1111-111111111111', displayName: 'Alice' }],
       }],
       categories: [{
         name: 'Finance', color: 'bad-color',
@@ -306,6 +317,7 @@ describe('POST /admin/import/curated', () => {
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
     expect(res.body.stats.tagsInserted).toBe(1);
+    expect(res.body.stats.assignmentsInserted).toBe(1);
     expect(res.body.stats.catsInserted).toBe(1);
   });
 

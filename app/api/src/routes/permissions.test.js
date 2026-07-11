@@ -38,7 +38,7 @@ const apRow = (over) => ({
 describe('GET /access-package-groups', () => {
   it('flattens grouped resources into (ap, resource) rows', async () => {
     timedQuery.mockResolvedValueOnce({ recordset: [apRow({
-      resources: [{ resourceId: 'r1', groupId: 'r1', resourceName: 'Eng', groupName: 'Eng', resourceType: 'EntraGroup', systemId: 1, roleName: null }],
+      resources: [{ resourceId: 'r1', groupId: 'r1', resourceName: 'Eng', groupName: 'Eng', resourceType: 'Group', systemId: 1, roleName: null }],
     })] });
     const res = await request(app).get('/api/access-package-groups');
     expect(res.status).toBe(200);

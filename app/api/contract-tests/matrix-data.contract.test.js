@@ -36,7 +36,7 @@ beforeAll(async () => {
   for (const name of ['Engineering', 'Finance', 'Sales']) {
     const r = await pool.query(
       `INSERT INTO "Resources" ("systemId", "displayName", "resourceType")
-       VALUES ($1, $2, 'EntraGroup') RETURNING "id"`,
+       VALUES ($1, $2, 'Group') RETURNING "id"`,
       [systemId, name],
     );
     resourceIds.push(r.rows[0].id);

@@ -114,7 +114,7 @@ if (-not (Test-Path $LogFolder)) {
 # When run standalone, we keep our own counter so the script can return a
 # meaningful exit code.
 $standaloneFailures = 0
-function Report-Result {
+function Write-Result {
     param([string]$Name, [bool]$Passed, [string]$Detail = '')
     $color = if ($Passed) { 'Green' } else { 'Red' }
     $status = if ($Passed) { 'PASS' } else { 'FAIL' }
@@ -259,10 +259,10 @@ function Invoke-Scenario {
             config      = $configPayload
         }
     } catch {
-        Report-Result "EntraID/$Name/CreateConfig" $false $_.Exception.Message
+        Write-Result "EntraID/$Name/CreateConfig" $false $_.Exception.Message
         return
     }
-    Report-Result "EntraID/$Name/CreateConfig" $true "id=$($config.id)"
+    Write-Result "EntraID/$Name/CreateConfig" $true "id=$($config.id)"
 
     # 2. Queue the job
     try {
@@ -271,10 +271,10 @@ function Invoke-Scenario {
             configId = $config.id
         }
     } catch {
-        Report-Result "EntraID/$Name/QueueJob" $false $_.Exception.Message
+        Write-Result "EntraID/$Name/QueueJob" $false $_.Exception.Message
         return
     }
-    Report-Result "EntraID/$Name/QueueJob" $true "jobId=$($job.id)"
+    Write-Result "EntraID/$Name/QueueJob" $true "jobId=$($job.id)"
 
     # 3. Wait for the job to finish
     $waitResult = Wait-ForJob -JobId $job.id -ScenarioName $Name
@@ -284,7 +284,7 @@ function Invoke-Scenario {
         if ($waitResult.job -and $waitResult.job.errorMessage) {
             $detail += " | $($waitResult.job.errorMessage)"
         }
-        Report-Result "EntraID/$Name/JobCompleted" $false $detail
+        Write-Result "EntraID/$Name/JobCompleted" $false $detail
         # Still drop a per-scenario log file with the final job state for debugging
         if ($waitResult.job) {
             $waitResult.job | ConvertTo-Json -Depth 10 |
@@ -292,7 +292,7 @@ function Invoke-Scenario {
         }
         return
     }
-    Report-Result "EntraID/$Name/JobCompleted" $true "${duration}s"
+    Write-Result "EntraID/$Name/JobCompleted" $true "${duration}s"
 
     # 4. Save the final job state for forensic review
     $waitResult.job | ConvertTo-Json -Depth 10 |
@@ -303,7 +303,7 @@ function Invoke-Scenario {
         try {
             & $ExtraAssertions
         } catch {
-            Report-Result "EntraID/$Name/Assertions" $false $_.Exception.Message
+            Write-Result "EntraID/$Name/Assertions" $false $_.Exception.Message
         }
     }
 }
@@ -329,32 +329,32 @@ try {
         }
     }
     if (-not $vr.valid) {
-        Report-Result 'EntraID/Validate-Only' $false ($vr.error ?? 'validation returned valid=false')
+        Write-Result 'EntraID/Validate-Only' $false ($vr.error ?? 'validation returned valid=false')
         if ($WriteResult) { & $WriteResult 'EntraID-Crawler-Tests' $false 'pre-flight validation failed' }
         return
     }
     $grantedProps = @($vr.permissions.PSObject.Properties | Where-Object { $_.Value })
     $missingProps = @($vr.permissions.PSObject.Properties | Where-Object { -not $_.Value })
     $grantedCount = $grantedProps.Count
-    Report-Result 'EntraID/Validate-Only' $true "org=$($vr.organization) · $grantedCount permissions granted"
+    Write-Result 'EntraID/Validate-Only' $true "org=$($vr.organization) · $grantedCount permissions granted"
 
     # Per-permission assertions — one row per permission in the response so a
     # single missing grant stands out in the results table.
     foreach ($p in $vr.permissions.PSObject.Properties) {
-        Report-Result "EntraID/Validate-Only/Permission/$($p.Name)" ([bool]$p.Value) $(if ($p.Value) { 'granted' } else { 'NOT granted' })
+        Write-Result "EntraID/Validate-Only/Permission/$($p.Name)" ([bool]$p.Value) $(if ($p.Value) { 'granted' } else { 'NOT granted' })
     }
 
     if ($StrictPermissions -and $missingProps.Count -gt 0) {
         $names = ($missingProps | ForEach-Object { $_.Name }) -join ', '
-        Report-Result 'EntraID/Validate-Only/AllGranted' $false "missing: $names"
+        Write-Result 'EntraID/Validate-Only/AllGranted' $false "missing: $names"
         if ($WriteResult) { & $WriteResult 'EntraID-Crawler-Tests' $false "pre-flight: $($missingProps.Count) permission(s) missing" }
         return
     }
     if ($StrictPermissions) {
-        Report-Result 'EntraID/Validate-Only/AllGranted' $true "all $grantedCount permissions granted"
+        Write-Result 'EntraID/Validate-Only/AllGranted' $true "all $grantedCount permissions granted"
     }
 } catch {
-    Report-Result 'EntraID/Validate-Only' $false $_.Exception.Message
+    Write-Result 'EntraID/Validate-Only' $false $_.Exception.Message
     if ($WriteResult) { & $WriteResult 'EntraID-Crawler-Tests' $false 'pre-flight validation threw' }
     return
 }
@@ -374,12 +374,12 @@ function Assert-ApiCount {
         elseif ($r.PSObject.Properties.Name -contains 'data') { $count = $r.data.Count }
         elseif ($r -is [array]) { $count = $r.Count }
         if ($count -ge $MinExpected) {
-            Report-Result $Name $true "count=$count"
+            Write-Result $Name $true "count=$count"
         } else {
-            Report-Result $Name $false "expected >=$MinExpected, got $count"
+            Write-Result $Name $false "expected >=$MinExpected, got $count"
         }
     } catch {
-        Report-Result $Name $false $_.Exception.Message
+        Write-Result $Name $false $_.Exception.Message
     }
 }
 
@@ -405,15 +405,15 @@ function Assert-MatrixWorks {
         $totalUsers = if ($perm.PSObject.Properties.Name -contains 'totalUsers') { [int]$perm.totalUsers } else { 0 }
 
         if ($rows -lt $MinRows) {
-            Report-Result "$NamePrefix/MatrixRowCount" $false "expected >=$MinRows rows, got $rows"
+            Write-Result "$NamePrefix/MatrixRowCount" $false "expected >=$MinRows rows, got $rows"
             return
         }
-        Report-Result "$NamePrefix/MatrixRowCount" $true "rows=$rows"
+        Write-Result "$NamePrefix/MatrixRowCount" $true "rows=$rows"
 
         if ($totalUsers -lt $MinUsers) {
-            Report-Result "$NamePrefix/MatrixTotalUsers" $false "expected >=$MinUsers users, got $totalUsers"
+            Write-Result "$NamePrefix/MatrixTotalUsers" $false "expected >=$MinUsers users, got $totalUsers"
         } else {
-            Report-Result "$NamePrefix/MatrixTotalUsers" $true "totalUsers=$totalUsers"
+            Write-Result "$NamePrefix/MatrixTotalUsers" $true "totalUsers=$totalUsers"
         }
 
         # Sanity-check the row shape — the frontend reads these specific fields
@@ -422,36 +422,36 @@ function Assert-MatrixWorks {
         $hasMember   = $first -and ($first.PSObject.Properties.Name -contains 'memberId')   -and $first.memberId
         $hasType     = $first -and ($first.PSObject.Properties.Name -contains 'membershipType')
         if ($hasResource -and $hasMember -and $hasType) {
-            Report-Result "$NamePrefix/MatrixRowShape" $true 'has resourceId/memberId/membershipType'
+            Write-Result "$NamePrefix/MatrixRowShape" $true 'has resourceId/memberId/membershipType'
         } else {
-            Report-Result "$NamePrefix/MatrixRowShape" $false "missing fields (res=$hasResource mem=$hasMember type=$hasType)"
+            Write-Result "$NamePrefix/MatrixRowShape" $false "missing fields (res=$hasResource mem=$hasMember type=$hasType)"
         }
 
         # AP→group mapping endpoint — drives the AP coloring on cells
         try {
             $apGroups = Invoke-LocalApi -Path '/access-package-groups'
             if ($apGroups -is [array] -or ($apGroups -and $apGroups.GetType().Name -eq 'Object[]')) {
-                Report-Result "$NamePrefix/MatrixAPMapping" $true "ap-group-rows=$($apGroups.Count)"
+                Write-Result "$NamePrefix/MatrixAPMapping" $true "ap-group-rows=$($apGroups.Count)"
             } else {
-                Report-Result "$NamePrefix/MatrixAPMapping" $false "unexpected response type: $($apGroups.GetType().Name)"
+                Write-Result "$NamePrefix/MatrixAPMapping" $false "unexpected response type: $($apGroups.GetType().Name)"
             }
         } catch {
-            Report-Result "$NamePrefix/MatrixAPMapping" $false $_.Exception.Message
+            Write-Result "$NamePrefix/MatrixAPMapping" $false $_.Exception.Message
         }
 
         # Group-nesting metadata — matrix toolbar uses this
         try {
             $nested = Invoke-LocalApi -Path '/groups-with-nested'
             if ($nested -and $nested.PSObject.Properties.Name -contains 'groupIds') {
-                Report-Result "$NamePrefix/MatrixGroupsWithNested" $true "groupIds=$(@($nested.groupIds).Count)"
+                Write-Result "$NamePrefix/MatrixGroupsWithNested" $true "groupIds=$(@($nested.groupIds).Count)"
             } else {
-                Report-Result "$NamePrefix/MatrixGroupsWithNested" $false 'response missing groupIds'
+                Write-Result "$NamePrefix/MatrixGroupsWithNested" $false 'response missing groupIds'
             }
         } catch {
-            Report-Result "$NamePrefix/MatrixGroupsWithNested" $false $_.Exception.Message
+            Write-Result "$NamePrefix/MatrixGroupsWithNested" $false $_.Exception.Message
         }
     } catch {
-        Report-Result "$NamePrefix/MatrixWorks" $false $_.Exception.Message
+        Write-Result "$NamePrefix/MatrixWorks" $false $_.Exception.Message
     }
 }
 
@@ -467,18 +467,18 @@ function Assert-BusinessRolesWork {
         $resp = Invoke-LocalApi -Path '/access-packages?limit=200'
         $rows = if ($resp -and $resp.data) { @($resp.data) } else { @() }
         if ($rows.Count -eq 0) {
-            Report-Result "$NamePrefix/BusinessRolesList" $false 'no rows returned'
+            Write-Result "$NamePrefix/BusinessRolesList" $false 'no rows returned'
             return
         }
-        Report-Result "$NamePrefix/BusinessRolesList" $true "rows=$($rows.Count)"
+        Write-Result "$NamePrefix/BusinessRolesList" $true "rows=$($rows.Count)"
 
         # At least one row should have totalAssignments >= MinAssignments
         $withAssign = @($rows | Where-Object { $_.totalAssignments -ge $MinAssignments })
         if ($withAssign.Count -gt 0) {
             $maxAssign = ($rows | Measure-Object -Property totalAssignments -Maximum).Maximum
-            Report-Result "$NamePrefix/BusinessRolesAssignments" $true "withAssign=$($withAssign.Count) max=$maxAssign"
+            Write-Result "$NamePrefix/BusinessRolesAssignments" $true "withAssign=$($withAssign.Count) max=$maxAssign"
         } else {
-            Report-Result "$NamePrefix/BusinessRolesAssignments" $false "no row has totalAssignments >= $MinAssignments (this was the April 2026 regression)"
+            Write-Result "$NamePrefix/BusinessRolesAssignments" $false "no row has totalAssignments >= $MinAssignments (this was the April 2026 regression)"
         }
 
         # Per-AP detail endpoint reachable for the first row
@@ -486,13 +486,13 @@ function Assert-BusinessRolesWork {
         try {
             $detail = Invoke-LocalApi -Path "/access-package/$firstId"
             if ($detail) {
-                Report-Result "$NamePrefix/BusinessRoleDetail" $true 'detail endpoint reachable'
+                Write-Result "$NamePrefix/BusinessRoleDetail" $true 'detail endpoint reachable'
             }
         } catch {
-            Report-Result "$NamePrefix/BusinessRoleDetail" $false $_.Exception.Message
+            Write-Result "$NamePrefix/BusinessRoleDetail" $false $_.Exception.Message
         }
     } catch {
-        Report-Result "$NamePrefix/BusinessRolesWork" $false $_.Exception.Message
+        Write-Result "$NamePrefix/BusinessRolesWork" $false $_.Exception.Message
     }
 }
 
@@ -512,10 +512,10 @@ function Assert-SyncLogShape {
         $entries = Invoke-LocalApi -Path '/sync-log?limit=50'
         $count = if ($entries -is [array]) { $entries.Count } else { 0 }
         if ($count -lt 1) {
-            Report-Result "$NamePrefix/SyncLogEntries" $false 'no entries'
+            Write-Result "$NamePrefix/SyncLogEntries" $false 'no entries'
             return
         }
-        Report-Result "$NamePrefix/SyncLogEntries" $true "entries=$count"
+        Write-Result "$NamePrefix/SyncLogEntries" $true "entries=$count"
 
         if ($ExpectFullCrawlerEntry) {
             # The Entra crawler script writes one EntraID-FullCrawl entry at the
@@ -524,21 +524,21 @@ function Assert-SyncLogShape {
             # data loader, CSV import) don't and shouldn't.
             $fullRows = @($entries | Where-Object { $_.SyncType -like '*FullCrawl*' -or $_.SyncType -like 'EntraID-*' })
             if ($fullRows.Count -gt 0) {
-                Report-Result "$NamePrefix/SyncLogFullCrawlerEntry" $true "found ($($fullRows[0].SyncType))"
+                Write-Result "$NamePrefix/SyncLogFullCrawlerEntry" $true "found ($($fullRows[0].SyncType))"
             } else {
-                Report-Result "$NamePrefix/SyncLogFullCrawlerEntry" $false 'no EntraID-FullCrawl entry — crawler did not write end-of-sync log row'
+                Write-Result "$NamePrefix/SyncLogFullCrawlerEntry" $false 'no EntraID-FullCrawl entry — crawler did not write end-of-sync log row'
             }
         }
 
         # All entries should have a numeric DurationSeconds (the UI formats it h/m/s)
         $bad = @($entries | Where-Object { $null -eq $_.DurationSeconds })
         if ($bad.Count -eq 0) {
-            Report-Result "$NamePrefix/SyncLogDurations" $true 'all rows have DurationSeconds'
+            Write-Result "$NamePrefix/SyncLogDurations" $true 'all rows have DurationSeconds'
         } else {
-            Report-Result "$NamePrefix/SyncLogDurations" $false "$($bad.Count) rows missing DurationSeconds"
+            Write-Result "$NamePrefix/SyncLogDurations" $false "$($bad.Count) rows missing DurationSeconds"
         }
     } catch {
-        Report-Result "$NamePrefix/SyncLogShape" $false $_.Exception.Message
+        Write-Result "$NamePrefix/SyncLogShape" $false $_.Exception.Message
     }
 }
 
@@ -566,20 +566,20 @@ function Assert-PostSyncEndpoints {
         try {
             $r = Invoke-LocalApi -Path $ep.Path
             if ($null -eq $r) {
-                Report-Result "$NamePrefix/Endpoint$($ep.Path)" $false 'null response'
+                Write-Result "$NamePrefix/Endpoint$($ep.Path)" $false 'null response'
                 continue
             }
             if ($ep.Field) {
                 if ($r.PSObject.Properties.Name -contains $ep.Field) {
-                    Report-Result "$NamePrefix/Endpoint$($ep.Path)" $true "has $($ep.Field)"
+                    Write-Result "$NamePrefix/Endpoint$($ep.Path)" $true "has $($ep.Field)"
                 } else {
-                    Report-Result "$NamePrefix/Endpoint$($ep.Path)" $false "missing field $($ep.Field)"
+                    Write-Result "$NamePrefix/Endpoint$($ep.Path)" $false "missing field $($ep.Field)"
                 }
             } else {
-                Report-Result "$NamePrefix/Endpoint$($ep.Path)" $true 'reachable'
+                Write-Result "$NamePrefix/Endpoint$($ep.Path)" $true 'reachable'
             }
         } catch {
-            Report-Result "$NamePrefix/Endpoint$($ep.Path)" $false $_.Exception.Message
+            Write-Result "$NamePrefix/Endpoint$($ep.Path)" $false $_.Exception.Message
         }
     }
 }
@@ -591,7 +591,7 @@ foreach ($scenario in $Scenarios) {
         'Validate-Only' {
             # Already covered by pre-flight above. Recording as an explicit
             # entry too so it shows up under each run for traceability.
-            Report-Result 'EntraID/Validate-Only/Scenario' $true 'covered by pre-flight'
+            Write-Result 'EntraID/Validate-Only/Scenario' $true 'covered by pre-flight'
         }
 
         'Identity-Only' {
@@ -605,9 +605,9 @@ foreach ($scenario in $Scenarios) {
                     # identities endpoint is queryable instead.
                     try {
                         Invoke-LocalApi -Path '/identities?pageSize=1' | Out-Null
-                        Report-Result 'EntraID/Identity-Only/IdentitiesQueryable' $true ''
+                        Write-Result 'EntraID/Identity-Only/IdentitiesQueryable' $true ''
                     } catch {
-                        Report-Result 'EntraID/Identity-Only/IdentitiesQueryable' $false $_.Exception.Message
+                        Write-Result 'EntraID/Identity-Only/IdentitiesQueryable' $false $_.Exception.Message
                     }
                 }
         }
@@ -652,7 +652,7 @@ foreach ($scenario in $Scenarios) {
                     # legitimately be empty on the demo tenant).
                     Assert-ApiCount  -Name 'EntraID/Full-Sync/Context'          -Path '/contexts'                                    -MinExpected 1
                     Assert-ApiCount  -Name 'EntraID/Full-Sync/Identities'       -Path '/identities?pageSize=1'                       -MinExpected 1
-                    Assert-ApiCount  -Name 'EntraID/Full-Sync/UsersGroups'      -Path '/resources?resourceType=EntraGroup&limit=1'   -MinExpected 1
+                    Assert-ApiCount  -Name 'EntraID/Full-Sync/UsersGroups'      -Path '/resources?resourceType=Group&limit=1'   -MinExpected 1
 
                     # ServicePrincipals — the /users endpoint has no
                     # principalType filter, so we fetch a page and check the
@@ -661,12 +661,12 @@ foreach ($scenario in $Scenarios) {
                         $usersPage = Invoke-LocalApi -Path '/users?limit=2000'
                         $spCount = @($usersPage.data | Where-Object { $_.principalType -eq 'ServicePrincipal' -or $_.principalType -eq 'ManagedIdentity' -or $_.principalType -eq 'AIAgent' }).Count
                         if ($spCount -ge 1) {
-                            Report-Result 'EntraID/Full-Sync/ServicePrincipals' $true "spCount=$spCount"
+                            Write-Result 'EntraID/Full-Sync/ServicePrincipals' $true "spCount=$spCount"
                         } else {
-                            Report-Result 'EntraID/Full-Sync/ServicePrincipals' $false 'no principals with principalType in (ServicePrincipal,ManagedIdentity,AIAgent)'
+                            Write-Result 'EntraID/Full-Sync/ServicePrincipals' $false 'no principals with principalType in (ServicePrincipal,ManagedIdentity,AIAgent)'
                         }
                     } catch {
-                        Report-Result 'EntraID/Full-Sync/ServicePrincipals' $false $_.Exception.Message
+                        Write-Result 'EntraID/Full-Sync/ServicePrincipals' $false $_.Exception.Message
                     }
 
                     # OAuth2 delegated grants — best-effort: prove the
@@ -682,9 +682,9 @@ foreach ($scenario in $Scenarios) {
                     # zero eligible rows, which is correct.
                     try {
                         Invoke-LocalApi -Path '/permissions?userLimit=1' | Out-Null
-                        Report-Result 'EntraID/Full-Sync/PimEndpoint' $true 'permissions endpoint queryable'
+                        Write-Result 'EntraID/Full-Sync/PimEndpoint' $true 'permissions endpoint queryable'
                     } catch {
-                        Report-Result 'EntraID/Full-Sync/PimEndpoint' $false $_.Exception.Message
+                        Write-Result 'EntraID/Full-Sync/PimEndpoint' $false $_.Exception.Message
                     }
 
                     # App roles — the crawler now imports enterprise apps +
@@ -696,13 +696,13 @@ foreach ($scenario in $Scenarios) {
                     Assert-ApiCount  -Name 'EntraID/Full-Sync/AppRoles'         -Path '/resources?resourceType=AppRole&limit=1'              -MinExpected 0
 
                     # Directory roles — the crawler imports the role catalog
-                    # (resourceType='EntraRole', with each role's granular
+                    # (resourceType='EntraDirectoryRole', with each role's granular
                     # allowedResourceActions in extendedAttributes) plus active
                     # and PIM-eligible assignments. A demo tenant always has the
                     # built-in role catalog, so this endpoint should respond;
                     # MinExpected=0 keeps it green if the selected object types
                     # for this run didn't include directoryRoles.
-                    Assert-ApiCount  -Name 'EntraID/Full-Sync/DirectoryRoles'    -Path '/resources?resourceType=EntraRole&limit=1'            -MinExpected 0
+                    Assert-ApiCount  -Name 'EntraID/Full-Sync/DirectoryRoles'    -Path '/resources?resourceType=EntraDirectoryRole&limit=1'            -MinExpected 0
 
                     # Dashboard timeseries endpoint — backs the Trends tab on
                     # the dashboard. The scheduler writes a snapshot row once
@@ -712,12 +712,12 @@ foreach ($scenario in $Scenarios) {
                     try {
                         $ts = Invoke-LocalApi -Path '/admin/dashboard-timeseries?days=30'
                         if ($null -ne $ts.days -and $null -ne $ts.data) {
-                            Report-Result 'EntraID/Full-Sync/DashboardTimeseriesEndpoint' $true "days=$($ts.days) rows=$(@($ts.data).Count)"
+                            Write-Result 'EntraID/Full-Sync/DashboardTimeseriesEndpoint' $true "days=$($ts.days) rows=$(@($ts.data).Count)"
                         } else {
-                            Report-Result 'EntraID/Full-Sync/DashboardTimeseriesEndpoint' $false 'response missing days or data fields'
+                            Write-Result 'EntraID/Full-Sync/DashboardTimeseriesEndpoint' $false 'response missing days or data fields'
                         }
                     } catch {
-                        Report-Result 'EntraID/Full-Sync/DashboardTimeseriesEndpoint' $false $_.Exception.Message
+                        Write-Result 'EntraID/Full-Sync/DashboardTimeseriesEndpoint' $false $_.Exception.Message
                     }
 
                     # /identities/by-user smoke — the secondary query in this
@@ -733,15 +733,15 @@ foreach ($scenario in $Scenarios) {
                             $principalId = $page.data[0].primaryAccountId
                             if ($principalId) {
                                 Invoke-LocalApi -Path "/identities/by-user/$principalId" | Out-Null
-                                Report-Result 'EntraID/Full-Sync/IdentityByUserEndpoint' $true 'by-user returned 200'
+                                Write-Result 'EntraID/Full-Sync/IdentityByUserEndpoint' $true 'by-user returned 200'
                             } else {
-                                Report-Result 'EntraID/Full-Sync/IdentityByUserEndpoint' $true 'no primaryAccountId on first identity — skipped'
+                                Write-Result 'EntraID/Full-Sync/IdentityByUserEndpoint' $true 'no primaryAccountId on first identity — skipped'
                             }
                         } else {
-                            Report-Result 'EntraID/Full-Sync/IdentityByUserEndpoint' $true 'no identities in this run — skipped'
+                            Write-Result 'EntraID/Full-Sync/IdentityByUserEndpoint' $true 'no identities in this run — skipped'
                         }
                     } catch {
-                        Report-Result 'EntraID/Full-Sync/IdentityByUserEndpoint' $false $_.Exception.Message
+                        Write-Result 'EntraID/Full-Sync/IdentityByUserEndpoint' $false $_.Exception.Message
                     }
 
                     # Matrix badge invariant — after migration 025, the matrix
@@ -755,12 +755,12 @@ foreach ($scenario in $Scenarios) {
                         $seen = @($perm.data | ForEach-Object { $_.membershipType } | Where-Object { $_ } | Select-Object -Unique)
                         $bad = @($seen | Where-Object { $allowed -notcontains $_ })
                         if ($bad.Count -eq 0) {
-                            Report-Result 'EntraID/Full-Sync/MatrixBadgeInvariant' $true "membershipTypes=$($seen -join ',')"
+                            Write-Result 'EntraID/Full-Sync/MatrixBadgeInvariant' $true "membershipTypes=$($seen -join ',')"
                         } else {
-                            Report-Result 'EntraID/Full-Sync/MatrixBadgeInvariant' $false "matview leaked source-attribute types: $($bad -join ',')"
+                            Write-Result 'EntraID/Full-Sync/MatrixBadgeInvariant' $false "matview leaked source-attribute types: $($bad -join ',')"
                         }
                     } catch {
-                        Report-Result 'EntraID/Full-Sync/MatrixBadgeInvariant' $false $_.Exception.Message
+                        Write-Result 'EntraID/Full-Sync/MatrixBadgeInvariant' $false $_.Exception.Message
                     }
 
                     # Deep regression checks. These exist because the naive
@@ -791,9 +791,9 @@ foreach ($scenario in $Scenarios) {
                     # users with employeeId. We just verify the endpoint responds.
                     try {
                         Invoke-LocalApi -Path '/identities?pageSize=1' | Out-Null
-                        Report-Result 'EntraID/With-Identity-Filter/IdentitiesQueryable' $true ''
+                        Write-Result 'EntraID/With-Identity-Filter/IdentitiesQueryable' $true ''
                     } catch {
-                        Report-Result 'EntraID/With-Identity-Filter/IdentitiesQueryable' $false $_.Exception.Message
+                        Write-Result 'EntraID/With-Identity-Filter/IdentitiesQueryable' $false $_.Exception.Message
                     }
                 }
         }

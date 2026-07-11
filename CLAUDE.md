@@ -15,6 +15,19 @@
 
 > **Keep source files small enough to reason about — split before they sprawl.** A source file past ~600 lines is a smell; past ~1000 lines it must be broken into focused files/functions *before* more is added to it. Split by responsibility — extract helpers, sub-routines, and distinct phases into their own files. The monolithic `Start-*Crawler.ps1` crawlers (up to ~2,700 lines, with functions trapped inside a top-level `Main` body) are the cautionary example: their size is exactly what makes them untestable without a refactor. Don't add to that pattern; new code lands in small, single-responsibility units.
 
+### Enforcement
+
+The four principles above are framed identically ("MUST"), but they are **not** enforced identically. Some are hard CI gates that fail your PR; others rely on reviewer judgement. Know which is which:
+
+| Principle | How it's actually enforced |
+|-----------|----------------------------|
+| **Reuse before creating** | Reviewer judgement, backed by the `jscpd` duplication gate — `Lint: Code duplication (jscpd)` in `.github/workflows/pr.yml`, threshold in `.jscpd.json`. It catches copy-paste, not all missed-reuse. |
+| **Fix at the source, not the surface** | Reviewer only — no automated gate. Call out in the PR when you took a surface fix and why. |
+| **Coverage never down** | Hard gate — two committed ratchets, both enforced by the `Unit Tests: Vitest (API)` / `Unit Tests: Vitest (UI)` PR Checks jobs (`npm run test:coverage`): the **aggregate** floor (Vitest thresholds in `app/api/vitest.config.js` + `app/ui/vite.config.js`) and a **per-file** floor (`tools/coverage/ratchet.py` + `.ci/coverage-baseline.json`, only ratchets up) so one file can't quietly shed coverage while another rises. Changed-line coverage is separately gated by the diff-coverage check. A drop below any floor fails the PR. |
+| **Keep files small (>1000 must split)** | Hard gate — the file-length ratchet: `.github/workflows/filesize.yml` + `tools/filesize/ratchet.py` + `.ci/filesize-baseline.json`. Grandfathered files may only shrink; a new/crossing-the-ceiling oversized file fails. |
+
+**Related gate — per-function complexity ratchet:** `.github/workflows/complexity.yml` + `tools/complexity/ratchet.py`, with baselines in `.ci/complexity-baseline.json` (cyclomatic) and `.ci/cognitive-baseline.json` (cognitive). No unit may exceed its grandfathered baseline, and new/touched units must stay under the per-language threshold. Both baselines only ratchet down.
+
 ## Project Overview
 
 Identity Atlas is a Docker-deployed application that pulls authorization data from Microsoft Graph (and other systems via CSV) into a **PostgreSQL** database, then surfaces it through a React role-mining UI. The worker container ships PowerShell crawler scripts; all persistence flows through the Node.js API.
@@ -134,23 +147,26 @@ The data model supports importing authorization data from any system. Resources,
 
 | `resourceType` | Source | What it represents |
 |---|---|---|
-| `EntraGroup` | Entra crawler | Security / Microsoft 365 group |
-| `EntraRole` | `SyncDirectoryRoles` phase | One resource per Entra directory role (`id` = roleDefinitionId). `extendedAttributes` holds the role's granular `allowedResourceActions`, `isBuiltIn`, and `templateId`. Assigned to principals via `Direct` (active) or `Eligible` (PIM-eligible) |
+| `Group` | Entra crawler | Security / Microsoft 365 group |
+| `EntraDirectoryRole` | `SyncDirectoryRoles` phase | One resource per Entra directory role (`id` = roleDefinitionId). `extendedAttributes` holds the role's granular `allowedResourceActions`, `isBuiltIn`, and `templateId`. Assigned to principals via `Direct` (active) or `Eligible` (PIM-eligible) |
 | `BusinessRole` | Governance sync (Entra access packages, Omada business roles) | Wraps groups via `relationshipType='Contains'`; flagged `governanceResource=true`; assigned to users via a `Direct` membership flagged `governed=true` |
 | `Application` | OAuth2 / AppRoles phases | Enterprise application (service principal). Doesn't grant access by itself — it's the parent of AppRole / DelegatedPermission children |
 | `AppRole` | `SyncAppRoles` phase | One synthetic resource per (Application, appRoleId). Parent app linked via `relationshipType='HasAppRole'`. Assigned to users via `Direct` (direct) or `Indirect` (expanded from a group's role) |
 | `DelegatedPermission` | `SyncOAuth2Grants` phase | One synthetic resource per (clientSP, targetApiSP, scope). Parent app linked via `relationshipType='DelegatesScope'`. Assigned to users via `Direct` |
+| `ApplicationPermission` | `SyncAppPermissions` phase | One synthetic resource per (clientSP, targetApiSP, appRole) — the app-only (admin-consented) permission an SP holds on another API (e.g. `Mail.Read` on Microsoft Graph). The app-only sibling of `DelegatedPermission`. Parent client app linked via `relationshipType='HasApplicationPermission'`. Held by the SP itself via a `Direct` assignment whose `principalType` is the holder's class (`ServicePrincipal` / `ManagedIdentity` / `AIAgent`) — this is how a managed identity's or AI agent's tenant-wide API access shows up |
+| `ServicePrincipalOwnership` | `SyncAppOwners` phase | Owners of an enterprise-app service principal. One resource per owned app, named after the app, linked to its `Application` via `relationshipType='HasAppOwnership'`. Each owner is a `Direct` assignment |
+| `ApplicationOwnership` | `SyncAppOwners` phase | Owners of an app registration — they can add a credential and authenticate *as* the app. Matched to the app's SP by `appId` and linked via `HasAppOwnership`. Each owner is a `Direct` assignment |
 
 **Assignment types in use:**
 
 `Direct`, `Indirect`, `Eligible` — the three universal "how does this user have it" values, and the **only** accepted ones (ingest rejects anything else; `app/api/src/ingest/assignmentTypes.guard.test.js` statically scans the crawlers so a retired type can't be reintroduced). Everything that used to be its own assignmentType is now modelled differently:
-- **Ownership** → a `Direct` membership on a `GroupOwnership` resource (an "Owner @ <group>" resource), not an `Owner` type.
+- **Ownership** → a `Direct` membership on a `GroupOwnership` resource (named after the owned group), not an `Owner` type.
 - **Governance** → the `governed` boolean flag on the assignment (the business role / access package itself is flagged `governanceResource`), not a `Governed` type.
 - **Source-attribute detail** (former `OAuth2Grant`, `AppRole`, `AppRoleViaGroup`, `DirectoryRole`, `DirectoryRoleEligible`) → collapse to `Direct`/`Indirect`/`Eligible`, with `resourceType` carrying the source detail.
 
 See [`docs/architecture/matrix.md`](docs/architecture/matrix.md) for the badge-display rules.
 
-**Relationship types in use:** `Contains` (BusinessRole → group), `HasAppRole` (Application → AppRole), `DelegatesScope` (Application → DelegatedPermission), `GrantsAccessTo` (reserved).
+**Relationship types in use:** `Contains` (BusinessRole → group), `HasAppRole` (Application → AppRole), `DelegatesScope` (Application → DelegatedPermission), `HasApplicationPermission` (Application → ApplicationPermission), `HasOwnership` (group → GroupOwnership), `HasAppOwnership` (Application → Application/ServicePrincipal ownership), `GrantsAccessTo` (reserved).
 
 **Core + JSON pattern:** Frequently-queried attributes are real SQL columns; system-specific attributes live in `extendedAttributes` JSON.
 
@@ -189,19 +205,22 @@ Business roles, certifications, and access policies from any IGA platform. Busin
 
 ### GitHub Actions Secrets
 
-| Secret | Required scopes | Purpose |
-|--------|----------------|---------|
-| `VERSION_BUMP_PAT` | `repo` (includes `contents:write`) | Lets `bump-version.yml`, `cut-release.yml`, and `cut-hotfix.yml` push tags and commits to `main`. |
+The version/release workflows (`bump-version.yml`, `cut-release.yml`, `cut-hotfix.yml`)
+authenticate as a **GitHub App** — `actions/create-github-app-token` mints a
+short-lived installation token that pushes tags and commits to `main` (a PAT is
+no longer used).
+
+| Secret | Purpose |
+|--------|---------|
+| `BOT_APP_ID` | Client ID of the GitHub App used to mint the installation token. |
+| `BOT_PRIVATE_KEY` | Private key (PEM) for that GitHub App. |
 
 ### Branch Protection
 
-Run once after repo creation (requires `gh` CLI authenticated as admin):
-
-```bash
-bash tools/setup-branch-protection.sh Fortigi/IdentityAtlas
-```
-
-This sets: `main` — PR required (1 approval), `PR Summary` check required, admins bypass.
+Branch protection for `main` is configured via a GitHub **repository ruleset**
+(Settings → Rules → Rulesets) — there is no setup script. The ruleset requires a
+pull request with at least 1 approval before merging to `main`. Manage it in the
+GitHub UI.
 
 ---
 
@@ -285,23 +304,3 @@ curl -O https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/docker-comp
 docker compose -f docker-compose.prod.yml up -d --pull always
 # Open http://localhost:3001 → Admin → Crawlers → Add Crawler
 ```
-
-## Skill routing
-
-When the user's request matches an available skill, ALWAYS invoke it using the Skill
-tool as your FIRST action. Do NOT answer directly, do NOT use other tools first.
-The skill has specialized workflows that produce better results than ad-hoc answers.
-
-Key routing rules:
-- Product ideas, "is this worth building", brainstorming → invoke office-hours
-- Bugs, errors, "why is this broken", 500 errors → invoke investigate
-- Ship, deploy, push, create PR → invoke ship
-- QA, test the site, find bugs → invoke qa
-- Code review, check my diff → invoke review
-- Update docs after shipping → invoke document-release
-- Weekly retro → invoke retro
-- Design system, brand → invoke design-consultation
-- Visual audit, design polish → invoke design-review
-- Architecture review → invoke plan-eng-review
-- Save progress, checkpoint, resume → invoke checkpoint
-- Code quality, health check → invoke health

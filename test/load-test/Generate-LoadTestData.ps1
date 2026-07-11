@@ -106,7 +106,7 @@ function New-Writer {
 
 # ─── Reference data pools ────────────────────────────────────────
 $systemTypes       = @('EntraID','ActiveDirectory','SAP','Omada','ServiceNow','CSV','Custom')
-$resourceTypes     = @('EntraGroup','SAPRole','BusinessRole','AppRole','DirectoryRole','ApplicationRole')
+$resourceTypes     = @('Group','SAPRole','BusinessRole','AppRole','DirectoryRole','ApplicationRole')
 $assignmentTypes   = @('Direct','Indirect','Eligible')   # the three universal types (post assignment-model redesign)
 $relationshipTypes = @('Contains','Contains','Contains','GrantsAccessTo')  # 75% Contains
 $principalTypes    = @('User','User','User','User','User','User','User','User','ServicePrincipal','ExternalUser')  # 80% User

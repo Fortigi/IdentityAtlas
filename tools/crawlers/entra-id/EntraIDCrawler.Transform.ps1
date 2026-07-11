@@ -166,7 +166,69 @@ function ConvertTo-EntraSpActivityRecord {
     return $null
 }
 
-# Maps one Graph group → an ingest/resources record (resourceType='EntraGroup').
+# Classifies a Graph group into a single, analyst-readable `groupCategory` plus a
+# few orthogonal facet fields, derived purely from the raw Graph flags. Returns a
+# hashtable that ConvertTo-EntraGroupResourceRecord folds into extendedAttributes.
+#
+# Two design rules baked in here:
+#   * Dynamic-ness is read ONLY from `groupTypes` containing 'DynamicMembership' —
+#     never from `membershipRule` being non-empty, because that rule text can
+#     linger after a group is converted back to assigned. `groupTypes` is the
+#     operative switch Azure AD itself evaluates, so it can't disagree with the
+#     group's real behaviour.
+#   * The dynamic aspect is folded into the single `groupCategory` label (e.g.
+#     'DynamicSecurityGroup'), but only onto the three categories that actually
+#     support Azure AD dynamic membership — a distribution list can never become
+#     'DynamicDistributionList' even on malformed input.
+function Get-EntraGroupClassification {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] $Group)
+
+    $types           = @($Group.groupTypes)
+    $isUnified       = $types -contains 'Unified'
+    $isDynamic       = $types -contains 'DynamicMembership'
+    $securityEnabled = [bool]$Group.securityEnabled
+    $mailEnabled     = [bool]$Group.mailEnabled
+    $isTeam          = @($Group.resourceProvisioningOptions) -contains 'Team'
+
+    # Base category — the mutually-exclusive "what kind of group is this".
+    if ($isUnified) {
+        $base = if ($isTeam) { 'Team' } else { 'Microsoft365' }
+    }
+    elseif ($mailEnabled -and $securityEnabled) {
+        $base = 'MailEnabledSecurity'
+    }
+    elseif ($mailEnabled -and -not $securityEnabled) {
+        $base = 'DistributionList'
+    }
+    else {
+        $base = 'SecurityGroup'
+    }
+
+    # Fold the dynamic aspect into the single readable label, guarded to the
+    # categories that support Azure AD dynamic membership.
+    $dynamicCapable = @('Team', 'Microsoft365', 'SecurityGroup')
+    $groupCategory  = if ($isDynamic -and $base -in $dynamicCapable) { "Dynamic$base" } else { $base }
+
+    # Cloud-mastered vs synced from on-prem AD (membership read-only in the cloud).
+    $sourceOfAuthority = if ([bool]$Group.onPremisesSyncEnabled) { 'OnPremises' } else { 'Cloud' }
+
+    # Entitlement-management can only assign membership through an assigned,
+    # cloud-mastered Security or Microsoft 365 group (Teams included). Dynamic,
+    # on-prem-synced, distribution and mail-enabled-security groups are ineligible.
+    $accessPackageEligible = (-not $isDynamic) -and
+                             ($sourceOfAuthority -eq 'Cloud') -and
+                             ($base -in @('SecurityGroup', 'Microsoft365', 'Team'))
+
+    return @{
+        groupCategory         = $groupCategory
+        membershipType        = if ($isDynamic) { 'Dynamic' } else { 'Assigned' }
+        sourceOfAuthority     = $sourceOfAuthority
+        accessPackageEligible = $accessPackageEligible
+    }
+}
+
+# Maps one Graph group → an ingest/resources record (resourceType='Group').
 # Verbatim from the inline `$groups | ForEach-Object { ... }` block.
 function ConvertTo-EntraGroupResourceRecord {
     [CmdletBinding()]
@@ -179,6 +241,19 @@ function ConvertTo-EntraGroupResourceRecord {
         securityEnabled = $Group.securityEnabled
         mailEnabled     = $Group.mailEnabled
     }
+    # Raw discriminators — kept for display + power-filtering in Excel (ext_*).
+    if ($null -ne $Group.onPremisesSyncEnabled) { $ext['onPremisesSyncEnabled'] = [bool]$Group.onPremisesSyncEnabled }
+    if ($Group.membershipRule)                  { $ext['membershipRule'] = $Group.membershipRule }
+    if ($Group.membershipRuleProcessingState)   { $ext['membershipRuleProcessingState'] = $Group.membershipRuleProcessingState }
+    if (@($Group.resourceProvisioningOptions).Count -gt 0) {
+        $ext['resourceProvisioningOptions'] = (@($Group.resourceProvisioningOptions) -join ',')
+    }
+    # Derived classification: one readable groupCategory + facets, computed once at
+    # the source so the Excel export and the web-portal context plugin read the
+    # same stamped value instead of each re-deriving it from the raw flags.
+    $classification = Get-EntraGroupClassification -Group $Group
+    foreach ($k in $classification.Keys) { $ext[$k] = $classification[$k] }
+
     foreach ($attr in $CustomGroupAttributes) {
         if ($null -ne $Group.$attr) { $ext[$attr] = $Group.$attr }
     }
@@ -189,7 +264,7 @@ function ConvertTo-EntraGroupResourceRecord {
         id                 = $Group.id
         displayName        = $Group.displayName
         description        = $Group.description
-        resourceType       = 'EntraGroup'
+        resourceType       = 'Group'
         mail               = $Group.mail
         visibility         = $Group.visibility
         enabled            = $true
@@ -220,7 +295,7 @@ function ConvertTo-EntraGroupOwnership {
             if (-not $gname) { $gname = '(group)' }
             $resMap[$ownId] = @{
                 id                 = $ownId
-                displayName        = "Owner @ $gname"
+                displayName        = $gname
                 resourceType       = 'GroupOwnership'
                 externalId         = "entraid-ownership:$($ow.groupId)"
                 extendedAttributes = @{ ownedResourceId = $ow.groupId }
@@ -302,7 +377,7 @@ function ConvertTo-EntraPimRecord {
         principalId        = $EligibilityRow.principalId
         principalType      = $EligibilityRow.principalType
         assignmentType     = $EligibilityRow.assignmentType
-        resourceType       = 'EntraGroup'
+        resourceType       = 'Group'
         state              = $EligibilityRow.state
         expirationDateTime = $EligibilityRow.expirationDateTime
     }
@@ -460,70 +535,52 @@ function ConvertTo-EntraOAuth2ScopeGraph {
     $assignments      = [System.Collections.Generic.List[object]]::new()
 
     foreach ($g in $UserGrants) {
-        $clientId = $g.clientId
-        $targetId = $g.resourceId
-        $userId   = $g.principalId
-        if (-not $clientId -or -not $targetId -or -not $userId) { continue }
-
-        $clientInfo = $SpInfo[$clientId]
-        $targetInfo = $SpInfo[$targetId]
-        $clientName = if ($clientInfo) { $clientInfo.displayName } else { $clientId }
-        $targetName = if ($targetInfo) { $targetInfo.displayName } else { $targetId }
-
-        $scopeTokens = @()
-        if ($g.scope) {
-            $scopeTokens = @($g.scope -split '\s+' | Where-Object { $_ -ne '' })
-        }
-        if ($scopeTokens.Count -eq 0) { continue }
-
-        foreach ($scope in $scopeTokens) {
-            $scopeResId = New-OAuth2ScopeResourceId -ClientSpId $clientId -TargetApiSpId $targetId -Scope $scope
-            if (-not $scopeResourceMap.ContainsKey($scopeResId)) {
-                $scopeResourceMap[$scopeResId] = @{
-                    id           = $scopeResId
-                    displayName  = (Format-FGDelegatedPermissionName -Scope $scope -TargetName $targetName -ClientName $clientName)
-                    resourceType = 'DelegatedPermission'
-                    enabled      = $true
-                    extendedAttributes = @{
-                        clientSpId           = $clientId
-                        clientDisplayName    = $clientName
-                        targetApiSpId        = $targetId
-                        targetApiDisplayName = $targetName
-                        scope                = $scope
-                    }
-                }
-            }
-            $relKey = "$clientId|$scopeResId"
-            if (-not $relMap.ContainsKey($relKey)) {
-                $relMap[$relKey] = @{
-                    parentResourceId = $clientId
-                    childResourceId  = $scopeResId
-                    relationshipType = 'DelegatesScope'
-                    roleName         = $scope
-                    roleOriginSystem = 'OAuth2'
-                }
-            }
-            $assignments.Add(@{
-                resourceId     = $scopeResId
-                principalId    = $userId
-                principalType  = 'User'
-                assignmentType = 'Direct'
-                resourceType   = 'DelegatedPermission'
-                extendedAttributes = @{
-                    grantId              = $g.id
-                    clientSpId           = $clientId
-                    clientDisplayName    = $clientName
-                    targetApiSpId        = $targetId
-                    targetApiDisplayName = $targetName
-                    scope                = $scope
-                }
-            })
-        }
+        Add-EntraOAuth2GrantToScopeGraph -Grant $g -SpInfo $SpInfo `
+            -ScopeResourceMap $scopeResourceMap -RelMap $relMap -Assignments $assignments
     }
     return @{
         resources     = @($scopeResourceMap.Values)
         relationships = @($relMap.Values)
         assignments   = @($assignments)
+    }
+}
+
+# Fold one per-user OAuth2 grant into the scope graph: one DelegatedPermission
+# Resource + DelegatesScope relationship per (client, api, scope) and one Direct
+# assignment (user → scope resource) per scope. Maps/list are mutated in place.
+function Add-EntraOAuth2GrantToScopeGraph {
+    [CmdletBinding()]
+    param($Grant, [hashtable]$SpInfo, [hashtable]$ScopeResourceMap, [hashtable]$RelMap, $Assignments)
+    $clientId = $Grant.clientId; $targetId = $Grant.resourceId; $userId = $Grant.principalId
+    if (-not $clientId -or -not $targetId -or -not $userId) { return }
+
+    $clientName = if ($SpInfo[$clientId]) { $SpInfo[$clientId].displayName } else { $clientId }
+    $targetName = if ($SpInfo[$targetId]) { $SpInfo[$targetId].displayName } else { $targetId }
+    $scopeTokens = if ($Grant.scope) { @($Grant.scope -split '\s+' | Where-Object { $_ -ne '' }) } else { @() }
+
+    foreach ($scope in $scopeTokens) {
+        $scopeResId = New-OAuth2ScopeResourceId -ClientSpId $clientId -TargetApiSpId $targetId -Scope $scope
+        if (-not $ScopeResourceMap.ContainsKey($scopeResId)) {
+            $ScopeResourceMap[$scopeResId] = @{
+                id           = $scopeResId
+                displayName  = (Format-FGDelegatedPermissionName -Scope $scope -TargetName $targetName -ClientName $clientName)
+                resourceType = 'DelegatedPermission'
+                enabled      = $true
+                extendedAttributes = @{ clientSpId = $clientId; clientDisplayName = $clientName; targetApiSpId = $targetId; targetApiDisplayName = $targetName; scope = $scope }
+            }
+        }
+        $relKey = "$clientId|$scopeResId"
+        if (-not $RelMap.ContainsKey($relKey)) {
+            $RelMap[$relKey] = @{ parentResourceId = $clientId; childResourceId = $scopeResId; relationshipType = 'DelegatesScope'; roleName = $scope; roleOriginSystem = 'OAuth2' }
+        }
+        $Assignments.Add(@{
+            resourceId     = $scopeResId
+            principalId    = $userId
+            principalType  = 'User'
+            assignmentType = 'Direct'
+            resourceType   = 'DelegatedPermission'
+            extendedAttributes = @{ grantId = $Grant.id; clientSpId = $clientId; clientDisplayName = $clientName; targetApiSpId = $targetId; targetApiDisplayName = $targetName; scope = $scope }
+        })
     }
 }
 
@@ -670,7 +727,7 @@ function ConvertTo-EntraAppRoleIndirectAssignments {
     return @($out)
 }
 
-# Maps one directory roleDefinition → an EntraRole resource, flattening and
+# Maps one directory roleDefinition → an EntraDirectoryRole resource, flattening and
 # de-duping rolePermissions[].allowedResourceActions for risk scoring.
 # Verbatim from the inline `foreach ($rd in $roleDefs) { ... }` block.
 function ConvertTo-EntraRoleResourceRecord {
@@ -687,7 +744,7 @@ function ConvertTo-EntraRoleResourceRecord {
         id           = $RoleDefinition.id
         displayName  = $RoleDefinition.displayName
         description  = $RoleDefinition.description
-        resourceType = 'EntraRole'
+        resourceType = 'EntraDirectoryRole'
         enabled      = [bool]$RoleDefinition.isEnabled
         extendedAttributes = @{
             templateId             = $RoleDefinition.templateId
@@ -700,7 +757,7 @@ function ConvertTo-EntraRoleResourceRecord {
     }
 }
 
-# Maps one active directory-role assignment → a Direct EntraRole assignment, or
+# Maps one active directory-role assignment → a Direct EntraDirectoryRole assignment, or
 # $null when principal/role is missing. principalType comes from
 # Resolve-DirectoryRolePrincipalType (EntraIDCrawler.Functions.ps1).
 # Verbatim from the inline `foreach ($ra in $roleAssignments) { ... }` block.
@@ -713,7 +770,7 @@ function ConvertTo-EntraDirectoryRoleAssignment {
         principalId    = $RoleAssignment.principalId
         principalType  = (Resolve-DirectoryRolePrincipalType -Principal $RoleAssignment.principal)
         assignmentType = 'Direct'
-        resourceType   = 'EntraRole'
+        resourceType   = 'EntraDirectoryRole'
         extendedAttributes = @{
             roleAssignmentId = $RoleAssignment.id
             directoryScopeId = $RoleAssignment.directoryScopeId
@@ -721,7 +778,7 @@ function ConvertTo-EntraDirectoryRoleAssignment {
     }
 }
 
-# Maps one PIM-eligible directory-role schedule instance → an Eligible EntraRole
+# Maps one PIM-eligible directory-role schedule instance → an Eligible EntraDirectoryRole
 # assignment, or $null when principal/role is missing. Verbatim from the inline
 # `foreach ($e in $eligibility) { ... }` block.
 function ConvertTo-EntraDirectoryRoleEligibility {
@@ -733,11 +790,222 @@ function ConvertTo-EntraDirectoryRoleEligibility {
         principalId        = $Eligibility.principalId
         principalType      = (Resolve-DirectoryRolePrincipalType -Principal $Eligibility.principal)
         assignmentType     = 'Eligible'
-        resourceType       = 'EntraRole'
+        resourceType       = 'EntraDirectoryRole'
         expirationDateTime = $Eligibility.endDateTime
         extendedAttributes = @{
             memberType       = $Eligibility.memberType
             directoryScopeId = $Eligibility.directoryScopeId
         }
     }
+}
+
+# Resolve the access-package id an access-review definition targets, tolerating
+# both the old `scope.query` and newer `resourceScope.query` / `scopes[].query`
+# shapes, and both the path-style (.../accessPackages/<uuid>/...) and filter-style
+# ("accessPackage/id eq '<uuid>'") query forms. Returns
+# @{ apId; reason; queryStrings } where reason is 'ok' | 'noscope' | 'nomatch'.
+# Verbatim from the inline access-review scope-matching block.
+function Resolve-EntraAccessReviewApId {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] $Definition)
+    $queryStrings = Get-EntraReviewQueryStrings -Definition $Definition
+    if ($queryStrings.Count -eq 0) {
+        return @{ apId = $null; reason = 'noscope'; queryStrings = @() }
+    }
+    $apId = Find-EntraAccessPackageId -QueryStrings $queryStrings
+    if (-not $apId) {
+        return @{ apId = $null; reason = 'nomatch'; queryStrings = $queryStrings }
+    }
+    return @{ apId = $apId; reason = 'ok'; queryStrings = $queryStrings }
+}
+
+# Every OData filter query string on a review definition (scope / resourceScope / scopes[]).
+function Get-EntraReviewQueryStrings {
+    [CmdletBinding()]
+    param($Definition)
+    $q = @()
+    if ($Definition.scope         -and $Definition.scope.query)         { $q += $Definition.scope.query }
+    if ($Definition.resourceScope -and $Definition.resourceScope.query) { $q += $Definition.resourceScope.query }
+    foreach ($s in @($Definition.scopes)) {
+        if ($s.query) { $q += $s.query }
+    }
+    return $q
+}
+
+# The first access-package GUID matched in any query string (path-style or `id eq`), or $null.
+function Find-EntraAccessPackageId {
+    [CmdletBinding()]
+    param([string[]]$QueryStrings)
+    foreach ($q in $QueryStrings) {
+        if ($q -match "accessPackages/([0-9a-fA-F-]{36})")           { return $Matches[1] }
+        if ($q -match "accessPackage/id eq '([0-9a-fA-F-]{36})'")    { return $Matches[1] }
+    }
+    return $null
+}
+
+# Shape one filtered user into an Identities ingest record, carrying the
+# configured custom attributes into extendedAttributes. Verbatim from the inline
+# `$idRec = @{ ... }` block in the identity sub-sync. Get-UserAttrValue lives in
+# EntraIDCrawler.Functions.ps1.
+function ConvertTo-EntraIdentityRecord {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] $User,
+        [string[]]$CustomUserAttributes = @()
+    )
+    $u = $User
+    $idRec = @{
+        id          = $u.id
+        displayName = $u.displayName
+        email       = $u.mail ?? $u.userPrincipalName
+        department  = $u.department
+        jobTitle    = $u.jobTitle
+        companyName = $u.companyName
+        employeeId  = $u.employeeId
+    }
+    # Identities also get custom attributes in extendedAttributes
+    if ($CustomUserAttributes.Count -gt 0) {
+        $ext = @{}
+        foreach ($a in $CustomUserAttributes) {
+            $v = Get-UserAttrValue -User $u -AttrName $a
+            if ($null -ne $v -and $v -ne '') { $ext[$a] = $v }
+        }
+        if ($ext.Count -gt 0) { $idRec['extendedAttributes'] = $ext }
+    }
+    return $idRec
+}
+
+# Shape one access-review decision into a CertificationDecisions ingest record.
+# Verbatim from the inline `$certRecords += @{ ... }` block.
+function ConvertTo-EntraCertificationDecisionRecord {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] $Decision,
+        [Parameter(Mandatory)] $Definition,
+        [Parameter(Mandatory)] $Instance,
+        [string]$ApId
+    )
+    $d = $Decision
+    return @{
+        id                          = $d.id
+        resourceId                  = $ApId
+        principalId                 = if ($d.principal) { $d.principal.id } else { $null }
+        principalDisplayName        = if ($d.principal) { $d.principal.displayName } else { $null }
+        decision                    = $d.decision
+        recommendation              = $d.recommendation
+        justification               = $d.justification
+        reviewedBy                  = if ($d.reviewedBy) { $d.reviewedBy.id } else { $null }
+        reviewedByDisplayName       = if ($d.reviewedBy) { $d.reviewedBy.displayName } else { $null }
+        reviewedDateTime            = $d.reviewedDateTime
+        reviewDefinitionId          = $Definition.id
+        reviewInstanceId            = $Instance.id
+        reviewInstanceStatus        = $Instance.status
+        reviewInstanceStartDateTime = $Instance.startDateTime
+        reviewInstanceEndDateTime   = $Instance.endDateTime
+    }
+}
+
+# direct user members. Pure; no I/O. Extracted so the expansion below stays flat.
+function Get-EntraGroupAdjacency {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] [AllowEmptyCollection()] $DirectMembers)
+    $childGroups = @{}   # groupId -> List[string] (nested group ids)
+    $directUsers = @{}   # groupId -> HashSet[string] (direct user principal ids)
+    foreach ($m in $DirectMembers) {
+        $gid      = [string]$m.resourceId
+        $memberId = [string]$m.principalId
+        if ($m.principalType -eq 'Group') {
+            if (-not $childGroups.ContainsKey($gid)) {
+                $childGroups[$gid] = [System.Collections.Generic.List[string]]::new()
+            }
+            $childGroups[$gid].Add($memberId)
+        }
+        else {
+            if (-not $directUsers.ContainsKey($gid)) {
+                $directUsers[$gid] = [System.Collections.Generic.HashSet[string]]::new()
+            }
+            [void]$directUsers[$gid].Add($memberId)
+        }
+    }
+    return @{ ChildGroups = $childGroups; DirectUsers = $directUsers }
+}
+
+# Collects every user reachable below a set of seed child groups by walking the
+# group-nesting graph downward. Cycle-safe ($visited) so a membership cycle
+# (A∈B, B∈A) or a diamond can't loop or double-count. Pure; no I/O. Extracted
+# from ConvertTo-EntraNestedGroupIndirectAssignments to keep each unit small.
+function Get-EntraNestedGroupUserSet {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] $SeedGroups,   # child group ids directly under the root
+        [Parameter(Mandatory)] $ChildGroups,  # groupId -> List[string] (nested group ids)
+        [Parameter(Mandatory)] $DirectUsers   # groupId -> HashSet[string] (direct user ids)
+    )
+    $users   = [System.Collections.Generic.HashSet[string]]::new()
+    $visited = [System.Collections.Generic.HashSet[string]]::new()
+    $stack   = [System.Collections.Generic.Stack[string]]::new()
+    foreach ($cg in $SeedGroups) {
+        [void]$stack.Push($cg)
+    }
+    while ($stack.Count -gt 0) {
+        $g = $stack.Pop()
+        if (-not $visited.Add($g)) {
+            continue
+        }
+        if ($DirectUsers.ContainsKey($g)) {
+            foreach ($u in $DirectUsers[$g]) {
+                [void]$users.Add($u)
+            }
+        }
+        if ($ChildGroups.ContainsKey($g)) {
+            foreach ($cg in $ChildGroups[$g]) {
+                [void]$stack.Push($cg)
+            }
+        }
+    }
+    return $users
+}
+
+# Expands group-in-group nesting into per-user Indirect Group assignments so
+# the matrix shows inherited members. Derived entirely from the direct-membership
+# edges the Sync-Assignments phase already fetched (every group's /members) — no
+# extra Graph calls. Mirrors how AppRole-via-group materializes Indirect rows,
+# because the matrix reads a declared-only matview and never walks nesting itself.
+#
+# $DirectMembers is the flat edge list the members phase builds — one hashtable
+# per (group, direct child) with keys: resourceId (the group), principalId (the
+# child), principalType ('Group' for a nested group, else 'User').
+#
+# For every group that directly contains at least one nested group, we walk the
+# nesting downward (cycle-safe) to collect the transitive USER set, then emit an
+# Indirect row for each such user that is NOT already a Direct member of that
+# group (a direct membership is the stronger statement and is emitted elsewhere).
+function ConvertTo-EntraNestedGroupIndirectAssignments {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] [AllowEmptyCollection()] $DirectMembers)
+
+    $adj         = Get-EntraGroupAdjacency -DirectMembers $DirectMembers
+    $childGroups = $adj.ChildGroups
+    $directUsers = $adj.DirectUsers
+    $out         = [System.Collections.Generic.List[object]]::new()
+
+    foreach ($rootId in $childGroups.Keys) {
+        $transitiveUsers = Get-EntraNestedGroupUserSet -SeedGroups $childGroups[$rootId] `
+            -ChildGroups $childGroups -DirectUsers $directUsers
+        $rootDirect = if ($directUsers.ContainsKey($rootId)) { $directUsers[$rootId] } else { $null }
+        foreach ($u in $transitiveUsers) {
+            if ($rootDirect -and $rootDirect.Contains($u)) {
+                continue
+            }
+            $out.Add(@{
+                resourceId     = $rootId
+                principalId    = $u
+                assignmentType = 'Indirect'
+                resourceType   = 'Group'
+                principalType  = 'User'
+            })
+        }
+    }
+
+    return @($out)
 }

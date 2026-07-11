@@ -23,8 +23,13 @@
 #  10. crawler-manifest — CrawlerMeta.js completeness check
 #  11. docs-nav   — crawler docs registered in mkdocs.yml nav
 #  12. duplication — jscpd clone detection; threshold in .jscpd.json
+#  13. filesize   — file-length ratchet (folded in from filesize.yml)
+#  14. complexity — cyclomatic + cognitive complexity ratchet (from complexity.yml)
 #
-# Target branches: PRs into main or dev
+# All of the above feed ci-passed, so none needs to be an individual required
+# check — mark only ci-passed required, and it self-skips per the filter scopes.
+#
+# Target branches: PRs into main
 # ─────────────────────────────────────────────────────────────────────────────
 
 name: PR Checks
@@ -33,7 +38,6 @@ on:
   pull_request:
     branches:
       - main
-      - dev
       - 'release/**'
 
 # Cancel superseded runs when a PR branch is pushed again, so a stale run can't
@@ -81,7 +85,7 @@ jobs:
           NON_HOUSEKEEPING=$(
             git log "${{ github.event.before }}..${{ github.sha }}" --format="%s" \
               | grep -v '^$' \
-              | grep -vE "^chore: bump version to [0-9]|^Merge branch 'main' into " \
+              | grep -vE "^chore: bump version to [0-9]|^Merge (remote-tracking )?branch '" \
               | wc -l \
               | tr -d ' '
           )
@@ -108,11 +112,12 @@ jobs:
       api:     ${{ steps.f.outputs.api }}
       ui:      ${{ steps.f.outputs.ui }}
       openapi: ${{ steps.f.outputs.openapi }}
+      code:    ${{ steps.f.outputs.code }}
       outcome: ${{ steps.f.outcome }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
-      - uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v3
+      - uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706 # v3
         id: f
         with:
           filters: |
@@ -146,6 +151,16 @@ jobs:
               - 'tools/crawlers/**/*.test.jsx'
             openapi:
               - 'app/api/src/openapi.yaml'
+            # Any source file the file-length / complexity ratchets measure, keyed
+            # by extension. A docs-only / version-bump / baseline PR matches none
+            # of these, so `code` is false and both ratchets skip (they re-measure
+            # the whole tree, so there's nothing new to check).
+            code:
+              - '**/*.ps1'
+              - '**/*.js'
+              - '**/*.jsx'
+              - '**/*.sql'
+              - '**/*.py'
 
   # ── Stage 1: PowerShell linting ──────────────────────────────────────────
   lint-ps:
@@ -168,8 +183,7 @@ jobs:
           # Scan all production PowerShell roots.
           #
           # Excluded paths:
-          #   test/               — test-harness scripts use non-approved verbs
-          #                         (Report-Result) intentionally; not production code
+          #   test/               — test-harness scripts, not production code
           #   setup/CreatePSD.ps1 — developer-only manifest regeneration tool with
           #                         hardcoded local paths; not shipped in the container
           #
@@ -192,7 +206,6 @@ jobs:
             'PSUseSingularNouns'                       # internal naming convention; not module exports
             'PSAvoidDefaultValueSwitchParameter'       # crawler phase switches default to $true intentionally
             'PSUseProcessBlockForPipelineCommand'      # these functions are not designed for pipeline use
-            'PSUseApprovedVerbs'                       # Map- prefix used for private script-level helpers
             'PSAvoidUsingEmptyCatchBlock'              # empty catches are intentional for non-critical operations
             'PSUseDeclaredVarsMoreThanAssignments'     # investigate separately; too noisy for CI gate
             'PSAvoidUsingInvokeExpression'             # scheduler crontab is image-baked, not dynamic user input
@@ -302,8 +315,18 @@ jobs:
           $cfg.CodeCoverage.OutputPath = 'pester-coverage.xml'
           $cfg.CodeCoverage.OutputFormat = 'JaCoCo'
           $result = Invoke-Pester -Configuration $cfg
-          Write-Host "Coverage: $([Math]::Round($result.CodeCoverage.CoveragePercent, 1))%"
+          $pct = [Math]::Round($result.CodeCoverage.CoveragePercent, 1)
+          Write-Host "Coverage: $pct%"
           if ($result.FailedCount -gt 0) { exit 1 }
+          # PowerShell coverage floor — the "coverage never down" ratchet for the
+          # PS side (the JS side already has committed vitest thresholds). RAISE
+          # this when coverage rises; only ever lower it as a reviewed, justified
+          # change. Measured ~91.9%.
+          $FLOOR = 90.0
+          if ($pct -lt $FLOOR) {
+            Write-Host "::error::Pester coverage $pct% is below the floor of $FLOOR%. Add tests for the PowerShell you changed, or lower the floor in pr.yml with justification."
+            exit 1
+          }
 
       - name: Upload test results
         if: always()
@@ -340,6 +363,16 @@ jobs:
       - name: Run Vitest (with coverage)
         working-directory: app/api
         run: npm run test:coverage
+
+      - name: Per-file coverage ratchet (API)
+        # Committed per-file line-coverage floor (.ci/coverage-baseline.json) so an
+        # EXISTING file can't quietly shed coverage — the complement to the
+        # diff-coverage gate (which only judges changed lines). See
+        # tools/coverage/ratchet.py. Reads the deterministic unit lcov just produced.
+        run: |
+          python3 -m pip install --quiet pytest
+          python3 -m pytest tools/coverage/test_ratchet.py -q
+          python3 tools/coverage/ratchet.py --lcov app/api/coverage/lcov.info --prefix app/api/
 
       - name: Upload coverage (lcov + text)
         if: always()
@@ -402,9 +435,17 @@ jobs:
         working-directory: app/ui
         run: npm ci
 
-      - name: Run Vitest
+      - name: Run Vitest (with coverage ratchet)
         working-directory: app/ui
-        run: npm test
+        # Coverage-enabled so the committed thresholds floor in vite.config.js is
+        # enforced — a change that drops UI coverage below the floor fails here.
+        run: npm run test:coverage
+
+      - name: Per-file coverage ratchet (UI)
+        # Per-file line-coverage floor (.ci/coverage-baseline.json), same gate as
+        # the API job — the aggregate vite.config.js floor above can't tell that one
+        # file quietly regressed while another rose. See tools/coverage/ratchet.py.
+        run: python3 tools/coverage/ratchet.py --lcov app/ui/coverage/lcov.info --prefix app/ui/
 
   # ── Stage 4c: Node-launcher UI build (crawler wizard bundling) ──────────
   # The portable/desktop build (app/desktop/scripts/build-node-launcher.mjs)
@@ -523,14 +564,15 @@ jobs:
   # ── Stage 7: PR hygiene (tests + changelog required for code changes) ────
   # Blocks merging a code change that ships without tests or a changelog
   # fragment — the gap that let an undocumented, untested feature reach main.
-  # Escape hatch: a maintainer can apply the 'skip-hygiene' label, which
-  # skips the job entirely (job-level if, so it is never even scheduled).
+  # Escape hatch: a maintainer can apply the 'skip-hygiene' label. The label does
+  # NOT skip the job (a job-level skip left the bypass invisible and let ci-passed
+  # treat it as green). Instead the job always runs on product changes and honours
+  # the label internally — on a would-be failure it prints exactly what was waived
+  # and passes, so every bypass is recorded and provable in the job log.
   hygiene:
     name: 'PR Hygiene'
     needs: [changes]
-    if: |
-      needs.changes.outputs.has_product_changes == 'true' &&
-      !contains(github.event.pull_request.labels.*.name, 'skip-hygiene')
+    if: needs.changes.outputs.has_product_changes == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -541,6 +583,7 @@ jobs:
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          SKIP_HYGIENE: ${{ contains(github.event.pull_request.labels.*.name, 'skip-hygiene') }}
         run: |
           set -euo pipefail
 
@@ -548,8 +591,12 @@ jobs:
           echo "Changed files:"; echo "${CHANGED}" | sed 's/^/  /'
 
           # Product (non-test) source that ought to be covered by a test.
+          # .sql = schema migrations (cover with a contract test); .mjs = the
+          # desktop build/launcher scripts. Both previously slipped the gate.
           CODE=$(echo "${CHANGED}" | grep -E \
             -e '^app/api/src/.*\.js$' \
+            -e '^app/api/src/.*\.sql$' \
+            -e '^app/.*\.mjs$' \
             -e '^app/ui/src/.*\.(js|jsx)$' \
             -e '^tools/.*\.ps1$' \
             -e '^setup/docker/.*\.ps1$' \
@@ -567,22 +614,35 @@ jobs:
           # Changelog fragment (the project mandates one per branch).
           FRAGMENT=$(echo "${CHANGED}" | grep -E '^changes/.*\.md$' || true)
 
-          FAIL=0
+          # Accumulate the human-readable reasons; severity is decided at the end
+          # so the 'skip-hygiene' bypass can downgrade them from error to warning.
+          REASONS=""
+          add_reason() { REASONS="${REASONS}${REASONS:+$'\n'}$1"; }
+
           if [ -n "${CODE}" ]; then
             if [ -z "${TESTS}" ]; then
-              echo "::error::Source code changed but no test files were added or modified."
-              echo "Add or extend a test: *.test.js (API), app/ui/e2e/*.spec.js (UI), *.Tests.ps1 (Pester unit), or Test-*.ps1 (crawler integration)."
-              FAIL=1
+              add_reason "Source code changed but no test files were added or modified. Add or extend a test: *.test.js (API), app/ui/e2e/*.spec.js (UI), *.Tests.ps1 (Pester unit), or Test-*.ps1 (crawler integration)."
             fi
             if [ -z "${FRAGMENT}" ]; then
-              echo "::error::Code changed but no changelog fragment found. Add a bullet to changes/<branch>.md (never edit CHANGES.md)."
-              FAIL=1
+              add_reason "Code changed but no changelog fragment found. Add a bullet to changes/<branch>.md (never edit CHANGES.md)."
+            elif ! grep -qE '^[[:space:]]*[-*][[:space:]]+[^[:space:]]' ${FRAGMENT}; then
+              # A fragment file exists but is empty / has no bullet — that silently
+              # satisfied the gate before. Require at least one real bullet line.
+              add_reason "A changelog fragment exists but has no bullet line. Add at least one '- ...' bullet describing the change to: ${FRAGMENT}"
             fi
           else
             echo "No product code changed — tests/changelog not required."
           fi
 
-          if [ "${FAIL}" = "1" ]; then
+          if [ -n "${REASONS}" ]; then
+            if [ "${SKIP_HYGIENE}" = "true" ]; then
+              # Observable bypass: the job runs, records what was waived, and passes.
+              echo "::warning::PR hygiene requirements NOT met, but BYPASSED via the 'skip-hygiene' label. The following would otherwise block merge:"
+              printf '%s\n' "${REASONS}" | sed 's/^/  - /'
+              echo "This bypass is intentional and is now recorded in this job's log rather than the job being silently skipped."
+              exit 0
+            fi
+            while IFS= read -r reason; do echo "::error::PR hygiene: ${reason}"; done <<< "${REASONS}"
             echo "If this change genuinely needs neither, a maintainer can add the 'skip-hygiene' label."
             exit 1
           fi
@@ -705,8 +765,105 @@ jobs:
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
-      - name: Check code duplication
+      - name: Check code duplication (aggregate threshold)
         run: npx --yes jscpd@3 . --config .jscpd.json
+
+      # PR-delta: catch a NEW clone this PR introduces even when total duplication
+      # stays under the aggregate threshold (minTokens=50/minLines=10 means small
+      # pastes never move the 2% average). Compares clone counts head-vs-base and
+      # degrades to a warning (the aggregate check above still gates) if a report
+      # can't be parsed — so it can never make CI worse.
+      - name: Fail on new clones vs base
+        run: |
+          set -uo pipefail
+          clones() {
+            npx --yes jscpd@3 . --config .jscpd.json --threshold 100 \
+              --reporters json --output "$1" >/dev/null 2>&1 || true
+            node -e "try{console.log(require(process.cwd()+'/'+process.argv[1]+'/jscpd-report.json').statistics.total.clones)}catch(e){console.log(-1)}" "$1"
+          }
+          HEAD_CLONES=$(clones jscpd-head)
+          git fetch --no-tags --depth=1 origin "${{ github.base_ref }}" || true
+          git checkout -q FETCH_HEAD || true
+          BASE_CLONES=$(clones jscpd-base)
+          git checkout -q "${GITHUB_SHA}" 2>/dev/null || git checkout -q - 2>/dev/null || true
+          echo "jscpd clones — base: ${BASE_CLONES}, head: ${HEAD_CLONES}"
+          if [ "${HEAD_CLONES}" = "-1" ] || [ "${BASE_CLONES}" = "-1" ]; then
+            echo "::warning::jscpd delta check couldn't parse a report; relying on the aggregate threshold only."
+            exit 0
+          fi
+          if [ "${HEAD_CLONES}" -gt "${BASE_CLONES}" ]; then
+            echo "::error::This PR introduces $((HEAD_CLONES - BASE_CLONES)) new code clone(s) (base ${BASE_CLONES} -> head ${HEAD_CLONES}) below the aggregate threshold. Extract the shared code instead (Reuse before creating)."
+            exit 1
+          fi
+
+  # ── Stage 13: File-length ratchet ────────────────────────────────────────
+  # Enforces the CLAUDE.md "split before ~1000 lines" rule via a per-file baseline
+  # that only shrinks. Runs only when a measured source file changed (the `code`
+  # scope); part of ci-passed, so it blocks merge without a separate required
+  # check. See tools/filesize/ratchet.py.
+  filesize:
+    name: 'File-length ratchet'
+    needs: [filter]
+    if: |
+      needs.filter.outputs.code == 'true' ||
+      needs.filter.result == 'failure'
+    runs-on: ubuntu-latest   # git + python3 are preinstalled on the GitHub runner
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      # Validate the ratchet gate logic (Python) before it gates anything.
+      - name: Test the ratchet gate logic
+        run: |
+          python3 -m pip install --quiet pytest
+          python3 -m pytest tools/filesize/test_ratchet.py -q
+
+      - name: Run file-length ratchet
+        run: python3 tools/filesize/ratchet.py
+
+  # ── Stage 14: Complexity ratchet (cyclomatic + cognitive) ────────────────
+  # Per-unit complexity baselines that only ratchet down. Same `code` scope and
+  # ci-passed membership as the file-length ratchet. See tools/complexity/ratchet.py.
+  complexity:
+    name: 'Complexity ratchet'
+    needs: [filter]
+    if: |
+      needs.filter.outputs.code == 'true' ||
+      needs.filter.result == 'failure'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: |
+            app/api/package-lock.json
+            app/ui/package-lock.json
+
+      # ESLint (with the project's configs/plugins) is the JS/TS measurer, so the
+      # workspaces it lints must have their dependencies installed.
+      - name: Install JS dependencies
+        run: |
+          npm ci --prefix app/api
+          npm ci --prefix app/ui
+
+      # The PowerShell measurer is the published PSComplexity module.
+      - name: Install PSComplexity (PowerShell complexity measurer)
+        shell: pwsh
+        run: Install-Module PSComplexity -RequiredVersion 0.1.0 -Force -Scope CurrentUser
+
+      # Validate the ratchet gate logic (Python) before it gates anything.
+      - name: Test the ratchet gate logic
+        run: |
+          python3 -m pip install --quiet pytest
+          python3 -m pytest tools/complexity/test_ratchet.py -q
+
+      - name: Run cyclomatic-complexity ratchet
+        run: python3 tools/complexity/ratchet.py
+
+      - name: Run cognitive-complexity ratchet
+        run: python3 tools/complexity/ratchet.py --metric cognitive
 
   # ── Gate: single required check for branch protection ───────────────────
   # Replaces the individual job requirements in branch protection. Update branch
@@ -736,6 +893,8 @@ jobs:
       - crawler-manifest
       - docs-nav
       - duplication
+      - filesize
+      - complexity
     if: always()
     runs-on: ubuntu-latest
     steps:

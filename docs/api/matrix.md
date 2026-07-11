@@ -50,7 +50,7 @@ Main matrix data. Returns all permission assignments enriched with user attribut
 | Field | Type | Description |
 |---|---|---|
 | `data` | array | Flat list of membership rows. One row per (user, resource, membershipType) combination. |
-| `data[].membershipType` | string | `Direct`, `Indirect`, `Eligible`, or `Owner` |
+| `data[].membershipType` | string | `Direct`, `Indirect`, or `Eligible` |
 | `data[].managedByAccessPackage` | boolean | Whether this resource is included in any business role (SOLL column) |
 | `totalUsers` | int | Total distinct users before the `userLimit` was applied |
 | `managedByPackages` | array | SOLL mapping — which business role IDs govern each (member, group) pair |
@@ -209,8 +209,8 @@ Tag filter dropdowns include a `(Blank)` option (internal sentinel: `BLANK_TAG`)
 
 The frontend builds the matrix from the flat `/api/permissions` response:
 
-1. **Row deduplication** — multiple rows for the same user (e.g. `Direct` + `Owner`) are merged into a single user row with multi-type badges per cell.
-2. **Owner rows** — `membershipType='Owner'` rows are separated into synthetic rows with suffix `(Owner)` and `id: groupId__owner`.
+1. **Row deduplication** — multiple rows for the same user (e.g. `Direct` + `Eligible`) are merged into a single user row with multi-type badges per cell.
+2. **Ownership rows** — group ownership is its own resource (`resourceType='GroupOwnership'`), so an owner appears as a `Direct` membership on that ownership resource — a normal row, not a synthetic `Owner`-type split.
 3. **SOLL columns** — built from `/api/access-package-groups`. Each business role becomes a column. Resources within a role determine which cells are "managed".
 4. **AP coloring** — each business role column gets a color from a 15-color palette defined in `MatrixColumnHeaders.jsx`.
 5. **Staircase sort** — default row order groups users by their leftmost AP bucket. Custom drag order persists via versioned localStorage.

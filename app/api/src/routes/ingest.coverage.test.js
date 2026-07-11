@@ -247,6 +247,47 @@ describe('POST /ingest/sync-log', () => {
   });
 });
 
+// ── POST /ingest/contexts — parent-cycle repair (A3) ─────────────────────────
+const CYCLE_REPAIR_RE = /UPDATE\s+"Contexts"[\s\S]*"parentContextId"\s*=\s*NULL/i;
+const goodContext = {
+  records: [{ displayName: 'Dept', variant: 'synced', targetType: 'Identity', contextType: 'Department' }],
+  systemId: 1,
+  syncMode: 'full',
+};
+
+describe('POST /ingest/contexts — parent-cycle repair', () => {
+  it('runs breakCycles after a contexts batch that wrote rows', async () => {
+    mockIngest.mockResolvedValueOnce({ inserted: 1, updated: 0, deleted: 0 });
+    const res = await request(app).post('/ingest/contexts').send(goodContext);
+    expect(res.status).toBe(201);
+    expect(mockQuery.mock.calls.some(([sql]) => CYCLE_REPAIR_RE.test(sql))).toBe(true);
+  });
+
+  it('does NOT run the cycle repair for a non-contexts entity', async () => {
+    mockIngest.mockResolvedValueOnce({ inserted: 1, updated: 0, deleted: 0 });
+    const res = await request(app).post('/ingest/principals').send(goodPrincipal);
+    expect(res.status).toBe(201);
+    expect(mockQuery.mock.calls.some(([sql]) => CYCLE_REPAIR_RE.test(sql))).toBe(false);
+  });
+
+  it('skips the repair when the batch wrote no rows', async () => {
+    mockIngest.mockResolvedValueOnce({ inserted: 0, updated: 0, deleted: 0 });
+    const res = await request(app).post('/ingest/contexts').send(goodContext);
+    expect(res.status).toBe(201);
+    expect(mockQuery.mock.calls.some(([sql]) => CYCLE_REPAIR_RE.test(sql))).toBe(false);
+  });
+
+  it('a breakCycles failure is non-fatal (still 201)', async () => {
+    mockIngest.mockResolvedValueOnce({ inserted: 1, updated: 0, deleted: 0 });
+    mockQuery.mockImplementation((sql) =>
+      CYCLE_REPAIR_RE.test(sql)
+        ? Promise.reject(new Error('boom'))
+        : Promise.resolve({ rows: [], rowCount: 0 }));
+    const res = await request(app).post('/ingest/contexts').send(goodContext);
+    expect(res.status).toBe(201);
+  });
+});
+
 // ── POST /ingest/principals-presence ─────────────────────────────────────────
 
 describe('POST /ingest/principals-presence', () => {

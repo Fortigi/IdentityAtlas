@@ -64,27 +64,27 @@ All citations are in `tools/crawlers/entra-id/Start-EntraIDCrawler.ps1` unless n
 
 | `assignmentType` | Producer | Target resource | `resourceType` |
 |---|---|---|---|
-| `Direct` | group members (`:1350`); Omada (`omada/…:1184`); Azure (`azure-rm/…:462`); CSV | the group itself / a resource | `EntraGroup`, `AzureRoleAssignment`, … |
-| `Owner` | group owners (`:1375`) | **the group itself** | `EntraGroup` |
-| `Eligible` | PIM-eligible group members (`:1442`) | the group itself | `EntraGroup` |
+| `Direct` | group members (`:1350`); Omada (`omada/…:1184`); Azure (`azure-rm/…:462`); CSV | the group itself / a resource | `Group`, `AzureRoleAssignment`, … |
+| `Owner` | group owners (`:1375`) | **the group itself** | `Group` |
+| `Eligible` | PIM-eligible group members (`:1442`) | the group itself | `Group` |
 | `Governed` | access packages (`:1628`); Omada managed (`omada/…:1066`) | the AP / business role | `AccessPackage`, `BusinessRole` |
 | `OAuth2Grant` | OAuth2 consent (`:2007`) | **synthetic** | `DelegatedPermission` |
 | `AppRole` | app-role assignment (`:2220`, `:2249`) | **synthetic** | `AppRole` |
 | `AppRoleViaGroup` | app role expanded through a group (`:2290`) | **synthetic** | `AppRole` |
-| `DirectoryRole` | active directory role (`:2444`) | **synthetic** | `EntraRole` |
-| `DirectoryRoleEligible` | PIM-eligible directory role (`:2466`) | **synthetic** | `EntraRole` |
+| `DirectoryRole` | active directory role (`:2444`) | **synthetic** | `EntraDirectoryRole` |
+| `DirectoryRoleEligible` | PIM-eligible directory role (`:2466`) | **synthetic** | `EntraDirectoryRole` |
 
 **Two facts that frame the whole redesign:**
 
 1. **The "source" types already point at synthetic resources.** `OAuth2Grant`,
    `AppRole`, `DirectoryRole`, and `DirectoryRoleEligible` all target a resource
-   (`DelegatedPermission`, `AppRole`, `EntraRole`) that *already* carries the
+   (`DelegatedPermission`, `AppRole`, `EntraDirectoryRole`) that *already* carries the
    "what." Their distinct `assignmentType` is **redundant for "what"** — it only
    survives as the sync-partition key (job #2) plus the direct/indirect/eligible
    distinction (job #1). The codebase is already halfway to the target model.
 
 2. **Owner is purely a flag.** Group owners are written against the group's
-   **own** `EntraGroup` resourceId with `assignmentType='Owner'`. There is **no**
+   **own** `Group` resourceId with `assignmentType='Owner'`. There is **no**
    "ownership of group X" resource. So owner-as-resource is genuinely new
    modeling — but it is the *only* "how" that isn't already
    direct/indirect/eligible.
@@ -159,8 +159,8 @@ already clean.
 
 - **`assignmentType` ∈ `{ Direct, Indirect, Eligible }`** — the universal "how,"
   and nothing else.
-- **"What kind" lives entirely on `resourceType`** (`EntraGroup`, `AppRole`,
-  `DelegatedPermission`, `EntraRole`, `AccessPackage`, `BusinessRole`, … plus a
+- **"What kind" lives entirely on `resourceType`** (`Group`, `AppRole`,
+  `DelegatedPermission`, `EntraDirectoryRole`, `AccessPackage`, `BusinessRole`, … plus a
   **new ownership resource**).
 - **Owner → `Direct` assignment to an `Owner @ <name>` resource**, linked to the
   owned resource by a `ResourceRelationship` (mirroring `AppRole --HasAppRole-->
@@ -191,12 +191,12 @@ every current phase:
 
 | Phase | resourceType | how |
 |---|---|---|
-| group members | EntraGroup | Direct |
+| group members | Group | Direct |
 | group owners | **GroupOwnership** (new) | Direct |
-| group PIM-eligible | EntraGroup | Eligible |
+| group PIM-eligible | Group | Eligible |
 | app role (direct / via group) | AppRole | Direct / Indirect |
 | OAuth grant | DelegatedPermission | Direct |
-| directory role (active / eligible) | EntraRole | Direct / Eligible |
+| directory role (active / eligible) | EntraDirectoryRole | Direct / Eligible |
 | access package | AccessPackage | Direct (+ governed flag) |
 
 Three ways to make the delete key on `resourceType`:

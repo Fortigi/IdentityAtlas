@@ -1,0 +1,107 @@
+# ─── Diff coverage gate ──────────────────────────────────────────────────────
+# The committed Vitest thresholds are GLOBAL — a new, barely-covered file hides
+# behind the whole-suite average. This gate closes that: it fails a PR whose
+# CHANGED lines aren't sufficiently covered, leaving legacy files untouched. So
+# every change must carry its own tests, per the "coverage never down" principle.
+#
+# Uses `diff-cover` (consumes lcov + the git diff vs the PR base). The API side
+# combines UNIT and CONTRACT coverage, because a lot of API code (routes, SQL) is
+# exercised only by the contract suite — judging it on unit coverage alone would
+# false-fail legitimately-tested code.
+# ─────────────────────────────────────────────────────────────────────────────
+name: Diff coverage gate
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'app/api/src/**'
+      - 'app/ui/src/**'
+      - 'app/api/vitest.config.js'
+      - 'app/api/vitest.contract.config.js'
+      - 'app/ui/vite.config.js'
+      - '.github/workflows/diff-coverage.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: diff-coverage-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Fraction of a PR's changed, coverage-eligible lines that must be covered.
+  FAIL_UNDER: '80'
+
+jobs:
+  api:
+    name: 'Diff coverage: API'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0   # diff-cover needs history back to the PR's merge-base
+
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: app/api/package-lock.json
+
+      - name: Install dependencies
+        working-directory: app/api
+        run: npm ci
+
+      - name: Unit coverage
+        working-directory: app/api
+        run: npm run test:coverage
+
+      - name: Contract coverage
+        working-directory: app/api
+        run: npx vitest run --config vitest.contract.config.js --coverage
+
+      - name: Diff coverage gate (unit + contract)
+        run: |
+          git fetch --no-tags origin "${{ github.base_ref }}"
+          python3 -m pip install --quiet diff_cover
+          # lcov SF paths are package-relative (src/...); make them repo-relative
+          # (app/api/src/...) so they align with git-diff paths, then judge only
+          # the PR's changed lines against the combined unit+contract coverage.
+          sed 's#^SF:#SF:app/api/#' app/api/coverage/lcov.info > /tmp/api-unit.lcov
+          sed 's#^SF:#SF:app/api/#' app/api/coverage-contract/lcov.info > /tmp/api-contract.lcov
+          python3 -m diff_cover.diff_cover_tool /tmp/api-unit.lcov /tmp/api-contract.lcov \
+            --compare-branch="origin/${{ github.base_ref }}" \
+            --fail-under="${FAIL_UNDER}"
+
+  ui:
+    name: 'Diff coverage: UI'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: app/ui/package-lock.json
+
+      - name: Install dependencies
+        working-directory: app/ui
+        run: npm ci
+
+      - name: Unit coverage
+        working-directory: app/ui
+        run: npm run test:coverage
+
+      - name: Diff coverage gate
+        run: |
+          git fetch --no-tags origin "${{ github.base_ref }}"
+          python3 -m pip install --quiet diff_cover
+          sed 's#^SF:#SF:app/ui/#' app/ui/coverage/lcov.info > /tmp/ui.lcov
+          python3 -m diff_cover.diff_cover_tool /tmp/ui.lcov \
+            --compare-branch="origin/${{ github.base_ref }}" \
+            --fail-under="${FAIL_UNDER}"

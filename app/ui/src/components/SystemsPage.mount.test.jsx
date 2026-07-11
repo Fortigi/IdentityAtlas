@@ -14,7 +14,7 @@ const systems = [
     resourceCount: 340,
     assignmentCount: 5600,
     lastSyncDateTime: new Date(Date.now() - 5 * 60000).toISOString(),
-    computedResourceTypes: ['EntraGroup', 'EntraRole'],
+    computedResourceTypes: ['Group', 'EntraDirectoryRole'],
     computedAssignmentTypes: ['Direct', 'Indirect'],
     owners: ['alice@example.com', 'bob@example.com'],
     description: 'Primary identity provider.',
@@ -54,7 +54,7 @@ describe('SystemsPage (mounted)', () => {
     expect(screen.getByText('Enabled')).toBeInTheDocument();
     expect(screen.getByText('Disabled')).toBeInTheDocument();
     // Resource-type chips and owners line for the first card
-    expect(screen.getByText('EntraGroup')).toBeInTheDocument();
+    expect(screen.getByText('Group')).toBeInTheDocument();
     expect(screen.getByText(/alice@example.com/)).toBeInTheDocument();
   });
 
