@@ -280,12 +280,17 @@ describe('GET /user-columns-page', () => {
 
 describe('GET /group-columns', () => {
   it('200 returns columns (Resources path)', async () => {
-    // First pool query is the "SELECT TOP 0 * FROM Resources" probe (resolves OK),
-    // then the tag-name query.
+    // Column values come from the mocked columnCache; the only pool query here
+    // is the __groupTag tag-name lookup (the v4 GraphGroups existence probe is gone).
     poolQuery.mockResolvedValue({ recordset: [] });
     const res = await request(app).get('/api/group-columns');
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body)).toBe(true);
+    // Regression guard (#662): the removed existence probe was
+    // `SELECT TOP 0 * FROM Resources` — T-SQL that always threw on Postgres and
+    // wasted a round-trip on every request. The handler must not emit it.
+    const sqls = poolQuery.mock.calls.map(c => String(c[0]));
+    expect(sqls.some(s => /\bTOP\s+0\b/i.test(s))).toBe(false);
   });
 
   it('200 schema=true fast path', async () => {

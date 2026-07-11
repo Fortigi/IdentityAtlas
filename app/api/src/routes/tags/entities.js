@@ -7,7 +7,7 @@
 // behaviour change — pure code move.
 
 import { Router } from 'express';
-import { getGroupColumns as getGroupCols, getResourceColumns as getResourceCols, getPrincipalOrUserColumns, getPrincipalOrUserColumnValues, getGroupColumnValues, getResourceColumnValues } from '../../db/columnCache.js';
+import { getResourceColumns as getResourceCols, getPrincipalOrUserColumns, getPrincipalOrUserColumnValues, getResourceColumnValues } from '../../db/columnCache.js';
 import { useSql, db, ensureTagTables, buildFilterWhere, UUID_RE } from './shared.js';
 
 const router = Router();
@@ -54,8 +54,8 @@ router.get('/user-columns-page', async (req, res) => {
 });
 
 // ─── GET /api/group-columns ──────────────────────────────────────
-// Column discovery for the Groups page (Resources or GraphGroups)
-// Also aliased as /api/resource-columns-page for new model
+// Column discovery for the Resources page (distinct values from Resources).
+// Also aliased as /api/resource-columns-page.
 router.get('/group-columns', groupColumnsHandler);
 router.get('/resource-columns-page', groupColumnsHandler);
 
@@ -67,29 +67,16 @@ async function groupColumnsHandler(req, res) {
     if (!useSql) return res.json([]);
     const p = await db.getPool();
 
+    // v5: only the Resources table exists. The v4 GraphGroups fallback is gone
+    // (removed with the rest of GraphGroups in #667/#678). The former existence
+    // probe used `SELECT TOP 0 * FROM Resources` — T-SQL that always threw on
+    // Postgres, so this endpoint silently served legacy group columns instead.
     let grouped;
-
-    // Try Resources table first, fall back to GraphGroups
-    let useResources = false;
-    try {
-      await p.request().query('SELECT TOP 0 * FROM Resources');
-      useResources = true;
-    } catch { /* Resources table doesn't exist */ }
-
-    if (useResources) {
-      if (schemaOnly) {
-        const cols = await getResourceCols(p);
-        grouped = Object.fromEntries(cols.map(c => [c.name, []]));
-      } else {
-        grouped = { ...await getResourceColumnValues(p) };
-      }
+    if (schemaOnly) {
+      const cols = await getResourceCols(p);
+      grouped = Object.fromEntries(cols.map(c => [c.name, []]));
     } else {
-      if (schemaOnly) {
-        const cols = await getGroupCols(p);
-        grouped = Object.fromEntries(cols.map(c => [c.name, []]));
-      } else {
-        grouped = { ...await getGroupColumnValues(p) };
-      }
+      grouped = { ...await getResourceColumnValues(p) };
     }
 
     // Add virtual __groupTag column (tag names as values)
@@ -227,7 +214,7 @@ router.get('/users', async (req, res) => {
 });
 
 // ─── GET /api/groups ──────────────────────────────────────────────
-// Now queries Resources table with GraphGroups fallback.
+// Queries the Resources table (v5 has no GraphGroups fallback).
 // Also serves as a filtered view when ?resourceType= is passed.
 router.get('/groups', async (req, res) => {
   try {
