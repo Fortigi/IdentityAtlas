@@ -170,7 +170,7 @@ See [`docs/architecture/matrix.md`](docs/architecture/matrix.md) for the badge-d
 
 **Core + JSON pattern:** Frequently-queried attributes are real SQL columns; system-specific attributes live in `extendedAttributes` JSON.
 
-**Backward compatibility:** Account and resource data lives in the universal `Principals` and `Resources` tables. The pre-v3.1 `GraphUsers` / `GraphGroups` tables are **gone from the schema** (never created by the v5 migrations) — there is no runtime fallback to them. A few route handlers still carry dead `GraphUsers`/`GraphGroups` fallback branches gated on the tables' presence; those branches never execute on a v5 schema.
+**Backward compatibility:** Account and resource data lives in the universal `Principals` and `Resources` tables. The pre-v3.1 `GraphUsers` / `GraphGroups` tables are **gone from the schema** (never created by the v5 migrations) — there is no runtime fallback to them.
 
 ### Contexts (v6, April 2026)
 
