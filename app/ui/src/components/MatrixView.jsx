@@ -6,6 +6,7 @@ import { useMemo, useState, useReducer, useCallback, useEffect, useLayoutEffect,
 const setStateReducer = (s, a) => (typeof a === 'function' ? a(s) : a);
 import { useAuth } from '@ui/auth/AuthGate';
 import { useMatrixRowOrder } from '@ui/hooks/useMatrixRowOrder';
+import { useNestedGroupExpand, MAX_NEST_LEVEL } from '@ui/hooks/useNestedGroupExpand';
 import MatrixToolbar from './matrix/MatrixToolbar';
 import MatrixLegend from './matrix/MatrixLegend';
 import MatrixFilterSummary from './matrix/MatrixFilterSummary';
@@ -94,18 +95,6 @@ function makeAccountCol(parent, acc, sortKeys) {
   };
 }
 
-// Run `reset()` during render whenever `key` changes — React's "adjust state
-// when a prop changes" pattern, without an effect (which would trip
-// react-hooks/set-state-in-effect). Kept as a hook so callers don't accrue the
-// branch in their own complexity budget.
-function useResetOnKeyChange(key, reset) {
-  const [seen, setSeen] = useState(key);
-  if (key !== seen) {
-    setSeen(key);
-    reset();
-  }
-}
-
 export default function MatrixView({
   data, accessPackageGroups = [], managedByPackages = [],
   filter,
@@ -158,10 +147,6 @@ export default function MatrixView({
   }, [inheritedByCell, authFetch]);
   const explainHandler = inheritedByCell.size > 0 ? onExplainInherited : undefined;
 
-  const [groupsWithNested, setGroupsWithNested] = useState(new Set());
-  const [expandedGroups, setExpandedGroups] = useState(new Set());
-  const [nestedDataCache, setNestedDataCache] = useState(new Map());
-  const [loadingNested, setLoadingNested] = useState(new Set());
 
   // ─── Identity column expansion (show per-account sub-columns) ────
   const [expandedIdentities, setExpandedIdentities] = useState(new Set());
@@ -210,50 +195,6 @@ export default function MatrixView({
     setExpandedIdentities(prev => new Set(prev).add(identityId));
   }, [expandedIdentities, accountMatrixCache, authFetch]);
 
-  // Fetch which groups have nested groups (once on mount)
-  useEffect(() => {
-    let cancelled = false;
-    authFetch('/api/groups-with-nested')
-      .then(r => r.ok ? r.json() : { groupIds: [] })
-      .then(d => { if (!cancelled) setGroupsWithNested(new Set(d.groupIds || [])); })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, [authFetch]);
-
-  const MAX_NEST_LEVEL = 4;
-
-  // Single place that builds the nested-expand request. POSTs the active matrix
-  // filter so the backend constrains nested resources to the same resource-type
-  // scope as the grid (e.g. Groups-only doesn't leak AppRoles). Resolves to the
-  // raw Response, like authFetch.
-  const fetchNestedGroups = useCallback((id) =>
-    authFetch(`/api/group/${encodeURIComponent(id)}/nested-groups`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ filter }),
-    }), [authFetch, filter]);
-
-  const toggleExpand = useCallback(async (groupId) => {
-    if (expandedGroups.has(groupId)) {
-      setExpandedGroups(prev => { const next = new Set(prev); next.delete(groupId); return next; });
-      return;
-    }
-    if (!nestedDataCache.has(groupId)) {
-      setLoadingNested(prev => new Set(prev).add(groupId));
-      try {
-        const res = await fetchNestedGroups(groupId);
-        const data = await res.json();
-        setNestedDataCache(prev => new Map(prev).set(groupId, data));
-      } catch (err) {
-        console.error('Failed to load nested groups:', err);
-        setLoadingNested(prev => { const next = new Set(prev); next.delete(groupId); return next; });
-        return;
-      }
-      setLoadingNested(prev => { const next = new Set(prev); next.delete(groupId); return next; });
-    }
-    setExpandedGroups(prev => new Set(prev).add(groupId));
-  }, [expandedGroups, nestedDataCache, fetchNestedGroups]);
-
   // Build a stable storage key from the filter (matches per-filter row order)
   const storageKey = useMemo(() => {
     if (!filter) return '';
@@ -261,16 +202,6 @@ export default function MatrixView({
   }, [filter]);
 
   const rowOrderHook = useMatrixRowOrder(storageKey);
-
-  // Invalidate the nested-expand cache when the filter changes. The cache is
-  // keyed only by groupId, but its contents are now scoped to the matrix's
-  // resource filter (see the /nested-groups POST in fetchNestedGroups), so a
-  // group expanded under e.g. "Groups only" must not keep showing that stale
-  // subset after the filter changes.
-  useResetOnKeyChange(storageKey, () => {
-    setNestedDataCache(new Map());
-    setExpandedGroups(new Set());
-  });
 
   // A (member, resource) membership is "governed" when it is covered by a
   // business role the user holds — i.e. it appears in managedByPackages, the
@@ -604,56 +535,13 @@ export default function MatrixView({
 
   const groupIds = useMemo(() => orderedGroups.map(g => g.id), [orderedGroups]);
 
-  const expandAll = useCallback(async () => {
-    const newCache = new Map(nestedDataCache);
-    const toExpand = new Set();
-
-    // Start with visible groups that have nested groups
-    let currentLevel = orderedGroups
-      .map(g => g.realGroupId || g.id)
-      .filter(id => groupsWithNested.has(id));
-
-    for (let level = 0; level < MAX_NEST_LEVEL && currentLevel.length > 0; level++) {
-      // Fetch data for groups not yet cached
-      const toFetch = currentLevel.filter(id => !newCache.has(id));
-      if (toFetch.length > 0) {
-        setLoadingNested(new Set(toFetch));
-        const results = await Promise.all(
-          toFetch.map(id =>
-            fetchNestedGroups(id)
-              .then(r => r.json())
-              .then(data => ({ id, data }))
-              .catch(() => ({ id, data: { groups: [], memberships: [] } }))
-          )
-        );
-        for (const { id, data } of results) newCache.set(id, data);
-      }
-
-      for (const id of currentLevel) toExpand.add(id);
-
-      // Find next level: nested groups that are themselves expandable
-      const nextLevel = [];
-      for (const id of currentLevel) {
-        const data = newCache.get(id);
-        if (data) {
-          for (const ng of data.groups) {
-            if (groupsWithNested.has(ng.groupId) && !toExpand.has(ng.groupId)) {
-              nextLevel.push(ng.groupId);
-            }
-          }
-        }
-      }
-      currentLevel = nextLevel;
-    }
-
-    setNestedDataCache(newCache);
-    setExpandedGroups(toExpand);
-    setLoadingNested(new Set());
-  }, [orderedGroups, groupsWithNested, nestedDataCache, fetchNestedGroups]);
-
-  const collapseAll = useCallback(() => {
-    setExpandedGroups(new Set());
-  }, []);
+  // Nested-group expand state + fetches (opening a group row reveals the
+  // resources its members inherit). Lives in its own hook so this component
+  // stays focused on rendering the grid; see useNestedGroupExpand.
+  const {
+    groupsWithNested, expandedGroups, nestedDataCache, loadingNested,
+    toggleExpand, expandAll, collapseAll,
+  } = useNestedGroupExpand({ authFetch, filter, storageKey, orderedGroups });
 
   // ─── Inject nested sub-rows after expanded groups ───────────────
   const nestedMemberships = useMemo(() => {
