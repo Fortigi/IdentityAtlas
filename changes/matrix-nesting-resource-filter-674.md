@@ -1,0 +1,2 @@
+- Fixed Matrix group expansion ignoring the resource-type filter: expanding a group while the matrix is filtered to a single resource type (e.g. Groups) now only reveals nested resources of that type, instead of also surfacing AppRoles, directory roles, and other types you filtered out.
+- Changing the matrix filter now clears any expanded nesting, so nested rows always reflect the current filter.
