@@ -21,7 +21,7 @@ test.describe('App Navigation', () => {
 
   test('all always-visible tabs are present', async ({ page }) => {
     // Optional tabs (Risk Scores, Identities, Org Chart, Performance, Admin) are hidden by default
-    const tabs = ['Matrix', 'Principals', 'Resources', 'Systems', 'Business Roles', 'Logs'];
+    const tabs = ['Matrix', 'Principals (Users)', 'Resources', 'Systems', 'Business Roles', 'Logs'];
 
     for (const tab of tabs) {
       await expect(page.getByRole('button', { name: tab, exact: true })).toBeVisible();
@@ -30,7 +30,7 @@ test.describe('App Navigation', () => {
 
   test('clicking tabs changes the page', async ({ page }) => {
     // Navigate to Principals
-    await page.getByRole('button', { name: 'Principals', exact: true }).click();
+    await page.getByRole('button', { name: 'Principals (Users)', exact: true }).click();
     await expect(page.locator('h2')).toContainText('Principals');
 
     // Navigate to Resources (formerly Groups)

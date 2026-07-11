@@ -13,7 +13,7 @@
 export const ALL_NAV_TABS = [
   { key: 'dashboard',        label: 'Dashboard' },
   { key: 'matrix',           label: 'Matrix' },
-  { key: 'principals',       label: 'Principals' },
+  { key: 'principals',       label: 'Principals (Users)' },
   { key: 'resources',        label: 'Resources' },
   { key: 'systems',          label: 'Systems',      optional: true },
   { key: 'access-packages',  label: 'Business Roles' },

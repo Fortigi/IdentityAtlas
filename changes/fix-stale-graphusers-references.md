@@ -1,3 +1,3 @@
-- Renamed the **Users** navigation tab (and its page title) to **Principals** — it lists every account type (users, service principals, managed identities, AI agents, guests), not just people.
+- Renamed the **Users** navigation tab (and its page title) to **Principals (Users)** — it lists every account type (users, service principals, managed identities, AI agents, guests), not just people; the "(Users)" hint keeps it recognisable for end users.
 - Relabelled the Dashboard's "Users" count and data-model graph node to "Principals" (they always counted the whole Principals table).
 - Corrected the Risk Scoring page's data-source note to reference the current `Principals` and `Resources` tables (it previously named the removed `GraphUsers` / `GraphGroups` tables).

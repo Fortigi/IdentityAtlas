@@ -100,7 +100,7 @@ export default function UsersPage({ onOpenDetail }) {
 
   return (
     <EntityListPage
-      title="Principals"
+      title="Principals (Users)"
       entityType="user"
       listEndpoint="/api/users"
       columnsEndpoint="/api/user-columns-page"
