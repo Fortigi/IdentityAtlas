@@ -37,8 +37,8 @@ router.get('/sync-log', async (req, res) => {
 
     // Mock data: generate realistic sync log entries
     const syncTypes = [
-      { type: 'Users', table: 'GraphUsers', records: 1247 },
-      { type: 'Groups', table: 'GraphGroups', records: 389 },
+      { type: 'Users', table: 'Principals', records: 1247 },
+      { type: 'Groups', table: 'Resources', records: 389 },
       { type: 'GroupMembers', table: 'GraphGroupMembers', records: 4521 },
       { type: 'GroupTransitiveMembers', table: 'GraphGroupTransitiveMembers', records: 8932 },
       { type: 'GroupEligibleMembers', table: 'GraphGroupEligibleMembers', records: 156 },
@@ -51,7 +51,7 @@ router.get('/sync-log', async (req, res) => {
       { type: 'AccessPackageAssignmentRequests', table: 'AssignmentRequests', records: 2103 },
       { type: 'AccessPackageAccessReviews', table: 'CertificationDecisions', records: 45 },
       { type: 'MaterializedViews', table: 'mat_UserPermissionAssignments', records: 0 },
-      { type: 'RiskScoring', table: 'GraphUsers,GraphGroups', records: 1636 },
+      { type: 'RiskScoring', table: 'Principals,Resources', records: 1636 },
     ];
     const mockLogs = [];
     let id = 1;

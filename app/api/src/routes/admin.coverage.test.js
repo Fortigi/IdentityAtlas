@@ -321,14 +321,12 @@ describe('POST /admin/import/curated', () => {
     expect(res.body.stats.catsInserted).toBe(1);
   });
 
-  it('500 when ensureTagTables setup throws via a rejected query', async () => {
-    // tableExists for the first to_regclass resolves, but the tag upsert path
-    // is never reached because we make getPool-driven setup blow up: simplest
-    // is to reject the to_regclass existence check.
+  it('500 when an import query rejects', async () => {
+    // The category upsert is the first db.query the import runs; reject it.
     query.mockRejectedValueOnce(new Error('boom'));
     const res = await request(app)
       .post('/api/admin/import/curated')
-      .send({ tags: [], categories: [] });
+      .send({ tags: [], categories: [{ name: 'Finance', color: '#3b82f6' }] });
     expect(res.status).toBe(500);
   });
 });

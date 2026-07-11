@@ -317,12 +317,9 @@ router.get('/access-package/:id/requests', async (req, res) => {
   if (!useSql) return res.json([]);
   try {
     const pool = await db.getPool();
-    let r;
-    try {
-      // Try Principals first (new model — email instead of userPrincipalName)
-      r = await timedRequest(pool, 'ap-requests', res)
-        .input('id', req.params.id)
-        .query(`
+    const r = await timedRequest(pool, 'ap-requests', res)
+      .input('id', req.params.id)
+      .query(`
         SELECT
           req.id, req."requestType", req."requestState", req."requestStatus",
           req.justification, req."createdDateTime", req."completedDateTime",
@@ -333,22 +330,6 @@ router.get('/access-package/:id/requests', async (req, res) => {
           AND req."requestState" IN ('PendingApproval', 'Delivering', 'Accepted')
         ORDER BY req."createdDateTime" DESC
       `);
-    } catch {
-      // Fall back to GraphUsers (old model)
-      r = await timedRequest(pool, 'ap-requests-legacy', res)
-        .input('id', req.params.id)
-        .query(`
-        SELECT
-          req.id, req."requestType", req."requestState", req."requestStatus",
-          req.justification, req."createdDateTime", req."completedDateTime",
-          u."displayName" AS "requestorDisplayName", u.userPrincipalName AS "requestorUPN"
-        FROM "AssignmentRequests" req
-        LEFT JOIN GraphUsers u ON req."requestorId" = u.id
-        WHERE req."resourceId" = @id
-          AND req."requestState" IN ('PendingApproval', 'Delivering', 'Accepted')
-        ORDER BY req."createdDateTime" DESC
-      `);
-    }
     res.json(r.recordset);
   } catch (err) {
     res.json([]);

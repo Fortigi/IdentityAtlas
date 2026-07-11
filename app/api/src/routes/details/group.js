@@ -14,7 +14,7 @@ const router = Router();
 
 // ────────────────────────────────────────────────────────────────
 // GET /api/group/:id — Lightweight: attributes, tags, counts only
-// Now queries Resources table (new model) with GraphGroups fallback
+// Queries the Resources table (v5).
 // ────────────────────────────────────────────────────────────────
 router.get('/group/:id', async (req, res) => {
   if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'Invalid ID format' });
@@ -23,17 +23,10 @@ router.get('/group/:id', async (req, res) => {
     const pool = await db.getPool();
     const groupId = req.params.id;
 
-    // 1. Current attributes — try Resources first, fall back to GraphGroups
-    let groupResult;
-    try {
-      groupResult = await timedRequest(pool, 'group-attributes', res)
-        .input('id', groupId)
-        .query(`SELECT * FROM "Resources" WHERE id = @id`);
-    } catch {
-      groupResult = await timedRequest(pool, 'group-attributes-legacy', res)
-        .input('id', groupId)
-        .query('SELECT * FROM GraphGroups WHERE id = @id');
-    }
+    // 1. Current attributes from the Resources table (v5).
+    const groupResult = await timedRequest(pool, 'group-attributes', res)
+      .input('id', groupId)
+      .query(`SELECT * FROM "Resources" WHERE id = @id`);
 
     if (groupResult.recordset.length === 0) {
       return res.status(404).json({ error: 'Group not found' });

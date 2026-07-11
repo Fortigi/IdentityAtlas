@@ -119,29 +119,21 @@ router.get('/admin/export/curated', exportBulk, async (req, res) => {
     // ── Tags + assignments ────────────────────────────────────────
     let tags = [];
     if (await tableExists(pool, 'GraphTags')) {
-      // Detect which tables exist for display-name resolution
-      const hasPrincipals = await tableExists(pool, 'Principals');
-      const hasResources  = await tableExists(pool, 'Resources');
-
       // Postgres: tag entityIds are stored as text. Cast to uuid only when the
       // value is shaped like a uuid, otherwise the cast errors out and breaks
       // the whole query. uuid_or_null() is a tiny inline plpgsql helper.
-      const userJoin = hasPrincipals
-        ? `LEFT JOIN "Principals" gu ON t."entityType" = 'user'
+      const userJoin = `LEFT JOIN "Principals" gu ON t."entityType" = 'user'
              AND ta."entityId" ~* '^[0-9a-f-]{36}$'
-             AND gu.id = ta."entityId"::uuid`
-        : '';
-      const resourceJoin = hasResources
-        ? `LEFT JOIN "Resources" r ON t."entityType" IN ('resource','group')
+             AND gu.id = ta."entityId"::uuid`;
+      const resourceJoin = `LEFT JOIN "Resources" r ON t."entityType" IN ('resource','group')
              AND ta."entityId" ~* '^[0-9a-f-]{36}$'
-             AND r.id = ta."entityId"::uuid`
-        : '';
+             AND r.id = ta."entityId"::uuid`;
 
       const tagRows = await pool.request().query(`
         SELECT t.id, t.name, t.color, t."entityType",
                ta."entityId",
                COALESCE(gu."displayName", r."displayName") AS "entityDisplayName",
-               ${hasResources ? 'r."resourceType"' : 'NULL'} AS "resourceType"
+               r."resourceType" AS "resourceType"
         FROM "GraphTags" t
         LEFT JOIN "GraphTagAssignments" ta ON ta."tagId" = t.id
         ${userJoin}
@@ -249,10 +241,6 @@ router.post('/admin/import/curated', writeCsv, async (req, res) => {
     await ensureTagTables(pool);
     await ensureCategoryTables(pool);
 
-    // Detect available tables for entity resolution
-    const hasPrincipals = await tableExists(pool, 'Principals');
-    const hasResources  = await tableExists(pool, 'Resources');
-
     // ── Helper: resolve entity GUID ──────────────────────────────
     // NB: no temporal (ValidTo) filter — the SQL-Server-era system-versioned
     // columns were dropped in the postgres migration, so a `ValidTo` predicate
@@ -262,9 +250,7 @@ router.post('/admin/import/curated', writeCsv, async (req, res) => {
       // 1. GUID match — check if the entity still exists with this ID
       let exists = false;
       try {
-        const tbl = entityType === 'user'
-          ? (hasPrincipals ? 'Principals' : 'GraphUsers')
-          : (hasResources ? 'Resources' : 'GraphGroups');
+        const tbl = entityType === 'user' ? 'Principals' : 'Resources';
         const r = await pool.request()
           .input('id', entityId)
           .query(`SELECT COUNT(*) AS n FROM "${tbl}" WHERE UPPER((id)::text) = UPPER(@id)`);
@@ -277,7 +263,7 @@ router.post('/admin/import/curated', writeCsv, async (req, res) => {
       if (!displayName) return null;
       try {
         if (entityType === 'user') {
-          const tbl = hasPrincipals ? 'Principals' : 'GraphUsers';
+          const tbl = 'Principals';
           const r = await pool.request()
             .input('displayName', displayName)
             .query(`SELECT UPPER((id)::text) AS id FROM "${tbl}"
@@ -285,10 +271,10 @@ router.post('/admin/import/curated', writeCsv, async (req, res) => {
           if (r.recordset.length > 0) return { id: r.recordset[0].id, softMatched: true };
         } else {
           // group / resource — match on displayName + resourceType if available
-          const tbl = hasResources ? 'Resources' : 'GraphGroups';
+          const tbl = 'Resources';
           let req2 = pool.request().input('displayName', displayName);
           let rtClause = '';
-          if (resourceType && hasResources) {
+          if (resourceType) {
             req2 = req2.input('resourceType', resourceType);
             rtClause = 'AND "resourceType" = @resourceType';
           }

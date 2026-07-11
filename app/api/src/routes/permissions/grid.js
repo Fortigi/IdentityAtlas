@@ -8,7 +8,7 @@
 import { Router } from 'express';
 import { permissionAssignments } from '../../mock/data.js';
 import { ensureTagTables } from '../tags.js';
-import { getGroupColumns, getResourceColumns, getPrincipalOrUserColumns, getPrincipalOrUserColumnValues } from '../../db/columnCache.js';
+import { getResourceColumns, getPrincipalOrUserColumns, getPrincipalOrUserColumnValues } from '../../db/columnCache.js';
 import { timedRequest } from '../../perf/sqlTimer.js';
 import { buildContextFilterSql, parseAndResolveContextFilters } from '../../contexts/contextFilters.js';
 import { effectiveAccessForNodes } from '../../effectiveAccess/engine.js';
@@ -20,7 +20,7 @@ const router = Router();
 // Columns always handled with explicit aliases (not included in dynamic list)
 const ALIASED_COLS = new Set(['displayName', 'userPrincipalName']);
 
-// Aliases: Resources/GraphGroups column names → permission query aliases
+// Aliases: Resources column names → permission query aliases
 // New model uses resourceDisplayName/resourceDescription, but we keep group aliases for backward compat
 const GROUP_COL_ALIASES = { displayName: 'resourceDisplayName', description: 'resourceDescription' };
 const GROUP_ALIAS_TO_COL = {
@@ -30,7 +30,7 @@ const GROUP_ALIAS_TO_COL = {
 };
 
 // ─── GET /api/user-columns ────────────────────────────────────────
-// Returns column names + distinct values from GraphUsers for filter dropdowns.
+// Returns column names + distinct values from Principals for filter dropdowns.
 // Values come from the FULL dataset (not limited by userLimit), so dropdowns
 // show all possible options regardless of which page of users is loaded.
 router.get('/user-columns', async (req, res) => {
@@ -98,7 +98,7 @@ router.get('/user-columns', async (req, res) => {
 // Query params:
 //   userLimit (int)  - limit to top N users by assignment count
 //   filters  (JSON)  - server-side filters: {"department":"HR","groupTypeCalculated":"Security Group"}
-//                       User columns (GraphUsers) and group columns (GraphGroups) both supported.
+//                       Principal (user) columns and resource (group) columns both supported.
 router.get('/permissions', async (req, res) => {
   try {
     const userLimit = Math.min(Math.max(parseInt(req.query.userLimit) || 0, 0), 10000);
@@ -128,14 +128,8 @@ router.get('/permissions', async (req, res) => {
       // Discover user and group columns dynamically
       const allCols = await getPrincipalOrUserColumns(p);
       const colNames = new Set(allCols.map(c => c.name));
-      // Use Resources columns if available, fall back to GraphGroups
-      let allGroupCols;
-      try {
-        allGroupCols = await getResourceColumns(p);
-      } catch (e) {
-        if (!isMissingSchema(e)) throw e;
-        allGroupCols = await getGroupColumns(p);
-      }
+      // Resource columns for the group dimension (v5).
+      const allGroupCols = await getResourceColumns(p);
       const groupColNames = new Set(allGroupCols.map(c => GROUP_COL_ALIASES[c.name] || c.name));
 
       // Build dynamic user column SELECT (exclude aliased cols handled explicitly).
