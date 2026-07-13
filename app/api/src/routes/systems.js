@@ -151,9 +151,9 @@ router.get('/systems/:id/owners', async (req, res) => {
     const result = await timedRequest(p, 'system-owners', res)
       .input('id', req.params.id)
       .query(`
-        SELECT so.*, u."displayName" AS "userDisplayName", u.userPrincipalName
+        SELECT so.*, u."displayName" AS "userDisplayName", u.email AS "userPrincipalName"
         FROM "SystemOwners" so
-        LEFT JOIN GraphUsers u ON so."userId" = u.id
+        LEFT JOIN "Principals" u ON so."userId" = u.id
         WHERE so."systemId" = @id
         ORDER BY u."displayName"
       `);

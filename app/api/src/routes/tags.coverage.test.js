@@ -229,10 +229,8 @@ describe('POST /tags/:id/assign-by-filter', () => {
 
   it('200 inserts matched entities (user + search + filters)', async () => {
     queryOne.mockResolvedValueOnce({ id: VALID, targetType: 'Principal' });
-    // Pool queries: 1) to_regclass Principals check, 2) the INSERT
-    poolQuery
-      .mockResolvedValueOnce({ recordset: [{ principalsExists: 'Principals' }] })
-      .mockResolvedValueOnce({ rowsAffected: [3] });
+    // Pool query: the INSERT (v5 always uses Principals — no table probe)
+    poolQuery.mockResolvedValueOnce({ rowsAffected: [3] });
     const res = await request(app)
       .post(`/api/tags/${VALID}/assign-by-filter`)
       .send({ entityType: 'user', search: 'alice', filters: { department: 'IT' } });

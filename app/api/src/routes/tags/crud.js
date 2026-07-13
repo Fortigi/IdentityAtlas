@@ -243,21 +243,14 @@ router.post('/tags/:id/assign-by-filter', writeTags, async (req, res) => {
       [tagId]
     );
     if (!ctx) return res.status(404).json({ error: 'Tag not found' });
-    // Determine user table: prefer Principals for users
-    let userTableForTags = 'GraphUsers';
-    if (entityType === 'user') {
-      try {
-        const tc = await p.request().query(`SELECT to_regclass('"Principals"') AS "principalsExists"`);
-        if (tc.recordset[0].principalsExists) userTableForTags = 'Principals';
-      } catch { /* ignore */ }
-    }
-    const table = entityType === 'user' ? userTableForTags
+    // Users live in Principals (v5); groups/resources in Resources.
+    const table = entityType === 'user' ? 'Principals'
                  : entityType === 'resource' ? 'Resources'
                  : entityType === 'identity' ? 'Identities'
-                 : 'GraphGroups';
+                 : 'Resources';
     const alias = 'e';
     const search = (rawSearch || '').trim().slice(0, 200);
-    const upnColForSearch = userTableForTags === 'Principals' ? 'email' : 'userPrincipalName';
+    const upnColForSearch = 'email';
 
     const request = p.request().input('tagId', tagId);
     let where = '1=1';

@@ -147,17 +147,6 @@ describe('GET /api/permissions', () => {
     expect(res.status).toBe(200);
   });
 
-  it('falls back to GraphGroups columns when Resources columns are missing', async () => {
-    poolRequestQuery.mockResolvedValueOnce(PRINCIPALS_EXISTS);
-    getResourceColumns.mockRejectedValue(Object.assign(new Error('no Resources'), { code: '42P01' }));
-    timedQuery
-      .mockResolvedValueOnce(rs([]))
-      .mockResolvedValueOnce(rs([{ totalUsers: 0 }]))
-      .mockResolvedValueOnce(rs([]));
-    const res = await request(app).get('/api/permissions');
-    expect(res.status).toBe(200);
-  });
-
   it('userLimit top-N branch returns data + AP mapping', async () => {
     poolRequestQuery.mockResolvedValueOnce(PRINCIPALS_EXISTS);
     timedQuery

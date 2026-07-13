@@ -34,15 +34,13 @@ router.get('/identities/:id', async (req, res) => {
 
     const identity = identityResult.recordset[0];
 
-    // Fetch all member accounts — try Principals first (userId column), fall back to GraphUsers
-    // IdentityMembers stores displayName opportunistically; many rows have
-    // null there so we coalesce with the Principals record and pull UPN out
-    // of Principals.email (v5 has no separate userPrincipalName column).
-    let membersResult;
-    try {
-      membersResult = await timedRequest(p, 'identity-members', res)
-        .input('identityId', identityId)
-        .query(`
+    // Fetch all member accounts from Principals (v5). IdentityMembers stores
+    // displayName opportunistically; many rows have null there so we coalesce
+    // with the Principals record and pull UPN out of Principals.email (v5 has
+    // no separate userPrincipalName column).
+    const membersResult = await timedRequest(p, 'identity-members', res)
+      .input('identityId', identityId)
+      .query(`
           SELECT m."identityId", m."principalId", m."isPrimary", m."isHrAuthoritative",
                  m."accountType", m."accountTypePattern", m."accountEnabled",
                  m."linkSignals", m."linkConfidence", m."hrScore",
@@ -56,43 +54,18 @@ router.get('/identities/:id', async (req, res) => {
           WHERE m."identityId" = @identityId
           ORDER BY m."isPrimary" DESC NULLS LAST, m."accountType" ASC
         `);
-    } catch (e) {
-      if (!isMissingSchema(e)) throw e;
-      membersResult = await timedRequest(p, 'identity-members-legacy', res)
-        .input('identityId', identityId)
-        .query(`
-          SELECT m.*, u.department, u."jobTitle", u.lastSignInDateTime, u."createdDateTime", u."accountEnabled" AS "userAccountEnabled"
-          FROM "IdentityMembers" m
-          LEFT JOIN GraphUsers u ON m."principalId" = u.id
-          WHERE m."identityId" = @identityId
-          ORDER BY m."isPrimary" DESC, m."accountType" ASC
-        `);
-    }
 
-    // Enrich members with risk scores (optional — try Principals then GraphUsers)
+    // Enrich members with risk scores (optional).
     let riskRows = [];
     try {
-      let riskResult;
-      try {
-        riskResult = await timedRequest(p, 'identity-member-risks', res)
-          .input('identityId', identityId)
-          .query(`
+      const riskResult = await timedRequest(p, 'identity-member-risks', res)
+        .input('identityId', identityId)
+        .query(`
             SELECT m."principalId", u."riskScore", u."riskTier"
             FROM "IdentityMembers" m
             LEFT JOIN "Principals" u ON m."principalId" = u.id
             WHERE m."identityId" = @identityId
           `);
-      } catch (e) {
-        if (!isMissingSchema(e)) throw e;
-        riskResult = await timedRequest(p, 'identity-member-risks-legacy', res)
-          .input('identityId', identityId)
-          .query(`
-            SELECT m."principalId", u."riskScore", u."riskTier"
-            FROM "IdentityMembers" m
-            LEFT JOIN GraphUsers u ON m."principalId" = u.id
-            WHERE m."identityId" = @identityId
-          `);
-      }
       riskRows = riskResult.recordset;
     } catch (e) { if (!isMissingSchema(e)) throw e; /* risk columns may not exist yet */ }
 

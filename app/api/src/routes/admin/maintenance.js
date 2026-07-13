@@ -49,8 +49,6 @@ router.post('/admin/clean-database', writeSystems, adminDestructiveLimiter, asyn
     'Systems',
     // Crawler runtime artifacts (jobs, sync log) — but NOT configs
     'CrawlerJobs', 'SyncLog', 'GraphSyncLog',
-    // Legacy tables
-    'GraphGroupMembers', 'GraphGroupOwners', 'GraphGroups', 'GraphUsers',
   ];
 
   try {
