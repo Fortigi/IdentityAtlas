@@ -102,6 +102,13 @@ jobs:
           git fetch --no-tags origin "${{ github.base_ref }}"
           python3 -m pip install --quiet diff_cover
           sed 's#^SF:#SF:app/ui/#' app/ui/coverage/lcov.info > /tmp/ui.lcov
+          # App.jsx is the top-level hash-router shell — a big multi-line JSX
+          # ternary that v8 does not line-instrument (its <return> gets no DA
+          # records), so diff_cover flags any routing edit as "uncovered" with
+          # no coverable line to hit. It's exercised end-to-end by
+          # e2e/navigation.spec.js (every tab) instead. Exclude it so a routing
+          # change (new/renamed/reordered tab) doesn't fail this gate. See #669.
           python3 -m diff_cover.diff_cover_tool /tmp/ui.lcov \
             --compare-branch="origin/${{ github.base_ref }}" \
+            --exclude '*/App.jsx' \
             --fail-under="${FAIL_UNDER}"

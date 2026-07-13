@@ -169,7 +169,7 @@ export default function DashboardPage({ onNavigate }) {
             <>
               <div className="grid grid-cols-2 gap-3">
                 <StatCard label="Systems"        value={stats.systems}       onClick={() => onNavigate?.('systems')} />
-                <StatCard label="Users"          value={stats.users}         onClick={() => onNavigate?.('users')} />
+                <StatCard label="Principals"     value={stats.principals}    onClick={() => onNavigate?.('principals')} />
                 <StatCard label="Resources"      value={stats.resources}     onClick={() => onNavigate?.('resources')} />
                 <StatCard label="Business Roles" value={stats.businessRoles} onClick={() => onNavigate?.('access-packages')} />
                 <StatCard label="Identities"     value={stats.identities}    onClick={() => onNavigate?.('identities')} />
@@ -385,7 +385,7 @@ function BrainGraph({ stats, loading, isDark }) {
   const NODE_DEFS = [
     { id: 'systems',        label: 'Systems',        key: 'systems',         x: 220, y: 45  },
     { id: 'resources',      label: 'Resources',      key: 'resources',       x: 75,  y: 110 },
-    { id: 'users',          label: 'Users',          key: 'users',           x: 365, y: 110 },
+    { id: 'principals',     label: 'Principals',     key: 'principals',      x: 365, y: 110 },
     { id: 'relationships',  label: 'Relationships',  key: 'relationships',   x: 68,  y: 200 },
     { id: 'assignments',    label: 'Assignments',    key: 'assignments',     x: 220, y: 165 },
     { id: 'identities',     label: 'Identities',     key: 'identities',      x: 372, y: 200 },
@@ -400,15 +400,15 @@ function BrainGraph({ stats, loading, isDark }) {
   // the organic brain feel.
   const EDGES = [
     ['systems', 'resources'],
-    ['systems', 'users'],
+    ['systems', 'principals'],
     ['systems', 'contexts'],
     ['systems', 'assignments'],
     ['resources', 'assignments'],
     ['resources', 'relationships'],
-    ['users', 'assignments'],
-    ['users', 'identities'],
-    ['users', 'idMembers'],
-    ['users', 'contexts'],
+    ['principals', 'assignments'],
+    ['principals', 'identities'],
+    ['principals', 'idMembers'],
+    ['principals', 'contexts'],
     ['resources', 'roles'],
     ['assignments', 'roles'],
     ['assignments', 'contexts'],

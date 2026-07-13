@@ -588,7 +588,7 @@ export default function App() {
             <DashboardPage onNavigate={navigate} />
           ) : page === 'sync-log' ? (
             <SyncLogPage navigate={navigate} onOpenDetail={openDetailTab} />
-          ) : page === 'users' ? (
+          ) : page === 'principals' ? (
             <UsersPage onOpenDetail={openDetailTab} />
           ) : page === 'resources' || page === 'groups' ? (
             <GroupsPage onOpenDetail={openDetailTab} />

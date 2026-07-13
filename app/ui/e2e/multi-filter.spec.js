@@ -21,7 +21,7 @@ test.describe('Multi-filter combinations', () => {
   });
 
   test('users page: search works', async ({ page }) => {
-    await page.goto(`${BASE}/#users`);
+    await page.goto(`${BASE}/#principals`);
     await page.waitForSelector('table');
     const searchInput = page.locator('input[placeholder*="Search"]').first();
     if (await searchInput.isVisible()) {

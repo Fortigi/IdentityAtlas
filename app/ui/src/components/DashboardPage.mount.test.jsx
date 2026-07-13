@@ -7,7 +7,7 @@ import { renderWithProviders, makeAuthFetch, jsonResponse, screen, userEvent } f
 const fullStats = {
   hasData: true,
   systems: 3,
-  users: 1200,
+  principals: 1200,
   resources: 450,
   businessRoles: 12,
   identities: 1100,
@@ -68,6 +68,12 @@ describe('DashboardPage (mounted)', () => {
 
     await user.click(screen.getByText(/sync log entries/i));
     expect(onNavigate).toHaveBeenCalledWith('sync-log');
+
+    // "Principals" appears on both the stat card and the SVG brain-graph node;
+    // click the stat-card one (not inside the <svg>) — it routes to the tab.
+    const principals = screen.getAllByText('Principals').find(el => !el.closest('svg'));
+    await user.click(principals);
+    expect(onNavigate).toHaveBeenCalledWith('principals');
   });
 
   it('shows the no-data onboarding CTA when the database is empty', async () => {

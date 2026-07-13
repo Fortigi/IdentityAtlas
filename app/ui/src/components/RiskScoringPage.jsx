@@ -616,7 +616,7 @@ export default function RiskScoringPage({ onOpenDetail }) {
             {`# Connect and score\nConnect-FGSQLServer -ConfigFile .\\Config\\mycompany.json\nInvoke-FGRiskScoring`}
           </pre>
           <p className="text-amber-600 dark:text-amber-400 text-xs mt-3">
-            Scores are persisted as columns on GraphUsers and GraphGroups. The UI reads them directly.
+            Scores are persisted as columns on Principals and Resources. The UI reads them directly.
           </p>
         </div>
       </div>

@@ -131,7 +131,7 @@ try {
     $stats = Invoke-LocalApi -Path '/admin/dashboard-stats'
     $ok = $stats.assignments -ge 1400000
     Write-Result 'LoadTest/AssignmentCount' $ok "assignments=$($stats.assignments) (expected >=1,400,000)"
-    Write-Result 'LoadTest/UserCount' ($stats.users -ge 75000) "users=$($stats.users)"
+    Write-Result 'LoadTest/UserCount' ($stats.principals -ge 75000) "principals=$($stats.principals)"
     Write-Result 'LoadTest/ResourceCount' ($stats.resources -ge 75000) "resources=$($stats.resources)"
     Write-Result 'LoadTest/SystemCount' ($stats.systems -ge 20) "systems=$($stats.systems)"
 } catch {

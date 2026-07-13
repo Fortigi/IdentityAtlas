@@ -99,15 +99,15 @@ Write-Host "Baseline:  $BaselineFile" -ForegroundColor Gray
 # ─── 1. Environment inventory ────────────────────────────────────
 Write-Host "`n[1/6] Environment inventory..." -ForegroundColor Cyan
 $stats = Invoke-Api -Path '/admin/dashboard-stats'
-Write-Host "  Users:                  $($stats.users)" -ForegroundColor Gray
+Write-Host "  Users:                  $($stats.principals)" -ForegroundColor Gray
 Write-Host "  Resources:              $($stats.resources)" -ForegroundColor Gray
 Write-Host "  Business roles:         $($stats.businessRoles)" -ForegroundColor Gray
 Write-Host "  Assignments:            $($stats.assignments)" -ForegroundColor Gray
 Write-Host "  Governed assignments:   $($stats.governedAssignments)" -ForegroundColor Gray
 Write-Host "  Systems:                $($stats.systems)" -ForegroundColor Gray
 
-if (($stats.users -as [int]) -lt 15) {
-    throw "Not enough data for benchmark: only $($stats.users) users loaded."
+if (($stats.principals -as [int]) -lt 15) {
+    throw "Not enough data for benchmark: only $($stats.principals) users loaded."
 }
 
 # ─── 2. Ensure Benchmark tag + 15 tagged users ──────────────────
@@ -286,7 +286,7 @@ $md = New-Object System.Text.StringBuilder
 [void]$md.AppendLine("| Contexts / OrgUnits | $($stats.contexts) |")
 [void]$md.AppendLine("| Resources (all) | $($stats.resources) |")
 [void]$md.AppendLine("| Business roles | $($stats.businessRoles) |")
-[void]$md.AppendLine("| Principals (users) | $($stats.users) |")
+[void]$md.AppendLine("| Principals (users) | $($stats.principals) |")
 [void]$md.AppendLine("| ResourceAssignments | $($stats.assignments) |")
 [void]$md.AppendLine("| Governed assignments | $($stats.governedAssignments) |")
 [void]$md.AppendLine("| ResourceRelationships | $($stats.relationships) |")
