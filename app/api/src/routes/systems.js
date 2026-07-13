@@ -5,7 +5,12 @@ import { requirePermission } from '../middleware/auth.js';
 const router = Router();
 const useSql = process.env.USE_SQL === 'true';
 const writeSystems = requirePermission('admin.systems');
-const UUID_RE = /^[0-9a-f-]{36}$/i;
+// Systems.id is SERIAL (integer) in the v5 schema; a SystemOwners.userId /
+// Principals.id is a UUID. Validate each param against its real type — the
+// former code checked BOTH against a UUID regex, so every real (integer) system
+// id was rejected with 400 before any SQL ran.
+const isSystemId = (v) => /^[0-9]+$/.test(v);
+const isUserId = (v) => /^[0-9a-f-]{36}$/i.test(v);
 
 let db = null;
 if (useSql) {
@@ -71,7 +76,7 @@ router.get('/systems', async (req, res) => {
 // ─── GET /api/systems/:id ───────────────────────────────────────
 // Get single system with details
 router.get('/systems/:id', async (req, res) => {
-  if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'Invalid ID format' });
+  if (!isSystemId(req.params.id)) return res.status(400).json({ error: 'Invalid ID format' });
   try {
     if (!useSql) return res.json(null);
     const p = await db.getPool();
@@ -107,7 +112,7 @@ router.get('/systems/:id', async (req, res) => {
 // ─── PUT /api/systems/:id ───────────────────────────────────────
 // Update system (displayName, description, enabled only)
 router.put('/systems/:id', writeSystems, async (req, res) => {
-  if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'Invalid ID format' });
+  if (!isSystemId(req.params.id)) return res.status(400).json({ error: 'Invalid ID format' });
   try {
     if (!useSql) return res.status(400).json({ error: 'SQL mode required' });
     const { displayName, description, enabled } = req.body;
@@ -125,7 +130,9 @@ router.put('/systems/:id', writeSystems, async (req, res) => {
     }
     if (enabled !== undefined) {
       sets.push('"enabled" = @enabled');
-      request.input('enabled', enabled ? 1 : 0);
+      // Systems.enabled is BOOLEAN — bind a real boolean, not a 1/0 int (which
+      // postgres rejects as a type mismatch against a boolean column).
+      request.input('enabled', !!enabled);
     }
     if (sets.length === 0) return res.status(400).json({ error: 'Nothing to update' });
 
@@ -144,7 +151,7 @@ router.put('/systems/:id', writeSystems, async (req, res) => {
 
 // ─── GET /api/systems/:id/owners ────────────────────────────────
 router.get('/systems/:id/owners', async (req, res) => {
-  if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'Invalid ID format' });
+  if (!isSystemId(req.params.id)) return res.status(400).json({ error: 'Invalid ID format' });
   try {
     if (!useSql) return res.json([]);
     const p = await db.getPool();
@@ -166,27 +173,30 @@ router.get('/systems/:id/owners', async (req, res) => {
 
 // ─── POST /api/systems/:id/owners ───────────────────────────────
 router.post('/systems/:id/owners', writeSystems, async (req, res) => {
-  if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'Invalid ID format' });
+  if (!isSystemId(req.params.id)) return res.status(400).json({ error: 'Invalid ID format' });
   try {
     if (!useSql) return res.status(400).json({ error: 'SQL mode required' });
     const { userId } = req.body;
-    if (!userId || !UUID_RE.test(userId)) return res.status(400).json({ error: 'Valid userId required' });
+    if (!userId || !isUserId(userId)) return res.status(400).json({ error: 'Valid userId required' });
 
-    const assignedBy = req.user?.preferred_username || 'system';
     const p = await db.getPool();
+    // SystemOwners is (systemId, userId) with a composite PK — it has no
+    // role/assignedDateTime/assignedBy columns (the INSERT here used to name
+    // three columns the v5 schema never had, so every add threw).
     const result = await timedRequest(p, 'system-owner-add', res)
       .input('systemId', req.params.id)
       .input('userId', userId)
-      .input('role', 'Owner')
-      .input('assignedBy', assignedBy)
       .query(`
-        INSERT INTO "SystemOwners" ("systemId", "userId", role, assignedDateTime, assignedBy)
-              VALUES (@systemId, @userId, @role, (now() AT TIME ZONE 'utc'), @assignedBy)
+        INSERT INTO "SystemOwners" ("systemId", "userId")
+              VALUES (@systemId, @userId)
               RETURNING *
       `);
     return res.status(201).json(result.recordset[0]);
   } catch (err) {
-    if (err.message?.includes('UNIQUE') || err.message?.includes('PRIMARY')) {
+    // 23505 = postgres unique_violation (duplicate PK). The old check looked for
+    // the SQL-Server strings 'UNIQUE'/'PRIMARY', which postgres never emits, so a
+    // duplicate owner fell through to a 500 instead of a 409.
+    if (err.code === '23505') {
       return res.status(409).json({ error: 'This user is already an owner of this system' });
     }
     console.error('POST /systems/:id/owners failed:', err.message);
@@ -196,8 +206,8 @@ router.post('/systems/:id/owners', writeSystems, async (req, res) => {
 
 // ─── DELETE /api/systems/:id/owners/:userId ─────────────────────
 router.delete('/systems/:id/owners/:userId', writeSystems, async (req, res) => {
-  if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'Invalid system ID format' });
-  if (!UUID_RE.test(req.params.userId)) return res.status(400).json({ error: 'Invalid user ID format' });
+  if (!isSystemId(req.params.id)) return res.status(400).json({ error: 'Invalid system ID format' });
+  if (!isUserId(req.params.userId)) return res.status(400).json({ error: 'Invalid user ID format' });
   try {
     if (!useSql) return res.status(400).json({ error: 'SQL mode required' });
     const p = await db.getPool();
