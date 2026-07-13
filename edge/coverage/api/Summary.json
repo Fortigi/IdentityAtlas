@@ -1,27 +1,27 @@
 {
   "summary": {
-    "generatedon": "2026-07-13T06:43:27Z",
+    "generatedon": "2026-07-13T06:49:36Z",
     "parser": "MultiReport (2x LCov)",
     "assemblies": 1,
     "classes": 156,
     "files": 156,
-    "coveredlines": 7096,
-    "uncoveredlines": 1963,
-    "coverablelines": 9059,
-    "totallines": 26459,
+    "coveredlines": 7091,
+    "uncoveredlines": 1959,
+    "coverablelines": 9050,
+    "totallines": 26446,
     "linecoverage": 78.3,
-    "coveredbranches": 4640,
-    "totalbranches": 6920,
+    "coveredbranches": 4639,
+    "totalbranches": 6916,
     "branchcoverage": 67,
-    "coveredmethods": 987,
-    "fullcoveredmethods": 797,
-    "totalmethods": 1266,
+    "coveredmethods": 986,
+    "fullcoveredmethods": 798,
+    "totalmethods": 1265,
     "methodcoverage": 77.9,
-    "fullmethodcoverage": 62.9
+    "fullmethodcoverage": 63
  },
   "coverage": {
     "assemblies": [
-      { "name": "Default", "classes": 156, "coverage": 78.3, "coveredlines": 7096, "coverablelines": 9059, "totallines": 26459, "branchcoverage": 67, "coveredbranches": 4640, "totalbranches": 6920, "methodcoverage": 77.9, "fullmethodcoverage": 62.9, "coveredmethods": 987, "fullcoveredmethods": 797, "totalmethods": 1266, "classesinassembly": [
+      { "name": "Default", "classes": 156, "coverage": 78.3, "coveredlines": 7091, "coverablelines": 9050, "totallines": 26446, "branchcoverage": 67, "coveredbranches": 4639, "totalbranches": 6916, "methodcoverage": 77.9, "fullmethodcoverage": 63, "coveredmethods": 986, "fullcoveredmethods": 798, "totalmethods": 1265, "classesinassembly": [
         { "name": "src/accountlinking/classifier.js", "coverage": 98.2, "coveredlines": 57, "coverablelines": 58, "totallines": 130, "branchcoverage": 82.2, "coveredbranches": 74, "totalbranches": 90, "methodcoverage": 100, "fullmethodcoverage": 90, "coveredmethods": 10, "fullcoveredmethods": 9, "totalmethods": 10 },
         { "name": "src/accountlinking/defaultRules.js", "coverage": 100, "coveredlines": 1, "coverablelines": 1, "totallines": 22, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": null, "fullmethodcoverage": null, "coveredmethods": 0, "fullcoveredmethods": 0, "totalmethods": 0 },
         { "name": "src/accountlinking/engine.js", "coverage": 84.6, "coveredlines": 110, "coverablelines": 130, "totallines": 315, "branchcoverage": 60.7, "coveredbranches": 68, "totalbranches": 112, "methodcoverage": 69.5, "fullmethodcoverage": 82.6, "coveredmethods": 16, "fullcoveredmethods": 19, "totalmethods": 23 },
@@ -164,7 +164,7 @@
         { "name": "src/routes/systems.js", "coverage": 44.5, "coveredlines": 37, "coverablelines": 83, "totallines": 212, "branchcoverage": 34.6, "coveredbranches": 18, "totalbranches": 52, "methodcoverage": 100, "fullmethodcoverage": 0, "coveredmethods": 6, "fullcoveredmethods": 0, "totalmethods": 6 },
         { "name": "src/routes/tags.js", "coverage": 100, "coveredlines": 3, "coverablelines": 3, "totallines": 22, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": null, "fullmethodcoverage": null, "coveredmethods": 0, "fullcoveredmethods": 0, "totalmethods": 0 },
         { "name": "src/routes/tags/crud.js", "coverage": 100, "coveredlines": 142, "coverablelines": 142, "totallines": 297, "branchcoverage": 82.7, "coveredbranches": 96, "totalbranches": 116, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 13, "fullcoveredmethods": 13, "totalmethods": 13 },
-        { "name": "src/routes/tags/entities.js", "coverage": 93.4, "coveredlines": 143, "coverablelines": 153, "totallines": 356, "branchcoverage": 88.6, "coveredbranches": 78, "totalbranches": 88, "methodcoverage": 100, "fullmethodcoverage": 72.2, "coveredmethods": 18, "fullcoveredmethods": 13, "totalmethods": 18 },
+        { "name": "src/routes/tags/entities.js", "coverage": 95.8, "coveredlines": 138, "coverablelines": 144, "totallines": 343, "branchcoverage": 91.6, "coveredbranches": 77, "totalbranches": 84, "methodcoverage": 100, "fullmethodcoverage": 82.3, "coveredmethods": 17, "fullcoveredmethods": 14, "totalmethods": 17 },
         { "name": "src/routes/tags/shared.js", "coverage": 100, "coveredlines": 26, "coverablelines": 26, "totallines": 55, "branchcoverage": 100, "coveredbranches": 13, "totalbranches": 13, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 2, "fullcoveredmethods": 2, "totalmethods": 2 },
         { "name": "src/routes/updates.js", "coverage": 80, "coveredlines": 48, "coverablelines": 60, "totallines": 192, "branchcoverage": 76, "coveredbranches": 35, "totalbranches": 46, "methodcoverage": 100, "fullmethodcoverage": 14.2, "coveredmethods": 7, "fullcoveredmethods": 1, "totalmethods": 7 },
         { "name": "src/scheduler.js", "coverage": 51.2, "coveredlines": 40, "coverablelines": 78, "totallines": 289, "branchcoverage": 63.3, "coveredbranches": 45, "totalbranches": 71, "methodcoverage": 36.3, "fullmethodcoverage": 27.2, "coveredmethods": 4, "fullcoveredmethods": 3, "totalmethods": 11 },
