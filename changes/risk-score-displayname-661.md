@@ -1,0 +1,1 @@
+- Fixed the single-entity risk score view always showing a blank name — the endpoint's entity-name lookup used an invalid query that silently failed, so `displayName` came back empty for every user, group, resource, context, and identity. The entity's name is now returned correctly.

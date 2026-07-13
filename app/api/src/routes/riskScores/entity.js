@@ -127,9 +127,14 @@ router.get('/risk-scores/:type/:id', async (req, res) => {
     const tableName = entityTableMap[entityType];
     if (tableName) {
       try {
+        // tableName comes from the fixed entityTableMap allow-list above, so
+        // interpolating it (double-quoted, as Postgres requires) is injection-
+        // safe. The previous form interpolated the literal string "tableName"
+        // and used SQL-Server [bracket] quoting, so this always threw against
+        // Postgres and displayName was silently null for every entity.
         const ent = await timedRequest(p, 'risk-score-entity-name', res)
           .input('id', id)
-          .query(`SELECT "displayName" FROM [${"tableName"}] WHERE id = @id AND ${TEMPORAL_FILTER}`);
+          .query(`SELECT "displayName" FROM "${tableName}" WHERE id = @id AND ${TEMPORAL_FILTER}`);
         displayName = ent.recordset[0]?.displayName || null;
       } catch { /* entity table may not exist */ }
     }

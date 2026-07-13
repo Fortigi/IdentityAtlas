@@ -16,12 +16,14 @@ process.env.USE_SQL = 'true';
 // is the table-check returning a present table.
 let tableExists = true;
 const queryScript = []; // FIFO of { match?: RegExp, recordset } applied to .query() calls (excluding the table check)
+const capturedSql = []; // every SQL string handed to .query(), so tests can assert the emitted SQL
 
 vi.mock('../perf/sqlTimer.js', () => ({
   timedRequest: (_p, label) => ({
     _inputs: {},
     input(name, value) { this._inputs[name] = value; return this; },
     async query(sql) {
+      capturedSql.push(sql);
       if (/to_regclass/.test(sql)) {
         return { recordset: [{ tbl: tableExists ? 'public.RiskScores' : null }] };
       }
@@ -50,6 +52,7 @@ const VALID = '11111111-1111-1111-1111-111111111111';
 beforeEach(() => {
   tableExists = true;
   queryScript.length = 0;
+  capturedSql.length = 0;
   queryRiskScoresPage.mockClear();
 });
 
@@ -108,6 +111,23 @@ describe('GET /risk-scores/:type/:id', () => {
     expect(res.status).toBe(200);
     expect(res.body.displayName).toBe('Bob');
     expect(res.body.effectiveScore).toBe(70);
+    // Regression guard (#661): the entity-name lookup must query the real
+    // mapped table with Postgres identifier quoting — not the literal string
+    // "tableName" in SQL-Server [brackets], which threw and nulled displayName.
+    const entitySql = capturedSql.find(s => s.includes('SELECT "displayName" FROM'));
+    expect(entitySql).toContain('FROM "Principals"');
+    expect(entitySql).not.toContain('[tableName]');
+    expect(entitySql).not.toContain('[Principals]');
+  });
+
+  it('200 — maps a Resource (group) to the Resources table for the name lookup', async () => {
+    queryScript.push([{ id: 'g', entityType: 'Resource', riskScore: 40, riskOverride: null }]); // single score
+    queryScript.push([{ displayName: 'Finance Group' }]);                                        // entity name
+    const res = await request(app).get(`/api/risk-scores/groups/${VALID}`);
+    expect(res.status).toBe(200);
+    expect(res.body.displayName).toBe('Finance Group');
+    const entitySql = capturedSql.find(s => s.includes('SELECT "displayName" FROM'));
+    expect(entitySql).toContain('FROM "Resources"');
   });
 
   it('404 when no score row exists', async () => {
