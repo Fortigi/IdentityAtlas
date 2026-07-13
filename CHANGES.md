@@ -1,5 +1,11 @@
 ## Changes in this PR
 
+- Renamed the **Users** navigation tab (and its page title) to **Principals (Users)** — it lists every account type (users, service principals, managed identities, AI agents, guests), not just people; the "(Users)" hint keeps it recognisable for end users.
+- Relabelled the Dashboard's "Users" count and data-model graph node to "Principals" (they always counted the whole Principals table).
+- Corrected the Risk Scoring page's data-source note to reference the current `Principals` and `Resources` tables (it previously named the removed `GraphUsers` / `GraphGroups` tables).
+
+## Changes in this PR
+
 - Reduced code duplication in the category API endpoints — the two category-list reads and the assign/unassign handlers now share their setup logic. No change to behaviour or responses.
 
 ## Changes in this PR
