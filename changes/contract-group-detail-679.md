@@ -1,0 +1,3 @@
+- Fixed the group/resource detail page: tags assigned to a group now appear (they were silently hidden by a case-mismatch in the lookup).
+- Fixed the member count on the group detail page, which always showed 0.
+- Added contract tests (against a real PostgreSQL schema) pinning the group detail, members, access-packages and history endpoints.

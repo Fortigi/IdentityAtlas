@@ -49,25 +49,20 @@ router.get('/group/:id', async (req, res) => {
         SELECT t.id, t.name, t.color
         FROM "GraphTagAssignments" ta
         JOIN "GraphTags" t ON ta."tagId" = t.id
-        WHERE ta."entityId" = @id AND t."entityType" IN ('resource', 'group')
+        WHERE ta."entityId" = UPPER(@id) AND t."entityType" IN ('resource', 'group')
       `);
       tags = r.recordset;
     } catch (e) { if (!isMissingSchema(e)) throw e; /* table may not exist */ }
 
-    // 3. Counts only (fast) — try resourceId first, fall back to groupId
+    // 3. Member count (fast). The permission view keys members by "principalId"
+    //    (there is no "memberId"/"groupId" column — the old query named both and
+    //    always errored into the isMissingSchema catch, so the count read 0).
     let memberCount = 0;
     try {
       const table = await getPermissionTable(pool);
-      let r;
-      try {
-        r = await timedRequest(pool, 'group-member-count', res)
-          .input('id', groupId)
-          .query(`SELECT COUNT(DISTINCT "memberId") AS cnt FROM ${table} WHERE "resourceId" = @id`);
-      } catch {
-        r = await timedRequest(pool, 'group-member-count-legacy', res)
-          .input('id', groupId)
-          .query(`SELECT COUNT(DISTINCT "memberId") AS cnt FROM ${table} WHERE "groupId" = @id`);
-      }
+      const r = await timedRequest(pool, 'group-member-count', res)
+        .input('id', groupId)
+        .query(`SELECT COUNT(DISTINCT "principalId")::int AS cnt FROM ${table} WHERE "resourceId" = @id`);
       memberCount = r.recordset[0].cnt;
     } catch (e) { if (!isMissingSchema(e)) throw e; /* view may not exist */ }
 
@@ -76,7 +71,7 @@ router.get('/group/:id', async (req, res) => {
       const r = await timedRequest(pool, 'group-ap-count', res)
         .input('id', groupId)
         .query(`
-        SELECT COUNT(DISTINCT rrs."parentResourceId") AS cnt
+        SELECT COUNT(DISTINCT rrs."parentResourceId")::int AS cnt
         FROM "ResourceRelationships" rrs
         WHERE UPPER(rrs."childResourceId"::text) = UPPER(@id)
           AND rrs."relationshipType" = 'Contains'
