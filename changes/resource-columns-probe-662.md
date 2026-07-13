@@ -1,1 +1,0 @@
-- Removed a broken leftover SQL Server query (`SELECT TOP 0 * FROM Resources`) that the resource/group column-discovery endpoint ran on every request — it always errored on PostgreSQL and was silently swallowed. The endpoint now reads the Resources table directly, dropping the dead legacy-table fallback that went with it.

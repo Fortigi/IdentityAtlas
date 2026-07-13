@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Removed a broken leftover SQL Server query (`SELECT TOP 0 * FROM Resources`) that the resource/group column-discovery endpoint ran on every request — it always errored on PostgreSQL and was silently swallowed. The endpoint now reads the Resources table directly, dropping the dead legacy-table fallback that went with it.
+
+## Changes in this PR
+
 - Fixed the single-entity risk score view always showing a blank name — the endpoint's entity-name lookup used an invalid query that silently failed, so `displayName` came back empty for every user, group, resource, context, and identity. The entity's name is now returned correctly.
 
 ## Changes in this PR
