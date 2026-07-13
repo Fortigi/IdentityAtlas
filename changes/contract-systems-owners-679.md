@@ -1,4 +1,0 @@
-- Fixed the System detail and System Owners endpoints, which returned an error for every real system because they validated the system id as a GUID even though system ids are numbers.
-- Fixed adding, listing and removing system owners: adding an owner failed against the database, and a duplicate owner now reports a clear "already an owner" message instead of a generic error.
-- Fixed toggling a system's Enabled flag.
-- Added contract tests (against a real PostgreSQL schema) that pin these endpoints so the query bugs can't silently return.
