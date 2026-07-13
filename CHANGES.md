@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Fixed the system owners list (Admin → Systems) returning no owners — it queried the removed `GraphUsers` table instead of the current `Principals` table.
+
+## Changes in this PR
+
 - Renamed the **Users** navigation tab (and its page title) to **Principals (Users)** — it lists every account type (users, service principals, managed identities, AI agents, guests), not just people; the "(Users)" hint keeps it recognisable for end users.
 - Relabelled the Dashboard's "Users" count and data-model graph node to "Principals" (they always counted the whole Principals table).
 - Corrected the Risk Scoring page's data-source note to reference the current `Principals` and `Resources` tables (it previously named the removed `GraphUsers` / `GraphGroups` tables).

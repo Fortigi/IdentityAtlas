@@ -1,1 +1,0 @@
-- Fixed the system owners list (Admin → Systems) returning no owners — it queried the removed `GraphUsers` table instead of the current `Principals` table.
