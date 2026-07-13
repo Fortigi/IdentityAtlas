@@ -379,6 +379,7 @@ router.get('/permissions', async (req, res) => {
           ${groupTagJoin}
           WHERE (p."principalType" IS NULL OR p."principalType" != '#microsoft.graph.group')
             AND ${userIdClause}
+            ${filterWhere}
             ${groupFilterWhere}
             ${ctxPrincipalWhere}
             ${ctxResourceWhere}
