@@ -42,16 +42,19 @@ Describe 'Read-CsvFile' {
         Read-CsvFile 'DoesNotExist.csv' | Should -BeNullOrEmpty
     }
 
-    It 'parses a delimited file into PSCustomObject rows' {
+    It 'parses a delimited file into PSCustomObject rows, stripping surrounding quotes' {
         Set-Content -Path (Join-Path $TestDrive 'Slow.csv') -Value @(
             'ExternalId;DisplayName'
             'u1;Alice'
-            'u2;Bob'
+            '"u2";"Bob"'
         ) -Encoding utf8
         $rows = Read-CsvFile 'Slow.csv'
         $rows.Count | Should -Be 2
         $rows[0].ExternalId | Should -Be 'u1'
         $rows[0].DisplayName | Should -Be 'Alice'
+        # Slow-path quote stripping (Read-CsvDataRows) — the fast path had this
+        # covered, the slow path did not (surfaced by a broad mutation run).
+        $rows[1].ExternalId  | Should -Be 'u2'
         $rows[1].DisplayName | Should -Be 'Bob'
     }
 }
