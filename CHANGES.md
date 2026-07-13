@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Fixed the single-entity risk score view always showing a blank name — the endpoint's entity-name lookup used an invalid query that silently failed, so `displayName` came back empty for every user, group, resource, context, and identity. The entity's name is now returned correctly.
+
+## Changes in this PR
+
 - Fixed Matrix group expansion ignoring the resource-type filter: expanding a group while the matrix is filtered to a single resource type (e.g. Groups) now only reveals nested resources of that type, instead of also surfacing AppRoles, directory roles, and other types you filtered out.
 - Changing the matrix filter now clears any expanded nesting, so nested rows always reflect the current filter.
 
