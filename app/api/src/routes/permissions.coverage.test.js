@@ -63,6 +63,19 @@ vi.mock('../effectiveAccess/engine.js', () => ({
   effectiveAccessForNodes: (...a) => effectiveAccessForNodes(...a),
 }));
 
+// matrix/shared.js turns a matrix filter into resource-scope SQL — its own
+// suite covers that. Here we stub it so the nested-groups POST path receives a
+// deterministic resource subquery and we can assert the nesting query embeds it.
+// parseFilter stays trivially truthy/null so the "filter present?" branch works.
+const buildSubqueriesMock = vi.fn(async () => ({
+  resourceSql: '(SELECT id FROM "Resources" WHERE "resourceType"::text IN (@rf_a_inc_0_0))',
+  bindings: { rf_a_inc_0_0: 'Group' },
+}));
+vi.mock('./matrix/shared.js', () => ({
+  parseFilter: (body) => (body && body.filter ? body.filter : null),
+  buildSubqueries: (...a) => buildSubqueriesMock(...a),
+}));
+
 const { default: router } = await import('./permissions.js');
 const app = mountRouter(router);
 
@@ -83,6 +96,7 @@ beforeEach(() => {
   });
   expandCapabilityDown.mockReset().mockResolvedValue(null);
   effectiveAccessForNodes.mockReset().mockResolvedValue({ rows: [] });
+  buildSubqueriesMock.mockClear();
 });
 
 // ─── GET /api/permissions ──────────────────────────────────────────────────
@@ -304,5 +318,52 @@ describe('GET /api/group/:groupId/nested-groups', () => {
     const res = await request(app).get('/api/group/abc/nested-groups');
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ groups: [], memberships: [] });
+  });
+
+  it('GET applies no resource clause (no matrix filter in a GET body)', async () => {
+    expandCapabilityDown.mockResolvedValue(null);
+    timedQuery.mockResolvedValueOnce(rs([])).mockResolvedValueOnce(rs([]));
+    const res = await request(app).get('/api/group/abc/nested-groups');
+    expect(res.status).toBe(200);
+    expect(buildSubqueriesMock).not.toHaveBeenCalled();
+    expect(timedQuery.mock.calls[0][0]).not.toContain('IN (SELECT id FROM "Resources"');
+  });
+});
+
+// ─── POST /api/group/:groupId/nested-groups (matrix filter forwarded) ──────
+describe('POST /api/group/:groupId/nested-groups', () => {
+  it('constrains nested resources (groups + members) to the matrix resource filter', async () => {
+    expandCapabilityDown.mockResolvedValue(null);
+    timedQuery
+      .mockResolvedValueOnce(rs([{ groupId: 'p1', resourceId: 'p1', resourceType: 'Group' }])) // groups
+      .mockResolvedValueOnce(rs([{ resourceId: 'p1', memberId: 'u1', membershipType: 'Direct' }])); // members
+    const res = await request(app)
+      .post('/api/group/abc/nested-groups')
+      .send({ filter: { resource: { include: [{ kind: 'attribute', field: 'resourceType', values: ['Group'] }] } } });
+    expect(res.status).toBe(200);
+    expect(buildSubqueriesMock).toHaveBeenCalledTimes(1);
+    // Both the resource-list and the member-subquery must carry the IN (subquery).
+    expect(timedQuery.mock.calls[0][0]).toContain('ra."resourceId" IN (SELECT id FROM "Resources"');
+    expect(timedQuery.mock.calls[1][0]).toContain('ra2."resourceId" IN (SELECT id FROM "Resources"');
+    expect(res.body.groups).toHaveLength(1);
+    expect(res.body.memberships).toHaveLength(1);
+  });
+
+  it('applies no resource clause when the POST body carries no filter', async () => {
+    expandCapabilityDown.mockResolvedValue(null);
+    timedQuery.mockResolvedValueOnce(rs([])).mockResolvedValueOnce(rs([]));
+    const res = await request(app).post('/api/group/abc/nested-groups').send({});
+    expect(res.status).toBe(200);
+    expect(buildSubqueriesMock).not.toHaveBeenCalled();
+    expect(timedQuery.mock.calls[0][0]).not.toContain('IN (SELECT id FROM "Resources"');
+  });
+
+  it('still returns containment expansion for a scope node (filter ignored on that path)', async () => {
+    expandCapabilityDown.mockResolvedValue({ groups: [{ groupId: 'sg1' }], memberships: [] });
+    const res = await request(app)
+      .post('/api/group/abc/nested-groups')
+      .send({ filter: { resource: { include: [] } } });
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ groups: [{ groupId: 'sg1' }], memberships: [] });
   });
 });

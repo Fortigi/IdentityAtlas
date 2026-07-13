@@ -9,8 +9,24 @@ import { Router } from 'express';
 import { timedRequest } from '../../perf/sqlTimer.js';
 import { expandCapabilityDown } from '../../effectiveAccess/engine.js';
 import { useSql, db } from './shared.js';
+import { parseFilter, buildSubqueries } from '../matrix/shared.js';
 
 const router = Router();
+
+// Turn an optional matrix filter (in the request body) into the resource-scope
+// SQL fragment + bindings the nesting queries constrain nested resources by.
+// This is the SAME `filter.resource` block /matrix/data applies to the
+// top-level grid (via buildSubqueries → buildEntitySubquery), so an expanded
+// group only reveals nested resources of the types the matrix is filtered to —
+// e.g. filtering to Groups no longer leaks AppRoles into the nesting.
+// Returns { resourceSql: null, bindings: {} } when no filter is supplied (a
+// plain GET), preserving the original "return every nested resource" behaviour.
+async function resourceScopeFromBody(body) {
+  const filter = parseFilter(body);
+  if (!filter) return { resourceSql: null, bindings: {} };
+  const built = await buildSubqueries(filter);
+  return { resourceSql: built.resourceSql, bindings: built.bindings };
+}
 
 // GET /api/groups-with-nested - group IDs that are assigned to other resources
 // (parent groups, app roles, etc.) so their members gain indirect access.
@@ -50,12 +66,16 @@ router.get('/groups-with-nested', async (req, res) => {
   }
 });
 
-// GET /api/group/:groupId/nested-groups - the resources this group is a member
-// of (parent groups, app roles, etc.) plus user memberships for those resources.
-// Used by the matrix expand fanout: opening a group row reveals every resource
-// its members inherit access to, with the same per-cell membership badges as
-// the root matrix.
-router.get('/group/:groupId/nested-groups', async (req, res) => {
+// GET/POST /api/group/:groupId/nested-groups - the resources this group is a
+// member of (parent groups, app roles, etc.) plus user memberships for those
+// resources. Used by the matrix expand fanout: opening a group row reveals
+// every resource its members inherit access to, with the same per-cell
+// membership badges as the root matrix.
+//
+// POST carries the active matrix filter in the body (`{ filter }`) so the
+// nesting honours the same resource-type scope as the grid; the legacy GET
+// (no body) returns every nested resource, unchanged.
+async function nestedGroupsHandler(req, res) {
   try {
     if (!useSql) return res.json({ groups: [], memberships: [] });
 
@@ -67,12 +87,20 @@ router.get('/group/:groupId/nested-groups', async (req, res) => {
 
     const p = await db.getPool();
 
+    // Constrain nested resources to the matrix's resource-type filter (if any),
+    // reusing the exact subquery /matrix/data builds for the top-level grid.
+    const { resourceSql, bindings } = await resourceScopeFromBody(req.body);
+    const groupsResClause   = resourceSql ? `AND ra."resourceId" IN ${resourceSql}`  : '';
+    const membersResClause  = resourceSql ? `AND ra2."resourceId" IN ${resourceSql}` : '';
+
     const request = timedRequest(p, 'nested-groups-data', res);
     request.input('childGroupId', req.params.groupId);
+    for (const [k, v] of Object.entries(bindings)) request.input(k, v);
 
     // Any resource where this group is the principal. We deliberately do NOT
     // filter by assignmentType so future group-as-principal types
-    // (AppRole, directory roles, etc.) flow through automatically.
+    // (AppRole, directory roles, etc.) flow through automatically — but we DO
+    // honour the matrix's resource-type filter so the nesting matches the grid.
     const groupsResult = await request.query(`
       SELECT DISTINCT
         ra."resourceId" AS "groupId",
@@ -85,10 +113,12 @@ router.get('/group/:groupId/nested-groups', async (req, res) => {
         LEFT JOIN "Resources" r ON ra."resourceId" = r.id
        WHERE ra."principalId"::text = @childGroupId
          AND ra."principalType" ILIKE '%group%'
+         ${groupsResClause}
     `);
 
     const membersRequest = timedRequest(p, 'nested-groups-members', res);
     membersRequest.input('childGroupId', req.params.groupId);
+    for (const [k, v] of Object.entries(bindings)) membersRequest.input(k, v);
     const membersResult = await membersRequest.query(`
       SELECT
         p."resourceId",
@@ -101,6 +131,7 @@ router.get('/group/:groupId/nested-groups', async (req, res) => {
            FROM "ResourceAssignments" ra2
           WHERE ra2."principalId"::text = @childGroupId
             AND ra2."principalType" ILIKE '%group%'
+            ${membersResClause}
        )
        AND (p."principalType" IS NULL OR p."principalType" != '#microsoft.graph.group')
     `);
@@ -113,6 +144,9 @@ router.get('/group/:groupId/nested-groups', async (req, res) => {
     console.error('nested-groups query failed:', err.message);
     return res.json({ groups: [], memberships: [] });
   }
-});
+}
+
+router.get('/group/:groupId/nested-groups', nestedGroupsHandler);
+router.post('/group/:groupId/nested-groups', nestedGroupsHandler);
 
 export default router;

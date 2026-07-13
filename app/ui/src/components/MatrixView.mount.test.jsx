@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from 'vitest';
 import { createElement as h } from 'react';
+import { render as rtlRender } from '@testing-library/react';
 import MatrixView from './MatrixView';
 import {
-  renderWithProviders, makeAuthFetch, jsonResponse,
+  renderWithProviders, makeAuthFetch, makeWrapper, jsonResponse,
   screen, userEvent, waitFor,
 } from '@ui/test-utils/renderWithProviders';
 
@@ -201,5 +202,55 @@ describe('MatrixView (mounted)', () => {
     const groupTagMap = new Map([['RES-1', [{ name: 'pii', color: '#abc' }]]]);
     renderView({ groupTagMap });
     await expectRowVisible('Finance App');
+  });
+
+  it('forwards the active resource filter to the nested-groups fetch on Expand All', async () => {
+    // A resource-type-scoped matrix: expanding must POST that scope so the
+    // backend constrains nested resources to it (regression: #674).
+    const filter = {
+      ...baseFilter,
+      resource: { include: [{ kind: 'attribute', field: 'resourceType', values: ['Group'] }] },
+    };
+    const { authFetch } = renderView({ filter });
+    const user = userEvent.setup();
+    // Wait for the mount-time groups-with-nested fetch so Expand All renders.
+    await waitFor(() => expect(authFetch).toHaveBeenCalledWith('/api/groups-with-nested'));
+    await user.click(await screen.findByText('Expand All'));
+    await waitFor(() =>
+      expect(authFetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/group/res-1/nested-groups'),
+        expect.objectContaining({
+          method: 'POST',
+          body: expect.stringContaining('resourceType'),
+        }),
+      ),
+    );
+  });
+
+  it('clears expanded nesting when the matrix filter changes (#674)', async () => {
+    // Nested data is scoped to the resource filter, so a filter change must drop
+    // any expansion (else stale nested rows from the old scope would linger).
+    // Render through makeWrapper so rerender preserves the same component
+    // instance (and its expand state) across the prop change.
+    const authFetch = makeFetch();
+    const { wrapper } = makeWrapper({ auth: { authFetch } });
+    const el = (filter) => h(MatrixView, {
+      data: makeData(), accessPackageGroups: [], managedByPackages: [],
+      filter, counts, managedFilter: 'all', setManagedFilter: vi.fn(),
+      refreshing: false, shareUrl: 'https://example.test/matrix',
+      onOpenDetail: vi.fn(), onAdjustFilter: vi.fn(), hasData: true,
+    });
+    const user = userEvent.setup();
+    const { rerender } = rtlRender(el(baseFilter), { wrapper });
+    await waitFor(() => expect(authFetch).toHaveBeenCalledWith('/api/groups-with-nested'));
+    await user.click(await screen.findByText('Expand All'));
+    // Collapse All only renders while something is expanded.
+    await screen.findByText('Collapse All');
+    // Change the filter → render-time reset collapses the nesting.
+    rerender(el({
+      ...baseFilter,
+      resource: { include: [{ kind: 'attribute', field: 'resourceType', values: ['Group'] }] },
+    }));
+    await waitFor(() => expect(screen.queryByText('Collapse All')).not.toBeInTheDocument());
   });
 });
