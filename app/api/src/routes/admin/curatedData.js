@@ -129,7 +129,7 @@ router.get('/admin/export/curated', exportBulk, async (req, res) => {
              AND ta."entityId" ~* '^[0-9a-f-]{36}$'
              AND r.id = ta."entityId"::uuid`;
 
-      const tagRows = await pool.request().query(`
+      const tagRows = await db.query(`
         SELECT t.id, t.name, t.color, t."entityType",
                ta."entityId",
                COALESCE(gu."displayName", r."displayName") AS "entityDisplayName",
@@ -143,7 +143,7 @@ router.get('/admin/export/curated', exportBulk, async (req, res) => {
 
       // Group into tag objects
       const byId = new Map();
-      for (const row of tagRows.recordset) {
+      for (const row of tagRows.rows) {
         const key = String(row.id);
         if (!byId.has(key)) {
           byId.set(key, { name: row.name, color: row.color, entityType: row.entityType, assignments: [] });
@@ -162,7 +162,7 @@ router.get('/admin/export/curated', exportBulk, async (req, res) => {
     // ── Categories + AP assignments ───────────────────────────────
     let categories = [];
     if (await tableExists(pool, 'GovernanceCategories')) {
-      const catRows = await pool.request().query(`
+      const catRows = await db.query(`
         SELECT c.id, c.name, c.color, ca."resourceId", ap."displayName" AS "businessRoleDisplayName"
         FROM "GovernanceCategories" c
         LEFT JOIN "GovernanceCategoryAssignments" ca ON ca."categoryId" = c.id
@@ -173,7 +173,7 @@ router.get('/admin/export/curated', exportBulk, async (req, res) => {
       `);
 
       const byCatId = new Map();
-      for (const row of catRows.recordset) {
+      for (const row of catRows.rows) {
         const key = String(row.id);
         if (!byCatId.has(key)) {
           byCatId.set(key, { name: row.name, color: row.color, assignments: [] });
@@ -251,10 +251,11 @@ router.post('/admin/import/curated', writeCsv, async (req, res) => {
       let exists = false;
       try {
         const tbl = entityType === 'user' ? 'Principals' : 'Resources';
-        const r = await pool.request()
-          .input('id', entityId)
-          .query(`SELECT COUNT(*) AS n FROM "${tbl}" WHERE UPPER((id)::text) = UPPER(@id)`);
-        exists = r.recordset[0].n > 0;
+        const r = await db.query(
+          `SELECT COUNT(*) AS n FROM "${tbl}" WHERE UPPER((id)::text) = UPPER($1)`,
+          [entityId],
+        );
+        exists = r.rows[0].n > 0;
       } catch { /* table might not exist */ }
 
       if (exists) return { id: entityId.toUpperCase(), softMatched: false };
@@ -264,25 +265,27 @@ router.post('/admin/import/curated', writeCsv, async (req, res) => {
       try {
         if (entityType === 'user') {
           const tbl = 'Principals';
-          const r = await pool.request()
-            .input('displayName', displayName)
-            .query(`SELECT UPPER((id)::text) AS id FROM "${tbl}"
-                    WHERE "displayName" = @displayName`);
-          if (r.recordset.length > 0) return { id: r.recordset[0].id, softMatched: true };
+          const r = await db.query(
+            `SELECT UPPER((id)::text) AS id FROM "${tbl}"
+                    WHERE "displayName" = $1`,
+            [displayName],
+          );
+          if (r.rows.length > 0) return { id: r.rows[0].id, softMatched: true };
         } else {
           // group / resource — match on displayName + resourceType if available
           const tbl = 'Resources';
-          let req2 = pool.request().input('displayName', displayName);
+          const params = [displayName];
           let rtClause = '';
           if (resourceType) {
-            req2 = req2.input('resourceType', resourceType);
-            rtClause = 'AND "resourceType" = @resourceType';
+            params.push(resourceType);
+            rtClause = 'AND "resourceType" = $2';
           }
-          const r = await req2.query(
+          const r = await db.query(
             `SELECT UPPER((id)::text) AS id FROM "${tbl}"
-             WHERE "displayName" = @displayName ${rtClause}`
+             WHERE "displayName" = $1 ${rtClause}`,
+            params,
           );
-          if (r.recordset.length > 0) return { id: r.recordset[0].id, softMatched: true };
+          if (r.rows.length > 0) return { id: r.rows[0].id, softMatched: true };
         }
       } catch { /* ignore */ }
 
