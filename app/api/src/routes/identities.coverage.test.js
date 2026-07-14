@@ -32,8 +32,17 @@ vi.mock('../db/connection.js', () => ({
   query: vi.fn().mockResolvedValue({ rows: [] }),
 }));
 
+// timedQuery (native #663 path, used by detail.js) routes to the same mockReq
+// staging, normalising so a handler reading .rows gets the staged array whether
+// the test staged .recordset (shim) or .rows.
 vi.mock('../perf/sqlTimer.js', () => ({
   timedRequest: (_pool, _label, _res) => mockReq,
+  timedQuery: async (_pool, _label, _res, text, params) => {
+    const r = await mockReq.query(text, params);
+    if (r == null) return r;
+    const arr = r.rows ?? r.recordset ?? [];
+    return { ...r, rows: arr, recordset: arr };
+  },
   getQueryTimings: () => [],
 }));
 

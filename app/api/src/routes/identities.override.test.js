@@ -32,6 +32,14 @@ vi.mock('../db/connection.js', () => ({
 
 vi.mock('../perf/sqlTimer.js', () => ({
   timedRequest: (_pool, _label, _res) => mockReq,
+  // Native #663 path (account-matrix in detail.js) — forward to the same mockReq
+  // staging so query-order + SQL assertions still hold; normalise .recordset→.rows.
+  timedQuery: async (_pool, _label, _res, text, params) => {
+    const r = await mockReq.query(text, params);
+    if (r == null) return r;
+    const arr = r.rows ?? r.recordset ?? [];
+    return { ...r, rows: arr, recordset: arr };
+  },
   getQueryTimings: () => [],
 }));
 
