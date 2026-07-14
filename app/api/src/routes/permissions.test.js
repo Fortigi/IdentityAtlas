@@ -8,9 +8,15 @@ import { mountRouter } from '../../test-utils/routeTestKit.js';
 
 process.env.USE_SQL = 'true';
 
-const timedQuery = vi.fn();
+const stageQuery = vi.fn();
 vi.mock('../perf/sqlTimer.js', () => ({
-  timedRequest: () => ({ input() { return this; }, query: (sql) => timedQuery(sql) }),
+  timedRequest: () => ({ input() { return this; }, query: (sql) => stageQuery(sql) }),
+  timedQuery: async (_p, _l, _r, text, params) => {
+    const r = await stageQuery(text, params);
+    if (r == null) return r;
+    const arr = r.rows ?? r.recordset ?? [];
+    return { ...r, rows: arr, recordset: arr };
+  },
   getQueryTimings: () => [],
 }));
 vi.mock('../db/connection.js', () => ({ getPool: async () => ({}), query: vi.fn() }));
@@ -27,7 +33,7 @@ vi.mock('../effectiveAccess/engine.js', () => ({ expandCapabilityDown: vi.fn(), 
 const { default: router } = await import('./permissions.js');
 const app = mountRouter(router);
 
-beforeEach(() => timedQuery.mockReset());
+beforeEach(() => stageQuery.mockReset());
 
 const apRow = (over) => ({
   accessPackageId: 'ap1', businessRoleId: 'ap1', accessPackageName: 'AP One',
@@ -37,7 +43,7 @@ const apRow = (over) => ({
 
 describe('GET /access-package-groups', () => {
   it('flattens grouped resources into (ap, resource) rows', async () => {
-    timedQuery.mockResolvedValueOnce({ recordset: [apRow({
+    stageQuery.mockResolvedValueOnce({ recordset: [apRow({
       resources: [{ resourceId: 'r1', groupId: 'r1', resourceName: 'Eng', groupName: 'Eng', resourceType: 'Group', systemId: 1, roleName: null }],
     })] });
     const res = await request(app).get('/api/access-package-groups');
@@ -47,7 +53,7 @@ describe('GET /access-package-groups', () => {
   });
 
   it('emits a single null-resource row for an AP with no resources', async () => {
-    timedQuery.mockResolvedValueOnce({ recordset: [apRow({ accessPackageId: 'ap2', resources: [] })] });
+    stageQuery.mockResolvedValueOnce({ recordset: [apRow({ accessPackageId: 'ap2', resources: [] })] });
     const res = await request(app).get('/api/access-package-groups');
     expect(res.status).toBe(200);
     expect(res.body).toHaveLength(1);
