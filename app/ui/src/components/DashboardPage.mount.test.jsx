@@ -56,6 +56,13 @@ describe('DashboardPage (mounted)', () => {
     expect(screen.getByText('v5.3.20260419.1430')).toBeInTheDocument();
   });
 
+  it('links the marketing website from the Resources card', async () => {
+    renderWithProviders(h(DashboardPage), { auth: { authFetch: routes() } });
+    const link = await screen.findByRole('link', { name: /Website/i });
+    expect(link).toHaveAttribute('href', 'https://identityatlas.io');
+    expect(link).toHaveAttribute('target', '_blank');
+  });
+
   it('navigates when a populated stat card is clicked', async () => {
     const onNavigate = vi.fn();
     renderWithProviders(h(DashboardPage, { onNavigate }), { auth: { authFetch: routes() } });

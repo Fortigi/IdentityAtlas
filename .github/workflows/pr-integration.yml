@@ -265,14 +265,21 @@ jobs:
 
       - name: Wait for API ready
         run: |
-          for i in $(seq 1 60); do
-            if curl -sf http://localhost:3001/api/admin/status > /dev/null 2>&1; then
-              echo "API ready after $((i*2))s"
+          # #691 opens the port BEFORE running DB migrations, so a 200 on a
+          # liveness endpoint no longer means the schema exists. Wait for the
+          # real readiness signal — /api/health → schemaReady:true, which flips
+          # once migrateDatabase() completes — before hitting schema-dependent
+          # endpoints (and before reading the worker key that bootstrapWorker
+          # creates after the schema is ready); otherwise they race the
+          # background migration and 500 / come back empty.
+          for i in $(seq 1 90); do
+            if curl -sf http://localhost:3001/api/health 2>/dev/null | grep -q '"schemaReady":true'; then
+              echo "schema ready after $((i*2))s"
               exit 0
             fi
             sleep 2
           done
-          echo "::error::API did not become ready within 120s"
+          echo "::error::schema did not become ready within 180s"
           docker compose -f docker-compose.ci.yml logs web
           exit 1
 
@@ -739,9 +746,10 @@ jobs:
 
       - name: Wait for API ready
         run: |
-          for i in $(seq 1 60); do
-            if curl -sf http://localhost:3001/api/admin/status > /dev/null 2>&1; then
-              echo "API ready after $((i*2))s"
+          # Wait for schemaReady, not just the open port — see the note above.
+          for i in $(seq 1 90); do
+            if curl -sf http://localhost:3001/api/health 2>/dev/null | grep -q '"schemaReady":true'; then
+              echo "schema ready after $((i*2))s"
               break
             fi
             sleep 2
@@ -850,14 +858,21 @@ jobs:
 
       - name: Wait for API ready
         run: |
-          for i in $(seq 1 60); do
-            if curl -sf http://localhost:3001/api/admin/status > /dev/null 2>&1; then
-              echo "API ready after $((i*2))s"
+          # #691 opens the port BEFORE running DB migrations, so a 200 on a
+          # liveness endpoint no longer means the schema exists. Wait for the
+          # real readiness signal — /api/health → schemaReady:true, which flips
+          # once migrateDatabase() completes — before hitting schema-dependent
+          # endpoints (and before reading the worker key that bootstrapWorker
+          # creates after the schema is ready); otherwise they race the
+          # background migration and 500 / come back empty.
+          for i in $(seq 1 90); do
+            if curl -sf http://localhost:3001/api/health 2>/dev/null | grep -q '"schemaReady":true'; then
+              echo "schema ready after $((i*2))s"
               exit 0
             fi
             sleep 2
           done
-          echo "::error::API did not become ready within 120s"
+          echo "::error::schema did not become ready within 180s"
           docker compose -f docker-compose.ci.yml logs web
           exit 1
 
