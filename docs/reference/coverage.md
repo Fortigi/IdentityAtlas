@@ -6,7 +6,7 @@ Test quality across the project's automated suites — line/branch/method covera
 
 | Suite | Line | Branch | Method | Cyclomatic | Cognitive | Mutation | Lines covered |
 |-------|------|--------|--------|------------|-----------|----------|---------------|
-| [API (Node / Vitest — unit + contract)](../coverage/api/index.html) | 82.2% | 70.1% | 82.6% | 4.5 / 46 | 3.3 / 99 | — | 7,445 / 9,048 |
+| [API (Node / Vitest — unit + contract)](../coverage/api/index.html) | 82.4% | 70.2% | 82.8% | 4.5 / 46 | 3.2 / 99 | — | 7,478 / 9,071 |
 | [UI (React / Vitest)](../coverage/ui/index.html) | 69.9% | 57.3% | 56.1% | 3.1 / 52 | 1.5 / 109 | — | 4,978 / 7,118 |
 | [PowerShell (Pester)](../coverage/powershell/index.html) | 91.4% | — | 96.9% | 4.2 / 50 | 5.0 / 95 | 84.7% | 5,431 / 5,938 |
 
@@ -20,4 +20,4 @@ Each suite links to a full per-file, line-by-line HTML report:
 - [UI (React / Vitest)](../coverage/ui/index.html)
 - [PowerShell (Pester)](../coverage/powershell/index.html)
 
-_Generated 2026-07-14 09:37 UTC from commit `6c732321`._
+_Generated 2026-07-14 09:53 UTC from commit `2fc65e5f`._
