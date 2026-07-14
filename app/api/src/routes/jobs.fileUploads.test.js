@@ -24,8 +24,18 @@ process.env.USE_SQL = 'true'; // jobs.js captures this at module-load time too
 const { mockPool, mockDbQuery, mockInput } = vi.hoisted(() => {
   const mockDbQuery = vi.fn();
   const mockInput = vi.fn().mockReturnThis();
-  const mockRequest = { input: mockInput, query: mockDbQuery };
-  const mockPool = { request: vi.fn(() => mockRequest) };
+  // Normalise to dual-shape so the migrated helpers (pool.query → .rows) and the
+  // still-shimmed runs.js (pool.request().query → .recordset) both read the
+  // staged rows off the one mockDbQuery spy during the #663 migration.
+  const run = async (...a) => {
+    const r = await mockDbQuery(...a);
+    if (r == null) return r;
+    const rows = r.rows ?? r.recordset ?? [];
+    const rowCount = r.rowCount ?? r.rowsAffected?.[0] ?? rows.length;
+    return { ...r, rows, recordset: rows, rowCount, rowsAffected: [rowCount] };
+  };
+  const mockRequest = { input: mockInput, query: (...a) => run(...a) };
+  const mockPool = { request: vi.fn(() => mockRequest), query: (...a) => run(...a) };
   return { mockPool, mockDbQuery, mockInput };
 });
 
