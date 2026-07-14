@@ -6,7 +6,7 @@
 
 import { Router } from 'express';
 import * as db from '../../db/connection.js';
-import { timedRequest } from '../../perf/sqlTimer.js';
+import { timedQuery } from '../../perf/sqlTimer.js';
 import { isMissingSchema } from '../../db/schemaErrors.js';
 import { useSql, UUID_RE, cleanRow, getPermissionTable, fetchHistory, countHistory } from './shared.js';
 
@@ -24,14 +24,13 @@ router.get('/group/:id', async (req, res) => {
     const groupId = req.params.id;
 
     // 1. Current attributes from the Resources table (v5).
-    const groupResult = await timedRequest(pool, 'group-attributes', res)
-      .input('id', groupId)
-      .query(`SELECT * FROM "Resources" WHERE id = @id`);
+    const groupResult = await timedQuery(pool, 'group-attributes', res,
+      `SELECT * FROM "Resources" WHERE id = $1`, [groupId]);
 
-    if (groupResult.recordset.length === 0) {
+    if (groupResult.rows.length === 0) {
       return res.status(404).json({ error: 'Group not found' });
     }
-    const attributes = cleanRow(groupResult.recordset[0]);
+    const attributes = cleanRow(groupResult.rows[0]);
 
     // Parse extendedAttributes if present (Resources model)
     if (attributes.extendedAttributes) {
@@ -43,15 +42,13 @@ router.get('/group/:id', async (req, res) => {
     // 2. Tags (support both 'resource' and 'group' entity types)
     let tags = [];
     try {
-      const r = await timedRequest(pool, 'group-tags', res)
-        .input('id', groupId)
-        .query(`
+      const r = await timedQuery(pool, 'group-tags', res, `
         SELECT t.id, t.name, t.color
         FROM "GraphTagAssignments" ta
         JOIN "GraphTags" t ON ta."tagId" = t.id
-        WHERE ta."entityId" = UPPER(@id) AND t."entityType" IN ('resource', 'group')
-      `);
-      tags = r.recordset;
+        WHERE ta."entityId" = UPPER($1) AND t."entityType" IN ('resource', 'group')
+      `, [groupId]);
+      tags = r.rows;
     } catch (e) { if (!isMissingSchema(e)) throw e; /* table may not exist */ }
 
     // 3. Member count (fast). The permission view keys members by "principalId"
@@ -60,23 +57,20 @@ router.get('/group/:id', async (req, res) => {
     let memberCount = 0;
     try {
       const table = await getPermissionTable(pool);
-      const r = await timedRequest(pool, 'group-member-count', res)
-        .input('id', groupId)
-        .query(`SELECT COUNT(DISTINCT "principalId")::int AS cnt FROM ${table} WHERE "resourceId" = @id`);
-      memberCount = r.recordset[0].cnt;
+      const r = await timedQuery(pool, 'group-member-count', res,
+        `SELECT COUNT(DISTINCT "principalId")::int AS cnt FROM ${table} WHERE "resourceId" = $1`, [groupId]);
+      memberCount = r.rows[0].cnt;
     } catch (e) { if (!isMissingSchema(e)) throw e; /* view may not exist */ }
 
     let accessPackageCount = 0;
     try {
-      const r = await timedRequest(pool, 'group-ap-count', res)
-        .input('id', groupId)
-        .query(`
+      const r = await timedQuery(pool, 'group-ap-count', res, `
         SELECT COUNT(DISTINCT rrs."parentResourceId")::int AS cnt
         FROM "ResourceRelationships" rrs
-        WHERE UPPER(rrs."childResourceId"::text) = UPPER(@id)
+        WHERE UPPER(rrs."childResourceId"::text) = UPPER($1)
           AND rrs."relationshipType" = 'Contains'
-      `);
-      accessPackageCount = r.recordset[0].cnt;
+      `, [groupId]);
+      accessPackageCount = r.rows[0].cnt;
     } catch (e) { if (!isMissingSchema(e)) throw e; /* table may not exist */ }
 
     let historyCount = 0;
@@ -103,9 +97,7 @@ router.get('/group/:id/members', async (req, res) => {
     // (Previously selected memberId/memberDisplayName/memberUPN, which don't exist
     // on the v5 matview, so this endpoint always 500'd — masked by the legacy
     // fallback, which referenced an equally-absent "groupId" column.)
-    const r = await timedRequest(pool, 'group-members', res)
-      .input('id', req.params.id)
-      .query(`
+    const r = await timedQuery(pool, 'group-members', res, `
         SELECT p."principalId"     AS "memberId",
                pr."displayName"    AS "memberDisplayName",
                pr.email            AS "memberUPN",
@@ -113,10 +105,10 @@ router.get('/group/:id/members', async (req, res) => {
                p."managedByAccessPackage"
           FROM ${table} p
           JOIN "Principals" pr ON pr.id = p."principalId"
-         WHERE p."resourceId" = @id
+         WHERE p."resourceId" = $1
          ORDER BY pr."displayName", p."membershipType"
-      `);
-    res.json(r.recordset);
+      `, [req.params.id]);
+    res.json(r.rows);
   } catch (err) {
     console.error('Error fetching group members:', err.message);
     res.status(500).json({ error: 'Failed to fetch members' });
@@ -131,20 +123,18 @@ router.get('/group/:id/access-packages', async (req, res) => {
   if (!useSql) return res.json([]);
   try {
     const pool = await db.getPool();
-    const r = await timedRequest(pool, 'group-access-packages', res)
-      .input('id', req.params.id)
-      .query(`
+    const r = await timedQuery(pool, 'group-access-packages', res, `
       SELECT DISTINCT
         rrs."parentResourceId" AS "resourceId",
         ap."displayName" AS "accessPackageName",
         rrs."roleName"
       FROM "ResourceRelationships" rrs
       LEFT JOIN "Resources" ap ON rrs."parentResourceId" = ap.id AND ap."resourceType" = 'BusinessRole'
-      WHERE UPPER(rrs."childResourceId"::text) = UPPER(@id)
+      WHERE UPPER(rrs."childResourceId"::text) = UPPER($1)
         AND rrs."relationshipType" = 'Contains'
       ORDER BY ap."displayName"
-    `);
-    res.json(r.recordset);
+    `, [req.params.id]);
+    res.json(r.rows);
   } catch (err) {
     console.error('Error fetching group access packages:', err.message);
     res.status(500).json({ error: 'Failed to fetch access packages' });
