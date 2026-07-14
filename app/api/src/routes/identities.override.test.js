@@ -122,9 +122,10 @@ describe('PUT /identities/:id/members/:userId/override', () => {
       .put(`/identities/${VALID_ID}/members/${VALID_ID2}/override`)
       .send({ action: 'confirmed' });
 
-    const querySql = mockReq.query.mock.calls[0][0];
-    expect(querySql).toMatch(/"principalId"\s*=\s*@userId/);
+    const [querySql, params] = mockReq.query.mock.calls[0];
+    expect(querySql).toMatch(/"principalId"\s*=\s*\$2/);
     expect(querySql).not.toMatch(/"userId"\s*=/);
+    expect(params[1]).toBe(VALID_ID2); // the userId value is bound to the principalId placeholder
   });
 });
 
@@ -148,7 +149,8 @@ describe('DELETE /identities/:id/members/:userId/override', () => {
     await request(app)
       .delete(`/identities/${VALID_ID}/members/${VALID_ID2}/override`);
 
-    const querySql = mockReq.query.mock.calls[0][0];
-    expect(querySql).toMatch(/"principalId"\s*=\s*@userId/);
+    const [querySql, params] = mockReq.query.mock.calls[0];
+    expect(querySql).toMatch(/"principalId"\s*=\s*\$2/);
+    expect(params[1]).toBe(VALID_ID2);
   });
 });
