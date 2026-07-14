@@ -15,14 +15,11 @@ process.env.USE_SQL = 'true';
 
 const captured = [];
 
-vi.mock('../perf/sqlTimer.js', () => ({ timedRequest: (p) => p.request() }));
+vi.mock('../perf/sqlTimer.js', () => ({
+  timedQuery: async (_p, _l, _r, sql) => { captured.push(sql); return { rows: [] }; },
+}));
 vi.mock('../db/connection.js', () => ({
-  getPool: async () => ({
-    request: () => ({
-      input() { return this; },
-      async query(sql) { captured.push(sql); return { recordset: [] }; },
-    }),
-  }),
+  getPool: async () => ({ query: async (sql) => { captured.push(sql); return { rows: [] }; } }),
   query: async () => ({ rows: [] }),
   queryOne: async () => null,
 }));

@@ -21,12 +21,11 @@ const UPLOAD_ROOT_DIR = mkdtempSync(join(tmpdir(), 'iatest-jobs-uploads-'));
 process.env.UPLOAD_ROOT = UPLOAD_ROOT_DIR;
 process.env.USE_SQL = 'true'; // jobs.js captures this at module-load time too
 
-const { mockPool, mockDbQuery, mockInput } = vi.hoisted(() => {
+const { mockPool, mockDbQuery } = vi.hoisted(() => {
   const mockDbQuery = vi.fn();
-  const mockInput = vi.fn().mockReturnThis();
-  // Normalise to dual-shape so the migrated helpers (pool.query → .rows) and the
-  // still-shimmed runs.js (pool.request().query → .recordset) both read the
-  // staged rows off the one mockDbQuery spy during the #663 migration.
+  // Normalise staged results so a handler reading pool.query → .rows gets the
+  // rows whether the test staged .rows or (legacy) .recordset — one mockDbQuery
+  // spy backs the whole native jobs surface (#663).
   const run = async (...a) => {
     const r = await mockDbQuery(...a);
     if (r == null) return r;
@@ -34,9 +33,8 @@ const { mockPool, mockDbQuery, mockInput } = vi.hoisted(() => {
     const rowCount = r.rowCount ?? r.rowsAffected?.[0] ?? rows.length;
     return { ...r, rows, recordset: rows, rowCount, rowsAffected: [rowCount] };
   };
-  const mockRequest = { input: mockInput, query: (...a) => run(...a) };
-  const mockPool = { request: vi.fn(() => mockRequest), query: (...a) => run(...a) };
-  return { mockPool, mockDbQuery, mockInput };
+  const mockPool = { query: (...a) => run(...a) };
+  return { mockPool, mockDbQuery };
 });
 
 vi.mock('../db/connection.js', () => ({ getPool: async () => mockPool }));
@@ -64,7 +62,6 @@ function storedConfig() {
 
 beforeEach(() => {
   mockDbQuery.mockClear();
-  mockInput.mockClear();
 });
 
 afterAll(() => {

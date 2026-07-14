@@ -55,10 +55,9 @@ vi.mock('jsonwebtoken', () => ({
 
 // Never touch a real Postgres. Deny happens before the handler; allow may query.
 vi.mock('../db/connection.js', () => {
-  const empty = { rows: [], rowCount: 0, recordset: [] };
-  // Some handlers use the legacy mssql-style pool shim (pool.request().input().query()).
-  const request = () => ({ input() { return this; }, query: async () => empty });
-  const pool = { query: async () => empty, request };
+  const empty = { rows: [], rowCount: 0 };
+  // Native pg pool double — handlers query through pool.query / db.query (#663).
+  const pool = { query: async () => empty };
   return {
     query: async () => empty,
     queryOne: async () => null,

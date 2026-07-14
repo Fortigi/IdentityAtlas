@@ -2,6 +2,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { buildEntitySubquery, collectContextIds } from './filterSql.js';
+import { createParams } from '../db/sqlParams.js';
 
 const PRINCIPAL_COLS = new Set(['displayName', 'department', 'jobTitle', 'email']);
 const CTX_PRINCIPAL  = 'a0000001-0000-0000-0000-000000000001';
@@ -12,15 +13,19 @@ const CONTEXT_TYPES  = new Map([
 ]);
 
 // Convenience: run buildEntitySubquery for Principals with given conditions.
+// Renders through a fresh positional binder and returns the accumulated
+// `params` alongside the result so tests can assert on the bound values.
 function buildPrincipal(include = [], exclude = []) {
-  return buildEntitySubquery({
+  const { params, bind } = createParams();
+  const out = buildEntitySubquery({
     entity: 'Principal',
     include,
     exclude,
     validColumns: PRINCIPAL_COLS,
     contextTypes: CONTEXT_TYPES,
-    bindingPrefix: 'sf',
+    bind,
   });
+  return { ...out, params };
 }
 
 describe('buildEntitySubquery', () => {
@@ -39,7 +44,7 @@ describe('buildEntitySubquery', () => {
     const out = buildPrincipal([{ kind: 'attribute', field: 'department', values: ['Finance'] }]);
     expect(out.sql).toMatch(/SELECT id FROM "Principals"/);
     expect(out.sql).toMatch(/"department"::text IN/);
-    expect(Object.values(out.bindings)).toContain('Finance');
+    expect(out.params).toContain('Finance');
   });
 
   it('generates a NOT IN clause for an attribute exclude', () => {
@@ -49,8 +54,7 @@ describe('buildEntitySubquery', () => {
 
   it('ORs multiple values in a single attribute condition', () => {
     const out = buildPrincipal([{ kind: 'attribute', field: 'department', values: ['Finance', 'IT', 'HR'] }]);
-    const bindingCount = Object.keys(out.bindings).length;
-    expect(bindingCount).toBe(3);
+    expect(out.params).toHaveLength(3);
     expect(out.sql).toMatch(/"department"::text IN/);
   });
 

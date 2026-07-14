@@ -61,7 +61,7 @@ function asofSurrogateCte(name, table, tableName) {
       SELECT h."rowId", h."prevData",
              ROW_NUMBER() OVER (PARTITION BY h."rowId" ORDER BY h."changedAt" ASC) AS rn
         FROM "_history" h
-       WHERE h."tableName" = '${tableName}' AND h."changedAt" > @asof
+       WHERE h."tableName" = '${tableName}' AND h."changedAt" > :ASOF:
     ) x
      WHERE x.rn = 1 AND x."prevData" IS NOT NULL
     UNION ALL
@@ -70,7 +70,7 @@ function asofSurrogateCte(name, table, tableName) {
      WHERE NOT EXISTS (
        SELECT 1 FROM "_history" h
         WHERE h."tableName" = '${tableName}' AND h."rowId" = t.id::text
-          AND h."changedAt" > @asof)
+          AND h."changedAt" > :ASOF:)
   )`;
 }
 
@@ -84,7 +84,7 @@ function asofAssignmentsCte(name) {
           SELECT h."prevData",
                  ROW_NUMBER() OVER (PARTITION BY h."rowId" ORDER BY h."changedAt" ASC) AS rn
             FROM "_history" h
-           WHERE h."tableName" = 'ResourceAssignments' AND h."changedAt" > @asof
+           WHERE h."tableName" = 'ResourceAssignments' AND h."changedAt" > :ASOF:
         ) x
          WHERE x.rn = 1 AND x."prevData" IS NOT NULL
       ) hist
@@ -95,7 +95,7 @@ function asofAssignmentsCte(name) {
        SELECT 1 FROM "_history" h
         WHERE h."tableName" = 'ResourceAssignments'
           AND h."rowId" = ra."resourceId"::text || '|' || ra."principalId"::text || '|' || ra."assignmentType"
-          AND h."changedAt" > @asof)
+          AND h."changedAt" > :ASOF:)
   )`;
 }
 
@@ -109,7 +109,7 @@ function asofContainsCte(name) {
           SELECT h."prevData",
                  ROW_NUMBER() OVER (PARTITION BY h."rowId" ORDER BY h."changedAt" ASC) AS rn
             FROM "_history" h
-           WHERE h."tableName" = 'ResourceRelationships' AND h."changedAt" > @asof
+           WHERE h."tableName" = 'ResourceRelationships' AND h."changedAt" > :ASOF:
         ) x
          WHERE x.rn = 1 AND x."prevData" IS NOT NULL
       ) hist
@@ -122,19 +122,19 @@ function asofContainsCte(name) {
          SELECT 1 FROM "_history" h
           WHERE h."tableName" = 'ResourceRelationships'
             AND h."rowId" = rr."parentResourceId"::text || '|' || rr."childResourceId"::text || '|' || rr."relationshipType"
-            AND h."changedAt" > @asof)
+            AND h."changedAt" > :ASOF:)
   )`;
 }
 
 // ── Scope condition clauses (evaluated against an as-of `state` jsonb) ──
 
-function attributeClause(stateAlias, field, values, validColumns, bindings, prefix, slot) {
+function attributeClause(stateAlias, field, values, validColumns, bind) {
   if (typeof field !== 'string') return null;
   if (!Array.isArray(values)) return null;
   const vals = values.filter(v => v != null && v !== '').map(String).slice(0, 200);
   if (vals.length === 0) return null;
 
-  const ph = vals.map((v, i) => { const p = `${prefix}_${slot}_${i}`; bindings[p] = v; return `@${p}`; });
+  const ph = vals.map(v => bind(v));
 
   if (field.startsWith(EXT_PREFIX)) {
     const key = field.slice(EXT_PREFIX.length);
@@ -148,21 +148,21 @@ function attributeClause(stateAlias, field, values, validColumns, bindings, pref
 
 // Context membership — CURRENT membership only (ContextMembers is not audited).
 // Mirrors filterSql.buildContextClause but matches the as-of row id (state->>'id').
-function contextClause({ entity, stateAlias, contextId, includeChildren, ctxType, bindings, prefix, slot }) {
+function contextClause({ entity, stateAlias, contextId, includeChildren, ctxType, bind }) {
   if (!UUID_RE.test(contextId || '')) return null;
   if (!ctxType) return null;
-  const idP = `${prefix}_${slot}_id`; bindings[idP] = contextId;
-  const mtP = `${prefix}_${slot}_mt`; bindings[mtP] = ctxType;
+  const idP = bind(contextId);
+  const mtP = bind(ctxType);
 
   const members = includeChildren
     ? `(WITH RECURSIVE scope AS (
-          SELECT id FROM "Contexts" WHERE id = @${idP}
+          SELECT id FROM "Contexts" WHERE id = ${idP}
           UNION ALL
           SELECT c.id FROM "Contexts" c JOIN scope ON c."parentContextId" = scope.id)
         SELECT "memberId" FROM "ContextMembers"
-         WHERE "memberType" = @${mtP} AND "contextId" IN (SELECT id FROM scope))`
+         WHERE "memberType" = ${mtP} AND "contextId" IN (SELECT id FROM scope))`
     : `(SELECT "memberId" FROM "ContextMembers"
-         WHERE "memberType" = @${mtP} AND "contextId" = @${idP})`;
+         WHERE "memberType" = ${mtP} AND "contextId" = ${idP})`;
 
   const idExpr = `(${stateAlias}->>'id')`;
   if (ctxType === entity) return `${idExpr}::uuid IN ${members}`;
@@ -175,16 +175,15 @@ function contextClause({ entity, stateAlias, contextId, includeChildren, ctxType
 
 // Build the WHERE fragment (include AND, exclude AS NOT TRUE) for one entity
 // block, against the as-of `state` alias. Returns { where, usedContext }.
-function scopeWhere({ entity, stateAlias, block, validColumns, contextTypes, bindings, prefix, warnings }) {
+function scopeWhere({ entity, stateAlias, block, validColumns, contextTypes, bind, warnings }) {
   const inc = [];
   const exc = [];
   let usedContext = false;
 
   const handle = (conds, target) => {
     if (!Array.isArray(conds)) return;
-    conds.forEach((cond, idx) => {
+    conds.forEach((cond) => {
       if (!cond || typeof cond !== 'object') return;
-      const slot = `${target}_${idx}`;
       let clause = null;
       if (cond.kind === 'context') {
         usedContext = true;
@@ -192,11 +191,11 @@ function scopeWhere({ entity, stateAlias, block, validColumns, contextTypes, bin
           entity, stateAlias, contextId: cond.contextId,
           includeChildren: !!cond.includeChildren,
           ctxType: contextTypes.get(cond.contextId),
-          bindings, prefix, slot,
+          bind,
         });
         if (!clause) { warnings.push(`history: context condition dropped (${cond.contextId})`); return; }
       } else if (cond.kind === 'attribute') {
-        clause = attributeClause(stateAlias, cond.field, cond.values, validColumns, bindings, prefix, slot);
+        clause = attributeClause(stateAlias, cond.field, cond.values, validColumns, bind);
         if (!clause) { warnings.push(`history: attribute condition dropped (${cond.field})`); return; }
       } else {
         warnings.push(`history: unknown condition kind ${cond.kind}`);
@@ -213,22 +212,23 @@ function scopeWhere({ entity, stateAlias, block, validColumns, contextTypes, bin
 }
 
 // ── Public: build the per-date reconstruction query ──────────────────
-// Returns { sql, bindings, warnings, scopeMode }. `sql` reconstructs scope
-// metrics for a single instant bound to the `@asof` parameter; run it once per
-// sample date (varying only @asof).
-export function buildScopeAsofSql({ filter, principalColSet, resourceColSet, contextTypes }) {
-  const bindings = {};
+// Returns { sql, warnings, scopeMode }. `sql` reconstructs scope metrics for a
+// single instant; the filter values are bound through `bind` (from
+// createParams), and the as-of instant is left as a `:ASOF:` marker so the
+// caller can bind it per sample date (append it to params and substitute the
+// $N). Run once per sample date, varying only the as-of value.
+export function buildScopeAsofSql({ filter, principalColSet, resourceColSet, contextTypes, bind }) {
   const warnings = [];
   const isIdentity = filter.rowType === 'identity';
 
   // Subject scope — reconstructed alive principals matching subject conditions.
   const subj = scopeWhere({
     entity: 'Principal', stateAlias: 'sp.state', block: filter.subject,
-    validColumns: principalColSet, contextTypes, bindings, prefix: 'h_sf', warnings,
+    validColumns: principalColSet, contextTypes, bind, warnings,
   });
   const res = scopeWhere({
     entity: 'Resource', stateAlias: 'sr.state', block: filter.resource,
-    validColumns: resourceColSet, contextTypes, bindings, prefix: 'h_rf', warnings,
+    validColumns: resourceColSet, contextTypes, bind, warnings,
   });
 
   const principalWhere = [
@@ -294,7 +294,7 @@ export function buildScopeAsofSql({ filter, principalColSet, resourceColSet, con
   `;
 
   const scopeMode = (subj.usedContext || res.usedContext) ? 'context-current' : 'attribute';
-  return { sql, bindings, warnings, scopeMode };
+  return { sql, warnings, scopeMode };
 }
 
 // Earliest reliable reconstruction instant — the first audit event across the

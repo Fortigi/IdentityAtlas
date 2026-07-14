@@ -10,7 +10,6 @@ process.env.USE_SQL = 'true';
 
 const stageQuery = vi.fn();
 vi.mock('../perf/sqlTimer.js', () => ({
-  timedRequest: () => ({ input() { return this; }, query: (sql) => stageQuery(sql) }),
   timedQuery: async (_p, _l, _r, text, params) => {
     const r = await stageQuery(text, params);
     if (r == null) return r;

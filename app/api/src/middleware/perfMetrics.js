@@ -2,7 +2,7 @@
 //
 // When PERF_METRICS_ENABLED=true:
 //   1. Records total request duration
-//   2. Collects per-SQL-query timings (attached by timedRequest in route handlers)
+//   2. Collects per-SQL-query timings (attached by timedQuery in route handlers)
 //   3. Emits Server-Timing HTTP header (visible in browser DevTools → Network)
 //   4. Stores entry in the ring buffer collector
 //

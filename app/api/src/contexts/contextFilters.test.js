@@ -1,23 +1,32 @@
 import { describe, it, expect } from 'vitest';
 import { buildContextFilterSql, parseAndResolveContextFilters } from './contextFilters.js';
+import { createParams } from '../db/sqlParams.js';
 
 const UUID_A = '11111111-1111-1111-1111-111111111111';
 const UUID_B = '22222222-2222-2222-2222-222222222222';
 
+// Render through a fresh positional binder and return the accumulated `params`
+// alongside the clauses so tests can assert on the bound values ($N tokens).
+function build(resolvedFilters) {
+  const { params, bind } = createParams();
+  const out = buildContextFilterSql(resolvedFilters, bind);
+  return { ...out, params };
+}
+
 describe('buildContextFilterSql', () => {
   it('returns empty on empty input', () => {
-    const out = buildContextFilterSql([]);
+    const out = build([]);
     expect(out.principalClauses).toEqual([]);
     expect(out.resourceClauses).toEqual([]);
     expect(out.innerPrincipalClauses).toEqual([]);
     expect(out.innerResourceClauses).toEqual([]);
-    expect(out.bindings).toEqual({});
+    expect(out.params).toEqual([]);
   });
 
   it('emits unaliased inner clauses alongside aliased outer ones for Principal filters', () => {
     // The inner clauses get inlined into the top-N subquery in permissions.js
     // where "principalId" has no alias — no `p.` prefix is allowed.
-    const out = buildContextFilterSql([
+    const out = build([
       { id: UUID_A, includeChildren: false, targetType: 'Principal' },
     ]);
     expect(out.principalClauses[0]).toMatch(/^p\."principalId" IN/);
@@ -27,7 +36,7 @@ describe('buildContextFilterSql', () => {
   });
 
   it('emits unaliased inner resource clause for Resource filters', () => {
-    const out = buildContextFilterSql([
+    const out = build([
       { id: UUID_A, includeChildren: true, targetType: 'Resource' },
     ]);
     expect(out.resourceClauses[0]).toMatch(/^r\.id IN/);
@@ -38,7 +47,7 @@ describe('buildContextFilterSql', () => {
   });
 
   it('does not emit an inner clause for System filters (view has no systemId)', () => {
-    const out = buildContextFilterSql([
+    const out = build([
       { id: UUID_A, includeChildren: false, targetType: 'System' },
     ]);
     expect(out.resourceClauses).toHaveLength(1);
@@ -46,22 +55,20 @@ describe('buildContextFilterSql', () => {
   });
 
   it('generates a principal clause for Identity target', () => {
-    const out = buildContextFilterSql([
+    const out = build([
       { id: UUID_A, includeChildren: false, targetType: 'Identity' },
     ]);
     expect(out.principalClauses).toHaveLength(1);
     expect(out.resourceClauses).toHaveLength(0);
     expect(out.principalClauses[0]).toMatch(/p\."principalId" IN/);
-    expect(out.bindings).toEqual({
-      ctxFilter0Id: UUID_A,
-      ctxFilter0Mem: 'Identity',
-    });
+    // Each filter binds its id then its member-type, in order.
+    expect(out.params).toEqual([UUID_A, 'Identity']);
     // Flat variant — no WITH RECURSIVE
     expect(out.principalClauses[0]).not.toMatch(/WITH RECURSIVE/);
   });
 
   it('generates a recursive CTE when includeChildren=true', () => {
-    const out = buildContextFilterSql([
+    const out = build([
       { id: UUID_A, includeChildren: true, targetType: 'Identity' },
     ]);
     expect(out.principalClauses[0]).toMatch(/WITH RECURSIVE scope/);
@@ -69,7 +76,7 @@ describe('buildContextFilterSql', () => {
   });
 
   it('routes Resource targets to the resource side', () => {
-    const out = buildContextFilterSql([
+    const out = build([
       { id: UUID_A, includeChildren: false, targetType: 'Resource' },
     ]);
     expect(out.principalClauses).toHaveLength(0);
@@ -78,32 +85,34 @@ describe('buildContextFilterSql', () => {
   });
 
   it('routes System targets to r.systemId', () => {
-    const out = buildContextFilterSql([
+    const out = build([
       { id: UUID_A, includeChildren: false, targetType: 'System' },
     ]);
     expect(out.resourceClauses).toHaveLength(1);
     expect(out.resourceClauses[0]).toMatch(/r\."systemId"::text IN/);
   });
 
-  it('issues unique placeholder names per filter', () => {
-    const out = buildContextFilterSql([
+  it('issues unique placeholders per filter', () => {
+    const out = build([
       { id: UUID_A, includeChildren: false, targetType: 'Identity' },
       { id: UUID_B, includeChildren: true,  targetType: 'Resource' },
     ]);
-    expect(out.bindings.ctxFilter0Id).toBe(UUID_A);
-    expect(out.bindings.ctxFilter1Id).toBe(UUID_B);
-    expect(out.principalClauses[0]).toContain('@ctxFilter0Id');
-    expect(out.resourceClauses[0]).toContain('@ctxFilter1Id');
+    // Filter 0 binds id→$1, mem→$2; filter 1 binds id→$3, mem→$4.
+    expect(out.params[0]).toBe(UUID_A);
+    expect(out.params[2]).toBe(UUID_B);
+    expect(out.principalClauses[0]).toContain('$1');
+    expect(out.resourceClauses[0]).toContain('$3');
   });
 
   it('silently drops filters with invalid UUIDs', () => {
-    const out = buildContextFilterSql([
+    const out = build([
       { id: 'not-a-uuid', includeChildren: false, targetType: 'Identity' },
       { id: UUID_A,       includeChildren: false, targetType: 'Identity' },
     ]);
     expect(out.principalClauses).toHaveLength(1);
-    expect(out.bindings.ctxFilter0Id).toBeUndefined();
-    expect(out.bindings.ctxFilter1Id).toBe(UUID_A);
+    // Only the valid filter bound anything — the invalid one was skipped
+    // before it could bind an id or member-type.
+    expect(out.params).toEqual([UUID_A, 'Identity']);
   });
 });
 

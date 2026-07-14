@@ -10,17 +10,11 @@ import { mountRouter } from '../../test-utils/routeTestKit.js';
 
 process.env.USE_SQL = 'true';
 
-// Shim callers still in this router (grid, nested-groups) go through
-// timedRequest; native #663 callers (access-packages, sync-log) go through
-// timedQuery. Both pull the next queued result from stageQuery — timedQuery
-// normalises .recordset → .rows so a handler reading either shape gets the
-// staged rows without the test staging having to change.
+// Every caller in this router now goes through native timedQuery (#663). It
+// pulls the next queued result from stageQuery and normalises .recordset → .rows
+// so staging with the `rs()` helper still feeds a handler that reads either shape.
 const stageQuery = vi.fn();
 vi.mock('../perf/sqlTimer.js', () => ({
-  timedRequest: () => {
-    const self = { input() { return self; }, query: (sql) => stageQuery(sql) };
-    return self;
-  },
   timedQuery: async (_p, _l, _r, text, params) => {
     const r = await stageQuery(text, params);
     if (r == null) return r;
@@ -30,13 +24,19 @@ vi.mock('../perf/sqlTimer.js', () => ({
   getQueryTimings: () => [],
 }));
 
-// db.getPool() → pool whose .request().query() is used for the Principals
-// table-check in /permissions. db.query() is used for context-filter +
-// effective-access paths.
+// db.getPool() → pool whose .query() runs the Principals table-check in
+// /permissions. db.query() is used for context-filter + effective-access paths.
 const dbQuery = vi.fn();
 const poolRequestQuery = vi.fn();
 vi.mock('../db/connection.js', () => ({
-  getPool: async () => ({ request: () => ({ query: (sql) => poolRequestQuery(sql) }) }),
+  getPool: async () => ({
+    query: async (...a) => {
+      const r = await poolRequestQuery(...a);
+      if (r == null) return r;
+      const arr = r.rows ?? r.recordset ?? [];
+      return { ...r, rows: arr, recordset: arr };
+    },
+  }),
   query: (...a) => dbQuery(...a),
   queryOne: vi.fn(),
 }));
@@ -72,13 +72,17 @@ vi.mock('../effectiveAccess/engine.js', () => ({
   effectiveAccessForNodes: (...a) => effectiveAccessForNodes(...a),
 }));
 
-// matrix/shared.js turns a matrix filter into resource-scope SQL — its own
-// suite covers that. Here we stub it so the nested-groups POST path receives a
-// deterministic resource subquery and we can assert the nesting query embeds it.
-// parseFilter stays trivially truthy/null so the "filter present?" branch works.
+// matrix/shared.js turns a matrix filter into a resource-scope render closure —
+// its own suite covers that. Here we stub it so the nested-groups POST path
+// receives a deterministic resource subquery and we can assert the nesting query
+// embeds it. parseFilter stays trivially truthy/null so the "filter present?"
+// branch works. `resource` is a closure (per-query binder) returning `{ sql }`.
 const buildSubqueriesMock = vi.fn(async () => ({
-  resourceSql: '(SELECT id FROM "Resources" WHERE "resourceType"::text IN (@rf_a_inc_0_0))',
-  bindings: { rf_a_inc_0_0: 'Group' },
+  resource: () => ({ sql: '(SELECT id FROM "Resources" WHERE "resourceType"::text IN ($1))' }),
+  subject: () => ({ sql: null }),
+  hasResource: true,
+  hasSubject: false,
+  warnings: [],
 }));
 vi.mock('./matrix/shared.js', () => ({
   parseFilter: (body) => (body && body.filter ? body.filter : null),

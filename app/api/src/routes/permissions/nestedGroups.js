@@ -6,7 +6,8 @@
 // No behaviour change — pure code move.
 
 import { Router } from 'express';
-import { timedRequest } from '../../perf/sqlTimer.js';
+import { timedQuery } from '../../perf/sqlTimer.js';
+import { createParams } from '../../db/sqlParams.js';
 import { expandCapabilityDown } from '../../effectiveAccess/engine.js';
 import { useSql, db } from './shared.js';
 import { parseFilter, buildSubqueries } from '../matrix/shared.js';
@@ -23,9 +24,9 @@ const router = Router();
 // plain GET), preserving the original "return every nested resource" behaviour.
 async function resourceScopeFromBody(body) {
   const filter = parseFilter(body);
-  if (!filter) return { resourceSql: null, bindings: {} };
-  const built = await buildSubqueries(filter);
-  return { resourceSql: built.resourceSql, bindings: built.bindings };
+  if (!filter) return null;
+  // Returns the built object; callers render `built.resource(bind).sql` per query.
+  return await buildSubqueries(filter);
 }
 
 // GET /api/groups-with-nested - group IDs that are assigned to other resources
@@ -43,7 +44,7 @@ router.get('/groups-with-nested', async (req, res) => {
     //     subscription) whose node has propagating Contains children — expands DOWN
     //     the containment tree via the effective-access engine. This is generic:
     //     Azure RM, DevOps, FileShares, SharePoint all qualify with no per-source code.
-    const result = await timedRequest(p, 'groups-with-nested', res).query(`
+    const result = await timedQuery(p, 'groups-with-nested', res, `
       SELECT DISTINCT "principalId"::text AS "groupId"
         FROM "ResourceAssignments"
        WHERE "principalType" ILIKE '%group%'
@@ -58,8 +59,8 @@ router.get('/groups-with-nested', async (req, res) => {
               AND rr."parentResourceId"::text = r."targetNodeId"
               AND COALESCE((rr."extendedAttributes"->>'propagates')::boolean, true) = true
          )
-    `);
-    return res.json({ groupIds: result.recordset.map(r => r.groupId) });
+    `, []);
+    return res.json({ groupIds: result.rows.map(r => r.groupId) });
   } catch (err) {
     console.error('groups-with-nested query failed:', err.message);
     return res.json({ groupIds: [] });
@@ -89,19 +90,18 @@ async function nestedGroupsHandler(req, res) {
 
     // Constrain nested resources to the matrix's resource-type filter (if any),
     // reusing the exact subquery /matrix/data builds for the top-level grid.
-    const { resourceSql, bindings } = await resourceScopeFromBody(req.body);
-    const groupsResClause   = resourceSql ? `AND ra."resourceId" IN ${resourceSql}`  : '';
-    const membersResClause  = resourceSql ? `AND ra2."resourceId" IN ${resourceSql}` : '';
-
-    const request = timedRequest(p, 'nested-groups-data', res);
-    request.input('childGroupId', req.params.groupId);
-    for (const [k, v] of Object.entries(bindings)) request.input(k, v);
+    const built = await resourceScopeFromBody(req.body);
 
     // Any resource where this group is the principal. We deliberately do NOT
     // filter by assignmentType so future group-as-principal types
     // (AppRole, directory roles, etc.) flow through automatically — but we DO
     // honour the matrix's resource-type filter so the nesting matches the grid.
-    const groupsResult = await request.query(`
+    // Each query renders the resource fragment through its own binder.
+    const gp = createParams();
+    const gChildPh = gp.bind(req.params.groupId);
+    const gResourceSql = built ? built.resource(gp.bind).sql : null;
+    const groupsResClause = gResourceSql ? `AND ra."resourceId" IN ${gResourceSql}` : '';
+    const groupsResult = await timedQuery(p, 'nested-groups-data', res, `
       SELECT DISTINCT
         ra."resourceId" AS "groupId",
         ra."resourceId" AS "resourceId",
@@ -111,15 +111,16 @@ async function nestedGroupsHandler(req, res) {
         r."description"
         FROM "ResourceAssignments" ra
         LEFT JOIN "Resources" r ON ra."resourceId" = r.id
-       WHERE ra."principalId"::text = @childGroupId
+       WHERE ra."principalId"::text = ${gChildPh}
          AND ra."principalType" ILIKE '%group%'
          ${groupsResClause}
-    `);
+    `, gp.params);
 
-    const membersRequest = timedRequest(p, 'nested-groups-members', res);
-    membersRequest.input('childGroupId', req.params.groupId);
-    for (const [k, v] of Object.entries(bindings)) membersRequest.input(k, v);
-    const membersResult = await membersRequest.query(`
+    const mp = createParams();
+    const mChildPh = mp.bind(req.params.groupId);
+    const mResourceSql = built ? built.resource(mp.bind).sql : null;
+    const membersResClause = mResourceSql ? `AND ra2."resourceId" IN ${mResourceSql}` : '';
+    const membersResult = await timedQuery(p, 'nested-groups-members', res, `
       SELECT
         p."resourceId",
         p."resourceId" AS "groupId",
@@ -129,16 +130,16 @@ async function nestedGroupsHandler(req, res) {
        WHERE p."resourceId" IN (
          SELECT ra2."resourceId"
            FROM "ResourceAssignments" ra2
-          WHERE ra2."principalId"::text = @childGroupId
+          WHERE ra2."principalId"::text = ${mChildPh}
             AND ra2."principalType" ILIKE '%group%'
             ${membersResClause}
        )
        AND (p."principalType" IS NULL OR p."principalType" != '#microsoft.graph.group')
-    `);
+    `, mp.params);
 
     return res.json({
-      groups: groupsResult.recordset || [],
-      memberships: membersResult.recordset || [],
+      groups: groupsResult.rows || [],
+      memberships: membersResult.rows || [],
     });
   } catch (err) {
     console.error('nested-groups query failed:', err.message);

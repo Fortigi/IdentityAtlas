@@ -27,18 +27,24 @@ const P1 = '33333333-3333-3333-3333-333333333333';
 // One effective-access row: principal P1 has Indirect access on RES via NODE.
 const EFF = [{ nodeId: NODE, resourceId: RES, displayName: 'Key Vault', resourceType: 'vault', membershipType: 'Indirect', capabilityId: 'cap1', principalId: P1 }];
 
-// A `built` scope object with a resource scope and no subject scope.
-const BUILT = { resourceSql: '(SELECT id FROM "Resources" WHERE 1=1)', bindings: {}, subjectSql: null };
+// A `built` scope object with a resource scope and no subject scope. The
+// generators render each fragment through a per-query binder, so `resource` /
+// `subject` are closures returning `{ sql }`; `hasResource` / `hasSubject`
+// gate whether the fragment is queried at all.
+const BUILT = {
+  hasResource: true,
+  hasSubject: false,
+  resource: () => ({ sql: '(SELECT id FROM "Resources" WHERE 1=1)' }),
+  subject: () => ({ sql: null }),
+};
 
-// p.request() chain — scopedNodeIds returns [NODE]; no subject query is made.
+// Native pg pool — scopedNodeIds runs `p.query(sql, params)` → [NODE]; with no
+// subject scope, no principal query is made.
 const makeP = (nodeIds = [NODE]) => ({
-  request: () => ({
-    input() { return this; },
-    query(sql) {
-      if (/FROM "Resources" WHERE id IN/.test(sql)) return Promise.resolve({ recordset: nodeIds.map(id => ({ id })) });
-      return Promise.resolve({ recordset: [] });
-    },
-  }),
+  query(sql) {
+    if (/FROM "Resources" WHERE id IN/.test(sql)) return Promise.resolve({ rows: nodeIds.map(id => ({ id })) });
+    return Promise.resolve({ rows: [] });
+  },
 });
 
 beforeEach(() => {
@@ -64,7 +70,7 @@ describe('buildInheritedFlatRows', () => {
   });
 
   it('returns [] for an unbounded (no resource scope) matrix', async () => {
-    expect(await buildInheritedFlatRows(makeP(), { ...BUILT, resourceSql: null }, 'principal', [])).toEqual([]);
+    expect(await buildInheritedFlatRows(makeP(), { ...BUILT, hasResource: false }, 'principal', [])).toEqual([]);
   });
 
   it('returns [] when the scope contains no nodes', async () => {

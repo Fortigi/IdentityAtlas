@@ -12,8 +12,7 @@ import { mountRouter } from '../../test-utils/routeTestKit.js';
 // useSql is captured at module load — enable it before importing the router.
 process.env.USE_SQL = 'true';
 
-// One staging mock for both the compat shim (timedRequest().input().query()) and
-// the native timedQuery(...) — the #663 migration mixes both across these routes.
+// One staging mock for the native timedQuery(...) — these routes are all pg-native (#663).
 // Normalise the result so a handler reading .rows (native) OR .recordset (shim)
 // gets the staged array either way, so a route can migrate without its tests
 // changing what they stage.
@@ -25,7 +24,6 @@ const runQuery = async (...args) => {
   return { ...r, rows: arr, recordset: arr };
 };
 vi.mock('../perf/sqlTimer.js', () => ({
-  timedRequest: () => ({ input() { return this; }, query: () => runQuery() }),
   timedQuery: (...a) => runQuery(...a),
   getQueryTimings: () => [],
 }));

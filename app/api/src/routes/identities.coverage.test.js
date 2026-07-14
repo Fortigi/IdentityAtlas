@@ -23,20 +23,19 @@ const { mockReq } = vi.hoisted(() => {
   return { mockReq };
 });
 
-// getPool() returns a pool whose .request() yields the chainable mockReq, and
-// whose .request().query() is the same mock — identities.js calls both
-// timedRequest(p,...).query() and p.request().query() directly.
+// getPool() returns a native pool whose .query() forwards to the shared mockReq
+// stage. identities.js is pg-native (#663) — it drives queries through timedQuery
+// and db.query; the pool itself is only handed to timedQuery.
 vi.mock('../db/connection.js', () => ({
-  getPool: vi.fn().mockResolvedValue({ request: () => mockReq }),
+  getPool: vi.fn().mockResolvedValue({ query: (...a) => mockReq.query(...a) }),
   queryOne: vi.fn().mockResolvedValue({ t: 'Identities' }),
   query: vi.fn().mockResolvedValue({ rows: [] }),
 }));
 
-// timedQuery (native #663 path, used by detail.js) routes to the same mockReq
-// staging, normalising so a handler reading .rows gets the staged array whether
-// the test staged .recordset (shim) or .rows.
+// timedQuery (native #663 path) routes to the same mockReq staging, normalising
+// so a handler reading .rows gets the staged array whether the test staged
+// .recordset or .rows.
 vi.mock('../perf/sqlTimer.js', () => ({
-  timedRequest: (_pool, _label, _res) => mockReq,
   timedQuery: async (_pool, _label, _res, text, params) => {
     const r = await mockReq.query(text, params);
     if (r == null) return r;

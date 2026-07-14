@@ -8,7 +8,7 @@ import { mountRouter } from '../../../test-utils/routeTestKit.js';
 process.env.USE_SQL = 'true';
 
 vi.mock('../../db/connection.js', () => ({ getPool: async () => ({}), queryOne: vi.fn() }));
-vi.mock('../../perf/sqlTimer.js', () => ({ timedRequest: () => ({ input() { return this; }, query: async () => ({ recordset: [] }) }) }));
+vi.mock('../../perf/sqlTimer.js', () => ({ timedQuery: async () => ({ rows: [] }) }));
 vi.mock('../../db/matrixHelpers.js', () => ({ buildAssignmentExprs: vi.fn(() => ({})) }));
 vi.mock('../../db/columnCache.js', () => ({ getPrincipalColumns: vi.fn(async () => []), getResourceColumns: vi.fn(async () => []) }));
 vi.mock('../../matrix/scopeHistory.js', () => ({ generateSampleDates: vi.fn(() => []), buildScopeAsofSql: vi.fn(), historyStartSql: vi.fn() }));

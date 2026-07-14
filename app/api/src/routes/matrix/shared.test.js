@@ -4,7 +4,7 @@
 import { describe, it, expect, vi } from 'vitest';
 
 vi.mock('../../db/connection.js', () => ({ query: vi.fn(), queryOne: vi.fn(), getPool: vi.fn() }));
-vi.mock('../../perf/sqlTimer.js', () => ({ timedRequest: () => ({ input() { return this; }, query: async () => ({ recordset: [] }) }) }));
+vi.mock('../../perf/sqlTimer.js', () => ({ timedQuery: async () => ({ rows: [] }) }));
 vi.mock('../../db/columnCache.js', () => ({ getPrincipalColumns: async () => [], getResourceColumns: async () => [] }));
 vi.mock('../../matrix/filterSql.js', () => ({ buildEntitySubquery: () => ({ sql: null, bindings: {}, warnings: [] }), collectContextIds: () => [] }));
 
