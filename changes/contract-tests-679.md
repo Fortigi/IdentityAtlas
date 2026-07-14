@@ -1,9 +1,0 @@
-- Fixed the System detail and System Owners pages, which errored for every system because the system id was validated as a GUID even though system ids are numbers.
-- Fixed adding, listing and removing system owners; adding one no longer fails, and a duplicate owner now shows a clear "already an owner" message.
-- Fixed toggling a system's Enabled flag.
-- Fixed the group/resource detail page: tags assigned to a group now appear (they were silently hidden), and the member count no longer always shows 0.
-- Fixed the access package "Policies" tab, which always showed no policies.
-- Access package assignment, group and policy counts now return as numbers.
-- Fixed the identity detail page's relationship graph, which never counted a person's indirect assignments.
-- Fixed the access matrix ignoring user filters (e.g. department) whenever a user limit was set — which is the default — so filtering the matrix by a user attribute now works.
-- Added contract tests (against a real PostgreSQL schema) that pin these endpoints so the query bugs can't silently return.
