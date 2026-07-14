@@ -7,7 +7,7 @@
 
 import { Router } from 'express';
 import { timedQuery } from '../../perf/sqlTimer.js';
-import { bindNamedParams } from '../../db/namedParams.js';
+import { createParams } from '../../db/sqlParams.js';
 import { isMissingSchema } from '../../db/schemaErrors.js';
 import { useSql, db, hasTable } from './shared.js';
 
@@ -83,25 +83,21 @@ router.get('/identities', async (req, res) => {
     summary.accountTypeDistribution = typeDistResult.rows;
 
     // Build filtered query
+    const { params, bind } = createParams();
     let where = 'WHERE 1=1';
-    const inputs = {};
 
     if (search) {
-      where += ` AND ("displayName" ILIKE @search OR email ILIKE @search OR "jobTitle" ILIKE @search OR "employeeId" ILIKE @search)`;
-      inputs.search = `%${search}%`;
+      const s = bind(`%${search}%`);
+      where += ` AND ("displayName" ILIKE ${s} OR email ILIKE ${s} OR "jobTitle" ILIKE ${s} OR "employeeId" ILIKE ${s})`;
     }
 
     if (minAccounts) {
       const min = parseInt(minAccounts);
-      if (min > 1) {
-        where += ' AND "accountCount" >= @minAccounts';
-        inputs.minAccounts = min;
-      }
+      if (min > 1) where += ` AND "accountCount" >= ${bind(min)}`;
     }
 
     if (confidence) {
-      where += ' AND "linkConfidence" >= @confidence';
-      inputs.confidence = parseInt(confidence);
+      where += ` AND "linkConfidence" >= ${bind(parseInt(confidence))}`;
     }
 
     if (hasHrCols) {
@@ -116,8 +112,7 @@ router.get('/identities', async (req, res) => {
       } else if (orphanStatus === 'none') {
         where += ' AND "orphanStatus" IS NULL';
       } else if (orphanStatus) {
-        where += ' AND "orphanStatus" = @orphanStatus';
-        inputs.orphanStatus = orphanStatus;
+        where += ` AND "orphanStatus" = ${bind(orphanStatus)}`;
       }
     }
 
@@ -130,9 +125,7 @@ router.get('/identities', async (req, res) => {
     for (const [field, value] of Object.entries(attrFilters)) {
       if (!IDENTITY_FILTER_COLS.has(field)) continue;
       if (value == null || value === '') continue;
-      const key = `flt_${field}`;
-      where += ` AND "${field}" = @${key}`;
-      inputs[key] = value;
+      where += ` AND "${field}" = ${bind(value)}`;
     }
 
     // Tag filter (virtual field).
@@ -141,8 +134,7 @@ router.get('/identities', async (req, res) => {
       identityTagJoin = `
         INNER JOIN "GraphTagAssignments" _ita ON _ita."entityId" = UPPER(i.id::text)
         INNER JOIN "GraphTags" _it ON _ita."tagId" = _it.id
-          AND _it."name" = @__identityTag AND _it."entityType" = 'identity'`;
-      inputs.__identityTag = identityTagFilter;
+          AND _it."name" = ${bind(identityTagFilter)} AND _it."entityType" = 'identity'`;
     }
 
     // Sort
@@ -159,6 +151,7 @@ router.get('/identities', async (req, res) => {
     // (Same export-pagination fix as /api/users — the per-row tag subquery used to
     // run for every offset+limit row before OFFSET discarded the first `offset`,
     // quadratic across an export and slow enough to time out a deep page.)
+    const countParams = [...params]; // filter params only — snapshot before LIMIT/OFFSET
     const dataSql = `
       WITH page AS (
         SELECT i.id, i."displayName", i."primaryPrincipalId" AS "primaryAccountId", i.email AS "primaryAccountUpn",
@@ -173,7 +166,7 @@ router.get('/identities', async (req, res) => {
         ${identityTagJoin}
         ${where}
         ORDER BY ${orderBy}
-        LIMIT @pageLimit OFFSET @pageOffset
+        LIMIT ${bind(pageLimit)} OFFSET ${bind(pageOffset)}
       )
       SELECT page.*,
         (SELECT string_agg(t.id::text || ':' || t."name" || ':' || t."color", '|')
@@ -185,29 +178,22 @@ router.get('/identities', async (req, res) => {
       ORDER BY ${orderBy}
     `;
 
-    // The data query binds the filter inputs plus the page window; the COUNT
-    // query binds only the inputs it references (bindNamedParams drops the
-    // @pageLimit/@pageOffset it never mentions), so the same map serves both.
-    const bindings = { ...inputs, pageOffset, pageLimit };
-    const dataQ = bindNamedParams(dataSql, bindings);
-
-    // Fire count (page 1 only) before data so the call order matches the
-    // legacy Promise.all([count, data]) — keeps the mocked unit tests valid.
+    // The COUNT query (page 1 only) binds just the filter params; the data query
+    // reuses those plus the page window. Snapshot before binding LIMIT/OFFSET so
+    // the count SQL isn't handed parameters it never references.
     let total = null;
     let dataResult;
     if (pageOffset === 0) {
-      const countQ = bindNamedParams(
-        `SELECT COUNT(*)::int AS total FROM "Identities" i ${identityTagJoin} ${where}`,
-        bindings,
-      );
+      // Fire count before data so the call order matches the legacy
+      // Promise.all([count, data]) — keeps the mocked unit tests valid.
       const [countResult, dr] = await Promise.all([
-        timedQuery(p, 'identity-count', res, countQ.text, countQ.values),
-        timedQuery(p, 'identity-list', res, dataQ.text, dataQ.values),
+        timedQuery(p, 'identity-count', res, `SELECT COUNT(*)::int AS total FROM "Identities" i ${identityTagJoin} ${where}`, countParams),
+        timedQuery(p, 'identity-list', res, dataSql, params),
       ]);
       total = countResult.rows[0].total;
       dataResult = dr;
     } else {
-      dataResult = await timedQuery(p, 'identity-list', res, dataQ.text, dataQ.values);
+      dataResult = await timedQuery(p, 'identity-list', res, dataSql, params);
     }
     const data = dataResult.rows.map(row => {
       const { tagString, ...rest } = row;
