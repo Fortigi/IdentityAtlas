@@ -7,7 +7,7 @@
 // via regex because a JSON path key can't be parameter-bound).
 
 import { describe, it, expect } from 'vitest';
-import { buildFilterWhere } from './tags.js';
+import { buildFilterWhere, buildFilterWhereNamed } from './tags.js';
 
 // Minimal stand-in for the mssql-compat `request` object: records every
 // .input() call so we can assert on the parameter bindings.
@@ -102,5 +102,31 @@ describe('buildFilterWhere — extended-attribute filters', () => {
     expect(sql).toMatch(/u\."department"::text = @fl0/);
     expect(sql).toMatch(/u\."extendedAttributes"->>'userType' = @fl1/);
     expect(req.bound).toEqual({ fl0: 'Sales', fl1: 'Member' });
+  });
+});
+
+// The native form returns { where, bindings } for callers that feed the bindings
+// to bindNamedParams instead of an mssql-compat request object. The legacy
+// buildFilterWhere above delegates to this, so both paths stay in lock-step.
+describe('buildFilterWhereNamed — native { where, bindings } form', () => {
+  it('returns the WHERE fragment and a name→value bindings map', () => {
+    const { where, bindings } = buildFilterWhereNamed(
+      { department: 'Sales', 'ext.userType': 'Member' },
+      new Set(['department']),
+      'u',
+    );
+    expect(where).toMatch(/u\."department"::text = @fl0/);
+    expect(where).toMatch(/u\."extendedAttributes"->>'userType' = @fl1/);
+    expect(bindings).toEqual({ fl0: 'Sales', fl1: 'Member' });
+  });
+
+  it('drops non-whitelisted columns and empty values, yielding empty output', () => {
+    const { where, bindings } = buildFilterWhereNamed(
+      { nope: 'x', department: '' },
+      new Set(['department']),
+      'u',
+    );
+    expect(where).toBe('');
+    expect(bindings).toEqual({});
   });
 });
