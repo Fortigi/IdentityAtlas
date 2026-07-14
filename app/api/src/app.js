@@ -50,11 +50,24 @@ import dataExportRouter from './routes/dataExport.js';
 import bulkListsRouter from './routes/bulkLists.js';
 import updatesRouter from './routes/updates.js';
 import { isAuthEnabled, getTenantId, getClientId } from './config/authConfig.js';
+import { isSchemaReady } from './startupState.js';
 import swaggerUi from 'swagger-ui-express';
 import YAML from 'yamljs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const isProduction = process.env.NODE_ENV === 'production';
+
+// Worker data-plane gate: while the DB schema is still migrating (see
+// index.js + startupState.js) the crawler job-claim/complete and ingest
+// endpoints return 503, so no crawler runs against a mid-migration schema.
+// Inert in tests / mock mode (isSchemaReady() is true unless index.js armed
+// the gate at real startup), and scoped to the worker paths only — human/UI
+// endpoints stay available.
+function schemaMigratingGate(req, res, next) {
+  if (isSchemaReady()) return next();
+  res.set('Retry-After', '30');
+  return res.status(503).json({ error: 'Schema migration in progress, please retry shortly' });
+}
 
 // Minimum compose file version this image expects. Bump this whenever
 // docker-compose.prod.yml changes in a way that affects runtime behavior
@@ -190,8 +203,13 @@ export function createApp() {
   app.use('/api', authedApiLimiter);
 
   // Unauthenticated endpoints (rate-limited)
+  // Always 200 so the platform startup/health probe passes as soon as the port
+  // is open — even while migrations still run in the background (see index.js).
+  // A non-200 here would let App Service kill the container mid-migration and
+  // recreate the crash loop this design fixes. `schemaReady` reports the real
+  // migration state for observability without failing the probe.
   app.get('/api/health', publicLimiter, (req, res) => {
-    res.json({ status: 'ok' });
+    res.json({ status: 'ok', schemaReady: isSchemaReady() });
   });
 
   app.get('/api/version', publicLimiter, (req, res) => {
@@ -336,6 +354,12 @@ export function createApp() {
   // Crawler jobs (Entra ID auth) — /api/admin/crawler-jobs/*, /api/admin/status — gated per-route.
   app.use('/api', authMiddleware, jobsRouter);
   // Crawler self-service (API key auth) — /api/crawlers/whoami, /api/crawlers/rotate
+  // Gate the worker data-plane (job claim/complete/phases/fail under
+  // /crawlers/jobs, and ingest) while the schema migrates — BEFORE crawler auth
+  // runs, so we 503 without touching the DB or reading a large body. whoami and
+  // rotate stay reachable so the worker can authenticate and back off cleanly.
+  app.use('/api/crawlers/jobs', schemaMigratingGate);
+  app.use('/api/ingest', schemaMigratingGate);
   app.use('/api', crawlerAuthMiddleware, selfServiceCrawlersRouter);
   // Ingest endpoints (API key auth) — /api/ingest/*
   // Ingest body size cap. Crawler chunks at 5,000 records per batch; with

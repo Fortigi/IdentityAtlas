@@ -11,6 +11,7 @@ import { createApp } from './app.js';
 import { enable as enablePerf, isEnabled as isPerfEnabled } from './perf/collector.js';
 import { loadAuthConfig, isAuthEnabled } from './config/authConfig.js';
 import { bootstrapWorker, migrateDatabase } from './bootstrap.js';
+import { armStartupGate, markSchemaReady, markSchemaFailed } from './startupState.js';
 
 const port       = process.env.PORT || 3001;
 // Desktop mode binds to 127.0.0.1 only — the portable is a local app and should
@@ -53,27 +54,51 @@ loadAuthConfig().catch(err => {
 
 const app = createApp();
 
-// Apply database migrations BEFORE binding the port (see migrateDatabase). The
-// worker container starts polling for crawler jobs as soon as the web port is
-// up, so the schema must be fully upgraded first — otherwise a crawler can run
-// against a mid-migration schema and deadlock against the migration's locks.
-// On failure, exit non-zero: Docker restarts the container and retries, and
-// because the port never opened, no crawler ever ran against a broken schema.
-try {
-  await migrateDatabase();
-} catch (err) {
-  console.error('Database migration failed — refusing to start:', err.message);
-  process.exit(1);
+// ─── Bind the port FIRST, migrate in the background ──────────────
+// Migrations used to run to completion BEFORE app.listen(). That made a slow
+// migration fatal on Azure App Service: the platform kills a container that
+// doesn't answer on its port within a startup-probe window (230s by default),
+// so a migration slower than that left the port closed, got killed mid-run,
+// rolled back, and re-ran forever — a permanent "Application Error" crash loop.
+//
+// Now the port opens immediately (the probe passes) and migrations run after.
+// The invariant that no crawler runs against a mid-migration schema is kept by
+// arming a startup gate: the worker data-plane (job claim + ingest, wired in
+// app.js) returns 503 until markSchemaReady() runs. On failure we do NOT exit
+// (that recreates the crash loop); we log and retry with backoff, leaving the
+// port open so operators can reach logs and the app self-heals once the DB
+// issue clears.
+if (process.env.USE_SQL === 'true') armStartupGate();
+
+// Backoff schedule for migration retries; the last value repeats.
+const MIGRATION_RETRY_MS = [5_000, 15_000, 30_000, 60_000];
+
+async function startSchemaAndWorker(attempt = 0) {
+  try {
+    await migrateDatabase();
+    markSchemaReady();
+    console.log('Schema ready — worker (crawler) endpoints enabled');
+    // Auto-create built-in worker crawler + infrastructure tables.
+    await bootstrapWorker();
+  } catch (err) {
+    markSchemaFailed(err);
+    const delay = MIGRATION_RETRY_MS[Math.min(attempt, MIGRATION_RETRY_MS.length - 1)];
+    console.error(
+      `CRITICAL: database migration failed (attempt ${attempt + 1}). ` +
+      `Worker endpoints stay disabled; retrying in ${delay / 1000}s. Cause: ${err.message}`
+    );
+    setTimeout(() => startSchemaAndWorker(attempt + 1), delay).unref();
+  }
 }
 
-const server = app.listen(port, host, async () => {
+const server = app.listen(port, host, () => {
   console.log(`Identity Atlas running on http://localhost:${port}`);
   console.log(`Mode: ${process.env.USE_SQL === 'true' ? 'SQL' : 'Mock data'}`);
   console.log(`Auth: ${isAuthEnabled() ? 'Entra ID' : 'Disabled'}`);
   console.log(`Perf: ${isPerfEnabled() ? 'Enabled (Server-Timing headers + /api/perf)' : 'Disabled'}`);
 
-  // Auto-create built-in worker crawler + infrastructure tables
-  await bootstrapWorker();
+  // Run migrations + worker bootstrap WITHOUT blocking the now-open port.
+  void startSchemaAndWorker();
 });
 
 server.on('error', (err) => {
