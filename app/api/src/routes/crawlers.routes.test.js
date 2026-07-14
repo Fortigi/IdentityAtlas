@@ -10,7 +10,16 @@ import { mountRouter } from '../../test-utils/routeTestKit.js';
 process.env.USE_SQL = 'true';
 
 let nextResult = { recordset: [], rowsAffected: [0] };
-const mockPool = { request() { const r = { input() { return r; }, query() { return Promise.resolve(nextResult); } }; return r; } };
+// Normalize a staged result to the dual .rows/.recordset shape so a handler
+// reading pg-native .rows/.rowCount works regardless of how the test staged it.
+const P = (v) => { const rows = v.rows ?? v.recordset ?? []; const rowCount = v.rowCount ?? v.rowsAffected?.[0] ?? rows.length; return { ...v, rows, recordset: rows, rowCount, rowsAffected: [rowCount] }; };
+// pool.query(text, params) — the native-pg surface the migrated handlers use.
+// Defaults to P(nextResult); a test can stage per-call results via mockResolvedValueOnce.
+const poolQuery = vi.fn();
+const mockPool = {
+  request() { const r = { input() { return r; }, query: (...a) => poolQuery(...a) }; return r; },
+  query: (...a) => poolQuery(...a),
+};
 const query = vi.fn();
 vi.mock('../db/connection.js', () => ({ getPool: async () => mockPool, query: (...a) => query(...a), queryOne: vi.fn() }));
 vi.mock('../middleware/auth.js', () => ({ requirePermission: () => (_q, _s, next) => next() }));
@@ -35,6 +44,8 @@ const WORKER = { id: 1, systemIds: [1], permissions: ['admin'] };
 
 beforeEach(() => {
   nextResult = { recordset: [], rowsAffected: [0] };
+  poolQuery.mockReset();
+  poolQuery.mockImplementation(() => Promise.resolve(P(nextResult)));
   query.mockReset();
   query.mockResolvedValue({ rows: [], rowCount: 0 });
 });
@@ -87,8 +98,11 @@ describe('self-service crawlers — auth + validation', () => {
 
 describe('admin crawlers — happy paths', () => {
   it('GET/:id/audit returns the paginated log + total', async () => {
-    // The handler batches two SELECTs and reads result.recordsets[0]/[1].
-    nextResult = { recordsets: [[{ action: 'created' }], [{ total: 1 }]] };
+    // The handler runs two separate queries (pg can't bind params across
+    // statements): a page query, then a count query.
+    poolQuery
+      .mockResolvedValueOnce(P({ rows: [{ action: 'created' }] }))
+      .mockResolvedValueOnce(P({ rows: [{ total: 1 }] }));
     const res = await request(adminApp).get('/api/admin/crawlers/42/audit');
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ data: [{ action: 'created' }], total: 1 });

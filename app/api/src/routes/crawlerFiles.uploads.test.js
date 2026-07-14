@@ -19,8 +19,9 @@ process.env.UPLOAD_ROOT = UPLOAD_ROOT_DIR;
 
 const { mockPool, mockDbQuery } = vi.hoisted(() => {
   const mockDbQuery = vi.fn();
-  const mockRequest = { input: vi.fn().mockReturnThis(), query: mockDbQuery };
-  const mockPool = { request: vi.fn(() => mockRequest) };
+  // The handler calls pool.query(text, params) and reads .rows; normalize the
+  // staged { recordset } (or { rows }) result so .rows is always present.
+  const mockPool = { query: async (...a) => { const r = await mockDbQuery(...a); return r ? { ...r, rows: r.rows ?? r.recordset ?? [] } : r; } };
   return { mockPool, mockDbQuery };
 });
 

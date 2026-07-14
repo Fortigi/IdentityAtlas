@@ -44,13 +44,12 @@ function parseConfigId(req, res) {
 async function assertUploadableConfig(configId, res) {
   try {
     const pool = await db.getPool();
-    const r = await pool.request().input('id', configId)
-      .query(`SELECT "crawlerType" FROM "CrawlerConfigs" WHERE id = @id`);
-    if (r.recordset.length === 0) {
+    const r = await pool.query(`SELECT "crawlerType" FROM "CrawlerConfigs" WHERE id = $1`, [configId]);
+    if (r.rows.length === 0) {
       res.status(404).json({ error: 'Crawler config not found' });
       return null;
     }
-    const crawlerType = r.recordset[0].crawlerType;
+    const crawlerType = r.rows[0].crawlerType;
     if (!_crawlerManifests[crawlerType]?.supportsFileUploads) {
       res.status(400).json({ error: 'This crawler type does not support file uploads' });
       return null;
