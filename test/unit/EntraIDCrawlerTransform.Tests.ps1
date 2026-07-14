@@ -46,6 +46,14 @@ BeforeAll {
 
 Describe 'ConvertTo-EntraPrincipalRecord' {
 
+    It 'mutation kills: manager-without-id adds no managerId; a single custom attr is still read' {
+        # line 44 -and->-or — a manager object lacking .id must NOT stamp managerId.
+        (ConvertTo-EntraPrincipalRecord -User ([pscustomobject]@{ id = 'u'; displayName = 'U'; manager = [pscustomobject]@{ displayName = 'M' } })).ContainsKey('managerId') | Should -BeFalse
+        # line 54 0->1 — exactly one custom attribute (Count -eq 1) must still be pulled.
+        $u = [pscustomobject]@{ id = 'u'; displayName = 'U'; officeLocation = 'HQ' }
+        (ConvertTo-EntraPrincipalRecord -User $u -CustomUserAttributes @('officeLocation'))['extendedAttributes']['officeLocation'] | Should -Be 'HQ'
+    }
+
     It 'maps core attributes and stamps principalType = User' {
         $user = [pscustomobject]@{
             id = 'u1'; displayName = 'Alice'; mail = 'alice@contoso.com'
@@ -112,6 +120,13 @@ Describe 'ConvertTo-EntraPrincipalRecord' {
 
 Describe 'ConvertTo-EntraSignInActivityRecord' {
 
+    It 'mutation kills: a single timestamp is enough to emit the record (Count -eq 4)' {
+        # line 88 3->4 — 3 base keys + exactly one timestamp must still return the record.
+        $rec = ConvertTo-EntraSignInActivityRecord -User ([pscustomobject]@{ id = 'u1'; signInActivity = [pscustomobject]@{ lastSignInDateTime = '2026-05-01T00:00:00Z' } })
+        $rec | Should -Not -BeNullOrEmpty
+        $rec['lastSignInDateTime'] | Should -Be '2026-05-01T00:00:00Z'
+    }
+
     It 'returns $null when the user has no signInActivity' {
         $user = [pscustomobject]@{ id = 'u1'; displayName = 'Alice' }
         ConvertTo-EntraSignInActivityRecord -User $user | Should -BeNullOrEmpty
@@ -141,6 +156,16 @@ Describe 'ConvertTo-EntraSignInActivityRecord' {
 }
 
 Describe 'ConvertTo-EntraServicePrincipalRecord' {
+
+    It 'mutation kills: single-element tags/spn and a single ext key are still emitted' {
+        # line 121/124 0->1 — a one-element tags / servicePrincipalNames array must still join.
+        $sp = [pscustomobject]@{ id = 'sp'; displayName = 'One'; tags = @('solo'); servicePrincipalNames = @('spn1') }
+        $rec = ConvertTo-EntraServicePrincipalRecord -ServicePrincipal $sp
+        $rec['extendedAttributes']['tags']                  | Should -Be 'solo'
+        $rec['extendedAttributes']['servicePrincipalNames'] | Should -Be 'spn1'
+        # line 128 0->1 — exactly one ext key (Count -eq 1) must still attach extendedAttributes.
+        (ConvertTo-EntraServicePrincipalRecord -ServicePrincipal ([pscustomobject]@{ id = 'sp2'; displayName = 'Pub'; publisherName = 'Contoso' })).ContainsKey('extendedAttributes') | Should -BeTrue
+    }
 
     It 'maps core fields and classifies a plain SP as ServicePrincipal' {
         $sp = [pscustomobject]@{
@@ -187,6 +212,13 @@ Describe 'ConvertTo-EntraServicePrincipalRecord' {
 
 Describe 'ConvertTo-EntraSpActivityRecord' {
 
+    It 'mutation kills: a single client-variant timestamp still attaches extendedAttributes' {
+        # line 164 0->1 — one ext key (Count -eq 1) must still attach + emit the record.
+        $act = [pscustomobject]@{ applicationAuthenticationClientSignInActivity = [pscustomobject]@{ lastSignInDateTime = '2026-04-01T00:00:00Z' } }
+        $rec = ConvertTo-EntraSpActivityRecord -ServicePrincipal ([pscustomobject]@{ id = 'sp1' }) -Activity $act
+        $rec['extendedAttributes']['lastApplicationAuthSignInDateTime'] | Should -Be '2026-04-01T00:00:00Z'
+    }
+
     It 'returns $null when there is no matched activity row' {
         $sp = [pscustomobject]@{ id = 'sp1' }
         ConvertTo-EntraSpActivityRecord -ServicePrincipal $sp -Activity $null | Should -BeNullOrEmpty
@@ -225,6 +257,12 @@ Describe 'ConvertTo-EntraSpActivityRecord' {
 }
 
 Describe 'Get-EntraGroupClassification' {
+
+    It 'mutation kills: a group with neither mail nor security enabled is a SecurityGroup' {
+        # line 201 -and->-or — mail=false, security=false must fall through to SecurityGroup,
+        # not DistributionList (which -or would wrongly select).
+        (Get-EntraGroupClassification -Group ([pscustomobject]@{ groupTypes = @(); securityEnabled = $false; mailEnabled = $false; resourceProvisioningOptions = @() }))['groupCategory'] | Should -Be 'SecurityGroup'
+    }
 
     It 'classifies an assigned cloud security group and marks it access-package eligible' {
         $g = [pscustomobject]@{ groupTypes = @(); securityEnabled = $true; mailEnabled = $false }
@@ -299,6 +337,12 @@ Describe 'Get-EntraGroupClassification' {
 }
 
 Describe 'ConvertTo-EntraGroupResourceRecord' {
+
+    It 'mutation kills: a set onPremisesSyncEnabled is copied into extendedAttributes' {
+        # line 245 -ne->-eq — a present onPremisesSyncEnabled must be carried into ext.
+        $ext = (ConvertTo-EntraGroupResourceRecord -Group ([pscustomobject]@{ id = 'g'; displayName = 'G'; onPremisesSyncEnabled = $true }))['extendedAttributes']
+        $ext['onPremisesSyncEnabled'] | Should -BeTrue
+    }
 
     It 'maps a group to a Group resource with joined groupTypes' {
         $group = [pscustomobject]@{
@@ -604,6 +648,7 @@ Describe 'ConvertTo-EntraAssignmentPolicyRecord' {
         $rec = ConvertTo-EntraAssignmentPolicyRecord -Policy $pol
         $rec['resourceId']        | Should -Be 'ap2'
         $rec['hasAutoAddRule']    | Should -BeFalse
+        $rec['hasAutoRemoveRule'] | Should -BeFalse   # line 430 $false->$true — default must stay false
         $rec['hasAccessReview']   | Should -BeFalse
     }
 
@@ -668,6 +713,11 @@ Describe 'ConvertTo-EntraAccessPackageAssignmentRecord' {
 
 Describe 'ConvertTo-EntraOAuth2ClientResource' {
 
+    It 'mutation kills: a single ext key still attaches extendedAttributes' {
+        # line 516 0->1 — exactly one ext key (only appId) must still attach.
+        (ConvertTo-EntraOAuth2ClientResource -ClientId 'c9' -SpInfo @{ displayName = 'One'; appId = 'app-x' }).ContainsKey('extendedAttributes') | Should -BeTrue
+    }
+
     It 'maps a client SP to an Application resource with appId/publisher in extendedAttributes' {
         $rec = ConvertTo-EntraOAuth2ClientResource -ClientId 'c1' -SpInfo @{ displayName = 'My App'; appId = 'app-1'; publisherName = 'Contoso' }
         $rec['id']           | Should -Be 'c1'
@@ -685,6 +735,14 @@ Describe 'ConvertTo-EntraOAuth2ClientResource' {
 }
 
 Describe 'ConvertTo-EntraOAuth2ScopeGraph' {
+
+    It 'mutation kills: a grant missing only the client id is skipped; emitted resources are enabled' {
+        # line 555 first -or->-and — clientId missing (only) must still skip the grant.
+        (ConvertTo-EntraOAuth2ScopeGraph -UserGrants @([pscustomobject]@{ id = 'g'; clientId = $null; resourceId = 'api1'; principalId = 'u1'; scope = 'Mail.Read' }) -SpInfo @{}).resources.Count | Should -Be 0
+        # line 568 $true->$false — the emitted DelegatedPermission resource must be enabled.
+        $ok = ConvertTo-EntraOAuth2ScopeGraph -UserGrants @([pscustomobject]@{ id = 'g2'; clientId = 'c1'; resourceId = 'api1'; principalId = 'u1'; scope = 'Mail.Read' }) -SpInfo @{}
+        $ok.resources[0].enabled | Should -BeTrue
+    }
 
     It 'splits a multi-scope grant into one resource/relationship/assignment per scope' {
         $grant = [pscustomobject]@{ id = 'gr1'; clientId = 'c1'; resourceId = 'api1'; principalId = 'u1'; scope = 'Mail.Read User.Read' }
@@ -722,6 +780,11 @@ Describe 'ConvertTo-EntraOAuth2ScopeGraph' {
 
 Describe 'ConvertTo-EntraAppRoleApplicationResource' {
 
+    It 'mutation kills: a single ext key still attaches extendedAttributes' {
+        # line 602 0->1 — exactly one ext key (only appId) must still attach.
+        (ConvertTo-EntraAppRoleApplicationResource -ServicePrincipal ([pscustomobject]@{ id = 'sp'; displayName = 'X'; appId = 'app-9' })).ContainsKey('extendedAttributes') | Should -BeTrue
+    }
+
     It 'maps an enterprise app SP to an Application resource with flags in ext' {
         $sp = [pscustomobject]@{ id = 'sp1'; displayName = 'CRM'; appId = 'app-1'; appRoleAssignmentRequired = $true; servicePrincipalType = 'Application' }
         $rec = ConvertTo-EntraAppRoleApplicationResource -ServicePrincipal $sp
@@ -733,6 +796,13 @@ Describe 'ConvertTo-EntraAppRoleApplicationResource' {
 }
 
 Describe 'Get-EntraAppRoleCatalog' {
+
+    It 'mutation kills: an appRole lacking an id is skipped (not indexed under a null key)' {
+        # line 617 -and->-or — a role object without .id must NOT be added to the catalog.
+        $cat = Get-EntraAppRoleCatalog -ServicePrincipal ([pscustomobject]@{ appRoles = @([pscustomobject]@{ displayName = 'NoId' }) }) -DefaultRoleId '0000'
+        $cat.Count | Should -Be 1
+        $cat.ContainsKey('0000') | Should -BeTrue
+    }
 
     It 'indexes appRoles by id and always adds the Default Access role' {
         $sp = [pscustomobject]@{ appRoles = @([pscustomobject]@{ id = 'r1'; displayName = 'Reader' }) }

@@ -139,6 +139,14 @@ Describe 'ConvertTo-CsvResourceRecord' {
         (ConvertTo-CsvResourceRecord -Row @('r1', 'N', 'T', '0', 'd') -Idx $script:fullIdx -SystemId 2).enabled | Should -BeFalse
         (ConvertTo-CsvResourceRecord -Row @('r1', 'N', 'T', 'true', 'd') -Idx $script:fullIdx -SystemId 2).enabled | Should -BeTrue
     }
+
+    It 'reads optional columns positioned at index 0 (the -ge 0 presence boundary)' {
+        # A column that sits FIRST (index 0) must still be read — pins the `-ge 0`
+        # sentinel boundary so a `-ge 1` regression can't silently drop it.
+        (ConvertTo-CsvResourceRecord -Row @('Group', 'r1', 'Name') -Idx @{ Ext = 1; DN = 2; RT = 0; En = -1; Desc = -1 } -SystemId 2).resourceType | Should -Be 'Group'
+        (ConvertTo-CsvResourceRecord -Row @('false', 'r1', 'Name') -Idx @{ Ext = 1; DN = 2; RT = -1; En = 0; Desc = -1 } -SystemId 2).enabled     | Should -BeFalse
+        (ConvertTo-CsvResourceRecord -Row @('mydesc', 'r1', 'Name') -Idx @{ Ext = 1; DN = 2; RT = -1; En = -1; Desc = 0 } -SystemId 2).description | Should -Be 'mydesc'
+    }
 }
 
 Describe 'ConvertTo-CsvRelationshipRecord' {
@@ -232,6 +240,10 @@ Describe 'ConvertTo-CsvAssignmentRecord' {
         (ConvertTo-CsvAssignmentRecord -Row @('r1', 'u1', 'Eligible') -Idx $script:aIdxFull -SystemId 2).assignmentType | Should -Be 'Eligible'
         (ConvertTo-CsvAssignmentRecord -Row @('r1', 'u1', '') -Idx $script:aIdxFull -SystemId 2).assignmentType | Should -Be 'Direct'
     }
+
+    It 'reads AssignmentType positioned at index 0 (the -ge 0 presence boundary)' {
+        (ConvertTo-CsvAssignmentRecord -Row @('Eligible', 'r1', 'u1') -Idx @{ Res = 1; User = 2; Type = 0 } -SystemId 2).assignmentType | Should -Be 'Eligible'
+    }
 }
 
 Describe 'ConvertTo-CsvIdentityRecord' {
@@ -293,5 +305,13 @@ Describe 'ConvertTo-CsvCertificationRecord' {
         $rec.decision              | Should -Be 'Approve'
         $rec.reviewedByDisplayName | Should -Be 'Bob'
         $rec.reviewedDateTime      | Should -Be '2026-01-01'
+    }
+
+    It 'reads each optional field positioned at index 0 (the -ge 0 presence boundary)' {
+        (ConvertTo-CsvCertificationRecord -Row @('r1', 'cert1')         -Idx @{ Ext = 1; Res = 0; UDN = -1; Dec = -1; RDN = -1; RDT = -1 } -SystemId 2).resourceExternalId    | Should -Be 'r1'
+        (ConvertTo-CsvCertificationRecord -Row @('Alice', 'cert1')      -Idx @{ Ext = 1; Res = -1; UDN = 0; Dec = -1; RDN = -1; RDT = -1 } -SystemId 2).principalDisplayName  | Should -Be 'Alice'
+        (ConvertTo-CsvCertificationRecord -Row @('Approve', 'cert1')    -Idx @{ Ext = 1; Res = -1; UDN = -1; Dec = 0; RDN = -1; RDT = -1 } -SystemId 2).decision              | Should -Be 'Approve'
+        (ConvertTo-CsvCertificationRecord -Row @('Bob', 'cert1')        -Idx @{ Ext = 1; Res = -1; UDN = -1; Dec = -1; RDN = 0; RDT = -1 } -SystemId 2).reviewedByDisplayName | Should -Be 'Bob'
+        (ConvertTo-CsvCertificationRecord -Row @('2026-01-01', 'cert1') -Idx @{ Ext = 1; Res = -1; UDN = -1; Dec = -1; RDN = -1; RDT = 0 } -SystemId 2).reviewedDateTime      | Should -Be '2026-01-01'
     }
 }

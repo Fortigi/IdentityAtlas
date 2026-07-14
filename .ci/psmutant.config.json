@@ -1,8 +1,12 @@
 {
-  "_comment": "PSMutant mutation-testing config for IdentityAtlas's decomposed PowerShell crawler transforms (the pure ConvertTo-* record-shapers). Enforced: the build fails when the mutation score drops below break (80% — the transforms sit around 85%, so this locks in the current bar and forces new transform logic to be mutation-tested, not just line-covered). Run: Install-Module PSMutant; Invoke-PSMutation -ConfigFile .ci/psmutant.config.json -SourceRoot .",
+  "_comment": "PSMutant mutation-testing config for IdentityAtlas's decomposed PowerShell crawler transforms (the pure ConvertTo-* record-shapers). Enforced: the build fails when the mutation score drops below break (90% — after strengthening the transform tests the score sits at ~95.8%, with the remaining survivors being equivalent mutants that no test can kill; 90% locks in the raised bar with headroom and forces new transform logic to be mutation-tested, not just line-covered). Run: Install-Module PSMutant; Invoke-PSMutation -ConfigFile .ci/psmutant.config.json -SourceRoot .",
   "sandboxSubtrees": ["tools", "test", "setup"],
   "mutate": [
     "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+    "tools/crawlers/entra-id/EntraIDCrawler.AppOwners.ps1",
+    "tools/crawlers/entra-id/EntraIDCrawler.AppPermissions.ps1",
+    "tools/crawlers/entra-id/EntraIDCrawler.PrincipalRelationships.ps1",
+    "tools/crawlers/shared/Get-CapabilityId.ps1",
     "tools/crawlers/midpoint/MidpointCrawler.Transform.ps1",
     "tools/crawlers/omada/OmadaCrawler.Transform.ps1",
     "tools/crawlers/csv/CSVCrawler.Transform.ps1",
@@ -10,13 +14,19 @@
   ],
   "tests": {
     "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1": ["test/unit/EntraIDCrawlerTransform.Tests.ps1"],
+    "tools/crawlers/entra-id/EntraIDCrawler.AppOwners.ps1": ["test/unit/EntraIDCrawlerAppOwners.Tests.ps1", "test/unit/EntraIDCrawlerTransform.Tests.ps1"],
+    "tools/crawlers/entra-id/EntraIDCrawler.AppPermissions.ps1": ["test/unit/EntraIDCrawlerAppPermissions.Tests.ps1"],
+    "tools/crawlers/entra-id/EntraIDCrawler.PrincipalRelationships.ps1": ["test/unit/EntraIDCrawlerPrincipalRelationships.Tests.ps1"],
+    "tools/crawlers/shared/Get-CapabilityId.ps1": ["test/unit/CapabilityId.Tests.ps1"],
     "tools/crawlers/midpoint/MidpointCrawler.Transform.ps1": ["test/unit/MidpointCrawlerTransform.Tests.ps1"],
     "tools/crawlers/omada/OmadaCrawler.Transform.ps1": ["test/unit/OmadaCrawlerTransform.Tests.ps1"],
     "tools/crawlers/csv/CSVCrawler.Transform.ps1": ["test/unit/CSVCrawlerTransform.Tests.ps1"],
     "tools/crawlers/azure-rm/AzureRMCrawler.Transform.ps1": ["test/unit/AzureRMCrawlerTransform.Tests.ps1"]
   },
+  "_exclusionsComment": "Pure-shaper files (*.Transform/*.AppOwners/*.AppPermissions/*.PrincipalRelationships.ps1) that are deliberately NOT mutation-tested. Each key is a repo-relative path; the value is the reason. The scope-completeness guard (test/unit/PSMutationScope.Tests.ps1, #684) fails a shaper that is in neither `mutate` nor here. Empty today — every shaper is mutated.",
+  "exclusions": {},
   "coveredLinesOnly": true,
   "operators": ["BinaryOperator", "BooleanLiteral", "NumberLiteral", "NegationRemoval"],
-  "thresholds": { "high": 80, "low": 60, "break": 80 },
+  "thresholds": { "high": 90, "low": 70, "break": 90 },
   "reportPath": "reports/ps-mutation.json"
 }

@@ -34,6 +34,7 @@ Describe 'ConvertTo-EntraAppPermissionGraph' {
 
         $res = $out.resources[0]
         $res.resourceType | Should -Be 'ApplicationPermission'
+        $res.enabled      | Should -BeTrue   # line 98 $true->$false — the resource must be enabled
         $res.displayName  | Should -Be 'Mail.Read on Microsoft Graph (via Payroll App)'
         $res.extendedAttributes.permission    | Should -Be 'Mail.Read'
         $res.extendedAttributes.targetApiSpId | Should -Be 'graphSp'
