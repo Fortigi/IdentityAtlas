@@ -11,8 +11,8 @@ const startup = vi.hoisted(() => {
   return {
     calls,
     // migrateDatabase deliberately yields to the event loop before recording,
-    // so if a regression ever called app.listen() WITHOUT awaiting migrations
-    // first, 'listen' would be recorded before 'migrate' and the test fails.
+    // so a regression that awaited it BEFORE app.listen() (the old, fatal
+    // ordering) would record 'migrate' before 'listen' and fail the test.
     migrateDatabase: vi.fn(async () => {
       await new Promise(resolve => setTimeout(resolve, 20));
       calls.push('migrate');
@@ -23,6 +23,9 @@ const startup = vi.hoisted(() => {
       if (cb) cb();
       return { on: vi.fn() };
     }),
+    armStartupGate: vi.fn(() => calls.push('arm')),
+    markSchemaReady: vi.fn(() => calls.push('ready')),
+    markSchemaFailed: vi.fn(() => calls.push('failed')),
   };
 });
 
@@ -31,25 +34,40 @@ vi.mock('./bootstrap.js', () => ({
   migrateDatabase: startup.migrateDatabase,
   bootstrapWorker: startup.bootstrapWorker,
 }));
+vi.mock('./startupState.js', () => ({
+  armStartupGate: startup.armStartupGate,
+  markSchemaReady: startup.markSchemaReady,
+  markSchemaFailed: startup.markSchemaFailed,
+}));
 vi.mock('./perf/collector.js', () => ({ enable: vi.fn(), isEnabled: () => false }));
 vi.mock('./config/authConfig.js', () => ({
   loadAuthConfig: vi.fn(async () => {}),
   isAuthEnabled: () => false,
 }));
 
-describe('startup ordering — migrations run first', () => {
-  it('applies migrations before the server binds its port', async () => {
-    // Importing index.js runs its top-level startup sequence. The dynamic
-    // import resolves only after index.js's top-level `await migrateDatabase()`
-    // settles, so by the time this await returns the ordering is final.
-    await import('./index.js');
+describe('resilient startup ordering — bind first, migrate in background', () => {
+  it('arms the gate before binding, opens the port before migrating, then readies + bootstraps', async () => {
+    const prev = process.env.USE_SQL;
+    process.env.USE_SQL = 'true';
+    try {
+      // Importing index.js runs its startup sequence. app.listen() no longer
+      // awaits migrations, so wait for the background chain to settle.
+      await import('./index.js');
+      await vi.waitFor(() => expect(startup.calls).toContain('bootstrap'));
 
-    // Migrations must have run, and must be the very first recorded step —
-    // guards against someone dropping `await migrateDatabase()` from index.js
-    // (the fn would never be called) or moving it after app.listen().
-    expect(startup.migrateDatabase).toHaveBeenCalledTimes(1);
-    expect(startup.calls[0]).toBe('migrate');
-    expect(startup.calls.indexOf('migrate')).toBeLessThan(startup.calls.indexOf('listen'));
+      // Gate armed BEFORE the port opens — no window where a worker could hit a
+      // mid-migration schema.
+      expect(startup.calls.indexOf('arm')).toBeLessThan(startup.calls.indexOf('listen'));
+      // Port opens BEFORE migrations finish — the whole point (probe passes fast,
+      // no crash loop on a slow migration).
+      expect(startup.calls.indexOf('listen')).toBeLessThan(startup.calls.indexOf('migrate'));
+      // Schema readied only after migrations, and worker bootstrap after that.
+      expect(startup.calls.indexOf('migrate')).toBeLessThan(startup.calls.indexOf('ready'));
+      expect(startup.calls.indexOf('ready')).toBeLessThan(startup.calls.indexOf('bootstrap'));
+      expect(startup.markSchemaFailed).not.toHaveBeenCalled();
+    } finally {
+      if (prev === undefined) delete process.env.USE_SQL; else process.env.USE_SQL = prev;
+    }
   });
 });
 

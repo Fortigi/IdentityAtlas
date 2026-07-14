@@ -112,6 +112,13 @@ resource web 'Microsoft.Web/sites@2024-04-01' = {
         { name: 'DOCKER_REGISTRY_SERVER_URL', value: 'https://ghcr.io' }
         { name: 'WEBSITES_PORT', value: '3001' }
         { name: 'WEBSITES_ENABLE_APP_SERVICE_STORAGE', value: 'false' }
+        // Cold-start probe ceiling. The web container binds its port BEFORE
+        // running DB migrations (they run in the background — see index.js), so
+        // a slow migration no longer blocks startup. We still raise this from
+        // the 230s default to the 1800s platform max as defence in depth for
+        // very large one-time schema upgrades. See
+        // docs/architecture/azure-deployment.md ("Startup & migrations").
+        { name: 'WEBSITES_CONTAINER_START_TIME_LIMIT', value: '1800' }
         // App config
         { name: 'NODE_ENV', value: 'production' }
         { name: 'USE_SQL', value: 'true' }

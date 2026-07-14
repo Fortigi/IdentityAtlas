@@ -1,0 +1,5 @@
+- Fixed: a slow database migration could take the whole app down on Azure (the "Application Error" page) by exceeding the container startup probe and crash-looping. The web app now starts and stays reachable while migrations run in the background, and comes up as soon as they finish.
+- Crawlers and data ingest now wait (and automatically retry) while a schema upgrade is in progress, so a crawler never runs against a half-migrated database.
+- A failed migration no longer crash-loops the app — it stays up, logs the error, and retries automatically, self-healing once the underlying issue is resolved.
+- The health endpoint now reports whether the schema is fully migrated (`schemaReady`).
+- Azure deployments now allow up to 30 minutes for a one-time migration as an added safeguard for very large databases.
