@@ -59,6 +59,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   mockReq.input.mockReturnThis();
   mockReq.query.mockResolvedValue({ recordset: [] });
+  connection.query.mockReset();
+  connection.query.mockResolvedValue({ rows: [] });
   connection.queryOne.mockResolvedValue({ t: 'Identities' });
 });
 
@@ -73,9 +75,10 @@ describe('GET /identities', () => {
   });
 
   it('returns a summary + paginated data on the happy path', async () => {
-    // Sequence: colCheck (information_schema) → summary → typeDist → count → data
+    // colCheck (information_schema) is now a native db.query; the timed reads
+    // (summary → typeDist → count → data) route through the mockReq staging.
+    connection.query.mockResolvedValueOnce({ rows: [{ COLUMN_NAME: 'isHrAnchored' }, { COLUMN_NAME: 'orphanStatus' }] }); // colCheck (hasHrCols)
     mockReq.query
-      .mockResolvedValueOnce({ recordset: [{ COLUMN_NAME: 'isHrAnchored' }, { COLUMN_NAME: 'orphanStatus' }] }) // colCheck (hasHrCols)
       .mockResolvedValueOnce({ recordset: [{ totalIdentities: 3, multiAccountIdentities: 1 }] })                // summary
       .mockResolvedValueOnce({ recordset: [{ accountType: 'admin', cnt: 2 }] })                                 // typeDist
       .mockResolvedValueOnce({ recordset: [{ total: 1 }] })                                                      // count
@@ -91,8 +94,8 @@ describe('GET /identities', () => {
   });
 
   it('applies hr/orphan/tag/attribute filters without error', async () => {
+    connection.query.mockResolvedValueOnce({ rows: [{ COLUMN_NAME: 'isHrAnchored' }, { COLUMN_NAME: 'orphanStatus' }] }); // colCheck
     mockReq.query
-      .mockResolvedValueOnce({ recordset: [{ COLUMN_NAME: 'isHrAnchored' }, { COLUMN_NAME: 'orphanStatus' }] })
       .mockResolvedValueOnce({ recordset: [{ totalIdentities: 0 }] })
       .mockResolvedValueOnce({ recordset: [] })
       .mockResolvedValueOnce({ recordset: [{ total: 0 }] })

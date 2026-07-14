@@ -6,7 +6,8 @@
 // No behaviour change — pure code move.
 
 import { Router } from 'express';
-import { timedRequest } from '../../perf/sqlTimer.js';
+import { timedQuery } from '../../perf/sqlTimer.js';
+import { bindNamedParams } from '../../db/namedParams.js';
 import { isMissingSchema } from '../../db/schemaErrors.js';
 import { useSql, db, hasTable } from './shared.js';
 
@@ -50,16 +51,16 @@ router.get('/identities', async (req, res) => {
     // Column-existence check runs first because it determines the shape of
     // the summary query below. It's a tiny catalog lookup — keeping it out
     // of the parallel batch is cheap.
-    const colCheck = await p.request().query(`
+    const colCheck = await db.query(`
       SELECT column_name AS "COLUMN_NAME" FROM information_schema.columns
       WHERE table_schema = 'public' AND table_name = 'Identities' AND column_name IN ('isHrAnchored', 'orphanStatus')
     `);
-    const hasHrCols = colCheck.recordset.length >= 2;
+    const hasHrCols = colCheck.rows.length >= 2;
 
     // The three big queries are independent — run them in parallel so
     // postgres can schedule them on separate backends.
     const [summaryResult, typeDistResult] = await Promise.all([
-      timedRequest(p, 'identity-summary', res).query(`
+      timedQuery(p, 'identity-summary', res, `
         SELECT
           COUNT(*) AS "totalIdentities",
           SUM(CASE WHEN "accountCount" > 1 THEN 1 ELSE 0 END) AS "multiAccountIdentities",
@@ -71,15 +72,15 @@ router.get('/identities', async (req, res) => {
           SUM(CASE WHEN "orphanStatus" IS NOT NULL THEN 1 ELSE 0 END) AS "orphanCount"` : ''}
         FROM "Identities"
       `),
-      timedRequest(p, 'identity-type-dist', res).query(`
+      timedQuery(p, 'identity-type-dist', res, `
         SELECT "accountType", COUNT(*) AS cnt
         FROM "IdentityMembers"
         GROUP BY "accountType"
         ORDER BY cnt DESC
       `),
     ]);
-    const summary = summaryResult.recordset[0];
-    summary.accountTypeDistribution = typeDistResult.recordset;
+    const summary = summaryResult.rows[0];
+    summary.accountTypeDistribution = typeDistResult.rows;
 
     // Build filtered query
     let where = 'WHERE 1=1';
@@ -158,11 +159,6 @@ router.get('/identities', async (req, res) => {
     // (Same export-pagination fix as /api/users — the per-row tag subquery used to
     // run for every offset+limit row before OFFSET discarded the first `offset`,
     // quadratic across an export and slow enough to time out a deep page.)
-    const dataReq = timedRequest(p, 'identity-list', res);
-    for (const [k, v] of Object.entries(inputs)) dataReq.input(k, v);
-    dataReq.input('pageOffset', pageOffset);
-    dataReq.input('pageLimit', pageLimit);
-
     const dataSql = `
       WITH page AS (
         SELECT i.id, i."displayName", i."primaryPrincipalId" AS "primaryAccountId", i.email AS "primaryAccountUpn",
@@ -189,23 +185,31 @@ router.get('/identities', async (req, res) => {
       ORDER BY ${orderBy}
     `;
 
+    // The data query binds the filter inputs plus the page window; the COUNT
+    // query binds only the inputs it references (bindNamedParams drops the
+    // @pageLimit/@pageOffset it never mentions), so the same map serves both.
+    const bindings = { ...inputs, pageOffset, pageLimit };
+    const dataQ = bindNamedParams(dataSql, bindings);
+
     // Fire count (page 1 only) before data so the call order matches the
     // legacy Promise.all([count, data]) — keeps the mocked unit tests valid.
     let total = null;
     let dataResult;
     if (pageOffset === 0) {
-      const countReq = timedRequest(p, 'identity-count', res);
-      for (const [k, v] of Object.entries(inputs)) countReq.input(k, v);
+      const countQ = bindNamedParams(
+        `SELECT COUNT(*)::int AS total FROM "Identities" i ${identityTagJoin} ${where}`,
+        bindings,
+      );
       const [countResult, dr] = await Promise.all([
-        countReq.query(`SELECT COUNT(*)::int AS total FROM "Identities" i ${identityTagJoin} ${where}`),
-        dataReq.query(dataSql),
+        timedQuery(p, 'identity-count', res, countQ.text, countQ.values),
+        timedQuery(p, 'identity-list', res, dataQ.text, dataQ.values),
       ]);
-      total = countResult.recordset[0].total;
+      total = countResult.rows[0].total;
       dataResult = dr;
     } else {
-      dataResult = await dataReq.query(dataSql);
+      dataResult = await timedQuery(p, 'identity-list', res, dataQ.text, dataQ.values);
     }
-    const data = dataResult.recordset.map(row => {
+    const data = dataResult.rows.map(row => {
       const { tagString, ...rest } = row;
       return { ...rest, tags: parseTagString(tagString) };
     });
@@ -248,24 +252,24 @@ router.get('/identity-columns', async (req, res) => {
       // values at most on a real tenant) and keeps the SQL trivial.
       for (const col of FILTER_COLS) {
         try {
-          const r = await p.request().query(
+          const r = await db.query(
             `SELECT DISTINCT "${col}" AS v FROM "Identities" WHERE "${col}" IS NOT NULL AND "${col}" <> '' ORDER BY "${col}" LIMIT 500`
           );
-          grouped[col] = r.recordset.map(x => x.v);
+          grouped[col] = r.rows.map(x => x.v);
         } catch (e) { if (!isMissingSchema(e)) throw e; grouped[col] = []; }
       }
     }
 
     // Virtual tag-name column.
     try {
-      const r = await p.request().query(`
+      const r = await db.query(`
         SELECT t.name
           FROM "GraphTags" t
          WHERE t."entityType" = 'identity'
            AND EXISTS (SELECT 1 FROM "GraphTagAssignments" ta WHERE ta."tagId" = t.id)
          ORDER BY t.name
       `);
-      grouped['__identityTag'] = schemaOnly ? [] : r.recordset.map(x => x.name);
+      grouped['__identityTag'] = schemaOnly ? [] : r.rows.map(x => x.name);
     } catch (e) { if (!isMissingSchema(e)) throw e; /* GraphTags may not exist yet */ }
 
     return res.json(Object.entries(grouped).map(([column, values]) => ({ column, values })));
