@@ -1,1 +1,2 @@
-- Internal: began removing the legacy SQL-Server compatibility shim in favour of native PostgreSQL query calls, starting with the Systems endpoints. No user-facing behaviour change.
+- Fixed: deleting a governance category (Admin → Categories) failed with an internal error against PostgreSQL; it now deletes correctly.
+- Internal: continued removing the legacy SQL-Server compatibility shim in favour of native PostgreSQL query calls across the Systems, details, identities, risk-scores, resources, tags, curated-data, access-package, sync-log and category endpoints. No other user-facing behaviour change.
