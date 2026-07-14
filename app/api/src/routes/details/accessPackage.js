@@ -54,7 +54,7 @@ router.get('/access-package/:id', async (req, res) => {
       const r = await timedRequest(pool, 'ap-assignment-count', res)
         .input('id', apId)
         .query(`
-        SELECT COUNT(*) AS cnt FROM "ResourceAssignments" WHERE "resourceId" = @id
+        SELECT COUNT(*)::int AS cnt FROM "ResourceAssignments" WHERE "resourceId" = @id
       `);
       assignmentCount = r.recordset[0].cnt;
     } catch (e) { if (!isMissingSchema(e)) throw e; /* table may not exist */ }
@@ -65,7 +65,7 @@ router.get('/access-package/:id', async (req, res) => {
       const r = await timedRequest(pool, 'ap-group-count', res)
         .input('id', apId)
         .query(`
-        SELECT COUNT(DISTINCT "childResourceId") AS cnt
+        SELECT COUNT(DISTINCT "childResourceId")::int AS cnt
         FROM "ResourceRelationships"
         WHERE "parentResourceId" = @id AND "relationshipType" = 'Contains'
       `);
@@ -78,7 +78,7 @@ router.get('/access-package/:id', async (req, res) => {
       const r = await timedRequest(pool, 'ap-review-count', res)
         .input('id', apId)
         .query(`
-        SELECT COUNT(*) AS cnt FROM "CertificationDecisions" WHERE "resourceId" = @id
+        SELECT COUNT(*)::int AS cnt FROM "CertificationDecisions" WHERE "resourceId" = @id
       `);
       reviewCount = r.recordset[0].cnt;
     } catch (e) { if (!isMissingSchema(e)) throw e; /* table may not exist */ }
@@ -89,7 +89,7 @@ router.get('/access-package/:id', async (req, res) => {
       const r = await timedRequest(pool, 'ap-pending-request-count', res)
         .input('id', apId)
         .query(`
-        SELECT COUNT(*) AS cnt FROM "AssignmentRequests"
+        SELECT COUNT(*)::int AS cnt FROM "AssignmentRequests"
         WHERE "resourceId" = @id AND "requestState" = 'PendingApproval'
       `);
       pendingRequestCount = r.recordset[0].cnt;
@@ -152,9 +152,9 @@ router.get('/access-package/:id', async (req, res) => {
         .input('id', apId)
         .query(`
         SELECT
-          COUNT(*) AS total,
-          SUM(CASE WHEN "hasAutoAddRule" = TRUE THEN 1 ELSE 0 END) AS "autoAdd",
-          SUM(CASE WHEN COALESCE("hasAutoAddRule", FALSE) = FALSE AND "hasAutoRemoveRule" = TRUE THEN 1 ELSE 0 END) AS "autoRemoveOnly"
+          COUNT(*)::int AS total,
+          SUM(CASE WHEN "hasAutoAddRule" = TRUE THEN 1 ELSE 0 END)::int AS "autoAdd",
+          SUM(CASE WHEN COALESCE("hasAutoAddRule", FALSE) = FALSE AND "hasAutoRemoveRule" = TRUE THEN 1 ELSE 0 END)::int AS "autoRemoveOnly"
         FROM "AssignmentPolicies"
         WHERE "resourceId" = @id
       `);
@@ -365,11 +365,11 @@ router.get('/access-package/:id/policies', async (req, res) => {
       .input('id', req.params.id)
       .query(`
       SELECT id, "displayName", description, "allowedTargetScope",
-             COALESCE("hasAutoAddRule", CAST(0 AS BOOLEAN)) AS "hasAutoAddRule",
-             COALESCE("hasAutoRemoveRule", CAST(0 AS BOOLEAN)) AS "hasAutoRemoveRule",
-             COALESCE("hasAccessReview", CAST(0 AS BOOLEAN)) AS "hasAccessReview",
+             COALESCE("hasAutoAddRule", FALSE) AS "hasAutoAddRule",
+             COALESCE("hasAutoRemoveRule", FALSE) AS "hasAutoRemoveRule",
+             COALESCE("hasAccessReview", FALSE) AS "hasAccessReview",
              "reviewSettings",
-             JSON_VALUE("automaticRequestSettings", '$.filter.rule') AS "autoAssignmentFilter",
+             "automaticRequestSettings" #>> '{filter,rule}' AS "autoAssignmentFilter",
              "createdDateTime", "modifiedDateTime"
       FROM "AssignmentPolicies"
       WHERE "resourceId" = @id

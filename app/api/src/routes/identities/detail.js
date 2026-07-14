@@ -93,7 +93,11 @@ router.get('/identities/:id', async (req, res) => {
     // graph shows these as nodes ("32 groups across 3 accounts", "4 access
     // packages"). One query joins IdentityMembers to ResourceAssignments and
     // groups by assignmentType so we stay cheap.
-    const aggregate = { Direct: 0, Governed: 0, Owner: 0, Eligible: 0, OAuth2Grant: 0 };
+    // Keys double as the allow-list for which aggregated types are surfaced
+    // (line below only copies a row whose type is already a key). 'Indirect' is
+    // a universal assignmentType and the entity graph renders an Indirect node,
+    // so it must be present — it was missing, so indirect counts were dropped.
+    const aggregate = { Direct: 0, Indirect: 0, Governed: 0, Owner: 0, Eligible: 0, OAuth2Grant: 0 };
     try {
       const aggResult = await timedRequest(p, 'identity-aggregate-counts', res)
         .input('identityId', identityId)
