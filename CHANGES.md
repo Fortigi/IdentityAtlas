@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Added a link to the Identity Atlas website (identityatlas.io) at the top of the dashboard's Resources card.
+
+## Changes in this PR
+
 - Marketing site: the "Extensive quality assurance" trust card now links "code-coverage ratchets" to the published Test Coverage report.
 
 ## Changes in this PR

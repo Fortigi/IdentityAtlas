@@ -1,1 +1,0 @@
-- Added a link to the Identity Atlas website (identityatlas.io) at the top of the dashboard's Resources card.
