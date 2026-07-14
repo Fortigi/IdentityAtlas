@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Internal: added automated test coverage for previously-untested modules — the auth-config CLI, the update checker and daily scheduler, the temp-table and risk-score query helpers, and the inherited-access matrix folding. No user-facing behaviour change.
+
+## Changes in this PR
+
 - Fixed the System detail and System Owners pages, which errored for every system because the system id was validated as a GUID even though system ids are numbers.
 - Fixed adding, listing and removing system owners; adding one no longer fails, and a duplicate owner now shows a clear "already an owner" message.
 - Fixed toggling a system's Enabled flag.
