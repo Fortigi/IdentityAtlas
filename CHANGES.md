@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Marketing site: the "Extensive quality assurance" trust card now links "code-coverage ratchets" to the published Test Coverage report.
+
+## Changes in this PR
+
 - Marketing site: clarified that the LLM risk-scoring layer is optional (and still sees public context only), and credited the package-firewall vendor (Socket Firewall) by name.
 
 ## Changes in this PR

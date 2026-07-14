@@ -1,1 +1,0 @@
-- Marketing site: the "Extensive quality assurance" trust card now links "code-coverage ratchets" to the published Test Coverage report.
