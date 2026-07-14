@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Marketing site: clarified that the LLM risk-scoring layer is optional (and still sees public context only), and credited the package-firewall vendor (Socket Firewall) by name.
+
+## Changes in this PR
+
 - Added a public marketing website — a single, clean landing page introducing Identity Atlas with four sections: Why, What, How to start, and Trust.
 - The site uses the Identity Atlas logo and matches the app's look and feel: blue interactive colour, lime brand accent, card-based layout, and full light/dark theme support.
 - "What" and "How to start" link into the full documentation; release channels (edge/beta/stable) and the three ways to run it (Docker, one-click Azure, portable Windows launcher) are described accurately, with a copy-to-clipboard quick-start snippet.
