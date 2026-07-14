@@ -60,7 +60,7 @@ router.post('/ingest/refresh-views', async (req, res) => {
     // do a bulk UPDATE here instead.
     try {
       const pool = await db.getPool();
-      await pool.request().query(`
+      await pool.query(`
         UPDATE "Contexts" c
            SET "directMemberCount" = (
                  SELECT COUNT(*)::int FROM "ContextMembers" WHERE "contextId" = c.id
