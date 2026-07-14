@@ -1,0 +1,1 @@
+- Added a documentation gap audit (`docs/docs-gap-audit.md`) mapping shipped features to their documentation coverage, as the basis for a remediation plan.
