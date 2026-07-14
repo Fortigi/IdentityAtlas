@@ -23,6 +23,7 @@ import { docsUrl } from '@ui/utils/docsUrl';
 const DashboardTrendsTab = lazy(() => import('./DashboardTrendsTab'));
 
 const GITHUB_BASE = 'https://github.com/Fortigi/IdentityAtlas';
+const WEBSITE_URL = 'https://identityatlas.io';
 const SUPPORT_EMAIL = 'support@identityatlas.io';
 
 function changesUrl(v) {
@@ -229,6 +230,7 @@ export default function DashboardPage({ onNavigate }) {
             <h3 className="text-sm font-bold text-gray-900 dark:text-white">Resources</h3>
           </div>
           <ul className="space-y-2.5 text-sm">
+            <li><a href={WEBSITE_URL} target="_blank" rel="noopener noreferrer" className="text-gray-700 dark:text-gray-300 hover:text-lime-700 hover:underline flex items-center gap-2"><span>→</span>Website</a></li>
             <li><a href={docsUrl(version?.version)} target="_blank" rel="noopener noreferrer" className="text-gray-700 dark:text-gray-300 hover:text-lime-700 hover:underline flex items-center gap-2"><span>→</span>Documentation</a></li>
             <li><a href={GITHUB_BASE} target="_blank" rel="noopener noreferrer" className="text-gray-700 dark:text-gray-300 hover:text-lime-700 hover:underline flex items-center gap-2"><span>→</span>GitHub repository</a></li>
             <li><a href={`${GITHUB_BASE}/blob/main/LICENSE`} target="_blank" rel="noopener noreferrer" className="text-gray-700 dark:text-gray-300 hover:text-lime-700 hover:underline flex items-center gap-2"><span>→</span>License</a></li>
