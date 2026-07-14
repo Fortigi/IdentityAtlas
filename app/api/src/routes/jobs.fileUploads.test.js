@@ -53,12 +53,13 @@ function makeApp() {
   return app;
 }
 
-// Helper: pull the JSON-stringified value passed to .input('config', ...) so
-// tests can inspect what was actually about to be stored, without needing to
-// fabricate a fake RETURNING * echo in the INSERT mock.
+// Helper: pull the JSON-stringified config the INSERT was about to store. The
+// job INSERT now binds it as the 2nd positional param — pool.query(sql,
+// [jobType, configJson, createdBy]) — so read it off the mockDbQuery call args.
 function storedConfig() {
-  const call = mockInput.mock.calls.find(c => c[0] === 'config');
-  return call?.[1] ? JSON.parse(call[1]) : null;
+  const call = mockDbQuery.mock.calls.find(c => /INSERT INTO "CrawlerJobs"/.test(c[0]));
+  const configJson = call?.[1]?.[1];
+  return configJson ? JSON.parse(configJson) : null;
 }
 
 beforeEach(() => {

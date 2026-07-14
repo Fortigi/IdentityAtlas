@@ -61,24 +61,25 @@ router.post('/admin/crawler-jobs', gate, async (req, res) => {
     const effectiveSyncMode = explicitSyncMode || cfg.configNextRunMode || 'delta';
     const { inlineSecret, configJson, extraCreds } = prepareJobConfig(resolvedConfig, configId, effectiveSyncMode);
 
-    const result = await pool.request()
-      .input('jobType', jobType)
-      .input('config', configJson)
-      .input('createdBy', createdBy)
-      .query(`INSERT INTO "CrawlerJobs" ("jobType", config, "createdBy")
-              VALUES (@jobType, @config, @createdBy)
-              RETURNING *`);
-    const newJobId = result.recordset[0].id;
+    const result = await pool.query(
+      `INSERT INTO "CrawlerJobs" ("jobType", config, "createdBy")
+              VALUES ($1, $2, $3)
+              RETURNING *`,
+      [jobType, configJson, createdBy]
+    );
+    const newJobId = result.rows[0].id;
     if (inlineSecret) await storeJobSecret(newJobId, inlineSecret);
     if (Object.keys(extraCreds).length) await storeJobCredentials(newJobId, extraCreds);
 
     // Update lastRunAt on the source config
     if (configId) {
-      await pool.request().input('configId', configId)
-        .query(`UPDATE "CrawlerConfigs" SET "lastRunAt" = (now() AT TIME ZONE 'utc') WHERE id = @configId`);
+      await pool.query(
+        `UPDATE "CrawlerConfigs" SET "lastRunAt" = (now() AT TIME ZONE 'utc') WHERE id = $1`,
+        [configId]
+      );
     }
 
-    res.status(201).json(result.recordset[0]);
+    res.status(201).json(result.rows[0]);
   } catch (err) {
     console.error('Error creating crawler job:', err.message);
     res.status(500).json({ error: 'Failed to create job' });
@@ -92,10 +93,9 @@ router.get('/admin/crawler-jobs', gate, async (req, res) => {
   try {
     const pool = await db.getPool();
     const limit = Math.min(parseInt(req.query.limit, 10) || 20, MAX_RECENT_JOBS);
-    const result = await pool.request()
-      .input('limit', limit)
-      .query(`SELECT * FROM "CrawlerJobs" ORDER BY "createdAt" DESC LIMIT @limit`);
-    res.json(result.recordset);
+    const result = await pool.query(
+      `SELECT * FROM "CrawlerJobs" ORDER BY "createdAt" DESC LIMIT $1`, [limit]);
+    res.json(result.rows);
   } catch (err) {
     console.error('Error listing crawler jobs:', err.message);
     res.status(500).json({ error: 'Failed to list jobs' });
@@ -110,11 +110,9 @@ router.get('/admin/crawler-jobs/:id', gate, async (req, res) => {
 
   try {
     const pool = await db.getPool();
-    const result = await pool.request()
-      .input('id', id)
-      .query(`SELECT * FROM "CrawlerJobs" WHERE id = @id`);
-    if (result.recordset.length === 0) return res.status(404).json({ error: 'Job not found' });
-    res.json(result.recordset[0]);
+    const result = await pool.query(`SELECT * FROM "CrawlerJobs" WHERE id = $1`, [id]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Job not found' });
+    res.json(result.rows[0]);
   } catch (err) {
     console.error('Error fetching crawler job:', err.message);
     res.status(500).json({ error: 'Failed to fetch job' });
@@ -245,7 +243,7 @@ router.get('/admin/status', gate, async (req, res) => {
     // Postgres: use to_regclass() instead of INFORMATION_SCHEMA EXISTS subqueries.
     // After migrations have run all five tables exist, but we keep the safety
     // checks so a stack started before migrations don't return 500.
-    const result = await pool.request().query(`
+    const result = await pool.query(`
       SELECT
         CASE WHEN to_regclass('"Principals"')     IS NULL THEN 0
              WHEN (SELECT COUNT(*) FROM "Principals") > 0 THEN 1 ELSE 0 END AS "hasData",
@@ -259,7 +257,7 @@ router.get('/admin/status', gate, async (req, res) => {
              ELSE (SELECT COUNT(*)::int FROM "CrawlerJobs" WHERE "status" = 'running') END AS "runningJobs"
     `);
 
-    const row = result.recordset[0];
+    const row = result.rows[0];
     res.json({
       hasData: row.hasData === 1,
       hasCrawlers: row.crawlerCount > 0,
