@@ -51,6 +51,128 @@ Critical/High across all dimensions: **14.**
 
 ---
 
+## Remediation Status
+
+_Status tracking added 2026-07-14. In the weeks since this audit the backlog was worked one PR at a time; the tables below record where each finding landed, matching the Status convention of the [Security Assessment](assessment.md) and [UX Assessment](../ux/assessment.md) pages. The detailed phase sections that follow are the original audit text, unchanged._
+
+Status legend: ✅ **Fixed** (merged) · 🟦 **By design** (intended/supported, documented) · 🟨 **Partially addressed** · 🔧 **Open**.
+
+| Phase | Tracked | ✅ Fixed | 🟦 By design | 🟨 Partial | 🔧 Open |
+|-------|--------:|--------:|------------:|----------:|--------:|
+| Design / UX | 21 | 5 | 0 | 1 | 15 |
+| Security | 22 | 10 | 2 | 1 | 9 |
+| Perf & Quality | 16 | 5 | 2 | 3 | 6 |
+| CI / Test Harness | 11 | 6 | 0 | 3 | 2 |
+| Documentation | 11 | 9 | 0 | 1 | 1 |
+| **Total** | **81** | **35** | **4** | **9** | **33** |
+
+_(Row groups P6–P10, Q9–Q10, F10–F13, D10–D12 and the Codex net-new bullets are tracked as single rows here; the audit's raw sub-finding count is 85.)_
+
+All **Critical** findings are fixed and merged. Every exploitable **security** finding is closed — the Bicep secret leak (H-1), the crawler-protocol authorization gaps (SEC-NEW-2/3/4), and the LLM SSRF / timeout / prompt-injection hardening — as are the correctness and perf headliners (the P1 identity-detail data bug, the Q1 matrix god-module split, the P3 covering index) and the CI safety-net gaps (E2E now blocks merges, enforced coverage floors, workflow concurrency). The remaining open items are concentrated in **Design** High/Medium/Low UI-consistency & a11y polish (shared Button/Modal, accent sweep, list-page error states), **security Low-tier** infrastructure hardening, and the **large-effort perf refactors** (flat-grid pagination, matrix column virtualization).
+
+### Design / UX
+| ID | Status | PR / evidence |
+|----|--------|---------------|
+| C1 | ✅ Fixed | #427 + `no-duplicate-dark-color` ESLint rule (strips + blocks doubled `dark:`) |
+| C2 | ✅ Fixed | #427 |
+| C3 | ✅ Fixed | #525 — axe suite re-armed across all nav tabs |
+| H1 | 🔧 Open | accent sprawl (lime/indigo vs blue) not yet unified |
+| H2 | 🔧 Open | no shared `components/Button.jsx` |
+| H3 | 🔧 Open | clickable non-controls (`<tr>`/`<span>`) remain |
+| H4 | 🔧 Open | modal Escape/focus-trap/`role="dialog"` not added |
+| H5 | 🔧 Open | 6 modal overlays not consolidated |
+| H6 | 🔧 Open | `useEntityPage` still has no error state |
+| M1 | 🔧 Open | duplicate `Section`/`StatCard` remain |
+| M2 | ✅ Fixed | #500 — `DialogProvider` + `no-native-dialogs` rule |
+| M3 | 🔧 Open | emoji-as-icon persists |
+| M4 | 🔧 Open | Dashboard StatCard gradients remain |
+| M5 | 🔧 Open | radius scale unstandardized |
+| M6 | ✅ Fixed | #427 (same codemod + lint rule as C1) |
+| M7 | 🔧 Open | tables lack `overflow-x-auto` |
+| M8 | 🔧 Open | tag-pill `color + '20'` alpha hack remains |
+| L1 | 🔧 Open | list pages don't use shared `EmptyState` |
+| L2 | 🟨 Partially addressed | #525 added aria-labels on nav pages; search inputs still placeholder-only |
+| L3 | 🔧 Open | no semantic design-token layer |
+| L4 | 🔧 Open | active tab still near-black, not blue |
+
+### Security
+| ID | Status | PR / evidence |
+|----|--------|---------------|
+| H-1 | ✅ Fixed | #475 — keys removed from Bicep outputs (key rotation is an operational follow-up) |
+| M-1 | ✅ Fixed | #484 — LLM fetch AbortController timeout + body-size cap |
+| M-2 | ✅ Fixed | #484 / #582 — stop returning upstream error bodies to clients |
+| M-3 | ✅ Fixed | #488 — `redirect:'manual'` on LLM fetches |
+| M-4 | 🔧 Open | upload per-file / aggregate caps unchanged |
+| M-5 | ✅ Fixed | #488 — untrusted scraped-content fencing |
+| M-6 | ✅ Fixed | #488 — RE2 classifier-pattern validation on save |
+| L-1 | 🔧 Open | cron command still `Invoke-Expression` |
+| L-2 | 🔧 Open | plaintext secret temp file written without perms |
+| L-3 | 🔧 Open | full job transcript to shared volume |
+| L-4 | 🔧 Open | Azure data services still public; no Isolated/private-endpoint template |
+| L-5 | 🔧 Open | Postgres password still deterministically derived |
+| L-6 | 🟨 Partially addressed | http/https scheme check added (omada/midpoint); no host/private-IP allowlist |
+| L-7 | 🔧 Open | `PGSSLMODE=require`, not `verify-full` |
+| L-8 | 🔧 Open | CSV parser still buffers whole file, no row cap |
+| I-1 | ✅ Fixed | #682 — allow-listed table + Postgres identifier quoting (displayName no longer null) |
+| I-2 | 🔧 Open | stale contradictory IaC comments remain |
+| SEC-NEW-1 | 🟦 By design | open read surface is intended (`data.read` IMPLICIT); documented + tested |
+| SEC-NEW-2 | ✅ Fixed | #424 — job-claim/secret-inject restricted to the worker key |
+| SEC-NEW-3 | ✅ Fixed | #424 — `crawlerHasSystemAccess` on delta-token endpoints |
+| SEC-NEW-4 | ✅ Fixed | #424 — perf clear/toggle gated behind an admin permission |
+| SEC-NEW-5 | 🟦 By design | shared org-wide saved filters (migration 023 documents it) |
+
+### Perf & Quality
+| ID | Status | PR / evidence |
+|----|--------|---------------|
+| P1 | ✅ Fixed | #634 / #651 — `enrichMembers` keys by `principalId` |
+| P2 | 🔧 Open | flat grid still caps at 400k→413; no cursor/keyset pagination |
+| P3 | ✅ Fixed | migration 042 — partial covering index on the matview |
+| P4 | 🔧 Open | matrix columns still not virtualized |
+| P5 | 🔧 Open | every sync still does a full matview refresh |
+| P6–P10 | 🟦 By design | mostly non-issues (perf-mw off, UNION cached); one trivial await remains |
+| Q1 | ✅ Fixed | #634 / #651 / #543 — matrix god-module split into handlers |
+| Q2 | ✅ Fixed | #474 — catch-as-feature-detection replaced by `db/schemaErrors.js` |
+| Q3 | 🔧 Open | `runBound` helper not created (bind-loops remain) |
+| Q4 | 🟨 Partially addressed | per-folder `shared.js` de-dup; `resources.js` still duplicates helpers |
+| Q5 | 🟨 Partially addressed | resource-map logic consolidated; no explicit `resourceFromRow` helper |
+| Q6 | 🔧 Open | two runtime `CREATE TABLE` DDLs remain (migration 023 owns them) |
+| Q7 | ✅ Fixed | #678 / #667 — dead GraphUsers/GraphGroups fallbacks removed |
+| Q8 | 🟦 By design | positive finding — TODO/FIXME density stayed ~zero |
+| Q9–Q10 | 🔧 Open | redundant jsonb parse + scattered magic strings remain |
+| Codex perf | 🟨 Partially addressed | riskScores top-N `LIMIT` fixed (#660); unpaginated group/assignment endpoints + MatrixView nested loop remain |
+
+### CI / Test Harness
+| ID | Status | PR / evidence |
+|----|--------|---------------|
+| F1 | ✅ Fixed | #437 — core E2E now blocks the PR |
+| F2 | 🔧 Open | secret-dependent tests still skip silently (no assert-secrets gate) |
+| F3 | ✅ Fixed | #655 — dead visual-regression suite removed (resolves the false-green) |
+| F4 | ✅ Fixed | #428 — `concurrency: cancel-in-progress` on both PR workflows |
+| F5 | ✅ Fixed | #584 / #652 / #615 / #622 — coverage floors + per-file & diff ratchets + Pester floor |
+| F6 | 🔧 Open | `test/ci-scripts/*.sh` self-tests still unwired to any workflow |
+| F7 | ✅ Fixed | #428 — API ESLint now runs on API-only PRs |
+| F8 | ✅ Fixed | mocked Pester units now cover every crawler (+ #622 floor) |
+| F9 | 🟨 Partially addressed | PSScriptAnalyzer added; Python still absent from CodeQL |
+| F10–F13 | 🟨 Partially addressed | cut-hotfix SHA-pinned; bump-version rebase-retry + build-once still open |
+| Codex CI | 🟨 Partially addressed | #428 closed config path-filter gaps; `test/nightly` filter, skip-label bypasses, a fixed-sleep flake remain |
+
+### Documentation
+| ID | Status | PR / evidence |
+|----|--------|---------------|
+| D1 | ✅ Fixed | #491 — OpenAPI explicitly scoped + cross-links the read API |
+| D2 | ✅ Fixed | #491 — dropped cluster tables removed; documented as a plugin |
+| D3 | ✅ Fixed | #489 — `/api/org-units` replaced with Contexts |
+| D4 | ✅ Fixed | #497 — soft-delete lifecycle page added |
+| D5 | ✅ Fixed | #491 — nav orphans added to `mkdocs.yml` |
+| D6 | ✅ Fixed | #489 — "Azure SQL"→PostgreSQL; tags noted as views |
+| D7 | ✅ Fixed | #489 — data-model version label aligned to v3.1 |
+| D8 | ✅ Fixed | #491 — init order reconciled with migration-created tables |
+| D9 | ✅ Fixed | #496 — data-model Contexts section rewritten to the ContextMembers model |
+| D10–D12 | 🟨 Partially addressed | #489 (README name + history-column example fixed); `.spectral.yaml` still thin |
+| Codex docs | 🔧 Open | `entities.md` still cites `mat_UserPermissionAssignments` + `/api/perf/slowest`; the risk-scoring-model SQL-Server types are fixed in-flight in #690 |
+
+---
+
 ## Phase 1 — Design / UX (React 19 UI)
 
 **Summary:** The UI has matured — a real shared layer now exists (`Stepper`, `EmptyState`,
@@ -346,7 +468,7 @@ surface open to any signed-in user (SEC-NEW-1) and the shared saved-filter mutat
 
 **Remediation status (added post-review):** SEC-NEW-2, SEC-NEW-3, and SEC-NEW-4 are
 fixed in **PR #424** (`bugfixes/security-authz-enforcement`). SEC-NEW-1 and SEC-NEW-5
-are withdrawn as intended design. **H-1 (Bicep) is the one remaining open security item.**
+are withdrawn as intended design. **H-1 (Bicep) has since been remediated in #475** (keys removed from the Bicep outputs); the remaining open security items are the Low-tier infrastructure hardening (L-1…L-8) plus the upload bounds (M-4) — see the [Remediation Status](#remediation-status) table above.
 
 ## Net-new (non-security) Codex catches — worth confirming + folding in
 - **Perf (Codex, spot-plausible, not yet hand-verified):** `riskScores.js:131/140/159`
