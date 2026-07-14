@@ -1,0 +1,1 @@
+- Internal: began removing the legacy SQL-Server compatibility shim in favour of native PostgreSQL query calls, starting with the Systems endpoints. No user-facing behaviour change.
