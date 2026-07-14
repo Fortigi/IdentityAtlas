@@ -123,24 +123,24 @@ The unified model extends the three shared tables with extra columns that carry 
 
 | Column | Type | Purpose |
 |---|---|---|
-| `catalogId` | GUID | Links the business role to its `GovernanceCatalogs` parent |
-| `isHidden` | BIT | Hides the business role from self-service request portals |
+| `catalogId` | UUID | Links the business role to its `GovernanceCatalogs` parent |
+| `isHidden` | BOOLEAN | Hides the business role from self-service request portals |
 
 ### ResourceAssignments (governed assignments)
 
 | Column | Type | Purpose |
 |---|---|---|
-| `policyId` | GUID | The `AssignmentPolicies` row that granted this assignment |
-| `state` | NVARCHAR(50) | Lifecycle state: `Delivered`, `Expired`, `PendingApproval`, etc. |
-| `assignmentStatus` | NVARCHAR(100) | Finer-grained status from the source IGA platform |
-| `expirationDateTime` | DATETIME2 | When the assignment expires (NULL = no expiry) |
+| `policyId` | UUID | The `AssignmentPolicies` row that granted this assignment |
+| `state` | TEXT | Lifecycle state: `Delivered`, `Expired`, `PendingApproval`, etc. |
+| `assignmentStatus` | TEXT | Finer-grained status from the source IGA platform |
+| `expirationDateTime` | TIMESTAMPTZ | When the assignment expires (NULL = no expiry) |
 
 ### ResourceRelationships (business role resource grants)
 
 | Column | Type | Purpose |
 |---|---|---|
-| `roleName` | NVARCHAR(100) | The role within the target resource: `Member` or `Owner` |
-| `roleOriginSystem` | NVARCHAR(100) | Which system defined this role (e.g. `EntraID`, `Omada`) |
+| `roleName` | TEXT | The role within the target resource: `Member` or `Owner` |
+| `roleOriginSystem` | TEXT | Which system defined this role (e.g. `EntraID`, `Omada`) |
 
 ---
 

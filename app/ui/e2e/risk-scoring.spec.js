@@ -20,10 +20,10 @@ test.describe('Risk Scoring Page', () => {
 
   test('shows risk data or empty state', async ({ page }) => {
     // In mock mode, risk scores may not exist
-    // Should show either data or a message about running Invoke-FGRiskScoring
+    // Should show either data or the "not yet computed" empty state
     const hasContent = page.locator('table, [class*="tier"], [class*="score"]');
     const hasEmptyState = page.getByText(/no risk/i)
-      .or(page.getByText(/Invoke-FGRiskScoring/i))
+      .or(page.getByText(/Not Yet Computed/i))
       .or(page.getByText(/not.*configured/i));
 
     await page.waitForTimeout(1000);

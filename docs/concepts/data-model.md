@@ -181,7 +181,7 @@ Organizational context (department, team) belongs to the *person*, not to their 
 
 | Property | Value |
 |---|---|
-| Primary Key | `id` GUID |
+| Primary Key | `id` UUID |
 | Audit history | Yes (via `_history` trigger) |
 | Created by | Migration `001_core_schema.sql` |
 
@@ -237,7 +237,7 @@ Organizational and structural groupings — synced from a source system, generat
 
 | Property | Value |
 |---|---|
-| Primary Key | `Contexts.id` GUID; `ContextMembers` keyed on (`contextId`, `memberId`) |
+| Primary Key | `Contexts.id` UUID; `ContextMembers` keyed on (`contextId`, `memberId`) |
 | Audit history | Yes for `Contexts` (via `_history` trigger); no for `ContextMembers` |
 | Created by | Migration `018_context_redesign.sql` (replaced the legacy `OrgUnits` / per-entity `contextId` shape) |
 
@@ -270,7 +270,7 @@ Any permission-granting entity: Entra ID groups, directory roles, application ro
 
 | Property | Value |
 |---|---|
-| Primary Key | `id` GUID |
+| Primary Key | `id` UUID |
 | Audit history | Yes (via `_history` trigger) |
 | Created by | Migration `001_core_schema.sql` |
 
@@ -315,7 +315,7 @@ All identity types from any system. The `principalType` column distinguishes hum
 
 | Property | Value |
 |---|---|
-| Primary Key | `id` GUID |
+| Primary Key | `id` UUID |
 | Audit history | Yes (via `_history` trigger) |
 | Created by | Migration `001_core_schema.sql` |
 

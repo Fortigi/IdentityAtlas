@@ -345,7 +345,7 @@ Bulk-assign a tag to all entities matching a server-side filter. Useful for tagg
 | `filters` | No | Attribute filters (same format as Matrix server-side filters) |
 
 !!! warning "Row Cap"
-    This endpoint applies a **50,000-row safety cap** (`TOP 50000` in SQL). Adjust your filter to narrow the scope if the target set exceeds this limit.
+    This endpoint applies a **50,000-row safety cap** (`LIMIT 50000` in SQL). Adjust your filter to narrow the scope if the target set exceeds this limit.
 
 **Response:** `200 OK` with count of newly assigned entities.
 
