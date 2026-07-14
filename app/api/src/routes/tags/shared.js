@@ -33,37 +33,21 @@ export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f
 const FILTER_KEY_RE = /^[a-zA-Z0-9_]+$/;
 const EXT_PREFIX = 'ext.';
 
-// Native form: returns { where, bindings } where `where` uses @name placeholders
-// and `bindings` is the { name: value } map the caller feeds to bindNamedParams.
-// Prefer this in migrated (native-pg) handlers.
-export function buildFilterWhereNamed(filters, validColNames, alias, paramPrefix = 'fl') {
+// Build a parameterised WHERE fragment from a filter object, binding each value
+// through the caller's `bind` (from createParams) so the fragment's $N slot into
+// the enclosing query's positional params. Returns the SQL fragment string.
+export function buildFilterWhere(filters, validColNames, alias, bind) {
   let where = '';
-  const bindings = {};
-  let idx = 0;
   for (const [field, value] of Object.entries(filters)) {
     if (value == null || String(value) === '') continue;
-    const paramName = `${paramPrefix}${idx}`;
 
     if (field.startsWith(EXT_PREFIX)) {
       const key = field.slice(EXT_PREFIX.length);
       if (!FILTER_KEY_RE.test(key)) continue;
-      where += ` AND ${alias}."extendedAttributes"->>'${key}' = @${paramName}`;
-      bindings[paramName] = String(value);
-      idx++;
+      where += ` AND ${alias}."extendedAttributes"->>'${key}' = ${bind(String(value))}`;
     } else if (validColNames.has(field)) {
-      where += ` AND ${alias}."${field}"::text = @${paramName}`;
-      bindings[paramName] = String(value);
-      idx++;
+      where += ` AND ${alias}."${field}"::text = ${bind(String(value))}`;
     }
   }
-  return { where, bindings };
-}
-
-// Legacy form kept for the tags handlers still on the mssql-compat request
-// object: delegates to buildFilterWhereNamed and replays the bindings onto the
-// request via .input(). Removed once tags/{crud,entities}.js are migrated (#663).
-export function buildFilterWhere(requestObj, filters, validColNames, alias, paramPrefix = 'fl') {
-  const { where, bindings } = buildFilterWhereNamed(filters, validColNames, alias, paramPrefix);
-  for (const [name, value] of Object.entries(bindings)) requestObj.input(name, value);
   return where;
 }

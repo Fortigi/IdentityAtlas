@@ -31,7 +31,7 @@ vi.mock('../db/columnCache.js', () => ({
 }));
 vi.mock('./tags.js', () => ({
   ensureTagTables: async () => {},
-  buildFilterWhereNamed: () => ({ where: '', bindings: {} }),
+  buildFilterWhere: () => '',
 }));
 
 const { default: router } = await import('./resources.js');

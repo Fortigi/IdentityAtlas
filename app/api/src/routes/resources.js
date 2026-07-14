@@ -1,8 +1,8 @@
 import { Router } from 'express';
 import { timedQuery } from '../perf/sqlTimer.js';
-import { bindNamedParams } from '../db/namedParams.js';
+import { createParams } from '../db/sqlParams.js';
 import { getResourceColumns, getResourceColumnValues } from '../db/columnCache.js';
-import { ensureTagTables, buildFilterWhereNamed } from './tags.js';
+import { ensureTagTables, buildFilterWhere } from './tags.js';
 import { isMissingSchema } from '../db/schemaErrors.js';
 
 const router = Router();
@@ -72,25 +72,21 @@ router.get('/resources', async (req, res) => {
     const p = await db.getPool();
     await ensureTagTables(p);
 
-    const bindings = { limit, offset };
+    const { params, bind } = createParams();
 
     // Validate attribute filters against actual columns
     const cols = await getResourceColumns(p);
     const colNames = new Set(cols.map(c => c.name));
 
-    const { where: filterWhere, bindings: filterBindings } = buildFilterWhereNamed(attrFilters, colNames, 'r');
-    Object.assign(bindings, filterBindings);
-
     let where = '1=1';
     // Hide soft-deleted resources by default; ?includeDeleted=true reveals them.
     if (req.query.includeDeleted !== 'true') where += ` AND r."deletedAt" IS NULL`;
     if (search) {
-      where += ` AND (r."displayName" ILIKE @search OR r."description" ILIKE @search)`;
-      bindings.search = `%${search}%`;
+      const s = bind(`%${search}%`);
+      where += ` AND (r."displayName" ILIKE ${s} OR r."description" ILIKE ${s})`;
     }
     if (resourceType) {
-      where += ` AND r."resourceType" = @resourceType`;
-      bindings.resourceType = resourceType;
+      where += ` AND r."resourceType" = ${bind(resourceType)}`;
     } else if (req.query.includeBusinessRoles !== 'true') {
       // The UI grid lists actual-access resources only; business roles /
       // access packages live on the governance (SOLL) side and are hidden by
@@ -100,27 +96,24 @@ router.get('/resources', async (req, res) => {
       where += ` AND (r."resourceType" IS NULL OR r."resourceType" <> 'BusinessRole')`;
     }
     if (systemId && /^\d+$/.test(systemId)) {
-      where += ` AND r."systemId" = @systemId`;
-      bindings.systemId = parseInt(systemId, 10);
+      where += ` AND r."systemId" = ${bind(parseInt(systemId, 10))}`;
     }
     if (tagId) {
       where += ` AND EXISTS (
         SELECT 1 FROM "GraphTagAssignments" ta
         INNER JOIN "GraphTags" t ON ta."tagId" = t.id
-        WHERE ta."tagId" = @tagId AND ta."entityId" = UPPER(r.id::text)
+        WHERE ta."tagId" = ${bind(tagId)} AND ta."entityId" = UPPER(r.id::text)
           AND t."entityType" IN ('resource', 'group')
       )`;
-      bindings.tagId = tagId;
     }
 
     let resourceTagJoin = '';
     if (resourceTagFilter) {
       resourceTagJoin = `
         INNER JOIN "GraphTagAssignments" _rta ON _rta."entityId" = UPPER(r.id::text)
-        INNER JOIN "GraphTags" _rt ON _rta."tagId" = _rt.id AND _rt."name" = @__resourceTag AND _rt."entityType" IN ('resource', 'group')`;
-      bindings.__resourceTag = resourceTagFilter;
+        INNER JOIN "GraphTags" _rt ON _rta."tagId" = _rt.id AND _rt."name" = ${bind(resourceTagFilter)} AND _rt."entityType" IN ('resource', 'group')`;
     }
-    where += filterWhere;
+    where += buildFilterWhere(attrFilters, colNames, 'r', bind);
 
     // Returns every Resources column so the same endpoint feeds the UI grid
     // AND the Power Query Excel export (which auto-expands extendedAttributes
@@ -129,6 +122,11 @@ router.get('/resources', async (req, res) => {
     // (Same export-pagination fix as /api/users — the per-row tag subquery used to
     // run for every offset+limit row before OFFSET discarded the first `offset`,
     // quadratic across an export and slow enough to time out a deep page.)
+    // pg can't run a multi-statement query with bound params, so the data and
+    // COUNT statements run separately (count only on page 1). Snapshot the filter
+    // params before binding the page window so the COUNT query isn't handed the
+    // LIMIT/OFFSET values it never references.
+    const countParams = [...params];
     const baseSql = `
       WITH page AS (
         SELECT r.id, r."displayName", r."description", r."resourceType", r."governanceResource",
@@ -141,7 +139,7 @@ router.get('/resources', async (req, res) => {
           ${resourceTagJoin}
          WHERE ${where}
          ORDER BY r."displayName"
-         LIMIT @limit OFFSET @offset
+         LIMIT ${bind(limit)} OFFSET ${bind(offset)}
       )
       SELECT page.*,
              (SELECT string_agg(t.id::text || ':' || t."name" || ':' || t."color", '|')
@@ -151,11 +149,7 @@ router.get('/resources', async (req, res) => {
              ) AS "tagString"
         FROM page
        ORDER BY page."displayName"`;
-    // pg can't run a multi-statement query with bound params, so the data and
-    // COUNT statements run separately (count only on page 1), each binding just
-    // the @names it references.
-    const dataQ = bindNamedParams(baseSql, bindings);
-    const dataResult = await db.query(dataQ.text, dataQ.values);
+    const dataResult = await db.query(baseSql, params);
 
     const data = dataResult.rows.map(row => {
       const { tagString, extendedAttributes, ...rest } = row;
@@ -177,11 +171,8 @@ router.get('/resources', async (req, res) => {
 
     let total = null;
     if (offset === 0) {
-      const countQ = bindNamedParams(
-        `SELECT COUNT(*)::int AS total FROM "Resources" r ${resourceTagJoin} WHERE ${where}`,
-        bindings,
-      );
-      total = (await db.query(countQ.text, countQ.values)).rows[0]?.total ?? null;
+      const countSql = `SELECT COUNT(*)::int AS total FROM "Resources" r ${resourceTagJoin} WHERE ${where}`;
+      total = (await db.query(countSql, countParams)).rows[0]?.total ?? null;
     }
 
     res.json({ data, total });

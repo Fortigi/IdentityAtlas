@@ -13,6 +13,7 @@ import { getPrincipalOrUserColumns, getResourceColumns as getResourceCols, getGr
 import { getOrCreateTagRoot } from '../../bootstrap.js';
 import { recalcMemberCountsForChain } from '../../contexts/memberCounts.js';
 import { requirePermission } from '../../middleware/auth.js';
+import { createParams } from '../../db/sqlParams.js';
 import { useSql, db, ensureTagTables, buildFilterWhere, ENTITY_TO_TARGET, UUID_RE } from './shared.js';
 
 const router = Router();
@@ -42,7 +43,7 @@ router.get('/tags', async (req, res) => {
     const p = await db.getPool();
     await ensureTagTables(p);
     const { entityType } = req.query;
-    const request = p.request();
+    const { params, bind } = createParams();
     let sql = `
       SELECT t.id, t."name", t."color", t."entityType", t."createdAt",
              COALESCE(COUNT(ta."tagId"), 0)::int AS "assignmentCount"
@@ -50,13 +51,12 @@ router.get('/tags', async (req, res) => {
         LEFT JOIN "GraphTagAssignments" ta ON ta."tagId" = t.id
     `;
     if (entityType) {
-      sql += ` WHERE t."entityType" = @entityType`;
-      request.input('entityType', entityType);
+      sql += ` WHERE t."entityType" = ${bind(entityType)}`;
     }
     sql += ` GROUP BY t.id, t."name", t."color", t."entityType", t."createdAt"`;
     sql += ` ORDER BY t."name"`;
-    const result = await request.query(sql);
-    res.json(result.recordset);
+    const result = await db.query(sql, params);
+    res.json(result.rows);
   } catch (err) {
     console.error('GET /tags failed:', err.message);
     res.status(500).json({ error: 'Internal server error' });
@@ -252,20 +252,21 @@ router.post('/tags/:id/assign-by-filter', writeTags, async (req, res) => {
     const search = (rawSearch || '').trim().slice(0, 200);
     const upnColForSearch = 'email';
 
-    const request = p.request().input('tagId', tagId);
+    const { params, bind } = createParams();
+    const tagIdPh = bind(tagId);
     let where = '1=1';
     if (search) {
       // ILIKE for case-insensitive search (matches the SQL-Server-era
       // default-case-insensitive behaviour the original LIKE relied on).
       // Column identifiers are camelCase, so they must be double-quoted —
       // unquoted postgres lowercases them and the lookup fails.
-      request.input('search', `%${search}%`);
+      const s = bind(`%${search}%`);
       if (entityType === 'user') {
-        where += ` AND (${alias}."displayName" ILIKE @search OR ${alias}."${upnColForSearch}" ILIKE @search)`;
+        where += ` AND (${alias}."displayName" ILIKE ${s} OR ${alias}."${upnColForSearch}" ILIKE ${s})`;
       } else if (entityType === 'identity') {
-        where += ` AND (${alias}."displayName" ILIKE @search OR ${alias}."email" ILIKE @search)`;
+        where += ` AND (${alias}."displayName" ILIKE ${s} OR ${alias}."email" ILIKE ${s})`;
       } else {
-        where += ` AND (${alias}."displayName" ILIKE @search OR ${alias}."description" ILIKE @search)`;
+        where += ` AND (${alias}."displayName" ILIKE ${s} OR ${alias}."description" ILIKE ${s})`;
       }
     }
     // (v5: temporal tables / `ValidTo` were dropped during the postgres
@@ -275,22 +276,21 @@ router.post('/tags/:id/assign-by-filter', writeTags, async (req, res) => {
     if (filters && typeof filters === 'object') {
       const cols = entityType === 'user' ? await getPrincipalOrUserColumns(p) : (entityType === 'resource' ? await getResourceCols(p) : await getGroupCols(p));
       const colNames = new Set(cols.map(c => c.name));
-      where += buildFilterWhere(request, filters, colNames, alias, 'bf');
+      where += buildFilterWhere(filters, colNames, alias, bind);
     }
 
-    // Tags now live in Contexts — write directly to ContextMembers, skip
-    // dupes via ON CONFLICT. INSERT count comes back as rowsAffected[0]
-    // from the compat layer (postgres has no @@ROWCOUNT).
-    request.input('memberType', ctx.targetType);
-    const result = await request.query(`
+    // Tags now live in Contexts — write directly to ContextMembers, skipping
+    // dupes via ON CONFLICT. INSERT count comes back as pg's rowCount.
+    const memberTypePh = bind(ctx.targetType);
+    const result = await db.query(`
       INSERT INTO "ContextMembers" ("contextId", "memberType", "memberId", "addedBy")
-      SELECT @tagId, @memberType, ${alias}.id::uuid, 'analyst'
+      SELECT ${tagIdPh}, ${memberTypePh}, ${alias}.id::uuid, 'analyst'
         FROM "${table}" ${alias}
        WHERE (${where})
       ON CONFLICT ("contextId", "memberId") DO NOTHING
-    `);
+    `, params);
     await recalcMemberCountsForChain(tagId);
-    res.json({ ok: true, inserted: result.rowsAffected?.[0] || 0 });
+    res.json({ ok: true, inserted: result.rowCount || 0 });
   } catch (err) {
     console.error('POST /tags/:id/assign-by-filter failed:', err.message);
     res.status(500).json({ error: 'Internal server error' });
