@@ -1,5 +1,19 @@
 ## Changes in this PR
 
+- Marketing site: the "Extensive quality assurance" trust card now links "code-coverage ratchets" to the published Test Coverage report.
+
+## Changes in this PR
+
+- Marketing site: clarified that the LLM risk-scoring layer is optional (and still sees public context only), and credited the package-firewall vendor (Socket Firewall) by name.
+
+## Changes in this PR
+
+- Added a public marketing website — a single, clean landing page introducing Identity Atlas with four sections: Why, What, How to start, and Trust.
+- The site uses the Identity Atlas logo and matches the app's look and feel: blue interactive colour, lime brand accent, card-based layout, and full light/dark theme support.
+- "What" and "How to start" link into the full documentation; release channels (edge/beta/stable) and the three ways to run it (Docker, one-click Azure, portable Windows launcher) are described accurately, with a copy-to-clipboard quick-start snippet.
+
+## Changes in this PR
+
 - Fixed: a slow database migration could take the whole app down on Azure (the "Application Error" page) by exceeding the container startup probe and crash-looping. The web app now starts and stays reachable while migrations run in the background, and comes up as soon as they finish.
 - Crawlers and data ingest now wait (and automatically retry) while a schema upgrade is in progress, so a crawler never runs against a half-migrated database.
 - A failed migration no longer crash-loops the app — it stays up, logs the error, and retries automatically, self-healing once the underlying issue is resolved.
