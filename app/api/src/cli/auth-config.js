@@ -35,7 +35,7 @@ if (!useSql) {
   process.exit(2);
 }
 
-function buildPgConfig() {
+export function buildPgConfig() {
   if (process.env.DATABASE_URL) {
     return { connectionString: process.env.DATABASE_URL };
   }
@@ -50,7 +50,7 @@ function buildPgConfig() {
 
 const GUID_RE = /^[0-9a-f-]{36}$/i;
 
-function parseArgs(argv) {
+export function parseArgs(argv) {
   const out = { _: [] };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -70,14 +70,14 @@ function parseArgs(argv) {
   return out;
 }
 
-async function withClient(fn) {
+export async function withClient(fn) {
   const client = new pg.Client(buildPgConfig());
   await client.connect();
   try { return await fn(client); }
   finally { await client.end(); }
 }
 
-async function readSettings(client) {
+export async function readSettings(client) {
   const r = await client.query(
     `SELECT "configKey", "configValue" FROM "WorkerConfig"
      WHERE "configKey" IN ('AUTH_ENABLED','AUTH_TENANT_ID','AUTH_CLIENT_ID','AUTH_REQUIRED_ROLES')`
@@ -92,7 +92,7 @@ async function readSettings(client) {
   };
 }
 
-async function upsert(client, key, value) {
+export async function upsert(client, key, value) {
   await client.query(
     `INSERT INTO "WorkerConfig" ("configKey", "configValue")
      VALUES ($1, $2)
@@ -103,7 +103,7 @@ async function upsert(client, key, value) {
   );
 }
 
-function printStatus(s) {
+export function printStatus(s) {
   console.log('');
   console.log('  Identity Atlas — Authentication Settings');
   console.log('  ────────────────────────────────────────');
@@ -114,7 +114,7 @@ function printStatus(s) {
   console.log('');
 }
 
-function usage() {
+export function usage() {
   console.log(`
 Identity Atlas — Auth Config CLI
 
@@ -142,7 +142,7 @@ After any change, restart the web container so the API picks up the new config:
 `);
 }
 
-async function main() {
+export async function main() {
   const args = parseArgs(process.argv.slice(2));
   const cmd = args._[0];
 

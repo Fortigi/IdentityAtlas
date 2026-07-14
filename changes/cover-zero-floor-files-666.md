@@ -1,0 +1,1 @@
+- Internal: added automated test coverage for previously-untested modules — the auth-config CLI, the update checker and daily scheduler, the temp-table and risk-score query helpers, and the inherited-access matrix folding. No user-facing behaviour change.
