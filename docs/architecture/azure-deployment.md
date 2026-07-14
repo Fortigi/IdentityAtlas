@@ -115,6 +115,31 @@ The deployment's outputs include `logAnalyticsCreated: true|false` so you can te
 
 ## Operational notes
 
+### Startup & migrations
+
+The web container **binds its port before running DB migrations** — migrations
+run in the background right after the server starts listening. This matters on
+App Service: the platform kills a container that doesn't answer on its port
+within the cold-start probe window (`WEBSITES_CONTAINER_START_TIME_LIMIT`, 230s
+by default), so a migration slower than that used to leave the port closed and
+crash-loop the container into an "Application Error" page.
+
+- The app comes up immediately and `/api/health` returns `200` (with a
+  `schemaReady` field) while a migration is still running.
+- Crawler job-claim and ingest endpoints return `503 Retry-After: 30` until the
+  schema is ready, so no crawler runs against a half-migrated database. The
+  worker just retries.
+- If a migration fails, the container no longer crash-loops — it stays up, logs
+  the error, and retries with backoff, self-healing once the cause clears.
+- The template also sets `WEBSITES_CONTAINER_START_TIME_LIMIT=1800` (the 30-min
+  platform max) as an extra backstop for very large one-time schema upgrades.
+
+**Track `:latest`, not `:edge`, in production.** `:latest` is the stable
+customer release; `:edge` is the latest merged commit on `main` and may carry
+unvetted migrations that reach your production the moment they merge. Pin the
+channel by redeploying with `webImage=ghcr.io/fortigi/identity-atlas:latest`
+(and the matching `workerImage`), or a specific version tag.
+
 ### Updating the container images
 
 ```powershell
