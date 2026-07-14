@@ -1,0 +1,1 @@
+- Marketing site: clarified that the LLM risk-scoring layer is optional (and still sees public context only), and credited the package-firewall vendor (Socket Firewall) by name.
