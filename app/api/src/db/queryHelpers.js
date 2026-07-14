@@ -1,8 +1,9 @@
-import { timedRequest } from '../perf/sqlTimer.js';
+import { timedQuery } from '../perf/sqlTimer.js';
+import { bindNamedParams } from './namedParams.js';
 
 /**
  * Runs a paginated data + count query against RiskScores with a caller-supplied
- * JOIN and WHERE clause. Returns { data: recordset[], total: number }.
+ * JOIN and WHERE clause. Returns { data: rows[], total: number }.
  *
  * The caller builds whereClause and params so that entity-specific filter
  * conditions (search column names, extra filters like department/resourceType)
@@ -13,38 +14,36 @@ export async function queryRiskScoresPage(pool, res, {
   fromClause,   // SQL after "FROM \"RiskScores\" rs", e.g. 'INNER JOIN "Principals" p ON ...'
   selectCols,   // additional SELECT columns beyond rs.*, e.g. 'p."displayName", p.email AS ...'
   whereClause,  // full WHERE clause including entity-type predicate, e.g. 'WHERE rs."entityType" = \'Principal\' AND ...'
-  params,       // [{ name, value }] — bound to both data and count requests
+  params,       // [{ name, value }] — @name filters bound to both data and count queries
   limit,
   offset,
 }) {
-  const dataReq  = timedRequest(pool, `${label}-list`,  res);
-  const countReq = timedRequest(pool, `${label}-count`, res);
+  // The caller's filter params plus the page window; the COUNT query binds only
+  // the @names it references (bindNamedParams drops @limit/@offset).
+  const bindings = { limit, offset };
+  for (const { name, value } of params) bindings[name] = value;
 
-  for (const { name, value } of params) {
-    dataReq.input(name, value);
-    countReq.input(name, value);
-  }
-  dataReq.input('limit',  limit);
-  dataReq.input('offset', offset);
-
-  const dataResult = await dataReq.query(`
+  const dataQ = bindNamedParams(`
     SELECT rs.*, ${selectCols}
     FROM "RiskScores" rs
     ${fromClause}
     ${whereClause}
     ORDER BY rs."riskScore" DESC
     LIMIT @limit OFFSET @offset
-  `);
+  `, bindings);
 
-  const countResult = await countReq.query(`
+  const countQ = bindNamedParams(`
     SELECT COUNT(*) AS total
     FROM "RiskScores" rs
     ${fromClause}
     ${whereClause}
-  `);
+  `, bindings);
+
+  const dataResult  = await timedQuery(pool, `${label}-list`,  res, dataQ.text,  dataQ.values);
+  const countResult = await timedQuery(pool, `${label}-count`, res, countQ.text, countQ.values);
 
   return {
-    data:  dataResult.recordset,
-    total: countResult.recordset[0].total,
+    data:  dataResult.rows,
+    total: countResult.rows[0].total,
   };
 }

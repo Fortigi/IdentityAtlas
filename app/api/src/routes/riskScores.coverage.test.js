@@ -10,31 +10,26 @@ import { mountRouter } from '../../test-utils/routeTestKit.js';
 
 process.env.USE_SQL = 'true';
 
-// A flexible timedRequest mock: each call returns a chainable request object
-// whose .query() resolves a recordset chosen by the SQL it's handed. Tests push
-// scripted responses onto `recordsetQueue` keyed loosely by label; the default
+// A flexible timedQuery mock: each call resolves rows chosen by the SQL it's
+// handed. Tests push scripted responses onto `queryScript` (FIFO); the default
 // is the table-check returning a present table.
 let tableExists = true;
-const queryScript = []; // FIFO of { match?: RegExp, recordset } applied to .query() calls (excluding the table check)
-const capturedSql = []; // every SQL string handed to .query(), so tests can assert the emitted SQL
+const queryScript = []; // FIFO of rows-arrays (or an Error) applied to non-table-check queries
+const capturedSql = []; // every SQL string handed to timedQuery(), so tests can assert the emitted SQL
 
 vi.mock('../perf/sqlTimer.js', () => ({
-  timedRequest: (_p, label) => ({
-    _inputs: {},
-    input(name, value) { this._inputs[name] = value; return this; },
-    async query(sql) {
-      capturedSql.push(sql);
-      if (/to_regclass/.test(sql)) {
-        return { recordset: [{ tbl: tableExists ? 'public.RiskScores' : null }] };
-      }
-      // Pop the next scripted response (if any) for non-table-check queries.
-      // Push an Error to simulate a failing query (exercises the 500 catch paths).
-      const next = queryScript.shift();
-      if (next === undefined) return { recordset: [] };
-      if (next instanceof Error) throw next;
-      return { recordset: next };
-    },
-  }),
+  timedQuery: async (_p, _label, _res, sql) => {
+    capturedSql.push(sql);
+    if (/to_regclass/.test(sql)) {
+      return { rows: [{ tbl: tableExists ? 'public.RiskScores' : null }] };
+    }
+    // Pop the next scripted response (if any) for non-table-check queries.
+    // Push an Error to simulate a failing query (exercises the 500 catch paths).
+    const next = queryScript.shift();
+    if (next === undefined) return { rows: [] };
+    if (next instanceof Error) throw next;
+    return { rows: next };
+  },
   getQueryTimings: () => [],
 }));
 

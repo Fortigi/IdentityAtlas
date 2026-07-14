@@ -13,20 +13,17 @@ import express from 'express';
 process.env.USE_SQL = 'true'; // module loads its db import + useSql at eval time
 
 const captured = [];
-// Per-label response overrides: an array becomes the recordset; an Error is thrown.
+// Per-label response overrides: an array becomes the rows; an Error is thrown.
 let responses = {};
 vi.mock('../perf/sqlTimer.js', () => ({
-  timedRequest: (_p, label) => ({
-    input() { return this; },
-    query: async (sql) => {
-      captured.push({ label, sql });
-      // riskTableExists must see the table so the handler reaches the top-N queries.
-      if (label === 'risk-table-check') return { recordset: [{ tbl: 'public.RiskScores' }] };
-      const r = responses[label];
-      if (r instanceof Error) throw r;
-      return { recordset: r ?? [] };
-    },
-  }),
+  timedQuery: async (_p, label, _res, text) => {
+    captured.push({ label, sql: text });
+    // riskTableExists must see the table so the handler reaches the top-N queries.
+    if (label === 'risk-table-check') return { rows: [{ tbl: 'public.RiskScores' }] };
+    const r = responses[label];
+    if (r instanceof Error) throw r;
+    return { rows: r ?? [] };
+  },
 }));
 vi.mock('../db/connection.js', () => ({ getPool: async () => ({}), query: async () => ({ rows: [] }), queryOne: async () => null }));
 vi.mock('../middleware/auth.js', () => ({ requirePermission: () => (_q, _s, n) => n() }));

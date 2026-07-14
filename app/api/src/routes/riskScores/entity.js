@@ -6,7 +6,7 @@
 // behaviour change — pure code move.
 
 import { Router } from 'express';
-import { timedRequest } from '../../perf/sqlTimer.js';
+import { timedQuery } from '../../perf/sqlTimer.js';
 import { requirePermission } from '../../middleware/auth.js';
 import { tierFor } from '../../riskscoring/tiers.js';
 import { useSql, db, riskTableExists, parseJsonColumns, TEMPORAL_FILTER } from './shared.js';
@@ -51,21 +51,18 @@ function parseEntityParams(req, res) {
 // (clamped 0–100) plus tier, applying `adjustment` (0 for a clear). On a missing
 // row it sends the 404 and returns null; otherwise returns { newScore, newTier }.
 async function recomputeScore(p, res, id, entityType, adjustment = 0) {
-  const current = await timedRequest(p, 'risk-override-read', res)
-    .input('id', id)
-    .input('entityType', entityType)
-    .query(`
+  const current = await timedQuery(p, 'risk-override-read', res, `
         SELECT "riskDirectScore", "riskMembershipScore", "riskStructuralScore", "riskPropagatedScore"
         FROM "RiskScores"
-        WHERE "entityId" = @id AND "entityType" = @entityType
-      `);
+        WHERE "entityId" = $1 AND "entityType" = $2
+      `, [id, entityType]);
 
-  if (current.recordset.length === 0) {
+  if (current.rows.length === 0) {
     res.status(404).json({ error: 'Entity not found or not yet scored' });
     return null;
   }
 
-  const row = current.recordset[0];
+  const row = current.rows[0];
   const baseScore = (row.riskDirectScore || 0) + (row.riskMembershipScore || 0)
     + (row.riskStructuralScore || 0) + (row.riskPropagatedScore || 0);
   const newScore = Math.max(0, Math.min(100, baseScore + adjustment));
@@ -77,13 +74,13 @@ async function recomputeScore(p, res, id, entityType, adjustment = 0) {
 async function denormalizeScore(p, res, id, entityType, newScore, newTier) {
   try {
     if (entityType === 'Principal') {
-      await timedRequest(p, 'risk-override-denorm', res)
-        .input('id', id).input('newScore', newScore).input('newTier', newTier)
-        .query(`UPDATE "Principals" SET "riskScore" = @newScore, "riskTier" = @newTier WHERE id = @id`);
+      await timedQuery(p, 'risk-override-denorm', res,
+        `UPDATE "Principals" SET "riskScore" = $2, "riskTier" = $3 WHERE id = $1`,
+        [id, newScore, newTier]);
     } else if (entityType === 'Resource') {
-      await timedRequest(p, 'risk-override-denorm', res)
-        .input('id', id).input('newScore', newScore).input('newTier', newTier)
-        .query(`UPDATE "Resources" SET "riskScore" = @newScore, "riskTier" = @newTier WHERE id = @id`);
+      await timedQuery(p, 'risk-override-denorm', res,
+        `UPDATE "Resources" SET "riskScore" = $2, "riskTier" = $3 WHERE id = $1`,
+        [id, newScore, newTier]);
     }
   } catch { /* entity table may not have risk columns yet */ }
 }
@@ -100,20 +97,17 @@ router.get('/risk-scores/:type/:id', async (req, res) => {
       return res.status(404).json({ error: 'Risk scores not available' });
     }
 
-    const request = timedRequest(p, 'risk-score-single', res);
-    request.input('id', id);
-    request.input('entityType', entityType);
-    const result = await request.query(`
+    const result = await timedQuery(p, 'risk-score-single', res, `
       SELECT rs.*
       FROM "RiskScores" rs
-      WHERE rs."entityId" = @id AND rs."entityType" = @entityType
-    `);
+      WHERE rs."entityId" = $1 AND rs."entityType" = $2
+    `, [id, entityType]);
 
-    if (result.recordset.length === 0) {
+    if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Risk score not found for this entity' });
     }
 
-    const riskData = parseJsonColumns(result.recordset[0]);
+    const riskData = parseJsonColumns(result.rows[0]);
 
     // Fetch entity display name
     let displayName = null;
@@ -132,10 +126,10 @@ router.get('/risk-scores/:type/:id', async (req, res) => {
         // safe. The previous form interpolated the literal string "tableName"
         // and used SQL-Server [bracket] quoting, so this always threw against
         // Postgres and displayName was silently null for every entity.
-        const ent = await timedRequest(p, 'risk-score-entity-name', res)
-          .input('id', id)
-          .query(`SELECT "displayName" FROM "${tableName}" WHERE id = @id AND ${TEMPORAL_FILTER}`);
-        displayName = ent.recordset[0]?.displayName || null;
+        const ent = await timedQuery(p, 'risk-score-entity-name', res,
+          `SELECT "displayName" FROM "${tableName}" WHERE id = $1 AND ${TEMPORAL_FILTER}`,
+          [id]);
+        displayName = ent.rows[0]?.displayName || null;
       } catch { /* entity table may not exist */ }
     }
 
@@ -177,21 +171,14 @@ router.put('/risk-scores/:type/:id/override', writeRisk, async (req, res) => {
     const { newScore, newTier } = recomputed;
 
     // Update RiskScores table
-    await timedRequest(p, 'risk-override-set', res)
-      .input('id', id)
-      .input('entityType', entityType)
-      .input('adjustment', adjustment)
-      .input('reason', reason.trim())
-      .input('newScore', newScore)
-      .input('newTier', newTier)
-      .query(`
+    await timedQuery(p, 'risk-override-set', res, `
         UPDATE "RiskScores"
-        SET "riskOverride" = @adjustment,
-            "riskOverrideReason" = @reason,
-            "riskScore" = @newScore,
-            "riskTier" = @newTier
-        WHERE "entityId" = @id AND "entityType" = @entityType
-      `);
+        SET "riskOverride" = $3,
+            "riskOverrideReason" = $4,
+            "riskScore" = $5,
+            "riskTier" = $6
+        WHERE "entityId" = $1 AND "entityType" = $2
+      `, [id, entityType, adjustment, reason.trim(), newScore, newTier]);
 
     await denormalizeScore(p, res, id, entityType, newScore, newTier);
 
@@ -220,19 +207,14 @@ router.delete('/risk-scores/:type/:id/override', writeRisk, async (req, res) => 
     const { newScore, newTier } = recomputed;
 
     // Clear override in RiskScores table
-    await timedRequest(p, 'risk-override-clear', res)
-      .input('id', id)
-      .input('entityType', entityType)
-      .input('newScore', newScore)
-      .input('newTier', newTier)
-      .query(`
+    await timedQuery(p, 'risk-override-clear', res, `
         UPDATE "RiskScores"
         SET "riskOverride" = 0,
             "riskOverrideReason" = NULL,
-            "riskScore" = @newScore,
-            "riskTier" = @newTier
-        WHERE "entityId" = @id AND "entityType" = @entityType
-      `);
+            "riskScore" = $3,
+            "riskTier" = $4
+        WHERE "entityId" = $1 AND "entityType" = $2
+      `, [id, entityType, newScore, newTier]);
 
     await denormalizeScore(p, res, id, entityType, newScore, newTier);
 

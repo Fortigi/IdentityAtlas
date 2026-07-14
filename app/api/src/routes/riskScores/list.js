@@ -6,7 +6,7 @@
 // behaviour change — pure code move.
 
 import { Router } from 'express';
-import { timedRequest } from '../../perf/sqlTimer.js';
+import { timedQuery } from '../../perf/sqlTimer.js';
 import { queryRiskScoresPage } from '../../db/queryHelpers.js';
 import { useSql, db, riskTableExists, parseJsonColumns, TEMPORAL_FILTER } from './shared.js';
 
@@ -25,67 +25,67 @@ router.get('/risk-scores', async (req, res) => {
     }
 
     // Tier distribution by entity type
-    const tierResult = await timedRequest(p, 'risk-tier-distribution', res).query(`
+    const tierResult = await timedQuery(p, 'risk-tier-distribution', res, `
       SELECT "entityType", "riskTier", COUNT(*) AS count
       FROM "RiskScores"
       GROUP BY "entityType", "riskTier"
-    `);
+    `, []);
 
     // Top 10 principals by score
-    const topUsers = await timedRequest(p, 'risk-top-users', res).query(`
+    const topUsers = await timedQuery(p, 'risk-top-users', res, `
       SELECT rs.*, p."displayName", p.email AS "userPrincipalName", p.department
       FROM "RiskScores" rs
       INNER JOIN "Principals" p ON rs."entityId" = p.id AND ${TEMPORAL_FILTER}
       WHERE rs."entityType" = 'Principal'
       ORDER BY rs."riskScore" DESC
       LIMIT 10
-    `);
+    `, []);
 
     // Top 10 resources by score
-    const topResources = await timedRequest(p, 'risk-top-resources', res).query(`
+    const topResources = await timedQuery(p, 'risk-top-resources', res, `
       SELECT rs.*, r."displayName", r."resourceType", r.description
       FROM "RiskScores" rs
       INNER JOIN "Resources" r ON rs."entityId" = r.id AND ${TEMPORAL_FILTER}
       WHERE rs."entityType" = 'Resource'
       ORDER BY rs."riskScore" DESC
       LIMIT 10
-    `);
+    `, []);
 
     // Totals and override counts
-    const totals = await timedRequest(p, 'risk-totals', res).query(`
+    const totals = await timedQuery(p, 'risk-totals', res, `
       SELECT
         "entityType",
         COUNT(*) AS total,
         SUM(CASE WHEN "riskOverride" IS NOT NULL THEN 1 ELSE 0 END) AS overrides
       FROM "RiskScores"
       GROUP BY "entityType"
-    `);
+    `, []);
 
     // Most recent scored-at timestamp
-    const tsResult = await timedRequest(p, 'risk-scored-at', res).query(`
+    const tsResult = await timedQuery(p, 'risk-scored-at', res, `
       SELECT "riskScoredAt" FROM "RiskScores"
       WHERE "riskScoredAt" IS NOT NULL
       ORDER BY "riskScoredAt" DESC
       LIMIT 1
-    `);
+    `, []);
 
     // Resource type breakdown
     let resourceTypeBreakdown = null;
     try {
-      const typeResult = await timedRequest(p, 'risk-resource-types', res).query(`
+      const typeResult = await timedQuery(p, 'risk-resource-types', res, `
         SELECT r."resourceType", COUNT(*) AS count, AVG(CAST(rs."riskScore" AS FLOAT)) AS "avgScore"
         FROM "RiskScores" rs
         INNER JOIN "Resources" r ON rs."entityId" = r.id AND ${TEMPORAL_FILTER}
         WHERE rs."entityType" = 'Resource'
         GROUP BY r."resourceType"
         ORDER BY AVG(CAST(rs."riskScore" AS FLOAT)) DESC
-      `);
-      resourceTypeBreakdown = typeResult.recordset;
+      `, []);
+      resourceTypeBreakdown = typeResult.rows;
     } catch { resourceTypeBreakdown = null; }
 
     // Build tier summary objects per entity type
     const tiersByEntityType = {};
-    for (const row of tierResult.recordset) {
+    for (const row of tierResult.rows) {
       const tier = row.riskTier || 'None';
       if (!tiersByEntityType[row.entityType]) tiersByEntityType[row.entityType] = {};
       tiersByEntityType[row.entityType][tier] = (tiersByEntityType[row.entityType][tier] || 0) + row.count;
@@ -93,7 +93,7 @@ router.get('/risk-scores', async (req, res) => {
 
     // Build totals lookup
     const totalsByType = {};
-    for (const row of totals.recordset) totalsByType[row.entityType] = row;
+    for (const row of totals.rows) totalsByType[row.entityType] = row;
 
     return res.json({
       available: true,
@@ -114,11 +114,11 @@ router.get('/risk-scores', async (req, res) => {
         businessRolesByTier: tiersByEntityType['BusinessRole'] || {},
         contextsByTier: tiersByEntityType['Context'] || {},
         identitiesByTier: tiersByEntityType['Identity'] || {},
-        topGroups: topResources.recordset.map(parseJsonColumns),
-        topUsers: topUsers.recordset.map(parseJsonColumns),
+        topGroups: topResources.rows.map(parseJsonColumns),
+        topUsers: topUsers.rows.map(parseJsonColumns),
         resourceTypeBreakdown,
       },
-      scoredAt: tsResult.recordset[0]?.riskScoredAt || null,
+      scoredAt: tsResult.rows[0]?.riskScoredAt || null,
     });
   } catch (err) {
     console.error('Risk scores summary failed:', err.message);

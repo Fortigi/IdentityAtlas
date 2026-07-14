@@ -8,9 +8,9 @@ import { mountRouter } from '../../test-utils/routeTestKit.js';
 
 process.env.USE_SQL = 'true';
 
-// riskTableExists() runs one timed query and checks recordset[0].tbl != null.
+// riskTableExists() runs one timed query and checks rows[0].tbl != null.
 vi.mock('../perf/sqlTimer.js', () => ({
-  timedRequest: () => ({ input() { return this; }, query: async () => ({ recordset: [{ tbl: 'public.RiskScores' }] }) }),
+  timedQuery: async () => ({ rows: [{ tbl: 'public.RiskScores' }] }),
   getQueryTimings: () => [],
 }));
 vi.mock('../db/connection.js', () => ({ getPool: async () => ({}), query: vi.fn(), queryOne: vi.fn() }));

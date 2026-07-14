@@ -1,26 +1,18 @@
 // Unit tests for db/queryHelpers.js — queryRiskScoresPage builds a paginated
-// data + count query around a caller-supplied JOIN/WHERE and binds the params to
-// both. DB mocked via the timedRequest boundary. (#666: 0 floor.)
+// data + count query around a caller-supplied JOIN/WHERE and binds the @name
+// params to both via bindNamedParams. DB mocked at the timedQuery boundary.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const captured = [];
 vi.mock('../perf/sqlTimer.js', () => ({
-  timedRequest: (_pool, label) => {
-    const req = {
-      label,
-      inputs: {},
-      input(name, value) { this.inputs[name] = value; return this; },
-      query(sql) {
-        captured.push({ label, sql, inputs: { ...this.inputs } });
-        return Promise.resolve(
-          label.endsWith('-count')
-            ? { recordset: [{ total: 7 }] }
-            : { recordset: [{ id: 1 }, { id: 2 }] },
-        );
-      },
-    };
-    return req;
+  timedQuery: (_pool, label, _res, text, values) => {
+    captured.push({ label, text, values });
+    return Promise.resolve(
+      label.endsWith('-count')
+        ? { rows: [{ total: 7 }] }
+        : { rows: [{ id: 1 }, { id: 2 }] },
+    );
   },
 }));
 
@@ -45,16 +37,16 @@ describe('queryRiskScoresPage', () => {
 
     const data = captured.find(c => c.label === 'risk-users-list');
     const count = captured.find(c => c.label === 'risk-users-count');
-    // Data query carries the caller SQL + pagination.
-    expect(data.sql).toContain('FROM "RiskScores" rs');
-    expect(data.sql).toContain('INNER JOIN "Principals" p');
-    expect(data.sql).toContain('p."displayName"');
-    expect(data.sql).toContain('LIMIT @limit OFFSET @offset');
-    expect(data.inputs).toMatchObject({ dept: 'HR', limit: 25, offset: 50 });
-    // Count query shares the WHERE + param but takes no limit/offset.
-    expect(count.sql).toContain('SELECT COUNT(*) AS total');
-    expect(count.inputs).toMatchObject({ dept: 'HR' });
-    expect(count.inputs.limit).toBeUndefined();
+    // Data query carries the caller SQL + pagination, with @names rewritten to $N.
+    expect(data.text).toContain('FROM "RiskScores" rs');
+    expect(data.text).toContain('INNER JOIN "Principals" p');
+    expect(data.text).toContain('p."displayName"');
+    expect(data.text).toMatch(/LIMIT \$\d+ OFFSET \$\d+/);
+    // @dept, @limit, @offset appear in that order → $1, $2, $3.
+    expect(data.values).toEqual(['HR', 25, 50]);
+    // Count query shares the WHERE + param but binds no limit/offset.
+    expect(count.text).toContain('SELECT COUNT(*) AS total');
+    expect(count.values).toEqual(['HR']);
   });
 
   it('binds every caller param to both requests', async () => {
@@ -67,7 +59,8 @@ describe('queryRiskScoresPage', () => {
     });
     const data = captured.find(c => c.label === 'risk-resources-list');
     const count = captured.find(c => c.label === 'risk-resources-count');
-    expect(data.inputs).toMatchObject({ min: 80, type: 'Resource' });
-    expect(count.inputs).toMatchObject({ min: 80, type: 'Resource' });
+    // Data: @min,@type,@limit,@offset → [80,'Resource',10,0]; count drops the window.
+    expect(data.values).toEqual([80, 'Resource', 10, 0]);
+    expect(count.values).toEqual([80, 'Resource']);
   });
 });
