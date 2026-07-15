@@ -1,0 +1,1 @@
+- CI now fails if SQL Server syntax appears in the API's database code. Previously only the old SQL Server connection style was blocked, not the queries written through it — which is how a broken SQL Server query survived on the resource column-discovery endpoint, failing on every request until someone found it by hand.
