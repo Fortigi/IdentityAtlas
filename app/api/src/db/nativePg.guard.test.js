@@ -47,7 +47,14 @@ function walk(dir, keep) {
   }
   return out;
 }
-const FILES = walk(SRC, (n) => /\.(js|jsx)$/.test(n) && !/\.test\./.test(n));
+const isProdJs = (n) => /\.(js|jsx)$/.test(n) && !/\.test\./.test(n);
+
+// Tiers 1-2 are about the API's pool, so they stay scoped to app/api/src.
+const FILES = walk(SRC, isProdJs);
+// Tier 4 is about T-SQL appearing anywhere a reader would trust it, so it also
+// covers the UI and the crawler plugins. `dbo.Systems.displayName` sat in the CSV
+// wizard's help text — rendered to users, and outside every gate (#710).
+const ALL_JS = ['app/api/src', 'app/ui/src', 'tools'].flatMap((r) => walk(join(REPO_ROOT, r), isProdJs));
 // Every directory in the repo that holds PowerShell.
 const PS_FILES = ['test', 'tools'].flatMap((r) => walk(join(REPO_ROOT, r), (n) => /\.psm?1$/.test(n)));
 
@@ -162,9 +169,14 @@ describe('no T-SQL dialect in production JS (Tier 4)', () => {
     { name: 'LEN() (postgres spells it LENGTH)', re: /\bLEN\s*\(/ },
   ];
 
+  it('finds JS to scan across api, ui and crawler plugins', () => {
+    // A silent zero would make every assertion below vacuously pass.
+    expect(ALL_JS.length).toBeGreaterThan(100);
+  });
+
   for (const { name, re } of TSQL) {
     it(`no production file uses T-SQL: ${name}`, () => {
-      const offenders = scan(re);
+      const offenders = scan(re, { files: ALL_JS, relTo: REPO_ROOT });
       expect(offenders, `T-SQL dialect in postgres code:\n${offenders.join('\n')}`).toEqual([]);
     });
   }

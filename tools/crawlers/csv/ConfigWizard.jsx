@@ -193,7 +193,7 @@ export default function ConfigWizard({ onComplete, onCancel, initialConfig, isEd
               <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-200">System name</label>
               <input type="text" value={systemName} onChange={e => setSystemName(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-200 rounded text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200" />
-              <p className="text-xs text-gray-500 mt-1 dark:text-gray-400">Recorded in <code className="dark:text-gray-300">dbo.Systems.displayName</code>.</p>
+              <p className="text-xs text-gray-500 mt-1 dark:text-gray-400">Recorded in <code className="dark:text-gray-300">Systems.displayName</code>.</p>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-200">System type</label>

@@ -1,0 +1,2 @@
+- Fixed the CSV crawler setup wizard telling users their system name is "Recorded in dbo.Systems.displayName" — that SQL Server schema hasn't existed since the PostgreSQL move, so anyone following the hint got an error.
+- CI now checks the UI and crawler plugins for leftover SQL Server syntax too, not just the API, so stale database references can't reappear in what users read.
