@@ -73,6 +73,8 @@ Kandidaat-journeys (definitief te maken in de eerste sessie). Elk mapt naar de c
 | J6 | **Push data via custom connector** (API-consument): alleen met `docs/api` | 9 | Kan een integrator zonder repo data pushen + key roteren? |
 | J7 | **Bouw een crawler** (Contributor): end-to-end vanuit de docs | 7,9,10 | Kan een bijdrager een crawler bouwen alleen met de docs? |
 | J8 | **Maak + hergebruik een Context** (Analyst): tree, plugin-run, "Filter matrix" | 3,2 | Werkt het nieuwste, complexste oppervlak end-to-end? |
+| J9 | **Administreer de deployment** (Operator): Admin-panel, Auth/Roles, export, retention, danger-zone | 8 | Kan een operator de app beheren doc-only? |
+| J10 | **Begrijp + query het datamodel** (Contributor): schema, geldige enums, SQL-views | 10 | Kan een contributor het datamodel begrijpen én querien doc-only? |
 
 **Pilot eerst één complexe flow** (aanbevolen door de review) — J8 of J1 — als taakgerichte gids + usability-test, vóór het opschalen van het format.
 
@@ -89,6 +91,8 @@ Kandidaat-journeys (definitief te maken in de eerste sessie). Elk mapt naar de c
 | **J5 (2026-07-15)** | Operator | ⚠️ PARTIAL | Setup-flow (wizard) ís gedocumenteerd, maar bewuste **toggle-keuze** faalt: 6 verscheepte toggles ontbreken in de flags-tabel (BL-3), geen "welke toggle voor welk doel"-hulp, permissies elders (BL-1), diagram fout (BL-2). | Voor toggle-effecten + permissies moet men de docs verlaten | BL-1, BL-2, BL-3, BL-20 |
 | **J6 (2026-07-15)** | API-consument | ⚠️ PARTIAL | *Roteren* lukt; *eerste record pushen* faalt end-to-end: geen `docs/sync/custom-connector.md`, geen runnable `curl` onder `docs/api/` (enige zit in `app/api/CLAUDE.md`), en `ingest-api.md` is stale (response-shape + `assignmentType`-enum lijst retired waarden → 400). | Voor een key + echte payload/response moet men handler + `openapi.yaml` lezen | BL-21, BL-22, BL-23 |
 | **J7 (2026-07-15)** | Contributor | ✅ **PASS** | Geen — een contributor kan doc-only een crawler scaffolden vanuit `building-a-crawler.md` (+ architecture + CLAUDE.md). Alleen 2 kleine cross-doc-tegenstrijdigheden (stale `getConfigSecret`-signatuur; wizard-import-stijl). | Nergens (alleen cross-check bij 2 tegenstrijdigheden) | BL-24, BL-25, BL-26 |
+| **J9 (2026-07-15)** | Operator | **NEE** (doc-only) | Alleen Auth/Roles (stap b) lukt doc-only. `overview.md` noemt **3** admin-subtabs i.p.v. **10**; de **Data**-tab (export/retention/danger-zone) bestaat nergens in de docs, en `audit-history.md` verwijst naar een niet-bestaande "History Retention"-subtab. | Voor 6 van de 10 tabs + retentie + danger-zone moest men `adminTabs.js`/`maintenance.js`/`curatedData.js` lezen | BL-31, BL-32, BL-33, BL-34 |
+| **J10 (2026-07-15)** | Contributor | ⚠️ PARTIAL | Schema + geldige enums begrijpen lukt (`data-model.md` is juist — audit-verdenking onterecht). Maar *querien* faalt: `sql-views.md`-voorbeelden selecteren niet-bestaande kolommen, noemen matviews "planned" (zijn gematerialiseerd sinds mig 013), en `assignment-model-redesign.md` zegt nog "no code yet". | Voor de echte view-kolommen moest men de migraties lezen | BL-27, BL-28, BL-29, BL-30 |
 
 **J8-verdict:** direct FAIL. Een primair, altijd-zichtbaar tabblad (Contexts) heeft nul gebruikersdocumentatie, en de enige bestaande docs claimen dat de feature niet bestaat. Dit is de scherpste bevestiging van audit-bevinding A2 + B1, nu via de journey-lens: het grid alleen zou dit als "🟡 spec bestaat" kunnen lezen; de journey laat zien dat de spec de gebruiker actief misleidt.
 
@@ -123,7 +127,7 @@ Per gap een rij met **uitvoerbare** velden:
 
 Het geheel is klaar wanneer:
 1. **Alle P0/❌** fout-docs zijn gefixt.
-2. **Elke persona-journey (J1–J8) slaagt** in een doc-only walkthrough.
+2. **Elke persona-journey (J1–J10) slaagt** in een doc-only walkthrough.
 3. Geen **⭕ op P1-cellen** (Analyst/Gebruiker + API-consument voor push/ingest).
 
 ## Werkwijze per cluster
@@ -146,10 +150,10 @@ Het geheel is klaar wanneer:
 | 5 | Risk scoring & AI/LLM | 🔄 in review via J2 (BL-11,12,13) |
 | 6 | Governance / business roles | 🔄 in review via J4 — **weerlegt audit** (BL-17,18,19) |
 | 7 | Sync-bronnen / crawlers | 🔄 in review via J1+J5+J7 (BL-1,2,3,20,24,25,26) |
-| 8 | Admin & instellingen (incl. Admin nav-shell / 10 sub-tabs) | ⬜ te doen |
+| 8 | Admin & instellingen (incl. Admin nav-shell / 10 sub-tabs) | 🔄 in review via J9 (BL-31,32,33,34) |
 | 9 | Integratie & ingest-API (**owner van Custom Connector**) | 🔄 in review via J6 (BL-21,22,23) |
-| 10 | Platform & datamodel (owner van context-**schema**) | ⬜ te doen |
-| J | Journeys J1–J8 (primair instrument) | ✅ **alle 8 uitgevoerd** — J7 PASS · J2/J3/J5/J6 PARTIAL · J1/J4/J8 FAIL (doc-only) |
+| 10 | Platform & datamodel (owner van context-**schema**) | 🔄 in review via J10 (BL-27,28,29,30) |
+| J | Journeys J1–J10 (primair instrument) | ✅ **alle 10 uitgevoerd** — J7 PASS · J2/J3/J5/J6/J10 PARTIAL · J1/J4/J8/J9 FAIL (doc-only) |
 
 > **MECE-fixes toegepast:** Custom Connector wordt geownd door **Cluster 9** (stub-referentie in 7). De v6 context-**scherm/API** hoort in Cluster 3, het **schema/tabellen** in Cluster 10. "Alle 10 Admin sub-tabs" krijgt één canonieke rij in Cluster 8. De valse "DevOps"-marketingclaim wordt vastgelegd in Cluster 0 (niet stil gedropt ondanks marketing-out-of-scope).
 
@@ -319,15 +323,22 @@ Code-as-ground-truth mist wat geen feature is maar wél het meest bevraagd wordt
 
 | Feature | Analyst/Gebruiker | Operator | Contributor | API-consument |
 |---------|:-----------------:|:--------:|:-----------:|:-------------:|
-| **Admin nav-shell / 10 sub-tabs (canonieke inventaris-rij)** | ⭕ | 🟡 | 🟡 | — |
-| Authentication / Roles & Permissions-editor | ⭕ | 🟡 | 🟡 | — |
+| **Admin nav-shell / 10 sub-tabs (canonieke inventaris-rij)** | ❌ ✔ **P0** (overview noemt 3, echt 10; Data-tab ontbreekt) | ❌ ✔ | 🟡 | — |
+| Authentication / Roles & Permissions-editor | ⭕ (geen UI-walkthrough) | ✅ ✔ (`permissions.md` dekt rol→permissie + bootstrap/lockout) | 🟡 | — |
 | Updates (auto-update, kanaal, historie) | ✅ | ✅ | ✅ | — |
-| Data-tab (PowerQuery ✅; curated import/export, retention, danger zone ⭕) | 🟡 | 🟡 | 🟡 | — |
+| Data-tab (PowerQuery ✅; curated import/export ⭕, retention ⭕, danger zone ⭕) | 🟡 ✔ | ⭕ ✔ | 🟡 | — |
 | Performance | ✅ | 🟡 | ❌ (perf-endpoint drift `/perf/slowest`→`/perf/slow`) | ❌ |
 | Crawler config audit/reset | — | ⭕ | — | ⭕ |
-| About / SBOM / licentie | 🟡 | ✅ | ✅ | — |
+| About / SBOM / licentie | 🟡 | ✅ ✔ (permissie-catalogus klopt) | ✅ | — |
 
-**Backlog:** _(in te vullen tijdens review)_
+**Backlog (via J9):**
+
+| ID | Actie | Prio | Owner | Doeldoc | Definition-of-done |
+|----|-------|------|-------|---------|--------------------|
+| BL-31 | **fix (P0):** Admin-subtab-inventaris — vervang "3 tabs" door alle 10 uit `adminTabs.js`, elk met doel + gating-permissie | P0 | _tbd_ | `docs/ui/overview.md` | J9 stap a: operator vindt elke tab doc-only |
+| BL-32 | **schrijf (P0):** Data-tab-gids — curated export/import (gates), history-retention (180d default, 0=uit), Danger Zone/clean-database (wat wist/behoudt, rate-limit, `admin.systems`) | P0 | _tbd_ | `docs/admin/data-tab.md` (nieuw) | J9 stap c+d doc-only |
+| BL-33 | fix: retentie-pad — `Admin > History Retention` bestaat niet → "sectie onder Admin → Data" | P1 | _tbd_ | `docs/architecture/audit-history.md` (~r132) | Geen doc verwijst naar niet-bestaande subtab |
+| BL-34 | werk-bij: Authentication/SSO + Roles-setup als stap-voor-stap how-to (nu alleen reference-proza) | P2 | _tbd_ | `docs/admin/authentication.md` (nieuw) of `permissions.md` | J9 stap b heeft een gelinkte how-to |
 
 ---
 
@@ -354,15 +365,23 @@ Code-as-ground-truth mist wat geen feature is maar wél het meest bevraagd wordt
 
 | Feature | Analyst/Gebruiker | Operator | Contributor | API-consument |
 |---------|:-----------------:|:--------:|:-----------:|:-------------:|
-| Datamodel (v3.1 + v6 contexts, **schema/tabellen**) | — | — | ❌ (collapsed types "in use" / stale) | — |
+| Datamodel (v3.1 + v6 contexts, **schema/tabellen**) | — | — | ✅ ✔ (`data-model.md` correct; assignmentType-collapse klopt — audit-verdenking onterecht) | — |
+| **SQL-views (query-surface)** | — | — | ❌ ✔ (voorbeelden selecteren niet-bestaande kolommen; matviews als "planned") | 🟡 ✔ |
 | Effective-access-engine (P1 direct + P2 inherited) | — | — | ✅ | — |
 | Soft-delete | — | 🟡 | ✅ | — |
 | Audit-history / timeline | 🟡 | — | ✅ | — |
-| Assignment-model-collapse (migraties 044/045) | — | — | ❌ (status "no code yet") | — |
+| Assignment-model-collapse (migraties 044–049) | — | — | ❌ ✔ (status "no code yet" — is verscheept) | — |
 | Deployment / Docker / Azure | — | ✅ | ✅ | — |
 | Scaling | — | 🟡 | ✅ | — |
 
-**Backlog:** _(in te vullen tijdens review)_
+**Backlog (via J10):**
+
+| ID | Actie | Prio | Owner | Doeldoc | Definition-of-done |
+|----|-------|------|-------|---------|--------------------|
+| BL-27 | **fix:** herschrijf alle voorbeeld-queries tegen echte kolommen (`membershipType`/`path`/`userId`/`businessRoleId`/`managedByAccessPackage`); lijst per view de echte output-kolommen | P1 | _tbd_ | `docs/reference/sql-views.md` | Elk voorbeeld draait ongewijzigd op een gemigreerde DB |
+| BL-28 | **fix:** matview-status — `vw_ResourceUserPermissionAssignments` + `vw_UserPermissionAssignmentViaBusinessRole` zijn *materialized* (need `REFRESH`); schrap "planned for a future release" | P1 | _tbd_ | `docs/reference/sql-views.md` | Geen "standard view"/"planned"-taal; refresh gedocumenteerd |
+| BL-29 | werk-bij: status-header "Proposed / no code yet" → "Implemented" + migratie-range 044–049 | P2 | _tbd_ | `docs/architecture/assignment-model-redesign.md` | Status matcht verscheepte code |
+| BL-30 | fix: waarde-lijst in de `vw_ResourceUserPermissionAssignments`-rij (drop `Owner`/`CrossResourceIndirect`; kolom = `membershipType`) | P2 | _tbd_ | `docs/reference/sql-views.md` | Waarden = view-`CASE`-output |
 
 ---
 
@@ -373,7 +392,7 @@ Dit plan is geëvolueerd van v1 na een `/autoplan`-review met vier onafhankelijk
 **Consensus (CONFIRMED door alle voices):**
 1. Meet bruikbaarheid, niet enkel aanwezigheid → **Instrument B (journeys)**.
 2. Verifieer de AI-vooringevulde grids vóór besluit → **verificatie-gate**.
-3. Dek cross-cluster journeys → **J1–J8**.
+3. Dek cross-cluster journeys → **J1–J10**.
 4. Split Contributor vs API-consument; scherp primaire persona naar Analyst → **4 assen**.
 5. Onderscheid *fout* van *ontbrekend* → **❌/P0-status**.
 6. Maak de backlog uitvoerbaar (owner/DoD) → **backlog-format**.
