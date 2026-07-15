@@ -82,6 +82,10 @@ Kandidaat-journeys (definitief te maken in de eerste sessie). Elk mapt naar de c
 |---------|---------|-----------------|----------------|----------------------------------|--------------|
 | **J1 (pilot, 2026-07-15)** | Analyst/Operator | **NEE** (doc-only) | Entra-setup: `entra-id.md` noemt "vul Tenant/Client ID + Secret" maar niet **welke Graph-permissies** nodig zijn; die lijst staat in `reference/troubleshooting.md` (verkeerd thuis) en `quickstart.md` linkt niet naar `entra-id.md`. (App Registration aanmaken = bekende Entra-kennis, geen doc-gap.) | (1) permissie-lijst → uit troubleshooting halen; (2) dashboard-landingspagina heeft geen doc; (3) Matrix-scopen kan alleen via de ongedocumenteerde Filter-Wizard | BL-1..BL-7 |
 
+| **J8 (2026-07-15)** | Analyst | **NEE** (doc-only) | Er is **geen** gebruikersgids voor het Contexts-scherm; `overview.md` noemt Contexts niet. De enige docs (`context-redesign.md` + `context-redesign-ui.md`) zijn architecture-specs met kop **"not yet implemented"** terwijl de feature live is → misleidend. | Direct — de analist heeft geen enkele stap-gids en moet volledig op de UI zelf terugvallen | BL-8, BL-9, BL-10 |
+
+**J8-verdict:** direct FAIL. Een primair, altijd-zichtbaar tabblad (Contexts) heeft nul gebruikersdocumentatie, en de enige bestaande docs claimen dat de feature niet bestaat. Dit is de scherpste bevestiging van audit-bevinding A2 + B1, nu via de journey-lens: het grid alleen zou dit als "🟡 spec bestaat" kunnen lezen; de journey laat zien dat de spec de gebruiker actief misleidt.
+
 **J1-verdict:** demo-pad (Load Demo Data) werkt en is goed gedocumenteerd. Maar het *echte* first-insight-pad faalt doc-only op drie punten: (a) eigen Entra-tenant koppelen vergt de docs verlaten voor de permissielijst; (b) de Dashboard-landingspagina waar je op uitkomt heeft geen gebruikersdoc; (c) de Matrix scopen om een *finding* te bereiken kan alleen via de Filter-Wizard, die niet is gedocumenteerd (overview.md beschrijft nog de verwijderde "User Limit Slider"). Extra bevinding: `index.md` en `quickstart.md` spreken elkaar tegen over of `.env` nodig is.
 
 ---
@@ -131,7 +135,7 @@ Het geheel is klaar wanneer:
 | 0 | Niet-feature-docs (getting-started, troubleshooting/errors, concepten "waarom", limitations) | 🔄 deels via J1 (cellen ✔) |
 | 1 | Aan de slag & Dashboard | 🔄 in review via J1 (BL-4,5,7) |
 | 2 | Matrix | 🔄 in review via J1 (BL-6) |
-| 3 | Contexts (scherm + plugins + API) | ⬜ te doen |
+| 3 | Contexts (scherm + plugins + API) | 🔄 in review via J8 (BL-8,9,10) |
 | 4 | Entities & detailpagina's | ⬜ te doen |
 | 5 | Risk scoring & AI/LLM | ⬜ te doen |
 | 6 | Governance / business roles | ⬜ te doen |
@@ -139,7 +143,7 @@ Het geheel is klaar wanneer:
 | 8 | Admin & instellingen (incl. Admin nav-shell / 10 sub-tabs) | ⬜ te doen |
 | 9 | Integratie & ingest-API (**owner van Custom Connector**) | ⬜ te doen |
 | 10 | Platform & datamodel (owner van context-**schema**) | ⬜ te doen |
-| J | Journeys J1–J8 (primair instrument) | 🔄 **J1 (pilot) uitgevoerd — FAIL doc-only**; J2–J8 te doen |
+| J | Journeys J1–J8 (primair instrument) | 🔄 **J1 + J8 uitgevoerd — beide FAIL doc-only**; J2–J7 te doen |
 
 > **MECE-fixes toegepast:** Custom Connector wordt geownd door **Cluster 9** (stub-referentie in 7). De v6 context-**scherm/API** hoort in Cluster 3, het **schema/tabellen** in Cluster 10. "Alle 10 Admin sub-tabs" krijgt één canonieke rij in Cluster 8. De valse "DevOps"-marketingclaim wordt vastgelegd in Cluster 0 (niet stil gedropt ondanks marketing-out-of-scope).
 
@@ -203,15 +207,21 @@ Code-as-ground-truth mist wat geen feature is maar wél het meest bevraagd wordt
 
 | Feature | Analyst/Gebruiker | Operator | Contributor | API-consument |
 |---------|:-----------------:|:--------:|:-----------:|:-------------:|
-| Context-model (synced/generated/manual × 4 targets) — *scherm/gedrag; schema→C10* | ⭕ | — | 🟡 (status "not yet implemented") | — |
-| Contexts-scherm (tree, drag-reparent, wizard, Filter-matrix) | ⭕ | — | 🟡 (spec mislabeled) | — |
+| Context-model (synced/generated/manual × 4 targets) — *scherm/gedrag; schema→C10* | ⭕ ✔ | — | ❌ ✔ (spec zegt "not yet implemented" — misleidend) | — |
+| Contexts-scherm (tree, drag-reparent, wizard, Filter-matrix) | ⭕ ✔ | — | ❌ ✔ (spec zegt "not yet implemented") | — |
 | Plugin-catalogus (10; 5 ongedocumenteerd/mis-benoemd) | ⭕ | ⭕ | 🟡 | — |
 | `risky-consent` externe threat-feed-egress | — | **P0** | ❌ | — |
 | Tags als context (`contextType='Tag'`) | 🟡 (stale GraphTags-ref) | — | 🟡 | — |
 | Admin → Plugins-subtab | ⭕ | ⭕ | 🟡 | — |
 | Context write- + plugin-API (`/contexts` writes, `/context-plugins/*`) | — | — | — | ⭕ |
 
-**Backlog:** _(in te vullen tijdens review)_
+**Backlog:**
+
+| ID | Actie | Prio | Owner | Doeldoc | Definition-of-done |
+|----|-------|------|-------|---------|--------------------|
+| BL-8 | **fix (❌):** verwijder "not yet implemented"-status uit beide context-specs; markeer als geïmplementeerd (A2) | P1 | _tbd_ | `docs/architecture/context-redesign.md` + `context-redesign-ui.md` | Status matcht de verscheepte code |
+| BL-9 | schrijf: Analyst-gebruikersgids Contexts-scherm (tree, synced/generated/manual, New-Context-wizard, Run now, "Filter matrix") | P1 | _tbd_ | `docs/ui/` (nieuw) | J8 slaagt doc-only |
+| BL-10 | werk-bij: `overview.md` nav-lijst — voeg Contexts toe, verwijder verwijderde "Org Chart" (findability) | P1 | _tbd_ | `docs/ui/overview.md` | Nieuwe user vindt het Contexts-tabblad via de docs |
 
 ---
 
