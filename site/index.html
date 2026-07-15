@@ -4,13 +4,13 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Identity Atlas — Universal authorization intelligence</title>
-  <meta name="description" content="Identity Atlas syncs authorization data from Entra ID, Azure RBAC, Azure DevOps and any CSV into one model with full history, shows it in a visual access matrix, and scores identity risk — without any identity data leaving your environment. Open source, self-hosted." />
+  <meta name="description" content="Identity Atlas brings authorization data from Entra ID, Azure RBAC, Omada, midPoint and any CSV into one model with full history, presents it in a visual access matrix, and can score identity risk — without identity data leaving your environment. Open source, self-hosted." />
   <link rel="icon" type="image/png" href="assets/favicon.png" />
 
   <!-- Social / Open Graph -->
   <meta property="og:type" content="website" />
   <meta property="og:title" content="Identity Atlas — Universal authorization intelligence" />
-  <meta property="og:description" content="You can't govern what you can't see. Role mining and analytics that make sense of your identity data — open source, self-hosted, nothing ever leaves your environment." />
+  <meta property="og:description" content="You can't govern what you can't see. Role mining and analytics that make sense of your authorization data — open source, self-hosted, your identity data never leaves your environment." />
   <meta property="og:image" content="assets/og-image.png" />
   <meta name="twitter:card" content="summary_large_image" />
 
@@ -359,8 +359,8 @@
           <p class="lede">
             <strong>You can't govern what you can't see.</strong>
             Identity Atlas turns scattered authorization data into something you can actually make
-            sense of — role mining and analytics that let analysts, support desks and resource owners
-            slice the haystack from every angle.
+            sense of — giving analysts, support teams and resource owners the insight they need to
+            understand access, identify risks and make informed decisions.
           </p>
           <div class="hero-cta">
             <a class="btn btn-primary" href="#how">Get started</a>
@@ -368,7 +368,7 @@
           </div>
           <p class="hero-note">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/></svg>
-            Self-hosted &amp; open source — your identity data never leaves your environment.
+            Self-hosted and open source — your identity data never leaves your environment.
           </p>
         </div>
         <div class="hero-art">
@@ -383,10 +383,11 @@
       <div class="wrap">
         <div class="sec-head reveal">
           <span class="eyebrow">Why we built it</span>
-          <h2>The information already exists. The clarity doesn't.</h2>
+          <h2>The data already exists. The clarity doesn't.</h2>
           <p>
             Sound familiar? You've invested in a capable IGA system — and your analysts still export to
-            Excel to actually make sense of it. The data isn't missing. A way to see it is.
+            Excel to actually make sense of it. The data isn't missing. What's missing is a clear way to
+            understand it.
           </p>
         </div>
 
@@ -396,21 +397,21 @@
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z"/></svg>
             </div>
             <h3>Fragmented</h3>
-            <p>Azure RBAC, Entra ID and Azure DevOps each answer “who has access” in a different place, in a different way.</p>
+            <p>Azure RBAC, Entra ID and Omada each show a different part of who has access to what — in a different place and in a different way.</p>
           </div>
           <div class="card reveal">
             <div class="ic green" aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/><path d="m3 3 18 18"/></svg>
             </div>
             <h3>Invisible</h3>
-            <p>Over-privileged accounts, eligible-but-unused PIM roles and never-reviewed access hide in the gaps between systems.</p>
+            <p>Over-privileged accounts, eligible-but-unused PIM roles and access that has never been reviewed remain hidden in the gaps between systems.</p>
           </div>
           <div class="card reveal">
             <div class="ic green" aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
             </div>
             <h3>Unprovable</h3>
-            <p>“Who could do what last quarter?” is guesswork once memberships change — there's no reliable timeline.</p>
+            <p>“Who could do what last quarter?” becomes guesswork once memberships change — because there is no reliable history of access.</p>
           </div>
         </div>
 
@@ -418,26 +419,26 @@
           <div class="kicker">The real problem</div>
           <p style="color:var(--fg); font-size:1.05rem;">
             It's not about finding one needle — that's too narrow a question. It's about making sense of the
-            <strong style="color:var(--brand)">whole haystack</strong>. Identity Atlas facilitates role mining and
-            analytics, so analysts, support desks and resource owners can look at identity data from every angle
-            and slice it whatever way fits the job in front of them.
+            <strong style="color:var(--brand)">whole haystack</strong>. Identity Atlas helps analysts, support teams
+            and resource owners explore authorization data from different perspectives, discover patterns and answer
+            the question at hand.
           </p>
         </div>
 
         <div class="card reveal" style="margin-top:20px; background:var(--bg-soft);">
           <div class="kicker">Why we opened it up</div>
           <p style="color:var(--fg); font-size:1.05rem;">
-            Fortigi is a Dutch identity &amp; access management consultancy. Across enterprise engagements we kept hitting
-            the same wall — no single honest answer to “who has access to what,” and no history behind it.
-            So we built the tool we wished we had, and opened it up.
-            <strong style="color:var(--brand)">Identity gets stronger when we build it together.</strong>
+            Fortigi is a Dutch identity and access management consultancy. While working with enterprise organizations,
+            we kept running into the same problem: there was no single reliable answer to “who has access to what,” and
+            no reliable history showing how that access changed over time. So we built the tool we wished we had and
+            opened it up. <strong style="color:var(--brand)">Identity gets stronger when we build it together.</strong>
           </p>
         </div>
 
         <div class="promises">
           <div class="promise reveal"><strong>Make sense of the haystack</strong><span>Role mining and analytics — not spreadsheet archaeology.</span></div>
-          <div class="promise reveal"><strong>Slice it any way</strong><span>Every angle, for analysts, support desks and resource owners.</span></div>
-          <div class="promise reveal"><strong>Stay in control</strong><span>Self-hosted, no lock-in; identity data never leaves.</span></div>
+          <div class="promise reveal"><strong>Explore it from every angle</strong><span>The perspective analysts, support teams and resource owners need to answer their questions.</span></div>
+          <div class="promise reveal"><strong>Stay in control</strong><span>Self-hosted and free from vendor lock-in — your identity data never leaves.</span></div>
         </div>
       </div>
     </section>
@@ -449,9 +450,9 @@
           <span class="eyebrow">What it is</span>
           <h2>Identity Atlas, in one view.</h2>
           <p>
-            It syncs authorization data from every connected system into one model with full history,
-            shows it in a visual access matrix, and scores identity risk —
-            <strong>without any identity data leaving your environment.</strong>
+            Identity Atlas brings authorization data from connected systems together in one model with full history.
+            It presents this data in a visual access matrix and can assign a risk score to each identity —
+            <strong>without identity data leaving your environment.</strong>
           </p>
         </div>
 
@@ -459,40 +460,40 @@
           <div class="card reveal">
             <div class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg></div>
             <h3>Unified permission model</h3>
-            <p>Every system's permissions in one PostgreSQL model — groups, roles, app roles, SharePoint, business roles alike — with full row-level audit history.</p>
+            <p>Bring permissions from every connected system together in one PostgreSQL model — including groups, roles, application roles, SharePoint permissions and business roles — with a complete row-level audit history.</p>
           </div>
           <div class="card reveal">
             <div class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 3v18"/></svg></div>
             <h3>Visual access review</h3>
-            <p>Role mining and a visual access matrix — slice by user, role, resource or system, and see the exact route each grant took: direct, group, owner, eligible (PIM), governed, app-role. Built for the way analysts, support desks and resource owners actually think.</p>
+            <p>Explore access by user, role, resource or system. See how each permission was granted — directly, through a group, as an owner, through PIM eligibility, through governance or through an application role. Designed for the way analysts, support teams and resource owners investigate access.</p>
           </div>
           <div class="card reveal">
             <div class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/><circle cx="12" cy="12" r="4"/><path d="M12 2a10 10 0 0 0-3 19.5"/></svg></div>
             <h3>Identity risk scoring</h3>
-            <p>A defensible score per identity — privacy-preserving and LLM-assisted, using <em>public</em> org context only. An optional layer you switch on when you want it.</p>
+            <p>Assign a transparent risk score to each identity. The optional, privacy-preserving risk layer uses LLM assistance based only on publicly available information about the organization.</p>
           </div>
           <div class="card reveal">
             <div class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 0 20M12 2a15.3 15.3 0 0 0 0 20"/></svg></div>
-            <h3>Multi-system &amp; open</h3>
-            <p>Entra ID natively; Azure RBAC, Azure DevOps, plus Omada, SailPoint and any CSV for the rest. MIT-licensed and self-hosted.</p>
+            <h3>Multi-system and open</h3>
+            <p>Connect out of the box to Entra ID, Azure RBAC, Omada and midPoint through dedicated crawlers. SailPoint data can be imported through CSV. Identity Atlas is MIT-licensed and runs in your own environment.</p>
           </div>
         </div>
 
         <div class="sec-head reveal" style="margin-top:56px; margin-bottom:24px;">
           <span class="eyebrow">One pipeline, self-hosted end to end</span>
         </div>
-        <div class="pipeline reveal" aria-label="Data pipeline: sources to crawlers to unified model to review and risk">
-          <div class="pstep"><div class="pt">Your sources</div><div class="pd">Entra ID · Azure RBAC · Azure DevOps · any CSV</div></div>
+        <div class="pipeline reveal" aria-label="Data pipeline: sources to crawlers and imports to unified model to access review and risk">
+          <div class="pstep"><div class="pt">Your sources</div><div class="pd">Entra ID · Azure RBAC · Omada · midPoint · SailPoint · other supported sources</div></div>
           <div class="parrow" aria-hidden="true">→</div>
-          <div class="pstep"><div class="pt">Crawlers</div><div class="pd">Native Graph sync, Azure RM, CSV, or the Ingest API</div></div>
+          <div class="pstep"><div class="pt">Crawlers and imports</div><div class="pd">Out-of-the-box crawlers for Entra ID, Azure RBAC, Omada and midPoint. Import SailPoint and other data through CSV, or use the Ingest API.</div></div>
           <div class="parrow" aria-hidden="true">→</div>
-          <div class="pstep"><div class="pt">Unified model + history</div><div class="pd">PostgreSQL 16 — every change versioned</div></div>
+          <div class="pstep"><div class="pt">Unified model and history</div><div class="pd">PostgreSQL 16 — every change is versioned</div></div>
           <div class="parrow" aria-hidden="true">→</div>
-          <div class="pstep"><div class="pt">Review + risk</div><div class="pd">Access-review matrix &amp; identity risk engine</div></div>
+          <div class="pstep"><div class="pt">Access review and risk</div><div class="pd">Visual access reviews and optional identity risk scoring</div></div>
         </div>
 
         <p style="margin-top:30px; color:var(--fg-muted);">
-          Want the depth — supported systems, how IST-vs-SOLL works, the scoring layers?
+          Want more detail on supported systems, current-state versus target-state analysis and the risk-scoring layers?
           <a href="https://fortigi.github.io/IdentityAtlas" target="_blank" rel="noopener"><strong>Read the full documentation ↗</strong></a>
         </p>
       </div>
@@ -504,21 +505,21 @@
         <div class="sec-head reveal">
           <span class="eyebrow">How to start</span>
           <h2>Pick a release channel. Pick a way to run it.</h2>
-          <p>Everything ships as a self-contained stack. Evaluate in minutes; run it wherever you run containers, or one-click into your own Azure.</p>
+          <p>Identity Atlas is delivered as a self-contained stack. Evaluate it in minutes, run it wherever you run containers or deploy it directly into your own Azure subscription.</p>
         </div>
 
         <div class="channels">
           <div class="channel reveal">
             <span class="tag edge">Edge</span>
-            <p><span style="color:var(--fg); font-weight:600;">Bleeding-edge dev builds.</span> Docker tag <code>:edge</code>, pushed on every merge to <code>main</code>.</p>
+            <p><span style="color:var(--fg); font-weight:600;">The latest development build.</span> Updated after every merge to <code>main</code>. Use Docker tag <code>:edge</code> to explore the newest changes, but expect frequent updates and incomplete features.</p>
           </div>
           <div class="channel reveal">
             <span class="tag beta">Beta</span>
-            <p><span style="color:var(--fg); font-weight:600;">Pre-release builds.</span> Docker tag <code>:beta</code> — try what's next before it's stable.</p>
+            <p><span style="color:var(--fg); font-weight:600;">Pre-release builds.</span> For testing upcoming features before they become stable. Use Docker tag <code>:beta</code>.</p>
           </div>
           <div class="channel reveal">
             <span class="tag stable">Stable</span>
-            <p><span style="color:var(--fg); font-weight:600;">Released versions.</span> Docker tag <code>:latest</code> and pinned <code>Major.Minor.Patch.0</code>. Recommended for production — pin it and pull on your own schedule.</p>
+            <p><span style="color:var(--fg); font-weight:600;">Released and tested versions.</span> Recommended for production. Use Docker tag <code>:latest</code>, or pin a specific <code>Major.Minor.Patch.0</code> version to control when you update.</p>
           </div>
         </div>
 
@@ -526,17 +527,17 @@
           <div class="card reveal">
             <div class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="8" width="6" height="6"/><rect x="9" y="8" width="6" height="6"/><rect x="9" y="2" width="6" height="6"/><path d="M2 17h20a4 4 0 0 1-4 4H8a6 6 0 0 1-6-6Z"/></svg></div>
             <h3>Docker stack</h3>
-            <p>Fastest to evaluate. <code>docker compose up</code>, open <code>localhost:3001</code>. Self-host anywhere you run containers. One-click demo data — no tenant needed.</p>
+            <p>The fastest way to evaluate Identity Atlas. Start the stack with Docker Compose and open <code>localhost:3001</code>. Run it anywhere you can host containers and load demo data without connecting a tenant.</p>
           </div>
           <div class="card reveal">
             <div class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 19a5 5 0 0 1-1-9.9A6 6 0 0 1 17 9a4.5 4.5 0 0 1 1 8.9"/><path d="M12 12v7M9 16l3 3 3-3"/></svg></div>
-            <h3>One-click to Azure</h3>
-            <p>Into your own subscription. PaaS-only, deploys in ~15 minutes. Entra SSO enforced — no anonymous access. From ~€45/mo for a proof-of-concept.</p>
+            <h3>Deploy to Azure</h3>
+            <p>Deploy Identity Atlas into your own Azure subscription using managed platform services. Deployment takes approximately 15 minutes. Entra SSO is enforced and anonymous access is disabled. A proof-of-concept environment starts at approximately €45 per month.</p>
           </div>
           <div class="card reveal">
             <div class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg></div>
             <h3>Portable Windows launcher</h3>
-            <p>For locked-down laptops. No install, no admin rights, no Docker — runs from a folder. Good for a quick, contained look.</p>
+            <p>Evaluate Identity Atlas on restricted Windows devices without installation, administrator rights or Docker. Run it directly from a folder for a quick and isolated evaluation.</p>
           </div>
         </div>
 
@@ -549,15 +550,19 @@
               <span id="copytxt">Copy</span>
             </button>
           </div>
-<pre><code id="snippet"><span class="tok-c"># Grab the compose file and start the stack</span>
+<pre><code id="snippet"><span class="tok-c"># Download the Compose file</span>
 <span class="tok-cmd">curl</span> <span class="tok-flag">-O</span> https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/docker-compose.prod.yml
+
+<span class="tok-c"># Start Identity Atlas</span>
 <span class="tok-cmd">docker</span> compose <span class="tok-flag">-f</span> docker-compose.prod.yml up <span class="tok-flag">-d</span> <span class="tok-flag">--pull</span> always
-<span class="tok-c"># open http://localhost:3001 → Admin → Crawlers → Add Crawler</span></code></pre>
+
+<span class="tok-c"># Open Identity Atlas and add your first crawler</span>
+<span class="tok-c"># http://localhost:3001 → Admin → Crawlers → Add Crawler</span></code></pre>
         </div>
 
         <p style="margin-top:24px; color:var(--fg-muted);">
-          Need detailed deployment guidance?
-          <a href="https://fortigi.github.io/IdentityAtlas" target="_blank" rel="noopener"><strong>See the deployment docs ↗</strong></a>
+          Need more detailed deployment guidance?
+          <a href="https://fortigi.github.io/IdentityAtlas" target="_blank" rel="noopener"><strong>Read the deployment documentation ↗</strong></a>
         </p>
       </div>
     </section>
@@ -568,45 +573,45 @@
         <div class="sec-head reveal">
           <span class="eyebrow">Why you can trust it</span>
           <h2>Built to be inspected, not taken on faith.</h2>
-          <p>Identity Atlas reads authorization data and keeps it inside your walls. Here's what backs that up.</p>
+          <p>Identity Atlas reads authorization data and keeps it within your environment. Here is how we make that verifiable.</p>
         </div>
 
         <div class="trust-grid">
           <div class="trust-item reveal">
-            <div class="th"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/></svg>Your infra, your cloud</div>
-            <p>Self-hosted end to end; runs entirely inside your environment. Deploy to your own Azure subscription — nothing runs on Fortigi infrastructure.</p>
+            <div class="th"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/></svg>Your infrastructure, your cloud</div>
+            <p>Identity Atlas is self-hosted end to end and runs entirely within your environment. Deploy it in your own Azure subscription — no Identity Atlas services run on Fortigi infrastructure.</p>
           </div>
           <div class="trust-item reveal">
             <div class="th"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>Read-only by design</div>
-            <p>Identity Atlas reads authorization data. It never changes anything in your source systems.</p>
+            <p>Identity Atlas reads authorization data but never changes anything in your source systems.</p>
           </div>
           <div class="trust-item reveal">
-            <div class="th"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4M6 8l-4 4 4 4M14.5 4l-5 16"/></svg>Inspect the code — MIT</div>
-            <p>Open to read, fork, challenge and contribute. Adopting it means forking the MIT repo, so all code lives inside your tenant. You control updates.</p>
+            <div class="th"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4M6 8l-4 4 4 4M14.5 4l-5 16"/></svg>Inspect the code — MIT licensed</div>
+            <p>The source code is open to inspect, fork, challenge and improve. You choose which version to run and when to update it.</p>
           </div>
           <div class="trust-item reveal">
-            <div class="th"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M2 12h20M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/></svg>LLM is optional, public context only</div>
-            <p>Risk scoring is an optional layer you switch on. When you do, the model profiles your org from public-domain information only — no identity data is ever sent to it.</p>
+            <div class="th"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M2 12h20M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/></svg>Optional LLM assistance using public context only</div>
+            <p>LLM-assisted risk scoring is optional. When enabled, it uses only publicly available information about your organization. Identity data is never sent to the model.</p>
           </div>
           <div class="trust-item reveal">
-            <div class="th"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Secrets encrypted</div>
-            <p>LLM keys and crawler credentials use AES-256-GCM envelope encryption, with a master key you control.</p>
+            <div class="th"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Encrypted secrets</div>
+            <p>LLM keys and crawler credentials are protected with AES-256-GCM envelope encryption using a master key you control.</p>
           </div>
           <div class="trust-item reveal">
-            <div class="th"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 6v6c0 5 3.4 7.7 8 10 4.6-2.3 8-5 8-10V6l-8-4Z"/><path d="m9 12 2 2 4-4"/></svg>Auth on from first deploy</div>
-            <p>Entra SSO enforced on every endpoint. There's no anonymous, open state to leak into.</p>
+            <div class="th"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 6v6c0 5 3.4 7.7 8 10 4.6-2.3 8-5 8-10V6l-8-4Z"/><path d="m9 12 2 2 4-4"/></svg>Authentication enabled from the first deployment</div>
+            <p>Entra SSO is enforced from the start, and anonymous access is disabled.</p>
           </div>
           <div class="trust-item reveal">
             <div class="th"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Extensive quality assurance</div>
-            <p>Unit tests (Vitest + Pester), enforced <a href="https://fortigi.github.io/IdentityAtlas/stable/reference/coverage/" target="_blank" rel="noopener">code-coverage ratchets</a>, file-size &amp; complexity gates, a duplication gate, Playwright E2E, and load/soak tests.</p>
+            <p>Quality controls include unit tests with Vitest and Pester, <a href="https://fortigi.github.io/IdentityAtlas/stable/reference/coverage/" target="_blank" rel="noopener">increasing code-coverage requirements</a>, file-size and complexity limits, duplication checks, Playwright end-to-end tests and load and soak testing.</p>
           </div>
           <div class="trust-item reveal">
-            <div class="th"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.7l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.7l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5M12 22V12"/></svg>Supply-chain guarded</div>
-            <p>A published SBOM, Dependabot keeping dependencies current, and <a href="https://socket.dev" target="_blank" rel="noopener">Socket Firewall</a> vetting new packages against supply-chain attacks before they land. Built on PostgreSQL 16.</p>
+            <div class="th"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.7l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.7l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5M12 22V12"/></svg>Protected software supply chain</div>
+            <p>Identity Atlas publishes an SBOM, uses Dependabot to keep dependencies current and checks new packages with <a href="https://socket.dev" target="_blank" rel="noopener">Socket Firewall</a> before they are introduced.</p>
           </div>
           <div class="trust-item reveal">
-            <div class="th"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>Built by a real team</div>
-            <p>A number of Fortigi developers, over a longer project history. Fortigi is an established Dutch IAM consultancy. <a href="https://fortigi.github.io/IdentityAtlas/stable/history/" target="_blank" rel="noopener">See the history ↗</a></p>
+            <div class="th"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>Built and maintained by an experienced team</div>
+            <p>Identity Atlas is developed by a team of Fortigi engineers and has evolved over an extended project history. Fortigi is an established Dutch identity and access management consultancy. <a href="https://fortigi.github.io/IdentityAtlas/stable/history/" target="_blank" rel="noopener">See the history ↗</a></p>
           </div>
         </div>
 
@@ -621,7 +626,7 @@
       <div class="wrap">
         <div class="reveal">
           <h2>Make sense of the whole haystack.</h2>
-          <p>Spin up the Docker stack with demo data in under a minute — no tenant required — and slice the matrix for yourself.</p>
+          <p>Start the Docker stack with demo data in under a minute — no tenant required — and explore the access matrix yourself.</p>
           <div class="hero-cta">
             <a class="btn btn-primary" href="#how">Get started</a>
             <a class="btn btn-ghost" href="https://github.com/Fortigi/IdentityAtlas" target="_blank" rel="noopener">
@@ -641,8 +646,8 @@
         <div>
           <div class="brand"><img src="assets/mark.png" alt="" width="34" height="34" /><span>Identity<span class="b-atlas"> Atlas</span></span></div>
           <p class="ft-about">
-            Universal authorization intelligence — sync, analyze, and govern permissions from any identity system, in one place.
-            Created by <a href="https://www.fortigi.nl" target="_blank" rel="noopener">Maatschap Fortigi</a>, a Dutch identity &amp; access management consultancy.
+            Universal authorization intelligence — connect, analyze and govern authorization data in one place.
+            Created by <a href="https://www.fortigi.nl" target="_blank" rel="noopener">Maatschap Fortigi</a>, a Dutch identity and access management consultancy.
           </p>
         </div>
         <div class="ft-col">
