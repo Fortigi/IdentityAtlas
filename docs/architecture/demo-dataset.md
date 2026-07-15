@@ -108,8 +108,8 @@ AU-Contractors
 | SG-PAM-Users | Group | EntraID | PAM access |
 | Global Administrator | EntraDirectoryRole | EntraID | Entra directory role |
 | SharePoint Admin | EntraDirectoryRole | EntraID | Entra directory role |
-| IdentityAtlas-App | EntraAppRole | EntraID | App role for this product |
-| SAP-Finance-Role | EntraAppRole | EntraID | SAP financial access |
+| IdentityAtlas-App | AppRole | EntraID | App role for this product |
+| SAP-Finance-Role | AppRole | EntraID | SAP financial access |
 | BR-Employee-Base | BusinessRole | Omada | Base employee access package |
 | BR-Engineering-Tools | BusinessRole | Omada | Dev tools access package |
 | BR-Finance-Systems | BusinessRole | Omada | Financial systems access |

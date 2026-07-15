@@ -4,6 +4,7 @@ setup/config/*.json
 .env
 test/nightly/results/
 test/test-results.md
+testResults.xml
 test/test.secrets.json
 test/demo-dataset/demo-company.json
 test/demo-dataset/verify-results.json

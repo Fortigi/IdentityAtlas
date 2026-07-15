@@ -156,8 +156,8 @@ $resources = @(
     @{ id = $resPAM;         displayName = 'SG-PAM-Users';          resourceType = 'Group';        systemId = $sysEntraId; enabled = $true }
     @{ id = $resGlobalAdmin; displayName = 'Global Administrator';  resourceType = 'EntraDirectoryRole'; systemId = $sysEntraId; enabled = $true }
     @{ id = $resSPAdmin;     displayName = 'SharePoint Admin';      resourceType = 'EntraDirectoryRole'; systemId = $sysEntraId; enabled = $true }
-    @{ id = $resAppFG;       displayName = 'FortigiGraph-App';      resourceType = 'EntraAppRole';      systemId = $sysEntraId; enabled = $true }
-    @{ id = $resAppSAP;      displayName = 'SAP-Finance-Role';      resourceType = 'EntraAppRole';      systemId = $sysEntraId; enabled = $true }
+    @{ id = $resAppFG;       displayName = 'FortigiGraph-App';      resourceType = 'AppRole';      systemId = $sysEntraId; enabled = $true }
+    @{ id = $resAppSAP;      displayName = 'SAP-Finance-Role';      resourceType = 'AppRole';      systemId = $sysEntraId; enabled = $true }
     @{ id = $resBRBase;      displayName = 'BR-Employee-Base';      resourceType = 'BusinessRole';      systemId = $sysOmada;   enabled = $true; catalogId = $catEmployee }
     @{ id = $resBREng;       displayName = 'BR-Engineering-Tools';  resourceType = 'BusinessRole';      systemId = $sysOmada;   enabled = $true; catalogId = $catEmployee }
     @{ id = $resBRFin;       displayName = 'BR-Finance-Systems';    resourceType = 'BusinessRole';      systemId = $sysOmada;   enabled = $true; catalogId = $catEmployee }
