@@ -63,6 +63,23 @@ describe('DashboardPage (mounted)', () => {
     expect(link).toHaveAttribute('target', '_blank');
   });
 
+  it('links Contribute and Report-an-issue to the version-matched docs pages', async () => {
+    // version 5.3.20260419.1430 is an edge build (8-digit 3rd segment) → /edge/ docs alias.
+    renderWithProviders(h(DashboardPage), { auth: { authFetch: routes() } });
+
+    const contribute = await screen.findByRole('link', { name: /Contribute/i });
+    expect(contribute).toHaveAttribute(
+      'href',
+      'https://fortigi.github.io/IdentityAtlas/edge/contributing/contribute/',
+    );
+
+    const report = screen.getByRole('link', { name: /Report an issue or feature request/i });
+    expect(report).toHaveAttribute(
+      'href',
+      'https://fortigi.github.io/IdentityAtlas/edge/contributing/report-an-issue/',
+    );
+  });
+
   it('navigates when a populated stat card is clicked', async () => {
     const onNavigate = vi.fn();
     renderWithProviders(h(DashboardPage, { onNavigate }), { auth: { authFetch: routes() } });

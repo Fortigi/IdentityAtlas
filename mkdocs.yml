@@ -156,6 +156,8 @@ nav:
       - About Identity Atlas: about.md
       - History: history.md
       - Contributing:
+          - Report a Bug or Request a Feature: contributing/report-an-issue.md
+          - Contribute a Change: contributing/contribute.md
           - CI Pipeline: contributing/ci-pipeline.md
           - UI Style Guide: contributing/style-guide.md
           - CI Scope Testing: architecture/ci-scope-testing.md

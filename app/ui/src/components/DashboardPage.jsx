@@ -235,6 +235,7 @@ export default function DashboardPage({ onNavigate }) {
             <li><a href={GITHUB_BASE} target="_blank" rel="noopener noreferrer" className="text-gray-700 dark:text-gray-300 hover:text-lime-700 hover:underline flex items-center gap-2"><span>→</span>GitHub repository</a></li>
             <li><a href={`${GITHUB_BASE}/blob/main/LICENSE`} target="_blank" rel="noopener noreferrer" className="text-gray-700 dark:text-gray-300 hover:text-lime-700 hover:underline flex items-center gap-2"><span>→</span>License</a></li>
             <li><a href={`${GITHUB_BASE}/releases`} target="_blank" rel="noopener noreferrer" className="text-gray-700 dark:text-gray-300 hover:text-lime-700 hover:underline flex items-center gap-2"><span>→</span>Releases</a></li>
+            <li><a href={docsUrl(version?.version, '/contributing/contribute/')} target="_blank" rel="noopener noreferrer" className="text-gray-700 dark:text-gray-300 hover:text-lime-700 hover:underline flex items-center gap-2"><span>→</span>Contribute</a></li>
           </ul>
         </div>
 
@@ -264,12 +265,20 @@ export default function DashboardPage({ onNavigate }) {
             </div>
             <h3 className="text-sm font-bold text-gray-900 dark:text-white">Need support?</h3>
           </div>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">Questions, bug reports, or feature requests:</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">Email us a question, or report it on the tracker so others can follow along:</p>
           <a
             href={`mailto:${SUPPORT_EMAIL}`}
             className="inline-block text-sm text-lime-700 hover:text-lime-800 font-medium hover:underline break-all"
           >
             {SUPPORT_EMAIL}
+          </a>
+          <a
+            href={docsUrl(version?.version, '/contributing/report-an-issue/')}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-2 text-sm text-gray-700 dark:text-gray-300 hover:text-lime-700 hover:underline flex items-center gap-2"
+          >
+            <span>→</span>Report an issue or feature request
           </a>
         </div>
       </div>
