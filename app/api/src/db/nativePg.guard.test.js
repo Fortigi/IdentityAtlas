@@ -17,6 +17,13 @@
 //     own `System.Data.SqlClient` connection straight to the DB. Those kept
 //     working against v4 SQL Server long after the v5 postgres port and rotted
 //     unnoticed (#707) — nothing imports them, so no JS guard could catch it.
+//   Tier 4 — no SQL-Server *dialect* in production JS. Tier 1 bans the shim's
+//     API surface, not the SQL written through it, so `db.query('SELECT TOP 0 *
+//     FROM dbo.Resources')` passed every gate. #690 argued native pg makes
+//     leftover T-SQL fail loudly at author time — true only where something
+//     executes the query. It didn't: a `SELECT TOP 0 * FROM Resources` probe ran
+//     on every column-discovery request, threw on postgres every time, was
+//     silently swallowed, and had to be found by hand (see CHANGES.md).
 //
 // Test files are deliberately NOT scanned by Tiers 1-2: a few legitimately mock
 // the old `{ recordset }` shape to prove native callers still read it during the
@@ -129,6 +136,66 @@ describe('single pg surface — only connection.js owns the pool (Tier 2)', () =
   it('no other file imports pg or constructs a Pool', () => {
     const offenders = scan(/\bnew Pool\b|from ['"]pg['"]|require\(['"]pg['"]\)/, { allow: ALLOW });
     expect(offenders, `pg/Pool used outside the governed surface:\n${offenders.join('\n')}`).toEqual([]);
+  });
+});
+
+describe('no T-SQL dialect in production JS (Tier 4)', () => {
+  // Matched CASE-SENSITIVELY, and that is load-bearing rather than an oversight.
+  // SQL here is written with uppercase keywords, while JavaScript is camelCase —
+  // so case-insensitive `\bGETDATE\s*\(` matches `.getDate()` and every
+  // date-formatting helper in the tree becomes an offender (scheduler.js,
+  // scopeHistory.js, EntityTimeline.jsx all trip it). The trade is that a
+  // lowercase `isnull(` would slip through; that has never appeared here, and a
+  // guard that cries wolf gets suppressed, which is worse than one narrow miss.
+  const TSQL = [
+    { name: 'dbo. schema prefix', re: /\bdbo\./ },
+    { name: 'SELECT TOP n', re: /\bSELECT\s+TOP\s/ },
+    { name: 'ISNULL()', re: /\bISNULL\s*\(/ },
+    { name: 'GETDATE() / GETUTCDATE()', re: /\bGETU?T?C?DATE\s*\(/ },
+    { name: 'NEWID()', re: /\bNEWID\s*\(/ },
+    { name: '@@ROWCOUNT / @@IDENTITY', re: /@@(?:ROWCOUNT|IDENTITY)\b/ },
+    { name: 'sp_executesql', re: /\bsp_executesql\b/ },
+    { name: 'WITH (NOLOCK)', re: /\bNOLOCK\b/ },
+    { name: 'CROSS / OUTER APPLY', re: /\b(?:CROSS|OUTER)\s+APPLY\b/ },
+    { name: 'NVARCHAR / DATETIME2 types', re: /\bNVARCHAR\b|\bDATETIME2\b/ },
+    { name: 'IIF() / TRY_CAST()', re: /\bIIF\s*\(|\bTRY_CAST\s*\(/ },
+    { name: 'LEN() (postgres spells it LENGTH)', re: /\bLEN\s*\(/ },
+  ];
+
+  for (const { name, re } of TSQL) {
+    it(`no production file uses T-SQL: ${name}`, () => {
+      const offenders = scan(re);
+      expect(offenders, `T-SQL dialect in postgres code:\n${offenders.join('\n')}`).toEqual([]);
+    });
+  }
+
+  // Pin the case-sensitivity trade-off in both directions. If someone "helpfully"
+  // adds /i these fail, rather than the tree filling with false offenders.
+  describe('does not fire on postgres-legal or plain-JavaScript code', () => {
+    const hits = (line) => TSQL.filter(({ re }) => re.test(line)).map(({ name }) => name);
+
+    it.each([
+      ['JS Date methods', 'const k = `${d.getFullYear()}-${d.getDate()}`;'],
+      ['JS UTC Date methods', 'const k = now.getUTCDate() + now.getUTCMonth();'],
+      ['postgres IS NULL, not T-SQL ISNULL()', 'WHERE ra."deletedAt" IS NULL'],
+      ['postgres LENGTH(), not T-SQL LEN()', 'SELECT LENGTH("displayName") FROM "Resources"'],
+      ['a column merely named "top"', 'SELECT "top" FROM "Layout"'],
+      ['LIMIT, the postgres spelling', 'SELECT * FROM "Resources" LIMIT 10'],
+    ])('%s', (_label, line) => {
+      expect(hits(line)).toEqual([]);
+    });
+
+    it.each([
+      ['SELECT TOP', "db.query('SELECT TOP 0 * FROM Resources')", 'SELECT TOP n'],
+      ['dbo. prefix', "db.query('SELECT 1 FROM dbo.Systems')", 'dbo. schema prefix'],
+      ['ISNULL(', "db.query('SELECT ISNULL(x, 0)')", 'ISNULL()'],
+      ['GETDATE(', "db.query('SELECT GETDATE()')", 'GETDATE() / GETUTCDATE()'],
+      ['GETUTCDATE(', "db.query('SELECT GETUTCDATE()')", 'GETDATE() / GETUTCDATE()'],
+      ['NOLOCK', "db.query('SELECT 1 FROM t WITH (NOLOCK)')", 'WITH (NOLOCK)'],
+      ['LEN(', "db.query('SELECT LEN(name) FROM t')", 'LEN() (postgres spells it LENGTH)'],
+    ])('still catches %s', (_label, line, expected) => {
+      expect(hits(line)).toContain(expected);
+    });
   });
 });
 
