@@ -91,6 +91,9 @@ function Write-Result {
 $pgUser      = 'identity_atlas'
 $pgPassword  = 'identity_atlas_local'
 $pgDatabase  = 'identity_atlas'
+
+Import-Module (Join-Path $PSScriptRoot '..' 'lib' 'PgQuery.psm1') -Force
+Set-PgConnection -User $pgUser -Password $pgPassword -Database $pgDatabase
 $apiBaseUrl  = 'http://localhost:3001/api'
 $uiBaseUrl   = 'http://localhost:3001'
 $backendDir  = Join-Path $RepoRoot 'app/api'
@@ -471,70 +474,37 @@ if (-not $SkipIntegration) {
         }
     }
 
-    # ── Verify all expected postgres tables exist via psql ──────────
-    # We shell into the postgres container and run a single SELECT against
-    # pg_tables. PowerShell's `&` invocation can mangle docker compose's
-    # quoting on Windows, so we put the SQL in a file inside the container
-    # and invoke psql -f <file>. Simpler than escaping nested quotes.
+    # ── Verify all expected postgres relations exist ────────────────
+    # Query goes through test/lib/PgQuery.psm1, the single postgres transport for
+    # PowerShell (see nativePg.guard.test.js Tier 3). It replaces ~50 lines of
+    # inline psql + hand-rolled output filtering that used to live here.
     Write-Phase "Phase 4c: Verify Postgres Schema"
 
+    # information_schema.tables covers base tables AND views. pg_tables lists only
+    # base tables, so it reported GraphTags missing every night — since the v6
+    # context redesign that's a backward-compat VIEW over Contexts, not a table.
     $expectedTables = @('Systems', 'Resources', 'Principals', 'ResourceAssignments', 'ResourceRelationships',
                         'Identities', 'IdentityMembers', 'Contexts', 'GovernanceCatalogs', 'AssignmentPolicies',
                         'AssignmentRequests', 'CertificationDecisions', 'Crawlers', 'CrawlerAuditLog',
                         'CrawlerConfigs', 'CrawlerJobs', 'WorkerConfig', 'GraphSyncLog',
                         'GraphTags', 'GovernanceCategories', 'GraphRiskProfiles', 'GraphRiskClassifiers',
-                        'RiskScores', 'GraphResourceClusters', 'AccountLinkingConfig', 'AccountLinkingRuns',
+                        'RiskScores', 'AccountLinkingConfig', 'AccountLinkingRuns',
                         # Added by migration 009 (history) and 010 (secrets + risk v2)
                         '_history', 'Secrets', 'RiskProfiles', 'RiskClassifiers', 'ScoringRuns')
+    # GraphResourceClusters is deliberately absent: the v6 context redesign
+    # dropped it (clustering is a context-algorithm plugin now) with no
+    # compatibility view, so asserting on it failed every run.
     try {
-        # Pipe the SQL via stdin to avoid nested-quote hell in the
-        # PowerShell → cmd → docker → sh → psql chain on Windows. The -c flag
-        # with embedded single quotes inside double quotes breaks ~50% of the
-        # time depending on which shell layer strips them.
-        # Use dollar-quoting ($$public$$) instead of single quotes ('public')
-        # because PowerShell strips single quotes from strings piped through
-        # docker compose exec, causing psql to interpret 'public' as a column
-        # reference instead of a string literal. The SQL is in a single-quoted
-        # string so PowerShell won't try to expand $$ as a variable.
-        $env:MSYS_NO_PATHCONV = '1'
-        $sql = 'SELECT tablename FROM pg_tables WHERE schemaname=$$public$$ ORDER BY tablename'
-        $listOutput = $sql | & docker compose exec -T -e PGPASSWORD=$pgPassword postgres `
-            psql -U $pgUser -d $pgDatabase -A -t 2>&1
-        Remove-Item Env:MSYS_NO_PATHCONV -ErrorAction SilentlyContinue
-        # Coerce each line to a string before .Trim() — if `docker compose exec`
-        # itself errored we get ErrorRecord objects mixed in, and ErrorRecord
-        # doesn't have a Trim() method. Also filter out lines that look like
-        # psql error messages so they don't fake a non-empty result set.
-        $existingTables = @($listOutput |
-            Where-Object { $_ -isnot [System.Management.Automation.ErrorRecord] } |
-            ForEach-Object { [string]$_ } |
-            ForEach-Object { $_.Trim() } |
-            Where-Object { $_ -ne '' -and $_ -notmatch '^[\(\)]' -and $_ -notmatch '^(ERROR|LINE |DETAIL|HINT)' })
-
+        $existingTables = Invoke-PgQuery -Query @'
+SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'
+'@
         if ($existingTables.Count -eq 0) {
-            # Fallback: try the -c approach in case piping didn't work
-            Write-Host "  (pipe approach returned 0 tables — falling back to -c)" -ForegroundColor DarkGray
-            $env:MSYS_NO_PATHCONV = '1'
-            $listOutput = & docker compose exec -T -e PGPASSWORD=$pgPassword postgres `
-                psql -U $pgUser -d $pgDatabase -A -t `
-                -c 'SELECT tablename FROM pg_tables WHERE schemaname=$$public$$ ORDER BY tablename' 2>&1
-            Remove-Item Env:MSYS_NO_PATHCONV -ErrorAction SilentlyContinue
-            $existingTables = @($listOutput |
-                Where-Object { $_ -isnot [System.Management.Automation.ErrorRecord] } |
-                ForEach-Object { [string]$_ } |
-                ForEach-Object { $_.Trim() } |
-                Where-Object { $_ -ne '' -and $_ -notmatch '^[\(\)]' -and $_ -notmatch '^(ERROR|LINE |DETAIL|HINT)' })
-        }
-
-        if ($existingTables.Count -eq 0) {
-            # Last resort: use the API's own admin status endpoint to confirm
-            # the database is at least reachable. Report a single failure
-            # rather than 25 table-not-found lines that obscure the real issue.
-            Write-Result 'Schema-Check' $false "psql returned no tables (docker exec may have failed — check docker-up.log)"
+            # Report one failure rather than 30 not-found lines that bury the cause.
+            Write-Result 'Schema-Check' $false 'postgres returned no relations (is the container up? check docker-up.log)'
         } else {
             foreach ($table in $expectedTables) {
                 $exists = $existingTables -contains $table
-                Write-Result "Table-$table" $exists $(if (-not $exists) { "Table not found in pg_tables" })
+                Write-Result "Table-$table" $exists $(if (-not $exists) { "Not found in information_schema.tables" })
             }
         }
     } catch {
