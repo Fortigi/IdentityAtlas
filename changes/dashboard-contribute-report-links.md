@@ -1,0 +1,2 @@
+- Added a "Contribute" link to the dashboard Resources card, and a "Report an issue or feature request" link to the Support card, both pointing at new plain-English documentation pages.
+- Added two documentation pages under Contributing — "Report a Bug or Request a Feature" and "Contribute a Change" — written for non-developers, guiding you through the GitHub issue tracker and pull-request flow.
