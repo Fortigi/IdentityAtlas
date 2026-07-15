@@ -23,17 +23,25 @@ const { mockReq } = vi.hoisted(() => {
   return { mockReq };
 });
 
-// getPool() returns a pool whose .request() yields the chainable mockReq, and
-// whose .request().query() is the same mock — identities.js calls both
-// timedRequest(p,...).query() and p.request().query() directly.
+// getPool() returns a native pool whose .query() forwards to the shared mockReq
+// stage. identities.js is pg-native (#663) — it drives queries through timedQuery
+// and db.query; the pool itself is only handed to timedQuery.
 vi.mock('../db/connection.js', () => ({
-  getPool: vi.fn().mockResolvedValue({ request: () => mockReq }),
+  getPool: vi.fn().mockResolvedValue({ query: (...a) => mockReq.query(...a) }),
   queryOne: vi.fn().mockResolvedValue({ t: 'Identities' }),
   query: vi.fn().mockResolvedValue({ rows: [] }),
 }));
 
+// timedQuery (native #663 path) routes to the same mockReq staging, normalising
+// so a handler reading .rows gets the staged array whether the test staged
+// .recordset or .rows.
 vi.mock('../perf/sqlTimer.js', () => ({
-  timedRequest: (_pool, _label, _res) => mockReq,
+  timedQuery: async (_pool, _label, _res, text, params) => {
+    const r = await mockReq.query(text, params);
+    if (r == null) return r;
+    const arr = r.rows ?? r.recordset ?? [];
+    return { ...r, rows: arr, recordset: arr };
+  },
   getQueryTimings: () => [],
 }));
 
@@ -50,6 +58,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   mockReq.input.mockReturnThis();
   mockReq.query.mockResolvedValue({ recordset: [] });
+  connection.query.mockReset();
+  connection.query.mockResolvedValue({ rows: [] });
   connection.queryOne.mockResolvedValue({ t: 'Identities' });
 });
 
@@ -64,9 +74,10 @@ describe('GET /identities', () => {
   });
 
   it('returns a summary + paginated data on the happy path', async () => {
-    // Sequence: colCheck (information_schema) → summary → typeDist → count → data
+    // colCheck (information_schema) is now a native db.query; the timed reads
+    // (summary → typeDist → count → data) route through the mockReq staging.
+    connection.query.mockResolvedValueOnce({ rows: [{ COLUMN_NAME: 'isHrAnchored' }, { COLUMN_NAME: 'orphanStatus' }] }); // colCheck (hasHrCols)
     mockReq.query
-      .mockResolvedValueOnce({ recordset: [{ COLUMN_NAME: 'isHrAnchored' }, { COLUMN_NAME: 'orphanStatus' }] }) // colCheck (hasHrCols)
       .mockResolvedValueOnce({ recordset: [{ totalIdentities: 3, multiAccountIdentities: 1 }] })                // summary
       .mockResolvedValueOnce({ recordset: [{ accountType: 'admin', cnt: 2 }] })                                 // typeDist
       .mockResolvedValueOnce({ recordset: [{ total: 1 }] })                                                      // count
@@ -82,8 +93,8 @@ describe('GET /identities', () => {
   });
 
   it('applies hr/orphan/tag/attribute filters without error', async () => {
+    connection.query.mockResolvedValueOnce({ rows: [{ COLUMN_NAME: 'isHrAnchored' }, { COLUMN_NAME: 'orphanStatus' }] }); // colCheck
     mockReq.query
-      .mockResolvedValueOnce({ recordset: [{ COLUMN_NAME: 'isHrAnchored' }, { COLUMN_NAME: 'orphanStatus' }] })
       .mockResolvedValueOnce({ recordset: [{ totalIdentities: 0 }] })
       .mockResolvedValueOnce({ recordset: [] })
       .mockResolvedValueOnce({ recordset: [{ total: 0 }] })

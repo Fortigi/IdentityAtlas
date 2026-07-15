@@ -4,7 +4,7 @@
 // entity/override sub-routers share one definition. No behaviour change —
 // pure code move.
 
-import { timedRequest } from '../../perf/sqlTimer.js';
+import { timedQuery } from '../../perf/sqlTimer.js';
 
 export const useSql = process.env.USE_SQL === 'true';
 
@@ -24,10 +24,10 @@ export async function riskTableExists(pool, res) {
     return _riskTableExists;
   }
   try {
-    const result = await timedRequest(pool, 'risk-table-check', res).query(`
+    const result = await timedQuery(pool, 'risk-table-check', res, `
       SELECT to_regclass('"RiskScores"') AS tbl
-    `);
-    _riskTableExists = result.recordset[0].tbl != null;
+    `, []);
+    _riskTableExists = result.rows[0].tbl != null;
   } catch {
     _riskTableExists = false;
   }

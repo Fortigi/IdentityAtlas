@@ -16,7 +16,7 @@ process.env.USE_SQL = 'false';
 // Heavy collaborators are inert in mock mode but still statically imported —
 // stub them so the import graph stays light and DB-free.
 vi.mock('../perf/sqlTimer.js', () => ({
-  timedRequest: () => ({ input() { return this; }, query: async () => ({ recordset: [] }) }),
+  timedQuery: async () => ({ rows: [] }),
   getQueryTimings: () => [],
 }));
 vi.mock('./tags.js', () => ({ ensureTagTables: async () => {} }));

@@ -12,11 +12,19 @@ import { mountRouter } from '../../test-utils/routeTestKit.js';
 // useSql is captured at module load — enable it before importing the router.
 process.env.USE_SQL = 'true';
 
-// timedRequest(...).input(...).query(sql) → { recordset }. Route it through a
-// controllable mock so each test can stage the rows the handler sees.
-const timedQuery = vi.fn();
+// One staging mock for the native timedQuery(...) — these routes are all pg-native (#663).
+// Normalise the result so a handler reading .rows (native) OR .recordset (shim)
+// gets the staged array either way, so a route can migrate without its tests
+// changing what they stage.
+const stageQuery = vi.fn();
+const runQuery = async (...args) => {
+  const r = await stageQuery(...args);
+  if (r == null) return r;
+  const arr = r.rows ?? r.recordset ?? [];
+  return { ...r, rows: arr, recordset: arr };
+};
 vi.mock('../perf/sqlTimer.js', () => ({
-  timedRequest: () => ({ input() { return this; }, query: (sql) => timedQuery(sql) }),
+  timedQuery: (...a) => runQuery(...a),
   getQueryTimings: () => [],
 }));
 
@@ -33,7 +41,7 @@ const app = mountRouter(router);
 const VALID_ID = '11111111-1111-1111-1111-111111111111';
 
 beforeEach(() => {
-  timedQuery.mockReset();
+  stageQuery.mockReset();
   dbQuery.mockReset();
 });
 
@@ -42,7 +50,7 @@ describe('details — id validation (400 before any query)', () => {
     it(`rejects ${path}`, async () => {
       const res = await request(app).get(path);
       expect(res.status).toBe(400);
-      expect(timedQuery).not.toHaveBeenCalled();
+      expect(stageQuery).not.toHaveBeenCalled();
       expect(dbQuery).not.toHaveBeenCalled();
     });
   }
@@ -50,7 +58,7 @@ describe('details — id validation (400 before any query)', () => {
 
 describe('GET /user/:id — branching', () => {
   it('404 when the principal does not exist', async () => {
-    timedQuery.mockResolvedValueOnce({ recordset: [] }); // user-attributes query → no row
+    stageQuery.mockResolvedValueOnce({ recordset: [] }); // user-attributes query → no row
     const res = await request(app).get(`/api/user/${VALID_ID}`);
     expect(res.status).toBe(404);
   });
@@ -58,7 +66,7 @@ describe('GET /user/:id — branching', () => {
 
 describe('GET /group/:id — branching', () => {
   it('404 when the group does not exist', async () => {
-    timedQuery.mockResolvedValueOnce({ recordset: [] }); // group-attributes query → no row
+    stageQuery.mockResolvedValueOnce({ recordset: [] }); // group-attributes query → no row
     const res = await request(app).get(`/api/group/${VALID_ID}`);
     expect(res.status).toBe(404);
   });
@@ -72,7 +80,7 @@ const GENERIC = { id: 'x', displayName: 'X', name: 'X', cnt: 0, total: 0, autoAd
 
 describe('details — happy paths (200)', () => {
   beforeEach(() => {
-    timedQuery.mockResolvedValue({ recordset: [GENERIC] });
+    stageQuery.mockResolvedValue({ recordset: [GENERIC] });
     dbQuery.mockResolvedValue({ rows: [], rowCount: 0 });
   });
 
@@ -100,7 +108,7 @@ describe('details — happy paths (200)', () => {
   });
 
   it('GET /user/:id/principal-relationships → 500 when the query fails', async () => {
-    timedQuery.mockRejectedValueOnce(new Error('boom'));
+    stageQuery.mockRejectedValueOnce(new Error('boom'));
     const res = await request(app).get(`/api/user/${VALID_ID}/principal-relationships`);
     expect(res.status).toBe(500);
   });
@@ -149,7 +157,7 @@ const SCHEMA_ERR = { code: '42P01' };        // undefined_table -> isMissingSche
 
 describe('details — primary-query failure surfaces as the handler error response', () => {
   beforeEach(() => {
-    timedQuery.mockRejectedValue(REAL_ERR);
+    stageQuery.mockRejectedValue(REAL_ERR);
     dbQuery.mockRejectedValue(REAL_ERR);
   });
 
@@ -187,13 +195,13 @@ describe('details — optional-schema sub-queries are swallowed and the detail s
   // attributes query as present, then make every follow-up query report a
   // missing relation — the handler must still 200.
   it('GET /user/:id swallows missing optional tables', async () => {
-    timedQuery.mockResolvedValueOnce({ recordset: [GENERIC] }).mockRejectedValue(SCHEMA_ERR);
+    stageQuery.mockResolvedValueOnce({ recordset: [GENERIC] }).mockRejectedValue(SCHEMA_ERR);
     dbQuery.mockRejectedValue(SCHEMA_ERR);
     expect((await request(app).get(`/api/user/${VALID_ID}`)).status).toBe(200);
   });
 
   it('GET /group/:id swallows missing tables, guards bad extendedAttributes, and falls back on member-count', async () => {
-    timedQuery
+    stageQuery
       .mockResolvedValueOnce({ recordset: [{ ...GENERIC, extendedAttributes: 'not-json' }] })
       .mockRejectedValue(SCHEMA_ERR);
     dbQuery.mockRejectedValue(SCHEMA_ERR);
@@ -201,7 +209,7 @@ describe('details — optional-schema sub-queries are swallowed and the detail s
   });
 
   it('GET /access-package/:id swallows missing tables (counts, policies, category, history)', async () => {
-    timedQuery.mockResolvedValueOnce({ recordset: [GENERIC] }).mockRejectedValue(SCHEMA_ERR);
+    stageQuery.mockResolvedValueOnce({ recordset: [GENERIC] }).mockRejectedValue(SCHEMA_ERR);
     dbQuery.mockRejectedValue(SCHEMA_ERR);
     expect((await request(app).get(`/api/access-package/${VALID_ID}`)).status).toBe(200);
   });
@@ -211,7 +219,7 @@ describe('access-package detail — compliance status of the latest review insta
   // The compliance CTE (db.query) drives a small state machine; the _history
   // count query (also db.query) must not be mistaken for it, so route by SQL.
   const withCompliance = (row) => {
-    timedQuery.mockResolvedValue({ recordset: [GENERIC] });
+    stageQuery.mockResolvedValue({ recordset: [GENERIC] });
     dbQuery.mockImplementation((sql) =>
       /reviewInstanceId/.test(sql)
         ? Promise.resolve({ rows: [row] })

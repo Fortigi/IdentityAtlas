@@ -610,11 +610,8 @@ export default function RiskScoringPage({ onOpenDetail }) {
         <div className="bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 rounded-lg p-6 text-center">
           <h3 className="text-amber-800 dark:text-amber-300 font-semibold text-lg">Risk Scores Not Yet Computed</h3>
           <p className="text-amber-700 dark:text-amber-400 text-sm mt-2">
-            Run the risk scoring engine in PowerShell to compute scores:
+            Run the risk scoring engine from <span className="font-semibold">Admin&nbsp;→&nbsp;Risk&nbsp;Scoring</span> to compute scores.
           </p>
-          <pre className="bg-amber-100 rounded-lg p-3 mt-3 text-sm text-amber-900 font-mono text-left inline-block">
-            {`# Connect and score\nConnect-FGSQLServer -ConfigFile .\\Config\\mycompany.json\nInvoke-FGRiskScoring`}
-          </pre>
           <p className="text-amber-600 dark:text-amber-400 text-xs mt-3">
             Scores are persisted as columns on Principals and Resources. The UI reads them directly.
           </p>
@@ -646,7 +643,7 @@ export default function RiskScoringPage({ onOpenDetail }) {
         <div>
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Identity Risk Scores</h2>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-            Persisted risk scores computed by <code className="text-xs text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-gray-700 px-1 rounded">Invoke-FGRiskScoring</code>
+            Persisted risk scores computed by the risk scoring engine (run from <span className="font-medium text-gray-700 dark:text-gray-200">Admin&nbsp;→&nbsp;Risk&nbsp;Scoring</span>)
             {totalOverrides > 0 && (
               <span className="ml-2 text-xs text-amber-600 dark:text-amber-400">
                 ({totalOverrides} analyst override{totalOverrides !== 1 ? 's' : ''})

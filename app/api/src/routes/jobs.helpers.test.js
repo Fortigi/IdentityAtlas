@@ -8,7 +8,7 @@ import {
 } from './jobs.js';
 
 const SECRET_MASK = '••••••••';
-const mockPool = (recordset) => ({ request: () => ({ input() { return this; }, query: async () => ({ recordset }) }) });
+const mockPool = (rows) => ({ query: async () => ({ rows }) });
 
 describe('resolveCreatedBy', () => {
   it('prefers preferred_username, then name, then "ui"', () => {

@@ -13,18 +13,13 @@ process.env.USE_SQL = 'true';
 const query = vi.fn();
 const queryOne = vi.fn();
 
-// getPool() returns an object whose .request() builds an mssql-style chainable
-// query builder. Tests override poolQuery per-case to control recordset output.
-let poolQuery = vi.fn(async () => ({ recordset: [] }));
+// admin handlers use native db.query / db.queryOne (the mssql compat shim was
+// removed in #663). getPool() is still awaited by the table-existence + ensure*
+// helpers, but it's no longer used as an mssql-style request builder.
 vi.mock('../db/connection.js', () => ({
   query: (...a) => query(...a),
   queryOne: (...a) => queryOne(...a),
-  getPool: async () => ({
-    request: () => {
-      const r = { input() { return r; }, query: (...a) => poolQuery(...a) };
-      return r;
-    },
-  }),
+  getPool: async () => ({}),
   default: {},
 }));
 vi.mock('../middleware/auth.js', () => ({ requirePermission: () => (_q, _s, next) => next() }));
@@ -59,7 +54,6 @@ beforeEach(() => {
   query.mockReset();
   queryOne.mockReset();
   purgeExpiredTombstones.mockClear();
-  poolQuery = vi.fn(async () => ({ recordset: [] }));
 });
 
 // ── GET /admin/risk-profile ──────────────────────────────────────────────────
@@ -284,24 +278,21 @@ describe('POST /admin/import/curated', () => {
   });
 
   it('imports tags + categories and returns stats', async () => {
-    // tableExists() calls (Principals, Resources) -> default poolQuery returns
-    // empty recordset, so resolveEntity treats entities as non-existent.
-    // db.query is used for: to_regclass checks, tag upsert (Contexts), category
-    // upsert, assignment lookups/inserts (ContextMembers). queryOne is used for
+    // Everything is native db.query / db.queryOne now (#663 removed the shim).
+    // db.query drives: to_regclass checks, resolveEntity GUID match (COUNT), tag
+    // upsert (Contexts), category upsert, assignment lookups/inserts. queryOne is
     // the existing-tag lookup. Drive them through a default + specific mocks.
     query.mockImplementation(async (sql) => {
       if (/to_regclass/i.test(sql)) return { rows: [{ oid: 1 }] };            // tables exist
+      if (/COUNT\(\*\) AS n/i.test(sql)) return { rows: [{ n: 1 }] };          // resolveEntity GUID hit
       if (/INSERT INTO "Contexts"/i.test(sql)) return { rows: [{ id: 'tag1' }] };
       if (/INSERT INTO "GovernanceCategories"/i.test(sql)) return { rows: [{ id: 'cat1' }] };
       if (/INSERT INTO "ContextMembers"/i.test(sql)) return { rows: [{ inserted: 1 }] };
-      if (/FROM "Resources"/i.test(sql)) return { rows: [{ id: 'apid' }] };    // GUID match
+      if (/FROM "Resources"/i.test(sql)) return { rows: [{ id: 'apid' }] };    // BusinessRole GUID match
       if (/INSERT INTO "GovernanceCategoryAssignments"/i.test(sql)) return { rows: [{ inserted: 1 }] };
       return { rows: [] };
     });
     queryOne.mockResolvedValue(undefined); // no existing tag → insert path
-    // resolveEntity uses pool.request().query -> return a hit so the tag
-    // assignment resolves via GUID match.
-    poolQuery = vi.fn(async () => ({ recordset: [{ n: 1 }] }));
 
     const body = {
       tags: [{

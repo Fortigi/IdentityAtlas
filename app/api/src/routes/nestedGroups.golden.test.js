@@ -21,43 +21,36 @@ const GB = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
 const AR = 'cccccccc-cccc-cccc-cccc-cccccccccccc';
 const U2 = '22222222-2222-2222-2222-222222222222';
 
-// timedRequest(pool, label, res) -> pool.request(); passthrough for the test.
-vi.mock('../perf/sqlTimer.js', () => ({ timedRequest: (p) => p.request() }));
+// timedQuery(pool, label, res, sql, params) → {rows}; dispatch by SQL shape.
+vi.mock('../perf/sqlTimer.js', () => ({ timedQuery: async (_p, _l, _r, sql) => dispatch(sql) }));
 
-// Canned recordsets keyed by SQL shape — mirrors what the seeded DB returns.
-function makeDbRequest() {
-  return {
-    input() {
-      return this;
-    },
-    async query(sql) {
-      if (sql.includes('groupTypeCalculated')) {
-        return {
-          recordset: [
-            {
-              groupId: GB,
-              resourceId: GB,
-              displayName: 'Group B',
-              resourceType: 'Group',
-              groupTypeCalculated: 'Group',
-              description: null,
-            },
-          ],
-        };
-      }
-      if (sql.includes('vw_ResourceUserPermissionAssignments')) {
-        return { recordset: [{ resourceId: GB, groupId: GB, memberId: U2, membershipType: 'Direct' }] };
-      }
-      if (sql.includes('DISTINCT "principalId"')) {
-        return { recordset: [{ groupId: GA }, { groupId: GB }] };
-      }
-      return { recordset: [] };
-    },
-  };
+// Canned result sets keyed by SQL shape — mirrors what the seeded DB returns.
+function dispatch(sql) {
+  if (sql.includes('groupTypeCalculated')) {
+    return {
+      rows: [
+        {
+          groupId: GB,
+          resourceId: GB,
+          displayName: 'Group B',
+          resourceType: 'Group',
+          groupTypeCalculated: 'Group',
+          description: null,
+        },
+      ],
+    };
+  }
+  if (sql.includes('vw_ResourceUserPermissionAssignments')) {
+    return { rows: [{ resourceId: GB, groupId: GB, memberId: U2, membershipType: 'Direct' }] };
+  }
+  if (sql.includes('DISTINCT "principalId"')) {
+    return { rows: [{ groupId: GA }, { groupId: GB }] };
+  }
+  return { rows: [] };
 }
 
 vi.mock('../db/connection.js', () => ({
-  getPool: async () => ({ request: () => makeDbRequest() }),
+  getPool: async () => ({ query: async () => ({ rows: [] }) }),
   query: async () => ({ rows: [] }),
   queryOne: async () => null,
 }));

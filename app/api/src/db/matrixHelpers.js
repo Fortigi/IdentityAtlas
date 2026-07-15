@@ -5,14 +5,17 @@
  */
 
 /** Preview and scope-stats assignment filter expressions (uses vw_ResourceUserPermissionAssignments alias p). */
-export function buildAssignmentExprs(rowType, built) {
+// `subjectSql` / `resourceSql` are the already-rendered subquery fragments for
+// this query (from built.subject(bind)/built.resource(bind)), so their $N line
+// up with the caller's params array.
+export function buildAssignmentExprs(rowType, subjectSql, resourceSql) {
   const subjectIdExpr = rowType === 'identity' ? 'im."identityId"' : 'p."principalId"';
   const assignmentJoin = rowType === 'identity'
     ? `INNER JOIN "IdentityMembers" im ON im."principalId" = p."principalId"`
     : '';
   const assignmentWhere = [`(p."principalType" IS NULL OR p."principalType" != '#microsoft.graph.group')`];
-  if (built.subjectSql)  assignmentWhere.push(`${subjectIdExpr} IN ${built.subjectSql}`);
-  if (built.resourceSql) assignmentWhere.push(`p."resourceId" IN ${built.resourceSql}`);
+  if (subjectSql)  assignmentWhere.push(`${subjectIdExpr} IN ${subjectSql}`);
+  if (resourceSql) assignmentWhere.push(`p."resourceId" IN ${resourceSql}`);
   return { subjectIdExpr, assignmentJoin, assignmentWhere };
 }
 

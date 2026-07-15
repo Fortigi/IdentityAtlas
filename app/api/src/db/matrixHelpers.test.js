@@ -10,20 +10,21 @@ import {
 
 describe('buildAssignmentExprs', () => {
   it('identity rowType: uses identityId and adds IdentityMembers join', () => {
-    const result = buildAssignmentExprs('identity', {});
+    const result = buildAssignmentExprs('identity');
     expect(result.subjectIdExpr).toBe('im."identityId"');
     expect(result.assignmentJoin).toContain('IdentityMembers');
     expect(result.assignmentWhere).toHaveLength(1);
   });
 
   it('user rowType: uses principalId and no join', () => {
-    const result = buildAssignmentExprs('user', {});
+    const result = buildAssignmentExprs('user');
     expect(result.subjectIdExpr).toBe('p."principalId"');
     expect(result.assignmentJoin).toBe('');
   });
 
   it('adds subjectSql and resourceSql to where clause when provided', () => {
-    const result = buildAssignmentExprs('user', { subjectSql: '(SELECT 1)', resourceSql: '(SELECT 2)' });
+    // Fragments are now passed positionally as already-rendered $N strings.
+    const result = buildAssignmentExprs('user', '(SELECT 1)', '(SELECT 2)');
     expect(result.assignmentWhere).toHaveLength(3);
   });
 });

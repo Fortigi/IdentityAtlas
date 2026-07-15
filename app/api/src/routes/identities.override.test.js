@@ -25,13 +25,20 @@ const { mockReq } = vi.hoisted(() => {
 });
 
 vi.mock('../db/connection.js', () => ({
-  getPool: vi.fn().mockResolvedValue({ request: () => mockReq }),
+  getPool: vi.fn().mockResolvedValue({ query: (...a) => mockReq.query(...a) }),
   queryOne: vi.fn().mockResolvedValue({ t: 'Identities' }),
   query:    vi.fn().mockResolvedValue({ rows: [] }),
 }));
 
 vi.mock('../perf/sqlTimer.js', () => ({
-  timedRequest: (_pool, _label, _res) => mockReq,
+  // Native #663 path — forward to the shared mockReq staging so query-order + SQL
+  // assertions still hold; normalise .recordset→.rows for either staged shape.
+  timedQuery: async (_pool, _label, _res, text, params) => {
+    const r = await mockReq.query(text, params);
+    if (r == null) return r;
+    const arr = r.rows ?? r.recordset ?? [];
+    return { ...r, rows: arr, recordset: arr };
+  },
   getQueryTimings: () => [],
 }));
 
@@ -114,9 +121,10 @@ describe('PUT /identities/:id/members/:userId/override', () => {
       .put(`/identities/${VALID_ID}/members/${VALID_ID2}/override`)
       .send({ action: 'confirmed' });
 
-    const querySql = mockReq.query.mock.calls[0][0];
-    expect(querySql).toMatch(/"principalId"\s*=\s*@userId/);
+    const [querySql, params] = mockReq.query.mock.calls[0];
+    expect(querySql).toMatch(/"principalId"\s*=\s*\$2/);
     expect(querySql).not.toMatch(/"userId"\s*=/);
+    expect(params[1]).toBe(VALID_ID2); // the userId value is bound to the principalId placeholder
   });
 });
 
@@ -140,7 +148,8 @@ describe('DELETE /identities/:id/members/:userId/override', () => {
     await request(app)
       .delete(`/identities/${VALID_ID}/members/${VALID_ID2}/override`);
 
-    const querySql = mockReq.query.mock.calls[0][0];
-    expect(querySql).toMatch(/"principalId"\s*=\s*@userId/);
+    const [querySql, params] = mockReq.query.mock.calls[0];
+    expect(querySql).toMatch(/"principalId"\s*=\s*\$2/);
+    expect(params[1]).toBe(VALID_ID2);
   });
 });

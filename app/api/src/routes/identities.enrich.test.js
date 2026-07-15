@@ -11,7 +11,7 @@ import { describe, it, expect, vi } from 'vitest';
 // Keep the module import side-effect-free (no pool creation / timers).
 vi.mock('../db/connection.js', () => ({ getPool: vi.fn(), queryOne: vi.fn(), query: vi.fn() }));
 vi.mock('../perf/sqlTimer.js', () => ({
-  timedRequest: () => ({ input() { return this; }, query: async () => ({ recordset: [] }) }),
+  timedQuery: async () => ({ rows: [] }),
   getQueryTimings: () => [],
 }));
 

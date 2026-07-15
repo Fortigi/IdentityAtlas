@@ -5,7 +5,7 @@
 // No behaviour change — pure code move.
 
 import { Router } from 'express';
-import { timedRequest } from '../../perf/sqlTimer.js';
+import { timedQuery } from '../../perf/sqlTimer.js';
 import { useSql, db } from './shared.js';
 
 const router = Router();
@@ -18,21 +18,21 @@ router.get('/sync-log', async (req, res) => {
     if (useSql) {
       const p = await db.getPool();
       // Check if GraphSyncLog table exists before querying
-      const tableCheck = await timedRequest(p, 'sync-log-check', res).query(`
+      const tableCheck = await timedQuery(p, 'sync-log-check', res, `
         SELECT to_regclass('"GraphSyncLog"') AS "tableExists"
-      `);
-      if (!tableCheck.recordset[0].tableExists) {
+      `, []);
+      if (!tableCheck.rows[0].tableExists) {
         return res.json([]);
       }
 
-      const result = await timedRequest(p, 'sync-log-data', res).input('limit', limit).query(`
+      const result = await timedQuery(p, 'sync-log-data', res, `
         SELECT "Id", "SyncType", "StartTime", "EndTime", "DurationSeconds",
                "RecordCount", "Status", "ErrorMessage", "TableName", "CreatedAt"
           FROM "GraphSyncLog"
          ORDER BY "StartTime" DESC
-         LIMIT @limit
-      `);
-      return res.json(result.recordset);
+         LIMIT $1
+      `, [limit]);
+      return res.json(result.rows);
     }
 
     // Mock data: generate realistic sync log entries

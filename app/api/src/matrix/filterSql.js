@@ -56,32 +56,34 @@ export function collectContextIds(filter) {
 // Build a subquery that lists the IDs of the chosen entity table matching the
 // include/exclude conditions. Returns:
 //   { sql: '(SELECT id FROM "Principals" WHERE …)' | null,
-//     bindings: { ctxFilter0Id: '…', attr0: 'HR', … },
 //     warnings: ['unknown attribute foo dropped', …] }
 //
 // `validColumns` is a Set of allowed real-column names for the entity.
 // `contextTypes` is a Map<contextId, targetType>.
-// `bindingPrefix` keeps placeholders unique when the caller combines two
-// subqueries (subject + resource) into one query.
+// `bind` is a positional-parameter binder (from createParams): bind(value)
+// appends the value to the caller's params array and returns its `$N` token.
+// The caller re-invokes this per query with its own `bind`, so each query gets
+// exactly the placeholders + params it references (the same subquery fragment
+// is embedded in several INDEPENDENT queries — the flat grid, the four scope
+// COUNTs, the roll-ups — and pg can't share params across queries).
 export function buildEntitySubquery({
   entity,
   include = [],
   exclude = [],
   validColumns,
   contextTypes,
-  bindingPrefix,
+  bind,
 }) {
   const table = TABLE_BY_ENTITY[entity];
-  if (!table) return { sql: null, bindings: {}, warnings: ['unknown entity: ' + entity] };
+  if (!table) return { sql: null, warnings: ['unknown entity: ' + entity] };
 
-  const bindings = {};
   const warnings = [];
   const includeClauses = [];
   const excludeClauses = [];
 
   const handle = (conditions, target) => {
     if (!Array.isArray(conditions)) return;
-    conditions.forEach((cond, idx) => {
+    conditions.forEach((cond) => {
       if (!cond || typeof cond !== 'object') return;
 
       // ─── context membership ─────────────────────────────────────
@@ -100,9 +102,7 @@ export function buildEntitySubquery({
           contextId: cond.contextId,
           includeChildren: !!cond.includeChildren,
           contextTargetType: ctxType,
-          bindingPrefix,
-          slotKey: `c_${target}_${idx}`,
-          bindings,
+          bind,
         });
         if (!clause) {
           warnings.push(`context type ${ctxType} incompatible with entity ${entity} — dropped`);
@@ -118,9 +118,7 @@ export function buildEntitySubquery({
           field: cond.field,
           values: cond.values,
           validColumns,
-          bindingPrefix,
-          slotKey: `a_${target}_${idx}`,
-          bindings,
+          bind,
         });
         if (!clause) {
           warnings.push(`attribute condition for ${cond.field} dropped`);
@@ -138,7 +136,7 @@ export function buildEntitySubquery({
   handle(exclude, 'exc');
 
   if (includeClauses.length === 0 && excludeClauses.length === 0) {
-    return { sql: null, bindings, warnings };
+    return { sql: null, warnings };
   }
 
   const where = [];
@@ -150,12 +148,12 @@ export function buildEntitySubquery({
   if (excludeClauses.length) where.push(...excludeClauses.map(c => `(${c}) IS NOT TRUE`));
 
   const sql = `(SELECT id FROM "${table}" WHERE ${where.join(' AND ')})`;
-  return { sql, bindings, warnings };
+  return { sql, warnings };
 }
 
 // ─── Internals ──────────────────────────────────────────────────────
 
-function buildAttributeClause({ field, values, validColumns, bindingPrefix, slotKey, bindings }) {
+function buildAttributeClause({ field, values, validColumns, bind }) {
   if (typeof field !== 'string') return null;
   if (!Array.isArray(values) || values.length === 0) return null;
 
@@ -169,11 +167,7 @@ function buildAttributeClause({ field, values, validColumns, bindingPrefix, slot
   if (field.startsWith(EXT_PREFIX)) {
     const key = field.slice(EXT_PREFIX.length);
     if (!SAFE_IDENT_RE.test(key)) return null;
-    const placeholders = vals.map((v, i) => {
-      const p = `${bindingPrefix}_${slotKey}_${i}`;
-      bindings[p] = v;
-      return `@${p}`;
-    });
+    const placeholders = vals.map(v => bind(v));
     return `"extendedAttributes"->>'${key}' IN (${placeholders.join(',')})`;
   }
 
@@ -181,35 +175,29 @@ function buildAttributeClause({ field, values, validColumns, bindingPrefix, slot
   if (!SAFE_IDENT_RE.test(field)) return null;
   if (!validColumns.has(field)) return null;
 
-  const placeholders = vals.map((v, i) => {
-    const p = `${bindingPrefix}_${slotKey}_${i}`;
-    bindings[p] = v;
-    return `@${p}`;
-  });
+  const placeholders = vals.map(v => bind(v));
   return `"${field}"::text IN (${placeholders.join(',')})`;
 }
 
-function buildContextClause({ entity, contextId, includeChildren, contextTargetType, bindingPrefix, slotKey, bindings }) {
-  const idParam  = `${bindingPrefix}_${slotKey}_id`;
-  const memParam = `${bindingPrefix}_${slotKey}_mt`;
-  bindings[idParam] = contextId;
-  bindings[memParam] = contextTargetType;
+function buildContextClause({ entity, contextId, includeChildren, contextTargetType, bind }) {
+  const idPh  = bind(contextId);
+  const memPh = bind(contextTargetType);
 
   const scope = includeChildren
     ? `(
         WITH RECURSIVE scope AS (
-          SELECT id FROM "Contexts" WHERE id = @${idParam}
+          SELECT id FROM "Contexts" WHERE id = ${idPh}
           UNION ALL
           SELECT c.id FROM "Contexts" c JOIN scope ON c."parentContextId" = scope.id
         )
         SELECT "memberId" FROM "ContextMembers"
-         WHERE "memberType" = @${memParam}
+         WHERE "memberType" = ${memPh}
            AND "contextId" IN (SELECT id FROM scope)
       )`
     : `(
         SELECT "memberId" FROM "ContextMembers"
-         WHERE "memberType" = @${memParam}
-           AND "contextId" = @${idParam}
+         WHERE "memberType" = ${memPh}
+           AND "contextId" = ${idPh}
       )`;
 
   // Direct match — context targets the same entity we're filtering.

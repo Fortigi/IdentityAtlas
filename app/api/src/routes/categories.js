@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { requirePermission } from '../middleware/auth.js';
+import { createParams } from '../db/sqlParams.js';
 
 const router = Router();
 const useSql = process.env.USE_SQL === 'true';
@@ -34,7 +35,7 @@ async function fetchCategoryRows(res, sql) {
   if (!useSql) { res.json([]); return null; }
   const p = await db.getPool();
   await ensureCategoryTables(p);
-  return (await p.request().query(sql)).recordset;
+  return (await db.query(sql)).rows;
 }
 
 // Shared preamble for the assign/unassign endpoints: require SQL mode, resolve
@@ -79,15 +80,12 @@ router.post('/categories', writeCategories, async (req, res) => {
 
     const p = await db.getPool();
     await ensureCategoryTables(p);
-    const result = await p.request()
-      .input('name', name.trim())
-      .input('color', color || TAG_COLORS[0])
-      .query(`
+    const result = await db.query(`
         INSERT INTO "GovernanceCategories" (name, color)
-              VALUES (@name, @color)
+              VALUES ($1, $2)
               RETURNING *
-      `);
-    res.status(201).json(result.recordset[0]);
+      `, [name.trim(), color || TAG_COLORS[0]]);
+    res.status(201).json(result.rows[0]);
   } catch (err) {
     if (err.message?.includes('UQ__Governance') || err.message?.includes('UQ__GraphCat') || err.message?.includes('UNIQUE')) {
       return res.status(409).json({ error: 'A category with this name already exists' });
@@ -107,15 +105,16 @@ router.patch('/categories/:id', writeCategories, async (req, res) => {
     await ensureCategoryTables(p);
     const id = parseInt(req.params.id, 10);
     if (isNaN(id)) return res.status(400).json({ error: 'Invalid category ID' });
-    const request = p.request().input('id', id);
+    const { params, bind } = createParams();
     const sets = [];
-    if (name) { sets.push('"name" = @name'); request.input('name', name.trim()); }
-    if (color) { sets.push('"color" = @color'); request.input('color', color); }
+    if (name)  sets.push(`"name" = ${bind(name.trim())}`);
+    if (color) sets.push(`"color" = ${bind(color)}`);
     if (sets.length === 0) return res.status(400).json({ error: 'Nothing to update' });
-    const result = await request.query(
-      `UPDATE "GovernanceCategories" SET ${sets.join(', ')} WHERE id = @id RETURNING *`
+    const result = await db.query(
+      `UPDATE "GovernanceCategories" SET ${sets.join(', ')} WHERE id = ${bind(id)} RETURNING *`,
+      params
     );
-    res.json(result.recordset[0] || null);
+    res.json(result.rows[0] || null);
   } catch (err) {
     console.error('PATCH /categories failed:', err.message);
     res.status(500).json({ error: 'Internal server error' });
@@ -130,9 +129,10 @@ router.delete('/categories/:id', writeCategories, async (req, res) => {
     if (isNaN(id)) return res.status(400).json({ error: 'Invalid category ID' });
     const p = await db.getPool();
     await ensureCategoryTables(p);
-    await p.request()
-      .input('id', id)
-      .query('DELETE FROM GovernanceCategories WHERE id = @id');
+    // NB: the table name must be double-quoted — the pre-#663 shim query left it
+    // bare, which postgres folds to lowercase ("governancecategories"), so this
+    // DELETE actually 500'd against the real schema until now.
+    await db.query('DELETE FROM "GovernanceCategories" WHERE id = $1', [id]);
     res.json({ ok: true });
   } catch (err) {
     console.error('DELETE /categories failed:', err.message);

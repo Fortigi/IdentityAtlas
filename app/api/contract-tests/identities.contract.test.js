@@ -32,11 +32,16 @@ beforeAll(async () => {
     principalIds.push(r.rows[0].id);
   }
 
-  // One identity aggregating both principals.
+  // One identity aggregating both principals. The displayName carries the
+  // random id so the list test can search-scope to exactly this row on the
+  // shared contract DB, and accountCount/linkConfidence/department are set so
+  // the numeric + attribute list filters have something to match.
   identityId = randomUUID();
   await pool.query(
-    `INSERT INTO "Identities" ("id", "displayName", "email") VALUES ($1, 'Jane Doe', 'jane@example.com')`,
-    [identityId],
+    `INSERT INTO "Identities"
+       ("id", "displayName", "email", "accountCount", "linkConfidence", "department")
+     VALUES ($1, $2, 'jane@example.com', 2, 90, 'Contracts')`,
+    [identityId, `Jane Doe ${identityId}`],
   );
   await pool.query(
     `INSERT INTO "IdentityMembers" ("identityId", "principalId", "isPrimary") VALUES ($1, $2, true)`,
@@ -74,5 +79,43 @@ describe('GET /identities/:id', () => {
   it('returns 400 for a malformed id', async () => {
     const res = await agent.get('/api/identities/not-a-uuid');
     expect(res.status).toBe(400);
+  });
+});
+
+// GET /identities (list) drives the dynamically-composed WHERE clause through
+// bindNamedParams — the @name → $N conversion only runs correctly against real
+// SQL, so these pin the list + column-discovery queries to the live schema.
+describe('GET /identities (list)', () => {
+  it('finds the seeded identity via the search filter', async () => {
+    const res = await agent.get(`/api/identities?search=${identityId}&sort=accountCount`);
+    expect(res.status).toBe(200);
+    expect(res.body.available).toBe(true);
+    const mine = res.body.data.find(d => d.id === identityId);
+    expect(mine).toBeTruthy();
+    expect(mine.accountCount).toBe(2);
+  });
+
+  it('applies numeric + attribute filters together without error', async () => {
+    const filters = encodeURIComponent(JSON.stringify({ department: 'Contracts' }));
+    const res = await agent.get(
+      `/api/identities?search=${identityId}&minAccounts=2&confidence=10&filters=${filters}`,
+    );
+    expect(res.status).toBe(200);
+    expect(res.body.available).toBe(true);
+    // The row satisfies all three predicates, so bindNamedParams numbered them right.
+    expect(res.body.data.some(d => d.id === identityId)).toBe(true);
+  });
+
+  it('returns filterable columns from /identity-columns (schema mode)', async () => {
+    const res = await agent.get('/api/identity-columns?schema=true');
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+    expect(res.body.map(c => c.column)).toContain('displayName');
+  });
+
+  it('returns distinct values from /identity-columns (full path)', async () => {
+    const res = await agent.get('/api/identity-columns');
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
   });
 });

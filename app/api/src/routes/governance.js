@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import * as db from '../db/connection.js';
-import { timedRequest } from '../perf/sqlTimer.js';
+import { timedQuery } from '../perf/sqlTimer.js';
 
 const router = Router();
 const useSql = process.env.USE_SQL === 'true';
@@ -8,8 +8,8 @@ const useSql = process.env.USE_SQL === 'true';
 // Helper: try query, return empty on failure (view/table may not exist)
 async function safeQuery(pool, label, res, sql) {
   try {
-    const r = await timedRequest(pool, label, res).query(sql);
-    return r.recordset;
+    const r = await timedQuery(pool, label, res, sql, []);
+    return r.rows;
   } catch {
     return [];
   }

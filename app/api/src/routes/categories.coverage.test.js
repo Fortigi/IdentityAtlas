@@ -9,19 +9,13 @@ import { mountRouter } from '../../test-utils/routeTestKit.js';
 
 process.env.USE_SQL = 'true';
 
-let nextResult = { recordset: [] };
-const mockPool = {
-  request() {
-    const r = { input() { return r; }, query: (...a) => poolQuery(...a) };
-    return r;
-  },
-};
-const poolQuery = vi.fn(async () => nextResult);
+// All category handlers use native db.query / db.queryOne / db.tx now (#663
+// removed the shim). getPool() is only handed to the no-op ensureCategoryTables.
 const query = vi.fn();
 const queryOne = vi.fn();
 const tx = vi.fn();
 vi.mock('../db/connection.js', () => ({
-  getPool: async () => mockPool,
+  getPool: async () => ({}),
   query: (...a) => query(...a),
   queryOne: (...a) => queryOne(...a),
   tx: (...a) => tx(...a),
@@ -34,9 +28,6 @@ const app = mountRouter(router);
 const RES = '11111111-1111-1111-1111-111111111111';
 
 beforeEach(() => {
-  nextResult = { recordset: [] };
-  poolQuery.mockReset();
-  poolQuery.mockImplementation(async () => nextResult);
   query.mockReset();
   queryOne.mockReset();
   tx.mockReset();
@@ -45,14 +36,14 @@ beforeEach(() => {
 
 describe('GET /categories', () => {
   it('200 returns rows', async () => {
-    nextResult = { recordset: [{ id: 1, name: 'Finance', color: '#3b82f6', assignmentCount: 2 }] };
+    query.mockResolvedValueOnce({ rows: [{ id: 1, name: 'Finance', color: '#3b82f6', assignmentCount: 2 }] });
     const res = await request(app).get('/api/categories');
     expect(res.status).toBe(200);
     expect(res.body).toHaveLength(1);
   });
 
   it('500 when the query rejects', async () => {
-    poolQuery.mockRejectedValueOnce(new Error('boom'));
+    query.mockRejectedValueOnce(new Error('boom'));
     const res = await request(app).get('/api/categories');
     expect(res.status).toBe(500);
   });
@@ -62,7 +53,7 @@ describe('GET /categories', () => {
 // GET /categories it degrades to an empty array on error rather than a 500.
 describe('GET /category-assignments', () => {
   it('200 returns the flat assignment list', async () => {
-    nextResult = { recordset: [{ resourceId: RES, businessRoleId: RES, categoryId: 2, categoryName: 'Finance', categoryColor: '#3b82f6' }] };
+    query.mockResolvedValueOnce({ rows: [{ resourceId: RES, businessRoleId: RES, categoryId: 2, categoryName: 'Finance', categoryColor: '#3b82f6' }] });
     const res = await request(app).get('/api/category-assignments');
     expect(res.status).toBe(200);
     expect(res.body).toHaveLength(1);
@@ -70,7 +61,7 @@ describe('GET /category-assignments', () => {
   });
 
   it('returns [] when the query rejects (defensive)', async () => {
-    poolQuery.mockRejectedValueOnce(new Error('boom'));
+    query.mockRejectedValueOnce(new Error('boom'));
     const res = await request(app).get('/api/category-assignments');
     expect(res.status).toBe(200);
     expect(res.body).toEqual([]);
@@ -79,20 +70,20 @@ describe('GET /category-assignments', () => {
 
 describe('POST /categories', () => {
   it('201 creates a category (default color)', async () => {
-    nextResult = { recordset: [{ id: 5, name: 'HR', color: '#3b82f6' }] };
+    query.mockResolvedValueOnce({ rows: [{ id: 5, name: 'HR', color: '#3b82f6' }] });
     const res = await request(app).post('/api/categories').send({ name: 'HR' });
     expect(res.status).toBe(201);
     expect(res.body).toMatchObject({ id: 5, name: 'HR' });
   });
 
   it('409 on a unique-constraint violation', async () => {
-    poolQuery.mockRejectedValueOnce(new Error('duplicate key value violates UNIQUE constraint'));
+    query.mockRejectedValueOnce(new Error('duplicate key value violates UNIQUE constraint'));
     const res = await request(app).post('/api/categories').send({ name: 'Dup' });
     expect(res.status).toBe(409);
   });
 
   it('500 on an unexpected insert error', async () => {
-    poolQuery.mockRejectedValueOnce(new Error('disk full'));
+    query.mockRejectedValueOnce(new Error('disk full'));
     const res = await request(app).post('/api/categories').send({ name: 'X', color: '#10b981' });
     expect(res.status).toBe(500);
   });
@@ -100,7 +91,7 @@ describe('POST /categories', () => {
 
 describe('PATCH /categories/:id', () => {
   it('200 updates name + color', async () => {
-    nextResult = { recordset: [{ id: 3, name: 'New', color: '#ef4444' }] };
+    query.mockResolvedValueOnce({ rows: [{ id: 3, name: 'New', color: '#ef4444' }] });
     const res = await request(app).patch('/api/categories/3').send({ name: 'New', color: '#ef4444' });
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ id: 3, name: 'New' });
@@ -112,14 +103,14 @@ describe('PATCH /categories/:id', () => {
   });
 
   it('200 null when the row does not exist', async () => {
-    nextResult = { recordset: [] };
+    query.mockResolvedValueOnce({ rows: [] });
     const res = await request(app).patch('/api/categories/9').send({ name: 'Ghost' });
     expect(res.status).toBe(200);
     expect(res.body).toBeNull();
   });
 
   it('500 when the update rejects', async () => {
-    poolQuery.mockRejectedValueOnce(new Error('boom'));
+    query.mockRejectedValueOnce(new Error('boom'));
     const res = await request(app).patch('/api/categories/3').send({ name: 'New' });
     expect(res.status).toBe(500);
   });
@@ -127,13 +118,17 @@ describe('PATCH /categories/:id', () => {
 
 describe('DELETE /categories/:id', () => {
   it('200 deletes the category', async () => {
+    query.mockResolvedValueOnce({ rowCount: 1 });
     const res = await request(app).delete('/api/categories/3');
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ ok: true });
+    // Regression guard: the table name must be double-quoted, else postgres
+    // folds it to lowercase and the DELETE 500s.
+    expect(query.mock.calls[0][0]).toContain('"GovernanceCategories"');
   });
 
   it('500 when the delete rejects', async () => {
-    poolQuery.mockRejectedValueOnce(new Error('boom'));
+    query.mockRejectedValueOnce(new Error('boom'));
     const res = await request(app).delete('/api/categories/3');
     expect(res.status).toBe(500);
   });
@@ -247,21 +242,5 @@ describe('GET /access-packages', () => {
     query.mockRejectedValueOnce(new Error('boom'));
     const res = await request(app).get('/api/access-packages');
     expect(res.status).toBe(500);
-  });
-});
-
-describe('GET /category-assignments', () => {
-  it('200 returns the flat assignment list', async () => {
-    nextResult = { recordset: [{ resourceId: RES, businessRoleId: RES, categoryId: 1, categoryName: 'Finance', categoryColor: '#3b82f6' }] };
-    const res = await request(app).get('/api/category-assignments');
-    expect(res.status).toBe(200);
-    expect(res.body).toHaveLength(1);
-  });
-
-  it('200 returns [] on error (graceful)', async () => {
-    poolQuery.mockRejectedValueOnce(new Error('boom'));
-    const res = await request(app).get('/api/category-assignments');
-    expect(res.status).toBe(200);
-    expect(res.body).toEqual([]);
   });
 });

@@ -37,22 +37,20 @@ selfServiceCrawlersRouter.post('/crawlers/rotate', async (req, res) => {
     const hash = hashKey(apiKey, salt);
     const prefix = apiKey.slice(0, 8);
 
-    await pool.request()
-      .input('id', req.crawler.id)
-      .input('apiKeyHash', hash)
-      .input('apiKeySalt', salt)
-      .input('apiKeyPrefix', prefix)
-      .query(`UPDATE "Crawlers"
-              SET "apiKeyHash" = @apiKeyHash, "apiKeySalt" = @apiKeySalt, "apiKeyPrefix" = @apiKeyPrefix,
+    await pool.query(
+      `UPDATE "Crawlers"
+              SET "apiKeyHash" = $1, "apiKeySalt" = $2, "apiKeyPrefix" = $3,
                   "lastRotatedAt" = (now() AT TIME ZONE 'utc')
-              WHERE id = @id`);
+              WHERE id = $4`,
+      [hash, salt, prefix, req.crawler.id]
+    );
 
     // Log rotation
-    await pool.request()
-      .input('crawlerId', req.crawler.id)
-      .input('ipAddress', (req.ip || '').slice(0, 45))
-      .query(`INSERT INTO "CrawlerAuditLog" ("crawlerId", action, "statusCode", "ipAddress")
-              VALUES (@crawlerId, 'key_rotated', 200, @ipAddress)`);
+    await pool.query(
+      `INSERT INTO "CrawlerAuditLog" ("crawlerId", action, "statusCode", "ipAddress")
+              VALUES ($1, 'key_rotated', 200, $2)`,
+      [req.crawler.id, (req.ip || '').slice(0, 45)]
+    );
 
     res.json({
       apiKey,
@@ -89,16 +87,15 @@ selfServiceCrawlersRouter.post('/crawlers/job-progress', async (req, res) => {
     const pool = await db.getPool();
     // Read existing progress, merge in the new fields, write back. Doing the merge
     // server-side keeps the crawler's payload tiny — it only sends what changed.
-    const cur = await pool.request().input('id', id)
-      .query(`SELECT progress, status FROM "CrawlerJobs" WHERE id = @id`);
-    if (cur.recordset.length === 0) return res.status(404).json({ error: 'Job not found' });
-    if (cur.recordset[0].status !== 'running' && cur.recordset[0].status !== 'queued') {
+    const cur = await pool.query(`SELECT progress, status FROM "CrawlerJobs" WHERE id = $1`, [id]);
+    if (cur.rows.length === 0) return res.status(404).json({ error: 'Job not found' });
+    if (cur.rows[0].status !== 'running' && cur.rows[0].status !== 'queued') {
       // Don't keep updating finished/failed/cancelled jobs
-      return res.status(409).json({ error: `Job is ${cur.recordset[0].status}` });
+      return res.status(409).json({ error: `Job is ${cur.rows[0].status}` });
     }
 
     let merged = {};
-    try { if (cur.recordset[0].progress) merged = JSON.parse(cur.recordset[0].progress); }
+    try { if (cur.rows[0].progress) merged = JSON.parse(cur.rows[0].progress); }
     catch { merged = {}; }
 
     if (safeStep   !== null) merged.step   = safeStep;
@@ -106,10 +103,7 @@ selfServiceCrawlersRouter.post('/crawlers/job-progress', async (req, res) => {
     if (safeDetail !== null) merged.detail = safeDetail;
     merged.updatedAt = new Date().toISOString();
 
-    await pool.request()
-      .input('id', id)
-      .input('progress', JSON.stringify(merged))
-      .query(`UPDATE "CrawlerJobs" SET progress = @progress WHERE id = @id`);
+    await pool.query(`UPDATE "CrawlerJobs" SET progress = $1 WHERE id = $2`, [JSON.stringify(merged), id]);
 
     res.json({ ok: true });
   } catch (err) {
