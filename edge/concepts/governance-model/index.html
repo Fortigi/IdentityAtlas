@@ -3885,12 +3885,12 @@
 <tbody>
 <tr>
 <td><code>catalogId</code></td>
-<td>GUID</td>
+<td>UUID</td>
 <td>Links the business role to its <code>GovernanceCatalogs</code> parent</td>
 </tr>
 <tr>
 <td><code>isHidden</code></td>
-<td>BIT</td>
+<td>BOOLEAN</td>
 <td>Hides the business role from self-service request portals</td>
 </tr>
 </tbody>
@@ -3907,22 +3907,22 @@
 <tbody>
 <tr>
 <td><code>policyId</code></td>
-<td>GUID</td>
+<td>UUID</td>
 <td>The <code>AssignmentPolicies</code> row that granted this assignment</td>
 </tr>
 <tr>
 <td><code>state</code></td>
-<td>NVARCHAR(50)</td>
+<td>TEXT</td>
 <td>Lifecycle state: <code>Delivered</code>, <code>Expired</code>, <code>PendingApproval</code>, etc.</td>
 </tr>
 <tr>
 <td><code>assignmentStatus</code></td>
-<td>NVARCHAR(100)</td>
+<td>TEXT</td>
 <td>Finer-grained status from the source IGA platform</td>
 </tr>
 <tr>
 <td><code>expirationDateTime</code></td>
-<td>DATETIME2</td>
+<td>TIMESTAMPTZ</td>
 <td>When the assignment expires (NULL = no expiry)</td>
 </tr>
 </tbody>
@@ -3939,12 +3939,12 @@
 <tbody>
 <tr>
 <td><code>roleName</code></td>
-<td>NVARCHAR(100)</td>
+<td>TEXT</td>
 <td>The role within the target resource: <code>Member</code> or <code>Owner</code></td>
 </tr>
 <tr>
 <td><code>roleOriginSystem</code></td>
-<td>NVARCHAR(100)</td>
+<td>TEXT</td>
 <td>Which system defined this role (e.g. <code>EntraID</code>, <code>Omada</code>)</td>
 </tr>
 </tbody>
