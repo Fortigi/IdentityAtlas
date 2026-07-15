@@ -6,7 +6,7 @@ A purpose-built synthetic dataset for testing every feature of Identity Atlas. F
 
 ## The Company: Fortigi Demo Corp
 
-A mid-size technology consultancy with 50 employees across 4 departments. Small enough to reason about, large enough to exercise all features.
+A mid-size technology consultancy with 22 employees across 4 departments. Small enough to reason about, large enough to exercise all features.
 
 ### Org Chart
 
@@ -64,7 +64,7 @@ graph TB
 | Multi-system identity | E0020 Hassan Ibrahim | Has accounts in both EntraID and Omada; identity correlation links them |
 | Shared mailbox | SM-001 info@fortigidemo.com | `principalType: SharedMailbox`; owned by E0027 |
 | Manager in different dept | E0014 Ursula Visser | Reports to COO but manages Operations — tests cross-dept context |
-| Employee with no assignments | E0031 Intern | Principal exists but has zero resource assignments |
+| Intern | E0031 Intern | Lowest-privilege employee. Not a zero-assignment case: assignments are granted by `department`, so the intern still gets the 4 Engineering ones. The dataset has no principal with zero assignments — see issue #717 |
 
 ### Systems
 
@@ -92,8 +92,6 @@ Fortigi Demo Corp
 
 ```
 AU-Netherlands
-AU-Germany
-AU-Contractors
 ```
 
 ### Resources
@@ -119,16 +117,16 @@ AU-Contractors
 
 | Principal | Resource | Type | Notes |
 |---|---|---|---|
-| All 30 employees | SG-AllEmployees | Direct | |
-| E0010-E0024 (Engineering) | SG-Engineering | Direct | |
-| E0025-E0026 (Finance) | SG-Finance | Direct | |
+| All 22 employees | SG-AllEmployees | Direct | |
+| Every Engineering employee (10) | SG-Engineering | Direct | By `department`, so it includes the CTO (E0002) and the intern (E0031) |
+| Every Finance employee (4) | SG-Finance | Direct | By `department` |
 | E0029, E0030 (SysAdmins) | SG-VPN-Access | Direct | |
 | E0002 (CTO) | SG-Admin-Tier0 | Direct | CTO is a member of the critical Tier-0 admin group |
 | E0029 (SysAdmin) | SG-Admin-Tier0 | Direct | Member of high-risk group |
 | SVC-001 (Deploy Pipeline) | SG-Admin-Tier0 | Direct | Service principal in admin group |
 | E0002 (CTO) | Global Administrator | Direct | Directory role assignment |
-| All 30 employees | BR-Employee-Base | Direct (`governed=true`) | Via business role — governance is the `governed` flag, not an assignment type |
-| E0010-E0024 | BR-Engineering-Tools | Direct (`governed=true`) | Via business role |
+| All 22 employees | BR-Employee-Base | Direct (`governed=true`) | Via business role — governance is the `governed` flag, not an assignment type |
+| Every Engineering employee (10) | BR-Engineering-Tools | Direct (`governed=true`) | Via business role |
 | E0029 (SysAdmin) | BR-Admin-Privileged | Eligible | PIM-eligible, not active |
 
 ### Resource Relationships
@@ -182,12 +180,12 @@ The dataset is a single JSON file that maps directly to the Ingest API endpoints
     "description": "Synthetic dataset for E2E testing",
     "entityCounts": {
       "systems": 3,
-      "principals": 35,
+      "principals": 28,
       "resources": 14,
-      "resourceAssignments": 85,
+      "resourceAssignments": 73,
       "resourceRelationships": 9,
-      "identities": 32,
-      "identityMembers": 34,
+      "identities": 23,
+      "identityMembers": 24,
       "contexts": 8,
       "governanceCatalogs": 2,
       "assignmentPolicies": 3,
@@ -212,23 +210,28 @@ The dataset is a single JSON file that maps directly to the Ingest API endpoints
 
 ## Verification Tests
 
-After ingesting the demo dataset, the nightly runner executes these verification checks. Every check has an expected value derived from the dataset definition above.
+After ingesting the demo dataset, `test/demo-dataset/Verify-DemoDataset.ps1` executes these verification checks — it runs on every PR, in the `integration` job of `pr-integration.yml`. Every check has an expected value derived from the dataset definition above.
 
 ### Table Row Counts
 
-| Table | Expected | Query |
+Counted with `deletedAt IS NULL` on `Principals`, `Resources` and `ResourceAssignments`. Those three tables soft-delete (`040_soft_delete.sql`): a removed entity is kept as a tombstone rather than dropped, so an unfiltered `COUNT(*)` also counts leavers and deleted resources. The other tables have no lifecycle column and are counted as-is.
+
+| Table | Expected | Composition |
 |---|---|---|
-| Systems | 3 | `SELECT COUNT(*) FROM Systems` |
-| Principals | 35 | Includes: 30 employees + 1 contractor + 1 disabled + 1 SP + 1 AI + 1 shared mailbox |
+| Systems | 3 | Entra ID + HR + Omada |
+| Principals | 28 | 24 `User` (22 employees + 1 disabled + 1 Omada account for the multi-system employee) + 1 `ExternalUser` (contractor) + 1 `ServicePrincipal` + 1 `AIAgent` + 1 `SharedMailbox` |
 | Resources | 14 | 6 groups + 2 directory roles + 2 app roles + 4 business roles |
-| ResourceAssignments | ~85 | Direct + Eligible (governed assignments carry `governed=true`) |
+| ResourceAssignments | 73 | 72 `Direct` + 1 `Eligible`; 31 of them carry `governed=true` |
 | ResourceRelationships | 9 | 8 Contains + 1 GrantsAccessTo |
-| Identities | 32 | 30 active employees + 1 disabled + 1 multi-system |
-| IdentityMembers | 34 | 32 primary links + 2 secondary (multi-system) |
-| Contexts | 8 | 1 root + 4 departments + 2 teams + 1 admin unit |
+| Identities | 23 | 22 employees + 1 disabled |
+| IdentityMembers | 24 | 23 primary + 1 secondary (the multi-system employee's Omada account) |
+| Contexts | 8 | 1 root + 4 departments + 2 teams + 1 admin unit — all `variant='synced'` |
 | GovernanceCatalogs | 2 | Employee + Privileged |
 | AssignmentPolicies | 3 | Auto-assign + Manager approval + Dual approval |
 | CertificationDecisions | 2 | 1 approve + 1 deny |
+
+!!! note "Counting Contexts"
+    Filter on `variant='synced'` to get the 8 above. A bare `SELECT COUNT(*) FROM "Contexts"` returns more: the API creates `manual` Tag roots at bootstrap, and the context-algorithm plugins emit `generated` contexts once the worker runs. Only the `synced` ones come from this dataset.
 
 ### Relationship Integrity
 
@@ -267,7 +270,7 @@ After ingesting the demo dataset, the nightly runner executes these verification
 |---|---|
 | Resources page shows 14 resources (excluding BusinessRoles) | Count rows, filter by non-BusinessRole |
 | Business Roles page shows 4 business roles | Count rows |
-| Users page shows 35 principals | Count visible or total indicator |
+| Users page shows 28 principals | Count visible or total indicator |
 | Matrix shows data (not "0 users x 0 resources") | Assert text not present |
 | Click CTO user → detail page opens | Navigate, check heading |
 | CTO detail shows "Global Administrator" in memberships | Assert membership listed |
