@@ -80,7 +80,7 @@ Kandidaat-journeys (definitief te maken in de eerste sessie). Elk mapt naar de c
 
 | Journey | Persona | Voltooid? (j/n) | Eerste blocker | Waar men de docs moest verlaten | Backlog-item |
 |---------|---------|-----------------|----------------|----------------------------------|--------------|
-| **J1 (pilot, 2026-07-15)** | Analyst/Operator | **NEE** (doc-only) | Entra-setup: `entra-id.md` noemt "vul Tenant/Client ID + Secret" maar niet hoe je de App Registration maakt of **welke Graph-permissies** nodig zijn; die lijst staat in `reference/troubleshooting.md` (verkeerd thuis) en `quickstart.md` linkt niet eens naar `entra-id.md`. | (1) permissie-lijst → uit troubleshooting halen; (2) dashboard-landingspagina heeft geen doc; (3) Matrix-scopen kan alleen via de ongedocumenteerde Filter-Wizard | BL-1..BL-6 |
+| **J1 (pilot, 2026-07-15)** | Analyst/Operator | **NEE** (doc-only) | Entra-setup: `entra-id.md` noemt "vul Tenant/Client ID + Secret" maar niet **welke Graph-permissies** nodig zijn; die lijst staat in `reference/troubleshooting.md` (verkeerd thuis) en `quickstart.md` linkt niet naar `entra-id.md`. (App Registration aanmaken = bekende Entra-kennis, geen doc-gap.) | (1) permissie-lijst → uit troubleshooting halen; (2) dashboard-landingspagina heeft geen doc; (3) Matrix-scopen kan alleen via de ongedocumenteerde Filter-Wizard | BL-1..BL-7 |
 
 **J1-verdict:** demo-pad (Load Demo Data) werkt en is goed gedocumenteerd. Maar het *echte* first-insight-pad faalt doc-only op drie punten: (a) eigen Entra-tenant koppelen vergt de docs verlaten voor de permissielijst; (b) de Dashboard-landingspagina waar je op uitkomt heeft geen gebruikersdoc; (c) de Matrix scopen om een *finding* te bereiken kan alleen via de Filter-Wizard, die niet is gedocumenteerd (overview.md beschrijft nog de verwijderde "User Limit Slider"). Extra bevinding: `index.md` en `quickstart.md` spreken elkaar tegen over of `.env` nodig is.
 
@@ -274,7 +274,7 @@ Code-as-ground-truth mist wat geen feature is maar wél het meest bevraagd wordt
 
 | ID | Actie | Prio | Owner | Doeldoc | Definition-of-done |
 |----|-------|------|-------|---------|--------------------|
-| BL-1 | werk-bij: App-Registration-stappen + **vereiste Graph-permissies** in de setup-sectie (nu alleen in `troubleshooting.md`) | P1 | _tbd_ | `docs/sync/entra-id.md` | J5 slaagt doc-only; J1 stap 2 verlaat de docs niet meer |
+| BL-1 | werk-bij: benoem de **vereiste Graph-permissies** in de setup-sectie (nu alleen in `troubleshooting.md`). App-Registration aanmaken wordt bekend verondersteld → niet documenteren. | P1 | _tbd_ | `docs/sync/entra-id.md` | J5 slaagt doc-only; J1 stap 2 verlaat de docs niet meer voor de permissielijst |
 | BL-2 | **fix (❌):** "What Gets Synced"-diagram — verwijder retired `Owner`-assignmenttype; toon ownership als `Direct` op `GroupOwnership` | P1 | _tbd_ | `docs/sync/entra-id.md` | Diagram matcht `assignmentTypes.guard` (Direct/Indirect/Eligible) |
 | BL-3 | werk-bij: 6 verscheepte toggles in de flags-tabel (`SyncOAuth2Grants/AppRoles/AppPermissions/AppOwners/PrincipalRelationships/DirectoryRoles`) + AI-agent-classificatie | P2 | _tbd_ | `docs/sync/entra-id.md` | Flags-tabel = crawler-param-block |
 
