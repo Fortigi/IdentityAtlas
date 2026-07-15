@@ -1,5 +1,10 @@
 ## Changes in this PR
 
+- Reworked the marketing website copy for clarity and consistent terminology (issue #701): clearer hero, "Why", "What", pipeline, "How to start", "Trust" and closing sections, with "authorization data" / "access" / "permissions" used precisely and support "teams" throughout.
+- Corrected the advertised integrations to match what ships today: Entra ID, Azure RBAC, Omada and midPoint as out-of-the-box crawlers, SailPoint via CSV import; removed Azure DevOps until its crawler ships.
+
+## Changes in this PR
+
 - The June 2026 maintenance-sprint audit page now tracks a remediation **Status** for every finding (✅ Fixed / 🟦 By design / 🟨 Partially addressed / 🔧 Open) with the pull request that closed it, matching the Status convention already used on the Security and UX assessment pages. All Critical findings and every exploitable security finding are marked fixed.
 
 ## Changes in this PR
