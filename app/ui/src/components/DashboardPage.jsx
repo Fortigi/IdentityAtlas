@@ -220,68 +220,7 @@ export default function DashboardPage({ onNavigate }) {
       )}
 
       {/* Links + version + support */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-10">
-        {/* Resources card — green accent */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-sm ring-1 ring-gray-200 dark:ring-gray-700 hover:ring-lime-300 transition-all">
-          <div className="flex items-center gap-2 mb-4">
-            <div className="w-8 h-8 rounded-lg bg-lime-100 flex items-center justify-center">
-              <svg className="w-4 h-4 text-lime-700" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
-            </div>
-            <h3 className="text-sm font-bold text-gray-900 dark:text-white">Resources</h3>
-          </div>
-          <ul className="space-y-2.5 text-sm">
-            <li><a href={WEBSITE_URL} target="_blank" rel="noopener noreferrer" className="text-gray-700 dark:text-gray-300 hover:text-lime-700 hover:underline flex items-center gap-2"><span>→</span>Website</a></li>
-            <li><a href={docsUrl(version?.version)} target="_blank" rel="noopener noreferrer" className="text-gray-700 dark:text-gray-300 hover:text-lime-700 hover:underline flex items-center gap-2"><span>→</span>Documentation</a></li>
-            <li><a href={GITHUB_BASE} target="_blank" rel="noopener noreferrer" className="text-gray-700 dark:text-gray-300 hover:text-lime-700 hover:underline flex items-center gap-2"><span>→</span>GitHub repository</a></li>
-            <li><a href={`${GITHUB_BASE}/blob/main/LICENSE`} target="_blank" rel="noopener noreferrer" className="text-gray-700 dark:text-gray-300 hover:text-lime-700 hover:underline flex items-center gap-2"><span>→</span>License</a></li>
-            <li><a href={`${GITHUB_BASE}/releases`} target="_blank" rel="noopener noreferrer" className="text-gray-700 dark:text-gray-300 hover:text-lime-700 hover:underline flex items-center gap-2"><span>→</span>Releases</a></li>
-            <li><a href={docsUrl(version?.version, '/contributing/contribute/')} target="_blank" rel="noopener noreferrer" className="text-gray-700 dark:text-gray-300 hover:text-lime-700 hover:underline flex items-center gap-2"><span>→</span>Contribute</a></li>
-          </ul>
-        </div>
-
-        {/* Version card */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-sm ring-1 ring-gray-200 dark:ring-gray-700 hover:ring-lime-300 transition-all">
-          <div className="flex items-center gap-2 mb-4">
-            <div className="w-8 h-8 rounded-lg bg-lime-100 flex items-center justify-center">
-              <svg className="w-4 h-4 text-lime-700" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/></svg>
-            </div>
-            <h3 className="text-sm font-bold text-gray-900 dark:text-white">Version</h3>
-          </div>
-          <div className={`font-mono font-semibold text-gray-900 dark:text-white tabular-nums ${version?.version?.length > 10 ? 'text-lg' : 'text-3xl'}`}>
-            {version?.version ? `v${version.version}` : 'v5.0'}
-          </div>
-          <div className="mt-3 text-xs">
-            <a href={changesUrl(version?.version)} target="_blank" rel="noopener noreferrer" className="text-lime-700 hover:text-lime-800 font-medium hover:underline inline-flex items-center gap-1">
-              What is new →
-            </a>
-          </div>
-        </div>
-
-        {/* Support card */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-sm ring-1 ring-gray-200 dark:ring-gray-700 hover:ring-lime-300 transition-all">
-          <div className="flex items-center gap-2 mb-4">
-            <div className="w-8 h-8 rounded-lg bg-lime-100 flex items-center justify-center">
-              <svg className="w-4 h-4 text-lime-700" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-            </div>
-            <h3 className="text-sm font-bold text-gray-900 dark:text-white">Need support?</h3>
-          </div>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">Email us a question, or report it on the tracker so others can follow along:</p>
-          <a
-            href={`mailto:${SUPPORT_EMAIL}`}
-            className="inline-block text-sm text-lime-700 hover:text-lime-800 font-medium hover:underline break-all"
-          >
-            {SUPPORT_EMAIL}
-          </a>
-          <a
-            href={docsUrl(version?.version, '/contributing/report-an-issue/')}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-2 text-sm text-gray-700 dark:text-gray-300 hover:text-lime-700 hover:underline flex items-center gap-2"
-          >
-            <span>→</span>Report an issue or feature request
-          </a>
-        </div>
-      </div>
+      <FooterCards version={version} />
 
       {/* Footer */}
       <div className="text-center text-xs text-gray-600 dark:text-gray-500 pb-6">
@@ -291,6 +230,79 @@ export default function DashboardPage({ onNavigate }) {
         </a>
       </div>
       </>)}
+      </div>
+    </div>
+  );
+}
+
+// ─── FooterCards ──────────────────────────────────────────────────────
+// Resources / Version / Support cards below the dashboard. Extracted from
+// DashboardPage so the version-derived link/label branches (docsUrl,
+// changesUrl, the version ternaries) don't inflate that component's
+// complexity. `version` is the /api/version payload (may be null).
+function FooterCards({ version }) {
+  const v = version?.version;
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-10">
+      {/* Resources card — green accent */}
+      <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-sm ring-1 ring-gray-200 dark:ring-gray-700 hover:ring-lime-300 transition-all">
+        <div className="flex items-center gap-2 mb-4">
+          <div className="w-8 h-8 rounded-lg bg-lime-100 flex items-center justify-center">
+            <svg className="w-4 h-4 text-lime-700" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
+          </div>
+          <h3 className="text-sm font-bold text-gray-900 dark:text-white">Resources</h3>
+        </div>
+        <ul className="space-y-2.5 text-sm">
+          <li><a href={WEBSITE_URL} target="_blank" rel="noopener noreferrer" className="text-gray-700 dark:text-gray-300 hover:text-lime-700 hover:underline flex items-center gap-2"><span>→</span>Website</a></li>
+          <li><a href={docsUrl(v)} target="_blank" rel="noopener noreferrer" className="text-gray-700 dark:text-gray-300 hover:text-lime-700 hover:underline flex items-center gap-2"><span>→</span>Documentation</a></li>
+          <li><a href={GITHUB_BASE} target="_blank" rel="noopener noreferrer" className="text-gray-700 dark:text-gray-300 hover:text-lime-700 hover:underline flex items-center gap-2"><span>→</span>GitHub repository</a></li>
+          <li><a href={`${GITHUB_BASE}/blob/main/LICENSE`} target="_blank" rel="noopener noreferrer" className="text-gray-700 dark:text-gray-300 hover:text-lime-700 hover:underline flex items-center gap-2"><span>→</span>License</a></li>
+          <li><a href={`${GITHUB_BASE}/releases`} target="_blank" rel="noopener noreferrer" className="text-gray-700 dark:text-gray-300 hover:text-lime-700 hover:underline flex items-center gap-2"><span>→</span>Releases</a></li>
+          <li><a href={docsUrl(v, '/contributing/contribute/')} target="_blank" rel="noopener noreferrer" className="text-gray-700 dark:text-gray-300 hover:text-lime-700 hover:underline flex items-center gap-2"><span>→</span>Contribute</a></li>
+        </ul>
+      </div>
+
+      {/* Version card */}
+      <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-sm ring-1 ring-gray-200 dark:ring-gray-700 hover:ring-lime-300 transition-all">
+        <div className="flex items-center gap-2 mb-4">
+          <div className="w-8 h-8 rounded-lg bg-lime-100 flex items-center justify-center">
+            <svg className="w-4 h-4 text-lime-700" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/></svg>
+          </div>
+          <h3 className="text-sm font-bold text-gray-900 dark:text-white">Version</h3>
+        </div>
+        <div className={`font-mono font-semibold text-gray-900 dark:text-white tabular-nums ${v?.length > 10 ? 'text-lg' : 'text-3xl'}`}>
+          {v ? `v${v}` : 'v5.0'}
+        </div>
+        <div className="mt-3 text-xs">
+          <a href={changesUrl(v)} target="_blank" rel="noopener noreferrer" className="text-lime-700 hover:text-lime-800 font-medium hover:underline inline-flex items-center gap-1">
+            What is new →
+          </a>
+        </div>
+      </div>
+
+      {/* Support card */}
+      <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-sm ring-1 ring-gray-200 dark:ring-gray-700 hover:ring-lime-300 transition-all">
+        <div className="flex items-center gap-2 mb-4">
+          <div className="w-8 h-8 rounded-lg bg-lime-100 flex items-center justify-center">
+            <svg className="w-4 h-4 text-lime-700" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          </div>
+          <h3 className="text-sm font-bold text-gray-900 dark:text-white">Need support?</h3>
+        </div>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">Email us a question, or report it on the tracker so others can follow along:</p>
+        <a
+          href={`mailto:${SUPPORT_EMAIL}`}
+          className="inline-block text-sm text-lime-700 hover:text-lime-800 font-medium hover:underline break-all"
+        >
+          {SUPPORT_EMAIL}
+        </a>
+        <a
+          href={docsUrl(v, '/contributing/report-an-issue/')}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-2 text-sm text-gray-700 dark:text-gray-300 hover:text-lime-700 hover:underline flex items-center gap-2"
+        >
+          <span>→</span>Report an issue or feature request
+        </a>
       </div>
     </div>
   );
