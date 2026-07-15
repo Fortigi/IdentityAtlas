@@ -1,2 +1,2 @@
 - Added a documentation gap audit (`docs/docs-gap-audit.md`) mapping shipped features to their documentation coverage, as the basis for a remediation plan.
-- Added a living documentation remediation plan (`docs/docs-remediation-plan.md`) that reviews features cluster-by-cluster against each documentation type (user / operator / contributor).
+- Added a living documentation remediation plan (`docs/docs-remediation-plan.md`) that reviews features cluster-by-cluster against each documentation type (analyst/user / operator / contributor / API-consumer) and validates usability through end-to-end journey walkthroughs.
