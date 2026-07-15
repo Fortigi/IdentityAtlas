@@ -389,6 +389,28 @@ jobs:
           done
           if [ $FAILED -gt 0 ]; then exit 1; fi
 
+      # The step above is a smoke check — "did any rows arrive on 4 endpoints".
+      # This is the real verification of the same data: 35 assertions on row
+      # counts, referential integrity and business logic (principal types,
+      # governance flags, context hierarchy). The demo crawler queued above
+      # ingests test/demo-dataset/demo-company.json, which is exactly what this
+      # runner asserts against.
+      #
+      # It runs here for the first time. Until #707 it still spoke v4 SQL Server
+      # and no workflow ever invoked it, so it rotted two schema generations
+      # behind unnoticed — it never failed CI because it never ran (#709).
+      #
+      # Must be before the clean step below, which empties the database.
+      # -PgPassword: the CI stack uses ci_test, not the local-compose default.
+      - name: 'Test: Verify demo dataset'
+        shell: pwsh
+        run: |
+          & test/demo-dataset/Verify-DemoDataset.ps1 `
+            -ApiBaseUrl http://localhost:3001/api `
+            -ComposeFile docker-compose.ci.yml `
+            -PgPassword ci_test
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
       # ── Clean + verify empty ─────────────────────────────────────
       - name: 'Test: Clean database and verify empty'
         run: |

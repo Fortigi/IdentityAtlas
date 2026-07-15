@@ -36,7 +36,9 @@ Param(
     [string]$PgService = 'postgres',
     [string]$PgUser = 'identity_atlas',
     [string]$PgPassword = 'identity_atlas_local',
-    [string]$PgDatabase = 'identity_atlas'
+    [string]$PgDatabase = 'identity_atlas',
+    # CI runs its stack from docker-compose.ci.yml; empty = plain `docker compose`.
+    [string]$ComposeFile = ''
 )
 
 $ErrorActionPreference = 'Continue'
@@ -45,7 +47,7 @@ $failed = 0
 $results = @()
 
 Import-Module (Join-Path $PSScriptRoot '..' 'lib' 'PgQuery.psm1') -Force
-Set-PgConnection -Service $PgService -User $PgUser -Password $PgPassword -Database $PgDatabase
+Set-PgConnection -Service $PgService -User $PgUser -Password $PgPassword -Database $PgDatabase -ComposeFile $ComposeFile
 
 function Assert-Check {
     param([string]$Name, [bool]$Condition, [string]$Detail = '')

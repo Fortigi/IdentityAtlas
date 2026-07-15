@@ -40,12 +40,15 @@ Set-StrictMode -Version Latest
 # Set-StrictMode throws on reading a never-assigned variable.
 $script:SoftDeleteTables = $null
 
-# Defaults match docker-compose.yml.
+# Defaults match docker-compose.yml. ComposeFile empty = plain `docker compose`,
+# which resolves docker-compose.yml in the working directory; CI runs its stack
+# from docker-compose.ci.yml and must pass that explicitly.
 $script:PgConn = @{
-    Service  = 'postgres'
-    User     = 'identity_atlas'
-    Password = 'identity_atlas_local'
-    Database = 'identity_atlas'
+    Service     = 'postgres'
+    User        = 'identity_atlas'
+    Password    = 'identity_atlas_local'
+    Database    = 'identity_atlas'
+    ComposeFile = ''
 }
 
 function Set-PgConnection {
@@ -58,9 +61,10 @@ function Set-PgConnection {
         [string]$Service,
         [string]$User,
         [string]$Password,
-        [string]$Database
+        [string]$Database,
+        [string]$ComposeFile
     )
-    foreach ($k in 'Service', 'User', 'Password', 'Database') {
+    foreach ($k in 'Service', 'User', 'Password', 'Database', 'ComposeFile') {
         if ($PSBoundParameters.ContainsKey($k)) { $script:PgConn[$k] = $PSBoundParameters[$k] }
     }
 }
@@ -127,12 +131,18 @@ function Invoke-Psql {
         [Parameter(Mandatory)][hashtable]$Connection
     )
 
+    # `docker compose -f <file>` when the caller named one (CI runs its stack from
+    # docker-compose.ci.yml); plain `docker compose` otherwise.
+    $composeArgs = @('compose')
+    if ($Connection.ComposeFile) { $composeArgs += @('-f', $Connection.ComposeFile) }
+    $composeArgs += @('exec', '-T', '-e', "PGPASSWORD=$($Connection.Password)", $Connection.Service,
+                      'psql', '-U', $Connection.User, '-d', $Connection.Database, '-A', '-t', '-v', 'ON_ERROR_STOP=1')
+
     $had = Test-Path Env:MSYS_NO_PATHCONV
     $prev = if ($had) { $env:MSYS_NO_PATHCONV } else { $null }
     $env:MSYS_NO_PATHCONV = '1'
     try {
-        $out = $Query | & docker compose exec -T -e "PGPASSWORD=$($Connection.Password)" $Connection.Service `
-            psql -U $Connection.User -d $Connection.Database -A -t -v ON_ERROR_STOP=1 2>&1
+        $out = $Query | & docker @composeArgs 2>&1
         return @{ Output = @($out); ExitCode = $LASTEXITCODE }
     }
     finally {

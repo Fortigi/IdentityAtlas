@@ -195,4 +195,16 @@ Describe 'Set-PgConnection' {
         $c.User | Should -Be 'identity_atlas'
         Set-PgConnection -Database 'identity_atlas'   # restore
     }
+
+    It 'defaults to no compose file (plain `docker compose`)' {
+        (Get-PgConnection).ComposeFile | Should -BeNullOrEmpty
+    }
+
+    It 'accepts a compose file override' {
+        # CI starts its stack from docker-compose.ci.yml; a plain `docker compose`
+        # would resolve docker-compose.yml instead and miss the running services.
+        Set-PgConnection -ComposeFile 'docker-compose.ci.yml'
+        (Get-PgConnection).ComposeFile | Should -Be 'docker-compose.ci.yml'
+        Set-PgConnection -ComposeFile ''   # restore
+    }
 }
