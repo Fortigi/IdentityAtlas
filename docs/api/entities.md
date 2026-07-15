@@ -103,7 +103,7 @@ All resource memberships for a user, with membership type badges. Used by the Me
 }
 ```
 
-**Reads From:** `mat_UserPermissionAssignments` + `Resources`
+**Reads From:** `vw_ResourceUserPermissionAssignments` + `Resources`
 
 ---
 
@@ -241,7 +241,7 @@ Paginated list of principals assigned to this resource, with membership type bad
 | `limit` | int | 100 | Page size. Maximum: 500. |
 | `offset` | int | 0 | Pagination offset. |
 
-**Reads From:** `mat_UserPermissionAssignments`
+**Reads From:** `vw_ResourceUserPermissionAssignments`
 
 ---
 

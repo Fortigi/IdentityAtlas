@@ -1,7 +1,8 @@
 # Assignment Model Redesign — collapse `assignmentType` to the universal "how"
 
-> **Status:** Proposed (ADR / design doc — no code yet)
-> **Date:** 2026-06-25
+> **Status:** Implemented — shipped in migrations `044`–`049`.
+> **Date:** 2026-06-25 (design); shipped shortly after.
+> **Migration range:** [`044_resourceassignment_resourcetype.sql`](../../app/api/src/db/migrations/044_resourceassignment_resourcetype.sql) denormalizes `resourceType` onto `ResourceAssignments` (Phase 1 foundation), [`045_collapse_source_assignment_types.sql`](../../app/api/src/db/migrations/045_collapse_source_assignment_types.sql) collapses the Entra source types into `Direct`/`Indirect`/`Eligible` (Phase 2), [`046_owner_as_resource.sql`](../../app/api/src/db/migrations/046_owner_as_resource.sql) turns `Owner` into a `GroupOwnership` resource (Phase 4), and [`047_governed_assignment_flag.sql`](../../app/api/src/db/migrations/047_governed_assignment_flag.sql) + [`049_governed_intent_rows.sql`](../../app/api/src/db/migrations/049_governed_intent_rows.sql) retire the `Governed` type in favour of the orthogonal `governed` flag (Phase 3). The runtime guard is enforced by `app/api/src/ingest/assignmentTypes.guard.test.js`. The sections below describe the design as proposed; the shipped implementation follows it.
 > **Companion files:** [`matrix.md`](matrix.md), [`crawler-architecture.md`](crawler-architecture.md), [`043_matrix_view_directory_roles.sql`](../../app/api/src/db/migrations/043_matrix_view_directory_roles.sql), [`app/api/src/ingest/engine.js`](../../app/api/src/ingest/engine.js), [`app/api/src/ingest/validation.js`](../../app/api/src/ingest/validation.js)
 
 ## TL;DR

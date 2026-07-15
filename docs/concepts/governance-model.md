@@ -11,7 +11,7 @@ In v3.1, the governance model was merged into the universal resource model. The 
 The unification uses discriminator columns:
 
 - `Resources.resourceType = 'BusinessRole'` — identifies business roles among all resources
-- `ResourceAssignments.assignmentType = 'Governed'` — identifies governed assignments among all assignments
+- `ResourceAssignments.governed = true` — flags governed assignments among all assignments (the `assignmentType` stays one of the three universal values `Direct` / `Indirect` / `Eligible`)
 - `ResourceRelationships.relationshipType = 'Contains'` — identifies resource grants among all relationships
 
 The four governance-specific tables (`GovernanceCatalogs`, `AssignmentPolicies`, `AssignmentRequests`, `CertificationDecisions`) contain only data that has no place in the shared model.
@@ -41,6 +41,7 @@ erDiagram
         guid resourceId FK
         guid principalId FK
         string assignmentType
+        bool governed
         guid policyId
         string state
         string assignmentStatus
@@ -88,7 +89,7 @@ erDiagram
     }
 
     GovernanceCatalogs ||--o{ Resources : "contains (BusinessRole)"
-    Resources ||--o{ ResourceAssignments : "assignmentType=Governed"
+    Resources ||--o{ ResourceAssignments : "governed=true"
     Resources ||--o{ ResourceRelationships : "relationshipType=Contains"
     Resources ||--o{ AssignmentPolicies : "governed by"
     Resources ||--o{ AssignmentRequests : "requested via"
@@ -106,7 +107,7 @@ The same governance tables absorb data from any IGA platform. The source platfor
 | Catalog / Container | Catalog | — | Source | `GovernanceCatalogs` |
 | Business Role | Access Package | Business Role | Access Profile | `Resources` (`resourceType = 'BusinessRole'`) |
 | Resource Grant | Resource Role Scope | Role Entitlement | Entitlement | `ResourceRelationships` (`relationshipType = 'Contains'`) |
-| Assignment | AP Assignment | Role Assignment | Access Request Result | `ResourceAssignments` (`assignmentType = 'Governed'`) |
+| Assignment | AP Assignment | Role Assignment | Access Request Result | `ResourceAssignments` (`governed = true`) |
 | Policy | Assignment Policy | Assignment Policy | Access Request Config | `AssignmentPolicies` |
 | Request | AP Assignment Request | — | Access Request | `AssignmentRequests` |
 | Certification | Access Review Decision | CRA | Certification | `CertificationDecisions` |
@@ -130,6 +131,7 @@ The unified model extends the three shared tables with extra columns that carry 
 
 | Column | Type | Purpose |
 |---|---|---|
+| `governed` | BOOLEAN | `true` marks the assignment as governed (channelled through an IGA business role / access package). Defaults to `false`. This flag — not a dedicated `assignmentType` — is what distinguishes governed access from direct access |
 | `policyId` | UUID | The `AssignmentPolicies` row that granted this assignment |
 | `state` | TEXT | Lifecycle state: `Delivered`, `Expired`, `PendingApproval`, etc. |
 | `assignmentStatus` | TEXT | Finer-grained status from the source IGA platform |
@@ -149,10 +151,10 @@ The unified model extends the three shared tables with extra columns that carry 
 Identity Atlas uses IST/SOLL terminology to express the gap between actual access and governed access.
 
 **SOLL (should-be state)**
-Access granted through a business role. Rows in `ResourceAssignments` where `assignmentType = 'Governed'`. This is access that was formally requested, approved, and periodically reviewed.
+Access granted through a business role. Rows in `ResourceAssignments` where `governed = true`. This is access that was formally requested, approved, and periodically reviewed.
 
 **IST (as-is state)**
-Direct access assignments outside governance. Rows in `ResourceAssignments` where `assignmentType = 'Direct'`. This is access that exists but was not channeled through the IGA process.
+Direct access assignments outside governance. Rows in `ResourceAssignments` where `governed = false` (typically `assignmentType = 'Direct'`). This is access that exists but was not channeled through the IGA process.
 
 **The gap**
 Users who have direct membership to a group that is also granted by a business role. They have the access, but not through the approved channel. This is the primary finding that role mining and certification campaigns aim to remediate.
@@ -170,7 +172,7 @@ WHERE principalId = 'your-user-guid-here';
 ```
 
 !!! tip "Matrix view IST/SOLL toggle"
-    The Role Mining UI matrix view has an IST/SOLL toggle in the toolbar. SOLL filters to governed assignments only; IST filters to direct (unmanaged) assignments only; All shows both. The underlying queries use `assignmentType` to implement this filter.
+    The Role Mining UI matrix view has an IST/SOLL toggle in the toolbar. SOLL filters to governed assignments only; IST filters to direct (unmanaged) assignments only; All shows both. The underlying queries use the `governed` flag to implement this filter.
 
 ---
 
@@ -203,6 +205,18 @@ The UI differentiates two states that might otherwise appear identical:
 
 ---
 
+## Doing a review
+
+Identity Atlas **reports on** certifications — it does not **conduct** them. There is no reviewer-decision screen or approve/deny endpoint in the product; the `CertificationDecisions` table is a **read-only mirror** ingested from the source IGA platform (e.g. Entra ID Access Reviews). Its only write path is the crawler ingest (`POST /api/ingest/governance/certifications`), which replaces the mirror on each sync — nothing in Identity Atlas ever authors a decision.
+
+So a review is done **in the source system**, not here:
+
+- **Make the actual decisions** in the IGA platform that owns the campaign — for Entra ID, that's **Access Reviews** in the Microsoft Entra admin center; for Omada or SailPoint, their own certification / recertification screens. Approvals, denials, and completions all happen there.
+- **Re-sync** the Entra ID (or CSV) crawler to pull the updated decisions back into `CertificationDecisions`.
+- **Track compliance in Identity Atlas** using the read-only review-compliance view — per-access-package last-review status (Compliant / In Progress / Reviewed Late / Missed), backed by the `GET /api/governance/review-compliance` and `GET /api/governance/summary` endpoints (see the [Governance API](../api/governance.md)). Use it to find which business roles are overdue or were reviewed late, then drive the next campaign in the source system.
+
+---
+
 ## How governance data is ingested
 
 You don't call any sync functions by hand. In v5, every governance-related table is populated by a **crawler** — configured in the browser, running in the worker container, and posting its data through the [Ingest API](../architecture/ingest-api.md). The UI does the orchestration for you; there is no PowerShell command to memorise.
@@ -215,7 +229,7 @@ The built-in Entra ID crawler (**Admin → Crawlers → Add Crawler → Entra ID
 |---|---|
 | Access package catalogs | `GovernanceCatalogs` |
 | Access packages | `Resources` (`resourceType = BusinessRole`) |
-| Access package assignments | `ResourceAssignments` (`assignmentType = Governed`) |
+| Access package assignments | `ResourceAssignments` (`governed = true`) |
 | Access package resource scopes | `ResourceRelationships` (`relationshipType = Contains`) |
 | Access package assignment policies | `AssignmentPolicies` |
 | Access package assignment requests | `AssignmentRequests` |

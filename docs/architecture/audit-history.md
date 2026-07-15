@@ -129,7 +129,7 @@ DELETE FROM "_history"
 WHERE "changedAt" < now() - interval '2 years';
 ```
 
-The Admin page provides a **History Retention** setting (`Admin > History Retention`) to configure automatic cleanup.
+The Admin page provides a **History Retention** setting (the History Retention section under **Admin → Data**) to configure automatic cleanup. See [Admin → Data](../admin/data-tab.md#deleted-data--history-retention).
 
 ---
 

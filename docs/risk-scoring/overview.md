@@ -71,16 +71,16 @@ Each layer adds points; the final score is clamped to 0–100.
 
 | Tier | Score | Action |
 |------|-------|--------|
-| Critical | 80–100 | Requires immediate attention |
-| High | 60–79 | Should be reviewed soon |
-| Medium | 40–59 | Monitor regularly |
+| Critical | 90–100 | Requires immediate attention |
+| High | 70–89 | Should be reviewed soon |
+| Medium | 40–69 | Monitor regularly |
 | Low | 20–39 | Low concern |
 | Minimal | 1–19 | Negligible |
 | None | 0 | No signals detected |
 
 ## Analyst Overrides
 
-Analysts can adjust any entity's score by −50 to +50 points with a required justification:
+Analysts can adjust any entity's score with a required justification. The adjustment must be a whole number between −50 and +50, and the justification must be 3–500 characters:
 
 - Via UI: Risk Scoring page → click Override button
 - Overrides are stored in `RiskScores` and preserved across re-scoring runs

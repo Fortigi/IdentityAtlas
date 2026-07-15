@@ -118,25 +118,24 @@ Param(
 $ErrorActionPreference = 'Stop'
 $Cfg = Get-Content $ConfigPath -Raw | ConvertFrom-Json
 
-$headers = @{ Authorization = "Bearer $ApiKey"; 'Content-Type' = 'application/json' }
+# Dot-source the shared ingest helpers. They read $ApiBaseUrl, $ApiKey, and $JobId
+# from this scope at call time, so there's no need to hand-roll progress reporting or
+# the ingest POST — use Update-CrawlerProgress and Invoke-CrawlerIngestBatch instead.
+. (Join-Path $PSScriptRoot '..' 'shared' 'Invoke-CrawlerIngest.ps1')
 
-function Write-CrawlerProgress ([string]$Step, [int]$Pct) {
-    Invoke-RestMethod -Uri "$ApiBaseUrl/crawlers/job-progress" -Method Post -Headers $headers `
-        -Body (@{ jobId = $JobId; step = $Step; pct = $Pct } | ConvertTo-Json -Compress)
-}
-
-Write-CrawlerProgress 'Fetching data' 10
+Update-CrawlerProgress -Step 'Fetching data' -Pct 10
 
 # Fetch from source system
 $items = Invoke-RestMethod -Uri "$($Cfg.apiUrl)/items" -Headers @{ 'X-Api-Key' = $Cfg.apiKey }
 
-Write-CrawlerProgress 'Pushing to Identity Atlas' 50
+Update-CrawlerProgress -Step 'Pushing to Identity Atlas' -Pct 50
 
-# Push to Identity Atlas ingest API
-$body = @{ records = $items; syncMode = $Cfg._syncMode; systemId = 1 } | ConvertTo-Json -Depth 10
-Invoke-RestMethod -Uri "$ApiBaseUrl/ingest/principals" -Method Post -Headers $headers -Body $body
+# Push to the Identity Atlas ingest API. Invoke-CrawlerIngestBatch handles chunking,
+# retries with backoff, delta tombstones, and empty-batch scoped deletes for you.
+Invoke-CrawlerIngestBatch -Endpoint 'ingest/principals' -SystemId 1 `
+    -SyncMode $Cfg._syncMode -Records $items
 
-Write-CrawlerProgress 'Complete' 100
+Update-CrawlerProgress -Step 'Complete' -Pct 100
 ```
 
 ---
@@ -276,8 +275,9 @@ If omitted, the UI falls back to a generic JSON config editor — fine for a qui
 
 ```jsx
 import { useState } from 'react';
-// Reach back into app/ui/src/ for shared form components:
-import ScheduleEditor from '../../../app/ui/src/components/ScheduleEditor';
+// Import shared form components via the @ui/ alias (resolved by app/ui/vite.config.js) —
+// never a '../../../app/ui/src/...' relative traversal:
+import ScheduleEditor from '@ui/components/ScheduleEditor';
 
 export default function MyConfigWizard({ onComplete, onCancel, initialConfig, isEdit, authFetch }) {
   // onComplete() — call with no arguments when done; the wizard saves its

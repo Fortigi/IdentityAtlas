@@ -6,6 +6,10 @@ The Identity Atlas UI is backed by a Node.js + Express REST API that queries the
 
 The backend runs on **port 3001** and connects to PostgreSQL using a connection pool. In development, it can run against mock data (set `USE_MOCK=true`).
 
+### Base URL
+
+Resolve every `/api/...` path in this reference against the deployment's public base URL. For any deployment reached through a reverse proxy, tunnel, or TLS terminator, set `PUBLIC_BASE_URL` (e.g. `https://atlas.example.com`) and resolve `/api` against it — so the external base is `https://atlas.example.com/api`. This is the authoritative external base and removes any dependency on (spoofable) `Host`/`X-Forwarded-*` headers. A direct, un-proxied deployment is reached at `http://localhost:3001/api`. Crawlers running inside the worker container reach the API at the container-internal `http://web:3001/api`.
+
 ```mermaid
 flowchart LR
     Browser["Browser\n(React + MSAL)"] -->|"Bearer JWT"| API["Express API\nPort 3001"]

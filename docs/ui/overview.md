@@ -10,23 +10,47 @@ The Role Mining UI is a web application that visualizes your synced permission d
 
 ## Pages
 
-The navigation bar has two groups of tabs:
+The app opens to the **Dashboard** landing page — not the Matrix. From there the navigation bar has two groups of tabs:
 
-- **Always visible:** Matrix, Users, Resources, Systems, Business Roles, Sync Log, Admin
-- **Optional (hidden by default):** Risk Scores, Identities, Org Chart
+- **Always visible:** Dashboard, Matrix, Principals (Users), Resources, Business Roles, Contexts, Admin
+- **Optional (hidden by default):** Systems, Logs (the Sync Log), Risk Scores, Identities
 
-Optional tabs are enabled per-user via the settings dropdown (click the user avatar in the top-right corner).
+Optional tabs are enabled per-user via the settings dropdown (click the user avatar in the top-right corner). **Risk Scores** and **Identities** are additionally feature-gated — they only appear in the settings list when their server-side feature flag (`riskScoring` / `accountLinking`) is enabled. The **Admin** tab is hidden from users with no `admin.*` permission.
 
-The **Admin** page contains sub-tabs: **Crawlers** (configure and schedule data sync), **Performance** (backend metrics), and **Auth** (authentication settings).
+!!! note
+    The **Org Chart** tab no longer exists. Manager-hierarchy views are now generated Contexts — see [Contexts](#contexts) below.
+
+### Dashboard
+
+The default landing page. It has an **Overview** tab (headline counts and a "configure a crawler" call-to-action when the database is empty) and a **Trends** tab (time-series charts from daily snapshots). See [Dashboard](dashboard.md) for details.
+
+### Admin sub-tabs
+
+The **Admin** page groups all administrative surfaces. Each sub-tab is permission-gated (a user only sees the ones they may use):
+
+| Sub-tab | Purpose |
+|---------|---------|
+| **Crawlers** | Add, configure, schedule, and run identity-data crawlers |
+| **Plugins** | Context plugins — configured trees and ad-hoc runs |
+| **Account Linking** | Rules for linking orphan accounts to existing identities |
+| **Risk Scoring** | Risk profile, classifiers, and the risk-scoring feature toggle |
+| **LLM Settings** | Configure the LLM provider used by risk scoring |
+| **Performance** | API and SQL performance metrics |
+| **Authentication** | Single sign-on and role / permission management |
+| **Data** | Export / import curated data and clean the database |
+| **Updates** | Automatic updates and version history |
+| **About** | License, version, and software bill of materials |
 
 ---
 
 ### Matrix View
 
-The core visualization — an interactive resource × user permission matrix.
+The core visualization — an interactive resource × subject permission matrix.
 
 - **Rows** = resources (groups, roles, app permissions)
-- **Columns** = users / principals
+- **Columns** = subjects (user accounts or correlated identities)
+
+The matrix starts empty: you first scope it with the **Filter Wizard** (see below). The row/column axes can also be swapped with the orientation toggle.
 
 #### Cell Badges
 
@@ -40,25 +64,48 @@ Each cell shows all membership types that apply, side by side:
 
 Cells with multiple types show all badges. Ownership is its own resource (`resourceType='GroupOwnership'`) shown as a normal row, so an owner appears as a `Direct` membership on that ownership resource rather than a separate badge.
 
-#### Business Role Columns (SOLL View)
+#### Business Role Columns (Governed View)
 
-When the IST/SOLL toggle is set to **SOLL**, the matrix adds columns for each business role that governs user-resource assignments. Each business role gets a distinct color from a 15-color palette. Cells managed by multiple business roles show a count badge.
+When the toggle is set to **Governed**, the matrix adds columns for each business role that governs user-resource assignments. Each business role gets a distinct color from a 15-color palette. Cells managed by multiple business roles show a count badge.
 
 #### Staircase Sort
 
 The default row order groups rows by their leftmost business role bucket, creating a visual staircase pattern that makes governed assignments easy to identify. Unmanaged resources appear at the bottom. The staircase order is the default; it can be overridden by dragging rows manually.
 
-#### IST/SOLL Toggle
+#### Governed / Non-governed / Gaps Toggle
+
+A view-time toggle in the matrix toolbar (formerly the IST/SOLL toggle):
 
 | Mode | Shows |
 |------|-------|
 | All | Every assignment |
-| IST (unmanaged) | Assignments not covered by any business role |
-| SOLL (governed) | Assignments governed by at least one business role |
+| Governed | Assignments governed by at least one business role |
+| Non-governed | Assignments not covered by any business role |
+| Gaps | Where a business role would grant access but the assignment is missing |
 
-#### User Limit Slider
+This toggle is part of a saved matrix, so it round-trips through save/load.
 
-Defaults to 25 users. The limit is applied at the SQL level — increasing it fetches more users from the database. Use a higher value for large environments, but expect slower load times.
+#### Filter Wizard (matrix scoping)
+
+There is no user-limit slider or department filter pills. You scope the matrix through a 3-step modal wizard (**Create matrix** / **Adjust matrix**), opened automatically on first visit and re-openable from the toolbar's **Adjust filter** button:
+
+1. **Setup** — pick the subject type (**User accounts** = one Principal per column, or **Identities** = one correlated person per column, unioning across their accounts) and the orientation (resources-as-rows vs. subjects-as-rows).
+2. **Subjects** — narrow which users/identities appear, using include/exclude conditions built from **Contexts** (e.g. an org-unit or tag context, optionally including descendants) or **attribute** filters (any column value). Includes are AND'd; excludes negate.
+3. **Resources** — narrow which resources appear, using the same context/attribute conditions, plus an optional **Include inherited access** checkbox.
+
+A **live summary** at the bottom shows counts as you tweak — subjects matched / total, resources matched / total, and the resulting assignment count — with warnings when a matrix grows large and a hard block on an oversized flat (per-subject) grid.
+
+#### Roll-up by Attribute
+
+Instead of a per-subject grid, the columns can be **rolled up** by an attribute (e.g. department) or by a **Manager Hierarchy** context tree. A rolled-up cell shows a count (or percentage) of the subjects in that group who hold the resource. Roll-ups are aggregated on the server, so they load at any size. A **Content** step lets you choose what the roll-up shows: resources + business-role columns, resources only, or business roles only. You can also fold individual attribute groups into a single count column right in the matrix.
+
+#### Saved Matrices
+
+A fully-scoped matrix (filter + orientation + governed-state toggle) can be saved by name. Saved matrices are **org-wide** — any user can load, rename, or delete any saved matrix — and are managed from the **Saved matrices** dropdown at the top of the wizard.
+
+#### Orientation Toggle
+
+The matrix can be rotated so that subjects are the rows and resources are the columns (`rows-as-subjects`), which is easier to read when there are few resources and many subjects. Set it in the wizard's Setup step.
 
 #### Drag-and-Drop Row Reordering
 
@@ -73,25 +120,15 @@ Exports the full matrix with:
 - Multi-business-role notes where applicable
 - Business role columns positioned next to users, matching the on-screen layout
 
-#### Filter System
-
-Filters appear as pills in the toolbar above the matrix.
-
-- **Server-side (SQL WHERE):** Department, job title, user tag — applied before data is sent to the browser
-- **Client-side:** Resource name, membership type
-
-!!! tip
-    Use server-side filters to reduce the dataset when working with large environments. Client-side filters are instant but only apply to already-loaded rows.
-
 ---
 
-### Users Page
+### Principals (Users) Page
 
-Browse all synced principals with pagination, search, tagging, and attribute filtering.
+Browse all synced principals (accounts) with pagination, search, tagging, and attribute filtering.
 
 - **Search** by display name or UPN
 - **Filter** by any attribute column or tag
-- **Tag management:** create colored tags, assign/remove from selected users, bulk-tag by filter
+- **Tag management:** assign/remove tags (Tag Contexts — see [Tagging System](#tagging-system)) from selected users, bulk-tag by filter
 
 ---
 
@@ -101,7 +138,7 @@ Browse all synced resources (groups, directory roles, app roles, etc.) with pagi
 
 - **Resource Type filter:** Group, EntraDirectoryRole, AppRole, and others
 - **System filter:** restrict to a specific connected system
-- **Tag management:** same as the Users page
+- **Tag management:** same as the Principals (Users) page
 
 ---
 
@@ -146,6 +183,9 @@ The detail tab contains collapsible sections:
 !!! note
     The **Review Status** field differentiates "Not required" (no review configured) from "Pending first review" (review configured but no instance has run yet).
 
+!!! important
+    Certifications are **read-only** in Identity Atlas. Review decisions are made in the source IGA platform and mirrored here for visibility — you do not conduct access reviews in-app.
+
 ---
 
 ### Sync Log
@@ -165,7 +205,7 @@ Displays recent sync operations from the `GraphSyncLog` table:
     This tab requires `Invoke-FGRiskScoring` to have been run at least once.
 
 - Score bars (0–100) with tier badge per entity
-- Supported entity types: Principals, Resources, Business Roles, OrgUnits, Identities
+- Supported entity types: Principals, Resources, Business Roles, Identities
 - Per-layer score breakdown:
 
 | Layer | Description |
@@ -210,13 +250,13 @@ Editing the config and starting runs requires the `admin.crawlers` permission. S
 
 ---
 
-### Org Chart *(optional)*
+### Contexts
 
-Manager hierarchy visualization with risk propagation.
+Contexts are the unified data surface that replaced the former Org Chart, tag, and cluster tabs. A Context is a named grouping of Identities, Resources, Principals, or Systems, in one of three variants — **synced** (from a source system), **generated** (emitted by a context-algorithm plugin), or **manual** (curated by hand). Manager-hierarchy trees (the old Org Chart), resource clusters, tags, and business processes are all generated Contexts produced by plugins that register at startup.
 
-- Hybrid layout: horizontal at the root level, vertical-indented for deeper levels
-- Department boxes are color-coded by the maximum risk tier in their subtree
-- Click a department box to open a detail page with all members and their risk scores
+Contexts are also first-class building blocks for Matrix scoping: any Context can be used as an include/exclude condition in the Filter Wizard.
+
+See [Contexts](contexts.md) for the full guide.
 
 ---
 
@@ -242,8 +282,8 @@ Per-request `Server-Timing` headers are also emitted, visible in the browser Dev
 Tags are user-defined colored labels that can be assigned to users or resources.
 
 - Multiple tags per entity are allowed
-- Tags are available as filters on the Users, Resources, and Matrix pages
-- Stored in `GraphTags` and `GraphTagAssignments` tables (auto-created on first use)
+- Tags are available as filters on the Principals, Resources, and Matrix pages (and as Filter Wizard conditions)
+- Tags are **Contexts** with `contextType='Tag'` — they live in the unified `Contexts` / `ContextMembers` tables (the legacy `GraphTags` / `GraphTagAssignments` tables are gone, with backward-compat views retained). See [Contexts](contexts.md).
 
 Common examples: `VIP`, `Finance`, `Contractors`, `Service Accounts`
 

@@ -250,9 +250,9 @@ final_score = min(100, (
 
 | Tier | Score Range | Label | Color |
 |------|-------------|-------|-------|
-| 1 | 80-100 | Critical | Red |
-| 2 | 60-79 | High | Orange |
-| 3 | 40-59 | Medium | Yellow |
+| 1 | 90-100 | Critical | Red |
+| 2 | 70-89 | High | Orange |
+| 3 | 40-69 | Medium | Yellow |
 | 4 | 20-39 | Low | Blue |
 | 5 | 1-19 | Minimal | Gray |
 | — | 0 | None | White |

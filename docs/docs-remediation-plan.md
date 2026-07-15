@@ -3,6 +3,7 @@
 > **Purpose:** Vaststellen of de IdentityAtlas-documentatie (a) **compleet** is t.o.v. verscheepte features én (b) **bruikbaar** is voor de gestelde doelen — en de gaten gestructureerd wegwerken. Voortbouwend op [`docs-gap-audit.md`](docs-gap-audit.md).
 > **Basis:** edge (`main` @ `d4afdb9f`, v5.441). **Branch:** `feature/docs-gap-audit` (lokaal).
 > **v2-wijziging (na dual-voice review):** bruikbaarheid wordt gemeten met **journey-walkthroughs (primair instrument)**; het coverage-grid is **ondersteunend inventaris**. Zie de [Review-appendix](#review-appendix-dual-voice) onderaan.
+> **Uitvoering (2026-07-15):** alle **34 backlog-items (BL-1..BL-34) toegepast** — 20 docs bijgewerkt + 6 nieuwe gidsen (dashboard, contexts, effective-access, custom-connector, data-tab, authentication), in de mkdocs-nav gehangen. Zie de changelog-fragment `changes/docs-gap-audit.md`.
 
 ## Waarom v2
 
@@ -143,16 +144,16 @@ Het geheel is klaar wanneer:
 | # | Cluster / spoor | Status |
 |---|-----------------|--------|
 | 0 | Niet-feature-docs (getting-started, troubleshooting/errors, concepten "waarom", limitations) | 🔄 deels via J1 (cellen ✔) |
-| 1 | Aan de slag & Dashboard | 🔄 in review via J1 (BL-4,5,7) |
-| 2 | Matrix | 🔄 in review via J1+J3 (BL-6,14,15,16) |
-| 3 | Contexts (scherm + plugins + API) | 🔄 in review via J8 (BL-8,9,10) |
+| 1 | Aan de slag & Dashboard | ✅ fixes toegepast — via J1 (BL-4,5,7) |
+| 2 | Matrix | ✅ fixes toegepast — via J1+J3 (BL-6,14,15,16) |
+| 3 | Contexts (scherm + plugins + API) | ✅ fixes toegepast — via J8 (BL-8,9,10) |
 | 4 | Entities & detailpagina's | ⬜ te doen (geraakt door J2/J3/J4; bevindingen in 2/5/6) |
-| 5 | Risk scoring & AI/LLM | 🔄 in review via J2 (BL-11,12,13) |
-| 6 | Governance / business roles | 🔄 in review via J4 — **weerlegt audit** (BL-17,18,19) |
-| 7 | Sync-bronnen / crawlers | 🔄 in review via J1+J5+J7 (BL-1,2,3,20,24,25,26) |
-| 8 | Admin & instellingen (incl. Admin nav-shell / 10 sub-tabs) | 🔄 in review via J9 (BL-31,32,33,34) |
-| 9 | Integratie & ingest-API (**owner van Custom Connector**) | 🔄 in review via J6 (BL-21,22,23) |
-| 10 | Platform & datamodel (owner van context-**schema**) | 🔄 in review via J10 (BL-27,28,29,30) |
+| 5 | Risk scoring & AI/LLM | ✅ fixes toegepast — via J2 (BL-11,12,13) |
+| 6 | Governance / business roles | ✅ fixes toegepast — via J4 — **weerlegt audit** (BL-17,18,19) |
+| 7 | Sync-bronnen / crawlers | ✅ fixes toegepast — via J1+J5+J7 (BL-1,2,3,20,24,25,26) |
+| 8 | Admin & instellingen (incl. Admin nav-shell / 10 sub-tabs) | ✅ fixes toegepast — via J9 (BL-31,32,33,34) |
+| 9 | Integratie & ingest-API (**owner van Custom Connector**) | ✅ fixes toegepast — via J6 (BL-21,22,23) |
+| 10 | Platform & datamodel (owner van context-**schema**) | ✅ fixes toegepast — via J10 (BL-27,28,29,30) |
 | J | Journeys J1–J10 (primair instrument) | ✅ **alle 10 uitgevoerd** — J7 PASS · J2/J3/J5/J6/J10 PARTIAL · J1/J4/J8/J9 FAIL (doc-only) |
 
 > **MECE-fixes toegepast:** Custom Connector wordt geownd door **Cluster 9** (stub-referentie in 7). De v6 context-**scherm/API** hoort in Cluster 3, het **schema/tabellen** in Cluster 10. "Alle 10 Admin sub-tabs" krijgt één canonieke rij in Cluster 8. De valse "DevOps"-marketingclaim wordt vastgelegd in Cluster 0 (niet stil gedropt ondanks marketing-out-of-scope).

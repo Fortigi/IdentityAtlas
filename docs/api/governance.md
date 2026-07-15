@@ -1,6 +1,6 @@
 # Governance & Business Roles API
 
-These endpoints manage business roles (access packages), categories, and tags. All endpoints require `Authorization: Bearer <JWT>`.
+These endpoints manage business roles (access packages), review compliance, categories, and tags. All endpoints require `Authorization: Bearer <JWT>`.
 
 ---
 
@@ -56,13 +56,111 @@ Paginated list of business roles with category and compliance metadata. This pow
 | `assignmentCount` | int | Number of active governed assignments (`state='Delivered'`) |
 | `hasReview` | boolean | Whether any certification decisions exist for this role |
 
-**Reads From:** `Resources` (`resourceType='BusinessRole'`) + `GovernanceCatalogs` + `GraphCategoryAssignments` + `GraphCategories` + `ResourceAssignments` (`assignmentType='Governed'`)
+**Reads From:** `Resources` (`resourceType='BusinessRole'`) + `GovernanceCatalogs` + `GovernanceCategoryAssignments` + `GovernanceCategories` + `ResourceAssignments` (`governed=true`)
+
+---
+
+## Review Compliance
+
+These endpoints report on the state of certification reviews. Identity Atlas does not conduct reviews — decisions are made in the source IGA platform (e.g. Entra ID Access Reviews) and mirrored read-only into `CertificationDecisions` by the crawler. Both endpoints summarise, per access package, the **most recent review instance** only.
+
+Both endpoints require `USE_SQL=true`; when SQL mode is off they return an empty result (`{}` / `[]`).
+
+### GET /api/governance/summary
+
+Tenant-wide review-compliance KPIs — one count per compliance status across all access packages that have review decisions.
+
+**Query Parameters:** none.
+
+**Response**
+
+```json
+{
+  "totalAPs": 42,
+  "compliant": 30,
+  "overdue": 4,
+  "reviewedLate": 3,
+  "inProgress": 5
+}
+```
+
+**Response Fields**
+
+| Field | Type | Description |
+|---|---|---|
+| `totalAPs` | int | Access packages that have at least one review instance |
+| `compliant` | int | APs whose last review was fully completed on time |
+| `overdue` | int | APs whose last review deadline passed with decisions still outstanding (`Missed`) |
+| `reviewedLate` | int | APs whose last review was completed, but after the deadline |
+| `inProgress` | int | APs whose last review is still open and not yet past its deadline |
+
+**Reads From:** `CertificationDecisions`
+
+---
+
+### GET /api/governance/review-compliance
+
+Per-access-package last-review status, ordered worst-first (Missed → Reviewed Late → In Progress → Compliant, then by days overdue).
+
+**Query Parameters**
+
+| Parameter | Type | Description |
+|---|---|---|
+| `filter` | string | Restrict to one status: `compliant`, `overdue`, `reviewed-late`, or `in-progress`. Omit for all. |
+| `category` | int / string | Restrict to a category id, or `uncategorized` for access packages with no category. Omit for all. |
+
+**Response**
+
+A JSON array (not wrapped in a `data` envelope), one object per access package:
+
+```json
+[
+  {
+    "resourceId": "ap-001",
+    "accessPackageName": "Finance Base Access",
+    "catalogName": "Corporate Catalog",
+    "categoryName": "Finance",
+    "categoryColor": "#3B82F6",
+    "complianceStatus": "Missed",
+    "deadline": "2026-05-01T00:00:00.000Z",
+    "daysOverdue": 12,
+    "totalDecisions": 48,
+    "onTime": 40,
+    "reviewedLate": 3,
+    "notReviewed": 5,
+    "lastReviewedDate": "2026-05-03T09:12:00.000Z",
+    "lastReviewedBy": "Alice Reviewer",
+    "reviewInstanceStatus": "Completed"
+  }
+]
+```
+
+**Response Fields**
+
+| Field | Type | Description |
+|---|---|---|
+| `resourceId` | string | The business role (access package) id |
+| `accessPackageName` | string | Access package display name |
+| `catalogName` | string | Owning `GovernanceCatalogs` name (null if none) |
+| `categoryName` / `categoryColor` | string | Assigned category label and hex color (null if uncategorized) |
+| `complianceStatus` | string | `Compliant`, `Missed`, `Reviewed Late`, or `In Progress` |
+| `deadline` | datetime | End date of the last review instance |
+| `daysOverdue` | int | Days past the deadline (0 if not overdue) |
+| `totalDecisions` | int | Decisions in the last review instance |
+| `onTime` | int | Decisions made on or before the deadline |
+| `reviewedLate` | int | Decisions made after the deadline |
+| `notReviewed` | int | Decisions still outstanding (`NotReviewed`) |
+| `lastReviewedDate` | datetime | Most recent decision timestamp in the instance |
+| `lastReviewedBy` | string | Display name of the most recent reviewer |
+| `reviewInstanceStatus` | string | Raw instance status from the source IGA platform |
+
+**Reads From:** `CertificationDecisions` + `Resources` (`resourceType='BusinessRole'`) + `GovernanceCatalogs` + `GovernanceCategoryAssignments` + `GovernanceCategories`
 
 ---
 
 ## Category Management
 
-Categories are single-assignment labels for business roles. Unlike tags, a business role can have **at most one** category. This constraint is enforced by a primary key on `(resourceId)` in the `GraphCategoryAssignments` table.
+Categories are single-assignment labels for business roles. Unlike tags, a business role can have **at most one** category. This constraint is enforced by a primary key on `(resourceId)` in the `GovernanceCategoryAssignments` table.
 
 Categories drive AP column ordering in the Matrix view — SOLL columns are sorted first by category name, then by total assignment count within each category. Uncategorized business roles appear at the end. Category boundaries are marked with thicker borders and a colored indicator stripe.
 
@@ -91,7 +189,7 @@ List all categories with the count of business roles assigned to each.
 }
 ```
 
-**Reads From:** `GraphCategories` + `GraphCategoryAssignments`
+**Reads From:** `GovernanceCategories` + `GovernanceCategoryAssignments`
 
 ---
 
@@ -138,7 +236,7 @@ All fields are optional. Omitted fields are unchanged.
 
 ### DELETE /api/categories/:id
 
-Delete a category and cascade-remove all its assignments from `GraphCategoryAssignments`. Business roles that had this category become uncategorized.
+Delete a category and cascade-remove all its assignments from `GovernanceCategoryAssignments`. Business roles that had this category become uncategorized.
 
 **Response:** `204 No Content`
 
@@ -195,7 +293,7 @@ All category assignments as a flat list. Used by the Matrix view to determine co
 }
 ```
 
-**Reads From:** `GraphCategoryAssignments` + `GraphCategories`
+**Reads From:** `GovernanceCategoryAssignments` + `GovernanceCategories`
 
 ---
 
