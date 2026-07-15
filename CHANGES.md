@@ -1,5 +1,10 @@
 ## Changes in this PR
 
+- Added a "Contribute" link to the dashboard Resources card, and a "Report an issue or feature request" link to the Support card, both pointing at new plain-English documentation pages.
+- Added two documentation pages under Contributing — "Report a Bug or Request a Feature" and "Contribute a Change" — written for non-developers, guiding you through the GitHub issue tracker and pull-request flow.
+
+## Changes in this PR
+
 - Reworked the marketing website copy for clarity and consistent terminology (issue #701): clearer hero, "Why", "What", pipeline, "How to start", "Trust" and closing sections, with "authorization data" / "access" / "permissions" used precisely and support "teams" throughout.
 - Corrected the advertised integrations to match what ships today: Entra ID, Azure RBAC, Omada and midPoint as out-of-the-box crawlers, SailPoint via CSV import; removed Azure DevOps until its crawler ships.
 
