@@ -1,7 +1,7 @@
 # Matrix view — architecture
 
 > **Status:** current as of May 2026.
-> Companion to [`013_matrix_matviews_and_indexes.sql`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/db/migrations/013_matrix_matviews_and_indexes.sql), [`024_matrix_view_all_assignment_types.sql`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/db/migrations/024_matrix_view_all_assignment_types.sql), [`025_matrix_view_governed_renders_as_direct.sql`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/db/migrations/025_matrix_view_governed_renders_as_direct.sql).
+> Companion to [`013_matrix_matviews_and_indexes.sql`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/db/migrations/013_matrix_matviews_and_indexes.sql), [`024_matrix_view_all_assignment_types.sql`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/db/migrations/024_matrix_view_all_assignment_types.sql), [`046_owner_as_resource.sql`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/db/migrations/046_owner_as_resource.sql), [`049_governed_intent_rows.sql`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/db/migrations/049_governed_intent_rows.sql).
 
 ## The grid
 
@@ -12,10 +12,10 @@ Rows are **resources**. Columns are **principals** (users / service principals /
 Sales Team           D                       <- group membership
 Reader on CRM        D       I              <- app role (direct vs. via group)
 HR-Manager BR        D                       <- BusinessRole assignment
-DelegatedPerm: …             A               <- OAuth2 user consent
+DelegatedPerm: …             D               <- OAuth2 user consent
 ```
 
-(That last `A` no longer renders — see "Badge collapse" below — but the underlying row is still in the data.)
+(That last cell is an `OAuth2Grant` row — it renders as **D**, since the badge only carries *how* the user holds it; the `DelegatedPermission` resource type carries the *what*. See "Badge collapse" below.)
 
 ## Data source
 
@@ -35,24 +35,29 @@ The view itself is a single `SELECT FROM "ResourceAssignments"` with no `assignm
 
 ## Badge collapse — what each letter actually means
 
-The user reads four letters. The DB stores eight assignment types. The translation lives in migration 025's CASE expression and is intentionally lossy:
+The user reads three letters. The DB stores a handful of assignment types. The translation lives in migration 049's CASE expression and is intentionally lossy:
 
 | Raw `assignmentType` in ResourceAssignments | Displayed `membershipType` | Badge |
 |---|---|---|
 | `Direct` | `Direct` | **D** |
 | `Indirect` | `Indirect` | **I** |
-| `Owner` | `Owner` | **O** |
 | `Eligible` | `Eligible` | **E** |
-| `Governed` | `Direct` | **D** |
 | `OAuth2Grant` | `Direct` | **D** |
 | `AppRole` | `Direct` | **D** |
 | `AppRoleViaGroup` | `Indirect` | **I** |
+| `DirectoryRole` | `Direct` | **D** |
+| `DirectoryRoleEligible` | `Eligible` | **E** |
 
-The rationale: the *resource type* already says what *kind* of membership it is (`BusinessRole`, `DelegatedPermission`, `AppRole`). The badge is reserved for *how* the user holds the resource — Direct / Indirect / Owner / Eligible — not *why* the assignment exists.
+There is **no `O` (Owner) badge and no `Governed` badge** — both concepts were retired as assignment types and never reach this table:
 
-**Cell coloring is independent.** `managedByAccessPackage` still uses the raw `assignmentType='Governed'` so the AP color overlay correctly marks governed cells regardless of the badge.
+- **Ownership** is a `Direct` assignment on a separate `GroupOwnership` resource (migration 046), so an owner shows up as a normal Direct cell on the ownership row — see [Owner rows are their own resource](#owner-rows-are-their-own-resource) below.
+- **Governed** access is a `Direct` assignment carrying the `governed=true` flag (migration 049); the flag drives the AP color overlay, not a badge.
 
-The four-letter alphabet was chosen for an explicit reason: **`E` (Eligible) is not "current access"**. A user with an Eligible row could activate via PIM but right now has nothing. Folding `Eligible` into `Direct` would misrepresent reality and was rejected in design discussion.
+The rationale: the *resource type* already says what *kind* of membership it is (`BusinessRole`, `DelegatedPermission`, `AppRole`, `GroupOwnership`). The badge is reserved for *how* the user holds the resource — Direct / Indirect / Eligible — not *why* the assignment exists.
+
+**Cell coloring is independent.** `managedByAccessPackage` is computed from the `governed=true` flag (via the SOLL join in migration 049) so the AP color overlay correctly marks governed cells regardless of the badge.
+
+The three-letter alphabet was chosen for an explicit reason: **`E` (Eligible) is not "current access"**. A user with an Eligible row could activate via PIM but right now has nothing. Folding `Eligible` into `Direct` would misrepresent reality and was rejected in design discussion.
 
 ## Expand semantics
 
@@ -77,9 +82,9 @@ This is why we can store *both*:
 
 …without polluting the user-facing matrix grid. The first row is invisible there; the second row paints User Z's cell with an `I` badge.
 
-## Owner rows are split
+## Owner rows are their own resource
 
-A user who is both a member and an owner of a group gets two rows in the data — `assignmentType='Direct'` and `assignmentType='Owner'`. The UI splits these into two distinct rows in the matrix (`<groupId>` and `<groupId>__owner`) so the badges don't collapse to a single ambiguous cell. See `MatrixView.jsx`'s `isOwner` branch.
+A user who is both a member and an owner of a group holds two separate resources: the group itself (a `Direct` membership) and a synthetic `GroupOwnership` resource named `Owner @ <group>` (also a `Direct` membership). Migration 046 rewrote the old `assignmentType='Owner'` rows into Direct assignments on this ownership resource, linked back to the group by a `HasOwnership` relationship — mirroring how an `AppRole` hangs off its `Application`. The matrix therefore shows ownership as its own row, with a normal **D** badge, rather than a separate `O`-type cell on the group row. No client-side row-splitting is involved.
 
 ## Performance notes
 

@@ -69,6 +69,7 @@ A 4-layer scoring engine that classifies principals by risk without sending sens
     curl -O https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/docker-compose.prod.yml
     curl -O https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/setup/config/.env.example
     cp .env.example .env
+    # Edit .env and set a strong POSTGRES_PASSWORD — required, the compose won't start without it
     docker compose -f docker-compose.prod.yml up -d --pull always
     ```
 
@@ -78,8 +79,14 @@ A 4-layer scoring engine that classifies principals by risk without sending sens
     Invoke-WebRequest -Uri https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/docker-compose.prod.yml -OutFile docker-compose.prod.yml
     Invoke-WebRequest -Uri https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/setup/config/.env.example -OutFile .env.example
     Copy-Item .env.example .env
+    # Edit .env and set a strong POSTGRES_PASSWORD — required, the compose won't start without it
     docker compose -f docker-compose.prod.yml up -d --pull always
     ```
+
+!!! warning "Set `POSTGRES_PASSWORD` before starting"
+    `.env.example` ships with an empty `POSTGRES_PASSWORD`, and the production
+    compose file refuses to start until it's set to a strong, unique value. Copying
+    the template is not enough on its own — edit `.env` and fill it in.
 
 Open [http://localhost:3001](http://localhost:3001) → click **"Load Demo Data"** for instant gratification, or **"Connect Entra ID"** to wire up your own tenant via the in-browser wizard.
 

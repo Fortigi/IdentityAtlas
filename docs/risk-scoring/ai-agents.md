@@ -88,6 +88,5 @@ SELECT p.displayName, p.principalType, rs.riskScore, rs.riskTier
 FROM Principals p
 JOIN RiskScores rs ON rs.entityId = p.id AND rs.entityType = 'Principal'
 WHERE p.principalType IN ('AIAgent', 'ManagedIdentity', 'ServicePrincipal', 'WorkloadIdentity')
-  AND p.ValidTo = '9999-12-31 23:59:59.9999999'
 ORDER BY rs.riskScore DESC;
 ```

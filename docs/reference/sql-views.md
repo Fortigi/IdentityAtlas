@@ -8,59 +8,106 @@ Views are created by migration files in `app/api/src/db/migrations/` and applied
 
 ## Resource Permission Views
 
-Created by migrations `005_views.sql` and `011_governed_in_matrix_view.sql`.
+Created by migration `005_views.sql`; the two matrix views were promoted to
+**materialized** views in `013_matrix_matviews_and_indexes.sql` and last
+rebuilt by `049_governed_intent_rows.sql`.
 
-| View | Purpose |
-|------|---------|
-| `vw_ResourceMembersRecursive` | All memberships (direct + indirect via nested groups) using a recursive CTE. Cycle-safe, max 10 levels deep. Includes the full membership path. |
-| `vw_ResourceUserPermissionAssignments` | All assignment types (Direct, Indirect, Owner, Eligible, CrossResourceIndirect) in a single queryable surface. Includes the `managedByAccessPackage` flag for IST vs SOLL analysis. |
-| `vw_UserPermissionAssignments` | Simplified permission view used by the matrix UI — one row per user-resource-type combination. |
+| View | Kind | Output columns | Purpose |
+|------|------|----------------|---------|
+| `vw_ResourceMembersRecursive` | Standard view | `resourceId`, `principalId`, `principalType`, `membershipType`, `depth`, `path` | All memberships (direct + indirect via nested groups) using a recursive CTE. Cycle-safe, max 10 levels deep. `membershipType` is `Direct` at depth 1 and `Indirect` deeper; `path` is the resolved chain of ids. |
+| `vw_ResourceUserPermissionAssignments` | **Materialized view** | `resourceId`, `principalId`, `principalType`, `membershipType`, `managedByAccessPackage` | The matrix surface — one row per effective (subject, resource, `membershipType`) cell. `managedByAccessPackage` flags cells covered by a governance resource, for IST vs SOLL analysis. |
+| `vw_UserPermissionAssignments` | Standard view (compat alias) | `groupId`, `memberId`, `principalType`, `membershipType`, `managedByAccessPackage` | Backward-compatible alias over `vw_ResourceUserPermissionAssignments` with the older `groupId`/`memberId` column names. |
+
+!!! warning "`vw_ResourceUserPermissionAssignments` is materialized — refresh it"
+    This view holds a stored snapshot. After ingesting or changing assignment
+    data you must run `REFRESH MATERIALIZED VIEW "vw_ResourceUserPermissionAssignments";`
+    (or the concurrent variant, see [Materialized Views](#materialized-views))
+    before it reflects the new data. `vw_UserPermissionAssignments` reads from
+    it, so it follows the same refresh.
+
+`membershipType` is one of `Direct`, `Indirect`, `Eligible` — the three
+universal "how does the subject have this" values. (`Owner` was retired in
+`046_owner_as_resource.sql`: ownership is now a `Direct` assignment on a
+separate `GroupOwnership` resource.)
 
 ```sql
 -- Who has access to a specific resource, including indirect memberships?
-SELECT principalId, displayName, assignmentType, depth, membershipPath
-FROM vw_ResourceMembersRecursive
-WHERE resourceId = 'your-resource-guid'
-ORDER BY depth;
+SELECT rmr."principalId", p."displayName", rmr."membershipType", rmr."depth", rmr."path"
+FROM "vw_ResourceMembersRecursive" rmr
+JOIN "Principals" p ON p."id" = rmr."principalId"
+WHERE rmr."resourceId" = 'your-resource-guid'
+ORDER BY rmr."depth";
 
 -- A user's complete permission picture across all resources
-SELECT resourceId, resourceName, assignmentType, managedByAccessPackage
-FROM vw_ResourceUserPermissionAssignments
-WHERE principalId = 'user-guid-here';
+SELECT v."resourceId", r."displayName", v."membershipType", v."managedByAccessPackage"
+FROM "vw_ResourceUserPermissionAssignments" v
+JOIN "Resources" r ON r."id" = v."resourceId"
+WHERE v."principalId" = 'user-guid-here';
 
 -- How many permissions does each user hold?
-SELECT principalId, displayName, COUNT(*) AS permissionCount
-FROM vw_ResourceUserPermissionAssignments
-GROUP BY principalId, displayName
-ORDER BY permissionCount DESC;
+SELECT v."principalId", p."displayName", COUNT(*) AS "permissionCount"
+FROM "vw_ResourceUserPermissionAssignments" v
+JOIN "Principals" p ON p."id" = v."principalId"
+GROUP BY v."principalId", p."displayName"
+ORDER BY "permissionCount" DESC;
 ```
 
 ---
 
 ## Governance View
 
-Created by migration `005_views.sql`.
+Created by migration `005_views.sql`; promoted to a **materialized** view in
+`013_matrix_matviews_and_indexes.sql` and last rebuilt by
+`049_governed_intent_rows.sql`.
 
-| View | Purpose |
-|------|---------|
-| `vw_UserPermissionAssignmentViaBusinessRole` | Maps users through business roles to the resources those roles grant |
+| View | Kind | Output columns | Purpose |
+|------|------|----------------|---------|
+| `vw_UserPermissionAssignmentViaBusinessRole` | **Materialized view** | `userId`, `groupId`, `resourceId`, `businessRoleId` | Maps users through governance resources (business roles / access packages) to the resources those roles `Contains`. `groupId` and `resourceId` are the same contained-resource id, exposed under both names. |
+
+!!! warning "Materialized — refresh required"
+    Like the matrix view, this is a materialized view. Run
+    `REFRESH MATERIALIZED VIEW "vw_UserPermissionAssignmentViaBusinessRole";`
+    after changing governance data before querying it.
 
 ```sql
 -- Which resources does a user reach via business role governance?
-SELECT principalId, displayName, resourceId, resourceName, businessRoleName
-FROM "vw_UserPermissionAssignmentViaBusinessRole"
-WHERE principalId = 'user-guid-here';
+SELECT v."userId", v."resourceId", r."displayName" AS "resourceName",
+       v."businessRoleId", br."displayName" AS "businessRoleName"
+FROM "vw_UserPermissionAssignmentViaBusinessRole" v
+JOIN "Resources" r  ON r."id"  = v."resourceId"
+JOIN "Resources" br ON br."id" = v."businessRoleId"
+WHERE v."userId" = 'user-guid-here';
 ```
-
-!!! note "Planned governance views"
-    Additional governance analysis views (IST/SOLL gap analysis, approval timelines, request metrics) are planned for a future release. The current v5 migration focused on core permission views.
 
 ---
 
 ## Materialized Views
 
-!!! note "v5 status"
-    Materialized views are planned for a future release to improve query performance in large environments. The current v5 views are standard PostgreSQL views. For large deployments, consider adding PostgreSQL materialized views manually if needed.
+Two of the views above are PostgreSQL **materialized** views —
+`vw_ResourceUserPermissionAssignments` and
+`vw_UserPermissionAssignmentViaBusinessRole`. They were promoted from standard
+views in `013_matrix_matviews_and_indexes.sql` because recomputing the matrix
+from scratch on every `/api/permissions` request was taking 100+ seconds on
+large (2M+ row) datasets.
+
+Because they store a snapshot, they must be **refreshed** after the underlying
+`ResourceAssignments` / `ResourceRelationships` data changes:
+
+```sql
+-- Standard refresh (locks the matview for the duration)
+REFRESH MATERIALIZED VIEW "vw_ResourceUserPermissionAssignments";
+REFRESH MATERIALIZED VIEW "vw_UserPermissionAssignmentViaBusinessRole";
+
+-- Concurrent refresh (no read lock; requires the unique index the migrations create)
+REFRESH MATERIALIZED VIEW CONCURRENTLY "vw_ResourceUserPermissionAssignments";
+```
+
+You normally don't run these by hand: the migrations create the matviews empty
+(`WITH NO DATA`) and the web container refreshes them at the end of bootstrap,
+and the ingest endpoint `/api/ingest/refresh-views` runs
+`REFRESH MATERIALIZED VIEW CONCURRENTLY` so the crawlers refresh automatically
+at end-of-sync. Reach for a manual refresh only when querying the matviews
+directly (e.g. from `psql` or a contract test) after loading data.
 
 ---
 

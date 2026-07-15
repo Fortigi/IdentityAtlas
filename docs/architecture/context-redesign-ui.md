@@ -1,6 +1,6 @@
 # Context Redesign — UI
 
-> **Status:** Design proposal — not yet implemented.
+> **Status:** Implemented (v6). This is the architecture reference for the shipped Contexts screen — the two-pane tree/list layout, the New-Context wizard, drag-to-reparent, and per-tree Run/Sync described below are all live. For the analyst how-to guide, see [../ui/contexts.md](../ui/contexts.md).
 > **Companion doc:** [context-redesign.md](context-redesign.md) for the data model and backend.
 
 ## 1. New Top-Level Tab: "Contexts"
@@ -193,27 +193,22 @@ Behind the scenes, each tag is a manual flat context with `contextType='Tag'`, s
 
 No "promote to hierarchy" wizard — parenting is just a field set. The legacy `GraphTags` / `GraphTagAssignments` tables are gone in v6; tag operations hit `Contexts` / `ContextMembers` directly.
 
-## 9. Frontend Structure (proposed files)
+## 9. Frontend Structure (as shipped)
 
-New:
-- `app/ui/src/components/ContextsPage.jsx` — tree selector + tree/list view switch
-- `app/ui/src/components/ContextDetailPage.jsx` — detail tab (replaces the current minimal one)
-- `app/ui/src/components/contexts/ContextTreeView.jsx`
-- `app/ui/src/components/contexts/ContextListView.jsx`
-- `app/ui/src/components/contexts/ContextTreeSelector.jsx`
-- `app/ui/src/components/contexts/NewContextModal.jsx` — "+ New" dispatcher
-- `app/ui/src/components/contexts/RunPluginModal.jsx`
-- `app/ui/src/components/contexts/CreateManualTreeModal.jsx`
-- `app/ui/src/components/matrix/ContextFilterControl.jsx` — the chip widget
+- `app/ui/src/components/ContextsPage.jsx` — the two-pane tab: tree selector + tree/list view switch, plus the per-tree Sync / Delete / view-mode header
+- `app/ui/src/components/ContextDetailPage.jsx` — the context detail tab
+- `app/ui/src/components/contexts/ContextTreeView.jsx` — tree view with inline rename, add-child, drag-to-reparent, and (Manager-Hierarchy trees) drag-a-member-to-another-team
+- `app/ui/src/components/contexts/ContextListView.jsx` — flat list view
+- `app/ui/src/components/contexts/ContextTreeSelector.jsx` — left selector with target-type / variant / system filter bar
+- `app/ui/src/components/contexts/NewContextWizard.jsx` — the unified "+ New" stepped wizard (Source → plugin path or manual path). Replaces the three-modal sketch (NewContextModal / RunPluginModal / CreateManualTreeModal) this doc originally proposed.
+- `app/ui/src/components/contexts/ContextPicker.jsx` / `ContextMemberPicker.jsx` / `ManualContextEditor.jsx` — shared pickers and the manual-tree member editor
+- `app/ui/src/components/matrix/ContextFilterControl.jsx` — the matrix context-filter chip widget
 
-Changed:
-- `app/ui/src/App.jsx` — register the new tab, route `#context:id`
-- `app/ui/src/components/matrix/MatrixToolbar.jsx` — embed `ContextFilterControl`
-- `app/ui/src/hooks/usePermissions.js` — accept `contextFilters` query state and pass through
+Also changed:
+- `app/ui/src/App.jsx` — registers the Contexts tab and routes `#context:id`
+- `app/ui/src/hooks/usePermissions.js` — accepts `contextFilters` query state and passes it through to the matrix query
 
-Removed (phase 4):
-- `app/ui/src/components/OrgChartPage.jsx` — replaced by the Contexts tab
-- The Clusters portion of `app/ui/src/components/RiskScoringPage.jsx`
+The former Org Chart tab and the Risk-Scoring Clusters page were retired in favour of the Contexts tab (manager hierarchies and resource clusters are now context-algorithm plugins).
 
 ## 10. Accessibility & Performance Notes
 

@@ -1,8 +1,8 @@
 # Context Redesign
 
-> **Status:** Design proposal — not yet implemented.
+> **Status:** Implemented (v6). This is the architecture reference for the shipped Contexts feature — the unified model, the plugin framework, and matrix filtering described below are all live in the product. For the analyst how-to guide for the Contexts screen, see [../ui/contexts.md](../ui/contexts.md).
 > **Author:** Wim van den Heijkant
-> **Date:** 2026-04-21
+> **Date:** 2026-04-21 (design); shipped in v6
 > **Companion docs:** [context-redesign-ui.md](context-redesign-ui.md)
 
 ## 1. Problem Statement
@@ -66,7 +66,9 @@ A context tree may mix variants across levels (manual sub-tree under a generated
 
 Variant is a property of the **node**, not the tree. An analyst can graft a `manual` sub-tree under a `synced` parent. On the next sync the parent updates but the manual children are preserved (matched by `parentContextId` + analyst-set name).
 
-### 3.3 Schema (proposed)
+### 3.3 Schema
+
+The v6 migrations create these tables. (The analyst-curation columns and side tables added during the build — `Contexts.userRenamed` / `userReparented` (migration 033) and `ManagerHierarchyOverrides` (migration 035) — are covered in §4.4.)
 
 ```sql
 -- Replaces the current Contexts table

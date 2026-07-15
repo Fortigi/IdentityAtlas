@@ -176,7 +176,7 @@ If present, the API exposes `POST /api/admin/crawlers/<type>/discover` backed by
 export default async function handler(req, res, { db, getConfigSecret }) {
   // req.body contains the current wizard config (credentials, base URL, etc.)
   // db — the pg pool (via getPool())
-  // getConfigSecret(crawlerId, key) — decrypts a stored credential
+  // getConfigSecret(configId) — decrypts the stored clientSecret for that config
   // respond with res.json(...)
 }
 ```

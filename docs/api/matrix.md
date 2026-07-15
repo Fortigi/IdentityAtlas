@@ -55,7 +55,7 @@ Main matrix data. Returns all permission assignments enriched with user attribut
 | `totalUsers` | int | Total distinct users before the `userLimit` was applied |
 | `managedByPackages` | array | SOLL mapping — which business role IDs govern each (member, group) pair |
 
-**Reads From:** `mat_UserPermissionAssignments` materialized view → `Principals` + `Resources`
+**Reads From:** `vw_ResourceUserPermissionAssignments` materialized view → `Principals` + `Resources`
 
 ---
 
@@ -156,6 +156,98 @@ Recent sync log entries from the `GraphSyncLog` table. Used by the Sync Log page
 
 ---
 
+## Effective Access
+
+These endpoints answer "*can this principal reach this resource, and how?*" — resolving direct grants plus everything reached through group membership (P1) and containment inheritance via `Contains` (P2). They are read-only, bounded (every expansion is capped and reports truncation explicitly rather than dropping results silently), and cached per completed sync. All three require `Authorization: Bearer <JWT>`.
+
+The engine ships **P1** (direct grants + grants reached via group membership) and **P2** (capabilities inherited from ancestor nodes through containment). **P3** (deny-aware / contested resolution) and **P4** (bulk export) are deferred, so today every result comes from a grant-only `AdditiveAllow` policy — there is no `deny` outcome yet.
+
+### GET /api/resource/:id/effective-access
+
+Effective access **at a resource node** for one principal, including capabilities inherited from ancestor nodes via `Contains`. One row per capability the principal effectively holds at the node.
+
+**Path / Query Parameters**
+
+| Parameter | In | Required | Description |
+|---|---|---|---|
+| `id` | path | yes | The focus resource (node) id. |
+| `principalId` | query | yes | The principal to resolve. Returns `400` if omitted. |
+| `policy` | query | no | Resolution policy name. Defaults to `AdditiveAllow` (the only policy shipped). An unknown name returns `400`. |
+
+**Response**
+
+```json
+{
+  "nodeId": "uuid",
+  "principalId": "uuid",
+  "capabilities": [
+    {
+      "capabilityId": "read",
+      "capabilityResourceId": "uuid",
+      "effective": "allow",
+      "badge": "Direct"
+    }
+  ],
+  "truncated": null
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `capabilities[].effective` | string | `allow` when the principal holds the capability at the node (`none` capabilities are omitted). |
+| `capabilities[].badge` | string \| null | Reachability: `Direct`, `Indirect`, or `Eligible`. `Direct` only when the grant is declared at the focus node and held without a group hop; otherwise `Indirect`. |
+| `truncated` | object \| null | Non-null when a bound was hit. `{ "holders": N }` if the group-membership expansion was capped, `{ "ancestors": N }` if the containment ascent was capped (either key may be present). `null` when the result is complete. |
+
+### GET /api/principal/:id/effective-access
+
+The principal-centric mirror of the above — same resolution and response shape, with the principal in the path and the focus node in the query.
+
+**Path / Query Parameters**
+
+| Parameter | In | Required | Description |
+|---|---|---|---|
+| `id` | path | yes | The principal to resolve. |
+| `node` | query | yes | The focus resource (node) id. Returns `400` if omitted. |
+| `policy` | query | no | As above. |
+
+Response is identical to `GET /api/resource/:id/effective-access` (`{ nodeId, principalId, capabilities[], truncated }`).
+
+### GET /api/effective-access/resolve
+
+The single-pair resolution primitive: the effective access of **one principal on one resource** (direct grants + grants reached via group membership). Lighter than the at-node forms — it does not walk containment.
+
+**Query Parameters**
+
+| Parameter | Required | Description |
+|---|---|---|
+| `resourceId` | yes | The resource. Returns `400` if omitted. |
+| `principalId` | yes | The principal. Returns `400` if omitted. |
+| `policy` | no | Resolution policy name. Defaults to `AdditiveAllow`. Unknown name returns `400`. |
+
+**Response**
+
+```json
+{
+  "resourceId": "uuid",
+  "principalId": "uuid",
+  "effective": "allow",
+  "badge": "Direct",
+  "decisiveAce": { "effect": "allow", "distance": 0, "explicit": true, "viaGroupId": null },
+  "truncated": null
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `effective` | string | `allow` or `none`. (No `deny` — deny-aware resolution is P3.) |
+| `badge` | string \| null | `Direct` / `Indirect` / `Eligible`, or `null` when `effective` is `none`. |
+| `decisiveAce` | object \| null | The grant that drove the result — `explicit: true` and `viaGroupId: null` mean the principal holds it directly; a non-null `viaGroupId` is the group hop it was reached through. |
+| `truncated` | object \| null | `{ "holders": N }` when the group-membership expansion was capped, else `null`. |
+
+**Note:** the cache is keyed on the sync data version, so a completed sync invalidates every cached result at once.
+
+---
+
 ## Filter Architecture
 
 The UI uses a hybrid filtering approach to balance performance and flexibility:
@@ -195,8 +287,8 @@ Applied in the browser after data loads. Used for fields that are properties of 
 
 | Filter Field | Source |
 |---|---|
-| `membershipType` | `mat_UserPermissionAssignments.membershipType` |
-| `groupDisplayName` | `mat_UserPermissionAssignments.groupDisplayName` |
+| `membershipType` | `vw_ResourceUserPermissionAssignments.membershipType` |
+| `groupDisplayName` | `vw_ResourceUserPermissionAssignments.groupDisplayName` |
 | IST/SOLL toggle | Derived from `managedByAccessPackage` flag |
 
 ### The `(Blank)` Sentinel

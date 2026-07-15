@@ -1,12 +1,15 @@
 # Quick Start
 
-Identity Atlas runs as a Docker stack — no Azure subscription, no git clone required. Just Docker.
+Identity Atlas runs as a Docker stack — no Azure subscription, no git clone required. All you need is Docker and a one-line `.env` that sets a database password.
 
 === "Linux / macOS"
 
     ```bash
-    # Download the compose file
+    # Download the compose file and the env template
     curl -O https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/docker-compose.prod.yml
+    curl -O https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/setup/config/.env.example
+    cp .env.example .env
+    # Edit .env and set a strong POSTGRES_PASSWORD — the prod compose refuses to start without it
 
     # Start everything (--pull always forces Docker to fetch the newest
     # :latest image from ghcr.io instead of reusing a cached copy)
@@ -16,15 +19,22 @@ Identity Atlas runs as a Docker stack — no Azure subscription, no git clone re
 === "Windows (PowerShell)"
 
     ```powershell
-    # Download the compose file
-    Invoke-WebRequest `
-        -Uri https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/docker-compose.prod.yml `
-        -OutFile docker-compose.prod.yml
+    # Download the compose file and the env template
+    Invoke-WebRequest -Uri https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/docker-compose.prod.yml -OutFile docker-compose.prod.yml
+    Invoke-WebRequest -Uri https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/setup/config/.env.example -OutFile .env.example
+    Copy-Item .env.example .env
+    # Edit .env and set a strong POSTGRES_PASSWORD — the prod compose refuses to start without it
 
     # Start everything (--pull always forces Docker to fetch the newest
     # :latest image from ghcr.io instead of reusing a cached copy)
     docker compose -f docker-compose.prod.yml up -d --pull always
     ```
+
+!!! warning "`POSTGRES_PASSWORD` is required"
+    The production compose file ships no default database password and refuses to
+    start until you set a strong, unique `POSTGRES_PASSWORD` in `.env` (or pass it
+    inline). Copying `.env.example` alone isn't enough — it leaves the value blank.
+    See [Docker Setup](architecture/docker-setup.md) for the full list of variables.
 
 !!! tip "Why `--pull always`?"
     Without `--pull always`, `docker compose up` only pulls an image if it isn't already cached locally. If you ran Identity Atlas before, Docker will happily reuse yesterday's `:latest` — even though a newer `:latest` may be on ghcr.io. Adding `--pull always` forces a registry check on every start. Requires Docker Compose v2.22 or later; on older versions, run `docker compose pull` first and then `up -d`.
@@ -172,4 +182,5 @@ Both images are always published with the same version tag, so they'll stay in s
 | UI features and navigation | [UI Overview](ui/overview.md) |
 | Risk scoring deep dive | [Risk Scoring Overview](risk-scoring/overview.md) |
 | Troubleshooting | [Troubleshooting](reference/troubleshooting.md) |
+| Connecting your Entra ID tenant | [Entra ID Sync](sync/entra-id.md) |
 | Importing from non-Entra systems | [CSV Sync](sync/csv-import.md) |

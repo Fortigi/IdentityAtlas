@@ -93,7 +93,7 @@ Each ingest endpoint accepts a **batch of records** for a given entity type and 
 3. **Bulk MERGEs** into the target table (INSERT new, UPDATE changed)
 4. **Scoped delete detection** — if `syncMode: "full"`, records in this system+scope that are NOT in the batch are deleted
 5. **Logs** the sync operation to `GraphSyncLog`
-6. **Returns** a summary: `{ inserted, updated, deleted, errors }`
+6. **Returns** a summary: `{ table, inserted, updated, deleted, records, durationMs }` (plus `systemIds` on the entity types that create/resolve them)
 
 ### Endpoint Pattern
 
@@ -116,19 +116,20 @@ Content-Type: application/json
 }
 ```
 
-Response:
+Response — `201 Created`:
 
 ```json
 {
-  "syncId": "uuid",
   "table": "Resources",
   "inserted": 142,
   "updated": 38,
   "deleted": 7,
-  "errors": [],
+  "records": 180,
   "durationMs": 2340
 }
 ```
+
+`records` echoes the number of records in the batch. `systemIds` is included only on the entity types that create or resolve systems (e.g. `POST /api/ingest/systems`) — it holds the resolved integer system IDs so a push-mode connector can capture the `systemId` for its follow-up calls. There is no `syncId` and no `errors[]` field on a single-batch response: a batch either succeeds as a whole (`201`) or fails validation up front (`400`, with the offending records under `details`).
 
 ### Entity Endpoints
 
@@ -137,7 +138,7 @@ Response:
 | `POST /api/ingest/systems` | Systems | `id` (INT, auto) | — |
 | `POST /api/ingest/principals` | Principals | `id` (GUID) | `principalType` |
 | `POST /api/ingest/resources` | Resources | `id` (GUID) | `resourceType` |
-| `POST /api/ingest/resource-assignments` | ResourceAssignments | `(resourceId, principalId, assignmentType)` | `assignmentType` |
+| `POST /api/ingest/resource-assignments` | ResourceAssignments | `(resourceId, principalId, assignmentType, governed)` | `assignmentType` |
 | `POST /api/ingest/resource-relationships` | ResourceRelationships | `(parentResourceId, childResourceId, relationshipType)` | `relationshipType` |
 | `POST /api/ingest/identities` | Identities | `id` (GUID) | — |
 | `POST /api/ingest/identity-members` | IdentityMembers | `(identityId, principalId)` | — |
@@ -325,8 +326,8 @@ The engine preserves the same scoping patterns used by the current PowerShell sy
 | `displayName` | Required, max 255 chars |
 | `principalType` | One of: `User`, `ServicePrincipal`, `ManagedIdentity`, `WorkloadIdentity`, `AIAgent`, `ExternalUser`, `SharedMailbox` |
 | `resourceType` | Free-form text — no enum check. Values currently emitted by crawlers: `Group`, `BusinessRole`, `Application`, `AppRole`, `DelegatedPermission`, `EntraDirectoryRole`, `GroupOwnership`, `ApplicationOwnership`, `ServicePrincipalOwnership` |
-| `assignmentType` | One of: `Direct`, `Indirect`, `Eligible`, `Owner`, `Governed`, `OAuth2Grant`, `AppRole`, `AppRoleViaGroup` |
-| `relationshipType` | One of: `Contains`, `GrantsAccessTo`, `DelegatesScope`, `HasAppRole`, `HasOwnership`, `HasAppOwnership` |
+| `assignmentType` | One of exactly: `Direct`, `Indirect`, `Eligible` — ingest **rejects** any other value. Everything that used to be its own type is modelled differently: ownership is a `Direct` membership on a `GroupOwnership`/`*Ownership` resource; governance is the `governed=true` flag on the assignment; the former source-detail types (`OAuth2Grant`, `AppRole`, `AppRoleViaGroup`, `DirectoryRole`, `DirectoryRoleEligible`) collapse to `Direct`/`Indirect`/`Eligible` with `resourceType` carrying the detail |
+| `relationshipType` | One of: `Contains`, `HasAppRole`, `DelegatesScope`, `HasApplicationPermission`, `HasAppOwnership`, `HasOwnership` (`GrantsAccessTo` is accepted but reserved / not yet emitted) |
 | `extendedAttributes` | Valid JSON object, max 64 KB |
 
 ---

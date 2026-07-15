@@ -43,16 +43,41 @@ Navigate to **Admin → Crawlers** and configure an Entra ID crawler. The wizard
 | Flag | Default | Purpose |
 |------|---------|---------|
 | `-SyncPrincipals` | On | Sync user principals |
-| `-SyncServicePrincipals` | Off | Sync managed identities, AI agents, and service principals |
-| `-SyncResources` | On | Sync groups, directory roles, app roles |
-| `-SyncAssignments` | On | Sync group memberships, owners, eligible members |
+| `-SyncServicePrincipals` | Off | Sync service principals, managed identities, and AI agents (classified by type) |
+| `-SyncResources` | On | Sync groups |
+| `-SyncAssignments` | On | Sync group memberships and owners |
 | `-SyncGovernance` | On | Sync catalogs, access packages, policies, reviews |
 | `-SyncContexts` | On | Sync calculated department contexts |
-| `-SyncPim` | Off | Sync PIM eligible members |
+| `-SyncPim` | Off | Sync PIM-eligible group memberships |
+| `-SyncDirectoryRoles` | Off | Sync Entra directory roles plus their active and PIM-eligible role assignments |
+| `-SyncAppRoles` | Off | Sync enterprise-app app-role assignments (direct, and expanded from groups) |
+| `-SyncOAuth2Grants` | Off | Sync per-user OAuth2 delegated-permission (consent) grants |
+| `-SyncAppPermissions` | Off | Sync app-only (admin-consented) API permissions held by service principals, managed identities, and AI agents |
+| `-SyncAppOwners` | Off | Sync app-registration and service-principal owners (fetched per app — slow on large tenants) |
+| `-SyncPrincipalRelationships` | Off | Sync AI-agent owners and guest-account sponsors |
+| `-SyncSignInLogs` | Off | Sync per-(user, app) last activity from sign-in logs (window set by `-SignInLogsDays`, default 7) |
 | `-RefreshViews` | On | Refresh SQL views after sync |
 | `-CustomUserAttributes` | Empty | Extra Graph attributes to capture for users |
 | `-CustomGroupAttributes` | Empty | Extra Graph attributes to capture for groups |
+| `-AINamePatterns` | Empty | Extra display-name regex patterns that classify a service principal as an AI agent |
 | `-IdentityFilter` | None | Filter which users are treated as identities |
+
+### Which toggles to enable
+
+The defaults (users, groups, memberships, governance, contexts) cover core role-mining. The service-principal and application toggles are **off by default** — they add Graph calls, and several fetch per-object so they get slower as the tenant grows. Enable them by what you want to see:
+
+| You want to see… | Enable | Cost |
+|---|---|---|
+| Non-human identities (SPs, managed identities, AI agents) | `-SyncServicePrincipals` | Low — bulk endpoints |
+| Privileged access via Entra directory roles (active + PIM-eligible) | `-SyncDirectoryRoles` | Low–moderate |
+| PIM-eligible group memberships | `-SyncPim` | High on large tenants — a per-group `$filter` call |
+| Who can use which enterprise app (app-role assignments) | `-SyncAppRoles` | Moderate |
+| Per-user consent grants to apps | `-SyncOAuth2Grants` | Moderate |
+| App-only API permissions held by SPs / managed identities / agents | `-SyncAppPermissions` | High — fetched per service principal |
+| Who owns apps / SPs (can add a credential and impersonate the app) | `-SyncAppOwners` | High — fetched per app |
+| AI-agent owners and guest-account sponsors | `-SyncPrincipalRelationships` | Low–moderate — only over agents + guests |
+
+`-SyncServicePrincipals` is the prerequisite for meaningful `-SyncAppPermissions` and `-SyncPrincipalRelationships` output (both operate on service principals), and it's where AI-agent classification happens — add `-AINamePatterns` to catch agents your naming convention flags that the built-in patterns miss.
 
 ---
 
@@ -67,10 +92,10 @@ flowchart TD
     EntraID --> AR[App Roles → Resources]
     EntraID --> GM[Group Members → ResourceAssignments\nDirect]
     EntraID --> GE[PIM Eligible → ResourceAssignments\nEligible]
-    EntraID --> GO[Group Owners → ResourceAssignments\nOwner]
+    EntraID --> GO[Group Owners → GroupOwnership Resource\nDirect ResourceAssignment]
     EntraID --> CAT[Catalogs → GovernanceCatalogs]
     EntraID --> AP[Access Packages → Resources\nresourceType=BusinessRole]
-    EntraID --> APA[AP Assignments → ResourceAssignments\nassignmentType=Governed]
+    EntraID --> APA[AP Assignments → ResourceAssignments\nDirect, governed=true]
     EntraID --> APR[AP Resource Scopes → ResourceRelationships\nrelationshipType=Contains]
     EntraID --> APP[AP Policies → AssignmentPolicies]
     EntraID --> APQ[AP Requests → AssignmentRequests]
@@ -80,6 +105,8 @@ flowchart TD
 ---
 
 ## Required Graph API Permissions
+
+Grant these as **Application** permissions (not Delegated) on the App Registration the crawler authenticates as, then grant tenant-wide admin consent in the Azure Portal under **App Registrations → API Permissions**. Creating the App Registration itself is standard Entra administration and is not covered here.
 
 | Permission | Purpose |
 |---|---|
