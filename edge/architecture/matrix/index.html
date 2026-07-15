@@ -956,6 +956,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/custom-connector/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Custom Connector (Push API)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1033,6 +1061,90 @@
     
   
     Role Mining UI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/dashboard/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dashboard
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/contexts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contexts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/effective-access/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Effective Access (Who Can Access X)
   
 
     
@@ -1852,6 +1964,62 @@
 
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin/authentication/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Authentication & SSO
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin/data-tab/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data & Maintenance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
             
               
                 
@@ -3390,10 +3558,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#owner-rows-are-split" class="md-nav__link">
+  <a href="#owner-rows-are-their-own-resource" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Owner rows are split
+        Owner rows are their own resource
       
     </span>
   </a>
@@ -3553,7 +3721,7 @@
 <h1 id="matrix-view-architecture">Matrix view — architecture<a class="headerlink" href="#matrix-view-architecture" title="Permanent link">&para;</a></h1>
 <blockquote>
 <p><strong>Status:</strong> current as of May 2026.
-Companion to <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/db/migrations/013_matrix_matviews_and_indexes.sql"><code>013_matrix_matviews_and_indexes.sql</code></a>, <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/db/migrations/024_matrix_view_all_assignment_types.sql"><code>024_matrix_view_all_assignment_types.sql</code></a>, <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/db/migrations/025_matrix_view_governed_renders_as_direct.sql"><code>025_matrix_view_governed_renders_as_direct.sql</code></a>.</p>
+Companion to <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/db/migrations/013_matrix_matviews_and_indexes.sql"><code>013_matrix_matviews_and_indexes.sql</code></a>, <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/db/migrations/024_matrix_view_all_assignment_types.sql"><code>024_matrix_view_all_assignment_types.sql</code></a>, <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/db/migrations/046_owner_as_resource.sql"><code>046_owner_as_resource.sql</code></a>, <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/db/migrations/049_governed_intent_rows.sql"><code>049_governed_intent_rows.sql</code></a>.</p>
 </blockquote>
 <h2 id="the-grid">The grid<a class="headerlink" href="#the-grid" title="Permanent link">&para;</a></h2>
 <p>Rows are <strong>resources</strong>. Columns are <strong>principals</strong> (users / service principals / managed identities — <em>not</em> groups, see below). Each cell describes whether the column-principal has the row-resource and, if so, <em>how</em>.</p>
@@ -3561,9 +3729,9 @@ Companion to <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/api
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>Sales Team           D                       &lt;- group membership
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>Reader on CRM        D       I              &lt;- app role (direct vs. via group)
 <a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>HR-Manager BR        D                       &lt;- BusinessRole assignment
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>DelegatedPerm: …             A               &lt;- OAuth2 user consent
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>DelegatedPerm: …             D               &lt;- OAuth2 user consent
 </code></pre></div>
-<p>(That last <code>A</code> no longer renders — see "Badge collapse" below — but the underlying row is still in the data.)</p>
+<p>(That last cell is an <code>OAuth2Grant</code> row — it renders as <strong>D</strong>, since the badge only carries <em>how</em> the user holds it; the <code>DelegatedPermission</code> resource type carries the <em>what</em>. See "Badge collapse" below.)</p>
 <h2 id="data-source">Data source<a class="headerlink" href="#data-source" title="Permanent link">&para;</a></h2>
 <p>A single materialized view: <code>vw_ResourceUserPermissionAssignments</code>. Refreshed at web boot via <code>bootstrap.js → refreshMatrixViews()</code> and at end-of-sync via <code>POST /api/ingest/refresh-views</code>.</p>
 <p>Shape:</p>
@@ -3599,7 +3767,7 @@ Companion to <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/api
 </table>
 <p>The view itself is a single <code>SELECT FROM "ResourceAssignments"</code> with no <code>assignmentType</code> filter — every type stored in the base table flows through automatically. The legacy hardcoded UNION of <code>Direct/Owner/Eligible/Governed</code> was removed in migration 024 so future assignment types don't need a migration to surface.</p>
 <h2 id="badge-collapse-what-each-letter-actually-means">Badge collapse — what each letter actually means<a class="headerlink" href="#badge-collapse-what-each-letter-actually-means" title="Permanent link">&para;</a></h2>
-<p>The user reads four letters. The DB stores eight assignment types. The translation lives in migration 025's CASE expression and is intentionally lossy:</p>
+<p>The user reads three letters. The DB stores a handful of assignment types. The translation lives in migration 049's CASE expression and is intentionally lossy:</p>
 <table>
 <thead>
 <tr>
@@ -3620,19 +3788,9 @@ Companion to <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/api
 <td><strong>I</strong></td>
 </tr>
 <tr>
-<td><code>Owner</code></td>
-<td><code>Owner</code></td>
-<td><strong>O</strong></td>
-</tr>
-<tr>
 <td><code>Eligible</code></td>
 <td><code>Eligible</code></td>
 <td><strong>E</strong></td>
-</tr>
-<tr>
-<td><code>Governed</code></td>
-<td><code>Direct</code></td>
-<td><strong>D</strong></td>
 </tr>
 <tr>
 <td><code>OAuth2Grant</code></td>
@@ -3649,11 +3807,26 @@ Companion to <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/api
 <td><code>Indirect</code></td>
 <td><strong>I</strong></td>
 </tr>
+<tr>
+<td><code>DirectoryRole</code></td>
+<td><code>Direct</code></td>
+<td><strong>D</strong></td>
+</tr>
+<tr>
+<td><code>DirectoryRoleEligible</code></td>
+<td><code>Eligible</code></td>
+<td><strong>E</strong></td>
+</tr>
 </tbody>
 </table>
-<p>The rationale: the <em>resource type</em> already says what <em>kind</em> of membership it is (<code>BusinessRole</code>, <code>DelegatedPermission</code>, <code>AppRole</code>). The badge is reserved for <em>how</em> the user holds the resource — Direct / Indirect / Owner / Eligible — not <em>why</em> the assignment exists.</p>
-<p><strong>Cell coloring is independent.</strong> <code>managedByAccessPackage</code> still uses the raw <code>assignmentType='Governed'</code> so the AP color overlay correctly marks governed cells regardless of the badge.</p>
-<p>The four-letter alphabet was chosen for an explicit reason: <strong><code>E</code> (Eligible) is not "current access"</strong>. A user with an Eligible row could activate via PIM but right now has nothing. Folding <code>Eligible</code> into <code>Direct</code> would misrepresent reality and was rejected in design discussion.</p>
+<p>There is <strong>no <code>O</code> (Owner) badge and no <code>Governed</code> badge</strong> — both concepts were retired as assignment types and never reach this table:</p>
+<ul>
+<li><strong>Ownership</strong> is a <code>Direct</code> assignment on a separate <code>GroupOwnership</code> resource (migration 046), so an owner shows up as a normal Direct cell on the ownership row — see <a href="#owner-rows-are-their-own-resource">Owner rows are their own resource</a> below.</li>
+<li><strong>Governed</strong> access is a <code>Direct</code> assignment carrying the <code>governed=true</code> flag (migration 049); the flag drives the AP color overlay, not a badge.</li>
+</ul>
+<p>The rationale: the <em>resource type</em> already says what <em>kind</em> of membership it is (<code>BusinessRole</code>, <code>DelegatedPermission</code>, <code>AppRole</code>, <code>GroupOwnership</code>). The badge is reserved for <em>how</em> the user holds the resource — Direct / Indirect / Eligible — not <em>why</em> the assignment exists.</p>
+<p><strong>Cell coloring is independent.</strong> <code>managedByAccessPackage</code> is computed from the <code>governed=true</code> flag (via the SOLL join in migration 049) so the AP color overlay correctly marks governed cells regardless of the badge.</p>
+<p>The three-letter alphabet was chosen for an explicit reason: <strong><code>E</code> (Eligible) is not "current access"</strong>. A user with an Eligible row could activate via PIM but right now has nothing. Folding <code>Eligible</code> into <code>Direct</code> would misrepresent reality and was rejected in design discussion.</p>
 <h2 id="expand-semantics">Expand semantics<a class="headerlink" href="#expand-semantics" title="Permanent link">&para;</a></h2>
 <p>A group can appear as a <em>principal</em> of other resources — that's how nested group membership and group-assigned app roles work. The matrix grid hides these rows (the column <code>INNER JOIN</code>s <code>Principals</code>, and groups live in <code>Resources</code>). The <strong>expand</strong> affordance surfaces them:</p>
 <ul>
@@ -3670,8 +3843,8 @@ Companion to <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/api
 - <code>(resourceId=AppRole_X, principalId=Group_Y, assignmentType='AppRole')</code> — Group Y has the role
 - <code>(resourceId=AppRole_X, principalId=User_Z, assignmentType='AppRoleViaGroup', extendedAttributes.viaGroupId='Group_Y')</code> — User Z has the role because they're in Group Y</p>
 <p>…without polluting the user-facing matrix grid. The first row is invisible there; the second row paints User Z's cell with an <code>I</code> badge.</p>
-<h2 id="owner-rows-are-split">Owner rows are split<a class="headerlink" href="#owner-rows-are-split" title="Permanent link">&para;</a></h2>
-<p>A user who is both a member and an owner of a group gets two rows in the data — <code>assignmentType='Direct'</code> and <code>assignmentType='Owner'</code>. The UI splits these into two distinct rows in the matrix (<code>&lt;groupId&gt;</code> and <code>&lt;groupId&gt;__owner</code>) so the badges don't collapse to a single ambiguous cell. See <code>MatrixView.jsx</code>'s <code>isOwner</code> branch.</p>
+<h2 id="owner-rows-are-their-own-resource">Owner rows are their own resource<a class="headerlink" href="#owner-rows-are-their-own-resource" title="Permanent link">&para;</a></h2>
+<p>A user who is both a member and an owner of a group holds two separate resources: the group itself (a <code>Direct</code> membership) and a synthetic <code>GroupOwnership</code> resource named <code>Owner @ &lt;group&gt;</code> (also a <code>Direct</code> membership). Migration 046 rewrote the old <code>assignmentType='Owner'</code> rows into Direct assignments on this ownership resource, linked back to the group by a <code>HasOwnership</code> relationship — mirroring how an <code>AppRole</code> hangs off its <code>Application</code>. The matrix therefore shows ownership as its own row, with a normal <strong>D</strong> badge, rather than a separate <code>O</code>-type cell on the group row. No client-side row-splitting is involved.</p>
 <h2 id="performance-notes">Performance notes<a class="headerlink" href="#performance-notes" title="Permanent link">&para;</a></h2>
 <ul>
 <li>The matview is refreshed <code>CONCURRENTLY</code> after the first run (which is non-concurrent because the matview starts empty).</li>

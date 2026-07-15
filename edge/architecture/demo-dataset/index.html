@@ -964,6 +964,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/custom-connector/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Custom Connector (Push API)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1041,6 +1069,90 @@
     
   
     Role Mining UI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/dashboard/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dashboard
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/contexts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contexts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/effective-access/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Effective Access (Who Can Access X)
   
 
     
@@ -1872,6 +1984,62 @@
 
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin/authentication/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Authentication & SSO
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin/data-tab/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data & Maintenance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
             
               
                 
@@ -3990,7 +4158,7 @@
     
     
       <li class="md-path__item">
-        <a href="../../admin/auto-updates/" class="md-path__link">
+        <a href="../../admin/authentication/" class="md-path__link">
           
   <span class="md-ellipsis">
     Operations
@@ -4294,8 +4462,8 @@
 <tr>
 <td>E0002 (CTO)</td>
 <td>SG-Admin-Tier0</td>
-<td>Owner</td>
-<td>CTO owns the admin group</td>
+<td>Direct</td>
+<td>CTO is a member of the critical Tier-0 admin group</td>
 </tr>
 <tr>
 <td>E0029 (SysAdmin)</td>
@@ -4318,13 +4486,13 @@
 <tr>
 <td>All 30 employees</td>
 <td>BR-Employee-Base</td>
-<td>Governed</td>
-<td>Via business role</td>
+<td>Direct (<code>governed=true</code>)</td>
+<td>Via business role — governance is the <code>governed</code> flag, not an assignment type</td>
 </tr>
 <tr>
 <td>E0010-E0024</td>
 <td>BR-Engineering-Tools</td>
-<td>Governed</td>
+<td>Direct (<code>governed=true</code>)</td>
 <td>Via business role</td>
 </tr>
 <tr>
@@ -4525,7 +4693,7 @@
 <tr>
 <td>Systems</td>
 <td>3</td>
-<td><code>SELECT COUNT(*) FROM Systems WHERE ValidTo = '9999-12-31...'</code></td>
+<td><code>SELECT COUNT(*) FROM Systems</code></td>
 </tr>
 <tr>
 <td>Principals</td>
@@ -4540,7 +4708,7 @@
 <tr>
 <td>ResourceAssignments</td>
 <td>~85</td>
-<td>Direct + Owner + Eligible + Governed</td>
+<td>Direct + Eligible (governed assignments carry <code>governed=true</code>)</td>
 </tr>
 <tr>
 <td>ResourceRelationships</td>
@@ -4632,7 +4800,7 @@
 </thead>
 <tbody>
 <tr>
-<td>CTO (E0002) has <code>assignmentType='Owner'</code> on SG-Admin-Tier0</td>
+<td>Governed business-role assignments exist (<code>governed=true</code>, count ≥ 10)</td>
 <td>True</td>
 </tr>
 <tr>

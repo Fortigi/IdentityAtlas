@@ -770,6 +770,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#doing-a-review" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Doing a review
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#how-governance-data-is-ingested" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1162,6 +1173,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/custom-connector/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Custom Connector (Push API)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1242,6 +1281,90 @@
     
   
     Role Mining UI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/dashboard/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dashboard
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/contexts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contexts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/effective-access/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Effective Access (Who Can Access X)
   
 
     
@@ -2061,6 +2184,62 @@
 
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin/authentication/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Authentication & SSO
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin/data-tab/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data & Maintenance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
             
               
                 
@@ -3649,6 +3828,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#doing-a-review" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Doing a review
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#how-governance-data-is-ingested" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3781,7 +3971,7 @@
 <p>The unification uses discriminator columns:</p>
 <ul>
 <li><code>Resources.resourceType = 'BusinessRole'</code> — identifies business roles among all resources</li>
-<li><code>ResourceAssignments.assignmentType = 'Governed'</code> — identifies governed assignments among all assignments</li>
+<li><code>ResourceAssignments.governed = true</code> — flags governed assignments among all assignments (the <code>assignmentType</code> stays one of the three universal values <code>Direct</code> / <code>Indirect</code> / <code>Eligible</code>)</li>
 <li><code>ResourceRelationships.relationshipType = 'Contains'</code> — identifies resource grants among all relationships</li>
 </ul>
 <p>The four governance-specific tables (<code>GovernanceCatalogs</code>, <code>AssignmentPolicies</code>, <code>AssignmentRequests</code>, <code>CertificationDecisions</code>) contain only data that has no place in the shared model.</p>
@@ -3808,6 +3998,7 @@
         guid resourceId FK
         guid principalId FK
         string assignmentType
+        bool governed
         guid policyId
         string state
         string assignmentStatus
@@ -3855,7 +4046,7 @@
     }
 
     GovernanceCatalogs ||--o{ Resources : "contains (BusinessRole)"
-    Resources ||--o{ ResourceAssignments : "assignmentType=Governed"
+    Resources ||--o{ ResourceAssignments : "governed=true"
     Resources ||--o{ ResourceRelationships : "relationshipType=Contains"
     Resources ||--o{ AssignmentPolicies : "governed by"
     Resources ||--o{ AssignmentRequests : "requested via"
@@ -3900,7 +4091,7 @@
 <td>AP Assignment</td>
 <td>Role Assignment</td>
 <td>Access Request Result</td>
-<td><code>ResourceAssignments</code> (<code>assignmentType = 'Governed'</code>)</td>
+<td><code>ResourceAssignments</code> (<code>governed = true</code>)</td>
 </tr>
 <tr>
 <td>Policy</td>
@@ -3962,6 +4153,11 @@
 </thead>
 <tbody>
 <tr>
+<td><code>governed</code></td>
+<td>BOOLEAN</td>
+<td><code>true</code> marks the assignment as governed (channelled through an IGA business role / access package). Defaults to <code>false</code>. This flag — not a dedicated <code>assignmentType</code> — is what distinguishes governed access from direct access</td>
+</tr>
+<tr>
 <td><code>policyId</code></td>
 <td>UUID</td>
 <td>The <code>AssignmentPolicies</code> row that granted this assignment</td>
@@ -4009,9 +4205,9 @@
 <h2 id="ist-vs-soll-analysis">IST vs SOLL Analysis<a class="headerlink" href="#ist-vs-soll-analysis" title="Permanent link">&para;</a></h2>
 <p>Identity Atlas uses IST/SOLL terminology to express the gap between actual access and governed access.</p>
 <p><strong>SOLL (should-be state)</strong>
-Access granted through a business role. Rows in <code>ResourceAssignments</code> where <code>assignmentType = 'Governed'</code>. This is access that was formally requested, approved, and periodically reviewed.</p>
+Access granted through a business role. Rows in <code>ResourceAssignments</code> where <code>governed = true</code>. This is access that was formally requested, approved, and periodically reviewed.</p>
 <p><strong>IST (as-is state)</strong>
-Direct access assignments outside governance. Rows in <code>ResourceAssignments</code> where <code>assignmentType = 'Direct'</code>. This is access that exists but was not channeled through the IGA process.</p>
+Direct access assignments outside governance. Rows in <code>ResourceAssignments</code> where <code>governed = false</code> (typically <code>assignmentType = 'Direct'</code>). This is access that exists but was not channeled through the IGA process.</p>
 <p><strong>The gap</strong>
 Users who have direct membership to a group that is also granted by a business role. They have the access, but not through the approved channel. This is the primary finding that role mining and certification campaigns aim to remediate.</p>
 <p>The following SQL views expose the IST/SOLL picture:</p>
@@ -4025,7 +4221,7 @@ Users who have direct membership to a group that is also granted by a business r
 </code></pre></div>
 <div class="admonition tip">
 <p class="admonition-title">Matrix view IST/SOLL toggle</p>
-<p>The Role Mining UI matrix view has an IST/SOLL toggle in the toolbar. SOLL filters to governed assignments only; IST filters to direct (unmanaged) assignments only; All shows both. The underlying queries use <code>assignmentType</code> to implement this filter.</p>
+<p>The Role Mining UI matrix view has an IST/SOLL toggle in the toolbar. SOLL filters to governed assignments only; IST filters to direct (unmanaged) assignments only; All shows both. The underlying queries use the <code>governed</code> flag to implement this filter.</p>
 </div>
 <hr />
 <h2 id="certification-review-flow">Certification Review Flow<a class="headerlink" href="#certification-review-flow" title="Permanent link">&para;</a></h2>
@@ -4064,6 +4260,15 @@ Users who have direct membership to a group that is also granted by a business r
 <li><strong>Pending first review</strong> — a review policy exists, but no review instance has been created yet</li>
 </ul>
 <hr />
+<h2 id="doing-a-review">Doing a review<a class="headerlink" href="#doing-a-review" title="Permanent link">&para;</a></h2>
+<p>Identity Atlas <strong>reports on</strong> certifications — it does not <strong>conduct</strong> them. There is no reviewer-decision screen or approve/deny endpoint in the product; the <code>CertificationDecisions</code> table is a <strong>read-only mirror</strong> ingested from the source IGA platform (e.g. Entra ID Access Reviews). Its only write path is the crawler ingest (<code>POST /api/ingest/governance/certifications</code>), which replaces the mirror on each sync — nothing in Identity Atlas ever authors a decision.</p>
+<p>So a review is done <strong>in the source system</strong>, not here:</p>
+<ul>
+<li><strong>Make the actual decisions</strong> in the IGA platform that owns the campaign — for Entra ID, that's <strong>Access Reviews</strong> in the Microsoft Entra admin center; for Omada or SailPoint, their own certification / recertification screens. Approvals, denials, and completions all happen there.</li>
+<li><strong>Re-sync</strong> the Entra ID (or CSV) crawler to pull the updated decisions back into <code>CertificationDecisions</code>.</li>
+<li><strong>Track compliance in Identity Atlas</strong> using the read-only review-compliance view — per-access-package last-review status (Compliant / In Progress / Reviewed Late / Missed), backed by the <code>GET /api/governance/review-compliance</code> and <code>GET /api/governance/summary</code> endpoints (see the <a href="../../api/governance/">Governance API</a>). Use it to find which business roles are overdue or were reviewed late, then drive the next campaign in the source system.</li>
+</ul>
+<hr />
 <h2 id="how-governance-data-is-ingested">How governance data is ingested<a class="headerlink" href="#how-governance-data-is-ingested" title="Permanent link">&para;</a></h2>
 <p>You don't call any sync functions by hand. In v5, every governance-related table is populated by a <strong>crawler</strong> — configured in the browser, running in the worker container, and posting its data through the <a href="../../architecture/ingest-api/">Ingest API</a>. The UI does the orchestration for you; there is no PowerShell command to memorise.</p>
 <h3 id="entra-id">Entra ID<a class="headerlink" href="#entra-id" title="Permanent link">&para;</a></h3>
@@ -4086,7 +4291,7 @@ Users who have direct membership to a group that is also granted by a business r
 </tr>
 <tr>
 <td>Access package assignments</td>
-<td><code>ResourceAssignments</code> (<code>assignmentType = Governed</code>)</td>
+<td><code>ResourceAssignments</code> (<code>governed = true</code>)</td>
 </tr>
 <tr>
 <td>Access package resource scopes</td>

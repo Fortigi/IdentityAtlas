@@ -964,6 +964,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/custom-connector/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Custom Connector (Push API)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1041,6 +1069,90 @@
     
   
     Role Mining UI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/dashboard/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dashboard
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/contexts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contexts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/effective-access/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Effective Access (Who Can Access X)
   
 
     
@@ -1868,6 +1980,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../../admin/authentication/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Authentication & SSO
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin/data-tab/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data & Maintenance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../admin/auto-updates/" class="md-nav__link">
         
   
@@ -2341,6 +2509,56 @@
     <span class="md-ellipsis">
       
         GET /api/sync-log
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#effective-access" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Effective Access
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Effective Access">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#get-apiresourceideffective-access" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /api/resource/:id/effective-access
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-apiprincipalideffective-access" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /api/principal/:id/effective-access
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-apieffective-accessresolve" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /api/effective-access/resolve
       
     </span>
   </a>
@@ -3601,6 +3819,56 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#effective-access" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Effective Access
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Effective Access">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#get-apiresourceideffective-access" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /api/resource/:id/effective-access
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-apiprincipalideffective-access" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /api/principal/:id/effective-access
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-apieffective-accessresolve" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /api/effective-access/resolve
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#filter-architecture" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3845,7 +4113,7 @@
 </tr>
 </tbody>
 </table>
-<p><strong>Reads From:</strong> <code>mat_UserPermissionAssignments</code> materialized view → <code>Principals</code> + <code>Resources</code></p>
+<p><strong>Reads From:</strong> <code>vw_ResourceUserPermissionAssignments</code> materialized view → <code>Principals</code> + <code>Resources</code></p>
 <hr />
 <h3 id="get-apiaccess-package-groups">GET /api/access-package-groups<a class="headerlink" href="#get-apiaccess-package-groups" title="Permanent link">&para;</a></h3>
 <p>Business role → resource mappings used to build SOLL columns in the Matrix. Returns the list of business roles and the resources each one contains, together with catalog and category metadata.</p>
@@ -3946,6 +4214,189 @@
 <a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a><span class="p">}</span>
 </code></pre></div>
 <hr />
+<h2 id="effective-access">Effective Access<a class="headerlink" href="#effective-access" title="Permanent link">&para;</a></h2>
+<p>These endpoints answer "<em>can this principal reach this resource, and how?</em>" — resolving direct grants plus everything reached through group membership (P1) and containment inheritance via <code>Contains</code> (P2). They are read-only, bounded (every expansion is capped and reports truncation explicitly rather than dropping results silently), and cached per completed sync. All three require <code>Authorization: Bearer &lt;JWT&gt;</code>.</p>
+<p>The engine ships <strong>P1</strong> (direct grants + grants reached via group membership) and <strong>P2</strong> (capabilities inherited from ancestor nodes through containment). <strong>P3</strong> (deny-aware / contested resolution) and <strong>P4</strong> (bulk export) are deferred, so today every result comes from a grant-only <code>AdditiveAllow</code> policy — there is no <code>deny</code> outcome yet.</p>
+<h3 id="get-apiresourceideffective-access">GET /api/resource/:id/effective-access<a class="headerlink" href="#get-apiresourceideffective-access" title="Permanent link">&para;</a></h3>
+<p>Effective access <strong>at a resource node</strong> for one principal, including capabilities inherited from ancestor nodes via <code>Contains</code>. One row per capability the principal effectively holds at the node.</p>
+<p><strong>Path / Query Parameters</strong></p>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>In</th>
+<th>Required</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>path</td>
+<td>yes</td>
+<td>The focus resource (node) id.</td>
+</tr>
+<tr>
+<td><code>principalId</code></td>
+<td>query</td>
+<td>yes</td>
+<td>The principal to resolve. Returns <code>400</code> if omitted.</td>
+</tr>
+<tr>
+<td><code>policy</code></td>
+<td>query</td>
+<td>no</td>
+<td>Resolution policy name. Defaults to <code>AdditiveAllow</code> (the only policy shipped). An unknown name returns <code>400</code>.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Response</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="p">{</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">  </span><span class="nt">&quot;nodeId&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;uuid&quot;</span><span class="p">,</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">  </span><span class="nt">&quot;principalId&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;uuid&quot;</span><span class="p">,</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">  </span><span class="nt">&quot;capabilities&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="w">    </span><span class="p">{</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="w">      </span><span class="nt">&quot;capabilityId&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;read&quot;</span><span class="p">,</span>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="w">      </span><span class="nt">&quot;capabilityResourceId&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;uuid&quot;</span><span class="p">,</span>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="w">      </span><span class="nt">&quot;effective&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;allow&quot;</span><span class="p">,</span>
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="w">      </span><span class="nt">&quot;badge&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Direct&quot;</span>
+<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="w">    </span><span class="p">}</span>
+<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a><span class="w">  </span><span class="p">],</span>
+<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a><span class="w">  </span><span class="nt">&quot;truncated&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span>
+<a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a><span class="p">}</span>
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>capabilities[].effective</code></td>
+<td>string</td>
+<td><code>allow</code> when the principal holds the capability at the node (<code>none</code> capabilities are omitted).</td>
+</tr>
+<tr>
+<td><code>capabilities[].badge</code></td>
+<td>string | null</td>
+<td>Reachability: <code>Direct</code>, <code>Indirect</code>, or <code>Eligible</code>. <code>Direct</code> only when the grant is declared at the focus node and held without a group hop; otherwise <code>Indirect</code>.</td>
+</tr>
+<tr>
+<td><code>truncated</code></td>
+<td>object | null</td>
+<td>Non-null when a bound was hit. <code>{ "holders": N }</code> if the group-membership expansion was capped, <code>{ "ancestors": N }</code> if the containment ascent was capped (either key may be present). <code>null</code> when the result is complete.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="get-apiprincipalideffective-access">GET /api/principal/:id/effective-access<a class="headerlink" href="#get-apiprincipalideffective-access" title="Permanent link">&para;</a></h3>
+<p>The principal-centric mirror of the above — same resolution and response shape, with the principal in the path and the focus node in the query.</p>
+<p><strong>Path / Query Parameters</strong></p>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>In</th>
+<th>Required</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>path</td>
+<td>yes</td>
+<td>The principal to resolve.</td>
+</tr>
+<tr>
+<td><code>node</code></td>
+<td>query</td>
+<td>yes</td>
+<td>The focus resource (node) id. Returns <code>400</code> if omitted.</td>
+</tr>
+<tr>
+<td><code>policy</code></td>
+<td>query</td>
+<td>no</td>
+<td>As above.</td>
+</tr>
+</tbody>
+</table>
+<p>Response is identical to <code>GET /api/resource/:id/effective-access</code> (<code>{ nodeId, principalId, capabilities[], truncated }</code>).</p>
+<h3 id="get-apieffective-accessresolve">GET /api/effective-access/resolve<a class="headerlink" href="#get-apieffective-accessresolve" title="Permanent link">&para;</a></h3>
+<p>The single-pair resolution primitive: the effective access of <strong>one principal on one resource</strong> (direct grants + grants reached via group membership). Lighter than the at-node forms — it does not walk containment.</p>
+<p><strong>Query Parameters</strong></p>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Required</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>resourceId</code></td>
+<td>yes</td>
+<td>The resource. Returns <code>400</code> if omitted.</td>
+</tr>
+<tr>
+<td><code>principalId</code></td>
+<td>yes</td>
+<td>The principal. Returns <code>400</code> if omitted.</td>
+</tr>
+<tr>
+<td><code>policy</code></td>
+<td>no</td>
+<td>Resolution policy name. Defaults to <code>AdditiveAllow</code>. Unknown name returns <code>400</code>.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Response</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="p">{</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="w">  </span><span class="nt">&quot;resourceId&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;uuid&quot;</span><span class="p">,</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w">  </span><span class="nt">&quot;principalId&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;uuid&quot;</span><span class="p">,</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="w">  </span><span class="nt">&quot;effective&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;allow&quot;</span><span class="p">,</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="w">  </span><span class="nt">&quot;badge&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Direct&quot;</span><span class="p">,</span>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="w">  </span><span class="nt">&quot;decisiveAce&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;effect&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;allow&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;distance&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;explicit&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;viaGroupId&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="w"> </span><span class="p">},</span>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="w">  </span><span class="nt">&quot;truncated&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span>
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="p">}</span>
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>effective</code></td>
+<td>string</td>
+<td><code>allow</code> or <code>none</code>. (No <code>deny</code> — deny-aware resolution is P3.)</td>
+</tr>
+<tr>
+<td><code>badge</code></td>
+<td>string | null</td>
+<td><code>Direct</code> / <code>Indirect</code> / <code>Eligible</code>, or <code>null</code> when <code>effective</code> is <code>none</code>.</td>
+</tr>
+<tr>
+<td><code>decisiveAce</code></td>
+<td>object | null</td>
+<td>The grant that drove the result — <code>explicit: true</code> and <code>viaGroupId: null</code> mean the principal holds it directly; a non-null <code>viaGroupId</code> is the group hop it was reached through.</td>
+</tr>
+<tr>
+<td><code>truncated</code></td>
+<td>object | null</td>
+<td><code>{ "holders": N }</code> when the group-membership expansion was capped, else <code>null</code>.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Note:</strong> the cache is keyed on the sync data version, so a completed sync invalidates every cached result at once.</p>
+<hr />
 <h2 id="filter-architecture">Filter Architecture<a class="headerlink" href="#filter-architecture" title="Permanent link">&para;</a></h2>
 <p>The UI uses a hybrid filtering approach to balance performance and flexibility:</p>
 <pre class="mermaid"><code>flowchart TD
@@ -3962,11 +4413,11 @@
 <li><code>__groupTag</code> — translates to a group-side tag subquery</li>
 </ul>
 <p><strong>Example filter JSON:</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="p">{</span>
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">  </span><span class="nt">&quot;department&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Finance&quot;</span><span class="p">,</span>
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">  </span><span class="nt">&quot;jobTitle&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Analyst&quot;</span><span class="p">,</span>
-<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">  </span><span class="nt">&quot;__userTag&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;VIP&quot;</span>
-<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="p">}</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="p">{</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">  </span><span class="nt">&quot;department&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Finance&quot;</span><span class="p">,</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">  </span><span class="nt">&quot;jobTitle&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Analyst&quot;</span><span class="p">,</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="w">  </span><span class="nt">&quot;__userTag&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;VIP&quot;</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="p">}</span>
 </code></pre></div>
 <p>Multiple filters are combined with <code>AND</code>. Values are parameterized — no string interpolation.</p>
 <h3 id="client-side-filters">Client-Side Filters<a class="headerlink" href="#client-side-filters" title="Permanent link">&para;</a></h3>
@@ -3981,11 +4432,11 @@
 <tbody>
 <tr>
 <td><code>membershipType</code></td>
-<td><code>mat_UserPermissionAssignments.membershipType</code></td>
+<td><code>vw_ResourceUserPermissionAssignments.membershipType</code></td>
 </tr>
 <tr>
 <td><code>groupDisplayName</code></td>
-<td><code>mat_UserPermissionAssignments.groupDisplayName</code></td>
+<td><code>vw_ResourceUserPermissionAssignments.groupDisplayName</code></td>
 </tr>
 <tr>
 <td>IST/SOLL toggle</td>

@@ -9,6 +9,14 @@
          <lastmod>2026-07-15</lastmod>
     </url>
     <url>
+         <loc>https://fortigi.github.io/IdentityAtlas/stable/docs-gap-audit/</loc>
+         <lastmod>2026-07-15</lastmod>
+    </url>
+    <url>
+         <loc>https://fortigi.github.io/IdentityAtlas/stable/docs-remediation-plan/</loc>
+         <lastmod>2026-07-15</lastmod>
+    </url>
+    <url>
          <loc>https://fortigi.github.io/IdentityAtlas/stable/history/</loc>
          <lastmod>2026-07-15</lastmod>
     </url>
@@ -21,7 +29,15 @@
          <lastmod>2026-07-15</lastmod>
     </url>
     <url>
+         <loc>https://fortigi.github.io/IdentityAtlas/stable/admin/authentication/</loc>
+         <lastmod>2026-07-15</lastmod>
+    </url>
+    <url>
          <loc>https://fortigi.github.io/IdentityAtlas/stable/admin/auto-updates/</loc>
+         <lastmod>2026-07-15</lastmod>
+    </url>
+    <url>
+         <loc>https://fortigi.github.io/IdentityAtlas/stable/admin/data-tab/</loc>
          <lastmod>2026-07-15</lastmod>
     </url>
     <url>
@@ -305,6 +321,10 @@
          <lastmod>2026-07-15</lastmod>
     </url>
     <url>
+         <loc>https://fortigi.github.io/IdentityAtlas/stable/sync/custom-connector/</loc>
+         <lastmod>2026-07-15</lastmod>
+    </url>
+    <url>
          <loc>https://fortigi.github.io/IdentityAtlas/stable/sync/entra-id/</loc>
          <lastmod>2026-07-15</lastmod>
     </url>
@@ -318,6 +338,18 @@
     </url>
     <url>
          <loc>https://fortigi.github.io/IdentityAtlas/stable/sync/omada/</loc>
+         <lastmod>2026-07-15</lastmod>
+    </url>
+    <url>
+         <loc>https://fortigi.github.io/IdentityAtlas/stable/ui/contexts/</loc>
+         <lastmod>2026-07-15</lastmod>
+    </url>
+    <url>
+         <loc>https://fortigi.github.io/IdentityAtlas/stable/ui/dashboard/</loc>
+         <lastmod>2026-07-15</lastmod>
+    </url>
+    <url>
+         <loc>https://fortigi.github.io/IdentityAtlas/stable/ui/effective-access/</loc>
          <lastmod>2026-07-15</lastmod>
     </url>
     <url>
