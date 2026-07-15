@@ -12,7 +12,7 @@ delete process.env.USE_SQL; // force the !useSql branch (no DB access)
 
 vi.mock('../../db/connection.js', () => ({ getPool: vi.fn(), query: vi.fn(), queryOne: vi.fn() }));
 vi.mock('../../perf/sqlTimer.js', () => ({
-  timedRequest: () => ({ input() { return this; }, query: async () => ({ recordset: [] }) }),
+  timedQuery: async () => ({ rows: [] }),
 }));
 
 const { default: dataRouter, buildMatrixContext } = await import('./data.js');

@@ -8,35 +8,20 @@ import { mountRouter } from '../../test-utils/routeTestKit.js';
 
 process.env.USE_SQL = 'true';
 
-// pool.request() recorder — captures the SQL + bound inputs of the list query
-// and returns a controllable result.
-let captured = { sql: '', inputs: {} };
-let nextListResult = { recordsets: [[], [{ total: 0 }]] };
-const mockPool = {
-  request() {
-    captured = { sql: '', inputs: {} };
-    const r = {
-      input(n, v) { captured.inputs[n] = v; return r; },
-      query(sql) { captured.sql = sql; return Promise.resolve(nextListResult); },
-    };
-    return r;
-  },
-};
-
-// db.query / db.queryOne back the optional-data reads in GET /resources/:id
-// (RiskScores, history, context counts) — exposed so the de-masking tests below
-// can make a single optional read fail on demand.
+// db.query backs the list (data + count, native $N) and the optional-data reads
+// in GET /resources/:id (RiskScores, history, context counts). db.queryOne backs
+// the history/context counts. getPool() is only handed to mocked helpers.
 const mockDb = { query: vi.fn(), queryOne: vi.fn() };
 vi.mock('../db/connection.js', () => ({
-  getPool: async () => mockPool,
+  getPool: async () => ({}),
   query: (...a) => mockDb.query(...a),
   queryOne: (...a) => mockDb.queryOne(...a),
 }));
 
-// timedRequest is used only by GET /resources/:id.
+// timedQuery is used by GET /resources/:id; forward its (sql, values) to a spy.
 const timedQuery = vi.fn();
 vi.mock('../perf/sqlTimer.js', () => ({
-  timedRequest: () => ({ input() { return this; }, query: (sql) => timedQuery(sql) }),
+  timedQuery: (_p, _l, _r, sql, values) => timedQuery(sql, values),
   getQueryTimings: () => [],
 }));
 
@@ -56,17 +41,26 @@ const VALID_ID = '11111111-1111-1111-1111-111111111111';
 
 beforeEach(() => {
   timedQuery.mockReset();
-  nextListResult = { recordsets: [[], [{ total: 0 }]] };
+  mockDb.query.mockReset();
+  mockDb.query.mockResolvedValue({ rows: [] });
+  mockDb.queryOne.mockReset();
 });
 
 describe('GET /resources — list', () => {
+  // The list fires the data query then (page 1) the COUNT query, both via db.query.
+  const stageList = (dataRows, total) => {
+    mockDb.query.mockReset();
+    mockDb.query
+      .mockResolvedValueOnce({ rows: dataRows })
+      .mockResolvedValueOnce({ rows: [{ total }] });
+  };
+  const listSql = () => mockDb.query.mock.calls[0][0];   // the data query text
+
   it('returns { data, total } with parsed tags and backward-compat aliases', async () => {
-    nextListResult = {
-      recordsets: [
-        [{ id: 'r1', displayName: 'Eng', description: 'd', resourceType: 'Group', extendedAttributes: null, tagString: null }],
-        [{ total: 1 }],
-      ],
-    };
+    stageList(
+      [{ id: 'r1', displayName: 'Eng', description: 'd', resourceType: 'Group', extendedAttributes: null, tagString: null }],
+      1,
+    );
     const res = await request(app).get('/api/resources');
     expect(res.status).toBe(200);
     expect(res.body.total).toBe(1);
@@ -76,23 +70,24 @@ describe('GET /resources — list', () => {
 
   it('filters by resourceType when supplied', async () => {
     await request(app).get('/api/resources?resourceType=Group');
-    expect(captured.sql).toContain('r."resourceType" = @resourceType');
-    expect(captured.inputs.resourceType).toBe('Group');
+    expect(listSql()).toContain('r."resourceType" =');
+    // The value is bound positionally (not inlined) — it appears in the params.
+    expect(mockDb.query.mock.calls[0][1]).toContain('Group');
   });
 
   it('excludes BusinessRole resources when no resourceType filter is given', async () => {
     await request(app).get('/api/resources');
-    expect(captured.sql).toContain(`r."resourceType" <> 'BusinessRole'`);
+    expect(listSql()).toContain(`r."resourceType" <> 'BusinessRole'`);
   });
 
   it('includes BusinessRole resources when ?includeBusinessRoles=true (governance export)', async () => {
     await request(app).get('/api/resources?includeBusinessRoles=true');
-    expect(captured.sql).not.toContain(`r."resourceType" <> 'BusinessRole'`);
+    expect(listSql()).not.toContain(`r."resourceType" <> 'BusinessRole'`);
   });
 
   it('selects the governanceResource flag so business roles are identifiable', async () => {
     await request(app).get('/api/resources?includeBusinessRoles=true');
-    expect(captured.sql).toContain('"governanceResource"');
+    expect(listSql()).toContain('"governanceResource"');
   });
 });
 
@@ -104,7 +99,7 @@ describe('GET /resources/:id — detail', () => {
   });
 
   it('404 when the resource does not exist', async () => {
-    timedQuery.mockResolvedValueOnce({ recordset: [] });
+    timedQuery.mockResolvedValueOnce({ rows: [] });
     const res = await request(app).get(`/api/resources/${VALID_ID}`);
     expect(res.status).toBe(404);
   });
@@ -116,7 +111,7 @@ describe('GET /resources/:id — detail', () => {
 // a 200 with empty/zero data, masking the outage.
 describe('GET /resources/:id — optional-data error handling (Q2 de-masking)', () => {
   // A resource row (passes the 404 gate) + cnt:0 for every count query.
-  const okRow = { recordset: [{ id: VALID_ID, displayName: 'Eng', cnt: 0, assignmentType: 'Direct' }] };
+  const okRow = { rows: [{ id: VALID_ID, displayName: 'Eng', cnt: 0, assignmentType: 'Direct' }] };
   beforeEach(() => {
     timedQuery.mockReset();
     timedQuery.mockResolvedValue(okRow);

@@ -7,7 +7,7 @@
 
 import { Router } from 'express';
 import { ensureCategoryTables } from '../categories.js';
-import { timedRequest } from '../../perf/sqlTimer.js';
+import { timedQuery } from '../../perf/sqlTimer.js';
 import { isMissingSchema } from '../../db/schemaErrors.js';
 import { useSql, db } from './shared.js';
 
@@ -33,7 +33,7 @@ async function accessPackageResourcesHandler(req, res) {
       //    ~100× less JSON work in Node.
       //  - The client side is responsible for flattening if it needs a
       //    (ap, resource) row shape — most callers want the grouped view.
-      const result = await timedRequest(p, 'ap-groups', res).query(`
+      const result = await timedQuery(p, 'ap-groups', res, `
         WITH ac AS (
           SELECT "resourceId", COUNT(*)::int AS cnt
             FROM "ResourceAssignments"
@@ -79,12 +79,12 @@ async function accessPackageResourcesHandler(req, res) {
         GROUP BY ap.id, ap."displayName", ap."systemId", c."displayName",
                  ac.cnt, cat.id, cat."name", cat."color"
         ORDER BY ap."displayName"
-      `);
+      `, []);
 
       // Callers historically expected a flat (ap, resource) shape. Flatten
       // on the Node side — cheap because postgres already did the join.
       const flat = [];
-      for (const row of result.recordset) {
+      for (const row of result.rows) {
         const base = {
           accessPackageId:   row.accessPackageId,
           businessRoleId:    row.businessRoleId,

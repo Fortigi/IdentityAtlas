@@ -10,24 +10,33 @@ import { mountRouter } from '../../test-utils/routeTestKit.js';
 
 process.env.USE_SQL = 'true';
 
-// timedRequest(p, tag, res) → chainable { input(), query() }. Each .query()
-// call pulls the next queued result from timedQuery().
-const timedQuery = vi.fn();
+// Every caller in this router now goes through native timedQuery (#663). It
+// pulls the next queued result from stageQuery and normalises .recordset → .rows
+// so staging with the `rs()` helper still feeds a handler that reads either shape.
+const stageQuery = vi.fn();
 vi.mock('../perf/sqlTimer.js', () => ({
-  timedRequest: () => {
-    const self = { input() { return self; }, query: (sql) => timedQuery(sql) };
-    return self;
+  timedQuery: async (_p, _l, _r, text, params) => {
+    const r = await stageQuery(text, params);
+    if (r == null) return r;
+    const arr = r.rows ?? r.recordset ?? [];
+    return { ...r, rows: arr, recordset: arr };
   },
   getQueryTimings: () => [],
 }));
 
-// db.getPool() → pool whose .request().query() is used for the Principals
-// table-check in /permissions. db.query() is used for context-filter +
-// effective-access paths.
+// db.getPool() → pool whose .query() runs the Principals table-check in
+// /permissions. db.query() is used for context-filter + effective-access paths.
 const dbQuery = vi.fn();
 const poolRequestQuery = vi.fn();
 vi.mock('../db/connection.js', () => ({
-  getPool: async () => ({ request: () => ({ query: (sql) => poolRequestQuery(sql) }) }),
+  getPool: async () => ({
+    query: async (...a) => {
+      const r = await poolRequestQuery(...a);
+      if (r == null) return r;
+      const arr = r.rows ?? r.recordset ?? [];
+      return { ...r, rows: arr, recordset: arr };
+    },
+  }),
   query: (...a) => dbQuery(...a),
   queryOne: vi.fn(),
 }));
@@ -63,13 +72,17 @@ vi.mock('../effectiveAccess/engine.js', () => ({
   effectiveAccessForNodes: (...a) => effectiveAccessForNodes(...a),
 }));
 
-// matrix/shared.js turns a matrix filter into resource-scope SQL — its own
-// suite covers that. Here we stub it so the nested-groups POST path receives a
-// deterministic resource subquery and we can assert the nesting query embeds it.
-// parseFilter stays trivially truthy/null so the "filter present?" branch works.
+// matrix/shared.js turns a matrix filter into a resource-scope render closure —
+// its own suite covers that. Here we stub it so the nested-groups POST path
+// receives a deterministic resource subquery and we can assert the nesting query
+// embeds it. parseFilter stays trivially truthy/null so the "filter present?"
+// branch works. `resource` is a closure (per-query binder) returning `{ sql }`.
 const buildSubqueriesMock = vi.fn(async () => ({
-  resourceSql: '(SELECT id FROM "Resources" WHERE "resourceType"::text IN (@rf_a_inc_0_0))',
-  bindings: { rf_a_inc_0_0: 'Group' },
+  resource: () => ({ sql: '(SELECT id FROM "Resources" WHERE "resourceType"::text IN ($1))' }),
+  subject: () => ({ sql: null }),
+  hasResource: true,
+  hasSubject: false,
+  warnings: [],
 }));
 vi.mock('./matrix/shared.js', () => ({
   parseFilter: (body) => (body && body.filter ? body.filter : null),
@@ -83,7 +96,7 @@ const rs = (recordset) => ({ recordset });
 const PRINCIPALS_EXISTS = rs([{ principalsExists: true }]);
 
 beforeEach(() => {
-  timedQuery.mockReset();
+  stageQuery.mockReset();
   dbQuery.mockReset();
   poolRequestQuery.mockReset();
   getPrincipalOrUserColumns.mockReset().mockResolvedValue([]);
@@ -112,7 +125,7 @@ describe('GET /api/permissions', () => {
     poolRequestQuery.mockResolvedValueOnce(PRINCIPALS_EXISTS);
     getPrincipalOrUserColumns.mockResolvedValue([{ name: 'department' }, { name: 'displayName' }]);
     getResourceColumns.mockResolvedValue([{ name: 'displayName' }]);
-    timedQuery
+    stageQuery
       .mockResolvedValueOnce(rs([{ memberId: 'u1', resourceId: 'r1', membershipType: 'Direct' }])) // main
       .mockResolvedValueOnce(rs([{ totalUsers: 42 }]))                                              // total
       .mockResolvedValueOnce(rs([{ memberId: 'u1', resourceId: 'r1', groupId: 'r1', accessPackageIds: 'ap1,ap2' }])); // AP
@@ -128,7 +141,7 @@ describe('GET /api/permissions', () => {
 
   it('swallows a missing AP view (42P01) and still returns data', async () => {
     poolRequestQuery.mockResolvedValueOnce(PRINCIPALS_EXISTS);
-    timedQuery
+    stageQuery
       .mockResolvedValueOnce(rs([{ memberId: 'u1' }]))     // main
       .mockResolvedValueOnce(rs([{ totalUsers: 1 }]))      // total
       .mockRejectedValueOnce(Object.assign(new Error('missing'), { code: '42P01' })); // AP view absent
@@ -141,7 +154,7 @@ describe('GET /api/permissions', () => {
     poolRequestQuery.mockResolvedValueOnce(PRINCIPALS_EXISTS);
     getPrincipalOrUserColumns.mockResolvedValue([{ name: 'department' }]);
     getResourceColumns.mockResolvedValue([{ name: 'displayName' }]);
-    timedQuery
+    stageQuery
       .mockResolvedValueOnce(rs([]))                 // main
       .mockResolvedValueOnce(rs([{ totalUsers: 0 }])) // total
       .mockResolvedValueOnce(rs([]));                // AP
@@ -153,7 +166,7 @@ describe('GET /api/permissions', () => {
 
   it('ignores malformed filters JSON', async () => {
     poolRequestQuery.mockResolvedValueOnce(PRINCIPALS_EXISTS);
-    timedQuery
+    stageQuery
       .mockResolvedValueOnce(rs([]))
       .mockResolvedValueOnce(rs([{ totalUsers: 0 }]))
       .mockResolvedValueOnce(rs([]));
@@ -163,7 +176,7 @@ describe('GET /api/permissions', () => {
 
   it('userLimit top-N branch returns data + AP mapping', async () => {
     poolRequestQuery.mockResolvedValueOnce(PRINCIPALS_EXISTS);
-    timedQuery
+    stageQuery
       .mockResolvedValueOnce(rs([{ memberId: 'u9', resourceId: 'r9' }])) // main (limited)
       .mockResolvedValueOnce(rs([{ totalUsers: 7 }]))                    // total
       .mockResolvedValueOnce(rs([{ memberId: 'u9', resourceId: 'r9', groupId: 'r9', accessPackageIds: null }])); // AP
@@ -175,7 +188,7 @@ describe('GET /api/permissions', () => {
 
   it('500s when the main query rejects with a non-schema error', async () => {
     poolRequestQuery.mockResolvedValueOnce(PRINCIPALS_EXISTS);
-    timedQuery.mockRejectedValueOnce(new Error('boom'));
+    stageQuery.mockRejectedValueOnce(new Error('boom'));
     const res = await request(app).get('/api/permissions');
     expect(res.status).toBe(500);
     expect(res.body).toEqual({ error: 'Internal server error' });
@@ -207,7 +220,7 @@ describe('GET /api/permissions', () => {
     ]);
     dbQuery.mockResolvedValueOnce({ rows: [{ memberId: 'node-1' }] }); // memberIds
     effectiveAccessForNodes.mockResolvedValue({ rows: [] });            // no scope nodes → fall through
-    timedQuery
+    stageQuery
       .mockResolvedValueOnce(rs([]))                  // main
       .mockResolvedValueOnce(rs([{ totalUsers: 0 }])) // total
       .mockResolvedValueOnce(rs([]));                 // AP
@@ -222,7 +235,7 @@ describe('GET /api/user-columns', () => {
   it('schema=true returns column-name objects with empty values', async () => {
     getPrincipalOrUserColumns.mockResolvedValue([{ name: 'department' }, { name: 'jobTitle' }]);
     // tag query inside the try — succeeds with no rows.
-    timedQuery.mockResolvedValueOnce({ recordset: [] });
+    stageQuery.mockResolvedValueOnce({ recordset: [] });
     const res = await request(app).get('/api/user-columns?schema=true');
     expect(res.status).toBe(200);
     const cols = res.body.map(c => c.column);
@@ -232,7 +245,7 @@ describe('GET /api/user-columns', () => {
 
   it('returns distinct values + a __userTag virtual column', async () => {
     getPrincipalOrUserColumnValues.mockResolvedValue({ department: ['HR', 'Eng'] });
-    timedQuery.mockResolvedValueOnce({ recordset: [{ name: 'VIP' }] });
+    stageQuery.mockResolvedValueOnce({ recordset: [{ name: 'VIP' }] });
     const res = await request(app).get('/api/user-columns');
     expect(res.status).toBe(200);
     const byCol = Object.fromEntries(res.body.map(c => [c.column, c.values]));
@@ -251,14 +264,14 @@ describe('GET /api/user-columns', () => {
 // ─── GET /api/sync-log ─────────────────────────────────────────────────────
 describe('GET /api/sync-log', () => {
   it('returns [] when GraphSyncLog table is absent', async () => {
-    timedQuery.mockResolvedValueOnce(rs([{ tableExists: null }]));
+    stageQuery.mockResolvedValueOnce(rs([{ tableExists: null }]));
     const res = await request(app).get('/api/sync-log');
     expect(res.status).toBe(200);
     expect(res.body).toEqual([]);
   });
 
   it('returns sync-log rows when the table exists', async () => {
-    timedQuery
+    stageQuery
       .mockResolvedValueOnce(rs([{ tableExists: 'GraphSyncLog' }]))
       .mockResolvedValueOnce(rs([{ Id: 1, SyncType: 'Users', Status: 'Success' }]));
     const res = await request(app).get('/api/sync-log?limit=5');
@@ -267,7 +280,7 @@ describe('GET /api/sync-log', () => {
   });
 
   it('500s when the table-check query rejects', async () => {
-    timedQuery.mockRejectedValueOnce(new Error('boom'));
+    stageQuery.mockRejectedValueOnce(new Error('boom'));
     const res = await request(app).get('/api/sync-log');
     expect(res.status).toBe(500);
   });
@@ -276,14 +289,14 @@ describe('GET /api/sync-log', () => {
 // ─── GET /api/groups-with-nested ───────────────────────────────────────────
 describe('GET /api/groups-with-nested', () => {
   it('returns the discovered group ids', async () => {
-    timedQuery.mockResolvedValueOnce(rs([{ groupId: 'g1' }, { groupId: 'g2' }]));
+    stageQuery.mockResolvedValueOnce(rs([{ groupId: 'g1' }, { groupId: 'g2' }]));
     const res = await request(app).get('/api/groups-with-nested');
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ groupIds: ['g1', 'g2'] });
   });
 
   it('returns empty groupIds on query failure', async () => {
-    timedQuery.mockRejectedValueOnce(new Error('boom'));
+    stageQuery.mockRejectedValueOnce(new Error('boom'));
     const res = await request(app).get('/api/groups-with-nested');
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ groupIds: [] });
@@ -303,7 +316,7 @@ describe('GET /api/group/:groupId/nested-groups', () => {
 
   it('falls through to group-membership expansion for a plain group', async () => {
     expandCapabilityDown.mockResolvedValue(null);
-    timedQuery
+    stageQuery
       .mockResolvedValueOnce(rs([{ groupId: 'p1', resourceId: 'p1', displayName: 'Parent' }])) // groups
       .mockResolvedValueOnce(rs([{ resourceId: 'p1', memberId: 'u1', membershipType: 'Direct' }])); // members
     const res = await request(app).get('/api/group/abc/nested-groups');
@@ -314,7 +327,7 @@ describe('GET /api/group/:groupId/nested-groups', () => {
 
   it('returns empty shape on query failure', async () => {
     expandCapabilityDown.mockResolvedValue(null);
-    timedQuery.mockRejectedValueOnce(new Error('boom'));
+    stageQuery.mockRejectedValueOnce(new Error('boom'));
     const res = await request(app).get('/api/group/abc/nested-groups');
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ groups: [], memberships: [] });
@@ -322,11 +335,11 @@ describe('GET /api/group/:groupId/nested-groups', () => {
 
   it('GET applies no resource clause (no matrix filter in a GET body)', async () => {
     expandCapabilityDown.mockResolvedValue(null);
-    timedQuery.mockResolvedValueOnce(rs([])).mockResolvedValueOnce(rs([]));
+    stageQuery.mockResolvedValueOnce(rs([])).mockResolvedValueOnce(rs([]));
     const res = await request(app).get('/api/group/abc/nested-groups');
     expect(res.status).toBe(200);
     expect(buildSubqueriesMock).not.toHaveBeenCalled();
-    expect(timedQuery.mock.calls[0][0]).not.toContain('IN (SELECT id FROM "Resources"');
+    expect(stageQuery.mock.calls[0][0]).not.toContain('IN (SELECT id FROM "Resources"');
   });
 });
 
@@ -334,7 +347,7 @@ describe('GET /api/group/:groupId/nested-groups', () => {
 describe('POST /api/group/:groupId/nested-groups', () => {
   it('constrains nested resources (groups + members) to the matrix resource filter', async () => {
     expandCapabilityDown.mockResolvedValue(null);
-    timedQuery
+    stageQuery
       .mockResolvedValueOnce(rs([{ groupId: 'p1', resourceId: 'p1', resourceType: 'Group' }])) // groups
       .mockResolvedValueOnce(rs([{ resourceId: 'p1', memberId: 'u1', membershipType: 'Direct' }])); // members
     const res = await request(app)
@@ -343,19 +356,19 @@ describe('POST /api/group/:groupId/nested-groups', () => {
     expect(res.status).toBe(200);
     expect(buildSubqueriesMock).toHaveBeenCalledTimes(1);
     // Both the resource-list and the member-subquery must carry the IN (subquery).
-    expect(timedQuery.mock.calls[0][0]).toContain('ra."resourceId" IN (SELECT id FROM "Resources"');
-    expect(timedQuery.mock.calls[1][0]).toContain('ra2."resourceId" IN (SELECT id FROM "Resources"');
+    expect(stageQuery.mock.calls[0][0]).toContain('ra."resourceId" IN (SELECT id FROM "Resources"');
+    expect(stageQuery.mock.calls[1][0]).toContain('ra2."resourceId" IN (SELECT id FROM "Resources"');
     expect(res.body.groups).toHaveLength(1);
     expect(res.body.memberships).toHaveLength(1);
   });
 
   it('applies no resource clause when the POST body carries no filter', async () => {
     expandCapabilityDown.mockResolvedValue(null);
-    timedQuery.mockResolvedValueOnce(rs([])).mockResolvedValueOnce(rs([]));
+    stageQuery.mockResolvedValueOnce(rs([])).mockResolvedValueOnce(rs([]));
     const res = await request(app).post('/api/group/abc/nested-groups').send({});
     expect(res.status).toBe(200);
     expect(buildSubqueriesMock).not.toHaveBeenCalled();
-    expect(timedQuery.mock.calls[0][0]).not.toContain('IN (SELECT id FROM "Resources"');
+    expect(stageQuery.mock.calls[0][0]).not.toContain('IN (SELECT id FROM "Resources"');
   });
 
   it('still returns containment expansion for a scope node (filter ignored on that path)', async () => {

@@ -6,7 +6,7 @@
 
 import { Router } from 'express';
 import * as db from '../../db/connection.js';
-import { timedRequest } from '../../perf/sqlTimer.js';
+import { timedQuery } from '../../perf/sqlTimer.js';
 import { isMissingSchema } from '../../db/schemaErrors.js';
 import { useSql, UUID_RE, cleanRow, fetchHistory, countHistory } from './shared.js';
 
@@ -20,16 +20,14 @@ const router = Router();
 async function fetchPrincipalRelationships(pool, userId, res) {
   const counts = { ownerCount: 0, sponsorCount: 0, ownedAgentCount: 0, sponsoredGuestCount: 0 };
   try {
-    const r = await timedRequest(pool, 'user-principal-relationships', res)
-      .input('id', userId)
-      .query(`SELECT
-                COUNT(*) FILTER (WHERE "principalId"::text = @id        AND "relationshipType" = 'Owner')::int   AS "ownerCount",
-                COUNT(*) FILTER (WHERE "principalId"::text = @id        AND "relationshipType" = 'Sponsor')::int AS "sponsorCount",
-                COUNT(*) FILTER (WHERE "relatedPrincipalId"::text = @id AND "relationshipType" = 'Owner')::int   AS "ownedAgentCount",
-                COUNT(*) FILTER (WHERE "relatedPrincipalId"::text = @id AND "relationshipType" = 'Sponsor')::int AS "sponsoredGuestCount"
+    const r = await timedQuery(pool, 'user-principal-relationships', res, `SELECT
+                COUNT(*) FILTER (WHERE "principalId"::text = $1        AND "relationshipType" = 'Owner')::int   AS "ownerCount",
+                COUNT(*) FILTER (WHERE "principalId"::text = $1        AND "relationshipType" = 'Sponsor')::int AS "sponsorCount",
+                COUNT(*) FILTER (WHERE "relatedPrincipalId"::text = $1 AND "relationshipType" = 'Owner')::int   AS "ownedAgentCount",
+                COUNT(*) FILTER (WHERE "relatedPrincipalId"::text = $1 AND "relationshipType" = 'Sponsor')::int AS "sponsoredGuestCount"
                 FROM "PrincipalRelationships"
-               WHERE "principalId"::text = @id OR "relatedPrincipalId"::text = @id`);
-    Object.assign(counts, r.recordset[0] || {});
+               WHERE "principalId"::text = $1 OR "relatedPrincipalId"::text = $1`, [userId]);
+    Object.assign(counts, r.rows[0] || {});
   } catch (e) { if (!isMissingSchema(e)) throw e; /* PrincipalRelationships may not exist on older deployments */ }
 
   // An AI agent / service principal is BOTH a Principal and, as an enterprise app,
@@ -37,13 +35,11 @@ async function fetchPrincipalRelationships(pool, userId, res) {
   // relations tab can jump to its resource view.
   let linkedResource = null;
   try {
-    const r = await timedRequest(pool, 'user-linked-resource', res)
-      .input('id', userId)
-      .query(`SELECT id, "displayName", "resourceType"
+    const r = await timedQuery(pool, 'user-linked-resource', res, `SELECT id, "displayName", "resourceType"
                 FROM "Resources"
-               WHERE id = @id AND "resourceType" = 'Application'
-               LIMIT 1`);
-    if (r.recordset.length > 0) linkedResource = r.recordset[0];
+               WHERE id = $1 AND "resourceType" = 'Application'
+               LIMIT 1`, [userId]);
+    if (r.rows.length > 0) linkedResource = r.rows[0];
   } catch (e) { if (!isMissingSchema(e)) throw e; /* Resources always exists, but be defensive */ }
 
   return { ...counts, linkedResource };
@@ -60,17 +56,15 @@ router.get('/user/:id', async (req, res) => {
     const userId = req.params.id;
 
     // 1. Current attributes from Principals (v5 has no GraphUsers fallback)
-    const userResult = await timedRequest(pool, 'user-attributes', res)
-      .input('id', userId)
-      .query(`SELECT p.*, s."displayName" AS "systemDisplayName"
+    const userResult = await timedQuery(pool, 'user-attributes', res, `SELECT p.*, s."displayName" AS "systemDisplayName"
                 FROM "Principals" p
                 LEFT JOIN "Systems" s ON p."systemId" = s.id
-                WHERE p.id = @id`);
+                WHERE p.id = $1`, [userId]);
 
-    if (userResult.recordset.length === 0) {
+    if (userResult.rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
-    const attributes = cleanRow(userResult.recordset[0]);
+    const attributes = cleanRow(userResult.rows[0]);
 
     // extendedAttributes is jsonb (already parsed)
     if (attributes.extendedAttributes) {
@@ -96,15 +90,13 @@ router.get('/user/:id', async (req, res) => {
     // 2. Tags
     let tags = [];
     try {
-      const r = await timedRequest(pool, 'user-tags', res)
-        .input('id', userId)
-        .query(`
+      const r = await timedQuery(pool, 'user-tags', res, `
           SELECT t.id, t."name", t."color"
             FROM "GraphTagAssignments" ta
             JOIN "GraphTags" t ON ta."tagId" = t.id
-           WHERE ta."entityId" = @id AND t."entityType" = 'user'
-        `);
-      tags = r.recordset;
+           WHERE ta."entityId" = $1 AND t."entityType" = 'user'
+        `, [userId]);
+      tags = r.rows;
     } catch (e) { if (!isMissingSchema(e)) throw e; /* table may not exist */ }
 
     // 3. Counts — assignments broken down by the universal assignmentType so the
@@ -116,14 +108,12 @@ router.get('/user/:id', async (req, res) => {
     const membershipByType = { Direct: 0, Indirect: 0, Eligible: 0 };
     let membershipCount = 0;
     try {
-      const r = await timedRequest(pool, 'user-membership-breakdown', res)
-        .input('id', userId)
-        .query(`SELECT "membershipType",
+      const r = await timedQuery(pool, 'user-membership-breakdown', res, `SELECT "membershipType",
                        COUNT(DISTINCT "resourceId")::int AS cnt
                   FROM "vw_ResourceUserPermissionAssignments"
-                 WHERE "principalId"::text = @id
-                 GROUP BY "membershipType"`);
-      for (const row of r.recordset) {
+                 WHERE "principalId"::text = $1
+                 GROUP BY "membershipType"`, [userId]);
+      for (const row of r.rows) {
         if (row.membershipType in membershipByType) membershipByType[row.membershipType] = row.cnt;
       }
       membershipCount = Object.values(membershipByType).reduce((a, b) => a + b, 0);
@@ -131,14 +121,12 @@ router.get('/user/:id', async (req, res) => {
 
     let accessPackageCount = 0;
     try {
-      const r = await timedRequest(pool, 'user-ap-count', res)
-        .input('id', userId)
-        .query(`SELECT COUNT(DISTINCT ra."resourceId")::int AS cnt
+      const r = await timedQuery(pool, 'user-ap-count', res, `SELECT COUNT(DISTINCT ra."resourceId")::int AS cnt
                   FROM "ResourceAssignments" ra
                   JOIN "Resources" r ON r.id = ra."resourceId"
-                 WHERE ra."principalId"::text = @id
-                   AND r."governanceResource"`);
-      accessPackageCount = r.recordset[0].cnt;
+                 WHERE ra."principalId"::text = $1
+                   AND r."governanceResource"`, [userId]);
+      accessPackageCount = r.rows[0].cnt;
     } catch (e) { if (!isMissingSchema(e)) throw e; /* table may not exist */ }
 
     let historyCount = 0;
@@ -146,21 +134,18 @@ router.get('/user/:id', async (req, res) => {
 
     let oauth2GrantCount = 0;
     try {
-      const r = await timedRequest(pool, 'user-oauth2-grant-count', res)
-        .input('id', userId)
-        .query(`SELECT COUNT(*)::int AS cnt
+      const r = await timedQuery(pool, 'user-oauth2-grant-count', res, `SELECT COUNT(*)::int AS cnt
                   FROM "ResourceAssignments"
-                 WHERE "principalId"::text = @id AND "assignmentType" = 'OAuth2Grant'`);
-      oauth2GrantCount = r.recordset[0].cnt;
+                 WHERE "principalId"::text = $1 AND "assignmentType" = 'OAuth2Grant'`, [userId]);
+      oauth2GrantCount = r.rows[0].cnt;
     } catch (e) { if (!isMissingSchema(e)) throw e; /* column may not exist on older deployments */ }
 
     // Direct-report count: cheap query on managerId FK.
     let directReportCount = 0;
     try {
-      const r = await timedRequest(pool, 'user-reports-count', res)
-        .input('id', userId)
-        .query(`SELECT COUNT(*)::int AS cnt FROM "Principals" WHERE "managerId" = @id`);
-      directReportCount = r.recordset[0].cnt;
+      const r = await timedQuery(pool, 'user-reports-count', res,
+        `SELECT COUNT(*)::int AS cnt FROM "Principals" WHERE "managerId" = $1`, [userId]);
+      directReportCount = r.rows[0].cnt;
     } catch (e) { if (!isMissingSchema(e)) throw e; /* managerId may not exist on older deployments */ }
 
     // Context-membership count (v6 — replaces the old Principals.contextId
@@ -173,15 +158,13 @@ router.get('/user/:id', async (req, res) => {
     // so every user showed 0 contexts.
     let contextCount = 0;
     try {
-      const r = await timedRequest(pool, 'user-context-count', res)
-        .input('id', userId)
-        .query(`SELECT COUNT(DISTINCT cm."contextId")::int AS cnt
+      const r = await timedQuery(pool, 'user-context-count', res, `SELECT COUNT(DISTINCT cm."contextId")::int AS cnt
                   FROM "ContextMembers" cm
-                 WHERE (cm."memberType" = 'Principal' AND cm."memberId"::text = @id)
+                 WHERE (cm."memberType" = 'Principal' AND cm."memberId"::text = $1)
                     OR (cm."memberType" = 'Identity'  AND cm."memberId"::text IN (
                           SELECT im."identityId"::text FROM "IdentityMembers" im
-                           WHERE im."principalId"::text = @id))`);
-      contextCount = r.recordset[0].cnt;
+                           WHERE im."principalId"::text = $1))`, [userId]);
+      contextCount = r.rows[0].cnt;
     } catch (e) { if (!isMissingSchema(e)) throw e; /* ContextMembers may not exist on older deployments */ }
 
     // Principal→principal relationships + linked resource (migration 057).
@@ -227,16 +210,13 @@ router.get('/user/:id/principal-relationships', async (req, res) => {
   const joinCol  = reverse ? 'principalId' : 'relatedPrincipalId';
   try {
     const pool = await db.getPool();
-    const r = await timedRequest(pool, 'user-principal-relationships-list', res)
-      .input('id', req.params.id)
-      .input('type', type)
-      .query(`SELECT p.id AS "principalId", p."displayName", p."principalType",
+    const r = await timedQuery(pool, 'user-principal-relationships-list', res, `SELECT p.id AS "principalId", p."displayName", p."principalType",
                      p."accountEnabled", pr."relationshipType"
                 FROM "PrincipalRelationships" pr
                 JOIN "Principals" p ON p.id = pr."${joinCol}"
-               WHERE pr."${matchCol}"::text = @id AND pr."relationshipType" = @type
-               ORDER BY p."displayName"`);
-    res.json(r.recordset);
+               WHERE pr."${matchCol}"::text = $1 AND pr."relationshipType" = $2
+               ORDER BY p."displayName"`, [req.params.id, type]);
+    res.json(r.rows);
   } catch (err) {
     if (isMissingSchema(err)) return res.json([]);
     console.error('Error fetching principal relationships:', err.message);
@@ -252,17 +232,15 @@ router.get('/user/:id/contexts', async (req, res) => {
   if (!useSql) return res.json([]);
   try {
     const pool = await db.getPool();
-    const r = await timedRequest(pool, 'user-contexts', res)
-      .input('id', req.params.id)
-      .query(`SELECT DISTINCT ON (c.id) c.id, c."displayName", c."contextType", c."targetType", c.variant
+    const r = await timedQuery(pool, 'user-contexts', res, `SELECT DISTINCT ON (c.id) c.id, c."displayName", c."contextType", c."targetType", c.variant
                 FROM "ContextMembers" cm
                 JOIN "Contexts" c ON c.id = cm."contextId"
-               WHERE (cm."memberType" = 'Principal' AND cm."memberId"::text = @id)
+               WHERE (cm."memberType" = 'Principal' AND cm."memberId"::text = $1)
                   OR (cm."memberType" = 'Identity'  AND cm."memberId"::text IN (
                         SELECT im."identityId"::text FROM "IdentityMembers" im
-                         WHERE im."principalId"::text = @id))
-               ORDER BY c.id, c."contextType", c."displayName"`);
-    res.json(r.recordset);
+                         WHERE im."principalId"::text = $1))
+               ORDER BY c.id, c."contextType", c."displayName"`, [req.params.id]);
+    res.json(r.rows);
   } catch (err) {
     console.error('Error fetching user contexts:', err.message);
     res.status(500).json({ error: 'Failed to fetch user contexts' });
@@ -278,16 +256,14 @@ router.get('/user/:id/memberships', async (req, res) => {
   try {
     const pool = await db.getPool();
     // v5: query the unified view directly. Columns are camelCase double-quoted.
-    const r = await timedRequest(pool, 'user-memberships', res)
-      .input('id', req.params.id)
-      .query(`
+    const r = await timedQuery(pool, 'user-memberships', res, `
       SELECT p."resourceId", p."resourceId" AS "groupId",
              r."displayName" AS "resourceDisplayName", r."displayName" AS "groupDisplayName",
              r."resourceType", r."resourceType" AS "groupTypeCalculated",
              p."membershipType", p."managedByAccessPackage", false AS "deleted"
         FROM "vw_ResourceUserPermissionAssignments" p
         LEFT JOIN "Resources" r ON p."resourceId" = r.id
-       WHERE p."principalId"::text = @id
+       WHERE p."principalId"::text = $1
       UNION ALL
       -- Historical access: the assignment or its resource is soft-deleted, so the
       -- matview hid it. Surface it flagged so the person keeps their access history.
@@ -297,11 +273,11 @@ router.get('/user/:id/memberships', async (req, res) => {
              ra."assignmentType" AS "membershipType", false AS "managedByAccessPackage", true AS "deleted"
         FROM "ResourceAssignments" ra
         LEFT JOIN "Resources" r ON ra."resourceId" = r.id
-       WHERE ra."principalId"::text = @id
+       WHERE ra."principalId"::text = $1
          AND (ra."deletedAt" IS NOT NULL OR r."deletedAt" IS NOT NULL)
        ORDER BY "resourceDisplayName", "membershipType"
-    `);
-    res.json(r.recordset);
+    `, [req.params.id]);
+    res.json(r.rows);
   } catch (err) {
     console.error('Error fetching user memberships:', err.message);
     res.status(500).json({ error: 'Failed to fetch memberships' });
@@ -316,9 +292,7 @@ router.get('/user/:id/access-packages', async (req, res) => {
   if (!useSql) return res.json([]);
   try {
     const pool = await db.getPool();
-    const r = await timedRequest(pool, 'user-access-packages', res)
-      .input('id', req.params.id)
-      .query(`
+    const r = await timedQuery(pool, 'user-access-packages', res, `
       SELECT DISTINCT
         a."resourceId",
         ap."displayName" AS "accessPackageName",
@@ -326,10 +300,10 @@ router.get('/user/:id/access-packages', async (req, res) => {
         a."expirationDateTime"
         FROM "ResourceAssignments" a
         JOIN "Resources" ap ON a."resourceId" = ap.id AND ap."governanceResource"
-       WHERE a."principalId"::text = @id
+       WHERE a."principalId"::text = $1
        ORDER BY ap."displayName"
-    `);
-    res.json(r.recordset);
+    `, [req.params.id]);
+    res.json(r.rows);
   } catch (err) {
     console.error('Error fetching user access packages:', err.message);
     res.status(500).json({ error: 'Failed to fetch access packages' });
@@ -348,9 +322,7 @@ router.get('/user/:id/oauth2-grants', async (req, res) => {
   if (!useSql) return res.json([]);
   try {
     const pool = await db.getPool();
-    const r = await timedRequest(pool, 'user-oauth2-grants', res)
-      .input('id', req.params.id)
-      .query(`
+    const r = await timedQuery(pool, 'user-oauth2-grants', res, `
       SELECT
         scope_res.id                       AS "scopeResourceId",
         scope_res."displayName"            AS "scopeDisplayName",
@@ -367,11 +339,11 @@ router.get('/user/:id/oauth2-grants', async (req, res) => {
          AND rr."relationshipType" = 'DelegatesScope'
         LEFT JOIN "Resources" client_res
           ON client_res.id = rr."parentResourceId"
-       WHERE a."principalId"::text = @id
+       WHERE a."principalId"::text = $1
          AND a."assignmentType" = 'OAuth2Grant'
        ORDER BY client_res."displayName", scope_res."displayName"
-    `);
-    res.json(r.recordset);
+    `, [req.params.id]);
+    res.json(r.rows);
   } catch (err) {
     console.error('Error fetching user oauth2 grants:', err.message);
     res.status(500).json({ error: 'Failed to fetch OAuth2 grants' });

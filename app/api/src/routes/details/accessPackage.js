@@ -9,7 +9,7 @@
 
 import { Router } from 'express';
 import * as db from '../../db/connection.js';
-import { timedRequest } from '../../perf/sqlTimer.js';
+import { timedQuery } from '../../perf/sqlTimer.js';
 import { isMissingSchema } from '../../db/schemaErrors.js';
 import { useSql, UUID_RE, cleanRow, fetchHistory, countHistory } from './shared.js';
 
@@ -28,87 +28,72 @@ router.get('/access-package/:id', async (req, res) => {
     // 1. Current attributes + catalog name
     let apResult;
     try {
-      apResult = await timedRequest(pool, 'ap-attributes', res)
-        .input('id', apId)
-        .query(`
+      apResult = await timedQuery(pool, 'ap-attributes', res, `
         SELECT ap.*, c."displayName" AS "catalogName"
         FROM "Resources" ap
         LEFT JOIN "GovernanceCatalogs" c ON ap."catalogId" = c.id
-        WHERE ap.id = @id AND ap."resourceType" = 'BusinessRole'
-      `);
+        WHERE ap.id = $1 AND ap."resourceType" = 'BusinessRole'
+      `, [apId]);
     } catch {
       // GovernanceCatalogs may not exist — fall back to AP-only query
-      apResult = await timedRequest(pool, 'ap-attributes', res)
-        .input('id', apId)
-        .query(`SELECT * FROM "Resources" WHERE id = @id AND "resourceType" = 'BusinessRole'`);
+      apResult = await timedQuery(pool, 'ap-attributes', res,
+        `SELECT * FROM "Resources" WHERE id = $1 AND "resourceType" = 'BusinessRole'`, [apId]);
     }
 
-    if (apResult.recordset.length === 0) {
+    if (apResult.rows.length === 0) {
       return res.status(404).json({ error: 'Access package not found' });
     }
-    const attributes = cleanRow(apResult.recordset[0]);
+    const attributes = cleanRow(apResult.rows[0]);
 
     // 2. Assignment count
     let assignmentCount = 0;
     try {
-      const r = await timedRequest(pool, 'ap-assignment-count', res)
-        .input('id', apId)
-        .query(`
-        SELECT COUNT(*)::int AS cnt FROM "ResourceAssignments" WHERE "resourceId" = @id
-      `);
-      assignmentCount = r.recordset[0].cnt;
+      const r = await timedQuery(pool, 'ap-assignment-count', res,
+        `SELECT COUNT(*)::int AS cnt FROM "ResourceAssignments" WHERE "resourceId" = $1`, [apId]);
+      assignmentCount = r.rows[0].cnt;
     } catch (e) { if (!isMissingSchema(e)) throw e; /* table may not exist */ }
 
     // 3. Group count (resources linked to this AP)
     let groupCount = 0;
     try {
-      const r = await timedRequest(pool, 'ap-group-count', res)
-        .input('id', apId)
-        .query(`
+      const r = await timedQuery(pool, 'ap-group-count', res, `
         SELECT COUNT(DISTINCT "childResourceId")::int AS cnt
         FROM "ResourceRelationships"
-        WHERE "parentResourceId" = @id AND "relationshipType" = 'Contains'
-      `);
-      groupCount = r.recordset[0].cnt;
+        WHERE "parentResourceId" = $1 AND "relationshipType" = 'Contains'
+      `, [apId]);
+      groupCount = r.rows[0].cnt;
     } catch (e) { if (!isMissingSchema(e)) throw e; /* table may not exist */ }
 
     // 4. Review count
     let reviewCount = 0;
     try {
-      const r = await timedRequest(pool, 'ap-review-count', res)
-        .input('id', apId)
-        .query(`
-        SELECT COUNT(*)::int AS cnt FROM "CertificationDecisions" WHERE "resourceId" = @id
-      `);
-      reviewCount = r.recordset[0].cnt;
+      const r = await timedQuery(pool, 'ap-review-count', res,
+        `SELECT COUNT(*)::int AS cnt FROM "CertificationDecisions" WHERE "resourceId" = $1`, [apId]);
+      reviewCount = r.rows[0].cnt;
     } catch (e) { if (!isMissingSchema(e)) throw e; /* table may not exist */ }
 
     // 5. Pending request count — COUNT only (cheap); full rows are lazy-loaded.
     let pendingRequestCount = null;
     try {
-      const r = await timedRequest(pool, 'ap-pending-request-count', res)
-        .input('id', apId)
-        .query(`
+      const r = await timedQuery(pool, 'ap-pending-request-count', res, `
         SELECT COUNT(*)::int AS cnt FROM "AssignmentRequests"
-        WHERE "resourceId" = @id AND "requestState" = 'PendingApproval'
-      `);
-      pendingRequestCount = r.recordset[0].cnt;
+        WHERE "resourceId" = $1 AND "requestState" = 'PendingApproval'
+      `, [apId]);
+      pendingRequestCount = r.rows[0].cnt;
     } catch (e) { if (!isMissingSchema(e)) throw e; /* table may not exist */ }
 
     // 5b. Last review date + reviewer
     let lastReviewDate = null;
     let lastReviewedBy = null;
     try {
-      const r = await timedRequest(pool, 'ap-last-review-date', res)
-        .input('id', apId)
-        .query(`
+      const r = await timedQuery(pool, 'ap-last-review-date', res, `
         SELECT "reviewedDateTime", "reviewedByDisplayName"
         FROM "CertificationDecisions"
-        WHERE "resourceId" = @id AND decision IS NOT NULL AND decision <> 'NotReviewed'
+        WHERE "resourceId" = $1 AND decision IS NOT NULL AND decision <> 'NotReviewed'
         ORDER BY "reviewedDateTime" DESC
-      `);
-      lastReviewDate = r.recordset[0]?.reviewedDateTime || null;
-      lastReviewedBy = r.recordset[0]?.reviewedByDisplayName || null;
+      `, [apId]);
+      lastReviewDate = r.rows[0]?.reviewedDateTime || null;
+      lastReviewedBy = r.rows[0]?.reviewedByDisplayName || null;
     } catch (e) { if (!isMissingSchema(e)) throw e; /* table may not exist */ }
 
     // 5c. Compliance status of the latest review instance — the same calculated
@@ -148,19 +133,17 @@ router.get('/access-package/:id', async (req, res) => {
     let autoAddPolicyCount = 0;
     let autoRemovePolicyCount = 0;
     try {
-      const r = await timedRequest(pool, 'ap-policy-summary', res)
-        .input('id', apId)
-        .query(`
+      const r = await timedQuery(pool, 'ap-policy-summary', res, `
         SELECT
           COUNT(*)::int AS total,
           SUM(CASE WHEN "hasAutoAddRule" = TRUE THEN 1 ELSE 0 END)::int AS "autoAdd",
           SUM(CASE WHEN COALESCE("hasAutoAddRule", FALSE) = FALSE AND "hasAutoRemoveRule" = TRUE THEN 1 ELSE 0 END)::int AS "autoRemoveOnly"
         FROM "AssignmentPolicies"
-        WHERE "resourceId" = @id
-      `);
-      policyCount = r.recordset[0].total;
-      autoAddPolicyCount = r.recordset[0].autoAdd;
-      autoRemovePolicyCount = r.recordset[0].autoRemoveOnly;
+        WHERE "resourceId" = $1
+      `, [apId]);
+      policyCount = r.rows[0].total;
+      autoAddPolicyCount = r.rows[0].autoAdd;
+      autoRemovePolicyCount = r.rows[0].autoRemoveOnly;
     } catch (e) { if (!isMissingSchema(e)) throw e; /* table may not exist */ }
 
     // Derive assignment type label
@@ -183,16 +166,14 @@ router.get('/access-package/:id', async (req, res) => {
     try {
       const { ensureCategoryTables } = await import('../categories.js');
       await ensureCategoryTables(pool);
-      const r = await timedRequest(pool, 'ap-category', res)
-        .input('id', apId)
-        .query(`
+      const r = await timedQuery(pool, 'ap-category', res, `
         SELECT cat.id, cat.name, cat.color
         FROM "GovernanceCategoryAssignments" ca
         INNER JOIN "GovernanceCategories" cat ON ca."categoryId" = cat.id
-        WHERE ca."resourceId" = LOWER(@id)
-      `);
-      if (r.recordset.length > 0) {
-        category = r.recordset[0];
+        WHERE ca."resourceId" = LOWER($1)
+      `, [apId]);
+      if (r.rows.length > 0) {
+        category = r.rows[0];
       }
     } catch (e) { if (!isMissingSchema(e)) throw e; /* category tables may not exist */ }
 
@@ -224,13 +205,7 @@ router.get('/access-package/:id/assignments', async (req, res) => {
       // drive the _history lookup from a.id; the audit rows key off the
       // composite too. Skip the assignedDate lookup for now (it's a nice-to
       // have) and fall back to the assignment row itself.
-      // ResourceAssignments has no surrogate `id` column in v5 — the
-      // primary key is (resourceId, principalId, assignmentType). The
-      // merge with main re-introduced `a.id` which 500'd the query and
-      // blanked the whole assignments list again.
-      r = await timedRequest(pool, 'ap-assignments', res)
-        .input('id', req.params.id)
-        .query(`
+      r = await timedQuery(pool, 'ap-assignments', res, `
         SELECT
           a."principalId", a.state AS "assignmentState", a."assignmentStatus",
           u."displayName" AS "targetDisplayName",
@@ -238,15 +213,15 @@ router.get('/access-package/:id/assignments', async (req, res) => {
           NULL::timestamptz AS "assignedDate"
         FROM "ResourceAssignments" a
         LEFT JOIN "Principals" u ON a."principalId" = u.id
-        WHERE a."resourceId" = @id
+        WHERE a."resourceId" = $1
           AND (a.state = 'Delivered' OR a.state IS NULL)
         ORDER BY u."displayName"
-      `);
+      `, [req.params.id]);
     } catch (e) {
       console.error('ap-assignments failed:', e.message);
-      r = { recordset: [] };
+      r = { rows: [] };
     }
-    res.json(r.recordset);
+    res.json(r.rows);
   } catch (err) {
     res.json([]);
   }
@@ -260,9 +235,7 @@ router.get('/access-package/:id/resource-roles', async (req, res) => {
   if (!useSql) return res.json([]);
   try {
     const pool = await db.getPool();
-    const r = await timedRequest(pool, 'ap-resource-roles', res)
-      .input('id', req.params.id)
-      .query(`
+    const r = await timedQuery(pool, 'ap-resource-roles', res, `
       SELECT
         rrs."roleName", rrs."roleOriginSystem",
         r."displayName" AS "scopeDisplayName", rrs."childResourceId", rrs."roleOriginSystem" AS "scopeOriginSystem",
@@ -271,10 +244,10 @@ router.get('/access-package/:id/resource-roles', async (req, res) => {
         r."resourceType", r."systemId"
       FROM "ResourceRelationships" rrs
       LEFT JOIN "Resources" r ON rrs."childResourceId" = r.id
-      WHERE rrs."parentResourceId" = @id AND rrs."relationshipType" = 'Contains'
+      WHERE rrs."parentResourceId" = $1 AND rrs."relationshipType" = 'Contains'
       ORDER BY r."displayName", rrs."roleName"
-    `);
-    res.json(r.recordset);
+    `, [req.params.id]);
+    res.json(r.rows);
   } catch (err) {
     console.error('ap-resource-roles failed:', err.message);
     res.json([]);
@@ -289,9 +262,7 @@ router.get('/access-package/:id/reviews', async (req, res) => {
   if (!useSql) return res.json([]);
   try {
     const pool = await db.getPool();
-    const r = await timedRequest(pool, 'ap-reviews', res)
-      .input('id', req.params.id)
-      .query(`
+    const r = await timedQuery(pool, 'ap-reviews', res, `
       SELECT
         id, "reviewInstanceId", "reviewDefinitionId",
         "principalDisplayName",
@@ -300,10 +271,10 @@ router.get('/access-package/:id/reviews', async (req, res) => {
         "reviewInstanceStartDateTime", "reviewInstanceEndDateTime",
         "reviewInstanceStatus"
       FROM "CertificationDecisions"
-      WHERE "resourceId" = @id
+      WHERE "resourceId" = $1
       ORDER BY "reviewedDateTime" DESC
-    `);
-    res.json(r.recordset);
+    `, [req.params.id]);
+    res.json(r.rows);
   } catch (err) {
     res.json([]);
   }
@@ -317,20 +288,18 @@ router.get('/access-package/:id/requests', async (req, res) => {
   if (!useSql) return res.json([]);
   try {
     const pool = await db.getPool();
-    const r = await timedRequest(pool, 'ap-requests', res)
-      .input('id', req.params.id)
-      .query(`
+    const r = await timedQuery(pool, 'ap-requests', res, `
         SELECT
           req.id, req."requestType", req."requestState", req."requestStatus",
           req.justification, req."createdDateTime", req."completedDateTime",
           u."displayName" AS "requestorDisplayName", u.email AS "requestorUPN"
         FROM "AssignmentRequests" req
         LEFT JOIN "Principals" u ON req."requestorId" = u.id
-        WHERE req."resourceId" = @id
+        WHERE req."resourceId" = $1
           AND req."requestState" IN ('PendingApproval', 'Delivering', 'Accepted')
         ORDER BY req."createdDateTime" DESC
-      `);
-    res.json(r.recordset);
+      `, [req.params.id]);
+    res.json(r.rows);
   } catch (err) {
     res.json([]);
   }
@@ -361,9 +330,7 @@ router.get('/access-package/:id/policies', async (req, res) => {
   if (!useSql) return res.json([]);
   try {
     const pool = await db.getPool();
-    const r = await timedRequest(pool, 'ap-policies', res)
-      .input('id', req.params.id)
-      .query(`
+    const r = await timedQuery(pool, 'ap-policies', res, `
       SELECT id, "displayName", description, "allowedTargetScope",
              COALESCE("hasAutoAddRule", FALSE) AS "hasAutoAddRule",
              COALESCE("hasAutoRemoveRule", FALSE) AS "hasAutoRemoveRule",
@@ -372,10 +339,10 @@ router.get('/access-package/:id/policies', async (req, res) => {
              "automaticRequestSettings" #>> '{filter,rule}' AS "autoAssignmentFilter",
              "createdDateTime", "modifiedDateTime"
       FROM "AssignmentPolicies"
-      WHERE "resourceId" = @id
+      WHERE "resourceId" = $1
       ORDER BY "displayName"
-    `);
-    res.json(r.recordset);
+    `, [req.params.id]);
+    res.json(r.rows);
   } catch {
     res.json([]);
   }

@@ -6,19 +6,18 @@ import { mountRouter } from '../../test-utils/routeTestKit.js';
 
 process.env.USE_SQL = 'true';
 
-let nextResult = { recordset: [] };
-const mockPool = { request() { const r = { input() { return r; }, query() { return Promise.resolve(nextResult); } }; return r; } };
-vi.mock('../db/connection.js', () => ({ getPool: async () => mockPool }));
+const query = vi.fn();
+vi.mock('../db/connection.js', () => ({ getPool: async () => ({}), query: (...a) => query(...a), queryOne: vi.fn(), tx: vi.fn() }));
 vi.mock('../middleware/auth.js', () => ({ requirePermission: () => (_q, _s, next) => next() }));
 
 const { default: router } = await import('./categories.js');
 const app = mountRouter(router);
 
-beforeEach(() => { nextResult = { recordset: [] }; });
+beforeEach(() => { query.mockReset(); });
 
 describe('categories', () => {
   it('GET /categories returns the rows', async () => {
-    nextResult = { recordset: [{ id: 1, name: 'Finance', color: '#3b82f6' }] };
+    query.mockResolvedValueOnce({ rows: [{ id: 1, name: 'Finance', color: '#3b82f6' }] });
     const res = await request(app).get('/api/categories');
     expect(res.status).toBe(200);
     expect(res.body).toEqual([{ id: 1, name: 'Finance', color: '#3b82f6' }]);

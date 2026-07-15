@@ -1,50 +1,46 @@
-import { timedRequest } from '../perf/sqlTimer.js';
+import { timedQuery } from '../perf/sqlTimer.js';
 
 /**
  * Runs a paginated data + count query against RiskScores with a caller-supplied
- * JOIN and WHERE clause. Returns { data: recordset[], total: number }.
+ * JOIN and WHERE clause. Returns { data: rows[], total: number }.
  *
- * The caller builds whereClause and params so that entity-specific filter
- * conditions (search column names, extra filters like department/resourceType)
- * stay in the route handler. This helper only fires the two SQL statements.
+ * The caller builds whereClause and params (via createParams) so that
+ * entity-specific filter conditions (search columns, extra filters like
+ * department/resourceType) stay in the route handler. `params` holds the filter
+ * values already bound as $1..$N in whereClause; the data query appends
+ * LIMIT/OFFSET as the next two placeholders, while the COUNT query — which
+ * doesn't page — takes just the filter params.
  */
 export async function queryRiskScoresPage(pool, res, {
   label,        // timer label prefix, e.g. 'risk-users'
   fromClause,   // SQL after "FROM \"RiskScores\" rs", e.g. 'INNER JOIN "Principals" p ON ...'
   selectCols,   // additional SELECT columns beyond rs.*, e.g. 'p."displayName", p.email AS ...'
-  whereClause,  // full WHERE clause including entity-type predicate, e.g. 'WHERE rs."entityType" = \'Principal\' AND ...'
-  params,       // [{ name, value }] — bound to both data and count requests
+  whereClause,  // full WHERE clause including entity-type predicate; references $1..$N from params
+  params,       // positional filter values bound in whereClause
   limit,
   offset,
 }) {
-  const dataReq  = timedRequest(pool, `${label}-list`,  res);
-  const countReq = timedRequest(pool, `${label}-count`, res);
+  const limitPh  = `$${params.length + 1}`;
+  const offsetPh = `$${params.length + 2}`;
 
-  for (const { name, value } of params) {
-    dataReq.input(name, value);
-    countReq.input(name, value);
-  }
-  dataReq.input('limit',  limit);
-  dataReq.input('offset', offset);
-
-  const dataResult = await dataReq.query(`
+  const dataResult = await timedQuery(pool, `${label}-list`, res, `
     SELECT rs.*, ${selectCols}
     FROM "RiskScores" rs
     ${fromClause}
     ${whereClause}
     ORDER BY rs."riskScore" DESC
-    LIMIT @limit OFFSET @offset
-  `);
+    LIMIT ${limitPh} OFFSET ${offsetPh}
+  `, [...params, limit, offset]);
 
-  const countResult = await countReq.query(`
+  const countResult = await timedQuery(pool, `${label}-count`, res, `
     SELECT COUNT(*) AS total
     FROM "RiskScores" rs
     ${fromClause}
     ${whereClause}
-  `);
+  `, params);
 
   return {
-    data:  dataResult.recordset,
-    total: countResult.recordset[0].total,
+    data:  dataResult.rows,
+    total: countResult.rows[0].total,
   };
 }

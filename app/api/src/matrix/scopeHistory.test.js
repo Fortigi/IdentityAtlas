@@ -2,19 +2,25 @@
 
 import { describe, it, expect } from 'vitest';
 import { generateSampleDates, buildScopeAsofSql } from './scopeHistory.js';
+import { createParams } from '../db/sqlParams.js';
 
 const PRINCIPAL_COLS = new Set(['displayName', 'department', 'jobTitle', 'email', 'principalType']);
 const RESOURCE_COLS  = new Set(['displayName', 'resourceType', 'systemId']);
 const CTX_PRINCIPAL  = 'a0000001-0000-0000-0000-000000000001';
 const CONTEXT_TYPES  = new Map([[CTX_PRINCIPAL, 'Principal']]);
 
+// Render through a fresh positional binder; the as-of instant is left as a
+// `:ASOF:` marker the caller substitutes per sample date, so it never binds here.
 function build(filter, ctx = CONTEXT_TYPES) {
-  return buildScopeAsofSql({
+  const { params, bind } = createParams();
+  const out = buildScopeAsofSql({
     filter,
     principalColSet: PRINCIPAL_COLS,
     resourceColSet: RESOURCE_COLS,
     contextTypes: ctx,
+    bind,
   });
+  return { ...out, params };
 }
 
 const EMPTY = { rowType: 'principal', subject: { include: [], exclude: [] }, resource: { include: [], exclude: [] } };
@@ -45,9 +51,9 @@ describe('generateSampleDates', () => {
 });
 
 describe('buildScopeAsofSql', () => {
-  it('reconstructs from _history with a bound @asof param and governed split', () => {
+  it('reconstructs from _history with an :ASOF: marker and governed split', () => {
     const { sql, scopeMode } = build(EMPTY);
-    expect(sql).toContain('@asof');
+    expect(sql).toContain(':ASOF:');
     expect(sql).toContain('_history');
     expect(sql).toContain('asof_assign');
     // Governed = covered by a business role: reconstruct Contains relationships
@@ -65,12 +71,12 @@ describe('buildScopeAsofSql', () => {
   });
 
   it('reconstructs an attribute subject condition against the as-of state', () => {
-    const { sql, bindings, scopeMode } = build({
+    const { sql, params, scopeMode } = build({
       ...EMPTY,
       subject: { include: [{ kind: 'attribute', field: 'department', values: ['Finance'] }], exclude: [] },
     });
     expect(sql).toMatch(/sp\.state->>'department'/);
-    expect(Object.values(bindings)).toContain('Finance');
+    expect(params).toContain('Finance');
     expect(scopeMode).toBe('attribute'); // attribute conditions are fully reconstructable
   });
 

@@ -16,11 +16,21 @@ process.env.TRACE_DIR = TRACE;
 process.env.USE_SQL = 'true';
 writeFileSync(join(TRACE, '7.log'), 'hello world trace');
 
-const P = (v) => Promise.resolve(v);
+// Normalise to dual-shape so both the shim callers (runs.js: .recordset /
+// .rowsAffected) and the native callers (configs/helpers: .rows / .rowCount)
+// read the same staged rows off one SQL dispatcher during the #663 migration.
+const P = (v) => {
+  const rows = v.rows ?? v.recordset ?? [];
+  const rowCount = v.rowCount ?? v.rowsAffected?.[0] ?? rows.length;
+  return Promise.resolve({ ...v, rows, recordset: rows, rowCount, rowsAffected: [rowCount] });
+};
 const poolQuery = vi.fn();
 const dbQuery = vi.fn();
 vi.mock('../db/connection.js', () => ({
-  getPool: async () => ({ request: () => { const r = { input() { return r; }, query: (...a) => poolQuery(...a) }; return r; } }),
+  getPool: async () => ({
+    request: () => { const r = { input() { return r; }, query: (...a) => poolQuery(...a) }; return r; },
+    query: (...a) => poolQuery(...a),
+  }),
   query: (...a) => dbQuery(...a),
   queryOne: vi.fn(),
 }));

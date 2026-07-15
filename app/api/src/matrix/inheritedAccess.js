@@ -15,6 +15,7 @@
 // everything.
 
 import { createHash } from 'crypto';
+import { createParams } from '../db/sqlParams.js';
 import * as db from '../db/connection.js';
 import { effectiveAccessForNodes } from '../effectiveAccess/engine.js';
 import { getSyncVersion } from '../lib/syncVersion.js';
@@ -43,36 +44,38 @@ async function cachedEffectiveAccess(nodeIds) {
   return rows;
 }
 
-// The scope-node ids inside the current resource scope. `built.resourceSql` is a
-// parenthesised "(SELECT id FROM "Resources" WHERE …)" carrying @-bindings.
+// The scope-node ids inside the current resource scope. `built.resource(bind)`
+// renders a parenthesised "(SELECT id FROM "Resources" WHERE …)" whose values
+// are appended to this query's own positional params via `bind`.
 // Capability-resources (role@scope) carry a capabilityId and are NOT part of the
 // containment hierarchy the engine walks, so exclude them.
 async function scopedNodeIds(p, built) {
-  const req = p.request();
-  for (const [k, v] of Object.entries(built.bindings)) req.input(k, v);
-  const r = await req.query(
-    `SELECT id FROM "Resources" WHERE id IN ${built.resourceSql} AND "capabilityId" IS NULL`,
+  const { params, bind } = createParams();
+  const resourceSql = built.resource(bind).sql;
+  const r = await p.query(
+    `SELECT id FROM "Resources" WHERE id IN ${resourceSql} AND "capabilityId" IS NULL`,
+    params,
   );
-  return r.recordset.map((x) => x.id);
+  return r.rows.map((x) => x.id);
 }
 
 // The principal ids inside the current subject scope, so inherited rows honour
 // the subject filter too. Returns null when there is no subject scope.
 async function scopedPrincipalIds(p, built, rowType) {
-  if (!built.subjectSql) return null;
-  const req = p.request();
-  for (const [k, v] of Object.entries(built.bindings)) req.input(k, v);
+  if (!built.hasSubject) return null;
+  const { params, bind } = createParams();
+  const subjectSql = built.subject(bind).sql;
   const sql = rowType === 'identity'
-    ? `SELECT "principalId" AS id FROM "IdentityMembers" WHERE "identityId" IN ${built.subjectSql}`
-    : `SELECT id FROM "Principals" WHERE id IN ${built.subjectSql}`;
-  const r = await req.query(sql);
-  return new Set(r.recordset.map((x) => x.id));
+    ? `SELECT "principalId" AS id FROM "IdentityMembers" WHERE "identityId" IN ${subjectSql}`
+    : `SELECT id FROM "Principals" WHERE id IN ${subjectSql}`;
+  const r = await p.query(sql, params);
+  return new Set(r.rows.map((x) => x.id));
 }
 
 // Produce flat per-(capability, subject) rows in the exact shape the /matrix/data
 // flat path emits, for the inherited access at the scoped resources.
 export async function buildInheritedFlatRows(p, built, rowType, subjectCols) {
-  if (!built.resourceSql) return [];                 // bounded scope only
+  if (!built.hasResource) return [];                 // bounded scope only
   const nodeIds = await scopedNodeIds(p, built);
   if (!nodeIds.length) return [];
 
@@ -155,7 +158,7 @@ export async function buildInheritedFlatRows(p, built, rowType, subjectCols) {
 // distinct holders per (synthesized capability-resource, group-value), shaped to
 // merge into the attribute-rollup response. Bounded-scope + principal rowType.
 export async function buildInheritedRollupCounts(p, built, rowType, rollupAttr, principalCols) {
-  if (!built.resourceSql) return null;
+  if (!built.hasResource) return null;
   const nodeIds = await scopedNodeIds(p, built);
   if (!nodeIds.length) return null;
   const eff = await cachedEffectiveAccess(nodeIds);
@@ -219,7 +222,7 @@ export async function buildInheritedRollupCounts(p, built, rowType, rollupAttr, 
 // context node whose subtree contains them (a holder can map to more than one
 // when frontier nodes nest). `frontierIds` are the visible cut's node ids.
 export async function buildInheritedContextCounts(p, built, rowType, frontierIds) {
-  if (!built.resourceSql || !Array.isArray(frontierIds) || !frontierIds.length) return null;
+  if (!built.hasResource || !Array.isArray(frontierIds) || !frontierIds.length) return null;
   const nodeIds = await scopedNodeIds(p, built);
   if (!nodeIds.length) return null;
   const eff = await cachedEffectiveAccess(nodeIds);
@@ -290,7 +293,7 @@ export async function buildInheritedContextCounts(p, built, rowType, frontierIds
 // tuple is computed on the identity for identity rowType — not yet supported).
 export async function buildInheritedFoldCounts(p, built, rowType, sortAttributes, principalCols, collapsed) {
   if (rowType === 'identity') return null;
-  if (!built.resourceSql || !Array.isArray(sortAttributes) || !sortAttributes.length) return null;
+  if (!built.hasResource || !Array.isArray(sortAttributes) || !sortAttributes.length) return null;
   const nodeIds = await scopedNodeIds(p, built);
   if (!nodeIds.length) return null;
   const eff = await cachedEffectiveAccess(nodeIds);

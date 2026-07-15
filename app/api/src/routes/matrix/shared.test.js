@@ -1,14 +1,30 @@
-// Unit tests for the pure helpers extracted into matrix/shared.js (Q1 split).
-// db / sqlTimer are mocked only to keep the import side-effect-free; the
-// functions under test don't touch them.
-import { describe, it, expect, vi } from 'vitest';
+// Unit tests for the helpers in matrix/shared.js (Q1 split). db / sqlTimer /
+// columnCache / filterSql are mocked; the pure functions don't touch them, and
+// the DB-backed ones (buildSubqueries / runCount / scopeCounts) drive the mocks.
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-vi.mock('../../db/connection.js', () => ({ query: vi.fn(), queryOne: vi.fn(), getPool: vi.fn() }));
-vi.mock('../../perf/sqlTimer.js', () => ({ timedRequest: () => ({ input() { return this; }, query: async () => ({ recordset: [] }) }) }));
+const { dbQuery, timedQ, buildEntity } = vi.hoisted(() => ({
+  dbQuery: vi.fn(async () => ({ rows: [] })),
+  timedQ: vi.fn(async () => ({ rows: [] })),
+  buildEntity: vi.fn(() => ({ sql: null, warnings: [] })),
+}));
+
+vi.mock('../../db/connection.js', () => ({ query: (...a) => dbQuery(...a), queryOne: vi.fn(), getPool: vi.fn() }));
+vi.mock('../../perf/sqlTimer.js', () => ({ timedQuery: (...a) => timedQ(...a) }));
 vi.mock('../../db/columnCache.js', () => ({ getPrincipalColumns: async () => [], getResourceColumns: async () => [] }));
-vi.mock('../../matrix/filterSql.js', () => ({ buildEntitySubquery: () => ({ sql: null, bindings: {}, warnings: [] }), collectContextIds: () => [] }));
+vi.mock('../../matrix/filterSql.js', () => ({ buildEntitySubquery: (...a) => buildEntity(...a), collectContextIds: () => [] }));
 
-const { parseFilter, normaliseBlock, subjectScopeClauses, normaliseSortAttributes } = await import('./shared.js');
+const {
+  parseFilter, normaliseBlock, subjectScopeClauses, normaliseSortAttributes,
+  buildSubqueries, runCount, scopeCounts,
+} = await import('./shared.js');
+const { createParams } = await import('../../db/sqlParams.js');
+
+beforeEach(() => {
+  dbQuery.mockReset().mockResolvedValue({ rows: [] });
+  timedQ.mockReset().mockResolvedValue({ rows: [] });
+  buildEntity.mockReset().mockReturnValue({ sql: null, warnings: [] });
+});
 
 describe('parseFilter', () => {
   it('returns null when no filter object is present', () => {
@@ -70,5 +86,66 @@ describe('subjectScopeClauses', () => {
 describe('normaliseSortAttributes (re-exported from shared)', () => {
   it('defaults to [department asc]', () => {
     expect(normaliseSortAttributes(undefined)).toEqual([{ attribute: 'department', dir: 'asc' }]);
+  });
+});
+
+describe('buildSubqueries', () => {
+  it('returns render closures + false presence flags for an empty filter', async () => {
+    const built = await buildSubqueries(parseFilter({ filter: {} }));
+    expect(typeof built.subject).toBe('function');
+    expect(typeof built.resource).toBe('function');
+    expect(built.hasSubject).toBe(false);
+    expect(built.hasResource).toBe(false);
+    expect(built.warnings).toEqual([]);
+    // Each closure renders through its own binder; empty filter → null fragment.
+    const { bind } = createParams();
+    expect(built.subject(bind).sql).toBeNull();
+    expect(built.resource(bind).sql).toBeNull();
+  });
+
+  it('flags hasSubject/hasResource and concatenates both sides’ warnings when fragments render', async () => {
+    buildEntity.mockReturnValue({ sql: '(SELECT id FROM "X")', warnings: ['w'] });
+    const built = await buildSubqueries(parseFilter({ filter: { rowType: 'identity' } }));
+    expect(built.hasSubject).toBe(true);
+    expect(built.hasResource).toBe(true);
+    // subject + resource each contribute their warnings.
+    expect(built.warnings).toEqual(['w', 'w']);
+  });
+
+  it('routes identity rowType to the Identity subject entity', async () => {
+    await buildSubqueries(parseFilter({ filter: { rowType: 'identity' } }));
+    const entities = buildEntity.mock.calls.map(([arg]) => arg.entity);
+    expect(entities).toContain('Identity');
+    expect(entities).toContain('Resource');
+    expect(entities).not.toContain('Principal');
+  });
+});
+
+describe('runCount', () => {
+  it('returns the integer c from the first row', async () => {
+    timedQ.mockResolvedValueOnce({ rows: [{ c: 7 }] });
+    expect(await runCount({}, 'lbl', {}, 'SELECT 1 AS c', [])).toBe(7);
+  });
+
+  it('defaults to 0 when there is no row', async () => {
+    timedQ.mockResolvedValueOnce({ rows: [] });
+    expect(await runCount({}, 'lbl', {}, 'SELECT 1 AS c', [])).toBe(0);
+  });
+});
+
+describe('scopeCounts', () => {
+  it('renders each COUNT with its own params and returns the four counts', async () => {
+    // Subject fragment present, resource fragment null — exercises both branches
+    // of subjectScopeClauses/scopeCounts and the resource IN-clause guard.
+    buildEntity.mockImplementation(({ entity }) =>
+      entity === 'Resource' ? { sql: null, warnings: [] } : { sql: '(SELECT id FROM "Principals")', warnings: [] });
+    timedQ.mockResolvedValue({ rows: [{ c: 4 }] });
+
+    const built = await buildSubqueries(parseFilter({ filter: {} }));
+    const out = await scopeCounts({}, {}, 'principal', built);
+    expect(out).toEqual({ subjectCount: 4, subjectTotal: 4, resourceCount: 4, resourceTotal: 4 });
+    // The resource-count query has no IN clause when the resource fragment is null.
+    const resourceCountSql = timedQ.mock.calls.find(c => c[1] === 'matrix-data-resource-count')[3];
+    expect(resourceCountSql).not.toContain('WHERE id IN');
   });
 });

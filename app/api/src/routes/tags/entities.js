@@ -8,6 +8,7 @@
 
 import { Router } from 'express';
 import { getResourceColumns as getResourceCols, getPrincipalOrUserColumns, getPrincipalOrUserColumnValues, getResourceColumnValues } from '../../db/columnCache.js';
+import { createParams } from '../../db/sqlParams.js';
 import { useSql, db, ensureTagTables, buildFilterWhere, UUID_RE } from './shared.js';
 
 const router = Router();
@@ -35,14 +36,14 @@ router.get('/user-columns-page', async (req, res) => {
     // Add virtual __userTag column (tag names as values)
     try {
       await ensureTagTables(p);
-      const tagResult = await p.request().query(`
+      const tagResult = await db.query(`
         SELECT t.name
         FROM "GraphTags" t
         WHERE t."entityType" = 'user'
           AND EXISTS (SELECT 1 FROM "GraphTagAssignments" ta WHERE ta."tagId" = t.id)
         ORDER BY t.name
       `);
-      const userTags = tagResult.recordset.map(r => r.name);
+      const userTags = tagResult.rows.map(r => r.name);
       if (userTags.length > 0) grouped['__userTag'] = userTags;
     } catch { /* tag tables may not exist yet */ }
 
@@ -82,14 +83,14 @@ async function groupColumnsHandler(req, res) {
     // Add virtual __groupTag column (tag names as values)
     try {
       await ensureTagTables(p);
-      const tagResult = await p.request().query(`
+      const tagResult = await db.query(`
         SELECT t.name
         FROM "GraphTags" t
         WHERE t."entityType" IN ('resource', 'group')
           AND EXISTS (SELECT 1 FROM "GraphTagAssignments" ta WHERE ta."tagId" = t.id)
         ORDER BY t.name
       `);
-      const groupTags = tagResult.recordset.map(r => r.name);
+      const groupTags = tagResult.rows.map(r => r.name);
       grouped['__groupTag'] = schemaOnly ? [] : groupTags;
     } catch { /* tag tables may not exist yet */ }
 
@@ -126,33 +127,28 @@ router.get('/users', async (req, res) => {
     const p = await db.getPool();
     await ensureTagTables(p);
 
-    const request = p.request();
-    request.input('limit', limit);
-    request.input('offset', offset);
+    const { params, bind } = createParams();
 
     const cols = await getPrincipalOrUserColumns(p);
     const colNames = new Set(cols.map(c => c.name));
-    const filterWhere = buildFilterWhere(request, attrFilters, colNames, 'u');
 
     let where = '1=1';
     // Hide soft-deleted principals by default; ?includeDeleted=true reveals them.
     if (req.query.includeDeleted !== 'true') where += ` AND u."deletedAt" IS NULL`;
     if (search) {
-      where += ` AND (u."displayName" ILIKE @search OR u."email" ILIKE @search)`;
-      request.input('search', `%${search}%`);
+      const s = bind(`%${search}%`);
+      where += ` AND (u."displayName" ILIKE ${s} OR u."email" ILIKE ${s})`;
     }
     if (tagId) {
-      where += ` AND EXISTS (SELECT 1 FROM "GraphTagAssignments" ta WHERE ta."tagId" = @tagId AND ta."entityId" = UPPER(u.id::text))`;
-      request.input('tagId', tagId);
+      where += ` AND EXISTS (SELECT 1 FROM "GraphTagAssignments" ta WHERE ta."tagId" = ${bind(tagId)} AND ta."entityId" = UPPER(u.id::text))`;
     }
     let userTagJoin = '';
     if (userTagFilter) {
       userTagJoin = `
         INNER JOIN "GraphTagAssignments" _uta ON _uta."entityId" = UPPER(u.id::text)
-        INNER JOIN "GraphTags" _ut ON _uta."tagId" = _ut.id AND _ut."name" = @__userTag AND _ut."entityType" = 'user'`;
-      request.input('__userTag', userTagFilter);
+        INNER JOIN "GraphTags" _ut ON _uta."tagId" = _ut.id AND _ut."name" = ${bind(userTagFilter)} AND _ut."entityType" = 'user'`;
     }
-    where += filterWhere;
+    where += buildFilterWhere(attrFilters, colNames, 'u', bind);
 
     // Paginate FIRST (cheap), then resolve the per-row tag string only for the
     // page's rows. The tagString subquery used to sit in the top-level SELECT, so
@@ -168,6 +164,7 @@ router.get('/users', async (req, res) => {
     // COUNT(*) runs only on the first page: the Excel workbook reads `total` once
     // from page 1 and then pages by row count, so re-counting the whole table on
     // every page was pure waste.
+    const countParams = [...params]; // filter params only — snapshot before LIMIT/OFFSET
     const baseSql = `
       WITH page AS (
         SELECT u.id, u."displayName", u."email" AS "userPrincipalName",
@@ -180,7 +177,7 @@ router.get('/users', async (req, res) => {
           ${userTagJoin}
          WHERE ${where}
          ORDER BY u."displayName"
-         LIMIT @limit OFFSET @offset
+         LIMIT ${bind(limit)} OFFSET ${bind(offset)}
       )
       SELECT page.*,
              (SELECT string_agg(t.id::text || ':' || t."name" || ':' || t."color", '|')
@@ -190,12 +187,9 @@ router.get('/users', async (req, res) => {
              ) AS "tagString"
         FROM page
        ORDER BY page."displayName"`;
-    const sql = offset === 0
-      ? `${baseSql};\nSELECT COUNT(*)::int AS total FROM "Principals" u ${userTagJoin} WHERE ${where};`
-      : baseSql;
-    const result = await request.query(sql);
+    const dataResult = await db.query(baseSql, params);
 
-    const data = result.recordsets[0].map(r => {
+    const data = dataResult.rows.map(r => {
       const { tagString, extendedAttributes, ...rest } = r;
       // jsonb columns come back already-parsed from pg, but if it's a string
       // (defensive — older shim path) parse it. Either way the UI gets a
@@ -206,7 +200,12 @@ router.get('/users', async (req, res) => {
       return { ...rest, extendedAttributes: parsedExt, tags: parseTags(tagString) };
     });
 
-    res.json({ data, total: result.recordsets[1]?.[0]?.total ?? null });
+    let total = null;
+    if (offset === 0) {
+      const countSql = `SELECT COUNT(*)::int AS total FROM "Principals" u ${userTagJoin} WHERE ${where}`;
+      total = (await db.query(countSql, countParams)).rows[0]?.total ?? null;
+    }
+    res.json({ data, total });
   } catch (err) {
     console.error('GET /users failed:', err.message);
     res.status(500).json({ error: 'Internal server error' });
@@ -247,40 +246,35 @@ router.get('/groups', async (req, res) => {
     const p = await db.getPool();
     await ensureTagTables(p);
 
-    const request = p.request();
-    request.input('limit', limit);
-    request.input('offset', offset);
+    const { params, bind } = createParams();
 
     // v5: only the Resources table exists. The v4 GraphGroups fallback is gone.
     const cols = await getResourceCols(p);
     const colNames = new Set(cols.map(c => c.name));
-    const filterWhere = buildFilterWhere(request, attrFilters, colNames, 'r');
 
     let where = '1=1';
     if (search) {
-      where += ` AND (r."displayName" ILIKE @search OR r."description" ILIKE @search)`;
-      request.input('search', `%${search}%`);
+      const s = bind(`%${search}%`);
+      where += ` AND (r."displayName" ILIKE ${s} OR r."description" ILIKE ${s})`;
     }
     if (resourceType) {
-      where += ` AND r."resourceType" = @resourceType`;
-      request.input('resourceType', resourceType);
+      where += ` AND r."resourceType" = ${bind(resourceType)}`;
     }
     if (tagId) {
-      where += ` AND EXISTS (SELECT 1 FROM "GraphTagAssignments" ta INNER JOIN "GraphTags" t ON ta."tagId" = t.id WHERE ta."tagId" = @tagId AND ta."entityId" = UPPER(r.id::text) AND t."entityType" IN ('resource', 'group'))`;
-      request.input('tagId', tagId);
+      where += ` AND EXISTS (SELECT 1 FROM "GraphTagAssignments" ta INNER JOIN "GraphTags" t ON ta."tagId" = t.id WHERE ta."tagId" = ${bind(tagId)} AND ta."entityId" = UPPER(r.id::text) AND t."entityType" IN ('resource', 'group'))`;
     }
     let groupTagJoin = '';
     if (groupTagFilter) {
       groupTagJoin = `
         INNER JOIN "GraphTagAssignments" _gta ON _gta."entityId" = UPPER(r.id::text)
-        INNER JOIN "GraphTags" _gt ON _gta."tagId" = _gt.id AND _gt."name" = @__groupTag AND _gt."entityType" IN ('resource', 'group')`;
-      request.input('__groupTag', groupTagFilter);
+        INNER JOIN "GraphTags" _gt ON _gta."tagId" = _gt.id AND _gt."name" = ${bind(groupTagFilter)} AND _gt."entityType" IN ('resource', 'group')`;
     }
-    where += filterWhere;
+    where += buildFilterWhere(attrFilters, colNames, 'r', bind);
 
     // Page first, then resolve tags only for the page rows; count only on page 1.
     // Same fix as GET /users — stops deep export pages from re-running the per-row
     // tag subquery over every discarded offset row (quadratic → deep-page timeout).
+    const countParams = [...params]; // filter params only — snapshot before LIMIT/OFFSET
     const baseSql = `
       WITH page AS (
         SELECT r.id, r."displayName", r."resourceType", r."resourceType" AS "groupTypeCalculated",
@@ -289,7 +283,7 @@ router.get('/groups', async (req, res) => {
           ${groupTagJoin}
          WHERE ${where}
          ORDER BY r."displayName"
-         LIMIT @limit OFFSET @offset
+         LIMIT ${bind(limit)} OFFSET ${bind(offset)}
       )
       SELECT page.*,
              (SELECT string_agg(t.id::text || ':' || t."name" || ':' || t."color", '|')
@@ -299,17 +293,19 @@ router.get('/groups', async (req, res) => {
              ) AS "tagString"
         FROM page
        ORDER BY page."displayName"`;
-    const sql = offset === 0
-      ? `${baseSql};\nSELECT COUNT(*)::int AS total FROM "Resources" r ${groupTagJoin} WHERE ${where};`
-      : baseSql;
-    const result = await request.query(sql);
+    const dataResult = await db.query(baseSql, params);
 
-    const data = result.recordsets[0].map(r => {
+    const data = dataResult.rows.map(r => {
       const { tagString, ...rest } = r;
       return { ...rest, tags: parseTags(tagString) };
     });
 
-    res.json({ data, total: result.recordsets[1]?.[0]?.total ?? null });
+    let total = null;
+    if (offset === 0) {
+      const countSql = `SELECT COUNT(*)::int AS total FROM "Resources" r ${groupTagJoin} WHERE ${where}`;
+      total = (await db.query(countSql, countParams)).rows[0]?.total ?? null;
+    }
+    res.json({ data, total });
   } catch (err) {
     console.error('GET /groups failed:', err.message);
     res.status(500).json({ error: 'Internal server error' });
@@ -329,14 +325,14 @@ router.get('/entity-tags', async (req, res) => {
     }
     const p = await db.getPool();
     await ensureTagTables(p);
-    const result = await p.request().input('entityType', entityType).query(`
+    const result = await db.query(`
       SELECT ta."entityId", t.id AS "tagId", t.name AS tagName, t.color AS tagColor
       FROM "GraphTagAssignments" ta
       INNER JOIN "GraphTags" t ON ta."tagId" = t.id
-      WHERE t."entityType" = @entityType
+      WHERE t."entityType" = $1
       ORDER BY ta."entityId", t.name
-    `);
-    res.json(result.recordset);
+    `, [entityType]);
+    res.json(result.rows);
   } catch (err) {
     console.error('GET /entity-tags failed:', err.message);
     res.json([]);

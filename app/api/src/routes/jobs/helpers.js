@@ -92,14 +92,16 @@ export function validateCreateJobBody(body) {
 // { error: { status, body } }. Exported for unit tests.
 export async function resolveJobConfig(pool, inlineConfig, configId) {
   if (!configId) return { resolvedConfig: inlineConfig || null, configNextRunMode: null };
-  const cfgResult = await pool.request().input('configId', configId)
-    .query(`SELECT config, "nextRunMode" FROM "CrawlerConfigs" WHERE id = @configId AND "enabled" = TRUE`);
-  if (cfgResult.recordset.length === 0) return { error: { status: 404, body: { error: 'Crawler config not found' } } };
+  const cfgResult = await pool.query(
+    `SELECT config, "nextRunMode" FROM "CrawlerConfigs" WHERE id = $1 AND "enabled" = TRUE`,
+    [configId]
+  );
+  if (cfgResult.rows.length === 0) return { error: { status: 404, body: { error: 'Crawler config not found' } } };
   // jsonb is auto-parsed by pg; legacy string column may still appear in tests.
-  const raw = cfgResult.recordset[0].config;
+  const raw = cfgResult.rows[0].config;
   return {
     resolvedConfig: (typeof raw === 'string') ? JSON.parse(raw) : raw,
-    configNextRunMode: cfgResult.recordset[0].nextRunMode || 'delta',
+    configNextRunMode: cfgResult.rows[0].nextRunMode || 'delta',
   };
 }
 
@@ -156,10 +158,11 @@ export function prepareJobConfig(resolvedConfig, configId, effectiveSyncMode) {
 // already active, else null. Exported for unit tests.
 export async function checkSingletonConflict(pool, jobType) {
   if (!isSingletonJob(jobType)) return null;
-  const dup = await pool.request().input('jobType', jobType).query(
-    `SELECT 1 FROM "CrawlerJobs" WHERE "jobType" = @jobType AND status IN ('queued', 'running')`
+  const dup = await pool.query(
+    `SELECT 1 FROM "CrawlerJobs" WHERE "jobType" = $1 AND status IN ('queued', 'running')`,
+    [jobType]
   );
-  if (dup.recordset.length > 0) return { status: 409, body: { error: `A ${jobType} job is already queued or running` } };
+  if (dup.rows.length > 0) return { status: 409, body: { error: `A ${jobType} job is already queued or running` } };
   return null;
 }
 

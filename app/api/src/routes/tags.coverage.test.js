@@ -9,18 +9,12 @@ import { mountRouter } from '../../test-utils/routeTestKit.js';
 
 process.env.USE_SQL = 'true';
 
-let nextResult = { recordset: [] };
-const mockPool = {
-  request() {
-    const r = { input() { return r; }, query: (...a) => poolQuery(...a) };
-    return r;
-  },
-};
-const poolQuery = vi.fn(async () => nextResult);
+// All tag handlers use native db.query / db.queryOne now (#663 removed the shim).
+// getPool() is only handed to the mocked ensureTagTables / column-cache helpers.
 const query = vi.fn();
 const queryOne = vi.fn();
 vi.mock('../db/connection.js', () => ({
-  getPool: async () => mockPool,
+  getPool: async () => ({}),
   query: (...a) => query(...a),
   queryOne: (...a) => queryOne(...a),
 }));
@@ -40,23 +34,20 @@ const VALID = '11111111-1111-1111-1111-111111111111';
 const VALID2 = '22222222-2222-2222-2222-222222222222';
 
 beforeEach(() => {
-  nextResult = { recordset: [] };
-  poolQuery.mockReset();
-  poolQuery.mockImplementation(async () => nextResult);
   query.mockReset();
   queryOne.mockReset();
 });
 
 describe('GET /tags', () => {
   it('filters by entityType and returns rows', async () => {
-    nextResult = { recordset: [{ id: VALID, name: 'PII', color: '#3b82f6', entityType: 'user' }] };
+    query.mockResolvedValueOnce({ rows: [{ id: VALID, name: 'PII', color: '#3b82f6', entityType: 'user' }] });
     const res = await request(app).get('/api/tags?entityType=user');
     expect(res.status).toBe(200);
     expect(res.body).toHaveLength(1);
   });
 
-  it('500 when the pool query rejects', async () => {
-    poolQuery.mockRejectedValueOnce(new Error('boom'));
+  it('500 when the query rejects', async () => {
+    query.mockRejectedValueOnce(new Error('boom'));
     const res = await request(app).get('/api/tags');
     expect(res.status).toBe(500);
   });
@@ -229,8 +220,8 @@ describe('POST /tags/:id/assign-by-filter', () => {
 
   it('200 inserts matched entities (user + search + filters)', async () => {
     queryOne.mockResolvedValueOnce({ id: VALID, targetType: 'Principal' });
-    // Pool query: the INSERT (v5 always uses Principals — no table probe)
-    poolQuery.mockResolvedValueOnce({ rowsAffected: [3] });
+    // The INSERT … SELECT reports pg's rowCount (v5 always uses Principals — no table probe).
+    query.mockResolvedValueOnce({ rowCount: 3 });
     const res = await request(app)
       .post(`/api/tags/${VALID}/assign-by-filter`)
       .send({ entityType: 'user', search: 'alice', filters: { department: 'IT' } });
@@ -240,7 +231,7 @@ describe('POST /tags/:id/assign-by-filter', () => {
 
   it('200 for resource entityType with search', async () => {
     queryOne.mockResolvedValueOnce({ id: VALID, targetType: 'Resource' });
-    poolQuery.mockResolvedValueOnce({ rowsAffected: [1] });
+    query.mockResolvedValueOnce({ rowCount: 1 });
     const res = await request(app)
       .post(`/api/tags/${VALID}/assign-by-filter`)
       .send({ entityType: 'resource', search: 'grp' });
@@ -250,7 +241,7 @@ describe('POST /tags/:id/assign-by-filter', () => {
 
   it('200 for identity entityType', async () => {
     queryOne.mockResolvedValueOnce({ id: VALID, targetType: 'Identity' });
-    poolQuery.mockResolvedValueOnce({ rowsAffected: [0] });
+    query.mockResolvedValueOnce({ rowCount: 0 });
     const res = await request(app)
       .post(`/api/tags/${VALID}/assign-by-filter`)
       .send({ entityType: 'identity', search: 'bob' });
@@ -269,7 +260,7 @@ describe('POST /tags/:id/assign-by-filter', () => {
 
 describe('GET /user-columns-page', () => {
   it('200 returns columns with a __userTag virtual column', async () => {
-    nextResult = { recordset: [{ name: 'Confidential' }] };
+    query.mockResolvedValueOnce({ rows: [{ name: 'Confidential' }] });
     const res = await request(app).get('/api/user-columns-page');
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body)).toBe(true);
@@ -278,21 +269,21 @@ describe('GET /user-columns-page', () => {
 
 describe('GET /group-columns', () => {
   it('200 returns columns (Resources path)', async () => {
-    // Column values come from the mocked columnCache; the only pool query here
-    // is the __groupTag tag-name lookup (the v4 GraphGroups existence probe is gone).
-    poolQuery.mockResolvedValue({ recordset: [] });
+    // Column values come from the mocked columnCache; the only db query here is
+    // the __groupTag tag-name lookup (the v4 GraphGroups existence probe is gone).
+    query.mockResolvedValue({ rows: [] });
     const res = await request(app).get('/api/group-columns');
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body)).toBe(true);
     // Regression guard (#662): the removed existence probe was
     // `SELECT TOP 0 * FROM Resources` — T-SQL that always threw on Postgres and
     // wasted a round-trip on every request. The handler must not emit it.
-    const sqls = poolQuery.mock.calls.map(c => String(c[0]));
+    const sqls = query.mock.calls.map(c => String(c[0]));
     expect(sqls.some(s => /\bTOP\s+0\b/i.test(s))).toBe(false);
   });
 
   it('200 schema=true fast path', async () => {
-    poolQuery.mockResolvedValue({ recordset: [] });
+    query.mockResolvedValue({ rows: [] });
     const res = await request(app).get('/api/resource-columns-page?schema=true');
     expect(res.status).toBe(200);
   });
@@ -300,12 +291,9 @@ describe('GET /group-columns', () => {
 
 describe('GET /users', () => {
   it('200 returns paginated data shaped with tags', async () => {
-    nextResult = {
-      recordsets: [
-        [{ id: VALID, displayName: 'Alice', tagString: `${VALID}:PII:#3b82f6`, extendedAttributes: { a: 1 } }],
-        [{ total: 1 }],
-      ],
-    };
+    query
+      .mockResolvedValueOnce({ rows: [{ id: VALID, displayName: 'Alice', tagString: `${VALID}:PII:#3b82f6`, extendedAttributes: { a: 1 } }] })
+      .mockResolvedValueOnce({ rows: [{ total: 1 }] });
     const res = await request(app).get('/api/users?search=al&tagId=' + VALID);
     expect(res.status).toBe(200);
     expect(res.body.total).toBe(1);
@@ -313,12 +301,9 @@ describe('GET /users', () => {
   });
 
   it('200 honours __userTag filter and string extendedAttributes', async () => {
-    nextResult = {
-      recordsets: [
-        [{ id: VALID, displayName: 'Bob', tagString: null, extendedAttributes: '{"x":2}' }],
-        [{ total: 1 }],
-      ],
-    };
+    query
+      .mockResolvedValueOnce({ rows: [{ id: VALID, displayName: 'Bob', tagString: null, extendedAttributes: '{"x":2}' }] })
+      .mockResolvedValueOnce({ rows: [{ total: 1 }] });
     const filters = encodeURIComponent(JSON.stringify({ __userTag: 'PII', department: 'IT' }));
     const res = await request(app).get(`/api/users?filters=${filters}`);
     expect(res.status).toBe(200);
@@ -326,7 +311,7 @@ describe('GET /users', () => {
   });
 
   it('500 when the query rejects', async () => {
-    poolQuery.mockRejectedValueOnce(new Error('boom'));
+    query.mockRejectedValueOnce(new Error('boom'));
     const res = await request(app).get('/api/users');
     expect(res.status).toBe(500);
   });
@@ -334,12 +319,9 @@ describe('GET /users', () => {
 
 describe('GET /groups', () => {
   it('200 returns paginated data with tag + resourceType filters', async () => {
-    nextResult = {
-      recordsets: [
-        [{ id: VALID, displayName: 'Grp', tagString: null }],
-        [{ total: 1 }],
-      ],
-    };
+    query
+      .mockResolvedValueOnce({ rows: [{ id: VALID, displayName: 'Grp', tagString: null }] })
+      .mockResolvedValueOnce({ rows: [{ total: 1 }] });
     const filters = encodeURIComponent(JSON.stringify({ __groupTag: 'Sensitive' }));
     const res = await request(app).get(`/api/groups?search=g&tagId=${VALID}&resourceType=Group&filters=${filters}`);
     expect(res.status).toBe(200);
@@ -347,14 +329,16 @@ describe('GET /groups', () => {
   });
 
   it('200 accepts __resourceTag filter alias', async () => {
-    nextResult = { recordsets: [[], [{ total: 0 }]] };
+    query
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ total: 0 }] });
     const filters = encodeURIComponent(JSON.stringify({ __resourceTag: 'Sensitive' }));
     const res = await request(app).get(`/api/groups?filters=${filters}`);
     expect(res.status).toBe(200);
   });
 
   it('500 when the query rejects', async () => {
-    poolQuery.mockRejectedValueOnce(new Error('boom'));
+    query.mockRejectedValueOnce(new Error('boom'));
     const res = await request(app).get('/api/groups');
     expect(res.status).toBe(500);
   });
@@ -362,7 +346,7 @@ describe('GET /groups', () => {
 
 describe('GET /entity-tags', () => {
   it('200 returns the assignment list', async () => {
-    nextResult = { recordset: [{ entityId: VALID, tagId: VALID, tagName: 'PII', tagColor: '#3b82f6' }] };
+    query.mockResolvedValueOnce({ rows: [{ entityId: VALID, tagId: VALID, tagName: 'PII', tagColor: '#3b82f6' }] });
     const res = await request(app).get('/api/entity-tags?entityType=user');
     expect(res.status).toBe(200);
     expect(res.body).toHaveLength(1);

@@ -15,7 +15,8 @@
 
 import { Router } from 'express';
 import * as db from '../db/connection.js';
-import { timedRequest } from '../perf/sqlTimer.js';
+import { timedQuery } from '../perf/sqlTimer.js';
+import { createParams } from '../db/sqlParams.js';
 import { buildAssignmentExprs } from '../db/matrixHelpers.js';
 import { UUID_RE } from '../matrix/filterSql.js';
 import { getPrincipalColumns, getResourceColumns, getPrincipalColumnValues, getResourceColumnValues } from '../db/columnCache.js';
@@ -57,23 +58,29 @@ router.post('/matrix/preview', async (req, res) => {
   try {
     const built = await buildSubqueries(filter);
     const p = await db.getPool();
-    const subj = subjectScopeClauses(filter.rowType, built.subjectSql);
 
-    const { subjectIdExpr, assignmentJoin, assignmentWhere } = buildAssignmentExprs(filter.rowType, built);
+    // Each COUNT renders the fragment(s) it uses through its own binder.
+    const pp = createParams();
+    const { subjectIdExpr, assignmentJoin, assignmentWhere } =
+      buildAssignmentExprs(filter.rowType, built.subject(pp.bind).sql, built.resource(pp.bind).sql);
+    const scp = createParams();
+    const subj = subjectScopeClauses(filter.rowType, built.subject(scp.bind).sql);
+    const rcp = createParams();
+    const rcResourceSql = built.resource(rcp.bind).sql;
 
     const [subjectCount, subjectTotal, resourceCount, resourceTotal, assignmentCount] = await Promise.all([
       runCount(p, 'matrix-preview-subject', res,
         `SELECT COUNT(*)::int AS c FROM "${subj.subjectTable}"${subj.where}`,
-        built.bindings),
+        scp.params),
       runCount(p, 'matrix-preview-subject-total', res,
         `SELECT COUNT(*)::int AS c FROM "${subj.subjectTable}"${subj.baseWhere}`,
-        {}),
+        []),
       runCount(p, 'matrix-preview-resource', res,
-        `SELECT COUNT(*)::int AS c FROM "Resources"${built.resourceSql ? ` WHERE id IN ${built.resourceSql}` : ''}`,
-        built.bindings),
+        `SELECT COUNT(*)::int AS c FROM "Resources"${rcResourceSql ? ` WHERE id IN ${rcResourceSql}` : ''}`,
+        rcp.params),
       runCount(p, 'matrix-preview-resource-total', res,
         `SELECT COUNT(*)::int AS c FROM "Resources"`,
-        {}),
+        []),
       runCount(p, 'matrix-preview-assignments', res,
         `SELECT COUNT(*)::int AS c FROM (
            SELECT DISTINCT ${subjectIdExpr} AS sid, p."resourceId" AS rid
@@ -81,7 +88,7 @@ router.post('/matrix/preview', async (req, res) => {
              ${assignmentJoin}
             WHERE ${assignmentWhere.join(' AND ')}
          ) t`,
-        built.bindings),
+        pp.params),
     ]);
 
     return res.json({
@@ -135,7 +142,7 @@ router.post('/matrix/hierarchy-paths', async (req, res) => {
          SELECT cm."memberId"::text AS "subjectId", d.path AS path
            FROM down d
            JOIN "ContextMembers" cm ON cm."contextId" = d.id AND cm."memberType" = 'Principal'`;
-    const rows = (await timedRequest(p, `matrix-hierarchy-paths[${rowType}]`, res).query(sql)).recordset;
+    const rows = (await timedQuery(p, `matrix-hierarchy-paths[${rowType}]`, res, sql, [])).rows;
     const paths = {};
     let depth = 0;
     for (const r of rows) {

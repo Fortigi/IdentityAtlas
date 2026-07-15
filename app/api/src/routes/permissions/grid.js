@@ -9,7 +9,8 @@ import { Router } from 'express';
 import { permissionAssignments } from '../../mock/data.js';
 import { ensureTagTables } from '../tags.js';
 import { getResourceColumns, getPrincipalOrUserColumns, getPrincipalOrUserColumnValues } from '../../db/columnCache.js';
-import { timedRequest } from '../../perf/sqlTimer.js';
+import { timedQuery } from '../../perf/sqlTimer.js';
+import { createParams } from '../../db/sqlParams.js';
 import { buildContextFilterSql, parseAndResolveContextFilters } from '../../contexts/contextFilters.js';
 import { effectiveAccessForNodes } from '../../effectiveAccess/engine.js';
 import { isMissingSchema } from '../../db/schemaErrors.js';
@@ -74,14 +75,14 @@ router.get('/user-columns', async (req, res) => {
     // Add virtual __userTag column
     try {
       await ensureTagTables(p);
-      const tagResult = await timedRequest(p, 'user-columns-tags', res).query(`
+      const tagResult = await timedQuery(p, 'user-columns-tags', res, `
         SELECT t.name
         FROM "GraphTags" t
         WHERE t."entityType" = 'user'
           AND EXISTS (SELECT 1 FROM "GraphTagAssignments" ta WHERE ta."tagId" = t.id)
         ORDER BY t.name
-      `);
-      const userTags = tagResult.recordset.map(r => r.name);
+      `, []);
+      const userTags = tagResult.rows.map(r => r.name);
       grouped['__userTag'] = userTags; // always include values — tag query is fast
     } catch (e) { if (!isMissingSchema(e)) throw e; /* tag tables may not exist yet — skip silently */ }
 
@@ -114,10 +115,10 @@ router.get('/permissions', async (req, res) => {
 
       // Return empty data when sync hasn't run yet. v5 always has Principals
       // (created by migrations) so this is mostly a safety net.
-      const tableCheck = await p.request().query(
+      const tableCheck = await p.query(
         `SELECT to_regclass('"Principals"') AS "principalsExists"`
       );
-      if (!tableCheck.recordset[0].principalsExists) {
+      if (!tableCheck.rows[0].principalsExists) {
         return res.json({ data: [], totalUsers: 0, managedByPackages: [] });
       }
 
@@ -157,20 +158,20 @@ router.get('/permissions', async (req, res) => {
           return r.rows || [];
         },
       );
-      const {
-        principalClauses: ctxPrincipalClauses,
-        resourceClauses: ctxResourceClauses,
-        innerPrincipalClauses: ctxInnerPrincipalClauses,
-        innerResourceClauses: ctxInnerResourceClauses,
-        bindings: ctxBindings,
-      } = buildContextFilterSql(resolvedContextFilters);
-      const ctxPrincipalWhere = ctxPrincipalClauses.length ? ' AND ' + ctxPrincipalClauses.join(' AND ') : '';
-      const ctxResourceWhere  = ctxResourceClauses.length  ? ' AND ' + ctxResourceClauses.join(' AND ') : '';
-      // Apply context filters inside the top-N subquery too, so the top-25
-      // users are picked from within the filter (not just intersected after).
-      const ctxInnerWhere =
-        (ctxInnerPrincipalClauses.length ? ' AND ' + ctxInnerPrincipalClauses.join(' AND ') : '') +
-        (ctxInnerResourceClauses.length  ? ' AND ' + ctxInnerResourceClauses.join(' AND ')  : '');
+      // Context-filter WHERE fragments, rendered per-query with that query's
+      // binder so each independent query (main, top-N subquery, AP) gets $N that
+      // line up with its own params. Each context binds its id+memberType once
+      // and reuses that scope in both the outer and the inner clause.
+      const contextClauses = (bind) => {
+        const ctx = buildContextFilterSql(resolvedContextFilters, bind);
+        return {
+          ctxPrincipalWhere: ctx.principalClauses.length ? ' AND ' + ctx.principalClauses.join(' AND ') : '',
+          ctxResourceWhere:  ctx.resourceClauses.length  ? ' AND ' + ctx.resourceClauses.join(' AND ')  : '',
+          ctxInnerWhere:
+            (ctx.innerPrincipalClauses.length ? ' AND ' + ctx.innerPrincipalClauses.join(' AND ') : '') +
+            (ctx.innerResourceClauses.length  ? ' AND ' + ctx.innerResourceClauses.join(' AND ')  : ''),
+        };
+      };
 
       // ── Effective access at scopes (engine path) ──────────────────────────
       // When the matrix is filtered by a Resource context whose members are SCOPE NODES (e.g. an
@@ -258,38 +259,29 @@ router.get('/permissions', async (req, res) => {
         }
       }
 
-      let filterWhere = '';
-      let groupFilterWhere = '';
-      let userTagJoin = '';
-      let groupTagJoin = '';
-      const addParams = (request) => {
-        for (let i = 0; i < validUserFilters.length; i++) {
-          const f = validUserFilters[i];
-          filterWhere += ` AND u."${f.field}"::text = @f${i}`;
-          request.input(`f${i}`, f.value);
+      // Attribute-filter WHERE fragments + tag joins for one query, bound through
+      // that query's binder. `includeUserTag` is false on the top-N path (the
+      // user tag is applied up front as a principalId pre-filter instead).
+      const filterClauses = (bind, { includeUserTag } = { includeUserTag: true }) => {
+        let filterWhere = '', groupFilterWhere = '', userTagJoin = '', groupTagJoin = '';
+        for (const f of validUserFilters) {
+          filterWhere += ` AND u."${f.field}"::text = ${bind(f.value)}`;
         }
-        for (let i = 0; i < validGroupFilters.length; i++) {
-          const f = validGroupFilters[i];
+        for (const f of validGroupFilters) {
           const realCol = GROUP_ALIAS_TO_COL[f.field] || f.field;
-          groupFilterWhere += ` AND r."${realCol}"::text = @gf${i}`;
-          request.input(`gf${i}`, f.value);
+          groupFilterWhere += ` AND r."${realCol}"::text = ${bind(f.value)}`;
         }
-        // Context-filter bindings (Phase 6).
-        for (const [name, val] of Object.entries(ctxBindings)) {
-          request.input(name, val);
-        }
-        if (userTagFilter) {
+        if (includeUserTag && userTagFilter) {
           userTagJoin = `
             INNER JOIN "GraphTagAssignments" _uta ON _uta."entityId" = UPPER(u.id::text)
-            INNER JOIN "GraphTags" _ut ON _uta."tagId" = _ut.id AND _ut."name" = @__userTag AND _ut."entityType" = 'user'`;
-          request.input('__userTag', userTagFilter);
+            INNER JOIN "GraphTags" _ut ON _uta."tagId" = _ut.id AND _ut."name" = ${bind(userTagFilter)} AND _ut."entityType" = 'user'`;
         }
         if (groupTagFilter) {
           groupTagJoin = `
             INNER JOIN "GraphTagAssignments" _gta ON _gta."entityId" = UPPER(p."resourceId"::text)
-            INNER JOIN "GraphTags" _gt ON _gta."tagId" = _gt.id AND _gt."name" = @__groupTag AND _gt."entityType" IN ('resource', 'group')`;
-          request.input('__groupTag', groupTagFilter);
+            INNER JOIN "GraphTags" _gt ON _gta."tagId" = _gt.id AND _gt."name" = ${bind(groupTagFilter)} AND _gt."entityType" IN ('resource', 'group')`;
         }
+        return { filterWhere, groupFilterWhere, userTagJoin, groupTagJoin };
       };
 
       // Combined query — single batch eliminates redundant table scans
@@ -297,32 +289,26 @@ router.get('/permissions', async (req, res) => {
       const sourceTag = permSource.startsWith('mat_') ? 'mat' : 'view';
 
       if (userLimit > 0) {
-        filterWhere = '';
-        groupFilterWhere = '';
-
         // ── Filter pushdown ──────────────────────────────────────────
-        // If the request carries a __userTag filter, resolve it up front
-        // and pass the principalId list as a `= ANY(@principalIds)` clause
-        // so the planner can index-scan the matrix matview instead of
-        // materializing 1.5M rows and throwing most of them away.
-        //
-        // The old code put the tag join at the top of the main query,
-        // which forced a full-view scan before the filter could apply.
+        // If the request carries a __userTag filter, resolve it up front and
+        // pass the principalId list as a `= ANY($n)` clause so the planner can
+        // index-scan the matrix matview instead of materializing 1.5M rows and
+        // throwing most of them away.
         let preFilteredUserIds = null;
         if (userTagFilter) {
-          const tagUsersRes = await timedRequest(p, 'perm-tag-resolve', res)
-            .input('__userTag', userTagFilter)
-            .input('userLimit', userLimit)
-            .query(`
+          const { params: tp, bind: tbind } = createParams();
+          const nameP = tbind(userTagFilter);
+          const limP = tbind(userLimit);
+          const tagUsersRes = await timedQuery(p, 'perm-tag-resolve', res, `
               SELECT DISTINCT u.id
                 FROM "Principals" u
                 INNER JOIN "GraphTagAssignments" ta ON ta."entityId" = UPPER(u.id::text)
                 INNER JOIN "GraphTags" t ON ta."tagId" = t.id
-                 AND t."name" = @__userTag
+                 AND t."name" = ${nameP}
                  AND t."entityType" = 'user'
-               LIMIT @userLimit
-            `);
-          preFilteredUserIds = tagUsersRes.recordset.map(r => r.id);
+               LIMIT ${limP}
+            `, tp);
+          preFilteredUserIds = tagUsersRes.rows.map(r => r.id);
           if (preFilteredUserIds.length === 0) {
             // No users match the tag — return empty rather than running
             // the expensive main query.
@@ -330,30 +316,30 @@ router.get('/permissions', async (req, res) => {
           }
         }
 
-        const request = timedRequest(p, 'perm-combined-limited', res);
-        request.input('userLimit', userLimit);
-        addParams(request);
+        // Main query: attribute filters + context clauses + the user-id clause,
+        // all bound through one binder (the user tag is applied above, not here).
+        const { params, bind } = createParams();
+        const fc = filterClauses(bind, { includeUserTag: false });
+        const cc = contextClauses(bind);
 
         // Build the "which user ids to include" clause.
-        // With a tag filter: direct `= ANY(@principalIds)` index-lookup.
-        // Without one: inline `ORDER BY COUNT(*) DESC LIMIT @userLimit` against
-        // the (now-materialized) matrix view.
+        // With a tag filter: direct `= ANY($n)` index-lookup. Without one:
+        // inline `ORDER BY COUNT(*) DESC LIMIT $n` against the matrix view.
         let userIdClause;
         if (preFilteredUserIds) {
-          request.input('principalIds', preFilteredUserIds);
-          userIdClause = `p."principalId" = ANY(@principalIds)`;
+          userIdClause = `p."principalId" = ANY(${bind(preFilteredUserIds)})`;
         } else {
           userIdClause = `p."principalId" IN (
             SELECT "principalId" FROM "vw_ResourceUserPermissionAssignments"
             WHERE ("principalType" IS NULL OR "principalType" != '#microsoft.graph.group')
-              ${ctxInnerWhere}
+              ${cc.ctxInnerWhere}
             GROUP BY "principalId"
             ORDER BY COUNT(*) DESC
-            LIMIT @userLimit
+            LIMIT ${bind(userLimit)}
           )`;
         }
 
-        const result = await request.query(`
+        const result = await timedQuery(p, 'perm-combined-limited', res, `
           SELECT
             p."resourceId" AS "resourceId",
             p."resourceId" AS "groupId",
@@ -376,21 +362,21 @@ router.get('/permissions', async (req, res) => {
           INNER JOIN "Principals" u ON p."principalId" = u.id
           LEFT JOIN "Resources" r ON p."resourceId" = r.id
           LEFT JOIN "Systems" sys ON r."systemId" = sys.id
-          ${groupTagJoin}
+          ${fc.groupTagJoin}
           WHERE (p."principalType" IS NULL OR p."principalType" != '#microsoft.graph.group')
             AND ${userIdClause}
-            ${filterWhere}
-            ${groupFilterWhere}
-            ${ctxPrincipalWhere}
-            ${ctxResourceWhere}
-        `);
+            ${fc.filterWhere}
+            ${fc.groupFilterWhere}
+            ${cc.ctxPrincipalWhere}
+            ${cc.ctxResourceWhere}
+        `, params);
 
         // Total user count — cheap from Principals, no need to scan the view.
-        const totalResult = await timedRequest(p, 'perm-total-users', res).query(`
+        const totalResult = await timedQuery(p, 'perm-total-users', res, `
           SELECT COUNT(*)::int AS "totalUsers"
           FROM "Principals"
           WHERE "principalType" IS NULL OR "principalType" != '#microsoft.graph.group'
-        `);
+        `, []);
 
         // AP mapping — constrain to just the users we're about to return.
         // In the tag-filtered branch we already have the principal ID list.
@@ -401,28 +387,24 @@ router.get('/permissions', async (req, res) => {
         // smaller.
         let apMapping = [];
         try {
-          const apReq = timedRequest(p, 'perm-ap-mapping', res);
+          const { params: ap, bind: apbind } = createParams();
           let apWhere;
           if (preFilteredUserIds) {
-            apReq.input('apPrincipalIds', preFilteredUserIds);
-            apWhere = `WHERE ap."userId" = ANY(@apPrincipalIds)`;
+            apWhere = `WHERE ap."userId" = ANY(${apbind(preFilteredUserIds)})`;
           } else {
-            apReq.input('apUserLimit', userLimit);
-            // Context-filter bindings also needed here so the inner subquery
-            // resolves the same top-N set as the main query.
-            for (const [name, val] of Object.entries(ctxBindings)) {
-              apReq.input(name, val);
-            }
+            // Context filters also constrain the inner top-N subquery so it
+            // resolves the same set as the main query.
+            const apcc = contextClauses(apbind);
             apWhere = `WHERE ap."userId" IN (
               SELECT "principalId" FROM "vw_ResourceUserPermissionAssignments"
               WHERE ("principalType" IS NULL OR "principalType" != '#microsoft.graph.group')
-                ${ctxInnerWhere}
+                ${apcc.ctxInnerWhere}
               GROUP BY "principalId"
               ORDER BY COUNT(*) DESC
-              LIMIT @apUserLimit
+              LIMIT ${apbind(userLimit)}
             )`;
           }
-          const apRes = await apReq.query(`
+          const apRes = await timedQuery(p, 'perm-ap-mapping', res, `
             SELECT
               ap."userId" AS "memberId",
               ap."resourceId",
@@ -431,8 +413,8 @@ router.get('/permissions', async (req, res) => {
             FROM "vw_UserPermissionAssignmentViaBusinessRole" ap
             ${apWhere}
             GROUP BY ap."userId", ap."resourceId"
-          `);
-          apMapping = apRes.recordset;
+          `, ap);
+          apMapping = apRes.rows;
         } catch (e) { if (!isMissingSchema(e)) throw e; /* AP view may not exist */ }
 
         const managedByPackages = apMapping
@@ -445,22 +427,21 @@ router.get('/permissions', async (req, res) => {
           }));
 
         return res.json({
-          data: result.recordset,
-          totalUsers: totalResult.recordset[0].totalUsers,
+          data: result.rows,
+          totalUsers: totalResult.rows[0].totalUsers,
           managedByPackages,
         });
       }
 
-      // No user limit — single batch for main data + AP mapping
-      const request = timedRequest(p, `perm-combined[${sourceTag}]`, res);
-      filterWhere = '';
-      groupFilterWhere = '';
-      addParams(request);
+      // No user limit — single batch for main data + AP mapping.
+      const { params, bind } = createParams();
+      const fc = filterClauses(bind);
+      const cc = contextClauses(bind);
 
       // v5: forced to the resource view (we always have it). Postgres has no
       // BEGIN TRY/END TRY, so the AP-mapping query is split out separately
       // and only runs when the AP view exists.
-      const result = await request.query(`
+      const result = await timedQuery(p, `perm-combined[${sourceTag}]`, res, `
         SELECT
           p."resourceId" AS "resourceId",
           p."resourceId" AS "groupId",
@@ -483,27 +464,27 @@ router.get('/permissions', async (req, res) => {
         INNER JOIN "Principals" u ON p."principalId" = u.id
         LEFT JOIN "Resources" r ON p."resourceId" = r.id
         LEFT JOIN "Systems" sys ON r."systemId" = sys.id
-        ${userTagJoin}
-        ${groupTagJoin}
+        ${fc.userTagJoin}
+        ${fc.groupTagJoin}
         WHERE (p."principalType" IS NULL OR p."principalType" != '#microsoft.graph.group')
-          ${filterWhere}
-          ${groupFilterWhere}
-          ${ctxPrincipalWhere}
-          ${ctxResourceWhere}
-      `);
+          ${fc.filterWhere}
+          ${fc.groupFilterWhere}
+          ${cc.ctxPrincipalWhere}
+          ${cc.ctxResourceWhere}
+      `, params);
       // Total user count — same query as the limited branch for consistency.
       // Using Principals count (not distinct memberIds in the result) so the
       // slider max stays stable whether or not a limit is applied.
-      const totalResult = await timedRequest(p, 'perm-total-users', res).query(`
+      const totalResult = await timedQuery(p, 'perm-total-users', res, `
         SELECT COUNT(*)::int AS "totalUsers"
         FROM "Principals"
         WHERE "principalType" IS NULL OR "principalType" != '#microsoft.graph.group'
-      `);
+      `, []);
 
       // AP mapping is optional — fetch separately, swallow errors.
       let apMapping = [];
       try {
-        const apResult = await timedRequest(p, 'perm-ap-mapping', res).query(`
+        const apResult = await timedQuery(p, 'perm-ap-mapping', res, `
           SELECT
             ap."userId" AS "memberId",
             ap."resourceId" AS "resourceId",
@@ -511,8 +492,8 @@ router.get('/permissions', async (req, res) => {
             string_agg(ap."businessRoleId"::text, ',') AS "accessPackageIds"
           FROM "vw_UserPermissionAssignmentViaBusinessRole" ap
           GROUP BY ap."userId", ap."resourceId"
-        `);
-        apMapping = apResult.recordset;
+        `, []);
+        apMapping = apResult.rows;
       } catch (e) { if (!isMissingSchema(e)) throw e; /* AP view may not exist */ }
 
       const managedByPackages = apMapping
@@ -525,8 +506,8 @@ router.get('/permissions', async (req, res) => {
         }));
 
       return res.json({
-        data: result.recordset,
-        totalUsers: totalResult.recordset[0].totalUsers,
+        data: result.rows,
+        totalUsers: totalResult.rows[0].totalUsers,
         managedByPackages,
       });
     }

@@ -32,23 +32,21 @@ export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f
 //     `alias."extendedAttributes"->>'key' = @param`.
 const FILTER_KEY_RE = /^[a-zA-Z0-9_]+$/;
 const EXT_PREFIX = 'ext.';
-export function buildFilterWhere(requestObj, filters, validColNames, alias, paramPrefix = 'fl') {
+
+// Build a parameterised WHERE fragment from a filter object, binding each value
+// through the caller's `bind` (from createParams) so the fragment's $N slot into
+// the enclosing query's positional params. Returns the SQL fragment string.
+export function buildFilterWhere(filters, validColNames, alias, bind) {
   let where = '';
-  let idx = 0;
   for (const [field, value] of Object.entries(filters)) {
     if (value == null || String(value) === '') continue;
-    const paramName = `${paramPrefix}${idx}`;
 
     if (field.startsWith(EXT_PREFIX)) {
       const key = field.slice(EXT_PREFIX.length);
       if (!FILTER_KEY_RE.test(key)) continue;
-      where += ` AND ${alias}."extendedAttributes"->>'${key}' = @${paramName}`;
-      requestObj.input(paramName, String(value));
-      idx++;
+      where += ` AND ${alias}."extendedAttributes"->>'${key}' = ${bind(String(value))}`;
     } else if (validColNames.has(field)) {
-      where += ` AND ${alias}."${field}"::text = @${paramName}`;
-      requestObj.input(paramName, String(value));
-      idx++;
+      where += ` AND ${alias}."${field}"::text = ${bind(String(value))}`;
     }
   }
   return where;

@@ -7,7 +7,8 @@
 
 import { Router } from 'express';
 import * as db from '../../db/connection.js';
-import { timedRequest } from '../../perf/sqlTimer.js';
+import { timedQuery } from '../../perf/sqlTimer.js';
+import { createParams } from '../../db/sqlParams.js';
 import { buildIdentityJoinExprs, buildRoleSubjectJoinExprs, buildApMemberExprs, mergeGroupTotals, resourceMeta } from '../../db/matrixHelpers.js';
 import { resolveAttrExpr } from '../../matrix/attrExpr.js';
 import { buildInheritedFlatRows, buildInheritedRollupCounts, buildInheritedContextCounts, buildInheritedFoldCounts } from '../../matrix/inheritedAccess.js';
@@ -96,30 +97,29 @@ async function handleAttributeFold(res, ctx) {
   // COLLAPSE model: nothing folded -> every subject at full depth, so all
   // chosen attributes show as header rows. Folding a group pulls it up.
   const collapsedKeys = filter.rollupCollapsed || [];
-  const collapsedParams = collapsedKeys.map((_, i) => `@col${i}`);
-  const bindCollapsed = (req) => collapsedKeys.forEach((kk, i) => req.input(`col${i}`, kk));
 
-  const cellsReq = timedRequest(p, `matrix-attrcut-cells[${rowType}]`, res);
-  for (const [k, v] of Object.entries(built.bindings)) cellsReq.input(k, v);
-  bindCollapsed(cellsReq);
-  const cellRows = (await cellsReq.query(buildAttrCutCellsSql({
-    attrExprs, collapsedParams, subjectJoin,
+  // cells: subject + resource fragments + the collapse keys, all bound through
+  // one params array (rendered fresh per query so the $N line up).
+  const cp = createParams();
+  const cellsSubjectSql = built.subject(cp.bind).sql;
+  const cellsResourceSql = built.resource(cp.bind).sql;
+  const cellRows = (await timedQuery(p, `matrix-attrcut-cells[${rowType}]`, res, buildAttrCutCellsSql({
+    attrExprs, collapsedParams: collapsedKeys.map(k => cp.bind(k)), subjectJoin,
     subjectIdExpr: memberIdExpr, subjectIdForFilter,
-    subjectSql: built.subjectSql, resourceSql: built.resourceSql,
-  }))).recordset;
+    subjectSql: cellsSubjectSql, resourceSql: cellsResourceSql,
+  }), cp.params)).rows;
 
-  const nodesReq = timedRequest(p, `matrix-attrcut-nodes[${rowType}]`, res);
-  for (const [k, v] of Object.entries(built.bindings)) nodesReq.input(k, v);
-  bindCollapsed(nodesReq);
-  const nodeRows = (await nodesReq.query(buildAttrCutNodesSql({
-    attrExprs, collapsedParams,
+  const np = createParams();
+  const nodesSubjectSql = built.subject(np.bind).sql;
+  const nodeRows = (await timedQuery(p, `matrix-attrcut-nodes[${rowType}]`, res, buildAttrCutNodesSql({
+    attrExprs, collapsedParams: collapsedKeys.map(k => np.bind(k)),
     subjectTable: rowType === 'identity' ? 'Identities' : 'Principals',
     subjectAlias,
     subjectIdExpr: rowType === 'identity' ? 'i.id' : 'u.id',
     subjectIdForFilter: rowType === 'identity' ? 'i.id' : 'u.id',
-    subjectSql: built.subjectSql,
+    subjectSql: nodesSubjectSql,
     excludeGroups: rowType !== 'identity',
-  }))).recordset;
+  }), np.params)).rows;
 
   // Fold inherited (effective) access into the layered attribute fold. Holder
   // tuple keys match the fold's visible key, so they reuse existing columns.
@@ -207,8 +207,7 @@ async function handleContextLayered(res, ctx) {
   const expandedIds = (filter.rollupExpanded || []).filter(isUuid);
   let cutNodes;
   try {
-    const cutReq = timedRequest(p, 'matrix-ctx-cut', res);
-    cutNodes = (await cutReq.query(buildContextCutSql(filter.rollupContextId, expandedIds))).recordset;
+    cutNodes = (await timedQuery(p, 'matrix-ctx-cut', res, buildContextCutSql(filter.rollupContextId, expandedIds), [])).rows;
   } catch { return res.status(400).json({ error: 'Invalid hierarchy' }); }
 
   let frontier = cutNodes.map(n => n.id);
@@ -220,12 +219,13 @@ async function handleContextLayered(res, ctx) {
 
   const { join: idJoin, subjectId: cutSubjectId } = buildIdentityJoinExprs(rowType);
 
-  const layerReq = timedRequest(p, `matrix-ctx-layered[${rowType}]`, res);
-  for (const [k, v] of Object.entries(built.bindings)) layerReq.input(k, v);
-  const layerCells = (await layerReq.query(buildContextRollupSql({
+  const lp = createParams();
+  const layerSubjectSql = built.subject(lp.bind).sql;
+  const layerResourceSql = built.resource(lp.bind).sql;
+  const layerCells = (await timedQuery(p, `matrix-ctx-layered[${rowType}]`, res, buildContextRollupSql({
     values: cutValues, identityJoin: idJoin, subjectId: cutSubjectId, subjectScope: cutSubjectId,
-    subjectSql: built.subjectSql, resourceSql: built.resourceSql,
-  }))).recordset;
+    subjectSql: layerSubjectSql, resourceSql: layerResourceSql,
+  }), lp.params)).rows;
 
   const layerResMap = new Map();
   for (const row of layerCells) {
@@ -235,12 +235,13 @@ async function handleContextLayered(res, ctx) {
 
   // SCOPED member counts for the header (direct / total), so they match the
   // assignment-scoped cells and member drill rather than raw org size.
-  const scReq = timedRequest(p, `matrix-ctx-scoped-members[${rowType}]`, res);
-  for (const [k, v] of Object.entries(built.bindings)) scReq.input(k, v);
-  const scMap = new Map((await scReq.query(buildContextScopedMemberCountsSql({
+  const scp = createParams();
+  const scSubjectSql = built.subject(scp.bind).sql;
+  const scResourceSql = built.resource(scp.bind).sql;
+  const scMap = new Map((await timedQuery(p, `matrix-ctx-scoped-members[${rowType}]`, res, buildContextScopedMemberCountsSql({
     values: cutValues, identityJoin: idJoin, subjectId: cutSubjectId, subjectScope: cutSubjectId,
-    subjectSql: built.subjectSql, resourceSql: built.resourceSql,
-  }))).recordset.map(r => [r.groupValue, { total: r.total, direct: r.direct }]));
+    subjectSql: scSubjectSql, resourceSql: scResourceSql,
+  }), scp.params)).rows.map(r => [r.groupValue, { total: r.total, direct: r.direct }]));
 
   // Fold inherited (effective) access into the org-rollup cells; hides org
   // branches with no in-scope assignments (a column only shows if some resource
@@ -287,8 +288,7 @@ async function handleContextZoom(res, ctx) {
   const path = filter.rollupPath.filter(isUuid);
   const focus = path.length ? path[path.length - 1] : filter.rollupContextId;
 
-  const kidsReq = timedRequest(p, 'matrix-ctx-focus-children', res);
-  let frontier = (await kidsReq.query(buildRootChildrenSql(focus))).recordset.map(r => r.id);
+  let frontier = (await timedQuery(p, 'matrix-ctx-focus-children', res, buildRootChildrenSql(focus), [])).rows.map(r => r.id);
   if (frontier.length === 0) frontier = [focus]; // leaf focus — show it as the single column
 
   let values;
@@ -301,33 +301,29 @@ async function handleContextZoom(res, ctx) {
   // context condition) into its subjects + the business role each holds.
   if (filter.drill) {
     const { join: brSubjectJoin, id: brId, name: brName, type: brType } = buildRoleSubjectJoinExprs(rowType);
-    const drillReq = timedRequest(p, `matrix-ctx-rows-drill[${rowType}]`, res);
-    for (const [k, v] of Object.entries(built.bindings)) drillReq.input(k, v);
-    const members = (await drillReq.query(buildRolesDrillSql({
+    const dp = createParams();
+    const members = (await timedQuery(p, `matrix-ctx-rows-drill[${rowType}]`, res, buildRolesDrillSql({
       subjectJoin: brSubjectJoin, subjectIdExpr: brId,
       subjectNameExpr: brName,
       subjectTypeExpr: brType,
-      subjectIdForFilter: brId, subjectSql: built.subjectSql,
-    }))).recordset;
+      subjectIdForFilter: brId, subjectSql: built.subject(dp.bind).sql,
+    }), dp.params)).rows;
     return res.json({ rollup: 'context', rollupKind: 'context', rollupContent: 'roles-only', drill: { members } });
   }
 
   // Shared: per-node subject totals (% denominator), node metadata, breadcrumb.
-  const totalsReq = timedRequest(p, `matrix-ctx-totals[${rowType}]`, res);
-  for (const [k, v] of Object.entries(built.bindings)) totalsReq.input(k, v);
-  const ctxTotals = (await totalsReq.query(buildContextTotalsSql({
+  const tp = createParams();
+  const ctxTotals = (await timedQuery(p, `matrix-ctx-totals[${rowType}]`, res, buildContextTotalsSql({
     values, identityJoin, subjectId: ctxSubjectId, subjectScope: ctxSubjectId,
-    subjectSql: built.subjectSql,
-  }))).recordset.map(r => ({ groupValue: r.groupValue, total: r.total }));
+    subjectSql: built.subject(tp.bind).sql,
+  }), tp.params)).rows.map(r => ({ groupValue: r.groupValue, total: r.total }));
 
-  const nodesReq = timedRequest(p, 'matrix-ctx-nodes', res);
-  const nodeRows = (await nodesReq.query(buildContextNodesSql(frontier))).recordset;
+  const nodeRows = (await timedQuery(p, 'matrix-ctx-nodes', res, buildContextNodesSql(frontier), [])).rows;
   const nodeMeta = new Map(nodeRows.map(n => [n.id, { id: n.id, displayName: n.displayName, parent: n.parent, total: n.total, directMembers: n.directMembers, childCount: n.childCount }]));
   const orderedFrontier = [...frontier].sort((a, b) => (nodeMeta.get(b)?.total || 0) - (nodeMeta.get(a)?.total || 0));
 
   const crumbIds = [filter.rollupContextId, ...path];
-  const crumbReq = timedRequest(p, 'matrix-ctx-crumbs', res);
-  const crumbRows = (await crumbReq.query(buildContextNodesSql(crumbIds))).recordset;
+  const crumbRows = (await timedQuery(p, 'matrix-ctx-crumbs', res, buildContextNodesSql(crumbIds), [])).rows;
   const crumbMeta = new Map(crumbRows.map(c => [c.id, c.displayName]));
   const breadcrumb = crumbIds.map(id => ({ id, displayName: crumbMeta.get(id) || id }));
 
@@ -352,12 +348,11 @@ async function handleContextZoomRoles(res, ctx, z) {
   const { built, rowType, p } = ctx;
   const { values, identityJoin, ctxSubjectId, shared } = z;
 
-  const rrReq = timedRequest(p, `matrix-ctx-roles-rows[${rowType}]`, res);
-  for (const [k, v] of Object.entries(built.bindings)) rrReq.input(k, v);
-  const roleRowsRes = (await rrReq.query(buildContextRolesAsRowsSql({
+  const rrp = createParams();
+  const roleRowsRes = (await timedQuery(p, `matrix-ctx-roles-rows[${rowType}]`, res, buildContextRolesAsRowsSql({
     values, identityJoin, subjectId: ctxSubjectId, subjectScope: ctxSubjectId,
-    subjectSql: built.subjectSql,
-  }))).recordset;
+    subjectSql: built.subject(rrp.bind).sql,
+  }), rrp.params)).rows;
   const roleMap = new Map();
   for (const r of roleRowsRes) {
     if (!r.roleId) continue;
@@ -378,12 +373,13 @@ async function contextZoomBusinessRoles(res, ctx, z) {
   const { values, identityJoin, ctxSubjectId } = z;
   const roleCounts = [];
   try {
-    const brReq = timedRequest(p, `matrix-ctx-roles[${rowType}]`, res);
-    for (const [k, v] of Object.entries(built.bindings)) brReq.input(k, v);
-    const brRows = (await brReq.query(buildContextRolesSql({
+    const bp = createParams();
+    const brSubjectSql = built.subject(bp.bind).sql;
+    const brResourceSql = built.resource(bp.bind).sql;
+    const brRows = (await timedQuery(p, `matrix-ctx-roles[${rowType}]`, res, buildContextRolesSql({
       values, identityJoin, subjectId: ctxSubjectId, subjectScope: ctxSubjectId,
-      subjectSql: built.subjectSql, resourceSql: built.resourceSql,
-    }))).recordset;
+      subjectSql: brSubjectSql, resourceSql: brResourceSql,
+    }), bp.params)).rows;
     const roleMap = new Map();
     for (const r of brRows) {
       if (!r.roleId) continue;
@@ -400,12 +396,13 @@ async function handleContextZoomResources(res, ctx, z) {
   const { filter, built, rowType, includeInherited, p } = ctx;
   const { values, identityJoin, ctxSubjectId, frontier, ctxTotals, shared } = z;
 
-  const cellsReq = timedRequest(p, `matrix-ctx-rollup[${rowType}]`, res);
-  for (const [k, v] of Object.entries(built.bindings)) cellsReq.input(k, v);
-  const cellRows = (await cellsReq.query(buildContextRollupSql({
+  const czp = createParams();
+  const czSubjectSql = built.subject(czp.bind).sql;
+  const czResourceSql = built.resource(czp.bind).sql;
+  const cellRows = (await timedQuery(p, `matrix-ctx-rollup[${rowType}]`, res, buildContextRollupSql({
     values, identityJoin, subjectId: ctxSubjectId, subjectScope: ctxSubjectId,
-    subjectSql: built.subjectSql, resourceSql: built.resourceSql,
-  }))).recordset;
+    subjectSql: czSubjectSql, resourceSql: czResourceSql,
+  }), czp.params)).rows;
 
   const resMap = new Map();
   for (const row of cellRows) {
@@ -464,14 +461,13 @@ async function handleRollup(res, ctx) {
   // Per-group subject denominator for the "% of subjects" metric. Returned
   // in every roll-up response so the frontend can switch count↔percent
   // without a re-query.
-  const totalsReq = timedRequest(p, `matrix-rollup-totals[${rowType}]`, res);
-  for (const [k, v] of Object.entries(built.bindings)) totalsReq.input(k, v);
-  const groupTotals = (await totalsReq.query(buildGroupTotalsSql({
+  const gtp = createParams();
+  const groupTotals = (await timedQuery(p, `matrix-rollup-totals[${rowType}]`, res, buildGroupTotalsSql({
     attrExpr: resolved.attrExpr,
     subjectTable: rowType === 'identity' ? 'Identities' : 'Principals',
     subjectAlias,
-    subjectSql: built.subjectSql,
-  }))).recordset.map(r => ({ groupValue: r.groupValue, total: r.total }));
+    subjectSql: built.subject(gtp.bind).sql,
+  }), gtp.params)).rows.map(r => ({ groupValue: r.groupValue, total: r.total }));
 
   if (filter.rollupContent === 'roles-only') return handleRollupRoles(res, ctx, resolved, groupTotals);
   return handleRollupResources(res, ctx, resolved, groupTotals);
@@ -488,28 +484,26 @@ async function handleRollupRoles(res, ctx, resolved, groupTotals) {
   // subject attribute condition the frontend added, so subjectSql carries
   // the constraint. Returns a compact { members } payload only.
   if (filter.drill) {
-    const drillReq = timedRequest(p, `matrix-rollup-rows-drill[${rowType}]`, res);
-    for (const [k, v] of Object.entries(built.bindings)) drillReq.input(k, v);
-    const members = (await drillReq.query(buildRolesDrillSql({
+    const rdp = createParams();
+    const members = (await timedQuery(p, `matrix-rollup-rows-drill[${rowType}]`, res, buildRolesDrillSql({
       subjectJoin: brSubjectJoin,
       subjectIdExpr: brSubjectId,
       subjectNameExpr: brSubjectName,
       subjectTypeExpr: brSubjectType,
       subjectIdForFilter: brSubjectId,
-      subjectSql: built.subjectSql,
-    }))).recordset;
+      subjectSql: built.subject(rdp.bind).sql,
+    }), rdp.params)).rows;
     return res.json({ rollup: filter.rollup, rollupContent: 'roles-only', drill: { members } });
   }
 
-  const rolesReq = timedRequest(p, `matrix-rollup-rows[${rowType}]`, res);
-  for (const [k, v] of Object.entries(built.bindings)) rolesReq.input(k, v);
-  const rolesResult = (await rolesReq.query(buildRolesAsRowsSql({
+  const rrp2 = createParams();
+  const rolesResult = (await timedQuery(p, `matrix-rollup-rows[${rowType}]`, res, buildRolesAsRowsSql({
     attrExpr: resolved.attrExpr,
     subjectJoin: brSubjectJoin,
     subjectIdExpr: brSubjectId,
     subjectIdForFilter: brSubjectId,
-    subjectSql: built.subjectSql,
-  }))).recordset;
+    subjectSql: built.subject(rrp2.bind).sql,
+  }), rrp2.params)).rows;
 
   const counts = await scopeCounts(p, res, rowType, built);
   const roleMap = new Map();
@@ -539,21 +533,22 @@ async function handleRollupRoles(res, ctx, resolved, groupTotals) {
 async function handleRollupResources(res, ctx, resolved, groupTotals) {
   const { filter, built, rowType, subjectJoin, memberIdExpr, subjectIdForFilter, includeInherited, p } = ctx;
 
-  const rollupReq = timedRequest(p, `matrix-rollup[${rowType}]`, res);
-  for (const [k, v] of Object.entries(built.bindings)) rollupReq.input(k, v);
-  const rollupResult = await rollupReq.query(buildRollupSql({
+  const rup = createParams();
+  const ruSubjectSql = built.subject(rup.bind).sql;
+  const ruResourceSql = built.resource(rup.bind).sql;
+  const rollupResult = await timedQuery(p, `matrix-rollup[${rowType}]`, res, buildRollupSql({
     attrExpr: resolved.attrExpr,
     subjectJoin,
     subjectIdExpr: memberIdExpr,
     subjectIdForFilter,
-    subjectSql: built.subjectSql,
-    resourceSql: built.resourceSql,
-  }));
+    subjectSql: ruSubjectSql,
+    resourceSql: ruResourceSql,
+  }), rup.params);
 
   const counts = await scopeCounts(p, res, rowType, built);
   const resMap = new Map();
   const groupSet = new Set();
-  for (const row of rollupResult.recordset) {
+  for (const row of rollupResult.rows) {
     if (!resMap.has(row.resourceId)) {
       resMap.set(row.resourceId, {
         resourceId: row.resourceId,
@@ -592,11 +587,12 @@ async function handleRollupResources(res, ctx, resolved, groupTotals) {
   if (filter.rollupContent !== 'resources-only') {
     try {
       const { memberId: brMemberId, join: brJoin } = buildApMemberExprs(rowType);
-      const brReq = timedRequest(p, 'matrix-rollup-roles', res);
-      for (const [k, v] of Object.entries(built.bindings)) brReq.input(k, v);
-      const brRows = (await brReq.query(buildRollupRolesSql({
-        brMemberId, brJoin, subjectSql: built.subjectSql, resourceSql: built.resourceSql,
-      }))).recordset;
+      const brp = createParams();
+      const brRolesSubjectSql = built.subject(brp.bind).sql;
+      const brRolesResourceSql = built.resource(brp.bind).sql;
+      const brRows = (await timedQuery(p, 'matrix-rollup-roles', res, buildRollupRolesSql({
+        brMemberId, brJoin, subjectSql: brRolesSubjectSql, resourceSql: brRolesResourceSql,
+      }), brp.params)).rows;
       const roleMap = new Map();
       for (const r of brRows) {
         if (!r.roleId) continue;
@@ -617,7 +613,7 @@ async function handleRollupResources(res, ctx, resolved, groupTotals) {
     groupValues: [...groupSet].sort((a, b) => String(a).localeCompare(String(b))),
     groupTotals: mergedGroupTotals,
     counts: [
-      ...rollupResult.recordset.map(r => ({
+      ...rollupResult.rows.map(r => ({
         resourceId: r.resourceId, groupValue: r.groupValue,
         directCount: r.directCount, governedCount: r.governedCount,
       })),
@@ -641,16 +637,17 @@ async function handleFlatGrid(res, ctx) {
     subjectIdForFilter, includeInherited, p,
   } = ctx;
 
+  const { params, bind } = createParams();
+  const flatSubjectSql = built.subject(bind).sql;
+  const flatResourceSql = built.resource(bind).sql;
+
   const where = [`(p."principalType" IS NULL OR p."principalType" != '#microsoft.graph.group')`];
-  if (built.subjectSql)  where.push(`${subjectIdForFilter} IN ${built.subjectSql}`);
-  if (built.resourceSql) where.push(`p."resourceId" IN ${built.resourceSql}`);
+  if (flatSubjectSql)  where.push(`${subjectIdForFilter} IN ${flatSubjectSql}`);
+  if (flatResourceSql) where.push(`p."resourceId" IN ${flatResourceSql}`);
 
   // DISTINCT collapses the cross product when one identity has many
   // principals → many duplicate matrix rows. No-op for rowType=principal.
   const distinct = rowType === 'identity' ? 'DISTINCT' : '';
-
-  const dataReq = timedRequest(p, `matrix-data[${rowType}]`, res);
-  for (const [k, v] of Object.entries(built.bindings)) dataReq.input(k, v);
 
   const dataSql = `
       SELECT ${distinct}
@@ -678,7 +675,7 @@ async function handleFlatGrid(res, ctx) {
       LEFT JOIN "Systems" sys ON r."systemId" = sys.id
       WHERE ${where.join(' AND ')}
     `;
-  const result = await dataReq.query(dataSql);
+  const result = await timedQuery(p, `matrix-data[${rowType}]`, res, dataSql, params);
 
   // ── Inherited (effective) access fold ──────────────────────────────────
   // Additive: the declared query above is empty for scope-node scopes (key
@@ -687,10 +684,10 @@ async function handleFlatGrid(res, ctx) {
   if (includeInherited) {
     try {
       const effFlat = await buildInheritedFlatRows(p, built, rowType, subjectCols);
-      const seen = new Set(result.recordset.map((r) => `${r.resourceId}|${r.memberId}`));
+      const seen = new Set(result.rows.map((r) => `${r.resourceId}|${r.memberId}`));
       for (const er of effFlat) {
         const k = `${er.resourceId}|${er.memberId}`;
-        if (!seen.has(k)) { seen.add(k); result.recordset.push(er); } // declared wins
+        if (!seen.has(k)) { seen.add(k); result.rows.push(er); } // declared wins
       }
     } catch (err) {
       built.warnings.push('inherited-access fold failed: ' + err.message);
@@ -702,9 +699,9 @@ async function handleFlatGrid(res, ctx) {
   // length (RangeError: Invalid string length) and crash the response. Fail
   // cleanly with guidance toward the aggregated views instead.
   const MAX_FLAT_ROWS = 400_000;
-  if (result.recordset.length > MAX_FLAT_ROWS) {
+  if (result.rows.length > MAX_FLAT_ROWS) {
     return res.status(413).json({
-      error: `This matrix has ${result.recordset.length.toLocaleString()} assignments — too many to load as a per-subject grid. Sort by Manager Hierarchy or roll up by an attribute (both aggregate on the server), or add filters to narrow it.`,
+      error: `This matrix has ${result.rows.length.toLocaleString()} assignments — too many to load as a per-subject grid. Sort by Manager Hierarchy or roll up by an attribute (both aggregate on the server), or add filters to narrow it.`,
     });
   }
 
@@ -714,8 +711,9 @@ async function handleFlatGrid(res, ctx) {
   // rowType) so the existing frontend renders SOLL columns correctly.
   let managedByPackages = [];
   try {
-    const apReq = timedRequest(p, 'matrix-data-ap-mapping', res);
-    for (const [k, v] of Object.entries(built.bindings)) apReq.input(k, v);
+    const app = createParams();
+    const apSubjectSql = built.subject(app.bind).sql;
+    const apResourceSql = built.resource(app.bind).sql;
 
     const apMemberIdExpr = rowType === 'identity'
       ? 'im2."identityId"'
@@ -724,10 +722,10 @@ async function handleFlatGrid(res, ctx) {
       ? `INNER JOIN "IdentityMembers" im2 ON im2."principalId" = ap."userId"`
       : '';
     const apWhere = [];
-    if (built.subjectSql)  apWhere.push(`${apMemberIdExpr} IN ${built.subjectSql}`);
-    if (built.resourceSql) apWhere.push(`ap."resourceId" IN ${built.resourceSql}`);
+    if (apSubjectSql)  apWhere.push(`${apMemberIdExpr} IN ${apSubjectSql}`);
+    if (apResourceSql) apWhere.push(`ap."resourceId" IN ${apResourceSql}`);
 
-    const apResult = await apReq.query(`
+    const apResult = await timedQuery(p, 'matrix-data-ap-mapping', res, `
         SELECT ${apMemberIdExpr} AS "memberId",
                ap."resourceId" AS "resourceId",
                ap."resourceId" AS "groupId",
@@ -736,8 +734,8 @@ async function handleFlatGrid(res, ctx) {
           ${apJoin}
           ${apWhere.length ? 'WHERE ' + apWhere.join(' AND ') : ''}
           GROUP BY ${apMemberIdExpr}, ap."resourceId"
-      `);
-    managedByPackages = apResult.recordset
+      `, app.params);
+    managedByPackages = apResult.rows
       .filter(r => r.memberId)
       .map(r => ({
         memberId: r.memberId,
@@ -748,7 +746,7 @@ async function handleFlatGrid(res, ctx) {
   } catch { /* AP view may not exist */ }
 
   return res.json({
-    data: result.recordset,
+    data: result.rows,
     rowType,
     subjectCount,
     subjectTotal,

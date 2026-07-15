@@ -6,7 +6,7 @@
 // No behaviour change — pure code move.
 
 import { Router } from 'express';
-import { timedRequest } from '../../perf/sqlTimer.js';
+import { timedQuery } from '../../perf/sqlTimer.js';
 import { isMissingSchema } from '../../db/schemaErrors.js';
 import { useSql, db, UUID_RE, hasTable, enrichMembers } from './shared.js';
 
@@ -24,23 +24,20 @@ router.get('/identities/:id', async (req, res) => {
     // Fetch identity. Context membership is no longer a column on Identities
     // (v6 context redesign) — membership now lives in ContextMembers and is
     // surfaced through the dedicated /api/contexts/* endpoints.
-    const identityResult = await timedRequest(p, 'identity-detail', res)
-      .input('id', identityId)
-      .query(`SELECT i.* FROM "Identities" i WHERE i.id = @id`);
+    const identityResult = await timedQuery(p, 'identity-detail', res,
+      `SELECT i.* FROM "Identities" i WHERE i.id = $1`, [identityId]);
 
-    if (identityResult.recordset.length === 0) {
+    if (identityResult.rows.length === 0) {
       return res.status(404).json({ error: 'Identity not found' });
     }
 
-    const identity = identityResult.recordset[0];
+    const identity = identityResult.rows[0];
 
     // Fetch all member accounts from Principals (v5). IdentityMembers stores
     // displayName opportunistically; many rows have null there so we coalesce
     // with the Principals record and pull UPN out of Principals.email (v5 has
     // no separate userPrincipalName column).
-    const membersResult = await timedRequest(p, 'identity-members', res)
-      .input('identityId', identityId)
-      .query(`
+    const membersResult = await timedQuery(p, 'identity-members', res, `
           SELECT m."identityId", m."principalId", m."isPrimary", m."isHrAuthoritative",
                  m."accountType", m."accountTypePattern", m."accountEnabled",
                  m."linkSignals", m."linkConfidence", m."hrScore",
@@ -51,43 +48,39 @@ router.get('/identities/:id', async (req, res) => {
                  u."accountEnabled" AS "userAccountEnabled"
           FROM "IdentityMembers" m
           LEFT JOIN "Principals" u ON m."principalId" = u.id
-          WHERE m."identityId" = @identityId
+          WHERE m."identityId" = $1
           ORDER BY m."isPrimary" DESC NULLS LAST, m."accountType" ASC
-        `);
+        `, [identityId]);
 
     // Enrich members with risk scores (optional).
     let riskRows = [];
     try {
-      const riskResult = await timedRequest(p, 'identity-member-risks', res)
-        .input('identityId', identityId)
-        .query(`
+      const riskResult = await timedQuery(p, 'identity-member-risks', res, `
             SELECT m."principalId", u."riskScore", u."riskTier"
             FROM "IdentityMembers" m
             LEFT JOIN "Principals" u ON m."principalId" = u.id
-            WHERE m."identityId" = @identityId
-          `);
-      riskRows = riskResult.recordset;
+            WHERE m."identityId" = $1
+          `, [identityId]);
+      riskRows = riskResult.rows;
     } catch (e) { if (!isMissingSchema(e)) throw e; /* risk columns may not exist yet */ }
 
     // Fetch group memberships per account for context
     let groupCountRows = [];
     try {
-      const groupCountResult = await timedRequest(p, 'identity-member-groups', res)
-        .input('identityId', identityId)
-        .query(`
+      const groupCountResult = await timedQuery(p, 'identity-member-groups', res, `
           SELECT m."principalId", COUNT(DISTINCT gm."resourceId")::int AS "groupCount"
           FROM "IdentityMembers" m
           LEFT JOIN "ResourceAssignments" gm ON m."principalId" = gm."principalId" AND gm."assignmentType" = 'Direct'
-          WHERE m."identityId" = @identityId
+          WHERE m."identityId" = $1
           GROUP BY m."principalId"
-        `);
-      groupCountRows = groupCountResult.recordset;
+        `, [identityId]);
+      groupCountRows = groupCountResult.rows;
     } catch (e) {
       if (!isMissingSchema(e)) throw e;  // ResourceAssignments may not exist
     }
 
     // Attach per-account group counts + risk (keyed by principalId — see enrichMembers).
-    enrichMembers(membersResult.recordset, riskRows, groupCountRows);
+    enrichMembers(membersResult.rows, riskRows, groupCountRows);
 
     // Aggregate relationship counts across every linked account — the entity
     // graph shows these as nodes ("32 groups across 3 accounts", "4 access
@@ -99,18 +92,16 @@ router.get('/identities/:id', async (req, res) => {
     // so it must be present — it was missing, so indirect counts were dropped.
     const aggregate = { Direct: 0, Indirect: 0, Governed: 0, Owner: 0, Eligible: 0, OAuth2Grant: 0 };
     try {
-      const aggResult = await timedRequest(p, 'identity-aggregate-counts', res)
-        .input('identityId', identityId)
-        .query(`
+      const aggResult = await timedQuery(p, 'identity-aggregate-counts', res, `
           SELECT CASE WHEN gov."governanceResource" THEN 'Governed' ELSE ra."assignmentType" END AS "assignmentType",
                  COUNT(DISTINCT ra."resourceId")::int AS cnt
           FROM "IdentityMembers" m
           JOIN "ResourceAssignments" ra ON ra."principalId" = m."principalId"
           LEFT JOIN "Resources" gov ON gov.id = ra."resourceId"
-          WHERE m."identityId" = @identityId
+          WHERE m."identityId" = $1
           GROUP BY 1
-        `);
-      for (const row of aggResult.recordset) {
+        `, [identityId]);
+      for (const row of aggResult.rows) {
         if (row.assignmentType in aggregate) aggregate[row.assignmentType] = row.cnt;
       }
     } catch (e) { if (!isMissingSchema(e)) throw e; /* ResourceAssignments may not exist */ }
@@ -121,20 +112,19 @@ router.get('/identities/:id', async (req, res) => {
     // Identity path — of which there are typically none — so it always read 0.
     let contextCount = 0;
     try {
-      const r = await timedRequest(p, 'identity-context-count', res)
-        .input('identityId', identityId)
-        .query(`SELECT COUNT(DISTINCT cm."contextId")::int AS cnt
+      const r = await timedQuery(p, 'identity-context-count', res,
+        `SELECT COUNT(DISTINCT cm."contextId")::int AS cnt
                   FROM "ContextMembers" cm
-                 WHERE (cm."memberType" = 'Identity'  AND cm."memberId"::text = @identityId)
+                 WHERE (cm."memberType" = 'Identity'  AND cm."memberId"::text = $1)
                     OR (cm."memberType" = 'Principal' AND cm."memberId"::text IN (
                           SELECT im."principalId"::text FROM "IdentityMembers" im
-                           WHERE im."identityId"::text = @identityId))`);
-      contextCount = r.recordset[0]?.cnt || 0;
+                           WHERE im."identityId"::text = $1))`, [identityId]);
+      contextCount = r.rows[0]?.cnt || 0;
     } catch (e) { if (!isMissingSchema(e)) throw e; /* ContextMembers may not exist */ }
 
     res.json({
       identity,
-      members: membersResult.recordset,
+      members: membersResult.rows,
       aggregateAssignments: aggregate,
       contextCount,
     });
@@ -152,18 +142,17 @@ router.get('/identities/:id/contexts', async (req, res) => {
   if (!useSql) return res.json([]);
   try {
     const p = await db.getPool();
-    const r = await timedRequest(p, 'identity-contexts', res)
-      .input('identityId', req.params.id)
-      .query(`SELECT DISTINCT ON (c.id) c.id, c."displayName", c."contextType",
+    const r = await timedQuery(p, 'identity-contexts', res,
+      `SELECT DISTINCT ON (c.id) c.id, c."displayName", c."contextType",
                      c."targetType", c.variant
                 FROM "ContextMembers" cm
                 JOIN "Contexts" c ON c.id = cm."contextId"
-               WHERE (cm."memberType" = 'Identity'  AND cm."memberId"::text = @identityId)
+               WHERE (cm."memberType" = 'Identity'  AND cm."memberId"::text = $1)
                   OR (cm."memberType" = 'Principal' AND cm."memberId"::text IN (
                         SELECT im."principalId"::text FROM "IdentityMembers" im
-                         WHERE im."identityId"::text = @identityId))
-               ORDER BY c.id, c."contextType", c."displayName"`);
-    res.json(r.recordset);
+                         WHERE im."identityId"::text = $1))
+               ORDER BY c.id, c."contextType", c."displayName"`, [req.params.id]);
+    res.json(r.rows);
   } catch (err) {
     console.error('GET /identities/:id/contexts failed:', err.message);
     res.status(500).json({ error: 'Failed to fetch identity contexts' });
@@ -185,10 +174,7 @@ router.get('/identities/:id/assignments', async (req, res) => {
 
   try {
     const p = await db.getPool();
-    const r = await timedRequest(p, 'identity-assignments', res)
-      .input('identityId', identityId)
-      .input('type', type)
-      .query(`
+    const r = await timedQuery(p, 'identity-assignments', res, `
         SELECT ra."resourceId",
                r."displayName"   AS "resourceDisplayName",
                r."resourceType",
@@ -204,11 +190,11 @@ router.get('/identities/:id/assignments', async (req, res) => {
         JOIN "ResourceAssignments" ra ON ra."principalId" = m."principalId"
         LEFT JOIN "Resources" r ON r.id = ra."resourceId"
         LEFT JOIN "Principals" p ON p.id = m."principalId"
-        WHERE m."identityId" = @identityId
-          AND ra."assignmentType" = @type
+        WHERE m."identityId" = $1
+          AND ra."assignmentType" = $2
         ORDER BY r."displayName", p."displayName"
-      `);
-    res.json(r.recordset);
+      `, [identityId, type]);
+    res.json(r.rows);
   } catch (err) {
     console.error('Error fetching identity assignments:', err.message);
     res.status(500).json({ error: 'Failed to fetch identity assignments' });
@@ -226,27 +212,23 @@ router.get('/identities/:id/account-matrix', async (req, res) => {
   if (!UUID_RE.test(identityId)) return res.status(400).json({ error: 'Invalid identity ID' });
   try {
     const p = await db.getPool();
-    const accounts = (await timedRequest(p, 'identity-account-matrix-accounts', res)
-      .input('id', identityId)
-      .query(`
+    const accounts = (await timedQuery(p, 'identity-account-matrix-accounts', res, `
         SELECT m."principalId" AS id,
                COALESCE(pr."displayName", m."displayName") AS "displayName",
                m."accountType" AS "accountType",
                m."isPrimary"   AS "isPrimary"
         FROM "IdentityMembers" m
         LEFT JOIN "Principals" pr ON pr.id = m."principalId"
-        WHERE m."identityId" = @id
+        WHERE m."identityId" = $1
         ORDER BY m."isPrimary" DESC NULLS LAST, "displayName"
-      `)).recordset;
-    const memberships = (await timedRequest(p, 'identity-account-matrix-memberships', res)
-      .input('id', identityId)
-      .query(`
+      `, [identityId])).rows;
+    const memberships = (await timedQuery(p, 'identity-account-matrix-memberships', res, `
         SELECT vp."principalId"    AS "principalId",
                vp."resourceId"     AS "resourceId",
                vp."membershipType" AS "membershipType"
         FROM "vw_ResourceUserPermissionAssignments" vp
-        WHERE vp."principalId" IN (SELECT "principalId" FROM "IdentityMembers" WHERE "identityId" = @id)
-      `)).recordset;
+        WHERE vp."principalId" IN (SELECT "principalId" FROM "IdentityMembers" WHERE "identityId" = $1)
+      `, [identityId])).rows;
     res.json({ accounts, memberships });
   } catch (err) {
     console.error('Error fetching identity account-matrix:', err.message);
@@ -274,9 +256,7 @@ router.get('/identities/by-user/:userId', async (req, res) => {
     // Find identity membership for this user. Identities has `email`, not
     // `primaryAccountUpn` / `primaryAccountId` columns — map them through
     // aliases so the response keeps the field names the frontend expects.
-    const memberResult = await timedRequest(p, 'identity-by-user-member', res)
-      .input('userId', userId)
-      .query(`
+    const memberResult = await timedQuery(p, 'identity-by-user-member', res, `
         SELECT i.id AS "identityId", i."displayName" AS "identityDisplayName", i."accountCount",
           i.email AS "primaryAccountUpn", i."primaryPrincipalId" AS "primaryAccountId",
           i."linkConfidence", i."isHrAnchored",
@@ -284,14 +264,14 @@ router.get('/identities/by-user/:userId', async (req, res) => {
           m."linkSignals", m."analystOverride"
         FROM "IdentityMembers" m
         JOIN "Identities" i ON i.id = m."identityId"
-        WHERE m."principalId" = @userId
-      `);
+        WHERE m."principalId" = $1
+      `, [userId]);
 
-    if (memberResult.recordset.length === 0) {
+    if (memberResult.rows.length === 0) {
       return res.json({ identity: null, memberInfo: null });
     }
 
-    const row = memberResult.recordset[0];
+    const row = memberResult.rows[0];
     const identity = {
       id: row.identityId,
       displayName: row.identityDisplayName,
@@ -314,10 +294,7 @@ router.get('/identities/by-user/:userId', async (req, res) => {
     // Fetch other accounts in the same identity for context. IdentityMembers
     // stores `principalId` (UUID) — the UPN lives on Principals.email — so we
     // join through and expose the fields the frontend expects (userId / UPN).
-    const othersResult = await timedRequest(p, 'identity-by-user-others', res)
-      .input('identityId', row.identityId)
-      .input('userId', userId)
-      .query(`
+    const othersResult = await timedQuery(p, 'identity-by-user-others', res, `
         SELECT m."principalId"        AS "userId",
                COALESCE(m."displayName", pr."displayName") AS "displayName",
                pr."email"             AS "userPrincipalName",
@@ -327,12 +304,12 @@ router.get('/identities/by-user/:userId', async (req, res) => {
                m."accountEnabled"
           FROM "IdentityMembers" m
           LEFT JOIN "Principals" pr ON pr.id = m."principalId"
-         WHERE m."identityId" = @identityId
-           AND m."principalId" <> @userId
+         WHERE m."identityId" = $1
+           AND m."principalId" <> $2
          ORDER BY m."isPrimary" DESC NULLS LAST, m."accountType" ASC
-      `);
+      `, [row.identityId, userId]);
 
-    res.json({ identity, memberInfo, otherMembers: othersResult.recordset });
+    res.json({ identity, memberInfo, otherMembers: othersResult.rows });
   } catch (err) {
     console.error('Error fetching identity by user:', err.message);
     res.status(500).json({ error: 'Failed to fetch identity' });

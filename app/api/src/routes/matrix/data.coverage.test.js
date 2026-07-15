@@ -5,10 +5,10 @@
 //
 // Strategy: ./shared.js is mocked so parseFilter/buildSubqueries/scopeCounts are
 // driven directly (no need to craft valid request bodies for every branch).
-// ../../perf/sqlTimer.js is mocked so timedRequest returns a fake request whose
-// .query() dispatches off the label to a per-test map — giving precise control
-// over each SQL call's recordset. The pure SQL builders run for real. The
-// inherited-access helpers are mocked so the includeInherited branches execute.
+// ../../perf/sqlTimer.js is mocked so timedQuery dispatches off the label to a
+// per-test map — giving precise control over each SQL call's rows. The pure SQL
+// builders run for real. The inherited-access helpers are mocked so the
+// includeInherited branches execute.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import request from 'supertest';
@@ -20,34 +20,31 @@ const UUID = '11111111-1111-1111-1111-111111111111';
 const UUID2 = '22222222-2222-2222-2222-222222222222';
 
 // ── Mock the DB connection (route only calls getPool) ──
-const poolQuery = vi.fn(async () => ({ recordset: [] }));
+const poolQuery = vi.fn(async () => ({ rows: [] }));
 vi.mock('../../db/connection.js', () => ({
-  getPool: async () => ({ request: () => makeReq('pool') }),
+  getPool: async () => ({ query: (...a) => poolQuery(...a) }),
   query: (...a) => poolQuery(...a),
   queryOne: vi.fn(),
   default: {},
 }));
 
-// ── Mock the SQL timer: timedRequest(pool,label,res) → fake request ──
-// .input() is chainable; .query() looks up a handler by label substring.
-let labelHandlers = {};   // label-substring → (sql) => recordset | throws
-function makeReq(label) {
-  return {
-    input() { return this; },
-    async query() {
-      for (const key of Object.keys(labelHandlers)) {
-        if (label.includes(key)) {
-          const h = labelHandlers[key];
-          if (typeof h === 'function') return h();
-          return { recordset: h };
-        }
-      }
-      return { recordset: [] };
-    },
-  };
+// ── Mock the SQL timer: timedQuery(pool,label,res,sql,params) → {rows} ──
+// Handlers are keyed by label substring; each is an array of rows or a function
+// (called per query — throw to drive an error path).
+let labelHandlers = {};   // label-substring → rows[] | (() => rows[] | throws)
+function dispatch(label) {
+  for (const key of Object.keys(labelHandlers)) {
+    if (label.includes(key)) {
+      const h = labelHandlers[key];
+      const out = typeof h === 'function' ? h() : h;
+      const rows = Array.isArray(out) ? out : (out?.rows ?? out?.recordset ?? []);
+      return Promise.resolve({ rows });
+    }
+  }
+  return Promise.resolve({ rows: [] });
 }
 vi.mock('../../perf/sqlTimer.js', () => ({
-  timedRequest: (_pool, label) => makeReq(label),
+  timedQuery: (_pool, label) => dispatch(label),
 }));
 
 // ── Mock shared.js: full control over filter + built + counts ──
@@ -99,9 +96,12 @@ function baseFilter(over = {}) {
 function baseBuilt(over = {}) {
   const cols = [{ name: 'department', rawName: 'department', type: 'text' }];
   return {
-    subjectSql: '(SELECT id FROM "Principals")',
-    resourceSql: '(SELECT id FROM "Resources")',
-    bindings: { sf0: 'x' },
+    // Render closures: each query re-invokes these with its own binder. The
+    // mock ignores the binder and returns literal SQL (no $N to bind).
+    subject: () => ({ sql: '(SELECT id FROM "Principals")' }),
+    resource: () => ({ sql: '(SELECT id FROM "Resources")' }),
+    hasSubject: true,
+    hasResource: true,
     warnings: [],
     principalCols: cols,
     resourceCols: cols,
@@ -113,7 +113,7 @@ function baseBuilt(over = {}) {
 beforeEach(() => {
   labelHandlers = {};
   poolQuery.mockReset();
-  poolQuery.mockResolvedValue({ recordset: [] });
+  poolQuery.mockResolvedValue({ rows: [] });
   parseFilterImpl = () => baseFilter();
   buildSubqueriesImpl = async () => baseBuilt();
   scopeCountsImpl = async () => ({ subjectCount: 5, subjectTotal: 10, resourceCount: 3, resourceTotal: 8 });
@@ -178,8 +178,13 @@ describe('matrix/data — flat per-subject grid', () => {
     expect(res.body.data).toHaveLength(1);
   });
 
-  it('works when subjectSql/resourceSql are empty (no scope filters)', async () => {
-    buildSubqueriesImpl = async () => baseBuilt({ subjectSql: '', resourceSql: '' });
+  it('works when the subject/resource scope is empty (no scope filters)', async () => {
+    buildSubqueriesImpl = async () => baseBuilt({
+      subject: () => ({ sql: null }),
+      resource: () => ({ sql: null }),
+      hasSubject: false,
+      hasResource: false,
+    });
     labelHandlers = { 'matrix-data[': [{ resourceId: 'r1', memberId: 'm1' }] };
     const res = await post({ filter: {} });
     expect(res.status).toBe(200);

@@ -6,7 +6,8 @@
 
 import { Router } from 'express';
 import * as db from '../../db/connection.js';
-import { timedRequest } from '../../perf/sqlTimer.js';
+import { timedQuery } from '../../perf/sqlTimer.js';
+import { createParams } from '../../db/sqlParams.js';
 import { buildAssignmentExprs } from '../../db/matrixHelpers.js';
 import { getPrincipalColumns, getResourceColumns } from '../../db/columnCache.js';
 import { generateSampleDates, buildScopeAsofSql, historyStartSql } from '../../matrix/scopeHistory.js';
@@ -31,14 +32,19 @@ router.post('/matrix/scope-stats', async (req, res) => {
   try {
     const built = await buildSubqueries(filter);
     const p = await db.getPool();
-    const subj = subjectScopeClauses(filter.rowType, built.subjectSql);
 
-    const { subjectIdExpr, assignmentJoin, assignmentWhere } = buildAssignmentExprs(filter.rowType, built);
+    // The pair query renders both fragments through one binder; each count query
+    // renders just the fragment it uses, with its own params array.
+    const pp = createParams();
+    const { subjectIdExpr, assignmentJoin, assignmentWhere } =
+      buildAssignmentExprs(filter.rowType, built.subject(pp.bind).sql, built.resource(pp.bind).sql);
+    const scp = createParams();
+    const subj = subjectScopeClauses(filter.rowType, built.subject(scp.bind).sql);
+    const rcp = createParams();
+    const rcResourceSql = built.resource(rcp.bind).sql;
 
     // One pair-level aggregation: distinct (subject, resource) pairs, each
     // flagged governed if ANY of its assignment rows is access-package managed.
-    const pairReq = timedRequest(p, 'matrix-scope-pairs', res);
-    for (const [k, v] of Object.entries(built.bindings)) pairReq.input(k, v);
     const pairSql = `
       SELECT
         COUNT(*)::int AS total,
@@ -57,11 +63,11 @@ router.post('/matrix/scope-stats', async (req, res) => {
     const [subjectCount, resourceCount, pairRow] = await Promise.all([
       runCount(p, 'matrix-scope-subject', res,
         `SELECT COUNT(*)::int AS c FROM "${subj.subjectTable}"${subj.where}`,
-        built.bindings),
+        scp.params),
       runCount(p, 'matrix-scope-resource', res,
-        `SELECT COUNT(*)::int AS c FROM "Resources"${built.resourceSql ? ` WHERE id IN ${built.resourceSql}` : ''}`,
-        built.bindings),
-      pairReq.query(pairSql).then(r => r.recordset[0] || { total: 0, governed: 0 }),
+        `SELECT COUNT(*)::int AS c FROM "Resources"${rcResourceSql ? ` WHERE id IN ${rcResourceSql}` : ''}`,
+        rcp.params),
+      timedQuery(p, 'matrix-scope-pairs', res, pairSql, pp.params).then(r => r.rows[0] || { total: 0, governed: 0 }),
     ]);
 
     const assignmentCount = pairRow.total || 0;
@@ -110,9 +116,12 @@ router.post('/matrix/scope-timeseries', async (req, res) => {
     const principalColSet = new Set(principalCols.map(c => c.name));
     const resourceColSet  = new Set(resourceCols.map(c => c.name));
 
-    const { sql, bindings, warnings, scopeMode } = buildScopeAsofSql({
-      filter, principalColSet, resourceColSet, contextTypes,
-    });
+    const { params, bind } = createParams();
+    const asof0 = buildScopeAsofSql({ filter, principalColSet, resourceColSet, contextTypes, bind });
+    // The as-of instant is the next param after the (fixed) filter values; it
+    // varies per sample date, so leave a marker and bind it per date below.
+    const asofSql = asof0.sql.replaceAll(':ASOF:', `$${params.length + 1}`);
+    const { warnings, scopeMode } = asof0;
 
     const p = await db.getPool();
 
@@ -138,10 +147,7 @@ router.post('/matrix/scope-timeseries', async (req, res) => {
       if (historyStart && new Date(asof) < historyStart) {
         return { date, principals: 0, resources: 0, assignments: 0, governed: 0, governedPct: 0, beforeHistory: true };
       }
-      const r = timedRequest(p, 'matrix-scope-timeseries', res);
-      for (const [k, v] of Object.entries(bindings)) r.input(k, v);
-      r.input('asof', asof);
-      const row = (await r.query(sql)).recordset[0] || {};
+      const row = (await timedQuery(p, 'matrix-scope-timeseries', res, asofSql, [...params, asof])).rows[0] || {};
       const assignments = row.assignments || 0;
       const governed = row.governed || 0;
       return {
@@ -192,23 +198,25 @@ router.post('/matrix/scope-breakdown', async (req, res) => {
     const p = await db.getPool();
     const grp = `COALESCE(NULLIF(${attrExpr}::text, ''), '(none)')`;
     const notGroup = `(u."principalType" IS NULL OR u."principalType" <> '#microsoft.graph.group')`;
-    const subjIn = built.subjectSql ? ` AND u.id IN ${built.subjectSql}` : '';
-    const resIn  = built.resourceSql ? ` AND p."resourceId" IN ${built.resourceSql}` : '';
 
-    // Principals per group (includes principals with no assignments).
-    const principalsReq = timedRequest(p, 'matrix-breakdown-principals', res);
-    for (const [k, v] of Object.entries(built.bindings)) principalsReq.input(k, v);
-    const principalsRows = (await principalsReq.query(`
+    // Principals per group (includes principals with no assignments) — only the
+    // subject fragment, rendered with its own params.
+    const prp = createParams();
+    const prSubjIn = (() => { const s = built.subject(prp.bind).sql; return s ? ` AND u.id IN ${s}` : ''; })();
+    const principalsRows = (await timedQuery(p, 'matrix-breakdown-principals', res, `
       SELECT ${grp} AS grp, COUNT(*)::int AS principals
         FROM "Principals" u
-       WHERE ${notGroup}${subjIn}
+       WHERE ${notGroup}${prSubjIn}
        GROUP BY ${grp}
-    `)).recordset;
+    `, prp.params)).rows;
 
-    // Assignment pairs + governed split per group.
-    const pairsReq = timedRequest(p, 'matrix-breakdown-pairs', res);
-    for (const [k, v] of Object.entries(built.bindings)) pairsReq.input(k, v);
-    const pairsRows = (await pairsReq.query(`
+    // Assignment pairs + governed split per group — subject + resource fragments.
+    const pap = createParams();
+    const paSubjectSql = built.subject(pap.bind).sql;
+    const paResourceSql = built.resource(pap.bind).sql;
+    const paSubjIn = paSubjectSql ? ` AND u.id IN ${paSubjectSql}` : '';
+    const paResIn  = paResourceSql ? ` AND p."resourceId" IN ${paResourceSql}` : '';
+    const pairsRows = (await timedQuery(p, 'matrix-breakdown-pairs', res, `
       SELECT grp,
              COUNT(*)::int AS assignments,
              COUNT(*) FILTER (WHERE managed)::int AS governed
@@ -219,11 +227,11 @@ router.post('/matrix/scope-breakdown', async (req, res) => {
             JOIN "vw_ResourceUserPermissionAssignments" p ON p."principalId" = u.id
             LEFT JOIN "vw_UserPermissionAssignmentViaBusinessRole" br
               ON br."userId" = u.id AND br."resourceId" = p."resourceId"
-           WHERE ${notGroup}${subjIn}${resIn}
+           WHERE ${notGroup}${paSubjIn}${paResIn}
            GROUP BY ${grp}, u.id, p."resourceId"
         ) t
        GROUP BY grp
-    `)).recordset;
+    `, pap.params)).rows;
 
     // Merge the two result sets by group key.
     const byGroup = new Map();

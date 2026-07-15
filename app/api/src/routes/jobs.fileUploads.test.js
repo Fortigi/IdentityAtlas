@@ -21,12 +21,20 @@ const UPLOAD_ROOT_DIR = mkdtempSync(join(tmpdir(), 'iatest-jobs-uploads-'));
 process.env.UPLOAD_ROOT = UPLOAD_ROOT_DIR;
 process.env.USE_SQL = 'true'; // jobs.js captures this at module-load time too
 
-const { mockPool, mockDbQuery, mockInput } = vi.hoisted(() => {
+const { mockPool, mockDbQuery } = vi.hoisted(() => {
   const mockDbQuery = vi.fn();
-  const mockInput = vi.fn().mockReturnThis();
-  const mockRequest = { input: mockInput, query: mockDbQuery };
-  const mockPool = { request: vi.fn(() => mockRequest) };
-  return { mockPool, mockDbQuery, mockInput };
+  // Normalise staged results so a handler reading pool.query → .rows gets the
+  // rows whether the test staged .rows or (legacy) .recordset — one mockDbQuery
+  // spy backs the whole native jobs surface (#663).
+  const run = async (...a) => {
+    const r = await mockDbQuery(...a);
+    if (r == null) return r;
+    const rows = r.rows ?? r.recordset ?? [];
+    const rowCount = r.rowCount ?? r.rowsAffected?.[0] ?? rows.length;
+    return { ...r, rows, recordset: rows, rowCount, rowsAffected: [rowCount] };
+  };
+  const mockPool = { query: (...a) => run(...a) };
+  return { mockPool, mockDbQuery };
 });
 
 vi.mock('../db/connection.js', () => ({ getPool: async () => mockPool }));
@@ -43,17 +51,17 @@ function makeApp() {
   return app;
 }
 
-// Helper: pull the JSON-stringified value passed to .input('config', ...) so
-// tests can inspect what was actually about to be stored, without needing to
-// fabricate a fake RETURNING * echo in the INSERT mock.
+// Helper: pull the JSON-stringified config the INSERT was about to store. The
+// job INSERT now binds it as the 2nd positional param — pool.query(sql,
+// [jobType, configJson, createdBy]) — so read it off the mockDbQuery call args.
 function storedConfig() {
-  const call = mockInput.mock.calls.find(c => c[0] === 'config');
-  return call?.[1] ? JSON.parse(call[1]) : null;
+  const call = mockDbQuery.mock.calls.find(c => /INSERT INTO "CrawlerJobs"/.test(c[0]));
+  const configJson = call?.[1]?.[1];
+  return configJson ? JSON.parse(configJson) : null;
 }
 
 beforeEach(() => {
   mockDbQuery.mockClear();
-  mockInput.mockClear();
 });
 
 afterAll(() => {

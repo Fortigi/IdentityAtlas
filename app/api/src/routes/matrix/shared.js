@@ -5,7 +5,8 @@
 // both share one definition. No behaviour change — pure code move.
 
 import * as db from '../../db/connection.js';
-import { timedRequest } from '../../perf/sqlTimer.js';
+import { timedQuery } from '../../perf/sqlTimer.js';
+import { createParams } from '../../db/sqlParams.js';
 import { getPrincipalColumns, getResourceColumns } from '../../db/columnCache.js';
 import { buildEntitySubquery, collectContextIds } from '../../matrix/filterSql.js';
 
@@ -197,40 +198,53 @@ export async function buildSubqueries(filter) {
   const subjectEntity = filter.rowType === 'identity' ? 'Identity' : 'Principal';
   const subjectValidCols = filter.rowType === 'identity' ? identityColSet : principalColSet;
 
-  const subject = buildEntitySubquery({
+  // Render closures: `subject(bind)` / `resource(bind)` return { sql, warnings }
+  // given a positional binder (from createParams). The subquery fragment is
+  // embedded in several INDEPENDENT queries (the flat grid, the four scope
+  // COUNTs, roll-ups), and pg can't share params across queries — so each
+  // consuming query calls the closure with its OWN bind, getting exactly the
+  // $N + params that query references.
+  const subject = (bind) => buildEntitySubquery({
     entity: subjectEntity,
     include: filter.subject.include,
     exclude: filter.subject.exclude,
     validColumns: subjectValidCols,
     contextTypes,
-    bindingPrefix: 'sf',
+    bind,
   });
-  const resource = buildEntitySubquery({
+  const resource = (bind) => buildEntitySubquery({
     entity: 'Resource',
     include: filter.resource.include,
     exclude: filter.resource.exclude,
     validColumns: resourceColSet,
     contextTypes,
-    bindingPrefix: 'rf',
+    bind,
   });
 
+  // Warnings + fragment-presence flags are bind-independent — compute once with
+  // a throwaway binder. hasSubject/hasResource let callers guard on "is there a
+  // filter fragment?" without rendering (the fragment sql is null when empty).
+  const t = createParams();
+  const subjectBuilt = subject(t.bind);
+  const resourceBuilt = resource(t.bind);
+  const warnings = [...subjectBuilt.warnings, ...resourceBuilt.warnings];
+
   return {
-    subjectSql:    subject.sql,
-    resourceSql:   resource.sql,
-    bindings:      { ...subject.bindings, ...resource.bindings },
-    warnings:      [...subject.warnings, ...resource.warnings],
+    subject,
+    resource,
+    hasSubject: subjectBuilt.sql != null,
+    hasResource: resourceBuilt.sql != null,
+    warnings,
     principalCols,
     resourceCols,
     identityCols,
   };
 }
 
-// Run a single-cell COUNT query with the given bindings; returns the integer.
-export async function runCount(p, label, res, sql, bindings) {
-  const r = timedRequest(p, label, res);
-  for (const [k, v] of Object.entries(bindings)) r.input(k, v);
-  const result = await r.query(sql);
-  return result.recordset[0]?.c ?? 0;
+// Run a single-cell COUNT query with the given positional params; returns the integer.
+export async function runCount(p, label, res, sql, params) {
+  const result = await timedQuery(p, label, res, sql, params);
+  return result.rows[0]?.c ?? 0;
 }
 
 export function subjectScopeClauses(rowType, subjectSql) {
@@ -251,16 +265,23 @@ export function subjectScopeClauses(rowType, subjectSql) {
 
 // Subject/resource scope counts shared by /matrix/data (flat + roll-up paths).
 export async function scopeCounts(p, res, rowType, built) {
-  const subj = subjectScopeClauses(rowType, built.subjectSql);
+  // Each COUNT query renders its fragment fresh with its own params array.
+  const sp = createParams();
+  const subjectSql = built.subject(sp.bind).sql;
+  const subj = subjectScopeClauses(rowType, subjectSql);
+
+  const rp = createParams();
+  const resourceSql = built.resource(rp.bind).sql;
+
   const [subjectCount, subjectTotal, resourceCount, resourceTotal] = await Promise.all([
     runCount(p, 'matrix-data-subject-count', res,
-      `SELECT COUNT(*)::int AS c FROM "${subj.subjectTable}"${subj.where}`, built.bindings),
+      `SELECT COUNT(*)::int AS c FROM "${subj.subjectTable}"${subj.where}`, sp.params),
     runCount(p, 'matrix-data-subject-total', res,
-      `SELECT COUNT(*)::int AS c FROM "${subj.subjectTable}"${subj.baseWhere}`, {}),
+      `SELECT COUNT(*)::int AS c FROM "${subj.subjectTable}"${subj.baseWhere}`, []),
     runCount(p, 'matrix-data-resource-count', res,
-      `SELECT COUNT(*)::int AS c FROM "Resources"${built.resourceSql ? ` WHERE id IN ${built.resourceSql}` : ''}`, built.bindings),
+      `SELECT COUNT(*)::int AS c FROM "Resources"${resourceSql ? ` WHERE id IN ${resourceSql}` : ''}`, rp.params),
     runCount(p, 'matrix-data-resource-total', res,
-      `SELECT COUNT(*)::int AS c FROM "Resources"`, {}),
+      `SELECT COUNT(*)::int AS c FROM "Resources"`, []),
   ]);
   return { subjectCount, subjectTotal, resourceCount, resourceTotal };
 }

@@ -15,7 +15,7 @@ process.env.USE_SQL = 'true';
 
 const timedQuery = vi.fn();
 vi.mock('../perf/sqlTimer.js', () => ({
-  timedRequest: () => ({ input() { return this; }, query: (sql) => timedQuery(sql) }),
+  timedQuery: (...args) => timedQuery(...args),
   getQueryTimings: () => [],
 }));
 vi.mock('../db/connection.js', () => ({ getPool: async () => ({}) }));
@@ -30,7 +30,7 @@ beforeEach(() => timedQuery.mockReset());
 
 describe('GET /systems (list)', () => {
   it('returns the recordset', async () => {
-    timedQuery.mockResolvedValueOnce({ recordset: [{ id: 5, displayName: 'S' }] });
+    timedQuery.mockResolvedValueOnce({ rows: [{ id: 5, displayName: 'S' }] });
     const res = await request(app).get('/api/systems');
     expect(res.status).toBe(200);
     expect(res.body).toEqual([{ id: 5, displayName: 'S' }]);
@@ -51,14 +51,14 @@ describe('GET /systems/:id', () => {
   });
 
   it('200 with the row for an integer id', async () => {
-    timedQuery.mockResolvedValueOnce({ recordset: [{ id: 5, displayName: 'S' }] });
+    timedQuery.mockResolvedValueOnce({ rows: [{ id: 5, displayName: 'S' }] });
     const res = await request(app).get(`/api/systems/${SYSTEM}`);
     expect(res.status).toBe(200);
     expect(res.body.displayName).toBe('S');
   });
 
   it('404 when the system is not found', async () => {
-    timedQuery.mockResolvedValueOnce({ recordset: [] });
+    timedQuery.mockResolvedValueOnce({ rows: [] });
     const res = await request(app).get(`/api/systems/${SYSTEM}`);
     expect(res.status).toBe(404);
   });
@@ -82,7 +82,7 @@ describe('PUT /systems/:id', () => {
   });
 
   it('200 updates displayName, description and enabled', async () => {
-    timedQuery.mockResolvedValueOnce({ recordset: [{ id: 5 }] });
+    timedQuery.mockResolvedValueOnce({ rows: [{ id: 5 }] });
     const res = await request(app)
       .put(`/api/systems/${SYSTEM}`)
       .send({ displayName: 'A', description: 'B', enabled: true });
@@ -90,7 +90,7 @@ describe('PUT /systems/:id', () => {
   });
 
   it('404 when the update matches no row', async () => {
-    timedQuery.mockResolvedValueOnce({ recordset: [] });
+    timedQuery.mockResolvedValueOnce({ rows: [] });
     const res = await request(app).put(`/api/systems/${SYSTEM}`).send({ enabled: false });
     expect(res.status).toBe(404);
   });
@@ -109,7 +109,7 @@ describe('GET /systems/:id/owners', () => {
   });
 
   it('200 returns the owner rows', async () => {
-    timedQuery.mockResolvedValueOnce({ recordset: [{ systemId: 5, userId: USER, userDisplayName: 'Z' }] });
+    timedQuery.mockResolvedValueOnce({ rows: [{ systemId: 5, userId: USER, userDisplayName: 'Z' }] });
     const res = await request(app).get(`/api/systems/${SYSTEM}/owners`);
     expect(res.status).toBe(200);
     expect(res.body[0].userDisplayName).toBe('Z');
@@ -135,7 +135,7 @@ describe('POST /systems/:id/owners', () => {
   });
 
   it('201 when the owner is added', async () => {
-    timedQuery.mockResolvedValueOnce({ recordset: [{ systemId: 5, userId: USER }] });
+    timedQuery.mockResolvedValueOnce({ rows: [{ systemId: 5, userId: USER }] });
     const res = await request(app).post(`/api/systems/${SYSTEM}/owners`).send({ userId: USER });
     expect(res.status).toBe(201);
     expect(res.body.userId).toBe(USER);
@@ -166,7 +166,7 @@ describe('DELETE /systems/:id/owners/:userId', () => {
   });
 
   it('200 when the owner is removed', async () => {
-    timedQuery.mockResolvedValueOnce({ recordset: [] });
+    timedQuery.mockResolvedValueOnce({ rows: [] });
     const res = await request(app).delete(`/api/systems/${SYSTEM}/owners/${USER}`);
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ ok: true });

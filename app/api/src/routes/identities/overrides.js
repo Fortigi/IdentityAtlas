@@ -6,7 +6,7 @@
 // No behaviour change — pure code move.
 
 import { Router } from 'express';
-import { timedRequest } from '../../perf/sqlTimer.js';
+import { timedQuery } from '../../perf/sqlTimer.js';
 import { requirePermission } from '../../middleware/auth.js';
 import { useSql, db, UUID_RE } from './shared.js';
 
@@ -29,15 +29,11 @@ router.put('/identities/:id/members/:userId/override', writeIdentity, async (req
 
   try {
     const p = await db.getPool();
-    await timedRequest(p, 'identity-member-override', res)
-      .input('identityId', identityId)
-      .input('userId', userId)
-      .input('action', action)
-      .query(`
+    await timedQuery(p, 'identity-member-override', res, `
         UPDATE "IdentityMembers"
-        SET "analystOverride" = @action
-        WHERE "identityId" = @identityId AND "principalId" = @userId
-      `);
+        SET "analystOverride" = $3
+        WHERE "identityId" = $1 AND "principalId" = $2
+      `, [identityId, userId, action]);
 
     res.json({ success: true, action });
   } catch (err) {
@@ -58,14 +54,11 @@ router.delete('/identities/:id/members/:userId/override', writeIdentity, async (
 
   try {
     const p = await db.getPool();
-    await timedRequest(p, 'identity-member-remove-override', res)
-      .input('identityId', identityId)
-      .input('userId', userId)
-      .query(`
+    await timedQuery(p, 'identity-member-remove-override', res, `
         UPDATE "IdentityMembers"
         SET "analystOverride" = NULL
-        WHERE "identityId" = @identityId AND "principalId" = @userId
-      `);
+        WHERE "identityId" = $1 AND "principalId" = $2
+      `, [identityId, userId]);
 
     res.json({ success: true });
   } catch (err) {

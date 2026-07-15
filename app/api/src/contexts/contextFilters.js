@@ -13,11 +13,10 @@
 //
 // Return shape:
 //   { principalClauses: string[], resourceClauses: string[],
-//     innerPrincipalClauses: string[], innerResourceClauses: string[],
-//     bindings: { name: value } }
+//     innerPrincipalClauses: string[], innerResourceClauses: string[] }
 //
-// Clauses use @-style placeholder names. Bindings are the map from
-// placeholder-name → value. The caller feeds them to request.input().
+// Clauses carry positional `$N` tokens rendered by the caller's `bind` (from
+// createParams); each bound value is appended to the caller's params array.
 //
 // principalClauses / resourceClauses reference the outer matrix query's
 // `p.` (view alias) and `r.` (Resources alias). innerPrincipalClauses /
@@ -31,39 +30,40 @@ export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f
 
 // ─── Pure SQL generator ───────────────────────────────────────────────────────
 // Exposed for unit tests. Takes already-resolved filters (each with a known
-// targetType) and returns the clauses/bindings that the matrix query should
-// append to its WHERE.
-export function buildContextFilterSql(resolvedFilters) {
+// targetType) and a positional binder (`bind` from createParams — bind(value)
+// appends the value and returns its `$N` token), and returns the clauses the
+// matrix query should append to its WHERE. Each context's outer + inner clause
+// share one scope sub-select (same $N), so the caller embeds both in ONE query;
+// when the clauses feed several independent queries the caller re-invokes this
+// with each query's own bind.
+export function buildContextFilterSql(resolvedFilters, bind) {
   const principalClauses = [];
   const resourceClauses = [];
   const innerPrincipalClauses = [];
   const innerResourceClauses = [];
-  const bindings = {};
 
   for (let i = 0; i < resolvedFilters.length; i++) {
     const f = resolvedFilters[i];
     if (!UUID_RE.test(f.id)) continue;
 
-    const idParam  = `ctxFilter${i}Id`;
-    const memParam = `ctxFilter${i}Mem`;
-    bindings[idParam] = f.id;
-    bindings[memParam] = normaliseMemberType(f.targetType);
+    const idPh  = bind(f.id);
+    const memPh = bind(normaliseMemberType(f.targetType));
 
     const scope = f.includeChildren
       ? `(
           WITH RECURSIVE scope AS (
-            SELECT id FROM "Contexts" WHERE id = @${idParam}
+            SELECT id FROM "Contexts" WHERE id = ${idPh}
             UNION ALL
             SELECT c.id FROM "Contexts" c JOIN scope ON c."parentContextId" = scope.id
           )
           SELECT "memberId" FROM "ContextMembers"
-           WHERE "memberType" = @${memParam}
+           WHERE "memberType" = ${memPh}
              AND "contextId" IN (SELECT id FROM scope)
         )`
       : `(
           SELECT "memberId" FROM "ContextMembers"
-           WHERE "memberType" = @${memParam}
-             AND "contextId" = @${idParam}
+           WHERE "memberType" = ${memPh}
+             AND "contextId" = ${idPh}
         )`;
 
     if (f.targetType === 'Identity' || f.targetType === 'Principal') {
@@ -88,7 +88,6 @@ export function buildContextFilterSql(resolvedFilters) {
     resourceClauses,
     innerPrincipalClauses,
     innerResourceClauses,
-    bindings,
   };
 }
 

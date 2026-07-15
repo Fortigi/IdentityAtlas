@@ -2,7 +2,7 @@
 // mocked, each request drives the dispatcher into a specific extracted handler
 // (flat grid / roll-up / roll-up-roles / attribute-fold / context zoom /
 // context layered) and asserts the shape that handler assembles. The SQL builders
-// run for real (they're pure string builders); timedRequest returns empty rows.
+// run for real (they're pure string builders); timedQuery returns empty rows.
 import { describe, it, expect, vi } from 'vitest';
 import request from 'supertest';
 import express from 'express';
@@ -10,11 +10,19 @@ import express from 'express';
 process.env.USE_SQL = 'true';
 
 let currentFilter;
-const BUILT = { subjectSql: null, resourceSql: null, bindings: {}, principalCols: [], identityCols: [], warnings: [] };
+// Render-closure shape: each query re-invokes subject()/resource() with its own
+// binder; here they return an empty (no-scope) fragment.
+const BUILT = {
+  subject: () => ({ sql: null }),
+  resource: () => ({ sql: null }),
+  hasSubject: false,
+  hasResource: false,
+  principalCols: [], identityCols: [], resourceCols: [], warnings: [],
+};
 
 vi.mock('../../db/connection.js', () => ({ getPool: vi.fn(async () => ({})), query: vi.fn(), queryOne: vi.fn() }));
 vi.mock('../../perf/sqlTimer.js', () => ({
-  timedRequest: () => ({ input() { return this; }, query: async () => ({ recordset: [] }) }),
+  timedQuery: async () => ({ rows: [] }),
 }));
 vi.mock('./shared.js', async (orig) => ({
   ...(await orig()),

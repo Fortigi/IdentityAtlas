@@ -7,12 +7,10 @@ import { mountRouter } from '../../test-utils/routeTestKit.js';
 
 process.env.USE_SQL = 'true';
 
-let nextResult = { recordset: [] };
-const mockPool = { request() { const r = { input() { return r; }, query() { return Promise.resolve(nextResult); } }; return r; } };
 const query = vi.fn();
 const queryOne = vi.fn();
 vi.mock('../db/connection.js', () => ({
-  getPool: async () => mockPool,
+  getPool: async () => ({}),
   query: (...a) => query(...a),
   queryOne: (...a) => queryOne(...a),
 }));
@@ -30,11 +28,11 @@ const app = mountRouter(router);
 
 const VALID = '11111111-1111-1111-1111-111111111111';
 
-beforeEach(() => { nextResult = { recordset: [] }; query.mockReset(); queryOne.mockReset(); });
+beforeEach(() => { query.mockReset(); queryOne.mockReset(); });
 
 describe('tags', () => {
   it('GET /tags returns the rows', async () => {
-    nextResult = { recordset: [{ id: VALID, name: 'PII', color: '#3b82f6' }] };
+    query.mockResolvedValueOnce({ rows: [{ id: VALID, name: 'PII', color: '#3b82f6' }] });
     const res = await request(app).get('/api/tags');
     expect(res.status).toBe(200);
     expect(res.body).toEqual([{ id: VALID, name: 'PII', color: '#3b82f6' }]);
