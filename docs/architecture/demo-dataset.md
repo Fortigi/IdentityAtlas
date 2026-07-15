@@ -123,12 +123,12 @@ AU-Contractors
 | E0010-E0024 (Engineering) | SG-Engineering | Direct | |
 | E0025-E0026 (Finance) | SG-Finance | Direct | |
 | E0029, E0030 (SysAdmins) | SG-VPN-Access | Direct | |
-| E0002 (CTO) | SG-Admin-Tier0 | Owner | CTO owns the admin group |
+| E0002 (CTO) | SG-Admin-Tier0 · ownership | Direct | CTO owns the admin group — ownership is its own `GroupOwnership` resource, held via a `Direct` assignment (the retired `Owner` type is gone) |
 | E0029 (SysAdmin) | SG-Admin-Tier0 | Direct | Member of high-risk group |
 | SVC-001 (Deploy Pipeline) | SG-Admin-Tier0 | Direct | Service principal in admin group |
 | E0002 (CTO) | Global Administrator | Direct | Directory role assignment |
-| All 30 employees | BR-Employee-Base | Governed | Via business role |
-| E0010-E0024 | BR-Engineering-Tools | Governed | Via business role |
+| All 30 employees | BR-Employee-Base | Direct (`governed=true`) | Via business role — governance is the `governed` flag, not an assignment type |
+| E0010-E0024 | BR-Engineering-Tools | Direct (`governed=true`) | Via business role |
 | E0029 (SysAdmin) | BR-Admin-Privileged | Eligible | PIM-eligible, not active |
 
 ### Resource Relationships
@@ -221,7 +221,7 @@ After ingesting the demo dataset, the nightly runner executes these verification
 | Systems | 3 | `SELECT COUNT(*) FROM Systems` |
 | Principals | 35 | Includes: 30 employees + 1 contractor + 1 disabled + 1 SP + 1 AI + 1 shared mailbox |
 | Resources | 14 | 6 groups + 2 directory roles + 2 app roles + 4 business roles |
-| ResourceAssignments | ~85 | Direct + Owner + Eligible + Governed |
+| ResourceAssignments | ~85 | Direct + Indirect + Eligible (governed ones flagged `governed=true`; ownership via `GroupOwnership` resources) |
 | ResourceRelationships | 9 | 8 Contains + 1 GrantsAccessTo |
 | Identities | 32 | 30 active employees + 1 disabled + 1 multi-system |
 | IdentityMembers | 34 | 32 primary links + 2 secondary (multi-system) |
@@ -247,7 +247,7 @@ After ingesting the demo dataset, the nightly runner executes these verification
 
 | Check | Expected |
 |---|---|
-| CTO (E0002) has `assignmentType='Owner'` on SG-Admin-Tier0 | True |
+| CTO (E0002) owns SG-Admin-Tier0 — a `Direct` assignment on its `GroupOwnership` resource | True |
 | CTO (E0002) has `assignmentType='Direct'` on Global Administrator role | True |
 | SysAdmin (E0029) has `assignmentType='Eligible'` on BR-Admin-Privileged | True |
 | Contractor (E0040) has NO entry in Identities | True |
