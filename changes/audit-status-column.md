@@ -1,0 +1,1 @@
+- The June 2026 maintenance-sprint audit page now tracks a remediation **Status** for every finding (✅ Fixed / 🟦 By design / 🟨 Partially addressed / 🔧 Open) with the pull request that closed it, matching the Status convention already used on the Security and UX assessment pages. All Critical findings and every exploitable security finding are marked fixed.
