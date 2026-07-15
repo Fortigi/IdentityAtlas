@@ -3,10 +3,23 @@
 # Builds the complete stack (postgres + web + worker), then exercises every
 # nightly test scenario so main stays stable.
 #
-# Three parallel jobs:
-#   1. integration  — core + secret-dependent tests (~20 min)
-#   2. e2e          — Playwright browser tests (~15 min)
-#   3. load-soak    — 1.5M-row load test + 15-min soak test (~50 min)
+# Three parallel jobs. The durations below are measured across recent successful
+# runs rather than estimated; the previous figures (20 / 15 / 50 min) overstated
+# every job, which makes it hard to judge what re-running the suite costs.
+#   1. integration  — core + secret-dependent tests (~5 min)
+#   2. e2e          — Playwright browser tests (~5 min)
+#   3. load-soak    — 1.5M-row load test (~7 min) + 15-min soak test (~22 min)
+#
+# Note: load-soak currently finishes in ~8 min, not ~22, because the soak test
+# does not actually run. It takes a memory baseline from GET /admin/container-stats
+# and skips — recording a PASS — when that is unavailable, which is always: #213
+# removed the endpoint and the Docker socket mount it needed, because mounting
+# docker.sock into the web container was a host-takeover primitive. So a step
+# named "Soak test (15 min)" completes in 0 min and goes green. #721 tracks it.
+#
+# ~22 min is what this job should cost once the soak works again. Do NOT get
+# there by restoring the endpoint or the socket mount — that re-opens the hole
+# #213 closed. See #721 for the alternatives.
 #
 # Secret-dependent tests (Entra ID crawler, LLM risk scoring) skip gracefully
 # when GitHub Actions secrets are not configured. Set them in repo Settings →
