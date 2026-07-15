@@ -218,7 +218,7 @@ After ingesting the demo dataset, the nightly runner executes these verification
 
 | Table | Expected | Query |
 |---|---|---|
-| Systems | 3 | `SELECT COUNT(*) FROM Systems WHERE ValidTo = '9999-12-31...'` |
+| Systems | 3 | `SELECT COUNT(*) FROM Systems` |
 | Principals | 35 | Includes: 30 employees + 1 contractor + 1 disabled + 1 SP + 1 AI + 1 shared mailbox |
 | Resources | 14 | 6 groups + 2 directory roles + 2 app roles + 4 business roles |
 | ResourceAssignments | ~85 | Direct + Owner + Eligible + Governed |
