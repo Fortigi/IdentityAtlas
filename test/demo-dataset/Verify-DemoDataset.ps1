@@ -3,14 +3,28 @@
     Verifies the demo dataset was ingested correctly — row counts, relationships, business logic.
 
 .DESCRIPTION
-    Runs against the SQL database and API to verify every aspect of the demo dataset.
-    Returns exit code 0 if all checks pass, non-zero = number of failures.
+    Runs against the postgres database and the API to verify every aspect of the
+    demo dataset. Returns exit code 0 if all checks pass, non-zero = number of failures.
 
-.PARAMETER SqlConnectionString
-    SQL connection string (default: local Docker)
+    Database access goes through test/lib/PgQuery.psm1 (psql inside the postgres
+    container). v5 has no SQL Server, and `System.Data.SqlClient` — which this
+    script used until #707 — does not exist on PowerShell 7.
+
+    Two v4-isms are gone from the queries below:
+      * `ValidTo = '9999-12-31...'` — temporal tables were dropped in v5. The
+        equivalent "current rows" filter is now `deletedAt IS NULL` on the
+        soft-delete tables (Principals / Resources / ResourceAssignments); other
+        tables have no lifecycle column. Get-PgLiveCount handles this per table.
+      * `dbo.[Table]` — postgres has no `dbo` schema, and the migrations create
+        tables with quoted PascalCase names, so identifiers must be
+        double-quoted ("Resources", "principalType") or they fold to lowercase
+        and fail to resolve.
 
 .PARAMETER ApiBaseUrl
     API base URL (default: http://localhost:3001/api)
+
+.PARAMETER PgService
+    docker compose service name of the postgres container.
 
 .EXAMPLE
     .\Verify-DemoDataset.ps1
@@ -18,14 +32,20 @@
 
 [CmdletBinding()]
 Param(
-    [string]$SqlConnectionString = "Server=localhost;Database=GraphData;User Id=sa;Password=FortigiGraph_Local1!;TrustServerCertificate=True",
-    [string]$ApiBaseUrl = 'http://localhost:3001/api'
+    [string]$ApiBaseUrl = 'http://localhost:3001/api',
+    [string]$PgService = 'postgres',
+    [string]$PgUser = 'identity_atlas',
+    [string]$PgPassword = 'identity_atlas_local',
+    [string]$PgDatabase = 'identity_atlas'
 )
 
 $ErrorActionPreference = 'Continue'
 $passed = 0
 $failed = 0
 $results = @()
+
+Import-Module (Join-Path $PSScriptRoot '..' 'lib' 'PgQuery.psm1') -Force
+Set-PgConnection -Service $PgService -User $PgUser -Password $PgPassword -Database $PgDatabase
 
 function Assert-Check {
     param([string]$Name, [bool]$Condition, [string]$Detail = '')
@@ -39,31 +59,19 @@ function Assert-Check {
     $script:results += @{ Name = $Name; Passed = $Condition; Detail = $Detail }
 }
 
-function Invoke-Sql {
-    param([string]$Query)
-    $conn = New-Object System.Data.SqlClient.SqlConnection($SqlConnectionString)
-    $conn.Open()
-    $cmd = $conn.CreateCommand()
-    $cmd.CommandText = $Query
-    $adapter = New-Object System.Data.SqlClient.SqlDataAdapter($cmd)
-    $table = New-Object System.Data.DataTable
-    $adapter.Fill($table) | Out-Null
-    $conn.Close()
-    return $table
+# Every DB check funnels through here so a broken query is reported as a failed
+# check rather than taking the whole run down — and never as a silent 0.
+function Assert-Count {
+    param([string]$Name, [string]$Query, [int]$Min, [int]$Max = [int]::MaxValue, [string]$Label = '')
+    try {
+        $count = Get-PgCount -Query $Query
+        $expected = if ($Label) { $Label } elseif ($Max -eq [int]::MaxValue) { ">= $Min" } else { "$Min-$Max" }
+        Assert-Check $Name ($count -ge $Min -and $count -le $Max) "Got $count (expected $expected)"
+    }
+    catch {
+        Assert-Check $Name $false "Query failed: $($_.Exception.Message)"
+    }
 }
-
-function Get-SqlScalar {
-    param([string]$Query)
-    $conn = New-Object System.Data.SqlClient.SqlConnection($SqlConnectionString)
-    $conn.Open()
-    $cmd = $conn.CreateCommand()
-    $cmd.CommandText = $Query
-    $result = $cmd.ExecuteScalar()
-    $conn.Close()
-    return $result
-}
-
-$CURRENT = "'9999-12-31 23:59:59.9999999'"
 
 Write-Host "`n=== Demo Dataset Verification ===" -ForegroundColor Cyan
 
@@ -79,7 +87,6 @@ $counts = @{
     'ResourceRelationships'  = @{ Min = 9;  Max = 9 }
     'Identities'             = @{ Min = 20; Max = 25 }
     'IdentityMembers'        = @{ Min = 20; Max = 40 }
-    'Contexts'               = @{ Min = 7;  Max = 8 }
     'GovernanceCatalogs'     = @{ Min = 2;  Max = 2 }
     'AssignmentPolicies'     = @{ Min = 3;  Max = 3 }
     'CertificationDecisions' = @{ Min = 2;  Max = 2 }
@@ -88,8 +95,7 @@ $counts = @{
 
 foreach ($table in $counts.Keys | Sort-Object) {
     try {
-        $count = Get-SqlScalar "SELECT COUNT(*) FROM dbo.[$table] WHERE ValidTo = $CURRENT"
-        if ($null -eq $count) { $count = Get-SqlScalar "SELECT COUNT(*) FROM dbo.[$table]" }  # Non-temporal tables
+        $count = Get-PgLiveCount -Table $table
         $min = $counts[$table].Min
         $max = $counts[$table].Max
         Assert-Check "RowCount-$table" ($count -ge $min -and $count -le $max) "Got $count (expected $min-$max)"
@@ -99,85 +105,127 @@ foreach ($table in $counts.Keys | Sort-Object) {
     }
 }
 
+# Contexts are counted separately, filtered to the dataset's own. In the v6
+# model a Context carries a `variant`: the demo dataset ingests 8 'synced' ones
+# (1 admin unit + 5 departments + 2 teams), while the API creates 'manual' Tag
+# roots at bootstrap and the context-algorithm plugins emit 'generated' ones
+# whenever the worker runs. A bare COUNT(*) therefore drifts with runtime state —
+# it read 8 before the worker started and 9 after. Filtering by variant makes
+# this deterministic.
+Assert-Count 'RowCount-Contexts' -Min 8 -Max 8 -Query @'
+SELECT COUNT(*) FROM "Contexts" WHERE "variant" = 'synced'
+'@
+
 # ─── Referential Integrity ────────────────────────────────────────
 
 Write-Host "`n--- Referential Integrity ---" -ForegroundColor Yellow
 
-# Assignments reference existing resources
-$orphanAssignRes = Get-SqlScalar "SELECT COUNT(*) FROM ResourceAssignments ra WHERE ra.ValidTo = $CURRENT AND NOT EXISTS (SELECT 1 FROM Resources r WHERE r.id = ra.resourceId AND r.ValidTo = $CURRENT)"
-Assert-Check 'FK-Assignments-Resources' ($orphanAssignRes -eq 0) "Orphaned: $orphanAssignRes"
+# A live assignment must not point at a tombstoned or missing resource/principal.
+Assert-Count 'FK-Assignments-Resources' -Max 0 -Min 0 -Label '0 orphans' -Query @'
+SELECT COUNT(*) FROM "ResourceAssignments" ra
+WHERE ra."deletedAt" IS NULL
+  AND NOT EXISTS (SELECT 1 FROM "Resources" r WHERE r."id" = ra."resourceId" AND r."deletedAt" IS NULL)
+'@
 
-# Assignments reference existing principals
-$orphanAssignPrinc = Get-SqlScalar "SELECT COUNT(*) FROM ResourceAssignments ra WHERE ra.ValidTo = $CURRENT AND NOT EXISTS (SELECT 1 FROM Principals p WHERE p.id = ra.principalId AND p.ValidTo = $CURRENT)"
-Assert-Check 'FK-Assignments-Principals' ($orphanAssignPrinc -eq 0) "Orphaned: $orphanAssignPrinc"
+Assert-Count 'FK-Assignments-Principals' -Max 0 -Min 0 -Label '0 orphans' -Query @'
+SELECT COUNT(*) FROM "ResourceAssignments" ra
+WHERE ra."deletedAt" IS NULL
+  AND NOT EXISTS (SELECT 1 FROM "Principals" p WHERE p."id" = ra."principalId" AND p."deletedAt" IS NULL)
+'@
 
-# Identity members reference existing identities
-$orphanIdMem = Get-SqlScalar "SELECT COUNT(*) FROM IdentityMembers im WHERE im.ValidTo = $CURRENT AND NOT EXISTS (SELECT 1 FROM Identities i WHERE i.id = im.identityId AND i.ValidTo = $CURRENT)"
-Assert-Check 'FK-IdentityMembers-Identities' ($orphanIdMem -eq 0) "Orphaned: $orphanIdMem"
+Assert-Count 'FK-IdentityMembers-Identities' -Max 0 -Min 0 -Label '0 orphans' -Query @'
+SELECT COUNT(*) FROM "IdentityMembers" im
+WHERE NOT EXISTS (SELECT 1 FROM "Identities" i WHERE i."id" = im."identityId")
+'@
 
-# Identity members reference existing principals
-$orphanIdPrinc = Get-SqlScalar "SELECT COUNT(*) FROM IdentityMembers im WHERE im.ValidTo = $CURRENT AND NOT EXISTS (SELECT 1 FROM Principals p WHERE p.id = im.principalId AND p.ValidTo = $CURRENT)"
-Assert-Check 'FK-IdentityMembers-Principals' ($orphanIdPrinc -eq 0) "Orphaned: $orphanIdPrinc"
+Assert-Count 'FK-IdentityMembers-Principals' -Max 0 -Min 0 -Label '0 orphans' -Query @'
+SELECT COUNT(*) FROM "IdentityMembers" im
+WHERE NOT EXISTS (SELECT 1 FROM "Principals" p WHERE p."id" = im."principalId" AND p."deletedAt" IS NULL)
+'@
 
-# Context parent references
-$orphanCtxParent = Get-SqlScalar "SELECT COUNT(*) FROM Contexts c WHERE c.ValidTo = $CURRENT AND c.parentContextId IS NOT NULL AND NOT EXISTS (SELECT 1 FROM Contexts p WHERE p.id = c.parentContextId AND p.ValidTo = $CURRENT)"
-Assert-Check 'FK-Contexts-ParentContext' ($orphanCtxParent -eq 0) "Orphaned: $orphanCtxParent"
+Assert-Count 'FK-Contexts-ParentContext' -Max 0 -Min 0 -Label '0 orphans' -Query @'
+SELECT COUNT(*) FROM "Contexts" c
+WHERE c."parentContextId" IS NOT NULL
+  AND NOT EXISTS (SELECT 1 FROM "Contexts" p WHERE p."id" = c."parentContextId")
+'@
 
 # ─── Business Logic ───────────────────────────────────────────────
 
 Write-Host "`n--- Business Logic ---" -ForegroundColor Yellow
 
 # Principal types
-$spCount = Get-SqlScalar "SELECT COUNT(*) FROM Principals WHERE principalType = 'ServicePrincipal' AND ValidTo = $CURRENT"
-Assert-Check 'Has-ServicePrincipal' ($spCount -ge 1) "Count: $spCount"
+Assert-Count 'Has-ServicePrincipal' -Min 1 -Query @'
+SELECT COUNT(*) FROM "Principals" WHERE "principalType" = 'ServicePrincipal' AND "deletedAt" IS NULL
+'@
 
-$aiCount = Get-SqlScalar "SELECT COUNT(*) FROM Principals WHERE principalType = 'AIAgent' AND ValidTo = $CURRENT"
-Assert-Check 'Has-AIAgent' ($aiCount -ge 1) "Count: $aiCount"
+Assert-Count 'Has-AIAgent' -Min 1 -Query @'
+SELECT COUNT(*) FROM "Principals" WHERE "principalType" = 'AIAgent' AND "deletedAt" IS NULL
+'@
 
-$extCount = Get-SqlScalar "SELECT COUNT(*) FROM Principals WHERE principalType = 'ExternalUser' AND ValidTo = $CURRENT"
-Assert-Check 'Has-ExternalUser' ($extCount -ge 1) "Count: $extCount"
+Assert-Count 'Has-ExternalUser' -Min 1 -Query @'
+SELECT COUNT(*) FROM "Principals" WHERE "principalType" = 'ExternalUser' AND "deletedAt" IS NULL
+'@
 
-$disabledCount = Get-SqlScalar "SELECT COUNT(*) FROM Principals WHERE accountEnabled = 0 AND ValidTo = $CURRENT"
-Assert-Check 'Has-DisabledAccount' ($disabledCount -ge 1) "Count: $disabledCount"
+# accountEnabled is a real boolean in postgres — `= 0` is a type error, not a filter.
+Assert-Count 'Has-DisabledAccount' -Min 1 -Query @'
+SELECT COUNT(*) FROM "Principals" WHERE "accountEnabled" = false AND "deletedAt" IS NULL
+'@
 
 # Resource types
-$brCount = Get-SqlScalar "SELECT COUNT(*) FROM Resources WHERE resourceType = 'BusinessRole' AND ValidTo = $CURRENT"
-Assert-Check 'BusinessRole-Count' ($brCount -eq 4) "Got $brCount (expected 4)"
+Assert-Count 'BusinessRole-Count' -Min 4 -Max 4 -Query @'
+SELECT COUNT(*) FROM "Resources" WHERE "resourceType" = 'BusinessRole' AND "deletedAt" IS NULL
+'@
 
-$dirRoleCount = Get-SqlScalar "SELECT COUNT(*) FROM Resources WHERE resourceType = 'EntraDirectoryRole' AND ValidTo = $CURRENT"
-Assert-Check 'DirectoryRole-Count' ($dirRoleCount -eq 2) "Got $dirRoleCount (expected 2)"
+Assert-Count 'DirectoryRole-Count' -Min 2 -Max 2 -Query @'
+SELECT COUNT(*) FROM "Resources" WHERE "resourceType" = 'EntraDirectoryRole' AND "deletedAt" IS NULL
+'@
 
-# Assignment types — governance is now the `governed` flag (not a 'Governed' type)
-$govCount = Get-SqlScalar "SELECT COUNT(*) FROM ResourceAssignments WHERE governed = true AND ValidTo = $CURRENT"
-Assert-Check 'Has-Governed-Assignments' ($govCount -ge 10) "Count: $govCount"
+# Assignment types — governance is the `governed` flag, not a 'Governed' type.
+Assert-Count 'Has-Governed-Assignments' -Min 10 -Query @'
+SELECT COUNT(*) FROM "ResourceAssignments" WHERE "governed" = true AND "deletedAt" IS NULL
+'@
 
-$eligCount = Get-SqlScalar "SELECT COUNT(*) FROM ResourceAssignments WHERE assignmentType = 'Eligible' AND ValidTo = $CURRENT"
-Assert-Check 'Has-Eligible-Assignments' ($eligCount -ge 1) "Count: $eligCount"
+Assert-Count 'Has-Eligible-Assignments' -Min 1 -Query @'
+SELECT COUNT(*) FROM "ResourceAssignments" WHERE "assignmentType" = 'Eligible' AND "deletedAt" IS NULL
+'@
 
-# Relationship types
-$containsCount = Get-SqlScalar "SELECT COUNT(*) FROM ResourceRelationships WHERE relationshipType = 'Contains' AND ValidTo = $CURRENT"
-Assert-Check 'Contains-Relationships' ($containsCount -ge 8) "Count: $containsCount"
+# Relationship types (ResourceRelationships has no soft-delete column)
+Assert-Count 'Contains-Relationships' -Min 8 -Query @'
+SELECT COUNT(*) FROM "ResourceRelationships" WHERE "relationshipType" = 'Contains'
+'@
 
-$grantsCount = Get-SqlScalar "SELECT COUNT(*) FROM ResourceRelationships WHERE relationshipType = 'GrantsAccessTo' AND ValidTo = $CURRENT"
-Assert-Check 'GrantsAccessTo-Relationships' ($grantsCount -ge 1) "Count: $grantsCount"
+Assert-Count 'GrantsAccessTo-Relationships' -Min 1 -Query @'
+SELECT COUNT(*) FROM "ResourceRelationships" WHERE "relationshipType" = 'GrantsAccessTo'
+'@
 
 # Context hierarchy
-$rootCtx = Get-SqlScalar "SELECT COUNT(*) FROM Contexts WHERE displayName = 'Fortigi Demo Corp' AND parentContextId IS NULL AND ValidTo = $CURRENT"
-Assert-Check 'Context-RootExists' ($rootCtx -eq 1) "Count: $rootCtx"
+Assert-Count 'Context-RootExists' -Min 1 -Max 1 -Query @'
+SELECT COUNT(*) FROM "Contexts" WHERE "displayName" = 'Fortigi Demo Corp' AND "parentContextId" IS NULL
+'@
 
-$engCtx = Get-SqlScalar "SELECT COUNT(*) FROM Contexts c1 INNER JOIN Contexts c2 ON c1.parentContextId = c2.id WHERE c1.displayName = 'Engineering' AND c2.displayName = 'Fortigi Demo Corp' AND c1.ValidTo = $CURRENT AND c2.ValidTo = $CURRENT"
-Assert-Check 'Context-EngineeringUnderRoot' ($engCtx -eq 1) "Count: $engCtx"
+Assert-Count 'Context-EngineeringUnderRoot' -Min 1 -Max 1 -Query @'
+SELECT COUNT(*) FROM "Contexts" c1
+INNER JOIN "Contexts" c2 ON c1."parentContextId" = c2."id"
+WHERE c1."displayName" = 'Engineering' AND c2."displayName" = 'Fortigi Demo Corp'
+'@
 
 # Governance
-$certApprove = Get-SqlScalar "SELECT COUNT(*) FROM CertificationDecisions WHERE decision = 'Approve' AND ValidTo = $CURRENT"
-Assert-Check 'Certification-HasApprove' ($certApprove -ge 1) "Count: $certApprove"
+Assert-Count 'Certification-HasApprove' -Min 1 -Query @'
+SELECT COUNT(*) FROM "CertificationDecisions" WHERE "decision" = 'Approve'
+'@
 
-$certDeny = Get-SqlScalar "SELECT COUNT(*) FROM CertificationDecisions WHERE decision = 'Deny' AND ValidTo = $CURRENT"
-Assert-Check 'Certification-HasDeny' ($certDeny -ge 1) "Count: $certDeny"
+Assert-Count 'Certification-HasDeny' -Min 1 -Query @'
+SELECT COUNT(*) FROM "CertificationDecisions" WHERE "decision" = 'Deny'
+'@
 
-# Multi-system identity
-$multiAccount = Get-SqlScalar "SELECT COUNT(*) FROM IdentityMembers WHERE ValidTo = $CURRENT GROUP BY identityId HAVING COUNT(*) > 1"
-Assert-Check 'Has-MultiSystem-Identity' ($multiAccount -ge 1) "Identities with 2+ accounts: $multiAccount"
+# Multi-system identity. The v4 query ran GROUP BY ... HAVING through a scalar
+# read, which returns the FIRST GROUP'S member count — not the number of
+# multi-account identities it claimed to report. Wrap it and count the groups.
+Assert-Count 'Has-MultiSystem-Identity' -Min 1 -Label 'identities with 2+ accounts' -Query @'
+SELECT COUNT(*) FROM (
+  SELECT "identityId" FROM "IdentityMembers" GROUP BY "identityId" HAVING COUNT(*) > 1
+) multi
+'@
 
 # ─── API Verification ─────────────────────────────────────────────
 
