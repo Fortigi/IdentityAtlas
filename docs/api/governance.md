@@ -1,6 +1,6 @@
 # Governance & Business Roles API
 
-These endpoints manage business roles (access packages), review compliance, categories, and tags. All endpoints require `Authorization: Bearer <JWT>`.
+These endpoints manage business roles (access packages), review compliance, categories, and tags. When authentication is enabled, all endpoints require `Authorization: Bearer <JWT>`.
 
 ---
 

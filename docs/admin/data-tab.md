@@ -108,7 +108,7 @@ reset to "never run".
 
 **What it preserves:**
 
-- **Crawler configurations** — your connected systems and their settings stay put.
+- **Crawler configurations** — your crawler connection entries and their credentials stay put (these are the Crawlers admin records, distinct from the `Systems` data table above, which *is* wiped).
 - **Risk profiles and classifiers.**
 - **Account-linking / correlation rules.**
 - **The audit log** for anything not tied to a wiped table.

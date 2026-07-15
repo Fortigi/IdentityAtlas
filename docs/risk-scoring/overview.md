@@ -5,7 +5,7 @@
 
 ## Overview
 
-Identity Atlas includes a universal risk scoring engine that assigns risk scores (0–100) to all entity types — Principals, Resources (including BusinessRoles), OrgUnits, and Identities. All scoring runs on your own infrastructure — no sensitive identity data is ever sent to external services.
+Identity Atlas includes a universal risk scoring engine that assigns risk scores (0–100) to all entity types — Principals, Resources (including BusinessRoles), Contexts, and Identities. All scoring runs on your own infrastructure — no sensitive identity data is ever sent to external services.
 
 ## Three-Phase Architecture
 
@@ -136,7 +136,6 @@ SELECT p.displayName, p.principalType, rs.riskScore, rs.riskTier,
        rs.directScore, rs.membershipScore, rs.structuralScore, rs.propagatedScore
 FROM Principals p
 JOIN RiskScores rs ON rs.entityId = p.id AND rs.entityType = 'Principal'
-WHERE p.ValidTo = '9999-12-31 23:59:59.9999999'
 ORDER BY rs.riskScore DESC;
 
 -- All entity types together

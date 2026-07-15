@@ -138,7 +138,7 @@ Response — `201 Created`:
 | `POST /api/ingest/systems` | Systems | `id` (INT, auto) | — |
 | `POST /api/ingest/principals` | Principals | `id` (GUID) | `principalType` |
 | `POST /api/ingest/resources` | Resources | `id` (GUID) | `resourceType` |
-| `POST /api/ingest/resource-assignments` | ResourceAssignments | `(resourceId, principalId, assignmentType)` | `assignmentType` |
+| `POST /api/ingest/resource-assignments` | ResourceAssignments | `(resourceId, principalId, assignmentType, governed)` | `assignmentType` |
 | `POST /api/ingest/resource-relationships` | ResourceRelationships | `(parentResourceId, childResourceId, relationshipType)` | `relationshipType` |
 | `POST /api/ingest/identities` | Identities | `id` (GUID) | — |
 | `POST /api/ingest/identity-members` | IdentityMembers | `(identityId, principalId)` | — |
