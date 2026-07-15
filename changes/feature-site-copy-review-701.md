@@ -1,0 +1,2 @@
+- Reworked the marketing website copy for clarity and consistent terminology (issue #701): clearer hero, "Why", "What", pipeline, "How to start", "Trust" and closing sections, with "authorization data" / "access" / "permissions" used precisely and support "teams" throughout.
+- Corrected the advertised integrations to match what ships today: Entra ID, Azure RBAC, Omada and midPoint as out-of-the-box crawlers, SailPoint via CSV import; removed Azure DevOps until its crawler ships.
