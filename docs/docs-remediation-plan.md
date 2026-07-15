@@ -80,7 +80,9 @@ Kandidaat-journeys (definitief te maken in de eerste sessie). Elk mapt naar de c
 
 | Journey | Persona | Voltooid? (j/n) | Eerste blocker | Waar men de docs moest verlaten | Backlog-item |
 |---------|---------|-----------------|----------------|----------------------------------|--------------|
-| _(in te vullen tijdens walkthrough)_ | | | | | |
+| **J1 (pilot, 2026-07-15)** | Analyst/Operator | **NEE** (doc-only) | Entra-setup: `entra-id.md` noemt "vul Tenant/Client ID + Secret" maar niet hoe je de App Registration maakt of **welke Graph-permissies** nodig zijn; die lijst staat in `reference/troubleshooting.md` (verkeerd thuis) en `quickstart.md` linkt niet eens naar `entra-id.md`. | (1) permissie-lijst → uit troubleshooting halen; (2) dashboard-landingspagina heeft geen doc; (3) Matrix-scopen kan alleen via de ongedocumenteerde Filter-Wizard | BL-1..BL-6 |
+
+**J1-verdict:** demo-pad (Load Demo Data) werkt en is goed gedocumenteerd. Maar het *echte* first-insight-pad faalt doc-only op drie punten: (a) eigen Entra-tenant koppelen vergt de docs verlaten voor de permissielijst; (b) de Dashboard-landingspagina waar je op uitkomt heeft geen gebruikersdoc; (c) de Matrix scopen om een *finding* te bereiken kan alleen via de Filter-Wizard, die niet is gedocumenteerd (overview.md beschrijft nog de verwijderde "User Limit Slider"). Extra bevinding: `index.md` en `quickstart.md` spreken elkaar tegen over of `.env` nodig is.
 
 ---
 
@@ -126,18 +128,18 @@ Het geheel is klaar wanneer:
 
 | # | Cluster / spoor | Status |
 |---|-----------------|--------|
-| 0 | Niet-feature-docs (getting-started, troubleshooting/errors, concepten "waarom", limitations) | ⬜ te doen |
-| 1 | Aan de slag & Dashboard | ⬜ te doen |
-| 2 | Matrix | ⬜ te doen |
+| 0 | Niet-feature-docs (getting-started, troubleshooting/errors, concepten "waarom", limitations) | 🔄 deels via J1 (cellen ✔) |
+| 1 | Aan de slag & Dashboard | 🔄 in review via J1 (BL-4,5,7) |
+| 2 | Matrix | 🔄 in review via J1 (BL-6) |
 | 3 | Contexts (scherm + plugins + API) | ⬜ te doen |
 | 4 | Entities & detailpagina's | ⬜ te doen |
 | 5 | Risk scoring & AI/LLM | ⬜ te doen |
 | 6 | Governance / business roles | ⬜ te doen |
-| 7 | Sync-bronnen / crawlers | ⬜ te doen |
+| 7 | Sync-bronnen / crawlers | 🔄 in review via J1 (BL-1,2,3) |
 | 8 | Admin & instellingen (incl. Admin nav-shell / 10 sub-tabs) | ⬜ te doen |
 | 9 | Integratie & ingest-API (**owner van Custom Connector**) | ⬜ te doen |
 | 10 | Platform & datamodel (owner van context-**schema**) | ⬜ te doen |
-| J | Journeys J1–J8 (primair instrument) | ⬜ te doen |
+| J | Journeys J1–J8 (primair instrument) | 🔄 **J1 (pilot) uitgevoerd — FAIL doc-only**; J2–J8 te doen |
 
 > **MECE-fixes toegepast:** Custom Connector wordt geownd door **Cluster 9** (stub-referentie in 7). De v6 context-**scherm/API** hoort in Cluster 3, het **schema/tabellen** in Cluster 10. "Alle 10 Admin sub-tabs" krijgt één canonieke rij in Cluster 8. De valse "DevOps"-marketingclaim wordt vastgelegd in Cluster 0 (niet stil gedropt ondanks marketing-out-of-scope).
 
@@ -147,10 +149,12 @@ Het geheel is klaar wanneer:
 
 Code-as-ground-truth mist wat geen feature is maar wél het meest bevraagd wordt.
 
+> **✔ = geverifieerd tegen code/docs op 2026-07-15 (baseline `d4afdb9f`).** Ongemarkeerde cellen zijn nog geërfd uit de audit.
+
 | Categorie | Analyst/Gebruiker | Operator | Contributor | API-consument |
 |-----------|:-----------------:|:--------:|:-----------:|:-------------:|
-| Getting-started / onboarding (J1) | ⭕ | 🟡 | — | — |
-| Troubleshooting / foutmeldingen ("het synct niet — waarom") | ⭕ | ⭕ | ⭕ | ⭕ |
+| Getting-started / onboarding (J1) | 🟡 ✔ (demo ok; eigen-tenant faalt) | 🟡 ✔ | — | — |
+| Troubleshooting / foutmeldingen ("het synct niet — waarom") | 🟡 ✔ (bestaat, dun/verkeerd thuis) | 🟡 ✔ | 🟡 ✔ | ⭕ ✔ |
 | Concepten / "waarom" (mentale modellen) | 🟡 | — | 🟡 | — |
 | Limitations / known-issues (incl. valse "DevOps"-bron-claim) | ⭕ | ⭕ | ⭕ | ⭕ |
 
@@ -166,7 +170,13 @@ Code-as-ground-truth mist wat geen feature is maar wél het meest bevraagd wordt
 | Dashboard-landingspagina | ⭕ | — | 🟡 | — |
 | Trends-tab | ⭕ | — | ✅ | — |
 
-**Backlog:** _(in te vullen tijdens review)_
+**Backlog:**
+
+| ID | Actie | Prio | Owner | Doeldoc | Definition-of-done |
+|----|-------|------|-------|---------|--------------------|
+| BL-4 | werk-bij: link `entra-id.md` (+ demo vs eigen-tenant keuze) vanuit "What's Next" | P1 | _tbd_ | `docs/quickstart.md` | J1 stap 2: nieuwe user vindt de Entra-setup zonder gokken |
+| BL-5 | schrijf: gebruikersdoc Dashboard-landingspagina (cards, counts, "is mijn data binnen?") | P1 | _tbd_ | `docs/ui/` (nieuw) | J1 stap 3: user begrijpt wat hij ziet doc-only |
+| BL-7 | fix: `.env`-tegenspraak tussen `index.md` (download `.env.example`) en `quickstart.md` ("just Docker") | P2 | _tbd_ | `docs/index.md` + `docs/quickstart.md` | Eén consistent install-verhaal |
 
 ---
 
@@ -181,7 +191,11 @@ Code-as-ground-truth mist wat geen feature is maar wél het meest bevraagd wordt
 | Scope-statistieken | 🟡 | — | ✅ | — |
 | Matrix-interactie-endpoints (preview, hierarchy-paths, saved-filters) | — | — | — | ⭕ |
 
-**Backlog:** _(in te vullen tijdens review)_
+**Backlog:**
+
+| ID | Actie | Prio | Owner | Doeldoc | Definition-of-done |
+|----|-------|------|-------|---------|--------------------|
+| BL-6 | schrijf Filter-Wizard/saved-matrices/roll-up + fix: verwijder verouderde "User Limit Slider" uit overview.md | P1 | _tbd_ | `docs/ui/overview.md` (+ matrix) | J1 stap 4: analist kan de matrix scopen en een *finding* bereiken doc-only |
 
 ---
 
@@ -248,7 +262,7 @@ Code-as-ground-truth mist wat geen feature is maar wél het meest bevraagd wordt
 
 | Feature | Analyst/Gebruiker | Operator | Contributor | API-consument |
 |---------|:-----------------:|:--------:|:-----------:|:-------------:|
-| Entra ID (6 phase-toggles + AI-agent-classificatie) | 🟡 (flags/diagram stale) | 🟡 | 🟡 | — |
+| Entra ID (6 phase-toggles + AI-agent-classificatie) | 🟡 ✔ | 🟡 ✔ (permissies staan in troubleshooting, niet in setup) | ❌ ✔ (diagram toont retired `Owner`-type; 6 toggles ontbreken in flags-tabel) | — |
 | Azure RM (`onlyEntraPrincipals`) | 🟡 | 🟡 | ✅ | — |
 | midPoint | ✅ | ✅ | 🟡 (streaming/dept dev-only) | — |
 | Omada | ✅ | ✅ | ✅ | — |
@@ -256,7 +270,13 @@ Code-as-ground-truth mist wat geen feature is maar wél het meest bevraagd wordt
 | Custom Connector (push-mode) → *owner: Cluster 9* | ↪ C9 | ↪ C9 | ↪ C9 | ↪ C9 |
 | Wizard/plugin-architectuur + live discovery | — | — | ✅ | — |
 
-**Backlog:** _(in te vullen tijdens review)_
+**Backlog:**
+
+| ID | Actie | Prio | Owner | Doeldoc | Definition-of-done |
+|----|-------|------|-------|---------|--------------------|
+| BL-1 | werk-bij: App-Registration-stappen + **vereiste Graph-permissies** in de setup-sectie (nu alleen in `troubleshooting.md`) | P1 | _tbd_ | `docs/sync/entra-id.md` | J5 slaagt doc-only; J1 stap 2 verlaat de docs niet meer |
+| BL-2 | **fix (❌):** "What Gets Synced"-diagram — verwijder retired `Owner`-assignmenttype; toon ownership als `Direct` op `GroupOwnership` | P1 | _tbd_ | `docs/sync/entra-id.md` | Diagram matcht `assignmentTypes.guard` (Direct/Indirect/Eligible) |
+| BL-3 | werk-bij: 6 verscheepte toggles in de flags-tabel (`SyncOAuth2Grants/AppRoles/AppPermissions/AppOwners/PrincipalRelationships/DirectoryRoles`) + AI-agent-classificatie | P2 | _tbd_ | `docs/sync/entra-id.md` | Flags-tabel = crawler-param-block |
 
 ---
 
