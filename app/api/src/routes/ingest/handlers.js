@@ -15,7 +15,7 @@ import { crawlerHasSystemAccess, crawlerHasPermission } from '../../middleware/c
 import { normalizePresenceQuery, lookupCrawlerPresence } from '../../ingest/crawlerPresence.js';
 import {
   applyIngestDefaults, recoverSystemPrefix, buildScope, conflictFilterFor, discoverCoreColumns,
-  handleSessionPath, applyDeleteByIds, lookupSystemIds, writeAuditLog,
+  handleSessionPath, applyDeleteByIds, lookupSystemIds, writeAuditLog, ingestErrorResponse,
 } from './helpers.js';
 
 const router = Router();
@@ -101,13 +101,9 @@ function createIngestHandler(entityType) {
       console.error(`Ingest error (${entityType}):`, err.message);
       await writeSyncLog(null, `API-${entityType}`, tableName, startTime,
                          body.records?.length || 0, 0, 0, 0, err.message).catch(() => {});
-      // A parentContextId cycle is rejected at COMMIT by the Contexts acyclicity
-      // trigger (migration 059). Surface it as a clear 422 (the batch's source
-      // tree is malformed — the caller's to fix) rather than an opaque 500.
-      if (err.code === '23514' && /parentContextId cycle/i.test(err.message || '')) {
-        return res.status(422).json({ error: 'Context hierarchy would create a cycle', message: err.message });
-      }
-      return res.status(500).json({ error: 'Ingest failed', message: err.message });
+      // 422 for a context-cycle rejection (migration 059's trigger), else 500.
+      const errRes = ingestErrorResponse(err);
+      return res.status(errRes.status).json(errRes.body);
     }
   };
 }

@@ -166,3 +166,15 @@ export function writeAuditLog(req, body) {
 // constraint trigger, #627), so the old reactive breakCycles-after-ingest repair
 // was removed: a cyclic contexts batch now aborts its own ingest() commit and is
 // surfaced as a 422 by the handler, instead of being silently NULLed here.
+
+// Map an ingest failure to an HTTP response. A parentContextId cycle is rejected
+// at COMMIT by the Contexts acyclicity trigger (migration 059) — surface it as a
+// clear 422 (a malformed source tree, the caller's to fix) rather than an opaque
+// 500. Extracted from the handler's catch so the handler stays under the cognitive
+// complexity ceiling.
+export function ingestErrorResponse(err) {
+  if (err.code === '23514' && /parentContextId cycle/i.test(err.message || '')) {
+    return { status: 422, body: { error: 'Context hierarchy would create a cycle', message: err.message } };
+  }
+  return { status: 500, body: { error: 'Ingest failed', message: err.message } };
+}
