@@ -32,41 +32,42 @@ const ContextsPage = lazy(() => import('./components/ContextsPage'));
 const IdentitiesPage = lazy(() => import('./components/IdentitiesPage'));
 const AdminPage = lazy(() => import('./components/AdminPage'));
 
-// Render functions defined once and aliased to every key that shows the same page,
-// so multi-key routes (resources/groups; performance/crawlers/admin) don't
-// duplicate the element markup.
-const renderGroups = (ctx) => <GroupsPage onOpenDetail={ctx.openDetailTab} />;
+// Each entry is a small component that takes the shared render context as PROPS
+// and renders its page; multi-key routes (resources/groups; performance/crawlers/
+// admin) share one component so the markup isn't duplicated.
+const GroupsRoute = ({ openDetailTab }) => <GroupsPage onOpenDetail={openDetailTab} />;
 // Crawlers and Performance live under Admin as sub-tabs; the legacy #crawlers /
 // #performance hashes render AdminPage, which routes to the matching sub-tab.
-const renderAdmin = (ctx) => (
-  <AdminPage onNavigate={ctx.navigate} onRefresh={ctx.forceRefresh} onRiskScoresRefresh={ctx.onRiskScoresRefresh} />
+const AdminRoute = ({ navigate, forceRefresh, onRiskScoresRefresh }) => (
+  <AdminPage onNavigate={navigate} onRefresh={forceRefresh} onRiskScoresRefresh={onRiskScoresRefresh} />
 );
 
-// key → (ctx) => element. `ctx` carries { navigate, openDetailTab, forceRefresh,
-// riskScoresRefreshKey, onRiskScoresRefresh }.
-//
-// A Map (not a plain object) is deliberate: `page` comes from the URL hash
-// (user-controlled), and a Map lookup can only ever return an explicitly-added
-// entry — never an inherited Object.prototype member (`constructor`, `toString`,
-// …). That closes the "unvalidated dynamic method call" class flat (CodeQL
-// js/unvalidated-dynamic-method-call) without an own-property guard.
+// pageKey → component. Two things make dispatch on the user-controlled hash key
+// provably safe (CodeQL js/unvalidated-dynamic-method-call):
+//   1. a Map lookup can only return an explicitly-added entry — never an
+//      inherited Object.prototype member (`constructor`, `toString`, …); and
+//   2. App.jsx builds the resolved entry as an element (`createElement(route, ctx)`)
+//      rather than calling it (`route(ctx)`), so the user-controlled key never
+//      lands in callee position of an invocation.
+// The context props: { navigate, openDetailTab, forceRefresh, riskScoresRefreshKey,
+// onRiskScoresRefresh }.
 export const PAGE_ROUTES = new Map([
-  ['dashboard',       (ctx) => <DashboardPage onNavigate={ctx.navigate} />],
-  ['sync-log',        (ctx) => <SyncLogPage navigate={ctx.navigate} onOpenDetail={ctx.openDetailTab} />],
-  ['principals',      (ctx) => <UsersPage onOpenDetail={ctx.openDetailTab} />],
-  ['resources',       renderGroups],
-  ['groups',          renderGroups],
+  ['dashboard',       ({ navigate }) => <DashboardPage onNavigate={navigate} />],
+  ['sync-log',        ({ navigate, openDetailTab }) => <SyncLogPage navigate={navigate} onOpenDetail={openDetailTab} />],
+  ['principals',      ({ openDetailTab }) => <UsersPage onOpenDetail={openDetailTab} />],
+  ['resources',       GroupsRoute],
+  ['groups',          GroupsRoute],
   ['systems',         () => <SystemsPage />],
-  ['access-packages', (ctx) => <AccessPackagesPage onOpenDetail={ctx.openDetailTab} />],
-  ['risk-scores',     (ctx) => <RiskScoringPage key={ctx.riskScoresRefreshKey} onOpenDetail={ctx.openDetailTab} />],
-  ['identities',      (ctx) => <IdentitiesPage onOpenDetail={ctx.openDetailTab} />],
-  ['contexts',        (ctx) => <ContextsPage onOpenDetail={ctx.openDetailTab} onNavigate={ctx.navigate} />],
-  ['performance',     renderAdmin],
-  ['crawlers',        renderAdmin],
-  ['admin',           renderAdmin],
+  ['access-packages', ({ openDetailTab }) => <AccessPackagesPage onOpenDetail={openDetailTab} />],
+  ['risk-scores',     ({ openDetailTab, riskScoresRefreshKey }) => <RiskScoringPage key={riskScoresRefreshKey} onOpenDetail={openDetailTab} />],
+  ['identities',      ({ openDetailTab }) => <IdentitiesPage onOpenDetail={openDetailTab} />],
+  ['contexts',        ({ navigate, openDetailTab }) => <ContextsPage onOpenDetail={openDetailTab} onNavigate={navigate} />],
+  ['performance',     AdminRoute],
+  ['crawlers',        AdminRoute],
+  ['admin',           AdminRoute],
 ]);
 
-// The render function for a static page key, or null when the key is a detail tab
+// The route component for a static page key, or null when the key is a detail tab
 // / matrix / unknown route (all handled by App.jsx).
 export function resolvePageRoute(page) {
   return PAGE_ROUTES.get(page) ?? null;

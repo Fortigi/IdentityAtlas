@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useReducer, useCallback, useMemo, useRef, lazy, Suspense } from 'react';
+﻿import { useState, useEffect, useReducer, useCallback, useMemo, useRef, lazy, Suspense, createElement } from 'react';
 
 // useState-equivalent backed by useReducer (value + functional updates):
 // dispatch isn't flagged by react-hooks/set-state-in-effect, so the detail-tab
@@ -592,8 +592,10 @@ export default function App() {
           ) : staticRoute ? (
             // Static pages (dashboard, principals, systems, admin + its legacy
             // #crawlers / #performance aliases, …) come from the instrumented
-            // pageRegistry map — see resolvePageRoute / #669.
-            staticRoute(pageCtx)
+            // pageRegistry map. Built via createElement (not called as
+            // staticRoute(...)) so the user-controlled hash key never reaches
+            // callee position — see #669.
+            createElement(staticRoute, pageCtx)
           ) : loading ? (
             <div className="flex items-center justify-center h-64">
               <div className="text-gray-500 dark:text-gray-400">Loading permission data...</div>
