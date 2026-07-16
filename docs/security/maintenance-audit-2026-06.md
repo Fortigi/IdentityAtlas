@@ -81,7 +81,7 @@ All **Critical** findings are fixed and merged. Every exploitable **security** f
 | H3 | 🔧 Open | clickable non-controls (`<tr>`/`<span>`) remain |
 | H4 | 🔧 Open | modal Escape/focus-trap/`role="dialog"` not added |
 | H5 | 🔧 Open | 6 modal overlays not consolidated |
-| H6 | 🔧 Open | `useEntityPage` still has no error state |
+| H6 | ✅ Fixed | #809 — `useEntityPage` exposes an `error`; list pages render a distinct error panel with Retry |
 | M1 | 🔧 Open | duplicate `Section`/`StatCard` remain |
 | M2 | ✅ Fixed | #500 — `DialogProvider` + `no-native-dialogs` rule |
 | M3 | 🔧 Open | emoji-as-icon persists |
