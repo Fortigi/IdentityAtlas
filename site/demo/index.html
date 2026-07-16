@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en" data-theme="auto">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Live demo — Identity Atlas</title>
+  <meta name="description" content="Try Identity Atlas right now — a public, no-login demo loaded with a synthetic dataset. Explore the access matrix, see how each permission was granted and review identity risk. No install, no tenant." />
+  <link rel="icon" type="image/png" href="../assets/favicon.png" />
+
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="Live demo — Identity Atlas" />
+  <meta property="og:description" content="A public, no-login demo of Identity Atlas, loaded with synthetic data. Click around and explore the access matrix — nothing to install." />
+  <meta property="og:image" content="../assets/og-image.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+
+  <!-- Set theme before paint to avoid flash (shared with the main site) -->
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem('ia-theme') || 'auto';
+        var dark = t === 'dark' || (t === 'auto' && matchMedia('(prefers-color-scheme: dark)').matches);
+        document.documentElement.setAttribute('data-theme', t);
+        document.documentElement.classList.toggle('dark', dark);
+      } catch (e) {}
+    })();
+  </script>
+
+  <link rel="stylesheet" href="../assets/base.css" />
+
+  <style>
+    /* Page-specific styles. Shared brand tokens, base reset, .wrap/.eyebrow
+       and buttons come from ../assets/base.css (linked above); the rules
+       below add the splash page's own tokens and overrides. */
+    :root { --amber-bg: #fffbeb; --amber-border: #fcd34d; --amber-fg: #92400e; --maxw: 880px; }
+    html.dark { --amber-bg: #2a2213; --amber-border: #5c4813; --amber-fg: #fbbf24; }
+    body { min-height: 100vh; }
+    .btn { font-size: .98rem; padding: 14px 24px; }  /* slightly larger CTA on the splash */
+
+    /* nav */
+    header.nav { border-bottom: 1px solid var(--border); }
+    .nav-inner { display: flex; align-items: center; gap: 16px; height: 66px; }
+    .brand { display: flex; align-items: center; gap: 10px; font-weight: 750; font-size: 1.15rem; letter-spacing: -0.02em; color: var(--fg); }
+    .brand:hover { color: var(--fg); }
+    .brand img { width: 30px; height: 30px; }
+    .brand .b-atlas { color: var(--brand); }
+    .nav-right { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+    .nlink { color: var(--fg-muted); font-weight: 550; font-size: .93rem; padding: 8px 12px; border-radius: 8px; }
+    .nlink:hover { color: var(--fg); background: var(--bg-soft); }
+
+    /* layout */
+    main { padding: 64px 0 80px; }
+    .hero { text-align: center; max-width: 680px; margin: 0 auto 44px; }
+    .hero .eyebrow { justify-content: center; }
+    .hero h1 { font-size: clamp(2.2rem, 5vw, 3.2rem); font-weight: 800; margin-top: 16px; }
+    .hero h1 .g { color: var(--brand); }
+    .hero .lede { margin-top: 20px; font-size: clamp(1.05rem, 1.8vw, 1.2rem); color: var(--fg-muted); }
+
+    .cta-row { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; margin-top: 30px; }
+    .live-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--lime-400); box-shadow: 0 0 0 0 rgba(163,230,53,.7); }
+    @media (prefers-reduced-motion: no-preference) { .live-dot { animation: pulse 2s infinite; } }
+    @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(163,230,53,.6); } 70% { box-shadow: 0 0 0 8px rgba(163,230,53,0); } 100% { box-shadow: 0 0 0 0 rgba(163,230,53,0); } }
+
+    /* terms card */
+    .card {
+      background: var(--bg-elev); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 30px; box-shadow: var(--shadow);
+    }
+    .card h2 { font-size: 1.3rem; font-weight: 750; }
+    .terms { list-style: none; margin: 22px 0 0; padding: 0; display: grid; gap: 18px; }
+    .terms li { display: flex; gap: 14px; align-items: flex-start; }
+    .terms .ic {
+      flex: none; width: 38px; height: 38px; border-radius: 10px; display: grid; place-items: center;
+      background: color-mix(in srgb, var(--lime-600) 16%, transparent); color: var(--brand);
+    }
+    .terms .ic svg { width: 20px; height: 20px; }
+    .terms strong { display: block; font-size: 1.02rem; color: var(--fg); }
+    .terms span { color: var(--fg-muted); font-size: .96rem; }
+
+    .warn {
+      margin-top: 22px; display: flex; gap: 12px; align-items: flex-start;
+      background: var(--amber-bg); border: 1px solid var(--amber-border); border-radius: 12px; padding: 16px 18px;
+    }
+    .warn svg { flex: none; width: 20px; height: 20px; color: var(--amber-fg); margin-top: 2px; }
+    .warn p { color: var(--amber-fg); font-size: .95rem; }
+    .warn strong { font-weight: 700; }
+
+    .explore { margin-top: 26px; }
+    .explore .kicker { color: var(--brand); font-weight: 700; font-size: .85rem; letter-spacing: .03em; text-transform: uppercase; margin-bottom: 12px; }
+    .explore ol { margin: 0; padding-left: 20px; color: var(--fg-muted); display: grid; gap: 8px; font-size: .97rem; }
+    .explore ol strong { color: var(--fg); }
+
+    .enter { text-align: center; margin-top: 40px; }
+    .enter .sub { margin-top: 14px; font-size: .9rem; color: var(--fg-subtle); }
+
+    footer.ft { border-top: 1px solid var(--border); padding: 26px 0; color: var(--fg-subtle); font-size: .9rem; }
+    .ft-inner { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+    .ft a { color: var(--fg-muted); }
+
+    @media (max-width: 560px) { .cta-row .btn { width: 100%; justify-content: center; } }
+  </style>
+</head>
+<body>
+  <header class="nav">
+    <div class="wrap nav-inner">
+      <a class="brand" href="/" aria-label="Identity Atlas home">
+        <img src="../assets/mark.png" alt="" width="30" height="30" />
+        <span>Identity<span class="b-atlas"> Atlas</span></span>
+      </a>
+      <div class="nav-right">
+        <a class="nlink" href="/#how">How to run it</a>
+        <a class="nlink" href="https://fortigi.github.io/IdentityAtlas" target="_blank" rel="noopener">Docs ↗</a>
+        <a class="nlink" href="https://github.com/Fortigi/IdentityAtlas" target="_blank" rel="noopener">GitHub ↗</a>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <div class="wrap">
+      <section class="hero">
+        <span class="eyebrow">Live demo</span>
+        <h1>Take Identity Atlas for a <span class="g">spin.</span></h1>
+        <p class="lede">
+          A public, no-login demo loaded with a synthetic dataset. Click around, open the access matrix
+          and see for yourself how Identity Atlas makes sense of authorization data — nothing to install,
+          no tenant to connect.
+        </p>
+      </section>
+
+      <div class="card">
+        <h2>Before you go in</h2>
+        <ul class="terms">
+          <li>
+            <span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.7 9.7 0 0 0-6.7 2.7L3 8"/><path d="M3 3v5h5"/></svg></span>
+            <span><strong>It resets regularly</strong>This environment is restored to a clean state on a regular basis. Anything you change, add or upload can be wiped at any time — treat everything here as temporary.</span>
+          </li>
+          <li>
+            <span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
+            <span><strong>It's shared and open</strong>There is no sign-in — everyone uses the same instance. Other visitors may see, change or remove anything you do while you're in there.</span>
+          </li>
+          <li>
+            <span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M9 13h6M9 17h6"/></svg></span>
+            <span><strong>The data is made up</strong>Everything you see belongs to a fictional company ("Fortigi Demo Corp"). There are no real people, accounts or credentials in here.</span>
+          </li>
+        </ul>
+
+        <div class="warn" role="note">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/></svg>
+          <p><strong>Don't upload anything real.</strong> The demo lets you import files, but do so entirely at your own risk. Never upload personal, confidential or production data — we take no responsibility for anything you put into this environment.</p>
+        </div>
+
+        <div class="explore">
+          <div class="kicker">Once you're in, try this</div>
+          <ol>
+            <li>Open the <strong>access matrix</strong> and scope it to the <strong>Sales</strong> department.</li>
+            <li>Pick a person and see <strong>how each permission was granted</strong> — directly, through a group, or via a business role.</li>
+            <li>Look at an identity's <strong>risk</strong> and how it was built up.</li>
+            <li>Browse <strong>systems, resources and identities</strong> to see the whole picture in one place.</li>
+          </ol>
+        </div>
+      </div>
+
+      <div class="enter">
+        <div class="cta-row">
+          <a class="btn btn-primary" href="https://demo1.identityatlas.io" target="_blank" rel="noopener">
+            <span class="live-dot" aria-hidden="true"></span>
+            Enter the live demo →
+          </a>
+          <a class="btn btn-ghost" href="/#how">Prefer to run it yourself?</a>
+        </div>
+        <p class="sub">Opens in a new tab · demo1.identityatlas.io</p>
+      </div>
+    </div>
+  </main>
+
+  <footer class="ft">
+    <div class="wrap ft-inner">
+      <span>© <span id="year">2026</span> Maatschap Fortigi · Identity Atlas · MIT-licensed open source.</span>
+      <span><a href="/">← Back to identityatlas.io</a></span>
+    </div>
+  </footer>
+
+  <script>
+    try { document.getElementById('year').textContent = new Date().getFullYear(); } catch (e) {}
+  </script>
+</body>
+</html>
