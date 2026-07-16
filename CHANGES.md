@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- The demo dataset now includes group ownership — a few groups (Engineering, Finance, the Tier-0 admin group) have designated owners — so the matrix's owner badges and the ownership views have real demo data to show.
+
+## Changes in this PR
+
 - Deployments still running an older `docker-compose.prod.yml` (compose file version 1) are now flagged as **outdated** on the Dashboard, prompting a re-download. Version-1 files predate two compose-only security fixes — the removal of the Docker-socket bind-mount from the web container (a host-takeover risk) and binding PostgreSQL to loopback instead of all interfaces — so anyone still on one should upgrade to the current file.
 
 ## Changes in this PR
