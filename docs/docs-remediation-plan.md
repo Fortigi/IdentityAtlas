@@ -4,6 +4,7 @@
 > **Basis:** edge (`main` @ `d4afdb9f`, v5.441). **Branch:** `feature/docs-gap-audit` (lokaal).
 > **v2-wijziging (na dual-voice review):** bruikbaarheid wordt gemeten met **journey-walkthroughs (primair instrument)**; het coverage-grid is **ondersteunend inventaris**. Zie de [Review-appendix](#review-appendix-dual-voice) onderaan.
 > **Uitvoering (2026-07-15):** alle **34 backlog-items (BL-1..BL-34) toegepast** — 20 docs bijgewerkt + 6 nieuwe gidsen (dashboard, contexts, effective-access, custom-connector, data-tab, authentication), in de mkdocs-nav gehangen. Zie de changelog-fragment `changes/docs-gap-audit.md`.
+> **Reconciliatie (2026-07-16):** heraudit tegen `main` na de 34-item-run. Twee Tier-A-lekken bleven staan en zijn nu gefixt: de risk-tier-tabel in `docs/api/risk-scores.md` (stond nog op `Critical ≥80`; code = `≥90/≥70` — audit A1, buiten de oorspronkelijke BL-11/12-scope) en de plugin-catalogus in `context-redesign.md §4.2` (miste 5 verscheepte plugins, noemde `department-tree` fout, en lijstte de nooit-verscheepte `app-grouping-by-pattern`/`business-process-llm` — audit A4). A3 (`/perf/slowest`→`/perf/slow`) is gefixt in #804 (samen met #802/#803).
 
 ## Waarom v2
 
