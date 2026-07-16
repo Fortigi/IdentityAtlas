@@ -1,7 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
-import { useIsDark } from '@ui/contexts/ThemeContext';
-import { tagPillStyle } from '@ui/utils/colors';
 import useFeatures from '@ui/hooks/useFeatures';
 import EntityDetailPage from './EntityDetailPage';
 import RiskScoreSection from './RiskScoreSection';
@@ -9,6 +7,8 @@ import { RISK_FIELDS } from './RiskScoreSection.constants.js';
 import DeletedBadge from './DeletedBadge';
 import { buildAttributeEntries } from '@ui/utils/attributeEntries';
 import { formatDate } from '@ui/utils/formatters';
+import { useIsDark } from '@ui/contexts/ThemeContext';
+import { tagPillStyle } from '@ui/utils/colors';
 
 const ACCOUNT_TYPE_COLORS = {
   Member:           'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 border-blue-200 dark:border-blue-700',
