@@ -1,0 +1,1 @@
+- Refactored the app's top-level page routing into a small, data-driven page registry, so adding, renaming, or reordering a tab is a one-line change and stays covered by tests. No change to how any page looks or behaves.
