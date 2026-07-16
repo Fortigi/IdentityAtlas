@@ -12,29 +12,22 @@ import { ThemeContext } from './contexts/ThemeContext';
 import { computeNavTabs, availableOptionalTabs } from './utils/navTabs';
 import { tabBadge } from './utils/tabBadge';
 import ErrorBoundary from './components/ErrorBoundary';
+import { resolvePageRoute } from './pageRegistry';
 
-// Lazy-load page components (route-based code splitting)
-const DashboardPage = lazy(() => import('./components/DashboardPage'));
+// Lazy-load the matrix + detail page components (route-based code splitting).
+// The static page components (dashboard, principals, systems, admin, …) live in
+// ./pageRegistry — see resolvePageRoute below and the #669 note in that file.
 const MatrixView = lazy(() => import('./components/MatrixView'));
 const RotatedMatrixView = lazy(() => import('./components/RotatedMatrixView'));
 const RollupMatrixView = lazy(() => import('./components/RollupMatrixView'));
 const MatrixFilterWizard = lazy(() => import('./components/matrix/MatrixFilterWizard'));
-const SyncLogPage = lazy(() => import('./components/SyncLogPage'));
-const UsersPage = lazy(() => import('./components/UsersPage'));
-const GroupsPage = lazy(() => import('./components/GroupsPage')); // Now renders ResourcesPage
-const AccessPackagesPage = lazy(() => import('./components/AccessPackagesPage'));
 const UserDetailPage = lazy(() => import('./components/UserDetailPage'));
 const ResourceDetailPage = lazy(() => import('./components/ResourceDetailPage'));
 const AccessPackageDetailPage = lazy(() => import('./components/AccessPackageDetailPage'));
-const SystemsPage = lazy(() => import('./components/SystemsPage'));
-const RiskScoringPage = lazy(() => import('./components/RiskScoringPage'));
-const ContextsPage = lazy(() => import('./components/ContextsPage'));
 const DepartmentDetailPage = lazy(() => import('./components/DepartmentDetailPage'));
 const ContextDetailPage = lazy(() => import('./components/ContextDetailPage'));
 const RunDetailPage = lazy(() => import('./components/RunDetailPage'));
-const IdentitiesPage = lazy(() => import('./components/IdentitiesPage'));
 const IdentityDetailPage = lazy(() => import('./components/IdentityDetailPage'));
-const AdminPage = lazy(() => import('./components/AdminPage'));
 // PerfPage and CrawlersPage are lazy-loaded inside AdminPage as sub-tabs.
 // const GovernancePage = lazy(() => import('./components/GovernancePage')); // temporarily disabled
 
@@ -394,6 +387,18 @@ export default function App() {
     return null;
   };
 
+  // Static (non-detail, non-matrix) page routes resolve through the instrumented
+  // pageRegistry map (#669) — a routing edit is a one-line data change there, not
+  // an un-line-instrumentable JSX ternary arm in the return below.
+  const staticRoute = isDetailPage ? null : resolvePageRoute(page);
+  const pageCtx = {
+    navigate,
+    openDetailTab,
+    forceRefresh,
+    riskScoresRefreshKey,
+    onRiskScoresRefresh: () => setRiskScoresRefreshKey(k => k + 1),
+  };
+
   return (
     <ThemeContext.Provider value={{ isDark, mode }}>
     <ErrorBoundary>
@@ -584,28 +589,11 @@ export default function App() {
             // write, which is exactly what the ref avoids.
             // eslint-disable-next-line react-hooks/refs
             renderDetailPage()
-          ) : page === 'dashboard' ? (
-            <DashboardPage onNavigate={navigate} />
-          ) : page === 'sync-log' ? (
-            <SyncLogPage navigate={navigate} onOpenDetail={openDetailTab} />
-          ) : page === 'principals' ? (
-            <UsersPage onOpenDetail={openDetailTab} />
-          ) : page === 'resources' || page === 'groups' ? (
-            <GroupsPage onOpenDetail={openDetailTab} />
-          ) : page === 'systems' ? (
-            <SystemsPage />
-          ) : page === 'access-packages' ? (
-            <AccessPackagesPage onOpenDetail={openDetailTab} />
-          ) : page === 'risk-scores' ? (
-            <RiskScoringPage key={riskScoresRefreshKey} onOpenDetail={openDetailTab} />
-          ) : page === 'identities' ? (
-            <IdentitiesPage onOpenDetail={openDetailTab} />
-          ) : page === 'contexts' ? (
-            <ContextsPage onOpenDetail={openDetailTab} onNavigate={navigate} />
-          ) : page === 'performance' || page === 'crawlers' || page === 'admin' ? (
-            // Crawlers and Performance now live under Admin as sub-tabs.
-            // Legacy #crawlers and #performance hashes redirect to the matching sub-tab.
-            <AdminPage onNavigate={navigate} onRefresh={forceRefresh} onRiskScoresRefresh={() => setRiskScoresRefreshKey(k => k + 1)} />
+          ) : staticRoute ? (
+            // Static pages (dashboard, principals, systems, admin + its legacy
+            // #crawlers / #performance aliases, …) come from the instrumented
+            // pageRegistry map — see resolvePageRoute / #669.
+            staticRoute(pageCtx)
           ) : loading ? (
             <div className="flex items-center justify-center h-64">
               <div className="text-gray-500 dark:text-gray-400">Loading permission data...</div>

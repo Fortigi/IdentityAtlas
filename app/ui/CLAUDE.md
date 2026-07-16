@@ -208,3 +208,11 @@ function getCrawlerSummary(crawlerType) {
 | `components/TimeSeriesChart.jsx` | Reusable hand-rolled SVG line chart (no chart lib dep) |
 | `hooks/useMatrixRowOrder.js` | Row order persistence (versioned localStorage) |
 | `hooks/useEntityPage.js` | Shared hook for Users/Resources pages |
+
+## App-shell routing & the JSX coverage blind spot
+
+`App.jsx` dispatches the top nav to page components through `src/pageRegistry.jsx` — a `{ pageKey: (ctx) => <Page … /> }` map resolved by `resolvePageRoute(page)`. **Add, rename, or reorder a static page there** (a one-line data edit), not in a JSX conditional in `App.jsx`. `ctx` carries the shared handlers (`navigate`, `openDetailTab`, `forceRefresh`, `riskScoresRefreshKey`, `onRiskScoresRefresh`); cover new entries in `pageRegistry.test.jsx`.
+
+Why a map and not the old inline `page === 'x' ? <X/> : …` chain: **v8 does not line-instrument the arms of a JSX ternary**, so those lines carried no coverage record and every routing edit tripped the (non-blocking) `Diff coverage: UI` gate on an un-coverable line ([#669](https://github.com/Fortigi/IdentityAtlas/issues/669)). Map entries + render-function statements are ordinary instrumented code the registry test covers.
+
+**Accepted exception — pure-JSX page shells.** The same v8 limitation applies to components that are mostly one big JSX `return`: the matrix views, the `EntityDetailPage`/`EntityListPage`-based pages (`UsersPage`, detail pages, …), and the detail-tab dispatch + matrix fallback that stay in `App.jsx`. Splitting them into more files does **not** make their JSX instrumentable, so they are covered by e2e (`app/ui/e2e/*.spec.js`), and a `Diff coverage: UI` red on such a file's JSX body is expected — confirm the e2e exercises the behaviour rather than chasing the line. Formalising a `diff_cover` exclude for this set is tracked in [#725](https://github.com/Fortigi/IdentityAtlas/issues/725).
