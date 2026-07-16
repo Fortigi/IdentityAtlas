@@ -2,7 +2,8 @@ import { useMemo } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
 import useEntityPage from '@ui/hooks/useEntityPage';
 import FilterBar from './FilterBar';
-import { TAG_COLORS } from '@ui/utils/colors';
+import { TAG_COLORS, tagPillStyle } from '@ui/utils/colors';
+import { useIsDark } from '@ui/contexts/ThemeContext';
 
 /**
  * Shared scaffold for Resources, Users, and Identities list pages.
@@ -38,6 +39,7 @@ export default function EntityListPage({
   onOpenDetail,
 }) {
   const { authFetch } = useAuth();
+  const isDark = useIsDark();
 
   const ep = useEntityPage({
     authFetch,
@@ -76,7 +78,7 @@ export default function EntityListPage({
                 ? 'ring-2 ring-offset-1 ring-blue-400'
                 : 'hover:opacity-80'
             }`}
-            style={{ backgroundColor: t.color + '20', borderColor: t.color, color: t.color }}
+            style={tagPillStyle(t.color, isDark)}
             onClick={() => {
               if (ep.activeTagFilter === t.name) {
                 ep.removeFilter(tagFilterKey);
@@ -305,7 +307,7 @@ export default function EntityListPage({
                         <span
                           key={t.id}
                           className="inline-block px-1.5 py-0.5 rounded-full text-[10px] font-medium border"
-                          style={{ backgroundColor: t.color + '20', borderColor: t.color, color: t.color }}
+                          style={tagPillStyle(t.color, isDark)}
                         >
                           {t.name}
                         </span>

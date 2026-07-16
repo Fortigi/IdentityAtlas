@@ -1,7 +1,8 @@
 ﻿import { useState, useEffect, useReducer, useCallback, useMemo, useRef } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
 import { useCanExportUi } from '@ui/auth/usePermissions';
-import { TAG_COLORS } from '@ui/utils/colors';
+import { TAG_COLORS, tagPillStyle } from '@ui/utils/colors';
+import { useIsDark } from '@ui/contexts/ThemeContext';
 import { useDebouncedValue } from '@ui/hooks/useDebouncedValue';
 import { formatDateOnly as formatDate } from '@ui/utils/formatters';
 import { ASSIGNMENT_TYPE_STYLES } from '@ui/utils/accessPackageStyles';
@@ -20,6 +21,7 @@ const ASSIGNMENT_TYPES = ['Auto-assigned', 'Request-based', 'Request-based with 
 
 export default function AccessPackagesPage({ onOpenDetail }) {
   const { authFetch } = useAuth();
+  const isDark = useIsDark();
   const dialog = useDialog();
   const canExport = useCanExportUi();
 
@@ -281,7 +283,7 @@ export default function AccessPackagesPage({ onOpenDetail }) {
                 ? 'ring-2 ring-offset-1 ring-blue-400'
                 : 'hover:opacity-80'
             }`}
-            style={{ backgroundColor: c.color + '20', borderColor: c.color, color: c.color }}
+            style={tagPillStyle(c.color, isDark)}
             onClick={() => setCategoryFilter(categoryFilter === c.id ? null : c.id)}
             title={`${c.assignmentCount} business roles — click to filter`}
           >
@@ -615,11 +617,7 @@ export default function AccessPackagesPage({ onOpenDetail }) {
                       onChange={e => assignCategoryToOne(ap.id, e.target.value ? parseInt(e.target.value) : null)}
                       disabled={busy}
                       className="px-1.5 py-0.5 border border-gray-200 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-700 dark:text-gray-200"
-                      style={ap.category ? {
-                        backgroundColor: ap.category.color + '20',
-                        borderColor: ap.category.color,
-                        color: ap.category.color,
-                      } : {}}
+                      style={ap.category ? tagPillStyle(ap.category.color, isDark) : {}}
                     >
                       <option value="">None</option>
                       {categories.map(c => (

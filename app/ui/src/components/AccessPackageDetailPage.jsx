@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
+import { useIsDark } from '@ui/contexts/ThemeContext';
+import { tagPillStyle } from '@ui/utils/colors';
 import useFeatures from '@ui/hooks/useFeatures';
 import EntityDetailPage from './EntityDetailPage';
 import RiskScoreSection from './RiskScoreSection';
@@ -35,6 +37,7 @@ function getAccessPackageRootExtras(data) {
 }
 
 function AccessPackageHeader({ data }) {
+  const isDark = useIsDark();
   const { attributes, assignmentType, category, lastReviewDate, lastReviewedBy } = data;
   return (
     <>
@@ -50,7 +53,7 @@ function AccessPackageHeader({ data }) {
             )}
             {category && (
               <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium border"
-                style={{ backgroundColor: category.color + '20', borderColor: category.color, color: category.color }}>
+                style={tagPillStyle(category.color, isDark)}>
                 {category.name}
               </span>
             )}
@@ -88,6 +91,7 @@ const BADGE = 'inline-block px-2 py-0.5 rounded-full text-xs font-medium border'
 const NEUTRAL = 'bg-gray-100 text-gray-600 border-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600';
 
 function OverviewPanel({ assignmentType, complianceStatus, daysOverdue, lastReviewDate, lastReviewedBy, category }) {
+  const isDark = useIsDark();
   if (!(assignmentType || complianceStatus || lastReviewDate || lastReviewedBy || category)) return null;
   return (
     <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
@@ -111,7 +115,7 @@ function OverviewPanel({ assignmentType, complianceStatus, daysOverdue, lastRevi
         {lastReviewedBy && <OverviewRow label="Reviewed by">{lastReviewedBy}</OverviewRow>}
         {category && (
           <OverviewRow label="Category">
-            <span className={BADGE} style={{ backgroundColor: category.color + '20', borderColor: category.color, color: category.color }}>{category.name}</span>
+            <span className={BADGE} style={tagPillStyle(category.color, isDark)}>{category.name}</span>
           </OverviewRow>
         )}
       </div>

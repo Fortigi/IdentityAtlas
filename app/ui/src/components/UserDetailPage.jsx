@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
+import { useIsDark } from '@ui/contexts/ThemeContext';
+import { tagPillStyle } from '@ui/utils/colors';
 import useFeatures from '@ui/hooks/useFeatures';
 import EntityDetailPage from './EntityDetailPage';
 import RiskScoreSection from './RiskScoreSection';
@@ -36,6 +38,7 @@ function getUserAttributeEntries(data) {
 }
 
 function UserHeader({ data }) {
+  const isDark = useIsDark();
   const { attributes, tags, lastActivity } = data;
   const typeClass = ACCOUNT_TYPE_COLORS[attributes.principalType] || ACCOUNT_TYPE_COLORS_DEFAULT;
   return (
@@ -79,7 +82,7 @@ function UserHeader({ data }) {
         <div className="flex gap-1.5 mt-2">
           {tags.map(t => (
             <span key={t.id} className="inline-block px-2 py-0.5 rounded-full text-xs font-medium border"
-              style={{ backgroundColor: t.color + '20', borderColor: t.color, color: t.color }}>
+              style={tagPillStyle(t.color, isDark)}>
               {t.name}
             </span>
           ))}
