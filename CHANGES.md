@@ -1,5 +1,12 @@
 ## Changes in this PR
 
+- Refactored the app's top-level page routing into a small, data-driven page registry, so adding, renaming, or reordering a tab is a one-line change and stays covered by tests. No change to how any page looks or behaves.
+- Demo data now includes department and team membership, so the access matrix can be scoped by department (e.g. Sales, Engineering) immediately after loading the demo dataset — previously the synced Department/Team contexts were created empty and had to be populated by running a context-algorithm plugin first.
+- Added a "Live demo" splash page to the marketing website (at `/demo`) that welcomes visitors to the public hosted demo, explains it runs on synthetic data, warns that the environment resets regularly and is shared/unauthenticated, cautions against uploading real data, and links out to the live demo — with a short "try this once you're in" guide.
+- Linked the marketing site to the live demo: a "Live demo" nav item, a "Try the live demo" primary button in the hero and closing call-to-action, and a zero-install demo callout in the "How to start" section.
+
+## Changes in this PR
+
 - Hardened the matrix's inherited-access folding (Azure-style "capability @ scope" grants that propagate down the containment hierarchy) with a PostgreSQL contract test, so the folded roll-up counts and flat rows are verified against the real schema and guarded against regressions.
 
 ## Changes in this PR
