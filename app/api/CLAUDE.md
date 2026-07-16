@@ -43,6 +43,8 @@ Run it once after `npm install` (and again after any `npm install` that repopula
 
 Migration files are numbered sequentially (`001_core_schema.sql`, `002_governance.sql`, etc.). Add a new file for each schema change — never edit existing migration files.
 
+**No runtime DDL.** Don't create/alter schema from route, ingest, or startup code — no `CREATE TABLE IF NOT EXISTS` "just in case" (this pattern was removed for `SavedMatrixFilters` in #794). The migration runner owns all schema; a table a route depends on must exist as a migration, not be lazily materialised on first request (which hides drift, races under concurrency, and needs write privileges at request time).
+
 ## Key Patterns
 
 - **Column cache:** Use `db/columnCache.js` for column discovery — it has a 5-minute TTL. Don't run `information_schema` queries per-request.
