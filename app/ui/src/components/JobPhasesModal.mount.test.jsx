@@ -25,6 +25,11 @@ const completedJob = {
   phases: [
     { name: 'SyncUsers', status: 'ok', durationMs: 1200, records: { users: 5 } },
     { name: 'SyncGroups', status: 'failed', durationMs: 300, error: 'boom' },
+    // 'skipped' status + a minutes-scale duration exercise the skipped dot and
+    // the fmtMs minutes branch; the trailing phase with an unknown status +
+    // neither error nor records hits the fallback dot and the em-dash detail.
+    { name: 'SyncApps', status: 'skipped', durationMs: 65000 },
+    { name: 'SyncTeams', status: 'pending' },
   ],
 };
 
@@ -97,7 +102,7 @@ describe('JobPhasesModal dark mode', () => {
   it('dark-themes the trace pane when the Trace tab is opened', async () => {
     const authFetch = makeAuthFetch((url) =>
       String(url).includes('/log')
-        ? jsonResponse({ text: 'line one\nline two', totalLength: 17, exists: true, truncated: false })
+        ? jsonResponse({ text: 'line one\nline two', totalLength: 2048, exists: true, truncated: false })
         : jsonResponse({ error: 'nope' }, { ok: false, status: 404 }),
     );
     renderWithProviders(<JobPhasesModal job={completedJob} onClose={() => {}} />, {
@@ -107,7 +112,22 @@ describe('JobPhasesModal dark mode', () => {
     const pre = await screen.findByText(/line one/);
     // The trace pane keeps its terminal look but gains a dark-mode surface.
     expect(pre.className).toContain('dark:bg-black');
+    // The size readout formats the byte count (2048 → "2.0 KB").
+    expect(await screen.findByText(/2\.0 KB/)).toBeInTheDocument();
     await waitFor(() => expect(authFetch).toHaveBeenCalled());
+  });
+
+  it('shows a trace error when the log fetch fails', async () => {
+    const authFetch = makeAuthFetch((url) =>
+      String(url).includes('/log')
+        ? jsonResponse({ error: 'nope' }, { ok: false, status: 500 })
+        : jsonResponse({ error: 'nope' }, { ok: false, status: 404 }),
+    );
+    renderWithProviders(<JobPhasesModal job={completedJob} onClose={() => {}} />, {
+      auth: { authFetch },
+    });
+    await userEvent.click(screen.getByRole('button', { name: 'Trace' }));
+    expect(await screen.findByText(/Failed to refresh trace/)).toBeInTheDocument();
   });
 
   it('renders nothing when no job is supplied', () => {
