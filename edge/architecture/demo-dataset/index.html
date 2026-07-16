@@ -4279,9 +4279,9 @@
 <td>Reports to COO but manages Operations — tests cross-dept context</td>
 </tr>
 <tr>
-<td>Intern</td>
-<td>E0031 Intern</td>
-<td>Lowest-privilege employee. Not a zero-assignment case: assignments are granted by <code>department</code>, so the intern still gets the 4 Engineering ones. The dataset has no principal with zero assignments — see issue #717</td>
+<td>Employee with no assignments</td>
+<td>E0031 Zara Intern</td>
+<td>A new hire not yet provisioned: flagged <code>noAccess</code> in the generator, so she is excluded from every department group and business-role grant. She still exists as a principal and appears in the Engineering context, but holds <strong>zero</strong> resource assignments — the deliberate zero-assignment edge case</td>
 </tr>
 </tbody>
 </table>
@@ -4434,16 +4434,16 @@
 </thead>
 <tbody>
 <tr>
-<td>All 22 employees</td>
+<td>Every employee except the intern (21)</td>
 <td>SG-AllEmployees</td>
 <td>Direct</td>
-<td></td>
+<td>E0031 is the deliberate zero-assignment case — see Edge Cases</td>
 </tr>
 <tr>
-<td>Every Engineering employee (10)</td>
+<td>Engineering employees except the intern (8)</td>
 <td>SG-Engineering</td>
 <td>Direct</td>
-<td>By <code>department</code>, so it includes the CTO (E0002) and the intern (E0031)</td>
+<td>By <code>department</code> (includes the CTO E0002); the unprovisioned intern E0031 is excluded</td>
 </tr>
 <tr>
 <td>Every Finance employee (4)</td>
@@ -4482,13 +4482,13 @@
 <td>Directory role assignment</td>
 </tr>
 <tr>
-<td>All 22 employees</td>
+<td>Every employee except the intern (21)</td>
 <td>BR-Employee-Base</td>
 <td>Direct (<code>governed=true</code>)</td>
 <td>Via business role — governance is the <code>governed</code> flag, not an assignment type</td>
 </tr>
 <tr>
-<td>Every Engineering employee (10)</td>
+<td>Engineering employees except the intern (8)</td>
 <td>BR-Engineering-Tools</td>
 <td>Direct (<code>governed=true</code>)</td>
 <td>Via business role</td>
@@ -4652,7 +4652,7 @@
 <a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="w">      </span><span class="nt">&quot;systems&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">3</span><span class="p">,</span>
 <a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="w">      </span><span class="nt">&quot;principals&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">28</span><span class="p">,</span>
 <a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="w">      </span><span class="nt">&quot;resources&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">14</span><span class="p">,</span>
-<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="w">      </span><span class="nt">&quot;resourceAssignments&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">73</span><span class="p">,</span>
+<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="w">      </span><span class="nt">&quot;resourceAssignments&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">69</span><span class="p">,</span>
 <a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="w">      </span><span class="nt">&quot;resourceRelationships&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">9</span><span class="p">,</span>
 <a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a><span class="w">      </span><span class="nt">&quot;identities&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">23</span><span class="p">,</span>
 <a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a><span class="w">      </span><span class="nt">&quot;identityMembers&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">24</span><span class="p">,</span>
@@ -4706,8 +4706,8 @@
 </tr>
 <tr>
 <td>ResourceAssignments</td>
-<td>73</td>
-<td>72 <code>Direct</code> + 1 <code>Eligible</code>; 31 of them carry <code>governed=true</code></td>
+<td>69</td>
+<td>68 <code>Direct</code> + 1 <code>Eligible</code>; 29 of them carry <code>governed=true</code></td>
 </tr>
 <tr>
 <td>ResourceRelationships</td>
