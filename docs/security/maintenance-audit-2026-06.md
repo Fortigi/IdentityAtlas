@@ -138,7 +138,7 @@ All **Critical** findings are fixed and merged. Every exploitable **security** f
 | Q6 | 🔧 Open | two runtime `CREATE TABLE` DDLs remain (migration 023 owns them) |
 | Q7 | ✅ Fixed | #678 / #667 — dead GraphUsers/GraphGroups fallbacks removed |
 | Q8 | 🟦 By design | positive finding — TODO/FIXME density stayed ~zero |
-| Q9–Q10 | 🔧 Open | redundant jsonb parse + scattered magic strings remain |
+| Q9–Q10 | ✅ Fixed | #811 dropped the redundant jsonb parse (`lib/jsonb.js`); #812 centralized `#microsoft.graph.group` into `lib/principalTypes.js` (`400_000` was already `MAX_FLAT_ROWS`) |
 | Codex perf | 🟨 Partially addressed | riskScores top-N `LIMIT` fixed (#660); unpaginated group/assignment endpoints + MatrixView nested loop remain |
 
 ### CI / Test Harness
