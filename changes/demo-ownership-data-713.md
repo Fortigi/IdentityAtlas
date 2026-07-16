@@ -1,0 +1,1 @@
+- The demo dataset now includes group ownership — a few groups (Engineering, Finance, the Tier-0 admin group) have designated owners — so the matrix's owner badges and the ownership views have real demo data to show.

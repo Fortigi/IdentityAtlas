@@ -191,6 +191,18 @@ Assert-Count 'Has-Eligible-Assignments' -Min 1 -Query @'
 SELECT COUNT(*) FROM "ResourceAssignments" WHERE "assignmentType" = 'Eligible' AND "deletedAt" IS NULL
 '@
 
+# Ownership: a Direct assignment on a synthetic GroupOwnership resource, not the
+# retired 'Owner' assignmentType (#713).
+Assert-Count 'Has-GroupOwnership-Resources' -Min 1 -Query @'
+SELECT COUNT(*) FROM "Resources" WHERE "resourceType" = 'GroupOwnership' AND "deletedAt" IS NULL
+'@
+
+Assert-Count 'Has-Owner-Assignments' -Min 1 -Query @'
+SELECT COUNT(*) FROM "ResourceAssignments" ra
+JOIN "Resources" r ON r."id" = ra."resourceId"
+WHERE r."resourceType" = 'GroupOwnership' AND ra."deletedAt" IS NULL
+'@
+
 # Relationship types (ResourceRelationships has no soft-delete column)
 Assert-Count 'Contains-Relationships' -Min 8 -Query @'
 SELECT COUNT(*) FROM "ResourceRelationships" WHERE "relationshipType" = 'Contains'
@@ -198,6 +210,10 @@ SELECT COUNT(*) FROM "ResourceRelationships" WHERE "relationshipType" = 'Contain
 
 Assert-Count 'GrantsAccessTo-Relationships' -Min 1 -Query @'
 SELECT COUNT(*) FROM "ResourceRelationships" WHERE "relationshipType" = 'GrantsAccessTo'
+'@
+
+Assert-Count 'HasOwnership-Relationships' -Min 1 -Query @'
+SELECT COUNT(*) FROM "ResourceRelationships" WHERE "relationshipType" = 'HasOwnership'
 '@
 
 # Context hierarchy
