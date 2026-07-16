@@ -242,6 +242,19 @@ export default function EntityListPage({
       {/* Table */}
       {ep.loading ? (
         <div className="text-center text-gray-500 dark:text-gray-400 py-12">Loading {label}...</div>
+      ) : ep.error ? (
+        <div className="text-center py-12" role="alert">
+          <p className="text-red-700 dark:text-red-300 font-medium">Couldn&apos;t load {label}.</p>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+            {ep.error.message || 'The request failed. Check your connection and try again.'}
+          </p>
+          <button
+            onClick={ep.fetchItems}
+            className="mt-4 px-3 py-1.5 text-sm rounded bg-blue-600 text-white hover:bg-blue-700"
+          >
+            Retry
+          </button>
+        </div>
       ) : ep.items.length === 0 ? (
         <div className="text-center text-gray-500 dark:text-gray-400 py-12">
           {ep.hasAnyFilter ? `No ${label} match the current filters.` : `No ${label} found.`}
