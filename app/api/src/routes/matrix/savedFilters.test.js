@@ -47,4 +47,49 @@ describe('matrix saved-filters', () => {
   it('DELETE 400 on a malformed id', async () => {
     expect((await request(app).delete('/api/matrix/saved-filters/nope')).status).toBe(400);
   });
+
+  it('POST 201 creates a filter and returns the stored row', async () => {
+    query.mockResolvedValue({});                                   // INSERT
+    queryOne.mockResolvedValue({ id: VALID, name: 'New', filter: {} }); // SELECT back
+    const res = await request(app).post('/api/matrix/saved-filters').send({ name: 'New', filter: { rowType: 'user' } });
+    expect(res.status).toBe(201);
+    expect(res.body).toEqual({ id: VALID, name: 'New', filter: {} });
+  });
+
+  it('POST 409 on a duplicate name', async () => {
+    query.mockRejectedValue({ code: '23505' });
+    const res = await request(app).post('/api/matrix/saved-filters').send({ name: 'Dup', filter: {} });
+    expect(res.status).toBe(409);
+  });
+
+  it('PUT 200 updates a filter', async () => {
+    query.mockResolvedValue({ rowCount: 1, rows: [{ id: VALID, name: 'Renamed', isDefault: true }] });
+    const res = await request(app).put(`/api/matrix/saved-filters/${VALID}`)
+      .send({ name: 'Renamed', description: null, filter: { rowType: 'group' }, isDefault: true });
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ id: VALID, name: 'Renamed', isDefault: true });
+  });
+
+  it('PUT 404 when the filter does not exist', async () => {
+    query.mockResolvedValue({ rowCount: 0, rows: [] });
+    const res = await request(app).put(`/api/matrix/saved-filters/${VALID}`).send({ name: 'X' });
+    expect(res.status).toBe(404);
+  });
+
+  it('DELETE 204 removes a filter', async () => {
+    query.mockResolvedValue({ rowCount: 1 });
+    expect((await request(app).delete(`/api/matrix/saved-filters/${VALID}`)).status).toBe(204);
+  });
+
+  it('DELETE 404 when the filter does not exist', async () => {
+    query.mockResolvedValue({ rowCount: 0 });
+    expect((await request(app).delete(`/api/matrix/saved-filters/${VALID}`)).status).toBe(404);
+  });
+
+  it('GET /matrix/default-filter returns the default row', async () => {
+    queryOne.mockResolvedValue({ id: VALID, name: 'Default', isDefault: true });
+    const res = await request(app).get('/api/matrix/default-filter');
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ id: VALID, name: 'Default', isDefault: true });
+  });
 });
