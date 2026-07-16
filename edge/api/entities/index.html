@@ -5582,7 +5582,7 @@ in the background. <strong>Permission:</strong> <code>admin.crawlers</code></p>
 <td>Last N requests with per-SQL-query timing breakdowns</td>
 </tr>
 <tr>
-<td><code>/api/perf/slowest</code></td>
+<td><code>/api/perf/slow</code></td>
 <td><code>GET</code></td>
 <td>Slowest N requests (by total duration)</td>
 </tr>
@@ -5594,7 +5594,12 @@ in the background. <strong>Permission:</strong> <code>admin.crawlers</code></p>
 <tr>
 <td><code>/api/perf/clear</code></td>
 <td><code>POST</code></td>
-<td>Clear the ring buffer (admin use)</td>
+<td>Clear the ring buffer (admin only)</td>
+</tr>
+<tr>
+<td><code>/api/perf/toggle</code></td>
+<td><code>POST</code></td>
+<td>Enable/disable the collector at runtime (admin only)</td>
 </tr>
 </tbody>
 </table>
