@@ -81,10 +81,12 @@ describe('assignmentType — DB allow-list (migration 054)', () => {
   });
 });
 
-describe('resourceType — DB negative guard, open vocabulary (migration 054)', () => {
+describe('resourceType — DB negative guard, open vocabulary (migrations 054, 058)', () => {
   it('accepts arbitrary open-vocabulary resourceTypes on Resources', async () => {
     // Entra types plus CSV/Azure/midPoint types that are NOT in any allow-list.
-    for (const rt of ['Group', 'EntraDirectoryRole', 'SAPRole', 'AzureRoleAssignment', 'Service']) {
+    // 'AppRole' is the canonical, unprefixed spelling that 058 renamed
+    // 'EntraAppRole' to — it must keep validating.
+    for (const rt of ['Group', 'EntraDirectoryRole', 'AppRole', 'SAPRole', 'AzureRoleAssignment', 'Service']) {
       await expect(insertResource(rt), `${rt} must be accepted`).resolves.toBeDefined();
     }
   });
@@ -94,15 +96,30 @@ describe('resourceType — DB negative guard, open vocabulary (migration 054)', 
     await expect(insertRA('Direct', null)).resolves.toBeDefined();
   });
 
+  // EntraGroup/EntraRole retired by 052; EntraAppRole by 058.
+  const RETIRED_RESOURCE_TYPES = ['EntraGroup', 'EntraRole', 'EntraAppRole'];
+
   it('rejects the renamed Entra-era literals on Resources', async () => {
-    for (const rt of ['EntraGroup', 'EntraRole']) {
+    for (const rt of RETIRED_RESOURCE_TYPES) {
       await expect(insertResource(rt), `${rt} must be rejected`).rejects.toMatchObject(CHECK_VIOLATION);
     }
   });
 
   it('rejects the renamed Entra-era literals on ResourceAssignments', async () => {
-    for (const rt of ['EntraGroup', 'EntraRole']) {
+    for (const rt of RETIRED_RESOURCE_TYPES) {
       await expect(insertRA('Direct', rt), `${rt} must be rejected`).rejects.toMatchObject(CHECK_VIOLATION);
+    }
+  });
+
+  it('holds no live row on the retired literals (the CHECK makes this table-wide)', async () => {
+    // 058 rewrote existing rows before tightening the constraint; if that order
+    // were wrong the migration would have failed, but assert the end state too.
+    for (const table of ['Resources', 'ResourceAssignments']) {
+      const r = await pool.query(
+        `SELECT count(*)::int AS c FROM "${table}" WHERE "resourceType" = ANY($1)`,
+        [RETIRED_RESOURCE_TYPES],
+      );
+      expect(r.rows[0].c, `${table} must hold no retired resourceType`).toBe(0);
     }
   });
 });

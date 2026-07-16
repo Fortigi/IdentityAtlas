@@ -60,6 +60,7 @@
     "054_value_guard_constraints.sql": "e1154b081c1228cbde8588d6afa740c1965d122bc61ff077d7203ab0330e6368",
     "055_history_timeline_indexes.sql": "2e238c636f986982243a09b6f33ff84c29dcfb92f093fb3efddaf5536db1a72f",
     "056_component_versions.sql": "82359f4155eaa216dd8b98f89b9ff46db66031a7a8e1efcb2c114267f68593fc",
-    "057_principal_relationships.sql": "124f72d04f718f615ac665f47b8500479c84db7d39969159d55afd95e0525717"
+    "057_principal_relationships.sql": "124f72d04f718f615ac665f47b8500479c84db7d39969159d55afd95e0525717",
+    "058_rename_entra_app_role.sql": "b86da2c0c2b0fc2934affcab1298886b4e5d23644742b2c433abc08fc3d1c57f"
   }
 }

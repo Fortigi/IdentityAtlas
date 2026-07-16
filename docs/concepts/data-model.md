@@ -463,6 +463,6 @@ Each row stores the latest known activity per `(principalId, resourceId, systemI
 The risk engine queries PrincipalActivity to detect:
 
 - **Stale accounts** — `User` principals with no `SignIn` activity in 90+ days
-- **Ghost app roles** — `EntraAppRole` assignments where the user has never signed in to the app
+- **Ghost app roles** — `AppRole` assignments where the user has never signed in to the app
 - **Active high-privilege usage** — principals actively using sensitive resources (reduces risk score)
 - **AI agent dormancy** — `AIAgent` principals with no recent `Invocation` activity

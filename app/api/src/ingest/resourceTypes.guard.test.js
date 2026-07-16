@@ -18,9 +18,14 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { validateRecords } from './validation.js';
 
-// The renamed literals (migration 052). Named only here (a test) and in the
-// migration — never in production application code.
-const RETIRED = ['EntraGroup', 'EntraRole'];
+// The renamed literals (migrations 052 and 058). Named only here (a test) and in
+// the migrations — never in production application code.
+// EntraAppRole is the same mistake as EntraGroup, found later: 052 de-prefixed
+// the system-baked types but missed it, and because resourceType is an OPEN
+// vocabulary there was no allow-list to fail against. It mattered — the Entra
+// crawler emits 'AppRole', so the demo dataset's 'EntraAppRole' rows were
+// invisible to risky-consent.js, which filters on 'AppRole' (#719).
+const RETIRED = ['EntraGroup', 'EntraRole', 'EntraAppRole'];
 // A representative slice of the OPEN vocabulary that must keep validating: Entra's
 // own types plus types other systems emit (Azure / Omada / midPoint / CSV) that
 // are deliberately not in any allow-list.
