@@ -59,12 +59,12 @@ Status legend: ✅ **Fixed** (merged) · 🟦 **By design** (intended/supported,
 
 | Phase | Tracked | ✅ Fixed | 🟦 By design | 🟨 Partial | 🔧 Open |
 |-------|--------:|--------:|------------:|----------:|--------:|
-| Design / UX | 21 | 5 | 0 | 1 | 15 |
+| Design / UX | 21 | 6 | 0 | 0 | 15 |
 | Security | 22 | 10 | 2 | 1 | 9 |
 | Perf & Quality | 16 | 5 | 2 | 3 | 6 |
 | CI / Test Harness | 11 | 6 | 0 | 3 | 2 |
 | Documentation | 11 | 9 | 0 | 1 | 1 |
-| **Total** | **81** | **35** | **4** | **9** | **33** |
+| **Total** | **81** | **36** | **4** | **8** | **33** |
 
 _(Row groups P6–P10, Q9–Q10, F10–F13, D10–D12 and the Codex net-new bullets are tracked as single rows here; the audit's raw sub-finding count is 85.)_
 
@@ -91,7 +91,7 @@ All **Critical** findings are fixed and merged. Every exploitable **security** f
 | M7 | 🔧 Open | tables lack `overflow-x-auto` |
 | M8 | 🔧 Open | tag-pill `color + '20'` alpha hack remains |
 | L1 | 🔧 Open | list pages don't use shared `EmptyState` |
-| L2 | 🟨 Partially addressed | #525 added aria-labels on nav pages; search inputs still placeholder-only |
+| L2 | ✅ Fixed | #525 aria-labelled nav pages; #820 added aria-labels to the remaining search/filter inputs |
 | L3 | 🔧 Open | no semantic design-token layer |
 | L4 | 🔧 Open | active tab still near-black, not blue |
 
