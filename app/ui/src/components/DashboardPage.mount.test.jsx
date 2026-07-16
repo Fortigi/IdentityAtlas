@@ -78,6 +78,11 @@ describe('DashboardPage (mounted)', () => {
       'href',
       'https://fortigi.github.io/IdentityAtlas/edge/contributing/report-an-issue/',
     );
+
+    // The support email was intentionally removed from the dashboard — support
+    // now routes through the report-an-issue guide (which covers SLAs), not a
+    // mailto on the solution home page.
+    expect(screen.queryByText(/support@identityatlas\.io/i)).toBeNull();
   });
 
   it('navigates when a populated stat card is clicked', async () => {

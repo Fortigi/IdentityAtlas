@@ -57,7 +57,8 @@ a coloured dot (green = active, amber = needs attention, grey = not configured):
 
 The bottom row has three cards: **Resources** (website, documentation, GitHub,
 license, releases), **Version** (the running version, with a "What is new" link to
-the changelog), and **Need support?** (a support email). A banner appears above
+the changelog), and **Need support?** (a link to [report a bug or request a
+feature](../contributing/report-an-issue.md)). A banner appears above
 everything if your `docker-compose.prod.yml` is outdated, with the command to
 re-download it.
 
