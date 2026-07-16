@@ -1,0 +1,1 @@
+- Fixed the crawler job-detail dialog (opened via **Details** on a job in Admin → Crawlers → Recent Jobs) rendering in light colours while the app is in dark mode — the dialog, its Phases/Trace tabs, the phase table, status badges and error text now follow the dark theme.
