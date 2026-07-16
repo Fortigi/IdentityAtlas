@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- The demo dataset now includes a principal with no access at all — Zara Intern (a new hire not yet provisioned) — so the matrix and other views have a genuine zero-assignment employee to exercise, matching what the documentation described.
+
+## Changes in this PR
+
 - During a database migration at startup (for example a large schema upgrade the first time a new version boots), the app's data pages now return a graceful, retryable "warming up — please retry shortly" response instead of raw 500 error pages. The migration still runs in the background and everything becomes available automatically once it finishes; automated clients get a standard `Retry-After` hint so they back off and retry cleanly.
 
 ## Changes in this PR

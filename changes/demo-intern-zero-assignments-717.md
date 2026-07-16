@@ -1,1 +1,0 @@
-- The demo dataset now includes a principal with no access at all — Zara Intern (a new hire not yet provisioned) — so the matrix and other views have a genuine zero-assignment employee to exercise, matching what the documentation described.
