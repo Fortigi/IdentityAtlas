@@ -59,12 +59,12 @@ Status legend: ✅ **Fixed** (merged) · 🟦 **By design** (intended/supported,
 
 | Phase | Tracked | ✅ Fixed | 🟦 By design | 🟨 Partial | 🔧 Open |
 |-------|--------:|--------:|------------:|----------:|--------:|
-| Design / UX | 21 | 5 | 0 | 1 | 15 |
+| Design / UX | 21 | 6 | 0 | 1 | 14 |
 | Security | 22 | 10 | 2 | 1 | 9 |
 | Perf & Quality | 16 | 5 | 2 | 3 | 6 |
 | CI / Test Harness | 11 | 6 | 0 | 3 | 2 |
 | Documentation | 11 | 9 | 0 | 1 | 1 |
-| **Total** | **81** | **35** | **4** | **9** | **33** |
+| **Total** | **81** | **36** | **4** | **9** | **32** |
 
 _(Row groups P6–P10, Q9–Q10, F10–F13, D10–D12 and the Codex net-new bullets are tracked as single rows here; the audit's raw sub-finding count is 85.)_
 
@@ -84,7 +84,7 @@ All **Critical** findings are fixed and merged. Every exploitable **security** f
 | H6 | 🔧 Open | `useEntityPage` still has no error state |
 | M1 | 🔧 Open | duplicate `Section`/`StatCard` remain |
 | M2 | ✅ Fixed | #500 — `DialogProvider` + `no-native-dialogs` rule |
-| M3 | 🔧 Open | emoji-as-icon persists |
+| M3 | ✅ Fixed | #822 — Admin section emoji icons replaced with a shared inline-SVG set (`adminIcons.jsx`) |
 | M4 | 🔧 Open | Dashboard StatCard gradients remain |
 | M5 | 🔧 Open | radius scale unstandardized |
 | M6 | ✅ Fixed | #427 (same codemod + lint rule as C1) |
