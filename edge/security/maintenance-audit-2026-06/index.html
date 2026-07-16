@@ -4369,6 +4369,7 @@ Critical/High across all dimensions: <strong>14.</strong></p>
 <hr />
 <h2 id="remediation-status">Remediation Status<a class="headerlink" href="#remediation-status" title="Permanent link">&para;</a></h2>
 <p><em>Status tracking added 2026-07-14. In the weeks since this audit the backlog was worked one PR at a time; the tables below record where each finding landed, matching the Status convention of the <a href="../assessment/">Security Assessment</a> and <a href="../../ux/assessment/">UX Assessment</a> pages. The detailed phase sections that follow are the original audit text, unchanged.</em></p>
+<p><em>Refreshed 2026-07-16: reconciled against merged and in-flight PRs. Both remaining <strong>Documentation</strong> items are now ✅ Fixed — #804 (issues #802/#803) corrected <code>entities.md</code>'s <code>/api/perf/slowest</code> reference and strengthened <code>.spectral.yaml</code>, closing the last gaps left after #708/#690/#714. All other open items were re-verified against <code>main</code> and remain genuinely open.</em></p>
 <p>Status legend: ✅ <strong>Fixed</strong> (merged) · 🟦 <strong>By design</strong> (intended/supported, documented) · 🟨 <strong>Partially addressed</strong> · 🔧 <strong>Open</strong>.</p>
 <table>
 <thead>
@@ -4394,9 +4395,9 @@ Critical/High across all dimensions: <strong>14.</strong></p>
 <td>Security</td>
 <td style="text-align: right;">22</td>
 <td style="text-align: right;">10</td>
-<td style="text-align: right;">2</td>
+<td style="text-align: right;">3</td>
 <td style="text-align: right;">1</td>
-<td style="text-align: right;">9</td>
+<td style="text-align: right;">8</td>
 </tr>
 <tr>
 <td>Perf &amp; Quality</td>
@@ -4417,18 +4418,18 @@ Critical/High across all dimensions: <strong>14.</strong></p>
 <tr>
 <td>Documentation</td>
 <td style="text-align: right;">11</td>
-<td style="text-align: right;">9</td>
+<td style="text-align: right;">11</td>
 <td style="text-align: right;">0</td>
-<td style="text-align: right;">1</td>
-<td style="text-align: right;">1</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
 </tr>
 <tr>
 <td><strong>Total</strong></td>
 <td style="text-align: right;"><strong>81</strong></td>
-<td style="text-align: right;"><strong>35</strong></td>
-<td style="text-align: right;"><strong>4</strong></td>
-<td style="text-align: right;"><strong>9</strong></td>
-<td style="text-align: right;"><strong>33</strong></td>
+<td style="text-align: right;"><strong>37</strong></td>
+<td style="text-align: right;"><strong>5</strong></td>
+<td style="text-align: right;"><strong>8</strong></td>
+<td style="text-align: right;"><strong>31</strong></td>
 </tr>
 </tbody>
 </table>
@@ -4462,37 +4463,37 @@ Critical/High across all dimensions: <strong>14.</strong></p>
 <tr>
 <td>H1</td>
 <td>🔧 Open</td>
-<td>accent sprawl (lime/indigo vs blue) not yet unified</td>
+<td>accent sprawl (lime/indigo vs blue) not yet unified (#749)</td>
 </tr>
 <tr>
 <td>H2</td>
 <td>🔧 Open</td>
-<td>no shared <code>components/Button.jsx</code></td>
+<td>no shared <code>components/Button.jsx</code> (#750)</td>
 </tr>
 <tr>
 <td>H3</td>
 <td>🔧 Open</td>
-<td>clickable non-controls (<code>&lt;tr&gt;</code>/<code>&lt;span&gt;</code>) remain</td>
+<td>clickable non-controls (<code>&lt;tr&gt;</code>/<code>&lt;span&gt;</code>) remain (#751)</td>
 </tr>
 <tr>
 <td>H4</td>
 <td>🔧 Open</td>
-<td>modal Escape/focus-trap/<code>role="dialog"</code> not added</td>
+<td>modal Escape/focus-trap/<code>role="dialog"</code> not added (#752)</td>
 </tr>
 <tr>
 <td>H5</td>
 <td>🔧 Open</td>
-<td>6 modal overlays not consolidated</td>
+<td>6 modal overlays not consolidated (#752)</td>
 </tr>
 <tr>
 <td>H6</td>
 <td>🔧 Open</td>
-<td><code>useEntityPage</code> still has no error state</td>
+<td><code>useEntityPage</code> still has no error state (#753)</td>
 </tr>
 <tr>
 <td>M1</td>
 <td>🔧 Open</td>
-<td>duplicate <code>Section</code>/<code>StatCard</code> remain</td>
+<td>duplicate <code>Section</code>/<code>StatCard</code> remain (#754)</td>
 </tr>
 <tr>
 <td>M2</td>
@@ -4502,17 +4503,17 @@ Critical/High across all dimensions: <strong>14.</strong></p>
 <tr>
 <td>M3</td>
 <td>🔧 Open</td>
-<td>emoji-as-icon persists</td>
+<td>emoji-as-icon persists (#755)</td>
 </tr>
 <tr>
 <td>M4</td>
 <td>🔧 Open</td>
-<td>Dashboard StatCard gradients remain</td>
+<td>Dashboard StatCard gradients remain (#756)</td>
 </tr>
 <tr>
 <td>M5</td>
 <td>🔧 Open</td>
-<td>radius scale unstandardized</td>
+<td>radius scale unstandardized (#757)</td>
 </tr>
 <tr>
 <td>M6</td>
@@ -4522,32 +4523,32 @@ Critical/High across all dimensions: <strong>14.</strong></p>
 <tr>
 <td>M7</td>
 <td>🔧 Open</td>
-<td>tables lack <code>overflow-x-auto</code></td>
+<td>tables lack <code>overflow-x-auto</code> (#758)</td>
 </tr>
 <tr>
 <td>M8</td>
 <td>🔧 Open</td>
-<td>tag-pill <code>color + '20'</code> alpha hack remains</td>
+<td>tag-pill <code>color + '20'</code> alpha hack remains (#759)</td>
 </tr>
 <tr>
 <td>L1</td>
 <td>🔧 Open</td>
-<td>list pages don't use shared <code>EmptyState</code></td>
+<td>list pages don't use shared <code>EmptyState</code> (#760)</td>
 </tr>
 <tr>
 <td>L2</td>
 <td>🟨 Partially addressed</td>
-<td>#525 added aria-labels on nav pages; search inputs still placeholder-only</td>
+<td>#525 added aria-labels on nav pages; search inputs still placeholder-only (#761)</td>
 </tr>
 <tr>
 <td>L3</td>
 <td>🔧 Open</td>
-<td>no semantic design-token layer</td>
+<td>no semantic design-token layer (#762)</td>
 </tr>
 <tr>
 <td>L4</td>
 <td>🔧 Open</td>
-<td>active tab still near-black, not blue</td>
+<td>active tab still near-black, not blue (#749)</td>
 </tr>
 </tbody>
 </table>
@@ -4583,8 +4584,8 @@ Critical/High across all dimensions: <strong>14.</strong></p>
 </tr>
 <tr>
 <td>M-4</td>
-<td>🔧 Open</td>
-<td>upload per-file / aggregate caps unchanged</td>
+<td>🟦 By design</td>
+<td>1 GB/file upload cap is deliberate — large files are needed in practice (#778 closed as by-design); the separate L-8 CSV-parser OOM concern (streaming/row-capping the <em>parser</em>) still stands</td>
 </tr>
 <tr>
 <td>M-5</td>
@@ -4599,42 +4600,42 @@ Critical/High across all dimensions: <strong>14.</strong></p>
 <tr>
 <td>L-1</td>
 <td>🔧 Open</td>
-<td>cron command still <code>Invoke-Expression</code></td>
+<td>cron command still <code>Invoke-Expression</code> (#779)</td>
 </tr>
 <tr>
 <td>L-2</td>
 <td>🔧 Open</td>
-<td>plaintext secret temp file written without perms</td>
+<td>plaintext secret temp file written without perms (#779)</td>
 </tr>
 <tr>
 <td>L-3</td>
 <td>🔧 Open</td>
-<td>full job transcript to shared volume</td>
+<td>full job transcript to shared volume (#779)</td>
 </tr>
 <tr>
 <td>L-4</td>
 <td>🔧 Open</td>
-<td>Azure data services still public; no Isolated/private-endpoint template</td>
+<td>Azure data services still public; no Isolated/private-endpoint template (#780)</td>
 </tr>
 <tr>
 <td>L-5</td>
 <td>🔧 Open</td>
-<td>Postgres password still deterministically derived</td>
+<td>Postgres password still deterministically derived (#780)</td>
 </tr>
 <tr>
 <td>L-6</td>
 <td>🟨 Partially addressed</td>
-<td>http/https scheme check added (omada/midpoint); no host/private-IP allowlist</td>
+<td>http/https scheme check added (omada/midpoint); no host/private-IP allowlist (#781)</td>
 </tr>
 <tr>
 <td>L-7</td>
 <td>🔧 Open</td>
-<td><code>PGSSLMODE=require</code>, not <code>verify-full</code></td>
+<td><code>PGSSLMODE=require</code>, not <code>verify-full</code> (#782)</td>
 </tr>
 <tr>
 <td>L-8</td>
 <td>🔧 Open</td>
-<td>CSV parser still buffers whole file, no row cap</td>
+<td>CSV parser still buffers whole file, no row cap (#778)</td>
 </tr>
 <tr>
 <td>I-1</td>
@@ -4644,7 +4645,7 @@ Critical/High across all dimensions: <strong>14.</strong></p>
 <tr>
 <td>I-2</td>
 <td>🔧 Open</td>
-<td>stale contradictory IaC comments remain</td>
+<td>stale contradictory IaC comments remain (#780)</td>
 </tr>
 <tr>
 <td>SEC-NEW-1</td>
@@ -4691,7 +4692,7 @@ Critical/High across all dimensions: <strong>14.</strong></p>
 <tr>
 <td>P2</td>
 <td>🔧 Open</td>
-<td>flat grid still caps at 400k→413; no cursor/keyset pagination</td>
+<td>flat grid still caps at 400k→413; no cursor/keyset pagination (#788)</td>
 </tr>
 <tr>
 <td>P3</td>
@@ -4701,12 +4702,12 @@ Critical/High across all dimensions: <strong>14.</strong></p>
 <tr>
 <td>P4</td>
 <td>🔧 Open</td>
-<td>matrix columns still not virtualized</td>
+<td>matrix columns still not virtualized (#789)</td>
 </tr>
 <tr>
 <td>P5</td>
 <td>🔧 Open</td>
-<td>every sync still does a full matview refresh</td>
+<td>every sync still does a full matview refresh (#790)</td>
 </tr>
 <tr>
 <td>P6–P10</td>
@@ -4726,22 +4727,22 @@ Critical/High across all dimensions: <strong>14.</strong></p>
 <tr>
 <td>Q3</td>
 <td>🔧 Open</td>
-<td><code>runBound</code> helper not created (bind-loops remain)</td>
+<td><code>runBound</code> helper not created (bind-loops remain) (#791)</td>
 </tr>
 <tr>
 <td>Q4</td>
 <td>🟨 Partially addressed</td>
-<td>per-folder <code>shared.js</code> de-dup; <code>resources.js</code> still duplicates helpers</td>
+<td>per-folder <code>shared.js</code> de-dup; <code>resources.js</code> still duplicates helpers (#792)</td>
 </tr>
 <tr>
 <td>Q5</td>
 <td>🟨 Partially addressed</td>
-<td>resource-map logic consolidated; no explicit <code>resourceFromRow</code> helper</td>
+<td>resource-map logic consolidated; no explicit <code>resourceFromRow</code> helper (#793)</td>
 </tr>
 <tr>
 <td>Q6</td>
 <td>🔧 Open</td>
-<td>two runtime <code>CREATE TABLE</code> DDLs remain (migration 023 owns them)</td>
+<td>two runtime <code>CREATE TABLE</code> DDLs remain (migration 023 owns them) (#794)</td>
 </tr>
 <tr>
 <td>Q7</td>
@@ -4756,12 +4757,12 @@ Critical/High across all dimensions: <strong>14.</strong></p>
 <tr>
 <td>Q9–Q10</td>
 <td>🔧 Open</td>
-<td>redundant jsonb parse + scattered magic strings remain</td>
+<td>redundant jsonb parse + scattered magic strings remain (#795)</td>
 </tr>
 <tr>
 <td>Codex perf</td>
 <td>🟨 Partially addressed</td>
-<td>riskScores top-N <code>LIMIT</code> fixed (#660); unpaginated group/assignment endpoints + MatrixView nested loop remain</td>
+<td>riskScores top-N <code>LIMIT</code> fixed (#660); unpaginated group/assignment endpoints + MatrixView nested loop remain (#796)</td>
 </tr>
 </tbody>
 </table>
@@ -4783,7 +4784,7 @@ Critical/High across all dimensions: <strong>14.</strong></p>
 <tr>
 <td>F2</td>
 <td>🔧 Open</td>
-<td>secret-dependent tests still skip silently (no assert-secrets gate)</td>
+<td>secret-dependent tests still skip silently (no assert-secrets gate) (#797)</td>
 </tr>
 <tr>
 <td>F3</td>
@@ -4803,7 +4804,7 @@ Critical/High across all dimensions: <strong>14.</strong></p>
 <tr>
 <td>F6</td>
 <td>🔧 Open</td>
-<td><code>test/ci-scripts/*.sh</code> self-tests still unwired to any workflow</td>
+<td><code>test/ci-scripts/*.sh</code> self-tests still unwired to any workflow (#798)</td>
 </tr>
 <tr>
 <td>F7</td>
@@ -4818,17 +4819,17 @@ Critical/High across all dimensions: <strong>14.</strong></p>
 <tr>
 <td>F9</td>
 <td>🟨 Partially addressed</td>
-<td>PSScriptAnalyzer added; Python still absent from CodeQL</td>
+<td>PSScriptAnalyzer added; Python still absent from CodeQL (#799)</td>
 </tr>
 <tr>
 <td>F10–F13</td>
 <td>🟨 Partially addressed</td>
-<td>cut-hotfix SHA-pinned; bump-version rebase-retry + build-once still open</td>
+<td>cut-hotfix SHA-pinned; bump-version rebase-retry + build-once still open (#800)</td>
 </tr>
 <tr>
 <td>Codex CI</td>
 <td>🟨 Partially addressed</td>
-<td>#428 closed config path-filter gaps; <code>test/nightly</code> filter, skip-label bypasses, a fixed-sleep flake remain</td>
+<td>#428 closed config path-filter gaps; <code>test/nightly</code> filter, skip-label bypasses, a fixed-sleep flake remain (#801)</td>
 </tr>
 </tbody>
 </table>
@@ -4889,13 +4890,13 @@ Critical/High across all dimensions: <strong>14.</strong></p>
 </tr>
 <tr>
 <td>D10–D12</td>
-<td>🟨 Partially addressed</td>
-<td>#489 (README name + history-column example fixed); <code>.spectral.yaml</code> still thin</td>
+<td>✅ Fixed</td>
+<td>#489 (README name + history-column example) + #804/#803 strengthened <code>.spectral.yaml</code> beyond <code>spectral:oas</code></td>
 </tr>
 <tr>
 <td>Codex docs</td>
-<td>🔧 Open</td>
-<td><code>entities.md</code> still cites <code>mat_UserPermissionAssignments</code> + <code>/api/perf/slowest</code>; the risk-scoring-model SQL-Server types are fixed in-flight in #690</td>
+<td>✅ Fixed</td>
+<td>#708 removed the stale <code>mat_UserPermissionAssignments</code> ref (now <code>vw_ResourceUserPermissionAssignments</code>); #690/#714 purged the risk-scoring-model SQL-Server types; #804/#802 corrected <code>entities.md</code>'s <code>/api/perf/slowest</code> → <code>/api/perf/slow</code></td>
 </tr>
 </tbody>
 </table>

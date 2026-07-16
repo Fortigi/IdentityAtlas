@@ -3964,8 +3964,8 @@
 <tr>
 <td>Medium</td>
 <td>12</td>
-<td>3</td>
-<td>9</td>
+<td>6</td>
+<td>6</td>
 </tr>
 <tr>
 <td>Low / Informational</td>
@@ -3987,7 +3987,7 @@
 <th>ID</th>
 <th>Finding</th>
 <th>Status</th>
-<th>PR</th>
+<th>PR / tracking</th>
 </tr>
 </thead>
 <tbody>
@@ -4012,7 +4012,7 @@
 <th>ID</th>
 <th>Finding</th>
 <th>Status</th>
-<th>PR</th>
+<th>PR / tracking</th>
 </tr>
 </thead>
 <tbody>
@@ -4079,7 +4079,7 @@
 <th>ID</th>
 <th>Category</th>
 <th>Status</th>
-<th>PR</th>
+<th>PR / tracking</th>
 </tr>
 </thead>
 <tbody>
@@ -4087,25 +4087,25 @@
 <td>M-01</td>
 <td>Transport security — wire TLS / <code>BEHIND_TLS</code> end to end</td>
 <td>🟨 Partially addressed (env documented)</td>
-<td>—</td>
+<td><a href="https://github.com/Fortigi/IdentityAtlas/issues/782">#782</a></td>
 </tr>
 <tr>
 <td>M-02</td>
 <td>Authorization coverage on mutating endpoints</td>
-<td>🔧 Planned</td>
-<td>—</td>
+<td>✅ Fixed</td>
+<td><a href="https://github.com/Fortigi/IdentityAtlas/pull/424">#424</a></td>
 </tr>
 <tr>
 <td>M-03</td>
 <td>Crawler ingest authorization scoping</td>
-<td>🔧 Planned</td>
-<td>—</td>
+<td>✅ Fixed</td>
+<td><a href="https://github.com/Fortigi/IdentityAtlas/pull/424">#424</a></td>
 </tr>
 <tr>
 <td>M-04</td>
 <td>Role-permission editor: lockout guard, audit trail</td>
 <td>🟨 Partially addressed</td>
-<td><a href="https://github.com/Fortigi/IdentityAtlas/pull/194">#194</a></td>
+<td><a href="https://github.com/Fortigi/IdentityAtlas/pull/194">#194</a> · <a href="https://github.com/Fortigi/IdentityAtlas/issues/786">#786</a></td>
 </tr>
 <tr>
 <td>M-05</td>
@@ -4116,20 +4116,20 @@
 <tr>
 <td>M-06</td>
 <td>Internal error detail returned to clients</td>
-<td>🔧 Planned</td>
-<td>—</td>
+<td>✅ Fixed</td>
+<td><a href="https://github.com/Fortigi/IdentityAtlas/pull/484">#484</a>, <a href="https://github.com/Fortigi/IdentityAtlas/pull/582">#582</a></td>
 </tr>
 <tr>
 <td>M-07</td>
 <td>Vault master-key handling policy</td>
 <td>🔧 Planned</td>
-<td>—</td>
+<td><a href="https://github.com/Fortigi/IdentityAtlas/issues/783">#783</a></td>
 </tr>
 <tr>
 <td>M-08</td>
 <td>PowerShell worker hardening</td>
 <td>🔧 Planned</td>
-<td>—</td>
+<td><a href="https://github.com/Fortigi/IdentityAtlas/issues/779">#779</a></td>
 </tr>
 <tr>
 <td>M-09</td>
@@ -4141,24 +4141,24 @@
 <td>M-10</td>
 <td>Rate limiting on expensive surfaces (auth-off installs)</td>
 <td>🔧 Planned</td>
-<td>—</td>
+<td><a href="https://github.com/Fortigi/IdentityAtlas/issues/784">#784</a></td>
 </tr>
 <tr>
 <td>M-11</td>
 <td>Container hardening &amp; resource limits</td>
 <td>🔧 Planned</td>
-<td>—</td>
+<td><a href="https://github.com/Fortigi/IdentityAtlas/issues/785">#785</a></td>
 </tr>
 <tr>
 <td>M-12</td>
 <td>Azure IaC network/secret hardening</td>
-<td>🔧 Planned</td>
-<td>—</td>
+<td>🟨 Partially addressed — storage/LA keys no longer emitted as Bicep outputs (consumers call <code>listKeys()</code>); network hardening pending</td>
+<td><a href="https://github.com/Fortigi/IdentityAtlas/pull/475">#475</a> · <a href="https://github.com/Fortigi/IdentityAtlas/issues/780">#780</a></td>
 </tr>
 </tbody>
 </table>
 <h3 id="low-informational">Low / Informational<a class="headerlink" href="#low-informational" title="Permanent link">&para;</a></h3>
-<p>Seven Low/Informational items were recorded (information disclosure on public metadata endpoints, dependency hygiene, and minor non-security functional bugs). These are tracked internally and scheduled alongside the remaining Medium items. Technical detail is withheld here pending remediation.</p>
+<p>Seven Low/Informational items were recorded (information disclosure on public metadata endpoints, dependency hygiene, and minor non-security functional bugs). These are tracked in <a href="https://github.com/Fortigi/IdentityAtlas/issues/787">#787</a> and scheduled alongside the remaining Medium items. Technical detail is withheld here pending remediation.</p>
 <hr />
 <h3 id="portable-windows-launcher-post-assessment-additions">Portable Windows launcher (post-assessment additions)<a class="headerlink" href="#portable-windows-launcher-post-assessment-additions" title="Permanent link">&para;</a></h3>
 <p>The portable launcher was not in scope for the original assessment (it was added afterwards). A follow-on review identified two issues mirroring findings from the Docker scope:</p>
@@ -4168,7 +4168,7 @@
 <th>ID</th>
 <th>Finding</th>
 <th>Status</th>
-<th>PR</th>
+<th>PR / tracking</th>
 </tr>
 </thead>
 <tbody>
