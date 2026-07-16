@@ -1,0 +1,89 @@
+/* ─────────────────────────────────────────────────────────────
+   Identity Atlas — shared site foundation
+   Brand tokens (mirrors app/ui + mkdocs docs), base reset and buttons.
+   Linked by both the marketing homepage and the /demo splash page so the
+   design system lives in one place. Page-specific CSS stays inline per page.
+   Interactive = blue-600 / blue-400 · Brand accent = lime
+   ───────────────────────────────────────────────────────────── */
+:root {
+  --blue-400: #60a5fa; --blue-500: #3b82f6; --blue-600: #2563eb; --blue-700: #1d4ed8;
+  --lime-300: #bef264; --lime-400: #a3e635; --lime-500: #84cc16; --lime-600: #65a30d; --lime-700: #4d7c0f;
+
+  --bg:        #fafafa;
+  --bg-elev:   #ffffff;
+  --bg-soft:   #f5f5f5;
+  --border:    #e5e7eb;
+  --border-strong: #d1d5db;
+  --fg:        #111827;
+  --fg-muted:  #4b5563;
+  --fg-subtle: #6b7280;
+  --accent:      var(--blue-600);
+  --accent-hover:var(--blue-700);
+  --brand:       var(--lime-700);   /* readable green on light */
+  --brand-solid: var(--lime-600);
+  --shadow: 0 1px 2px rgba(16,24,40,.04), 0 8px 24px -12px rgba(16,24,40,.18);
+  --shadow-lg: 0 4px 12px rgba(16,24,40,.06), 0 24px 48px -24px rgba(16,24,40,.28);
+  --radius: 16px;
+  --maxw: 1120px;
+}
+html.dark {
+  --bg:        #0d1117;
+  --bg-elev:   #161b22;
+  --bg-soft:   #1c2430;
+  --border:    #2b3444;
+  --border-strong: #3a4557;
+  --fg:        #f3f4f6;
+  --fg-muted:  #b6c0cf;
+  --fg-subtle: #8a94a6;
+  --accent:      var(--blue-400);
+  --accent-hover:#93c5fd;
+  --brand:       var(--lime-300);
+  --brand-solid: var(--lime-400);
+  --shadow: 0 1px 2px rgba(0,0,0,.4), 0 12px 28px -14px rgba(0,0,0,.6);
+  --shadow-lg: 0 8px 20px rgba(0,0,0,.4), 0 30px 60px -24px rgba(0,0,0,.7);
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background: var(--bg);
+  color: var(--fg);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  transition: background-color .3s ease, color .3s ease;
+}
+a { color: var(--accent); text-decoration: none; }
+a:hover { color: var(--accent-hover); }
+h1, h2, h3 { line-height: 1.15; letter-spacing: -0.02em; margin: 0; }
+p { margin: 0; }
+img { max-width: 100%; height: auto; display: block; } /* height:auto preserves aspect ratio when CSS overrides width */
+::selection { background: var(--lime-300); color: #14210a; }
+
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
+
+.wrap { width: 100%; max-width: var(--maxw); margin: 0 auto; padding: 0 24px; }
+.eyebrow {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: .8rem; font-weight: 650; letter-spacing: .04em; text-transform: uppercase;
+  color: var(--brand);
+}
+.eyebrow::before { content:""; width: 22px; height: 2px; background: var(--brand-solid); border-radius: 2px; }
+
+/* ── Buttons ───────────────────────────────────────────── */
+.btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: .95rem; font-weight: 600; line-height: 1;
+  padding: 12px 20px; border-radius: 10px; cursor: pointer;
+  border: 1px solid transparent; transition: transform .12s ease, background-color .2s ease, border-color .2s ease, color .2s ease;
+  white-space: nowrap;
+}
+.btn:active { transform: translateY(1px); }
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover { background: var(--accent-hover); color: #fff; }
+html.dark .btn-primary { color: #0b1220; }
+.btn-ghost { background: transparent; color: var(--fg); border-color: var(--border-strong); }
+.btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
