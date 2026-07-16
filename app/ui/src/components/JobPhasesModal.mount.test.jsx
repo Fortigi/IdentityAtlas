@@ -19,7 +19,7 @@ import { JobPhasesModal } from '@ui/components/JobPhasesModal';
 
 const completedJob = {
   id: 42,
-  jobType: 'entra',
+  jobType: 'sample',
   status: 'completed',
   createdAt: '2026-07-16T10:00:00Z',
   phases: [
@@ -31,14 +31,14 @@ const completedJob = {
 // The modal's outermost child of the backdrop is the panel card. Grab it by the
 // heading and walk up to the element that carries the panel background class.
 function panelOf() {
-  const heading = screen.getByText(/Job 42 — entra/).closest('div');
+  const heading = screen.getByText(/Job 42 — sample/).closest('div');
   return heading.closest('.bg-white');
 }
 
 describe('JobPhasesModal dark mode', () => {
   it('renders the job header and phases', () => {
     renderWithProviders(<JobPhasesModal job={completedJob} onClose={() => {}} />);
-    expect(screen.getByText(/Job 42 — entra/)).toBeInTheDocument();
+    expect(screen.getByText(/Job 42 — sample/)).toBeInTheDocument();
     expect(screen.getByText('SyncUsers')).toBeInTheDocument();
     expect(screen.getByText('SyncGroups')).toBeInTheDocument();
     expect(screen.getByText('boom')).toBeInTheDocument();
@@ -67,7 +67,7 @@ describe('JobPhasesModal dark mode', () => {
   it('dark-themes the fallback errorMessage when there are no phases', () => {
     const legacyJob = {
       id: 7,
-      jobType: 'omada',
+      jobType: 'legacy',
       status: 'failed',
       createdAt: '2026-07-16T10:00:00Z',
       phases: [],
