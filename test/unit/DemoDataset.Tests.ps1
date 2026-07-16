@@ -116,3 +116,33 @@ Describe 'Demo dataset — context membership' {
         }
     }
 }
+
+Describe 'Demo dataset — zero-assignment edge case (#717)' {
+
+    BeforeAll {
+        # Zara Intern (E0031) is the deliberate "employee with no assignments" edge
+        # case documented in docs/architecture/demo-dataset.md — a new hire not yet
+        # provisioned. She must exist and be in the org, but hold zero access.
+        $script:intern = $script:data.principals | Where-Object { $_.employeeId -eq 'E0031' }
+        $script:internAssignments = @($script:data.resourceAssignments | Where-Object { $_.principalId -eq $script:intern.id })
+        $script:internContexts    = @($script:data.contextMembers    | Where-Object { $_.memberId   -eq $script:intern.id })
+    }
+
+    It 'includes Zara Intern (E0031) as a principal' {
+        $script:intern | Should -Not -BeNullOrEmpty
+        $script:intern.displayName | Should -Be 'Zara Intern'
+    }
+
+    It 'gives the intern zero resource assignments (the documented edge case)' {
+        $script:internAssignments.Count | Should -Be 0
+    }
+
+    It 'still places the intern in her department context (present in the org, just unprovisioned)' {
+        $script:internContexts.Count | Should -BeGreaterThan 0
+    }
+
+    It 'keeps other engineers provisioned — the exclusion is scoped to the intern' {
+        $eng = $script:data.principals | Where-Object { $_.employeeId -eq 'E0010' }
+        @($script:data.resourceAssignments | Where-Object { $_.principalId -eq $eng.id }).Count | Should -BeGreaterThan 0
+    }
+}

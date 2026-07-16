@@ -64,7 +64,7 @@ graph TB
 | Multi-system identity | E0020 Hassan Ibrahim | Has accounts in both EntraID and Omada; identity correlation links them |
 | Shared mailbox | SM-001 info@fortigidemo.com | `principalType: SharedMailbox`; owned by E0027 |
 | Manager in different dept | E0014 Ursula Visser | Reports to COO but manages Operations — tests cross-dept context |
-| Intern | E0031 Intern | Lowest-privilege employee. Not a zero-assignment case: assignments are granted by `department`, so the intern still gets the 4 Engineering ones. The dataset has no principal with zero assignments — see issue #717 |
+| Employee with no assignments | E0031 Zara Intern | A new hire not yet provisioned: flagged `noAccess` in the generator, so she is excluded from every department group and business-role grant. She still exists as a principal and appears in the Engineering context, but holds **zero** resource assignments — the deliberate zero-assignment edge case |
 
 ### Systems
 
@@ -117,16 +117,16 @@ AU-Netherlands
 
 | Principal | Resource | Type | Notes |
 |---|---|---|---|
-| All 22 employees | SG-AllEmployees | Direct | |
-| Every Engineering employee (10) | SG-Engineering | Direct | By `department`, so it includes the CTO (E0002) and the intern (E0031) |
+| Every employee except the intern (21) | SG-AllEmployees | Direct | E0031 is the deliberate zero-assignment case — see Edge Cases |
+| Engineering employees except the intern (8) | SG-Engineering | Direct | By `department` (includes the CTO E0002); the unprovisioned intern E0031 is excluded |
 | Every Finance employee (4) | SG-Finance | Direct | By `department` |
 | E0029, E0030 (SysAdmins) | SG-VPN-Access | Direct | |
 | E0002 (CTO) | SG-Admin-Tier0 | Direct | CTO is a member of the critical Tier-0 admin group |
 | E0029 (SysAdmin) | SG-Admin-Tier0 | Direct | Member of high-risk group |
 | SVC-001 (Deploy Pipeline) | SG-Admin-Tier0 | Direct | Service principal in admin group |
 | E0002 (CTO) | Global Administrator | Direct | Directory role assignment |
-| All 22 employees | BR-Employee-Base | Direct (`governed=true`) | Via business role — governance is the `governed` flag, not an assignment type |
-| Every Engineering employee (10) | BR-Engineering-Tools | Direct (`governed=true`) | Via business role |
+| Every employee except the intern (21) | BR-Employee-Base | Direct (`governed=true`) | Via business role — governance is the `governed` flag, not an assignment type |
+| Engineering employees except the intern (8) | BR-Engineering-Tools | Direct (`governed=true`) | Via business role |
 | E0029 (SysAdmin) | BR-Admin-Privileged | Eligible | PIM-eligible, not active |
 
 ### Resource Relationships
@@ -182,7 +182,7 @@ The dataset is a single JSON file that maps directly to the Ingest API endpoints
       "systems": 3,
       "principals": 28,
       "resources": 14,
-      "resourceAssignments": 73,
+      "resourceAssignments": 69,
       "resourceRelationships": 9,
       "identities": 23,
       "identityMembers": 24,
@@ -221,7 +221,7 @@ Counted with `deletedAt IS NULL` on `Principals`, `Resources` and `ResourceAssig
 | Systems | 3 | Entra ID + HR + Omada |
 | Principals | 28 | 24 `User` (22 employees + 1 disabled + 1 Omada account for the multi-system employee) + 1 `ExternalUser` (contractor) + 1 `ServicePrincipal` + 1 `AIAgent` + 1 `SharedMailbox` |
 | Resources | 14 | 6 groups + 2 directory roles + 2 app roles + 4 business roles |
-| ResourceAssignments | 73 | 72 `Direct` + 1 `Eligible`; 31 of them carry `governed=true` |
+| ResourceAssignments | 69 | 68 `Direct` + 1 `Eligible`; 29 of them carry `governed=true` |
 | ResourceRelationships | 9 | 8 Contains + 1 GrantsAccessTo |
 | Identities | 23 | 22 employees + 1 disabled |
 | IdentityMembers | 24 | 23 primary + 1 secondary (the multi-system employee's Omada account) |

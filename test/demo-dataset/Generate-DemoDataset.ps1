@@ -88,7 +88,11 @@ $employees = @(
     @{ id = 'E0028'; name = 'Stefan Tanaka';     title = 'Account Executive';   dept = 'Sales';       manager = 'E0013'; ctx = $ctxSales }
     @{ id = 'E0029'; name = 'Victor Wang';       title = 'SysAdmin';            dept = 'Operations';  manager = 'E0014'; ctx = $ctxOps }
     @{ id = 'E0030'; name = 'Wendy Xu';          title = 'SysAdmin';            dept = 'Operations';  manager = 'E0014'; ctx = $ctxOps }
-    @{ id = 'E0031'; name = 'Zara Intern';       title = 'Intern';              dept = 'Engineering'; manager = 'E0010'; ctx = $ctxEng }
+    # Zara Intern is the deliberate "principal with zero resource assignments"
+    # edge case (a new hire not yet provisioned): noAccess excludes her from every
+    # group / business-role grant loop below, while she still exists as a principal
+    # and appears in her department context. See docs/architecture/demo-dataset.md.
+    @{ id = 'E0031'; name = 'Zara Intern';       title = 'Intern';              dept = 'Engineering'; manager = 'E0010'; ctx = $ctxEng; noAccess = $true }
 )
 
 $principals = @()
@@ -168,20 +172,25 @@ $resources = @(
 
 $assignments = @()
 
+# Employees who receive access grants — everyone except the noAccess edge case(s)
+# (Zara Intern), so the dataset always contains a principal with zero resource
+# assignments for the matrix's zero-assignment path to exercise.
+$provisionedEmployees = @($employees | Where-Object { -not $_.noAccess })
+
 # All employees -> SG-AllEmployees (Direct)
-foreach ($emp in $employees) {
+foreach ($emp in $provisionedEmployees) {
     $pGuid = New-DemoGuid "principal-$($emp.id)"
     $assignments += @{ resourceId = $resAllEmp; principalId = $pGuid; assignmentType = 'Direct' }
 }
 
 # Engineering employees -> SG-Engineering
-foreach ($emp in ($employees | Where-Object { $_.dept -eq 'Engineering' })) {
+foreach ($emp in ($provisionedEmployees | Where-Object { $_.dept -eq 'Engineering' })) {
     $pGuid = New-DemoGuid "principal-$($emp.id)"
     $assignments += @{ resourceId = $resEng; principalId = $pGuid; assignmentType = 'Direct' }
 }
 
 # Finance employees -> SG-Finance
-foreach ($emp in ($employees | Where-Object { $_.dept -eq 'Finance' })) {
+foreach ($emp in ($provisionedEmployees | Where-Object { $_.dept -eq 'Finance' })) {
     $pGuid = New-DemoGuid "principal-$($emp.id)"
     $assignments += @{ resourceId = $resFin; principalId = $pGuid; assignmentType = 'Direct' }
 }
@@ -199,11 +208,11 @@ $assignments += @{ resourceId = $resAdminTier0; principalId = $guidSvcPrinc; ass
 $assignments += @{ resourceId = $resGlobalAdmin; principalId = (New-DemoGuid 'principal-E0002'); assignmentType = 'Direct' }
 
 # Governed business-role memberships: Direct assignments flagged governed=true
-foreach ($emp in $employees) {
+foreach ($emp in $provisionedEmployees) {
     $pGuid = New-DemoGuid "principal-$($emp.id)"
     $assignments += @{ resourceId = $resBRBase; principalId = $pGuid; assignmentType = 'Direct'; governed = $true }
 }
-foreach ($emp in ($employees | Where-Object { $_.dept -eq 'Engineering' })) {
+foreach ($emp in ($provisionedEmployees | Where-Object { $_.dept -eq 'Engineering' })) {
     $pGuid = New-DemoGuid "principal-$($emp.id)"
     $assignments += @{ resourceId = $resBREng; principalId = $pGuid; assignmentType = 'Direct'; governed = $true }
 }
