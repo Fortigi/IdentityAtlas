@@ -68,7 +68,7 @@ Status legend: ✅ **Fixed** (merged) · 🟨 **Partially addressed** · 🔧 **
 | H-17 | Terminology drift leaked internal jargon (SOLL/IST, "Org Unit", "Access Package") into the UI | ✅ Fixed — strings corrected + a CI rule blocks regressions | [#228](https://github.com/Fortigi/IdentityAtlas/pull/228), [#243](https://github.com/Fortigi/IdentityAtlas/pull/243), [#238](https://github.com/Fortigi/IdentityAtlas/pull/238) |
 | H-18 | CSV import validates only the filename, not headers; loose name-matching can mis-map | 🔧 Planned | — |
 | H-19 | One-time API key trivially lost; Copy reports success even when the clipboard fails | 🔧 Planned | — |
-| H-20 | Crawler "audit log" fetches data but renders nothing | 🔧 Planned | — |
+| H-20 | Crawler "audit log" fetches data but renders nothing | ✅ Fixed — the Custom Connector card's audit-log panel now fetches and renders its entries (rebuilt in the connector externalization, 2 weeks after this audit); guarded by an e2e | [#364](https://github.com/Fortigi/IdentityAtlas/pull/364) |
 | H-21 | ~11 native `confirm()`/`alert()`/`prompt()` for important actions — unstyled, no dark mode, untestable | 🟨 Partially addressed — a CI rule blocks new ones; the existing backlog is being migrated | [#238](https://github.com/Fortigi/IdentityAtlas/pull/238) |
 
 ### Medium & Low
