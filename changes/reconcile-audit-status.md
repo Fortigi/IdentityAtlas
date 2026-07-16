@@ -1,0 +1,2 @@
+- Refreshed the security and UX assessment pages so their remediation status matches what has actually merged: the crawler-protocol/perf authorization gaps, the internal-error-detail leak, and the Bicep secret-output hardening are now marked fixed with their PRs.
+- Updated the June 2026 maintenance-audit status table to reflect the documentation fixes that have since landed.
