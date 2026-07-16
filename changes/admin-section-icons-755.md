@@ -1,0 +1,1 @@
+- The Admin settings section headers (Curated Data, Excel Power Query Workbook, Risk Profile, Risk Classifiers, Danger Zone) now use a consistent inline-SVG icon set instead of emoji, so they render uniformly across platforms and follow the theme's colours.

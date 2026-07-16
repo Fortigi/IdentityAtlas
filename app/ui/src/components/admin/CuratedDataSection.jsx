@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
 import { Section, ResultRow } from './adminUi';
+import { CuratedDataIcon } from './adminIcons';
 export default function CuratedDataSection() {
   const [exporting, setExporting]   = useState(false);
   const [importing, setImporting]   = useState(false);
@@ -83,7 +84,7 @@ export default function CuratedDataSection() {
   const busy = importing || importing2 || exporting;
 
   return (
-    <Section title="Curated Data" icon="📦" defaultOpen>
+    <Section title="Curated Data" icon={<CuratedDataIcon />} defaultOpen>
       <div className="mt-4 space-y-4">
         <p className="text-sm text-gray-500 dark:text-gray-400">
           Export and import manually curated data — user tags, group/resource tags, and business role categories —

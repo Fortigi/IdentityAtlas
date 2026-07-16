@@ -3,6 +3,7 @@ import { useFetch } from '@ui/hooks/useFetch';
 import { useAuth } from '@ui/auth/AuthGate';
 import { useDialog } from '@ui/components/dialogContext';
 import { Section } from './adminUi';
+import { WorkbookIcon, WarningIcon } from './adminIcons';
 export default function PowerQueryExportSection() {
   const { authFetch } = useAuth();
   const dialog = useDialog();
@@ -87,7 +88,7 @@ export default function PowerQueryExportSection() {
   function fmtDate(s) { return s ? new Date(s).toLocaleString() : '—'; }
 
   return (
-    <Section title="Excel Power Query Workbook" icon="📊">
+    <Section title="Excel Power Query Workbook" icon={<WorkbookIcon />}>
       <div className="space-y-4 text-sm">
         <p className="text-gray-700 dark:text-gray-300">
           Download a pre-configured Excel workbook with Power Query M code for every
@@ -142,7 +143,10 @@ export default function PowerQueryExportSection() {
 
         {newToken && (
           <div className="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-700 rounded">
-            <p className="font-medium text-amber-900 dark:text-amber-200 mb-1">⚠ Copy this token now — it will not be shown again</p>
+            <p className="font-medium text-amber-900 dark:text-amber-200 mb-1 flex items-center gap-1.5">
+              <WarningIcon className="w-4 h-4 shrink-0" />
+              Copy this token now — it will not be shown again
+            </p>
             <code className="block p-2 bg-white dark:bg-gray-800 border border-amber-200 dark:border-amber-700 rounded text-xs break-all font-mono dark:text-gray-200">{newToken}</code>
             <button
               onClick={() => { navigator.clipboard.writeText(newToken); }}
