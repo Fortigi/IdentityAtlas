@@ -275,6 +275,37 @@ $identityMembers += @{
     accountEnabled = $true
 }
 
+# ─── Context Members (org membership) ────────────────────────────
+# Attach each principal to their department context (so a department scope in
+# the matrix resolves directly) and, for engineers, also to their team context.
+# Without these, the synced Department/Team contexts have zero members and the
+# access matrix cannot be scoped by department — the product's headline view.
+$deptCtxByName = @{
+    'Management'  = $ctxRoot
+    'Engineering' = $ctxEng
+    'Finance'     = $ctxFin
+    'Sales'       = $ctxSales
+    'Operations'  = $ctxOps
+}
+
+$contextMembers = @()
+$seenCtxMember = [System.Collections.Generic.HashSet[string]]::new()
+foreach ($emp in $employees) {
+    $pGuid = New-DemoGuid "principal-$($emp.id)"
+    foreach ($cid in @($deptCtxByName[$emp.dept], $emp.ctx)) {
+        if ($cid -and $seenCtxMember.Add("$cid|$pGuid")) {
+            $contextMembers += @{ contextId = $cid; memberId = $pGuid; memberType = 'Principal'; addedBy = 'sync' }
+        }
+    }
+}
+
+# Departmented edge cases (contractor in Engineering, former employee in Sales)
+foreach ($ec in @(@{ c = $ctxEng; g = $guidContractor }, @{ c = $ctxSales; g = $guidDisabled })) {
+    if ($seenCtxMember.Add("$($ec.c)|$($ec.g)")) {
+        $contextMembers += @{ contextId = $ec.c; memberId = $ec.g; memberType = 'Principal'; addedBy = 'sync' }
+    }
+}
+
 # ─── Governance ───────────────────────────────────────────────────
 
 $catalogs = @(
@@ -310,6 +341,7 @@ $dataset = @{
             identities             = $identities.Count
             identityMembers        = $identityMembers.Count
             contexts               = $contexts.Count
+            contextMembers         = $contextMembers.Count
             governanceCatalogs     = $catalogs.Count
             assignmentPolicies     = $policies.Count
             certificationDecisions = $certifications.Count
@@ -317,6 +349,7 @@ $dataset = @{
     }
     systems                = $systems
     contexts               = $contexts
+    contextMembers         = $contextMembers
     principals             = $principals
     resources              = $resources
     resourceAssignments    = $assignments
@@ -340,6 +373,7 @@ Write-Host "  Relationships:        $($counts.resourceRelationships)"
 Write-Host "  Identities:           $($counts.identities)"
 Write-Host "  Identity Members:     $($counts.identityMembers)"
 Write-Host "  Contexts:             $($counts.contexts)"
+Write-Host "  Context Members:      $($counts.contextMembers)"
 Write-Host "  Governance Catalogs:  $($counts.governanceCatalogs)"
 Write-Host "  Assignment Policies:  $($counts.assignmentPolicies)"
 Write-Host "  Certifications:       $($counts.certificationDecisions)"
