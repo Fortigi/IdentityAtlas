@@ -1,11 +1,19 @@
 // Guards against cyclic parentContextId chains in the Contexts tree.
 //
 // The Contexts self-FK (`Contexts_parentContextId_fkey`) is not deferrable and
-// only rejects a self-loop (A → A), never a multi-hop cycle (A → B → A). Read
-// queries defend against cycles at query time with SQL `CYCLE` clauses, but the
-// three write paths — the UI reparent (PATCH /contexts/:id), the ingest upsert,
-// and the plugin runner — could still PERSIST a cycle. These helpers close that
-// gap at the source.
+// only rejects a self-loop (A → A), never a multi-hop cycle (A → B → A). The
+// source-of-truth guarantee now lives in the database: migration 059's DEFERRABLE
+// INITIALLY DEFERRED constraint trigger rejects any cycle at COMMIT, from every
+// writer (#627). These two helpers are the app-layer complements to it:
+//   - wouldCreateCycle(): a fast PROACTIVE check so the UI reparent (PATCH
+//     /contexts/:id) and the plugin runner can pre-empt a cycle with a friendly
+//     error / a skipped link, instead of hitting an opaque transaction abort.
+//   - breakCycles(): a one-time / defensive CLEANUP that NULLs the offending
+//     parent of any node already on a cycle — for data that predates the trigger
+//     (the migration runs this once) or arrived via a trigger-disabled path. It's
+//     a no-op on a trigger-protected tree.
+// Read queries additionally defend at query time with SQL `CYCLE` clauses, so a
+// stray cycle can never hang them.
 //
 // `db` is anything exposing `query(text, params) -> { rows }` — the shared pool
 // or a transaction client both work.

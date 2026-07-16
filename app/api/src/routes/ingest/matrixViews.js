@@ -42,11 +42,11 @@ router.post('/ingest/refresh-views', async (req, res) => {
       console.warn('lastSyncDateTime update failed (non-fatal):', tsErr.message);
     }
 
-    // Fix-at-source: a crawler can emit a mis-parented context tree (or an IGA
-    // export with a loop), persisting a cyclic parentContextId. The roll-up
-    // below is CYCLE-guarded so it won't hang, but a stored cycle would still
-    // leave totalMemberCount undefined for the looped subtree — so repair the
-    // stored state first (NULL the offending parent link, logged).
+    // Defensive: migration 059's trigger prevents new cycles, but breakCycles
+    // here still cleans any cycle that predates the trigger (or arrived via a
+    // trigger-disabled path) so the CYCLE-guarded roll-up below computes a
+    // complete totalMemberCount for every subtree. A no-op on a trigger-protected
+    // tree (#627).
     try {
       const broken = await breakCycles(db);
       if (broken) console.warn(`Context cycle guard: broke ${broken} cyclic parentContextId link(s) after ingest`);
