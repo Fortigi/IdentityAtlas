@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Corrected the demo-dataset verification's expected resource and relationship counts to include the group-ownership data added in the previous release, so the integration check passes against the current demo dataset.
+
+## Changes in this PR
+
 - The demo dataset now includes group ownership — a few groups (Engineering, Finance, the Tier-0 admin group) have designated owners — so the matrix's owner badges and the ownership views have real demo data to show.
 
 ## Changes in this PR

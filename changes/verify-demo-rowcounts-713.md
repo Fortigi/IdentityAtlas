@@ -1,1 +1,0 @@
-- Corrected the demo-dataset verification's expected resource and relationship counts to include the group-ownership data added in the previous release, so the integration check passes against the current demo dataset.
