@@ -23,11 +23,17 @@ const BASE = process.env.E2E_BASE_URL || 'http://localhost:3001';
 export function register(test, expect) {
   test.describe('Custom Connector — audit log (H-20)', () => {
     test('the audit-log panel expands and renders content, not nothing', async ({ page }) => {
-      await page.goto(`${BASE}/#admin`);
+      // #crawlers is the hash alias that routes to Admin → Crawlers sub-tab
+      // (plain #admin lands on a different default sub-tab).
+      await page.goto(`${BASE}/#crawlers`);
       await page.waitForLoadState('networkidle');
 
-      const addBtn = page.locator('button:has-text("Add Crawler")');
-      if (!await addBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
+      // The Crawlers page is lazy-loaded, so wait for it to actually render
+      // (isVisible() doesn't wait); a timeout means no backend/page → skip.
+      const addBtn = page.locator('button:has-text("Add Crawler")').first();
+      try {
+        await addBtn.waitFor({ state: 'visible', timeout: 15000 });
+      } catch {
         test.skip();
         return;
       }
