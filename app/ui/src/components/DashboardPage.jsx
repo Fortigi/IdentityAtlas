@@ -24,7 +24,6 @@ const DashboardTrendsTab = lazy(() => import('./DashboardTrendsTab'));
 
 const GITHUB_BASE = 'https://github.com/Fortigi/IdentityAtlas';
 const WEBSITE_URL = 'https://identityatlas.io';
-const SUPPORT_EMAIL = 'support@identityatlas.io';
 
 function changesUrl(v) {
   if (v) {
@@ -288,21 +287,17 @@ function FooterCards({ version }) {
           </div>
           <h3 className="text-sm font-bold text-gray-900 dark:text-white">Need support?</h3>
         </div>
-        <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">Email us a question, or report it on the tracker so others can follow along:</p>
-        <a
-          href={`mailto:${SUPPORT_EMAIL}`}
-          className="inline-block text-sm text-lime-700 hover:text-lime-800 font-medium hover:underline break-all"
-        >
-          {SUPPORT_EMAIL}
-        </a>
         <a
           href={docsUrl(v, '/contributing/report-an-issue/')}
           target="_blank"
           rel="noopener noreferrer"
-          className="mt-2 text-sm text-gray-700 dark:text-gray-300 hover:text-lime-700 hover:underline flex items-center gap-2"
+          className="inline-flex items-center gap-2 text-sm text-lime-700 hover:text-lime-800 font-medium hover:underline"
         >
           <span>→</span>Report an issue or feature request
         </a>
+        <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
+          Bugs and feature requests go on the public tracker so others can follow along. Community support is best effort — the guide explains how, and how to get an SLA or priority work if you need it.
+        </p>
       </div>
     </div>
   );

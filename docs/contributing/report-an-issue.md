@@ -7,6 +7,14 @@ Everything happens on our **issue tracker** on GitHub. An "issue" is just a
 message with a title and a description. Creating one is free; you only need a
 GitHub account (also free).
 
+!!! info "How support works here"
+    Identity Atlas is free and open source. Bugs and feature requests are handled
+    **best effort**, in the open on the tracker — there's no ticket queue and no
+    guaranteed response time. We read everything and prioritise what helps the most
+    people. If best effort isn't enough for your organisation, see
+    [Need guaranteed support or priority features?](#need-guaranteed-support-or-priority-features)
+    at the bottom of this page.
+
 !!! tip "In a hurry?"
     Jump straight to **[Open a new issue :material-open-in-new:](https://github.com/Fortigi/IdentityAtlas/issues/new/choose){ target=_blank rel=noopener }** and pick *Bug report* or *Feature request*.
 
@@ -65,3 +73,17 @@ fix — sometimes there's an easier route to what you need.
   [release notes](https://github.com/Fortigi/IdentityAtlas/blob/main/CHANGES.md){ target=_blank rel=noopener }.
 
 Want to help fix it yourself? See **[Contribute a change](contribute.md)**.
+
+## Need guaranteed support or priority features?
+
+We'll be honest: the community tracker above is **best effort**. There's no
+service-level agreement, and no promise of when — or whether — a given bug or
+feature gets picked up.
+
+If that isn't enough for your organisation, we offer paid options for both:
+
+- **Support with an SLA** — guaranteed response times and hands-on help.
+- **Priority feature development** — sponsor a feature you need and have it built
+  and maintained on a committed timeline.
+
+Tell us what you need at **[support@identityatlas.io](mailto:support@identityatlas.io)**.
