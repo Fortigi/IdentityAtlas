@@ -1,1 +1,0 @@
-- The demo dataset is now checked on every pull request. Its verification runner was previously never run by anything, which is how it drifted two database generations out of date without anyone noticing — the pull request check only confirmed that some rows had arrived, not that the data was correct.

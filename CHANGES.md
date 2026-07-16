@@ -1,5 +1,21 @@
 ## Changes in this PR
 
+- The demo dataset is now checked on every pull request. Its verification runner was previously never run by anything, which is how it drifted two database generations out of date without anyone noticing — the pull request check only confirmed that some rows had arrived, not that the data was correct.
+- CI now fails if SQL Server syntax appears in the API's database code. Previously only the old SQL Server connection style was blocked, not the queries written through it — which is how a broken SQL Server query survived on the resource column-discovery endpoint, failing on every request until someone found it by hand.
+- Fixed the demo-dataset verification runner, which could not check anything against a v5 database — it still spoke SQL Server (issue #707). It now verifies the full demo dataset: 35/35 checks pass against a real ingest.
+- Fixed the Docker test suite's data verification, which had the same problem plus two checks that could never pass: it looked for "Governed" and "Owner" assignment types that the data model retired.
+- Removed the "Has Owner assignments" check outright rather than port it — the demo dataset contains no ownership data for it to assert on. It should come back when the generator emits ownership.
+- Verification checks now count only live rows. Removed accounts and resources are kept as tombstones in v5, and the old checks would have counted them as current.
+- The demo-dataset context check no longer depends on whether the worker has run — it counts the dataset's own contexts instead of a total that grew as tag roots and generated contexts appeared.
+- Fixed the nightly schema check reporting two tables as missing on every run: one is now a compatibility view, and the other was removed in the context redesign.
+- Fixed the Docker suite's worker checks, which always failed because they looked for a container under the project's old name.
+- A failing database query now reports itself as a failed check instead of silently reading as "0 rows", so a broken check can no longer look like a passing one.
+- CI now fails if any PowerShell script talks to the database with a SQL Server client or v4 T-SQL, so these scripts cannot silently rot behind the schema again.
+- Fixed the CSV crawler setup wizard telling users their system name is "Recorded in dbo.Systems.displayName" — that SQL Server schema hasn't existed since the PostgreSQL move, so anyone following the hint got an error.
+- CI now checks the UI and crawler plugins for leftover SQL Server syntax too, not just the API, so stale database references can't reappear in what users read.
+
+## Changes in this PR
+
 - Added a documentation gap audit (`docs/docs-gap-audit.md`) mapping shipped features to their documentation coverage, as the basis for a remediation plan.
 - Added a living documentation remediation plan (`docs/docs-remediation-plan.md`) that reviews features cluster-by-cluster against each documentation type (analyst/user / operator / contributor / API-consumer) and validates usability through end-to-end journey walkthroughs.
 - Corrected the Ingest API reference: the success response now documents the real fields (`table`, `inserted`, `updated`, `deleted`, `records`, `durationMs`, optional `systemIds`) and `201 Created` status, and the validation tables now list the actually-accepted `assignmentType` (`Direct`/`Indirect`/`Eligible`) and `relationshipType` values.
