@@ -78,11 +78,19 @@ function schemaMigratingGate(req, res, next) {
   return res.status(503).json({ error: 'Schema migration in progress, please retry shortly' });
 }
 
-// Minimum compose file version this image expects. Bump this whenever
-// docker-compose.prod.yml changes in a way that affects runtime behavior
-// (new env vars, volume mounts, group_add, etc.). Users with an older
-// compose file will see a warning on the Dashboard.
-const MIN_COMPOSE_FILE_VERSION = 1;
+// Minimum compose file version this image expects. A deployment whose
+// docker-compose.prod.yml declares a lower COMPOSE_FILE_VERSION is flagged as
+// outdated on the Dashboard, prompting the operator to re-download the current
+// file.
+//
+// Raised to 2 to reach deployments still on a version-1 compose file. Version-1
+// files predate security-relevant fixes that live only in the compose file (not
+// the image): the removal of the /var/run/docker.sock bind-mount + group_add:
+// ["0"] from the web container (H-05 / #213 — a host-takeover primitive), and
+// binding Postgres to loopback instead of all interfaces. Bumping the floor is
+// what actually arms the warning for those deployments — #213 removed the mount
+// but left the floor at 1, so a version-1 file was never flagged.
+const MIN_COMPOSE_FILE_VERSION = 2;
 
 // Resolve module version: env var (set on the published images) → fallback to
 // the .psd1 manifest (source / dev / local builds). Shared with the auto-update
