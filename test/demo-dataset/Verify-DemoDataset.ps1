@@ -84,9 +84,9 @@ Write-Host "`n--- Row Counts ---" -ForegroundColor Yellow
 $counts = @{
     'Systems'                = @{ Min = 3;  Max = 3 }
     'Principals'             = @{ Min = 27; Max = 30 }  # 22 employees + edge cases + omada account
-    'Resources'              = @{ Min = 14; Max = 14 }
+    'Resources'              = @{ Min = 17; Max = 17 }  # 6 groups + 2 dir roles + 2 app roles + 4 business roles + 3 group-ownership (#713)
     'ResourceAssignments'    = @{ Min = 50; Max = 120 }
-    'ResourceRelationships'  = @{ Min = 9;  Max = 9 }
+    'ResourceRelationships'  = @{ Min = 12; Max = 12 }  # 8 Contains + 1 GrantsAccessTo + 3 HasOwnership (#713)
     'Identities'             = @{ Min = 20; Max = 25 }
     'IdentityMembers'        = @{ Min = 20; Max = 40 }
     'GovernanceCatalogs'     = @{ Min = 2;  Max = 2 }
