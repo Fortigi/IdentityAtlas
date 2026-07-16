@@ -964,6 +964,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/custom-connector/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Custom Connector (Push API)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1041,6 +1069,90 @@
     
   
     Role Mining UI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/dashboard/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dashboard
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/contexts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contexts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/effective-access/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Effective Access (Who Can Access X)
   
 
     
@@ -2018,6 +2130,62 @@
 
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin/authentication/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Authentication & SSO
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin/data-tab/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data & Maintenance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
             
               
                 
@@ -3118,6 +3286,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../../contributing/report-an-issue/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Report a Bug or Request a Feature
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/contribute/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contribute a Change
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../contributing/ci-pipeline/" class="md-nav__link">
         
   
@@ -3643,7 +3867,7 @@
 <p>In v5, risk scoring is driven from the UI (Admin &gt; Risk Scoring). The PowerShell risk scoring functions (<code>Invoke-FGRiskScoring</code>, <code>New-FGRiskProfile</code>, <code>New-FGRiskClassifiers</code>) in <code>tools/riskscoring/</code> are <strong>stubbed</strong> and return "not yet implemented in v5". The in-browser wizard and the Node.js scoring engine (<code>app/api/src/riskscoring/engine.js</code>) are the active implementation path.</p>
 </div>
 <h2 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">&para;</a></h2>
-<p>Identity Atlas includes a universal risk scoring engine that assigns risk scores (0–100) to all entity types — Principals, Resources (including BusinessRoles), OrgUnits, and Identities. All scoring runs on your own infrastructure — no sensitive identity data is ever sent to external services.</p>
+<p>Identity Atlas includes a universal risk scoring engine that assigns risk scores (0–100) to all entity types — Principals, Resources (including BusinessRoles), Contexts, and Identities. All scoring runs on your own infrastructure — no sensitive identity data is ever sent to external services.</p>
 <h2 id="three-phase-architecture">Three-Phase Architecture<a class="headerlink" href="#three-phase-architecture" title="Permanent link">&para;</a></h2>
 <pre class="mermaid"><code>flowchart LR
     subgraph Phase1["Phase 1: Context (one-time)"]
@@ -3746,17 +3970,17 @@
 <tbody>
 <tr>
 <td>Critical</td>
-<td>80–100</td>
+<td>90–100</td>
 <td>Requires immediate attention</td>
 </tr>
 <tr>
 <td>High</td>
-<td>60–79</td>
+<td>70–89</td>
 <td>Should be reviewed soon</td>
 </tr>
 <tr>
 <td>Medium</td>
-<td>40–59</td>
+<td>40–69</td>
 <td>Monitor regularly</td>
 </tr>
 <tr>
@@ -3777,7 +4001,7 @@
 </tbody>
 </table>
 <h2 id="analyst-overrides">Analyst Overrides<a class="headerlink" href="#analyst-overrides" title="Permanent link">&para;</a></h2>
-<p>Analysts can adjust any entity's score by −50 to +50 points with a required justification:</p>
+<p>Analysts can adjust any entity's score with a required justification. The adjustment must be a whole number between −50 and +50, and the justification must be 3–500 characters:</p>
 <ul>
 <li>Via UI: Risk Scoring page → click Override button</li>
 <li>Overrides are stored in <code>RiskScores</code> and preserved across re-scoring runs</li>
@@ -3888,13 +4112,12 @@
 <a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">       </span><span class="n">rs</span><span class="p">.</span><span class="n">directScore</span><span class="p">,</span><span class="w"> </span><span class="n">rs</span><span class="p">.</span><span class="n">membershipScore</span><span class="p">,</span><span class="w"> </span><span class="n">rs</span><span class="p">.</span><span class="n">structuralScore</span><span class="p">,</span><span class="w"> </span><span class="n">rs</span><span class="p">.</span><span class="n">propagatedScore</span>
 <a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="k">FROM</span><span class="w"> </span><span class="n">Principals</span><span class="w"> </span><span class="n">p</span>
 <a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="k">JOIN</span><span class="w"> </span><span class="n">RiskScores</span><span class="w"> </span><span class="n">rs</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">rs</span><span class="p">.</span><span class="n">entityId</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="n">id</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">rs</span><span class="p">.</span><span class="n">entityType</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;Principal&#39;</span>
-<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="n">ValidTo</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;9999-12-31 23:59:59.9999999&#39;</span>
-<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">rs</span><span class="p">.</span><span class="n">riskScore</span><span class="w"> </span><span class="k">DESC</span><span class="p">;</span>
-<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>
-<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="c1">-- All entity types together</span>
-<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">entityId</span><span class="p">,</span><span class="w"> </span><span class="n">entityType</span><span class="p">,</span><span class="w"> </span><span class="n">riskScore</span><span class="p">,</span><span class="w"> </span><span class="n">riskTier</span>
-<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="k">FROM</span><span class="w"> </span><span class="n">RiskScores</span>
-<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">riskScore</span><span class="w"> </span><span class="k">DESC</span><span class="p">;</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">rs</span><span class="p">.</span><span class="n">riskScore</span><span class="w"> </span><span class="k">DESC</span><span class="p">;</span>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="c1">-- All entity types together</span>
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">entityId</span><span class="p">,</span><span class="w"> </span><span class="n">entityType</span><span class="p">,</span><span class="w"> </span><span class="n">riskScore</span><span class="p">,</span><span class="w"> </span><span class="n">riskTier</span>
+<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="k">FROM</span><span class="w"> </span><span class="n">RiskScores</span>
+<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">riskScore</span><span class="w"> </span><span class="k">DESC</span><span class="p">;</span>
 </code></pre></div>
 
 

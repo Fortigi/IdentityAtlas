@@ -16,7 +16,7 @@
         <link rel="prev" href="../../architecture/omada-crawler-datamodel/">
       
       
-        <link rel="next" href="../../ui/overview/">
+        <link rel="next" href="../custom-connector/">
       
       
         
@@ -1256,6 +1256,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../custom-connector/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Custom Connector (Push API)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1336,6 +1364,90 @@
     
   
     Role Mining UI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/dashboard/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dashboard
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/contexts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contexts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/effective-access/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Effective Access (Who Can Access X)
   
 
     
@@ -2155,6 +2267,62 @@
 
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin/authentication/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Authentication & SSO
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin/data-tab/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data & Maintenance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
             
               
                 
@@ -3255,6 +3423,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../../contributing/report-an-issue/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Report a Bug or Request a Feature
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/contribute/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contribute a Change
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../contributing/ci-pipeline/" class="md-nav__link">
         
   
@@ -4060,25 +4284,24 @@
 <a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="nv">$ErrorActionPreference</span> <span class="p">=</span> <span class="s1">&#39;Stop&#39;</span>
 <a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="nv">$Cfg</span> <span class="p">=</span> <span class="nb">Get-Content</span> <span class="nv">$ConfigPath</span> <span class="n">-Raw</span> <span class="p">|</span> <span class="nb">ConvertFrom-Json</span>
 <a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a>
-<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a><span class="nv">$headers</span> <span class="p">=</span> <span class="p">@{</span> <span class="n">Authorization</span> <span class="p">=</span> <span class="s2">&quot;Bearer $ApiKey&quot;</span><span class="p">;</span> <span class="s1">&#39;Content-Type&#39;</span> <span class="p">=</span> <span class="s1">&#39;application/json&#39;</span> <span class="p">}</span>
-<a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a>
-<a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a><span class="k">function</span> <span class="nb">Write-CrawlerProgress</span> <span class="p">(</span><span class="no">[string]</span><span class="nv">$Step</span><span class="p">,</span> <span class="no">[int]</span><span class="nv">$Pct</span><span class="p">)</span> <span class="p">{</span>
-<a id="__codelineno-4-15" name="__codelineno-4-15" href="#__codelineno-4-15"></a>    <span class="nb">Invoke-RestMethod</span> <span class="n">-Uri</span> <span class="s2">&quot;$ApiBaseUrl/crawlers/job-progress&quot;</span> <span class="n">-Method</span> <span class="n">Post</span> <span class="n">-Headers</span> <span class="nv">$headers</span> <span class="p">`</span>
-<a id="__codelineno-4-16" name="__codelineno-4-16" href="#__codelineno-4-16"></a>        <span class="n">-Body</span> <span class="p">(@{</span> <span class="n">jobId</span> <span class="p">=</span> <span class="nv">$JobId</span><span class="p">;</span> <span class="n">step</span> <span class="p">=</span> <span class="nv">$Step</span><span class="p">;</span> <span class="n">pct</span> <span class="p">=</span> <span class="nv">$Pct</span> <span class="p">}</span> <span class="p">|</span> <span class="nb">ConvertTo-Json</span> <span class="n">-Compress</span><span class="p">)</span>
-<a id="__codelineno-4-17" name="__codelineno-4-17" href="#__codelineno-4-17"></a><span class="p">}</span>
+<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a><span class="c"># Dot-source the shared ingest helpers. They read $ApiBaseUrl, $ApiKey, and $JobId</span>
+<a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a><span class="c"># from this scope at call time, so there&#39;s no need to hand-roll progress reporting or</span>
+<a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a><span class="c"># the ingest POST — use Update-CrawlerProgress and Invoke-CrawlerIngestBatch instead.</span>
+<a id="__codelineno-4-15" name="__codelineno-4-15" href="#__codelineno-4-15"></a><span class="p">.</span> <span class="p">(</span><span class="nb">Join-Path</span> <span class="nv">$PSScriptRoot</span> <span class="s1">&#39;..&#39;</span> <span class="s1">&#39;shared&#39;</span> <span class="s1">&#39;Invoke-CrawlerIngest.ps1&#39;</span><span class="p">)</span>
+<a id="__codelineno-4-16" name="__codelineno-4-16" href="#__codelineno-4-16"></a>
+<a id="__codelineno-4-17" name="__codelineno-4-17" href="#__codelineno-4-17"></a><span class="nb">Update-CrawlerProgress</span> <span class="n">-Step</span> <span class="s1">&#39;Fetching data&#39;</span> <span class="n">-Pct</span> <span class="n">10</span>
 <a id="__codelineno-4-18" name="__codelineno-4-18" href="#__codelineno-4-18"></a>
-<a id="__codelineno-4-19" name="__codelineno-4-19" href="#__codelineno-4-19"></a><span class="nb">Write-CrawlerProgress</span> <span class="s1">&#39;Fetching data&#39;</span> <span class="n">10</span>
-<a id="__codelineno-4-20" name="__codelineno-4-20" href="#__codelineno-4-20"></a>
-<a id="__codelineno-4-21" name="__codelineno-4-21" href="#__codelineno-4-21"></a><span class="c"># Fetch from source system</span>
-<a id="__codelineno-4-22" name="__codelineno-4-22" href="#__codelineno-4-22"></a><span class="nv">$items</span> <span class="p">=</span> <span class="nb">Invoke-RestMethod</span> <span class="n">-Uri</span> <span class="s2">&quot;</span><span class="p">$(</span><span class="nv">$Cfg</span><span class="p">.</span><span class="n">apiUrl</span><span class="p">)</span><span class="s2">/items&quot;</span> <span class="n">-Headers</span> <span class="p">@{</span> <span class="s1">&#39;X-Api-Key&#39;</span> <span class="p">=</span> <span class="nv">$Cfg</span><span class="p">.</span><span class="n">apiKey</span> <span class="p">}</span>
+<a id="__codelineno-4-19" name="__codelineno-4-19" href="#__codelineno-4-19"></a><span class="c"># Fetch from source system</span>
+<a id="__codelineno-4-20" name="__codelineno-4-20" href="#__codelineno-4-20"></a><span class="nv">$items</span> <span class="p">=</span> <span class="nb">Invoke-RestMethod</span> <span class="n">-Uri</span> <span class="s2">&quot;</span><span class="p">$(</span><span class="nv">$Cfg</span><span class="p">.</span><span class="n">apiUrl</span><span class="p">)</span><span class="s2">/items&quot;</span> <span class="n">-Headers</span> <span class="p">@{</span> <span class="s1">&#39;X-Api-Key&#39;</span> <span class="p">=</span> <span class="nv">$Cfg</span><span class="p">.</span><span class="n">apiKey</span> <span class="p">}</span>
+<a id="__codelineno-4-21" name="__codelineno-4-21" href="#__codelineno-4-21"></a>
+<a id="__codelineno-4-22" name="__codelineno-4-22" href="#__codelineno-4-22"></a><span class="nb">Update-CrawlerProgress</span> <span class="n">-Step</span> <span class="s1">&#39;Pushing to Identity Atlas&#39;</span> <span class="n">-Pct</span> <span class="n">50</span>
 <a id="__codelineno-4-23" name="__codelineno-4-23" href="#__codelineno-4-23"></a>
-<a id="__codelineno-4-24" name="__codelineno-4-24" href="#__codelineno-4-24"></a><span class="nb">Write-CrawlerProgress</span> <span class="s1">&#39;Pushing to Identity Atlas&#39;</span> <span class="n">50</span>
-<a id="__codelineno-4-25" name="__codelineno-4-25" href="#__codelineno-4-25"></a>
-<a id="__codelineno-4-26" name="__codelineno-4-26" href="#__codelineno-4-26"></a><span class="c"># Push to Identity Atlas ingest API</span>
-<a id="__codelineno-4-27" name="__codelineno-4-27" href="#__codelineno-4-27"></a><span class="nv">$body</span> <span class="p">=</span> <span class="p">@{</span> <span class="n">records</span> <span class="p">=</span> <span class="nv">$items</span><span class="p">;</span> <span class="n">syncMode</span> <span class="p">=</span> <span class="nv">$Cfg</span><span class="p">.</span><span class="n">_syncMode</span><span class="p">;</span> <span class="n">systemId</span> <span class="p">=</span> <span class="n">1</span> <span class="p">}</span> <span class="p">|</span> <span class="nb">ConvertTo-Json</span> <span class="n">-Depth</span> <span class="n">10</span>
-<a id="__codelineno-4-28" name="__codelineno-4-28" href="#__codelineno-4-28"></a><span class="nb">Invoke-RestMethod</span> <span class="n">-Uri</span> <span class="s2">&quot;$ApiBaseUrl/ingest/principals&quot;</span> <span class="n">-Method</span> <span class="n">Post</span> <span class="n">-Headers</span> <span class="nv">$headers</span> <span class="n">-Body</span> <span class="nv">$body</span>
-<a id="__codelineno-4-29" name="__codelineno-4-29" href="#__codelineno-4-29"></a>
-<a id="__codelineno-4-30" name="__codelineno-4-30" href="#__codelineno-4-30"></a><span class="nb">Write-CrawlerProgress</span> <span class="s1">&#39;Complete&#39;</span> <span class="n">100</span>
+<a id="__codelineno-4-24" name="__codelineno-4-24" href="#__codelineno-4-24"></a><span class="c"># Push to the Identity Atlas ingest API. Invoke-CrawlerIngestBatch handles chunking,</span>
+<a id="__codelineno-4-25" name="__codelineno-4-25" href="#__codelineno-4-25"></a><span class="c"># retries with backoff, delta tombstones, and empty-batch scoped deletes for you.</span>
+<a id="__codelineno-4-26" name="__codelineno-4-26" href="#__codelineno-4-26"></a><span class="nb">Invoke-CrawlerIngestBatch</span> <span class="n">-Endpoint</span> <span class="s1">&#39;ingest/principals&#39;</span> <span class="n">-SystemId</span> <span class="n">1</span> <span class="p">`</span>
+<a id="__codelineno-4-27" name="__codelineno-4-27" href="#__codelineno-4-27"></a>    <span class="n">-SyncMode</span> <span class="nv">$Cfg</span><span class="p">.</span><span class="n">_syncMode</span> <span class="n">-Records</span> <span class="nv">$items</span>
+<a id="__codelineno-4-28" name="__codelineno-4-28" href="#__codelineno-4-28"></a>
+<a id="__codelineno-4-29" name="__codelineno-4-29" href="#__codelineno-4-29"></a><span class="nb">Update-CrawlerProgress</span> <span class="n">-Step</span> <span class="s1">&#39;Complete&#39;</span> <span class="n">-Pct</span> <span class="n">100</span>
 </code></pre></div>
 <hr />
 <h2 id="the-ingest-api">The Ingest API<a class="headerlink" href="#the-ingest-api" title="Permanent link">&para;</a></h2>
@@ -4192,20 +4415,21 @@ source-specific resolution policy — that path lands in engine phase P3.</p>
 <h3 id="configwizardjsx-optional-step-by-step-config-form"><code>ConfigWizard.jsx</code> — optional step-by-step config form<a class="headerlink" href="#configwizardjsx-optional-step-by-step-config-form" title="Permanent link">&para;</a></h3>
 <p>If omitted, the UI falls back to a generic JSON config editor — fine for a quick prototype, but a real wizard is what operators actually expect. The component receives a fixed 5-prop contract:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="k">import</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">useState</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">&#39;react&#39;</span><span class="p">;</span>
-<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="c1">// Reach back into app/ui/src/ for shared form components:</span>
-<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="k">import</span><span class="w"> </span><span class="nx">ScheduleEditor</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">&#39;../../../app/ui/src/components/ScheduleEditor&#39;</span><span class="p">;</span>
-<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>
-<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="k">export</span><span class="w"> </span><span class="k">default</span><span class="w"> </span><span class="kd">function</span><span class="w"> </span><span class="nx">MyConfigWizard</span><span class="p">({</span><span class="w"> </span><span class="nx">onComplete</span><span class="p">,</span><span class="w"> </span><span class="nx">onCancel</span><span class="p">,</span><span class="w"> </span><span class="nx">initialConfig</span><span class="p">,</span><span class="w"> </span><span class="nx">isEdit</span><span class="p">,</span><span class="w"> </span><span class="nx">authFetch</span><span class="w"> </span><span class="p">})</span><span class="w"> </span><span class="p">{</span>
-<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="w">  </span><span class="c1">// onComplete() — call with no arguments when done; the wizard saves its</span>
-<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="w">  </span><span class="c1">//                own config via authFetch before calling this (POST to</span>
-<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a><span class="w">  </span><span class="c1">//                create, PATCH .../crawler-configs/:id to update)</span>
-<a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a><span class="w">  </span><span class="c1">// onCancel()    — call when the user cancels</span>
-<a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a><span class="w">  </span><span class="c1">// initialConfig — the existing config object when isEdit=true</span>
-<a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a><span class="w">  </span><span class="c1">// isEdit        — true when editing an existing crawler</span>
-<a id="__codelineno-9-12" name="__codelineno-9-12" href="#__codelineno-9-12"></a><span class="w">  </span><span class="c1">// authFetch     — authenticated fetch helper (same signature as window.fetch)</span>
-<a id="__codelineno-9-13" name="__codelineno-9-13" href="#__codelineno-9-13"></a><span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="p">[</span><span class="nx">baseUrl</span><span class="p">,</span><span class="w"> </span><span class="nx">setBaseUrl</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">useState</span><span class="p">(</span><span class="nx">initialConfig</span><span class="o">?</span><span class="p">.</span><span class="nx">baseUrl</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="s1">&#39;&#39;</span><span class="p">);</span>
-<a id="__codelineno-9-14" name="__codelineno-9-14" href="#__codelineno-9-14"></a><span class="w">  </span><span class="c1">// ... render form fields, call authFetch(...) on save, then onComplete() ...</span>
-<a id="__codelineno-9-15" name="__codelineno-9-15" href="#__codelineno-9-15"></a><span class="p">}</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="c1">// Import shared form components via the @ui/ alias (resolved by app/ui/vite.config.js) —</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="c1">// never a &#39;../../../app/ui/src/...&#39; relative traversal:</span>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="k">import</span><span class="w"> </span><span class="nx">ScheduleEditor</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">&#39;@ui/components/ScheduleEditor&#39;</span><span class="p">;</span>
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>
+<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="k">export</span><span class="w"> </span><span class="k">default</span><span class="w"> </span><span class="kd">function</span><span class="w"> </span><span class="nx">MyConfigWizard</span><span class="p">({</span><span class="w"> </span><span class="nx">onComplete</span><span class="p">,</span><span class="w"> </span><span class="nx">onCancel</span><span class="p">,</span><span class="w"> </span><span class="nx">initialConfig</span><span class="p">,</span><span class="w"> </span><span class="nx">isEdit</span><span class="p">,</span><span class="w"> </span><span class="nx">authFetch</span><span class="w"> </span><span class="p">})</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="w">  </span><span class="c1">// onComplete() — call with no arguments when done; the wizard saves its</span>
+<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a><span class="w">  </span><span class="c1">//                own config via authFetch before calling this (POST to</span>
+<a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a><span class="w">  </span><span class="c1">//                create, PATCH .../crawler-configs/:id to update)</span>
+<a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a><span class="w">  </span><span class="c1">// onCancel()    — call when the user cancels</span>
+<a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a><span class="w">  </span><span class="c1">// initialConfig — the existing config object when isEdit=true</span>
+<a id="__codelineno-9-12" name="__codelineno-9-12" href="#__codelineno-9-12"></a><span class="w">  </span><span class="c1">// isEdit        — true when editing an existing crawler</span>
+<a id="__codelineno-9-13" name="__codelineno-9-13" href="#__codelineno-9-13"></a><span class="w">  </span><span class="c1">// authFetch     — authenticated fetch helper (same signature as window.fetch)</span>
+<a id="__codelineno-9-14" name="__codelineno-9-14" href="#__codelineno-9-14"></a><span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="p">[</span><span class="nx">baseUrl</span><span class="p">,</span><span class="w"> </span><span class="nx">setBaseUrl</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">useState</span><span class="p">(</span><span class="nx">initialConfig</span><span class="o">?</span><span class="p">.</span><span class="nx">baseUrl</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="s1">&#39;&#39;</span><span class="p">);</span>
+<a id="__codelineno-9-15" name="__codelineno-9-15" href="#__codelineno-9-15"></a><span class="w">  </span><span class="c1">// ... render form fields, call authFetch(...) on save, then onComplete() ...</span>
+<a id="__codelineno-9-16" name="__codelineno-9-16" href="#__codelineno-9-16"></a><span class="p">}</span>
 </code></pre></div>
 <p>The wizard <strong>owns saving its own config</strong> — <code>CrawlersPage.jsx</code> never builds the request body for a migrated crawler. See <code>tools/crawlers/omada/ConfigWizard.jsx</code> or <code>tools/crawlers/midpoint/ConfigWizard.jsx</code> for full multi-step examples (connection → credentials → sync options → schedule), including the credential-field round-tripping rule: only send a secret field when it's non-blank, so leaving it blank on edit means "keep the stored value."</p>
 <h3 id="summaryjsx-optional-config-card-summary-panel"><code>Summary.jsx</code> — optional config-card summary panel<a class="headerlink" href="#summaryjsx-optional-config-card-summary-panel" title="Permanent link">&para;</a></h3>

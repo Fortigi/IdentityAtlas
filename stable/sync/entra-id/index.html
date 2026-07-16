@@ -841,6 +841,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#which-toggles-to-enable" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Which toggles to enable
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1112,6 +1123,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../custom-connector/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Custom Connector (Push API)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1192,6 +1231,90 @@
     
   
     Role Mining UI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/dashboard/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dashboard
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/contexts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contexts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/effective-access/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Effective Access (Who Can Access X)
   
 
     
@@ -2011,6 +2134,62 @@
 
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin/authentication/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Authentication & SSO
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin/data-tab/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data & Maintenance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
             
               
                 
@@ -3111,6 +3290,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../../contributing/report-an-issue/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Report a Bug or Request a Feature
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/contribute/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contribute a Change
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../contributing/ci-pipeline/" class="md-nav__link">
         
   
@@ -3493,6 +3728,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#which-toggles-to-enable" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Which toggles to enable
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -3664,17 +3910,17 @@
 <tr>
 <td><code>-SyncServicePrincipals</code></td>
 <td>Off</td>
-<td>Sync managed identities, AI agents, and service principals</td>
+<td>Sync service principals, managed identities, and AI agents (classified by type)</td>
 </tr>
 <tr>
 <td><code>-SyncResources</code></td>
 <td>On</td>
-<td>Sync groups, directory roles, app roles</td>
+<td>Sync groups</td>
 </tr>
 <tr>
 <td><code>-SyncAssignments</code></td>
 <td>On</td>
-<td>Sync group memberships, owners, eligible members</td>
+<td>Sync group memberships and owners</td>
 </tr>
 <tr>
 <td><code>-SyncGovernance</code></td>
@@ -3689,7 +3935,42 @@
 <tr>
 <td><code>-SyncPim</code></td>
 <td>Off</td>
-<td>Sync PIM eligible members</td>
+<td>Sync PIM-eligible group memberships</td>
+</tr>
+<tr>
+<td><code>-SyncDirectoryRoles</code></td>
+<td>Off</td>
+<td>Sync Entra directory roles plus their active and PIM-eligible role assignments</td>
+</tr>
+<tr>
+<td><code>-SyncAppRoles</code></td>
+<td>Off</td>
+<td>Sync enterprise-app app-role assignments (direct, and expanded from groups)</td>
+</tr>
+<tr>
+<td><code>-SyncOAuth2Grants</code></td>
+<td>Off</td>
+<td>Sync per-user OAuth2 delegated-permission (consent) grants</td>
+</tr>
+<tr>
+<td><code>-SyncAppPermissions</code></td>
+<td>Off</td>
+<td>Sync app-only (admin-consented) API permissions held by service principals, managed identities, and AI agents</td>
+</tr>
+<tr>
+<td><code>-SyncAppOwners</code></td>
+<td>Off</td>
+<td>Sync app-registration and service-principal owners (fetched per app — slow on large tenants)</td>
+</tr>
+<tr>
+<td><code>-SyncPrincipalRelationships</code></td>
+<td>Off</td>
+<td>Sync AI-agent owners and guest-account sponsors</td>
+</tr>
+<tr>
+<td><code>-SyncSignInLogs</code></td>
+<td>Off</td>
+<td>Sync per-(user, app) last activity from sign-in logs (window set by <code>-SignInLogsDays</code>, default 7)</td>
 </tr>
 <tr>
 <td><code>-RefreshViews</code></td>
@@ -3707,12 +3988,71 @@
 <td>Extra Graph attributes to capture for groups</td>
 </tr>
 <tr>
+<td><code>-AINamePatterns</code></td>
+<td>Empty</td>
+<td>Extra display-name regex patterns that classify a service principal as an AI agent</td>
+</tr>
+<tr>
 <td><code>-IdentityFilter</code></td>
 <td>None</td>
 <td>Filter which users are treated as identities</td>
 </tr>
 </tbody>
 </table>
+<h3 id="which-toggles-to-enable">Which toggles to enable<a class="headerlink" href="#which-toggles-to-enable" title="Permanent link">&para;</a></h3>
+<p>The defaults (users, groups, memberships, governance, contexts) cover core role-mining. The service-principal and application toggles are <strong>off by default</strong> — they add Graph calls, and several fetch per-object so they get slower as the tenant grows. Enable them by what you want to see:</p>
+<table>
+<thead>
+<tr>
+<th>You want to see…</th>
+<th>Enable</th>
+<th>Cost</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Non-human identities (SPs, managed identities, AI agents)</td>
+<td><code>-SyncServicePrincipals</code></td>
+<td>Low — bulk endpoints</td>
+</tr>
+<tr>
+<td>Privileged access via Entra directory roles (active + PIM-eligible)</td>
+<td><code>-SyncDirectoryRoles</code></td>
+<td>Low–moderate</td>
+</tr>
+<tr>
+<td>PIM-eligible group memberships</td>
+<td><code>-SyncPim</code></td>
+<td>High on large tenants — a per-group <code>$filter</code> call</td>
+</tr>
+<tr>
+<td>Who can use which enterprise app (app-role assignments)</td>
+<td><code>-SyncAppRoles</code></td>
+<td>Moderate</td>
+</tr>
+<tr>
+<td>Per-user consent grants to apps</td>
+<td><code>-SyncOAuth2Grants</code></td>
+<td>Moderate</td>
+</tr>
+<tr>
+<td>App-only API permissions held by SPs / managed identities / agents</td>
+<td><code>-SyncAppPermissions</code></td>
+<td>High — fetched per service principal</td>
+</tr>
+<tr>
+<td>Who owns apps / SPs (can add a credential and impersonate the app)</td>
+<td><code>-SyncAppOwners</code></td>
+<td>High — fetched per app</td>
+</tr>
+<tr>
+<td>AI-agent owners and guest-account sponsors</td>
+<td><code>-SyncPrincipalRelationships</code></td>
+<td>Low–moderate — only over agents + guests</td>
+</tr>
+</tbody>
+</table>
+<p><code>-SyncServicePrincipals</code> is the prerequisite for meaningful <code>-SyncAppPermissions</code> and <code>-SyncPrincipalRelationships</code> output (both operate on service principals), and it's where AI-agent classification happens — add <code>-AINamePatterns</code> to catch agents your naming convention flags that the built-in patterns miss.</p>
 <hr />
 <h2 id="what-gets-synced">What Gets Synced<a class="headerlink" href="#what-gets-synced" title="Permanent link">&para;</a></h2>
 <pre class="mermaid"><code>flowchart TD
@@ -3723,16 +4063,17 @@
     EntraID --&gt; AR[App Roles → Resources]
     EntraID --&gt; GM[Group Members → ResourceAssignments\nDirect]
     EntraID --&gt; GE[PIM Eligible → ResourceAssignments\nEligible]
-    EntraID --&gt; GO[Group Owners → ResourceAssignments\nOwner]
+    EntraID --&gt; GO[Group Owners → GroupOwnership Resource\nDirect ResourceAssignment]
     EntraID --&gt; CAT[Catalogs → GovernanceCatalogs]
     EntraID --&gt; AP[Access Packages → Resources\nresourceType=BusinessRole]
-    EntraID --&gt; APA[AP Assignments → ResourceAssignments\nassignmentType=Governed]
+    EntraID --&gt; APA[AP Assignments → ResourceAssignments\nDirect, governed=true]
     EntraID --&gt; APR[AP Resource Scopes → ResourceRelationships\nrelationshipType=Contains]
     EntraID --&gt; APP[AP Policies → AssignmentPolicies]
     EntraID --&gt; APQ[AP Requests → AssignmentRequests]
     EntraID --&gt; APV[AP Reviews → CertificationDecisions]</code></pre>
 <hr />
 <h2 id="required-graph-api-permissions">Required Graph API Permissions<a class="headerlink" href="#required-graph-api-permissions" title="Permanent link">&para;</a></h2>
+<p>Grant these as <strong>Application</strong> permissions (not Delegated) on the App Registration the crawler authenticates as, then grant tenant-wide admin consent in the Azure Portal under <strong>App Registrations → API Permissions</strong>. Creating the App Registration itself is standard Entra administration and is not covered here.</p>
 <table>
 <thead>
 <tr>

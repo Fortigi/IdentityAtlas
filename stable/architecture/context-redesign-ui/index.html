@@ -956,6 +956,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/custom-connector/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Custom Connector (Push API)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1033,6 +1061,90 @@
     
   
     Role Mining UI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/dashboard/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dashboard
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/contexts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contexts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/effective-access/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Effective Access (Who Can Access X)
   
 
     
@@ -1852,6 +1964,62 @@
 
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin/authentication/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Authentication & SSO
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin/data-tab/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data & Maintenance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
             
               
                 
@@ -2952,6 +3120,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../../contributing/report-an-issue/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Report a Bug or Request a Feature
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/contribute/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contribute a Change
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../contributing/ci-pipeline/" class="md-nav__link">
         
   
@@ -3434,10 +3658,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#9-frontend-structure-proposed-files" class="md-nav__link">
+  <a href="#9-frontend-structure-as-shipped" class="md-nav__link">
     <span class="md-ellipsis">
       
-        9. Frontend Structure (proposed files)
+        9. Frontend Structure (as shipped)
       
     </span>
   </a>
@@ -3485,7 +3709,7 @@
 
 <h1 id="context-redesign-ui">Context Redesign — UI<a class="headerlink" href="#context-redesign-ui" title="Permanent link">&para;</a></h1>
 <blockquote>
-<p><strong>Status:</strong> Design proposal — not yet implemented.
+<p><strong>Status:</strong> Implemented (v6). This is the architecture reference for the shipped Contexts screen — the two-pane tree/list layout, the New-Context wizard, drag-to-reparent, and per-tree Run/Sync described below are all live. For the analyst how-to guide, see <a href="../../ui/contexts/">../ui/contexts.md</a>.
 <strong>Companion doc:</strong> <a href="../context-redesign/">context-redesign.md</a> for the data model and backend.</p>
 </blockquote>
 <h2 id="1-new-top-level-tab-contexts">1. New Top-Level Tab: "Contexts"<a class="headerlink" href="#1-new-top-level-tab-contexts" title="Permanent link">&para;</a></h2>
@@ -3692,24 +3916,21 @@
 <li><strong>Demote back to flat.</strong> Clearing the parent returns the tag-context to the flat Tags group.</li>
 </ul>
 <p>No "promote to hierarchy" wizard — parenting is just a field set. The legacy <code>GraphTags</code> / <code>GraphTagAssignments</code> tables are gone in v6; tag operations hit <code>Contexts</code> / <code>ContextMembers</code> directly.</p>
-<h2 id="9-frontend-structure-proposed-files">9. Frontend Structure (proposed files)<a class="headerlink" href="#9-frontend-structure-proposed-files" title="Permanent link">&para;</a></h2>
-<p>New:
-- <code>app/ui/src/components/ContextsPage.jsx</code> — tree selector + tree/list view switch
-- <code>app/ui/src/components/ContextDetailPage.jsx</code> — detail tab (replaces the current minimal one)
-- <code>app/ui/src/components/contexts/ContextTreeView.jsx</code>
-- <code>app/ui/src/components/contexts/ContextListView.jsx</code>
-- <code>app/ui/src/components/contexts/ContextTreeSelector.jsx</code>
-- <code>app/ui/src/components/contexts/NewContextModal.jsx</code> — "+ New" dispatcher
-- <code>app/ui/src/components/contexts/RunPluginModal.jsx</code>
-- <code>app/ui/src/components/contexts/CreateManualTreeModal.jsx</code>
-- <code>app/ui/src/components/matrix/ContextFilterControl.jsx</code> — the chip widget</p>
-<p>Changed:
-- <code>app/ui/src/App.jsx</code> — register the new tab, route <code>#context:id</code>
-- <code>app/ui/src/components/matrix/MatrixToolbar.jsx</code> — embed <code>ContextFilterControl</code>
-- <code>app/ui/src/hooks/usePermissions.js</code> — accept <code>contextFilters</code> query state and pass through</p>
-<p>Removed (phase 4):
-- <code>app/ui/src/components/OrgChartPage.jsx</code> — replaced by the Contexts tab
-- The Clusters portion of <code>app/ui/src/components/RiskScoringPage.jsx</code></p>
+<h2 id="9-frontend-structure-as-shipped">9. Frontend Structure (as shipped)<a class="headerlink" href="#9-frontend-structure-as-shipped" title="Permanent link">&para;</a></h2>
+<ul>
+<li><code>app/ui/src/components/ContextsPage.jsx</code> — the two-pane tab: tree selector + tree/list view switch, plus the per-tree Sync / Delete / view-mode header</li>
+<li><code>app/ui/src/components/ContextDetailPage.jsx</code> — the context detail tab</li>
+<li><code>app/ui/src/components/contexts/ContextTreeView.jsx</code> — tree view with inline rename, add-child, drag-to-reparent, and (Manager-Hierarchy trees) drag-a-member-to-another-team</li>
+<li><code>app/ui/src/components/contexts/ContextListView.jsx</code> — flat list view</li>
+<li><code>app/ui/src/components/contexts/ContextTreeSelector.jsx</code> — left selector with target-type / variant / system filter bar</li>
+<li><code>app/ui/src/components/contexts/NewContextWizard.jsx</code> — the unified "+ New" stepped wizard (Source → plugin path or manual path). Replaces the three-modal sketch (NewContextModal / RunPluginModal / CreateManualTreeModal) this doc originally proposed.</li>
+<li><code>app/ui/src/components/contexts/ContextPicker.jsx</code> / <code>ContextMemberPicker.jsx</code> / <code>ManualContextEditor.jsx</code> — shared pickers and the manual-tree member editor</li>
+<li><code>app/ui/src/components/matrix/ContextFilterControl.jsx</code> — the matrix context-filter chip widget</li>
+</ul>
+<p>Also changed:
+- <code>app/ui/src/App.jsx</code> — registers the Contexts tab and routes <code>#context:id</code>
+- <code>app/ui/src/hooks/usePermissions.js</code> — accepts <code>contextFilters</code> query state and passes it through to the matrix query</p>
+<p>The former Org Chart tab and the Risk-Scoring Clusters page were retired in favour of the Contexts tab (manager hierarchies and resource clusters are now context-algorithm plugins).</p>
 <h2 id="10-accessibility-performance-notes">10. Accessibility &amp; Performance Notes<a class="headerlink" href="#10-accessibility-performance-notes" title="Permanent link">&para;</a></h2>
 <ul>
 <li>Tree nodes are real <code>&lt;button&gt;</code> elements for keyboard nav. <code>aria-expanded</code> on parents.</li>

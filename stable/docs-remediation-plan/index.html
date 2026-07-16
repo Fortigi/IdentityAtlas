@@ -1,0 +1,5273 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Universal authorization intelligence — sync, analyze, and govern permissions from any identity system">
+      
+      
+      
+        <link rel="canonical" href="https://fortigi.github.io/IdentityAtlas/stable/docs-remediation-plan/">
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/logo.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Documentation Remediation Plan v2 (living document) - Identity Atlas</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inter:300,300i,400,400i,700,700i%7CJetBrains+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Inter";--md-code-font:"JetBrains Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/extra.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="custom">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#documentation-remediation-plan-v2-living-document" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="Identity Atlas" class="md-header__button md-logo" aria-label="Identity Atlas" data-md-component="logo">
+      
+  <img src="../assets/logo.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Identity Atlas
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Documentation Remediation Plan v2 (living document)
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/Fortigi/IdentityAtlas" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    Fortigi/IdentityAtlas
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href=".." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../quickstart/" class="md-tabs__link">
+          
+  
+  
+  Guide
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../risk-scoring/overview/" class="md-tabs__link">
+          
+  
+  
+  Concepts
+
+        </a>
+      </li>
+    
+  
+
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../api/" class="md-tabs__link">
+          
+  
+  
+  Reference
+
+        </a>
+      </li>
+    
+  
+
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../marketing/" class="md-tabs__link">
+          
+  
+  
+  Project
+
+        </a>
+      </li>
+    
+  
+
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="Identity Atlas" class="md-nav__button md-logo" aria-label="Identity Atlas" data-md-component="logo">
+      
+  <img src="../assets/logo.png" alt="logo">
+
+    </a>
+    Identity Atlas
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/Fortigi/IdentityAtlas" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    Fortigi/IdentityAtlas
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guide
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Guide
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quick Start
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_2" id="__nav_2_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Concepts
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Concepts
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../concepts/data-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data Model
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../concepts/governance-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Governance Model
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../concepts/risk-scoring-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Scoring Model
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_3" id="__nav_2_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data Sources
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Data Sources
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sync/entra-id/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Entra ID
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sync/azure-rm/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Azure Resource Manager
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sync/csv-import/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CSV Import
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/csv-import-schema/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CSV Schema Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sync/midpoint/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    midPoint
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sync/midpoint-crawler-configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    midPoint Configuration Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sync/omada/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Omada IGA
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/omada-crawler-datamodel/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Omada Data Model Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sync/building-a-crawler/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Building a Crawler
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sync/custom-connector/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Custom Connector (Push API)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_4" id="__nav_2_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Using Identity Atlas
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Using Identity Atlas
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ui/overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Role Mining UI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ui/dashboard/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dashboard
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ui/contexts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contexts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ui/effective-access/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Effective Access (Who Can Access X)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ui/local-dev/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Local Development
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../admin/excel-powerquery-export/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Excel Export (Power Query)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../admin/excel-template-authoring/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Excel Template Authoring
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Concepts
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Concepts
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_1" id="__nav_3_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Scoring
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Risk Scoring
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../risk-scoring/overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../risk-scoring/classifiers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Classifiers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../risk-scoring/ai-agents/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI Agents
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../risk-scoring/design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Engine Design
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../risk-scoring/plugin-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plugin Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/resource-cluster-algorithm/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Resource Cluster Algorithm
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_2" id="__nav_3_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Architecture
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/docker-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Docker Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/desktop-portable/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Portable Windows Launcher
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/branching-strategy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Release & Branching Strategy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/ingest-api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ingest API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/audit-history/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Audit History
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/soft-delete/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Soft-Delete & Tombstones
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/matrix-scope-statistics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Matrix Scope Statistics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/llm-and-risk-scoring/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    LLM & Risk Scoring Internals
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/crawler-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Crawler Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/account-linking/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Account Linking
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/effective-access-engine/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Effective Access Engine
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_3" id="__nav_3_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Operations
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Operations
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../admin/authentication/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Authentication & SSO
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../admin/data-tab/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data & Maintenance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../admin/auto-updates/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Automatic Updates
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/azure-deployment-walkthrough/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Azure Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/azure-deployment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Azure Deployment Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/scaling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Scaling & Load Testing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/demo-dataset/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Demo Dataset
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../operations/nightly-review/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Nightly Review
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/troubleshooting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Troubleshooting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_1" id="__nav_4_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    API
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Matrix & Permissions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/entities/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Entity Detail
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/governance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Governance & Business Roles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/risk-scores/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Scores
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/config/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/permissions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Permissions & Roles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/sql-views/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Database Views
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/sbom/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Software Bill of Materials
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/coverage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Test Coverage
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Project
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_1" id="__nav_5_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Marketing & Press Kit
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Marketing & Press Kit
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../marketing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../marketing/product-brief/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Product Brief
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../marketing/key-messages/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Key Messages
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../marketing/features/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Features
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../marketing/use-cases/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Use Cases
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../marketing/proof-points/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Proof Points
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../marketing/competitive-landscape/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Where Identity Atlas Fits
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../marketing/faq/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../marketing/boilerplate/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Boilerplate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../about/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    About Identity Atlas
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../history/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    History
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_4" id="__nav_5_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Contributing
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../contributing/report-an-issue/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Report a Bug or Request a Feature
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../contributing/contribute/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contribute a Change
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../contributing/ci-pipeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CI Pipeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../contributing/style-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    UI Style Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/ci-scope-testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CI Scope Testing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_5" id="__nav_5_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User Experience
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    User Experience
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ux/assessment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Assessment & Remediation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_6" id="__nav_5_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Security
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Security
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../security/assessment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Assessment & Remediation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../security/maintenance-audit-2026-06/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Maintenance Audit (June 2026)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#waarom-v2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Waarom v2
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#de-twee-instrumenten" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        De twee instrumenten
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="De twee instrumenten">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#instrument-a-coverage-grid-ondersteunend-compleetheid" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Instrument A — Coverage-grid (ondersteunend: compleetheid)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#instrument-b-journey-walkthroughs-primair-bruikbaarheid" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Instrument B — Journey-walkthroughs (primair: bruikbaarheid)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#doc-type-assen-4-na-review" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Doc-type-assen (4, na review)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#statusrubric-na-review" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Statusrubric (na review)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#verificatie-gate-verplicht-voor-elk-besluit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Verificatie-gate (verplicht vóór elk besluit)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#instrument-b-journeys-primair" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Instrument B — Journeys (primair)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#prioritering-volgorde-na-review" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prioritering &amp; volgorde (na review)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#backlog-format-na-review" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Backlog-format (na review)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#recurrence-freshness-na-review" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Recurrence / freshness (na review)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#overall-exit-criterium" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Overall exit-criterium
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#werkwijze-per-cluster" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Werkwijze per cluster
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#voortgang" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Voortgang
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cluster-0-niet-feature-docs-nieuw-na-review" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cluster 0 — Niet-feature-docs (nieuw, na review)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cluster-1-aan-de-slag-dashboard" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cluster 1 — Aan de slag &amp; Dashboard
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cluster-2-matrix" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cluster 2 — Matrix
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cluster-3-contexts-scherm-plugins-api" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cluster 3 — Contexts (scherm + plugins + API)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cluster-4-entities-detailpaginas" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cluster 4 — Entities &amp; detailpagina's
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cluster-5-risk-scoring-aillm" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cluster 5 — Risk scoring &amp; AI/LLM
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cluster-6-governance-business-roles" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cluster 6 — Governance / business roles
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cluster-7-sync-bronnen-crawlers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cluster 7 — Sync-bronnen / crawlers
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cluster-8-admin-instellingen" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cluster 8 — Admin &amp; instellingen
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cluster-9-integratie-ingest-api-owner-van-custom-connector" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cluster 9 — Integratie &amp; ingest-API (owner van Custom Connector)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cluster-10-platform-datamodel-owner-van-context-schema" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cluster 10 — Platform &amp; datamodel (owner van context-schema)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#review-appendix-dual-voice" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Review-appendix (dual-voice)
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+                
+
+
+
+  
+
+
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="documentation-remediation-plan-v2-living-document">Documentation Remediation Plan v2 (living document)<a class="headerlink" href="#documentation-remediation-plan-v2-living-document" title="Permanent link">&para;</a></h1>
+<blockquote>
+<p><strong>Purpose:</strong> Vaststellen of de IdentityAtlas-documentatie (a) <strong>compleet</strong> is t.o.v. verscheepte features én (b) <strong>bruikbaar</strong> is voor de gestelde doelen — en de gaten gestructureerd wegwerken. Voortbouwend op <a href="../docs-gap-audit/"><code>docs-gap-audit.md</code></a>.
+<strong>Basis:</strong> edge (<code>main</code> @ <code>d4afdb9f</code>, v5.441). <strong>Branch:</strong> <code>feature/docs-gap-audit</code> (lokaal).
+<strong>v2-wijziging (na dual-voice review):</strong> bruikbaarheid wordt gemeten met <strong>journey-walkthroughs (primair instrument)</strong>; het coverage-grid is <strong>ondersteunend inventaris</strong>. Zie de <a href="#review-appendix-dual-voice">Review-appendix</a> onderaan.
+<strong>Uitvoering (2026-07-15):</strong> alle <strong>34 backlog-items (BL-1..BL-34) toegepast</strong> — 20 docs bijgewerkt + 6 nieuwe gidsen (dashboard, contexts, effective-access, custom-connector, data-tab, authentication), in de mkdocs-nav gehangen. Zie de changelog-fragment <code>changes/docs-gap-audit.md</code>.</p>
+</blockquote>
+<h2 id="waarom-v2">Waarom v2<a class="headerlink" href="#waarom-v2" title="Permanent link">&para;</a></h2>
+<p>De v1 mat uitsluitend <em>aanwezigheid</em> per feature (✅/🟡/⭕). Een onafhankelijke review met vier voices (drie Claude-subagents + Codex, alle op de echte bestanden) concludeerde unaniem: dat beantwoordt goal (a) maar <strong>niet goal (b)</strong>. Een cluster kan volledig groen worden en tóch docs opleveren waar een echte gebruiker op vastloopt (aanwezig ≠ correct ≠ vindbaar ≠ uitvoerbaar). v2 repareert dit met twee instrumenten en een aantal proces-gates.</p>
+<hr />
+<h2 id="de-twee-instrumenten">De twee instrumenten<a class="headerlink" href="#de-twee-instrumenten" title="Permanent link">&para;</a></h2>
+<h3 id="instrument-a-coverage-grid-ondersteunend-compleetheid">Instrument A — Coverage-grid (ondersteunend: <em>compleetheid</em>)<a class="headerlink" href="#instrument-a-coverage-grid-ondersteunend-compleetheid" title="Permanent link">&para;</a></h3>
+<p>Per feature × doc-type-as een statuscel. Beantwoordt: <em>bestaat er correcte documentatie voor deze feature?</em> Dit is inventaris/traceerbaarheid, geen bewijs van bruikbaarheid.</p>
+<h3 id="instrument-b-journey-walkthroughs-primair-bruikbaarheid">Instrument B — Journey-walkthroughs (<strong>primair</strong>: <em>bruikbaarheid</em>)<a class="headerlink" href="#instrument-b-journey-walkthroughs-primair-bruikbaarheid" title="Permanent link">&para;</a></h3>
+<p>Een kleine set benoemde persona-taken die end-to-end met <strong>alléén de docs</strong> wordt doorlopen door iemand die de betreffende doc <strong>niet</strong> schreef. Dit is de acceptatietest voor "bruikbaar voor de gestelde doelen". Een cluster/journey is pas klaar als de walkthrough slaagt.</p>
+<hr />
+<h2 id="doc-type-assen-4-na-review">Doc-type-assen (4, na review)<a class="headerlink" href="#doc-type-assen-4-na-review" title="Permanent link">&para;</a></h2>
+<p><strong>Analyst/Gebruiker is primair (P1).</strong> Voor dit product (role-mining / access-governance) is de kern-eindgebruiker de <strong>Analyst/Reviewer</strong> die onderzoekt en attesteert — niet een generieke "hoe gebruik ik dit scherm"-lezer.</p>
+<table>
+<thead>
+<tr>
+<th>As</th>
+<th>Voor wie</th>
+<th>Thuisbasis</th>
+<th>Prio</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Analyst/Gebruiker</strong></td>
+<td>Role-mining/attestatie-eindgebruiker: "wie kan bij X en waarom", "certificeer deze toegang", "vind over-privileged identities"</td>
+<td><code>docs/ui/</code>, <code>docs/quickstart.md</code>, <code>docs/concepts/</code> (taakgericht)</td>
+<td><strong>P1</strong></td>
+</tr>
+<tr>
+<td><strong>Operator</strong></td>
+<td>Installeren, configureren, draaien, herstellen</td>
+<td><code>docs/admin/</code>, <code>docs/reference/config.md</code>, deployment/docker, security, operations</td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Contributor</strong></td>
+<td>Meebouwen aan de repo: architectuur, conventies, extensiepunten, tests</td>
+<td><code>docs/architecture/</code>, <code>building-a-crawler.md</code>, <code>CLAUDE.md</code>-files</td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>API-consument</strong></td>
+<td>Integreert via de API zonder de repo aan te raken: contracten, auth, voorbeelden, fouten, versionering</td>
+<td><code>docs/api/</code>, <code>openapi.yaml</code>, <code>docs/reference/sql-views.md</code></td>
+<td><strong>P1 voor push/ingest</strong>, anders P2</td>
+</tr>
+</tbody>
+</table>
+<p><code>docs/concepts/</code> mag de <strong>Contributor</strong>-cel vervullen, maar de <strong>Analyst/Gebruiker</strong>-cel vereist een taak-/schermgerichte gids; een stale concept-doc telt alleen negatief mee bij Contributor.</p>
+<h2 id="statusrubric-na-review">Statusrubric (na review)<a class="headerlink" href="#statusrubric-na-review" title="Permanent link">&para;</a></h2>
+<p>Twee onafhankelijke dimensies per cel — <strong>coverage</strong> en <strong>trust</strong> — zodat "fout" niet meer in "partieel" verdwijnt:</p>
+<table>
+<thead>
+<tr>
+<th>Symbool</th>
+<th>Betekenis</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>✅</td>
+<td>Aanwezig <strong>én</strong> voldoet aan de bruikbaarheidsrubric (zie onder)</td>
+</tr>
+<tr>
+<td>🟡</td>
+<td>Aanwezig maar onvolledig voor de taak (mist stappen/voorbeelden/prereqs)</td>
+</tr>
+<tr>
+<td>⭕</td>
+<td>Ontbreekt</td>
+</tr>
+<tr>
+<td>❌</td>
+<td><strong>Aanwezig maar feitelijk fout / misleidend</strong> — sorteert vóór ⭕</td>
+</tr>
+<tr>
+<td><strong>P0</strong></td>
+<td>❌ dat misleidend én security/privacy-gevoelig is (bijv. <code>risky-consent</code>-egress, foute risk-drempels) → <strong>release-blocking</strong></td>
+</tr>
+<tr>
+<td>—</td>
+<td>n.v.t. voor deze as</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Bruikbaarheidsrubric — een cel is pas ✅ als het doc:</strong> accuraat is t.o.v. de baseline-commit · vindbaar is vanuit het logische startpunt · prerequisites vermeldt · uitvoerbare stappen bevat · copy-paste-complete voorbeelden heeft (incl. auth/base-url/verwachte output) · het verwachte resultaat toont · veelvoorkomende foutpaden dekt · onafhankelijk is getest.</p>
+<h2 id="verificatie-gate-verplicht-voor-elk-besluit">Verificatie-gate (verplicht vóór elk besluit)<a class="headerlink" href="#verificatie-gate-verplicht-voor-elk-besluit" title="Permanent link">&para;</a></h2>
+<p>De grids zijn <strong>vooraf ingevuld uit een AI-audit en gelden als ONGEVERIFIEERD</strong>. Voordat op een cel een actie (schrijf/fix/werk-bij) wordt besloten:
+1. Open het geciteerde codebestand én het geciteerde doc; bevestig het symbool/feit.
+2. Markeer de cel <code>geverifieerd</code> (met checker + datum) i.p.v. <code>geërfd</code>.
+3. Stempel de cel met de baseline-commit waartegen geverifieerd is.</p>
+<p><em>(De review deed dit al voor 2 cellen — tiers=90/70 en <code>/perf/slow</code>+<code>/perf/toggle</code> — en beide klopten. Verificatie is dus goedkoop, niet overbodig.)</em></p>
+<hr />
+<h2 id="instrument-b-journeys-primair">Instrument B — Journeys (primair)<a class="headerlink" href="#instrument-b-journeys-primair" title="Permanent link">&para;</a></h2>
+<p>Kandidaat-journeys (definitief te maken in de eerste sessie). Elk mapt naar de clusters die het raakt en heeft een pass/fail uit een doc-only walkthrough:</p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Journey (persona)</th>
+<th>Raakt clusters</th>
+<th>Kern-vraag</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>J1</td>
+<td><strong>Zero-to-first-insight</strong> (Analyst): <code>docker compose up</code> → eerste crawler → data op Dashboard → eerste finding in Matrix</td>
+<td>1,7,8,4,2</td>
+<td>Komt een nieuwe evaluator van nul naar eerste inzicht, alleen met docs?</td>
+</tr>
+<tr>
+<td>J2</td>
+<td><strong>Beoordeel een risk-score</strong> (Analyst): lees een identity-risk-badge → begrijp de tier → doe een analyst-override</td>
+<td>5,4</td>
+<td>Kan de analist de score begrijpen en erop handelen?</td>
+</tr>
+<tr>
+<td>J3</td>
+<td><strong>"Wie kan bij X en waarom"</strong> (Analyst): effective-access / matrix-onderzoek</td>
+<td>2,10,4</td>
+<td>Kan de analist toegang aantonen en verklaren?</td>
+</tr>
+<tr>
+<td>J4</td>
+<td><strong>Certificeer toegang</strong> (Analyst): governance/attestatie-flow</td>
+<td>6,4</td>
+<td>Kan een access-review worden voltooid?</td>
+</tr>
+<tr>
+<td>J5</td>
+<td><strong>Zet een Entra-crawler op</strong> (Operator): kies phase-toggles bewust</td>
+<td>7,8</td>
+<td>Weet de operator welke toggles nodig zijn en wat elk kost?</td>
+</tr>
+<tr>
+<td>J6</td>
+<td><strong>Push data via custom connector</strong> (API-consument): alleen met <code>docs/api</code></td>
+<td>9</td>
+<td>Kan een integrator zonder repo data pushen + key roteren?</td>
+</tr>
+<tr>
+<td>J7</td>
+<td><strong>Bouw een crawler</strong> (Contributor): end-to-end vanuit de docs</td>
+<td>7,9,10</td>
+<td>Kan een bijdrager een crawler bouwen alleen met de docs?</td>
+</tr>
+<tr>
+<td>J8</td>
+<td><strong>Maak + hergebruik een Context</strong> (Analyst): tree, plugin-run, "Filter matrix"</td>
+<td>3,2</td>
+<td>Werkt het nieuwste, complexste oppervlak end-to-end?</td>
+</tr>
+<tr>
+<td>J9</td>
+<td><strong>Administreer de deployment</strong> (Operator): Admin-panel, Auth/Roles, export, retention, danger-zone</td>
+<td>8</td>
+<td>Kan een operator de app beheren doc-only?</td>
+</tr>
+<tr>
+<td>J10</td>
+<td><strong>Begrijp + query het datamodel</strong> (Contributor): schema, geldige enums, SQL-views</td>
+<td>10</td>
+<td>Kan een contributor het datamodel begrijpen én querien doc-only?</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Pilot eerst één complexe flow</strong> (aanbevolen door de review) — J8 of J1 — als taakgerichte gids + usability-test, vóór het opschalen van het format.</p>
+<p><strong>Walkthrough-resultatentabel (per journey):</strong></p>
+<table>
+<thead>
+<tr>
+<th>Journey</th>
+<th>Persona</th>
+<th>Voltooid? (j/n)</th>
+<th>Eerste blocker</th>
+<th>Waar men de docs moest verlaten</th>
+<th>Backlog-item</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>J1 (pilot, 2026-07-15)</strong></td>
+<td>Analyst/Operator</td>
+<td><strong>NEE</strong> (doc-only)</td>
+<td>Entra-setup: <code>entra-id.md</code> noemt "vul Tenant/Client ID + Secret" maar niet <strong>welke Graph-permissies</strong> nodig zijn; die lijst staat in <code>reference/troubleshooting.md</code> (verkeerd thuis) en <code>quickstart.md</code> linkt niet naar <code>entra-id.md</code>. (App Registration aanmaken = bekende Entra-kennis, geen doc-gap.)</td>
+<td>(1) permissie-lijst → uit troubleshooting halen; (2) dashboard-landingspagina heeft geen doc; (3) Matrix-scopen kan alleen via de ongedocumenteerde Filter-Wizard</td>
+<td>BL-1..BL-7</td>
+</tr>
+</tbody>
+</table>
+<p>| <strong>J8 (2026-07-15)</strong> | Analyst | <strong>NEE</strong> (doc-only) | Er is <strong>geen</strong> gebruikersgids voor het Contexts-scherm; <code>overview.md</code> noemt Contexts niet. De enige docs (<code>context-redesign.md</code> + <code>context-redesign-ui.md</code>) zijn architecture-specs met kop <strong>"not yet implemented"</strong> terwijl de feature live is → misleidend. | Direct — de analist heeft geen enkele stap-gids en moet volledig op de UI zelf terugvallen | BL-8, BL-9, BL-10 |
+| <strong>J2 (2026-07-15)</strong> | Analyst | ⚠️ PARTIAL | Stappen zijn gedocumenteerd, maar <code>risk-scoring/overview.md</code>+<code>design.md</code> geven <strong>foute tier-grenzen</strong> (Critical ≥80/High ≥60 i.p.v. code ≥90/≥70; Medium-boven ook fout). <code>ui/overview.md</code> is juist maar spreekt ze tegen → analist mist-classificeert elke badge. | Voor de <em>juiste</em> tier-betekenis moet men <code>tiers.js</code> lezen | BL-11, BL-12, BL-13 |
+| <strong>J3 (2026-07-15)</strong> | Analyst | ⚠️ PARTIAL | "Wie kan bij X" <em>direct</em> lukt; <em>effective/inherited access</em> bestaat alleen als design-spec, endpoints staan in geen API-ref, geen taakgids. <code>matrix.md</code> leert nog retired <code>O</code>-badge; <code>api/matrix.md</code>+<code>entities.md</code> noemen v4-relikwie <code>mat_UserPermissionAssignments</code>. | Om het badge-model + effective-access te resolven moest men migraties + <code>engine.js</code> lezen | BL-14, BL-15, BL-16 |
+| <strong>J4 (2026-07-15)</strong> | Analyst/Reviewer | <strong>NEE</strong> (doc-only) | Geen product-surface om een certificering <em>uit te voeren</em> (read-only mirror), en de docs zeggen dat niet. Bovendien gebruiken <code>governance-model.md</code>+<code>api/governance.md</code> het <strong>retired <code>assignmentType='Governed'</code></strong> (sinds mig 047 een boolean-flag) en verkeerde tabelnamen (<code>GraphCategories</code>→<code>GovernanceCategories</code>). <strong>Weerlegt audit</strong> (die noemde governance "goed gedekt"). | Om "hoe leg ik een besluit vast" te vinden moest men <code>routes/</code> grep'en | BL-17, BL-18, BL-19 |
+| <strong>J5 (2026-07-15)</strong> | Operator | ⚠️ PARTIAL | Setup-flow (wizard) ís gedocumenteerd, maar bewuste <strong>toggle-keuze</strong> faalt: 6 verscheepte toggles ontbreken in de flags-tabel (BL-3), geen "welke toggle voor welk doel"-hulp, permissies elders (BL-1), diagram fout (BL-2). | Voor toggle-effecten + permissies moet men de docs verlaten | BL-1, BL-2, BL-3, BL-20 |
+| <strong>J6 (2026-07-15)</strong> | API-consument | ⚠️ PARTIAL | <em>Roteren</em> lukt; <em>eerste record pushen</em> faalt end-to-end: geen <code>docs/sync/custom-connector.md</code>, geen runnable <code>curl</code> onder <code>docs/api/</code> (enige zit in <code>app/api/CLAUDE.md</code>), en <code>ingest-api.md</code> is stale (response-shape + <code>assignmentType</code>-enum lijst retired waarden → 400). | Voor een key + echte payload/response moet men handler + <code>openapi.yaml</code> lezen | BL-21, BL-22, BL-23 |
+| <strong>J7 (2026-07-15)</strong> | Contributor | ✅ <strong>PASS</strong> | Geen — een contributor kan doc-only een crawler scaffolden vanuit <code>building-a-crawler.md</code> (+ architecture + CLAUDE.md). Alleen 2 kleine cross-doc-tegenstrijdigheden (stale <code>getConfigSecret</code>-signatuur; wizard-import-stijl). | Nergens (alleen cross-check bij 2 tegenstrijdigheden) | BL-24, BL-25, BL-26 |
+| <strong>J9 (2026-07-15)</strong> | Operator | <strong>NEE</strong> (doc-only) | Alleen Auth/Roles (stap b) lukt doc-only. <code>overview.md</code> noemt <strong>3</strong> admin-subtabs i.p.v. <strong>10</strong>; de <strong>Data</strong>-tab (export/retention/danger-zone) bestaat nergens in de docs, en <code>audit-history.md</code> verwijst naar een niet-bestaande "History Retention"-subtab. | Voor 6 van de 10 tabs + retentie + danger-zone moest men <code>adminTabs.js</code>/<code>maintenance.js</code>/<code>curatedData.js</code> lezen | BL-31, BL-32, BL-33, BL-34 |
+| <strong>J10 (2026-07-15)</strong> | Contributor | ⚠️ PARTIAL | Schema + geldige enums begrijpen lukt (<code>data-model.md</code> is juist — audit-verdenking onterecht). Maar <em>querien</em> faalt: <code>sql-views.md</code>-voorbeelden selecteren niet-bestaande kolommen, noemen matviews "planned" (zijn gematerialiseerd sinds mig 013), en <code>assignment-model-redesign.md</code> zegt nog "no code yet". | Voor de echte view-kolommen moest men de migraties lezen | BL-27, BL-28, BL-29, BL-30 |</p>
+<p><strong>J8-verdict:</strong> direct FAIL. Een primair, altijd-zichtbaar tabblad (Contexts) heeft nul gebruikersdocumentatie, en de enige bestaande docs claimen dat de feature niet bestaat. Dit is de scherpste bevestiging van audit-bevinding A2 + B1, nu via de journey-lens: het grid alleen zou dit als "🟡 spec bestaat" kunnen lezen; de journey laat zien dat de spec de gebruiker actief misleidt.</p>
+<p><strong>J1-verdict:</strong> demo-pad (Load Demo Data) werkt en is goed gedocumenteerd. Maar het <em>echte</em> first-insight-pad faalt doc-only op drie punten: (a) eigen Entra-tenant koppelen vergt de docs verlaten voor de permissielijst; (b) de Dashboard-landingspagina waar je op uitkomt heeft geen gebruikersdoc; (c) de Matrix scopen om een <em>finding</em> te bereiken kan alleen via de Filter-Wizard, die niet is gedocumenteerd (overview.md beschrijft nog de verwijderde "User Limit Slider"). Extra bevinding: <code>index.md</code> en <code>quickstart.md</code> spreken elkaar tegen over of <code>.env</code> nodig is.</p>
+<hr />
+<h2 id="prioritering-volgorde-na-review">Prioritering &amp; volgorde (na review)<a class="headerlink" href="#prioritering-volgorde-na-review" title="Permanent link">&para;</a></h2>
+<ol>
+<li><strong>P0 eerst</strong> — misleidende/security-gevoelige docs (Tier A + <code>risky-consent</code>-egress). Fout &gt; ontbrekend.</li>
+<li><strong>Dan de first-run journey (J1)</strong> — elke gebruiker raakt dit op dag 1; een gestrande dag-1-gebruiker bereikt Contexts nooit.</li>
+<li><strong>Daarna herordenen op journey-impact</strong> = taakfrequentie × schade-bij-fout × centraliteit — <strong>niet</strong> op gap-grootte.</li>
+</ol>
+<p>Prio-rubriek per backlog-rij: <code>doelgroep (P1&gt;P2) × foutheid (❌/P0 &gt; ⭕ &gt; 🟡) × gebruiksfrequentie</code>.</p>
+<h2 id="backlog-format-na-review">Backlog-format (na review)<a class="headerlink" href="#backlog-format-na-review" title="Permanent link">&para;</a></h2>
+<p>Per gap een rij met <strong>uitvoerbare</strong> velden:</p>
+<p><code>feature-ID | doc-type | actie | prio | owner | schatting | doeldoc | definition-of-done | status</code></p>
+<ul>
+<li><strong>Acties:</strong> <code>schrijf</code> · <code>werk-bij</code> · <code>fix</code> · <strong><code>reduce/hide/deprecate</code></strong> (product zó maken dat de doc niet nodig is) · <code>accepteer</code>.</li>
+<li><strong><code>accepteer</code> vereist:</strong> reden + geraakte persona's/taken + akkoordgever + restrisico + herzien-op-datum. Geen stille drop.</li>
+<li><strong>Definition-of-done</strong> is gekoppeld aan een taak: <em>"journey Jx slaagt doc-only"</em>, niet <em>"pagina bestaat"</em>.</li>
+</ul>
+<h2 id="recurrence-freshness-na-review">Recurrence / freshness (na review)<a class="headerlink" href="#recurrence-freshness-na-review" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Elke cel stempelen met de <strong>baseline-commit</strong>; staleness wordt zo zichtbaar (edge staat al op v5.443 t.o.v. baseline v5.441).</li>
+<li><strong>Re-audit-trigger:</strong> een PR die een gelist codepad raakt moet dat clustergrid bijwerken; overweeg de bestaande <code>openapi.drift.test</code> uit te breiden naar de read-API en een "docs-touched?"-item in het PR/release-sjabloon. Anders re-rot het grid net als de docs nu (jouw eigen A2).</li>
+</ul>
+<h2 id="overall-exit-criterium">Overall exit-criterium<a class="headerlink" href="#overall-exit-criterium" title="Permanent link">&para;</a></h2>
+<p>Het geheel is klaar wanneer:
+1. <strong>Alle P0/❌</strong> fout-docs zijn gefixt.
+2. <strong>Elke persona-journey (J1–J10) slaagt</strong> in een doc-only walkthrough.
+3. Geen <strong>⭕ op P1-cellen</strong> (Analyst/Gebruiker + API-consument voor push/ingest).</p>
+<h2 id="werkwijze-per-cluster">Werkwijze per cluster<a class="headerlink" href="#werkwijze-per-cluster" title="Permanent link">&para;</a></h2>
+<ol>
+<li>Kies/pin de journey(s) die dit cluster raken.</li>
+<li><strong>Verifieer</strong> de grid-cellen die je gaat behandelen (verificatie-gate).</li>
+<li>Vul de backlog met uitvoerbare rijen (owner + DoD).</li>
+<li>Voer de walkthrough uit; log blockers.</li>
+<li>Markeer cluster afgerond zodra zijn journey doc-only slaagt en P1-cellen geen ⭕ meer hebben.</li>
+</ol>
+<h2 id="voortgang">Voortgang<a class="headerlink" href="#voortgang" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Cluster / spoor</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>Niet-feature-docs (getting-started, troubleshooting/errors, concepten "waarom", limitations)</td>
+<td>🔄 deels via J1 (cellen ✔)</td>
+</tr>
+<tr>
+<td>1</td>
+<td>Aan de slag &amp; Dashboard</td>
+<td>✅ fixes toegepast — via J1 (BL-4,5,7)</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Matrix</td>
+<td>✅ fixes toegepast — via J1+J3 (BL-6,14,15,16)</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Contexts (scherm + plugins + API)</td>
+<td>✅ fixes toegepast — via J8 (BL-8,9,10)</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Entities &amp; detailpagina's</td>
+<td>⬜ te doen (geraakt door J2/J3/J4; bevindingen in 2/5/6)</td>
+</tr>
+<tr>
+<td>5</td>
+<td>Risk scoring &amp; AI/LLM</td>
+<td>✅ fixes toegepast — via J2 (BL-11,12,13)</td>
+</tr>
+<tr>
+<td>6</td>
+<td>Governance / business roles</td>
+<td>✅ fixes toegepast — via J4 — <strong>weerlegt audit</strong> (BL-17,18,19)</td>
+</tr>
+<tr>
+<td>7</td>
+<td>Sync-bronnen / crawlers</td>
+<td>✅ fixes toegepast — via J1+J5+J7 (BL-1,2,3,20,24,25,26)</td>
+</tr>
+<tr>
+<td>8</td>
+<td>Admin &amp; instellingen (incl. Admin nav-shell / 10 sub-tabs)</td>
+<td>✅ fixes toegepast — via J9 (BL-31,32,33,34)</td>
+</tr>
+<tr>
+<td>9</td>
+<td>Integratie &amp; ingest-API (<strong>owner van Custom Connector</strong>)</td>
+<td>✅ fixes toegepast — via J6 (BL-21,22,23)</td>
+</tr>
+<tr>
+<td>10</td>
+<td>Platform &amp; datamodel (owner van context-<strong>schema</strong>)</td>
+<td>✅ fixes toegepast — via J10 (BL-27,28,29,30)</td>
+</tr>
+<tr>
+<td>J</td>
+<td>Journeys J1–J10 (primair instrument)</td>
+<td>✅ <strong>alle 10 uitgevoerd</strong> — J7 PASS · J2/J3/J5/J6/J10 PARTIAL · J1/J4/J8/J9 FAIL (doc-only)</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><strong>MECE-fixes toegepast:</strong> Custom Connector wordt geownd door <strong>Cluster 9</strong> (stub-referentie in 7). De v6 context-<strong>scherm/API</strong> hoort in Cluster 3, het <strong>schema/tabellen</strong> in Cluster 10. "Alle 10 Admin sub-tabs" krijgt één canonieke rij in Cluster 8. De valse "DevOps"-marketingclaim wordt vastgelegd in Cluster 0 (niet stil gedropt ondanks marketing-out-of-scope).</p>
+</blockquote>
+<hr />
+<h2 id="cluster-0-niet-feature-docs-nieuw-na-review">Cluster 0 — Niet-feature-docs (nieuw, na review)<a class="headerlink" href="#cluster-0-niet-feature-docs-nieuw-na-review" title="Permanent link">&para;</a></h2>
+<p>Code-as-ground-truth mist wat geen feature is maar wél het meest bevraagd wordt.</p>
+<blockquote>
+<p><strong>✔ = geverifieerd tegen code/docs op 2026-07-15 (baseline <code>d4afdb9f</code>).</strong> Ongemarkeerde cellen zijn nog geërfd uit de audit.</p>
+</blockquote>
+<table>
+<thead>
+<tr>
+<th>Categorie</th>
+<th style="text-align: center;">Analyst/Gebruiker</th>
+<th style="text-align: center;">Operator</th>
+<th style="text-align: center;">Contributor</th>
+<th style="text-align: center;">API-consument</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Getting-started / onboarding (J1)</td>
+<td style="text-align: center;">🟡 ✔ (demo ok; eigen-tenant faalt)</td>
+<td style="text-align: center;">🟡 ✔</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">—</td>
+</tr>
+<tr>
+<td>Troubleshooting / foutmeldingen ("het synct niet — waarom")</td>
+<td style="text-align: center;">🟡 ✔ (bestaat, dun/verkeerd thuis)</td>
+<td style="text-align: center;">🟡 ✔</td>
+<td style="text-align: center;">🟡 ✔</td>
+<td style="text-align: center;">⭕ ✔</td>
+</tr>
+<tr>
+<td>Concepten / "waarom" (mentale modellen)</td>
+<td style="text-align: center;">🟡</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">🟡</td>
+<td style="text-align: center;">—</td>
+</tr>
+<tr>
+<td>Limitations / known-issues (incl. valse "DevOps"-bron-claim)</td>
+<td style="text-align: center;">⭕</td>
+<td style="text-align: center;">⭕</td>
+<td style="text-align: center;">⭕</td>
+<td style="text-align: center;">⭕</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Backlog:</strong> <em>(in te vullen tijdens review)</em></p>
+<hr />
+<h2 id="cluster-1-aan-de-slag-dashboard">Cluster 1 — Aan de slag &amp; Dashboard<a class="headerlink" href="#cluster-1-aan-de-slag-dashboard" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Feature</th>
+<th style="text-align: center;">Analyst/Gebruiker</th>
+<th style="text-align: center;">Operator</th>
+<th style="text-align: center;">Contributor</th>
+<th style="text-align: center;">API-consument</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Quickstart / eerste crawler</td>
+<td style="text-align: center;">🟡</td>
+<td style="text-align: center;">🟡</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">—</td>
+</tr>
+<tr>
+<td>Dashboard-landingspagina</td>
+<td style="text-align: center;">⭕</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">🟡</td>
+<td style="text-align: center;">—</td>
+</tr>
+<tr>
+<td>Trends-tab</td>
+<td style="text-align: center;">⭕</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">—</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Backlog:</strong></p>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Actie</th>
+<th>Prio</th>
+<th>Owner</th>
+<th>Doeldoc</th>
+<th>Definition-of-done</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>BL-4</td>
+<td>werk-bij: link <code>entra-id.md</code> (+ demo vs eigen-tenant keuze) vanuit "What's Next"</td>
+<td>P1</td>
+<td><em>tbd</em></td>
+<td><code>docs/quickstart.md</code></td>
+<td>J1 stap 2: nieuwe user vindt de Entra-setup zonder gokken</td>
+</tr>
+<tr>
+<td>BL-5</td>
+<td>schrijf: gebruikersdoc Dashboard-landingspagina (cards, counts, "is mijn data binnen?")</td>
+<td>P1</td>
+<td><em>tbd</em></td>
+<td><code>docs/ui/</code> (nieuw)</td>
+<td>J1 stap 3: user begrijpt wat hij ziet doc-only</td>
+</tr>
+<tr>
+<td>BL-7</td>
+<td>fix: <code>.env</code>-tegenspraak tussen <code>index.md</code> (download <code>.env.example</code>) en <code>quickstart.md</code> ("just Docker")</td>
+<td>P2</td>
+<td><em>tbd</em></td>
+<td><code>docs/index.md</code> + <code>docs/quickstart.md</code></td>
+<td>Eén consistent install-verhaal</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="cluster-2-matrix">Cluster 2 — Matrix<a class="headerlink" href="#cluster-2-matrix" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Feature</th>
+<th style="text-align: center;">Analyst/Gebruiker</th>
+<th style="text-align: center;">Operator</th>
+<th style="text-align: center;">Contributor</th>
+<th style="text-align: center;">API-consument</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Basis-view (badges, staircase, DnD, IST-SOLL, export)</td>
+<td style="text-align: center;">🟡</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">❌ ✔ (<code>matrix.md</code> leert retired <code>O</code>-badge; <code>api/*</code> noemt v4-relikwie <code>mat_UserPermissionAssignments</code>)</td>
+<td style="text-align: center;">—</td>
+</tr>
+<tr>
+<td>Filter-Wizard (3-staps + opgeslagen matrices)</td>
+<td style="text-align: center;">⭕</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">⭕</td>
+<td style="text-align: center;">⭕</td>
+</tr>
+<tr>
+<td>Roll-up-by-attribute</td>
+<td style="text-align: center;">⭕</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">⭕</td>
+<td style="text-align: center;">—</td>
+</tr>
+<tr>
+<td>Oriëntatie / geroteerde view</td>
+<td style="text-align: center;">⭕</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">⭕</td>
+<td style="text-align: center;">—</td>
+</tr>
+<tr>
+<td>Scope-statistieken</td>
+<td style="text-align: center;">🟡</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">—</td>
+</tr>
+<tr>
+<td>Matrix-interactie-endpoints (preview, hierarchy-paths, saved-filters)</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">⭕</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Backlog:</strong></p>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Actie</th>
+<th>Prio</th>
+<th>Owner</th>
+<th>Doeldoc</th>
+<th>Definition-of-done</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>BL-6</td>
+<td>schrijf Filter-Wizard/saved-matrices/roll-up + fix: verwijder verouderde "User Limit Slider" uit overview.md</td>
+<td>P1</td>
+<td><em>tbd</em></td>
+<td><code>docs/ui/overview.md</code> (+ matrix)</td>
+<td>J1 stap 4: analist kan de matrix scopen en een <em>finding</em> bereiken doc-only</td>
+</tr>
+<tr>
+<td>BL-14</td>
+<td>schrijf taakgids "Wie kan bij resource X, en waarom" (direct + inherited holders + access-path)</td>
+<td>P1</td>
+<td><em>tbd</em></td>
+<td><code>docs/guides/effective-access-howto.md</code> (nieuw)</td>
+<td>J3: analist beantwoordt "wie + waarom" doc-only</td>
+</tr>
+<tr>
+<td>BL-15</td>
+<td>werk-bij: documenteer effective-access-endpoints (<code>GET /resource/:id/effective-access</code>, <code>/principal/:id/…</code>, <code>POST /effective-access/resolve</code>)</td>
+<td>P1</td>
+<td><em>tbd</em></td>
+<td><code>docs/api/matrix.md</code></td>
+<td>Endpoints vindbaar buiten de design-spec</td>
+</tr>
+<tr>
+<td>BL-16</td>
+<td>fix stale badge-tabel (drop <code>O</code>/<code>Governed</code>, voeg DirectoryRole(Eligible) toe) + vervang <code>mat_UserPermissionAssignments</code> door <code>vw_ResourceUserPermissionAssignments</code></td>
+<td>P2</td>
+<td><em>tbd</em></td>
+<td><code>docs/architecture/matrix.md</code> + <code>docs/api/matrix.md</code> + <code>docs/api/entities.md</code></td>
+<td>Geen doc spreekt het 3-badge-model tegen; geen v4-relikwie</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="cluster-3-contexts-scherm-plugins-api">Cluster 3 — Contexts (scherm + plugins + API)<a class="headerlink" href="#cluster-3-contexts-scherm-plugins-api" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Feature</th>
+<th style="text-align: center;">Analyst/Gebruiker</th>
+<th style="text-align: center;">Operator</th>
+<th style="text-align: center;">Contributor</th>
+<th style="text-align: center;">API-consument</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Context-model (synced/generated/manual × 4 targets) — <em>scherm/gedrag; schema→C10</em></td>
+<td style="text-align: center;">⭕ ✔</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">❌ ✔ (spec zegt "not yet implemented" — misleidend)</td>
+<td style="text-align: center;">—</td>
+</tr>
+<tr>
+<td>Contexts-scherm (tree, drag-reparent, wizard, Filter-matrix)</td>
+<td style="text-align: center;">⭕ ✔</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">❌ ✔ (spec zegt "not yet implemented")</td>
+<td style="text-align: center;">—</td>
+</tr>
+<tr>
+<td>Plugin-catalogus (10; 5 ongedocumenteerd/mis-benoemd)</td>
+<td style="text-align: center;">⭕</td>
+<td style="text-align: center;">⭕</td>
+<td style="text-align: center;">🟡</td>
+<td style="text-align: center;">—</td>
+</tr>
+<tr>
+<td><code>risky-consent</code> externe threat-feed-egress</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;"><strong>P0</strong></td>
+<td style="text-align: center;">❌</td>
+<td style="text-align: center;">—</td>
+</tr>
+<tr>
+<td>Tags als context (<code>contextType='Tag'</code>)</td>
+<td style="text-align: center;">🟡 (stale GraphTags-ref)</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">🟡</td>
+<td style="text-align: center;">—</td>
+</tr>
+<tr>
+<td>Admin → Plugins-subtab</td>
+<td style="text-align: center;">⭕</td>
+<td style="text-align: center;">⭕</td>
+<td style="text-align: center;">🟡</td>
+<td style="text-align: center;">—</td>
+</tr>
+<tr>
+<td>Context write- + plugin-API (<code>/contexts</code> writes, <code>/context-plugins/*</code>)</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">⭕</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Backlog:</strong></p>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Actie</th>
+<th>Prio</th>
+<th>Owner</th>
+<th>Doeldoc</th>
+<th>Definition-of-done</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>BL-8</td>
+<td><strong>fix (❌):</strong> verwijder "not yet implemented"-status uit beide context-specs; markeer als geïmplementeerd (A2)</td>
+<td>P1</td>
+<td><em>tbd</em></td>
+<td><code>docs/architecture/context-redesign.md</code> + <code>context-redesign-ui.md</code></td>
+<td>Status matcht de verscheepte code</td>
+</tr>
+<tr>
+<td>BL-9</td>
+<td>schrijf: Analyst-gebruikersgids Contexts-scherm (tree, synced/generated/manual, New-Context-wizard, Run now, "Filter matrix")</td>
+<td>P1</td>
+<td><em>tbd</em></td>
+<td><code>docs/ui/</code> (nieuw)</td>
+<td>J8 slaagt doc-only</td>
+</tr>
+<tr>
+<td>BL-10</td>
+<td>werk-bij: <code>overview.md</code> nav-lijst — voeg Contexts toe, verwijder verwijderde "Org Chart" (findability)</td>
+<td>P1</td>
+<td><em>tbd</em></td>
+<td><code>docs/ui/overview.md</code></td>
+<td>Nieuwe user vindt het Contexts-tabblad via de docs</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="cluster-4-entities-detailpaginas">Cluster 4 — Entities &amp; detailpagina's<a class="headerlink" href="#cluster-4-entities-detailpaginas" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Feature</th>
+<th style="text-align: center;">Analyst/Gebruiker</th>
+<th style="text-align: center;">Operator</th>
+<th style="text-align: center;">Contributor</th>
+<th style="text-align: center;">API-consument</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Lijst+detail: Principals / Identities / Resources / Systems</td>
+<td style="text-align: center;">🟡 (stale namen/OrgUnits)</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
+</tr>
+<tr>
+<td>Entity-detail-tabs (attrs / graph / timeline / risk)</td>
+<td style="text-align: center;">🟡 (arch-only)</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">—</td>
+</tr>
+<tr>
+<td>Account-linking</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">—</td>
+</tr>
+<tr>
+<td>Secundaire detail-endpoints (contexts/assignments/business-roles/oauth2-grants)</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">⭕</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Backlog:</strong> <em>(in te vullen tijdens review)</em></p>
+<hr />
+<h2 id="cluster-5-risk-scoring-aillm">Cluster 5 — Risk scoring &amp; AI/LLM<a class="headerlink" href="#cluster-5-risk-scoring-aillm" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Feature</th>
+<th style="text-align: center;">Analyst/Gebruiker</th>
+<th style="text-align: center;">Operator</th>
+<th style="text-align: center;">Contributor</th>
+<th style="text-align: center;">API-consument</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>4-laags engine + risk-tiers</td>
+<td style="text-align: center;"><strong>P0</strong> (cutoffs FOUT)</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">❌ (cutoffs FOUT)</td>
+<td style="text-align: center;">—</td>
+</tr>
+<tr>
+<td>Classifiers (generatie-flow)</td>
+<td style="text-align: center;">🟡</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">🟡 (gestubd PS-pad)</td>
+<td style="text-align: center;">—</td>
+</tr>
+<tr>
+<td>Analyst-overrides</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">—</td>
+</tr>
+<tr>
+<td>AI-agent-scoring</td>
+<td style="text-align: center;">🟡</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">🟡 (stale refs)</td>
+<td style="text-align: center;">—</td>
+</tr>
+<tr>
+<td>LLM-classifier-generatie (Node vs. PS-stub)</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">🟡</td>
+<td style="text-align: center;">🟡</td>
+<td style="text-align: center;">—</td>
+</tr>
+<tr>
+<td>Risk-profile/classifier-API (~20 endpoints)</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">🟡</td>
+<td style="text-align: center;">⭕</td>
+</tr>
+<tr>
+<td>Admin → Risk-Scoring-wizard &amp; LLM-settings</td>
+<td style="text-align: center;">⭕</td>
+<td style="text-align: center;">🟡</td>
+<td style="text-align: center;">🟡</td>
+<td style="text-align: center;">—</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Backlog (via J2):</strong></p>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Actie</th>
+<th>Prio</th>
+<th>Owner</th>
+<th>Doeldoc</th>
+<th>Definition-of-done</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>BL-11</td>
+<td><strong>fix (P0):</strong> tier-grenzen → Critical 90–100, High 70–89, Medium 40–69 (matcht <code>tiers.js</code>)</td>
+<td>P0</td>
+<td><em>tbd</em></td>
+<td><code>docs/risk-scoring/overview.md</code></td>
+<td>Analist leidt uit overview.md dezelfde tier af als de badge toont</td>
+</tr>
+<tr>
+<td>BL-12</td>
+<td><strong>fix (P0):</strong> zelfde tier-correctie</td>
+<td>P0</td>
+<td><em>tbd</em></td>
+<td><code>docs/risk-scoring/design.md</code></td>
+<td>Geen doc noemt een cutoff die <code>tiers.js</code> tegenspreekt</td>
+</tr>
+<tr>
+<td>BL-13</td>
+<td>werk-bij: override = geheel getal −50..+50, reden 3–500 tekens</td>
+<td>P2</td>
+<td><em>tbd</em></td>
+<td><code>docs/risk-scoring/overview.md</code></td>
+<td>Analist krijgt geen onverklaarbare 400</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="cluster-6-governance-business-roles">Cluster 6 — Governance / business roles<a class="headerlink" href="#cluster-6-governance-business-roles" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Feature</th>
+<th style="text-align: center;">Analyst/Gebruiker</th>
+<th style="text-align: center;">Operator</th>
+<th style="text-align: center;">Contributor</th>
+<th style="text-align: center;">API-consument</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Business roles / governed assignments / resource grants</td>
+<td style="text-align: center;">🟡 ✔</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">❌ ✔ (docs gebruiken retired <code>assignmentType='Governed'</code>; sinds mig 047 een boolean-flag)</td>
+<td style="text-align: center;">—</td>
+</tr>
+<tr>
+<td>Certificeringen (uitvoeren)</td>
+<td style="text-align: center;">❌ ✔ (docs impliceren een flow; product is read-only mirror)</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">🟡 ✔</td>
+<td style="text-align: center;">—</td>
+</tr>
+<tr>
+<td>Assignment-policies / -requests</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">—</td>
+</tr>
+<tr>
+<td>IGA-platform-mapping (Entra/Omada/SailPoint)</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">—</td>
+</tr>
+<tr>
+<td>Governance-summary / review-compliance-API</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">🟡 ✔</td>
+<td style="text-align: center;">🟡 ✔ (tabelnamen <code>GraphCategories</code>→<code>GovernanceCategories</code> fout; endpoints niet in api/governance.md)</td>
+<td style="text-align: center;">⭕ ✔</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Backlog (via J4 — weerlegt audit "governance goed gedekt"):</strong></p>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Actie</th>
+<th>Prio</th>
+<th>Owner</th>
+<th>Doeldoc</th>
+<th>Definition-of-done</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>BL-17</td>
+<td>schrijf: "Identity Atlas <strong>rapporteert over</strong> maar <strong>voert geen</strong> certificeringen uit — besluiten vallen in de bron-IGA (Entra Access Reviews) en worden read-only gespiegeld"; + waar de reviewer wél kijkt</td>
+<td>P0</td>
+<td><em>tbd</em></td>
+<td><code>docs/concepts/governance-model.md</code> + <code>docs/ui/overview.md</code></td>
+<td>J4: reviewer weet doc-only waar besluiten vallen; geen dead-end</td>
+</tr>
+<tr>
+<td>BL-18</td>
+<td><strong>fix (P0):</strong> verwijder retired <code>assignmentType='Governed'</code> overal; vervang door <code>governed=true</code>-flag</td>
+<td>P0</td>
+<td><em>tbd</em></td>
+<td><code>docs/api/governance.md</code> + <code>docs/concepts/governance-model.md</code></td>
+<td>Grep op <code>'Governed'</code> als type = 0; matcht mig 047 + ingest-guard</td>
+</tr>
+<tr>
+<td>BL-19</td>
+<td>fix tabelnamen (<code>GovernanceCategories</code>) + documenteer <code>GET /governance/summary</code> &amp; <code>/review-compliance</code></td>
+<td>P1</td>
+<td><em>tbd</em></td>
+<td><code>docs/api/governance.md</code></td>
+<td>Namen + endpoints matchen code</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="cluster-7-sync-bronnen-crawlers">Cluster 7 — Sync-bronnen / crawlers<a class="headerlink" href="#cluster-7-sync-bronnen-crawlers" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Feature</th>
+<th style="text-align: center;">Analyst/Gebruiker</th>
+<th style="text-align: center;">Operator</th>
+<th style="text-align: center;">Contributor</th>
+<th style="text-align: center;">API-consument</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Entra ID (6 phase-toggles + AI-agent-classificatie)</td>
+<td style="text-align: center;">🟡 ✔</td>
+<td style="text-align: center;">🟡 ✔ (permissies staan in troubleshooting, niet in setup)</td>
+<td style="text-align: center;">❌ ✔ (diagram toont retired <code>Owner</code>-type; 6 toggles ontbreken in flags-tabel)</td>
+<td style="text-align: center;">—</td>
+</tr>
+<tr>
+<td>Azure RM (<code>onlyEntraPrincipals</code>)</td>
+<td style="text-align: center;">🟡</td>
+<td style="text-align: center;">🟡</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">—</td>
+</tr>
+<tr>
+<td>midPoint</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">🟡 (streaming/dept dev-only)</td>
+<td style="text-align: center;">—</td>
+</tr>
+<tr>
+<td>Omada</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">—</td>
+</tr>
+<tr>
+<td>CSV-import (nieuwe templates)</td>
+<td style="text-align: center;">🟡</td>
+<td style="text-align: center;">🟡</td>
+<td style="text-align: center;">🟡</td>
+<td style="text-align: center;">—</td>
+</tr>
+<tr>
+<td>Custom Connector (push-mode) → <em>owner: Cluster 9</em></td>
+<td style="text-align: center;">↪ C9</td>
+<td style="text-align: center;">↪ C9</td>
+<td style="text-align: center;">↪ C9</td>
+<td style="text-align: center;">↪ C9</td>
+</tr>
+<tr>
+<td>Wizard/plugin-architectuur + live discovery</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">—</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Backlog:</strong></p>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Actie</th>
+<th>Prio</th>
+<th>Owner</th>
+<th>Doeldoc</th>
+<th>Definition-of-done</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>BL-1</td>
+<td>werk-bij: benoem de <strong>vereiste Graph-permissies</strong> in de setup-sectie (nu alleen in <code>troubleshooting.md</code>). App-Registration aanmaken wordt bekend verondersteld → niet documenteren.</td>
+<td>P1</td>
+<td><em>tbd</em></td>
+<td><code>docs/sync/entra-id.md</code></td>
+<td>J5 slaagt doc-only; J1 stap 2 verlaat de docs niet meer voor de permissielijst</td>
+</tr>
+<tr>
+<td>BL-2</td>
+<td><strong>fix (❌):</strong> "What Gets Synced"-diagram — verwijder retired <code>Owner</code>-assignmenttype; toon ownership als <code>Direct</code> op <code>GroupOwnership</code></td>
+<td>P1</td>
+<td><em>tbd</em></td>
+<td><code>docs/sync/entra-id.md</code></td>
+<td>Diagram matcht <code>assignmentTypes.guard</code> (Direct/Indirect/Eligible)</td>
+</tr>
+<tr>
+<td>BL-3</td>
+<td>werk-bij: 6 verscheepte toggles in de flags-tabel (<code>SyncOAuth2Grants/AppRoles/AppPermissions/AppOwners/PrincipalRelationships/DirectoryRoles</code>) + AI-agent-classificatie</td>
+<td>P2</td>
+<td><em>tbd</em></td>
+<td><code>docs/sync/entra-id.md</code></td>
+<td>Flags-tabel = crawler-param-block</td>
+</tr>
+<tr>
+<td>BL-20 (J5)</td>
+<td>schrijf: "welke toggle voor welk doel"-keuzehulp (wanneer SP's/PIM/app-roles/owners aanzetten + kosten)</td>
+<td>P2</td>
+<td><em>tbd</em></td>
+<td><code>docs/sync/entra-id.md</code></td>
+<td>Operator kiest bewust de juiste toggles doc-only</td>
+</tr>
+<tr>
+<td>BL-24 (J7)</td>
+<td><strong>fix:</strong> stale <code>getConfigSecret</code>-signatuur <code>(crawlerId, key)</code> → <code>(configId)</code> (matcht <code>crawlerSecrets.js</code>)</td>
+<td>P2</td>
+<td><em>tbd</em></td>
+<td><code>tools/crawlers/CLAUDE.md</code> (~r178)</td>
+<td>Contributor roept <code>getConfigSecret</code> correct aan</td>
+</tr>
+<tr>
+<td>BL-25 (J7)</td>
+<td>fix: wizard-import-stijl → <code>@ui/</code>-alias i.p.v. <code>../../../app/ui/src/…</code>-traversal (twee docs spreken elkaar tegen)</td>
+<td>P2</td>
+<td><em>tbd</em></td>
+<td><code>docs/sync/building-a-crawler.md</code></td>
+<td>Beide crawler-docs leren dezelfde import-conventie</td>
+</tr>
+<tr>
+<td>BL-26 (J7)</td>
+<td>werk-bij: minimal-voorbeeld dot-source <code>shared/Invoke-CrawlerIngest.ps1</code> (<code>Update-CrawlerProgress</code>) i.p.v. hand-rolled</td>
+<td>P3</td>
+<td><em>tbd</em></td>
+<td><code>docs/sync/building-a-crawler.md</code></td>
+<td>Voorbeeld matcht de "dot-source shared helpers"-regel</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="cluster-8-admin-instellingen">Cluster 8 — Admin &amp; instellingen<a class="headerlink" href="#cluster-8-admin-instellingen" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Feature</th>
+<th style="text-align: center;">Analyst/Gebruiker</th>
+<th style="text-align: center;">Operator</th>
+<th style="text-align: center;">Contributor</th>
+<th style="text-align: center;">API-consument</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Admin nav-shell / 10 sub-tabs (canonieke inventaris-rij)</strong></td>
+<td style="text-align: center;">❌ ✔ <strong>P0</strong> (overview noemt 3, echt 10; Data-tab ontbreekt)</td>
+<td style="text-align: center;">❌ ✔</td>
+<td style="text-align: center;">🟡</td>
+<td style="text-align: center;">—</td>
+</tr>
+<tr>
+<td>Authentication / Roles &amp; Permissions-editor</td>
+<td style="text-align: center;">⭕ (geen UI-walkthrough)</td>
+<td style="text-align: center;">✅ ✔ (<code>permissions.md</code> dekt rol→permissie + bootstrap/lockout)</td>
+<td style="text-align: center;">🟡</td>
+<td style="text-align: center;">—</td>
+</tr>
+<tr>
+<td>Updates (auto-update, kanaal, historie)</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">—</td>
+</tr>
+<tr>
+<td>Data-tab (PowerQuery ✅; curated import/export ⭕, retention ⭕, danger zone ⭕)</td>
+<td style="text-align: center;">🟡 ✔</td>
+<td style="text-align: center;">⭕ ✔</td>
+<td style="text-align: center;">🟡</td>
+<td style="text-align: center;">—</td>
+</tr>
+<tr>
+<td>Performance</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">🟡</td>
+<td style="text-align: center;">❌ (perf-endpoint drift <code>/perf/slowest</code>→<code>/perf/slow</code>)</td>
+<td style="text-align: center;">❌</td>
+</tr>
+<tr>
+<td>Crawler config audit/reset</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">⭕</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">⭕</td>
+</tr>
+<tr>
+<td>About / SBOM / licentie</td>
+<td style="text-align: center;">🟡</td>
+<td style="text-align: center;">✅ ✔ (permissie-catalogus klopt)</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">—</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Backlog (via J9):</strong></p>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Actie</th>
+<th>Prio</th>
+<th>Owner</th>
+<th>Doeldoc</th>
+<th>Definition-of-done</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>BL-31</td>
+<td><strong>fix (P0):</strong> Admin-subtab-inventaris — vervang "3 tabs" door alle 10 uit <code>adminTabs.js</code>, elk met doel + gating-permissie</td>
+<td>P0</td>
+<td><em>tbd</em></td>
+<td><code>docs/ui/overview.md</code></td>
+<td>J9 stap a: operator vindt elke tab doc-only</td>
+</tr>
+<tr>
+<td>BL-32</td>
+<td><strong>schrijf (P0):</strong> Data-tab-gids — curated export/import (gates), history-retention (180d default, 0=uit), Danger Zone/clean-database (wat wist/behoudt, rate-limit, <code>admin.systems</code>)</td>
+<td>P0</td>
+<td><em>tbd</em></td>
+<td><code>docs/admin/data-tab.md</code> (nieuw)</td>
+<td>J9 stap c+d doc-only</td>
+</tr>
+<tr>
+<td>BL-33</td>
+<td>fix: retentie-pad — <code>Admin &gt; History Retention</code> bestaat niet → "sectie onder Admin → Data"</td>
+<td>P1</td>
+<td><em>tbd</em></td>
+<td><code>docs/architecture/audit-history.md</code> (~r132)</td>
+<td>Geen doc verwijst naar niet-bestaande subtab</td>
+</tr>
+<tr>
+<td>BL-34</td>
+<td>werk-bij: Authentication/SSO + Roles-setup als stap-voor-stap how-to (nu alleen reference-proza)</td>
+<td>P2</td>
+<td><em>tbd</em></td>
+<td><code>docs/admin/authentication.md</code> (nieuw) of <code>permissions.md</code></td>
+<td>J9 stap b heeft een gelinkte how-to</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="cluster-9-integratie-ingest-api-owner-van-custom-connector">Cluster 9 — Integratie &amp; ingest-API (owner van Custom Connector)<a class="headerlink" href="#cluster-9-integratie-ingest-api-owner-van-custom-connector" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Feature</th>
+<th style="text-align: center;">Analyst/Gebruiker</th>
+<th style="text-align: center;">Operator</th>
+<th style="text-align: center;">Contributor</th>
+<th style="text-align: center;">API-consument</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Ingest-API (<code>/ingest/*</code>, openapi.yaml)</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅ (openapi)</td>
+<td style="text-align: center;">🟡 ✔ (<code>ingest-api.md</code> stale: response-shape + retired <code>assignmentType</code>-enum → 400)</td>
+</tr>
+<tr>
+<td><strong>Custom Connector (push-mode) — opzet + kaart</strong></td>
+<td style="text-align: center;">⭕</td>
+<td style="text-align: center;">⭕ ✔</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">⭕ ✔ (geen runnable voorbeeld onder <code>docs/api/</code>)</td>
+</tr>
+<tr>
+<td>API-key-beheer / rotatie / audit</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">🟡 ✔ (roteren lukt; key <em>verkrijgen</em> niet zelf-service)</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">🟡 ✔</td>
+</tr>
+<tr>
+<td>Drift-guard-scope (welke routes bewaakt)</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">🟡 (alleen in test)</td>
+<td style="text-align: center;">—</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Backlog (via J6):</strong></p>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Actie</th>
+<th>Prio</th>
+<th>Owner</th>
+<th>Doeldoc</th>
+<th>Definition-of-done</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>BL-21</td>
+<td>schrijf push-mode integrator-gids: "key krijg je van een admin / Admin→Crawlers (niet zelf-mint)" + één runnable <code>curl</code> (base-url, <code>Bearer fgc_…</code>, echte payload, <code>201</code>-response) + rotate-snippet</td>
+<td>P1</td>
+<td><em>tbd</em></td>
+<td><code>docs/sync/custom-connector.md</code> (nieuw)</td>
+<td>J6 start-tot-eind doc-only walkbaar</td>
+</tr>
+<tr>
+<td>BL-22</td>
+<td><strong>fix:</strong> stale response + enum-tabellen (response zonder <code>syncId</code>/<code>errors</code>; <code>assignmentType</code> = alleen Direct/Indirect/Eligible; huidige relationshipTypes)</td>
+<td>P1</td>
+<td><em>tbd</em></td>
+<td><code>docs/architecture/ingest-api.md</code></td>
+<td>Doc matcht <code>handlers.js</code> + <code>openapi.yaml</code></td>
+</tr>
+<tr>
+<td>BL-23</td>
+<td>werk-bij: één autoritatieve externe base-URL (<code>PUBLIC_BASE_URL</code>) voor proxied/TLS</td>
+<td>P2</td>
+<td><em>tbd</em></td>
+<td><code>docs/api/index.md</code></td>
+<td>Integrator kent de juiste base-URL</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="cluster-10-platform-datamodel-owner-van-context-schema">Cluster 10 — Platform &amp; datamodel (owner van context-schema)<a class="headerlink" href="#cluster-10-platform-datamodel-owner-van-context-schema" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Feature</th>
+<th style="text-align: center;">Analyst/Gebruiker</th>
+<th style="text-align: center;">Operator</th>
+<th style="text-align: center;">Contributor</th>
+<th style="text-align: center;">API-consument</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Datamodel (v3.1 + v6 contexts, <strong>schema/tabellen</strong>)</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">✅ ✔ (<code>data-model.md</code> correct; assignmentType-collapse klopt — audit-verdenking onterecht)</td>
+<td style="text-align: center;">—</td>
+</tr>
+<tr>
+<td><strong>SQL-views (query-surface)</strong></td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">❌ ✔ (voorbeelden selecteren niet-bestaande kolommen; matviews als "planned")</td>
+<td style="text-align: center;">🟡 ✔</td>
+</tr>
+<tr>
+<td>Effective-access-engine (P1 direct + P2 inherited)</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">—</td>
+</tr>
+<tr>
+<td>Soft-delete</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">🟡</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">—</td>
+</tr>
+<tr>
+<td>Audit-history / timeline</td>
+<td style="text-align: center;">🟡</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">—</td>
+</tr>
+<tr>
+<td>Assignment-model-collapse (migraties 044–049)</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">❌ ✔ (status "no code yet" — is verscheept)</td>
+<td style="text-align: center;">—</td>
+</tr>
+<tr>
+<td>Deployment / Docker / Azure</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">—</td>
+</tr>
+<tr>
+<td>Scaling</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">🟡</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">—</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Backlog (via J10):</strong></p>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Actie</th>
+<th>Prio</th>
+<th>Owner</th>
+<th>Doeldoc</th>
+<th>Definition-of-done</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>BL-27</td>
+<td><strong>fix:</strong> herschrijf alle voorbeeld-queries tegen echte kolommen (<code>membershipType</code>/<code>path</code>/<code>userId</code>/<code>businessRoleId</code>/<code>managedByAccessPackage</code>); lijst per view de echte output-kolommen</td>
+<td>P1</td>
+<td><em>tbd</em></td>
+<td><code>docs/reference/sql-views.md</code></td>
+<td>Elk voorbeeld draait ongewijzigd op een gemigreerde DB</td>
+</tr>
+<tr>
+<td>BL-28</td>
+<td><strong>fix:</strong> matview-status — <code>vw_ResourceUserPermissionAssignments</code> + <code>vw_UserPermissionAssignmentViaBusinessRole</code> zijn <em>materialized</em> (need <code>REFRESH</code>); schrap "planned for a future release"</td>
+<td>P1</td>
+<td><em>tbd</em></td>
+<td><code>docs/reference/sql-views.md</code></td>
+<td>Geen "standard view"/"planned"-taal; refresh gedocumenteerd</td>
+</tr>
+<tr>
+<td>BL-29</td>
+<td>werk-bij: status-header "Proposed / no code yet" → "Implemented" + migratie-range 044–049</td>
+<td>P2</td>
+<td><em>tbd</em></td>
+<td><code>docs/architecture/assignment-model-redesign.md</code></td>
+<td>Status matcht verscheepte code</td>
+</tr>
+<tr>
+<td>BL-30</td>
+<td>fix: waarde-lijst in de <code>vw_ResourceUserPermissionAssignments</code>-rij (drop <code>Owner</code>/<code>CrossResourceIndirect</code>; kolom = <code>membershipType</code>)</td>
+<td>P2</td>
+<td><em>tbd</em></td>
+<td><code>docs/reference/sql-views.md</code></td>
+<td>Waarden = view-<code>CASE</code>-output</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="review-appendix-dual-voice">Review-appendix (dual-voice)<a class="headerlink" href="#review-appendix-dual-voice" title="Permanent link">&para;</a></h2>
+<p>Dit plan is geëvolueerd van v1 na een <code>/autoplan</code>-review met vier onafhankelijke voices (3 Claude-subagents: strategie/proces/DX + Codex op de echte bestanden). Unanieme kernbevinding: v1 mat aanwezigheid, niet bruikbaarheid.</p>
+<p><strong>Consensus (CONFIRMED door alle voices):</strong>
+1. Meet bruikbaarheid, niet enkel aanwezigheid → <strong>Instrument B (journeys)</strong>.
+2. Verifieer de AI-vooringevulde grids vóór besluit → <strong>verificatie-gate</strong>.
+3. Dek cross-cluster journeys → <strong>J1–J10</strong>.
+4. Split Contributor vs API-consument; scherp primaire persona naar Analyst → <strong>4 assen</strong>.
+5. Onderscheid <em>fout</em> van <em>ontbrekend</em> → <strong>❌/P0-status</strong>.
+6. Maak de backlog uitvoerbaar (owner/DoD) → <strong>backlog-format</strong>.
+7. Voeg niet-feature-docs toe (troubleshooting/concepten/limitations) → <strong>Cluster 0</strong>.
+8. Voorkom re-rot → <strong>recurrence/freshness-gate</strong>.
+9. MECE-overlaps oplossen → <strong>owner-toewijzing + Cluster 0</strong>.</p>
+<p><strong>Beslissingen (door de gebruiker, 2026-07-15):</strong>
+- UC1 — journeys primair, grid ondersteunend: <strong>geaccepteerd</strong>.
+- UC2 — 4 assen + Analyst-persona: <strong>geaccepteerd</strong>.</p>
+<p><strong>Auto-besliste methodische fixes</strong> (verificatie-gate, ❌/P0-status, rubric, backlog-DoD, reduce/hide/deprecate-actie, recurrence, exit-criterium, Cluster 0, MECE-owners): toegepast.</p>
+<p><strong>Kanttekening bij de inputs:</strong> de grids hierboven zijn nog steeds <strong>geërfd/ongeverifieerd</strong>; ze passeren de verificatie-gate pas tijdens de clusterreview.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      Created by <a href="https://www.fortigi.nl">Maatschap Fortigi</a>
+
+    </div>
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+        
+<div class="md-social">
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://github.com/Fortigi/IdentityAtlas" target="_blank" rel="noopener" title="github.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+    </a>
+  
+    
+    
+    
+    
+    <a href="https://www.linkedin.com/in/wimvdheijkant/" target="_blank" rel="noopener" title="Wim van den Heijkant" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M416 32H31.9C14.3 32 0 46.5 0 64.3v383.4C0 465.5 14.3 480 31.9 480H416c17.6 0 32-14.5 32-32.3V64.3c0-17.8-14.4-32.3-32-32.3M135.4 416H69V202.2h66.5V416zM102.2 96a38.5 38.5 0 1 1 0 77 38.5 38.5 0 1 1 0-77m282.1 320h-66.4V312c0-24.8-.5-56.7-34.5-56.7-34.6 0-39.9 27-39.9 54.9V416h-66.4V202.2h63.7v29.2h.9c8.9-16.8 30.6-34.5 62.9-34.5 67.2 0 79.7 44.3 79.7 101.9z"/></svg>
+    </a>
+  
+    
+    
+    
+    
+    <a href="https://www.fortigi.nl" target="_blank" rel="noopener" title="Fortigi" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M351.9 280H161c2.9 64.5 17.2 123.9 37.5 167.4 11.4 24.5 23.7 41.8 35.1 52.4 11.2 10.5 18.9 12.2 22.9 12.2s11.7-1.7 22.9-12.2c11.4-10.6 23.7-28 35.1-52.4 20.3-43.5 34.6-102.9 37.5-167.4zm-191-48h190.9c-2.8-64.5-17.1-123.9-37.4-167.4-11.4-24.4-23.7-41.8-35.1-52.4C268.1 1.7 260.4 0 256.4 0s-11.7 1.7-22.9 12.2c-11.4 10.6-23.7 28-35.1 52.4-20.3 43.5-34.6 102.9-37.5 167.4m-48 0c3.5-85.6 25.6-165.1 57.9-217.3C78.7 47.3 10.9 131.2 1.5 232zM1.5 280c9.4 100.8 77.2 184.7 169.3 217.3-32.3-52.2-54.4-131.7-57.9-217.3zm398.4 0c-3.5 85.6-25.6 165.1-57.9 217.3 92.1-32.7 159.9-116.5 169.3-217.3zm111.4-48C501.9 131.2 434.1 47.3 342 14.7c32.3 52.2 54.4 131.7 57.9 217.3z"/></svg>
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.expand", "navigation.path", "navigation.top", "search.suggest", "search.highlight", "content.code.copy", "content.code.annotate", "content.tabs.link", "toc.follow"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "stable", "provider": "mike"}}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>

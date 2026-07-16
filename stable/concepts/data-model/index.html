@@ -1233,6 +1233,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/custom-connector/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Custom Connector (Push API)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1313,6 +1341,90 @@
     
   
     Role Mining UI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/dashboard/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dashboard
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/contexts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contexts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/effective-access/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Effective Access (Who Can Access X)
   
 
     
@@ -2132,6 +2244,62 @@
 
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin/authentication/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Authentication & SSO
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin/data-tab/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data & Maintenance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
             
               
                 
@@ -3232,6 +3400,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../../contributing/report-an-issue/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Report a Bug or Request a Feature
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/contribute/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contribute a Change
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../contributing/ci-pipeline/" class="md-nav__link">
         
   
@@ -4021,7 +4245,7 @@ Business roles are not stored in a separate table. They are <code>Resources</cod
 <tbody>
 <tr>
 <td>Primary Key</td>
-<td><code>id</code> GUID</td>
+<td><code>id</code> UUID</td>
 </tr>
 <tr>
 <td>Audit history</td>
@@ -4136,7 +4360,7 @@ Business roles are not stored in a separate table. They are <code>Resources</cod
 <tbody>
 <tr>
 <td>Primary Key</td>
-<td><code>Contexts.id</code> GUID; <code>ContextMembers</code> keyed on (<code>contextId</code>, <code>memberId</code>)</td>
+<td><code>Contexts.id</code> UUID; <code>ContextMembers</code> keyed on (<code>contextId</code>, <code>memberId</code>)</td>
 </tr>
 <tr>
 <td>Audit history</td>
@@ -4193,7 +4417,7 @@ Business roles are not stored in a separate table. They are <code>Resources</cod
 <tbody>
 <tr>
 <td>Primary Key</td>
-<td><code>id</code> GUID</td>
+<td><code>id</code> UUID</td>
 </tr>
 <tr>
 <td>Audit history</td>
@@ -4276,7 +4500,7 @@ Business roles are not stored in a separate table. They are <code>Resources</cod
 <tbody>
 <tr>
 <td>Primary Key</td>
-<td><code>id</code> GUID</td>
+<td><code>id</code> UUID</td>
 </tr>
 <tr>
 <td>Audit history</td>
@@ -4650,7 +4874,7 @@ Business roles are not stored in a separate table. They are <code>Resources</cod
 <p>The risk engine queries PrincipalActivity to detect:</p>
 <ul>
 <li><strong>Stale accounts</strong> — <code>User</code> principals with no <code>SignIn</code> activity in 90+ days</li>
-<li><strong>Ghost app roles</strong> — <code>EntraAppRole</code> assignments where the user has never signed in to the app</li>
+<li><strong>Ghost app roles</strong> — <code>AppRole</code> assignments where the user has never signed in to the app</li>
 <li><strong>Active high-privilege usage</strong> — principals actively using sensitive resources (reduces risk score)</li>
 <li><strong>AI agent dormancy</strong> — <code>AIAgent</code> principals with no recent <code>Invocation</code> activity</li>
 </ul>

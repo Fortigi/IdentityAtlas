@@ -964,6 +964,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/custom-connector/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Custom Connector (Push API)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1041,6 +1069,90 @@
     
   
     Role Mining UI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/dashboard/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dashboard
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/contexts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contexts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/effective-access/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Effective Access (Who Can Access X)
   
 
     
@@ -1872,6 +1984,62 @@
 
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin/authentication/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Authentication & SSO
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin/data-tab/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data & Maintenance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
             
               
                 
@@ -3279,6 +3447,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../../contributing/report-an-issue/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Report a Bug or Request a Feature
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/contribute/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contribute a Change
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../contributing/ci-pipeline/" class="md-nav__link">
         
   
@@ -3934,7 +4158,7 @@
     
     
       <li class="md-path__item">
-        <a href="../../admin/auto-updates/" class="md-path__link">
+        <a href="../../admin/authentication/" class="md-path__link">
           
   <span class="md-ellipsis">
     Operations
@@ -3963,7 +4187,7 @@
 <p>A purpose-built synthetic dataset for testing every feature of Identity Atlas. Fully controlled — every record, relationship, and edge case is intentional, so tests can assert on exact values.</p>
 <hr />
 <h2 id="the-company-fortigi-demo-corp">The Company: Fortigi Demo Corp<a class="headerlink" href="#the-company-fortigi-demo-corp" title="Permanent link">&para;</a></h2>
-<p>A mid-size technology consultancy with 50 employees across 4 departments. Small enough to reason about, large enough to exercise all features.</p>
+<p>A mid-size technology consultancy with 22 employees across 4 departments. Small enough to reason about, large enough to exercise all features.</p>
 <h3 id="org-chart">Org Chart<a class="headerlink" href="#org-chart" title="Permanent link">&para;</a></h3>
 <pre class="mermaid"><code>graph TB
     CEO["Anna Bakker&lt;br/&gt;CEO&lt;br/&gt;E0001"]
@@ -4056,8 +4280,8 @@
 </tr>
 <tr>
 <td>Employee with no assignments</td>
-<td>E0031 Intern</td>
-<td>Principal exists but has zero resource assignments</td>
+<td>E0031 Zara Intern</td>
+<td>A new hire not yet provisioned: flagged <code>noAccess</code> in the generator, so she is excluded from every department group and business-role grant. She still exists as a principal and appears in the Engineering context, but holds <strong>zero</strong> resource assignments — the deliberate zero-assignment edge case</td>
 </tr>
 </tbody>
 </table>
@@ -4100,8 +4324,6 @@
 </code></pre></div>
 <p><strong>EntraID Admin Units</strong> (linked to Principals):</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>AU-Netherlands
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>AU-Germany
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>AU-Contractors
 </code></pre></div>
 <h3 id="resources">Resources<a class="headerlink" href="#resources" title="Permanent link">&para;</a></h3>
 <table>
@@ -4164,13 +4386,13 @@
 </tr>
 <tr>
 <td>IdentityAtlas-App</td>
-<td>EntraAppRole</td>
+<td>AppRole</td>
 <td>EntraID</td>
 <td>App role for this product</td>
 </tr>
 <tr>
 <td>SAP-Finance-Role</td>
-<td>EntraAppRole</td>
+<td>AppRole</td>
 <td>EntraID</td>
 <td>SAP financial access</td>
 </tr>
@@ -4198,6 +4420,24 @@
 <td>Omada</td>
 <td>Privileged admin access</td>
 </tr>
+<tr>
+<td>SG-Engineering</td>
+<td>GroupOwnership</td>
+<td>EntraID</td>
+<td>Owners of the Engineering group (a GroupOwnership resource is named after the group it owns)</td>
+</tr>
+<tr>
+<td>SG-Finance</td>
+<td>GroupOwnership</td>
+<td>EntraID</td>
+<td>Owners of the Finance group</td>
+</tr>
+<tr>
+<td>SG-Admin-Tier0</td>
+<td>GroupOwnership</td>
+<td>EntraID</td>
+<td>Owners of the Tier-0 admin group</td>
+</tr>
 </tbody>
 </table>
 <h3 id="assignments-who-has-what">Assignments (Who Has What)<a class="headerlink" href="#assignments-who-has-what" title="Permanent link">&para;</a></h3>
@@ -4212,22 +4452,22 @@
 </thead>
 <tbody>
 <tr>
-<td>All 30 employees</td>
+<td>Every employee except the intern (21)</td>
 <td>SG-AllEmployees</td>
 <td>Direct</td>
-<td></td>
+<td>E0031 is the deliberate zero-assignment case — see Edge Cases</td>
 </tr>
 <tr>
-<td>E0010-E0024 (Engineering)</td>
+<td>Engineering employees except the intern (8)</td>
 <td>SG-Engineering</td>
 <td>Direct</td>
-<td></td>
+<td>By <code>department</code> (includes the CTO E0002); the unprovisioned intern E0031 is excluded</td>
 </tr>
 <tr>
-<td>E0025-E0026 (Finance)</td>
+<td>Every Finance employee (4)</td>
 <td>SG-Finance</td>
 <td>Direct</td>
-<td></td>
+<td>By <code>department</code></td>
 </tr>
 <tr>
 <td>E0029, E0030 (SysAdmins)</td>
@@ -4238,8 +4478,8 @@
 <tr>
 <td>E0002 (CTO)</td>
 <td>SG-Admin-Tier0</td>
-<td>Owner</td>
-<td>CTO owns the admin group</td>
+<td>Direct</td>
+<td>CTO is a member of the critical Tier-0 admin group</td>
 </tr>
 <tr>
 <td>E0029 (SysAdmin)</td>
@@ -4260,15 +4500,15 @@
 <td>Directory role assignment</td>
 </tr>
 <tr>
-<td>All 30 employees</td>
+<td>Every employee except the intern (21)</td>
 <td>BR-Employee-Base</td>
-<td>Governed</td>
-<td>Via business role</td>
+<td>Direct (<code>governed=true</code>)</td>
+<td>Via business role — governance is the <code>governed</code> flag, not an assignment type</td>
 </tr>
 <tr>
-<td>E0010-E0024</td>
+<td>Engineering employees except the intern (8)</td>
 <td>BR-Engineering-Tools</td>
-<td>Governed</td>
+<td>Direct (<code>governed=true</code>)</td>
 <td>Via business role</td>
 </tr>
 <tr>
@@ -4276,6 +4516,12 @@
 <td>BR-Admin-Privileged</td>
 <td>Eligible</td>
 <td>PIM-eligible, not active</td>
+</tr>
+<tr>
+<td>E0010 → SG-Engineering; E0012 → SG-Finance; E0002 + E0029 → SG-Admin-Tier0</td>
+<td>GroupOwnership</td>
+<td>Direct</td>
+<td>Ownership is a Direct assignment on a synthetic GroupOwnership resource, never an <code>Owner</code> type</td>
 </tr>
 </tbody>
 </table>
@@ -4343,6 +4589,24 @@
 <td>SG-AllEmployees</td>
 <td>GrantsAccessTo</td>
 <td>Nested group</td>
+</tr>
+<tr>
+<td>SG-Engineering</td>
+<td>SG-Engineering (ownership)</td>
+<td>HasOwnership</td>
+<td>Group → its GroupOwnership resource</td>
+</tr>
+<tr>
+<td>SG-Finance</td>
+<td>SG-Finance (ownership)</td>
+<td>HasOwnership</td>
+<td></td>
+</tr>
+<tr>
+<td>SG-Admin-Tier0</td>
+<td>SG-Admin-Tier0 (ownership)</td>
+<td>HasOwnership</td>
+<td></td>
 </tr>
 </tbody>
 </table>
@@ -4428,12 +4692,12 @@
 <a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">    </span><span class="nt">&quot;description&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Synthetic dataset for E2E testing&quot;</span><span class="p">,</span>
 <a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="w">    </span><span class="nt">&quot;entityCounts&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
 <a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="w">      </span><span class="nt">&quot;systems&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">3</span><span class="p">,</span>
-<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="w">      </span><span class="nt">&quot;principals&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">35</span><span class="p">,</span>
-<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="w">      </span><span class="nt">&quot;resources&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">14</span><span class="p">,</span>
-<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="w">      </span><span class="nt">&quot;resourceAssignments&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">85</span><span class="p">,</span>
-<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="w">      </span><span class="nt">&quot;resourceRelationships&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">9</span><span class="p">,</span>
-<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a><span class="w">      </span><span class="nt">&quot;identities&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">32</span><span class="p">,</span>
-<a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a><span class="w">      </span><span class="nt">&quot;identityMembers&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">34</span><span class="p">,</span>
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="w">      </span><span class="nt">&quot;principals&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">28</span><span class="p">,</span>
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="w">      </span><span class="nt">&quot;resources&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">17</span><span class="p">,</span>
+<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="w">      </span><span class="nt">&quot;resourceAssignments&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">73</span><span class="p">,</span>
+<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="w">      </span><span class="nt">&quot;resourceRelationships&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">12</span><span class="p">,</span>
+<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a><span class="w">      </span><span class="nt">&quot;identities&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">23</span><span class="p">,</span>
+<a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a><span class="w">      </span><span class="nt">&quot;identityMembers&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">24</span><span class="p">,</span>
 <a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a><span class="w">      </span><span class="nt">&quot;contexts&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">8</span><span class="p">,</span>
 <a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a><span class="w">      </span><span class="nt">&quot;governanceCatalogs&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span>
 <a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a><span class="w">      </span><span class="nt">&quot;assignmentPolicies&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">3</span><span class="p">,</span>
@@ -4455,56 +4719,57 @@
 </code></pre></div>
 <hr />
 <h2 id="verification-tests">Verification Tests<a class="headerlink" href="#verification-tests" title="Permanent link">&para;</a></h2>
-<p>After ingesting the demo dataset, the nightly runner executes these verification checks. Every check has an expected value derived from the dataset definition above.</p>
+<p>After ingesting the demo dataset, <code>test/demo-dataset/Verify-DemoDataset.ps1</code> executes these verification checks — it runs on every PR, in the <code>integration</code> job of <code>pr-integration.yml</code>. Every check has an expected value derived from the dataset definition above.</p>
 <h3 id="table-row-counts">Table Row Counts<a class="headerlink" href="#table-row-counts" title="Permanent link">&para;</a></h3>
+<p>Counted with <code>deletedAt IS NULL</code> on <code>Principals</code>, <code>Resources</code> and <code>ResourceAssignments</code>. Those three tables soft-delete (<code>040_soft_delete.sql</code>): a removed entity is kept as a tombstone rather than dropped, so an unfiltered <code>COUNT(*)</code> also counts leavers and deleted resources. The other tables have no lifecycle column and are counted as-is.</p>
 <table>
 <thead>
 <tr>
 <th>Table</th>
 <th>Expected</th>
-<th>Query</th>
+<th>Composition</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td>Systems</td>
 <td>3</td>
-<td><code>SELECT COUNT(*) FROM Systems WHERE ValidTo = '9999-12-31...'</code></td>
+<td>Entra ID + HR + Omada</td>
 </tr>
 <tr>
 <td>Principals</td>
-<td>35</td>
-<td>Includes: 30 employees + 1 contractor + 1 disabled + 1 SP + 1 AI + 1 shared mailbox</td>
+<td>28</td>
+<td>24 <code>User</code> (22 employees + 1 disabled + 1 Omada account for the multi-system employee) + 1 <code>ExternalUser</code> (contractor) + 1 <code>ServicePrincipal</code> + 1 <code>AIAgent</code> + 1 <code>SharedMailbox</code></td>
 </tr>
 <tr>
 <td>Resources</td>
-<td>14</td>
-<td>6 groups + 2 directory roles + 2 app roles + 4 business roles</td>
+<td>17</td>
+<td>6 groups + 2 directory roles + 2 app roles + 4 business roles + 3 group-ownership</td>
 </tr>
 <tr>
 <td>ResourceAssignments</td>
-<td>~85</td>
-<td>Direct + Owner + Eligible + Governed</td>
+<td>73</td>
+<td>72 <code>Direct</code> + 1 <code>Eligible</code>; 29 of them carry <code>governed=true</code> (4 of the <code>Direct</code> are group-ownership)</td>
 </tr>
 <tr>
 <td>ResourceRelationships</td>
-<td>9</td>
-<td>8 Contains + 1 GrantsAccessTo</td>
+<td>12</td>
+<td>8 Contains + 1 GrantsAccessTo + 3 HasOwnership</td>
 </tr>
 <tr>
 <td>Identities</td>
-<td>32</td>
-<td>30 active employees + 1 disabled + 1 multi-system</td>
+<td>23</td>
+<td>22 employees + 1 disabled</td>
 </tr>
 <tr>
 <td>IdentityMembers</td>
-<td>34</td>
-<td>32 primary links + 2 secondary (multi-system)</td>
+<td>24</td>
+<td>23 primary + 1 secondary (the multi-system employee's Omada account)</td>
 </tr>
 <tr>
 <td>Contexts</td>
 <td>8</td>
-<td>1 root + 4 departments + 2 teams + 1 admin unit</td>
+<td>1 root + 4 departments + 2 teams + 1 admin unit — all <code>variant='synced'</code></td>
 </tr>
 <tr>
 <td>GovernanceCatalogs</td>
@@ -4523,6 +4788,10 @@
 </tr>
 </tbody>
 </table>
+<div class="admonition note">
+<p class="admonition-title">Counting Contexts</p>
+<p>Filter on <code>variant='synced'</code> to get the 8 above. A bare <code>SELECT COUNT(*) FROM "Contexts"</code> returns more: the API creates <code>manual</code> Tag roots at bootstrap, and the context-algorithm plugins emit <code>generated</code> contexts once the worker runs. Only the <code>synced</code> ones come from this dataset.</p>
+</div>
 <h3 id="relationship-integrity">Relationship Integrity<a class="headerlink" href="#relationship-integrity" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
@@ -4576,7 +4845,7 @@
 </thead>
 <tbody>
 <tr>
-<td>CTO (E0002) has <code>assignmentType='Owner'</code> on SG-Admin-Tier0</td>
+<td>Governed business-role assignments exist (<code>governed=true</code>, count ≥ 10)</td>
 <td>True</td>
 </tr>
 <tr>
@@ -4605,6 +4874,10 @@
 </tr>
 <tr>
 <td>Intern (E0031) has 0 resource assignments</td>
+<td>True</td>
+</tr>
+<tr>
+<td>Group ownership exists — <code>GroupOwnership</code> resources with <code>Direct</code> owner assignments</td>
 <td>True</td>
 </tr>
 <tr>
@@ -4639,15 +4912,15 @@
 </thead>
 <tbody>
 <tr>
-<td>Resources page shows 14 resources (excluding BusinessRoles)</td>
-<td>Count rows, filter by non-BusinessRole</td>
+<td>Resources page shows 13 resources (excluding BusinessRoles)</td>
+<td>Count rows, filter by non-BusinessRole (6 groups + 2 directory roles + 2 app roles + 3 group-ownership)</td>
 </tr>
 <tr>
 <td>Business Roles page shows 4 business roles</td>
 <td>Count rows</td>
 </tr>
 <tr>
-<td>Users page shows 35 principals</td>
+<td>Users page shows 28 principals</td>
 <td>Count visible or total indicator</td>
 </tr>
 <tr>

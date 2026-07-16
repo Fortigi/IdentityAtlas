@@ -956,6 +956,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/custom-connector/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Custom Connector (Push API)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1033,6 +1061,90 @@
     
   
     Role Mining UI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/dashboard/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dashboard
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/contexts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contexts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/effective-access/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Effective Access (Who Can Access X)
   
 
     
@@ -1852,6 +1964,62 @@
 
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin/authentication/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Authentication & SSO
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin/data-tab/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data & Maintenance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
             
               
                 
@@ -2952,6 +3120,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../../contributing/report-an-issue/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Report a Bug or Request a Feature
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/contribute/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contribute a Change
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../contributing/ci-pipeline/" class="md-nav__link">
         
   
@@ -3496,8 +3720,9 @@
 
 <h1 id="assignment-model-redesign-collapse-assignmenttype-to-the-universal-how">Assignment Model Redesign — collapse <code>assignmentType</code> to the universal "how"<a class="headerlink" href="#assignment-model-redesign-collapse-assignmenttype-to-the-universal-how" title="Permanent link">&para;</a></h1>
 <blockquote>
-<p><strong>Status:</strong> Proposed (ADR / design doc — no code yet)
-<strong>Date:</strong> 2026-06-25
+<p><strong>Status:</strong> Implemented — shipped in migrations <code>044</code>–<code>049</code>.
+<strong>Date:</strong> 2026-06-25 (design); shipped shortly after.
+<strong>Migration range:</strong> <a href="../../app/api/src/db/migrations/044_resourceassignment_resourcetype.sql"><code>044_resourceassignment_resourcetype.sql</code></a> denormalizes <code>resourceType</code> onto <code>ResourceAssignments</code> (Phase 1 foundation), <a href="../../app/api/src/db/migrations/045_collapse_source_assignment_types.sql"><code>045_collapse_source_assignment_types.sql</code></a> collapses the Entra source types into <code>Direct</code>/<code>Indirect</code>/<code>Eligible</code> (Phase 2), <a href="../../app/api/src/db/migrations/046_owner_as_resource.sql"><code>046_owner_as_resource.sql</code></a> turns <code>Owner</code> into a <code>GroupOwnership</code> resource (Phase 4), and <a href="../../app/api/src/db/migrations/047_governed_assignment_flag.sql"><code>047_governed_assignment_flag.sql</code></a> + <a href="../../app/api/src/db/migrations/049_governed_intent_rows.sql"><code>049_governed_intent_rows.sql</code></a> retire the <code>Governed</code> type in favour of the orthogonal <code>governed</code> flag (Phase 3). The runtime guard is enforced by <code>app/api/src/ingest/assignmentTypes.guard.test.js</code>. The sections below describe the design as proposed; the shipped implementation follows it.
 <strong>Companion files:</strong> <a href="../matrix/"><code>matrix.md</code></a>, <a href="../crawler-architecture/"><code>crawler-architecture.md</code></a>, <a href="../../app/api/src/db/migrations/043_matrix_view_directory_roles.sql"><code>043_matrix_view_directory_roles.sql</code></a>, <a href="../../app/api/src/ingest/engine.js"><code>app/api/src/ingest/engine.js</code></a>, <a href="../../app/api/src/ingest/validation.js"><code>app/api/src/ingest/validation.js</code></a></p>
 </blockquote>
 <h2 id="tldr">TL;DR<a class="headerlink" href="#tldr" title="Permanent link">&para;</a></h2>

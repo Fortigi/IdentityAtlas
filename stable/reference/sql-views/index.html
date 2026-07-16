@@ -964,6 +964,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/custom-connector/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Custom Connector (Push API)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1041,6 +1069,90 @@
     
   
     Role Mining UI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/dashboard/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dashboard
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/contexts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contexts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/effective-access/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Effective Access (Who Can Access X)
   
 
     
@@ -1860,6 +1972,62 @@
 
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin/authentication/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Authentication & SSO
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin/data-tab/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data & Maintenance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
             
               
                 
@@ -3057,6 +3225,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../../contributing/report-an-issue/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Report a Bug or Request a Feature
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/contribute/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contribute a Change
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../contributing/ci-pipeline/" class="md-nav__link">
         
   
@@ -3508,104 +3732,157 @@
 <p>Views are created by migration files in <code>app/api/src/db/migrations/</code> and applied automatically when the web container starts.</p>
 <hr />
 <h2 id="resource-permission-views">Resource Permission Views<a class="headerlink" href="#resource-permission-views" title="Permanent link">&para;</a></h2>
-<p>Created by migrations <code>005_views.sql</code> and <code>011_governed_in_matrix_view.sql</code>.</p>
+<p>Created by migration <code>005_views.sql</code>; the two matrix views were promoted to
+<strong>materialized</strong> views in <code>013_matrix_matviews_and_indexes.sql</code> and last
+rebuilt by <code>049_governed_intent_rows.sql</code>.</p>
 <table>
 <thead>
 <tr>
 <th>View</th>
+<th>Kind</th>
+<th>Output columns</th>
 <th>Purpose</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td><code>vw_ResourceMembersRecursive</code></td>
-<td>All memberships (direct + indirect via nested groups) using a recursive CTE. Cycle-safe, max 10 levels deep. Includes the full membership path.</td>
+<td>Standard view</td>
+<td><code>resourceId</code>, <code>principalId</code>, <code>principalType</code>, <code>membershipType</code>, <code>depth</code>, <code>path</code></td>
+<td>All memberships (direct + indirect via nested groups) using a recursive CTE. Cycle-safe, max 10 levels deep. <code>membershipType</code> is <code>Direct</code> at depth 1 and <code>Indirect</code> deeper; <code>path</code> is the resolved chain of ids.</td>
 </tr>
 <tr>
 <td><code>vw_ResourceUserPermissionAssignments</code></td>
-<td>All assignment types (Direct, Indirect, Owner, Eligible, CrossResourceIndirect) in a single queryable surface. Includes the <code>managedByAccessPackage</code> flag for IST vs SOLL analysis.</td>
+<td><strong>Materialized view</strong></td>
+<td><code>resourceId</code>, <code>principalId</code>, <code>principalType</code>, <code>membershipType</code>, <code>managedByAccessPackage</code></td>
+<td>The matrix surface — one row per effective (subject, resource, <code>membershipType</code>) cell. <code>managedByAccessPackage</code> flags cells covered by a governance resource, for IST vs SOLL analysis.</td>
 </tr>
 <tr>
 <td><code>vw_UserPermissionAssignments</code></td>
-<td>Simplified permission view used by the matrix UI — one row per user-resource-type combination.</td>
+<td>Standard view (compat alias)</td>
+<td><code>groupId</code>, <code>memberId</code>, <code>principalType</code>, <code>membershipType</code>, <code>managedByAccessPackage</code></td>
+<td>Backward-compatible alias over <code>vw_ResourceUserPermissionAssignments</code> with the older <code>groupId</code>/<code>memberId</code> column names.</td>
 </tr>
 </tbody>
 </table>
+<div class="admonition warning">
+<p class="admonition-title"><code>vw_ResourceUserPermissionAssignments</code> is materialized — refresh it</p>
+<p>This view holds a stored snapshot. After ingesting or changing assignment
+data you must run <code>REFRESH MATERIALIZED VIEW "vw_ResourceUserPermissionAssignments";</code>
+(or the concurrent variant, see <a href="#materialized-views">Materialized Views</a>)
+before it reflects the new data. <code>vw_UserPermissionAssignments</code> reads from
+it, so it follows the same refresh.</p>
+</div>
+<p><code>membershipType</code> is one of <code>Direct</code>, <code>Indirect</code>, <code>Eligible</code> — the three
+universal "how does the subject have this" values. (<code>Owner</code> was retired in
+<code>046_owner_as_resource.sql</code>: ownership is now a <code>Direct</code> assignment on a
+separate <code>GroupOwnership</code> resource.)</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1">-- Who has access to a specific resource, including indirect memberships?</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">principalId</span><span class="p">,</span><span class="w"> </span><span class="n">displayName</span><span class="p">,</span><span class="w"> </span><span class="n">assignmentType</span><span class="p">,</span><span class="w"> </span><span class="n">depth</span><span class="p">,</span><span class="w"> </span><span class="n">membershipPath</span>
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="k">FROM</span><span class="w"> </span><span class="n">vw_ResourceMembersRecursive</span>
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">resourceId</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;your-resource-guid&#39;</span>
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">depth</span><span class="p">;</span>
-<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="c1">-- A user&#39;s complete permission picture across all resources</span>
-<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">resourceId</span><span class="p">,</span><span class="w"> </span><span class="n">resourceName</span><span class="p">,</span><span class="w"> </span><span class="n">assignmentType</span><span class="p">,</span><span class="w"> </span><span class="n">managedByAccessPackage</span>
-<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="k">FROM</span><span class="w"> </span><span class="n">vw_ResourceUserPermissionAssignments</span>
-<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">principalId</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;user-guid-here&#39;</span><span class="p">;</span>
-<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>
-<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="c1">-- How many permissions does each user hold?</span>
-<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">principalId</span><span class="p">,</span><span class="w"> </span><span class="n">displayName</span><span class="p">,</span><span class="w"> </span><span class="k">COUNT</span><span class="p">(</span><span class="o">*</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">permissionCount</span>
-<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="k">FROM</span><span class="w"> </span><span class="n">vw_ResourceUserPermissionAssignments</span>
-<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">principalId</span><span class="p">,</span><span class="w"> </span><span class="n">displayName</span>
-<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">permissionCount</span><span class="w"> </span><span class="k">DESC</span><span class="p">;</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">rmr</span><span class="p">.</span><span class="ss">&quot;principalId&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="ss">&quot;displayName&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">rmr</span><span class="p">.</span><span class="ss">&quot;membershipType&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">rmr</span><span class="p">.</span><span class="ss">&quot;depth&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">rmr</span><span class="p">.</span><span class="ss">&quot;path&quot;</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="k">FROM</span><span class="w"> </span><span class="ss">&quot;vw_ResourceMembersRecursive&quot;</span><span class="w"> </span><span class="n">rmr</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="k">JOIN</span><span class="w"> </span><span class="ss">&quot;Principals&quot;</span><span class="w"> </span><span class="n">p</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="ss">&quot;id&quot;</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">rmr</span><span class="p">.</span><span class="ss">&quot;principalId&quot;</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">rmr</span><span class="p">.</span><span class="ss">&quot;resourceId&quot;</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;your-resource-guid&#39;</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">rmr</span><span class="p">.</span><span class="ss">&quot;depth&quot;</span><span class="p">;</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="c1">-- A user&#39;s complete permission picture across all resources</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">v</span><span class="p">.</span><span class="ss">&quot;resourceId&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">r</span><span class="p">.</span><span class="ss">&quot;displayName&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">v</span><span class="p">.</span><span class="ss">&quot;membershipType&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">v</span><span class="p">.</span><span class="ss">&quot;managedByAccessPackage&quot;</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="k">FROM</span><span class="w"> </span><span class="ss">&quot;vw_ResourceUserPermissionAssignments&quot;</span><span class="w"> </span><span class="n">v</span>
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="k">JOIN</span><span class="w"> </span><span class="ss">&quot;Resources&quot;</span><span class="w"> </span><span class="n">r</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">r</span><span class="p">.</span><span class="ss">&quot;id&quot;</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">v</span><span class="p">.</span><span class="ss">&quot;resourceId&quot;</span>
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">v</span><span class="p">.</span><span class="ss">&quot;principalId&quot;</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;user-guid-here&#39;</span><span class="p">;</span>
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="c1">-- How many permissions does each user hold?</span>
+<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">v</span><span class="p">.</span><span class="ss">&quot;principalId&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="ss">&quot;displayName&quot;</span><span class="p">,</span><span class="w"> </span><span class="k">COUNT</span><span class="p">(</span><span class="o">*</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="ss">&quot;permissionCount&quot;</span>
+<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a><span class="k">FROM</span><span class="w"> </span><span class="ss">&quot;vw_ResourceUserPermissionAssignments&quot;</span><span class="w"> </span><span class="n">v</span>
+<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a><span class="k">JOIN</span><span class="w"> </span><span class="ss">&quot;Principals&quot;</span><span class="w"> </span><span class="n">p</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="ss">&quot;id&quot;</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">v</span><span class="p">.</span><span class="ss">&quot;principalId&quot;</span>
+<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a><span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">v</span><span class="p">.</span><span class="ss">&quot;principalId&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="ss">&quot;displayName&quot;</span>
+<a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="ss">&quot;permissionCount&quot;</span><span class="w"> </span><span class="k">DESC</span><span class="p">;</span>
 </code></pre></div>
 <hr />
 <h2 id="governance-view">Governance View<a class="headerlink" href="#governance-view" title="Permanent link">&para;</a></h2>
-<p>Created by migration <code>005_views.sql</code>.</p>
+<p>Created by migration <code>005_views.sql</code>; promoted to a <strong>materialized</strong> view in
+<code>013_matrix_matviews_and_indexes.sql</code> and last rebuilt by
+<code>049_governed_intent_rows.sql</code>.</p>
 <table>
 <thead>
 <tr>
 <th>View</th>
+<th>Kind</th>
+<th>Output columns</th>
 <th>Purpose</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td><code>vw_UserPermissionAssignmentViaBusinessRole</code></td>
-<td>Maps users through business roles to the resources those roles grant</td>
+<td><strong>Materialized view</strong></td>
+<td><code>userId</code>, <code>groupId</code>, <code>resourceId</code>, <code>businessRoleId</code></td>
+<td>Maps users through governance resources (business roles / access packages) to the resources those roles <code>Contains</code>. <code>groupId</code> and <code>resourceId</code> are the same contained-resource id, exposed under both names.</td>
 </tr>
 </tbody>
 </table>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1">-- Which resources does a user reach via business role governance?</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">principalId</span><span class="p">,</span><span class="w"> </span><span class="n">displayName</span><span class="p">,</span><span class="w"> </span><span class="n">resourceId</span><span class="p">,</span><span class="w"> </span><span class="n">resourceName</span><span class="p">,</span><span class="w"> </span><span class="n">businessRoleName</span>
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="k">FROM</span><span class="w"> </span><span class="ss">&quot;vw_UserPermissionAssignmentViaBusinessRole&quot;</span>
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">principalId</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;user-guid-here&#39;</span><span class="p">;</span>
-</code></pre></div>
-<div class="admonition note">
-<p class="admonition-title">Planned governance views</p>
-<p>Additional governance analysis views (IST/SOLL gap analysis, approval timelines, request metrics) are planned for a future release. The current v5 migration focused on core permission views.</p>
+<div class="admonition warning">
+<p class="admonition-title">Materialized — refresh required</p>
+<p>Like the matrix view, this is a materialized view. Run
+<code>REFRESH MATERIALIZED VIEW "vw_UserPermissionAssignmentViaBusinessRole";</code>
+after changing governance data before querying it.</p>
 </div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1">-- Which resources does a user reach via business role governance?</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">v</span><span class="p">.</span><span class="ss">&quot;userId&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">v</span><span class="p">.</span><span class="ss">&quot;resourceId&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">r</span><span class="p">.</span><span class="ss">&quot;displayName&quot;</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="ss">&quot;resourceName&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">       </span><span class="n">v</span><span class="p">.</span><span class="ss">&quot;businessRoleId&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">br</span><span class="p">.</span><span class="ss">&quot;displayName&quot;</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="ss">&quot;businessRoleName&quot;</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="k">FROM</span><span class="w"> </span><span class="ss">&quot;vw_UserPermissionAssignmentViaBusinessRole&quot;</span><span class="w"> </span><span class="n">v</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="k">JOIN</span><span class="w"> </span><span class="ss">&quot;Resources&quot;</span><span class="w"> </span><span class="n">r</span><span class="w">  </span><span class="k">ON</span><span class="w"> </span><span class="n">r</span><span class="p">.</span><span class="ss">&quot;id&quot;</span><span class="w">  </span><span class="o">=</span><span class="w"> </span><span class="n">v</span><span class="p">.</span><span class="ss">&quot;resourceId&quot;</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="k">JOIN</span><span class="w"> </span><span class="ss">&quot;Resources&quot;</span><span class="w"> </span><span class="n">br</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">br</span><span class="p">.</span><span class="ss">&quot;id&quot;</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">v</span><span class="p">.</span><span class="ss">&quot;businessRoleId&quot;</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">v</span><span class="p">.</span><span class="ss">&quot;userId&quot;</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;user-guid-here&#39;</span><span class="p">;</span>
+</code></pre></div>
 <hr />
 <h2 id="materialized-views">Materialized Views<a class="headerlink" href="#materialized-views" title="Permanent link">&para;</a></h2>
-<div class="admonition note">
-<p class="admonition-title">v5 status</p>
-<p>Materialized views are planned for a future release to improve query performance in large environments. The current v5 views are standard PostgreSQL views. For large deployments, consider adding PostgreSQL materialized views manually if needed.</p>
-</div>
+<p>Two of the views above are PostgreSQL <strong>materialized</strong> views —
+<code>vw_ResourceUserPermissionAssignments</code> and
+<code>vw_UserPermissionAssignmentViaBusinessRole</code>. They were promoted from standard
+views in <code>013_matrix_matviews_and_indexes.sql</code> because recomputing the matrix
+from scratch on every <code>/api/permissions</code> request was taking 100+ seconds on
+large (2M+ row) datasets.</p>
+<p>Because they store a snapshot, they must be <strong>refreshed</strong> after the underlying
+<code>ResourceAssignments</code> / <code>ResourceRelationships</code> data changes:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1">-- Standard refresh (locks the matview for the duration)</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="n">REFRESH</span><span class="w"> </span><span class="n">MATERIALIZED</span><span class="w"> </span><span class="k">VIEW</span><span class="w"> </span><span class="ss">&quot;vw_ResourceUserPermissionAssignments&quot;</span><span class="p">;</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="n">REFRESH</span><span class="w"> </span><span class="n">MATERIALIZED</span><span class="w"> </span><span class="k">VIEW</span><span class="w"> </span><span class="ss">&quot;vw_UserPermissionAssignmentViaBusinessRole&quot;</span><span class="p">;</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="c1">-- Concurrent refresh (no read lock; requires the unique index the migrations create)</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="n">REFRESH</span><span class="w"> </span><span class="n">MATERIALIZED</span><span class="w"> </span><span class="k">VIEW</span><span class="w"> </span><span class="n">CONCURRENTLY</span><span class="w"> </span><span class="ss">&quot;vw_ResourceUserPermissionAssignments&quot;</span><span class="p">;</span>
+</code></pre></div>
+<p>You normally don't run these by hand: the migrations create the matviews empty
+(<code>WITH NO DATA</code>) and the web container refreshes them at the end of bootstrap,
+and the ingest endpoint <code>/api/ingest/refresh-views</code> runs
+<code>REFRESH MATERIALIZED VIEW CONCURRENTLY</code> so the crawlers refresh automatically
+at end-of-sync. Reach for a manual refresh only when querying the matviews
+directly (e.g. from <code>psql</code> or a contract test) after loading data.</p>
 <hr />
 <h2 id="historical-queries">Historical Queries<a class="headerlink" href="#historical-queries" title="Permanent link">&para;</a></h2>
 <p>All core tables (<code>Principals</code>, <code>Resources</code>, <code>ResourceAssignments</code>, etc.) are tracked by the <code>_history</code> audit table via PostgreSQL triggers. Every insert, update, and delete is recorded as a JSONB snapshot, enabling full change history queries.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1">-- Current data (standard query, no change needed)</span>
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="k">SELECT</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="ss">&quot;Principals&quot;</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">department</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;Finance&#39;</span><span class="p">;</span>
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="c1">-- Full change history for a specific principal</span>
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="k">SELECT</span><span class="w"> </span><span class="ss">&quot;changedAt&quot;</span><span class="p">,</span><span class="w"> </span><span class="k">operation</span><span class="p">,</span><span class="w"> </span><span class="ss">&quot;rowData&quot;</span><span class="p">,</span><span class="w"> </span><span class="ss">&quot;prevData&quot;</span>
-<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="k">FROM</span><span class="w"> </span><span class="ss">&quot;_history&quot;</span>
-<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="k">WHERE</span><span class="w"> </span><span class="ss">&quot;tableName&quot;</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;Principals&#39;</span>
-<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="w">  </span><span class="k">AND</span><span class="w"> </span><span class="ss">&quot;rowId&quot;</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;principal-guid-here&#39;</span>
-<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="ss">&quot;changedAt&quot;</span><span class="w"> </span><span class="k">DESC</span><span class="p">;</span>
-<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>
-<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="c1">-- All assignment changes in the last 30 days</span>
-<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a><span class="k">SELECT</span><span class="w"> </span><span class="ss">&quot;rowId&quot;</span><span class="p">,</span><span class="w"> </span><span class="k">operation</span><span class="p">,</span><span class="w"> </span><span class="ss">&quot;changedAt&quot;</span><span class="p">,</span><span class="w"> </span><span class="ss">&quot;rowData&quot;</span>
-<a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a><span class="k">FROM</span><span class="w"> </span><span class="ss">&quot;_history&quot;</span>
-<a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a><span class="k">WHERE</span><span class="w"> </span><span class="ss">&quot;tableName&quot;</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;ResourceAssignments&#39;</span>
-<a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a><span class="w">  </span><span class="k">AND</span><span class="w"> </span><span class="ss">&quot;changedAt&quot;</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="n">now</span><span class="p">()</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="nb">interval</span><span class="w"> </span><span class="s1">&#39;30 days&#39;</span>
-<a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="ss">&quot;changedAt&quot;</span><span class="w"> </span><span class="k">DESC</span><span class="p">;</span>
-<a id="__codelineno-2-17" name="__codelineno-2-17" href="#__codelineno-2-17"></a>
-<a id="__codelineno-2-18" name="__codelineno-2-18" href="#__codelineno-2-18"></a><span class="c1">-- Deleted resources (no longer in the current table)</span>
-<a id="__codelineno-2-19" name="__codelineno-2-19" href="#__codelineno-2-19"></a><span class="k">SELECT</span><span class="w"> </span><span class="ss">&quot;rowId&quot;</span><span class="p">,</span><span class="w"> </span><span class="ss">&quot;changedAt&quot;</span><span class="p">,</span><span class="w"> </span><span class="ss">&quot;rowData&quot;</span><span class="o">-&gt;&gt;</span><span class="s1">&#39;displayName&#39;</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">name</span>
-<a id="__codelineno-2-20" name="__codelineno-2-20" href="#__codelineno-2-20"></a><span class="k">FROM</span><span class="w"> </span><span class="ss">&quot;_history&quot;</span>
-<a id="__codelineno-2-21" name="__codelineno-2-21" href="#__codelineno-2-21"></a><span class="k">WHERE</span><span class="w"> </span><span class="ss">&quot;tableName&quot;</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;Resources&#39;</span>
-<a id="__codelineno-2-22" name="__codelineno-2-22" href="#__codelineno-2-22"></a><span class="w">  </span><span class="k">AND</span><span class="w"> </span><span class="k">operation</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;D&#39;</span>
-<a id="__codelineno-2-23" name="__codelineno-2-23" href="#__codelineno-2-23"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="ss">&quot;changedAt&quot;</span><span class="w"> </span><span class="k">DESC</span><span class="p">;</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1">-- Current data (standard query, no change needed)</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="k">SELECT</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="ss">&quot;Principals&quot;</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">department</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;Finance&#39;</span><span class="p">;</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="c1">-- Full change history for a specific principal</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="k">SELECT</span><span class="w"> </span><span class="ss">&quot;changedAt&quot;</span><span class="p">,</span><span class="w"> </span><span class="k">operation</span><span class="p">,</span><span class="w"> </span><span class="ss">&quot;rowData&quot;</span><span class="p">,</span><span class="w"> </span><span class="ss">&quot;prevData&quot;</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="k">FROM</span><span class="w"> </span><span class="ss">&quot;_history&quot;</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="k">WHERE</span><span class="w"> </span><span class="ss">&quot;tableName&quot;</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;Principals&#39;</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="w">  </span><span class="k">AND</span><span class="w"> </span><span class="ss">&quot;rowId&quot;</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;principal-guid-here&#39;</span>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="ss">&quot;changedAt&quot;</span><span class="w"> </span><span class="k">DESC</span><span class="p">;</span>
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>
+<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="c1">-- All assignment changes in the last 30 days</span>
+<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a><span class="k">SELECT</span><span class="w"> </span><span class="ss">&quot;rowId&quot;</span><span class="p">,</span><span class="w"> </span><span class="k">operation</span><span class="p">,</span><span class="w"> </span><span class="ss">&quot;changedAt&quot;</span><span class="p">,</span><span class="w"> </span><span class="ss">&quot;rowData&quot;</span>
+<a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a><span class="k">FROM</span><span class="w"> </span><span class="ss">&quot;_history&quot;</span>
+<a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a><span class="k">WHERE</span><span class="w"> </span><span class="ss">&quot;tableName&quot;</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;ResourceAssignments&#39;</span>
+<a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a><span class="w">  </span><span class="k">AND</span><span class="w"> </span><span class="ss">&quot;changedAt&quot;</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="n">now</span><span class="p">()</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="nb">interval</span><span class="w"> </span><span class="s1">&#39;30 days&#39;</span>
+<a id="__codelineno-3-16" name="__codelineno-3-16" href="#__codelineno-3-16"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="ss">&quot;changedAt&quot;</span><span class="w"> </span><span class="k">DESC</span><span class="p">;</span>
+<a id="__codelineno-3-17" name="__codelineno-3-17" href="#__codelineno-3-17"></a>
+<a id="__codelineno-3-18" name="__codelineno-3-18" href="#__codelineno-3-18"></a><span class="c1">-- Deleted resources (no longer in the current table)</span>
+<a id="__codelineno-3-19" name="__codelineno-3-19" href="#__codelineno-3-19"></a><span class="k">SELECT</span><span class="w"> </span><span class="ss">&quot;rowId&quot;</span><span class="p">,</span><span class="w"> </span><span class="ss">&quot;changedAt&quot;</span><span class="p">,</span><span class="w"> </span><span class="ss">&quot;rowData&quot;</span><span class="o">-&gt;&gt;</span><span class="s1">&#39;displayName&#39;</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">name</span>
+<a id="__codelineno-3-20" name="__codelineno-3-20" href="#__codelineno-3-20"></a><span class="k">FROM</span><span class="w"> </span><span class="ss">&quot;_history&quot;</span>
+<a id="__codelineno-3-21" name="__codelineno-3-21" href="#__codelineno-3-21"></a><span class="k">WHERE</span><span class="w"> </span><span class="ss">&quot;tableName&quot;</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;Resources&#39;</span>
+<a id="__codelineno-3-22" name="__codelineno-3-22" href="#__codelineno-3-22"></a><span class="w">  </span><span class="k">AND</span><span class="w"> </span><span class="k">operation</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;D&#39;</span>
+<a id="__codelineno-3-23" name="__codelineno-3-23" href="#__codelineno-3-23"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="ss">&quot;changedAt&quot;</span><span class="w"> </span><span class="k">DESC</span><span class="p">;</span>
 </code></pre></div>
 <p>For more on audit history usage and query patterns, see <a href="../../architecture/audit-history/">Audit History</a>.</p>
 

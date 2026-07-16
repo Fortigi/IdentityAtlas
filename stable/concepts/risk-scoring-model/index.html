@@ -1134,6 +1134,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/custom-connector/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Custom Connector (Push API)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1214,6 +1242,90 @@
     
   
     Role Mining UI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/dashboard/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dashboard
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/contexts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contexts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/effective-access/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Effective Access (Who Can Access X)
   
 
     
@@ -2033,6 +2145,62 @@
 
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin/authentication/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Authentication & SSO
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin/data-tab/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data & Maintenance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
             
               
                 
@@ -3133,6 +3301,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../../contributing/report-an-issue/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Report a Bug or Request a Feature
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/contribute/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contribute a Change
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../contributing/ci-pipeline/" class="md-nav__link">
         
   
@@ -3783,57 +4007,57 @@
 <tbody>
 <tr>
 <td><code>riskScore</code></td>
-<td>INT</td>
+<td>INTEGER</td>
 <td>Final effective score (0–100): sum of sub-scores + override, clamped</td>
 </tr>
 <tr>
 <td><code>riskTier</code></td>
-<td>NVARCHAR(20)</td>
+<td>TEXT</td>
 <td><code>Critical</code> / <code>High</code> / <code>Medium</code> / <code>Low</code> / <code>Minimal</code> / <code>None</code></td>
 </tr>
 <tr>
 <td><code>riskDirectScore</code></td>
-<td>INT</td>
+<td>INTEGER</td>
 <td>Layer 1: direct classifier match contribution</td>
 </tr>
 <tr>
 <td><code>riskMembershipScore</code></td>
-<td>INT</td>
+<td>INTEGER</td>
 <td>Layer 2: risk inherited from group/resource memberships</td>
 </tr>
 <tr>
 <td><code>riskStructuralScore</code></td>
-<td>INT</td>
+<td>INTEGER</td>
 <td>Layer 3: hygiene signals (stale sign-in, no description, etc.)</td>
 </tr>
 <tr>
 <td><code>riskPropagatedScore</code></td>
-<td>INT</td>
+<td>INTEGER</td>
 <td>Layer 4: risk propagated from children/members</td>
 </tr>
 <tr>
 <td><code>riskExplanation</code></td>
-<td>NVARCHAR(MAX)</td>
+<td>JSONB</td>
 <td>JSON array of human-readable factor descriptions</td>
 </tr>
 <tr>
 <td><code>riskClassifierMatches</code></td>
-<td>NVARCHAR(MAX)</td>
+<td>JSONB</td>
 <td>JSON array of classifier IDs that matched this entity</td>
 </tr>
 <tr>
 <td><code>riskOverride</code></td>
-<td>INT</td>
+<td>INTEGER</td>
 <td>Analyst adjustment (−50 to +50). NULL if no override.</td>
 </tr>
 <tr>
 <td><code>riskOverrideReason</code></td>
-<td>NVARCHAR(500)</td>
+<td>TEXT</td>
 <td>Required justification supplied with the override</td>
 </tr>
 <tr>
 <td><code>riskScoredAt</code></td>
-<td>DATETIME2</td>
+<td>TIMESTAMPTZ</td>
 <td>When this score row was last written by the scoring engine</td>
 </tr>
 </tbody>
@@ -3852,7 +4076,7 @@
 <tbody>
 <tr>
 <td>Primary Key</td>
-<td><code>id</code> (NVARCHAR — usually the domain name)</td>
+<td><code>id</code> (TEXT — usually the domain name)</td>
 </tr>
 <tr>
 <td>Audit history</td>
@@ -3882,7 +4106,7 @@
 <tbody>
 <tr>
 <td>Primary Key</td>
-<td><code>id</code> (NVARCHAR — usually <code>{domain}-v{version}</code>)</td>
+<td><code>id</code> (TEXT — usually <code>{domain}-v{version}</code>)</td>
 </tr>
 <tr>
 <td>Audit history</td>

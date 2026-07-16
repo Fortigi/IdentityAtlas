@@ -964,6 +964,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/custom-connector/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Custom Connector (Push API)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1041,6 +1069,90 @@
     
   
     Role Mining UI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/dashboard/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dashboard
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/contexts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contexts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/effective-access/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Effective Access (Who Can Access X)
   
 
     
@@ -2255,6 +2367,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../../admin/authentication/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Authentication & SSO
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin/data-tab/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data & Maintenance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../admin/auto-updates/" class="md-nav__link">
         
   
@@ -3347,6 +3515,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../../contributing/report-an-issue/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Report a Bug or Request a Feature
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/contribute/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contribute a Change
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../contributing/ci-pipeline/" class="md-nav__link">
         
   
@@ -4210,41 +4434,41 @@
 <h2 id="2-scoring-plugins">2. Scoring Plugins<a class="headerlink" href="#2-scoring-plugins" title="Permanent link">&para;</a></h2>
 <p>For contributors who want to add new <strong>detection logic</strong> beyond pattern matching.</p>
 <h3 id="plugin-interface">Plugin Interface<a class="headerlink" href="#plugin-interface" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">ScoringPlugin</span><span class="p">(</span><span class="n">ABC</span><span class="p">):</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="k">class</span> <span class="nc">ScoringPlugin</span><span class="p">(</span><span class="n">ABC</span><span class="p">):</span>
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
 <a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>    <span class="nd">@property</span>
 <a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>    <span class="nd">@abstractmethod</span>
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">id</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span> <span class="o">...</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>    <span class="k">def</span> <span class="nf">id</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span> <span class="o">...</span>
 <a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>
 <a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>    <span class="nd">@property</span>
 <a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>    <span class="nd">@abstractmethod</span>
-<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">name</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span> <span class="o">...</span>
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>    <span class="k">def</span> <span class="nf">name</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span> <span class="o">...</span>
 <a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>
 <a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a>    <span class="nd">@property</span>
 <a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a>    <span class="nd">@abstractmethod</span>
-<a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">description</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span> <span class="o">...</span>
+<a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a>    <span class="k">def</span> <span class="nf">description</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span> <span class="o">...</span>
 <a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a>
 <a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a>    <span class="nd">@property</span>
 <a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a>    <span class="nd">@abstractmethod</span>
-<a id="__codelineno-2-17" name="__codelineno-2-17" href="#__codelineno-2-17"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">version</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span> <span class="o">...</span>
+<a id="__codelineno-2-17" name="__codelineno-2-17" href="#__codelineno-2-17"></a>    <span class="k">def</span> <span class="nf">version</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span> <span class="o">...</span>
 <a id="__codelineno-2-18" name="__codelineno-2-18" href="#__codelineno-2-18"></a>
 <a id="__codelineno-2-19" name="__codelineno-2-19" href="#__codelineno-2-19"></a>    <span class="nd">@property</span>
-<a id="__codelineno-2-20" name="__codelineno-2-20" href="#__codelineno-2-20"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">entity_types</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">EntityType</span><span class="p">]:</span>
+<a id="__codelineno-2-20" name="__codelineno-2-20" href="#__codelineno-2-20"></a>    <span class="k">def</span> <span class="nf">entity_types</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">EntityType</span><span class="p">]:</span>
 <a id="__codelineno-2-21" name="__codelineno-2-21" href="#__codelineno-2-21"></a>        <span class="k">return</span> <span class="nb">list</span><span class="p">(</span><span class="n">EntityType</span><span class="p">)</span>
 <a id="__codelineno-2-22" name="__codelineno-2-22" href="#__codelineno-2-22"></a>
 <a id="__codelineno-2-23" name="__codelineno-2-23" href="#__codelineno-2-23"></a>    <span class="nd">@property</span>
-<a id="__codelineno-2-24" name="__codelineno-2-24" href="#__codelineno-2-24"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">default_weight</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+<a id="__codelineno-2-24" name="__codelineno-2-24" href="#__codelineno-2-24"></a>    <span class="k">def</span> <span class="nf">default_weight</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
 <a id="__codelineno-2-25" name="__codelineno-2-25" href="#__codelineno-2-25"></a>        <span class="k">return</span> <span class="mf">0.5</span>
 <a id="__codelineno-2-26" name="__codelineno-2-26" href="#__codelineno-2-26"></a>
 <a id="__codelineno-2-27" name="__codelineno-2-27" href="#__codelineno-2-27"></a>    <span class="nd">@abstractmethod</span>
-<a id="__codelineno-2-28" name="__codelineno-2-28" href="#__codelineno-2-28"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">score</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">entity</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span> <span class="n">context</span><span class="p">:</span> <span class="s1">&#39;ScoringContext&#39;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Optional</span><span class="p">[</span><span class="n">ScoreContribution</span><span class="p">]:</span>
+<a id="__codelineno-2-28" name="__codelineno-2-28" href="#__codelineno-2-28"></a>    <span class="k">def</span> <span class="nf">score</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">entity</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span> <span class="n">context</span><span class="p">:</span> <span class="s1">&#39;ScoringContext&#39;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Optional</span><span class="p">[</span><span class="n">ScoreContribution</span><span class="p">]:</span>
 <a id="__codelineno-2-29" name="__codelineno-2-29" href="#__codelineno-2-29"></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;Score a single entity. Return None if no opinion.&quot;&quot;&quot;</span>
 <a id="__codelineno-2-30" name="__codelineno-2-30" href="#__codelineno-2-30"></a>        <span class="k">pass</span>
 </code></pre></div>
 <h3 id="example-plugins">Example Plugins<a class="headerlink" href="#example-plugins" title="Permanent link">&para;</a></h3>
 <h4 id="toxic-access-combinations">Toxic Access Combinations<a class="headerlink" href="#toxic-access-combinations" title="Permanent link">&para;</a></h4>
 <p>Detects users who hold group memberships that together create separation-of-duty violations.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">ToxicCombinationsPlugin</span><span class="p">(</span><span class="n">ScoringPlugin</span><span class="p">):</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="k">class</span> <span class="nc">ToxicCombinationsPlugin</span><span class="p">(</span><span class="n">ScoringPlugin</span><span class="p">):</span>
 <a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="sd">    Example: A user in both &quot;AP-Invoice-Approve&quot; and &quot;AP-Payment-Execute&quot;</span>
 <a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="sd">    can both approve and execute payments — classic SoD violation.</span>
@@ -4326,10 +4550,10 @@
 <hr />
 <h2 id="3-context-discovery-plugins">3. Context Discovery Plugins<a class="headerlink" href="#3-context-discovery-plugins" title="Permanent link">&para;</a></h2>
 <p>Extend how the system researches organizations in Phase 1.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">DiscoveryPlugin</span><span class="p">(</span><span class="n">ABC</span><span class="p">):</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="k">class</span> <span class="nc">DiscoveryPlugin</span><span class="p">(</span><span class="n">ABC</span><span class="p">):</span>
 <a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>
 <a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>    <span class="nd">@abstractmethod</span>
-<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">discover</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">customer_domain</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">customer_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>    <span class="k">async</span> <span class="k">def</span> <span class="nf">discover</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">customer_domain</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">customer_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
 <a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>                       <span class="n">existing_profile</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">DiscoveryResult</span><span class="p">:</span>
 <a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;Research the organization and return findings.&quot;&quot;&quot;</span>
 <a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>        <span class="k">pass</span>
@@ -4369,15 +4593,15 @@
 <hr />
 <h2 id="4-data-source-connectors">4. Data Source Connectors<a class="headerlink" href="#4-data-source-connectors" title="Permanent link">&para;</a></h2>
 <p>Allow the tool to collect identity data from sources beyond AD/Entra ID.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">DataSourceConnector</span><span class="p">(</span><span class="n">ABC</span><span class="p">):</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="k">class</span> <span class="nc">DataSourceConnector</span><span class="p">(</span><span class="n">ABC</span><span class="p">):</span>
 <a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>
 <a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>    <span class="nd">@abstractmethod</span>
-<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">collect</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">config</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">CollectionResult</span><span class="p">:</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>    <span class="k">async</span> <span class="k">def</span> <span class="nf">collect</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">config</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">CollectionResult</span><span class="p">:</span>
 <a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;Collect entities and return normalized data.&quot;&quot;&quot;</span>
 <a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>        <span class="k">pass</span>
 <a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>
 <a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>    <span class="nd">@abstractmethod</span>
-<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">get_required_permissions</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a>    <span class="k">def</span> <span class="nf">get_required_permissions</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
 <a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;Permissions needed (displayed during setup).&quot;&quot;&quot;</span>
 <a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a>        <span class="k">pass</span>
 </code></pre></div>

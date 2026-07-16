@@ -964,6 +964,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/custom-connector/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Custom Connector (Push API)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1041,6 +1069,90 @@
     
   
     Role Mining UI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/dashboard/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dashboard
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/contexts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contexts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/effective-access/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Effective Access (Who Can Access X)
   
 
     
@@ -2187,6 +2299,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../../admin/authentication/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Authentication & SSO
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin/data-tab/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data & Maintenance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../admin/auto-updates/" class="md-nav__link">
         
   
@@ -3279,6 +3447,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../../contributing/report-an-issue/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Report a Bug or Request a Feature
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/contribute/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contribute a Change
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../contributing/ci-pipeline/" class="md-nav__link">
         
   
@@ -4067,7 +4291,7 @@
 <li><strong>Bulk MERGEs</strong> into the target table (INSERT new, UPDATE changed)</li>
 <li><strong>Scoped delete detection</strong> — if <code>syncMode: "full"</code>, records in this system+scope that are NOT in the batch are deleted</li>
 <li><strong>Logs</strong> the sync operation to <code>GraphSyncLog</code></li>
-<li><strong>Returns</strong> a summary: <code>{ inserted, updated, deleted, errors }</code></li>
+<li><strong>Returns</strong> a summary: <code>{ table, inserted, updated, deleted, records, durationMs }</code> (plus <code>systemIds</code> on the entity types that create/resolve them)</li>
 </ol>
 <h3 id="endpoint-pattern">Endpoint Pattern<a class="headerlink" href="#endpoint-pattern" title="Permanent link">&para;</a></h3>
 <p>All ingest endpoints follow the same pattern:</p>
@@ -4086,17 +4310,17 @@
 <a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="err">  ]</span>
 <a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="err">}</span>
 </code></pre></div>
-<p>Response:</p>
+<p>Response — <code>201 Created</code>:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="p">{</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span><span class="nt">&quot;syncId&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;uuid&quot;</span><span class="p">,</span>
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">  </span><span class="nt">&quot;table&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Resources&quot;</span><span class="p">,</span>
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">  </span><span class="nt">&quot;inserted&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">142</span><span class="p">,</span>
-<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">  </span><span class="nt">&quot;updated&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">38</span><span class="p">,</span>
-<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">  </span><span class="nt">&quot;deleted&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">7</span><span class="p">,</span>
-<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">  </span><span class="nt">&quot;errors&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[],</span>
-<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">  </span><span class="nt">&quot;durationMs&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">2340</span>
-<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="p">}</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span><span class="nt">&quot;table&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Resources&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">  </span><span class="nt">&quot;inserted&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">142</span><span class="p">,</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">  </span><span class="nt">&quot;updated&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">38</span><span class="p">,</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">  </span><span class="nt">&quot;deleted&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">7</span><span class="p">,</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">  </span><span class="nt">&quot;records&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">180</span><span class="p">,</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">  </span><span class="nt">&quot;durationMs&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">2340</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="p">}</span>
 </code></pre></div>
+<p><code>records</code> echoes the number of records in the batch. <code>systemIds</code> is included only on the entity types that create or resolve systems (e.g. <code>POST /api/ingest/systems</code>) — it holds the resolved integer system IDs so a push-mode connector can capture the <code>systemId</code> for its follow-up calls. There is no <code>syncId</code> and no <code>errors[]</code> field on a single-batch response: a batch either succeeds as a whole (<code>201</code>) or fails validation up front (<code>400</code>, with the offending records under <code>details</code>).</p>
 <h3 id="entity-endpoints">Entity Endpoints<a class="headerlink" href="#entity-endpoints" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
@@ -4129,7 +4353,7 @@
 <tr>
 <td><code>POST /api/ingest/resource-assignments</code></td>
 <td>ResourceAssignments</td>
-<td><code>(resourceId, principalId, assignmentType)</code></td>
+<td><code>(resourceId, principalId, assignmentType, governed)</code></td>
 <td><code>assignmentType</code></td>
 </tr>
 <tr>
@@ -4408,11 +4632,11 @@
 </tr>
 <tr>
 <td><code>assignmentType</code></td>
-<td>One of: <code>Direct</code>, <code>Indirect</code>, <code>Eligible</code>, <code>Owner</code>, <code>Governed</code>, <code>OAuth2Grant</code>, <code>AppRole</code>, <code>AppRoleViaGroup</code></td>
+<td>One of exactly: <code>Direct</code>, <code>Indirect</code>, <code>Eligible</code> — ingest <strong>rejects</strong> any other value. Everything that used to be its own type is modelled differently: ownership is a <code>Direct</code> membership on a <code>GroupOwnership</code>/<code>*Ownership</code> resource; governance is the <code>governed=true</code> flag on the assignment; the former source-detail types (<code>OAuth2Grant</code>, <code>AppRole</code>, <code>AppRoleViaGroup</code>, <code>DirectoryRole</code>, <code>DirectoryRoleEligible</code>) collapse to <code>Direct</code>/<code>Indirect</code>/<code>Eligible</code> with <code>resourceType</code> carrying the detail</td>
 </tr>
 <tr>
 <td><code>relationshipType</code></td>
-<td>One of: <code>Contains</code>, <code>GrantsAccessTo</code>, <code>DelegatesScope</code>, <code>HasAppRole</code>, <code>HasOwnership</code>, <code>HasAppOwnership</code></td>
+<td>One of: <code>Contains</code>, <code>HasAppRole</code>, <code>DelegatesScope</code>, <code>HasApplicationPermission</code>, <code>HasAppOwnership</code>, <code>HasOwnership</code> (<code>GrantsAccessTo</code> is accepted but reserved / not yet emitted)</td>
 </tr>
 <tr>
 <td><code>extendedAttributes</code></td>

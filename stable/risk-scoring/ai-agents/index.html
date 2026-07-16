@@ -964,6 +964,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/custom-connector/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Custom Connector (Push API)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1041,6 +1069,90 @@
     
   
     Role Mining UI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/dashboard/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dashboard
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/contexts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contexts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/effective-access/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Effective Access (Who Can Access X)
   
 
     
@@ -1985,6 +2097,62 @@
 
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin/authentication/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Authentication & SSO
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin/data-tab/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data & Maintenance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
             
               
                 
@@ -3085,6 +3253,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../../contributing/report-an-issue/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Report a Bug or Request a Feature
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/contribute/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contribute a Change
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../contributing/ci-pipeline/" class="md-nav__link">
         
   
@@ -3671,7 +3895,7 @@
 <tr>
 <td>Ghost app role (zero active sign-ins for this resource)</td>
 <td>+5</td>
-<td>EntraAppRole resources</td>
+<td>AppRole resources</td>
 </tr>
 </tbody>
 </table>
@@ -3690,8 +3914,7 @@
 <a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="k">FROM</span><span class="w"> </span><span class="n">Principals</span><span class="w"> </span><span class="n">p</span>
 <a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="k">JOIN</span><span class="w"> </span><span class="n">RiskScores</span><span class="w"> </span><span class="n">rs</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">rs</span><span class="p">.</span><span class="n">entityId</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="n">id</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">rs</span><span class="p">.</span><span class="n">entityType</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;Principal&#39;</span>
 <a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="n">principalType</span><span class="w"> </span><span class="k">IN</span><span class="w"> </span><span class="p">(</span><span class="s1">&#39;AIAgent&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;ManagedIdentity&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;ServicePrincipal&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;WorkloadIdentity&#39;</span><span class="p">)</span>
-<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">  </span><span class="k">AND</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="n">ValidTo</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;9999-12-31 23:59:59.9999999&#39;</span>
-<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">rs</span><span class="p">.</span><span class="n">riskScore</span><span class="w"> </span><span class="k">DESC</span><span class="p">;</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">rs</span><span class="p">.</span><span class="n">riskScore</span><span class="w"> </span><span class="k">DESC</span><span class="p">;</span>
 </code></pre></div>
 
 

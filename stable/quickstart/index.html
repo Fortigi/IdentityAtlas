@@ -1090,6 +1090,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sync/custom-connector/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Custom Connector (Push API)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1170,6 +1198,90 @@
     
   
     Role Mining UI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ui/dashboard/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dashboard
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ui/contexts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contexts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ui/effective-access/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Effective Access (Who Can Access X)
   
 
     
@@ -1989,6 +2101,62 @@
 
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../admin/authentication/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Authentication & SSO
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../admin/data-tab/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data & Maintenance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
             
               
                 
@@ -3089,6 +3257,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../contributing/report-an-issue/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Report a Bug or Request a Feature
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../contributing/contribute/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contribute a Change
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../contributing/ci-pipeline/" class="md-nav__link">
         
   
@@ -3556,30 +3780,41 @@
 
 
 <h1 id="quick-start">Quick Start<a class="headerlink" href="#quick-start" title="Permanent link">&para;</a></h1>
-<p>Identity Atlas runs as a Docker stack — no Azure subscription, no git clone required. Just Docker.</p>
+<p>Identity Atlas runs as a Docker stack — no Azure subscription, no git clone required. All you need is Docker and a one-line <code>.env</code> that sets a database password.</p>
 <div class="tabbed-set tabbed-alternate" data-tabs="1:2"><input checked="checked" id="__tabbed_1_1" name="__tabbed_1" type="radio" /><input id="__tabbed_1_2" name="__tabbed_1" type="radio" /><div class="tabbed-labels"><label for="__tabbed_1_1">Linux / macOS</label><label for="__tabbed_1_2">Windows (PowerShell)</label></div>
 <div class="tabbed-content">
 <div class="tabbed-block">
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># Download the compose file</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># Download the compose file and the env template</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>curl<span class="w"> </span>-O<span class="w"> </span>https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/docker-compose.prod.yml
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="c1"># Start everything (--pull always forces Docker to fetch the newest</span>
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="c1"># :latest image from ghcr.io instead of reusing a cached copy)</span>
-<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>docker-compose.prod.yml<span class="w"> </span>up<span class="w"> </span>-d<span class="w"> </span>--pull<span class="w"> </span>always
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>curl<span class="w"> </span>-O<span class="w"> </span>https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/setup/config/.env.example
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>cp<span class="w"> </span>.env.example<span class="w"> </span>.env
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="c1"># Edit .env and set a strong POSTGRES_PASSWORD — the prod compose refuses to start without it</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="c1"># Start everything (--pull always forces Docker to fetch the newest</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="c1"># :latest image from ghcr.io instead of reusing a cached copy)</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>docker-compose.prod.yml<span class="w"> </span>up<span class="w"> </span>-d<span class="w"> </span>--pull<span class="w"> </span>always
 </code></pre></div>
 </div>
 <div class="tabbed-block">
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c"># Download the compose file</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="nb">Invoke-WebRequest</span> <span class="p">`</span>
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>    <span class="n">-Uri</span> <span class="n">https</span><span class="p">://</span><span class="n">raw</span><span class="p">.</span><span class="n">githubusercontent</span><span class="p">.</span><span class="n">com</span><span class="p">/</span><span class="n">Fortigi</span><span class="p">/</span><span class="n">IdentityAtlas</span><span class="p">/</span><span class="n">main</span><span class="p">/</span><span class="n">docker-compose</span><span class="p">.</span><span class="n">prod</span><span class="p">.</span><span class="n">yml</span> <span class="p">`</span>
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>    <span class="n">-OutFile</span> <span class="n">docker-compose</span><span class="p">.</span><span class="n">prod</span><span class="p">.</span><span class="n">yml</span>
-<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>
-<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="c"># Start everything (--pull always forces Docker to fetch the newest</span>
-<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="c"># :latest image from ghcr.io instead of reusing a cached copy)</span>
-<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="n">docker</span> <span class="n">compose</span> <span class="o">-f</span> <span class="n">docker-compose</span><span class="p">.</span><span class="n">prod</span><span class="p">.</span><span class="n">yml</span> <span class="n">up</span> <span class="n">-d</span> <span class="p">-</span><span class="n">-pull</span> <span class="n">always</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c"># Download the compose file and the env template</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="nb">Invoke-WebRequest</span> <span class="n">-Uri</span> <span class="n">https</span><span class="p">://</span><span class="n">raw</span><span class="p">.</span><span class="n">githubusercontent</span><span class="p">.</span><span class="n">com</span><span class="p">/</span><span class="n">Fortigi</span><span class="p">/</span><span class="n">IdentityAtlas</span><span class="p">/</span><span class="n">main</span><span class="p">/</span><span class="n">docker-compose</span><span class="p">.</span><span class="n">prod</span><span class="p">.</span><span class="n">yml</span> <span class="n">-OutFile</span> <span class="n">docker-compose</span><span class="p">.</span><span class="n">prod</span><span class="p">.</span><span class="n">yml</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="nb">Invoke-WebRequest</span> <span class="n">-Uri</span> <span class="n">https</span><span class="p">://</span><span class="n">raw</span><span class="p">.</span><span class="n">githubusercontent</span><span class="p">.</span><span class="n">com</span><span class="p">/</span><span class="n">Fortigi</span><span class="p">/</span><span class="n">IdentityAtlas</span><span class="p">/</span><span class="n">main</span><span class="p">/</span><span class="n">setup</span><span class="p">/</span><span class="n">config</span><span class="p">/.</span><span class="n">env</span><span class="p">.</span><span class="n">example</span> <span class="n">-OutFile</span> <span class="p">.</span><span class="n">env</span><span class="p">.</span><span class="n">example</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="nb">Copy-Item</span> <span class="p">.</span><span class="n">env</span><span class="p">.</span><span class="n">example</span> <span class="p">.</span><span class="n">env</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="c"># Edit .env and set a strong POSTGRES_PASSWORD — the prod compose refuses to start without it</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="c"># Start everything (--pull always forces Docker to fetch the newest</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="c"># :latest image from ghcr.io instead of reusing a cached copy)</span>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="n">docker</span> <span class="n">compose</span> <span class="o">-f</span> <span class="n">docker-compose</span><span class="p">.</span><span class="n">prod</span><span class="p">.</span><span class="n">yml</span> <span class="n">up</span> <span class="n">-d</span> <span class="p">-</span><span class="n">-pull</span> <span class="n">always</span>
 </code></pre></div>
 </div>
 </div>
+</div>
+<div class="admonition warning">
+<p class="admonition-title"><code>POSTGRES_PASSWORD</code> is required</p>
+<p>The production compose file ships no default database password and refuses to
+start until you set a strong, unique <code>POSTGRES_PASSWORD</code> in <code>.env</code> (or pass it
+inline). Copying <code>.env.example</code> alone isn't enough — it leaves the value blank.
+See <a href="../architecture/docker-setup/">Docker Setup</a> for the full list of variables.</p>
 </div>
 <div class="admonition tip">
 <p class="admonition-title">Why <code>--pull always</code>?</p>
@@ -3739,6 +3974,10 @@
 <tr>
 <td>Troubleshooting</td>
 <td><a href="../reference/troubleshooting/">Troubleshooting</a></td>
+</tr>
+<tr>
+<td>Connecting your Entra ID tenant</td>
+<td><a href="../sync/entra-id/">Entra ID Sync</a></td>
 </tr>
 <tr>
 <td>Importing from non-Entra systems</td>

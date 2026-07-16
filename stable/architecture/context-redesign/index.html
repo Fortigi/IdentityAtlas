@@ -956,6 +956,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/custom-connector/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Custom Connector (Push API)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1033,6 +1061,90 @@
     
   
     Role Mining UI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/dashboard/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dashboard
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/contexts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contexts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/effective-access/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Effective Access (Who Can Access X)
   
 
     
@@ -1852,6 +1964,62 @@
 
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin/authentication/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Authentication & SSO
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin/data-tab/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data & Maintenance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
             
               
                 
@@ -2952,6 +3120,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../../contributing/report-an-issue/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Report a Bug or Request a Feature
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/contribute/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contribute a Change
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../contributing/ci-pipeline/" class="md-nav__link">
         
   
@@ -3335,10 +3559,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#33-schema-proposed" class="md-nav__link">
+  <a href="#33-schema" class="md-nav__link">
     <span class="md-ellipsis">
       
-        3.3 Schema (proposed)
+        3.3 Schema
       
     </span>
   </a>
@@ -3585,9 +3809,9 @@
 
 <h1 id="context-redesign">Context Redesign<a class="headerlink" href="#context-redesign" title="Permanent link">&para;</a></h1>
 <blockquote>
-<p><strong>Status:</strong> Design proposal — not yet implemented.
+<p><strong>Status:</strong> Implemented (v6). This is the architecture reference for the shipped Contexts feature — the unified model, the plugin framework, and matrix filtering described below are all live in the product. For the analyst how-to guide for the Contexts screen, see <a href="../../ui/contexts/">../ui/contexts.md</a>.
 <strong>Author:</strong> Wim van den Heijkant
-<strong>Date:</strong> 2026-04-21
+<strong>Date:</strong> 2026-04-21 (design); shipped in v6
 <strong>Companion docs:</strong> <a href="../context-redesign-ui/">context-redesign-ui.md</a></p>
 </blockquote>
 <h2 id="1-problem-statement">1. Problem Statement<a class="headerlink" href="#1-problem-statement" title="Permanent link">&para;</a></h2>
@@ -3701,7 +3925,8 @@
 </tbody>
 </table>
 <p>Variant is a property of the <strong>node</strong>, not the tree. An analyst can graft a <code>manual</code> sub-tree under a <code>synced</code> parent. On the next sync the parent updates but the manual children are preserved (matched by <code>parentContextId</code> + analyst-set name).</p>
-<h3 id="33-schema-proposed">3.3 Schema (proposed)<a class="headerlink" href="#33-schema-proposed" title="Permanent link">&para;</a></h3>
+<h3 id="33-schema">3.3 Schema<a class="headerlink" href="#33-schema" title="Permanent link">&para;</a></h3>
+<p>The v6 migrations create these tables. (The analyst-curation columns and side tables added during the build — <code>Contexts.userRenamed</code> / <code>userReparented</code> (migration 033) and <code>ManagerHierarchyOverrides</code> (migration 035) — are covered in §4.4.)</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1">-- Replaces the current Contexts table</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">Contexts</span><span class="w"> </span><span class="p">(</span>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">    </span><span class="n">id</span><span class="w">                  </span><span class="n">UUID</span><span class="w"> </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="p">,</span>
