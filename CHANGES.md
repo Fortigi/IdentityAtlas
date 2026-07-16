@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- The Contexts hierarchy (departments, org units, tags) is now guaranteed acyclic at the database level: any change that would create a parent-child loop is rejected outright, so a mis-configured source tree surfaces as a clear error instead of being silently altered. Bulk imports that briefly build an intermediate state and resolve it before finishing are unaffected.
+
+## Changes in this PR
+
 - Corrected the demo-dataset verification's expected resource and relationship counts to include the group-ownership data added in the previous release, so the integration check passes against the current demo dataset.
 
 ## Changes in this PR
