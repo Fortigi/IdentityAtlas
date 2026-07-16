@@ -1,5 +1,11 @@
 ## Changes in this PR
 
+- Fixed app roles showing as an uncoloured grey badge on the resource detail page for real Entra tenants. The page only recognised a type name that the demo data used, so the bug was invisible in demos and showed up only against real data.
+- Fixed the risky-consent analysis skipping the demo dataset's app roles, so its app-permission findings can now be seen in a demo.
+- App roles are now named consistently everywhere. Existing data is renamed automatically on upgrade, and the old name is rejected from now on.
+
+## Changes in this PR
+
 - Corrected the demo dataset documentation, which described a company and a set of records that didn't match what the dataset actually contains — wrong row counts throughout, three admin units where only one exists, and an "employee with no assignments" edge case that isn't in the data.
 - The documentation now explains how to count the records correctly, so readers don't get different numbers than the page shows.
 
