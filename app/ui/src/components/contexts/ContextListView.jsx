@@ -49,6 +49,7 @@ export default function ContextListView({ nodes, onOpenDetail }) {
     <div className="p-3">
       <div className="mb-2 flex items-center gap-2">
         <input
+          aria-label="Filter contexts by name"
           placeholder="Filter by name…"
           value={search}
           onChange={e => setSearch(e.target.value)}

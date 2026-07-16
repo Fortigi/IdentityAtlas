@@ -29,7 +29,8 @@ describe('ContextMemberPicker (mounted)', () => {
     );
     const user = userEvent.setup();
 
-    await user.type(screen.getByPlaceholderText(/Search identitys to add/i), 'Ali');
+    // Query by accessible name (aria-label), not placeholder — guards #761.
+    await user.type(screen.getByRole('textbox', { name: /Search identitys to add/i }), 'Ali');
     // After the 250ms debounce the result row renders.
     expect(await screen.findByText('Alice')).toBeInTheDocument();
 

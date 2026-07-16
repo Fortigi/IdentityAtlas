@@ -57,6 +57,8 @@ describe('EntityListPage pagination', () => {
     // Page 1 renders with the total and pager.
     expect(await screen.findByText('250 total')).toBeInTheDocument();
     expect(screen.getByText('Page 1 of 3')).toBeInTheDocument();
+    // The search box carries an accessible name (aria-label) — #761.
+    expect(screen.getByRole('textbox', { name: 'Search' })).toBeInTheDocument();
 
     // Click Next → offset=100 → response has total:null. Pre-fix this threw.
     fireEvent.click(screen.getByRole('button', { name: 'Next' }));
