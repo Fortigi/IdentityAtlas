@@ -1,3 +1,5 @@
+import { GROUP_PRINCIPAL_TYPE } from '../lib/principalTypes.js';
+
 // Context-tree roll-up: aggregate the matrix subject axis by a Context hierarchy
 // (e.g. the Manager Hierarchy) instead of a flat attribute. Columns are the
 // context nodes of the current "frontier" (a horizontal cut of the tree); each
@@ -62,7 +64,7 @@ function subtreeCte(values) {
 //   subjectScope   IN-clause target for the subject filter (same expr)
 export function buildContextRollupSql({ values, identityJoin = '', subjectId, subjectScope, subjectSql, resourceSql }) {
   const where = [
-    `(p."principalType" IS NULL OR p."principalType" != '#microsoft.graph.group')`,
+    `(p."principalType" IS NULL OR p."principalType" != '${GROUP_PRINCIPAL_TYPE}')`,
     `p."membershipType" = 'Direct'`,
   ];
   if (subjectSql)  where.push(`${subjectScope} IN ${subjectSql}`);
@@ -149,7 +151,7 @@ export function buildContextRolesAsRowsSql({ values, identityJoin = '', subjectI
 export function buildContextScopedMemberCountsSql({ values, identityJoin = '', subjectId, subjectScope, subjectSql, resourceSql }) {
   const where = [
     `p."membershipType" = 'Direct'`,
-    `(p."principalType" IS NULL OR p."principalType" != '#microsoft.graph.group')`,
+    `(p."principalType" IS NULL OR p."principalType" != '${GROUP_PRINCIPAL_TYPE}')`,
   ];
   if (subjectSql)  where.push(`${subjectScope} IN ${subjectSql}`);
   if (resourceSql) where.push(`p."resourceId" IN ${resourceSql}`);

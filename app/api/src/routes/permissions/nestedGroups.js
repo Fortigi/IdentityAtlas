@@ -11,6 +11,7 @@ import { createParams } from '../../db/sqlParams.js';
 import { expandCapabilityDown } from '../../effectiveAccess/engine.js';
 import { useSql, db } from './shared.js';
 import { parseFilter, buildSubqueries } from '../matrix/shared.js';
+import { GROUP_PRINCIPAL_TYPE } from '../../lib/principalTypes.js';
 
 const router = Router();
 
@@ -134,7 +135,7 @@ async function nestedGroupsHandler(req, res) {
             AND ra2."principalType" ILIKE '%group%'
             ${membersResClause}
        )
-       AND (p."principalType" IS NULL OR p."principalType" != '#microsoft.graph.group')
+       AND (p."principalType" IS NULL OR p."principalType" != '${GROUP_PRINCIPAL_TYPE}')
     `, mp.params);
 
     return res.json({
