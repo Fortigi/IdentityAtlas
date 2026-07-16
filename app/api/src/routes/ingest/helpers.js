@@ -9,7 +9,6 @@
 import * as db from '../../db/connection.js';
 import { SOFT_DELETE_TABLES } from '../../ingest/engine.js';
 import { startSession, continueSession, endSession, hasSession } from '../../ingest/sessions.js';
-import { breakCycles } from '../../contexts/cycleGuard.js';
 
 export function applyIngestDefaults(entityType, body) {
   if (!Array.isArray(body.records)) body.records = [];
@@ -163,18 +162,19 @@ export function writeAuditLog(req, body) {
   ).catch(() => {});
 }
 
-// Contexts self-reference via parentContextId; a mis-parented synced tree can
-// persist a cycle. True prevention isn't feasible for a set-based bulk upsert (a
-// batch-internal A->B->A loop is invisible pre-persist), so repair reactively per
-// contexts batch — don't wait for the end-of-sync refresh-views call, which a
-// delta/partial crawl may never make. No-op on a clean tree. Extracted from the
-// handler so the generic ingest path stays under the complexity ceiling.
-export async function repairContextCyclesAfterIngest(entityType, result) {
-  if (entityType !== 'contexts' || (result.inserted + result.updated) <= 0) return;
-  try {
-    const broken = await breakCycles(db);
-    if (broken) console.warn(`Ingest contexts: broke ${broken} cyclic parentContextId link(s)`);
-  } catch (cycErr) {
-    console.warn('Ingest contexts cycle repair failed (non-fatal):', cycErr.message);
+// Context-tree acyclicity is enforced at the database (migration 059's deferred
+// constraint trigger, #627), so the old reactive breakCycles-after-ingest repair
+// was removed: a cyclic contexts batch now aborts its own ingest() commit and is
+// surfaced as a 422 by the handler, instead of being silently NULLed here.
+
+// Map an ingest failure to an HTTP response. A parentContextId cycle is rejected
+// at COMMIT by the Contexts acyclicity trigger (migration 059) — surface it as a
+// clear 422 (a malformed source tree, the caller's to fix) rather than an opaque
+// 500. Extracted from the handler's catch so the handler stays under the cognitive
+// complexity ceiling.
+export function ingestErrorResponse(err) {
+  if (err.code === '23514' && /parentContextId cycle/i.test(err.message || '')) {
+    return { status: 422, body: { error: 'Context hierarchy would create a cycle', message: err.message } };
   }
+  return { status: 500, body: { error: 'Ingest failed', message: err.message } };
 }

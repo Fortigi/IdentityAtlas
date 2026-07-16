@@ -20,23 +20,16 @@
 import * as db from '../../db/connection.js';
 import { randomUUID } from 'crypto';
 import { getPlugin } from './registry.js';
-import { breakCycles, wouldCreateCycle } from '../cycleGuard.js';
-
-// Repair any parentContextId cycle a plugin's parent structure introduced, and
-// log if anything was broken. Kept as a module-level helper so the reconcile
-// routine that calls it stays within its complexity budget.
-async function repairPluginCycles(client, pluginName) {
-  const n = await breakCycles(client);
-  if (n) console.warn(`[context-plugin] ${pluginName}: broke ${n} cyclic parentContextId link(s)`);
-}
+import { wouldCreateCycle } from '../cycleGuard.js';
 
 // Second pass of reconcile: set parent pointers now that every target row exists.
 // Skips analyst-reparented nodes and unresolved parents, and — via wouldCreateCycle
 // — any link that would close a loop against the tree written so far this pass
 // (client sees the in-transaction rows), leaving that node a root rather than
-// writing-then-NULLing it. Extracted from reconcile to keep it under the
-// complexity ceiling; repairPluginCycles stays as the net for a batch-internal
-// cycle prevention can't see pre-persist.
+// writing it. Extracted from reconcile to keep it under the complexity ceiling.
+// Migration 059's deferred trigger is the backstop: a cycle that somehow survived
+// to commit aborts the run's transaction (surfaced as a failed run) rather than
+// being silently NULLed by a post-hoc repair (#627).
 async function linkContextParents(client, contexts, newByExternalId, reparentedIds, pluginName) {
   for (const node of contexts) {
     if (!node.externalId || !node.parentExternalId) continue;
@@ -309,10 +302,10 @@ async function reconcile(plugin, algorithmId, runId, params, result, instanceKey
     // 3b) Second pass: set parent pointers now that every target row exists.
     await linkContextParents(client, result.contexts, newByExternalId, reparentedIds, plugin.name);
 
-    // Fix-at-source: if the plugin's parentExternalId structure formed a loop,
-    // repair the stored tree now — before the member-count roll-up below
-    // recurses it — by NULLing the offending parent link(s).
-    await repairPluginCycles(client, plugin.name);
+    // Acyclicity is handled up front by linkContextParents (it skips a loop-closing
+    // link, leaving the node a root) and guaranteed by migration 059's deferred
+    // trigger at commit; the member-count roll-up below is itself CYCLE-guarded, so
+    // it can't hang. No post-hoc repair needed (#627).
 
     // 4) Remove contexts that previously belonged to this (algorithm, scope)
     //    but are no longer in the plugin's output.

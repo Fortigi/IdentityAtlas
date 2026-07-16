@@ -46,13 +46,33 @@ beforeEach(async () => {
   await pool.query(`DELETE FROM "Contexts" WHERE "scopeSystemId" = $1`, [systemId]);
   // clean chain
   await ins(A, null); await ins(B, A); await ins(C, B);
-  // 2-cycle: insert acyclic, then close the loop with an UPDATE
+  // 2-cycle + 3-cycle. These are "pre-existing corruption": migration 059's
+  // trigger blocks committing a cycle through a normal write, so seed the
+  // loop-closing UPDATEs with triggers off for this connection only. That's
+  // exactly the scenario these defenses exist for — a cycle that predates the
+  // trigger or arrives via a bypassing writer. session_replication_role is
+  // session-scoped and reset in finally, so it never leaks to other connections.
   await ins(X, null); await ins(Y, X);
-  await pool.query(`UPDATE "Contexts" SET "parentContextId" = $1 WHERE id = $2`, [Y, X]);
-  // 3-cycle
   await ins(P, null); await ins(Q, P); await ins(R, Q);
-  await pool.query(`UPDATE "Contexts" SET "parentContextId" = $1 WHERE id = $2`, [R, P]);
+  await withTriggersOff(async (c) => {
+    await c.query(`UPDATE "Contexts" SET "parentContextId" = $1 WHERE id = $2`, [Y, X]); // close 2-cycle
+    await c.query(`UPDATE "Contexts" SET "parentContextId" = $1 WHERE id = $2`, [R, P]); // close 3-cycle
+  });
 });
+
+// Run `fn(client)` with user triggers disabled on that client's session, so a
+// test can seed a genuinely cyclic tree that the migration-059 trigger would
+// otherwise reject. Always reset + release, so no other connection is affected.
+async function withTriggersOff(fn) {
+  const c = await pool.connect();
+  try {
+    await c.query(`SET session_replication_role = replica`);
+    await fn(c);
+  } finally {
+    await c.query(`SET session_replication_role = origin`).catch(() => {});
+    c.release();
+  }
+}
 
 afterAll(async () => {
   await pool?.query(`DELETE FROM "Contexts" WHERE "scopeSystemId" = $1`, [systemId]);

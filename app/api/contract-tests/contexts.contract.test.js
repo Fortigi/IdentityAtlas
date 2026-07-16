@@ -89,13 +89,22 @@ describe('contexts tree CTE — happy path', () => {
 });
 
 describe('contexts tree CTE — cyclic parentContextId', () => {
-  // Build A→B→A: insert acyclic, then close the loop with a direct UPDATE,
-  // mimicking corrupt data that arrives via the ingest / plugin write paths
-  // (which, unlike PATCH /contexts/:id, do not guard against cycles).
+  // Build A→B→A, mimicking corrupt data that predates migration 059's trigger or
+  // arrives via a bypassing writer. The trigger blocks committing a cycle through
+  // a normal write, so close the loop with triggers off for this connection only
+  // (session_replication_role, reset in finally so it never leaks). The read-side
+  // CYCLE guards still have to survive such a cycle — that's what these tests pin.
   async function makeCycle() {
     const a = await insertContext({ name: 'Cycle A' });
     const b = await insertContext({ parent: a, name: 'Cycle B' });
-    await pool.query(`UPDATE "Contexts" SET "parentContextId" = $1 WHERE id = $2`, [b, a]);
+    const c = await pool.connect();
+    try {
+      await c.query(`SET session_replication_role = replica`);
+      await c.query(`UPDATE "Contexts" SET "parentContextId" = $1 WHERE id = $2`, [b, a]);
+    } finally {
+      await c.query(`SET session_replication_role = origin`).catch(() => {});
+      c.release();
+    }
     return { a, b };
   }
 

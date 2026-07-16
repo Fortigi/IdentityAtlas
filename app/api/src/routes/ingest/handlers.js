@@ -15,7 +15,7 @@ import { crawlerHasSystemAccess, crawlerHasPermission } from '../../middleware/c
 import { normalizePresenceQuery, lookupCrawlerPresence } from '../../ingest/crawlerPresence.js';
 import {
   applyIngestDefaults, recoverSystemPrefix, buildScope, conflictFilterFor, discoverCoreColumns,
-  handleSessionPath, applyDeleteByIds, lookupSystemIds, writeAuditLog, repairContextCyclesAfterIngest,
+  handleSessionPath, applyDeleteByIds, lookupSystemIds, writeAuditLog, ingestErrorResponse,
 } from './helpers.js';
 
 const router = Router();
@@ -76,7 +76,10 @@ function createIngestHandler(entityType) {
       const delErr = await applyDeleteByIds(body, tableName, result);
       if (delErr) return res.status(delErr.status).json(delErr.body);
 
-      await repairContextCyclesAfterIngest(entityType, result);
+      // Context-tree acyclicity is enforced at the database (migration 059's
+      // deferred trigger) — a cyclic batch aborts the ingest() commit above and is
+      // handled in catch. The old post-ingest breakCycles repair is gone: it
+      // silently NULLed an edge instead of surfacing the malformed input.
 
       await writeSyncLog(null, `API-${entityType}`, tableName, startTime,
                          body.records.length, result.inserted, result.updated, result.deleted, null);
@@ -98,7 +101,9 @@ function createIngestHandler(entityType) {
       console.error(`Ingest error (${entityType}):`, err.message);
       await writeSyncLog(null, `API-${entityType}`, tableName, startTime,
                          body.records?.length || 0, 0, 0, 0, err.message).catch(() => {});
-      return res.status(500).json({ error: 'Ingest failed', message: err.message });
+      // 422 for a context-cycle rejection (migration 059's trigger), else 500.
+      const errRes = ingestErrorResponse(err);
+      return res.status(errRes.status).json(errRes.body);
     }
   };
 }
