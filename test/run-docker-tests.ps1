@@ -14,6 +14,10 @@ $cfg = Get-Content (Join-Path $PSScriptRoot 'test.config.json') -Raw | ConvertFr
 $apiBaseUrl = $cfg.api.baseUrl
 $uiBaseUrl  = $cfg.api.uiUrl
 
+Import-Module (Join-Path $PSScriptRoot 'lib' 'PgQuery.psm1') -Force
+Set-PgConnection -Service $cfg.postgres.service -User $cfg.postgres.user `
+                 -Password $cfg.postgres.password -Database $cfg.postgres.database
+
 $results = [ordered]@{}
 $totalPassed = 0
 $totalFailed = 0
@@ -228,21 +232,22 @@ if ($crawlerKey -and $datasetExists) {
 
 Write-Host "`n--- 5. Data Verification (SQL) ---" -ForegroundColor Yellow
 
-$connStr = "Server=$($cfg.sql.server),$($cfg.sql.port);Database=$($cfg.sql.database);User Id=$($cfg.sql.username);Password=$($cfg.sql.password);TrustServerCertificate=True"
-$CURRENT = "'9999-12-31 23:59:59.9999999'"
+# Postgres (v5). Identifiers are double-quoted because the migrations create them
+# as "PascalCase" — unquoted names fold to lowercase and don't resolve. There is
+# no ValidTo: v5 dropped temporal tables and hides removed entities with a
+# `deletedAt` tombstone instead, so "current rows" means `deletedAt IS NULL` on
+# the three soft-delete tables (Get-PgLiveCount applies it per table).
 
-function Get-SqlScalar {
-    param([string]$Query)
+# A query error must fail its own check, not the whole run — but it must never
+# read as a silent 0 either, which is how the v4 T-SQL here went unnoticed.
+function Measure-Check {
+    param([string]$Category, [string]$Name, [string]$Query, [int]$Min)
     try {
-        $conn = New-Object System.Data.SqlClient.SqlConnection($connStr)
-        $conn.Open()
-        $cmd = $conn.CreateCommand()
-        $cmd.CommandText = $Query
-        $cmd.CommandTimeout = 30
-        $result = $cmd.ExecuteScalar()
-        $conn.Close()
-        return $result
-    } catch { return $null }
+        $count = Get-PgCount -Query $Query
+        Test-Check $Category $Name ($count -ge $Min) "count=$count"
+    } catch {
+        Test-Check $Category $Name $false "query failed: $($_.Exception.Message)"
+    }
 }
 
 # Table existence
@@ -251,76 +256,116 @@ $expectedTables = @('Systems','Resources','Principals','ResourceAssignments','Re
     'AssignmentRequests','CertificationDecisions','Crawlers','CrawlerAuditLog')
 
 foreach ($table in $expectedTables) {
-    $exists = Get-SqlScalar "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = '$table' AND TABLE_SCHEMA = 'dbo'"
-    Test-Check 'Schema' "Table exists: $table" ($exists -ge 1)
+    try {
+        $exists = Get-PgCount -Query "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = '$table' AND table_schema = 'public'"
+        Test-Check 'Schema' "Table exists: $table" ($exists -ge 1)
+    } catch {
+        Test-Check 'Schema' "Table exists: $table" $false "query failed: $($_.Exception.Message)"
+    }
 }
 
 # Row counts (after demo dataset ingest)
 $countChecks = @{
-    'Systems'                = @{ Min = 1;  Query = "SELECT COUNT(*) FROM dbo.Systems WHERE ValidTo = $CURRENT" }
-    'Principals'             = @{ Min = 5;  Query = "SELECT COUNT(*) FROM dbo.Principals WHERE ValidTo = $CURRENT" }
-    'Resources'              = @{ Min = 5;  Query = "SELECT COUNT(*) FROM dbo.Resources WHERE ValidTo = $CURRENT" }
-    'ResourceAssignments'    = @{ Min = 10; Query = "SELECT COUNT(*) FROM dbo.ResourceAssignments WHERE ValidTo = $CURRENT" }
-    'ResourceRelationships'  = @{ Min = 5;  Query = "SELECT COUNT(*) FROM dbo.ResourceRelationships WHERE ValidTo = $CURRENT" }
-    'Identities'             = @{ Min = 5;  Query = "SELECT COUNT(*) FROM dbo.Identities WHERE ValidTo = $CURRENT" }
-    'Contexts'               = @{ Min = 3;  Query = "SELECT COUNT(*) FROM dbo.Contexts WHERE ValidTo = $CURRENT" }
-    'GovernanceCatalogs'     = @{ Min = 1;  Query = "SELECT COUNT(*) FROM dbo.GovernanceCatalogs WHERE ValidTo = $CURRENT" }
+    'Systems'                = 1
+    'Principals'             = 5
+    'Resources'              = 5
+    'ResourceAssignments'    = 10
+    'ResourceRelationships'  = 5
+    'Identities'             = 5
+    'Contexts'               = 3
+    'GovernanceCatalogs'     = 1
 }
 
 foreach ($table in $countChecks.Keys | Sort-Object) {
-    $count = Get-SqlScalar $countChecks[$table].Query
-    $min = $countChecks[$table].Min
-    Test-Check 'DataCounts' "$table >= $min rows" ($count -ge $min) "actual=$count"
+    $min = $countChecks[$table]
+    try {
+        $count = Get-PgLiveCount -Table $table
+        Test-Check 'DataCounts' "$table >= $min rows" ($count -ge $min) "actual=$count"
+    } catch {
+        Test-Check 'DataCounts' "$table >= $min rows" $false "query failed: $($_.Exception.Message)"
+    }
 }
 
-# Referential integrity
-$orphanAssignRes = Get-SqlScalar "SELECT COUNT(*) FROM ResourceAssignments ra WHERE ra.ValidTo = $CURRENT AND NOT EXISTS (SELECT 1 FROM Resources r WHERE r.id = ra.resourceId AND r.ValidTo = $CURRENT)"
-Test-Check 'Integrity' 'Assignments -> Resources (no orphans)' ($orphanAssignRes -eq 0) "orphans=$orphanAssignRes"
+# Referential integrity — a live assignment must not point at a tombstoned or
+# missing row, so both sides of the check filter deletedAt.
+try {
+    $orphanAssignRes = Get-PgCount -Query @'
+SELECT COUNT(*) FROM "ResourceAssignments" ra
+WHERE ra."deletedAt" IS NULL
+  AND NOT EXISTS (SELECT 1 FROM "Resources" r WHERE r."id" = ra."resourceId" AND r."deletedAt" IS NULL)
+'@
+    Test-Check 'Integrity' 'Assignments -> Resources (no orphans)' ($orphanAssignRes -eq 0) "orphans=$orphanAssignRes"
+} catch {
+    Test-Check 'Integrity' 'Assignments -> Resources (no orphans)' $false "query failed: $($_.Exception.Message)"
+}
 
-$orphanAssignPrinc = Get-SqlScalar "SELECT COUNT(*) FROM ResourceAssignments ra WHERE ra.ValidTo = $CURRENT AND NOT EXISTS (SELECT 1 FROM Principals p WHERE p.id = ra.principalId AND p.ValidTo = $CURRENT)"
-Test-Check 'Integrity' 'Assignments -> Principals (no orphans)' ($orphanAssignPrinc -eq 0) "orphans=$orphanAssignPrinc"
+try {
+    $orphanAssignPrinc = Get-PgCount -Query @'
+SELECT COUNT(*) FROM "ResourceAssignments" ra
+WHERE ra."deletedAt" IS NULL
+  AND NOT EXISTS (SELECT 1 FROM "Principals" p WHERE p."id" = ra."principalId" AND p."deletedAt" IS NULL)
+'@
+    Test-Check 'Integrity' 'Assignments -> Principals (no orphans)' ($orphanAssignPrinc -eq 0) "orphans=$orphanAssignPrinc"
+} catch {
+    Test-Check 'Integrity' 'Assignments -> Principals (no orphans)' $false "query failed: $($_.Exception.Message)"
+}
 
 # Principal types
-$userCount = Get-SqlScalar "SELECT COUNT(*) FROM Principals WHERE principalType = 'User' AND ValidTo = $CURRENT"
-Test-Check 'BusinessLogic' 'Has User principals' ($userCount -ge 10) "count=$userCount"
+Measure-Check 'BusinessLogic' 'Has User principals' -Min 10 -Query @'
+SELECT COUNT(*) FROM "Principals" WHERE "principalType" = 'User' AND "deletedAt" IS NULL
+'@
 
-$spCount = Get-SqlScalar "SELECT COUNT(*) FROM Principals WHERE principalType = 'ServicePrincipal' AND ValidTo = $CURRENT"
-Test-Check 'BusinessLogic' 'Has ServicePrincipal' ($spCount -ge 1) "count=$spCount"
+Measure-Check 'BusinessLogic' 'Has ServicePrincipal' -Min 1 -Query @'
+SELECT COUNT(*) FROM "Principals" WHERE "principalType" = 'ServicePrincipal' AND "deletedAt" IS NULL
+'@
 
-$aiCount = Get-SqlScalar "SELECT COUNT(*) FROM Principals WHERE principalType = 'AIAgent' AND ValidTo = $CURRENT"
-Test-Check 'BusinessLogic' 'Has AIAgent' ($aiCount -ge 1) "count=$aiCount"
+Measure-Check 'BusinessLogic' 'Has AIAgent' -Min 1 -Query @'
+SELECT COUNT(*) FROM "Principals" WHERE "principalType" = 'AIAgent' AND "deletedAt" IS NULL
+'@
 
 # Resource types
-$brCount = Get-SqlScalar "SELECT COUNT(*) FROM Resources WHERE resourceType = 'BusinessRole' AND ValidTo = $CURRENT"
-Test-Check 'BusinessLogic' 'Has BusinessRole resources' ($brCount -ge 2) "count=$brCount"
+Measure-Check 'BusinessLogic' 'Has BusinessRole resources' -Min 2 -Query @'
+SELECT COUNT(*) FROM "Resources" WHERE "resourceType" = 'BusinessRole' AND "deletedAt" IS NULL
+'@
 
-$groupCount = Get-SqlScalar "SELECT COUNT(*) FROM Resources WHERE resourceType = 'Group' AND ValidTo = $CURRENT"
-Test-Check 'BusinessLogic' 'Has Group resources' ($groupCount -ge 3) "count=$groupCount"
+Measure-Check 'BusinessLogic' 'Has Group resources' -Min 3 -Query @'
+SELECT COUNT(*) FROM "Resources" WHERE "resourceType" = 'Group' AND "deletedAt" IS NULL
+'@
 
-# Assignment types
-$govCount = Get-SqlScalar "SELECT COUNT(*) FROM ResourceAssignments WHERE assignmentType = 'Governed' AND ValidTo = $CURRENT"
-Test-Check 'BusinessLogic' 'Has Governed assignments' ($govCount -ge 5) "count=$govCount"
+# Governance is the `governed` flag on the assignment — never an assignmentType.
+# This asserted assignmentType = 'Governed' until #707: a retired value that
+# ingest now rejects outright, so the check could only ever have matched 0 rows.
+Measure-Check 'BusinessLogic' 'Has governed assignments' -Min 5 -Query @'
+SELECT COUNT(*) FROM "ResourceAssignments" WHERE "governed" = true AND "deletedAt" IS NULL
+'@
 
-$ownerCount = Get-SqlScalar "SELECT COUNT(*) FROM ResourceAssignments WHERE assignmentType = 'Owner' AND ValidTo = $CURRENT"
-Test-Check 'BusinessLogic' 'Has Owner assignments' ($ownerCount -ge 1) "count=$ownerCount"
+Measure-Check 'BusinessLogic' 'Has Eligible assignments' -Min 1 -Query @'
+SELECT COUNT(*) FROM "ResourceAssignments" WHERE "assignmentType" = 'Eligible' AND "deletedAt" IS NULL
+'@
 
-# Context hierarchy
-$rootCtx = Get-SqlScalar "SELECT COUNT(*) FROM Contexts WHERE parentContextId IS NULL AND ValidTo = $CURRENT"
-Test-Check 'BusinessLogic' 'Has root context (no parent)' ($rootCtx -ge 1) "count=$rootCtx"
+# NOTE: the old 'Has Owner assignments' check is deliberately gone rather than
+# ported. Ownership is no longer an assignmentType — it's a Direct assignment on
+# a GroupOwnership resource — and Generate-DemoDataset.ps1 emits no ownership at
+# all (its resources are Groups, EntraDirectoryRoles, EntraAppRoles and
+# BusinessRoles). There is nothing here to assert on; re-add this check together
+# with ownership in the generator, not before.
 
-$childCtx = Get-SqlScalar "SELECT COUNT(*) FROM Contexts WHERE parentContextId IS NOT NULL AND ValidTo = $CURRENT"
-Test-Check 'BusinessLogic' 'Has child contexts (with parent)' ($childCtx -ge 3) "count=$childCtx"
+# Context hierarchy (Contexts has no soft-delete column)
+Measure-Check 'BusinessLogic' 'Has root context (no parent)' -Min 1 -Query @'
+SELECT COUNT(*) FROM "Contexts" WHERE "parentContextId" IS NULL
+'@
+
+Measure-Check 'BusinessLogic' 'Has child contexts (with parent)' -Min 3 -Query @'
+SELECT COUNT(*) FROM "Contexts" WHERE "parentContextId" IS NOT NULL
+'@
 
 # Governance
-$catCount = Get-SqlScalar "SELECT COUNT(*) FROM GovernanceCatalogs WHERE ValidTo = $CURRENT"
-Test-Check 'BusinessLogic' 'Has governance catalogs' ($catCount -ge 2) "count=$catCount"
+Measure-Check 'BusinessLogic' 'Has governance catalogs' -Min 2 -Query 'SELECT COUNT(*) FROM "GovernanceCatalogs"'
 
-$polCount = Get-SqlScalar "SELECT COUNT(*) FROM AssignmentPolicies WHERE ValidTo = $CURRENT"
-Test-Check 'BusinessLogic' 'Has assignment policies' ($polCount -ge 2) "count=$polCount"
+Measure-Check 'BusinessLogic' 'Has assignment policies' -Min 2 -Query 'SELECT COUNT(*) FROM "AssignmentPolicies"'
 
 # Crawler audit log
-$auditCount = Get-SqlScalar "SELECT COUNT(*) FROM CrawlerAuditLog"
-Test-Check 'BusinessLogic' 'Crawler audit log has entries' ($auditCount -ge 1) "count=$auditCount"
+Measure-Check 'BusinessLogic' 'Crawler audit log has entries' -Min 1 -Query 'SELECT COUNT(*) FROM "CrawlerAuditLog"'
 
 # ═══════════════════════════════════════════════════════════════════
 # 6. API DATA VERIFICATION (read-side)
@@ -400,7 +445,10 @@ try {
 
 Write-Host "`n--- 7. Worker Container ---" -ForegroundColor Yellow
 
-$workerLogs = (docker logs fortigigraph-worker-1 2>&1) -join "`n"
+# Ask compose for the service's logs rather than naming the container directly:
+# the project was renamed fortigigraph -> identityatlas, so the old hardcoded
+# `fortigigraph-worker-1` resolved to nothing and both checks below always failed.
+$workerLogs = (docker compose -f (Join-Path $repoRoot 'docker-compose.yml') logs worker 2>&1) -join "`n"
 Test-Check 'Worker' 'Module loaded successfully' ($workerLogs -like '*Module loaded successfully*')
 Test-Check 'Worker' 'Shows Identity Atlas branding' ($workerLogs -like '*Identity Atlas*')
 

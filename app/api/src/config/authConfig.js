@@ -1,7 +1,7 @@
 // Auth configuration loader.
 //
 // Identity Atlas's Entra ID SSO settings (AUTH_ENABLED, AUTH_TENANT_ID,
-// AUTH_CLIENT_ID, AUTH_REQUIRED_ROLES) live in dbo.WorkerConfig so they survive
+// AUTH_CLIENT_ID, AUTH_REQUIRED_ROLES) live in "WorkerConfig" so they survive
 // container restarts and can be inspected without rebuilding the image. They
 // are written *only* via the CLI tool at cli/auth-config.js, run from the host
 // via `docker compose exec web node ...`, followed by `docker compose restart web`.
