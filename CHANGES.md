@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- During a database migration at startup (for example a large schema upgrade the first time a new version boots), the app's data pages now return a graceful, retryable "warming up — please retry shortly" response instead of raw 500 error pages. The migration still runs in the background and everything becomes available automatically once it finishes; automated clients get a standard `Retry-After` hint so they back off and retry cleanly.
+
+## Changes in this PR
+
 - Refactored the app's top-level page routing into a small, data-driven page registry, so adding, renaming, or reordering a tab is a one-line change and stays covered by tests. No change to how any page looks or behaves.
 - Demo data now includes department and team membership, so the access matrix can be scoped by department (e.g. Sales, Engineering) immediately after loading the demo dataset — previously the synced Department/Team contexts were created empty and had to be populated by running a context-algorithm plugin first.
 - Added a "Live demo" splash page to the marketing website (at `/demo`) that welcomes visitors to the public hosted demo, explains it runs on synthetic data, warns that the environment resets regularly and is shared/unauthenticated, cautions against uploading real data, and links out to the live demo — with a short "try this once you're in" guide.
