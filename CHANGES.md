@@ -1,5 +1,10 @@
 ## Changes in this PR
 
+- Refreshed the security and UX assessment pages so their remediation status matches what has actually merged: the crawler-protocol/perf authorization gaps, the internal-error-detail leak, and the Bicep secret-output hardening are now marked fixed with their PRs.
+- Updated the June 2026 maintenance-audit status table to reflect the documentation fixes that have since landed.
+
+## Changes in this PR
+
 - The Contexts hierarchy (departments, org units, tags) is now guaranteed acyclic at the database level: any change that would create a parent-child loop is rejected outright, so a mis-configured source tree surfaces as a clear error instead of being silently altered. Bulk imports that briefly build an intermediate state and resolve it before finishing are unaffected.
 
 ## Changes in this PR
