@@ -1,3 +1,0 @@
-- Corrected the Performance Metrics API reference: the endpoint is `GET /api/perf/slow` (was documented as `/api/perf/slowest`, which 404s), and documented the previously-missing `POST /api/perf/toggle`.
-- Completed the OpenAPI spec: every operation now has a unique `operationId` and a description, and the `Effective Access` tag is declared.
-- Strengthened OpenAPI linting so incomplete spec changes fail CI (operationId, description, tags, and success-response rules are now enforced as errors instead of silently warning).

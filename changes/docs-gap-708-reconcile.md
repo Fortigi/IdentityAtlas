@@ -1,2 +1,0 @@
-- Corrected the risk-tier table in the risk-scores API reference to match the scoring engine (Critical 90–100, High 70–89, Medium 40–69) — it previously showed the old 80/60 cutoffs, so every badge was mis-described.
-- Fixed the context-plugin catalogue in the architecture docs to list all ten shipped plugins with correct names, dropping two that never shipped.
