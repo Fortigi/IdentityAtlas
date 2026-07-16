@@ -161,7 +161,7 @@ export default function EntityListPage({
           type="text"
           value={ep.search}
           onChange={e => ep.setSearch(e.target.value)}
-          aria-label={searchPlaceholder || 'Search'}
+          aria-label={searchPlaceholder}
           placeholder={searchPlaceholder}
           className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs w-64 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-500"
         />
