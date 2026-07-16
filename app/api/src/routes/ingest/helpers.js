@@ -9,7 +9,6 @@
 import * as db from '../../db/connection.js';
 import { SOFT_DELETE_TABLES } from '../../ingest/engine.js';
 import { startSession, continueSession, endSession, hasSession } from '../../ingest/sessions.js';
-import { breakCycles } from '../../contexts/cycleGuard.js';
 
 export function applyIngestDefaults(entityType, body) {
   if (!Array.isArray(body.records)) body.records = [];
@@ -163,18 +162,7 @@ export function writeAuditLog(req, body) {
   ).catch(() => {});
 }
 
-// Contexts self-reference via parentContextId; a mis-parented synced tree can
-// persist a cycle. True prevention isn't feasible for a set-based bulk upsert (a
-// batch-internal A->B->A loop is invisible pre-persist), so repair reactively per
-// contexts batch — don't wait for the end-of-sync refresh-views call, which a
-// delta/partial crawl may never make. No-op on a clean tree. Extracted from the
-// handler so the generic ingest path stays under the complexity ceiling.
-export async function repairContextCyclesAfterIngest(entityType, result) {
-  if (entityType !== 'contexts' || (result.inserted + result.updated) <= 0) return;
-  try {
-    const broken = await breakCycles(db);
-    if (broken) console.warn(`Ingest contexts: broke ${broken} cyclic parentContextId link(s)`);
-  } catch (cycErr) {
-    console.warn('Ingest contexts cycle repair failed (non-fatal):', cycErr.message);
-  }
-}
+// Context-tree acyclicity is enforced at the database (migration 059's deferred
+// constraint trigger, #627), so the old reactive breakCycles-after-ingest repair
+// was removed: a cyclic contexts batch now aborts its own ingest() commit and is
+// surfaced as a 422 by the handler, instead of being silently NULLed here.

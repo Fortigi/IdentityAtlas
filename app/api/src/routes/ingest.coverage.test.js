@@ -142,6 +142,30 @@ describe('ingest handler — single batch', () => {
     expect(normalized[0].governanceResource).toBe(true);
   });
 
+  it('returns 422 when a contexts batch would create a parentContextId cycle (#627)', async () => {
+    // The Contexts acyclicity trigger (migration 059) aborts the ingest() commit
+    // with a check_violation; the handler surfaces it as a 422 naming the context
+    // rather than an opaque 500.
+    mockIngest.mockRejectedValueOnce(Object.assign(
+      new Error('Context abc is on a parentContextId cycle — the Contexts tree must stay acyclic'),
+      { code: '23514' },
+    ));
+    const res = await request(app).post('/ingest/contexts').send({
+      records: [{ displayName: 'X', variant: 'synced', targetType: 'Principal', contextType: 'Department' }],
+      systemId: 1, syncMode: 'delta',
+    });
+    expect(res.status).toBe(422);
+    expect(res.body.error).toMatch(/cycle/i);
+    expect(res.body.message).toMatch(/parentContextId cycle/i);
+  });
+
+  it('still returns 500 for a non-cycle ingest failure', async () => {
+    mockIngest.mockRejectedValueOnce(Object.assign(new Error('relation missing'), { code: '42P01' }));
+    const res = await request(app).post('/ingest/principals').send(goodPrincipal);
+    expect(res.status).toBe(500);
+    expect(res.body.error).toMatch(/ingest failed/i);
+  });
+
   it('returns systemIds after a systems ingest', async () => {
     mockIngest.mockResolvedValue({ inserted: 1, updated: 0, deleted: 0 });
     mockQueryOne.mockResolvedValue({ id: 42 });
@@ -247,7 +271,11 @@ describe('POST /ingest/sync-log', () => {
   });
 });
 
-// ── POST /ingest/contexts — parent-cycle repair (A3) ─────────────────────────
+// ── POST /ingest/contexts — DB-enforced acyclicity (#627) ────────────────────
+// The old silent breakCycles-after-ingest repair is gone; a cyclic contexts
+// batch now aborts its own commit (migration-059 trigger) and is surfaced as a
+// 422 (see the 422 test in "single batch" above). A clean batch must not issue
+// the old repair UPDATE.
 const CYCLE_REPAIR_RE = /UPDATE\s+"Contexts"[\s\S]*"parentContextId"\s*=\s*NULL/i;
 const goodContext = {
   records: [{ displayName: 'Dept', variant: 'synced', targetType: 'Identity', contextType: 'Department' }],
@@ -255,36 +283,12 @@ const goodContext = {
   syncMode: 'full',
 };
 
-describe('POST /ingest/contexts — parent-cycle repair', () => {
-  it('runs breakCycles after a contexts batch that wrote rows', async () => {
+describe('POST /ingest/contexts — DB-enforced acyclicity', () => {
+  it('ingests a clean contexts batch with no app-side cycle repair', async () => {
     mockIngest.mockResolvedValueOnce({ inserted: 1, updated: 0, deleted: 0 });
-    const res = await request(app).post('/ingest/contexts').send(goodContext);
-    expect(res.status).toBe(201);
-    expect(mockQuery.mock.calls.some(([sql]) => CYCLE_REPAIR_RE.test(sql))).toBe(true);
-  });
-
-  it('does NOT run the cycle repair for a non-contexts entity', async () => {
-    mockIngest.mockResolvedValueOnce({ inserted: 1, updated: 0, deleted: 0 });
-    const res = await request(app).post('/ingest/principals').send(goodPrincipal);
-    expect(res.status).toBe(201);
-    expect(mockQuery.mock.calls.some(([sql]) => CYCLE_REPAIR_RE.test(sql))).toBe(false);
-  });
-
-  it('skips the repair when the batch wrote no rows', async () => {
-    mockIngest.mockResolvedValueOnce({ inserted: 0, updated: 0, deleted: 0 });
     const res = await request(app).post('/ingest/contexts').send(goodContext);
     expect(res.status).toBe(201);
     expect(mockQuery.mock.calls.some(([sql]) => CYCLE_REPAIR_RE.test(sql))).toBe(false);
-  });
-
-  it('a breakCycles failure is non-fatal (still 201)', async () => {
-    mockIngest.mockResolvedValueOnce({ inserted: 1, updated: 0, deleted: 0 });
-    mockQuery.mockImplementation((sql) =>
-      CYCLE_REPAIR_RE.test(sql)
-        ? Promise.reject(new Error('boom'))
-        : Promise.resolve({ rows: [], rowCount: 0 }));
-    const res = await request(app).post('/ingest/contexts').send(goodContext);
-    expect(res.status).toBe(201);
   });
 });
 

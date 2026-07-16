@@ -15,7 +15,7 @@ import { crawlerHasSystemAccess, crawlerHasPermission } from '../../middleware/c
 import { normalizePresenceQuery, lookupCrawlerPresence } from '../../ingest/crawlerPresence.js';
 import {
   applyIngestDefaults, recoverSystemPrefix, buildScope, conflictFilterFor, discoverCoreColumns,
-  handleSessionPath, applyDeleteByIds, lookupSystemIds, writeAuditLog, repairContextCyclesAfterIngest,
+  handleSessionPath, applyDeleteByIds, lookupSystemIds, writeAuditLog,
 } from './helpers.js';
 
 const router = Router();
@@ -76,7 +76,10 @@ function createIngestHandler(entityType) {
       const delErr = await applyDeleteByIds(body, tableName, result);
       if (delErr) return res.status(delErr.status).json(delErr.body);
 
-      await repairContextCyclesAfterIngest(entityType, result);
+      // Context-tree acyclicity is enforced at the database (migration 059's
+      // deferred trigger) — a cyclic batch aborts the ingest() commit above and is
+      // handled in catch. The old post-ingest breakCycles repair is gone: it
+      // silently NULLed an edge instead of surfacing the malformed input.
 
       await writeSyncLog(null, `API-${entityType}`, tableName, startTime,
                          body.records.length, result.inserted, result.updated, result.deleted, null);
@@ -98,6 +101,12 @@ function createIngestHandler(entityType) {
       console.error(`Ingest error (${entityType}):`, err.message);
       await writeSyncLog(null, `API-${entityType}`, tableName, startTime,
                          body.records?.length || 0, 0, 0, 0, err.message).catch(() => {});
+      // A parentContextId cycle is rejected at COMMIT by the Contexts acyclicity
+      // trigger (migration 059). Surface it as a clear 422 (the batch's source
+      // tree is malformed — the caller's to fix) rather than an opaque 500.
+      if (err.code === '23514' && /parentContextId cycle/i.test(err.message || '')) {
+        return res.status(422).json({ error: 'Context hierarchy would create a cycle', message: err.message });
+      }
       return res.status(500).json({ error: 'Ingest failed', message: err.message });
     }
   };
