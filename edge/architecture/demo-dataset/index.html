@@ -4420,6 +4420,24 @@
 <td>Omada</td>
 <td>Privileged admin access</td>
 </tr>
+<tr>
+<td>SG-Engineering</td>
+<td>GroupOwnership</td>
+<td>EntraID</td>
+<td>Owners of the Engineering group (a GroupOwnership resource is named after the group it owns)</td>
+</tr>
+<tr>
+<td>SG-Finance</td>
+<td>GroupOwnership</td>
+<td>EntraID</td>
+<td>Owners of the Finance group</td>
+</tr>
+<tr>
+<td>SG-Admin-Tier0</td>
+<td>GroupOwnership</td>
+<td>EntraID</td>
+<td>Owners of the Tier-0 admin group</td>
+</tr>
 </tbody>
 </table>
 <h3 id="assignments-who-has-what">Assignments (Who Has What)<a class="headerlink" href="#assignments-who-has-what" title="Permanent link">&para;</a></h3>
@@ -4499,6 +4517,12 @@
 <td>Eligible</td>
 <td>PIM-eligible, not active</td>
 </tr>
+<tr>
+<td>E0010 → SG-Engineering; E0012 → SG-Finance; E0002 + E0029 → SG-Admin-Tier0</td>
+<td>GroupOwnership</td>
+<td>Direct</td>
+<td>Ownership is a Direct assignment on a synthetic GroupOwnership resource, never an <code>Owner</code> type</td>
+</tr>
 </tbody>
 </table>
 <h3 id="resource-relationships">Resource Relationships<a class="headerlink" href="#resource-relationships" title="Permanent link">&para;</a></h3>
@@ -4565,6 +4589,24 @@
 <td>SG-AllEmployees</td>
 <td>GrantsAccessTo</td>
 <td>Nested group</td>
+</tr>
+<tr>
+<td>SG-Engineering</td>
+<td>SG-Engineering (ownership)</td>
+<td>HasOwnership</td>
+<td>Group → its GroupOwnership resource</td>
+</tr>
+<tr>
+<td>SG-Finance</td>
+<td>SG-Finance (ownership)</td>
+<td>HasOwnership</td>
+<td></td>
+</tr>
+<tr>
+<td>SG-Admin-Tier0</td>
+<td>SG-Admin-Tier0 (ownership)</td>
+<td>HasOwnership</td>
+<td></td>
 </tr>
 </tbody>
 </table>
@@ -4651,9 +4693,9 @@
 <a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="w">    </span><span class="nt">&quot;entityCounts&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
 <a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="w">      </span><span class="nt">&quot;systems&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">3</span><span class="p">,</span>
 <a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="w">      </span><span class="nt">&quot;principals&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">28</span><span class="p">,</span>
-<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="w">      </span><span class="nt">&quot;resources&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">14</span><span class="p">,</span>
-<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="w">      </span><span class="nt">&quot;resourceAssignments&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">69</span><span class="p">,</span>
-<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="w">      </span><span class="nt">&quot;resourceRelationships&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">9</span><span class="p">,</span>
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="w">      </span><span class="nt">&quot;resources&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">17</span><span class="p">,</span>
+<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="w">      </span><span class="nt">&quot;resourceAssignments&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">73</span><span class="p">,</span>
+<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="w">      </span><span class="nt">&quot;resourceRelationships&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">12</span><span class="p">,</span>
 <a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a><span class="w">      </span><span class="nt">&quot;identities&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">23</span><span class="p">,</span>
 <a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a><span class="w">      </span><span class="nt">&quot;identityMembers&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">24</span><span class="p">,</span>
 <a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a><span class="w">      </span><span class="nt">&quot;contexts&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">8</span><span class="p">,</span>
@@ -4701,18 +4743,18 @@
 </tr>
 <tr>
 <td>Resources</td>
-<td>14</td>
-<td>6 groups + 2 directory roles + 2 app roles + 4 business roles</td>
+<td>17</td>
+<td>6 groups + 2 directory roles + 2 app roles + 4 business roles + 3 group-ownership</td>
 </tr>
 <tr>
 <td>ResourceAssignments</td>
-<td>69</td>
-<td>68 <code>Direct</code> + 1 <code>Eligible</code>; 29 of them carry <code>governed=true</code></td>
+<td>73</td>
+<td>72 <code>Direct</code> + 1 <code>Eligible</code>; 29 of them carry <code>governed=true</code> (4 of the <code>Direct</code> are group-ownership)</td>
 </tr>
 <tr>
 <td>ResourceRelationships</td>
-<td>9</td>
-<td>8 Contains + 1 GrantsAccessTo</td>
+<td>12</td>
+<td>8 Contains + 1 GrantsAccessTo + 3 HasOwnership</td>
 </tr>
 <tr>
 <td>Identities</td>
@@ -4835,6 +4877,10 @@
 <td>True</td>
 </tr>
 <tr>
+<td>Group ownership exists — <code>GroupOwnership</code> resources with <code>Direct</code> owner assignments</td>
+<td>True</td>
+</tr>
+<tr>
 <td>BR-Employee-Base contains SG-AllEmployees (relationship)</td>
 <td>True</td>
 </tr>
@@ -4866,8 +4912,8 @@
 </thead>
 <tbody>
 <tr>
-<td>Resources page shows 14 resources (excluding BusinessRoles)</td>
-<td>Count rows, filter by non-BusinessRole</td>
+<td>Resources page shows 13 resources (excluding BusinessRoles)</td>
+<td>Count rows, filter by non-BusinessRole (6 groups + 2 directory roles + 2 app roles + 3 group-ownership)</td>
 </tr>
 <tr>
 <td>Business Roles page shows 4 business roles</td>
