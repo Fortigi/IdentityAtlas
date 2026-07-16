@@ -1,5 +1,10 @@
 ## Changes in this PR
 
+- Corrected the demo dataset documentation, which described a company and a set of records that didn't match what the dataset actually contains — wrong row counts throughout, three admin units where only one exists, and an "employee with no assignments" edge case that isn't in the data.
+- The documentation now explains how to count the records correctly, so readers don't get different numbers than the page shows.
+
+## Changes in this PR
+
 - The demo dataset is now checked on every pull request. Its verification runner was previously never run by anything, which is how it drifted two database generations out of date without anyone noticing — the pull request check only confirmed that some rows had arrived, not that the data was correct.
 - CI now fails if SQL Server syntax appears in the API's database code. Previously only the old SQL Server connection style was blocked, not the queries written through it — which is how a broken SQL Server query survived on the resource column-discovery endpoint, failing on every request until someone found it by hand.
 - Fixed the demo-dataset verification runner, which could not check anything against a v5 database — it still spoke SQL Server (issue #707). It now verifies the full demo dataset: 35/35 checks pass against a real ingest.

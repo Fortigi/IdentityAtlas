@@ -1,2 +1,0 @@
-- Corrected the demo dataset documentation, which described a company and a set of records that didn't match what the dataset actually contains — wrong row counts throughout, three admin units where only one exists, and an "employee with no assignments" edge case that isn't in the data.
-- The documentation now explains how to count the records correctly, so readers don't get different numbers than the page shows.
