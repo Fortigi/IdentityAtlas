@@ -62,11 +62,11 @@ Status legend: ✅ **Fixed** (merged) · 🟦 **By design** (intended/supported,
 | Phase | Tracked | ✅ Fixed | 🟦 By design | 🟨 Partial | 🔧 Open |
 |-------|--------:|--------:|------------:|----------:|--------:|
 | Design / UX | 21 | 5 | 0 | 1 | 15 |
-| Security | 22 | 10 | 2 | 1 | 9 |
+| Security | 22 | 10 | 3 | 1 | 8 |
 | Perf & Quality | 16 | 5 | 2 | 3 | 6 |
 | CI / Test Harness | 11 | 6 | 0 | 3 | 2 |
 | Documentation | 11 | 11 | 0 | 0 | 0 |
-| **Total** | **81** | **37** | **4** | **8** | **32** |
+| **Total** | **81** | **37** | **5** | **8** | **31** |
 
 _(Row groups P6–P10, Q9–Q10, F10–F13, D10–D12 and the Codex net-new bullets are tracked as single rows here; the audit's raw sub-finding count is 85.)_
 
@@ -104,7 +104,7 @@ All **Critical** findings are fixed and merged. Every exploitable **security** f
 | M-1 | ✅ Fixed | #484 — LLM fetch AbortController timeout + body-size cap |
 | M-2 | ✅ Fixed | #484 / #582 — stop returning upstream error bodies to clients |
 | M-3 | ✅ Fixed | #488 — `redirect:'manual'` on LLM fetches |
-| M-4 | 🔧 Open | upload per-file / aggregate caps unchanged (#778) |
+| M-4 | 🟦 By design | 1 GB/file upload cap is deliberate — large files are needed in practice (#778 closed as by-design); the separate L-8 CSV-parser OOM concern (streaming/row-capping the *parser*) still stands |
 | M-5 | ✅ Fixed | #488 — untrusted scraped-content fencing |
 | M-6 | ✅ Fixed | #488 — RE2 classifier-pattern validation on save |
 | L-1 | 🔧 Open | cron command still `Invoke-Expression` (#779) |
