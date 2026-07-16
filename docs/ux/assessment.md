@@ -56,7 +56,7 @@ Status legend: ✅ **Fixed** (merged) · 🟨 **Partially addressed** · 🔧 **
 | H-05 | Botched automated dark-mode pass left doubled/contradictory classes | 🟨 Partially addressed | [#233](https://github.com/Fortigi/IdentityAtlas/pull/233) |
 | H-06 | Roles & Permissions is buried inside Authentication; the described self-lockout guard isn't implemented | 🔧 Planned | — |
 | H-07 | Risk Scoring can't be created/run from its own page; dead cluster code | 🔧 Planned | — |
-| H-08 | Admin → Data tab gating mismatch (sections render regardless of the entry permission) | 🔧 Planned | — |
+| H-08 | Admin → Data tab gating mismatch (sections render regardless of the entry permission) | ✅ Fixed — each Data section now renders only for the permission that backs its server route | [#807](https://github.com/Fortigi/IdentityAtlas/pull/807) |
 | H-09 | Matrix "Apply vs Save" is a trap (overlapping verbs; a scolding "Not saved" badge) | 🔧 Planned | — |
 | H-10 | Rotated matrix is a silent reduced mode while still showing the controls it drops | 🔧 Planned | — |
 | H-11 | Core concepts never defined on screen (matrix, subjects, governed, gaps) | 🟨 Partially addressed — matrix legend + Style Guide glossary | [#226](https://github.com/Fortigi/IdentityAtlas/pull/226), [#237](https://github.com/Fortigi/IdentityAtlas/pull/237) |
