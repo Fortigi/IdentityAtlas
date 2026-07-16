@@ -240,7 +240,49 @@ export default function EntityListPage({
       )}
 
       {/* Table */}
-      {ep.loading ? (
+      <EntityListTable
+        ep={ep}
+        label={label}
+        tableColumns={tableColumns}
+        renderEntityCell={renderEntityCell}
+        renderDataCells={renderDataCells}
+        onOpenDetail={onOpenDetail}
+      />
+
+      {/* Pagination */}
+      {ep.totalPages > 1 && (
+        <div className="flex items-center justify-between mt-3 text-sm text-gray-600 dark:text-gray-400">
+          <span>
+            Showing {ep.page * ep.PAGE_SIZE + 1}&ndash;{Math.min((ep.page + 1) * ep.PAGE_SIZE, ep.total)} of {ep.total.toLocaleString()}
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => ep.setPage(p => Math.max(0, p - 1))}
+              disabled={ep.page === 0}
+              className="px-3 py-1 rounded border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700/50 disabled:opacity-40"
+            >
+              Prev
+            </button>
+            <span>Page {ep.page + 1} of {ep.totalPages}</span>
+            <button
+              onClick={() => ep.setPage(p => Math.min(ep.totalPages - 1, p + 1))}
+              disabled={ep.page >= ep.totalPages - 1}
+              className="px-3 py-1 rounded border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700/50 disabled:opacity-40"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// The list body's four states (loading / error / empty / table) are their
+// own component so EntityListPage's render stays under the complexity ceiling.
+function EntityListTable({ ep, label, tableColumns, renderEntityCell, renderDataCells, onOpenDetail }) {
+  return (
+    ep.loading ? (
         <div className="text-center text-gray-500 dark:text-gray-400 py-12">Loading {label}...</div>
       ) : ep.error ? (
         <div className="text-center py-12" role="alert">
@@ -330,33 +372,6 @@ export default function EntityListPage({
             </tbody>
           </table>
         </div>
-      )}
-
-      {/* Pagination */}
-      {ep.totalPages > 1 && (
-        <div className="flex items-center justify-between mt-3 text-sm text-gray-600 dark:text-gray-400">
-          <span>
-            Showing {ep.page * ep.PAGE_SIZE + 1}&ndash;{Math.min((ep.page + 1) * ep.PAGE_SIZE, ep.total)} of {ep.total.toLocaleString()}
-          </span>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => ep.setPage(p => Math.max(0, p - 1))}
-              disabled={ep.page === 0}
-              className="px-3 py-1 rounded border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700/50 disabled:opacity-40"
-            >
-              Prev
-            </button>
-            <span>Page {ep.page + 1} of {ep.totalPages}</span>
-            <button
-              onClick={() => ep.setPage(p => Math.min(ep.totalPages - 1, p + 1))}
-              disabled={ep.page >= ep.totalPages - 1}
-              className="px-3 py-1 rounded border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700/50 disabled:opacity-40"
-            >
-              Next
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
+      )
   );
 }
