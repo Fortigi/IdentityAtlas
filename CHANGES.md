@@ -1,5 +1,11 @@
 ## Changes in this PR
 
+- The dashboard's **Need support?** card now leads with **Report an issue or feature request** (linking to the support guide) and no longer shows a support email — bugs and feature requests go through the public tracker.
+- The support guide now states plainly that community support is **best effort**, and adds a section on requesting an **SLA or priority feature development** for organisations that need more, with a contact address.
+- Added a **Support** link to the website footer so visitors can find how to get help.
+
+## Changes in this PR
+
 - The demo dataset now includes a principal with no access at all — Zara Intern (a new hire not yet provisioned) — so the matrix and other views have a genuine zero-assignment employee to exercise, matching what the documentation described.
 
 ## Changes in this PR
