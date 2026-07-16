@@ -343,12 +343,18 @@ Measure-Check 'BusinessLogic' 'Has Eligible assignments' -Min 1 -Query @'
 SELECT COUNT(*) FROM "ResourceAssignments" WHERE "assignmentType" = 'Eligible' AND "deletedAt" IS NULL
 '@
 
-# NOTE: the old 'Has Owner assignments' check is deliberately gone rather than
-# ported. Ownership is no longer an assignmentType — it's a Direct assignment on
-# a GroupOwnership resource — and Generate-DemoDataset.ps1 emits no ownership at
-# all (its resources are Groups, EntraDirectoryRoles, EntraAppRoles and
-# BusinessRoles). There is nothing here to assert on; re-add this check together
-# with ownership in the generator, not before.
+# Ownership is a Direct assignment on a synthetic GroupOwnership resource, not the
+# retired 'Owner' assignmentType. Restored (#713) now that Generate-DemoDataset.ps1
+# emits ownership — the v5 replacement for the old 'Has Owner assignments' check.
+Measure-Check 'BusinessLogic' 'Has GroupOwnership resources' -Min 1 -Query @'
+SELECT COUNT(*) FROM "Resources" WHERE "resourceType" = 'GroupOwnership' AND "deletedAt" IS NULL
+'@
+
+Measure-Check 'BusinessLogic' 'Has owner assignments' -Min 1 -Query @'
+SELECT COUNT(*) FROM "ResourceAssignments" ra
+JOIN "Resources" r ON r."id" = ra."resourceId"
+WHERE r."resourceType" = 'GroupOwnership' AND ra."deletedAt" IS NULL
+'@
 
 # Context hierarchy (Contexts has no soft-delete column)
 Measure-Check 'BusinessLogic' 'Has root context (no parent)' -Min 1 -Query @'

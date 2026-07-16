@@ -234,6 +234,34 @@ $relationships = @(
     @{ parentResourceId = $resEng;     childResourceId = $resAllEmp;  relationshipType = 'GrantsAccessTo' }
 )
 
+# ─── Group Ownership ──────────────────────────────────────────────
+# v5 models ownership as a Direct assignment on a synthetic GroupOwnership
+# resource (named after the owned group), linked to the group by a HasOwnership
+# relationship — mirroring ConvertTo-EntraGroupOwnership in the Entra crawler.
+# Without this the dataset has no ownership at all, leaving the matrix's
+# owner-badge rules (docs/architecture/matrix.md) without demo coverage (#713).
+$ownedGroups = @(
+    @{ groupId = $resEng;        name = 'SG-Engineering'; owners = @('E0010') }
+    @{ groupId = $resFin;        name = 'SG-Finance';     owners = @('E0012') }
+    @{ groupId = $resAdminTier0; name = 'SG-Admin-Tier0'; owners = @('E0002', 'E0029') }
+)
+foreach ($og in $ownedGroups) {
+    $ownId = New-DemoGuid "res-ownership-$($og.name)"
+    $resources += @{
+        id                 = $ownId
+        displayName        = $og.name
+        resourceType       = 'GroupOwnership'
+        systemId           = $sysEntraId
+        enabled            = $true
+        externalId         = "entraid-ownership:$($og.groupId)"
+        extendedAttributes = @{ ownedResourceId = $og.groupId }
+    }
+    $relationships += @{ parentResourceId = $og.groupId; childResourceId = $ownId; relationshipType = 'HasOwnership' }
+    foreach ($ownerId in $og.owners) {
+        $assignments += @{ resourceId = $ownId; principalId = (New-DemoGuid "principal-$ownerId"); assignmentType = 'Direct'; resourceType = 'GroupOwnership' }
+    }
+}
+
 # ─── Identities & IdentityMembers ────────────────────────────────
 
 $identities = @()

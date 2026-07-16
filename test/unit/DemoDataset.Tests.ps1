@@ -146,3 +146,47 @@ Describe 'Demo dataset — zero-assignment edge case (#717)' {
         @($script:data.resourceAssignments | Where-Object { $_.principalId -eq $eng.id }).Count | Should -BeGreaterThan 0
     }
 }
+
+Describe 'Demo dataset — group ownership (#713)' {
+
+    BeforeAll {
+        # v5 ownership: a Direct assignment on a synthetic GroupOwnership resource
+        # (named after the owned group), linked by a HasOwnership relationship —
+        # never the retired 'Owner' assignmentType.
+        $script:ownershipResources = @($script:data.resources             | Where-Object { $_.resourceType   -eq 'GroupOwnership' })
+        $script:ownershipRels      = @($script:data.resourceRelationships  | Where-Object { $_.relationshipType -eq 'HasOwnership' })
+        $script:ownerAssignments   = @($script:data.resourceAssignments    | Where-Object { $_.resourceType   -eq 'GroupOwnership' })
+        $script:resById            = @{}
+        foreach ($r in $script:data.resources)  { $script:resById[$r.id]  = $r }
+        $script:principalIdSet     = @{}
+        foreach ($p in $script:data.principals) { $script:principalIdSet[$p.id] = $true }
+    }
+
+    It 'emits a GroupOwnership resource per owned group, tagged with the owned group' {
+        $script:ownershipResources.Count | Should -BeGreaterThan 0
+        foreach ($o in $script:ownershipResources) {
+            $o.extendedAttributes.ownedResourceId | Should -Not -BeNullOrEmpty
+            $script:resById.ContainsKey($o.extendedAttributes.ownedResourceId) | Should -BeTrue
+        }
+    }
+
+    It 'links each ownership resource to its group via a HasOwnership relationship' {
+        $script:ownershipRels.Count | Should -Be $script:ownershipResources.Count
+        foreach ($rel in $script:ownershipRels) {
+            $script:resById.ContainsKey($rel.parentResourceId) | Should -BeTrue   # the owned group
+            $script:resById[$rel.childResourceId].resourceType | Should -Be 'GroupOwnership'
+        }
+    }
+
+    It 'models each owner as a Direct assignment on the GroupOwnership resource' {
+        $script:ownerAssignments.Count | Should -BeGreaterThan 0
+        foreach ($a in $script:ownerAssignments) {
+            $a.assignmentType | Should -Be 'Direct'
+            $script:principalIdSet.ContainsKey($a.principalId) | Should -BeTrue
+        }
+    }
+
+    It 'never emits the retired Owner assignmentType' {
+        @($script:data.resourceAssignments | Where-Object { $_.assignmentType -eq 'Owner' }).Count | Should -Be 0
+    }
+}

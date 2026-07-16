@@ -112,6 +112,9 @@ AU-Netherlands
 | BR-Engineering-Tools | BusinessRole | Omada | Dev tools access package |
 | BR-Finance-Systems | BusinessRole | Omada | Financial systems access |
 | BR-Admin-Privileged | BusinessRole | Omada | Privileged admin access |
+| SG-Engineering | GroupOwnership | EntraID | Owners of the Engineering group (a GroupOwnership resource is named after the group it owns) |
+| SG-Finance | GroupOwnership | EntraID | Owners of the Finance group |
+| SG-Admin-Tier0 | GroupOwnership | EntraID | Owners of the Tier-0 admin group |
 
 ### Assignments (Who Has What)
 
@@ -128,6 +131,7 @@ AU-Netherlands
 | Every employee except the intern (21) | BR-Employee-Base | Direct (`governed=true`) | Via business role — governance is the `governed` flag, not an assignment type |
 | Engineering employees except the intern (8) | BR-Engineering-Tools | Direct (`governed=true`) | Via business role |
 | E0029 (SysAdmin) | BR-Admin-Privileged | Eligible | PIM-eligible, not active |
+| E0010 → SG-Engineering; E0012 → SG-Finance; E0002 + E0029 → SG-Admin-Tier0 | GroupOwnership | Direct | Ownership is a Direct assignment on a synthetic GroupOwnership resource, never an `Owner` type |
 
 ### Resource Relationships
 
@@ -142,6 +146,9 @@ AU-Netherlands
 | BR-Admin-Privileged | SG-Admin-Tier0 | Contains | |
 | BR-Admin-Privileged | SG-PAM-Users | Contains | |
 | SG-Engineering | SG-AllEmployees | GrantsAccessTo | Nested group |
+| SG-Engineering | SG-Engineering (ownership) | HasOwnership | Group → its GroupOwnership resource |
+| SG-Finance | SG-Finance (ownership) | HasOwnership | |
+| SG-Admin-Tier0 | SG-Admin-Tier0 (ownership) | HasOwnership | |
 
 ### Governance
 
@@ -181,9 +188,9 @@ The dataset is a single JSON file that maps directly to the Ingest API endpoints
     "entityCounts": {
       "systems": 3,
       "principals": 28,
-      "resources": 14,
-      "resourceAssignments": 69,
-      "resourceRelationships": 9,
+      "resources": 17,
+      "resourceAssignments": 73,
+      "resourceRelationships": 12,
       "identities": 23,
       "identityMembers": 24,
       "contexts": 8,
@@ -220,9 +227,9 @@ Counted with `deletedAt IS NULL` on `Principals`, `Resources` and `ResourceAssig
 |---|---|---|
 | Systems | 3 | Entra ID + HR + Omada |
 | Principals | 28 | 24 `User` (22 employees + 1 disabled + 1 Omada account for the multi-system employee) + 1 `ExternalUser` (contractor) + 1 `ServicePrincipal` + 1 `AIAgent` + 1 `SharedMailbox` |
-| Resources | 14 | 6 groups + 2 directory roles + 2 app roles + 4 business roles |
-| ResourceAssignments | 69 | 68 `Direct` + 1 `Eligible`; 29 of them carry `governed=true` |
-| ResourceRelationships | 9 | 8 Contains + 1 GrantsAccessTo |
+| Resources | 17 | 6 groups + 2 directory roles + 2 app roles + 4 business roles + 3 group-ownership |
+| ResourceAssignments | 73 | 72 `Direct` + 1 `Eligible`; 29 of them carry `governed=true` (4 of the `Direct` are group-ownership) |
+| ResourceRelationships | 12 | 8 Contains + 1 GrantsAccessTo + 3 HasOwnership |
 | Identities | 23 | 22 employees + 1 disabled |
 | IdentityMembers | 24 | 23 primary + 1 secondary (the multi-system employee's Omada account) |
 | Contexts | 8 | 1 root + 4 departments + 2 teams + 1 admin unit — all `variant='synced'` |
@@ -258,6 +265,7 @@ Counted with `deletedAt IS NULL` on `Principals`, `Resources` and `ResourceAssig
 | AI agent (AI-001) has `principalType='AIAgent'` | True |
 | Disabled account (E0041) has `accountEnabled=0` | True |
 | Intern (E0031) has 0 resource assignments | True |
+| Group ownership exists — `GroupOwnership` resources with `Direct` owner assignments | True |
 | BR-Employee-Base contains SG-AllEmployees (relationship) | True |
 | BR-Admin-Privileged is in catalog "Privileged Access" | True |
 | Engineering context has parent = "Fortigi Demo Corp" | True |
@@ -268,7 +276,7 @@ Counted with `deletedAt IS NULL` on `Principals`, `Resources` and `ResourceAssig
 
 | Check | How |
 |---|---|
-| Resources page shows 14 resources (excluding BusinessRoles) | Count rows, filter by non-BusinessRole |
+| Resources page shows 13 resources (excluding BusinessRoles) | Count rows, filter by non-BusinessRole (6 groups + 2 directory roles + 2 app roles + 3 group-ownership) |
 | Business Roles page shows 4 business roles | Count rows |
 | Users page shows 28 principals | Count visible or total indicator |
 | Matrix shows data (not "0 users x 0 resources") | Assert text not present |
