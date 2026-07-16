@@ -75,7 +75,7 @@ Write-Host "API:     $ApiBaseUrl"
 Write-Host ""
 
 # 1. Systems (no systemId needed)
-Write-Host "[1/11] Systems ($($dataset.systems.Count))..." -ForegroundColor Cyan
+Write-Host "[1/12] Systems ($($dataset.systems.Count))..." -ForegroundColor Cyan
 Post-Ingest -Endpoint 'ingest/systems' -Records $dataset.systems -SyncMode 'delta'
 
 # Get system IDs (we assume 1=EntraID, 2=HR, 3=Omada based on insertion order)
@@ -84,43 +84,47 @@ $sysHR = 2
 $sysOmada = 3
 
 # 2. Contexts
-Write-Host "[2/11] Contexts ($($dataset.contexts.Count))..." -ForegroundColor Cyan
+Write-Host "[2/12] Contexts ($($dataset.contexts.Count))..." -ForegroundColor Cyan
 Post-Ingest -Endpoint 'ingest/contexts' -Records $dataset.contexts -SystemId $sysHR -SyncMode 'full'
 
 # 3. Principals
-Write-Host "[3/11] Principals ($($dataset.principals.Count))..." -ForegroundColor Cyan
+Write-Host "[3/12] Principals ($($dataset.principals.Count))..." -ForegroundColor Cyan
 Post-Ingest -Endpoint 'ingest/principals' -Records $dataset.principals -SystemId $sysEntraId -SyncMode 'full'
 
-# 4. Resources
-Write-Host "[4/11] Resources ($($dataset.resources.Count))..." -ForegroundColor Cyan
+# 4. Context Members (department / team membership — depends on Contexts + Principals)
+Write-Host "[4/12] Context Members ($($dataset.contextMembers.Count))..." -ForegroundColor Cyan
+Post-Ingest -Endpoint 'ingest/context-members' -Records $dataset.contextMembers -SystemId $sysHR -SyncMode 'full'
+
+# 5. Resources
+Write-Host "[5/12] Resources ($($dataset.resources.Count))..." -ForegroundColor Cyan
 Post-Ingest -Endpoint 'ingest/resources' -Records $dataset.resources -SystemId $sysEntraId -SyncMode 'full'
 
-# 5. Resource Assignments
-Write-Host "[5/11] Resource Assignments ($($dataset.resourceAssignments.Count))..." -ForegroundColor Cyan
+# 6. Resource Assignments
+Write-Host "[6/12] Resource Assignments ($($dataset.resourceAssignments.Count))..." -ForegroundColor Cyan
 Post-Ingest -Endpoint 'ingest/resource-assignments' -Records $dataset.resourceAssignments -SystemId $sysEntraId -SyncMode 'full'
 
-# 6. Resource Relationships
-Write-Host "[6/11] Resource Relationships ($($dataset.resourceRelationships.Count))..." -ForegroundColor Cyan
+# 7. Resource Relationships
+Write-Host "[7/12] Resource Relationships ($($dataset.resourceRelationships.Count))..." -ForegroundColor Cyan
 Post-Ingest -Endpoint 'ingest/resource-relationships' -Records $dataset.resourceRelationships -SystemId $sysEntraId -SyncMode 'full'
 
-# 7. Identities
-Write-Host "[7/11] Identities ($($dataset.identities.Count))..." -ForegroundColor Cyan
+# 8. Identities
+Write-Host "[8/12] Identities ($($dataset.identities.Count))..." -ForegroundColor Cyan
 Post-Ingest -Endpoint 'ingest/identities' -Records $dataset.identities -SystemId $sysHR -SyncMode 'full'
 
-# 8. Identity Members
-Write-Host "[8/11] Identity Members ($($dataset.identityMembers.Count))..." -ForegroundColor Cyan
+# 9. Identity Members
+Write-Host "[9/12] Identity Members ($($dataset.identityMembers.Count))..." -ForegroundColor Cyan
 Post-Ingest -Endpoint 'ingest/identity-members' -Records $dataset.identityMembers -SystemId $sysHR -SyncMode 'full'
 
-# 9. Governance Catalogs
-Write-Host "[9/11] Governance Catalogs ($($dataset.governanceCatalogs.Count))..." -ForegroundColor Cyan
+# 10. Governance Catalogs
+Write-Host "[10/12] Governance Catalogs ($($dataset.governanceCatalogs.Count))..." -ForegroundColor Cyan
 Post-Ingest -Endpoint 'ingest/governance/catalogs' -Records $dataset.governanceCatalogs -SystemId $sysOmada -SyncMode 'full'
 
-# 10. Assignment Policies
-Write-Host "[10/11] Assignment Policies ($($dataset.assignmentPolicies.Count))..." -ForegroundColor Cyan
+# 11. Assignment Policies
+Write-Host "[11/12] Assignment Policies ($($dataset.assignmentPolicies.Count))..." -ForegroundColor Cyan
 Post-Ingest -Endpoint 'ingest/governance/policies' -Records $dataset.assignmentPolicies -SystemId $sysOmada -SyncMode 'full'
 
-# 11. Certification Decisions
-Write-Host "[11/11] Certification Decisions ($($dataset.certificationDecisions.Count))..." -ForegroundColor Cyan
+# 12. Certification Decisions
+Write-Host "[12/12] Certification Decisions ($($dataset.certificationDecisions.Count))..." -ForegroundColor Cyan
 Post-Ingest -Endpoint 'ingest/governance/certifications' -Records $dataset.certificationDecisions -SystemId $sysOmada -SyncMode 'full'
 
 # Refresh views

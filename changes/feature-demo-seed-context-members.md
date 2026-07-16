@@ -1,0 +1,1 @@
+- Demo data now includes department and team membership, so the access matrix can be scoped by department (e.g. Sales, Engineering) immediately after loading the demo dataset — previously the synced Department/Team contexts were created empty and had to be populated by running a context-algorithm plugin first.
