@@ -44,24 +44,30 @@ const renderAdmin = (ctx) => (
 
 // key → (ctx) => element. `ctx` carries { navigate, openDetailTab, forceRefresh,
 // riskScoresRefreshKey, onRiskScoresRefresh }.
-export const PAGE_ROUTES = {
-  dashboard:         (ctx) => <DashboardPage onNavigate={ctx.navigate} />,
-  'sync-log':        (ctx) => <SyncLogPage navigate={ctx.navigate} onOpenDetail={ctx.openDetailTab} />,
-  principals:        (ctx) => <UsersPage onOpenDetail={ctx.openDetailTab} />,
-  resources:         renderGroups,
-  groups:            renderGroups,
-  systems:           () => <SystemsPage />,
-  'access-packages': (ctx) => <AccessPackagesPage onOpenDetail={ctx.openDetailTab} />,
-  'risk-scores':     (ctx) => <RiskScoringPage key={ctx.riskScoresRefreshKey} onOpenDetail={ctx.openDetailTab} />,
-  identities:        (ctx) => <IdentitiesPage onOpenDetail={ctx.openDetailTab} />,
-  contexts:          (ctx) => <ContextsPage onOpenDetail={ctx.openDetailTab} onNavigate={ctx.navigate} />,
-  performance:       renderAdmin,
-  crawlers:          renderAdmin,
-  admin:             renderAdmin,
-};
+//
+// A Map (not a plain object) is deliberate: `page` comes from the URL hash
+// (user-controlled), and a Map lookup can only ever return an explicitly-added
+// entry — never an inherited Object.prototype member (`constructor`, `toString`,
+// …). That closes the "unvalidated dynamic method call" class flat (CodeQL
+// js/unvalidated-dynamic-method-call) without an own-property guard.
+export const PAGE_ROUTES = new Map([
+  ['dashboard',       (ctx) => <DashboardPage onNavigate={ctx.navigate} />],
+  ['sync-log',        (ctx) => <SyncLogPage navigate={ctx.navigate} onOpenDetail={ctx.openDetailTab} />],
+  ['principals',      (ctx) => <UsersPage onOpenDetail={ctx.openDetailTab} />],
+  ['resources',       renderGroups],
+  ['groups',          renderGroups],
+  ['systems',         () => <SystemsPage />],
+  ['access-packages', (ctx) => <AccessPackagesPage onOpenDetail={ctx.openDetailTab} />],
+  ['risk-scores',     (ctx) => <RiskScoringPage key={ctx.riskScoresRefreshKey} onOpenDetail={ctx.openDetailTab} />],
+  ['identities',      (ctx) => <IdentitiesPage onOpenDetail={ctx.openDetailTab} />],
+  ['contexts',        (ctx) => <ContextsPage onOpenDetail={ctx.openDetailTab} onNavigate={ctx.navigate} />],
+  ['performance',     renderAdmin],
+  ['crawlers',        renderAdmin],
+  ['admin',           renderAdmin],
+]);
 
 // The render function for a static page key, or null when the key is a detail tab
 // / matrix / unknown route (all handled by App.jsx).
 export function resolvePageRoute(page) {
-  return Object.prototype.hasOwnProperty.call(PAGE_ROUTES, page) ? PAGE_ROUTES[page] : null;
+  return PAGE_ROUTES.get(page) ?? null;
 }

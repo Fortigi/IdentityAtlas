@@ -20,7 +20,7 @@ const ctx = {
 
 describe('pageRegistry', () => {
   it('resolves every registered key to a render function', () => {
-    for (const key of Object.keys(PAGE_ROUTES)) {
+    for (const key of PAGE_ROUTES.keys()) {
       expect(typeof resolvePageRoute(key)).toBe('function');
     }
   });
@@ -29,12 +29,14 @@ describe('pageRegistry', () => {
     expect(resolvePageRoute('user:abc')).toBeNull();
     expect(resolvePageRoute('matrix')).toBeNull();
     expect(resolvePageRoute('does-not-exist')).toBeNull();
-    // Guard against inherited Object.prototype keys masquerading as routes.
+    // A Map lookup can't surface inherited Object.prototype members, so a
+    // user-supplied 'constructor' / 'toString' hash never dispatches to one.
     expect(resolvePageRoute('toString')).toBeNull();
+    expect(resolvePageRoute('constructor')).toBeNull();
   });
 
   it('every route renders a valid element from the shared context', () => {
-    for (const key of Object.keys(PAGE_ROUTES)) {
+    for (const key of PAGE_ROUTES.keys()) {
       expect(isValidElement(resolvePageRoute(key)(ctx))).toBe(true);
     }
   });
