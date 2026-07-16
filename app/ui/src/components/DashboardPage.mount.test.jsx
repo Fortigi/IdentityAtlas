@@ -56,6 +56,23 @@ describe('DashboardPage (mounted)', () => {
     expect(screen.getByText('v5.3.20260419.1430')).toBeInTheDocument();
   });
 
+  it('flattens stat cards to the standard surface — no gradient overuse (#756)', async () => {
+    renderWithProviders(h(DashboardPage), { auth: { authFetch: routes() } });
+
+    // A clickable, populated card (Business Roles, value 12) and a
+    // non-clickable populated card (Assignments) are the two states that used
+    // to carry `bg-gradient-to-br`. Both must now use the flat standard surface.
+    const clickable = (await screen.findByText('Business Roles')).closest('.rounded-xl');
+    // "Assignments" also labels an SVG brain-graph node; take the stat-card one.
+    const plain = screen.getAllByText('Assignments').find(el => !el.closest('svg')).closest('.rounded-xl');
+    for (const card of [clickable, plain]) {
+      expect(card).toBeTruthy();
+      expect(card.className).not.toContain('bg-gradient');
+      expect(card.className).toContain('bg-white');
+      expect(card.className).toContain('dark:bg-gray-800');
+    }
+  });
+
   it('links the marketing website from the Resources card', async () => {
     renderWithProviders(h(DashboardPage), { auth: { authFetch: routes() } });
     const link = await screen.findByRole('link', { name: /Website/i });
