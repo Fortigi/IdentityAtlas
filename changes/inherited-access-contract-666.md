@@ -1,1 +1,0 @@
-- Hardened the matrix's inherited-access folding (Azure-style "capability @ scope" grants that propagate down the containment hierarchy) with a PostgreSQL contract test, so the folded roll-up counts and flat rows are verified against the real schema and guarded against regressions.

@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Hardened the matrix's inherited-access folding (Azure-style "capability @ scope" grants that propagate down the containment hierarchy) with a PostgreSQL contract test, so the folded roll-up counts and flat rows are verified against the real schema and guarded against regressions.
+
+## Changes in this PR
+
 - Fixed app roles showing as an uncoloured grey badge on the resource detail page for real Entra tenants. The page only recognised a type name that the demo data used, so the bug was invisible in demos and showed up only against real data.
 - Fixed the risky-consent analysis skipping the demo dataset's app roles, so its app-permission findings can now be seen in a demo.
 - App roles are now named consistently everywhere. Existing data is renamed automatically on upgrade, and the old name is rejected from now on.
