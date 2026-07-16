@@ -57,14 +57,23 @@ import YAML from 'yamljs';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const isProduction = process.env.NODE_ENV === 'production';
 
-// Worker data-plane gate: while the DB schema is still migrating (see
-// index.js + startupState.js) the crawler job-claim/complete and ingest
-// endpoints return 503, so no crawler runs against a mid-migration schema.
-// Inert in tests / mock mode (isSchemaReady() is true unless index.js armed
-// the gate at real startup), and scoped to the worker paths only — human/UI
-// endpoints stay available.
+// Schema-migration gate (#696): while the DB schema is still migrating (see
+// index.js + startupState.js), every schema-dependent /api endpoint returns 503
+// Retry-After instead of a raw 500 from a not-yet-existing schema — so no crawler
+// runs against a mid-migration schema AND the UI can show a "warming up" state
+// and retry rather than a 500 stack. Mounted once on /api, AFTER the platform
+// probe + bootstrap endpoints (health/version/features/auth-config/auth-me) which
+// stay available. Inert in tests / mock mode (isSchemaReady() is true unless
+// index.js armed the gate at real startup), so createApp()-built unit tests are
+// unaffected.
+//
+// The crawler self-service endpoints stay reachable even mid-migration so a
+// worker can still authenticate (whoami) and rotate its key, then back off
+// cleanly on the 503s it gets from the gated data-plane.
+const SCHEMA_GATE_OPEN_PATHS = ['/api/crawlers/whoami', '/api/crawlers/rotate'];
 function schemaMigratingGate(req, res, next) {
   if (isSchemaReady()) return next();
+  if (SCHEMA_GATE_OPEN_PATHS.includes(req.originalUrl.split('?')[0])) return next();
   res.set('Retry-After', '30');
   return res.status(503).json({ error: 'Schema migration in progress, please retry shortly' });
 }
@@ -295,6 +304,13 @@ export function createApp() {
     });
   });
 
+  // Everything below reads/writes the DB schema, so gate it while migrations run
+  // (#696). Placed after the bootstrap endpoints above (which must stay 200) and
+  // before every schema-dependent router, so a request during the migration
+  // window gets a graceful 503 Retry-After instead of a raw 500 — and before the
+  // ingest body parser, so a large crawler batch is rejected without being read.
+  app.use('/api', schemaMigratingGate);
+
   // Performance metrics routes (auth-protected)
   app.use('/api', authMiddleware, perfRouter);
 
@@ -353,13 +369,10 @@ export function createApp() {
   app.use('/api', authMiddleware, adminCrawlersRouter);
   // Crawler jobs (Entra ID auth) — /api/admin/crawler-jobs/*, /api/admin/status — gated per-route.
   app.use('/api', authMiddleware, jobsRouter);
-  // Crawler self-service (API key auth) — /api/crawlers/whoami, /api/crawlers/rotate
-  // Gate the worker data-plane (job claim/complete/phases/fail under
-  // /crawlers/jobs, and ingest) while the schema migrates — BEFORE crawler auth
-  // runs, so we 503 without touching the DB or reading a large body. whoami and
-  // rotate stay reachable so the worker can authenticate and back off cleanly.
-  app.use('/api/crawlers/jobs', schemaMigratingGate);
-  app.use('/api/ingest', schemaMigratingGate);
+  // Crawler self-service (API key auth) — /api/crawlers/whoami, /api/crawlers/rotate.
+  // The worker data-plane (job claim/complete/phases/fail, ingest) is 503'd
+  // mid-migration by the global schemaMigratingGate above; whoami/rotate are
+  // allow-listed there so the worker can still authenticate and back off cleanly.
   app.use('/api', crawlerAuthMiddleware, selfServiceCrawlersRouter);
   // Ingest endpoints (API key auth) — /api/ingest/*
   // Ingest body size cap. Crawler chunks at 5,000 records per batch; with
