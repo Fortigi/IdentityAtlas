@@ -78,24 +78,24 @@ All **Critical** findings are fixed and merged. Every exploitable **security** f
 | C1 | ✅ Fixed | #427 + `no-duplicate-dark-color` ESLint rule (strips + blocks doubled `dark:`) |
 | C2 | ✅ Fixed | #427 |
 | C3 | ✅ Fixed | #525 — axe suite re-armed across all nav tabs |
-| H1 | 🔧 Open | accent sprawl (lime/indigo vs blue) not yet unified |
-| H2 | 🔧 Open | no shared `components/Button.jsx` |
-| H3 | 🔧 Open | clickable non-controls (`<tr>`/`<span>`) remain |
-| H4 | 🔧 Open | modal Escape/focus-trap/`role="dialog"` not added |
-| H5 | 🔧 Open | 6 modal overlays not consolidated |
-| H6 | 🔧 Open | `useEntityPage` still has no error state |
-| M1 | 🔧 Open | duplicate `Section`/`StatCard` remain |
+| H1 | 🔧 Open | accent sprawl (lime/indigo vs blue) not yet unified (#749) |
+| H2 | 🔧 Open | no shared `components/Button.jsx` (#750) |
+| H3 | 🔧 Open | clickable non-controls (`<tr>`/`<span>`) remain (#751) |
+| H4 | 🔧 Open | modal Escape/focus-trap/`role="dialog"` not added (#752) |
+| H5 | 🔧 Open | 6 modal overlays not consolidated (#752) |
+| H6 | 🔧 Open | `useEntityPage` still has no error state (#753) |
+| M1 | 🔧 Open | duplicate `Section`/`StatCard` remain (#754) |
 | M2 | ✅ Fixed | #500 — `DialogProvider` + `no-native-dialogs` rule |
-| M3 | 🔧 Open | emoji-as-icon persists |
-| M4 | 🔧 Open | Dashboard StatCard gradients remain |
-| M5 | 🔧 Open | radius scale unstandardized |
+| M3 | 🔧 Open | emoji-as-icon persists (#755) |
+| M4 | 🔧 Open | Dashboard StatCard gradients remain (#756) |
+| M5 | 🔧 Open | radius scale unstandardized (#757) |
 | M6 | ✅ Fixed | #427 (same codemod + lint rule as C1) |
-| M7 | 🔧 Open | tables lack `overflow-x-auto` |
-| M8 | 🔧 Open | tag-pill `color + '20'` alpha hack remains |
-| L1 | 🔧 Open | list pages don't use shared `EmptyState` |
-| L2 | 🟨 Partially addressed | #525 added aria-labels on nav pages; search inputs still placeholder-only |
-| L3 | 🔧 Open | no semantic design-token layer |
-| L4 | 🔧 Open | active tab still near-black, not blue |
+| M7 | 🔧 Open | tables lack `overflow-x-auto` (#758) |
+| M8 | 🔧 Open | tag-pill `color + '20'` alpha hack remains (#759) |
+| L1 | 🔧 Open | list pages don't use shared `EmptyState` (#760) |
+| L2 | 🟨 Partially addressed | #525 added aria-labels on nav pages; search inputs still placeholder-only (#761) |
+| L3 | 🔧 Open | no semantic design-token layer (#762) |
+| L4 | 🔧 Open | active tab still near-black, not blue (#749) |
 
 ### Security
 | ID | Status | PR / evidence |
@@ -104,19 +104,19 @@ All **Critical** findings are fixed and merged. Every exploitable **security** f
 | M-1 | ✅ Fixed | #484 — LLM fetch AbortController timeout + body-size cap |
 | M-2 | ✅ Fixed | #484 / #582 — stop returning upstream error bodies to clients |
 | M-3 | ✅ Fixed | #488 — `redirect:'manual'` on LLM fetches |
-| M-4 | 🔧 Open | upload per-file / aggregate caps unchanged |
+| M-4 | 🔧 Open | upload per-file / aggregate caps unchanged (#778) |
 | M-5 | ✅ Fixed | #488 — untrusted scraped-content fencing |
 | M-6 | ✅ Fixed | #488 — RE2 classifier-pattern validation on save |
-| L-1 | 🔧 Open | cron command still `Invoke-Expression` |
-| L-2 | 🔧 Open | plaintext secret temp file written without perms |
-| L-3 | 🔧 Open | full job transcript to shared volume |
-| L-4 | 🔧 Open | Azure data services still public; no Isolated/private-endpoint template |
-| L-5 | 🔧 Open | Postgres password still deterministically derived |
-| L-6 | 🟨 Partially addressed | http/https scheme check added (omada/midpoint); no host/private-IP allowlist |
-| L-7 | 🔧 Open | `PGSSLMODE=require`, not `verify-full` |
-| L-8 | 🔧 Open | CSV parser still buffers whole file, no row cap |
+| L-1 | 🔧 Open | cron command still `Invoke-Expression` (#779) |
+| L-2 | 🔧 Open | plaintext secret temp file written without perms (#779) |
+| L-3 | 🔧 Open | full job transcript to shared volume (#779) |
+| L-4 | 🔧 Open | Azure data services still public; no Isolated/private-endpoint template (#780) |
+| L-5 | 🔧 Open | Postgres password still deterministically derived (#780) |
+| L-6 | 🟨 Partially addressed | http/https scheme check added (omada/midpoint); no host/private-IP allowlist (#781) |
+| L-7 | 🔧 Open | `PGSSLMODE=require`, not `verify-full` (#782) |
+| L-8 | 🔧 Open | CSV parser still buffers whole file, no row cap (#778) |
 | I-1 | ✅ Fixed | #682 — allow-listed table + Postgres identifier quoting (displayName no longer null) |
-| I-2 | 🔧 Open | stale contradictory IaC comments remain |
+| I-2 | 🔧 Open | stale contradictory IaC comments remain (#780) |
 | SEC-NEW-1 | 🟦 By design | open read surface is intended (`data.read` IMPLICIT); documented + tested |
 | SEC-NEW-2 | ✅ Fixed | #424 — job-claim/secret-inject restricted to the worker key |
 | SEC-NEW-3 | ✅ Fixed | #424 — `crawlerHasSystemAccess` on delta-token endpoints |
@@ -127,36 +127,36 @@ All **Critical** findings are fixed and merged. Every exploitable **security** f
 | ID | Status | PR / evidence |
 |----|--------|---------------|
 | P1 | ✅ Fixed | #634 / #651 — `enrichMembers` keys by `principalId` |
-| P2 | 🔧 Open | flat grid still caps at 400k→413; no cursor/keyset pagination |
+| P2 | 🔧 Open | flat grid still caps at 400k→413; no cursor/keyset pagination (#788) |
 | P3 | ✅ Fixed | migration 042 — partial covering index on the matview |
-| P4 | 🔧 Open | matrix columns still not virtualized |
-| P5 | 🔧 Open | every sync still does a full matview refresh |
+| P4 | 🔧 Open | matrix columns still not virtualized (#789) |
+| P5 | 🔧 Open | every sync still does a full matview refresh (#790) |
 | P6–P10 | 🟦 By design | mostly non-issues (perf-mw off, UNION cached); one trivial await remains |
 | Q1 | ✅ Fixed | #634 / #651 / #543 — matrix god-module split into handlers |
 | Q2 | ✅ Fixed | #474 — catch-as-feature-detection replaced by `db/schemaErrors.js` |
-| Q3 | 🔧 Open | `runBound` helper not created (bind-loops remain) |
-| Q4 | 🟨 Partially addressed | per-folder `shared.js` de-dup; `resources.js` still duplicates helpers |
-| Q5 | 🟨 Partially addressed | resource-map logic consolidated; no explicit `resourceFromRow` helper |
-| Q6 | 🔧 Open | two runtime `CREATE TABLE` DDLs remain (migration 023 owns them) |
+| Q3 | 🔧 Open | `runBound` helper not created (bind-loops remain) (#791) |
+| Q4 | 🟨 Partially addressed | per-folder `shared.js` de-dup; `resources.js` still duplicates helpers (#792) |
+| Q5 | 🟨 Partially addressed | resource-map logic consolidated; no explicit `resourceFromRow` helper (#793) |
+| Q6 | 🔧 Open | two runtime `CREATE TABLE` DDLs remain (migration 023 owns them) (#794) |
 | Q7 | ✅ Fixed | #678 / #667 — dead GraphUsers/GraphGroups fallbacks removed |
 | Q8 | 🟦 By design | positive finding — TODO/FIXME density stayed ~zero |
-| Q9–Q10 | 🔧 Open | redundant jsonb parse + scattered magic strings remain |
-| Codex perf | 🟨 Partially addressed | riskScores top-N `LIMIT` fixed (#660); unpaginated group/assignment endpoints + MatrixView nested loop remain |
+| Q9–Q10 | 🔧 Open | redundant jsonb parse + scattered magic strings remain (#795) |
+| Codex perf | 🟨 Partially addressed | riskScores top-N `LIMIT` fixed (#660); unpaginated group/assignment endpoints + MatrixView nested loop remain (#796) |
 
 ### CI / Test Harness
 | ID | Status | PR / evidence |
 |----|--------|---------------|
 | F1 | ✅ Fixed | #437 — core E2E now blocks the PR |
-| F2 | 🔧 Open | secret-dependent tests still skip silently (no assert-secrets gate) |
+| F2 | 🔧 Open | secret-dependent tests still skip silently (no assert-secrets gate) (#797) |
 | F3 | ✅ Fixed | #655 — dead visual-regression suite removed (resolves the false-green) |
 | F4 | ✅ Fixed | #428 — `concurrency: cancel-in-progress` on both PR workflows |
 | F5 | ✅ Fixed | #584 / #652 / #615 / #622 — coverage floors + per-file & diff ratchets + Pester floor |
-| F6 | 🔧 Open | `test/ci-scripts/*.sh` self-tests still unwired to any workflow |
+| F6 | 🔧 Open | `test/ci-scripts/*.sh` self-tests still unwired to any workflow (#798) |
 | F7 | ✅ Fixed | #428 — API ESLint now runs on API-only PRs |
 | F8 | ✅ Fixed | mocked Pester units now cover every crawler (+ #622 floor) |
-| F9 | 🟨 Partially addressed | PSScriptAnalyzer added; Python still absent from CodeQL |
-| F10–F13 | 🟨 Partially addressed | cut-hotfix SHA-pinned; bump-version rebase-retry + build-once still open |
-| Codex CI | 🟨 Partially addressed | #428 closed config path-filter gaps; `test/nightly` filter, skip-label bypasses, a fixed-sleep flake remain |
+| F9 | 🟨 Partially addressed | PSScriptAnalyzer added; Python still absent from CodeQL (#799) |
+| F10–F13 | 🟨 Partially addressed | cut-hotfix SHA-pinned; bump-version rebase-retry + build-once still open (#800) |
+| Codex CI | 🟨 Partially addressed | #428 closed config path-filter gaps; `test/nightly` filter, skip-label bypasses, a fixed-sleep flake remain (#801) |
 
 ### Documentation
 | ID | Status | PR / evidence |
@@ -170,8 +170,8 @@ All **Critical** findings are fixed and merged. Every exploitable **security** f
 | D7 | ✅ Fixed | #489 — data-model version label aligned to v3.1 |
 | D8 | ✅ Fixed | #491 — init order reconciled with migration-created tables |
 | D9 | ✅ Fixed | #496 — data-model Contexts section rewritten to the ContextMembers model |
-| D10–D12 | 🟨 Partially addressed | #489 (README name + history-column example fixed); `.spectral.yaml` still thin |
-| Codex docs | 🟨 Partially addressed | #708 removed the stale `mat_UserPermissionAssignments` ref (now `vw_ResourceUserPermissionAssignments`); #690/#714 purged the risk-scoring-model SQL-Server types; `entities.md` still lists `/api/perf/slowest` (route is `/api/perf/slow`) |
+| D10–D12 | 🟨 Partially addressed | #489 (README name + history-column example fixed); `.spectral.yaml` still thin (#803) |
+| Codex docs | 🟨 Partially addressed | #708 removed the stale `mat_UserPermissionAssignments` ref (now `vw_ResourceUserPermissionAssignments`); #690/#714 purged the risk-scoring-model SQL-Server types; `entities.md` still lists `/api/perf/slowest` (route is `/api/perf/slow`) (#802) |
 
 ---
 

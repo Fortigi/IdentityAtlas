@@ -38,42 +38,42 @@ Status legend: ✅ **Fixed** (merged) · 🟨 **Partially addressed** · 🔧 **
 
 ### Critical
 
-| ID | Finding | Status | PR |
+| ID | Finding | Status | PR / tracking |
 |---|---|---|---|
 | C-01 | The matrix had no on-screen legend — its core surface (coloured single letters) was undecipherable without external docs | ✅ Fixed | [#226](https://github.com/Fortigi/IdentityAtlas/pull/226), [#250](https://github.com/Fortigi/IdentityAtlas/pull/250) |
 | C-02 | Identity Correlation is a dead-end flow: a ruleset can be saved but not run from the UI, and the review loop is half-built | ✅ Resolved by rebuild — the LLM correlation flow was removed and replaced by deterministic [Account Linking](../architecture/account-linking.md): an editable dictionary + certainty slider under Admin → Account Linking, runs triggered on a schedule or on demand from the UI, and a per-account confirm/reject review loop on the identity detail page | — |
-| C-03 | The matrix "governed" concept had multiple definitions that could contradict across the panel and the two grids | 🟨 Partially addressed — panel + main grid unified on business-role coverage; rotated view pending | — |
-| C-04 | Accessibility: the app was substantially keyboard- and screen-reader-inoperable (focus, reduced-motion, real controls, labels) | 🟨 Partially addressed — global focus-visible, skip link & reduced-motion baseline merged, and the axe-core suite re-armed across all nav tabs; modal focus-trap and a full real-controls sweep remain | [#229](https://github.com/Fortigi/IdentityAtlas/pull/229), [#236](https://github.com/Fortigi/IdentityAtlas/pull/236), [#525](https://github.com/Fortigi/IdentityAtlas/pull/525) |
+| C-03 | The matrix "governed" concept had multiple definitions that could contradict across the panel and the two grids | 🟨 Partially addressed — panel + main grid unified on business-role coverage; rotated view pending | [#776](https://github.com/Fortigi/IdentityAtlas/issues/776) |
+| C-04 | Accessibility: the app was substantially keyboard- and screen-reader-inoperable (focus, reduced-motion, real controls, labels) | 🟨 Partially addressed — global focus-visible, skip link & reduced-motion baseline merged, and the axe-core suite re-armed across all nav tabs; modal focus-trap and a full real-controls sweep remain | [#229](https://github.com/Fortigi/IdentityAtlas/pull/229), [#236](https://github.com/Fortigi/IdentityAtlas/pull/236), [#525](https://github.com/Fortigi/IdentityAtlas/pull/525) · [#751](https://github.com/Fortigi/IdentityAtlas/issues/751) |
 
 ### High
 
-| ID | Finding | Status | PR |
+| ID | Finding | Status | PR / tracking |
 |---|---|---|---|
-| H-01 | No shared component layer — primitives quarantined; the same action rendered in several colours/styles | 🟨 Partially addressed — shared `Stepper`, unified interactive colour to blue, softened data-viz | [#241](https://github.com/Fortigi/IdentityAtlas/pull/241), [#242](https://github.com/Fortigi/IdentityAtlas/pull/242) |
-| H-02 | Detail pages are "two products in one" (shared-layout vs bespoke; a stale duplicate Group page) | 🔧 Planned | — |
+| H-01 | No shared component layer — primitives quarantined; the same action rendered in several colours/styles | 🟨 Partially addressed — shared `Stepper`, unified interactive colour to blue, softened data-viz | [#241](https://github.com/Fortigi/IdentityAtlas/pull/241), [#242](https://github.com/Fortigi/IdentityAtlas/pull/242) · [#750](https://github.com/Fortigi/IdentityAtlas/issues/750) |
+| H-02 | Detail pages are "two products in one" (shared-layout vs bespoke; a stale duplicate Group page) | 🔧 Planned | [#764](https://github.com/Fortigi/IdentityAtlas/issues/764) |
 | H-03 | Entire Contexts tab broken in dark mode | ✅ Fixed | [#227](https://github.com/Fortigi/IdentityAtlas/pull/227) |
-| H-04 | Several regions light-mode only (crawler job-detail modal, compliance & account-type badges) | 🟨 Partially addressed — badges fixed; job-detail modal pending | [#232](https://github.com/Fortigi/IdentityAtlas/pull/232) |
+| H-04 | Several regions light-mode only (crawler job-detail modal, compliance & account-type badges) | 🟨 Partially addressed — badges fixed; job-detail modal pending | [#232](https://github.com/Fortigi/IdentityAtlas/pull/232) · [#765](https://github.com/Fortigi/IdentityAtlas/issues/765) |
 | H-05 | Botched automated dark-mode pass left doubled/contradictory classes | 🟨 Partially addressed | [#233](https://github.com/Fortigi/IdentityAtlas/pull/233) |
-| H-06 | Roles & Permissions is buried inside Authentication; the described self-lockout guard isn't implemented | 🔧 Planned | — |
-| H-07 | Risk Scoring can't be created/run from its own page; dead cluster code | 🔧 Planned | — |
-| H-08 | Admin → Data tab gating mismatch (sections render regardless of the entry permission) | 🔧 Planned | — |
-| H-09 | Matrix "Apply vs Save" is a trap (overlapping verbs; a scolding "Not saved" badge) | 🔧 Planned | — |
-| H-10 | Rotated matrix is a silent reduced mode while still showing the controls it drops | 🔧 Planned | — |
-| H-11 | Core concepts never defined on screen (matrix, subjects, governed, gaps) | 🟨 Partially addressed — matrix legend + Style Guide glossary | [#226](https://github.com/Fortigi/IdentityAtlas/pull/226), [#237](https://github.com/Fortigi/IdentityAtlas/pull/237) |
-| H-12 | List pages dead-end new users; Systems cited a stale CLI command | 🟨 Partially addressed — Systems onboarding fixed; remaining list pages pending | [#230](https://github.com/Fortigi/IdentityAtlas/pull/230) |
-| H-13 | Optional tabs (Risk Scores, Identities) hidden by default even when enabled | 🔧 Planned | — |
-| H-14 | List-page sort silently sorts only the current page over server pagination | 🔧 Planned | — |
+| H-06 | Roles & Permissions is buried inside Authentication; the described self-lockout guard isn't implemented | 🔧 Planned | [#786](https://github.com/Fortigi/IdentityAtlas/issues/786) |
+| H-07 | Risk Scoring can't be created/run from its own page; dead cluster code | 🔧 Planned | [#766](https://github.com/Fortigi/IdentityAtlas/issues/766) |
+| H-08 | Admin → Data tab gating mismatch (sections render regardless of the entry permission) | 🔧 Planned | [#767](https://github.com/Fortigi/IdentityAtlas/issues/767) |
+| H-09 | Matrix "Apply vs Save" is a trap (overlapping verbs; a scolding "Not saved" badge) | 🔧 Planned | [#768](https://github.com/Fortigi/IdentityAtlas/issues/768) |
+| H-10 | Rotated matrix is a silent reduced mode while still showing the controls it drops | 🔧 Planned | [#769](https://github.com/Fortigi/IdentityAtlas/issues/769) |
+| H-11 | Core concepts never defined on screen (matrix, subjects, governed, gaps) | 🟨 Partially addressed — matrix legend + Style Guide glossary | [#226](https://github.com/Fortigi/IdentityAtlas/pull/226), [#237](https://github.com/Fortigi/IdentityAtlas/pull/237) · [#772](https://github.com/Fortigi/IdentityAtlas/issues/772) |
+| H-12 | List pages dead-end new users; Systems cited a stale CLI command | 🟨 Partially addressed — Systems onboarding fixed; remaining list pages pending | [#230](https://github.com/Fortigi/IdentityAtlas/pull/230) · [#760](https://github.com/Fortigi/IdentityAtlas/issues/760) |
+| H-13 | Optional tabs (Risk Scores, Identities) hidden by default even when enabled | 🔧 Planned | [#770](https://github.com/Fortigi/IdentityAtlas/issues/770) |
+| H-14 | List-page sort silently sorts only the current page over server pagination | 🔧 Planned | [#771](https://github.com/Fortigi/IdentityAtlas/issues/771) |
 | H-15 | Dashboard backend error masqueraded as an "empty database" onboarding state | ✅ Fixed | [#235](https://github.com/Fortigi/IdentityAtlas/pull/235) |
-| H-16 | Almost no contextual help / doc links; no in-app glossary | 🔧 Planned | — |
+| H-16 | Almost no contextual help / doc links; no in-app glossary | 🔧 Planned | [#772](https://github.com/Fortigi/IdentityAtlas/issues/772) |
 | H-17 | Terminology drift leaked internal jargon (SOLL/IST, "Org Unit", "Access Package") into the UI | ✅ Fixed — strings corrected + a CI rule blocks regressions | [#228](https://github.com/Fortigi/IdentityAtlas/pull/228), [#243](https://github.com/Fortigi/IdentityAtlas/pull/243), [#238](https://github.com/Fortigi/IdentityAtlas/pull/238) |
-| H-18 | CSV import validates only the filename, not headers; loose name-matching can mis-map | 🔧 Planned | — |
-| H-19 | One-time API key trivially lost; Copy reports success even when the clipboard fails | 🔧 Planned | — |
-| H-20 | Crawler "audit log" fetches data but renders nothing | 🔧 Planned | — |
-| H-21 | ~11 native `confirm()`/`alert()`/`prompt()` for important actions — unstyled, no dark mode, untestable | 🟨 Partially addressed — a shared `DialogProvider` landed and a CI rule blocks new ones; ~7 components (AccessPackages, matrix/risk wizards, Roles & Permissions, LLM/Power-Query settings) are still being migrated | [#238](https://github.com/Fortigi/IdentityAtlas/pull/238), [#500](https://github.com/Fortigi/IdentityAtlas/pull/500) |
+| H-18 | CSV import validates only the filename, not headers; loose name-matching can mis-map | 🔧 Planned | [#773](https://github.com/Fortigi/IdentityAtlas/issues/773) |
+| H-19 | One-time API key trivially lost; Copy reports success even when the clipboard fails | 🔧 Planned | [#774](https://github.com/Fortigi/IdentityAtlas/issues/774) |
+| H-20 | Crawler "audit log" fetches data but renders nothing | 🔧 Planned | [#775](https://github.com/Fortigi/IdentityAtlas/issues/775) |
+| H-21 | ~11 native `confirm()`/`alert()`/`prompt()` for important actions — unstyled, no dark mode, untestable | 🟨 Partially addressed — a shared `DialogProvider` landed and a CI rule blocks new ones; ~7 components (AccessPackages, matrix/risk wizards, Roles & Permissions, LLM/Power-Query settings) are still being migrated | [#238](https://github.com/Fortigi/IdentityAtlas/pull/238), [#500](https://github.com/Fortigi/IdentityAtlas/pull/500) · [#763](https://github.com/Fortigi/IdentityAtlas/issues/763) |
 
 ### Medium & Low
 
-Around 35 Medium and 30 Low/Informational items were recorded — inconsistent sub-navigation, no breadcrumbs, ad-hoc empty/loading states, tag-pill contrast risks, the orphaned brand colour and button-colour drift, ad-hoc type sizes, and assorted polish. Several have already been resolved as part of the foundational work below (terminology, the brand/colour decision, the matrix Tags column, a null-guard crash); the remainder are tracked internally and scheduled alongside the High items. Technical detail is withheld here pending remediation.
+Around 35 Medium and 30 Low/Informational items were recorded — inconsistent sub-navigation, no breadcrumbs, ad-hoc empty/loading states, tag-pill contrast risks, the orphaned brand colour and button-colour drift, ad-hoc type sizes, and assorted polish. Several have already been resolved as part of the foundational work below (terminology, the brand/colour decision, the matrix Tags column, a null-guard crash); the remainder are tracked in [#777](https://github.com/Fortigi/IdentityAtlas/issues/777) and scheduled alongside the High items. Technical detail is withheld here pending remediation.
 
 ---
 
