@@ -152,7 +152,7 @@ All **Critical** findings are fixed and merged. Every exploitable **security** f
 | F6 | 🔧 Open | `test/ci-scripts/*.sh` self-tests still unwired to any workflow |
 | F7 | ✅ Fixed | #428 — API ESLint now runs on API-only PRs |
 | F8 | ✅ Fixed | mocked Pester units now cover every crawler (+ #622 floor) |
-| F9 | 🟨 Partially addressed | PSScriptAnalyzer added; Python still absent from CodeQL |
+| F9 | ✅ Fixed | #816 — Python added to CodeQL (separate `analyze-python` job); PSScriptAnalyzer already ran |
 | F10–F13 | 🟨 Partially addressed | cut-hotfix SHA-pinned; bump-version rebase-retry + build-once still open |
 | Codex CI | 🟨 Partially addressed | #428 closed config path-filter gaps; `test/nightly` filter, skip-label bypasses, a fixed-sleep flake remain |
 
