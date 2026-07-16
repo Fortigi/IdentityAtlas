@@ -27,7 +27,7 @@ This page is a **public, sanitized summary**: it records what was assessed, the 
 |---|---|---|---|
 | Critical | 2 | 2 | 0 |
 | High | 9 | 9 | 0 |
-| Medium | 12 | 3 | 9 |
+| Medium | 12 | 6 | 6 |
 | Low / Informational | 7 | — | 7 |
 
 **All Critical and High findings are fixed and merged to `main`.** Remediation of the remaining Medium and Low items is in progress and tracked below.
@@ -66,17 +66,17 @@ Status legend: ✅ **Fixed** (merged) · 🟦 **By design** (supported configura
 | ID | Category | Status | PR |
 |---|---|---|---|
 | M-01 | Transport security — wire TLS / `BEHIND_TLS` end to end | 🟨 Partially addressed (env documented) | — |
-| M-02 | Authorization coverage on mutating endpoints | 🔧 Planned | — |
-| M-03 | Crawler ingest authorization scoping | 🔧 Planned | — |
+| M-02 | Authorization coverage on mutating endpoints | ✅ Fixed | [#424](https://github.com/Fortigi/IdentityAtlas/pull/424) |
+| M-03 | Crawler ingest authorization scoping | ✅ Fixed | [#424](https://github.com/Fortigi/IdentityAtlas/pull/424) |
 | M-04 | Role-permission editor: lockout guard, audit trail | 🟨 Partially addressed | [#194](https://github.com/Fortigi/IdentityAtlas/pull/194) |
 | M-05 | Spreadsheet formula injection in UI exporters | ✅ Fixed | [#215](https://github.com/Fortigi/IdentityAtlas/pull/215) |
-| M-06 | Internal error detail returned to clients | 🔧 Planned | — |
+| M-06 | Internal error detail returned to clients | ✅ Fixed | [#484](https://github.com/Fortigi/IdentityAtlas/pull/484), [#582](https://github.com/Fortigi/IdentityAtlas/pull/582) |
 | M-07 | Vault master-key handling policy | 🔧 Planned | — |
 | M-08 | PowerShell worker hardening | 🔧 Planned | — |
 | M-09 | Workbook export base URL trust (token-handling) | ✅ Fixed | [#216](https://github.com/Fortigi/IdentityAtlas/pull/216) |
 | M-10 | Rate limiting on expensive surfaces (auth-off installs) | 🔧 Planned | — |
 | M-11 | Container hardening & resource limits | 🔧 Planned | — |
-| M-12 | Azure IaC network/secret hardening | 🔧 Planned | — |
+| M-12 | Azure IaC network/secret hardening | 🟨 Partially addressed — storage/LA keys no longer emitted as Bicep outputs (consumers call `listKeys()`); network hardening pending | [#475](https://github.com/Fortigi/IdentityAtlas/pull/475) |
 
 ### Low / Informational
 

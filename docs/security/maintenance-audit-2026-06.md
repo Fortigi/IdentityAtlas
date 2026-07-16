@@ -55,6 +55,8 @@ Critical/High across all dimensions: **14.**
 
 _Status tracking added 2026-07-14. In the weeks since this audit the backlog was worked one PR at a time; the tables below record where each finding landed, matching the Status convention of the [Security Assessment](assessment.md) and [UX Assessment](../ux/assessment.md) pages. The detailed phase sections that follow are the original audit text, unchanged._
 
+_Refreshed 2026-07-16: reconciled against PRs merged since the initial snapshot. The only finding to advance is **Codex docs** — the stale `mat_UserPermissionAssignments` doc reference (removed in #708) and the risk-scoring-model SQL-Server types (purged in #690/#714) are fixed; one stale endpoint reference (`/api/perf/slowest`) remains, so it moves to Partial. All other open items were re-verified against `main` and remain genuinely open._
+
 Status legend: ✅ **Fixed** (merged) · 🟦 **By design** (intended/supported, documented) · 🟨 **Partially addressed** · 🔧 **Open**.
 
 | Phase | Tracked | ✅ Fixed | 🟦 By design | 🟨 Partial | 🔧 Open |
@@ -63,8 +65,8 @@ Status legend: ✅ **Fixed** (merged) · 🟦 **By design** (intended/supported,
 | Security | 22 | 10 | 2 | 1 | 9 |
 | Perf & Quality | 16 | 5 | 2 | 3 | 6 |
 | CI / Test Harness | 11 | 6 | 0 | 3 | 2 |
-| Documentation | 11 | 9 | 0 | 1 | 1 |
-| **Total** | **81** | **35** | **4** | **9** | **33** |
+| Documentation | 11 | 9 | 0 | 2 | 0 |
+| **Total** | **81** | **35** | **4** | **10** | **32** |
 
 _(Row groups P6–P10, Q9–Q10, F10–F13, D10–D12 and the Codex net-new bullets are tracked as single rows here; the audit's raw sub-finding count is 85.)_
 
@@ -169,7 +171,7 @@ All **Critical** findings are fixed and merged. Every exploitable **security** f
 | D8 | ✅ Fixed | #491 — init order reconciled with migration-created tables |
 | D9 | ✅ Fixed | #496 — data-model Contexts section rewritten to the ContextMembers model |
 | D10–D12 | 🟨 Partially addressed | #489 (README name + history-column example fixed); `.spectral.yaml` still thin |
-| Codex docs | 🔧 Open | `entities.md` still cites `mat_UserPermissionAssignments` + `/api/perf/slowest`; the risk-scoring-model SQL-Server types are fixed in-flight in #690 |
+| Codex docs | 🟨 Partially addressed | #708 removed the stale `mat_UserPermissionAssignments` ref (now `vw_ResourceUserPermissionAssignments`); #690/#714 purged the risk-scoring-model SQL-Server types; `entities.md` still lists `/api/perf/slowest` (route is `/api/perf/slow`) |
 
 ---
 
