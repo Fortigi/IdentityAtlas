@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Deployments still running an older `docker-compose.prod.yml` (compose file version 1) are now flagged as **outdated** on the Dashboard, prompting a re-download. Version-1 files predate two compose-only security fixes — the removal of the Docker-socket bind-mount from the web container (a host-takeover risk) and binding PostgreSQL to loopback instead of all interfaces — so anyone still on one should upgrade to the current file.
+
+## Changes in this PR
+
 - The dashboard's **Need support?** card now leads with **Report an issue or feature request** (linking to the support guide) and no longer shows a support email — bugs and feature requests go through the public tracker.
 - The support guide now states plainly that community support is **best effort**, and adds a section on requesting an **SLA or priority feature development** for organisations that need more, with a contact address.
 - Added a **Support** link to the website footer so visitors can find how to get help.
