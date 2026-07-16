@@ -20,8 +20,8 @@ beforeEach(() => { query.mockReset(); queryOne.mockReset(); });
 
 describe('matrix saved-filters', () => {
   it('GET /matrix/saved-filters returns the rows', async () => {
-    // The handler first awaits ensureSavedFiltersTable() (a db.query whose
-    // result is ignored), then the SELECT — so return rows for every call.
+    // Blanket-mock db.query so the handler's SELECT returns rows (the table is
+    // created by migrations 023/028 now, not a runtime ensure step).
     query.mockResolvedValue({ rows: [{ id: VALID, name: 'Mine' }] });
     const res = await request(app).get('/api/matrix/saved-filters');
     expect(res.status).toBe(200);
