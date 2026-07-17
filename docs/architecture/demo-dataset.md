@@ -2,11 +2,32 @@
 
 A purpose-built synthetic dataset for testing every feature of Identity Atlas. Fully controlled — every record, relationship, and edge case is intentional, so tests can assert on exact values.
 
+It also backs the **public demo environment** and hides the **Capture-the-Flag** scenarios from issue #705 — see [Capture-the-Flag scenarios](#capture-the-flag-scenarios) below. That is why several records exist purely as distractors: a flag is only interesting if a plausible wrong answer sits next to the right one.
+
+## How it's generated
+
+`test/demo-dataset/Generate-DemoDataset.ps1` is a thin orchestrator. Each domain lives in its own file under `parts/`, dot-sourced in order and appending into one shared state object via record builders (`Add-DemoResource`, `Add-DemoAssignment`, …), so the shape of each record is defined once:
+
+| Part | Owns |
+|---|---|
+| `DemoState.ps1` | `New-DemoGuid`, the state accumulator, the record builders |
+| `DemoOrg.ps1` | Systems, the context tree, people, identities |
+| `DemoEntraBase.ps1` | Entra groups / directory roles / app roles / group ownership |
+| `DemoGovernance.ps1` | IGA catalogs, business roles, policies, certifications |
+| `DemoSalesScenario.ps1` | The Sales role-mining scenario (flags 1–7) |
+| `DemoConsent.ps1` | OAuth consent + shadow IT (flags 11–12) |
+| `DemoSap.ps1` | The SAP ERP system (flag 8) |
+| `DemoAzure.ps1` | The AzureRM system (flag 10) |
+
+GUIDs are a pure function of a seed string (`New-DemoGuid`), so any part can reference another part's record without an ordering contract, and the whole dataset is byte-stable across runs.
+
+> **`demo-company.json` is a build artifact, not a source file.** It is gitignored — always regenerate rather than relying on a copy on disk.
+
 ---
 
 ## The Company: Fortigi Demo Corp
 
-A mid-size technology consultancy with 22 employees across 4 departments. Small enough to reason about, large enough to exercise all features.
+A mid-size technology consultancy with 26 employees across 6 departments. Small enough to reason about, large enough to exercise all features.
 
 ### Org Chart
 
@@ -43,12 +64,19 @@ graph TB
         CSO --> SM["Paul Quinn<br/>Sales Manager<br/>E0013"]
         SM --> SR1["Rachel Smith<br/>Account Exec<br/>E0027"]
         SM --> SR2["Stefan Tanaka<br/>Account Exec<br/>E0028"]
+        SM --> SR3["Piet Jansen<br/>Account Exec<br/>E0032"]
+        SM --> SR4["Sanne Vermeer<br/>Sales Dev Rep<br/>E0033"]
     end
 
     subgraph Operations
         COO --> OM["Ursula Visser<br/>Ops Manager<br/>E0014"]
         OM --> OPS1["Victor Wang<br/>SysAdmin<br/>E0029"]
         OM --> OPS2["Wendy Xu<br/>SysAdmin<br/>E0030"]
+        OM --> OPS3["Tom Bakker<br/>Logistics Coord<br/>E0034"]
+    end
+
+    subgraph Marketing
+        CEO --> MK1["Nadia Haddad<br/>Marketing Specialist<br/>E0035"]
     end
 ```
 
@@ -61,18 +89,27 @@ graph TB
 | Disabled account | E0041 Alex Former | `accountEnabled: false`; left the company; should still show in history |
 | Service principal | SVC-001 Deploy Pipeline | Non-human; `principalType: ServicePrincipal`; member of admin groups |
 | AI agent | AI-001 Copilot Assistant | `principalType: AIAgent`; member of data access groups |
-| Multi-system identity | E0020 Hassan Ibrahim | Has accounts in both EntraID and Omada; identity correlation links them |
+| Multi-system identity | E0020 Hassan Ibrahim | Has accounts in EntraID, the IGA system and SAP; identity correlation links them |
 | Shared mailbox | SM-001 info@fortigidemo.com | `principalType: SharedMailbox`; owned by E0027 |
 | Manager in different dept | E0014 Ursula Visser | Reports to COO but manages Operations — tests cross-dept context |
 | Employee with no assignments | E0031 Zara Intern | A new hire not yet provisioned: flagged `noAccess` in the generator, so she is excluded from every department group and business-role grant. She still exists as a principal and appears in the Engineering context, but holds **zero** resource assignments — the deliberate zero-assignment edge case |
+| Never-revoked role after a transfer | E0034 Tom Bakker | Moved from Sales to Operations but kept his `BR-Sales` assignment — the "nobody cleaned it up" case |
+| Worst-case identity | E0032 Piet Jansen | Role-inherited CRM access, a never-expiring password, and consent to a risky app. Deliberately threads through flags 4, 9, 11 and 12 |
+| Provisioning gap | Everyone | `BR-Employee-Base` **Contains** `FortigiGraph-App`, but nobody holds an effective assignment on it — so it renders as a gap under the matrix's Gaps toggle rather than as access. Deliberate; do not "fix" it |
 
 ### Systems
 
 | System | Type | Content |
 |---|---|---|
-| Fortigi Demo EntraID | `EntraID` | Principals (users, SPs, AI agents), groups, directory roles |
-| Fortigi Demo HR | `HR` | Identities, org units (HR department tree), employment |
-| Fortigi Demo Omada | `Omada` | Business roles, governed assignments, certifications |
+| Fortigi Demo EntraID | `EntraID` | Principals (users, SPs, AI agents), groups, directory roles, app consent |
+| Fortigi Demo HR | `HR` | Identities, the department context tree, employment |
+| Fortigi Demo IGA | `IGA` | Business roles, governed assignments, certifications |
+| Fortigi Demo SAP ERP | `SAP` | SAP accounts + roles, correlated to identities |
+| Fortigi Demo Azure | `AzureRM` | Azure scope tree + RBAC role assignments, region-tagged |
+
+> **Why `IGA` and not `Omada`.** A business role is the same concept whether it comes from Omada, midPoint or SailPoint, so the demo names the source generically — the CTF is identical in every case (issue #705, Rob's review). This is demo data only; the real Omada crawler under `tools/crawlers/omada/` is a separate thing and is unaffected.
+
+> **System ids are placeholders.** `Systems.id` is a `SERIAL`, so the ids the database hands out are only 1..N on a pristine database. The generator emits placeholders plus a `metadata.systemKeys` index; `Ingest-DemoDataset.ps1` posts Systems first, reads the real ids back from the API response, and remaps every reference before posting anything else. Rows are then posted **per system**, because a full sync reconciles against the envelope's `systemId`.
 
 ### Context Trees (Independent)
 
@@ -106,21 +143,35 @@ AU-Netherlands
 | SG-PAM-Users | Group | EntraID | PAM access |
 | Global Administrator | EntraDirectoryRole | EntraID | Entra directory role |
 | SharePoint Admin | EntraDirectoryRole | EntraID | Entra directory role |
-| IdentityAtlas-App | AppRole | EntraID | App role for this product |
+| FortigiGraph-App | AppRole | EntraID | App role for this product. (Name predates the Identity Atlas rename; the generator still emits `FortigiGraph-App`.) |
 | SAP-Finance-Role | AppRole | EntraID | SAP financial access |
-| BR-Employee-Base | BusinessRole | Omada | Base employee access package |
-| BR-Engineering-Tools | BusinessRole | Omada | Dev tools access package |
-| BR-Finance-Systems | BusinessRole | Omada | Financial systems access |
-| BR-Admin-Privileged | BusinessRole | Omada | Privileged admin access |
+| BR-Employee-Base | BusinessRole | IGA | Base employee access package |
+| BR-Engineering-Tools | BusinessRole | IGA | Dev tools access package |
+| BR-Finance-Systems | BusinessRole | IGA | Financial systems access |
+| BR-Admin-Privileged | BusinessRole | IGA | Privileged admin access |
+| BR-Sales | BusinessRole | IGA | Sales role — Contains SG-Sales + SG-CRM-Users |
 | SG-Engineering | GroupOwnership | EntraID | Owners of the Engineering group (a GroupOwnership resource is named after the group it owns) |
 | SG-Finance | GroupOwnership | EntraID | Owners of the Finance group |
 | SG-Admin-Tier0 | GroupOwnership | EntraID | Owners of the Tier-0 admin group |
+| SG-Sales | Group | EntraID | Sales department group — granted **by** BR-Sales |
+| SG-CRM-Users | Group | EntraID | CRM access — granted **by** BR-Sales (flag 4) |
+| SG-Sales-SharePoint | Group | EntraID | Ad-hoc grant held directly by 5 of 6 Sales — the role candidate (flag 6) |
+| SG-Finance-Reports | Group | EntraID | Sensitive cross-department finance access — the over-privileged trap (flag 7) |
+| FileSync Pro | Application | EntraID | Third-party app, unverified publisher — the risky one |
+| Files.ReadWrite.All | DelegatedPermission | EntraID | The risky consent scope (flags 11–12) |
+| Contoso Timesheets | Application | EntraID | Approved app, verified publisher — the control |
+| User.Read | DelegatedPermission | EntraID | Low-risk scope on the control app |
+| SAP_FI_ACCOUNTANT / SAP_SD_SALES / SAP_MM_VIEWER / SAP_BASIS_ADMIN | SAPRole | SAP ERP | SAP role per module |
+| Fortigi Demo Tenant | AzureScope | AzureRM | Azure scope-tree root |
+| rg-prod-eastus / rg-prod-westeurope | AzureResourceGroup | AzureRM | Region-tagged (`azureLocation`) resource groups |
+| stprodeastus01 / stprodweu01 | AzureResource | AzureRM | Storage accounts under each RG |
+| `<Role> @ <scope>` (×4) | AzureRoleAssignment | AzureRM | The synthetic "role at scope" capability RBAC hangs off (flag 10) |
 
 ### Assignments (Who Has What)
 
 | Principal | Resource | Type | Notes |
 |---|---|---|---|
-| Every employee except the intern (21) | SG-AllEmployees | Direct | E0031 is the deliberate zero-assignment case — see Edge Cases |
+| Every employee except the intern (25) | SG-AllEmployees | Direct | E0031 is the deliberate zero-assignment case — see Edge Cases |
 | Engineering employees except the intern (8) | SG-Engineering | Direct | By `department` (includes the CTO E0002); the unprovisioned intern E0031 is excluded |
 | Every Finance employee (4) | SG-Finance | Direct | By `department` |
 | E0029, E0030 (SysAdmins) | SG-VPN-Access | Direct | |
@@ -128,23 +179,36 @@ AU-Netherlands
 | E0029 (SysAdmin) | SG-Admin-Tier0 | Direct | Member of high-risk group |
 | SVC-001 (Deploy Pipeline) | SG-Admin-Tier0 | Direct | Service principal in admin group |
 | E0002 (CTO) | Global Administrator | Direct | Directory role assignment |
-| Every employee except the intern (21) | BR-Employee-Base | Direct (`governed=true`) | Via business role — governance is the `governed` flag, not an assignment type |
+| Every employee except the intern (25) | BR-Employee-Base | Direct (`governed=true`) | Via business role — governance is the `governed` flag, not an assignment type |
 | Engineering employees except the intern (8) | BR-Engineering-Tools | Direct (`governed=true`) | Via business role |
 | E0029 (SysAdmin) | BR-Admin-Privileged | Eligible | PIM-eligible, not active |
 | E0010 → SG-Engineering; E0012 → SG-Finance; E0002 + E0029 → SG-Admin-Tier0 | GroupOwnership | Direct | Ownership is a Direct assignment on a synthetic GroupOwnership resource, never an `Owner` type |
+| The 6 Sales members **+ E0034 Tom Bakker + E0035 Nadia Haddad** | BR-Sales | Direct (`governed=true`) | The two outsiders are flag 3's answer — a role assignment that survived a transfer / a project |
+| Everyone holding BR-Sales (8) | SG-Sales, SG-CRM-Users | Indirect | The materialised role-derived access. The `Contains` edge supplies the *why*; this row is the access itself |
+| 5 of the 6 Sales members (not E0033) | SG-Sales-SharePoint | Direct | Ad-hoc — the role candidate (flag 6). Held by most, not all, which is what keeps it out of flag 2's shared set |
+| E0013, E0027, E0028, E0032 + all 4 Finance | SG-Finance-Reports | Direct | The over-privileged trap (flag 7) |
+| E0032, E0027, E0020, E0030, E0025 | Files.ReadWrite.All | Direct | OAuth consent (flag 11). Migration 045 rewrote `OAuth2Grant` → `Direct`, so consent is a Direct assignment |
+| E0029, E0021, E0022, E0024 | User.Read | Direct | Consent to the clean control app — E0029 is flag 12's trap |
+| 10 SAP accounts | SAP roles | Direct | Skewed Finance 4 / Sales 3 / Ops 2 / Eng 1 (flag 8) |
+| E0029 + SVC-001 → eastus; E0030 → eastus storage; E0020, E0010, E0029 → westeurope | AzureRoleAssignment | Direct | Flag 10. E0029 spans both regions on purpose |
 
 ### Resource Relationships
 
 | Parent | Child | Type | Notes |
 |---|---|---|---|
 | BR-Employee-Base | SG-AllEmployees | Contains | Business role grants group |
-| BR-Employee-Base | IdentityAtlas-App | Contains | Business role grants app role |
+| BR-Employee-Base | FortigiGraph-App | Contains | Business role grants app role — deliberately with no effective assignment, so it renders as a provisioning gap |
 | BR-Engineering-Tools | SG-Engineering | Contains | |
 | BR-Engineering-Tools | SG-VPN-Access | Contains | |
 | BR-Finance-Systems | SG-Finance | Contains | |
 | BR-Finance-Systems | SAP-Finance-Role | Contains | |
 | BR-Admin-Privileged | SG-Admin-Tier0 | Contains | |
 | BR-Admin-Privileged | SG-PAM-Users | Contains | |
+| BR-Sales | SG-Sales | Contains | Business role grants the Sales group |
+| BR-Sales | SG-CRM-Users | Contains | Business role grants CRM — this edge is flag 4's answer |
+| FileSync Pro | Files.ReadWrite.All | DelegatesScope | App → the scope consented to it |
+| Contoso Timesheets | User.Read | DelegatesScope | The control app |
+| Fortigi Demo Tenant → rg-prod-eastus / rg-prod-westeurope → their storage accounts | Contains | Contains | The Azure scope tree (4 edges) |
 | SG-Engineering | SG-AllEmployees | GrantsAccessTo | Nested group |
 | SG-Engineering | SG-Engineering (ownership) | HasOwnership | Group → its GroupOwnership resource |
 | SG-Finance | SG-Finance (ownership) | HasOwnership | |
@@ -154,22 +218,81 @@ AU-Netherlands
 
 | Entity | Data |
 |---|---|
-| Catalog: "Employee Access" | Contains BR-Employee-Base, BR-Engineering-Tools, BR-Finance-Systems |
+| Catalog: "Employee Access" | Contains BR-Employee-Base, BR-Engineering-Tools, BR-Finance-Systems, BR-Sales |
 | Catalog: "Privileged Access" | Contains BR-Admin-Privileged |
 | Policy: "Auto-assign all employees" | On BR-Employee-Base, scope: all, auto-approve |
 | Policy: "Manager approval" | On BR-Engineering-Tools, requires manager approval |
 | Policy: "Dual approval" | On BR-Admin-Privileged, requires manager + security team |
+| Policy: "Sales role — manager approval" | On BR-Sales, requires manager approval |
 | Certification: Q1 2026 Review | Reviewed E0029's access to BR-Admin-Privileged — decision: Approve |
 | Certification: Q1 2026 Review | Reviewed E0041's access to BR-Employee-Base — decision: Deny (left company) |
+| Certification: Q1 2026 Review | Reviewed E0013's access to SG-Finance-Reports — decision: Approve, "Sales Manager needs pipeline revenue reporting; approved for this role only". This is the evidence for flag 7's *why* |
 
 ### Identity Correlation
 
 | Identity | Principals | Correlation |
 |---|---|---|
-| Anna Bakker (ID-001) | E0001 (EntraID), E0001-omada (Omada) | employeeId match |
-| Hassan Ibrahim (ID-020) | E0020 (EntraID), E0020-omada (Omada) | employeeId match |
+| Hassan Ibrahim (E0020) | E0020 (EntraID), E0020-iga (IGA), HIBRAHIM (SAP) | employeeId match — the three-system case |
+| Clara Dijkstra (E0003) | E0003 (EntraID), CDIJKSTRA (SAP) | employeeId match |
 | Yuki Zhao (Contractor) | E0040 (EntraID) | No identity — external, uncorrelated |
 | Deploy Pipeline | SVC-001 (EntraID) | No identity — non-human |
+
+**SAP accounts carry no department and no friendly name** — just an SAP user id like `CDIJKSTRA`. That is what a real ERP account list looks like, and it is what makes flag 8 hard from a raw export: the only route from an SAP account to a department is through the identity. Ten employees have one, skewed Finance 4 / Sales 3 / Operations 2 / Engineering 1.
+
+---
+
+## Capture-the-Flag scenarios
+
+The dataset carries the twelve CTF scenarios from [issue #705](https://github.com/Fortigi/IdentityAtlas/issues/705). The design principle: **every flag must be hard from a raw export and easy in Identity Atlas.** Answers are asserted in two places, so a dataset change can never silently move one:
+
+* **`test/unit/DemoDataset.Tests.ps1`** — over the generated JSON.
+* **`test/demo-dataset/Verify-DemoDataset.ps1`** — over the ingested database (the `CTF*` checks).
+
+!!! warning "Player-facing page is [Capture the Flag](../demo/capture-the-flag.md)"
+    That page publishes the **questions and hints only**. This page is the engineering reference and spells out the answers. If you intend to play, stop here.
+
+??? danger "Spoilers — the answer key"
+
+    | # | Question | Answer | Where it's answered |
+    |---|---|---|---|
+    | 1 | How many identities does Sales have? | **6** active | Sales scope resolves to 7 — the 7th (Alex Former) is disabled |
+    | 2 | How many assignments do all Sales users share? | **5** | ⚠️ no shared-by-all statistic exists yet — data-complete, product gap |
+    | 3 | Which two users outside Sales share that set? | **Tom Bakker, Nadia Haddad** | ⚠️ same gap as flag 2 |
+    | 4 | Why does Piet have the CRM permission? | Inherited via **BR-Sales** | Matrix cell: `Indirect` badge + access-package overlay |
+    | 5 | Which shared assignments are role-based? | **SG-Sales, SG-CRM-Users** | Matrix Governed / Non-governed toggle |
+    | 6 | Which assignment could be added to the role? | **SG-Sales-SharePoint** | Non-governed toggle on the Sales scope |
+    | 7 | Which looks addable but should NOT be? | **SG-Finance-Reports** — sensitive, cross-department, only the manager is certified for it | Same toggle; the certification + description supply the *why* |
+    | 8 | Which department has the most SAP users? | **Finance** (4, vs Sales 3) | Identity correlation — SAP accounts carry no department |
+    | 9 | Which accounts have never-expiring passwords? | **5** | Matrix filter on `ext.passwordNeverExpires` |
+    | 10 | Who has access to a resource in Azure US? | **Victor Wang, Wendy Xu, Deploy Pipeline** | Resource filter on `ext.azureLocation = eastus` |
+    | 11 | Who consented to `Files.ReadWrite.All`? | **5** users | `risky-consent` plugin → "Risky Consent — High" → Direct Members |
+    | 12 | Who consented to a *risky* app **and** has a never-expiring password? | **Piet Jansen, Wendy Xu** | One matrix: resource filter on the risky-consent context + subject filter on `ext.passwordNeverExpires` |
+
+### Why the distractors matter
+
+A flag is only hard because a plausible wrong answer sits next to the right one. That is why several records exist purely to be wrong.
+
+??? danger "Spoilers — the traps"
+
+    | Flag | The trap |
+    |---|---|
+    | 1 | A disabled Sales leaver makes the naive count 7 instead of 6 |
+    | 6 vs 7 | Both are ad-hoc direct grants held by most of Sales. Only the risk + the department boundary separate the candidate from the trap |
+    | 8 | Sales (3) is close enough to Finance (4) that you have to count |
+    | 10 | `rg-prod-westeurope` sits next to `rg-prod-eastus`, and Victor Wang holds roles in **both** — so "whoever isn't in westeurope" is not a shortcut |
+    | 12 | Victor Wang has a never-expiring password **and** consented to an app — but a clean one. Ignore the "risky" half and you get 3 instead of 2 |
+
+### Determinism (issue #705, risk R1)
+
+Flags 11–12 need "FileSync Pro is risky" to be true on every run. **No LLM is involved:** the `risky-consent` context plugin classifies permissions from a curated map (`riskyConsentRiskMap.js`), and `Files.ReadWrite.All` is in its `HIGH_RISK` set. FileSync Pro's publisher is `Default Directory` — unverified — so the plugin's offline heuristic also files it under "Risky App Consent — Suspicious" with no threat-feed call needed. Contoso Timesheets is the control: `User.Read` classifies Low, its publisher is verified, and four consenters keep it above the low-prevalence threshold.
+
+The plugin is **not** run by seeding — trigger it explicitly (`POST /api/context-plugins/risky-consent/run`) or from Admin → Plugins.
+
+### Role-derived access is materialised
+
+Holding `BR-Sales` does **not** by itself give anyone `SG-CRM-Users`. The matrix matview (migration 049) derives *managed-by-role* from `Contains` + holding the role, but only for cells that already exist; a `Contains` child with no effective assignment renders as a provisioning **gap**, not as access.
+
+So role-derived access is emitted as explicit `Indirect` assignments **and** a `Contains` edge. The assignment is the access; the edge is the *why*. Drop either and flag 4 has no answer. See `docs/architecture/matrix.md`.
 
 ---
 
@@ -183,20 +306,24 @@ The dataset is a single JSON file that maps directly to the Ingest API endpoints
 {
   "metadata": {
     "company": "Fortigi Demo Corp",
-    "version": "1.0",
-    "description": "Synthetic dataset for E2E testing",
+    "version": "2.0",
+    "description": "Synthetic dataset for E2E testing and the public demo (issue #705)",
+    "systemKeys": [
+      { "key": "entra", "systemType": "EntraID", "tenantId": "demo-tenant-001" }
+    ],
     "entityCounts": {
-      "systems": 3,
-      "principals": 28,
-      "resources": 17,
-      "resourceAssignments": 73,
-      "resourceRelationships": 12,
-      "identities": 23,
-      "identityMembers": 24,
-      "contexts": 8,
+      "systems": 5,
+      "principals": 45,
+      "resources": 39,
+      "resourceAssignments": 143,
+      "resourceRelationships": 20,
+      "identities": 27,
+      "identityMembers": 38,
+      "contexts": 9,
+      "contextMembers": 35,
       "governanceCatalogs": 2,
-      "assignmentPolicies": 3,
-      "certificationDecisions": 2
+      "assignmentPolicies": 4,
+      "certificationDecisions": 3
     }
   },
   "systems": [ ... ],
@@ -225,20 +352,22 @@ Counted with `deletedAt IS NULL` on `Principals`, `Resources` and `ResourceAssig
 
 | Table | Expected | Composition |
 |---|---|---|
-| Systems | 3 | Entra ID + HR + Omada |
-| Principals | 28 | 24 `User` (22 employees + 1 disabled + 1 Omada account for the multi-system employee) + 1 `ExternalUser` (contractor) + 1 `ServicePrincipal` + 1 `AIAgent` + 1 `SharedMailbox` |
-| Resources | 17 | 6 groups + 2 directory roles + 2 app roles + 4 business roles + 3 group-ownership |
-| ResourceAssignments | 73 | 72 `Direct` + 1 `Eligible`; 29 of them carry `governed=true` (4 of the `Direct` are group-ownership) |
-| ResourceRelationships | 12 | 8 Contains + 1 GrantsAccessTo + 3 HasOwnership |
-| Identities | 23 | 22 employees + 1 disabled |
-| IdentityMembers | 24 | 23 primary + 1 secondary (the multi-system employee's Omada account) |
-| Contexts | 8 | 1 root + 4 departments + 2 teams + 1 admin unit — all `variant='synced'` |
+| Systems | 5 | Entra ID + HR + IGA + SAP ERP + AzureRM |
+| Principals | 45 | 26 employees + 1 disabled + 1 contractor + 1 `ServicePrincipal` + 1 `AIAgent` + 1 `SharedMailbox` + 1 IGA account + 10 SAP accounts + 3 app service principals |
+| Resources | 39 | Entra 10 + group-ownership 3 + business roles 5 + Sales 4 + consent 4 + SAP 4 + Azure 9 |
+| ResourceAssignments | 143 | `Direct` + `Indirect` (role-derived) + 1 `Eligible`; the `governed=true` ones are the business-role memberships |
+| ResourceRelationships | 20 | 14 Contains + 1 GrantsAccessTo + 3 HasOwnership + 2 DelegatesScope |
+| Identities | 27 | 26 employees + 1 disabled |
+| IdentityMembers | 38 | 27 Entra + 1 IGA + 10 SAP |
+| Contexts | 9 | 1 root + 5 departments + 2 teams + 1 admin unit — all `variant='synced'` |
 | GovernanceCatalogs | 2 | Employee + Privileged |
-| AssignmentPolicies | 3 | Auto-assign + Manager approval + Dual approval |
-| CertificationDecisions | 2 | 1 approve + 1 deny |
+| AssignmentPolicies | 4 | Auto-assign + Manager approval + Dual approval + Sales |
+| CertificationDecisions | 3 | 2 approve + 1 deny |
+
+These are **exact**, because the generator is deterministic. If one fails after a dataset change, that is the point: regenerate, confirm the new number is intended, and update it in the same PR.
 
 !!! note "Counting Contexts"
-    Filter on `variant='synced'` to get the 8 above. A bare `SELECT COUNT(*) FROM "Contexts"` returns more: the API creates `manual` Tag roots at bootstrap, and the context-algorithm plugins emit `generated` contexts once the worker runs. Only the `synced` ones come from this dataset.
+    Filter on `variant='synced'` to get the 9 above. A bare `SELECT COUNT(*) FROM "Contexts"` returns more: the API creates `manual` Tag roots at bootstrap, and the context-algorithm plugins emit `generated` contexts once the worker runs (the `risky-consent` plugin adds two). Only the `synced` ones come from this dataset.
 
 ### Relationship Integrity
 
@@ -270,15 +399,25 @@ Counted with `deletedAt IS NULL` on `Principals`, `Resources` and `ResourceAssig
 | BR-Admin-Privileged is in catalog "Privileged Access" | True |
 | Engineering context has parent = "Fortigi Demo Corp" | True |
 | Platform Team context has parent = "Engineering" | True |
-| Anna Bakker's identity links to 2 principals (EntraID + Omada) | True |
+| At least one identity links to 2+ principals across systems | True |
+| Sales resolves to 6 active identities, 7 including the leaver (flag 1) | True |
+| Piet has `Indirect` (not `Direct`) on SG-CRM-Users (flag 4) | True |
+| SG-Sales-SharePoint is NOT a `Contains` child of BR-Sales (flag 6) | True |
+| SG-Finance-Reports is held across 2+ departments (flag 7) | True |
+| SAP accounts carry no `department` (flag 8) | True |
+| 5 principals have `ext.passwordNeverExpires='true'` (flag 9) | True |
+| 3 principals hold an `eastus` Azure role (flag 10) | True |
+| 5 principals consented to `Files.ReadWrite.All` (flag 11) | True |
+| 2 principals are risky-consenters with never-expiring passwords, and the "any consent" trap is wider at 3 (flag 12) | True |
+| Every `DelegatedPermission`'s `clientSpId` resolves to a Principal | True |
 
 ### UI Verification (Playwright)
 
 | Check | How |
 |---|---|
-| Resources page shows 13 resources (excluding BusinessRoles) | Count rows, filter by non-BusinessRole (6 groups + 2 directory roles + 2 app roles + 3 group-ownership) |
-| Business Roles page shows 4 business roles | Count rows |
-| Users page shows 28 principals | Count visible or total indicator |
+| Resources page shows 34 resources (excluding BusinessRoles) | Count rows, filter by non-BusinessRole |
+| Business Roles page shows 5 business roles | Count rows |
+| Users page shows 45 principals | Count visible or total indicator |
 | Matrix shows data (not "0 users x 0 resources") | Assert text not present |
 | Click CTO user → detail page opens | Navigate, check heading |
 | CTO detail shows "Global Administrator" in memberships | Assert membership listed |
