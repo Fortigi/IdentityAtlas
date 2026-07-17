@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { timedQuery } from '../perf/sqlTimer.js';
 import { createParams } from '../db/sqlParams.js';
+import { parseJsonbColumn } from '../lib/jsonb.js';
 import { getResourceColumns, getResourceColumnValues } from '../db/columnCache.js';
 import { ensureTagTables, buildFilterWhere } from './tags.js';
 import { isMissingSchema } from '../db/schemaErrors.js';
@@ -153,10 +154,7 @@ router.get('/resources', async (req, res) => {
 
     const data = dataResult.rows.map(row => {
       const { tagString, extendedAttributes, ...rest } = row;
-      // jsonb columns come back already-parsed from pg
-      const parsedExtAttrs = extendedAttributes && typeof extendedAttributes === 'string'
-        ? (() => { try { return JSON.parse(extendedAttributes); } catch { return null; } })()
-        : extendedAttributes;
+      const parsedExtAttrs = parseJsonbColumn(extendedAttributes);
       return {
         ...rest,
         extendedAttributes: parsedExtAttrs,
@@ -200,11 +198,9 @@ router.get('/resources/:id', async (req, res) => {
     }
     const attributes = cleanRow(resourceResult.rows[0]);
 
-    // Parse extendedAttributes JSON
+    // Normalise extendedAttributes (pg returns JSONB already parsed).
     if (attributes.extendedAttributes) {
-      try {
-        attributes.extendedAttributesParsed = JSON.parse(attributes.extendedAttributes);
-      } catch { /* ignore bad JSON */ }
+      attributes.extendedAttributesParsed = parseJsonbColumn(attributes.extendedAttributes);
     }
 
     // 1b. Risk score — stored in RiskScores keyed by (entityId, entityType).

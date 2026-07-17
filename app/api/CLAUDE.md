@@ -7,6 +7,7 @@ Before writing any helper, utility, middleware, or route logic — search first.
 **Known shared utilities in `src/`:**
 - `db/connection.js` — connection pool; never create one-off connections
 - `db/columnCache.js` — column discovery with 5-minute TTL; never query `information_schema` per-request
+- `lib/jsonb.js` — `parseJsonbColumn(value)` — normalises a value read from a JSONB column. **node-postgres already parses JSONB**, so `JSON.parse(row.someJsonbCol)` throws on every request; use this helper (passes an already-parsed value through, `JSON.parse`s a legacy raw string, returns null on null/invalid) instead of a hand-rolled `typeof x === 'string' ? JSON.parse(x) : x` guard
 - `db/migrate.js` — migration runner; add files to `src/db/migrations/`, never edit existing ones
 - `middleware/auth.js` — Entra ID JWT validation (v1 + v2 tokens)
 - `middleware/perfMetrics.js` — request timing + Server-Timing headers
