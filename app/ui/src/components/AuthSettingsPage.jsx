@@ -41,8 +41,7 @@ export default function AuthSettingsPage() {
   const clientId = state?.clientId || '';
   const requiredRoles = state?.requiredRoles || [];
   // On Azure App Service the Docker CLI walkthrough doesn't apply (auth is set
-  // via app settings at deploy time). Hide just those sections — never the whole
-  // tab, which also hosts Roles & Permissions.
+  // via app settings at deploy time). Hide just those sections.
   const isAzure = state?.platform === 'azure-app-service';
 
   const exampleTenant = tenantId || '<tenant-guid>';
@@ -102,8 +101,8 @@ export default function AuthSettingsPage() {
       {isAzure && (
         <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-5 text-sm text-gray-600 dark:text-gray-400">
           This deployment runs on Azure App Service. Single sign-on is configured through the
-          app's deployment settings (tenant / client / roles), not from here. Manage roles and
-          permissions above.
+          app's deployment settings (tenant / client / roles), not from here. Manage roles under
+          the Roles &amp; Permissions tab.
         </div>
       )}
 

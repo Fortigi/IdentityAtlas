@@ -64,6 +64,14 @@ export default function RolesPermissionsSection() {
 
   useEffect(() => { refresh(); }, [refresh]);
 
+  // Shared "a mutation just landed" tail: reload the mapping, bump the change-log
+  // panel, and re-evaluate our own permission-gated chrome.
+  const afterMutation = useCallback(async () => {
+    await refresh();
+    setAuditKey(k => k + 1);
+    await refreshPermissions();
+  }, [refresh, refreshPermissions]);
+
   const dirty = useMemo(
     () => data && JSON.stringify(draft) !== JSON.stringify(data.mapping),
     [draft, data],
@@ -133,10 +141,7 @@ export default function RolesPermissionsSection() {
         setSaveMessage({ ok: false, text: body.error || `HTTP ${r.status}`, hint: body.hint });
       } else {
         setSaveMessage({ ok: true, text: 'Saved. Refresh other open browser tabs to pick up the change.' });
-        await refresh();
-        setAuditKey(k => k + 1);
-        // Update our own toolbar/Admin-tab gating immediately.
-        await refreshPermissions();
+        await afterMutation();
       }
     } catch (err) {
       setSaveMessage({ ok: false, text: err.message });
@@ -156,9 +161,7 @@ export default function RolesPermissionsSection() {
         setSaveMessage({ ok: false, text: body.error || `HTTP ${r.status}`, hint: body.hint });
       } else {
         setSaveMessage({ ok: true, text: 'Reverted to defaults.' });
-        await refresh();
-        setAuditKey(k => k + 1);
-        await refreshPermissions();
+        await afterMutation();
       }
     } catch (err) {
       setSaveMessage({ ok: false, text: err.message });
