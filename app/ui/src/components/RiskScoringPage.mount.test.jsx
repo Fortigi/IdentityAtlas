@@ -82,7 +82,6 @@ const groupsList = {
 
 function routes(overrides = {}) {
   return makeAuthFetch({
-    '/api/risk-scores/cluster-summary': { available: false },
     '/api/risk-scores/users': usersList,
     '/api/risk-scores/groups': groupsList,
     '/api/risk-scores/business-roles': {
@@ -258,6 +257,38 @@ describe('RiskScoringPage (mounted)', () => {
     await user.click(screen.getByRole('button', { name: 'Contexts' }));
     expect(await screen.findByText('Sales Team')).toBeInTheDocument();
     expect(screen.getByText('Carol Manager')).toBeInTheDocument();
+  });
+
+  it('starts a scoring run from the page and toasts on success (admin.crawlers)', async () => {
+    const authFetch = routes({ '/api/risk-scoring/runs': { runId: 'r1' } });
+    renderWithProviders(h(RiskScoringPage, { onOpenDetail: () => {} }), { auth: { authFetch } });
+    await screen.findByText('Identity Risk Scores');
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /Run scoring now/i }));
+
+    await waitFor(() => {
+      const posted = authFetch.mock.calls.find(c => String(c[0]).includes('/api/risk-scoring/runs'));
+      expect(posted).toBeTruthy();
+      expect(posted[1]?.method).toBe('POST');
+    });
+    expect(await screen.findByText(/Risk scoring started/i)).toBeInTheDocument();
+  });
+
+  it('offers "Run scoring now" from the not-computed empty state', async () => {
+    renderWithProviders(h(RiskScoringPage), {
+      auth: { authFetch: routes({ '/api/risk-scores': { available: false } }) },
+    });
+    expect(await screen.findByText('Risk Scores Not Yet Computed')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Run scoring now/i })).toBeInTheDocument();
+  });
+
+  it('hides the run button for users without the admin.crawlers permission', async () => {
+    renderWithProviders(h(RiskScoringPage, { onOpenDetail: () => {} }), {
+      auth: { authFetch: routes(), hasWildcard: false, permissions: new Set() },
+    });
+    await screen.findByText('Identity Risk Scores');
+    expect(screen.queryByRole('button', { name: /Run scoring now/i })).toBeNull();
   });
 
   it('renders entity-type-specific columns for the identities view', async () => {

@@ -10,9 +10,19 @@ import { Router } from 'express';
 import { getResourceColumns as getResourceCols, getPrincipalOrUserColumns, getPrincipalOrUserColumnValues, getResourceColumnValues } from '../../db/columnCache.js';
 import { createParams } from '../../db/sqlParams.js';
 import { parseJsonbColumn } from '../../lib/jsonb.js';
+import { buildOrderBy } from '../../lib/listSort.js';
 import { useSql, db, ensureTagTables, buildFilterWhere, UUID_RE } from './shared.js';
 
 const router = Router();
+
+// Columns the Users page lets you sort by (its TABLE_COLUMNS keys). Values are
+// the page CTE's output aliases — safe to interpolate; see lib/listSort.js.
+const USER_SORTS = {
+  displayName: '"displayName"',
+  userPrincipalName: '"userPrincipalName"',
+  department: '"department"',
+  jobTitle: '"jobTitle"',
+};
 
 // ─── Helper: parse tag string from SQL into array ─────────────────
 // Tag IDs are UUID strings (v6) — do not parseInt.
@@ -166,6 +176,10 @@ router.get('/users', async (req, res) => {
     // from page 1 and then pages by row count, so re-counting the whole table on
     // every page was pure waste.
     const countParams = [...params]; // filter params only — snapshot before LIMIT/OFFSET
+    // Sort the whole result set server-side (audit H-14) so "top N" is correct
+    // past page 1; the same expression orders the page window and the outer
+    // tag-resolving select, both over the page CTE's output aliases.
+    const orderBy = buildOrderBy(req.query.sort, req.query.dir, USER_SORTS);
     const baseSql = `
       WITH page AS (
         SELECT u.id, u."displayName", u."email" AS "userPrincipalName",
@@ -177,7 +191,7 @@ router.get('/users', async (req, res) => {
           FROM "Principals" u
           ${userTagJoin}
          WHERE ${where}
-         ORDER BY u."displayName"
+         ORDER BY ${orderBy}
          LIMIT ${bind(limit)} OFFSET ${bind(offset)}
       )
       SELECT page.*,
@@ -187,7 +201,7 @@ router.get('/users', async (req, res) => {
                WHERE ta."entityId" = UPPER(page.id::text)
              ) AS "tagString"
         FROM page
-       ORDER BY page."displayName"`;
+       ORDER BY ${orderBy}`;
     const dataResult = await db.query(baseSql, params);
 
     const data = dataResult.rows.map(r => {

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useFetch } from '@ui/hooks/useFetch';
 import { useAuth } from '@ui/auth/AuthGate';
 import { useDialog } from '@ui/components/dialogContext';
+import CopyButton from '@ui/components/CopyButton';
 import { Section } from './adminUi';
 import { WorkbookIcon, WarningIcon } from './adminIcons';
 export default function PowerQueryExportSection() {
@@ -148,12 +149,11 @@ export default function PowerQueryExportSection() {
               Copy this token now — it will not be shown again
             </p>
             <code className="block p-2 bg-white dark:bg-gray-800 border border-amber-200 dark:border-amber-700 rounded text-xs break-all font-mono dark:text-gray-200">{newToken}</code>
-            <button
-              onClick={() => { navigator.clipboard.writeText(newToken); }}
+            <CopyButton
+              text={newToken}
+              label="Copy to clipboard"
               className="mt-2 px-3 py-1 rounded text-xs font-medium text-amber-900 dark:text-amber-200 bg-white dark:bg-gray-800 border border-amber-300 dark:border-amber-700 hover:bg-amber-100 dark:hover:bg-amber-900/30"
-            >
-              Copy to clipboard
-            </button>
+            />
             <button
               onClick={() => setNewToken(null)}
               className="mt-2 ml-2 px-3 py-1 rounded text-xs text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/30"

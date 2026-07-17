@@ -62,4 +62,24 @@ describe('GET /resources', () => {
     expect(res.body.data.every(r => r.resourceType !== 'BusinessRole')).toBe(true);
     expect(res.body.data.some(r => r.displayName === 'Joiner Package')).toBe(false);
   });
+
+  it('sorts the full result set server-side by the requested column + direction (H-14)', async () => {
+    // Descending by displayName across all four non-BusinessRole rows — proves
+    // the dynamic ORDER BY (buildOrderBy over the page CTE's output alias) runs
+    // against the real schema, not just the default ASC path.
+    const res = await agent.get(`/api/resources?systemId=${systemId}&sort=displayName&dir=desc`);
+    expect(res.status).toBe(200);
+    expect(res.body.data.map(r => r.displayName))
+      .toEqual(['Sales App', 'Global Admin', 'Finance', 'Engineering']);
+
+    // A different allow-listed column must also execute (alias resolution).
+    const byType = await agent.get(`/api/resources?systemId=${systemId}&sort=resourceType&dir=asc`);
+    expect(byType.status).toBe(200);
+    expect(byType.body.data.length).toBe(4);
+
+    // An unknown/injection sort key falls back to the default order, not an error.
+    const bad = await agent.get(`/api/resources?systemId=${systemId}&sort=id;DROP&dir=desc`);
+    expect(bad.status).toBe(200);
+    expect(bad.body.data.length).toBe(4);
+  });
 });

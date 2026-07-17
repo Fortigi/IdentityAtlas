@@ -140,7 +140,7 @@ export default function App() {
   }, []);
 
   // Re-fetch features whenever the user navigates — picks up runtime toggle changes
-  // from the admin Risk Scoring sub-tab so the optional Risk Scores / Identities / Org Chart
+  // from the admin Risk Scoring sub-tab so the feature-gated Risk Scores / Identities
   // tabs appear or disappear without a hard reload.
   useEffect(() => {
     fetch('/api/features').then(r => r.json()).then(d => setFeatures(d)).catch(() => {});

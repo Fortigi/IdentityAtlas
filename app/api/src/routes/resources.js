@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { timedQuery } from '../perf/sqlTimer.js';
 import { createParams } from '../db/sqlParams.js';
 import { parseJsonbColumn } from '../lib/jsonb.js';
+import { buildOrderBy } from '../lib/listSort.js';
 import { getResourceColumns, getResourceColumnValues } from '../db/columnCache.js';
 import { ensureTagTables, buildFilterWhere } from './tags.js';
 import { isMissingSchema } from '../db/schemaErrors.js';
@@ -10,6 +11,15 @@ const router = Router();
 const useSql = process.env.USE_SQL === 'true';
 const UUID_RE = /^[0-9a-f-]{36}$/i;
 const SYSTEM_COLS = new Set(['SysStartTime', 'SysEndTime']);
+
+// Columns the Groups/Resources page lets you sort by (its TABLE_COLUMNS keys).
+// Values are the page CTE's output aliases — safe to interpolate; see
+// lib/listSort.js.
+const RESOURCE_SORTS = {
+  displayName: '"displayName"',
+  resourceType: '"resourceType"',
+  description: '"description"',
+};
 
 let db = null;
 if (useSql) {
@@ -128,6 +138,10 @@ router.get('/resources', async (req, res) => {
     // params before binding the page window so the COUNT query isn't handed the
     // LIMIT/OFFSET values it never references.
     const countParams = [...params];
+    // Sort the whole result set server-side (audit H-14) so "top N" is correct
+    // past page 1; the same expression orders the page window and the outer
+    // tag-resolving select, both over the page CTE's output aliases.
+    const orderBy = buildOrderBy(req.query.sort, req.query.dir, RESOURCE_SORTS);
     const baseSql = `
       WITH page AS (
         SELECT r.id, r."displayName", r."description", r."resourceType", r."governanceResource",
@@ -139,7 +153,7 @@ router.get('/resources', async (req, res) => {
           FROM "Resources" r
           ${resourceTagJoin}
          WHERE ${where}
-         ORDER BY r."displayName"
+         ORDER BY ${orderBy}
          LIMIT ${bind(limit)} OFFSET ${bind(offset)}
       )
       SELECT page.*,
@@ -149,7 +163,7 @@ router.get('/resources', async (req, res) => {
                WHERE ta."entityId" = UPPER(page.id::text)
              ) AS "tagString"
         FROM page
-       ORDER BY page."displayName"`;
+       ORDER BY ${orderBy}`;
     const dataResult = await db.query(baseSql, params);
 
     const data = dataResult.rows.map(row => {
