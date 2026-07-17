@@ -109,15 +109,47 @@ describe('EntityListPage error state (audit H6)', () => {
 
     renderPage(af);
 
-    // A failed load surfaces a distinct error panel — NOT the "No users found"
-    // empty state it used to be indistinguishable from.
+    // A failed load surfaces a distinct error panel — NOT the empty state it
+    // used to be indistinguishable from.
     const alert = await screen.findByRole('alert');
     expect(alert).toHaveTextContent(/Couldn.t load users/i);
-    expect(screen.queryByText('No users found.')).not.toBeInTheDocument();
+    expect(screen.queryByText(/No users (yet|match)/i)).not.toBeInTheDocument();
 
     // Retry re-fetches; the second response succeeds and the row renders.
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
     expect(await screen.findByText('Bob')).toBeInTheDocument();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+});
+
+describe('EntityListPage empty state (audit H-12 / #760)', () => {
+  const emptyRoutes = () => makeAuthFetch((url) => {
+    const s = String(url);
+    if (s.includes(COLUMNS)) return [];
+    if (s.includes('/api/tags')) return [];
+    if (s.includes(LIST)) return { data: [], total: 0 };
+    return undefined;
+  });
+
+  it('shows an onboarding EmptyState whose next action navigates to Admin → Crawlers', async () => {
+    window.location.hash = '';
+    renderPage(emptyRoutes());
+    // The shared EmptyState (not a bare "No users found." dead-end) with a real action.
+    expect(await screen.findByText('No users yet')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Add a crawler/i }));
+    expect(window.location.hash).toContain('admin?sub=crawlers');
+  });
+
+  it('switches to a filter-aware EmptyState with "Clear filters" when a search matches nothing', async () => {
+    renderPage(emptyRoutes());
+    await screen.findByText('No users yet');
+
+    // Typing a search flips hasAnyFilter → the message and action change.
+    fireEvent.change(screen.getByRole('textbox', { name: 'Search' }), { target: { value: 'zzz' } });
+    expect(await screen.findByText('No users match your filters')).toBeInTheDocument();
+
+    // Clearing filters returns to the unfiltered onboarding state.
+    fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
+    expect(await screen.findByText('No users yet')).toBeInTheDocument();
   });
 });
