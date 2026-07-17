@@ -147,7 +147,7 @@ All **Critical** findings are fixed and merged. Every exploitable **security** f
 | ID | Status | PR / evidence |
 |----|--------|---------------|
 | F1 | ✅ Fixed | #437 — core E2E now blocks the PR |
-| F2 | 🔧 Open | secret-dependent tests still skip silently (no assert-secrets gate) (#797) |
+| F2 | ✅ Fixed | #808 — "Assert test secrets present" step surfaces missing secrets (summary + warnings) with an opt-in `ENFORCE_TEST_SECRETS` hard gate (#797) |
 | F3 | ✅ Fixed | #655 — dead visual-regression suite removed (resolves the false-green) |
 | F4 | ✅ Fixed | #428 — `concurrency: cancel-in-progress` on both PR workflows |
 | F5 | ✅ Fixed | #584 / #652 / #615 / #622 — coverage floors + per-file & diff ratchets + Pester floor |
