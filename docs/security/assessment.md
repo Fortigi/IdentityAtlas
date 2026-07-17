@@ -27,7 +27,7 @@ This page is a **public, sanitized summary**: it records what was assessed, the 
 |---|---|---|---|
 | Critical | 2 | 2 | 0 |
 | High | 9 | 9 | 0 |
-| Medium | 12 | 3 | 9 |
+| Medium | 12 | 6 | 6 |
 | Low / Informational | 7 | — | 7 |
 
 **All Critical and High findings are fixed and merged to `main`.** Remediation of the remaining Medium and Low items is in progress and tracked below.
@@ -42,14 +42,14 @@ Status legend: ✅ **Fixed** (merged) · 🟦 **By design** (supported configura
 
 ### Critical
 
-| ID | Finding | Status | PR |
+| ID | Finding | Status | PR / tracking |
 |---|---|---|---|
 | C-01 | Authorization fail-open: a token resolving to no permissions was granted full admin | ✅ Fixed | [#197](https://github.com/Fortigi/IdentityAtlas/pull/197) |
 | C-02 | Self-hosted deployment can run with authentication disabled | 🟦 By design — no-auth is a supported option for trusted/local installs; behaviour and guidance documented | — |
 
 ### High
 
-| ID | Finding | Status | PR |
+| ID | Finding | Status | PR / tracking |
 |---|---|---|---|
 | H-01 | Token-audience boundary: `id_token`s were accepted alongside access tokens | ✅ Fixed | [#198](https://github.com/Fortigi/IdentityAtlas/pull/198) |
 | H-02 | Privileged credentials stored in plaintext instead of the encrypted vault | ✅ Fixed | [#201](https://github.com/Fortigi/IdentityAtlas/pull/201), [#202](https://github.com/Fortigi/IdentityAtlas/pull/202) |
@@ -63,24 +63,24 @@ Status legend: ✅ **Fixed** (merged) · 🟦 **By design** (supported configura
 
 ### Medium
 
-| ID | Category | Status | PR |
+| ID | Category | Status | PR / tracking |
 |---|---|---|---|
-| M-01 | Transport security — wire TLS / `BEHIND_TLS` end to end | 🟨 Partially addressed (env documented) | — |
-| M-02 | Authorization coverage on mutating endpoints | 🔧 Planned | — |
-| M-03 | Crawler ingest authorization scoping | 🔧 Planned | — |
-| M-04 | Role-permission editor: lockout guard, audit trail | 🟨 Partially addressed | [#194](https://github.com/Fortigi/IdentityAtlas/pull/194) |
+| M-01 | Transport security — wire TLS / `BEHIND_TLS` end to end | 🟨 Partially addressed (env documented) | [#782](https://github.com/Fortigi/IdentityAtlas/issues/782) |
+| M-02 | Authorization coverage on mutating endpoints | ✅ Fixed | [#424](https://github.com/Fortigi/IdentityAtlas/pull/424) |
+| M-03 | Crawler ingest authorization scoping | ✅ Fixed | [#424](https://github.com/Fortigi/IdentityAtlas/pull/424) |
+| M-04 | Role-permission editor: lockout guard, audit trail | 🟨 Partially addressed | [#194](https://github.com/Fortigi/IdentityAtlas/pull/194) · [#786](https://github.com/Fortigi/IdentityAtlas/issues/786) |
 | M-05 | Spreadsheet formula injection in UI exporters | ✅ Fixed | [#215](https://github.com/Fortigi/IdentityAtlas/pull/215) |
-| M-06 | Internal error detail returned to clients | 🔧 Planned | — |
-| M-07 | Vault master-key handling policy | 🔧 Planned | — |
-| M-08 | PowerShell worker hardening | 🔧 Planned | — |
+| M-06 | Internal error detail returned to clients | ✅ Fixed | [#484](https://github.com/Fortigi/IdentityAtlas/pull/484), [#582](https://github.com/Fortigi/IdentityAtlas/pull/582) |
+| M-07 | Vault master-key handling policy | 🔧 Planned | [#783](https://github.com/Fortigi/IdentityAtlas/issues/783) |
+| M-08 | PowerShell worker hardening | 🔧 Planned | [#779](https://github.com/Fortigi/IdentityAtlas/issues/779) |
 | M-09 | Workbook export base URL trust (token-handling) | ✅ Fixed | [#216](https://github.com/Fortigi/IdentityAtlas/pull/216) |
-| M-10 | Rate limiting on expensive surfaces (auth-off installs) | 🔧 Planned | — |
-| M-11 | Container hardening & resource limits | 🔧 Planned | — |
-| M-12 | Azure IaC network/secret hardening | 🔧 Planned | — |
+| M-10 | Rate limiting on expensive surfaces (auth-off installs) | 🔧 Planned | [#784](https://github.com/Fortigi/IdentityAtlas/issues/784) |
+| M-11 | Container hardening & resource limits | 🔧 Planned | [#785](https://github.com/Fortigi/IdentityAtlas/issues/785) |
+| M-12 | Azure IaC network/secret hardening | 🟨 Partially addressed — storage/LA keys no longer emitted as Bicep outputs (consumers call `listKeys()`); network hardening pending | [#475](https://github.com/Fortigi/IdentityAtlas/pull/475) · [#780](https://github.com/Fortigi/IdentityAtlas/issues/780) |
 
 ### Low / Informational
 
-Seven Low/Informational items were recorded (information disclosure on public metadata endpoints, dependency hygiene, and minor non-security functional bugs). These are tracked internally and scheduled alongside the remaining Medium items. Technical detail is withheld here pending remediation.
+Seven Low/Informational items were recorded (information disclosure on public metadata endpoints, dependency hygiene, and minor non-security functional bugs). These are tracked in [#787](https://github.com/Fortigi/IdentityAtlas/issues/787) and scheduled alongside the remaining Medium items. Technical detail is withheld here pending remediation.
 
 ---
 
@@ -88,7 +88,7 @@ Seven Low/Informational items were recorded (information disclosure on public me
 
 The portable launcher was not in scope for the original assessment (it was added afterwards). A follow-on review identified two issues mirroring findings from the Docker scope:
 
-| ID | Finding | Status | PR |
+| ID | Finding | Status | PR / tracking |
 |---|---|---|---|
 | P-01 | API bound to `0.0.0.0` in portable mode — reachable from other machines on the network with no auth (portable variant of H-03 + C-02) | ✅ Fixed — portable now binds to `127.0.0.1` only | [#222](https://github.com/Fortigi/IdentityAtlas/pull/222) |
 | P-02 | `node.exe` downloaded during build with no integrity check | ✅ Fixed — SHA-256 pinned in source and verified at build time | [#220](https://github.com/Fortigi/IdentityAtlas/pull/220) |
