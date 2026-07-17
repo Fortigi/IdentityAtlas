@@ -80,6 +80,8 @@ import { formatDate } from '../../../app/ui/src/utils/formatters';
 
 **`import.meta.glob` exception:** Vite's `import.meta.glob()` calls in `CrawlersPage.jsx` still use relative paths (`../../../../tools/crawlers/*/...`) because glob key lookup depends on the literal string matching. Do not change these.
 
+**Testability note:** because `CrawlersPage.jsx` *eagerly* imports every crawler's `Summary.jsx` via that glob, importing anything from `CrawlersPage.jsx` into a jsdom test fails (`react/jsx-dev-runtime` won't resolve for the `tools/crawlers/` files under vitest). So a component that lives inside `CrawlersPage.jsx` **can't be `renderWithProviders`-mounted** — extract it to its own file first (as `JobPhasesModal.jsx` was), then import that file in the test.
+
 ## No Duplicate Code
 
 Before writing any utility function, helper, constant, or component — **search first**. If equivalent logic already exists, use or extend it. Only create something new when nothing suitable exists.
