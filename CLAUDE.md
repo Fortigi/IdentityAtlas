@@ -255,6 +255,8 @@ git push origin bugfixes/<name>
 3. **Add bullets to `changes/<branch-name>.md`** (create if it doesn't exist — do NOT edit `CHANGES.md`)
 4. **Commit** with descriptive messages
 
+> **Do NOT flip audit/assessment status rows on a branch.** The remediation-tracking tables in `docs/ux/assessment.md` and `docs/security/maintenance-audit-2026-06.md` (per-finding status + the summary roll-up counts) are **reconciled in a single pass on `main`** after PRs merge — never edited on a feature/bugfix branch. Every branch would otherwise touch the same rows and roll-up table while `main` moves on, which reliably produces a merge conflict there (we hand-resolved a dozen of these). Your PR fixes the finding in code + tests + a `changes/` fragment and links the issue with a plain `Closes #N`; the status cell gets flipped later, in the batch reconciliation. Same rule for `CHANGES.md` and `setup/IdentityAtlas.psd1` — automation owns those.
+
 ### Stacked PRs (preferred workflow)
 
 Break features into a stack of small, focused PRs. Each step gets its own branch targeting the previous branch in the stack.

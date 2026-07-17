@@ -24,7 +24,7 @@ This page is a **public, sanitized summary**: it records what was assessed, the 
 | Severity | Found | Remediated / in progress | Open |
 |---|---|---|---|
 | Critical | 4 | 3 | 1 |
-| High | 21 | 9 | 12 |
+| High | 21 | 17 | 4 |
 | Medium | ~35 | several | most |
 | Low / Informational | ~30 | several | most |
 
@@ -33,6 +33,8 @@ The audit's headline: a **strong foundation with a missing middle** — a health
 ---
 
 ## Findings & remediation
+
+> **Maintenance note — do not edit this table on a feature/bugfix branch.** Flipping a finding's status (or recomputing any roll-up) on a branch reliably conflicts here, because every branch touches the same rows while `main` moves on. Leave these tables to a single **reconciliation pass on `main`** after PRs merge. A feature PR changes only code, tests, and its `changes/` fragment; the status below is flipped later, in one batch.
 
 Status legend: ✅ **Fixed** (merged) · 🟨 **Partially addressed** · 🔧 **Remediation planned**.
 
@@ -54,22 +56,22 @@ Status legend: ✅ **Fixed** (merged) · 🟨 **Partially addressed** · 🔧 **
 | H-03 | Entire Contexts tab broken in dark mode | ✅ Fixed | [#227](https://github.com/Fortigi/IdentityAtlas/pull/227) |
 | H-04 | Several regions light-mode only (crawler job-detail modal, compliance & account-type badges) | ✅ Fixed | badges [#232](https://github.com/Fortigi/IdentityAtlas/pull/232) · job-detail modal [#817](https://github.com/Fortigi/IdentityAtlas/pull/817) · [#765](https://github.com/Fortigi/IdentityAtlas/issues/765) |
 | H-05 | Botched automated dark-mode pass left doubled/contradictory classes | 🟨 Partially addressed | [#233](https://github.com/Fortigi/IdentityAtlas/pull/233) |
-| H-06 | Roles & Permissions is buried inside Authentication; the described self-lockout guard isn't implemented | 🔧 Planned | [#786](https://github.com/Fortigi/IdentityAtlas/issues/786) |
-| H-07 | Risk Scoring can't be created/run from its own page; dead cluster code | 🔧 Planned | [#766](https://github.com/Fortigi/IdentityAtlas/issues/766) |
+| H-06 | Roles & Permissions is buried inside Authentication; the described self-lockout guard isn't implemented | ✅ Fixed — its own Admin sub-tab; the self-lockout guard was already enforced, now with a change audit trail | [#832](https://github.com/Fortigi/IdentityAtlas/pull/832) · [#786](https://github.com/Fortigi/IdentityAtlas/issues/786) |
+| H-07 | Risk Scoring can't be created/run from its own page; dead cluster code | ✅ Fixed — "Run scoring now" on the page (permission-gated); the dead cluster path removed | [#829](https://github.com/Fortigi/IdentityAtlas/pull/829) · [#766](https://github.com/Fortigi/IdentityAtlas/issues/766) |
 | H-08 | Admin → Data tab gating mismatch (sections render regardless of the entry permission) | ✅ Fixed — each Data section now renders only for the permission that backs its server route | [#807](https://github.com/Fortigi/IdentityAtlas/pull/807) · [#767](https://github.com/Fortigi/IdentityAtlas/issues/767) |
 | H-09 | Matrix "Apply vs Save" is a trap (overlapping verbs; a scolding "Not saved" badge) | 🔧 Planned | [#768](https://github.com/Fortigi/IdentityAtlas/issues/768) |
 | H-10 | Rotated matrix is a silent reduced mode while still showing the controls it drops | 🔧 Planned | [#769](https://github.com/Fortigi/IdentityAtlas/issues/769) |
 | H-11 | Core concepts never defined on screen (matrix, subjects, governed, gaps) | 🟨 Partially addressed — matrix legend + Style Guide glossary | [#226](https://github.com/Fortigi/IdentityAtlas/pull/226), [#237](https://github.com/Fortigi/IdentityAtlas/pull/237) · [#772](https://github.com/Fortigi/IdentityAtlas/issues/772) |
-| H-12 | List pages dead-end new users; Systems cited a stale CLI command | 🟨 Partially addressed — Systems onboarding fixed; remaining list pages pending | [#230](https://github.com/Fortigi/IdentityAtlas/pull/230) · [#760](https://github.com/Fortigi/IdentityAtlas/issues/760) |
-| H-13 | Optional tabs (Risk Scores, Identities) hidden by default even when enabled | 🔧 Planned | [#770](https://github.com/Fortigi/IdentityAtlas/issues/770) |
-| H-14 | List-page sort silently sorts only the current page over server pagination | 🔧 Planned | [#771](https://github.com/Fortigi/IdentityAtlas/issues/771) |
+| H-12 | List pages dead-end new users; Systems cited a stale CLI command | ✅ Fixed — Systems onboarding fixed; list pages now render the shared EmptyState with a next action | [#230](https://github.com/Fortigi/IdentityAtlas/pull/230), [#831](https://github.com/Fortigi/IdentityAtlas/pull/831) · [#760](https://github.com/Fortigi/IdentityAtlas/issues/760) |
+| H-13 | Optional tabs (Risk Scores, Identities) hidden by default even when enabled | ✅ Fixed — a feature-gated tab surfaces whenever its feature is on, with no second per-user opt-in | [#827](https://github.com/Fortigi/IdentityAtlas/pull/827) · [#770](https://github.com/Fortigi/IdentityAtlas/issues/770) |
+| H-14 | List-page sort silently sorts only the current page over server pagination | ✅ Fixed — sort pushed to the server over the full result set (validated column allowlist) | [#823](https://github.com/Fortigi/IdentityAtlas/pull/823) · [#771](https://github.com/Fortigi/IdentityAtlas/issues/771) |
 | H-15 | Dashboard backend error masqueraded as an "empty database" onboarding state | ✅ Fixed | [#235](https://github.com/Fortigi/IdentityAtlas/pull/235) |
 | H-16 | Almost no contextual help / doc links; no in-app glossary | 🔧 Planned | [#772](https://github.com/Fortigi/IdentityAtlas/issues/772) |
 | H-17 | Terminology drift leaked internal jargon (SOLL/IST, "Org Unit", "Access Package") into the UI | ✅ Fixed — strings corrected + a CI rule blocks regressions | [#228](https://github.com/Fortigi/IdentityAtlas/pull/228), [#243](https://github.com/Fortigi/IdentityAtlas/pull/243), [#238](https://github.com/Fortigi/IdentityAtlas/pull/238) |
-| H-18 | CSV import validates only the filename, not headers; loose name-matching can mis-map | 🔧 Planned | [#773](https://github.com/Fortigi/IdentityAtlas/issues/773) |
-| H-19 | One-time API key trivially lost; Copy reports success even when the clipboard fails | 🔧 Planned | [#774](https://github.com/Fortigi/IdentityAtlas/issues/774) |
+| H-18 | CSV import validates only the filename, not headers; loose name-matching can mis-map | ✅ Fixed — uploaded files are header-validated against the mapped schema at staging time | [#824](https://github.com/Fortigi/IdentityAtlas/pull/824) · [#773](https://github.com/Fortigi/IdentityAtlas/issues/773) |
+| H-19 | One-time API key trivially lost; Copy reports success even when the clipboard fails | ✅ Fixed — verified copy reports the real result, plus a copy button for the reset key | [#826](https://github.com/Fortigi/IdentityAtlas/pull/826) · [#774](https://github.com/Fortigi/IdentityAtlas/issues/774) |
 | H-20 | Crawler "audit log" fetches data but renders nothing | ✅ Fixed — the Custom Connector card's audit-log panel now fetches and renders its entries (rebuilt in the connector externalization, 2 weeks after this audit); guarded by an e2e | [#364](https://github.com/Fortigi/IdentityAtlas/pull/364) · [#775](https://github.com/Fortigi/IdentityAtlas/issues/775) |
-| H-21 | ~11 native `confirm()`/`alert()`/`prompt()` for important actions — unstyled, no dark mode, untestable | 🟨 Partially addressed — a shared `DialogProvider` landed and a CI rule blocks new ones; ~7 components (AccessPackages, matrix/risk wizards, Roles & Permissions, LLM/Power-Query settings) are still being migrated | [#238](https://github.com/Fortigi/IdentityAtlas/pull/238), [#500](https://github.com/Fortigi/IdentityAtlas/pull/500) · [#763](https://github.com/Fortigi/IdentityAtlas/issues/763) |
+| H-21 | ~11 native `confirm()`/`alert()`/`prompt()` for important actions — unstyled, no dark mode, untestable | ✅ Fixed — a shared `DialogProvider` + a CI rule, and the last native dialogs (CSV wizard, Custom Connector) migrated | [#238](https://github.com/Fortigi/IdentityAtlas/pull/238), [#500](https://github.com/Fortigi/IdentityAtlas/pull/500), [#830](https://github.com/Fortigi/IdentityAtlas/pull/830) · [#763](https://github.com/Fortigi/IdentityAtlas/issues/763) |
 
 ### Medium & Low
 

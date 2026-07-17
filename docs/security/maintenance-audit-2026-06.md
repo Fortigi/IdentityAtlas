@@ -53,20 +53,22 @@ Critical/High across all dimensions: **14.**
 
 ## Remediation Status
 
+> **Maintenance note — do not edit these tables on a feature/bugfix branch.** Flipping a finding's status or recomputing the summary counts on a branch reliably conflicts here, because every branch edits the same rows and roll-up while `main` moves on. Leave these tables to a single **reconciliation pass on `main`** after PRs merge (the dated notes below record those passes). A feature PR changes only code, tests, and its `changes/` fragment; the finding's status is flipped here later, in one batch.
+
 _Status tracking added 2026-07-14. In the weeks since this audit the backlog was worked one PR at a time; the tables below record where each finding landed, matching the Status convention of the [Security Assessment](assessment.md) and [UX Assessment](../ux/assessment.md) pages. The detailed phase sections that follow are the original audit text, unchanged._
 
-_Refreshed 2026-07-16: reconciled against merged and in-flight PRs. Both remaining **Documentation** items are now ✅ Fixed — #804 (issues #802/#803) corrected `entities.md`'s `/api/perf/slowest` reference and strengthened `.spectral.yaml`, closing the last gaps left after #708/#690/#714. All other open items were re-verified against `main` and remain genuinely open._
+_Refreshed 2026-07-16: reconciled against merged and in-flight PRs. Both remaining **Documentation** items are now ✅ Fixed — #804 (issues #802/#803) corrected `entities.md`'s `/api/perf/slowest` reference and strengthened `.spectral.yaml`, closing the last gaps left after #708/#690/#714. **Perf & Quality** Q3–Q5 are now ✅ Fixed — #833 (issues #791/#792/#793) added the `runBound()` / `collectResources()` matrix helpers and de-duplicated the `resources.js` row/tag helpers. All other open items were re-verified against `main` and remain genuinely open._
 
 Status legend: ✅ **Fixed** (merged) · 🟦 **By design** (intended/supported, documented) · 🟨 **Partially addressed** · 🔧 **Open**.
 
 | Phase | Tracked | ✅ Fixed | 🟦 By design | 🟨 Partial | 🔧 Open |
 |-------|--------:|--------:|------------:|----------:|--------:|
-| Design / UX | 21 | 9 | 0 | 0 | 12 |
-| Security | 22 | 10 | 3 | 1 | 8 |
-| Perf & Quality | 16 | 5 | 2 | 3 | 6 |
+| Design / UX | 21 | 10 | 0 | 0 | 11 |
+| Security | 22 | 11 | 3 | 0 | 8 |
+| Perf & Quality | 16 | 8 | 2 | 1 | 5 |
 | CI / Test Harness | 11 | 6 | 0 | 3 | 2 |
 | Documentation | 11 | 11 | 0 | 0 | 0 |
-| **Total** | **81** | **41** | **5** | **7** | **28** |
+| **Total** | **81** | **46** | **5** | **4** | **26** |
 
 _(Row groups P6–P10, Q9–Q10, F10–F13, D10–D12 and the Codex net-new bullets are tracked as single rows here; the audit's raw sub-finding count is 85.)_
 
@@ -92,7 +94,7 @@ All **Critical** findings are fixed and merged. Every exploitable **security** f
 | M6 | ✅ Fixed | #427 (same codemod + lint rule as C1) |
 | M7 | 🔧 Open | tables lack `overflow-x-auto` (#758) |
 | M8 | ✅ Fixed | #821 — `tagPillStyle()` replaces the alpha hack with AA-contrast-safe pill colours (light + dark) (#759) |
-| L1 | 🔧 Open | list pages don't use shared `EmptyState` (#760) |
+| L1 | ✅ Fixed | #831 — list pages render the shared `EmptyState` with a next action (#760) |
 | L2 | ✅ Fixed | #525 aria-labelled nav pages; #820 added aria-labels to the remaining search/filter inputs (#761) |
 | L3 | 🔧 Open | no semantic design-token layer (#762) |
 | L4 | 🔧 Open | active tab still near-black, not blue (#749) |
@@ -112,7 +114,7 @@ All **Critical** findings are fixed and merged. Every exploitable **security** f
 | L-3 | 🔧 Open | full job transcript to shared volume (#779) |
 | L-4 | 🔧 Open | Azure data services still public; no Isolated/private-endpoint template (#780) |
 | L-5 | 🔧 Open | Postgres password still deterministically derived (#780) |
-| L-6 | 🟨 Partially addressed | http/https scheme check added (omada/midpoint); no host/private-IP allowlist (#781) |
+| L-6 | ✅ Fixed | #828 — connector base URLs (omada/midpoint) are rejected when they resolve to a private/loopback/metadata address, via the shared `lib/ssrfGuard.js` (#781) |
 | L-7 | 🔧 Open | `PGSSLMODE=require`, not `verify-full` (#782) |
 | L-8 | 🔧 Open | CSV parser still buffers whole file, no row cap (#778) |
 | I-1 | ✅ Fixed | #682 — allow-listed table + Postgres identifier quoting (displayName no longer null) |
@@ -134,9 +136,9 @@ All **Critical** findings are fixed and merged. Every exploitable **security** f
 | P6–P10 | 🟦 By design | mostly non-issues (perf-mw off, UNION cached); one trivial await remains |
 | Q1 | ✅ Fixed | #634 / #651 / #543 — matrix god-module split into handlers |
 | Q2 | ✅ Fixed | #474 — catch-as-feature-detection replaced by `db/schemaErrors.js` |
-| Q3 | 🔧 Open | `runBound` helper not created (bind-loops remain) (#791) |
-| Q4 | 🟨 Partially addressed | per-folder `shared.js` de-dup; `resources.js` still duplicates helpers (#792) |
-| Q5 | 🟨 Partially addressed | resource-map logic consolidated; no explicit `resourceFromRow` helper (#793) |
+| Q3 | ✅ Fixed | #833 — `runBound()` generalises `runCount` for the matrix bind/render/run sites (#791) |
+| Q4 | ✅ Fixed | #833 — `resources.js` reuses `cleanRow`/`UUID_RE`/`getPermissionTable` from `details/shared.js`; `parseTags` promoted into `tags/shared.js` (#792) |
+| Q5 | ✅ Fixed | #833 — `collectResources()` replaces the repeated resource-map build/merge loops via the existing `resourceMeta` helper (#793) |
 | Q6 | ✅ Fixed | #810 — removed the runtime `ensureSavedFiltersTable` DDL + the ingest default-filter seed DDL (migrations 023/028 own the schema) (#794) |
 | Q7 | ✅ Fixed | #678 / #667 — dead GraphUsers/GraphGroups fallbacks removed |
 | Q8 | 🟦 By design | positive finding — TODO/FIXME density stayed ~zero |

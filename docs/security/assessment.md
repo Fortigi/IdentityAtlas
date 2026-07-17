@@ -38,6 +38,8 @@ The assessment also recorded a number of **existing strengths** that were explic
 
 ## Findings & remediation
 
+> **Maintenance note — do not edit this table on a feature/bugfix branch.** Flipping a finding's status (or recomputing the roll-up) on a branch reliably conflicts here, because every branch touches the same rows while `main` moves on. Leave it to a single **reconciliation pass on `main`** after PRs merge. A feature PR changes only code, tests, and its `changes/` fragment; the status below is flipped later, in one batch.
+
 Status legend: ✅ **Fixed** (merged) · 🟦 **By design** (supported configuration, documented) · 🟨 **Partially addressed** · 🔧 **Remediation planned**.
 
 ### Critical
@@ -68,7 +70,7 @@ Status legend: ✅ **Fixed** (merged) · 🟦 **By design** (supported configura
 | M-01 | Transport security — wire TLS / `BEHIND_TLS` end to end | 🟨 Partially addressed (env documented) | [#782](https://github.com/Fortigi/IdentityAtlas/issues/782) |
 | M-02 | Authorization coverage on mutating endpoints | ✅ Fixed | [#424](https://github.com/Fortigi/IdentityAtlas/pull/424) |
 | M-03 | Crawler ingest authorization scoping | ✅ Fixed | [#424](https://github.com/Fortigi/IdentityAtlas/pull/424) |
-| M-04 | Role-permission editor: lockout guard, audit trail | 🟨 Partially addressed | [#194](https://github.com/Fortigi/IdentityAtlas/pull/194) · [#786](https://github.com/Fortigi/IdentityAtlas/issues/786) |
+| M-04 | Role-permission editor: lockout guard, audit trail | ✅ Fixed — self-lockout guard enforced on save/reset; every mapping change now recorded in an audit trail | [#194](https://github.com/Fortigi/IdentityAtlas/pull/194), [#832](https://github.com/Fortigi/IdentityAtlas/pull/832) · [#786](https://github.com/Fortigi/IdentityAtlas/issues/786) |
 | M-05 | Spreadsheet formula injection in UI exporters | ✅ Fixed | [#215](https://github.com/Fortigi/IdentityAtlas/pull/215) |
 | M-06 | Internal error detail returned to clients | ✅ Fixed | [#484](https://github.com/Fortigi/IdentityAtlas/pull/484), [#582](https://github.com/Fortigi/IdentityAtlas/pull/582) |
 | M-07 | Vault master-key handling policy | 🔧 Planned | [#783](https://github.com/Fortigi/IdentityAtlas/issues/783) |
