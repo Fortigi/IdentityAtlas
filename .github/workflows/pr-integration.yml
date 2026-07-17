@@ -22,8 +22,11 @@
 # #213 closed. See #721 for the alternatives.
 #
 # Secret-dependent tests (Entra ID crawler, LLM risk scoring) skip gracefully
-# when GitHub Actions secrets are not configured. Set them in repo Settings →
-# Secrets and variables → Actions:
+# when GitHub Actions secrets are not configured. That skip is no longer silent:
+# the integration job's "Assert test secrets present" step reports which suites
+# will skip (run summary + warning annotations), and hard-fails when the repo
+# variable ENFORCE_TEST_SECRETS=true (audit F2). Set the secrets in repo
+# Settings → Secrets and variables → Actions:
 #
 #   TEST_GRAPH_TENANT_ID      — Entra ID tenant for crawler tests
 #   TEST_GRAPH_CLIENT_ID      — App registration client ID
@@ -243,6 +246,51 @@ jobs:
 
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      # ── Test-secret visibility gate (audit F2) ──────────────────────────────
+      # The Entra-crawler and LLM risk-scoring suites below run only when their
+      # secret is set (`if: env.TEST_* != ''`); when it isn't they skip and the
+      # job still records a PASS — a silent gap. Surface which suites will skip
+      # (run summary + warning annotations) instead of hiding it, and let a repo
+      # variable turn the gap into a hard failure once the secrets are set. Runs
+      # before the expensive image build so an enforced failure is fast. Fork PRs
+      # never receive secrets — report and skip enforcement there rather than
+      # flag a non-existent misconfiguration.
+      - name: Assert test secrets present
+        env:
+          IS_SAME_REPO: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+          ENFORCE: ${{ vars.ENFORCE_TEST_SECRETS }}
+        run: |
+          required=(TEST_GRAPH_TENANT_ID TEST_GRAPH_CLIENT_ID TEST_GRAPH_CLIENT_SECRET TEST_LLM_API_KEY)
+          if [ "$IS_SAME_REPO" != "true" ]; then
+            echo "Fork PR — repository secrets are unavailable; the Entra/LLM suites will skip. Not enforced on forks." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          missing=()
+          for s in "${required[@]}"; do
+            if [ -z "${!s}" ]; then missing+=("$s"); fi
+          done
+          if [ ${#missing[@]} -eq 0 ]; then
+            echo "✅ All required test secrets are present — the Entra/LLM suites will run." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          {
+            echo "## ⚠️ Missing test secrets — some suites will skip"
+            echo
+            echo "These suites record a PASS **without running** because their secret is unset:"
+            for s in "${missing[@]}"; do echo "- \`$s\`"; done
+            echo
+            echo "Add them under **Settings → Secrets and variables → Actions** to exercise the Entra-crawler and LLM risk-scoring paths on \`main\` PRs."
+          } >> "$GITHUB_STEP_SUMMARY"
+          for s in "${missing[@]}"; do
+            echo "::warning title=Missing test secret::${s} is unset — its test suite will skip silently"
+          done
+          if [ "$ENFORCE" = "true" ]; then
+            echo "::error::ENFORCE_TEST_SECRETS=true and ${#missing[@]} required secret(s) missing — failing so the gap is caught, not skipped."
+            exit 1
+          fi
+          echo >> "$GITHUB_STEP_SUMMARY"
+          echo "_Set repository variable \`ENFORCE_TEST_SECRETS=true\` to make this a hard failure once secrets are configured._" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4

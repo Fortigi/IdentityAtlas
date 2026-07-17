@@ -55,3 +55,31 @@ jobs:
         uses: github/codeql-action/analyze@54f647b7e1bb85c95cddabcd46b0c578ec92bc1a # v4
         with:
           category: /language:javascript-typescript
+
+  # Separate job so the existing "Analyze (javascript)" check name is unchanged
+  # (renaming it via a language matrix could orphan a required status check).
+  # Covers the repo's Python — the CI ratchet tooling under tools/**/*.py and
+  # .github/scripts/*.py (audit F9).
+  analyze-python:
+    name: Analyze (python)
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      actions: read
+      contents: read
+
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@54f647b7e1bb85c95cddabcd46b0c578ec92bc1a # v4
+        with:
+          languages: python
+          queries: security-and-quality
+          config-file: .github/codeql/codeql-config.yml
+
+      # Python is interpreted — no build step; CodeQL extracts straight from source.
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@54f647b7e1bb85c95cddabcd46b0c578ec92bc1a # v4
+        with:
+          category: /language:python
