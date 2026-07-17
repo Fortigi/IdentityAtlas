@@ -34,6 +34,8 @@ The audit's headline: a **strong foundation with a missing middle** — a health
 
 ## Findings & remediation
 
+> **Maintenance note — do not edit this table on a feature/bugfix branch.** Flipping a finding's status (or recomputing any roll-up) on a branch reliably conflicts here, because every branch touches the same rows while `main` moves on. Leave these tables to a single **reconciliation pass on `main`** after PRs merge. A feature PR changes only code, tests, and its `changes/` fragment; the status below is flipped later, in one batch.
+
 Status legend: ✅ **Fixed** (merged) · 🟨 **Partially addressed** · 🔧 **Remediation planned**.
 
 ### Critical

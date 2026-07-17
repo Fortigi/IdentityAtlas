@@ -53,6 +53,8 @@ Critical/High across all dimensions: **14.**
 
 ## Remediation Status
 
+> **Maintenance note — do not edit these tables on a feature/bugfix branch.** Flipping a finding's status or recomputing the summary counts on a branch reliably conflicts here, because every branch edits the same rows and roll-up while `main` moves on. Leave these tables to a single **reconciliation pass on `main`** after PRs merge (the dated notes below record those passes). A feature PR changes only code, tests, and its `changes/` fragment; the finding's status is flipped here later, in one batch.
+
 _Status tracking added 2026-07-14. In the weeks since this audit the backlog was worked one PR at a time; the tables below record where each finding landed, matching the Status convention of the [Security Assessment](assessment.md) and [UX Assessment](../ux/assessment.md) pages. The detailed phase sections that follow are the original audit text, unchanged._
 
 _Refreshed 2026-07-16: reconciled against merged and in-flight PRs. Both remaining **Documentation** items are now ✅ Fixed — #804 (issues #802/#803) corrected `entities.md`'s `/api/perf/slowest` reference and strengthened `.spectral.yaml`, closing the last gaps left after #708/#690/#714. All other open items were re-verified against `main` and remain genuinely open._
