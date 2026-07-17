@@ -24,10 +24,15 @@
 //   - follow redirects manually, re-validating every hop, and
 //   - never send the Authorization header across a redirect to another origin.
 
-import dns from 'node:dns';
 import net from 'node:net';
 import { request as httpsRequest } from 'node:https';
 import { request as httpRequest } from 'node:http';
+import { isBlockedAddress, pinnedSafeLookup } from '../lib/ssrfGuard.js';
+
+// Re-export the shared SSRF primitives so existing callers/tests can keep
+// importing them from here (the guard itself now lives in lib/ssrfGuard.js so
+// the crawler discover handlers can reuse it — audit L-6).
+export { isBlockedIPv4, isBlockedAddress, pinnedSafeLookup } from '../lib/ssrfGuard.js';
 
 const MAX_BYTES_PER_URL = 50_000;
 const TIMEOUT_MS = 15_000;
@@ -35,58 +40,8 @@ const MAX_REDIRECTS = 5;
 const USER_AGENT = 'Identity-Atlas-Scraper/1.0';
 
 // ── SSRF address guard ───────────────────────────────────────────────────────
-
-// True if an IPv4 dotted-quad is in a blocked (non-public) range.
-export function isBlockedIPv4(ip) {
-  const parts = ip.split('.').map((n) => Number(n));
-  if (parts.length !== 4 || parts.some((n) => !Number.isInteger(n) || n < 0 || n > 255)) return true;
-  const [a, b] = parts;
-  if (a === 0) return true;                          // 0.0.0.0/8 "this network"
-  if (a === 127) return true;                        // loopback
-  if (a === 10) return true;                         // private
-  if (a === 172 && b >= 16 && b <= 31) return true;  // private
-  if (a === 192 && b === 168) return true;           // private
-  if (a === 169 && b === 254) return true;           // link-local / cloud metadata
-  if (a === 100 && b >= 64 && b <= 127) return true; // CGNAT 100.64/10
-  if (a >= 224) return true;                         // multicast / reserved
-  return false;
-}
-
-// True if the given IP literal (v4 or v6) must not be connected to.
-export function isBlockedAddress(ip) {
-  const fam = net.isIP(ip);
-  if (fam === 4) return isBlockedIPv4(ip);
-  if (fam === 6) {
-    const low = ip.toLowerCase().replace(/^\[|\]$/g, '');
-    if (low === '::1' || low === '::') return true;          // loopback / unspecified
-    if (low.startsWith('fe80')) return true;                 // link-local
-    if (/^f[cd]/.test(low)) return true;                     // unique-local fc00::/7
-    if (low.startsWith('ff')) return true;                   // multicast
-    const mapped = low.match(/(?:::ffff:)(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/);
-    if (mapped) return isBlockedIPv4(mapped[1]);             // IPv4-mapped IPv6
-    return false;
-  }
-  return true; // not a valid IP literal → block defensively
-}
-
-// net.connect-compatible lookup that resolves the host, refuses if ANY resolved
-// address is non-public, and returns a validated address to connect to. Because
-// the connection uses exactly this resolution, an attacker can't rebind DNS
-// between the check and the connect.
-export function pinnedSafeLookup(hostname, options, callback) {
-  dns.lookup(hostname, { all: true, verbatim: true }, (err, addresses) => {
-    if (err) return callback(err);
-    if (!addresses || addresses.length === 0) return callback(new Error(`No address for ${hostname}`));
-    for (const a of addresses) {
-      if (isBlockedAddress(a.address)) {
-        return callback(new Error(`Refusing to connect to non-public address ${a.address} for ${hostname}`));
-      }
-    }
-    const wantFamily = options && options.family;
-    const chosen = (wantFamily ? addresses.find((a) => a.family === wantFamily) : null) || addresses[0];
-    callback(null, chosen.address, chosen.family);
-  });
-}
+// isBlockedIPv4 / isBlockedAddress / pinnedSafeLookup now live in
+// lib/ssrfGuard.js (imported + re-exported at the top of this file).
 
 // Validate a URL for scraping: must be http(s), and a literal IP host must be
 // public. (Hostnames are validated at connect time by pinnedSafeLookup.) Throws
