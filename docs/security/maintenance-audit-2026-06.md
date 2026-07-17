@@ -57,7 +57,7 @@ Critical/High across all dimensions: **14.**
 
 _Status tracking added 2026-07-14. In the weeks since this audit the backlog was worked one PR at a time; the tables below record where each finding landed, matching the Status convention of the [Security Assessment](assessment.md) and [UX Assessment](../ux/assessment.md) pages. The detailed phase sections that follow are the original audit text, unchanged._
 
-_Refreshed 2026-07-16: reconciled against merged and in-flight PRs. Both remaining **Documentation** items are now ✅ Fixed — #804 (issues #802/#803) corrected `entities.md`'s `/api/perf/slowest` reference and strengthened `.spectral.yaml`, closing the last gaps left after #708/#690/#714. All other open items were re-verified against `main` and remain genuinely open._
+_Refreshed 2026-07-16: reconciled against merged and in-flight PRs. Both remaining **Documentation** items are now ✅ Fixed — #804 (issues #802/#803) corrected `entities.md`'s `/api/perf/slowest` reference and strengthened `.spectral.yaml`, closing the last gaps left after #708/#690/#714. **Perf & Quality** Q3–Q5 are now ✅ Fixed — #833 (issues #791/#792/#793) added the `runBound()` / `collectResources()` matrix helpers and de-duplicated the `resources.js` row/tag helpers. All other open items were re-verified against `main` and remain genuinely open._
 
 Status legend: ✅ **Fixed** (merged) · 🟦 **By design** (intended/supported, documented) · 🟨 **Partially addressed** · 🔧 **Open**.
 
@@ -65,10 +65,10 @@ Status legend: ✅ **Fixed** (merged) · 🟦 **By design** (intended/supported,
 |-------|--------:|--------:|------------:|----------:|--------:|
 | Design / UX | 21 | 10 | 0 | 0 | 11 |
 | Security | 22 | 11 | 3 | 0 | 8 |
-| Perf & Quality | 16 | 5 | 2 | 3 | 6 |
+| Perf & Quality | 16 | 8 | 2 | 1 | 5 |
 | CI / Test Harness | 11 | 6 | 0 | 3 | 2 |
 | Documentation | 11 | 11 | 0 | 0 | 0 |
-| **Total** | **81** | **43** | **5** | **6** | **27** |
+| **Total** | **81** | **46** | **5** | **4** | **26** |
 
 _(Row groups P6–P10, Q9–Q10, F10–F13, D10–D12 and the Codex net-new bullets are tracked as single rows here; the audit's raw sub-finding count is 85.)_
 
@@ -136,9 +136,9 @@ All **Critical** findings are fixed and merged. Every exploitable **security** f
 | P6–P10 | 🟦 By design | mostly non-issues (perf-mw off, UNION cached); one trivial await remains |
 | Q1 | ✅ Fixed | #634 / #651 / #543 — matrix god-module split into handlers |
 | Q2 | ✅ Fixed | #474 — catch-as-feature-detection replaced by `db/schemaErrors.js` |
-| Q3 | 🔧 Open | `runBound` helper not created (bind-loops remain) (#791) |
-| Q4 | 🟨 Partially addressed | per-folder `shared.js` de-dup; `resources.js` still duplicates helpers (#792) |
-| Q5 | 🟨 Partially addressed | resource-map logic consolidated; no explicit `resourceFromRow` helper (#793) |
+| Q3 | ✅ Fixed | #833 — `runBound()` generalises `runCount` for the matrix bind/render/run sites (#791) |
+| Q4 | ✅ Fixed | #833 — `resources.js` reuses `cleanRow`/`UUID_RE`/`getPermissionTable` from `details/shared.js`; `parseTags` promoted into `tags/shared.js` (#792) |
+| Q5 | ✅ Fixed | #833 — `collectResources()` replaces the repeated resource-map build/merge loops via the existing `resourceMeta` helper (#793) |
 | Q6 | ✅ Fixed | #810 — removed the runtime `ensureSavedFiltersTable` DDL + the ingest default-filter seed DDL (migrations 023/028 own the schema) (#794) |
 | Q7 | ✅ Fixed | #678 / #667 — dead GraphUsers/GraphGroups fallbacks removed |
 | Q8 | 🟦 By design | positive finding — TODO/FIXME density stayed ~zero |
