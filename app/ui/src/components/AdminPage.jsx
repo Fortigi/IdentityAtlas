@@ -1,4 +1,4 @@
-import { useState, useEffect, lazy, Suspense } from 'react';
+import { useState, useEffect, lazy, Suspense, createElement } from 'react';
 
 import { useAuth } from '@ui/auth/AuthGate';
 import { hasPermission } from '@ui/auth/usePermissions';
@@ -110,20 +110,23 @@ export default function AdminPage({ onNavigate, onRefresh, onRiskScoresRefresh }
 
   const currentTab = visibleTabs.find(t => t.key === activeTab) || visibleTabs[0];
 
-  // Lazy-loaded tabs render identically — one Suspense wrapper over a lookup,
-  // rather than a per-tab `activeTab === 'x' && <Suspense>…` block each (which
-  // both duplicated the wrapper and pushed this component over the complexity
-  // ceiling). Prop-carrying and non-lazy tabs stay explicit below.
-  const lazyTabContent = {
-    crawlers: () => <CrawlersPage onNavigate={onNavigate} />,
-    plugins: () => <PluginsPage onNavigate={onNavigate} />,
-    'account-linking': () => <AccountLinkingSettings />,
-    performance: () => <PerfPage />,
-    auth: () => <AuthSettingsPage />,
-    roles: () => <RolesPermissionsSection />,
-    updates: () => <UpdatesSettings />,
-    about: () => <AboutPage />,
+  // Lazy-loaded tabs render identically — one Suspense wrapper over a component
+  // lookup, rather than a per-tab `activeTab === 'x' && <Suspense>…` block each
+  // (which duplicated the wrapper and pushed this component over the complexity
+  // ceiling). Plain component/prop maps (not thunks) so nothing per-tab needs its
+  // own coverage. Non-lazy tabs (data / risk-scoring / llm) stay explicit below.
+  const lazyTabComponent = {
+    crawlers: CrawlersPage,
+    plugins: PluginsPage,
+    'account-linking': AccountLinkingSettings,
+    performance: PerfPage,
+    auth: AuthSettingsPage,
+    roles: RolesPermissionsSection,
+    updates: UpdatesSettings,
+    about: AboutPage,
   };
+  const lazyTabProps = { crawlers: { onNavigate }, plugins: { onNavigate } };
+  const LazyTab = lazyTabComponent[activeTab];
 
   return (
     <div className="max-w-6xl mx-auto">
@@ -137,9 +140,9 @@ export default function AdminPage({ onNavigate, onRefresh, onRiskScoresRefresh }
       <AdminSubTabs activeTab={activeTab} onTabChange={setActiveTab} tabs={visibleTabs} />
 
       <div className="space-y-4 px-2">
-        {lazyTabContent[activeTab] && (
+        {LazyTab && (
           <Suspense fallback={<div className="text-sm text-gray-500 dark:text-gray-400 p-6">Loading…</div>}>
-            {lazyTabContent[activeTab]()}
+            {createElement(LazyTab, lazyTabProps[activeTab])}
           </Suspense>
         )}
 
