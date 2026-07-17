@@ -1,5 +1,8 @@
 # Demo Dataset & End-to-End Validation
 
+!!! danger "This whole page is a spoiler"
+    It documents the dataset in full — including the records that exist only to be the wrong answer. If you want to play [Capture the Flag](../demo/capture-the-flag.md), go there instead and don't read on. (The answer key itself is collapsed further down, but the tables above it give plenty away.)
+
 A purpose-built synthetic dataset for testing every feature of Identity Atlas. Fully controlled — every record, relationship, and edge case is intentional, so tests can assert on exact values.
 
 It also backs the **public demo environment** and hides the **Capture-the-Flag** scenarios from issue #705 — see [Capture-the-Flag scenarios](#capture-the-flag-scenarios) below. That is why several records exist purely as distractors: a flag is only interesting if a plausible wrong answer sits next to the right one.
