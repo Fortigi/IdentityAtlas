@@ -1,1 +1,0 @@
-- Centralized the Microsoft Graph group principal-type constant (used to exclude groups from "who has access" counts) into a single definition shared across the matrix and permission queries, instead of the string being inlined in ~11 files. No change to behavior.
