@@ -17,7 +17,7 @@ function fetchOmadaMetadata(metaUrl, headers) {
   return fetch(metaUrl, opts);
 }
 
-export default async function handler(req, res, { db }) {
+export default async function handler(req, res, { db, assertPublicUrl }) {
   const { configId, config: inlineConfig } = req.body;
 
   let c;
@@ -49,6 +49,13 @@ export default async function handler(req, res, { db }) {
     const u = new URL(trimLen < rawBaseUrl.length ? rawBaseUrl.slice(0, trimLen) : rawBaseUrl);
     if (u.protocol !== 'https:' && u.protocol !== 'http:')
       return res.status(400).json({ error: 'baseUrl must use http or https' });
+    // Reject a base URL that resolves to a private/loopback/metadata address
+    // before we fetch it with the connector's credential (SSRF guard, L-6).
+    try {
+      await assertPublicUrl(u.origin);
+    } catch (e) {
+      return res.status(400).json({ error: `baseUrl rejected: ${e.message}` });
+    }
     if (!u.pathname.toLowerCase().endsWith('/odata/dataobjects')) u.pathname = '/odata/dataobjects';
     const baseUrl = u.origin + u.pathname;
 

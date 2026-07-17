@@ -107,7 +107,7 @@ async function midpointSearch(restRoot, authHeader, type, maxSize) {
 
 // ─── Discovery handler ───────────────────────────────────────────────────────
 
-export default async function handler(req, res, { db, getConfigSecret }) {
+export default async function handler(req, res, { db, getConfigSecret, assertPublicUrl }) {
   const { configId, config: inlineConfig } = req.body;
 
   let c;
@@ -136,6 +136,13 @@ export default async function handler(req, res, { db, getConfigSecret }) {
     const rawBaseUrl = (c.baseUrl || '').trim();
     if (!rawBaseUrl) return res.status(400).json({ error: 'No baseUrl in config' });
     assertHttpUrl(rawBaseUrl, 'baseUrl');
+    // Reject a base URL that resolves to a private/loopback/metadata address
+    // before we fetch it with the connector's credential (SSRF guard, L-6).
+    try {
+      await assertPublicUrl(rawBaseUrl);
+    } catch (e) {
+      return res.status(400).json({ error: `baseUrl rejected: ${e.message}` });
+    }
     const restRoot = midpointRestRoot(rawBaseUrl);
 
     let authHeader;
