@@ -4756,8 +4756,8 @@ Critical/High across all dimensions: <strong>14.</strong></p>
 </tr>
 <tr>
 <td>Q9–Q10</td>
-<td>🔧 Open</td>
-<td>redundant jsonb parse + scattered magic strings remain (#795)</td>
+<td>🟨 Partially addressed</td>
+<td>#811 dropped the redundant jsonb parse (centralized in <code>lib/jsonb.js</code>); <code>400_000</code> is already the named <code>MAX_FLAT_ROWS</code>; <code>#microsoft.graph.group</code> centralization (11 files) still open (#795)</td>
 </tr>
 <tr>
 <td>Codex perf</td>
