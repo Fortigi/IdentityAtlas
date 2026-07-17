@@ -184,20 +184,8 @@ router.post('/ingest/matrix-default-filter', async (req, res) => {
   }
   try {
     const p = await db.getPool();
-    await p.query(`
-      CREATE TABLE IF NOT EXISTS "SavedMatrixFilters" (
-        "id"          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        "name"        TEXT NOT NULL,
-        "description" TEXT,
-        "filter"      JSONB NOT NULL,
-        "isDefault"   BOOLEAN NOT NULL DEFAULT false,
-        "createdBy"   TEXT,
-        "createdAt"   TIMESTAMPTZ NOT NULL DEFAULT (now() AT TIME ZONE 'utc'),
-        "updatedBy"   TEXT,
-        "updatedAt"   TIMESTAMPTZ NOT NULL DEFAULT (now() AT TIME ZONE 'utc')
-      )
-    `);
-    await p.query(`ALTER TABLE "SavedMatrixFilters" ADD COLUMN IF NOT EXISTS "isDefault" BOOLEAN NOT NULL DEFAULT false`);
+    // The SavedMatrixFilters table, its indexes, and the isDefault column are
+    // owned by migrations 023/028 — no runtime DDL here (schema via migrations).
     await p.query(`UPDATE "SavedMatrixFilters" SET "isDefault" = false WHERE "isDefault" = true`);
     await p.query(
       `INSERT INTO "SavedMatrixFilters" (id, "name", "description", "filter", "isDefault", "createdBy", "updatedBy")
