@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Removed redundant runtime creation of the saved-matrix-filters table; the schema is created solely by database migrations, keeping schema changes in one place. No change to behavior.
+
+## Changes in this PR
+
 - List pages (Users, Resources, Identities, …) now show a clear error message with a **Retry** button when their data fails to load, instead of an empty "No results found" state that looked identical to genuinely having no data.
 
 ## Changes in this PR

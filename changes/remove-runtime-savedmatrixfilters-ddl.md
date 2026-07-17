@@ -1,1 +1,0 @@
-- Removed redundant runtime creation of the saved-matrix-filters table; the schema is created solely by database migrations, keeping schema changes in one place. No change to behavior.
