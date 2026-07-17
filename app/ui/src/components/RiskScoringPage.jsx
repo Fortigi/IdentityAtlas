@@ -190,6 +190,18 @@ function EntityTable({ entities, entityType, onOpenDetail }) {
   );
 }
 
+// Kick-off button for a scoring run. Renders nothing without the admin.crawlers
+// permission — kept as its own component so the page body doesn't carry the
+// canRun/running conditionals inline (keeps its cognitive complexity in check).
+function RunScoringButton({ canRun, running, onRun, className }) {
+  if (!canRun) return null;
+  return (
+    <button type="button" onClick={onRun} disabled={running} className={className}>
+      {running ? 'Starting…' : 'Run scoring now'}
+    </button>
+  );
+}
+
 // ─── Main Risk Scoring Page ──────────────────────────────────────────
 
 export default function RiskScoringPage({ onOpenDetail }) {
@@ -306,19 +318,14 @@ export default function RiskScoringPage({ onOpenDetail }) {
         <div className="bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 rounded-lg p-6 text-center">
           <h3 className="text-amber-800 dark:text-amber-300 font-semibold text-lg">Risk Scores Not Yet Computed</h3>
           <p className="text-amber-700 dark:text-amber-400 text-sm mt-2">
-            {canRun
-              ? 'Run the risk scoring engine to compute a score for every identity and resource.'
-              : <>Run the risk scoring engine from <span className="font-semibold">Admin&nbsp;→&nbsp;Risk&nbsp;Scoring</span> to compute scores.</>}
+            Run the risk scoring engine to compute a score for every identity and resource. It can also be configured and run from <span className="font-semibold">Admin&nbsp;→&nbsp;Risk&nbsp;Scoring</span>.
           </p>
-          {canRun && (
-            <button
-              onClick={runScoring}
-              disabled={running}
-              className="mt-4 px-4 py-2 rounded text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50"
-            >
-              {running ? 'Starting…' : 'Run scoring now'}
-            </button>
-          )}
+          <RunScoringButton
+            canRun={canRun}
+            running={running}
+            onRun={runScoring}
+            className="mt-4 px-4 py-2 rounded text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50"
+          />
           <p className="text-amber-600 dark:text-amber-400 text-xs mt-3">
             Scores are persisted as columns on Principals and Resources. The UI reads them directly.
           </p>
@@ -364,15 +371,12 @@ export default function RiskScoringPage({ onOpenDetail }) {
               Last scored: {new Date(summary.scoredAt).toLocaleString()}
             </span>
           )}
-          {canRun && (
-            <button
-              onClick={runScoring}
-              disabled={running}
-              className="px-3 py-1.5 rounded text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50"
-            >
-              {running ? 'Starting…' : 'Run scoring now'}
-            </button>
-          )}
+          <RunScoringButton
+            canRun={canRun}
+            running={running}
+            onRun={runScoring}
+            className="px-3 py-1.5 rounded text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50"
+          />
         </div>
       </div>
 
