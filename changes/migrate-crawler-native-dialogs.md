@@ -1,1 +1,0 @@
-- The "Delete file" confirmation in the CSV crawler wizard and the "Reset API key" confirmation on the Custom Connector card now use the app's in-app dialog (themed, dark-mode aware) instead of the browser's native pop-up — matching the rest of the app. These were the last two native browser confirmation dialogs.

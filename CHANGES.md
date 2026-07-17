@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- The "Delete file" confirmation in the CSV crawler wizard and the "Reset API key" confirmation on the Custom Connector card now use the app's in-app dialog (themed, dark-mode aware) instead of the browser's native pop-up — matching the rest of the app. These were the last two native browser confirmation dialogs.
+
+## Changes in this PR
+
 - The Risk Scoring page now has a "Run scoring now" button (for users who can manage crawlers) in both its header and its "not yet computed" empty state, so you can kick off a scoring run without leaving for Admin → Risk Scoring.
 - Removed the dead resource-cluster panel and its broken data fetches from the Risk Scoring page — resource clusters moved to the Contexts tab, and the old cluster endpoints no longer exist. A "View clusters →" link to the Contexts tab remains.
 
