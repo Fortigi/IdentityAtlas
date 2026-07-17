@@ -204,18 +204,44 @@ describe('useEntityPage', () => {
     expect(result.current.selected.size).toBe(0);
   });
 
-  it('toggleSort cycles direction and sortedItems reflects the sort', async () => {
-    const { result } = setup();
+  it('toggleSort pushes sort+dir to the server and renders rows in the returned order', async () => {
+    const { af, result } = setup();
     await waitFor(() => expect(result.current.loading).toBe(false));
+
+    // Without a sort column, no sort/dir params are sent.
+    expect(lastListUrl(af)).not.toContain('sort=');
 
     act(() => result.current.toggleSort('displayName'));
     expect(result.current.sortCol).toBe('displayName');
     expect(result.current.sortDir).toBe('asc');
-    expect(result.current.sortedItems.map((i) => i.id)).toEqual(['2', '1']); // alice < Bob
+    await waitFor(() => {
+      const url = lastListUrl(af);
+      expect(url).toContain('sort=displayName');
+      expect(url).toContain('dir=asc');
+    });
 
     act(() => result.current.toggleSort('displayName'));
     expect(result.current.sortDir).toBe('desc');
-    expect(result.current.sortedItems.map((i) => i.id)).toEqual(['1', '2']);
+    await waitFor(() => expect(lastListUrl(af)).toContain('dir=desc'));
+
+    // Rows are shown in the order the server returned them — no client re-sort.
+    expect(result.current.sortedItems).toBe(result.current.items);
+  });
+
+  it('resets to the first page when the sort changes', async () => {
+    const { af, result } = setup();
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    act(() => result.current.setPage(2));
+    await waitFor(() => expect(lastListUrl(af)).toContain('offset=200'));
+
+    act(() => result.current.toggleSort('displayName'));
+    await waitFor(() => {
+      const url = lastListUrl(af);
+      expect(url).toContain('sort=displayName');
+      expect(url).toContain('offset=0');
+    });
+    expect(result.current.page).toBe(0);
   });
 
   it('getFilterFields and getOptionsForField derive from available columns', async () => {

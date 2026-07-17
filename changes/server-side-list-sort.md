@@ -1,0 +1,2 @@
+- Fixed list-page sorting (Users, Groups, Identities): clicking a column header now sorts the entire result set on the server, not just the rows on the current page — so the ordering (and "top of the list") is correct across every page instead of silently reshuffling only the 100 rows on screen.
+- Changing the sort now returns you to the first page of the newly ordered results.
