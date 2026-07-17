@@ -63,12 +63,12 @@ Status legend: ✅ **Fixed** (merged) · 🟦 **By design** (intended/supported,
 
 | Phase | Tracked | ✅ Fixed | 🟦 By design | 🟨 Partial | 🔧 Open |
 |-------|--------:|--------:|------------:|----------:|--------:|
-| Design / UX | 21 | 9 | 0 | 0 | 12 |
+| Design / UX | 21 | 10 | 0 | 0 | 11 |
 | Security | 22 | 11 | 3 | 0 | 8 |
 | Perf & Quality | 16 | 5 | 2 | 3 | 6 |
 | CI / Test Harness | 11 | 6 | 0 | 3 | 2 |
 | Documentation | 11 | 11 | 0 | 0 | 0 |
-| **Total** | **81** | **42** | **5** | **6** | **28** |
+| **Total** | **81** | **43** | **5** | **6** | **27** |
 
 _(Row groups P6–P10, Q9–Q10, F10–F13, D10–D12 and the Codex net-new bullets are tracked as single rows here; the audit's raw sub-finding count is 85.)_
 
@@ -94,7 +94,7 @@ All **Critical** findings are fixed and merged. Every exploitable **security** f
 | M6 | ✅ Fixed | #427 (same codemod + lint rule as C1) |
 | M7 | 🔧 Open | tables lack `overflow-x-auto` (#758) |
 | M8 | ✅ Fixed | #821 — `tagPillStyle()` replaces the alpha hack with AA-contrast-safe pill colours (light + dark) (#759) |
-| L1 | 🔧 Open | list pages don't use shared `EmptyState` (#760) |
+| L1 | ✅ Fixed | #831 — list pages render the shared `EmptyState` with a next action (#760) |
 | L2 | ✅ Fixed | #525 aria-labelled nav pages; #820 added aria-labels to the remaining search/filter inputs (#761) |
 | L3 | 🔧 Open | no semantic design-token layer (#762) |
 | L4 | 🔧 Open | active tab still near-black, not blue (#749) |
