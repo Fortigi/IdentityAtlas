@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- List pages (Users, Resources, Identities, …) now show a clear error message with a **Retry** button when their data fails to load, instead of an empty "No results found" state that looked identical to genuinely having no data.
+
+## Changes in this PR
+
 - Admin → Data tab now shows each section only to users who can actually use it: Power Query / read-token export needs an export permission, curated export/import needs export or CSV-import permission, and History Retention + Danger Zone need the systems-admin permission — instead of showing every section (and controls that would 403 on click) to anyone who could open the tab.
 
 ## Changes in this PR
