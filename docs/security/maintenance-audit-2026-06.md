@@ -137,7 +137,7 @@ All **Critical** findings are fixed and merged. Every exploitable **security** f
 | Q3 | 🔧 Open | `runBound` helper not created (bind-loops remain) (#791) |
 | Q4 | 🟨 Partially addressed | per-folder `shared.js` de-dup; `resources.js` still duplicates helpers (#792) |
 | Q5 | 🟨 Partially addressed | resource-map logic consolidated; no explicit `resourceFromRow` helper (#793) |
-| Q6 | 🔧 Open | two runtime `CREATE TABLE` DDLs remain (migration 023 owns them) (#794) |
+| Q6 | ✅ Fixed | #810 — removed the runtime `ensureSavedFiltersTable` DDL + the ingest default-filter seed DDL (migrations 023/028 own the schema) (#794) |
 | Q7 | ✅ Fixed | #678 / #667 — dead GraphUsers/GraphGroups fallbacks removed |
 | Q8 | 🟦 By design | positive finding — TODO/FIXME density stayed ~zero |
 | Q9–Q10 | 🔧 Open | redundant jsonb parse + scattered magic strings remain (#795) |
