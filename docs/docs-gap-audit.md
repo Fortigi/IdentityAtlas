@@ -4,6 +4,8 @@
 > **Date:** 2026-07-14
 > **Method:** Feature surface derived from the **codebase/UI as ground truth** (not CHANGES.md or marketing), then cross-checked against every doc under `docs/`. Four parallel audits covered: crawlers/sync, the Node API layer, the React UI, and domain/engine logic. Only gaps where both the code and the doc state were verified are listed.
 > **Baseline commit:** `main` @ `d4afdb9f` (v5.441).
+>
+> **Remediation status (2026-07-16):** the [remediation plan](docs-remediation-plan.md) applied 34 backlog items; this note reconciles the **Tier A** items against current `main`. A2 (status headers), A3 (perf endpoint — fixed in #804), and A5 (removed tables/tabs) are resolved. Two Tier-A items were still wrong after that run and are fixed alongside this note: **A1** — the risk-tier cutoffs were corrected in `risk-scoring/overview.md`+`design.md` but the same table in `docs/api/risk-scores.md` still read `Critical ≥80` (code is `≥90/≥70`); **A4** — `context-redesign.md §4.2` still listed the ghost `app-grouping-by-pattern`/`business-process-llm` plugins, misnamed `department-tree`, and omitted 5 shipped plugins (registry has 10).
 
 ## Verdict
 

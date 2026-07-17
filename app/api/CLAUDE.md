@@ -7,6 +7,7 @@ Before writing any helper, utility, middleware, or route logic — search first.
 **Known shared utilities in `src/`:**
 - `db/connection.js` — connection pool; never create one-off connections
 - `db/columnCache.js` — column discovery with 5-minute TTL; never query `information_schema` per-request
+- `lib/jsonb.js` — `parseJsonbColumn(value)` — normalises a value read from a JSONB column. **node-postgres already parses JSONB**, so `JSON.parse(row.someJsonbCol)` throws on every request; use this helper (passes an already-parsed value through, `JSON.parse`s a legacy raw string, returns null on null/invalid) instead of a hand-rolled `typeof x === 'string' ? JSON.parse(x) : x` guard
 - `db/migrate.js` — migration runner; add files to `src/db/migrations/`, never edit existing ones
 - `middleware/auth.js` — Entra ID JWT validation (v1 + v2 tokens)
 - `middleware/perfMetrics.js` — request timing + Server-Timing headers
@@ -44,6 +45,8 @@ Run it once after `npm install` (and again after any `npm install` that repopula
 
 Migration files are numbered sequentially (`001_core_schema.sql`, `002_governance.sql`, etc.). Add a new file for each schema change — never edit existing migration files.
 
+**No runtime DDL.** Don't create/alter schema from route, ingest, or startup code — no `CREATE TABLE IF NOT EXISTS` "just in case" (this pattern was removed for `SavedMatrixFilters` in #794). The migration runner owns all schema; a table a route depends on must exist as a migration, not be lazily materialised on first request (which hides drift, races under concurrency, and needs write privileges at request time).
+
 ## Key Patterns
 
 - **Column cache:** Use `db/columnCache.js` for column discovery — it has a 5-minute TTL. Don't run `information_schema` queries per-request.
@@ -69,6 +72,10 @@ Migration files are numbered sequentially (`001_core_schema.sql`, `002_governanc
 | `routes/perf.js` | Performance metrics API |
 | `middleware/auth.js` | Entra ID JWT validation (v1+v2 tokens) |
 | `middleware/perfMetrics.js` | Request timing + Server-Timing headers |
+
+## OpenAPI spec & drift guard
+
+`src/openapi.yaml` documents the public API surface; `.spectral.yaml` lints its syntax (the `Lint: OpenAPI spec` PR gate). Separately, `routes/openapi.drift.test.js` classifies every router module under `routes/` as **documented** (at least one of its routes appears in `openapi.yaml`) or **undocumented** (read/internal APIs, listed in an explicit allowlist inside that test). A **new router module that is neither documented nor allowlisted fails the completeness test.** So when you add a router: either document its routes in `openapi.yaml`, or add the file to the undocumented allowlist in `openapi.drift.test.js` — otherwise the suite goes red.
 
 ## Crawler Job System
 

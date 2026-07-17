@@ -31,6 +31,8 @@ tags:
     description: Crawler self-service (API key rotation, identity)
   - name: Admin
     description: Crawler management (requires Entra ID auth)
+  - name: Effective Access
+    description: On-demand effective-access resolution — computed per request, never stored
 
 paths:
   # ─── Ingest Endpoints ──────────────────────────────────────────
@@ -38,6 +40,7 @@ paths:
     post:
       tags: [Ingest]
       summary: Ingest systems
+      operationId: ingestSystems
       description: Upsert system records. Systems don't require a systemId in the envelope.
       requestBody:
         required: true
@@ -63,6 +66,7 @@ paths:
     post:
       tags: [Ingest]
       summary: Ingest principals
+      operationId: ingestPrincipals
       description: Upsert principal records (users, service principals, etc.). Scope by principalType for full sync deletes.
       requestBody:
         required: true
@@ -80,6 +84,7 @@ paths:
     post:
       tags: [Ingest]
       summary: Ingest resources
+      operationId: ingestResources
       description: Upsert resource records (groups, roles, apps, business roles). Scope by resourceType.
       requestBody:
         required: true
@@ -95,6 +100,7 @@ paths:
     post:
       tags: [Ingest]
       summary: Ingest resource assignments
+      operationId: ingestResourceAssignments
       description: Upsert assignments (who has access to what). Composite key (resourceId, principalId, assignmentType). Scope by assignmentType.
       requestBody:
         required: true
@@ -110,6 +116,7 @@ paths:
     post:
       tags: [Ingest]
       summary: Ingest resource relationships
+      operationId: ingestResourceRelationships
       description: Upsert resource-to-resource links (Contains, GrantsAccessTo). Scope by relationshipType.
       requestBody:
         required: true
@@ -125,6 +132,7 @@ paths:
     post:
       tags: [Ingest]
       summary: Ingest identities
+      operationId: ingestIdentities
       description: Upsert real-person identity records.
       requestBody:
         required: true
@@ -140,6 +148,7 @@ paths:
     post:
       tags: [Ingest]
       summary: Ingest identity members
+      operationId: ingestIdentityMembers
       description: Upsert identity-to-principal links.
       requestBody:
         required: true
@@ -155,6 +164,7 @@ paths:
     post:
       tags: [Ingest]
       summary: Ingest contexts
+      operationId: ingestContexts
       description: Upsert organizational contexts (departments, OUs, classifications). Scope by contextType.
       requestBody:
         required: true
@@ -170,6 +180,8 @@ paths:
     post:
       tags: [Ingest]
       summary: Ingest governance catalogs
+      operationId: ingestGovernanceCatalogs
+      description: Upsert governance catalogs (access-package catalogs / IGA sources).
       requestBody:
         required: true
         content:
@@ -184,6 +196,8 @@ paths:
     post:
       tags: [Ingest]
       summary: Ingest assignment policies
+      operationId: ingestAssignmentPolicies
+      description: Upsert assignment policies (approval and settings for business-role assignment).
       requestBody:
         required: true
         content:
@@ -198,6 +212,8 @@ paths:
     post:
       tags: [Ingest]
       summary: Ingest assignment requests
+      operationId: ingestAssignmentRequests
+      description: Upsert assignment requests (access requests and their state).
       requestBody:
         required: true
         content:
@@ -212,6 +228,8 @@ paths:
     post:
       tags: [Ingest]
       summary: Ingest certification decisions
+      operationId: ingestCertificationDecisions
+      description: Upsert certification decisions (access-review outcomes).
       requestBody:
         required: true
         content:
@@ -226,6 +244,7 @@ paths:
     post:
       tags: [Ingest]
       summary: Refresh materialized views
+      operationId: refreshMaterializedViews
       description: Triggers a refresh of cached SQL views. Requires refreshViews permission.
       responses:
         '200':
@@ -238,6 +257,7 @@ paths:
     get:
       tags: [Crawlers]
       summary: Get own identity
+      operationId: getOwnCrawlerIdentity
       description: Returns the authenticated crawler's metadata.
       responses:
         '200':
@@ -251,6 +271,7 @@ paths:
     post:
       tags: [Crawlers]
       summary: Rotate own API key
+      operationId: rotateOwnApiKey
       description: Generates a new key and immediately invalidates the current one.
       responses:
         '200':
@@ -265,6 +286,8 @@ paths:
     get:
       tags: [Admin]
       summary: List all crawlers
+      operationId: listCrawlers
+      description: List all registered crawlers (Entra ID auth required).
       security:
         - EntraIdBearer: []
       responses:
@@ -273,6 +296,8 @@ paths:
     post:
       tags: [Admin]
       summary: Register a new crawler
+      operationId: registerCrawler
+      description: Register a new crawler and return its one-time API key.
       security:
         - EntraIdBearer: []
       requestBody:
@@ -289,6 +314,8 @@ paths:
     patch:
       tags: [Admin]
       summary: Update crawler
+      operationId: updateCrawler
+      description: Update a crawler's metadata, permissions, or system scope.
       security:
         - EntraIdBearer: []
       parameters:
@@ -303,6 +330,8 @@ paths:
     delete:
       tags: [Admin]
       summary: Disable crawler
+      operationId: disableCrawler
+      description: Disable a crawler (soft delete; its API key stops working).
       security:
         - EntraIdBearer: []
       parameters:
@@ -319,6 +348,8 @@ paths:
     post:
       tags: [Admin]
       summary: Admin-initiated key reset
+      operationId: resetCrawlerKey
+      description: Admin-initiated API-key reset; returns a new one-time key.
       security:
         - EntraIdBearer: []
       parameters:
@@ -335,6 +366,8 @@ paths:
     get:
       tags: [Admin]
       summary: Get crawler audit log
+      operationId: getCrawlerAuditLog
+      description: Return the crawler's paginated audit log.
       security:
         - EntraIdBearer: []
       parameters:
@@ -361,6 +394,7 @@ paths:
     get:
       tags: [Effective Access]
       summary: Effective access of one principal on one resource
+      operationId: resolveEffectiveAccess
       description: >
         Resolves whether a principal effectively holds a resource — direct grants plus grants
         reached via (transitive) group membership — returning the effect and the reachability
@@ -389,6 +423,7 @@ paths:
     get:
       tags: [Effective Access]
       summary: Effective capabilities a principal holds at a resource/node
+      operationId: getResourceEffectiveAccess
       description: >
         Down-expansion: includes capabilities inherited from ancestor nodes via the Contains
         hierarchy, computed on demand and never stored. One row per capability.
@@ -416,6 +451,7 @@ paths:
     get:
       tags: [Effective Access]
       summary: Effective capabilities a principal holds at a given node
+      operationId: getPrincipalEffectiveAccess
       description: >
         Principal-centric form of the node down-expansion; includes inherited capabilities.
       security:
