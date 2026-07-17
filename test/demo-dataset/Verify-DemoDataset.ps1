@@ -81,18 +81,21 @@ Write-Host "`n=== Demo Dataset Verification ===" -ForegroundColor Cyan
 
 Write-Host "`n--- Row Counts ---" -ForegroundColor Yellow
 
+# The generator is deterministic, so these are exact. If one of them fails after
+# a dataset change, that is the point: re-run Generate-DemoDataset.ps1, confirm
+# the new number is intended, and update it here in the same PR.
 $counts = @{
-    'Systems'                = @{ Min = 3;  Max = 3 }
-    'Principals'             = @{ Min = 27; Max = 30 }  # 22 employees + edge cases + omada account
-    'Resources'              = @{ Min = 17; Max = 17 }  # 6 groups + 2 dir roles + 2 app roles + 4 business roles + 3 group-ownership (#713)
-    'ResourceAssignments'    = @{ Min = 50; Max = 120 }
-    'ResourceRelationships'  = @{ Min = 12; Max = 12 }  # 8 Contains + 1 GrantsAccessTo + 3 HasOwnership (#713)
-    'Identities'             = @{ Min = 20; Max = 25 }
-    'IdentityMembers'        = @{ Min = 20; Max = 40 }
+    'Systems'                = @{ Min = 5;  Max = 5 }   # EntraID + HR + IGA + SAP + AzureRM (#705)
+    'Principals'             = @{ Min = 45; Max = 45 }  # 26 employees + 5 edge cases + IGA acct + 10 SAP + 3 app SPs
+    'Resources'              = @{ Min = 39; Max = 39 }  # Entra 10 + ownership 3 + business roles 5 + Sales 4 + consent 4 + SAP 4 + Azure 9
+    'ResourceAssignments'    = @{ Min = 143; Max = 143 }
+    'ResourceRelationships'  = @{ Min = 20; Max = 20 }  # 14 Contains + 1 GrantsAccessTo + 3 HasOwnership + 2 DelegatesScope
+    'Identities'             = @{ Min = 27; Max = 27 }  # 26 employees + the leaver
+    'IdentityMembers'        = @{ Min = 38; Max = 38 }  # 27 Entra + 1 IGA + 10 SAP
     'GovernanceCatalogs'     = @{ Min = 2;  Max = 2 }
-    'AssignmentPolicies'     = @{ Min = 3;  Max = 3 }
-    'CertificationDecisions' = @{ Min = 2;  Max = 2 }
-    'Crawlers'               = @{ Min = 1;  Max = 10 }
+    'AssignmentPolicies'     = @{ Min = 4;  Max = 4 }
+    'CertificationDecisions' = @{ Min = 3;  Max = 3 }
+    'Crawlers'               = @{ Min = 1;  Max = 10 }  # runtime state, not generated
 }
 
 foreach ($table in $counts.Keys | Sort-Object) {
@@ -108,13 +111,12 @@ foreach ($table in $counts.Keys | Sort-Object) {
 }
 
 # Contexts are counted separately, filtered to the dataset's own. In the v6
-# model a Context carries a `variant`: the demo dataset ingests 8 'synced' ones
-# (1 admin unit + 5 departments + 2 teams), while the API creates 'manual' Tag
-# roots at bootstrap and the context-algorithm plugins emit 'generated' ones
-# whenever the worker runs. A bare COUNT(*) therefore drifts with runtime state —
-# it read 8 before the worker started and 9 after. Filtering by variant makes
-# this deterministic.
-Assert-Count 'RowCount-Contexts' -Min 8 -Max 8 -Query @'
+# model a Context carries a `variant`: the demo dataset ingests 9 'synced' ones
+# (1 root + 5 departments + 2 teams + 1 admin unit), while the API creates
+# 'manual' Tag roots at bootstrap and the context-algorithm plugins emit
+# 'generated' ones whenever the worker runs. A bare COUNT(*) therefore drifts
+# with runtime state. Filtering by variant makes this deterministic.
+Assert-Count 'RowCount-Contexts' -Min 9 -Max 9 -Query @'
 SELECT COUNT(*) FROM "Contexts" WHERE "variant" = 'synced'
 '@
 
@@ -174,7 +176,7 @@ SELECT COUNT(*) FROM "Principals" WHERE "accountEnabled" = false AND "deletedAt"
 '@
 
 # Resource types
-Assert-Count 'BusinessRole-Count' -Min 4 -Max 4 -Query @'
+Assert-Count 'BusinessRole-Count' -Min 5 -Max 5 -Query @'
 SELECT COUNT(*) FROM "Resources" WHERE "resourceType" = 'BusinessRole' AND "deletedAt" IS NULL
 '@
 
@@ -243,6 +245,143 @@ Assert-Count 'Has-MultiSystem-Identity' -Min 1 -Label 'identities with 2+ accoun
 SELECT COUNT(*) FROM (
   SELECT "identityId" FROM "IdentityMembers" GROUP BY "identityId" HAVING COUNT(*) > 1
 ) multi
+'@
+
+# ─── Capture-the-Flag scenarios (#705) ────────────────────────────
+# Each flag's answer, computed straight from the database. These are the
+# data-level regression layer: if a dataset change moves an answer, the flag
+# breaks here rather than in a participant's inbox. Update the published answer
+# in the same PR as any change that trips one of these.
+
+Write-Host "`n--- Capture-the-Flag scenarios ---" -ForegroundColor Yellow
+
+# Flag 1 — Sales has 6 ACTIVE identities. The 7th (the disabled leaver) is the
+# distractor, so assert both numbers: a naive count must differ from the answer.
+Assert-Count 'CTF01-SalesActiveIdentities' -Min 6 -Max 6 -Query @'
+SELECT COUNT(DISTINCT i."id") FROM "Identities" i
+JOIN "IdentityMembers" im ON im."identityId" = i."id"
+WHERE i."department" = 'Sales' AND im."accountEnabled" = true
+'@
+
+Assert-Count 'CTF01-SalesIdentitiesIncludingLeaver' -Min 7 -Max 7 -Query @'
+SELECT COUNT(DISTINCT i."id") FROM "Identities" i WHERE i."department" = 'Sales'
+'@
+
+# Flag 4 — Piet's CRM access is role-derived only. A Direct grant would make the
+# answer "because someone gave it to him", which is the wrong lesson.
+Assert-Count 'CTF04-PietCrmNotDirect' -Min 0 -Max 0 -Label '0 direct grants' -Query @'
+SELECT COUNT(*) FROM "ResourceAssignments" ra
+JOIN "Resources"  r ON r."id" = ra."resourceId"
+JOIN "Principals" p ON p."id" = ra."principalId"
+WHERE p."displayName" = 'Piet Jansen' AND r."displayName" = 'SG-CRM-Users'
+  AND ra."assignmentType" = 'Direct' AND ra."deletedAt" IS NULL
+'@
+
+Assert-Count 'CTF04-PietCrmViaRole' -Min 1 -Max 1 -Query @'
+SELECT COUNT(*) FROM "ResourceAssignments" ra
+JOIN "Resources"  r ON r."id" = ra."resourceId"
+JOIN "Principals" p ON p."id" = ra."principalId"
+WHERE p."displayName" = 'Piet Jansen' AND r."displayName" = 'SG-CRM-Users'
+  AND ra."assignmentType" = 'Indirect' AND ra."deletedAt" IS NULL
+'@
+
+# Flag 6 — the role candidate must NOT already be in BR-Sales, or there is
+# nothing to recommend.
+Assert-Count 'CTF06-SharePointNotInRole' -Min 0 -Max 0 -Label '0 Contains edges' -Query @'
+SELECT COUNT(*) FROM "ResourceRelationships" rr
+JOIN "Resources" parent ON parent."id" = rr."parentResourceId"
+JOIN "Resources" child  ON child."id"  = rr."childResourceId"
+WHERE parent."displayName" = 'BR-Sales' AND child."displayName" = 'SG-Sales-SharePoint'
+  AND rr."relationshipType" = 'Contains'
+'@
+
+# Flag 7 — the trap must cross the department boundary; that (plus its
+# sensitivity) is what distinguishes it from flag 6's clean candidate.
+Assert-Count 'CTF07-TrapIsCrossDepartment' -Min 2 -Query @'
+SELECT COUNT(DISTINCT p."department") FROM "ResourceAssignments" ra
+JOIN "Resources"  r ON r."id" = ra."resourceId"
+JOIN "Principals" p ON p."id" = ra."principalId"
+WHERE r."displayName" = 'SG-Finance-Reports' AND ra."deletedAt" IS NULL
+'@
+
+# Flag 8 — Finance has the most SAP accounts...
+Assert-Count 'CTF08-SapFinanceCount' -Min 4 -Max 4 -Query @'
+SELECT COUNT(*) FROM "Principals" p
+JOIN "Systems" s ON s."id" = p."systemId"
+JOIN "IdentityMembers" im ON im."principalId" = p."id"
+JOIN "Identities" i ON i."id" = im."identityId"
+WHERE s."systemType" = 'SAP' AND i."department" = 'Finance' AND p."deletedAt" IS NULL
+'@
+
+# ...and the flag is only hard because SAP accounts carry no department of their
+# own. If this ever becomes non-zero the answer is readable straight off the
+# account list and the flag is worthless.
+Assert-Count 'CTF08-SapAccountsHaveNoDepartment' -Min 0 -Max 0 -Label '0 with department' -Query @'
+SELECT COUNT(*) FROM "Principals" p
+JOIN "Systems" s ON s."id" = p."systemId"
+WHERE s."systemType" = 'SAP' AND p."department" IS NOT NULL AND p."deletedAt" IS NULL
+'@
+
+# Flag 9 — the never-expiring password set.
+Assert-Count 'CTF09-NeverExpiringPasswords' -Min 5 -Max 5 -Query @'
+SELECT COUNT(*) FROM "Principals"
+WHERE "extendedAttributes"->>'passwordNeverExpires' = 'true' AND "deletedAt" IS NULL
+'@
+
+# Flag 10 — everyone holding an Azure US role. The westeurope distractor must
+# also exist, or "filter by region" isn't a real step.
+Assert-Count 'CTF10-AzureUsPrincipals' -Min 3 -Max 3 -Query @'
+SELECT COUNT(DISTINCT ra."principalId") FROM "ResourceAssignments" ra
+JOIN "Resources" r ON r."id" = ra."resourceId"
+WHERE r."resourceType" = 'AzureRoleAssignment'
+  AND r."extendedAttributes"->>'azureLocation' = 'eastus' AND ra."deletedAt" IS NULL
+'@
+
+Assert-Count 'CTF10-AzureEuDistractorExists' -Min 1 -Query @'
+SELECT COUNT(*) FROM "Resources"
+WHERE "resourceType" = 'AzureRoleAssignment'
+  AND "extendedAttributes"->>'azureLocation' = 'westeurope' AND "deletedAt" IS NULL
+'@
+
+# Flag 11 — who consented to Files.ReadWrite.All.
+Assert-Count 'CTF11-FilesReadWriteConsenters' -Min 5 -Max 5 -Query @'
+SELECT COUNT(DISTINCT ra."principalId") FROM "ResourceAssignments" ra
+JOIN "Resources" r ON r."id" = ra."resourceId"
+WHERE r."resourceType" = 'DelegatedPermission'
+  AND r."extendedAttributes"->>'scope' = 'Files.ReadWrite.All' AND ra."deletedAt" IS NULL
+'@
+
+# Flag 12 — the intersection: risky consent AND a never-expiring password.
+Assert-Count 'CTF12-RiskyConsentAndNeverExpire' -Min 2 -Max 2 -Query @'
+SELECT COUNT(DISTINCT ra."principalId") FROM "ResourceAssignments" ra
+JOIN "Resources"  r ON r."id" = ra."resourceId"
+JOIN "Principals" p ON p."id" = ra."principalId"
+WHERE r."resourceType" = 'DelegatedPermission'
+  AND r."extendedAttributes"->>'scope' = 'Files.ReadWrite.All'
+  AND p."extendedAttributes"->>'passwordNeverExpires' = 'true'
+  AND ra."deletedAt" IS NULL
+'@
+
+# ...and the trap must stay bigger than the answer. If these ever match, the
+# "risky" half of the question stopped mattering.
+Assert-Count 'CTF12-TrapIsWiderThanAnswer' -Min 3 -Max 3 -Label '3 (answer is 2)' -Query @'
+SELECT COUNT(DISTINCT ra."principalId") FROM "ResourceAssignments" ra
+JOIN "Resources"  r ON r."id" = ra."resourceId"
+JOIN "Principals" p ON p."id" = ra."principalId"
+WHERE r."resourceType" = 'DelegatedPermission'
+  AND p."extendedAttributes"->>'passwordNeverExpires' = 'true'
+  AND ra."deletedAt" IS NULL
+'@
+
+# The risky-consent context plugin joins clientSpId -> Principals to read the
+# app's appId/publisher. A dangling clientSpId silently drops the grant from the
+# plugin's output (the shape of issue #719), taking flags 11-12 with it.
+Assert-Count 'CTF-ConsentGrantsResolveToClientSp' -Min 0 -Max 0 -Label '0 dangling clientSpId' -Query @'
+SELECT COUNT(*) FROM "Resources" r
+WHERE r."resourceType" = 'DelegatedPermission' AND r."deletedAt" IS NULL
+  AND NOT EXISTS (
+    SELECT 1 FROM "Principals" p WHERE p."id"::text = r."extendedAttributes"->>'clientSpId'
+  )
 '@
 
 # ─── API Verification ─────────────────────────────────────────────
