@@ -69,6 +69,25 @@ describe('EntityListPage pagination', () => {
     expect(screen.getByText('250 total')).toBeInTheDocument();
     expect(screen.getByText('Al')).toBeInTheDocument();
   });
+
+  it('renders tag pills with a contrast-safe colour, not the old alpha hack (#759)', async () => {
+    const af = makeAuthFetch((url) => {
+      const s = String(url);
+      if (s.includes(COLUMNS)) return [];
+      if (s.includes('/api/tags')) return [{ id: 't1', name: 'Prod', color: '#1d4ed8', assignmentCount: 3 }];
+      if (s.includes(LIST)) return { data: [{ id: '1', displayName: 'Bob' }], total: 1 };
+      return undefined;
+    });
+
+    renderPage(af);
+
+    const pill = await screen.findByTitle(/tagged — click to filter/i);
+    const style = pill.getAttribute('style') || '';
+    expect(style).toMatch(/background-color/);
+    // The retired hack rendered `background-color: #1d4ed820` (8-digit alpha hex);
+    // tagPillStyle emits a solid tint + an AA-safe text colour instead.
+    expect(style).not.toContain('#1d4ed820');
+  });
 });
 
 describe('EntityListPage error state (audit H6)', () => {

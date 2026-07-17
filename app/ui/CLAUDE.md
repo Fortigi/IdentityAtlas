@@ -12,7 +12,7 @@ The UI supports a light/dark theme toggle via Tailwind v4's class-based dark mod
 
 **Rule: every new UI component must include dark mode from the start.** No cleanup pass — new code ships complete.
 
-**Rule: all light-theme colors must meet WCAG 2.0 AA contrast.** Any hardcoded color used as text, icon, or border on a light background must achieve ≥4.5:1 contrast ratio against that background (≥3:1 for large text ≥18pt / bold ≥14pt). Use Tailwind 700–800 tier values for colored text on white — mid-tone 400–500 values consistently fail. Check new color constants with a contrast tool before committing. The `TAG_COLORS` array in `src/utils/colors.js` is the reference example of compliant values.
+**Rule: all light-theme colors must meet WCAG 2.0 AA contrast.** Any hardcoded color used as text, icon, or border on a light background must achieve ≥4.5:1 contrast ratio against that background (≥3:1 for large text ≥18pt / bold ≥14pt). Use Tailwind 700–800 tier values for colored text on white — mid-tone 400–500 values consistently fail. Check new color constants with a contrast tool before committing. The `TAG_COLORS` array in `src/utils/colors.js` is the reference example of compliant values. For a pill/chip whose colour comes from **data** (a tag or category hex you don't control), don't hand-roll `{ backgroundColor: color + '20', color }` — that draws the raw colour as text and fails contrast (badly in dark mode). Use `tagPillStyle(hex, useIsDark())` from `utils/colors.js`, which tints the background and nudges the text to clear AA for the active theme.
 
 **Enforced by lint:** The ESLint rule `local/no-low-contrast-text` (defined in `eslint-rules/no-low-contrast-text.js`) flags any bare (light-mode) Tailwind `text-{color}-300` or `text-{color}-400` class in JSX `className` attributes and blocks the build. Fix by raising to `-600` and pairing with a `dark:` override:
 ``jsx
@@ -90,7 +90,7 @@ Before writing any utility function, helper, constant, or component — **search
 
 **Known shared utilities in `src/utils/` and `src/hooks/`:**
 - `utils/formatters.js` — `formatDate`, `formatDateOnly`, `formatDurationSeconds`, `formatDurationMs`, `formatRelativeTime`, `formatCompactNumber`, `formatValue`, `computeHistoryDiffs`, `friendlyLabel`
-- `utils/colors.js` — `TAG_COLORS`, AP color palettes, `getAccessPackageColor`, `TYPE_COLORS`
+- `utils/colors.js` — `TAG_COLORS`, AP color palettes, `getAccessPackageColor`, `TYPE_COLORS`, `tagPillStyle(hex, isDark)` (contrast-safe inline styles for a tag/category pill built from arbitrary hex — use this instead of `color + '20'`), `contrastRatio(a, b)` (WCAG ratio between two `{r,g,b}` colors)
 - `utils/accessPackageStyles.js` — `ASSIGNMENT_TYPE_STYLES` badge classes
 - `utils/attributeEntries.js` — `buildAttributeEntries` (merges core + extendedAttributes)
 - `utils/tierStyles.js` — `TIER_STYLES` (risk tier colors) and `tierClass(tier)` helper
