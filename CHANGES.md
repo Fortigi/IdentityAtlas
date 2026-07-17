@@ -1,5 +1,10 @@
 ## Changes in this PR
 
+- The Risk Scoring page now has a "Run scoring now" button (for users who can manage crawlers) in both its header and its "not yet computed" empty state, so you can kick off a scoring run without leaving for Admin → Risk Scoring.
+- Removed the dead resource-cluster panel and its broken data fetches from the Risk Scoring page — resource clusters moved to the Contexts tab, and the old cluster endpoints no longer exist. A "View clusters →" link to the Contexts tab remains.
+
+## Changes in this PR
+
 - The crawler live-discovery step (used by the Omada and midPoint wizards to probe a connector) now refuses a base URL that points at a private, loopback, or cloud-metadata address, instead of only checking that it starts with http/https. This closes a path where an admin-supplied URL could be aimed at an internal service or the cloud metadata endpoint and reached with the connector's credential.
 
 ## Changes in this PR
