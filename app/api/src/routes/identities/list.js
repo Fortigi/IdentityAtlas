@@ -9,9 +9,23 @@ import { Router } from 'express';
 import { timedQuery } from '../../perf/sqlTimer.js';
 import { createParams } from '../../db/sqlParams.js';
 import { isMissingSchema } from '../../db/schemaErrors.js';
+import { buildOrderBy } from '../../lib/listSort.js';
 import { useSql, db, hasTable } from './shared.js';
 
 const router = Router();
+
+// Columns the Identities page lets you sort by (its TABLE_COLUMNS keys), plus
+// two legacy keys (confidence/linkedAt) other callers pass. Values are the page
+// CTE's output aliases — safe to interpolate; see lib/listSort.js.
+const IDENTITY_SORTS = {
+  displayName: '"displayName"',
+  primaryAccountUpn: '"primaryAccountUpn"',
+  accountCount: '"accountCount"',
+  department: '"department"',
+  jobTitle: '"jobTitle"',
+  confidence: '"linkConfidence"',
+  linkedAt: '"linkedAt"',
+};
 
 function parseTagString(tagString) {
   if (!tagString) return [];
@@ -32,7 +46,7 @@ router.get('/identities', async (req, res) => {
       return res.json({ available: false, data: [], total: 0, summary: null });
     }
 
-    const { search, minAccounts, confidence, hrAnchored, orphanStatus, sort, limit, offset } = req.query;
+    const { search, minAccounts, confidence, hrAnchored, orphanStatus, sort, dir, limit, offset } = req.query;
     const pageLimit = Math.min(parseInt(limit) || 50, 500);
     const pageOffset = parseInt(offset) || 0;
 
@@ -137,15 +151,9 @@ router.get('/identities', async (req, res) => {
           AND _it."name" = ${bind(identityTagFilter)} AND _it."entityType" = 'identity'`;
     }
 
-    // Sort
-    const ALLOWED_SORTS = {
-      'accountCount': '"accountCount" DESC',
-      'confidence': '"linkConfidence" DESC',
-      'displayName': '"displayName" ASC',
-      'department': 'department ASC',
-      'linkedAt': '"linkedAt" DESC',
-    };
-    const orderBy = ALLOWED_SORTS[sort] || '"displayName" ASC';
+    // Sort the whole result set server-side (audit H-14), column + direction
+    // from the query; unknown columns fall back to displayName ASC.
+    const orderBy = buildOrderBy(sort, dir, IDENTITY_SORTS);
 
     // Page first, then resolve tags only for the page rows; count only on page 1.
     // (Same export-pagination fix as /api/users — the per-row tag subquery used to
