@@ -27,10 +27,11 @@
 // 'context-current'). Attribute conditions (e.g. department) reconstruct fully.
 
 import { UUID_RE, collectContextIds } from './filterSql.js';
+import { GROUP_PRINCIPAL_TYPE } from '../lib/principalTypes.js';
 
 const SAFE_IDENT_RE = /^[a-zA-Z0-9_]+$/;
 const EXT_PREFIX = 'ext.';
-const GROUP_TYPE = '#microsoft.graph.group';
+const GROUP_TYPE = GROUP_PRINCIPAL_TYPE;
 
 // ── Sample dates ─────────────────────────────────────────────────────
 // Evenly-spaced UTC dates (ascending, inclusive of today), used as the
