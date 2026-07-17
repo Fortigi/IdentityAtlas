@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Tag and category pills now pick a text colour that meets WCAG AA contrast against their tinted background in both light and dark mode, instead of drawing the raw colour as text (which could be unreadable — especially a dark tag colour on a dark pill in dark mode).
+
+## Changes in this PR
+
 - Improved screen-reader support: the search / filter boxes on Business Roles, the entity list pages (Users, Groups, Identities), Risk Scoring, the Sync Log, and the context list/picker/member-picker now expose a proper accessible name instead of relying on placeholder text alone.
 
 ## Changes in this PR
