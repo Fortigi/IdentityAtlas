@@ -28,8 +28,20 @@ Score **90% or better (11 of 12)** and you get an invitation to the next Fortigi
 
 Two things worth knowing, so you don't hunt for something that isn't switched on:
 
-1. **Run the Risky Consent plugin** — Admin → Plugins → *Risky Consent* → Run. Track 3 needs it. It groups the OAuth grants by how dangerous they are; without a run, there's nothing to scope to.
-2. **The access matrix is the main screen.** If you've never used it: it's a grid of subjects (people) against resources (what they can get at). You choose who's in the grid with a filter, and each cell tells you *how* that person holds that access — not just that they do.
+**1. Track 3 needs the Risky Consent plugin to have run.** It sorts the OAuth consent grants by how dangerous the permission is, into groups you can then scope a matrix to.
+
+First check whether it's already done — on most demo environments it is. Go to **Contexts** and look in the left-hand **Trees** pane for a group called **RiskyConsent (Resource)**. If **Risky Consent — High** is listed, you're set; skip to Track 1.
+
+If it isn't there, run it:
+
+> **Contexts** → **+ New** (top of the Trees pane) → **Run a plugin** → **Next ▸** → pick **Risky Consent** (under the *Resource* heading) → **Next ▸** → **Next ▸** (the defaults are correct — leave the form alone) → **Create tree**
+
+A preview runs by itself on the last step; the button that commits it says **Create tree**, not "Run".
+
+!!! note "Admin → Plugins won't help you here"
+    That tab lists context plugin trees that already exist, so it can re-run one — but it can't start the first run. New trees are only created from **Contexts → + New**.
+
+**2. The access matrix is the main screen.** If you've never used it: it's a grid of subjects (people) against resources (what they can get at). You choose who's in the grid with a filter, and each cell tells you *how* that person holds that access — not just that they do.
 
 ---
 
@@ -132,7 +144,7 @@ Shadow IT. Somebody in Fortigi Demo Corp clicked "Accept" on a third-party app, 
 That permission lets an app read and write every file the user can reach.
 
 !!! tip "Hint"
-    Run the Risky Consent plugin if you haven't. It sorts the consent grants by how dangerous the permission is. Once you've found the grant itself, the question becomes "who holds this?" — which is the thing the product is best at.
+    The **Risky Consent — High** context (see *Before you start*) groups the dangerous consent grants for you. The permission itself is a resource — so once you've found it, the question turns into "who holds this resource?", which is exactly what the matrix is for.
 
 ### Flag 12 — The worst of both *(Pro)*
 
@@ -150,3 +162,42 @@ An account whose password never rotates, which has also handed a third-party app
 Send your twelve answers to **[flag@identityatlas.io](mailto:flag@identityatlas.io)**.
 
 If you got stuck on one and want to know how it was *meant* to be found, that's a good sign — tell us which one. Half the reason this exists is to find out which questions Identity Atlas doesn't yet answer as well as it should.
+
+---
+
+## Answer key
+
+Don't open this until you've had a go. Opening it scores you nothing — but marking your own paper afterwards is the point of the exercise, so it lives here rather than somewhere you'd have to go asking for it.
+
+These are checked by CI on every change to the demo data, so they can't quietly drift out of date.
+
+??? danger "Spoilers — the answers to all twelve"
+
+    **Track 1 — Access matrix & roles**
+
+    | # | Answer |
+    |---|---|
+    | **1** | **6** — David El-Amin, Paul Quinn, Rachel Smith, Stefan Tanaka, Piet Jansen, Sanne Vermeer. The Sales scope shows **7**: Alex Former is a leaver whose account is disabled. |
+    | **2** | **5** — `SG-AllEmployees`, `BR-Employee-Base`, `BR-Sales`, `SG-Sales`, `SG-CRM-Users`. |
+    | **3** | **Tom Bakker** (Operations) and **Nadia Haddad** (Marketing). Both hold `BR-Sales`: Tom transferred out of Sales and it was never revoked, Nadia has it for a joint campaign. |
+    | **4** | He **inherits it through the `BR-Sales` business role** — it's a role-derived (`Indirect`) grant, not a direct one. He has no direct assignment on `SG-CRM-Users` at all. |
+    | **5** | **`SG-Sales` and `SG-CRM-Users`** — the two the role grants. `SG-AllEmployees` is held directly by everyone in the company; `BR-Employee-Base` and `BR-Sales` are roles themselves, not access granted *by* a role. |
+    | **6** | **`SG-Sales-SharePoint`** — held as a direct, ad-hoc grant by 5 of the 6 Sales members, and not part of `BR-Sales`. The obvious mining candidate. |
+    | **7** | **`SG-Finance-Reports`** — and the reason matters as much as the name. It fits the same shape (4 of 6 Sales hold it directly), but it's **sensitive cross-department finance access**: Finance holds it legitimately, and of the Sales side only the **Sales Manager (Paul Quinn)** was ever certified for it — the certification says "approved for this role only". Folding it into `BR-Sales` would hand every rep the company's revenue and margin data. A least-privilege violation, not a role candidate. |
+
+    **Track 2 — Cloud & accounts**
+
+    | # | Answer |
+    |---|---|
+    | **8** | **Finance**, with 4 SAP accounts. Sales has 3, Operations 2, Engineering 1 — close enough that guessing doesn't work. |
+    | **9** | **5 accounts**: Deploy Pipeline (service principal), info@fortigidemo.com (shared mailbox), Victor Wang, Wendy Xu and Piet Jansen. |
+    | **10** | **Victor Wang, Wendy Xu and Deploy Pipeline** — the holders of a role on an `eastus` resource. Victor also holds one in `westeurope`, so he's in the answer either way. |
+
+    **Track 3 — Apps & consent**
+
+    | # | Answer |
+    |---|---|
+    | **11** | **5 users**: Piet Jansen, Rachel Smith, Hassan Ibrahim, Wendy Xu and Niels Olsen. |
+    | **12** | **Piet Jansen and Wendy Xu.** The trap is **Victor Wang** — he has a never-expiring password *and* has consented to an app, but that app is Contoso Timesheets: verified publisher, `User.Read` only. Answer "consented to anything + never-expiring password" and you get 3. |
+
+    **Piet Jansen** is the thread: role-inherited access (4), a never-expiring password (9), risky consent (11) and both at once (12). If your answers to those four don't all feature him, one of them is wrong.
