@@ -51,7 +51,11 @@ vi.mock('../../perf/sqlTimer.js', () => ({
 let parseFilterImpl = () => baseFilter();
 let buildSubqueriesImpl = async () => baseBuilt();
 let scopeCountsImpl = async () => ({ subjectCount: 5, subjectTotal: 10, resourceCount: 3, resourceTotal: 8 });
-vi.mock('./shared.js', () => ({
+// Spread the real module so runBound/collectResources (pure helpers over the
+// mocked timedQuery + built) are exercised for real; override only the three
+// entry points the tests drive.
+vi.mock('./shared.js', async (importActual) => ({
+  ...(await importActual()),
   parseFilter: (...a) => parseFilterImpl(...a),
   buildSubqueries: (...a) => buildSubqueriesImpl(...a),
   scopeCounts: (...a) => scopeCountsImpl(...a),

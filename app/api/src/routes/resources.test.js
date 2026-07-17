@@ -29,10 +29,16 @@ vi.mock('../db/columnCache.js', () => ({
   getResourceColumns: async () => [{ name: 'displayName' }, { name: 'resourceType' }],
   getResourceColumnValues: vi.fn(),
 }));
-vi.mock('./tags.js', () => ({
-  ensureTagTables: async () => {},
-  buildFilterWhere: () => '',
-}));
+// parseTags is a pure helper re-exported from ./tags/shared.js — use the real
+// one so the tag-parsing assertion reflects production behaviour.
+vi.mock('./tags.js', async () => {
+  const { parseTags } = await vi.importActual('./tags/shared.js');
+  return {
+    ensureTagTables: async () => {},
+    buildFilterWhere: () => '',
+    parseTags,
+  };
+});
 
 const { default: router } = await import('./resources.js');
 const app = mountRouter(router);

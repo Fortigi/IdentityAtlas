@@ -16,7 +16,7 @@ vi.mock('../../matrix/filterSql.js', () => ({ buildEntitySubquery: (...a) => bui
 
 const {
   parseFilter, normaliseBlock, subjectScopeClauses, normaliseSortAttributes,
-  buildSubqueries, runCount, scopeCounts,
+  buildSubqueries, runCount, scopeCounts, runBound, collectResources,
 } = await import('./shared.js');
 const { createParams } = await import('../../db/sqlParams.js');
 
@@ -147,5 +147,59 @@ describe('scopeCounts', () => {
     // The resource-count query has no IN clause when the resource fragment is null.
     const resourceCountSql = timedQ.mock.calls.find(c => c[1] === 'matrix-data-resource-count')[3];
     expect(resourceCountSql).not.toContain('WHERE id IN');
+  });
+});
+
+describe('runBound', () => {
+  it('binds subject then resource then render params, runs the rendered SQL, returns the result', async () => {
+    timedQ.mockResolvedValueOnce({ rows: [{ x: 1 }] });
+    const built = {
+      subject: (bind) => ({ sql: `SUBJ(${bind('s')})` }),
+      resource: (bind) => ({ sql: `RES(${bind('r')})` }),
+    };
+    const out = await runBound({}, 'lbl', {}, built,
+      ({ subjectSql, resourceSql, bind }) => `SELECT ${subjectSql} ${resourceSql} ${bind('extra')}`);
+    expect(out).toEqual({ rows: [{ x: 1 }] });
+    const [, label, , sql, params] = timedQ.mock.calls[0];
+    expect(label).toBe('lbl');
+    expect(sql).toBe('SELECT SUBJ($1) RES($2) $3');   // subject $1, resource $2, render $3
+    expect(params).toEqual(['s', 'r', 'extra']);
+  });
+
+  it('skips the resource fragment (binds no resource params) when { resource:false }', async () => {
+    timedQ.mockResolvedValueOnce({ rows: [] });
+    const resource = vi.fn();
+    const built = { subject: (bind) => ({ sql: `SUBJ(${bind('s')})` }), resource };
+    await runBound({}, 'lbl', {}, built,
+      ({ subjectSql, resourceSql }) => `Q ${subjectSql} [${resourceSql}]`, { resource: false });
+    expect(resource).not.toHaveBeenCalled();
+    const [, , , sql, params] = timedQ.mock.calls[0];
+    expect(sql).toBe('Q SUBJ($1) []');   // resourceSql defaults to '' — no resource params
+    expect(params).toEqual(['s']);
+  });
+});
+
+describe('collectResources', () => {
+  it('maps rows through resourceMeta, keeps the first per resourceId, skips falsy ids', () => {
+    const rows = [
+      { resourceId: 'a', resourceDisplayName: 'A', resourceType: 'Group', resourceDescription: 'd', systemId: 1, systemName: 'S' },
+      { resourceId: 'a', resourceDisplayName: 'A-dup' },   // duplicate id ignored
+      { resourceId: null, resourceDisplayName: 'skip' },   // falsy id skipped
+    ];
+    const map = collectResources(new Map(), rows);
+    expect([...map.keys()]).toEqual(['a']);
+    expect(map.get('a')).toEqual({
+      resourceId: 'a', resourceDisplayName: 'A', resourceType: 'Group',
+      resourceDescription: 'd', systemId: 1, systemName: 'S',
+    });
+  });
+
+  it('accepts an identity mapper to merge shaped objects and tolerates null rows', () => {
+    const map = new Map([['a', { resourceId: 'a' }]]);
+    const obj = { resourceId: 'b', foo: 1 };
+    collectResources(map, [obj, { resourceId: 'a', foo: 2 }], r => r);  // 'a' present → kept
+    collectResources(map, null, r => r);                                 // null rows → no-op
+    expect(map.get('b')).toBe(obj);                     // identity mapper stores as-is
+    expect(map.get('a')).toEqual({ resourceId: 'a' });  // existing 'a' not overwritten
   });
 });

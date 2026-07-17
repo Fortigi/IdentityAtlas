@@ -42,3 +42,4 @@ __pycache__/
 
 # PowerShell mutation testing reports (PSMutant)
 reports/
+report/
