@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Admin → Data tab now shows each section only to users who can actually use it: Power Query / read-token export needs an export permission, curated export/import needs export or CSV-import permission, and History Retention + Danger Zone need the systems-admin permission — instead of showing every section (and controls that would 403 on click) to anyone who could open the tab.
+
+## Changes in this PR
+
 - Corrected the risk-tier table in the risk-scores API reference to match the scoring engine (Critical 90–100, High 70–89, Medium 40–69) — it previously showed the old 80/60 cutoffs, so every badge was mis-described.
 - Fixed the context-plugin catalogue in the architecture docs to list all ten shipped plugins with correct names, dropping two that never shipped.
 - Corrected the Performance Metrics API reference: the endpoint is `GET /api/perf/slow` (was documented as `/api/perf/slowest`, which 404s), and documented the previously-missing `POST /api/perf/toggle`.
