@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Fixed the crawler job-detail dialog (opened via **Details** on a job in Admin → Crawlers → Recent Jobs) rendering in light colours while the app is in dark mode — the dialog, its Phases/Trace tabs, the phase table, status badges and error text now follow the dark theme.
+
+## Changes in this PR
+
 - Centralized the Microsoft Graph group principal-type constant (used to exclude groups from "who has access" counts) into a single definition shared across the matrix and permission queries, instead of the string being inlined in ~11 files. No change to behavior.
 
 ## Changes in this PR
