@@ -1,3 +1,5 @@
+import { GROUP_PRINCIPAL_TYPE } from '../lib/principalTypes.js';
+
 // Pure SQL builders for the matrix roll-up aggregations.
 //
 // Extracted verbatim from routes/matrix.js as part of splitting that god-module
@@ -11,7 +13,7 @@
 // Indirect/Owner/Eligible are intentionally ignored. Exported for unit tests.
 export function buildRollupSql({ attrExpr, subjectJoin, subjectIdExpr, subjectIdForFilter, subjectSql, resourceSql }) {
   const where = [
-    `(p."principalType" IS NULL OR p."principalType" != '#microsoft.graph.group')`,
+    `(p."principalType" IS NULL OR p."principalType" != '${GROUP_PRINCIPAL_TYPE}')`,
     `p."membershipType" = 'Direct'`,
   ];
   if (subjectSql)  where.push(`${subjectIdForFilter} IN ${subjectSql}`);
@@ -104,7 +106,7 @@ export function buildRolesAsRowsSql({ attrExpr, subjectJoin, subjectIdExpr, subj
 export function buildGroupTotalsSql({ attrExpr, subjectTable, subjectAlias, subjectSql }) {
   const where = [];
   if (subjectTable === 'Principals') {
-    where.push(`(${subjectAlias}."principalType" IS NULL OR ${subjectAlias}."principalType" != '#microsoft.graph.group')`);
+    where.push(`(${subjectAlias}."principalType" IS NULL OR ${subjectAlias}."principalType" != '${GROUP_PRINCIPAL_TYPE}')`);
   }
   if (subjectSql) where.push(`${subjectAlias}.id IN ${subjectSql}`);
   const grp = `COALESCE(NULLIF(${attrExpr}::text, ''), '(none)')`;

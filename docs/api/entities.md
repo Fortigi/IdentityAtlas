@@ -669,9 +669,10 @@ Performance monitoring is opt-in. Enable by setting `PERF_METRICS_ENABLED=true`.
 |---|---|---|
 | `/api/perf` | `GET` | Aggregated endpoint summaries — P50, P95, P99 latency per route |
 | `/api/perf/recent` | `GET` | Last N requests with per-SQL-query timing breakdowns |
-| `/api/perf/slowest` | `GET` | Slowest N requests (by total duration) |
+| `/api/perf/slow` | `GET` | Slowest N requests (by total duration) |
 | `/api/perf/export` | `GET` | Download full ring buffer as JSON for offline analysis |
-| `/api/perf/clear` | `POST` | Clear the ring buffer (admin use) |
+| `/api/perf/clear` | `POST` | Clear the ring buffer (admin only) |
+| `/api/perf/toggle` | `POST` | Enable/disable the collector at runtime (admin only) |
 
 The ring buffer holds 1000 entries. When disabled (`PERF_METRICS_ENABLED` is unset or `false`), no overhead is incurred — the middleware is a no-op.
 

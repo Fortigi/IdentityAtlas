@@ -1,3 +1,5 @@
+import { GROUP_PRINCIPAL_TYPE } from '../lib/principalTypes.js';
+
 // Layered ATTRIBUTE fold — the efficient, server-aggregated counterpart of the
 // per-subject attribute fold. Instead of shipping every subject row (which
 // overflows JSON serialization for large sets), we aggregate on the server:
@@ -65,7 +67,7 @@ function nextValExpr(attrExprs, vkExpr) {
 // frontend renders it identically.
 export function buildAttrCutCellsSql({ attrExprs, collapsedParams = [], subjectJoin, subjectIdExpr, subjectIdForFilter, subjectSql, resourceSql }) {
   const where = [
-    `(p."principalType" IS NULL OR p."principalType" != '#microsoft.graph.group')`,
+    `(p."principalType" IS NULL OR p."principalType" != '${GROUP_PRINCIPAL_TYPE}')`,
     `p."membershipType" = 'Direct'`,
   ];
   if (subjectSql)  where.push(`${subjectIdForFilter} IN ${subjectSql}`);
@@ -113,7 +115,7 @@ export function buildAttrCutNodesSql({ attrExprs, collapsedParams = [], subjectT
   const vk = visibleKeyExpr(attrExprs, collapsedParams);
   const nv = nextValExpr(attrExprs, vk);
   const where = [];
-  if (excludeGroups) where.push(`${subjectAlias}."principalType" != '#microsoft.graph.group'`);
+  if (excludeGroups) where.push(`${subjectAlias}."principalType" != '${GROUP_PRINCIPAL_TYPE}'`);
   if (subjectSql)    where.push(`${subjectIdForFilter} IN ${subjectSql}`);
   return `
     SELECT s.gk AS "groupValue",

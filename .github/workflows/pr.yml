@@ -865,6 +865,26 @@ jobs:
       - name: Run cognitive-complexity ratchet
         run: python3 tools/complexity/ratchet.py --metric cognitive
 
+  # ── Stage 12: CI-logic self-tests ─────────────────────────────────────────
+  # The path-gate / crawler-scope / commit-range scripts in test/ci-scripts/
+  # encode the expected behaviour of the path filters and skip logic in this
+  # workflow and pr-integration.yml. Run them so a change that breaks those
+  # assumptions is caught here instead of silently mis-scoping CI (audit F6).
+  # Cheap (bash, seconds) — synthetic inputs, no real git diff needed.
+  ci-scripts:
+    name: 'CI: path-gate / scope self-tests'
+    needs: [changes]
+    if: needs.changes.outputs.has_product_changes == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Run CI path-gate / crawler-scope / commit-range self-tests
+        run: |
+          bash test/ci-scripts/test-path-gates.sh
+          bash test/ci-scripts/test-crawler-scope.sh
+          bash test/ci-scripts/test-commit-range.sh
+
   # ── Gate: single required check for branch protection ───────────────────
   # Replaces the individual job requirements in branch protection. Update branch
   # protection to require only "ci-passed" — not each individual job name.
@@ -895,6 +915,7 @@ jobs:
       - duplication
       - filesize
       - complexity
+      - ci-scripts
     if: always()
     runs-on: ubuntu-latest
     steps:
