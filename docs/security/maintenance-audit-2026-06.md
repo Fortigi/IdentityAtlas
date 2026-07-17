@@ -64,11 +64,11 @@ Status legend: ✅ **Fixed** (merged) · 🟦 **By design** (intended/supported,
 | Phase | Tracked | ✅ Fixed | 🟦 By design | 🟨 Partial | 🔧 Open |
 |-------|--------:|--------:|------------:|----------:|--------:|
 | Design / UX | 21 | 9 | 0 | 0 | 12 |
-| Security | 22 | 10 | 3 | 1 | 8 |
+| Security | 22 | 11 | 3 | 0 | 8 |
 | Perf & Quality | 16 | 5 | 2 | 3 | 6 |
 | CI / Test Harness | 11 | 6 | 0 | 3 | 2 |
 | Documentation | 11 | 11 | 0 | 0 | 0 |
-| **Total** | **81** | **41** | **5** | **7** | **28** |
+| **Total** | **81** | **42** | **5** | **6** | **28** |
 
 _(Row groups P6–P10, Q9–Q10, F10–F13, D10–D12 and the Codex net-new bullets are tracked as single rows here; the audit's raw sub-finding count is 85.)_
 
@@ -114,7 +114,7 @@ All **Critical** findings are fixed and merged. Every exploitable **security** f
 | L-3 | 🔧 Open | full job transcript to shared volume (#779) |
 | L-4 | 🔧 Open | Azure data services still public; no Isolated/private-endpoint template (#780) |
 | L-5 | 🔧 Open | Postgres password still deterministically derived (#780) |
-| L-6 | 🟨 Partially addressed | http/https scheme check added (omada/midpoint); no host/private-IP allowlist (#781) |
+| L-6 | ✅ Fixed | #828 — connector base URLs (omada/midpoint) are rejected when they resolve to a private/loopback/metadata address, via the shared `lib/ssrfGuard.js` (#781) |
 | L-7 | 🔧 Open | `PGSSLMODE=require`, not `verify-full` (#782) |
 | L-8 | 🔧 Open | CSV parser still buffers whole file, no row cap (#778) |
 | I-1 | ✅ Fixed | #682 — allow-listed table + Postgres identifier quoting (displayName no longer null) |
