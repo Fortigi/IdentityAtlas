@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Empty list pages (Users, Resources, Identities) now show the shared onboarding panel with a clear next step — "Add a crawler" when nothing has been imported yet, or "Clear filters" when a search or filter matches nothing — instead of a bare "No X found." dead-end.
+
+## Changes in this PR
+
 - The "Delete file" confirmation in the CSV crawler wizard and the "Reset API key" confirmation on the Custom Connector card now use the app's in-app dialog (themed, dark-mode aware) instead of the browser's native pop-up — matching the rest of the app. These were the last two native browser confirmation dialogs.
 
 ## Changes in this PR

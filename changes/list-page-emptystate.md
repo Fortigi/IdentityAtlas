@@ -1,1 +1,0 @@
-- Empty list pages (Users, Resources, Identities) now show the shared onboarding panel with a clear next step — "Add a crawler" when nothing has been imported yet, or "Clear filters" when a search or filter matches nothing — instead of a bare "No X found." dead-end.
