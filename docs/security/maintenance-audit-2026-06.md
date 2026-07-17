@@ -140,7 +140,7 @@ All **Critical** findings are fixed and merged. Every exploitable **security** f
 | Q6 | ✅ Fixed | #810 — removed the runtime `ensureSavedFiltersTable` DDL + the ingest default-filter seed DDL (migrations 023/028 own the schema) (#794) |
 | Q7 | ✅ Fixed | #678 / #667 — dead GraphUsers/GraphGroups fallbacks removed |
 | Q8 | 🟦 By design | positive finding — TODO/FIXME density stayed ~zero |
-| Q9–Q10 | 🟨 Partially addressed | #811 dropped the redundant jsonb parse (centralized in `lib/jsonb.js`); `400_000` is already the named `MAX_FLAT_ROWS`; `#microsoft.graph.group` centralization (11 files) still open (#795) |
+| Q9–Q10 | ✅ Fixed | #811 dropped the redundant jsonb parse (`lib/jsonb.js`); #812 centralized `#microsoft.graph.group` into `lib/principalTypes.js` (`400_000` was already `MAX_FLAT_ROWS`) (#795) |
 | Codex perf | 🟨 Partially addressed | riskScores top-N `LIMIT` fixed (#660); unpaginated group/assignment endpoints + MatrixView nested loop remain (#796) |
 
 ### CI / Test Harness

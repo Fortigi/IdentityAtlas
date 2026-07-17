@@ -15,6 +15,7 @@ import { buildContextFilterSql, parseAndResolveContextFilters } from '../../cont
 import { effectiveAccessForNodes } from '../../effectiveAccess/engine.js';
 import { isMissingSchema } from '../../db/schemaErrors.js';
 import { useSql, db } from './shared.js';
+import { GROUP_PRINCIPAL_TYPE } from '../../lib/principalTypes.js';
 
 const router = Router();
 
@@ -208,7 +209,7 @@ router.get('/permissions', async (req, res) => {
                      u."principalType" AS "memberType", e."membershipType",
                      ${dynamicUserCols} false AS "managedByAccessPackage"
                 FROM eff e LEFT JOIN "Principals" u ON e."memberId" = u.id
-               WHERE (u."principalType" IS NULL OR u."principalType" != '#microsoft.graph.group')
+               WHERE (u."principalType" IS NULL OR u."principalType" != '${GROUP_PRINCIPAL_TYPE}')
             `, [
               effRows.map((r) => r.resourceId),
               effRows.map((r) => r.principalId),
@@ -217,7 +218,7 @@ router.get('/permissions', async (req, res) => {
               effRows.map((r) => r.resourceType),
             ]);
             const totalResult = await db.query(
-              `SELECT COUNT(*)::int AS "totalUsers" FROM "Principals" WHERE "principalType" IS NULL OR "principalType" != '#microsoft.graph.group'`,
+              `SELECT COUNT(*)::int AS "totalUsers" FROM "Principals" WHERE "principalType" IS NULL OR "principalType" != '${GROUP_PRINCIPAL_TYPE}'`,
             );
             return res.json({ data: fmt.rows, totalUsers: totalResult.rows[0].totalUsers, managedByPackages: [] });
           }
@@ -331,7 +332,7 @@ router.get('/permissions', async (req, res) => {
         } else {
           userIdClause = `p."principalId" IN (
             SELECT "principalId" FROM "vw_ResourceUserPermissionAssignments"
-            WHERE ("principalType" IS NULL OR "principalType" != '#microsoft.graph.group')
+            WHERE ("principalType" IS NULL OR "principalType" != '${GROUP_PRINCIPAL_TYPE}')
               ${cc.ctxInnerWhere}
             GROUP BY "principalId"
             ORDER BY COUNT(*) DESC
@@ -363,7 +364,7 @@ router.get('/permissions', async (req, res) => {
           LEFT JOIN "Resources" r ON p."resourceId" = r.id
           LEFT JOIN "Systems" sys ON r."systemId" = sys.id
           ${fc.groupTagJoin}
-          WHERE (p."principalType" IS NULL OR p."principalType" != '#microsoft.graph.group')
+          WHERE (p."principalType" IS NULL OR p."principalType" != '${GROUP_PRINCIPAL_TYPE}')
             AND ${userIdClause}
             ${fc.filterWhere}
             ${fc.groupFilterWhere}
@@ -375,7 +376,7 @@ router.get('/permissions', async (req, res) => {
         const totalResult = await timedQuery(p, 'perm-total-users', res, `
           SELECT COUNT(*)::int AS "totalUsers"
           FROM "Principals"
-          WHERE "principalType" IS NULL OR "principalType" != '#microsoft.graph.group'
+          WHERE "principalType" IS NULL OR "principalType" != '${GROUP_PRINCIPAL_TYPE}'
         `, []);
 
         // AP mapping — constrain to just the users we're about to return.
@@ -397,7 +398,7 @@ router.get('/permissions', async (req, res) => {
             const apcc = contextClauses(apbind);
             apWhere = `WHERE ap."userId" IN (
               SELECT "principalId" FROM "vw_ResourceUserPermissionAssignments"
-              WHERE ("principalType" IS NULL OR "principalType" != '#microsoft.graph.group')
+              WHERE ("principalType" IS NULL OR "principalType" != '${GROUP_PRINCIPAL_TYPE}')
                 ${apcc.ctxInnerWhere}
               GROUP BY "principalId"
               ORDER BY COUNT(*) DESC
@@ -466,7 +467,7 @@ router.get('/permissions', async (req, res) => {
         LEFT JOIN "Systems" sys ON r."systemId" = sys.id
         ${fc.userTagJoin}
         ${fc.groupTagJoin}
-        WHERE (p."principalType" IS NULL OR p."principalType" != '#microsoft.graph.group')
+        WHERE (p."principalType" IS NULL OR p."principalType" != '${GROUP_PRINCIPAL_TYPE}')
           ${fc.filterWhere}
           ${fc.groupFilterWhere}
           ${cc.ctxPrincipalWhere}
@@ -478,7 +479,7 @@ router.get('/permissions', async (req, res) => {
       const totalResult = await timedQuery(p, 'perm-total-users', res, `
         SELECT COUNT(*)::int AS "totalUsers"
         FROM "Principals"
-        WHERE "principalType" IS NULL OR "principalType" != '#microsoft.graph.group'
+        WHERE "principalType" IS NULL OR "principalType" != '${GROUP_PRINCIPAL_TYPE}'
       `, []);
 
       // AP mapping is optional — fetch separately, swallow errors.

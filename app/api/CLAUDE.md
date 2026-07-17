@@ -13,6 +13,7 @@ Before writing any helper, utility, middleware, or route logic — search first.
 - `middleware/perfMetrics.js` — request timing + Server-Timing headers
 - `secrets/vault.js` — encrypted secret storage/retrieval for crawler credentials
 - `crawlerManifests.js` — the crawler manifest registry (`CRAWLER_MANIFESTS_DIR`, `VALID_JOB_TYPES`, `validateCrawlerConfig`), scanned once at startup from `tools/crawlers/*/crawler.json`; shared by `routes/jobs.js` and `routes/crawlerFiles.js` to avoid a circular import between them
+- `lib/principalTypes.js` — `GROUP_PRINCIPAL_TYPE` (`'#microsoft.graph.group'`), the Graph `@odata.type` for a group principal (a container excluded from "who has access" rollups). Import the constant — SQL sites interpolate `'${GROUP_PRINCIPAL_TYPE}'`, JS sites use it directly — never re-hardcode the magic string
 
 ## Always Test Locally Before Committing
 
