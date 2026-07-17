@@ -131,11 +131,13 @@ describe('EntityListPage empty state (audit H-12 / #760)', () => {
     return undefined;
   });
 
-  it('shows an onboarding EmptyState with a next action when nothing has been imported', async () => {
+  it('shows an onboarding EmptyState whose next action navigates to Admin → Crawlers', async () => {
+    window.location.hash = '';
     renderPage(emptyRoutes());
     // The shared EmptyState (not a bare "No users found." dead-end) with a real action.
     expect(await screen.findByText('No users yet')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Add a crawler/i })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Add a crawler/i }));
+    expect(window.location.hash).toContain('admin?sub=crawlers');
   });
 
   it('switches to a filter-aware EmptyState with "Clear filters" when a search matches nothing', async () => {
