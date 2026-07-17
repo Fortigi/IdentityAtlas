@@ -1,0 +1,1 @@
+- Flattened the Dashboard stat cards (Systems, Principals, Resources, …) to the standard flat surface — they no longer use a lime gradient fill, matching the rest of the UI while keeping their subtle lime accent ring.

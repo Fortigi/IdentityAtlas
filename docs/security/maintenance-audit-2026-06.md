@@ -61,12 +61,12 @@ Status legend: ✅ **Fixed** (merged) · 🟦 **By design** (intended/supported,
 
 | Phase | Tracked | ✅ Fixed | 🟦 By design | 🟨 Partial | 🔧 Open |
 |-------|--------:|--------:|------------:|----------:|--------:|
-| Design / UX | 21 | 5 | 0 | 1 | 15 |
+| Design / UX | 21 | 6 | 0 | 1 | 14 |
 | Security | 22 | 10 | 3 | 1 | 8 |
 | Perf & Quality | 16 | 5 | 2 | 3 | 6 |
 | CI / Test Harness | 11 | 6 | 0 | 3 | 2 |
 | Documentation | 11 | 11 | 0 | 0 | 0 |
-| **Total** | **81** | **37** | **5** | **8** | **31** |
+| **Total** | **81** | **38** | **5** | **8** | **30** |
 
 _(Row groups P6–P10, Q9–Q10, F10–F13, D10–D12 and the Codex net-new bullets are tracked as single rows here; the audit's raw sub-finding count is 85.)_
 
@@ -87,7 +87,7 @@ All **Critical** findings are fixed and merged. Every exploitable **security** f
 | M1 | 🔧 Open | duplicate `Section`/`StatCard` remain (#754) |
 | M2 | ✅ Fixed | #500 — `DialogProvider` + `no-native-dialogs` rule |
 | M3 | 🔧 Open | emoji-as-icon persists (#755) |
-| M4 | 🔧 Open | Dashboard StatCard gradients remain (#756) |
+| M4 | ✅ Fixed | #818 — Dashboard stat cards flattened off the lime gradient to the standard surface (#756) |
 | M5 | 🔧 Open | radius scale unstandardized (#757) |
 | M6 | ✅ Fixed | #427 (same codemod + lint rule as C1) |
 | M7 | 🔧 Open | tables lack `overflow-x-auto` (#758) |
