@@ -10,9 +10,9 @@ The scoring engine assigns a numeric score (0–100) to every principal, resourc
 
 | Tier | Score Range | Color |
 |---|---|---|
-| Critical | 80–100 | Red |
-| High | 60–79 | Orange |
-| Medium | 40–59 | Yellow |
+| Critical | 90–100 | Red |
+| High | 70–89 | Orange |
+| Medium | 40–69 | Yellow |
 | Low | 20–39 | Blue |
 | Minimal | 1–19 | Green |
 | None | 0 | Grey |
