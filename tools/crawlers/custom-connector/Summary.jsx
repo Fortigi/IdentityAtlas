@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { formatDate } from '@ui/utils/formatters';
 import CopyButton from '@ui/components/CopyButton';
+import { useDialog } from '@ui/components/dialogContext';
 
 // Custom Connector's card is a CrawlerConfigs row paired with a Crawlers row
 // (the API key) — see routes/crawlers.js's POST /admin/crawlers. This panel
@@ -11,6 +12,7 @@ import CopyButton from '@ui/components/CopyButton';
 // supportsExport: false). Removal still goes through the generic card's
 // Remove button — the server cascades to delete this row too.
 export default function Summary({ cfg, config, authFetch }) {
+  const dialog = useDialog();
   const [crawler, setCrawler] = useState(null);
   const [newKey, setNewKey] = useState(null);
   const [expandedAudit, setExpandedAudit] = useState(false);
@@ -42,7 +44,7 @@ export default function Summary({ cfg, config, authFetch }) {
   };
 
   const handleResetKey = async () => {
-    if (!confirm(`Reset API key for "${crawler.displayName}"?`)) return;
+    if (!(await dialog.confirm({ message: `Reset API key for "${crawler.displayName}"?`, confirmLabel: 'Reset key', danger: true }))) return;
     setResetting(true);
     try {
       const r = await authFetch(`/api/admin/crawlers/${crawler.id}/reset`, { method: 'POST' });
