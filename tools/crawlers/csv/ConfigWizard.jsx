@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import WizardShell from '@ui/components/WizardShell';
+import { useDialog } from '@ui/components/dialogContext';
 import CSV_SLOTS from './csv-slots.json';
 
 export const MAX_FILE_BYTES = 1024 * 1024 * 1024; // 1 GB — must match crawlerFiles.js
@@ -33,6 +34,7 @@ export function matchSlot(filename) {
 }
 
 export default function ConfigWizard({ onComplete, onCancel, initialConfig, isEdit, authFetch }) {
+  const dialog = useDialog();
   // Steps: 1=info, 2=files, 3=review
   const [step, setStep] = useState(1);
   const [displayName, setDisplayName] = useState(initialConfig?.displayName || 'CSV Import');
@@ -82,7 +84,7 @@ export default function ConfigWizard({ onComplete, onCancel, initialConfig, isEd
 
   const removeServerFile = async (name) => {
     if (!savedConfigId) return;
-    if (!confirm(`Delete ${name} from the server?`)) return;
+    if (!(await dialog.confirm({ message: `Delete ${name} from the server?`, confirmLabel: 'Delete', danger: true }))) return;
     try {
       await authFetch(`/api/admin/crawler-configs/${savedConfigId}/files/${encodeURIComponent(name)}`, { method: 'DELETE' });
       setServerFiles(prev => prev.filter(f => f.name !== name));

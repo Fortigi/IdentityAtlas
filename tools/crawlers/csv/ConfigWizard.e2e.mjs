@@ -109,10 +109,13 @@ export function register(test, expect) {
       }
 
       // Delete one of the already-uploaded (server-side) files. removeServerFile
-      // gates on window.confirm — accept it so the DELETE request actually fires.
-      page.once('dialog', d => d.accept());
+      // now opens the in-app confirm dialog (audit H-21), not a native
+      // window.confirm — confirm it by clicking the modal's danger "Delete"
+      // button. DialogProvider renders at the app root, after the page content,
+      // so its button is the last "Delete" in the DOM.
       const systemsRow = page.locator('div.divide-y > div', { hasText: 'Systems.csv' });
       await systemsRow.locator('button:has-text("Delete")').click();
+      await page.getByRole('button', { name: 'Delete', exact: true }).last().click();
 
       await expect(page.getByText('Already uploaded (3)')).toBeVisible({ timeout: 10000 });
       await expect(page.getByText('Systems.csv')).not.toBeVisible();
