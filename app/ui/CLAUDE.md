@@ -24,6 +24,8 @@ className="text-gray-600 dark:text-gray-400"
 ``
 Exception: shades 100–200 are not flagged because they are routinely used as near-white text on dark/colored button backgrounds (`bg-gray-900 text-gray-100`). Use them only in that context.
 
+**Rule: every interactive control needs an accessible name — a placeholder is not a label.** Search/filter boxes and other inputs must carry a real `<label>` (associated via `htmlFor`/`id`) or an `aria-label`; `placeholder=` alone leaves the field unlabelled for screen readers (and disappears once the user types). Test by querying the field by role + name — `getByRole('textbox', { name: /…/ })` — not by placeholder, so a dropped label fails the test.
+
 **Common patterns:**
 ``jsx
 // Container cards
@@ -79,6 +81,8 @@ import { formatDate } from '../../../app/ui/src/utils/formatters';
 **Editor support:** `jsconfig.json` at the repo root maps both aliases so VS Code / WebStorm resolve them without errors.
 
 **`import.meta.glob` exception:** Vite's `import.meta.glob()` calls in `CrawlersPage.jsx` still use relative paths (`../../../../tools/crawlers/*/...`) because glob key lookup depends on the literal string matching. Do not change these.
+
+**Testability note:** because `CrawlersPage.jsx` *eagerly* imports every crawler's `Summary.jsx` via that glob, importing anything from `CrawlersPage.jsx` into a jsdom test fails (`react/jsx-dev-runtime` won't resolve for the `tools/crawlers/` files under vitest). So a component that lives inside `CrawlersPage.jsx` **can't be `renderWithProviders`-mounted** — extract it to its own file first (as `JobPhasesModal.jsx` was), then import that file in the test.
 
 ## No Duplicate Code
 

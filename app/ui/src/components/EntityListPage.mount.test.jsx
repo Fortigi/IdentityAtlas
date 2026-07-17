@@ -3,6 +3,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import {
   renderWithProviders,
   makeAuthFetch,
+  jsonResponse,
   screen,
   waitFor,
   fireEvent,
@@ -57,6 +58,8 @@ describe('EntityListPage pagination', () => {
     // Page 1 renders with the total and pager.
     expect(await screen.findByText('250 total')).toBeInTheDocument();
     expect(screen.getByText('Page 1 of 3')).toBeInTheDocument();
+    // The search box carries an accessible name (aria-label) — #761.
+    expect(screen.getByRole('textbox', { name: 'Search' })).toBeInTheDocument();
 
     // Click Next → offset=100 → response has total:null. Pre-fix this threw.
     fireEvent.click(screen.getByRole('button', { name: 'Next' }));
@@ -84,5 +87,37 @@ describe('EntityListPage pagination', () => {
     // The retired hack rendered `background-color: #1d4ed820` (8-digit alpha hex);
     // tagPillStyle emits a solid tint + an AA-safe text colour instead.
     expect(style).not.toContain('#1d4ed820');
+  });
+});
+
+describe('EntityListPage error state (audit H6)', () => {
+  it('shows a distinct error panel (not the empty state) when the list fetch fails, and recovers on Retry', async () => {
+    let listCalls = 0;
+    const af = makeAuthFetch((url) => {
+      const s = String(url);
+      if (s.includes(COLUMNS)) return [];
+      if (s.includes('/api/tags')) return [];
+      if (s.includes(LIST)) {
+        listCalls += 1;
+        // Fail the first load (HTTP 500), succeed on the retry.
+        return listCalls === 1
+          ? jsonResponse({ error: 'boom' }, { ok: false, status: 500 })
+          : { data: [{ id: '1', displayName: 'Bob' }], total: 1 };
+      }
+      return undefined;
+    });
+
+    renderPage(af);
+
+    // A failed load surfaces a distinct error panel — NOT the "No users found"
+    // empty state it used to be indistinguishable from.
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent(/Couldn.t load users/i);
+    expect(screen.queryByText('No users found.')).not.toBeInTheDocument();
+
+    // Retry re-fetches; the second response succeeds and the row renders.
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(await screen.findByText('Bob')).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 });

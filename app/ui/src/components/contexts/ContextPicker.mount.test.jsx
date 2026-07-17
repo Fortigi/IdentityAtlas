@@ -108,7 +108,8 @@ describe('ContextPicker (mounted)', () => {
     renderPicker();
     const user = userEvent.setup();
     await screen.findByText('Org Chart');
-    await user.type(screen.getByPlaceholderText(/search contexts/i), 'Engineering');
+    // Reachable by accessible name (aria-label), not just placeholder — #761.
+    await user.type(screen.getByRole('textbox', { name: /Search contexts/i }), 'Engineering');
     expect(await screen.findByText('Engineering')).toBeInTheDocument();
     // A non-matching sibling root drops out.
     expect(screen.queryByText('Manual Group')).not.toBeInTheDocument();

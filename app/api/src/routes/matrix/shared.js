@@ -9,6 +9,7 @@ import { timedQuery } from '../../perf/sqlTimer.js';
 import { createParams } from '../../db/sqlParams.js';
 import { getPrincipalColumns, getResourceColumns } from '../../db/columnCache.js';
 import { buildEntitySubquery, collectContextIds } from '../../matrix/filterSql.js';
+import { GROUP_PRINCIPAL_TYPE } from '../../lib/principalTypes.js';
 
 export const ROW_TYPES = new Set(['principal', 'identity']);
 export const SAFE_IDENT_RE = /^[a-zA-Z0-9_]+$/;
@@ -252,7 +253,7 @@ export function subjectScopeClauses(rowType, subjectSql) {
   // For principals, exclude group-shaped accounts so counts match what the
   // matrix actually renders.
   const baseWhere = rowType === 'principal'
-    ? `("principalType" IS NULL OR "principalType" != '#microsoft.graph.group')`
+    ? `("principalType" IS NULL OR "principalType" != '${GROUP_PRINCIPAL_TYPE}')`
     : null;
   const idClause = subjectSql ? `id IN ${subjectSql}` : null;
   const clauses = [baseWhere, idClause].filter(Boolean);

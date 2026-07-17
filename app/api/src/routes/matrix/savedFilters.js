@@ -18,33 +18,6 @@ import { UUID_RE } from '../../matrix/filterSql.js';
 const router = Router();
 const useSql = process.env.USE_SQL === 'true';
 
-async function ensureSavedFiltersTable() {
-  // Migrations create this, but be defensive so a stale dev volume doesn't
-  // 500 every request.
-  await db.query(`
-    CREATE TABLE IF NOT EXISTS "SavedMatrixFilters" (
-      "id"          UUID PRIMARY KEY,
-      "name"        TEXT NOT NULL,
-      "description" TEXT,
-      "filter"      JSONB NOT NULL,
-      "isDefault"   BOOLEAN NOT NULL DEFAULT false,
-      "createdBy"   TEXT,
-      "createdAt"   TIMESTAMPTZ NOT NULL DEFAULT (now() AT TIME ZONE 'utc'),
-      "updatedBy"   TEXT,
-      "updatedAt"   TIMESTAMPTZ NOT NULL DEFAULT (now() AT TIME ZONE 'utc')
-    )
-  `);
-  await db.query(`
-    CREATE UNIQUE INDEX IF NOT EXISTS "ix_SavedMatrixFilters_name"
-      ON "SavedMatrixFilters" (LOWER("name"))
-  `);
-  await db.query(`ALTER TABLE "SavedMatrixFilters" ADD COLUMN IF NOT EXISTS "isDefault" BOOLEAN NOT NULL DEFAULT false`);
-  await db.query(`
-    CREATE UNIQUE INDEX IF NOT EXISTS "ix_SavedMatrixFilters_isDefault"
-      ON "SavedMatrixFilters" ("isDefault") WHERE "isDefault" = true
-  `);
-}
-
 function getActor(req) {
   return (req.user && (req.user.email || req.user.upn || req.user.name)) || 'unknown';
 }
@@ -52,7 +25,6 @@ function getActor(req) {
 router.get('/matrix/saved-filters', async (req, res) => {
   if (!useSql) return res.json([]);
   try {
-    await ensureSavedFiltersTable();
     const r = await db.query(`
       SELECT id, "name", "description", "filter", "isDefault", "createdBy", "createdAt", "updatedBy", "updatedAt"
         FROM "SavedMatrixFilters"
@@ -74,7 +46,6 @@ router.post('/matrix/saved-filters', async (req, res) => {
   if (!body.filter || typeof body.filter !== 'object') return res.status(400).json({ error: 'filter is required' });
 
   try {
-    await ensureSavedFiltersTable();
     const id = randomUUID();
     const actor = getActor(req);
     await db.query(
@@ -113,7 +84,6 @@ router.put('/matrix/saved-filters/:id', async (req, res) => {
   push('updatedAt', new Date());
   params.push(req.params.id);
   try {
-    await ensureSavedFiltersTable();
     const r = await db.query(
       `UPDATE "SavedMatrixFilters" SET ${sets.join(', ')} WHERE id = $${params.length} RETURNING *`,
       params,
@@ -133,7 +103,6 @@ router.delete('/matrix/saved-filters/:id', async (req, res) => {
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
   if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'Invalid id' });
   try {
-    await ensureSavedFiltersTable();
     const r = await db.query(`DELETE FROM "SavedMatrixFilters" WHERE id = $1`, [req.params.id]);
     if (r.rowCount === 0) return res.status(404).json({ error: 'Filter not found' });
     res.status(204).end();
@@ -148,7 +117,6 @@ router.delete('/matrix/saved-filters/:id', async (req, res) => {
 router.get('/matrix/default-filter', async (req, res) => {
   if (!useSql) return res.json(null);
   try {
-    await ensureSavedFiltersTable();
     const row = await db.queryOne(
       `SELECT id, "name", "description", "filter", "isDefault", "createdBy", "createdAt", "updatedBy", "updatedAt"
          FROM "SavedMatrixFilters" WHERE "isDefault" = true LIMIT 1`

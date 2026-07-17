@@ -9,6 +9,7 @@
 import { Router } from 'express';
 import { getResourceColumns as getResourceCols, getPrincipalOrUserColumns, getPrincipalOrUserColumnValues, getResourceColumnValues } from '../../db/columnCache.js';
 import { createParams } from '../../db/sqlParams.js';
+import { parseJsonbColumn } from '../../lib/jsonb.js';
 import { useSql, db, ensureTagTables, buildFilterWhere, UUID_RE } from './shared.js';
 
 const router = Router();
@@ -191,12 +192,10 @@ router.get('/users', async (req, res) => {
 
     const data = dataResult.rows.map(r => {
       const { tagString, extendedAttributes, ...rest } = r;
-      // jsonb columns come back already-parsed from pg, but if it's a string
-      // (defensive — older shim path) parse it. Either way the UI gets a
-      // record/null and Power Query gets a record/null.
-      const parsedExt = extendedAttributes && typeof extendedAttributes === 'string'
-        ? (() => { try { return JSON.parse(extendedAttributes); } catch { return null; } })()
-        : extendedAttributes;
+      // pg returns JSONB already parsed; parseJsonbColumn also handles a raw
+      // string (older shim path). Either way the UI / Power Query gets a
+      // record or null.
+      const parsedExt = parseJsonbColumn(extendedAttributes);
       return { ...rest, extendedAttributes: parsedExt, tags: parseTags(tagString) };
     });
 

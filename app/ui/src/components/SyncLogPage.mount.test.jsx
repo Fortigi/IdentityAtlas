@@ -102,7 +102,8 @@ describe('SyncLogPage (mounted)', () => {
 
     await screen.findByText('EntraGroups');
 
-    await user.type(screen.getByPlaceholderText(/Filter by name/i), 'EntraUsers');
+    // Reachable by accessible name (aria-label), not just placeholder — #761.
+    await user.type(screen.getByRole('textbox', { name: /Filter sync log/i }), 'EntraUsers');
     expect(screen.getByText('EntraUsers')).toBeInTheDocument();
     expect(screen.queryByText('EntraGroups')).not.toBeInTheDocument();
   });
