@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Improved screen-reader support: the search / filter boxes on Business Roles, the entity list pages (Users, Groups, Identities), Risk Scoring, the Sync Log, and the context list/picker/member-picker now expose a proper accessible name instead of relying on placeholder text alone.
+
+## Changes in this PR
+
 - Flattened the Dashboard stat cards (Systems, Principals, Resources, …) to the standard flat surface — they no longer use a lime gradient fill, matching the rest of the UI while keeping their subtle lime accent ring.
 
 ## Changes in this PR

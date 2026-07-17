@@ -1,1 +1,0 @@
-- Improved screen-reader support: the search / filter boxes on Business Roles, the entity list pages (Users, Groups, Identities), Risk Scoring, the Sync Log, and the context list/picker/member-picker now expose a proper accessible name instead of relying on placeholder text alone.
