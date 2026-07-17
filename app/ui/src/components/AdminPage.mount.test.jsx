@@ -167,6 +167,29 @@ describe('AdminPage (mounted)', () => {
     expect(screen.getByText('Danger Zone')).toBeInTheDocument();
   });
 
+  it('gates Data-tab sections: an admin.systems-only user sees retention + danger zone, not the export sections', async () => {
+    renderWithProviders(h(AdminPage, {}), {
+      auth: { authFetch: makeAuthFetch(adminRoutes), hasWildcard: false, permissions: new Set(['admin.systems']) },
+    });
+    // Lands on the Data tab (hash sub=data from beforeEach; admin.systems keeps it visible).
+    expect(await screen.findByText('Danger Zone')).toBeInTheDocument();
+    expect(screen.getByText(/History Retention/)).toBeInTheDocument();
+    // Export/import sections need data.export.* / admin.csv-import → hidden.
+    expect(screen.queryByText('Excel Power Query Workbook')).not.toBeInTheDocument();
+    expect(screen.queryByText('Curated Data')).not.toBeInTheDocument();
+  });
+
+  it('gates Data-tab sections: a data.export.ui-only user sees the export sections, not the destructive ones', async () => {
+    renderWithProviders(h(AdminPage, {}), {
+      auth: { authFetch: makeAuthFetch(adminRoutes), hasWildcard: false, permissions: new Set(['data.export.ui']) },
+    });
+    expect(await screen.findByText('Curated Data')).toBeInTheDocument();
+    expect(screen.getByText('Excel Power Query Workbook')).toBeInTheDocument();
+    // Retention + clean-database need admin.systems → hidden.
+    expect(screen.queryByText('Danger Zone')).not.toBeInTheDocument();
+    expect(screen.queryByText(/History Retention/)).not.toBeInTheDocument();
+  });
+
   it('walks the Danger Zone confirmation flow', async () => {
     renderAdmin();
     const user = userEvent.setup();

@@ -7,6 +7,7 @@
 import { Router } from 'express';
 import * as db from '../../db/connection.js';
 import { timedQuery } from '../../perf/sqlTimer.js';
+import { parseJsonbColumn } from '../../lib/jsonb.js';
 import { isMissingSchema } from '../../db/schemaErrors.js';
 import { useSql, UUID_RE, cleanRow, fetchHistory, countHistory } from './shared.js';
 
@@ -66,9 +67,9 @@ router.get('/user/:id', async (req, res) => {
     }
     const attributes = cleanRow(userResult.rows[0]);
 
-    // extendedAttributes is jsonb (already parsed)
+    // extendedAttributes is jsonb (already parsed); normalise defensively.
     if (attributes.extendedAttributes) {
-      attributes.extendedAttributesParsed = attributes.extendedAttributes;
+      attributes.extendedAttributesParsed = parseJsonbColumn(attributes.extendedAttributes);
     }
 
     // 1b. Risk score — stored in RiskScores keyed by (entityId, entityType),

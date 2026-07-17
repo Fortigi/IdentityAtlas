@@ -7,6 +7,7 @@
 import { Router } from 'express';
 import * as db from '../../db/connection.js';
 import { timedQuery } from '../../perf/sqlTimer.js';
+import { parseJsonbColumn } from '../../lib/jsonb.js';
 import { isMissingSchema } from '../../db/schemaErrors.js';
 import { useSql, UUID_RE, cleanRow, getPermissionTable, fetchHistory, countHistory } from './shared.js';
 
@@ -32,11 +33,9 @@ router.get('/group/:id', async (req, res) => {
     }
     const attributes = cleanRow(groupResult.rows[0]);
 
-    // Parse extendedAttributes if present (Resources model)
+    // Normalise extendedAttributes (pg returns JSONB already parsed).
     if (attributes.extendedAttributes) {
-      try {
-        attributes.extendedAttributesParsed = JSON.parse(attributes.extendedAttributes);
-      } catch (err) { console.warn('Failed to parse extendedAttributes for resource', groupId, ':', err.message); }
+      attributes.extendedAttributesParsed = parseJsonbColumn(attributes.extendedAttributes);
     }
 
     // 2. Tags (support both 'resource' and 'group' entity types)

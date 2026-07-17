@@ -194,15 +194,20 @@ The runner reconciles the plugin output with existing `Contexts` rows where `sou
 
 ### 4.2 Initial plugin set
 
+The registry ships **ten** plugins (`app/api/src/contexts/plugins/registry.js`):
+
 | Plugin | Target | Source | Notes |
 |---|---|---|---|
 | `manager-hierarchy` | Principal | `Principals.managerId` chain | Node displayName is `"<Department> (<Manager name>)"` when available. Replaces the old OrgChart logic in the Entra crawler + the `/api/org-chart` derived tree. |
-| `department-tree` | Principal | `Principals.department` parsed by separator | Replaces the former `refresh-contexts` derived OrgUnit tree. |
-| `ad-ou-from-dn` | Principal | LDAP DN (default: `extendedAttributes.onPremisesDistinguishedName`) | Field source is configurable via the `dnField` parameter. |
-| `app-grouping-by-pattern` | Resource | `Resources.displayName` regex | One bucket per `{name, regex}` pair; first-match wins; optional fallback bucket. |
-| `resource-cluster` | Resource | `Resources.displayName` tokenised + indexed | Deterministic, non-LLM. See [`resource-cluster-algorithm.md`](resource-cluster-algorithm.md). Replaces the former stem-based Risk-Scoring clusters. |
-| `business-process-llm` | Resource | LLM seeded with a process description | Registered with parameter shape; run loop still a stub. |
+| `department-from-principal` | Principal | `Principals.department` | One node per department value, scoped by system. Replaces the former `refresh-contexts` derived OrgUnit tree. |
+| `ad-ou-from-dn` | Principal | LDAP DN (default: `extendedAttributes.onPremisesDistinguishedName`) | OU components (outer-to-inner) form the tree; DC components ignored. Source field configurable via the `dnField` parameter. |
+| `principal-type-tree` | Principal | `principalType` (or another column / `extendedAttributes` key) | One bucket per distinct principal type. |
 | `orphaned-accounts` | Principal | Principals with no `IdentityMembers` row | Buckets unlinked accounts by detected account type. Refreshed automatically at the end of every Account Linking run — see [Account Linking](account-linking.md). |
+| `resource-cluster` | Resource | `Resources.displayName` tokenised + indexed | Deterministic, non-LLM. See [`resource-cluster-algorithm.md`](resource-cluster-algorithm.md). Replaces the former stem-based Risk-Scoring clusters. |
+| `resource-type-tree` | Resource | `azureResourceType` (or another `extendedAttributes` key) | One bucket per distinct resource type. |
+| `scope-hierarchy` | Resource | `Contains` relationship edges | Walks the resource `Contains` hierarchy into a nested scope tree. |
+| `entra-group-category-tree` | Resource | Entra group category attributes | One bucket per Entra group category; scoped to one Group system or all. |
+| `risky-consent` | Resource | OAuth consent grants + external threat feed | Buckets risky OAuth app-consent grants by tier/severity; the context members are the grant resources. **Fetches a third-party threat feed (OAuthSentry) over the network at run time.** |
 
 ### 4.3 Where plugins run
 
@@ -265,7 +270,7 @@ The filter is also exposed on the **detail pages** (e.g. on a Resource Cluster c
 ### 6.1 "All groups for one application"
 
 1. Analyst creates a manual context: targetType=Resource, contextType=Application, name="Procurement app".
-2. Drag-drops or bulk-adds groups into it. Or: runs the `app-grouping-by-pattern` plugin scoped to a regex.
+2. Drag-drops or bulk-adds groups into it. Or: runs the `resource-cluster` plugin scoped to that system and grafts the relevant clusters under it.
 3. In the matrix, click context filter → pick "Procurement app" → the columns collapse to just those groups, and the rows show only users with assignments. Business-role columns that touch any of those groups stay visible.
 
 ### 6.2 "The procurement process"
