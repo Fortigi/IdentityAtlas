@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Fixed resource and group detail pages not receiving their parsed extended attributes from the API — a redundant JSON parse of already-parsed data silently failed on every request. Extended attributes now surface consistently across all entity detail pages.
+
+## Changes in this PR
+
 - Removed redundant runtime creation of the saved-matrix-filters table; the schema is created solely by database migrations, keeping schema changes in one place. No change to behavior.
 
 ## Changes in this PR

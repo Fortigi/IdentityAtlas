@@ -1,1 +1,0 @@
-- Fixed resource and group detail pages not receiving their parsed extended attributes from the API — a redundant JSON parse of already-parsed data silently failed on every request. Extended attributes now surface consistently across all entity detail pages.
