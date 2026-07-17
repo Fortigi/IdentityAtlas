@@ -110,6 +110,21 @@ export default function AdminPage({ onNavigate, onRefresh, onRiskScoresRefresh }
 
   const currentTab = visibleTabs.find(t => t.key === activeTab) || visibleTabs[0];
 
+  // Lazy-loaded tabs render identically — one Suspense wrapper over a lookup,
+  // rather than a per-tab `activeTab === 'x' && <Suspense>…` block each (which
+  // both duplicated the wrapper and pushed this component over the complexity
+  // ceiling). Prop-carrying and non-lazy tabs stay explicit below.
+  const lazyTabContent = {
+    crawlers: () => <CrawlersPage onNavigate={onNavigate} />,
+    plugins: () => <PluginsPage onNavigate={onNavigate} />,
+    'account-linking': () => <AccountLinkingSettings />,
+    performance: () => <PerfPage />,
+    auth: () => <AuthSettingsPage />,
+    roles: () => <RolesPermissionsSection />,
+    updates: () => <UpdatesSettings />,
+    about: () => <AboutPage />,
+  };
+
   return (
     <div className="max-w-6xl mx-auto">
       <div className="flex items-center justify-between mb-3 px-2">
@@ -122,15 +137,9 @@ export default function AdminPage({ onNavigate, onRefresh, onRiskScoresRefresh }
       <AdminSubTabs activeTab={activeTab} onTabChange={setActiveTab} tabs={visibleTabs} />
 
       <div className="space-y-4 px-2">
-        {activeTab === 'crawlers' && (
+        {lazyTabContent[activeTab] && (
           <Suspense fallback={<div className="text-sm text-gray-500 dark:text-gray-400 p-6">Loading…</div>}>
-            <CrawlersPage onNavigate={onNavigate} />
-          </Suspense>
-        )}
-
-        {activeTab === 'plugins' && (
-          <Suspense fallback={<div className="text-sm text-gray-500 dark:text-gray-400 p-6">Loading…</div>}>
-            <PluginsPage onNavigate={onNavigate} />
+            {lazyTabContent[activeTab]()}
           </Suspense>
         )}
 
@@ -143,43 +152,8 @@ export default function AdminPage({ onNavigate, onRefresh, onRiskScoresRefresh }
           </>
         )}
 
-        {activeTab === 'account-linking' && (
-          <Suspense fallback={<div className="text-sm text-gray-500 dark:text-gray-400 p-6">Loading…</div>}>
-            <AccountLinkingSettings />
-          </Suspense>
-        )}
         {activeTab === 'risk-scoring' && <RiskScoringSection onRiskScoresRefresh={onRiskScoresRefresh} />}
         {activeTab === 'llm' && <LLMSettingsSection />}
-
-        {activeTab === 'performance' && (
-          <Suspense fallback={<div className="text-sm text-gray-500 dark:text-gray-400 p-6">Loading…</div>}>
-            <PerfPage />
-          </Suspense>
-        )}
-
-        {activeTab === 'auth' && (
-          <Suspense fallback={<div className="text-sm text-gray-500 dark:text-gray-400 p-6">Loading…</div>}>
-            <AuthSettingsPage />
-          </Suspense>
-        )}
-
-        {activeTab === 'roles' && (
-          <Suspense fallback={<div className="text-sm text-gray-500 dark:text-gray-400 p-6">Loading…</div>}>
-            <RolesPermissionsSection />
-          </Suspense>
-        )}
-
-        {activeTab === 'updates' && (
-          <Suspense fallback={<div className="text-sm text-gray-500 dark:text-gray-400 p-6">Loading…</div>}>
-            <UpdatesSettings />
-          </Suspense>
-        )}
-
-        {activeTab === 'about' && (
-          <Suspense fallback={<div className="text-sm text-gray-500 dark:text-gray-400 p-6">Loading…</div>}>
-            <AboutPage />
-          </Suspense>
-        )}
       </div>
     </div>
   );
