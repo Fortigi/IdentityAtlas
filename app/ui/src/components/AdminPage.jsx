@@ -1,6 +1,7 @@
 import { useState, useEffect, lazy, Suspense } from 'react';
 
 import { useAuth } from '@ui/auth/AuthGate';
+import { hasPermission } from '@ui/auth/usePermissions';
 
 import { ADMIN_TABS, visibleAdminTabs } from './admin/adminTabs';
 
@@ -67,6 +68,17 @@ export default function AdminPage({ onNavigate, onRefresh, onRiskScoresRefresh }
   const { hasWildcard, permissions } = useAuth();
   const visibleTabs = visibleAdminTabs(permissions, hasWildcard);
 
+  // Data-tab section gating. The Data tab is reachable if the user has ANY of
+  // its permissions (adminTabs `requires`), but each section is a distinct
+  // action with its own server-side gate — so render each only for the user
+  // who can actually use it, instead of showing controls that 403 on click.
+  // Mirrors the server: dataExport.js (workbook=data.export.ui, read-tokens=
+  // data.export.apikey/admin.read-tokens), curatedData.js (export=data.export.ui,
+  // import=admin.csv-import), maintenance.js (retention + clean=admin.systems).
+  const canPowerQuery = hasPermission(permissions, hasWildcard, 'data.export.ui', 'data.export.apikey', 'admin.read-tokens');
+  const canCuratedData = hasPermission(permissions, hasWildcard, 'data.export.ui', 'admin.csv-import');
+  const canManageSystems = hasPermission(permissions, hasWildcard, 'admin.systems');
+
   // If the user was on a now-hidden tab, bounce them to the first visible one.
   // Done during render — setting to a guaranteed-visible tab converges on the
   // next render, so it doesn't trip react-hooks/set-state-in-effect.
@@ -123,10 +135,10 @@ export default function AdminPage({ onNavigate, onRefresh, onRiskScoresRefresh }
 
         {activeTab === 'data' && (
           <>
-            <PowerQueryExportSection />
-            <CuratedDataSection />
-            <HistoryRetentionSection />
-            <DangerZoneSection onRefresh={onRefresh} />
+            {canPowerQuery && <PowerQueryExportSection />}
+            {canCuratedData && <CuratedDataSection />}
+            {canManageSystems && <HistoryRetentionSection />}
+            {canManageSystems && <DangerZoneSection onRefresh={onRefresh} />}
           </>
         )}
 

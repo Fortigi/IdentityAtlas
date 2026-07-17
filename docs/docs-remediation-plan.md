@@ -1,410 +1,411 @@
 # Documentation Remediation Plan v2 (living document)
 
-> **Purpose:** Vaststellen of de IdentityAtlas-documentatie (a) **compleet** is t.o.v. verscheepte features én (b) **bruikbaar** is voor de gestelde doelen — en de gaten gestructureerd wegwerken. Voortbouwend op [`docs-gap-audit.md`](docs-gap-audit.md).
-> **Basis:** edge (`main` @ `d4afdb9f`, v5.441). **Branch:** `feature/docs-gap-audit` (lokaal).
-> **v2-wijziging (na dual-voice review):** bruikbaarheid wordt gemeten met **journey-walkthroughs (primair instrument)**; het coverage-grid is **ondersteunend inventaris**. Zie de [Review-appendix](#review-appendix-dual-voice) onderaan.
-> **Uitvoering (2026-07-15):** alle **34 backlog-items (BL-1..BL-34) toegepast** — 20 docs bijgewerkt + 6 nieuwe gidsen (dashboard, contexts, effective-access, custom-connector, data-tab, authentication), in de mkdocs-nav gehangen. Zie de changelog-fragment `changes/docs-gap-audit.md`.
+> **Purpose:** Establish whether the IdentityAtlas documentation is (a) **complete** relative to shipped features and (b) **usable** for the stated goals — and close the gaps in a structured way. Builds on [`docs-gap-audit.md`](docs-gap-audit.md).
+> **Baseline:** edge (`main` @ `d4afdb9f`, v5.441). **Branch:** `feature/docs-gap-audit` (local).
+> **v2 change (after dual-voice review):** usability is measured with **journey walkthroughs (primary instrument)**; the coverage grid is a **supporting inventory**. See the [Review appendix](#review-appendix-dual-voice) at the bottom.
+> **Execution (2026-07-15):** all **34 backlog items (BL-1..BL-34) applied** — 20 docs updated + 6 new guides (dashboard, contexts, effective-access, custom-connector, data-tab, authentication), added to the mkdocs nav. See the changelog fragment `changes/docs-gap-audit.md`.
+> **Reconciliation (2026-07-16):** re-audited against `main` after the 34-item run. Two Tier-A leaks remained and are now fixed: the risk-tier table in `docs/api/risk-scores.md` (still showed `Critical ≥80`; code = `≥90/≥70` — audit A1, outside the original BL-11/12 scope) and the plugin catalogue in `context-redesign.md §4.2` (missing 5 shipped plugins, mis-named `department-tree`, and listing the never-shipped `app-grouping-by-pattern`/`business-process-llm` — audit A4). A3 (`/perf/slowest`→`/perf/slow`) is fixed in #804 (with #802/#803).
 
-## Waarom v2
+## Why v2
 
-De v1 mat uitsluitend *aanwezigheid* per feature (✅/🟡/⭕). Een onafhankelijke review met vier voices (drie Claude-subagents + Codex, alle op de echte bestanden) concludeerde unaniem: dat beantwoordt goal (a) maar **niet goal (b)**. Een cluster kan volledig groen worden en tóch docs opleveren waar een echte gebruiker op vastloopt (aanwezig ≠ correct ≠ vindbaar ≠ uitvoerbaar). v2 repareert dit met twee instrumenten en een aantal proces-gates.
-
----
-
-## De twee instrumenten
-
-### Instrument A — Coverage-grid (ondersteunend: *compleetheid*)
-Per feature × doc-type-as een statuscel. Beantwoordt: *bestaat er correcte documentatie voor deze feature?* Dit is inventaris/traceerbaarheid, geen bewijs van bruikbaarheid.
-
-### Instrument B — Journey-walkthroughs (**primair**: *bruikbaarheid*)
-Een kleine set benoemde persona-taken die end-to-end met **alléén de docs** wordt doorlopen door iemand die de betreffende doc **niet** schreef. Dit is de acceptatietest voor "bruikbaar voor de gestelde doelen". Een cluster/journey is pas klaar als de walkthrough slaagt.
+v1 measured only *presence* per feature (✅/🟡/⭕). An independent review with four voices (three Claude subagents + Codex, all against the real files) unanimously concluded: that answers goal (a) but **not goal (b)**. A cluster can go fully green and still ship docs a real user gets stuck on (present ≠ correct ≠ findable ≠ executable). v2 fixes this with two instruments and a few process gates.
 
 ---
 
-## Doc-type-assen (4, na review)
+## The two instruments
 
-**Analyst/Gebruiker is primair (P1).** Voor dit product (role-mining / access-governance) is de kern-eindgebruiker de **Analyst/Reviewer** die onderzoekt en attesteert — niet een generieke "hoe gebruik ik dit scherm"-lezer.
+### Instrument A — Coverage grid (supporting: *completeness*)
+A status cell per feature × doc-type axis. Answers: *does correct documentation exist for this feature?* This is inventory/traceability, not proof of usability.
 
-| As | Voor wie | Thuisbasis | Prio |
+### Instrument B — Journey walkthroughs (**primary**: *usability*)
+A small set of named persona tasks walked end-to-end with **the docs only**, by someone who did **not** write the doc in question. This is the acceptance test for "usable for the stated goals". A cluster/journey is only done once the walkthrough passes.
+
+---
+
+## Doc-type axes (4, after review)
+
+**Analyst/User is primary (P1).** For this product (role-mining / access-governance) the core end user is the **Analyst/Reviewer** who investigates and attests — not a generic "how do I use this screen" reader.
+
+| Axis | For whom | Home base | Prio |
 |----|----------|-----------|------|
-| **Analyst/Gebruiker** | Role-mining/attestatie-eindgebruiker: "wie kan bij X en waarom", "certificeer deze toegang", "vind over-privileged identities" | `docs/ui/`, `docs/quickstart.md`, `docs/concepts/` (taakgericht) | **P1** |
-| **Operator** | Installeren, configureren, draaien, herstellen | `docs/admin/`, `docs/reference/config.md`, deployment/docker, security, operations | P2 |
-| **Contributor** | Meebouwen aan de repo: architectuur, conventies, extensiepunten, tests | `docs/architecture/`, `building-a-crawler.md`, `CLAUDE.md`-files | P2 |
-| **API-consument** | Integreert via de API zonder de repo aan te raken: contracten, auth, voorbeelden, fouten, versionering | `docs/api/`, `openapi.yaml`, `docs/reference/sql-views.md` | **P1 voor push/ingest**, anders P2 |
+| **Analyst/User** | Role-mining/attestation end user: "who can access X and why", "certify this access", "find over-privileged identities" | `docs/ui/`, `docs/quickstart.md`, `docs/concepts/` (task-oriented) | **P1** |
+| **Operator** | Install, configure, run, recover | `docs/admin/`, `docs/reference/config.md`, deployment/docker, security, operations | P2 |
+| **Contributor** | Build on the repo: architecture, conventions, extension points, tests | `docs/architecture/`, `building-a-crawler.md`, `CLAUDE.md` files | P2 |
+| **API consumer** | Integrates via the API without touching the repo: contracts, auth, examples, errors, versioning | `docs/api/`, `openapi.yaml`, `docs/reference/sql-views.md` | **P1 for push/ingest**, otherwise P2 |
 
-`docs/concepts/` mag de **Contributor**-cel vervullen, maar de **Analyst/Gebruiker**-cel vereist een taak-/schermgerichte gids; een stale concept-doc telt alleen negatief mee bij Contributor.
+`docs/concepts/` may fill the **Contributor** cell, but the **Analyst/User** cell requires a task-/screen-oriented guide; a stale concept doc only counts against Contributor.
 
-## Statusrubric (na review)
+## Status rubric (after review)
 
-Twee onafhankelijke dimensies per cel — **coverage** en **trust** — zodat "fout" niet meer in "partieel" verdwijnt:
+Two independent dimensions per cell — **coverage** and **trust** — so "wrong" no longer disappears into "partial":
 
-| Symbool | Betekenis |
+| Symbol | Meaning |
 |---|---|
-| ✅ | Aanwezig **én** voldoet aan de bruikbaarheidsrubric (zie onder) |
-| 🟡 | Aanwezig maar onvolledig voor de taak (mist stappen/voorbeelden/prereqs) |
-| ⭕ | Ontbreekt |
-| ❌ | **Aanwezig maar feitelijk fout / misleidend** — sorteert vóór ⭕ |
-| **P0** | ❌ dat misleidend én security/privacy-gevoelig is (bijv. `risky-consent`-egress, foute risk-drempels) → **release-blocking** |
-| — | n.v.t. voor deze as |
+| ✅ | Present **and** meets the usability rubric (see below) |
+| 🟡 | Present but incomplete for the task (missing steps/examples/prereqs) |
+| ⭕ | Missing |
+| ❌ | **Present but factually wrong / misleading** — sorts before ⭕ |
+| **P0** | ❌ that is misleading and security/privacy-sensitive (e.g. `risky-consent` egress, wrong risk thresholds) → **release-blocking** |
+| — | n/a for this axis |
 
-**Bruikbaarheidsrubric — een cel is pas ✅ als het doc:** accuraat is t.o.v. de baseline-commit · vindbaar is vanuit het logische startpunt · prerequisites vermeldt · uitvoerbare stappen bevat · copy-paste-complete voorbeelden heeft (incl. auth/base-url/verwachte output) · het verwachte resultaat toont · veelvoorkomende foutpaden dekt · onafhankelijk is getest.
+**Usability rubric — a cell is only ✅ if the doc:** is accurate against the baseline commit · is findable from the logical starting point · states prerequisites · contains executable steps · has copy-paste-complete examples (incl. auth/base-url/expected output) · shows the expected result · covers common error paths · has been independently tested.
 
-## Verificatie-gate (verplicht vóór elk besluit)
+## Verification gate (mandatory before every decision)
 
-De grids zijn **vooraf ingevuld uit een AI-audit en gelden als ONGEVERIFIEERD**. Voordat op een cel een actie (schrijf/fix/werk-bij) wordt besloten:
-1. Open het geciteerde codebestand én het geciteerde doc; bevestig het symbool/feit.
-2. Markeer de cel `geverifieerd` (met checker + datum) i.p.v. `geërfd`.
-3. Stempel de cel met de baseline-commit waartegen geverifieerd is.
+The grids are **pre-filled from an AI audit and count as UNVERIFIED**. Before deciding on an action for a cell (write/fix/update):
+1. Open the cited code file and the cited doc; confirm the symbol/fact.
+2. Mark the cell `verified` (with checker + date) instead of `inherited`.
+3. Stamp the cell with the baseline commit it was verified against.
 
-*(De review deed dit al voor 2 cellen — tiers=90/70 en `/perf/slow`+`/perf/toggle` — en beide klopten. Verificatie is dus goedkoop, niet overbodig.)*
+*(The review already did this for 2 cells — tiers=90/70 and `/perf/slow`+`/perf/toggle` — and both held. Verification is therefore cheap, not superfluous.)*
 
 ---
 
-## Instrument B — Journeys (primair)
+## Instrument B — Journeys (primary)
 
-Kandidaat-journeys (definitief te maken in de eerste sessie). Elk mapt naar de clusters die het raakt en heeft een pass/fail uit een doc-only walkthrough:
+Candidate journeys (to be finalized in the first session). Each maps to the clusters it touches and has a pass/fail from a doc-only walkthrough:
 
-| # | Journey (persona) | Raakt clusters | Kern-vraag |
+| # | Journey (persona) | Touches clusters | Core question |
 |---|-------------------|----------------|-----------|
-| J1 | **Zero-to-first-insight** (Analyst): `docker compose up` → eerste crawler → data op Dashboard → eerste finding in Matrix | 1,7,8,4,2 | Komt een nieuwe evaluator van nul naar eerste inzicht, alleen met docs? |
-| J2 | **Beoordeel een risk-score** (Analyst): lees een identity-risk-badge → begrijp de tier → doe een analyst-override | 5,4 | Kan de analist de score begrijpen en erop handelen? |
-| J3 | **"Wie kan bij X en waarom"** (Analyst): effective-access / matrix-onderzoek | 2,10,4 | Kan de analist toegang aantonen en verklaren? |
-| J4 | **Certificeer toegang** (Analyst): governance/attestatie-flow | 6,4 | Kan een access-review worden voltooid? |
-| J5 | **Zet een Entra-crawler op** (Operator): kies phase-toggles bewust | 7,8 | Weet de operator welke toggles nodig zijn en wat elk kost? |
-| J6 | **Push data via custom connector** (API-consument): alleen met `docs/api` | 9 | Kan een integrator zonder repo data pushen + key roteren? |
-| J7 | **Bouw een crawler** (Contributor): end-to-end vanuit de docs | 7,9,10 | Kan een bijdrager een crawler bouwen alleen met de docs? |
-| J8 | **Maak + hergebruik een Context** (Analyst): tree, plugin-run, "Filter matrix" | 3,2 | Werkt het nieuwste, complexste oppervlak end-to-end? |
-| J9 | **Administreer de deployment** (Operator): Admin-panel, Auth/Roles, export, retention, danger-zone | 8 | Kan een operator de app beheren doc-only? |
-| J10 | **Begrijp + query het datamodel** (Contributor): schema, geldige enums, SQL-views | 10 | Kan een contributor het datamodel begrijpen én querien doc-only? |
+| J1 | **Zero-to-first-insight** (Analyst): `docker compose up` → first crawler → data on Dashboard → first finding in Matrix | 1,7,8,4,2 | Does a new evaluator get from zero to first insight with docs only? |
+| J2 | **Assess a risk score** (Analyst): read an identity risk badge → understand the tier → make an analyst override | 5,4 | Can the analyst understand the score and act on it? |
+| J3 | **"Who can access X and why"** (Analyst): effective-access / matrix investigation | 2,10,4 | Can the analyst prove and explain access? |
+| J4 | **Certify access** (Analyst): governance/attestation flow | 6,4 | Can an access review be completed? |
+| J5 | **Set up an Entra crawler** (Operator): choose phase toggles deliberately | 7,8 | Does the operator know which toggles are needed and what each costs? |
+| J6 | **Push data via custom connector** (API consumer): with `docs/api` only | 9 | Can an integrator push data + rotate a key without the repo? |
+| J7 | **Build a crawler** (Contributor): end-to-end from the docs | 7,9,10 | Can a contributor build a crawler with the docs only? |
+| J8 | **Create + reuse a Context** (Analyst): tree, plugin run, "Filter matrix" | 3,2 | Does the newest, most complex surface work end-to-end? |
+| J9 | **Administer the deployment** (Operator): Admin panel, Auth/Roles, export, retention, danger-zone | 8 | Can an operator manage the app doc-only? |
+| J10 | **Understand + query the data model** (Contributor): schema, valid enums, SQL views | 10 | Can a contributor understand the data model and query it doc-only? |
 
-**Pilot eerst één complexe flow** (aanbevolen door de review) — J8 of J1 — als taakgerichte gids + usability-test, vóór het opschalen van het format.
+**Pilot one complex flow first** (recommended by the review) — J8 or J1 — as a task-oriented guide + usability test, before scaling up the format.
 
-**Walkthrough-resultatentabel (per journey):**
+**Walkthrough results table (per journey):**
 
-| Journey | Persona | Voltooid? (j/n) | Eerste blocker | Waar men de docs moest verlaten | Backlog-item |
+| Journey | Persona | Completed? (y/n) | First blocker | Where you had to leave the docs | Backlog item |
 |---------|---------|-----------------|----------------|----------------------------------|--------------|
-| **J1 (pilot, 2026-07-15)** | Analyst/Operator | **NEE** (doc-only) | Entra-setup: `entra-id.md` noemt "vul Tenant/Client ID + Secret" maar niet **welke Graph-permissies** nodig zijn; die lijst staat in `reference/troubleshooting.md` (verkeerd thuis) en `quickstart.md` linkt niet naar `entra-id.md`. (App Registration aanmaken = bekende Entra-kennis, geen doc-gap.) | (1) permissie-lijst → uit troubleshooting halen; (2) dashboard-landingspagina heeft geen doc; (3) Matrix-scopen kan alleen via de ongedocumenteerde Filter-Wizard | BL-1..BL-7 |
+| **J1 (pilot, 2026-07-15)** | Analyst/Operator | **NO** (doc-only) | Entra setup: `entra-id.md` mentions "fill in Tenant/Client ID + Secret" but not **which Graph permissions** are needed; that list lives in `reference/troubleshooting.md` (wrong home) and `quickstart.md` doesn't link to `entra-id.md`. (Creating an App Registration = known Entra knowledge, not a doc gap.) | (1) permission list → move out of troubleshooting; (2) the dashboard landing page has no doc; (3) scoping the Matrix is only possible via the undocumented Filter Wizard | BL-1..BL-7 |
 
-| **J8 (2026-07-15)** | Analyst | **NEE** (doc-only) | Er is **geen** gebruikersgids voor het Contexts-scherm; `overview.md` noemt Contexts niet. De enige docs (`context-redesign.md` + `context-redesign-ui.md`) zijn architecture-specs met kop **"not yet implemented"** terwijl de feature live is → misleidend. | Direct — de analist heeft geen enkele stap-gids en moet volledig op de UI zelf terugvallen | BL-8, BL-9, BL-10 |
-| **J2 (2026-07-15)** | Analyst | ⚠️ PARTIAL | Stappen zijn gedocumenteerd, maar `risk-scoring/overview.md`+`design.md` geven **foute tier-grenzen** (Critical ≥80/High ≥60 i.p.v. code ≥90/≥70; Medium-boven ook fout). `ui/overview.md` is juist maar spreekt ze tegen → analist mist-classificeert elke badge. | Voor de *juiste* tier-betekenis moet men `tiers.js` lezen | BL-11, BL-12, BL-13 |
-| **J3 (2026-07-15)** | Analyst | ⚠️ PARTIAL | "Wie kan bij X" *direct* lukt; *effective/inherited access* bestaat alleen als design-spec, endpoints staan in geen API-ref, geen taakgids. `matrix.md` leert nog retired `O`-badge; `api/matrix.md`+`entities.md` noemen v4-relikwie `mat_UserPermissionAssignments`. | Om het badge-model + effective-access te resolven moest men migraties + `engine.js` lezen | BL-14, BL-15, BL-16 |
-| **J4 (2026-07-15)** | Analyst/Reviewer | **NEE** (doc-only) | Geen product-surface om een certificering *uit te voeren* (read-only mirror), en de docs zeggen dat niet. Bovendien gebruiken `governance-model.md`+`api/governance.md` het **retired `assignmentType='Governed'`** (sinds mig 047 een boolean-flag) en verkeerde tabelnamen (`GraphCategories`→`GovernanceCategories`). **Weerlegt audit** (die noemde governance "goed gedekt"). | Om "hoe leg ik een besluit vast" te vinden moest men `routes/` grep'en | BL-17, BL-18, BL-19 |
-| **J5 (2026-07-15)** | Operator | ⚠️ PARTIAL | Setup-flow (wizard) ís gedocumenteerd, maar bewuste **toggle-keuze** faalt: 6 verscheepte toggles ontbreken in de flags-tabel (BL-3), geen "welke toggle voor welk doel"-hulp, permissies elders (BL-1), diagram fout (BL-2). | Voor toggle-effecten + permissies moet men de docs verlaten | BL-1, BL-2, BL-3, BL-20 |
-| **J6 (2026-07-15)** | API-consument | ⚠️ PARTIAL | *Roteren* lukt; *eerste record pushen* faalt end-to-end: geen `docs/sync/custom-connector.md`, geen runnable `curl` onder `docs/api/` (enige zit in `app/api/CLAUDE.md`), en `ingest-api.md` is stale (response-shape + `assignmentType`-enum lijst retired waarden → 400). | Voor een key + echte payload/response moet men handler + `openapi.yaml` lezen | BL-21, BL-22, BL-23 |
-| **J7 (2026-07-15)** | Contributor | ✅ **PASS** | Geen — een contributor kan doc-only een crawler scaffolden vanuit `building-a-crawler.md` (+ architecture + CLAUDE.md). Alleen 2 kleine cross-doc-tegenstrijdigheden (stale `getConfigSecret`-signatuur; wizard-import-stijl). | Nergens (alleen cross-check bij 2 tegenstrijdigheden) | BL-24, BL-25, BL-26 |
-| **J9 (2026-07-15)** | Operator | **NEE** (doc-only) | Alleen Auth/Roles (stap b) lukt doc-only. `overview.md` noemt **3** admin-subtabs i.p.v. **10**; de **Data**-tab (export/retention/danger-zone) bestaat nergens in de docs, en `audit-history.md` verwijst naar een niet-bestaande "History Retention"-subtab. | Voor 6 van de 10 tabs + retentie + danger-zone moest men `adminTabs.js`/`maintenance.js`/`curatedData.js` lezen | BL-31, BL-32, BL-33, BL-34 |
-| **J10 (2026-07-15)** | Contributor | ⚠️ PARTIAL | Schema + geldige enums begrijpen lukt (`data-model.md` is juist — audit-verdenking onterecht). Maar *querien* faalt: `sql-views.md`-voorbeelden selecteren niet-bestaande kolommen, noemen matviews "planned" (zijn gematerialiseerd sinds mig 013), en `assignment-model-redesign.md` zegt nog "no code yet". | Voor de echte view-kolommen moest men de migraties lezen | BL-27, BL-28, BL-29, BL-30 |
+| **J8 (2026-07-15)** | Analyst | **NO** (doc-only) | There is **no** user guide for the Contexts screen; `overview.md` doesn't mention Contexts. The only docs (`context-redesign.md` + `context-redesign-ui.md`) are architecture specs headed **"not yet implemented"** while the feature is live → misleading. | Immediately — the analyst has no step guide at all and must fall back entirely on the UI itself | BL-8, BL-9, BL-10 |
+| **J2 (2026-07-15)** | Analyst | ⚠️ PARTIAL | The steps are documented, but `risk-scoring/overview.md`+`design.md` give **wrong tier bounds** (Critical ≥80/High ≥60 instead of code ≥90/≥70; Medium upper bound also wrong). `ui/overview.md` is correct but contradicts them → the analyst mis-classifies every badge. | For the *correct* tier meaning you have to read `tiers.js` | BL-11, BL-12, BL-13 |
+| **J3 (2026-07-15)** | Analyst | ⚠️ PARTIAL | "Who can access X" *direct* works; *effective/inherited access* exists only as a design spec, the endpoints are in no API reference, no task guide. `matrix.md` still teaches the retired `O` badge; `api/matrix.md`+`entities.md` mention the v4 relic `mat_UserPermissionAssignments`. | To resolve the badge model + effective-access you had to read migrations + `engine.js` | BL-14, BL-15, BL-16 |
+| **J4 (2026-07-15)** | Analyst/Reviewer | **NO** (doc-only) | No product surface to *execute* a certification (read-only mirror), and the docs don't say so. On top of that `governance-model.md`+`api/governance.md` use the **retired `assignmentType='Governed'`** (a boolean flag since migration 047) and wrong table names (`GraphCategories`→`GovernanceCategories`). **Refutes the audit** (which called governance "well covered"). | To find "how do I record a decision" you had to grep `routes/` | BL-17, BL-18, BL-19 |
+| **J5 (2026-07-15)** | Operator | ⚠️ PARTIAL | The setup flow (wizard) *is* documented, but a deliberate **toggle choice** fails: 6 shipped toggles are missing from the flags table (BL-3), no "which toggle for which purpose" help, permissions elsewhere (BL-1), diagram wrong (BL-2). | For toggle effects + permissions you have to leave the docs | BL-1, BL-2, BL-3, BL-20 |
+| **J6 (2026-07-15)** | API consumer | ⚠️ PARTIAL | *Rotating* works; *pushing the first record* fails end-to-end: no `docs/sync/custom-connector.md`, no runnable `curl` under `docs/api/` (the only one is in `app/api/CLAUDE.md`), and `ingest-api.md` is stale (response shape + the `assignmentType` enum list retired values → 400). | For a key + real payload/response you had to read the handler + `openapi.yaml` | BL-21, BL-22, BL-23 |
+| **J7 (2026-07-15)** | Contributor | ✅ **PASS** | None — a contributor can scaffold a crawler doc-only from `building-a-crawler.md` (+ architecture + CLAUDE.md). Only 2 small cross-doc contradictions (stale `getConfigSecret` signature; wizard import style). | Nowhere (only a cross-check on 2 contradictions) | BL-24, BL-25, BL-26 |
+| **J9 (2026-07-15)** | Operator | **NO** (doc-only) | Only Auth/Roles (step b) works doc-only. `overview.md` lists **3** admin sub-tabs instead of **10**; the **Data** tab (export/retention/danger-zone) exists nowhere in the docs, and `audit-history.md` refers to a non-existent "History Retention" sub-tab. | For 6 of the 10 tabs + retention + danger-zone you had to read `adminTabs.js`/`maintenance.js`/`curatedData.js` | BL-31, BL-32, BL-33, BL-34 |
+| **J10 (2026-07-15)** | Contributor | ⚠️ PARTIAL | Understanding the schema + valid enums works (`data-model.md` is correct — the audit suspicion was unfounded). But *querying* fails: `sql-views.md` examples select non-existent columns, call matviews "planned" (materialized since migration 013), and `assignment-model-redesign.md` still says "no code yet". | For the real view columns you had to read the migrations | BL-27, BL-28, BL-29, BL-30 |
 
-**J8-verdict:** direct FAIL. Een primair, altijd-zichtbaar tabblad (Contexts) heeft nul gebruikersdocumentatie, en de enige bestaande docs claimen dat de feature niet bestaat. Dit is de scherpste bevestiging van audit-bevinding A2 + B1, nu via de journey-lens: het grid alleen zou dit als "🟡 spec bestaat" kunnen lezen; de journey laat zien dat de spec de gebruiker actief misleidt.
+**J8 verdict:** straight FAIL. A primary, always-visible tab (Contexts) has zero user documentation, and the only existing docs claim the feature doesn't exist. This is the sharpest confirmation of audit finding A2 + B1, now through the journey lens: the grid alone might read this as "🟡 spec exists"; the journey shows the spec actively misleads the user.
 
-**J1-verdict:** demo-pad (Load Demo Data) werkt en is goed gedocumenteerd. Maar het *echte* first-insight-pad faalt doc-only op drie punten: (a) eigen Entra-tenant koppelen vergt de docs verlaten voor de permissielijst; (b) de Dashboard-landingspagina waar je op uitkomt heeft geen gebruikersdoc; (c) de Matrix scopen om een *finding* te bereiken kan alleen via de Filter-Wizard, die niet is gedocumenteerd (overview.md beschrijft nog de verwijderde "User Limit Slider"). Extra bevinding: `index.md` en `quickstart.md` spreken elkaar tegen over of `.env` nodig is.
+**J1 verdict:** the demo path (Load Demo Data) works and is well documented. But the *real* first-insight path fails doc-only on three points: (a) connecting your own Entra tenant requires leaving the docs for the permission list; (b) the Dashboard landing page you land on has no user doc; (c) scoping the Matrix to reach a *finding* is only possible via the Filter Wizard, which isn't documented (overview.md still describes the removed "User Limit Slider"). Extra finding: `index.md` and `quickstart.md` contradict each other about whether `.env` is needed.
 
 ---
 
-## Prioritering & volgorde (na review)
+## Prioritization & order (after review)
 
-1. **P0 eerst** — misleidende/security-gevoelige docs (Tier A + `risky-consent`-egress). Fout > ontbrekend.
-2. **Dan de first-run journey (J1)** — elke gebruiker raakt dit op dag 1; een gestrande dag-1-gebruiker bereikt Contexts nooit.
-3. **Daarna herordenen op journey-impact** = taakfrequentie × schade-bij-fout × centraliteit — **niet** op gap-grootte.
+1. **P0 first** — misleading/security-sensitive docs (Tier A + `risky-consent` egress). Wrong > missing.
+2. **Then the first-run journey (J1)** — every user hits this on day 1; a stranded day-1 user never reaches Contexts.
+3. **Then reorder by journey impact** = task frequency × harm-on-error × centrality — **not** by gap size.
 
-Prio-rubriek per backlog-rij: `doelgroep (P1>P2) × foutheid (❌/P0 > ⭕ > 🟡) × gebruiksfrequentie`.
+Priority rubric per backlog row: `audience (P1>P2) × wrongness (❌/P0 > ⭕ > 🟡) × usage frequency`.
 
-## Backlog-format (na review)
+## Backlog format (after review)
 
-Per gap een rij met **uitvoerbare** velden:
+One row per gap with **actionable** fields:
 
-`feature-ID | doc-type | actie | prio | owner | schatting | doeldoc | definition-of-done | status`
+`feature-ID | doc-type | action | prio | owner | estimate | target-doc | definition-of-done | status`
 
-- **Acties:** `schrijf` · `werk-bij` · `fix` · **`reduce/hide/deprecate`** (product zó maken dat de doc niet nodig is) · `accepteer`.
-- **`accepteer` vereist:** reden + geraakte persona's/taken + akkoordgever + restrisico + herzien-op-datum. Geen stille drop.
-- **Definition-of-done** is gekoppeld aan een taak: *"journey Jx slaagt doc-only"*, niet *"pagina bestaat"*.
+- **Actions:** `write` · `update` · `fix` · **`reduce/hide/deprecate`** (change the product so the doc isn't needed) · `accept`.
+- **`accept` requires:** reason + affected personas/tasks + approver + residual risk + review-by date. No silent drop.
+- **Definition-of-done** is tied to a task: *"journey Jx passes doc-only"*, not *"page exists"*.
 
-## Recurrence / freshness (na review)
+## Recurrence / freshness (after review)
 
-- Elke cel stempelen met de **baseline-commit**; staleness wordt zo zichtbaar (edge staat al op v5.443 t.o.v. baseline v5.441).
-- **Re-audit-trigger:** een PR die een gelist codepad raakt moet dat clustergrid bijwerken; overweeg de bestaande `openapi.drift.test` uit te breiden naar de read-API en een "docs-touched?"-item in het PR/release-sjabloon. Anders re-rot het grid net als de docs nu (jouw eigen A2).
+- Stamp every cell with the **baseline commit**; staleness becomes visible (edge is already on v5.443 vs baseline v5.441).
+- **Re-audit trigger:** a PR that touches a listed code path must update that cluster grid; consider extending the existing `openapi.drift.test` to the read API and a "docs-touched?" item in the PR/release template. Otherwise the grid re-rots just like the docs now (your own A2).
 
-## Overall exit-criterium
+## Overall exit criterion
 
-Het geheel is klaar wanneer:
-1. **Alle P0/❌** fout-docs zijn gefixt.
-2. **Elke persona-journey (J1–J10) slaagt** in een doc-only walkthrough.
-3. Geen **⭕ op P1-cellen** (Analyst/Gebruiker + API-consument voor push/ingest).
+The whole thing is done when:
+1. **All P0/❌** wrong docs are fixed.
+2. **Every persona journey (J1–J10) passes** a doc-only walkthrough.
+3. No **⭕ on P1 cells** (Analyst/User + API consumer for push/ingest).
 
-## Werkwijze per cluster
+## Working method per cluster
 
-1. Kies/pin de journey(s) die dit cluster raken.
-2. **Verifieer** de grid-cellen die je gaat behandelen (verificatie-gate).
-3. Vul de backlog met uitvoerbare rijen (owner + DoD).
-4. Voer de walkthrough uit; log blockers.
-5. Markeer cluster afgerond zodra zijn journey doc-only slaagt en P1-cellen geen ⭕ meer hebben.
+1. Choose/pin the journey(s) that touch this cluster.
+2. **Verify** the grid cells you're going to handle (verification gate).
+3. Fill the backlog with actionable rows (owner + DoD).
+4. Run the walkthrough; log blockers.
+5. Mark the cluster done once its journey passes doc-only and P1 cells no longer have any ⭕.
 
-## Voortgang
+## Progress
 
-| # | Cluster / spoor | Status |
+| # | Cluster / track | Status |
 |---|-----------------|--------|
-| 0 | Niet-feature-docs (getting-started, troubleshooting/errors, concepten "waarom", limitations) | 🔄 deels via J1 (cellen ✔) |
-| 1 | Aan de slag & Dashboard | ✅ fixes toegepast — via J1 (BL-4,5,7) |
-| 2 | Matrix | ✅ fixes toegepast — via J1+J3 (BL-6,14,15,16) |
-| 3 | Contexts (scherm + plugins + API) | ✅ fixes toegepast — via J8 (BL-8,9,10) |
-| 4 | Entities & detailpagina's | ⬜ te doen (geraakt door J2/J3/J4; bevindingen in 2/5/6) |
-| 5 | Risk scoring & AI/LLM | ✅ fixes toegepast — via J2 (BL-11,12,13) |
-| 6 | Governance / business roles | ✅ fixes toegepast — via J4 — **weerlegt audit** (BL-17,18,19) |
-| 7 | Sync-bronnen / crawlers | ✅ fixes toegepast — via J1+J5+J7 (BL-1,2,3,20,24,25,26) |
-| 8 | Admin & instellingen (incl. Admin nav-shell / 10 sub-tabs) | ✅ fixes toegepast — via J9 (BL-31,32,33,34) |
-| 9 | Integratie & ingest-API (**owner van Custom Connector**) | ✅ fixes toegepast — via J6 (BL-21,22,23) |
-| 10 | Platform & datamodel (owner van context-**schema**) | ✅ fixes toegepast — via J10 (BL-27,28,29,30) |
-| J | Journeys J1–J10 (primair instrument) | ✅ **alle 10 uitgevoerd** — J7 PASS · J2/J3/J5/J6/J10 PARTIAL · J1/J4/J8/J9 FAIL (doc-only) |
+| 0 | Non-feature docs (getting-started, troubleshooting/errors, "why" concepts, limitations) | 🔄 partly via J1 (cells ✔) |
+| 1 | Getting started & Dashboard | ✅ fixes applied — via J1 (BL-4,5,7) |
+| 2 | Matrix | ✅ fixes applied — via J1+J3 (BL-6,14,15,16) |
+| 3 | Contexts (screen + plugins + API) | ✅ fixes applied — via J8 (BL-8,9,10) |
+| 4 | Entities & detail pages | ⬜ to do (touched by J2/J3/J4; findings in 2/5/6) |
+| 5 | Risk scoring & AI/LLM | ✅ fixes applied — via J2 (BL-11,12,13) |
+| 6 | Governance / business roles | ✅ fixes applied — via J4 — **refutes the audit** (BL-17,18,19) |
+| 7 | Sync sources / crawlers | ✅ fixes applied — via J1+J5+J7 (BL-1,2,3,20,24,25,26) |
+| 8 | Admin & settings (incl. Admin nav shell / 10 sub-tabs) | ✅ fixes applied — via J9 (BL-31,32,33,34) |
+| 9 | Integration & ingest API (**owner of Custom Connector**) | ✅ fixes applied — via J6 (BL-21,22,23) |
+| 10 | Platform & data model (owner of context **schema**) | ✅ fixes applied — via J10 (BL-27,28,29,30) |
+| J | Journeys J1–J10 (primary instrument) | ✅ **all 10 executed** — J7 PASS · J2/J3/J5/J6/J10 PARTIAL · J1/J4/J8/J9 FAIL (doc-only) |
 
-> **MECE-fixes toegepast:** Custom Connector wordt geownd door **Cluster 9** (stub-referentie in 7). De v6 context-**scherm/API** hoort in Cluster 3, het **schema/tabellen** in Cluster 10. "Alle 10 Admin sub-tabs" krijgt één canonieke rij in Cluster 8. De valse "DevOps"-marketingclaim wordt vastgelegd in Cluster 0 (niet stil gedropt ondanks marketing-out-of-scope).
+> **MECE fixes applied:** Custom Connector is owned by **Cluster 9** (stub reference in 7). The v6 context **screen/API** belongs in Cluster 3, the **schema/tables** in Cluster 10. "All 10 Admin sub-tabs" gets one canonical row in Cluster 8. The false "DevOps" marketing claim is captured in Cluster 0 (not silently dropped despite marketing being out of scope).
 
 ---
 
-## Cluster 0 — Niet-feature-docs (nieuw, na review)
+## Cluster 0 — Non-feature docs (new, after review)
 
-Code-as-ground-truth mist wat geen feature is maar wél het meest bevraagd wordt.
+Code-as-ground-truth misses what isn't a feature but is asked about most.
 
-> **✔ = geverifieerd tegen code/docs op 2026-07-15 (baseline `d4afdb9f`).** Ongemarkeerde cellen zijn nog geërfd uit de audit.
+> **✔ = verified against code/docs on 2026-07-15 (baseline `d4afdb9f`).** Unmarked cells are still inherited from the audit.
 
-| Categorie | Analyst/Gebruiker | Operator | Contributor | API-consument |
+| Category | Analyst/User | Operator | Contributor | API consumer |
 |-----------|:-----------------:|:--------:|:-----------:|:-------------:|
-| Getting-started / onboarding (J1) | 🟡 ✔ (demo ok; eigen-tenant faalt) | 🟡 ✔ | — | — |
-| Troubleshooting / foutmeldingen ("het synct niet — waarom") | 🟡 ✔ (bestaat, dun/verkeerd thuis) | 🟡 ✔ | 🟡 ✔ | ⭕ ✔ |
-| Concepten / "waarom" (mentale modellen) | 🟡 | — | 🟡 | — |
-| Limitations / known-issues (incl. valse "DevOps"-bron-claim) | ⭕ | ⭕ | ⭕ | ⭕ |
+| Getting-started / onboarding (J1) | 🟡 ✔ (demo ok; own-tenant fails) | 🟡 ✔ | — | — |
+| Troubleshooting / error messages ("it isn't syncing — why") | 🟡 ✔ (exists, thin/wrong home) | 🟡 ✔ | 🟡 ✔ | ⭕ ✔ |
+| Concepts / "why" (mental models) | 🟡 | — | 🟡 | — |
+| Limitations / known-issues (incl. false "DevOps" source claim) | ⭕ | ⭕ | ⭕ | ⭕ |
 
-**Backlog:** _(in te vullen tijdens review)_
+**Backlog:** _(to be filled during review)_
 
 ---
 
-## Cluster 1 — Aan de slag & Dashboard
+## Cluster 1 — Getting started & Dashboard
 
-| Feature | Analyst/Gebruiker | Operator | Contributor | API-consument |
+| Feature | Analyst/User | Operator | Contributor | API consumer |
 |---------|:-----------------:|:--------:|:-----------:|:-------------:|
-| Quickstart / eerste crawler | 🟡 | 🟡 | — | — |
-| Dashboard-landingspagina | ⭕ | — | 🟡 | — |
-| Trends-tab | ⭕ | — | ✅ | — |
+| Quickstart / first crawler | 🟡 | 🟡 | — | — |
+| Dashboard landing page | ⭕ | — | 🟡 | — |
+| Trends tab | ⭕ | — | ✅ | — |
 
 **Backlog:**
 
-| ID | Actie | Prio | Owner | Doeldoc | Definition-of-done |
+| ID | Action | Prio | Owner | Target doc | Definition-of-done |
 |----|-------|------|-------|---------|--------------------|
-| BL-4 | werk-bij: link `entra-id.md` (+ demo vs eigen-tenant keuze) vanuit "What's Next" | P1 | _tbd_ | `docs/quickstart.md` | J1 stap 2: nieuwe user vindt de Entra-setup zonder gokken |
-| BL-5 | schrijf: gebruikersdoc Dashboard-landingspagina (cards, counts, "is mijn data binnen?") | P1 | _tbd_ | `docs/ui/` (nieuw) | J1 stap 3: user begrijpt wat hij ziet doc-only |
-| BL-7 | fix: `.env`-tegenspraak tussen `index.md` (download `.env.example`) en `quickstart.md` ("just Docker") | P2 | _tbd_ | `docs/index.md` + `docs/quickstart.md` | Eén consistent install-verhaal |
+| BL-4 | update: link `entra-id.md` (+ demo vs own-tenant choice) from "What's Next" | P1 | _tbd_ | `docs/quickstart.md` | J1 step 2: new user finds the Entra setup without guessing |
+| BL-5 | write: user doc for the Dashboard landing page (cards, counts, "is my data in yet?") | P1 | _tbd_ | `docs/ui/` (new) | J1 step 3: user understands what they see doc-only |
+| BL-7 | fix: `.env` contradiction between `index.md` (download `.env.example`) and `quickstart.md` ("just Docker") | P2 | _tbd_ | `docs/index.md` + `docs/quickstart.md` | One consistent install story |
 
 ---
 
 ## Cluster 2 — Matrix
 
-| Feature | Analyst/Gebruiker | Operator | Contributor | API-consument |
+| Feature | Analyst/User | Operator | Contributor | API consumer |
 |---------|:-----------------:|:--------:|:-----------:|:-------------:|
-| Basis-view (badges, staircase, DnD, IST-SOLL, export) | 🟡 | — | ❌ ✔ (`matrix.md` leert retired `O`-badge; `api/*` noemt v4-relikwie `mat_UserPermissionAssignments`) | — |
-| Filter-Wizard (3-staps + opgeslagen matrices) | ⭕ | — | ⭕ | ⭕ |
+| Base view (badges, staircase, DnD, IST-SOLL, export) | 🟡 | — | ❌ ✔ (`matrix.md` teaches the retired `O` badge; `api/*` mentions the v4 relic `mat_UserPermissionAssignments`) | — |
+| Filter Wizard (3-step + saved matrices) | ⭕ | — | ⭕ | ⭕ |
 | Roll-up-by-attribute | ⭕ | — | ⭕ | — |
-| Oriëntatie / geroteerde view | ⭕ | — | ⭕ | — |
-| Scope-statistieken | 🟡 | — | ✅ | — |
-| Matrix-interactie-endpoints (preview, hierarchy-paths, saved-filters) | — | — | — | ⭕ |
+| Orientation / rotated view | ⭕ | — | ⭕ | — |
+| Scope statistics | 🟡 | — | ✅ | — |
+| Matrix interaction endpoints (preview, hierarchy-paths, saved-filters) | — | — | — | ⭕ |
 
 **Backlog:**
 
-| ID | Actie | Prio | Owner | Doeldoc | Definition-of-done |
+| ID | Action | Prio | Owner | Target doc | Definition-of-done |
 |----|-------|------|-------|---------|--------------------|
-| BL-6 | schrijf Filter-Wizard/saved-matrices/roll-up + fix: verwijder verouderde "User Limit Slider" uit overview.md | P1 | _tbd_ | `docs/ui/overview.md` (+ matrix) | J1 stap 4: analist kan de matrix scopen en een *finding* bereiken doc-only |
-| BL-14 | schrijf taakgids "Wie kan bij resource X, en waarom" (direct + inherited holders + access-path) | P1 | _tbd_ | `docs/guides/effective-access-howto.md` (nieuw) | J3: analist beantwoordt "wie + waarom" doc-only |
-| BL-15 | werk-bij: documenteer effective-access-endpoints (`GET /resource/:id/effective-access`, `/principal/:id/…`, `POST /effective-access/resolve`) | P1 | _tbd_ | `docs/api/matrix.md` | Endpoints vindbaar buiten de design-spec |
-| BL-16 | fix stale badge-tabel (drop `O`/`Governed`, voeg DirectoryRole(Eligible) toe) + vervang `mat_UserPermissionAssignments` door `vw_ResourceUserPermissionAssignments` | P2 | _tbd_ | `docs/architecture/matrix.md` + `docs/api/matrix.md` + `docs/api/entities.md` | Geen doc spreekt het 3-badge-model tegen; geen v4-relikwie |
+| BL-6 | write Filter Wizard/saved-matrices/roll-up + fix: remove the outdated "User Limit Slider" from overview.md | P1 | _tbd_ | `docs/ui/overview.md` (+ matrix) | J1 step 4: analyst can scope the matrix and reach a *finding* doc-only |
+| BL-14 | write task guide "Who can access resource X, and why" (direct + inherited holders + access path) | P1 | _tbd_ | `docs/guides/effective-access-howto.md` (new) | J3: analyst answers "who + why" doc-only |
+| BL-15 | update: document effective-access endpoints (`GET /resource/:id/effective-access`, `/principal/:id/…`, `POST /effective-access/resolve`) | P1 | _tbd_ | `docs/api/matrix.md` | Endpoints findable outside the design spec |
+| BL-16 | fix the stale badge table (drop `O`/`Governed`, add DirectoryRole(Eligible)) + replace `mat_UserPermissionAssignments` with `vw_ResourceUserPermissionAssignments` | P2 | _tbd_ | `docs/architecture/matrix.md` + `docs/api/matrix.md` + `docs/api/entities.md` | No doc contradicts the 3-badge model; no v4 relic |
 
 ---
 
-## Cluster 3 — Contexts (scherm + plugins + API)
+## Cluster 3 — Contexts (screen + plugins + API)
 
-| Feature | Analyst/Gebruiker | Operator | Contributor | API-consument |
+| Feature | Analyst/User | Operator | Contributor | API consumer |
 |---------|:-----------------:|:--------:|:-----------:|:-------------:|
-| Context-model (synced/generated/manual × 4 targets) — *scherm/gedrag; schema→C10* | ⭕ ✔ | — | ❌ ✔ (spec zegt "not yet implemented" — misleidend) | — |
-| Contexts-scherm (tree, drag-reparent, wizard, Filter-matrix) | ⭕ ✔ | — | ❌ ✔ (spec zegt "not yet implemented") | — |
-| Plugin-catalogus (10; 5 ongedocumenteerd/mis-benoemd) | ⭕ | ⭕ | 🟡 | — |
-| `risky-consent` externe threat-feed-egress | — | **P0** | ❌ | — |
-| Tags als context (`contextType='Tag'`) | 🟡 (stale GraphTags-ref) | — | 🟡 | — |
-| Admin → Plugins-subtab | ⭕ | ⭕ | 🟡 | — |
-| Context write- + plugin-API (`/contexts` writes, `/context-plugins/*`) | — | — | — | ⭕ |
+| Context model (synced/generated/manual × 4 targets) — *screen/behavior; schema→C10* | ⭕ ✔ | — | ❌ ✔ (spec says "not yet implemented" — misleading) | — |
+| Contexts screen (tree, drag-reparent, wizard, Filter-matrix) | ⭕ ✔ | — | ❌ ✔ (spec says "not yet implemented") | — |
+| Plugin catalogue (10; 5 undocumented/mis-named) | ⭕ | ⭕ | 🟡 | — |
+| `risky-consent` external threat-feed egress | — | **P0** | ❌ | — |
+| Tags as context (`contextType='Tag'`) | 🟡 (stale GraphTags ref) | — | 🟡 | — |
+| Admin → Plugins sub-tab | ⭕ | ⭕ | 🟡 | — |
+| Context write + plugin API (`/contexts` writes, `/context-plugins/*`) | — | — | — | ⭕ |
 
 **Backlog:**
 
-| ID | Actie | Prio | Owner | Doeldoc | Definition-of-done |
+| ID | Action | Prio | Owner | Target doc | Definition-of-done |
 |----|-------|------|-------|---------|--------------------|
-| BL-8 | **fix (❌):** verwijder "not yet implemented"-status uit beide context-specs; markeer als geïmplementeerd (A2) | P1 | _tbd_ | `docs/architecture/context-redesign.md` + `context-redesign-ui.md` | Status matcht de verscheepte code |
-| BL-9 | schrijf: Analyst-gebruikersgids Contexts-scherm (tree, synced/generated/manual, New-Context-wizard, Run now, "Filter matrix") | P1 | _tbd_ | `docs/ui/` (nieuw) | J8 slaagt doc-only |
-| BL-10 | werk-bij: `overview.md` nav-lijst — voeg Contexts toe, verwijder verwijderde "Org Chart" (findability) | P1 | _tbd_ | `docs/ui/overview.md` | Nieuwe user vindt het Contexts-tabblad via de docs |
+| BL-8 | **fix (❌):** remove the "not yet implemented" status from both context specs; mark as implemented (A2) | P1 | _tbd_ | `docs/architecture/context-redesign.md` + `context-redesign-ui.md` | Status matches the shipped code |
+| BL-9 | write: Analyst user guide for the Contexts screen (tree, synced/generated/manual, New-Context wizard, Run now, "Filter matrix") | P1 | _tbd_ | `docs/ui/` (new) | J8 passes doc-only |
+| BL-10 | update: `overview.md` nav list — add Contexts, remove the removed "Org Chart" (findability) | P1 | _tbd_ | `docs/ui/overview.md` | New user finds the Contexts tab via the docs |
 
 ---
 
-## Cluster 4 — Entities & detailpagina's
+## Cluster 4 — Entities & detail pages
 
-| Feature | Analyst/Gebruiker | Operator | Contributor | API-consument |
+| Feature | Analyst/User | Operator | Contributor | API consumer |
 |---------|:-----------------:|:--------:|:-----------:|:-------------:|
-| Lijst+detail: Principals / Identities / Resources / Systems | 🟡 (stale namen/OrgUnits) | — | ✅ | ✅ |
-| Entity-detail-tabs (attrs / graph / timeline / risk) | 🟡 (arch-only) | — | ✅ | — |
+| List+detail: Principals / Identities / Resources / Systems | 🟡 (stale names/OrgUnits) | — | ✅ | ✅ |
+| Entity detail tabs (attrs / graph / timeline / risk) | 🟡 (arch-only) | — | ✅ | — |
 | Account-linking | ✅ | — | ✅ | — |
-| Secundaire detail-endpoints (contexts/assignments/business-roles/oauth2-grants) | — | — | — | ⭕ |
+| Secondary detail endpoints (contexts/assignments/business-roles/oauth2-grants) | — | — | — | ⭕ |
 
-**Backlog:** _(in te vullen tijdens review)_
+**Backlog:** _(to be filled during review)_
 
 ---
 
 ## Cluster 5 — Risk scoring & AI/LLM
 
-| Feature | Analyst/Gebruiker | Operator | Contributor | API-consument |
+| Feature | Analyst/User | Operator | Contributor | API consumer |
 |---------|:-----------------:|:--------:|:-----------:|:-------------:|
-| 4-laags engine + risk-tiers | **P0** (cutoffs FOUT) | — | ❌ (cutoffs FOUT) | — |
-| Classifiers (generatie-flow) | 🟡 | — | 🟡 (gestubd PS-pad) | — |
-| Analyst-overrides | ✅ | — | ✅ | — |
-| AI-agent-scoring | 🟡 | — | 🟡 (stale refs) | — |
-| LLM-classifier-generatie (Node vs. PS-stub) | — | 🟡 | 🟡 | — |
-| Risk-profile/classifier-API (~20 endpoints) | — | — | 🟡 | ⭕ |
-| Admin → Risk-Scoring-wizard & LLM-settings | ⭕ | 🟡 | 🟡 | — |
+| 4-layer engine + risk tiers | **P0** (cutoffs WRONG) | — | ❌ (cutoffs WRONG) | — |
+| Classifiers (generation flow) | 🟡 | — | 🟡 (stubbed PS path) | — |
+| Analyst overrides | ✅ | — | ✅ | — |
+| AI-agent scoring | 🟡 | — | 🟡 (stale refs) | — |
+| LLM classifier generation (Node vs. PS stub) | — | 🟡 | 🟡 | — |
+| Risk-profile/classifier API (~20 endpoints) | — | — | 🟡 | ⭕ |
+| Admin → Risk-Scoring wizard & LLM settings | ⭕ | 🟡 | 🟡 | — |
 
 **Backlog (via J2):**
 
-| ID | Actie | Prio | Owner | Doeldoc | Definition-of-done |
+| ID | Action | Prio | Owner | Target doc | Definition-of-done |
 |----|-------|------|-------|---------|--------------------|
-| BL-11 | **fix (P0):** tier-grenzen → Critical 90–100, High 70–89, Medium 40–69 (matcht `tiers.js`) | P0 | _tbd_ | `docs/risk-scoring/overview.md` | Analist leidt uit overview.md dezelfde tier af als de badge toont |
-| BL-12 | **fix (P0):** zelfde tier-correctie | P0 | _tbd_ | `docs/risk-scoring/design.md` | Geen doc noemt een cutoff die `tiers.js` tegenspreekt |
-| BL-13 | werk-bij: override = geheel getal −50..+50, reden 3–500 tekens | P2 | _tbd_ | `docs/risk-scoring/overview.md` | Analist krijgt geen onverklaarbare 400 |
+| BL-11 | **fix (P0):** tier bounds → Critical 90–100, High 70–89, Medium 40–69 (matches `tiers.js`) | P0 | _tbd_ | `docs/risk-scoring/overview.md` | Analyst derives the same tier from overview.md as the badge shows |
+| BL-12 | **fix (P0):** same tier correction | P0 | _tbd_ | `docs/risk-scoring/design.md` | No doc names a cutoff that contradicts `tiers.js` |
+| BL-13 | update: override = integer −50..+50, reason 3–500 chars | P2 | _tbd_ | `docs/risk-scoring/overview.md` | Analyst gets no unexplained 400 |
 
 ---
 
 ## Cluster 6 — Governance / business roles
 
-| Feature | Analyst/Gebruiker | Operator | Contributor | API-consument |
+| Feature | Analyst/User | Operator | Contributor | API consumer |
 |---------|:-----------------:|:--------:|:-----------:|:-------------:|
-| Business roles / governed assignments / resource grants | 🟡 ✔ | — | ❌ ✔ (docs gebruiken retired `assignmentType='Governed'`; sinds mig 047 een boolean-flag) | — |
-| Certificeringen (uitvoeren) | ❌ ✔ (docs impliceren een flow; product is read-only mirror) | — | 🟡 ✔ | — |
-| Assignment-policies / -requests | — | — | ✅ | — |
-| IGA-platform-mapping (Entra/Omada/SailPoint) | — | — | ✅ | — |
-| Governance-summary / review-compliance-API | — | 🟡 ✔ | 🟡 ✔ (tabelnamen `GraphCategories`→`GovernanceCategories` fout; endpoints niet in api/governance.md) | ⭕ ✔ |
+| Business roles / governed assignments / resource grants | 🟡 ✔ | — | ❌ ✔ (docs use the retired `assignmentType='Governed'`; a boolean flag since migration 047) | — |
+| Certifications (executing) | ❌ ✔ (docs imply a flow; the product is a read-only mirror) | — | 🟡 ✔ | — |
+| Assignment policies / requests | — | — | ✅ | — |
+| IGA platform mapping (Entra/Omada/SailPoint) | — | — | ✅ | — |
+| Governance-summary / review-compliance API | — | 🟡 ✔ | 🟡 ✔ (table names `GraphCategories`→`GovernanceCategories` wrong; endpoints not in api/governance.md) | ⭕ ✔ |
 
-**Backlog (via J4 — weerlegt audit "governance goed gedekt"):**
+**Backlog (via J4 — refutes the audit's "governance well covered"):**
 
-| ID | Actie | Prio | Owner | Doeldoc | Definition-of-done |
+| ID | Action | Prio | Owner | Target doc | Definition-of-done |
 |----|-------|------|-------|---------|--------------------|
-| BL-17 | schrijf: "Identity Atlas **rapporteert over** maar **voert geen** certificeringen uit — besluiten vallen in de bron-IGA (Entra Access Reviews) en worden read-only gespiegeld"; + waar de reviewer wél kijkt | P0 | _tbd_ | `docs/concepts/governance-model.md` + `docs/ui/overview.md` | J4: reviewer weet doc-only waar besluiten vallen; geen dead-end |
-| BL-18 | **fix (P0):** verwijder retired `assignmentType='Governed'` overal; vervang door `governed=true`-flag | P0 | _tbd_ | `docs/api/governance.md` + `docs/concepts/governance-model.md` | Grep op `'Governed'` als type = 0; matcht mig 047 + ingest-guard |
-| BL-19 | fix tabelnamen (`GovernanceCategories`) + documenteer `GET /governance/summary` & `/review-compliance` | P1 | _tbd_ | `docs/api/governance.md` | Namen + endpoints matchen code |
+| BL-17 | write: "Identity Atlas **reports on** but does **not execute** certifications — decisions are made in the source IGA (Entra Access Reviews) and mirrored read-only"; + where the reviewer actually looks | P0 | _tbd_ | `docs/concepts/governance-model.md` + `docs/ui/overview.md` | J4: reviewer knows doc-only where decisions are made; no dead-end |
+| BL-18 | **fix (P0):** remove the retired `assignmentType='Governed'` everywhere; replace with the `governed=true` flag | P0 | _tbd_ | `docs/api/governance.md` + `docs/concepts/governance-model.md` | Grep for `'Governed'` as a type = 0; matches migration 047 + ingest guard |
+| BL-19 | fix table names (`GovernanceCategories`) + document `GET /governance/summary` & `/review-compliance` | P1 | _tbd_ | `docs/api/governance.md` | Names + endpoints match the code |
 
 ---
 
-## Cluster 7 — Sync-bronnen / crawlers
+## Cluster 7 — Sync sources / crawlers
 
-| Feature | Analyst/Gebruiker | Operator | Contributor | API-consument |
+| Feature | Analyst/User | Operator | Contributor | API consumer |
 |---------|:-----------------:|:--------:|:-----------:|:-------------:|
-| Entra ID (6 phase-toggles + AI-agent-classificatie) | 🟡 ✔ | 🟡 ✔ (permissies staan in troubleshooting, niet in setup) | ❌ ✔ (diagram toont retired `Owner`-type; 6 toggles ontbreken in flags-tabel) | — |
+| Entra ID (6 phase toggles + AI-agent classification) | 🟡 ✔ | 🟡 ✔ (permissions are in troubleshooting, not setup) | ❌ ✔ (diagram shows the retired `Owner` type; 6 toggles missing from the flags table) | — |
 | Azure RM (`onlyEntraPrincipals`) | 🟡 | 🟡 | ✅ | — |
 | midPoint | ✅ | ✅ | 🟡 (streaming/dept dev-only) | — |
 | Omada | ✅ | ✅ | ✅ | — |
-| CSV-import (nieuwe templates) | 🟡 | 🟡 | 🟡 | — |
+| CSV import (new templates) | 🟡 | 🟡 | 🟡 | — |
 | Custom Connector (push-mode) → *owner: Cluster 9* | ↪ C9 | ↪ C9 | ↪ C9 | ↪ C9 |
-| Wizard/plugin-architectuur + live discovery | — | — | ✅ | — |
+| Wizard/plugin architecture + live discovery | — | — | ✅ | — |
 
 **Backlog:**
 
-| ID | Actie | Prio | Owner | Doeldoc | Definition-of-done |
+| ID | Action | Prio | Owner | Target doc | Definition-of-done |
 |----|-------|------|-------|---------|--------------------|
-| BL-1 | werk-bij: benoem de **vereiste Graph-permissies** in de setup-sectie (nu alleen in `troubleshooting.md`). App-Registration aanmaken wordt bekend verondersteld → niet documenteren. | P1 | _tbd_ | `docs/sync/entra-id.md` | J5 slaagt doc-only; J1 stap 2 verlaat de docs niet meer voor de permissielijst |
-| BL-2 | **fix (❌):** "What Gets Synced"-diagram — verwijder retired `Owner`-assignmenttype; toon ownership als `Direct` op `GroupOwnership` | P1 | _tbd_ | `docs/sync/entra-id.md` | Diagram matcht `assignmentTypes.guard` (Direct/Indirect/Eligible) |
-| BL-3 | werk-bij: 6 verscheepte toggles in de flags-tabel (`SyncOAuth2Grants/AppRoles/AppPermissions/AppOwners/PrincipalRelationships/DirectoryRoles`) + AI-agent-classificatie | P2 | _tbd_ | `docs/sync/entra-id.md` | Flags-tabel = crawler-param-block |
-| BL-20 (J5) | schrijf: "welke toggle voor welk doel"-keuzehulp (wanneer SP's/PIM/app-roles/owners aanzetten + kosten) | P2 | _tbd_ | `docs/sync/entra-id.md` | Operator kiest bewust de juiste toggles doc-only |
-| BL-24 (J7) | **fix:** stale `getConfigSecret`-signatuur `(crawlerId, key)` → `(configId)` (matcht `crawlerSecrets.js`) | P2 | _tbd_ | `tools/crawlers/CLAUDE.md` (~r178) | Contributor roept `getConfigSecret` correct aan |
-| BL-25 (J7) | fix: wizard-import-stijl → `@ui/`-alias i.p.v. `../../../app/ui/src/…`-traversal (twee docs spreken elkaar tegen) | P2 | _tbd_ | `docs/sync/building-a-crawler.md` | Beide crawler-docs leren dezelfde import-conventie |
-| BL-26 (J7) | werk-bij: minimal-voorbeeld dot-source `shared/Invoke-CrawlerIngest.ps1` (`Update-CrawlerProgress`) i.p.v. hand-rolled | P3 | _tbd_ | `docs/sync/building-a-crawler.md` | Voorbeeld matcht de "dot-source shared helpers"-regel |
+| BL-1 | update: name the **required Graph permissions** in the setup section (currently only in `troubleshooting.md`). Creating an App Registration is assumed known → not documented. | P1 | _tbd_ | `docs/sync/entra-id.md` | J5 passes doc-only; J1 step 2 no longer leaves the docs for the permission list |
+| BL-2 | **fix (❌):** "What Gets Synced" diagram — remove the retired `Owner` assignment type; show ownership as `Direct` on `GroupOwnership` | P1 | _tbd_ | `docs/sync/entra-id.md` | Diagram matches `assignmentTypes.guard` (Direct/Indirect/Eligible) |
+| BL-3 | update: 6 shipped toggles in the flags table (`SyncOAuth2Grants/AppRoles/AppPermissions/AppOwners/PrincipalRelationships/DirectoryRoles`) + AI-agent classification | P2 | _tbd_ | `docs/sync/entra-id.md` | Flags table = crawler param block |
+| BL-20 (J5) | write: "which toggle for which purpose" decision aid (when to enable SPs/PIM/app-roles/owners + costs) | P2 | _tbd_ | `docs/sync/entra-id.md` | Operator deliberately chooses the right toggles doc-only |
+| BL-24 (J7) | **fix:** stale `getConfigSecret` signature `(crawlerId, key)` → `(configId)` (matches `crawlerSecrets.js`) | P2 | _tbd_ | `tools/crawlers/CLAUDE.md` (~line 178) | Contributor calls `getConfigSecret` correctly |
+| BL-25 (J7) | fix: wizard import style → `@ui/` alias instead of `../../../app/ui/src/…` traversal (two docs contradict each other) | P2 | _tbd_ | `docs/sync/building-a-crawler.md` | Both crawler docs teach the same import convention |
+| BL-26 (J7) | update: minimal example to dot-source `shared/Invoke-CrawlerIngest.ps1` (`Update-CrawlerProgress`) instead of hand-rolled | P3 | _tbd_ | `docs/sync/building-a-crawler.md` | Example matches the "dot-source shared helpers" rule |
 
 ---
 
-## Cluster 8 — Admin & instellingen
+## Cluster 8 — Admin & settings
 
-| Feature | Analyst/Gebruiker | Operator | Contributor | API-consument |
+| Feature | Analyst/User | Operator | Contributor | API consumer |
 |---------|:-----------------:|:--------:|:-----------:|:-------------:|
-| **Admin nav-shell / 10 sub-tabs (canonieke inventaris-rij)** | ❌ ✔ **P0** (overview noemt 3, echt 10; Data-tab ontbreekt) | ❌ ✔ | 🟡 | — |
-| Authentication / Roles & Permissions-editor | ⭕ (geen UI-walkthrough) | ✅ ✔ (`permissions.md` dekt rol→permissie + bootstrap/lockout) | 🟡 | — |
-| Updates (auto-update, kanaal, historie) | ✅ | ✅ | ✅ | — |
-| Data-tab (PowerQuery ✅; curated import/export ⭕, retention ⭕, danger zone ⭕) | 🟡 ✔ | ⭕ ✔ | 🟡 | — |
+| **Admin nav shell / 10 sub-tabs (canonical inventory row)** | ❌ ✔ **P0** (overview lists 3, really 10; Data tab missing) | ❌ ✔ | 🟡 | — |
+| Authentication / Roles & Permissions editor | ⭕ (no UI walkthrough) | ✅ ✔ (`permissions.md` covers role→permission + bootstrap/lockout) | 🟡 | — |
+| Updates (auto-update, channel, history) | ✅ | ✅ | ✅ | — |
+| Data tab (PowerQuery ✅; curated import/export ⭕, retention ⭕, danger zone ⭕) | 🟡 ✔ | ⭕ ✔ | 🟡 | — |
 | Performance | ✅ | 🟡 | ❌ (perf-endpoint drift `/perf/slowest`→`/perf/slow`) | ❌ |
 | Crawler config audit/reset | — | ⭕ | — | ⭕ |
-| About / SBOM / licentie | 🟡 | ✅ ✔ (permissie-catalogus klopt) | ✅ | — |
+| About / SBOM / license | 🟡 | ✅ ✔ (permission catalogue is correct) | ✅ | — |
 
 **Backlog (via J9):**
 
-| ID | Actie | Prio | Owner | Doeldoc | Definition-of-done |
+| ID | Action | Prio | Owner | Target doc | Definition-of-done |
 |----|-------|------|-------|---------|--------------------|
-| BL-31 | **fix (P0):** Admin-subtab-inventaris — vervang "3 tabs" door alle 10 uit `adminTabs.js`, elk met doel + gating-permissie | P0 | _tbd_ | `docs/ui/overview.md` | J9 stap a: operator vindt elke tab doc-only |
-| BL-32 | **schrijf (P0):** Data-tab-gids — curated export/import (gates), history-retention (180d default, 0=uit), Danger Zone/clean-database (wat wist/behoudt, rate-limit, `admin.systems`) | P0 | _tbd_ | `docs/admin/data-tab.md` (nieuw) | J9 stap c+d doc-only |
-| BL-33 | fix: retentie-pad — `Admin > History Retention` bestaat niet → "sectie onder Admin → Data" | P1 | _tbd_ | `docs/architecture/audit-history.md` (~r132) | Geen doc verwijst naar niet-bestaande subtab |
-| BL-34 | werk-bij: Authentication/SSO + Roles-setup als stap-voor-stap how-to (nu alleen reference-proza) | P2 | _tbd_ | `docs/admin/authentication.md` (nieuw) of `permissions.md` | J9 stap b heeft een gelinkte how-to |
+| BL-31 | **fix (P0):** Admin sub-tab inventory — replace "3 tabs" with all 10 from `adminTabs.js`, each with its purpose + gating permission | P0 | _tbd_ | `docs/ui/overview.md` | J9 step a: operator finds every tab doc-only |
+| BL-32 | **write (P0):** Data-tab guide — curated export/import (gates), history-retention (180d default, 0=off), Danger Zone/clean-database (what it wipes/keeps, rate-limit, `admin.systems`) | P0 | _tbd_ | `docs/admin/data-tab.md` (new) | J9 steps c+d doc-only |
+| BL-33 | fix: retention path — `Admin > History Retention` doesn't exist → "section under Admin → Data" | P1 | _tbd_ | `docs/architecture/audit-history.md` (~line 132) | No doc refers to a non-existent sub-tab |
+| BL-34 | update: Authentication/SSO + Roles setup as a step-by-step how-to (currently reference prose only) | P2 | _tbd_ | `docs/admin/authentication.md` (new) or `permissions.md` | J9 step b has a linked how-to |
 
 ---
 
-## Cluster 9 — Integratie & ingest-API (owner van Custom Connector)
+## Cluster 9 — Integration & ingest API (owner of Custom Connector)
 
-| Feature | Analyst/Gebruiker | Operator | Contributor | API-consument |
+| Feature | Analyst/User | Operator | Contributor | API consumer |
 |---------|:-----------------:|:--------:|:-----------:|:-------------:|
-| Ingest-API (`/ingest/*`, openapi.yaml) | — | ✅ | ✅ (openapi) | 🟡 ✔ (`ingest-api.md` stale: response-shape + retired `assignmentType`-enum → 400) |
-| **Custom Connector (push-mode) — opzet + kaart** | ⭕ | ⭕ ✔ | ✅ | ⭕ ✔ (geen runnable voorbeeld onder `docs/api/`) |
-| API-key-beheer / rotatie / audit | — | 🟡 ✔ (roteren lukt; key *verkrijgen* niet zelf-service) | ✅ | 🟡 ✔ |
-| Drift-guard-scope (welke routes bewaakt) | — | — | 🟡 (alleen in test) | — |
+| Ingest API (`/ingest/*`, openapi.yaml) | — | ✅ | ✅ (openapi) | 🟡 ✔ (`ingest-api.md` stale: response shape + retired `assignmentType` enum → 400) |
+| **Custom Connector (push-mode) — setup + map** | ⭕ | ⭕ ✔ | ✅ | ⭕ ✔ (no runnable example under `docs/api/`) |
+| API-key management / rotation / audit | — | 🟡 ✔ (rotating works; *obtaining* a key is not self-service) | ✅ | 🟡 ✔ |
+| Drift-guard scope (which routes are guarded) | — | — | 🟡 (only in a test) | — |
 
 **Backlog (via J6):**
 
-| ID | Actie | Prio | Owner | Doeldoc | Definition-of-done |
+| ID | Action | Prio | Owner | Target doc | Definition-of-done |
 |----|-------|------|-------|---------|--------------------|
-| BL-21 | schrijf push-mode integrator-gids: "key krijg je van een admin / Admin→Crawlers (niet zelf-mint)" + één runnable `curl` (base-url, `Bearer fgc_…`, echte payload, `201`-response) + rotate-snippet | P1 | _tbd_ | `docs/sync/custom-connector.md` (nieuw) | J6 start-tot-eind doc-only walkbaar |
-| BL-22 | **fix:** stale response + enum-tabellen (response zonder `syncId`/`errors`; `assignmentType` = alleen Direct/Indirect/Eligible; huidige relationshipTypes) | P1 | _tbd_ | `docs/architecture/ingest-api.md` | Doc matcht `handlers.js` + `openapi.yaml` |
-| BL-23 | werk-bij: één autoritatieve externe base-URL (`PUBLIC_BASE_URL`) voor proxied/TLS | P2 | _tbd_ | `docs/api/index.md` | Integrator kent de juiste base-URL |
+| BL-21 | write a push-mode integrator guide: "you get the key from an admin / Admin→Crawlers (not self-minted)" + one runnable `curl` (base-url, `Bearer fgc_…`, real payload, `201` response) + rotate snippet | P1 | _tbd_ | `docs/sync/custom-connector.md` (new) | J6 walkable start-to-finish doc-only |
+| BL-22 | **fix:** stale response + enum tables (response without `syncId`/`errors`; `assignmentType` = only Direct/Indirect/Eligible; current relationshipTypes) | P1 | _tbd_ | `docs/architecture/ingest-api.md` | Doc matches `handlers.js` + `openapi.yaml` |
+| BL-23 | update: one authoritative external base URL (`PUBLIC_BASE_URL`) for proxied/TLS | P2 | _tbd_ | `docs/api/index.md` | Integrator knows the correct base URL |
 
 ---
 
-## Cluster 10 — Platform & datamodel (owner van context-schema)
+## Cluster 10 — Platform & data model (owner of context schema)
 
-| Feature | Analyst/Gebruiker | Operator | Contributor | API-consument |
+| Feature | Analyst/User | Operator | Contributor | API consumer |
 |---------|:-----------------:|:--------:|:-----------:|:-------------:|
-| Datamodel (v3.1 + v6 contexts, **schema/tabellen**) | — | — | ✅ ✔ (`data-model.md` correct; assignmentType-collapse klopt — audit-verdenking onterecht) | — |
-| **SQL-views (query-surface)** | — | — | ❌ ✔ (voorbeelden selecteren niet-bestaande kolommen; matviews als "planned") | 🟡 ✔ |
-| Effective-access-engine (P1 direct + P2 inherited) | — | — | ✅ | — |
+| Data model (v3.1 + v6 contexts, **schema/tables**) | — | — | ✅ ✔ (`data-model.md` correct; the assignmentType collapse is right — the audit suspicion was unfounded) | — |
+| **SQL views (query surface)** | — | — | ❌ ✔ (examples select non-existent columns; matviews called "planned") | 🟡 ✔ |
+| Effective-access engine (P1 direct + P2 inherited) | — | — | ✅ | — |
 | Soft-delete | — | 🟡 | ✅ | — |
 | Audit-history / timeline | 🟡 | — | ✅ | — |
-| Assignment-model-collapse (migraties 044–049) | — | — | ❌ ✔ (status "no code yet" — is verscheept) | — |
+| Assignment-model collapse (migrations 044–049) | — | — | ❌ ✔ (status "no code yet" — is shipped) | — |
 | Deployment / Docker / Azure | — | ✅ | ✅ | — |
 | Scaling | — | 🟡 | ✅ | — |
 
 **Backlog (via J10):**
 
-| ID | Actie | Prio | Owner | Doeldoc | Definition-of-done |
+| ID | Action | Prio | Owner | Target doc | Definition-of-done |
 |----|-------|------|-------|---------|--------------------|
-| BL-27 | **fix:** herschrijf alle voorbeeld-queries tegen echte kolommen (`membershipType`/`path`/`userId`/`businessRoleId`/`managedByAccessPackage`); lijst per view de echte output-kolommen | P1 | _tbd_ | `docs/reference/sql-views.md` | Elk voorbeeld draait ongewijzigd op een gemigreerde DB |
-| BL-28 | **fix:** matview-status — `vw_ResourceUserPermissionAssignments` + `vw_UserPermissionAssignmentViaBusinessRole` zijn *materialized* (need `REFRESH`); schrap "planned for a future release" | P1 | _tbd_ | `docs/reference/sql-views.md` | Geen "standard view"/"planned"-taal; refresh gedocumenteerd |
-| BL-29 | werk-bij: status-header "Proposed / no code yet" → "Implemented" + migratie-range 044–049 | P2 | _tbd_ | `docs/architecture/assignment-model-redesign.md` | Status matcht verscheepte code |
-| BL-30 | fix: waarde-lijst in de `vw_ResourceUserPermissionAssignments`-rij (drop `Owner`/`CrossResourceIndirect`; kolom = `membershipType`) | P2 | _tbd_ | `docs/reference/sql-views.md` | Waarden = view-`CASE`-output |
+| BL-27 | **fix:** rewrite all example queries against real columns (`membershipType`/`path`/`userId`/`businessRoleId`/`managedByAccessPackage`); list the real output columns per view | P1 | _tbd_ | `docs/reference/sql-views.md` | Every example runs unchanged on a migrated DB |
+| BL-28 | **fix:** matview status — `vw_ResourceUserPermissionAssignments` + `vw_UserPermissionAssignmentViaBusinessRole` are *materialized* (need `REFRESH`); drop "planned for a future release" | P1 | _tbd_ | `docs/reference/sql-views.md` | No "standard view"/"planned" language; refresh documented |
+| BL-29 | update: status header "Proposed / no code yet" → "Implemented" + migration range 044–049 | P2 | _tbd_ | `docs/architecture/assignment-model-redesign.md` | Status matches the shipped code |
+| BL-30 | fix: value list in the `vw_ResourceUserPermissionAssignments` row (drop `Owner`/`CrossResourceIndirect`; the column is `membershipType`) | P2 | _tbd_ | `docs/reference/sql-views.md` | Values = the view's `CASE` output |
 
 ---
 
-## Review-appendix (dual-voice) {#review-appendix-dual-voice}
+## Review appendix (dual-voice) {#review-appendix-dual-voice}
 
-Dit plan is geëvolueerd van v1 na een `/autoplan`-review met vier onafhankelijke voices (3 Claude-subagents: strategie/proces/DX + Codex op de echte bestanden). Unanieme kernbevinding: v1 mat aanwezigheid, niet bruikbaarheid.
+This plan evolved from v1 after an `/autoplan` review with four independent voices (3 Claude subagents: strategy/process/DX + Codex against the real files). Unanimous core finding: v1 measured presence, not usability.
 
-**Consensus (CONFIRMED door alle voices):**
-1. Meet bruikbaarheid, niet enkel aanwezigheid → **Instrument B (journeys)**.
-2. Verifieer de AI-vooringevulde grids vóór besluit → **verificatie-gate**.
-3. Dek cross-cluster journeys → **J1–J10**.
-4. Split Contributor vs API-consument; scherp primaire persona naar Analyst → **4 assen**.
-5. Onderscheid *fout* van *ontbrekend* → **❌/P0-status**.
-6. Maak de backlog uitvoerbaar (owner/DoD) → **backlog-format**.
-7. Voeg niet-feature-docs toe (troubleshooting/concepten/limitations) → **Cluster 0**.
-8. Voorkom re-rot → **recurrence/freshness-gate**.
-9. MECE-overlaps oplossen → **owner-toewijzing + Cluster 0**.
+**Consensus (CONFIRMED by all voices):**
+1. Measure usability, not just presence → **Instrument B (journeys)**.
+2. Verify the AI-prefilled grids before deciding → **verification gate**.
+3. Cover cross-cluster journeys → **J1–J10**.
+4. Split Contributor vs API consumer; sharpen the primary persona to Analyst → **4 axes**.
+5. Distinguish *wrong* from *missing* → **❌/P0 status**.
+6. Make the backlog actionable (owner/DoD) → **backlog format**.
+7. Add non-feature docs (troubleshooting/concepts/limitations) → **Cluster 0**.
+8. Prevent re-rot → **recurrence/freshness gate**.
+9. Resolve MECE overlaps → **owner assignment + Cluster 0**.
 
-**Beslissingen (door de gebruiker, 2026-07-15):**
-- UC1 — journeys primair, grid ondersteunend: **geaccepteerd**.
-- UC2 — 4 assen + Analyst-persona: **geaccepteerd**.
+**Decisions (by the user, 2026-07-15):**
+- UC1 — journeys primary, grid supporting: **accepted**.
+- UC2 — 4 axes + Analyst persona: **accepted**.
 
-**Auto-besliste methodische fixes** (verificatie-gate, ❌/P0-status, rubric, backlog-DoD, reduce/hide/deprecate-actie, recurrence, exit-criterium, Cluster 0, MECE-owners): toegepast.
+**Auto-decided methodological fixes** (verification gate, ❌/P0 status, rubric, backlog DoD, reduce/hide/deprecate action, recurrence, exit criterion, Cluster 0, MECE owners): applied.
 
-**Kanttekening bij de inputs:** de grids hierboven zijn nog steeds **geërfd/ongeverifieerd**; ze passeren de verificatie-gate pas tijdens de clusterreview.
+**Caveat on the inputs:** the grids above are still **inherited/unverified**; they only pass the verification gate during the cluster review.
