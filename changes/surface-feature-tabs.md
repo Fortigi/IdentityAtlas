@@ -1,0 +1,1 @@
+- The Risk Scores and Identities tabs now appear in the top navigation as soon as their feature is enabled, instead of staying hidden behind a second per-user "show this tab" toggle. Turning the feature on is all that's needed; the redundant toggle for these two tabs is gone (Systems and Logs remain opt-in as before).
