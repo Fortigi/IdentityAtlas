@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- CSV import now checks each uploaded file's column headers against the schema for the type it's mapped to, instead of trusting the filename alone. If a file is missing the required columns for its type (for example a users export accidentally mapped to Assignments), the wizard flags it inline with the missing columns and blocks saving until it's corrected — rather than letting the mistake surface only when the import job later runs.
+
+## Changes in this PR
+
 - Fixed list-page sorting (Users, Groups, Identities): clicking a column header now sorts the entire result set on the server, not just the rows on the current page — so the ordering (and "top of the list") is correct across every page instead of silently reshuffling only the 100 rows on screen.
 - Changing the sort now returns you to the first page of the newly ordered results.
 
