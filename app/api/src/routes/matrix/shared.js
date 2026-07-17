@@ -9,6 +9,7 @@ import { timedQuery } from '../../perf/sqlTimer.js';
 import { createParams } from '../../db/sqlParams.js';
 import { getPrincipalColumns, getResourceColumns } from '../../db/columnCache.js';
 import { buildEntitySubquery, collectContextIds } from '../../matrix/filterSql.js';
+import { resourceMeta } from '../../db/matrixHelpers.js';
 import { GROUP_PRINCIPAL_TYPE } from '../../lib/principalTypes.js';
 
 export const ROW_TYPES = new Set(['principal', 'identity']);
@@ -246,6 +247,34 @@ export async function buildSubqueries(filter) {
 export async function runCount(p, label, res, sql, params) {
   const result = await timedQuery(p, label, res, sql, params);
   return result.rows[0]?.c ?? 0;
+}
+
+// Most matrix sub-queries share one shape: allocate a fresh positional-param
+// array (pg can't reuse params across queries), render the subject filter
+// subquery — and, unless { resource:false }, the resource one — into the SQL via
+// `bind`, time the query, and return the pg result. runBound captures that
+// boilerplate; `render({ subjectSql, resourceSql, bind })` returns the finished
+// SQL string. Pass { resource:false } for subject-only queries so no resource
+// params are bound (which would desync pg's positional-parameter count). Binding
+// order is subject, then resource, then whatever the render binds — matching the
+// hand-written call sites this replaces.
+export async function runBound(p, label, res, built, render, { resource = true } = {}) {
+  const { params, bind } = createParams();
+  const subjectSql = built.subject(bind).sql;
+  const resourceSql = resource ? built.resource(bind).sql : '';
+  return timedQuery(p, label, res, render({ subjectSql, resourceSql, bind }), params);
+}
+
+// De-dupe resource rows/objects into `map` keyed by resourceId (first occurrence
+// wins), mirroring the resource-map build repeated across the roll-up handlers.
+// Raw query rows go through resourceMeta by default; pass an identity mapper
+// (r => r) to merge already-shaped resource objects (the inherited-access lists).
+export function collectResources(map, rows, toMeta = resourceMeta) {
+  for (const row of rows || []) {
+    if (!row?.resourceId || map.has(row.resourceId)) continue;
+    map.set(row.resourceId, toMeta(row));
+  }
+  return map;
 }
 
 export function subjectScopeClauses(rowType, subjectSql) {

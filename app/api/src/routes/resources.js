@@ -4,13 +4,12 @@ import { createParams } from '../db/sqlParams.js';
 import { parseJsonbColumn } from '../lib/jsonb.js';
 import { buildOrderBy } from '../lib/listSort.js';
 import { getResourceColumns, getResourceColumnValues } from '../db/columnCache.js';
-import { ensureTagTables, buildFilterWhere } from './tags.js';
+import { ensureTagTables, buildFilterWhere, parseTags } from './tags.js';
+import { UUID_RE, cleanRow, getPermissionTable } from './details/shared.js';
 import { isMissingSchema } from '../db/schemaErrors.js';
 
 const router = Router();
 const useSql = process.env.USE_SQL === 'true';
-const UUID_RE = /^[0-9a-f-]{36}$/i;
-const SYSTEM_COLS = new Set(['SysStartTime', 'SysEndTime']);
 
 // Columns the Groups/Resources page lets you sort by (its TABLE_COLUMNS keys).
 // Values are the page CTE's output aliases — safe to interpolate; see
@@ -24,27 +23,6 @@ const RESOURCE_SORTS = {
 let db = null;
 if (useSql) {
   db = await import('../db/connection.js');
-}
-
-function cleanRow(row) {
-  const clean = {};
-  for (const [key, value] of Object.entries(row)) {
-    if (!SYSTEM_COLS.has(key)) clean[key] = value;
-  }
-  return clean;
-}
-
-// Helper: parse tag string from SQL into array. Tag IDs are UUID strings (v6).
-function parseTags(tagString) {
-  if (!tagString) return [];
-  return tagString.split('|').map(t => {
-    const parts = t.split(':');
-    return { id: parts[0], name: parts[1], color: parts[2] };
-  });
-}
-
-async function getPermissionTable(_pool) {
-  return '"vw_ResourceUserPermissionAssignments"';
 }
 
 // ─── GET /api/resources ─────────────────────────────────────────

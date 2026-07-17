@@ -9,7 +9,7 @@ import { Router } from 'express';
 import * as db from '../../db/connection.js';
 import { timedQuery } from '../../perf/sqlTimer.js';
 import { createParams } from '../../db/sqlParams.js';
-import { buildIdentityJoinExprs, buildRoleSubjectJoinExprs, buildApMemberExprs, mergeGroupTotals, resourceMeta } from '../../db/matrixHelpers.js';
+import { buildIdentityJoinExprs, buildRoleSubjectJoinExprs, buildApMemberExprs, mergeGroupTotals } from '../../db/matrixHelpers.js';
 import { resolveAttrExpr } from '../../matrix/attrExpr.js';
 import { buildInheritedFlatRows, buildInheritedRollupCounts, buildInheritedContextCounts, buildInheritedFoldCounts } from '../../matrix/inheritedAccess.js';
 import {
@@ -20,7 +20,7 @@ import {
 } from '../../matrix/contextRollup.js';
 import { buildAttrCutCellsSql, buildAttrCutNodesSql, tupleToNode } from '../../matrix/attributeCut.js';
 import { buildRollupSql, buildRollupRolesSql, buildRolesAsRowsSql, buildGroupTotalsSql, buildRolesDrillSql } from '../../matrix/rollupBuilders.js';
-import { parseFilter, buildSubqueries, scopeCounts } from './shared.js';
+import { parseFilter, buildSubqueries, scopeCounts, runBound, collectResources } from './shared.js';
 import { GROUP_PRINCIPAL_TYPE } from '../../lib/principalTypes.js';
 
 const router = Router();
@@ -101,26 +101,23 @@ async function handleAttributeFold(res, ctx) {
 
   // cells: subject + resource fragments + the collapse keys, all bound through
   // one params array (rendered fresh per query so the $N line up).
-  const cp = createParams();
-  const cellsSubjectSql = built.subject(cp.bind).sql;
-  const cellsResourceSql = built.resource(cp.bind).sql;
-  const cellRows = (await timedQuery(p, `matrix-attrcut-cells[${rowType}]`, res, buildAttrCutCellsSql({
-    attrExprs, collapsedParams: collapsedKeys.map(k => cp.bind(k)), subjectJoin,
-    subjectIdExpr: memberIdExpr, subjectIdForFilter,
-    subjectSql: cellsSubjectSql, resourceSql: cellsResourceSql,
-  }), cp.params)).rows;
+  const cellRows = (await runBound(p, `matrix-attrcut-cells[${rowType}]`, res, built,
+    ({ subjectSql, resourceSql, bind }) => buildAttrCutCellsSql({
+      attrExprs, collapsedParams: collapsedKeys.map(k => bind(k)), subjectJoin,
+      subjectIdExpr: memberIdExpr, subjectIdForFilter,
+      subjectSql, resourceSql,
+    }))).rows;
 
-  const np = createParams();
-  const nodesSubjectSql = built.subject(np.bind).sql;
-  const nodeRows = (await timedQuery(p, `matrix-attrcut-nodes[${rowType}]`, res, buildAttrCutNodesSql({
-    attrExprs, collapsedParams: collapsedKeys.map(k => np.bind(k)),
-    subjectTable: rowType === 'identity' ? 'Identities' : 'Principals',
-    subjectAlias,
-    subjectIdExpr: rowType === 'identity' ? 'i.id' : 'u.id',
-    subjectIdForFilter: rowType === 'identity' ? 'i.id' : 'u.id',
-    subjectSql: nodesSubjectSql,
-    excludeGroups: rowType !== 'identity',
-  }), np.params)).rows;
+  const nodeRows = (await runBound(p, `matrix-attrcut-nodes[${rowType}]`, res, built,
+    ({ subjectSql, bind }) => buildAttrCutNodesSql({
+      attrExprs, collapsedParams: collapsedKeys.map(k => bind(k)),
+      subjectTable: rowType === 'identity' ? 'Identities' : 'Principals',
+      subjectAlias,
+      subjectIdExpr: rowType === 'identity' ? 'i.id' : 'u.id',
+      subjectIdForFilter: rowType === 'identity' ? 'i.id' : 'u.id',
+      subjectSql,
+      excludeGroups: rowType !== 'identity',
+    }), { resource: false })).rows;
 
   // Fold inherited (effective) access into the layered attribute fold. Holder
   // tuple keys match the fold's visible key, so they reuse existing columns.
@@ -134,12 +131,8 @@ async function handleAttributeFold(res, ctx) {
     .map(r => tupleToNode(r.groupValue, r.total, r.childCount))
     .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
 
-  const resMap = new Map();
-  for (const row of cellRows) {
-    if (!row.resourceId || resMap.has(row.resourceId)) continue;
-    resMap.set(row.resourceId, resourceMeta(row));
-  }
-  for (const r of inhFold.resources) if (!resMap.has(r.resourceId)) resMap.set(r.resourceId, r);
+  const resMap = collectResources(new Map(), cellRows);
+  collectResources(resMap, inhFold.resources, r => r);
 
   const counts = await scopeCounts(p, res, rowType, built);
   // Always show one header row per chosen attribute (folded groups occupy
@@ -190,7 +183,7 @@ async function inheritedLayerFold(ctx, nodeIds, cells, resMap) {
     catch (err) { built.warnings.push('inherited context fold failed: ' + err.message); }
   }
   const inhTotByNode = new Map((inhCtx?.groupTotals || []).map(t => [t.groupValue, t.total]));
-  for (const r of (inhCtx?.resources || [])) if (!resMap.has(r.resourceId)) resMap.set(r.resourceId, r);
+  collectResources(resMap, inhCtx?.resources, r => r);
   const cellNodeIds = new Set([...cells.map(c => c.groupValue), ...(inhCtx?.groupValues || [])]);
   return { inhTotByNode, cellNodeIds, counts: inhCtx?.counts || [] };
 }
@@ -220,29 +213,21 @@ async function handleContextLayered(res, ctx) {
 
   const { join: idJoin, subjectId: cutSubjectId } = buildIdentityJoinExprs(rowType);
 
-  const lp = createParams();
-  const layerSubjectSql = built.subject(lp.bind).sql;
-  const layerResourceSql = built.resource(lp.bind).sql;
-  const layerCells = (await timedQuery(p, `matrix-ctx-layered[${rowType}]`, res, buildContextRollupSql({
-    values: cutValues, identityJoin: idJoin, subjectId: cutSubjectId, subjectScope: cutSubjectId,
-    subjectSql: layerSubjectSql, resourceSql: layerResourceSql,
-  }), lp.params)).rows;
+  const layerCells = (await runBound(p, `matrix-ctx-layered[${rowType}]`, res, built,
+    ({ subjectSql, resourceSql }) => buildContextRollupSql({
+      values: cutValues, identityJoin: idJoin, subjectId: cutSubjectId, subjectScope: cutSubjectId,
+      subjectSql, resourceSql,
+    }))).rows;
 
-  const layerResMap = new Map();
-  for (const row of layerCells) {
-    if (!row.resourceId || layerResMap.has(row.resourceId)) continue;
-    layerResMap.set(row.resourceId, resourceMeta(row));
-  }
+  const layerResMap = collectResources(new Map(), layerCells);
 
   // SCOPED member counts for the header (direct / total), so they match the
   // assignment-scoped cells and member drill rather than raw org size.
-  const scp = createParams();
-  const scSubjectSql = built.subject(scp.bind).sql;
-  const scResourceSql = built.resource(scp.bind).sql;
-  const scMap = new Map((await timedQuery(p, `matrix-ctx-scoped-members[${rowType}]`, res, buildContextScopedMemberCountsSql({
-    values: cutValues, identityJoin: idJoin, subjectId: cutSubjectId, subjectScope: cutSubjectId,
-    subjectSql: scSubjectSql, resourceSql: scResourceSql,
-  }), scp.params)).rows.map(r => [r.groupValue, { total: r.total, direct: r.direct }]));
+  const scMap = new Map((await runBound(p, `matrix-ctx-scoped-members[${rowType}]`, res, built,
+    ({ subjectSql, resourceSql }) => buildContextScopedMemberCountsSql({
+      values: cutValues, identityJoin: idJoin, subjectId: cutSubjectId, subjectScope: cutSubjectId,
+      subjectSql, resourceSql,
+    }))).rows.map(r => [r.groupValue, { total: r.total, direct: r.direct }]));
 
   // Fold inherited (effective) access into the org-rollup cells; hides org
   // branches with no in-scope assignments (a column only shows if some resource
@@ -302,22 +287,22 @@ async function handleContextZoom(res, ctx) {
   // context condition) into its subjects + the business role each holds.
   if (filter.drill) {
     const { join: brSubjectJoin, id: brId, name: brName, type: brType } = buildRoleSubjectJoinExprs(rowType);
-    const dp = createParams();
-    const members = (await timedQuery(p, `matrix-ctx-rows-drill[${rowType}]`, res, buildRolesDrillSql({
-      subjectJoin: brSubjectJoin, subjectIdExpr: brId,
-      subjectNameExpr: brName,
-      subjectTypeExpr: brType,
-      subjectIdForFilter: brId, subjectSql: built.subject(dp.bind).sql,
-    }), dp.params)).rows;
+    const members = (await runBound(p, `matrix-ctx-rows-drill[${rowType}]`, res, built,
+      ({ subjectSql }) => buildRolesDrillSql({
+        subjectJoin: brSubjectJoin, subjectIdExpr: brId,
+        subjectNameExpr: brName,
+        subjectTypeExpr: brType,
+        subjectIdForFilter: brId, subjectSql,
+      }), { resource: false })).rows;
     return res.json({ rollup: 'context', rollupKind: 'context', rollupContent: 'roles-only', drill: { members } });
   }
 
   // Shared: per-node subject totals (% denominator), node metadata, breadcrumb.
-  const tp = createParams();
-  const ctxTotals = (await timedQuery(p, `matrix-ctx-totals[${rowType}]`, res, buildContextTotalsSql({
-    values, identityJoin, subjectId: ctxSubjectId, subjectScope: ctxSubjectId,
-    subjectSql: built.subject(tp.bind).sql,
-  }), tp.params)).rows.map(r => ({ groupValue: r.groupValue, total: r.total }));
+  const ctxTotals = (await runBound(p, `matrix-ctx-totals[${rowType}]`, res, built,
+    ({ subjectSql }) => buildContextTotalsSql({
+      values, identityJoin, subjectId: ctxSubjectId, subjectScope: ctxSubjectId,
+      subjectSql,
+    }), { resource: false })).rows.map(r => ({ groupValue: r.groupValue, total: r.total }));
 
   const nodeRows = (await timedQuery(p, 'matrix-ctx-nodes', res, buildContextNodesSql(frontier), [])).rows;
   const nodeMeta = new Map(nodeRows.map(n => [n.id, { id: n.id, displayName: n.displayName, parent: n.parent, total: n.total, directMembers: n.directMembers, childCount: n.childCount }]));
@@ -349,11 +334,11 @@ async function handleContextZoomRoles(res, ctx, z) {
   const { built, rowType, p } = ctx;
   const { values, identityJoin, ctxSubjectId, shared } = z;
 
-  const rrp = createParams();
-  const roleRowsRes = (await timedQuery(p, `matrix-ctx-roles-rows[${rowType}]`, res, buildContextRolesAsRowsSql({
-    values, identityJoin, subjectId: ctxSubjectId, subjectScope: ctxSubjectId,
-    subjectSql: built.subject(rrp.bind).sql,
-  }), rrp.params)).rows;
+  const roleRowsRes = (await runBound(p, `matrix-ctx-roles-rows[${rowType}]`, res, built,
+    ({ subjectSql }) => buildContextRolesAsRowsSql({
+      values, identityJoin, subjectId: ctxSubjectId, subjectScope: ctxSubjectId,
+      subjectSql,
+    }), { resource: false })).rows;
   const roleMap = new Map();
   for (const r of roleRowsRes) {
     if (!r.roleId) continue;
@@ -374,13 +359,11 @@ async function contextZoomBusinessRoles(res, ctx, z) {
   const { values, identityJoin, ctxSubjectId } = z;
   const roleCounts = [];
   try {
-    const bp = createParams();
-    const brSubjectSql = built.subject(bp.bind).sql;
-    const brResourceSql = built.resource(bp.bind).sql;
-    const brRows = (await timedQuery(p, `matrix-ctx-roles[${rowType}]`, res, buildContextRolesSql({
-      values, identityJoin, subjectId: ctxSubjectId, subjectScope: ctxSubjectId,
-      subjectSql: brSubjectSql, resourceSql: brResourceSql,
-    }), bp.params)).rows;
+    const brRows = (await runBound(p, `matrix-ctx-roles[${rowType}]`, res, built,
+      ({ subjectSql, resourceSql }) => buildContextRolesSql({
+        values, identityJoin, subjectId: ctxSubjectId, subjectScope: ctxSubjectId,
+        subjectSql, resourceSql,
+      }))).rows;
     const roleMap = new Map();
     for (const r of brRows) {
       if (!r.roleId) continue;
@@ -397,23 +380,13 @@ async function handleContextZoomResources(res, ctx, z) {
   const { filter, built, rowType, includeInherited, p } = ctx;
   const { values, identityJoin, ctxSubjectId, frontier, ctxTotals, shared } = z;
 
-  const czp = createParams();
-  const czSubjectSql = built.subject(czp.bind).sql;
-  const czResourceSql = built.resource(czp.bind).sql;
-  const cellRows = (await timedQuery(p, `matrix-ctx-rollup[${rowType}]`, res, buildContextRollupSql({
-    values, identityJoin, subjectId: ctxSubjectId, subjectScope: ctxSubjectId,
-    subjectSql: czSubjectSql, resourceSql: czResourceSql,
-  }), czp.params)).rows;
+  const cellRows = (await runBound(p, `matrix-ctx-rollup[${rowType}]`, res, built,
+    ({ subjectSql, resourceSql }) => buildContextRollupSql({
+      values, identityJoin, subjectId: ctxSubjectId, subjectScope: ctxSubjectId,
+      subjectSql, resourceSql,
+    }))).rows;
 
-  const resMap = new Map();
-  for (const row of cellRows) {
-    if (!row.resourceId || resMap.has(row.resourceId)) continue;
-    resMap.set(row.resourceId, {
-      resourceId: row.resourceId, resourceDisplayName: row.resourceDisplayName,
-      resourceType: row.resourceType, resourceDescription: row.resourceDescription,
-      systemId: row.systemId, systemName: row.systemName,
-    });
-  }
+  const resMap = collectResources(new Map(), cellRows);
 
   // Fold inherited (effective) access into the org-rollup cells (zoom view).
   // The frontier columns already exist, so we only add resources + counts.
@@ -422,7 +395,7 @@ async function handleContextZoomResources(res, ctx, z) {
     try { inhCtx2 = await buildInheritedContextCounts(p, built, rowType, frontier); }
     catch (err) { built.warnings.push('inherited context fold failed: ' + err.message); }
   }
-  for (const r of (inhCtx2?.resources || [])) if (!resMap.has(r.resourceId)) resMap.set(r.resourceId, r);
+  collectResources(resMap, inhCtx2?.resources, r => r);
 
   let businessRoles = [];
   let roleCounts = [];
@@ -462,13 +435,13 @@ async function handleRollup(res, ctx) {
   // Per-group subject denominator for the "% of subjects" metric. Returned
   // in every roll-up response so the frontend can switch count↔percent
   // without a re-query.
-  const gtp = createParams();
-  const groupTotals = (await timedQuery(p, `matrix-rollup-totals[${rowType}]`, res, buildGroupTotalsSql({
-    attrExpr: resolved.attrExpr,
-    subjectTable: rowType === 'identity' ? 'Identities' : 'Principals',
-    subjectAlias,
-    subjectSql: built.subject(gtp.bind).sql,
-  }), gtp.params)).rows.map(r => ({ groupValue: r.groupValue, total: r.total }));
+  const groupTotals = (await runBound(p, `matrix-rollup-totals[${rowType}]`, res, built,
+    ({ subjectSql }) => buildGroupTotalsSql({
+      attrExpr: resolved.attrExpr,
+      subjectTable: rowType === 'identity' ? 'Identities' : 'Principals',
+      subjectAlias,
+      subjectSql,
+    }), { resource: false })).rows.map(r => ({ groupValue: r.groupValue, total: r.total }));
 
   if (filter.rollupContent === 'roles-only') return handleRollupRoles(res, ctx, resolved, groupTotals);
   return handleRollupResources(res, ctx, resolved, groupTotals);
@@ -485,26 +458,26 @@ async function handleRollupRoles(res, ctx, resolved, groupTotals) {
   // subject attribute condition the frontend added, so subjectSql carries
   // the constraint. Returns a compact { members } payload only.
   if (filter.drill) {
-    const rdp = createParams();
-    const members = (await timedQuery(p, `matrix-rollup-rows-drill[${rowType}]`, res, buildRolesDrillSql({
-      subjectJoin: brSubjectJoin,
-      subjectIdExpr: brSubjectId,
-      subjectNameExpr: brSubjectName,
-      subjectTypeExpr: brSubjectType,
-      subjectIdForFilter: brSubjectId,
-      subjectSql: built.subject(rdp.bind).sql,
-    }), rdp.params)).rows;
+    const members = (await runBound(p, `matrix-rollup-rows-drill[${rowType}]`, res, built,
+      ({ subjectSql }) => buildRolesDrillSql({
+        subjectJoin: brSubjectJoin,
+        subjectIdExpr: brSubjectId,
+        subjectNameExpr: brSubjectName,
+        subjectTypeExpr: brSubjectType,
+        subjectIdForFilter: brSubjectId,
+        subjectSql,
+      }), { resource: false })).rows;
     return res.json({ rollup: filter.rollup, rollupContent: 'roles-only', drill: { members } });
   }
 
-  const rrp2 = createParams();
-  const rolesResult = (await timedQuery(p, `matrix-rollup-rows[${rowType}]`, res, buildRolesAsRowsSql({
-    attrExpr: resolved.attrExpr,
-    subjectJoin: brSubjectJoin,
-    subjectIdExpr: brSubjectId,
-    subjectIdForFilter: brSubjectId,
-    subjectSql: built.subject(rrp2.bind).sql,
-  }), rrp2.params)).rows;
+  const rolesResult = (await runBound(p, `matrix-rollup-rows[${rowType}]`, res, built,
+    ({ subjectSql }) => buildRolesAsRowsSql({
+      attrExpr: resolved.attrExpr,
+      subjectJoin: brSubjectJoin,
+      subjectIdExpr: brSubjectId,
+      subjectIdForFilter: brSubjectId,
+      subjectSql,
+    }), { resource: false })).rows;
 
   const counts = await scopeCounts(p, res, rowType, built);
   const roleMap = new Map();
@@ -534,34 +507,19 @@ async function handleRollupRoles(res, ctx, resolved, groupTotals) {
 async function handleRollupResources(res, ctx, resolved, groupTotals) {
   const { filter, built, rowType, subjectJoin, memberIdExpr, subjectIdForFilter, includeInherited, p } = ctx;
 
-  const rup = createParams();
-  const ruSubjectSql = built.subject(rup.bind).sql;
-  const ruResourceSql = built.resource(rup.bind).sql;
-  const rollupResult = await timedQuery(p, `matrix-rollup[${rowType}]`, res, buildRollupSql({
-    attrExpr: resolved.attrExpr,
-    subjectJoin,
-    subjectIdExpr: memberIdExpr,
-    subjectIdForFilter,
-    subjectSql: ruSubjectSql,
-    resourceSql: ruResourceSql,
-  }), rup.params);
+  const rollupResult = await runBound(p, `matrix-rollup[${rowType}]`, res, built,
+    ({ subjectSql, resourceSql }) => buildRollupSql({
+      attrExpr: resolved.attrExpr,
+      subjectJoin,
+      subjectIdExpr: memberIdExpr,
+      subjectIdForFilter,
+      subjectSql,
+      resourceSql,
+    }));
 
   const counts = await scopeCounts(p, res, rowType, built);
-  const resMap = new Map();
-  const groupSet = new Set();
-  for (const row of rollupResult.rows) {
-    if (!resMap.has(row.resourceId)) {
-      resMap.set(row.resourceId, {
-        resourceId: row.resourceId,
-        resourceDisplayName: row.resourceDisplayName,
-        resourceType: row.resourceType,
-        resourceDescription: row.resourceDescription,
-        systemId: row.systemId,
-        systemName: row.systemName,
-      });
-    }
-    groupSet.add(row.groupValue);
-  }
+  const resMap = collectResources(new Map(), rollupResult.rows);
+  const groupSet = new Set(rollupResult.rows.map(r => r.groupValue));
 
   // Fold inherited (effective) access into the count cells (Phase 2). The
   // declared rollup above is empty for scope-node scopes; the engine yields
@@ -572,7 +530,7 @@ async function handleRollupResources(res, ctx, resolved, groupTotals) {
     try {
       const inh = await buildInheritedRollupCounts(p, built, rowType, filter.rollup, built.principalCols);
       if (inh) {
-        for (const r of inh.resources) if (!resMap.has(r.resourceId)) resMap.set(r.resourceId, r);
+        collectResources(resMap, inh.resources, r => r);
         for (const gv of inh.groupValues) groupSet.add(gv);
         inhCounts = inh.counts;
         inhGroupTotals = inh.groupTotals;
@@ -588,12 +546,10 @@ async function handleRollupResources(res, ctx, resolved, groupTotals) {
   if (filter.rollupContent !== 'resources-only') {
     try {
       const { memberId: brMemberId, join: brJoin } = buildApMemberExprs(rowType);
-      const brp = createParams();
-      const brRolesSubjectSql = built.subject(brp.bind).sql;
-      const brRolesResourceSql = built.resource(brp.bind).sql;
-      const brRows = (await timedQuery(p, 'matrix-rollup-roles', res, buildRollupRolesSql({
-        brMemberId, brJoin, subjectSql: brRolesSubjectSql, resourceSql: brRolesResourceSql,
-      }), brp.params)).rows;
+      const brRows = (await runBound(p, 'matrix-rollup-roles', res, built,
+        ({ subjectSql, resourceSql }) => buildRollupRolesSql({
+          brMemberId, brJoin, subjectSql, resourceSql,
+        }))).rows;
       const roleMap = new Map();
       for (const r of brRows) {
         if (!r.roleId) continue;

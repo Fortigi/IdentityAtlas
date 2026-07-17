@@ -21,6 +21,18 @@ export async function ensureTagTables(_pool) { tablesReady = true; }
 export const ENTITY_TO_TARGET = { user: 'Principal', group: 'Resource', resource: 'Resource', identity: 'Identity' };
 export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+// Parse the pipe-delimited tag string emitted by the entity-list SQL
+// (`id:name:color|id:name:color…`) into an array of tag objects. Tag IDs are
+// UUID strings (v6). Empty/absent input yields []. Shared by tags/entities.js
+// and resources.js (via the ./tags.js barrel).
+export function parseTags(tagString) {
+  if (!tagString) return [];
+  return tagString.split('|').map(t => {
+    const parts = t.split(':');
+    return { id: parts[0], name: parts[1], color: parts[2] };
+  });
+}
+
 // Build parameterized WHERE clause from filters object.
 //
 // Two kinds of filter keys are accepted:

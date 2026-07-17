@@ -11,7 +11,7 @@ import { getResourceColumns as getResourceCols, getPrincipalOrUserColumns, getPr
 import { createParams } from '../../db/sqlParams.js';
 import { parseJsonbColumn } from '../../lib/jsonb.js';
 import { buildOrderBy } from '../../lib/listSort.js';
-import { useSql, db, ensureTagTables, buildFilterWhere, UUID_RE } from './shared.js';
+import { useSql, db, ensureTagTables, buildFilterWhere, UUID_RE, parseTags } from './shared.js';
 
 const router = Router();
 
@@ -23,16 +23,6 @@ const USER_SORTS = {
   department: '"department"',
   jobTitle: '"jobTitle"',
 };
-
-// ─── Helper: parse tag string from SQL into array ─────────────────
-// Tag IDs are UUID strings (v6) — do not parseInt.
-function parseTags(tagString) {
-  if (!tagString) return [];
-  return tagString.split('|').map(t => {
-    const parts = t.split(':');
-    return { id: parts[0], name: parts[1], color: parts[2] };
-  });
-}
 
 // ─── GET /api/user-columns-page ──────────────────────────────────
 // Column discovery for the Users page (distinct values from GraphUsers)

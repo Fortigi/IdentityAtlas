@@ -20,5 +20,5 @@ const router = Router();
 router.use(crudRouter);
 router.use(entitiesRouter);
 
-export { ensureTagTables, buildFilterWhere, ENTITY_TO_TARGET, UUID_RE } from './tags/shared.js';
+export { ensureTagTables, buildFilterWhere, ENTITY_TO_TARGET, UUID_RE, parseTags } from './tags/shared.js';
 export default router;
