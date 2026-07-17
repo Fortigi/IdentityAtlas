@@ -12,7 +12,7 @@ The UI supports a light/dark theme toggle via Tailwind v4's class-based dark mod
 
 **Rule: every new UI component must include dark mode from the start.** No cleanup pass — new code ships complete.
 
-**Rule: all light-theme colors must meet WCAG 2.0 AA contrast.** Any hardcoded color used as text, icon, or border on a light background must achieve ≥4.5:1 contrast ratio against that background (≥3:1 for large text ≥18pt / bold ≥14pt). Use Tailwind 700–800 tier values for colored text on white — mid-tone 400–500 values consistently fail. Check new color constants with a contrast tool before committing. The `TAG_COLORS` array in `src/utils/colors.js` is the reference example of compliant values.
+**Rule: all light-theme colors must meet WCAG 2.0 AA contrast.** Any hardcoded color used as text, icon, or border on a light background must achieve ≥4.5:1 contrast ratio against that background (≥3:1 for large text ≥18pt / bold ≥14pt). Use Tailwind 700–800 tier values for colored text on white — mid-tone 400–500 values consistently fail. Check new color constants with a contrast tool before committing. The `TAG_COLORS` array in `src/utils/colors.js` is the reference example of compliant values. For a pill/chip whose colour comes from **data** (a tag or category hex you don't control), don't hand-roll `{ backgroundColor: color + '20', color }` — that draws the raw colour as text and fails contrast (badly in dark mode). Use `tagPillStyle(hex, useIsDark())` from `utils/colors.js`, which tints the background and nudges the text to clear AA for the active theme.
 
 **Enforced by lint:** The ESLint rule `local/no-low-contrast-text` (defined in `eslint-rules/no-low-contrast-text.js`) flags any bare (light-mode) Tailwind `text-{color}-300` or `text-{color}-400` class in JSX `className` attributes and blocks the build. Fix by raising to `-600` and pairing with a `dark:` override:
 ``jsx
@@ -23,6 +23,8 @@ className="text-gray-400 dark:text-gray-500"
 className="text-gray-600 dark:text-gray-400"
 ``
 Exception: shades 100–200 are not flagged because they are routinely used as near-white text on dark/colored button backgrounds (`bg-gray-900 text-gray-100`). Use them only in that context.
+
+**Rule: every interactive control needs an accessible name — a placeholder is not a label.** Search/filter boxes and other inputs must carry a real `<label>` (associated via `htmlFor`/`id`) or an `aria-label`; `placeholder=` alone leaves the field unlabelled for screen readers (and disappears once the user types). Test by querying the field by role + name — `getByRole('textbox', { name: /…/ })` — not by placeholder, so a dropped label fails the test.
 
 **Common patterns:**
 ``jsx
@@ -84,13 +86,15 @@ import { formatDate } from '../../../app/ui/src/utils/formatters';
 
 **`import.meta.glob` exception:** Vite's `import.meta.glob()` calls in `CrawlersPage.jsx` still use relative paths (`../../../../tools/crawlers/*/...`) because glob key lookup depends on the literal string matching. Do not change these.
 
+**Testability note:** because `CrawlersPage.jsx` *eagerly* imports every crawler's `Summary.jsx` via that glob, importing anything from `CrawlersPage.jsx` into a jsdom test fails (`react/jsx-dev-runtime` won't resolve for the `tools/crawlers/` files under vitest). So a component that lives inside `CrawlersPage.jsx` **can't be `renderWithProviders`-mounted** — extract it to its own file first (as `JobPhasesModal.jsx` was), then import that file in the test.
+
 ## No Duplicate Code
 
 Before writing any utility function, helper, constant, or component — **search first**. If equivalent logic already exists, use or extend it. Only create something new when nothing suitable exists.
 
 **Known shared utilities in `src/utils/` and `src/hooks/`:**
 - `utils/formatters.js` — `formatDate`, `formatDateOnly`, `formatDurationSeconds`, `formatDurationMs`, `formatRelativeTime`, `formatCompactNumber`, `formatValue`, `computeHistoryDiffs`, `friendlyLabel`
-- `utils/colors.js` — `TAG_COLORS`, AP color palettes, `getAccessPackageColor`, `TYPE_COLORS`
+- `utils/colors.js` — `TAG_COLORS`, AP color palettes, `getAccessPackageColor`, `TYPE_COLORS`, `tagPillStyle(hex, isDark)` (contrast-safe inline styles for a tag/category pill built from arbitrary hex — use this instead of `color + '20'`), `contrastRatio(a, b)` (WCAG ratio between two `{r,g,b}` colors)
 - `utils/accessPackageStyles.js` — `ASSIGNMENT_TYPE_STYLES` badge classes
 - `utils/attributeEntries.js` — `buildAttributeEntries` (merges core + extendedAttributes)
 - `utils/tierStyles.js` — `TIER_STYLES` (risk tier colors) and `tierClass(tier)` helper

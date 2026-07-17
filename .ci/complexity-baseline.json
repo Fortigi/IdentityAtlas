@@ -90,8 +90,7 @@
       35
     ],
     "app/ui/src/components/CrawlersPage.jsx": [
-      30,
-      25
+      30
     ],
     "app/ui/src/components/DashboardPage.jsx": [
       31
@@ -103,6 +102,9 @@
       25
     ],
     "app/ui/src/components/EntityGraph.jsx": [
+      25
+    ],
+    "app/ui/src/components/JobPhasesModal.jsx": [
       25
     ],
     "app/ui/src/components/MatrixView.jsx": [

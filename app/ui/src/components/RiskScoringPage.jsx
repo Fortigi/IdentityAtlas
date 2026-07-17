@@ -2,6 +2,11 @@
 import { useAuth } from '@ui/auth/AuthGate';
 import { TIER_STYLES } from '@ui/utils/tierStyles';
 
+// Human-readable noun for the current risk-scoring view, used in the search
+// field's placeholder and its accessible label.
+const VIEW_SEARCH_NOUNS = { clusters: 'clusters', groups: 'resources', users: 'users', 'business-roles': 'business roles', contexts: 'contexts', identities: 'identities' };
+const viewSearchNoun = (view) => VIEW_SEARCH_NOUNS[view] || view;
+
 function TierBadge({ tier }) {
   const s = TIER_STYLES[tier] || TIER_STYLES.None;
   return (
@@ -373,6 +378,7 @@ function ClusterDetail({ cluster, authFetch, onClose, onOpenDetail, onRefresh })
                       type="text"
                       value={ownerSearch}
                       onChange={e => setOwnerSearch(e.target.value)}
+                      aria-label="Search users by name"
                       placeholder="Search users by name..."
                       className="w-full text-sm border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1.5 placeholder-gray-400"
                       autoFocus
@@ -839,7 +845,8 @@ export default function RiskScoringPage({ onOpenDetail }) {
 
             <input
               type="text"
-              placeholder={`Search ${({ clusters: 'clusters', groups: 'resources', users: 'users', 'business-roles': 'business roles', 'contexts': 'contexts', identities: 'identities' })[view] || view}...`}
+              aria-label={`Search ${viewSearchNoun(view)}`}
+              placeholder={`Search ${viewSearchNoun(view)}...`}
               value={search}
               onChange={e => setSearch(e.target.value)}
               className="text-sm border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1.5 w-52 placeholder-gray-400"

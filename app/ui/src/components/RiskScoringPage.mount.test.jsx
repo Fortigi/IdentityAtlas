@@ -171,7 +171,9 @@ describe('RiskScoringPage (mounted)', () => {
     await screen.findByText('Sysadmin');
 
     fireEvent.change(screen.getByDisplayValue('All tiers'), { target: { value: 'High' } });
-    fireEvent.change(screen.getByPlaceholderText(/Search users/i), { target: { value: 'alice' } });
+    // The search field is reachable by its accessible name (aria-label), not
+    // just its placeholder — guards #761.
+    fireEvent.change(screen.getByRole('textbox', { name: /Search users/i }), { target: { value: 'alice' } });
     fireEvent.click(screen.getByRole('checkbox'));
 
     await screen.findByText('Sysadmin');

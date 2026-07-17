@@ -172,6 +172,7 @@ export default function SyncLogPage({ navigate, onOpenDetail }) {
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
+          aria-label="Filter sync log by name, tree or who triggered it"
           placeholder="Filter by name, tree or who triggered it…"
           className="text-sm px-2.5 py-1 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 w-72"
         />

@@ -1,0 +1,1 @@
+- Tag and category pills now pick a text colour that meets WCAG AA contrast against their tinted background in both light and dark mode, instead of drawing the raw colour as text (which could be unreadable — especially a dark tag colour on a dark pill in dark mode).

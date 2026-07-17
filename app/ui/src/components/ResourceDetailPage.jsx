@@ -1,5 +1,7 @@
 import { useCallback } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
+import { useIsDark } from '@ui/contexts/ThemeContext';
+import { tagPillStyle } from '@ui/utils/colors';
 import useFeatures from '@ui/hooks/useFeatures';
 import EntityDetailPage from './EntityDetailPage';
 import RiskScoreSection from './RiskScoreSection';
@@ -41,6 +43,7 @@ function getResourceRootExtras(data) {
 }
 
 function ResourceHeader({ data }) {
+  const isDark = useIsDark();
   const { attributes, tags } = data;
   const resourceType = attributes.resourceType || attributes.groupTypeCalculated || '';
   const typeBadgeClass = RESOURCE_TYPE_COLORS[resourceType] || 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300';
@@ -68,7 +71,7 @@ function ResourceHeader({ data }) {
         <div className="flex gap-1.5 mt-2">
           {tags.map(t => (
             <span key={t.id} className="inline-block px-2 py-0.5 rounded-full text-xs font-medium border"
-              style={{ backgroundColor: t.color + '20', borderColor: t.color, color: t.color }}>
+              style={tagPillStyle(t.color, isDark)}>
               {t.name}
             </span>
           ))}

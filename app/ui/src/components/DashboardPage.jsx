@@ -312,10 +312,10 @@ function StatCard({ label, value, onClick }) {
       onClick={clickable ? onClick : undefined}
       className={`p-3 rounded-xl transition-all ${
         clickable
-          ? 'cursor-pointer bg-gradient-to-br from-lime-50 to-white dark:from-lime-900/25 dark:to-gray-800 ring-1 ring-lime-200 dark:ring-lime-700/50 hover:ring-lime-500 dark:hover:ring-lime-600 hover:shadow-md hover:-translate-y-0.5'
+          ? 'cursor-pointer bg-white dark:bg-gray-800 ring-1 ring-lime-200 dark:ring-lime-700/50 hover:ring-lime-500 dark:hover:ring-lime-600 hover:shadow-md hover:-translate-y-0.5'
           : empty
             ? 'bg-gray-50 dark:bg-gray-700/50 ring-1 ring-gray-100 dark:ring-gray-600'
-            : 'bg-gradient-to-br from-lime-50 to-white dark:from-lime-900/25 dark:to-gray-800 ring-1 ring-lime-200 dark:ring-lime-700/50'
+            : 'bg-white dark:bg-gray-800 ring-1 ring-lime-200 dark:ring-lime-700/50'
       }`}
     >
       <div className={`text-2xl font-bold tabular-nums ${empty ? 'text-gray-600 dark:text-gray-500' : 'text-gray-900 dark:text-white'}`}>

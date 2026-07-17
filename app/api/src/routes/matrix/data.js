@@ -21,6 +21,7 @@ import {
 import { buildAttrCutCellsSql, buildAttrCutNodesSql, tupleToNode } from '../../matrix/attributeCut.js';
 import { buildRollupSql, buildRollupRolesSql, buildRolesAsRowsSql, buildGroupTotalsSql, buildRolesDrillSql } from '../../matrix/rollupBuilders.js';
 import { parseFilter, buildSubqueries, scopeCounts } from './shared.js';
+import { GROUP_PRINCIPAL_TYPE } from '../../lib/principalTypes.js';
 
 const router = Router();
 const useSql = process.env.USE_SQL === 'true';
@@ -641,7 +642,7 @@ async function handleFlatGrid(res, ctx) {
   const flatSubjectSql = built.subject(bind).sql;
   const flatResourceSql = built.resource(bind).sql;
 
-  const where = [`(p."principalType" IS NULL OR p."principalType" != '#microsoft.graph.group')`];
+  const where = [`(p."principalType" IS NULL OR p."principalType" != '${GROUP_PRINCIPAL_TYPE}')`];
   if (flatSubjectSql)  where.push(`${subjectIdForFilter} IN ${flatSubjectSql}`);
   if (flatResourceSql) where.push(`p."resourceId" IN ${flatResourceSql}`);
 

@@ -2,7 +2,8 @@ import { useMemo } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
 import useEntityPage from '@ui/hooks/useEntityPage';
 import FilterBar from './FilterBar';
-import { TAG_COLORS } from '@ui/utils/colors';
+import { TAG_COLORS, tagPillStyle } from '@ui/utils/colors';
+import { useIsDark } from '@ui/contexts/ThemeContext';
 
 /**
  * Shared scaffold for Resources, Users, and Identities list pages.
@@ -38,6 +39,7 @@ export default function EntityListPage({
   onOpenDetail,
 }) {
   const { authFetch } = useAuth();
+  const isDark = useIsDark();
 
   const ep = useEntityPage({
     authFetch,
@@ -76,7 +78,7 @@ export default function EntityListPage({
                 ? 'ring-2 ring-offset-1 ring-blue-400'
                 : 'hover:opacity-80'
             }`}
-            style={{ backgroundColor: t.color + '20', borderColor: t.color, color: t.color }}
+            style={tagPillStyle(t.color, isDark)}
             onClick={() => {
               if (ep.activeTagFilter === t.name) {
                 ep.removeFilter(tagFilterKey);
@@ -161,6 +163,7 @@ export default function EntityListPage({
           type="text"
           value={ep.search}
           onChange={e => ep.setSearch(e.target.value)}
+          aria-label={searchPlaceholder}
           placeholder={searchPlaceholder}
           className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs w-64 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-500"
         />
@@ -240,8 +243,63 @@ export default function EntityListPage({
       )}
 
       {/* Table */}
-      {ep.loading ? (
+      <EntityListTable
+        ep={ep}
+        label={label}
+        tableColumns={tableColumns}
+        renderEntityCell={renderEntityCell}
+        renderDataCells={renderDataCells}
+        onOpenDetail={onOpenDetail}
+      />
+
+      {/* Pagination */}
+      {ep.totalPages > 1 && (
+        <div className="flex items-center justify-between mt-3 text-sm text-gray-600 dark:text-gray-400">
+          <span>
+            Showing {ep.page * ep.PAGE_SIZE + 1}&ndash;{Math.min((ep.page + 1) * ep.PAGE_SIZE, ep.total)} of {ep.total.toLocaleString()}
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => ep.setPage(p => Math.max(0, p - 1))}
+              disabled={ep.page === 0}
+              className="px-3 py-1 rounded border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700/50 disabled:opacity-40"
+            >
+              Prev
+            </button>
+            <span>Page {ep.page + 1} of {ep.totalPages}</span>
+            <button
+              onClick={() => ep.setPage(p => Math.min(ep.totalPages - 1, p + 1))}
+              disabled={ep.page >= ep.totalPages - 1}
+              className="px-3 py-1 rounded border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700/50 disabled:opacity-40"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// The list body's four states (loading / error / empty / table) are their
+// own component so EntityListPage's render stays under the complexity ceiling.
+function EntityListTable({ ep, label, tableColumns, renderEntityCell, renderDataCells, onOpenDetail }) {
+  return (
+    ep.loading ? (
         <div className="text-center text-gray-500 dark:text-gray-400 py-12">Loading {label}...</div>
+      ) : ep.error ? (
+        <div className="text-center py-12" role="alert">
+          <p className="text-red-700 dark:text-red-300 font-medium">Couldn&apos;t load {label}.</p>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+            {ep.error.message || 'The request failed. Check your connection and try again.'}
+          </p>
+          <button
+            onClick={ep.fetchItems}
+            className="mt-4 px-3 py-1.5 text-sm rounded bg-blue-600 text-white hover:bg-blue-700"
+          >
+            Retry
+          </button>
+        </div>
       ) : ep.items.length === 0 ? (
         <div className="text-center text-gray-500 dark:text-gray-400 py-12">
           {ep.hasAnyFilter ? `No ${label} match the current filters.` : `No ${label} found.`}
@@ -305,7 +363,7 @@ export default function EntityListPage({
                         <span
                           key={t.id}
                           className="inline-block px-1.5 py-0.5 rounded-full text-[10px] font-medium border"
-                          style={{ backgroundColor: t.color + '20', borderColor: t.color, color: t.color }}
+                          style={tagPillStyle(t.color, isDark)}
                         >
                           {t.name}
                         </span>
@@ -317,33 +375,6 @@ export default function EntityListPage({
             </tbody>
           </table>
         </div>
-      )}
-
-      {/* Pagination */}
-      {ep.totalPages > 1 && (
-        <div className="flex items-center justify-between mt-3 text-sm text-gray-600 dark:text-gray-400">
-          <span>
-            Showing {ep.page * ep.PAGE_SIZE + 1}&ndash;{Math.min((ep.page + 1) * ep.PAGE_SIZE, ep.total)} of {ep.total.toLocaleString()}
-          </span>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => ep.setPage(p => Math.max(0, p - 1))}
-              disabled={ep.page === 0}
-              className="px-3 py-1 rounded border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700/50 disabled:opacity-40"
-            >
-              Prev
-            </button>
-            <span>Page {ep.page + 1} of {ep.totalPages}</span>
-            <button
-              onClick={() => ep.setPage(p => Math.min(ep.totalPages - 1, p + 1))}
-              disabled={ep.page >= ep.totalPages - 1}
-              className="px-3 py-1 rounded border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700/50 disabled:opacity-40"
-            >
-              Next
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
+      )
   );
 }
