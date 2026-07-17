@@ -1,5 +1,10 @@
 ## Changes in this PR
 
+- Fixed list-page sorting (Users, Groups, Identities): clicking a column header now sorts the entire result set on the server, not just the rows on the current page — so the ordering (and "top of the list") is correct across every page instead of silently reshuffling only the 100 rows on screen.
+- Changing the sort now returns you to the first page of the newly ordered results.
+
+## Changes in this PR
+
 - The Admin settings section headers (Curated Data, Excel Power Query Workbook, Risk Profile, Risk Classifiers, Danger Zone) now use a consistent inline-SVG icon set instead of emoji, so they render uniformly across platforms and follow the theme's colours.
 
 ## Changes in this PR
