@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Internal code cleanup: consolidated duplicated Node API route helpers flagged by the June 2026 maintenance audit — the matrix query handlers now share a single bind-and-run query helper and a resource-map accumulator instead of ~20 copy-pasted blocks, and the resource-list endpoint reuses the shared row/tag helpers. No change to behaviour or API responses.
+
+## Changes in this PR
+
 - Roles & Permissions now has its own Admin sub-tab (Admin → Roles & Permissions) instead of being buried inside the Authentication page, so it's easier to find.
 - Every change to the role→permission mapping (save or reset to defaults) is now recorded in an audit trail — who made the change and when — shown as a "Recent changes" list under the editor. The editor already refused a change that would remove your own admin access; this adds the accountability half.
 

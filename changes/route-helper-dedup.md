@@ -1,1 +1,0 @@
-- Internal code cleanup: consolidated duplicated Node API route helpers flagged by the June 2026 maintenance audit — the matrix query handlers now share a single bind-and-run query helper and a resource-map accumulator instead of ~20 copy-pasted blocks, and the resource-list endpoint reuses the shared row/tag helpers. No change to behaviour or API responses.
