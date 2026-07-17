@@ -151,7 +151,7 @@ All **Critical** findings are fixed and merged. Every exploitable **security** f
 | F3 | ✅ Fixed | #655 — dead visual-regression suite removed (resolves the false-green) |
 | F4 | ✅ Fixed | #428 — `concurrency: cancel-in-progress` on both PR workflows |
 | F5 | ✅ Fixed | #584 / #652 / #615 / #622 — coverage floors + per-file & diff ratchets + Pester floor |
-| F6 | 🔧 Open | `test/ci-scripts/*.sh` self-tests still unwired to any workflow (#798) |
+| F6 | ✅ Fixed | #815 — new `ci-scripts` PR job runs the path-gate/scope/commit-range self-tests, wired into the `ci-passed` gate (#798) |
 | F7 | ✅ Fixed | #428 — API ESLint now runs on API-only PRs |
 | F8 | ✅ Fixed | mocked Pester units now cover every crawler (+ #622 floor) |
 | F9 | 🟨 Partially addressed | PSScriptAnalyzer added; Python still absent from CodeQL (#799) |
