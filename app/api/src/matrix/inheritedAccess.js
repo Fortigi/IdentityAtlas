@@ -21,6 +21,7 @@ import { effectiveAccessForNodes } from '../effectiveAccess/engine.js';
 import { getSyncVersion } from '../lib/syncVersion.js';
 import { resolveAttrExpr } from './attrExpr.js';
 import { visibleKeyExpr } from './attributeCut.js';
+import { GROUP_PRINCIPAL_TYPE } from '../lib/principalTypes.js';
 
 // ── Effective-access cache (Phase 3: cache-by-sync) ─────────────────────────
 // Effective access can only change on a crawl, so we cache the engine's full
@@ -141,7 +142,7 @@ export async function buildInheritedFlatRows(p, built, rowType, subjectCols) {
 
   for (const e of rows) {
     const u = byId.get(e.principalId);
-    if (!u || u.principalType === '#microsoft.graph.group') continue;
+    if (!u || u.principalType === GROUP_PRINCIPAL_TYPE) continue;
     if (rowType === 'identity') {
       for (const id of (identByPrincipal.get(e.principalId) || [])) {
         emit(e, u, id.id, id.displayName, id.email, 'Identity');
@@ -187,7 +188,7 @@ export async function buildInheritedRollupCounts(p, built, rowType, rollupAttr, 
   const groupSets = new Map();           // gv -> Set principal
   for (const e of rows) {
     const meta = gvBy.get(e.principalId);
-    if (!meta || meta.pt === '#microsoft.graph.group') continue;
+    if (!meta || meta.pt === GROUP_PRINCIPAL_TYPE) continue;
     const gv = meta.gv || '(none)';
     if (!resources.has(e.resourceId)) {
       const node = nodeById.get(e.nodeId) || {};
@@ -249,7 +250,7 @@ export async function buildInheritedContextCounts(p, built, rowType, frontierIds
   for (const r of fm) { let a = gvBy.get(r.pid); if (!a) { a = []; gvBy.set(r.pid, a); } a.push(r.gv); }
 
   const { rows: pt } = await db.query(`SELECT id, "principalType" AS pt FROM "Principals" WHERE id = ANY($1)`, [pids]);
-  const isGroup = new Set(pt.filter((r) => r.pt === '#microsoft.graph.group').map((r) => r.id));
+  const isGroup = new Set(pt.filter((r) => r.pt === GROUP_PRINCIPAL_TYPE).map((r) => r.id));
   const { rows: nodeMeta } = await db.query(
     `SELECT r.id, r."systemId", s."displayName" AS "systemName"
        FROM "Resources" r LEFT JOIN "Systems" s ON s.id = r."systemId" WHERE r.id = ANY($1)`, [nodeIds]);
@@ -317,7 +318,7 @@ export async function buildInheritedFoldCounts(p, built, rowType, sortAttributes
   const gvBy = new Map(gvr.map((r) => [r.id, r.gv]));
 
   const { rows: pt } = await db.query(`SELECT id, "principalType" AS pt FROM "Principals" WHERE id = ANY($1)`, [pids]);
-  const isGroup = new Set(pt.filter((r) => r.pt === '#microsoft.graph.group').map((r) => r.id));
+  const isGroup = new Set(pt.filter((r) => r.pt === GROUP_PRINCIPAL_TYPE).map((r) => r.id));
   const { rows: nodeMeta } = await db.query(
     `SELECT r.id, r."systemId", s."displayName" AS "systemName"
        FROM "Resources" r LEFT JOIN "Systems" s ON s.id = r."systemId" WHERE r.id = ANY($1)`, [nodeIds]);

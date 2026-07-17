@@ -1,3 +1,5 @@
+import { GROUP_PRINCIPAL_TYPE } from '../lib/principalTypes.js';
+
 /**
  * Shared SQL expression builders for matrix.js.
  * Each function encapsulates a rowType === 'identity' ? ... : ... branch that
@@ -13,7 +15,7 @@ export function buildAssignmentExprs(rowType, subjectSql, resourceSql) {
   const assignmentJoin = rowType === 'identity'
     ? `INNER JOIN "IdentityMembers" im ON im."principalId" = p."principalId"`
     : '';
-  const assignmentWhere = [`(p."principalType" IS NULL OR p."principalType" != '#microsoft.graph.group')`];
+  const assignmentWhere = [`(p."principalType" IS NULL OR p."principalType" != '${GROUP_PRINCIPAL_TYPE}')`];
   if (subjectSql)  assignmentWhere.push(`${subjectIdExpr} IN ${subjectSql}`);
   if (resourceSql) assignmentWhere.push(`p."resourceId" IN ${resourceSql}`);
   return { subjectIdExpr, assignmentJoin, assignmentWhere };

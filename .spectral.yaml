@@ -1,1 +1,39 @@
 extends: ["spectral:oas"]
+
+# The bare `spectral:oas` ruleset lets a thin spec pass trivially — most
+# documentation-quality rules ship at `warn`, so `spectral lint` exits 0 even
+# when operations lack operationIds, descriptions, or reference undeclared tags.
+# Elevate the documentation-completeness rules to `error` so CI actually blocks
+# regressions, and add one house rule the OAS ruleset doesn't cover.
+rules:
+  # Every operation must be uniquely and safely addressable (codegen/tooling).
+  operation-operationId: error
+  operation-operationId-unique: error
+  operation-operationId-valid-in-url: error
+
+  # Every operation must be documented and correctly categorised.
+  operation-description: error
+  operation-tag-defined: error
+  operation-tags: error
+
+  # A success response must always be described.
+  operation-success-response: error
+
+  # API-level metadata must be present (contact block + description).
+  info-contact: error
+  info-description: error
+
+  # Catch common authoring mistakes as errors rather than warnings.
+  no-$ref-siblings: error
+  duplicated-entry-in-enum: error
+  typed-enum: error
+
+  # House rule: every operation carries a non-empty summary.
+  operation-summary:
+    description: Every operation must have a non-empty summary.
+    message: "Operation must have a summary."
+    given: "$.paths[*][get,put,post,delete,patch,options,head]"
+    severity: error
+    then:
+      field: summary
+      function: truthy
