@@ -14,6 +14,7 @@
 
 import { Router } from 'express';
 import { requirePermission } from '../middleware/auth.js';
+import * as db from '../db/connection.js';
 import rateLimit from 'express-rate-limit';
 import {
   getRolePermissions,
@@ -86,8 +87,46 @@ function checkSelfLockout(req, mapping, messages) {
   };
 }
 
+// Who's making the change, for the audit trail. Falls back through the JWT's
+// usual identity claims; null when auth is disabled (no token).
+function actingUser(req) {
+  return req.user?.name || req.user?.preferred_username || req.user?.upn || req.user?.oid || null;
+}
+
+// Record a role-mapping change (#786). Best-effort: the mapping is already
+// persisted by the time we get here, so a failed audit insert is logged but
+// never fails the admin's save/reset.
+async function logRoleChange(req, action, mapping) {
+  try {
+    await db.query(
+      `INSERT INTO "AuthRoleChangeLog" ("changedBy", "action", "mapping") VALUES ($1, $2, $3)`,
+      [actingUser(req), action, JSON.stringify(mapping ?? null)],
+    );
+  } catch (err) {
+    console.error('Role-change audit log failed:', err.message);
+  }
+}
+
 router.get('/admin/roles', gate, (req, res) => {
   res.json(buildSnapshot(req));
+});
+
+// Change history for the role→permission mapping (newest first).
+router.get('/admin/roles/audit', gate, async (req, res) => {
+  const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 20, 1), 100);
+  try {
+    const r = await db.query(
+      `SELECT "id", "changedAt", "changedBy", "action"
+         FROM "AuthRoleChangeLog"
+        ORDER BY "changedAt" DESC
+        LIMIT $1`,
+      [limit],
+    );
+    res.json({ entries: r?.rows || [] });
+  } catch (err) {
+    console.error('Role audit fetch failed:', err.message);
+    res.status(500).json({ error: 'Failed to load change history' });
+  }
 });
 
 router.put('/admin/roles', gate, writeLimiter, async (req, res) => {
@@ -127,6 +166,7 @@ router.put('/admin/roles', gate, writeLimiter, async (req, res) => {
 
   try {
     const saved = await setRolePermissions(mapping);
+    await logRoleChange(req, 'save', saved);
     res.json({ ok: true, mapping: saved, isCustom: hasCustomRolePermissions() });
   } catch (err) {
     console.error('Role mapping save failed:', err.message);
@@ -145,6 +185,7 @@ router.delete('/admin/roles', gate, writeLimiter, async (req, res) => {
 
   try {
     await setRolePermissions(null);
+    await logRoleChange(req, 'reset', getRolePermissions());
     res.json({ ok: true, mapping: getRolePermissions(), isCustom: false });
   } catch (err) {
     console.error('Role mapping reset failed:', err.message);

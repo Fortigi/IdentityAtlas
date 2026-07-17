@@ -1,4 +1,4 @@
-import { useState, useEffect, lazy, Suspense } from 'react';
+import { useState, useEffect, lazy, Suspense, createElement } from 'react';
 
 import { useAuth } from '@ui/auth/AuthGate';
 import { hasPermission } from '@ui/auth/usePermissions';
@@ -9,6 +9,7 @@ import { ADMIN_TABS, visibleAdminTabs } from './admin/adminTabs';
 const CrawlersPage = lazy(() => import('./CrawlersPage'));
 const PluginsPage = lazy(() => import('./PluginsPage'));
 const AuthSettingsPage = lazy(() => import('./AuthSettingsPage'));
+const RolesPermissionsSection = lazy(() => import('./RolesPermissionsSection'));
 const PerfPage = lazy(() => import('./PerfPage'));
 const AboutPage = lazy(() => import('./AboutPage'));
 const AccountLinkingSettings = lazy(() => import('./AccountLinkingSettings'));
@@ -109,6 +110,24 @@ export default function AdminPage({ onNavigate, onRefresh, onRiskScoresRefresh }
 
   const currentTab = visibleTabs.find(t => t.key === activeTab) || visibleTabs[0];
 
+  // Lazy-loaded tabs render identically — one Suspense wrapper over a component
+  // lookup, rather than a per-tab `activeTab === 'x' && <Suspense>…` block each
+  // (which duplicated the wrapper and pushed this component over the complexity
+  // ceiling). Plain component/prop maps (not thunks) so nothing per-tab needs its
+  // own coverage. Non-lazy tabs (data / risk-scoring / llm) stay explicit below.
+  const lazyTabComponent = {
+    crawlers: CrawlersPage,
+    plugins: PluginsPage,
+    'account-linking': AccountLinkingSettings,
+    performance: PerfPage,
+    auth: AuthSettingsPage,
+    roles: RolesPermissionsSection,
+    updates: UpdatesSettings,
+    about: AboutPage,
+  };
+  const lazyTabProps = { crawlers: { onNavigate }, plugins: { onNavigate } };
+  const LazyTab = lazyTabComponent[activeTab];
+
   return (
     <div className="max-w-6xl mx-auto">
       <div className="flex items-center justify-between mb-3 px-2">
@@ -121,15 +140,9 @@ export default function AdminPage({ onNavigate, onRefresh, onRiskScoresRefresh }
       <AdminSubTabs activeTab={activeTab} onTabChange={setActiveTab} tabs={visibleTabs} />
 
       <div className="space-y-4 px-2">
-        {activeTab === 'crawlers' && (
+        {LazyTab && (
           <Suspense fallback={<div className="text-sm text-gray-500 dark:text-gray-400 p-6">Loading…</div>}>
-            <CrawlersPage onNavigate={onNavigate} />
-          </Suspense>
-        )}
-
-        {activeTab === 'plugins' && (
-          <Suspense fallback={<div className="text-sm text-gray-500 dark:text-gray-400 p-6">Loading…</div>}>
-            <PluginsPage onNavigate={onNavigate} />
+            {createElement(LazyTab, lazyTabProps[activeTab])}
           </Suspense>
         )}
 
@@ -142,37 +155,8 @@ export default function AdminPage({ onNavigate, onRefresh, onRiskScoresRefresh }
           </>
         )}
 
-        {activeTab === 'account-linking' && (
-          <Suspense fallback={<div className="text-sm text-gray-500 dark:text-gray-400 p-6">Loading…</div>}>
-            <AccountLinkingSettings />
-          </Suspense>
-        )}
         {activeTab === 'risk-scoring' && <RiskScoringSection onRiskScoresRefresh={onRiskScoresRefresh} />}
         {activeTab === 'llm' && <LLMSettingsSection />}
-
-        {activeTab === 'performance' && (
-          <Suspense fallback={<div className="text-sm text-gray-500 dark:text-gray-400 p-6">Loading…</div>}>
-            <PerfPage />
-          </Suspense>
-        )}
-
-        {activeTab === 'auth' && (
-          <Suspense fallback={<div className="text-sm text-gray-500 dark:text-gray-400 p-6">Loading…</div>}>
-            <AuthSettingsPage />
-          </Suspense>
-        )}
-
-        {activeTab === 'updates' && (
-          <Suspense fallback={<div className="text-sm text-gray-500 dark:text-gray-400 p-6">Loading…</div>}>
-            <UpdatesSettings />
-          </Suspense>
-        )}
-
-        {activeTab === 'about' && (
-          <Suspense fallback={<div className="text-sm text-gray-500 dark:text-gray-400 p-6">Loading…</div>}>
-            <AboutPage />
-          </Suspense>
-        )}
       </div>
     </div>
   );
