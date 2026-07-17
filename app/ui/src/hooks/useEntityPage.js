@@ -34,6 +34,11 @@ export default function useEntityPage({ authFetch, entityType, listEndpoint, col
   // loading is flipped synchronously inside fetchItems; a reducer dispatch keeps
   // that clear of set-state-in-effect.
   const [loading, setLoading] = useReducer((_, v) => v, true);
+  // Non-null when the items fetch failed (HTTP error or network throw). Lets the
+  // list page render a distinct error panel with retry instead of the "No X
+  // found" empty state — a failed load previously looked identical to an empty
+  // result (audit H6).
+  const [error, setError] = useState(null);
 
   // Column discovery for filters
   const [availableColumns, setAvailableColumns] = useState([]);
@@ -120,9 +125,13 @@ export default function useEntityPage({ authFetch, entityType, listEndpoint, col
     if (filtersObj) params.set('filters', JSON.stringify(filtersObj));
     if (includeDeleted) params.set('includeDeleted', 'true');
     return authFetch(`${listEndpoint}?${params}`)
-      .then((res) => (res.ok ? res.json() : null))
+      .then((res) => {
+        if (!res.ok) throw new Error(`Request failed (${res.status})`);
+        return res.json();
+      })
       .then((json) => {
         if (json && version === fetchVersion.current) {
+          setError(null);
           setItems(json.data);
           // The list endpoints only return `total` on the first page (offset 0)
           // and send `total: null` on later pages to skip a redundant COUNT (the
@@ -133,7 +142,10 @@ export default function useEntityPage({ authFetch, entityType, listEndpoint, col
           if (json.total != null) setTotal(json.total);
         }
       })
-      .catch((err) => console.error(`Failed to fetch ${entityType}s:`, err))
+      .catch((err) => {
+        console.error(`Failed to fetch ${entityType}s:`, err);
+        if (version === fetchVersion.current) setError(err);
+      })
       .finally(() => { if (version === fetchVersion.current) setLoading(false); });
   }, [page, debouncedSearch, filtersObj, authFetch, listEndpoint, includeDeleted, entityType]);
 
@@ -307,7 +319,7 @@ export default function useEntityPage({ authFetch, entityType, listEndpoint, col
 
   return {
     // Data
-    items, total, tags, loading, sortedItems,
+    items, total, tags, loading, error, sortedItems,
     // Pagination
     page, setPage, totalPages, PAGE_SIZE,
     // Search & Filters

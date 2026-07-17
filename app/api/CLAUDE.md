@@ -71,6 +71,10 @@ Migration files are numbered sequentially (`001_core_schema.sql`, `002_governanc
 | `middleware/auth.js` | Entra ID JWT validation (v1+v2 tokens) |
 | `middleware/perfMetrics.js` | Request timing + Server-Timing headers |
 
+## OpenAPI spec & drift guard
+
+`src/openapi.yaml` documents the public API surface; `.spectral.yaml` lints its syntax (the `Lint: OpenAPI spec` PR gate). Separately, `routes/openapi.drift.test.js` classifies every router module under `routes/` as **documented** (at least one of its routes appears in `openapi.yaml`) or **undocumented** (read/internal APIs, listed in an explicit allowlist inside that test). A **new router module that is neither documented nor allowlisted fails the completeness test.** So when you add a router: either document its routes in `openapi.yaml`, or add the file to the undocumented allowlist in `openapi.drift.test.js` — otherwise the suite goes red.
+
 ## Crawler Job System
 
 Crawler types and their config schemas are auto-discovered from `tools/crawlers/*/crawler.json` manifests at startup. See `tools/crawlers/CLAUDE.md` for the manifest schema.
