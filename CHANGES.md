@@ -1,5 +1,11 @@
 ## Changes in this PR
 
+- The Risk Scores and Identities tabs now appear in the top navigation as soon as their feature is enabled, instead of staying hidden behind a second per-user "show this tab" toggle. Turning the feature on is all that's needed; the redundant toggle for these two tabs is gone (Systems and Logs remain opt-in as before).
+- Copy-to-clipboard buttons for one-time secrets (the Power Query read token, the Custom Connector API key, and the CLI-command snippets on the Authentication page) now confirm the copy actually happened — they show "Copied" only once the write succeeds and a "Copy failed — select manually" hint otherwise, instead of always claiming success even when the clipboard write silently failed (e.g. on an install served over plain http).
+- The Custom Connector's freshly reset API key now has a Copy button of its own, and copying falls back to a legacy method on browsers/contexts without the modern clipboard API — so a key that "won't be shown again" can't be lost to a copy that never landed.
+
+## Changes in this PR
+
 - CSV import now checks each uploaded file's column headers against the schema for the type it's mapped to, instead of trusting the filename alone. If a file is missing the required columns for its type (for example a users export accidentally mapped to Assignments), the wizard flags it inline with the missing columns and blocks saving until it's corrected — rather than letting the mistake surface only when the import job later runs.
 
 ## Changes in this PR
