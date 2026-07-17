@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
 import useEntityPage from '@ui/hooks/useEntityPage';
 import FilterBar from './FilterBar';
+import EmptyState from './EmptyState';
 import { TAG_COLORS, tagPillStyle } from '@ui/utils/colors';
 import { useIsDark } from '@ui/contexts/ThemeContext';
 
@@ -301,9 +302,21 @@ function EntityListTable({ ep, label, tableColumns, renderEntityCell, renderData
           </button>
         </div>
       ) : ep.items.length === 0 ? (
-        <div className="text-center text-gray-500 dark:text-gray-400 py-12">
-          {ep.hasAnyFilter ? `No ${label} match the current filters.` : `No ${label} found.`}
-        </div>
+        ep.hasAnyFilter ? (
+          <EmptyState
+            title={`No ${label} match your filters`}
+            hint="Adjust your search or filters — or clear them to see everything."
+            actionLabel="Clear filters"
+            onAction={ep.clearAllFilters}
+          />
+        ) : (
+          <EmptyState
+            title={`No ${label} yet`}
+            hint={`${label.charAt(0).toUpperCase()}${label.slice(1)} are imported by a crawler. Add one to connect a source (Entra ID, CSV, …) and import data.`}
+            actionLabel="Add a crawler →"
+            onAction={() => { window.location.hash = 'admin?sub=crawlers'; }}
+          />
+        )
       ) : (
         <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
           <table className="w-full text-sm">
