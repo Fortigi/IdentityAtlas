@@ -1,5 +1,17 @@
 ## Changes in this PR
 
+- Expanded the demo dataset from 3 systems to 5: alongside Entra ID and HR, the demo now ships an IGA system, an SAP ERP system and an Azure (AzureRM) system, with accounts correlated across all of them.
+- Renamed the demo's governance system from "Omada" to a vendor-neutral "IGA" — a business role is the same concept whether it comes from Omada, midPoint or SailPoint, and the demo shouldn't imply one vendor. (The Omada crawler itself is unchanged.)
+- Added a Marketing department and four new people to the demo company, including Piet Jansen — the deliberately worst-case identity, with role-inherited access, a never-expiring password and consent to a risky app.
+- Added a Sales business role, an ad-hoc role candidate, and an over-privileged cross-department group, so the demo now shows a realistic role-mining picture: what a role grants, what it should probably grant, and what it should not.
+- Demo accounts now carry a password-expiry attribute, so you can filter the matrix for accounts whose password never expires.
+- Added two third-party apps to the demo with OAuth consent grants — one risky, one clean — so the Risky Consent view has something to find.
+- Azure demo resources are region-tagged (US and EU), so you can ask who has access in a given region.
+- The demo dataset now resolves real system ids from the API instead of assuming they are 1, 2 and 3 — previously it could attach demo data to the wrong system on any database that had already seen another crawler.
+- Demo data is now loaded per system, so re-loading it can no longer make one system's sync remove another system's data.
+
+## Changes in this PR
+
 - Internal code cleanup: consolidated duplicated Node API route helpers flagged by the June 2026 maintenance audit — the matrix query handlers now share a single bind-and-run query helper and a resource-map accumulator instead of ~20 copy-pasted blocks, and the resource-list endpoint reuses the shared row/tag helpers. No change to behaviour or API responses.
 
 ## Changes in this PR
