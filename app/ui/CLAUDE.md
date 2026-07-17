@@ -56,6 +56,10 @@ const isDark = useIsDark();
 style={{ color: isDark ? AP_COLORS_DARK[i] : AP_COLORS[i] }}
 ``
 
+## Icons
+
+Use **inline SVG** for UI icons (heroicons-outline geometry, drawn with `currentColor` so they follow the surrounding text colour in both themes), not emoji or unicode pictographs. Emoji render inconsistently across platforms/fonts and ignore the theme colour. The Admin section headers use the shared set in `components/admin/adminIcons.jsx` as the reference — extend or mirror that pattern rather than dropping an emoji into a label. Semantic status glyphs already established in the Style Guide (e.g. the Stepper `✓`, a close `✕`) are the deliberate exception.
+
 ## Import path aliases
 
 All cross-directory imports inside `src/` **must** use the `@ui/` alias rather than relative `'../'` traversal. Same-folder imports (`'./'`) are fine.

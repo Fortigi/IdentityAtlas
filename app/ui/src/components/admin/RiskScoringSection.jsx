@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { useFetch } from '@ui/hooks/useFetch';
 import { useAuth } from '@ui/auth/AuthGate';
 import { MetaBadge, JsonViewer, Section, NotConfigured } from './adminUi';
+import { RiskProfileIcon, ClassifiersIcon } from './adminIcons';
 import { fmt } from './adminFormat';
 const RiskProfileWizard = lazy(() => import('../RiskProfileWizard'));
 function RiskProfileSection() {
@@ -145,7 +146,7 @@ function RiskProfileSection() {
     );
   };
 
-  return <Section title="Risk Profile" icon="🏢" defaultOpen>{content()}</Section>;
+  return <Section title="Risk Profile" icon={<RiskProfileIcon />} defaultOpen>{content()}</Section>;
 }
 
 // ── Classifiers section ───────────────────────────────────────────
@@ -302,7 +303,7 @@ function ClassifiersSection() {
     );
   };
 
-  return <Section title="Risk Classifiers" icon="🎯">{content()}</Section>;
+  return <Section title="Risk Classifiers" icon={<ClassifiersIcon />}>{content()}</Section>;
 }
 
 function NewRiskProfileLauncher({ onRiskScoresRefresh }) {
