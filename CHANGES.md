@@ -1,5 +1,18 @@
 ## Changes in this PR
 
+- Corrected the risk-tier table in the risk-scores API reference to match the scoring engine (Critical 90–100, High 70–89, Medium 40–69) — it previously showed the old 80/60 cutoffs, so every badge was mis-described.
+- Fixed the context-plugin catalogue in the architecture docs to list all ten shipped plugins with correct names, dropping two that never shipped.
+- Corrected the Performance Metrics API reference: the endpoint is `GET /api/perf/slow` (was documented as `/api/perf/slowest`, which 404s), and documented the previously-missing `POST /api/perf/toggle`.
+- Completed the OpenAPI spec: every operation now has a unique `operationId` and a description, and the `Effective Access` tag is declared.
+- Strengthened OpenAPI linting so incomplete spec changes fail CI (operationId, description, tags, and success-response rules are now enforced as errors instead of silently warning).
+
+## Changes in this PR
+
+- Refreshed the security and UX assessment pages so their remediation status matches what has actually merged: the crawler-protocol/perf authorization gaps, the internal-error-detail leak, and the Bicep secret-output hardening are now marked fixed with their PRs.
+- Updated the June 2026 maintenance-audit status table to reflect the documentation fixes that have since landed.
+
+## Changes in this PR
+
 - The Contexts hierarchy (departments, org units, tags) is now guaranteed acyclic at the database level: any change that would create a parent-child loop is rejected outright, so a mis-configured source tree surfaces as a clear error instead of being silently altered. Bulk imports that briefly build an intermediate state and resolve it before finishing are unaffected.
 
 ## Changes in this PR
