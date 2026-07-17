@@ -72,7 +72,7 @@ BeforeAll {
     $script:badShape     = @($script:data.contextMembers | Where-Object { $_.memberType -ne 'Principal' -or $_.addedBy -ne 'sync' })
     $script:pairs        = @($script:data.contextMembers | ForEach-Object { "$($_.contextId)|$($_.memberId)" })
     $script:deepCount    = @{}
-    foreach ($name in @('Engineering', 'Finance', 'Sales', 'Operations')) {
+    foreach ($name in @('Engineering', 'Finance', 'Sales', 'Operations', 'Marketing')) {
         $script:deepCount[$name] = @(Get-CtxMembersDeep -CtxId $script:ctxIdByName[$name]).Count
     }
     $script:platformCount = @(Get-CtxMembersDeep -CtxId $script:ctxIdByName['Platform Team']).Count
@@ -100,8 +100,10 @@ Describe 'Demo dataset — context membership' {
         ($script:pairs | Sort-Object -Unique).Count | Should -Be $script:pairs.Count
     }
 
-    It 'resolves the Sales department to its 5 members' {
-        $script:deepCount['Sales'] | Should -Be 5
+    It 'resolves the Sales department to its 7 members' {
+        # 6 active (CTF flag 1's answer) + Alex Former, the disabled leaver who
+        # is the deliberate distractor. See DemoSalesScenario.ps1.
+        $script:deepCount['Sales'] | Should -Be 7
     }
 
     It 'resolves the Engineering department to include its team members' {
@@ -111,7 +113,7 @@ Describe 'Demo dataset — context membership' {
     }
 
     It 'gives every department at least one member' {
-        foreach ($name in @('Engineering', 'Finance', 'Sales', 'Operations')) {
+        foreach ($name in @('Engineering', 'Finance', 'Sales', 'Operations', 'Marketing')) {
             $script:deepCount[$name] | Should -BeGreaterThan 0
         }
     }
@@ -188,5 +190,241 @@ Describe 'Demo dataset — group ownership (#713)' {
 
     It 'never emits the retired Owner assignmentType' {
         @($script:data.resourceAssignments | Where-Object { $_.assignmentType -eq 'Owner' }).Count | Should -Be 0
+    }
+}
+
+Describe 'Demo dataset — Capture-the-Flag scenarios (#705)' {
+
+    BeforeAll {
+        $script:resByName = @{}
+        foreach ($r in $script:data.resources) { $script:resByName[$r.displayName] = $r }
+        $script:princByName = @{}
+        foreach ($p in $script:data.principals) { $script:princByName[$p.displayName] = $p }
+
+        # principalId -> resourceId -> assignmentType
+        $script:heldBy = @{}
+        foreach ($a in $script:data.resourceAssignments) {
+            if (-not $script:heldBy.ContainsKey($a.principalId)) { $script:heldBy[$a.principalId] = @{} }
+            $script:heldBy[$a.principalId][$a.resourceId] = $a.assignmentType
+        }
+
+        # The six active Sales principals (flag 1's answer).
+        $script:salesPrincipals = @(
+            $script:data.principals |
+                Where-Object { $_.department -eq 'Sales' -and $_.accountEnabled -and $_.principalType -eq 'User' } |
+                ForEach-Object { $_.id }
+        )
+
+        # Resources every active Sales member holds (flag 2's answer).
+        $script:sharedSet = $null
+        foreach ($p in $script:salesPrincipals) {
+            $set = @($script:heldBy[$p].Keys)
+            if ($null -eq $script:sharedSet) { $script:sharedSet = $set }
+            else { $script:sharedSet = @($script:sharedSet | Where-Object { $set -contains $_ }) }
+        }
+    }
+
+    It 'gives Sales exactly 6 active members, with a disabled leaver as the distractor (flag 1)' {
+        $script:salesPrincipals.Count | Should -Be 6
+        $script:princByName['Alex Former'].accountEnabled | Should -BeFalse
+        $script:princByName['Alex Former'].department | Should -Be 'Sales'
+    }
+
+    It 'shares exactly 5 resources across all of Sales (flag 2)' {
+        $script:sharedSet.Count | Should -Be 5
+    }
+
+    It 'gives exactly two out-of-department users the whole shared set (flag 3)' {
+        $outsiders = @()
+        foreach ($p in $script:heldBy.Keys) {
+            if ($script:salesPrincipals -contains $p) { continue }
+            $set = @($script:heldBy[$p].Keys)
+            $hasAll = $true
+            foreach ($s in $script:sharedSet) { if ($set -notcontains $s) { $hasAll = $false; break } }
+            if ($hasAll) { $outsiders += $p }
+        }
+        $outsiders.Count | Should -Be 2
+        $names = @($script:data.principals | Where-Object { $outsiders -contains $_.id } | ForEach-Object { $_.displayName } | Sort-Object)
+        $names | Should -Be @('Nadia Haddad', 'Tom Bakker')
+    }
+
+    It 'gives Piet his CRM access only through BR-Sales, never directly (flag 4)' {
+        $piet = $script:princByName['Piet Jansen'].id
+        $crm  = $script:resByName['SG-CRM-Users'].id
+        $mine = @($script:data.resourceAssignments | Where-Object { $_.principalId -eq $piet -and $_.resourceId -eq $crm })
+        $mine.Count | Should -Be 1
+        $mine[0].assignmentType | Should -Be 'Indirect'
+
+        # ...and the Contains edge that explains WHY must exist, otherwise the
+        # matrix has no path to show and the flag has no answer.
+        $brSales = $script:resByName['BR-Sales'].id
+        @($script:data.resourceRelationships | Where-Object {
+            $_.parentResourceId -eq $brSales -and $_.childResourceId -eq $crm -and $_.relationshipType -eq 'Contains'
+        }).Count | Should -Be 1
+    }
+
+    It 'makes exactly the two role-granted resources the role-based part of the shared set (flag 5)' {
+        $brSales  = $script:resByName['BR-Sales'].id
+        $contains = @($script:data.resourceRelationships |
+            Where-Object { $_.parentResourceId -eq $brSales -and $_.relationshipType -eq 'Contains' } |
+            ForEach-Object { $_.childResourceId })
+        $names = @($script:sharedSet | Where-Object { $contains -contains $_ } |
+            ForEach-Object { $rid = $_; ($script:data.resources | Where-Object { $_.id -eq $rid }).displayName } | Sort-Object)
+        $names | Should -Be @('SG-CRM-Users', 'SG-Sales')
+    }
+
+    It 'holds the role candidate directly, by most of Sales, and keeps it out of the role (flag 6)' {
+        $sp = $script:resByName['SG-Sales-SharePoint'].id
+        $holders = @($script:data.resourceAssignments |
+            Where-Object { $_.resourceId -eq $sp -and $_.assignmentType -eq 'Direct' })
+        # Most, but not all — otherwise it would be part of the flag-2 shared set
+        # rather than a mining candidate.
+        $holders.Count | Should -Be 5
+        $script:sharedSet | Should -Not -Contain $sp
+
+        $brSales = $script:resByName['BR-Sales'].id
+        @($script:data.resourceRelationships | Where-Object {
+            $_.parentResourceId -eq $brSales -and $_.childResourceId -eq $sp
+        }).Count | Should -Be 0
+    }
+
+    It 'makes the trap look like the candidate but cross the department boundary (flag 7)' {
+        $trap = $script:resByName['SG-Finance-Reports'].id
+        $holders = @($script:data.resourceAssignments | Where-Object { $_.resourceId -eq $trap })
+        $depts = @($holders | ForEach-Object { $pid2 = $_.principalId
+            ($script:data.principals | Where-Object { $_.id -eq $pid2 }).department } | Sort-Object -Unique)
+        # It spans Sales AND Finance — that is the tell that separates it from
+        # flag 6's clean, Sales-only candidate.
+        $depts | Should -Contain 'Sales'
+        $depts | Should -Contain 'Finance'
+        # Not in the role, so it genuinely looks mineable.
+        $brSales = $script:resByName['BR-Sales'].id
+        @($script:data.resourceRelationships | Where-Object {
+            $_.parentResourceId -eq $brSales -and $_.childResourceId -eq $trap
+        }).Count | Should -Be 0
+    }
+
+    It 'skews SAP accounts to Finance and gives them no department of their own (flag 8)' {
+        $sapSysId = ([array]::IndexOf(@($script:data.metadata.systemKeys.key), 'sap')) + 1
+        $sapPrincipals = @($script:data.principals | Where-Object { $_.systemId -eq $sapSysId })
+        $sapPrincipals.Count | Should -Be 10
+
+        # The whole point of the flag: no department on the account, so the
+        # answer is only reachable through identity correlation.
+        @($sapPrincipals | Where-Object { $_.PSObject.Properties.Name -contains 'department' }).Count | Should -Be 0
+
+        $identOf = @{}
+        foreach ($m in $script:data.identityMembers) { $identOf[$m.principalId] = $m.identityId }
+        $byDept = @{}
+        foreach ($sp in $sapPrincipals) {
+            $dept = ($script:data.identities | Where-Object { $_.id -eq $identOf[$sp.id] }).department
+            if (-not $byDept.ContainsKey($dept)) { $byDept[$dept] = 0 }
+            $byDept[$dept]++
+        }
+        $byDept['Finance'] | Should -Be 4
+        # Close enough that you have to count, not guess.
+        $byDept['Sales'] | Should -Be 3
+        $byDept['Finance'] | Should -BeGreaterThan $byDept['Sales']
+    }
+
+    It 'marks exactly five accounts as never-expiring (flag 9)' {
+        $ne = @($script:data.principals |
+            Where-Object { $_.extendedAttributes -and $_.extendedAttributes.passwordNeverExpires -eq $true })
+        $ne.Count | Should -Be 5
+        @($ne | ForEach-Object { $_.displayName }) | Should -Contain 'Piet Jansen'
+    }
+
+    It 'puts three principals in Azure US and keeps an EU distractor (flag 10)' {
+        $east = @($script:data.resources | Where-Object {
+            $_.resourceType -eq 'AzureRoleAssignment' -and $_.extendedAttributes.azureLocation -eq 'eastus' })
+        $west = @($script:data.resources | Where-Object {
+            $_.resourceType -eq 'AzureRoleAssignment' -and $_.extendedAttributes.azureLocation -eq 'westeurope' })
+        $east.Count | Should -BeGreaterThan 0
+        $west.Count | Should -BeGreaterThan 0
+
+        $eastIds = @($east | ForEach-Object { $_.id })
+        $users = @($script:data.resourceAssignments |
+            Where-Object { $eastIds -contains $_.resourceId } |
+            ForEach-Object { $_.principalId } | Sort-Object -Unique)
+        $users.Count | Should -Be 3
+    }
+
+    It 'shapes the consent grants the way the risky-consent plugin reads them (flags 11-12)' {
+        $grants = @($script:data.resources | Where-Object { $_.resourceType -eq 'DelegatedPermission' })
+        $grants.Count | Should -Be 2
+
+        foreach ($g in $grants) {
+            # The plugin reads ext.scope and joins ext.clientSpId -> Principals.
+            # Either being absent silently drops the grant (issue #719's shape).
+            $g.extendedAttributes.scope | Should -Not -BeNullOrEmpty
+            $g.extendedAttributes.clientSpId | Should -Not -BeNullOrEmpty
+            @($script:data.principals | Where-Object { $_.id -eq $g.extendedAttributes.clientSpId }).Count | Should -Be 1
+        }
+
+        # Files.ReadWrite.All is in the plugin's curated HIGH_RISK set, which is
+        # what makes FileSync Pro deterministically risky with no LLM involved.
+        $risky = @($grants | Where-Object { $_.extendedAttributes.scope -eq 'Files.ReadWrite.All' })
+        $risky.Count | Should -Be 1
+    }
+
+    It 'answers flag 11 with five consenters and flag 12 with two — the trap being wider' {
+        $risky = ($script:data.resources | Where-Object {
+            $_.resourceType -eq 'DelegatedPermission' -and $_.extendedAttributes.scope -eq 'Files.ReadWrite.All' })
+        $consenterIds = @($script:data.resourceAssignments |
+            Where-Object { $_.resourceId -eq $risky.id } | ForEach-Object { $_.principalId })
+        $consenterIds.Count | Should -Be 5
+
+        $consenters = @($script:data.principals | Where-Object { $consenterIds -contains $_.id })
+        $flag12 = @($consenters | Where-Object { $_.extendedAttributes.passwordNeverExpires -eq $true })
+        @($flag12 | ForEach-Object { $_.displayName } | Sort-Object) | Should -Be @('Piet Jansen', 'Wendy Xu')
+
+        # Anyone who ignores the "risky" half gets a bigger, wrong set — that is
+        # what makes flag 12 a Pro flag rather than a filter.
+        $allGrantIds = @($script:data.resources |
+            Where-Object { $_.resourceType -eq 'DelegatedPermission' } | ForEach-Object { $_.id })
+        $anyConsenterIds = @($script:data.resourceAssignments |
+            Where-Object { $allGrantIds -contains $_.resourceId } | ForEach-Object { $_.principalId } | Sort-Object -Unique)
+        $trap = @($script:data.principals |
+            Where-Object { $anyConsenterIds -contains $_.id -and $_.extendedAttributes.passwordNeverExpires -eq $true })
+        $trap.Count | Should -BeGreaterThan $flag12.Count
+    }
+}
+
+Describe 'Demo dataset — vendor-neutral IGA (#705)' {
+
+    It 'names the governance system generically, not after a vendor' {
+        # A business role is the same concept from Omada, midPoint or SailPoint,
+        # so the demo must not imply one vendor. (The real Omada crawler under
+        # tools/crawlers/omada/ is a separate thing and is unaffected.)
+        @($script:data.systems | Where-Object { $_.systemType -eq 'IGA' }).Count | Should -Be 1
+        @($script:data.systems | Where-Object { $_.systemType -eq 'Omada' }).Count | Should -Be 0
+        @($script:data.identityMembers | Where-Object { $_.accountType -eq 'Omada' }).Count | Should -Be 0
+    }
+
+    It 'sources every business role from the IGA system' {
+        $igaSysId = ([array]::IndexOf(@($script:data.metadata.systemKeys.key), 'iga')) + 1
+        $roles = @($script:data.resources | Where-Object { $_.resourceType -eq 'BusinessRole' })
+        $roles.Count | Should -Be 5
+        foreach ($r in $roles) { $r.systemId | Should -Be $igaSysId }
+    }
+}
+
+Describe 'Demo dataset — system id remapping (#705)' {
+
+    It 'publishes a systemKeys index parallel to the systems array' {
+        # Systems.id is SERIAL, so the generator emits placeholders and
+        # Ingest-DemoDataset.ps1 remaps them to the ids the API hands back.
+        # The index must line up with the systems array for that remap to work.
+        @($script:data.metadata.systemKeys).Count | Should -Be @($script:data.systems).Count
+        for ($i = 0; $i -lt @($script:data.systems).Count; $i++) {
+            $script:data.metadata.systemKeys[$i].systemType | Should -Be $script:data.systems[$i].systemType
+            $script:data.metadata.systemKeys[$i].tenantId   | Should -Be $script:data.systems[$i].tenantId
+        }
+    }
+
+    It 'references only placeholder system ids that exist' {
+        $valid = 1..(@($script:data.systems).Count)
+        foreach ($r in $script:data.resources)  { $valid | Should -Contain $r.systemId }
+        foreach ($p in $script:data.principals) { $valid | Should -Contain $p.systemId }
     }
 }

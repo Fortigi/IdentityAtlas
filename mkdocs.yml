@@ -95,6 +95,8 @@ nav:
           - Omada Data Model Reference: architecture/omada-crawler-datamodel.md
           - Building a Crawler: sync/building-a-crawler.md
           - Custom Connector (Push API): sync/custom-connector.md
+      - Try It:
+          - Capture the Flag: demo/capture-the-flag.md
       - Using Identity Atlas:
           - Role Mining UI: ui/overview.md
           - Dashboard: ui/dashboard.md
