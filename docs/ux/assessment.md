@@ -24,7 +24,7 @@ This page is a **public, sanitized summary**: it records what was assessed, the 
 | Severity | Found | Remediated / in progress | Open |
 |---|---|---|---|
 | Critical | 4 | 3 | 1 |
-| High | 21 | 16 | 5 |
+| High | 21 | 17 | 4 |
 | Medium | ~35 | several | most |
 | Low / Informational | ~30 | several | most |
 
@@ -56,7 +56,7 @@ Status legend: ✅ **Fixed** (merged) · 🟨 **Partially addressed** · 🔧 **
 | H-03 | Entire Contexts tab broken in dark mode | ✅ Fixed | [#227](https://github.com/Fortigi/IdentityAtlas/pull/227) |
 | H-04 | Several regions light-mode only (crawler job-detail modal, compliance & account-type badges) | ✅ Fixed | badges [#232](https://github.com/Fortigi/IdentityAtlas/pull/232) · job-detail modal [#817](https://github.com/Fortigi/IdentityAtlas/pull/817) · [#765](https://github.com/Fortigi/IdentityAtlas/issues/765) |
 | H-05 | Botched automated dark-mode pass left doubled/contradictory classes | 🟨 Partially addressed | [#233](https://github.com/Fortigi/IdentityAtlas/pull/233) |
-| H-06 | Roles & Permissions is buried inside Authentication; the described self-lockout guard isn't implemented | 🔧 Planned | [#786](https://github.com/Fortigi/IdentityAtlas/issues/786) |
+| H-06 | Roles & Permissions is buried inside Authentication; the described self-lockout guard isn't implemented | ✅ Fixed — its own Admin sub-tab; the self-lockout guard was already enforced, now with a change audit trail | [#832](https://github.com/Fortigi/IdentityAtlas/pull/832) · [#786](https://github.com/Fortigi/IdentityAtlas/issues/786) |
 | H-07 | Risk Scoring can't be created/run from its own page; dead cluster code | ✅ Fixed — "Run scoring now" on the page (permission-gated); the dead cluster path removed | [#829](https://github.com/Fortigi/IdentityAtlas/pull/829) · [#766](https://github.com/Fortigi/IdentityAtlas/issues/766) |
 | H-08 | Admin → Data tab gating mismatch (sections render regardless of the entry permission) | ✅ Fixed — each Data section now renders only for the permission that backs its server route | [#807](https://github.com/Fortigi/IdentityAtlas/pull/807) · [#767](https://github.com/Fortigi/IdentityAtlas/issues/767) |
 | H-09 | Matrix "Apply vs Save" is a trap (overlapping verbs; a scolding "Not saved" badge) | 🔧 Planned | [#768](https://github.com/Fortigi/IdentityAtlas/issues/768) |
