@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { formatDate } from '@ui/utils/formatters';
+import CopyButton from '@ui/components/CopyButton';
 
 // Custom Connector's card is a CrawlerConfigs row paired with a Crawlers row
 // (the API key) — see routes/crawlers.js's POST /admin/crawlers. This panel
@@ -72,6 +73,11 @@ export default function Summary({ cfg, config, authFetch }) {
           </div>
           <p className="text-xs text-green-700 mb-1 dark:text-green-400">Store this key securely. It will not be shown again.</p>
           <code className="block p-1.5 bg-white border border-gray-200 rounded font-mono text-xs break-all dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200">{newKey}</code>
+          <CopyButton
+            text={newKey}
+            label="Copy key"
+            className="mt-2 px-2 py-1 rounded text-xs font-medium text-green-800 dark:text-green-300 bg-white dark:bg-gray-800 border border-green-300 dark:border-green-700 hover:bg-green-100 dark:hover:bg-green-900/30"
+          />
         </div>
       )}
 

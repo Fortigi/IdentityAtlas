@@ -2,23 +2,27 @@
 import { useAuth } from '@ui/auth/AuthGate';
 import { useFetch } from '@ui/hooks/useFetch';
 import { useIsAdmin } from '@ui/auth/usePermissions';
+import { copyText } from '@ui/utils/clipboard';
 import RolesPermissionsSection from './RolesPermissionsSection';
 
 function CopyableCommand({ command }) {
-  const [copied, setCopied] = useState(false);
-  const handleCopy = () => {
-    navigator.clipboard.writeText(command);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
+  // 'idle' | 'ok' | 'fail' — reflect the real clipboard result, never a
+  // "Copied" the write didn't actually achieve (audit H-19).
+  const [state, setState] = useState('idle');
+  const handleCopy = async () => {
+    const ok = await copyText(command);
+    setState(ok ? 'ok' : 'fail');
+    setTimeout(() => setState('idle'), 1500);
   };
   return (
     <div className="relative my-2">
       <pre className="px-3 py-2 pr-16 bg-gray-900 text-gray-100 rounded text-xs font-mono overflow-x-auto whitespace-pre">{command}</pre>
       <button
         onClick={handleCopy}
+        aria-live="polite"
         className="absolute top-1.5 right-1.5 px-2 py-0.5 text-xs bg-gray-700 text-gray-100 rounded hover:bg-gray-600"
       >
-        {copied ? 'Copied' : 'Copy'}
+        {state === 'ok' ? 'Copied' : state === 'fail' ? 'Failed' : 'Copy'}
       </button>
     </div>
   );
