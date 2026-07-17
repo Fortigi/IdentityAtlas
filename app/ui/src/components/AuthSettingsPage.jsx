@@ -1,9 +1,7 @@
 ﻿import { useState } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
 import { useFetch } from '@ui/hooks/useFetch';
-import { useIsAdmin } from '@ui/auth/usePermissions';
 import { copyText } from '@ui/utils/clipboard';
-import RolesPermissionsSection from './RolesPermissionsSection';
 
 function CopyableCommand({ command }) {
   // 'idle' | 'ok' | 'fail' — reflect the real clipboard result, never a
@@ -30,7 +28,6 @@ function CopyableCommand({ command }) {
 
 export default function AuthSettingsPage() {
   const { authFetch } = useAuth();
-  const isAdmin = useIsAdmin();
   const { data: state, loading, error, reload } = useFetch('/api/admin/auth-settings', { authFetch });
 
   const currentOrigin = typeof window !== 'undefined' ? window.location.origin : '';
@@ -101,9 +98,6 @@ export default function AuthSettingsPage() {
         {error && <div className="mt-3 text-sm text-red-600 dark:text-red-400">{error.message}</div>}
         <button onClick={reload} className="mt-3 text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300">↻ Refresh</button>
       </div>
-
-      {/* ─── Roles & Permissions (visible only with admin.auth) ─── */}
-      {isAdmin && <RolesPermissionsSection />}
 
       {isAzure && (
         <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-5 text-sm text-gray-600 dark:text-gray-400">

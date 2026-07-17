@@ -270,4 +270,26 @@ describe('RolesPermissionsSection (mounted)', () => {
     await user.click(within(input.closest('form')).getByRole('button', { name: 'Cancel' }));
     expect(screen.getAllByText('all (*)')).toHaveLength(before);
   });
+
+  it('shows the change-log audit trail (#786)', async () => {
+    // The audit key is listed first so the substring matcher resolves
+    // /api/admin/roles/audit before the shorter /api/admin/roles.
+    const authFetch = makeAuthFetch({
+      '/api/admin/roles/audit': {
+        entries: [
+          { id: 1, changedAt: '2026-07-01T10:00:00Z', changedBy: 'alice@example.com', action: 'save' },
+          { id: 2, changedAt: '2026-06-30T09:00:00Z', changedBy: null, action: 'reset' },
+        ],
+      },
+      '/api/admin/roles': makeData(),
+    });
+    renderWithProviders(h(RolesPermissionsSection), { auth: { authFetch } });
+
+    expect(await screen.findByText('Recent changes')).toBeInTheDocument();
+    expect(screen.getByText('alice@example.com')).toBeInTheDocument();
+    expect(screen.getByText('Saved mapping')).toBeInTheDocument();
+    expect(screen.getByText('Reverted to defaults')).toBeInTheDocument();
+    // A null actor (auth disabled) renders as the system label.
+    expect(screen.getByText('system (auth off)')).toBeInTheDocument();
+  });
 });

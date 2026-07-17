@@ -19,6 +19,7 @@
 import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
 import { useDialog } from '@ui/components/dialogContext';
+import { formatDate } from '@ui/utils/formatters';
 
 export default function RolesPermissionsSection() {
   const { authFetch, refreshPermissions } = useAuth();
@@ -35,6 +36,8 @@ export default function RolesPermissionsSection() {
   const [draft, setDraft] = useState(null);
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState(null);
+  // Bumped after a successful save/reset so the change-log panel reloads.
+  const [auditKey, setAuditKey] = useState(0);
 
   // Loads the mapping. Uses a .then() chain (not await) so the data/draft
   // setStates run inside the callback rather than synchronously in the effect
@@ -131,6 +134,7 @@ export default function RolesPermissionsSection() {
       } else {
         setSaveMessage({ ok: true, text: 'Saved. Refresh other open browser tabs to pick up the change.' });
         await refresh();
+        setAuditKey(k => k + 1);
         // Update our own toolbar/Admin-tab gating immediately.
         await refreshPermissions();
       }
@@ -153,6 +157,7 @@ export default function RolesPermissionsSection() {
       } else {
         setSaveMessage({ ok: true, text: 'Reverted to defaults.' });
         await refresh();
+        setAuditKey(k => k + 1);
         await refreshPermissions();
       }
     } catch (err) {
@@ -335,6 +340,50 @@ export default function RolesPermissionsSection() {
           Reset to defaults
         </button>
       </div>
+
+      <RoleChangeLog authFetch={authFetch} reloadKey={auditKey} />
+    </div>
+  );
+}
+
+// Compact change history for the role→permission mapping — the audit trail half
+// of #786. Reloads whenever `reloadKey` bumps (after a save/reset).
+function RoleChangeLog({ authFetch, reloadKey }) {
+  const [entries, setEntries] = useState([]);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    authFetch('/api/admin/roles/audit?limit=10')
+      .then(r => (r.ok ? r.json() : { entries: [] }))
+      .then(j => { if (!cancelled) { setEntries(j.entries || []); setLoaded(true); } })
+      .catch(() => { if (!cancelled) setLoaded(true); });
+    return () => { cancelled = true; };
+  }, [authFetch, reloadKey]);
+
+  if (!loaded) return null;
+
+  return (
+    <div className="mt-6 border-t border-gray-200 dark:border-gray-700 pt-4">
+      <h4 className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-2">Recent changes</h4>
+      {entries.length === 0 ? (
+        <p className="text-xs text-gray-500 dark:text-gray-400">No changes recorded yet.</p>
+      ) : (
+        <ul className="divide-y divide-gray-100 dark:divide-gray-700 text-xs">
+          {entries.map(e => (
+            <li key={e.id} className="py-1.5 flex items-center justify-between gap-3">
+              <span className="text-gray-700 dark:text-gray-300">
+                <span className={`font-medium ${e.action === 'reset' ? 'text-amber-700 dark:text-amber-400' : 'text-gray-900 dark:text-gray-100'}`}>
+                  {e.action === 'reset' ? 'Reverted to defaults' : 'Saved mapping'}
+                </span>
+                {' by '}
+                <span className="font-mono">{e.changedBy || 'system (auth off)'}</span>
+              </span>
+              <span className="shrink-0 text-gray-500 dark:text-gray-400">{formatDate(e.changedAt)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

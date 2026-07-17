@@ -79,12 +79,18 @@ describe('PUT /admin/roles validation', () => {
     expect(res.status).toBe(400);
   });
 
-  it('saves a valid mapping', async () => {
+  it('saves a valid mapping and audit-logs it (best-effort, #786)', async () => {
     setRolePermissions.mockResolvedValueOnce({ Admin: ['admin.auth'] });
+    // The audit insert rejects — the save must still succeed (best-effort log).
+    query.mockReset();
+    query.mockRejectedValueOnce(new Error('audit down'));
     const res = await request(app).put('/api/admin/roles').send({ mapping: { Admin: ['admin.auth'] } });
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ ok: true });
     expect(setRolePermissions).toHaveBeenCalled();
+    // A 'save' row was attempted against the change log.
+    const insert = query.mock.calls.find(c => /INSERT INTO "AuthRoleChangeLog"/.test(String(c[0])));
+    expect(insert?.[1]?.[1]).toBe('save');
   });
 
   it('500 when save rejects', async () => {
@@ -95,16 +101,41 @@ describe('PUT /admin/roles validation', () => {
 });
 
 describe('DELETE /admin/roles', () => {
-  it('resets to seed', async () => {
+  it('resets to seed and audit-logs it (#786)', async () => {
+    query.mockReset();
+    query.mockResolvedValue({ rows: [] });
     const res = await request(app).delete('/api/admin/roles');
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ ok: true, isCustom: false });
     expect(setRolePermissions).toHaveBeenCalledWith(null);
+    const insert = query.mock.calls.find(c => /INSERT INTO "AuthRoleChangeLog"/.test(String(c[0])));
+    expect(insert?.[1]?.[1]).toBe('reset');
   });
 
   it('500 when reset rejects', async () => {
     setRolePermissions.mockRejectedValueOnce(new Error('db'));
     const res = await request(app).delete('/api/admin/roles');
+    expect(res.status).toBe(500);
+  });
+});
+
+// GET /admin/roles/audit isn't rate-limited (only PUT/DELETE are); the
+// save/reset audit-log INSERTs are asserted inside the write tests above to stay
+// under the 10-write limiter.
+describe('GET /admin/roles/audit (#786)', () => {
+  it('returns recent change-log entries', async () => {
+    query.mockReset();
+    query.mockResolvedValueOnce({ rows: [{ id: 2, changedAt: '2026-07-01T00:00:00Z', changedBy: 'alice', action: 'save' }] });
+    const res = await request(app).get('/api/admin/roles/audit');
+    expect(res.status).toBe(200);
+    expect(res.body.entries).toHaveLength(1);
+    expect(res.body.entries[0]).toMatchObject({ changedBy: 'alice', action: 'save' });
+  });
+
+  it('returns 500 when the query throws', async () => {
+    query.mockReset();
+    query.mockRejectedValueOnce(new Error('boom'));
+    const res = await request(app).get('/api/admin/roles/audit');
     expect(res.status).toBe(500);
   });
 });
