@@ -1,0 +1,1 @@
+- List pages (Users, Resources, Identities, …) now show a clear error message with a **Retry** button when their data fails to load, instead of an empty "No results found" state that looked identical to genuinely having no data.
