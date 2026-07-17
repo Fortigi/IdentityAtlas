@@ -3979,6 +3979,9 @@
 <p>The assessment also recorded a number of <strong>existing strengths</strong> that were explicitly preserved during remediation — see <a href="#strengths-confirmed">Strengths</a>.</p>
 <hr />
 <h2 id="findings-remediation">Findings &amp; remediation<a class="headerlink" href="#findings-remediation" title="Permanent link">&para;</a></h2>
+<blockquote>
+<p><strong>Maintenance note — do not edit this table on a feature/bugfix branch.</strong> Flipping a finding's status (or recomputing the roll-up) on a branch reliably conflicts here, because every branch touches the same rows while <code>main</code> moves on. Leave it to a single <strong>reconciliation pass on <code>main</code></strong> after PRs merge. A feature PR changes only code, tests, and its <code>changes/</code> fragment; the status below is flipped later, in one batch.</p>
+</blockquote>
 <p>Status legend: ✅ <strong>Fixed</strong> (merged) · 🟦 <strong>By design</strong> (supported configuration, documented) · 🟨 <strong>Partially addressed</strong> · 🔧 <strong>Remediation planned</strong>.</p>
 <h3 id="critical">Critical<a class="headerlink" href="#critical" title="Permanent link">&para;</a></h3>
 <table>
@@ -4104,8 +4107,8 @@
 <tr>
 <td>M-04</td>
 <td>Role-permission editor: lockout guard, audit trail</td>
-<td>🟨 Partially addressed</td>
-<td><a href="https://github.com/Fortigi/IdentityAtlas/pull/194">#194</a> · <a href="https://github.com/Fortigi/IdentityAtlas/issues/786">#786</a></td>
+<td>✅ Fixed — self-lockout guard enforced on save/reset; every mapping change now recorded in an audit trail</td>
+<td><a href="https://github.com/Fortigi/IdentityAtlas/pull/194">#194</a>, <a href="https://github.com/Fortigi/IdentityAtlas/pull/832">#832</a> · <a href="https://github.com/Fortigi/IdentityAtlas/issues/786">#786</a></td>
 </tr>
 <tr>
 <td>M-05</td>

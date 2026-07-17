@@ -3912,8 +3912,8 @@
 <tr>
 <td>High</td>
 <td>21</td>
-<td>9</td>
-<td>12</td>
+<td>17</td>
+<td>4</td>
 </tr>
 <tr>
 <td>Medium</td>
@@ -3932,6 +3932,9 @@
 <p>The audit's headline: a <strong>strong foundation with a missing middle</strong> — a healthy design-<em>token</em> layer and one genuinely excellent flow (the matrix filter wizard), but no shared <em>component</em> layer, no terminology/help system, and uneven dark-mode and accessibility coverage, so the same control had drifted across colours and patterns. The remediation programme therefore prioritised <strong>foundations</strong> (a written Style Guide, CI enforcement, an accessibility baseline) alongside the highest-impact individual fixes.</p>
 <hr />
 <h2 id="findings-remediation">Findings &amp; remediation<a class="headerlink" href="#findings-remediation" title="Permanent link">&para;</a></h2>
+<blockquote>
+<p><strong>Maintenance note — do not edit this table on a feature/bugfix branch.</strong> Flipping a finding's status (or recomputing any roll-up) on a branch reliably conflicts here, because every branch touches the same rows while <code>main</code> moves on. Leave these tables to a single <strong>reconciliation pass on <code>main</code></strong> after PRs merge. A feature PR changes only code, tests, and its <code>changes/</code> fragment; the status below is flipped later, in one batch.</p>
+</blockquote>
 <p>Status legend: ✅ <strong>Fixed</strong> (merged) · 🟨 <strong>Partially addressed</strong> · 🔧 <strong>Remediation planned</strong>.</p>
 <h3 id="critical">Critical<a class="headerlink" href="#critical" title="Permanent link">&para;</a></h3>
 <table>
@@ -4014,14 +4017,14 @@
 <tr>
 <td>H-06</td>
 <td>Roles &amp; Permissions is buried inside Authentication; the described self-lockout guard isn't implemented</td>
-<td>🔧 Planned</td>
-<td><a href="https://github.com/Fortigi/IdentityAtlas/issues/786">#786</a></td>
+<td>✅ Fixed — its own Admin sub-tab; the self-lockout guard was already enforced, now with a change audit trail</td>
+<td><a href="https://github.com/Fortigi/IdentityAtlas/pull/832">#832</a> · <a href="https://github.com/Fortigi/IdentityAtlas/issues/786">#786</a></td>
 </tr>
 <tr>
 <td>H-07</td>
 <td>Risk Scoring can't be created/run from its own page; dead cluster code</td>
-<td>🔧 Planned</td>
-<td><a href="https://github.com/Fortigi/IdentityAtlas/issues/766">#766</a></td>
+<td>✅ Fixed — "Run scoring now" on the page (permission-gated); the dead cluster path removed</td>
+<td><a href="https://github.com/Fortigi/IdentityAtlas/pull/829">#829</a> · <a href="https://github.com/Fortigi/IdentityAtlas/issues/766">#766</a></td>
 </tr>
 <tr>
 <td>H-08</td>
@@ -4050,20 +4053,20 @@
 <tr>
 <td>H-12</td>
 <td>List pages dead-end new users; Systems cited a stale CLI command</td>
-<td>🟨 Partially addressed — Systems onboarding fixed; remaining list pages pending</td>
-<td><a href="https://github.com/Fortigi/IdentityAtlas/pull/230">#230</a> · <a href="https://github.com/Fortigi/IdentityAtlas/issues/760">#760</a></td>
+<td>✅ Fixed — Systems onboarding fixed; list pages now render the shared EmptyState with a next action</td>
+<td><a href="https://github.com/Fortigi/IdentityAtlas/pull/230">#230</a>, <a href="https://github.com/Fortigi/IdentityAtlas/pull/831">#831</a> · <a href="https://github.com/Fortigi/IdentityAtlas/issues/760">#760</a></td>
 </tr>
 <tr>
 <td>H-13</td>
 <td>Optional tabs (Risk Scores, Identities) hidden by default even when enabled</td>
-<td>🔧 Planned</td>
-<td><a href="https://github.com/Fortigi/IdentityAtlas/issues/770">#770</a></td>
+<td>✅ Fixed — a feature-gated tab surfaces whenever its feature is on, with no second per-user opt-in</td>
+<td><a href="https://github.com/Fortigi/IdentityAtlas/pull/827">#827</a> · <a href="https://github.com/Fortigi/IdentityAtlas/issues/770">#770</a></td>
 </tr>
 <tr>
 <td>H-14</td>
 <td>List-page sort silently sorts only the current page over server pagination</td>
-<td>🔧 Planned</td>
-<td><a href="https://github.com/Fortigi/IdentityAtlas/issues/771">#771</a></td>
+<td>✅ Fixed — sort pushed to the server over the full result set (validated column allowlist)</td>
+<td><a href="https://github.com/Fortigi/IdentityAtlas/pull/823">#823</a> · <a href="https://github.com/Fortigi/IdentityAtlas/issues/771">#771</a></td>
 </tr>
 <tr>
 <td>H-15</td>
@@ -4086,14 +4089,14 @@
 <tr>
 <td>H-18</td>
 <td>CSV import validates only the filename, not headers; loose name-matching can mis-map</td>
-<td>🔧 Planned</td>
-<td><a href="https://github.com/Fortigi/IdentityAtlas/issues/773">#773</a></td>
+<td>✅ Fixed — uploaded files are header-validated against the mapped schema at staging time</td>
+<td><a href="https://github.com/Fortigi/IdentityAtlas/pull/824">#824</a> · <a href="https://github.com/Fortigi/IdentityAtlas/issues/773">#773</a></td>
 </tr>
 <tr>
 <td>H-19</td>
 <td>One-time API key trivially lost; Copy reports success even when the clipboard fails</td>
-<td>🔧 Planned</td>
-<td><a href="https://github.com/Fortigi/IdentityAtlas/issues/774">#774</a></td>
+<td>✅ Fixed — verified copy reports the real result, plus a copy button for the reset key</td>
+<td><a href="https://github.com/Fortigi/IdentityAtlas/pull/826">#826</a> · <a href="https://github.com/Fortigi/IdentityAtlas/issues/774">#774</a></td>
 </tr>
 <tr>
 <td>H-20</td>
@@ -4104,8 +4107,8 @@
 <tr>
 <td>H-21</td>
 <td>~11 native <code>confirm()</code>/<code>alert()</code>/<code>prompt()</code> for important actions — unstyled, no dark mode, untestable</td>
-<td>🟨 Partially addressed — a shared <code>DialogProvider</code> landed and a CI rule blocks new ones; ~7 components (AccessPackages, matrix/risk wizards, Roles &amp; Permissions, LLM/Power-Query settings) are still being migrated</td>
-<td><a href="https://github.com/Fortigi/IdentityAtlas/pull/238">#238</a>, <a href="https://github.com/Fortigi/IdentityAtlas/pull/500">#500</a> · <a href="https://github.com/Fortigi/IdentityAtlas/issues/763">#763</a></td>
+<td>✅ Fixed — a shared <code>DialogProvider</code> + a CI rule, and the last native dialogs (CSV wizard, Custom Connector) migrated</td>
+<td><a href="https://github.com/Fortigi/IdentityAtlas/pull/238">#238</a>, <a href="https://github.com/Fortigi/IdentityAtlas/pull/500">#500</a>, <a href="https://github.com/Fortigi/IdentityAtlas/pull/830">#830</a> · <a href="https://github.com/Fortigi/IdentityAtlas/issues/763">#763</a></td>
 </tr>
 </tbody>
 </table>

@@ -4368,8 +4368,11 @@ fixes (pentest-style), matching the existing UX-audit remediation pattern.</p>
 Critical/High across all dimensions: <strong>14.</strong></p>
 <hr />
 <h2 id="remediation-status">Remediation Status<a class="headerlink" href="#remediation-status" title="Permanent link">&para;</a></h2>
+<blockquote>
+<p><strong>Maintenance note — do not edit these tables on a feature/bugfix branch.</strong> Flipping a finding's status or recomputing the summary counts on a branch reliably conflicts here, because every branch edits the same rows and roll-up while <code>main</code> moves on. Leave these tables to a single <strong>reconciliation pass on <code>main</code></strong> after PRs merge (the dated notes below record those passes). A feature PR changes only code, tests, and its <code>changes/</code> fragment; the finding's status is flipped here later, in one batch.</p>
+</blockquote>
 <p><em>Status tracking added 2026-07-14. In the weeks since this audit the backlog was worked one PR at a time; the tables below record where each finding landed, matching the Status convention of the <a href="../assessment/">Security Assessment</a> and <a href="../../ux/assessment/">UX Assessment</a> pages. The detailed phase sections that follow are the original audit text, unchanged.</em></p>
-<p><em>Refreshed 2026-07-16: reconciled against merged and in-flight PRs. Both remaining <strong>Documentation</strong> items are now ✅ Fixed — #804 (issues #802/#803) corrected <code>entities.md</code>'s <code>/api/perf/slowest</code> reference and strengthened <code>.spectral.yaml</code>, closing the last gaps left after #708/#690/#714. All other open items were re-verified against <code>main</code> and remain genuinely open.</em></p>
+<p><em>Refreshed 2026-07-16: reconciled against merged and in-flight PRs. Both remaining <strong>Documentation</strong> items are now ✅ Fixed — #804 (issues #802/#803) corrected <code>entities.md</code>'s <code>/api/perf/slowest</code> reference and strengthened <code>.spectral.yaml</code>, closing the last gaps left after #708/#690/#714. <strong>Perf &amp; Quality</strong> Q3–Q5 are now ✅ Fixed — #833 (issues #791/#792/#793) added the <code>runBound()</code> / <code>collectResources()</code> matrix helpers and de-duplicated the <code>resources.js</code> row/tag helpers. All other open items were re-verified against <code>main</code> and remain genuinely open.</em></p>
 <p>Status legend: ✅ <strong>Fixed</strong> (merged) · 🟦 <strong>By design</strong> (intended/supported, documented) · 🟨 <strong>Partially addressed</strong> · 🔧 <strong>Open</strong>.</p>
 <table>
 <thead>
@@ -4386,26 +4389,26 @@ Critical/High across all dimensions: <strong>14.</strong></p>
 <tr>
 <td>Design / UX</td>
 <td style="text-align: right;">21</td>
-<td style="text-align: right;">9</td>
+<td style="text-align: right;">10</td>
 <td style="text-align: right;">0</td>
 <td style="text-align: right;">0</td>
-<td style="text-align: right;">12</td>
+<td style="text-align: right;">11</td>
 </tr>
 <tr>
 <td>Security</td>
 <td style="text-align: right;">22</td>
-<td style="text-align: right;">10</td>
+<td style="text-align: right;">11</td>
 <td style="text-align: right;">3</td>
-<td style="text-align: right;">1</td>
+<td style="text-align: right;">0</td>
 <td style="text-align: right;">8</td>
 </tr>
 <tr>
 <td>Perf &amp; Quality</td>
 <td style="text-align: right;">16</td>
-<td style="text-align: right;">5</td>
+<td style="text-align: right;">8</td>
 <td style="text-align: right;">2</td>
-<td style="text-align: right;">3</td>
-<td style="text-align: right;">6</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">5</td>
 </tr>
 <tr>
 <td>CI / Test Harness</td>
@@ -4426,10 +4429,10 @@ Critical/High across all dimensions: <strong>14.</strong></p>
 <tr>
 <td><strong>Total</strong></td>
 <td style="text-align: right;"><strong>81</strong></td>
-<td style="text-align: right;"><strong>41</strong></td>
+<td style="text-align: right;"><strong>46</strong></td>
 <td style="text-align: right;"><strong>5</strong></td>
-<td style="text-align: right;"><strong>7</strong></td>
-<td style="text-align: right;"><strong>28</strong></td>
+<td style="text-align: right;"><strong>4</strong></td>
+<td style="text-align: right;"><strong>26</strong></td>
 </tr>
 </tbody>
 </table>
@@ -4532,8 +4535,8 @@ Critical/High across all dimensions: <strong>14.</strong></p>
 </tr>
 <tr>
 <td>L1</td>
-<td>🔧 Open</td>
-<td>list pages don't use shared <code>EmptyState</code> (#760)</td>
+<td>✅ Fixed</td>
+<td>#831 — list pages render the shared <code>EmptyState</code> with a next action (#760)</td>
 </tr>
 <tr>
 <td>L2</td>
@@ -4624,8 +4627,8 @@ Critical/High across all dimensions: <strong>14.</strong></p>
 </tr>
 <tr>
 <td>L-6</td>
-<td>🟨 Partially addressed</td>
-<td>http/https scheme check added (omada/midpoint); no host/private-IP allowlist (#781)</td>
+<td>✅ Fixed</td>
+<td>#828 — connector base URLs (omada/midpoint) are rejected when they resolve to a private/loopback/metadata address, via the shared <code>lib/ssrfGuard.js</code> (#781)</td>
 </tr>
 <tr>
 <td>L-7</td>
@@ -4726,18 +4729,18 @@ Critical/High across all dimensions: <strong>14.</strong></p>
 </tr>
 <tr>
 <td>Q3</td>
-<td>🔧 Open</td>
-<td><code>runBound</code> helper not created (bind-loops remain) (#791)</td>
+<td>✅ Fixed</td>
+<td>#833 — <code>runBound()</code> generalises <code>runCount</code> for the matrix bind/render/run sites (#791)</td>
 </tr>
 <tr>
 <td>Q4</td>
-<td>🟨 Partially addressed</td>
-<td>per-folder <code>shared.js</code> de-dup; <code>resources.js</code> still duplicates helpers (#792)</td>
+<td>✅ Fixed</td>
+<td>#833 — <code>resources.js</code> reuses <code>cleanRow</code>/<code>UUID_RE</code>/<code>getPermissionTable</code> from <code>details/shared.js</code>; <code>parseTags</code> promoted into <code>tags/shared.js</code> (#792)</td>
 </tr>
 <tr>
 <td>Q5</td>
-<td>🟨 Partially addressed</td>
-<td>resource-map logic consolidated; no explicit <code>resourceFromRow</code> helper (#793)</td>
+<td>✅ Fixed</td>
+<td>#833 — <code>collectResources()</code> replaces the repeated resource-map build/merge loops via the existing <code>resourceMeta</code> helper (#793)</td>
 </tr>
 <tr>
 <td>Q6</td>
