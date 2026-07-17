@@ -1,5 +1,10 @@
 ## Changes in this PR
 
+- Roles & Permissions now has its own Admin sub-tab (Admin → Roles & Permissions) instead of being buried inside the Authentication page, so it's easier to find.
+- Every change to the role→permission mapping (save or reset to defaults) is now recorded in an audit trail — who made the change and when — shown as a "Recent changes" list under the editor. The editor already refused a change that would remove your own admin access; this adds the accountability half.
+
+## Changes in this PR
+
 - Empty list pages (Users, Resources, Identities) now show the shared onboarding panel with a clear next step — "Add a crawler" when nothing has been imported yet, or "Clear filters" when a search or filter matches nothing — instead of a bare "No X found." dead-end.
 
 ## Changes in this PR

@@ -1,2 +1,0 @@
-- Roles & Permissions now has its own Admin sub-tab (Admin → Roles & Permissions) instead of being buried inside the Authentication page, so it's easier to find.
-- Every change to the role→permission mapping (save or reset to defaults) is now recorded in an audit trail — who made the change and when — shown as a "Recent changes" list under the editor. The editor already refused a change that would remove your own admin access; this adds the accountability half.
