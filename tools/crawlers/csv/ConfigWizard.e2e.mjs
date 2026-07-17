@@ -24,8 +24,15 @@
 
 const BASE = process.env.E2E_BASE_URL || 'http://localhost:3001';
 
+// Header row per fixture — must satisfy the wizard's upload-time header
+// validation (csv-slots.json `requiredColumns`). Most slots key on
+// ExternalId/DisplayName; Assignments keys on Resource/User external ids.
+const FIXTURE_HEADERS = {
+  'Assignments.csv': 'ResourceExternalId;UserExternalId',
+};
 function csvFile(name) {
-  return { name, mimeType: 'text/csv', buffer: Buffer.from('ExternalId;DisplayName\n') };
+  const header = FIXTURE_HEADERS[name] || 'ExternalId;DisplayName';
+  return { name, mimeType: 'text/csv', buffer: Buffer.from(`${header}\n`) };
 }
 
 export function register(test, expect) {

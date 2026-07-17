@@ -10,6 +10,7 @@ import * as db from '../../db/connection.js';
 import { promises as fs } from 'fs';
 import path from 'path';
 import { getConfigSecret, storeJobSecret, storeJobCredentials } from '../../secrets/crawlerSecrets.js';
+import { assertPublicUrl } from '../../lib/ssrfGuard.js';
 import { CRAWLER_MANIFESTS_DIR, _crawlerManifests, validateStoredCrawlerConfig } from '../../crawlerManifests.js';
 import { gate, useSql, VALID_JOB_TYPES, validateCreateJobBody, resolveJobConfig, resolveUploadFolder, prepareJobConfig, checkSingletonConflict, resolveCreatedBy } from './helpers.js';
 
@@ -296,7 +297,10 @@ router.post('/admin/crawlers/:type/discover', gate, async (req, res) => {
   }
   // Pass API dependencies as context — the handler must not import them directly
   // because its path in the Docker image differs from the API source tree.
-  return handler(req, res, { db, getConfigSecret });
+  // assertPublicUrl lets a handler reject an admin-supplied base URL that
+  // resolves to a private/loopback/metadata address before it fetches it with a
+  // credential (SSRF guard, audit L-6).
+  return handler(req, res, { db, getConfigSecret, assertPublicUrl });
 });
 
 export default router;

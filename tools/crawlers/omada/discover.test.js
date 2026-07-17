@@ -10,6 +10,10 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import handler from './discover.js';
 
+// SSRF-guard stubs the route injects in production (app/api/src/lib/ssrfGuard.js).
+const allowUrl = async () => {};
+const blockUrl = async () => { throw new Error('URL host resolves to a private, loopback, or link-local address'); };
+
 function makeReqRes(body) {
   const req = { body };
   const res = {
@@ -45,21 +49,21 @@ describe('omada discover.js handler', () => {
 
   it('returns 400 when neither configId nor inline config is provided', async () => {
     const { req, res } = makeReqRes({});
-    await handler(req, res, { db: { queryOne: vi.fn() } });
+    await handler(req, res, { db: { queryOne: vi.fn() }, assertPublicUrl: allowUrl });
     expect(res.statusCode).toBe(400);
     expect(res.body.error).toMatch(/configId or config required/);
   });
 
   it('returns 400 when configId is not a number', async () => {
     const { req, res } = makeReqRes({ configId: 'abc' });
-    await handler(req, res, { db: { queryOne: vi.fn() } });
+    await handler(req, res, { db: { queryOne: vi.fn() }, assertPublicUrl: allowUrl });
     expect(res.statusCode).toBe(400);
     expect(res.body.error).toMatch(/number/);
   });
 
   it('returns 404 when no matching row exists', async () => {
     const { req, res } = makeReqRes({ configId: 99 });
-    await handler(req, res, { db: { queryOne: vi.fn().mockResolvedValue(null) } });
+    await handler(req, res, { db: { queryOne: vi.fn().mockResolvedValue(null) }, assertPublicUrl: allowUrl });
     expect(res.statusCode).toBe(404);
     expect(res.body.error).toMatch(/not found/i);
   });
@@ -69,7 +73,7 @@ describe('omada discover.js handler', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, text: async () => SAMPLE_XML }));
 
     const { req, res } = makeReqRes({ configId: 1 });
-    await handler(req, res, { db: { queryOne } });
+    await handler(req, res, { db: { queryOne }, assertPublicUrl: allowUrl });
     expect(res.statusCode).toBe(200);
     expect(res.body.entitySets).toEqual(['Roles', 'Users']);
     expect(res.body.identityProperties).toEqual(['Groups', 'Id', 'Username']);
@@ -80,7 +84,7 @@ describe('omada discover.js handler', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, text: async () => SAMPLE_XML }));
 
     const { req, res } = makeReqRes({ configId: 2 });
-    await handler(req, res, { db: { queryOne } });
+    await handler(req, res, { db: { queryOne }, assertPublicUrl: allowUrl });
     expect(res.statusCode).toBe(200);
   });
 
@@ -88,7 +92,7 @@ describe('omada discover.js handler', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, text: async () => SAMPLE_XML }));
 
     const { req, res } = makeReqRes({ config: { baseUrl: 'https://omada.example.com/odata/dataobjects', authMethod: 'FormCookie' } });
-    await handler(req, res, { db: { queryOne: vi.fn() } });
+    await handler(req, res, { db: { queryOne: vi.fn() }, assertPublicUrl: allowUrl });
     expect(res.statusCode).toBe(200);
     expect(res.body.entitySets).toEqual(['Roles', 'Users']);
   });
@@ -96,7 +100,7 @@ describe('omada discover.js handler', () => {
   it('returns 400 when config has no baseUrl', async () => {
     const queryOne = vi.fn().mockResolvedValue({ config: { authMethod: 'FormCookie' } });
     const { req, res } = makeReqRes({ configId: 1 });
-    await handler(req, res, { db: { queryOne } });
+    await handler(req, res, { db: { queryOne }, assertPublicUrl: allowUrl });
     expect(res.statusCode).toBe(400);
     expect(res.body.error).toMatch(/baseUrl/);
   });
@@ -106,15 +110,26 @@ describe('omada discover.js handler', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 401 }));
 
     const { req, res } = makeReqRes({ configId: 1 });
-    await handler(req, res, { db: { queryOne } });
+    await handler(req, res, { db: { queryOne }, assertPublicUrl: allowUrl });
     expect(res.statusCode).toBe(502);
     expect(res.body.error).toMatch(/401/);
   });
 
   it('returns 400 when baseUrl uses a non-http/https scheme', async () => {
     const { req, res } = makeReqRes({ config: { baseUrl: 'ftp://evil.com/odata/dataobjects', authMethod: 'ApiToken', apiToken: 'tok' } });
-    await handler(req, res, { db: { queryOne: vi.fn() } });
+    await handler(req, res, { db: { queryOne: vi.fn() }, assertPublicUrl: allowUrl });
     expect(res.statusCode).toBe(400);
     expect(res.body.error).toMatch(/http/);
+  });
+
+  it('rejects a baseUrl that resolves to a private/metadata address before fetching (SSRF, L-6)', async () => {
+    const fetchSpy = vi.fn();
+    vi.stubGlobal('fetch', fetchSpy);
+    const { req, res } = makeReqRes({ config: { baseUrl: 'http://169.254.169.254/odata/dataobjects', authMethod: 'ApiToken', apiToken: 'tok' } });
+    await handler(req, res, { db: { queryOne: vi.fn() }, assertPublicUrl: blockUrl });
+    expect(res.statusCode).toBe(400);
+    expect(res.body.error).toMatch(/rejected|private|loopback|link-local/i);
+    // The credentialed request must never go out.
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 });

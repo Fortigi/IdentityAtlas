@@ -1,5 +1,29 @@
 ## Changes in this PR
 
+- The Risk Scoring page now has a "Run scoring now" button (for users who can manage crawlers) in both its header and its "not yet computed" empty state, so you can kick off a scoring run without leaving for Admin → Risk Scoring.
+- Removed the dead resource-cluster panel and its broken data fetches from the Risk Scoring page — resource clusters moved to the Contexts tab, and the old cluster endpoints no longer exist. A "View clusters →" link to the Contexts tab remains.
+
+## Changes in this PR
+
+- The crawler live-discovery step (used by the Omada and midPoint wizards to probe a connector) now refuses a base URL that points at a private, loopback, or cloud-metadata address, instead of only checking that it starts with http/https. This closes a path where an admin-supplied URL could be aimed at an internal service or the cloud metadata endpoint and reached with the connector's credential.
+
+## Changes in this PR
+
+- The Risk Scores and Identities tabs now appear in the top navigation as soon as their feature is enabled, instead of staying hidden behind a second per-user "show this tab" toggle. Turning the feature on is all that's needed; the redundant toggle for these two tabs is gone (Systems and Logs remain opt-in as before).
+- Copy-to-clipboard buttons for one-time secrets (the Power Query read token, the Custom Connector API key, and the CLI-command snippets on the Authentication page) now confirm the copy actually happened — they show "Copied" only once the write succeeds and a "Copy failed — select manually" hint otherwise, instead of always claiming success even when the clipboard write silently failed (e.g. on an install served over plain http).
+- The Custom Connector's freshly reset API key now has a Copy button of its own, and copying falls back to a legacy method on browsers/contexts without the modern clipboard API — so a key that "won't be shown again" can't be lost to a copy that never landed.
+
+## Changes in this PR
+
+- CSV import now checks each uploaded file's column headers against the schema for the type it's mapped to, instead of trusting the filename alone. If a file is missing the required columns for its type (for example a users export accidentally mapped to Assignments), the wizard flags it inline with the missing columns and blocks saving until it's corrected — rather than letting the mistake surface only when the import job later runs.
+
+## Changes in this PR
+
+- Fixed list-page sorting (Users, Groups, Identities): clicking a column header now sorts the entire result set on the server, not just the rows on the current page — so the ordering (and "top of the list") is correct across every page instead of silently reshuffling only the 100 rows on screen.
+- Changing the sort now returns you to the first page of the newly ordered results.
+
+## Changes in this PR
+
 - The Admin settings section headers (Curated Data, Excel Power Query Workbook, Risk Profile, Risk Classifiers, Danger Zone) now use a consistent inline-SVG icon set instead of emoji, so they render uniformly across platforms and follow the theme's colours.
 
 ## Changes in this PR

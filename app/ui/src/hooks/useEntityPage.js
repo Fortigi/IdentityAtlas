@@ -74,7 +74,7 @@ export default function useEntityPage({ authFetch, entityType, listEndpoint, col
 
   // Reset page & selection when filters change — during render via a
   // value-signature compare, so no synchronous setState lives in an effect.
-  const filterResetSig = JSON.stringify({ debouncedSearch, activeFilters, baseFilters, includeDeleted });
+  const filterResetSig = JSON.stringify({ debouncedSearch, activeFilters, baseFilters, includeDeleted, sortCol, sortDir });
   const [seenFilterResetSig, setSeenFilterResetSig] = useState(filterResetSig);
   if (filterResetSig !== seenFilterResetSig) {
     setSeenFilterResetSig(filterResetSig);
@@ -124,6 +124,9 @@ export default function useEntityPage({ authFetch, entityType, listEndpoint, col
     if (debouncedSearch) params.set('search', debouncedSearch);
     if (filtersObj) params.set('filters', JSON.stringify(filtersObj));
     if (includeDeleted) params.set('includeDeleted', 'true');
+    // Sort is applied server-side over the full result set — a column header
+    // sorts every match, not just the rows already on this page (audit H-14).
+    if (sortCol) { params.set('sort', sortCol); params.set('dir', sortDir); }
     return authFetch(`${listEndpoint}?${params}`)
       .then((res) => {
         if (!res.ok) throw new Error(`Request failed (${res.status})`);
@@ -147,7 +150,7 @@ export default function useEntityPage({ authFetch, entityType, listEndpoint, col
         if (version === fetchVersion.current) setError(err);
       })
       .finally(() => { if (version === fetchVersion.current) setLoading(false); });
-  }, [page, debouncedSearch, filtersObj, authFetch, listEndpoint, includeDeleted, entityType]);
+  }, [page, debouncedSearch, filtersObj, authFetch, listEndpoint, includeDeleted, entityType, sortCol, sortDir]);
 
   useEffect(() => { fetchItems(); }, [fetchItems]);
 
@@ -178,15 +181,10 @@ export default function useEntityPage({ authFetch, entityType, listEndpoint, col
     }
   };
 
-  const sortedItems = useMemo(() => {
-    if (!sortCol) return items;
-    return [...items].sort((a, b) => {
-      const av = (a[sortCol] ?? '').toString().toLowerCase();
-      const bv = (b[sortCol] ?? '').toString().toLowerCase();
-      const cmp = av.localeCompare(bv);
-      return sortDir === 'asc' ? cmp : -cmp;
-    });
-  }, [items, sortCol, sortDir]);
+  // The server returns the page already ordered by sortCol/sortDir across the
+  // full result set, so the rendered rows are just `items` in that order. (The
+  // old client-side re-sort only reordered the current page — audit H-14.)
+  const sortedItems = items;
 
   // Filter helpers
   const addFilter = useCallback((field, value) => {
