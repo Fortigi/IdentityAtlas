@@ -112,7 +112,8 @@ describe('AccessPackagesPage (mounted)', () => {
     const user = userEvent.setup();
 
     await screen.findByText('Payroll Access');
-    await user.type(screen.getByPlaceholderText('Search by name or catalog...'), 'pay');
+    // Reachable by accessible name (aria-label), not just placeholder — #761.
+    await user.type(screen.getByRole('textbox', { name: /Search business roles/i }), 'pay');
 
     await waitFor(() => {
       expect(authFetch).toHaveBeenCalledWith(expect.stringContaining('search=pay'));

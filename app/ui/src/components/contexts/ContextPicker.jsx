@@ -177,6 +177,7 @@ export default function ContextPicker({
           autoFocus
           value={search}
           onChange={e => setSearch(e.target.value)}
+          aria-label="Search contexts"
           placeholder="Search contexts…"
           className="flex-1 px-2 py-1 border border-gray-200 dark:border-gray-700 rounded text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-sky-400 dark:focus:ring-sky-500"
         />

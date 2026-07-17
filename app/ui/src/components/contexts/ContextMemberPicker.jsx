@@ -105,6 +105,7 @@ export default function ContextMemberPicker({ contextId, targetType, onAdded, ex
         value={query}
         onChange={e => { setQuery(e.target.value); setOpen(true); }}
         onFocus={() => setOpen(true)}
+        aria-label={`Search ${targetType.toLowerCase()}s to add`}
         placeholder={`Search ${targetType.toLowerCase()}s to add…`}
         className="w-full border border-gray-200 dark:border-gray-700 rounded px-3 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400 dark:focus:ring-sky-500 focus:border-transparent"
       />

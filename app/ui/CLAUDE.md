@@ -24,6 +24,8 @@ className="text-gray-600 dark:text-gray-400"
 ``
 Exception: shades 100–200 are not flagged because they are routinely used as near-white text on dark/colored button backgrounds (`bg-gray-900 text-gray-100`). Use them only in that context.
 
+**Rule: every interactive control needs an accessible name — a placeholder is not a label.** Search/filter boxes and other inputs must carry a real `<label>` (associated via `htmlFor`/`id`) or an `aria-label`; `placeholder=` alone leaves the field unlabelled for screen readers (and disappears once the user types). Test by querying the field by role + name — `getByRole('textbox', { name: /…/ })` — not by placeholder, so a dropped label fails the test.
+
 **Common patterns:**
 ``jsx
 // Container cards

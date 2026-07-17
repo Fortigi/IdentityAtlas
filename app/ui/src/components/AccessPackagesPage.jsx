@@ -359,6 +359,7 @@ export default function AccessPackagesPage({ onOpenDetail }) {
           type="text"
           value={search}
           onChange={e => setSearch(e.target.value)}
+          aria-label="Search business roles by name or catalog"
           placeholder="Search by name or catalog..."
           className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs w-56 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-500"
         />
