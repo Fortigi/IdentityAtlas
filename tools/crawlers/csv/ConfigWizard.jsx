@@ -32,6 +32,42 @@ export function matchSlot(filename) {
   return null;
 }
 
+// Parse a CSV header line into column names. Mirrors the crawler's Read-CsvFast
+// header handling: strip a leading BOM, split on the delimiter's first char, and
+// remove surrounding double-quotes. Returns [] for an empty/absent line.
+export function parseCsvHeader(line, delimiter) {
+  if (!line) return [];
+  let s = line;
+  if (s.charCodeAt(0) === 0xFEFF) s = s.slice(1);
+  const delim = delimiter && delimiter.length ? delimiter[0] : ';';
+  return s.split(delim).map(c => {
+    let h = c.trim();
+    if (h.length >= 2 && h[0] === '"' && h[h.length - 1] === '"') h = h.slice(1, -1);
+    return h.trim();
+  });
+}
+
+// Case-insensitively find required columns absent from a parsed header. Mirrors
+// the crawler's Assert-Columns / phase guards (which reject a file missing its
+// identifying columns) so a mis-mapped or wrong-schema file is caught at upload
+// time — with a clear message — instead of only when the job later runs.
+export function missingRequiredColumns(headerCols, requiredColumns) {
+  if (!requiredColumns || requiredColumns.length === 0) return [];
+  const have = new Set((headerCols || []).map(c => c.toLowerCase()));
+  return requiredColumns.filter(rc => !have.has(rc.toLowerCase()));
+}
+
+// Read just the first line of a (possibly multi-GB) CSV without loading it whole:
+// slice the first 64 KB, decode as UTF-8, and take everything up to the first
+// newline. Returns '' when the file can't be read.
+async function readFirstLine(file) {
+  try {
+    const text = await file.slice(0, 65536).text();
+    const nl = text.search(/\r?\n/);
+    return nl === -1 ? text : text.slice(0, nl);
+  } catch { return ''; }
+}
+
 export default function ConfigWizard({ onComplete, onCancel, initialConfig, isEdit, authFetch }) {
   // Steps: 1=info, 2=files, 3=review
   const [step, setStep] = useState(1);
@@ -67,7 +103,9 @@ export default function ConfigWizard({ onComplete, onCancel, initialConfig, isEd
     const files = Array.from(e.target.files || []);
     // Filter to .csv only
     const csv = files.filter(f => /\.csv$/i.test(f.name));
-    const mapped = csv.map(file => ({ file, slot: matchSlot(file.name) }));
+    // headerLine starts undefined (= "reading"); the async read below fills it in
+    // so we can validate columns against the matched slot's schema.
+    const mapped = csv.map(file => ({ file, slot: matchSlot(file.name), headerLine: undefined }));
     setStagedFiles(prev => {
       // Merge: replace files with same name, keep others
       const byName = new Map(prev.map(s => [s.file.name, s]));
@@ -75,7 +113,23 @@ export default function ConfigWizard({ onComplete, onCancel, initialConfig, isEd
       return Array.from(byName.values());
     });
     e.target.value = ''; // allow re-selecting the same files
+    // Read each file's header row (first line only) and attach it for validation.
+    for (const m of mapped) {
+      readFirstLine(m.file).then(line => {
+        setStagedFiles(prev => prev.map(s => s.file.name === m.file.name ? { ...s, headerLine: line } : s));
+      });
+    }
   };
+
+  // Required columns missing from a staged file's header, given its current slot
+  // and the configured delimiter. [] when the slot is empty or the header hasn't
+  // been read yet — we only flag a file once we've actually seen its columns.
+  const stagedMissingColumns = (s) => {
+    if (!s.slot || !s.headerLine) return [];
+    const slotDef = CSV_SLOTS.find(cs => cs.key === s.slot);
+    return missingRequiredColumns(parseCsvHeader(s.headerLine, delimiter), slotDef?.requiredColumns);
+  };
+  const filesWithHeaderErrors = stagedFiles.filter(s => stagedMissingColumns(s).length > 0);
 
   const removeStaged = (name) => setStagedFiles(prev => prev.filter(s => s.file.name !== name));
   const setStagedSlot = (name, slot) => setStagedFiles(prev => prev.map(s => s.file.name === name ? { ...s, slot } : s));
@@ -98,7 +152,8 @@ export default function ConfigWizard({ onComplete, onCancel, initialConfig, isEd
   const requiredSlots = CSV_SLOTS.filter(s => s.required);
   const missingRequired = requiredSlots.filter(s => !filledSlots.has(s.key));
   const oversizedFiles = stagedFiles.filter(s => s.file.size > MAX_FILE_BYTES);
-  const canSave = !uploading && !saving && missingRequired.length === 0 && allFiles.length > 0 && oversizedFiles.length === 0;
+  const canSave = !uploading && !saving && missingRequired.length === 0 && allFiles.length > 0
+    && oversizedFiles.length === 0 && filesWithHeaderErrors.length === 0;
 
   // Step 1 → 2 validation
   const canProceedFromInfo = displayName.trim() && systemName.trim() && systemType.trim() && delimiter;
@@ -262,23 +317,36 @@ export default function ConfigWizard({ onComplete, onCancel, initialConfig, isEd
             <div>
               <h4 className="text-sm font-semibold text-gray-700 mb-2 dark:text-gray-200">Staged files ({stagedFiles.length})</h4>
               <div className="border border-gray-200 rounded divide-y dark:border-gray-600 dark:divide-gray-700">
-                {stagedFiles.map(s => (
-                  <div key={s.file.name} className="flex items-center justify-between p-2 text-sm dark:bg-gray-800">
-                    <div className="flex-1 min-w-0">
-                      <div className="font-mono truncate dark:text-gray-200">{s.file.name}</div>
-                      <div className="text-xs text-gray-500 dark:text-gray-400">{fmtBytes(s.file.size)}</div>
+                {stagedFiles.map(s => {
+                  const missingCols = stagedMissingColumns(s);
+                  const slotLabel = CSV_SLOTS.find(cs => cs.key === s.slot)?.label || s.slot;
+                  return (
+                  <div key={s.file.name} className="p-2 text-sm dark:bg-gray-800">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1 min-w-0">
+                        <div className="font-mono truncate dark:text-gray-200">{s.file.name}</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">{fmtBytes(s.file.size)}</div>
+                      </div>
+                      <select value={s.slot || ''} onChange={e => setStagedSlot(s.file.name, e.target.value || null)}
+                        aria-label={`Object type for ${s.file.name}`}
+                        className={`ml-2 text-xs border rounded px-1 py-0.5 dark:bg-gray-700 dark:text-gray-200 ${missingCols.length > 0 ? 'border-red-400 dark:border-red-500' : 'border-gray-200 dark:border-gray-600'}`}>
+                        <option value="">— Ignore —</option>
+                        {CSV_SLOTS.map(slot => (
+                          <option key={slot.key} value={slot.key}>{slot.label}{slot.required ? ' *' : ''}</option>
+                        ))}
+                      </select>
+                      <button onClick={() => removeStaged(s.file.name)}
+                        className="ml-2 text-red-500 hover:text-red-700 text-xs dark:text-red-400 dark:hover:text-red-300">Remove</button>
                     </div>
-                    <select value={s.slot || ''} onChange={e => setStagedSlot(s.file.name, e.target.value || null)}
-                      className="ml-2 text-xs border border-gray-200 rounded px-1 py-0.5 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200">
-                      <option value="">— Ignore —</option>
-                      {CSV_SLOTS.map(slot => (
-                        <option key={slot.key} value={slot.key}>{slot.label}{slot.required ? ' *' : ''}</option>
-                      ))}
-                    </select>
-                    <button onClick={() => removeStaged(s.file.name)}
-                      className="ml-2 text-red-500 hover:text-red-700 text-xs dark:text-red-400 dark:hover:text-red-300">Remove</button>
+                    {missingCols.length > 0 && (
+                      <div className="mt-1 text-xs text-red-700 dark:text-red-300" role="alert">
+                        Missing column{missingCols.length > 1 ? 's' : ''} for <strong>{slotLabel}</strong>: <span className="font-mono">{missingCols.join(', ')}</span>.
+                        This file may be mapped to the wrong type — pick the right one above or check the schema template.
+                      </div>
+                    )}
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
