@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Fixed the built-in demo crawler failing on a fresh Docker install — it now regenerates the demo dataset on every run instead of trusting a possibly-stale bundled copy, so the full demo company (systems, principals, resources, assignments, identities, governance) loads reliably rather than stopping after the first few systems.
+
+## Changes in this PR
+
 - Expanded the demo dataset from 3 systems to 5: alongside Entra ID and HR, the demo now ships an IGA system, an SAP ERP system and an Azure (AzureRM) system, with accounts correlated across all of them.
 - Renamed the demo's governance system from "Omada" to a vendor-neutral "IGA" — a business role is the same concept whether it comes from Omada, midPoint or SailPoint, and the demo shouldn't imply one vendor. (The Omada crawler itself is unchanged.)
 - Added a Marketing department and four new people to the demo company, including Piet Jansen — the deliberately worst-case identity, with role-inherited access, a never-expiring password and consent to a risky app.

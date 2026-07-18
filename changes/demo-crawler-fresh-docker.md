@@ -1,1 +1,0 @@
-- Fixed the built-in demo crawler failing on a fresh Docker install — it now regenerates the demo dataset on every run instead of trusting a possibly-stale bundled copy, so the full demo company (systems, principals, resources, assignments, identities, governance) loads reliably rather than stopping after the first few systems.
