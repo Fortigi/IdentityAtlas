@@ -428,3 +428,25 @@ Describe 'Demo dataset — system id remapping (#705)' {
         foreach ($p in $script:data.principals) { $valid | Should -Contain $p.systemId }
     }
 }
+
+Describe 'Demo dataset — always regenerated for the built-in demo crawler (fresh Docker)' {
+
+    # Start-DemoCrawler.ps1 regenerates the dataset on every run via
+    # `Generate-DemoDataset.ps1 -OutputPath <datasetPath>` instead of trusting a
+    # possibly-stale on-disk copy. A bundled demo-company.json predating
+    # metadata.systemKeys crashed Ingest-DemoDataset.ps1 ("Cannot index into a
+    # null array") and left fresh Docker installs with only a few systems loaded.
+    # This pins the exact mechanism the crawler now relies on.
+    It 'writes a complete, ingest-ready dataset to an explicit -OutputPath' {
+        $out = Join-Path $TestDrive 'demo-regen.json'
+        & $script:genScript -OutputPath $out | Out-Null
+
+        Test-Path $out | Should -BeTrue
+        $fresh = Get-Content $out -Raw | ConvertFrom-Json
+
+        # The section whose absence broke the ingest: one systemKeys entry per
+        # system, each carrying the `key` the ingest indexes to map system ids.
+        @($fresh.metadata.systemKeys).Count | Should -Be @($fresh.systems).Count
+        foreach ($sk in $fresh.metadata.systemKeys) { $sk.key | Should -Not -BeNullOrEmpty }
+    }
+}
