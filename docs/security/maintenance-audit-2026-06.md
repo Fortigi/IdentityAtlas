@@ -63,12 +63,12 @@ Status legend: ✅ **Fixed** (merged) · 🟦 **By design** (intended/supported,
 
 | Phase | Tracked | ✅ Fixed | 🟦 By design | 🟨 Partial | 🔧 Open |
 |-------|--------:|--------:|------------:|----------:|--------:|
-| Design / UX | 21 | 10 | 0 | 0 | 11 |
+| Design / UX | 21 | 11 | 0 | 0 | 10 |
 | Security | 22 | 11 | 3 | 0 | 8 |
-| Perf & Quality | 16 | 8 | 2 | 1 | 5 |
-| CI / Test Harness | 11 | 6 | 0 | 3 | 2 |
+| Perf & Quality | 16 | 10 | 2 | 1 | 3 |
+| CI / Test Harness | 11 | 9 | 0 | 2 | 0 |
 | Documentation | 11 | 11 | 0 | 0 | 0 |
-| **Total** | **81** | **46** | **5** | **4** | **26** |
+| **Total** | **81** | **52** | **5** | **3** | **21** |
 
 _(Row groups P6–P10, Q9–Q10, F10–F13, D10–D12 and the Codex net-new bullets are tracked as single rows here; the audit's raw sub-finding count is 85.)_
 

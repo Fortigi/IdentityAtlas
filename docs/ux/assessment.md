@@ -23,7 +23,7 @@ This page is a **public, sanitized summary**: it records what was assessed, the 
 
 | Severity | Found | Remediated / in progress | Open |
 |---|---|---|---|
-| Critical | 4 | 3 | 1 |
+| Critical | 4 | 4 | 0 |
 | High | 21 | 17 | 4 |
 | Medium | ~35 | several | most |
 | Low / Informational | ~30 | several | most |
