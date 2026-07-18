@@ -1032,7 +1032,7 @@
   <span class="md-ellipsis">
     
   
-    Using Identity Atlas
+    Try It
   
 
     
@@ -1045,6 +1045,96 @@
         
         <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_4_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_2_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Try It
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../demo/capture-the-flag/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Capture the Flag
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_5" id="__nav_2_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Using Identity Atlas
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_5">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -3906,14 +3996,14 @@
 <tr>
 <td>Critical</td>
 <td>4</td>
-<td>3</td>
-<td>1</td>
+<td>4</td>
+<td>0</td>
 </tr>
 <tr>
 <td>High</td>
 <td>21</td>
-<td>9</td>
-<td>12</td>
+<td>17</td>
+<td>4</td>
 </tr>
 <tr>
 <td>Medium</td>
@@ -3932,6 +4022,9 @@
 <p>The audit's headline: a <strong>strong foundation with a missing middle</strong> — a healthy design-<em>token</em> layer and one genuinely excellent flow (the matrix filter wizard), but no shared <em>component</em> layer, no terminology/help system, and uneven dark-mode and accessibility coverage, so the same control had drifted across colours and patterns. The remediation programme therefore prioritised <strong>foundations</strong> (a written Style Guide, CI enforcement, an accessibility baseline) alongside the highest-impact individual fixes.</p>
 <hr />
 <h2 id="findings-remediation">Findings &amp; remediation<a class="headerlink" href="#findings-remediation" title="Permanent link">&para;</a></h2>
+<blockquote>
+<p><strong>Maintenance note — do not edit this table on a feature/bugfix branch.</strong> Flipping a finding's status (or recomputing any roll-up) on a branch reliably conflicts here, because every branch touches the same rows while <code>main</code> moves on. Leave these tables to a single <strong>reconciliation pass on <code>main</code></strong> after PRs merge. A feature PR changes only code, tests, and its <code>changes/</code> fragment; the status below is flipped later, in one batch.</p>
+</blockquote>
 <p>Status legend: ✅ <strong>Fixed</strong> (merged) · 🟨 <strong>Partially addressed</strong> · 🔧 <strong>Remediation planned</strong>.</p>
 <h3 id="critical">Critical<a class="headerlink" href="#critical" title="Permanent link">&para;</a></h3>
 <table>
@@ -3940,7 +4033,7 @@
 <th>ID</th>
 <th>Finding</th>
 <th>Status</th>
-<th>PR</th>
+<th>PR / tracking</th>
 </tr>
 </thead>
 <tbody>
@@ -3960,13 +4053,13 @@
 <td>C-03</td>
 <td>The matrix "governed" concept had multiple definitions that could contradict across the panel and the two grids</td>
 <td>🟨 Partially addressed — panel + main grid unified on business-role coverage; rotated view pending</td>
-<td>—</td>
+<td><a href="https://github.com/Fortigi/IdentityAtlas/issues/776">#776</a></td>
 </tr>
 <tr>
 <td>C-04</td>
 <td>Accessibility: the app was substantially keyboard- and screen-reader-inoperable (focus, reduced-motion, real controls, labels)</td>
-<td>🟨 Partially addressed — global focus-visible, skip link &amp; reduced-motion baseline merged; modal focus-trap and a full real-controls sweep remain</td>
-<td><a href="https://github.com/Fortigi/IdentityAtlas/pull/229">#229</a>, <a href="https://github.com/Fortigi/IdentityAtlas/pull/236">#236</a></td>
+<td>🟨 Partially addressed — global focus-visible, skip link &amp; reduced-motion baseline merged, and the axe-core suite re-armed across all nav tabs; modal focus-trap and a full real-controls sweep remain</td>
+<td><a href="https://github.com/Fortigi/IdentityAtlas/pull/229">#229</a>, <a href="https://github.com/Fortigi/IdentityAtlas/pull/236">#236</a>, <a href="https://github.com/Fortigi/IdentityAtlas/pull/525">#525</a> · <a href="https://github.com/Fortigi/IdentityAtlas/issues/751">#751</a></td>
 </tr>
 </tbody>
 </table>
@@ -3977,7 +4070,7 @@
 <th>ID</th>
 <th>Finding</th>
 <th>Status</th>
-<th>PR</th>
+<th>PR / tracking</th>
 </tr>
 </thead>
 <tbody>
@@ -3985,13 +4078,13 @@
 <td>H-01</td>
 <td>No shared component layer — primitives quarantined; the same action rendered in several colours/styles</td>
 <td>🟨 Partially addressed — shared <code>Stepper</code>, unified interactive colour to blue, softened data-viz</td>
-<td><a href="https://github.com/Fortigi/IdentityAtlas/pull/241">#241</a>, <a href="https://github.com/Fortigi/IdentityAtlas/pull/242">#242</a></td>
+<td><a href="https://github.com/Fortigi/IdentityAtlas/pull/241">#241</a>, <a href="https://github.com/Fortigi/IdentityAtlas/pull/242">#242</a> · <a href="https://github.com/Fortigi/IdentityAtlas/issues/750">#750</a></td>
 </tr>
 <tr>
 <td>H-02</td>
 <td>Detail pages are "two products in one" (shared-layout vs bespoke; a stale duplicate Group page)</td>
 <td>🔧 Planned</td>
-<td>—</td>
+<td><a href="https://github.com/Fortigi/IdentityAtlas/issues/764">#764</a></td>
 </tr>
 <tr>
 <td>H-03</td>
@@ -4002,8 +4095,8 @@
 <tr>
 <td>H-04</td>
 <td>Several regions light-mode only (crawler job-detail modal, compliance &amp; account-type badges)</td>
-<td>🟨 Partially addressed — badges fixed; job-detail modal pending</td>
-<td><a href="https://github.com/Fortigi/IdentityAtlas/pull/232">#232</a></td>
+<td>✅ Fixed</td>
+<td>badges <a href="https://github.com/Fortigi/IdentityAtlas/pull/232">#232</a> · job-detail modal <a href="https://github.com/Fortigi/IdentityAtlas/pull/817">#817</a> · <a href="https://github.com/Fortigi/IdentityAtlas/issues/765">#765</a></td>
 </tr>
 <tr>
 <td>H-05</td>
@@ -4014,56 +4107,56 @@
 <tr>
 <td>H-06</td>
 <td>Roles &amp; Permissions is buried inside Authentication; the described self-lockout guard isn't implemented</td>
-<td>🔧 Planned</td>
-<td>—</td>
+<td>✅ Fixed — its own Admin sub-tab; the self-lockout guard was already enforced, now with a change audit trail</td>
+<td><a href="https://github.com/Fortigi/IdentityAtlas/pull/832">#832</a> · <a href="https://github.com/Fortigi/IdentityAtlas/issues/786">#786</a></td>
 </tr>
 <tr>
 <td>H-07</td>
 <td>Risk Scoring can't be created/run from its own page; dead cluster code</td>
-<td>🔧 Planned</td>
-<td>—</td>
+<td>✅ Fixed — "Run scoring now" on the page (permission-gated); the dead cluster path removed</td>
+<td><a href="https://github.com/Fortigi/IdentityAtlas/pull/829">#829</a> · <a href="https://github.com/Fortigi/IdentityAtlas/issues/766">#766</a></td>
 </tr>
 <tr>
 <td>H-08</td>
 <td>Admin → Data tab gating mismatch (sections render regardless of the entry permission)</td>
-<td>🔧 Planned</td>
-<td>—</td>
+<td>✅ Fixed — each Data section now renders only for the permission that backs its server route</td>
+<td><a href="https://github.com/Fortigi/IdentityAtlas/pull/807">#807</a> · <a href="https://github.com/Fortigi/IdentityAtlas/issues/767">#767</a></td>
 </tr>
 <tr>
 <td>H-09</td>
 <td>Matrix "Apply vs Save" is a trap (overlapping verbs; a scolding "Not saved" badge)</td>
 <td>🔧 Planned</td>
-<td>—</td>
+<td><a href="https://github.com/Fortigi/IdentityAtlas/issues/768">#768</a></td>
 </tr>
 <tr>
 <td>H-10</td>
 <td>Rotated matrix is a silent reduced mode while still showing the controls it drops</td>
 <td>🔧 Planned</td>
-<td>—</td>
+<td><a href="https://github.com/Fortigi/IdentityAtlas/issues/769">#769</a></td>
 </tr>
 <tr>
 <td>H-11</td>
 <td>Core concepts never defined on screen (matrix, subjects, governed, gaps)</td>
 <td>🟨 Partially addressed — matrix legend + Style Guide glossary</td>
-<td><a href="https://github.com/Fortigi/IdentityAtlas/pull/226">#226</a>, <a href="https://github.com/Fortigi/IdentityAtlas/pull/237">#237</a></td>
+<td><a href="https://github.com/Fortigi/IdentityAtlas/pull/226">#226</a>, <a href="https://github.com/Fortigi/IdentityAtlas/pull/237">#237</a> · <a href="https://github.com/Fortigi/IdentityAtlas/issues/772">#772</a></td>
 </tr>
 <tr>
 <td>H-12</td>
 <td>List pages dead-end new users; Systems cited a stale CLI command</td>
-<td>🟨 Partially addressed — Systems onboarding fixed; remaining list pages pending</td>
-<td><a href="https://github.com/Fortigi/IdentityAtlas/pull/230">#230</a></td>
+<td>✅ Fixed — Systems onboarding fixed; list pages now render the shared EmptyState with a next action</td>
+<td><a href="https://github.com/Fortigi/IdentityAtlas/pull/230">#230</a>, <a href="https://github.com/Fortigi/IdentityAtlas/pull/831">#831</a> · <a href="https://github.com/Fortigi/IdentityAtlas/issues/760">#760</a></td>
 </tr>
 <tr>
 <td>H-13</td>
 <td>Optional tabs (Risk Scores, Identities) hidden by default even when enabled</td>
-<td>🔧 Planned</td>
-<td>—</td>
+<td>✅ Fixed — a feature-gated tab surfaces whenever its feature is on, with no second per-user opt-in</td>
+<td><a href="https://github.com/Fortigi/IdentityAtlas/pull/827">#827</a> · <a href="https://github.com/Fortigi/IdentityAtlas/issues/770">#770</a></td>
 </tr>
 <tr>
 <td>H-14</td>
 <td>List-page sort silently sorts only the current page over server pagination</td>
-<td>🔧 Planned</td>
-<td>—</td>
+<td>✅ Fixed — sort pushed to the server over the full result set (validated column allowlist)</td>
+<td><a href="https://github.com/Fortigi/IdentityAtlas/pull/823">#823</a> · <a href="https://github.com/Fortigi/IdentityAtlas/issues/771">#771</a></td>
 </tr>
 <tr>
 <td>H-15</td>
@@ -4075,7 +4168,7 @@
 <td>H-16</td>
 <td>Almost no contextual help / doc links; no in-app glossary</td>
 <td>🔧 Planned</td>
-<td>—</td>
+<td><a href="https://github.com/Fortigi/IdentityAtlas/issues/772">#772</a></td>
 </tr>
 <tr>
 <td>H-17</td>
@@ -4086,31 +4179,31 @@
 <tr>
 <td>H-18</td>
 <td>CSV import validates only the filename, not headers; loose name-matching can mis-map</td>
-<td>🔧 Planned</td>
-<td>—</td>
+<td>✅ Fixed — uploaded files are header-validated against the mapped schema at staging time</td>
+<td><a href="https://github.com/Fortigi/IdentityAtlas/pull/824">#824</a> · <a href="https://github.com/Fortigi/IdentityAtlas/issues/773">#773</a></td>
 </tr>
 <tr>
 <td>H-19</td>
 <td>One-time API key trivially lost; Copy reports success even when the clipboard fails</td>
-<td>🔧 Planned</td>
-<td>—</td>
+<td>✅ Fixed — verified copy reports the real result, plus a copy button for the reset key</td>
+<td><a href="https://github.com/Fortigi/IdentityAtlas/pull/826">#826</a> · <a href="https://github.com/Fortigi/IdentityAtlas/issues/774">#774</a></td>
 </tr>
 <tr>
 <td>H-20</td>
 <td>Crawler "audit log" fetches data but renders nothing</td>
-<td>🔧 Planned</td>
-<td>—</td>
+<td>✅ Fixed — the Custom Connector card's audit-log panel now fetches and renders its entries (rebuilt in the connector externalization, 2 weeks after this audit); guarded by an e2e</td>
+<td><a href="https://github.com/Fortigi/IdentityAtlas/pull/364">#364</a> · <a href="https://github.com/Fortigi/IdentityAtlas/issues/775">#775</a></td>
 </tr>
 <tr>
 <td>H-21</td>
 <td>~11 native <code>confirm()</code>/<code>alert()</code>/<code>prompt()</code> for important actions — unstyled, no dark mode, untestable</td>
-<td>🟨 Partially addressed — a CI rule blocks new ones; the existing backlog is being migrated</td>
-<td><a href="https://github.com/Fortigi/IdentityAtlas/pull/238">#238</a></td>
+<td>✅ Fixed — a shared <code>DialogProvider</code> + a CI rule, and the last native dialogs (CSV wizard, Custom Connector) migrated</td>
+<td><a href="https://github.com/Fortigi/IdentityAtlas/pull/238">#238</a>, <a href="https://github.com/Fortigi/IdentityAtlas/pull/500">#500</a>, <a href="https://github.com/Fortigi/IdentityAtlas/pull/830">#830</a> · <a href="https://github.com/Fortigi/IdentityAtlas/issues/763">#763</a></td>
 </tr>
 </tbody>
 </table>
 <h3 id="medium-low">Medium &amp; Low<a class="headerlink" href="#medium-low" title="Permanent link">&para;</a></h3>
-<p>Around 35 Medium and 30 Low/Informational items were recorded — inconsistent sub-navigation, no breadcrumbs, ad-hoc empty/loading states, tag-pill contrast risks, the orphaned brand colour and button-colour drift, ad-hoc type sizes, and assorted polish. Several have already been resolved as part of the foundational work below (terminology, the brand/colour decision, the matrix Tags column, a null-guard crash); the remainder are tracked internally and scheduled alongside the High items. Technical detail is withheld here pending remediation.</p>
+<p>Around 35 Medium and 30 Low/Informational items were recorded — inconsistent sub-navigation, no breadcrumbs, ad-hoc empty/loading states, tag-pill contrast risks, the orphaned brand colour and button-colour drift, ad-hoc type sizes, and assorted polish. Several have already been resolved as part of the foundational work below (terminology, the brand/colour decision, the matrix Tags column, a null-guard crash); the remainder are tracked in <a href="https://github.com/Fortigi/IdentityAtlas/issues/777">#777</a> and scheduled alongside the High items. Technical detail is withheld here pending remediation.</p>
 <hr />
 <h2 id="supporting-work">Supporting work<a class="headerlink" href="#supporting-work" title="Permanent link">&para;</a></h2>
 <p>Beyond the per-finding fixes, the remediation programme added the <strong>foundations the audit said were missing</strong>:</p>

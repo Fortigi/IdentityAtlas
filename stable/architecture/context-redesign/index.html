@@ -1024,7 +1024,7 @@
   <span class="md-ellipsis">
     
   
-    Using Identity Atlas
+    Try It
   
 
     
@@ -1037,6 +1037,96 @@
         
         <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_4_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_2_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Try It
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../demo/capture-the-flag/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Capture the Flag
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_5" id="__nav_2_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Using Identity Atlas
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_5">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -4037,6 +4127,7 @@
 </code></pre></div>
 <p>The runner reconciles the plugin output with existing <code>Contexts</code> rows where <code>sourceAlgorithmId</code> matches: insert new, update changed, delete missing. Manual children grafted under a generated parent are preserved by <code>parentContextId</code>.</p>
 <h3 id="42-initial-plugin-set">4.2 Initial plugin set<a class="headerlink" href="#42-initial-plugin-set" title="Permanent link">&para;</a></h3>
+<p>The registry ships <strong>ten</strong> plugins (<code>app/api/src/contexts/plugins/registry.js</code>):</p>
 <table>
 <thead>
 <tr>
@@ -4054,22 +4145,28 @@
 <td>Node displayName is <code>"&lt;Department&gt; (&lt;Manager name&gt;)"</code> when available. Replaces the old OrgChart logic in the Entra crawler + the <code>/api/org-chart</code> derived tree.</td>
 </tr>
 <tr>
-<td><code>department-tree</code></td>
+<td><code>department-from-principal</code></td>
 <td>Principal</td>
-<td><code>Principals.department</code> parsed by separator</td>
-<td>Replaces the former <code>refresh-contexts</code> derived OrgUnit tree.</td>
+<td><code>Principals.department</code></td>
+<td>One node per department value, scoped by system. Replaces the former <code>refresh-contexts</code> derived OrgUnit tree.</td>
 </tr>
 <tr>
 <td><code>ad-ou-from-dn</code></td>
 <td>Principal</td>
 <td>LDAP DN (default: <code>extendedAttributes.onPremisesDistinguishedName</code>)</td>
-<td>Field source is configurable via the <code>dnField</code> parameter.</td>
+<td>OU components (outer-to-inner) form the tree; DC components ignored. Source field configurable via the <code>dnField</code> parameter.</td>
 </tr>
 <tr>
-<td><code>app-grouping-by-pattern</code></td>
-<td>Resource</td>
-<td><code>Resources.displayName</code> regex</td>
-<td>One bucket per <code>{name, regex}</code> pair; first-match wins; optional fallback bucket.</td>
+<td><code>principal-type-tree</code></td>
+<td>Principal</td>
+<td><code>principalType</code> (or another column / <code>extendedAttributes</code> key)</td>
+<td>One bucket per distinct principal type.</td>
+</tr>
+<tr>
+<td><code>orphaned-accounts</code></td>
+<td>Principal</td>
+<td>Principals with no <code>IdentityMembers</code> row</td>
+<td>Buckets unlinked accounts by detected account type. Refreshed automatically at the end of every Account Linking run — see <a href="../account-linking/">Account Linking</a>.</td>
 </tr>
 <tr>
 <td><code>resource-cluster</code></td>
@@ -4078,16 +4175,28 @@
 <td>Deterministic, non-LLM. See <a href="../resource-cluster-algorithm/"><code>resource-cluster-algorithm.md</code></a>. Replaces the former stem-based Risk-Scoring clusters.</td>
 </tr>
 <tr>
-<td><code>business-process-llm</code></td>
+<td><code>resource-type-tree</code></td>
 <td>Resource</td>
-<td>LLM seeded with a process description</td>
-<td>Registered with parameter shape; run loop still a stub.</td>
+<td><code>azureResourceType</code> (or another <code>extendedAttributes</code> key)</td>
+<td>One bucket per distinct resource type.</td>
 </tr>
 <tr>
-<td><code>orphaned-accounts</code></td>
-<td>Principal</td>
-<td>Principals with no <code>IdentityMembers</code> row</td>
-<td>Buckets unlinked accounts by detected account type. Refreshed automatically at the end of every Account Linking run — see <a href="../account-linking/">Account Linking</a>.</td>
+<td><code>scope-hierarchy</code></td>
+<td>Resource</td>
+<td><code>Contains</code> relationship edges</td>
+<td>Walks the resource <code>Contains</code> hierarchy into a nested scope tree.</td>
+</tr>
+<tr>
+<td><code>entra-group-category-tree</code></td>
+<td>Resource</td>
+<td>Entra group category attributes</td>
+<td>One bucket per Entra group category; scoped to one Group system or all.</td>
+</tr>
+<tr>
+<td><code>risky-consent</code></td>
+<td>Resource</td>
+<td>OAuth consent grants + external threat feed</td>
+<td>Buckets risky OAuth app-consent grants by tier/severity; the context members are the grant resources. <strong>Fetches a third-party threat feed (OAuthSentry) over the network at run time.</strong></td>
 </tr>
 </tbody>
 </table>
@@ -4188,7 +4297,7 @@ endpoint is gated to <code>ManagerHierarchy</code> trees and requires the
 <h3 id="61-all-groups-for-one-application">6.1 "All groups for one application"<a class="headerlink" href="#61-all-groups-for-one-application" title="Permanent link">&para;</a></h3>
 <ol>
 <li>Analyst creates a manual context: targetType=Resource, contextType=Application, name="Procurement app".</li>
-<li>Drag-drops or bulk-adds groups into it. Or: runs the <code>app-grouping-by-pattern</code> plugin scoped to a regex.</li>
+<li>Drag-drops or bulk-adds groups into it. Or: runs the <code>resource-cluster</code> plugin scoped to that system and grafts the relevant clusters under it.</li>
 <li>In the matrix, click context filter → pick "Procurement app" → the columns collapse to just those groups, and the rows show only users with assignments. Business-role columns that touch any of those groups stay visible.</li>
 </ol>
 <h3 id="62-the-procurement-process">6.2 "The procurement process"<a class="headerlink" href="#62-the-procurement-process" title="Permanent link">&para;</a></h3>
