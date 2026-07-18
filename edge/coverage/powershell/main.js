@@ -313,7 +313,7 @@ var assemblies = [
   {
     "name": "tools/crawlers/demo",
     "classes": [
-      { "name": "tools/crawlers/demo/Start-DemoCrawler", "rp": "demo_tools_crawlers_demo_Start_DemoCrawler.html", "cl": 0, "ucl": 22, "cal": 22, "tl": 67, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
+      { "name": "tools/crawlers/demo/Start-DemoCrawler", "rp": "demo_tools_crawlers_demo_Start_DemoCrawler.html", "cl": 0, "ucl": 22, "cal": 22, "tl": 73, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
     ]},
   {
     "name": "tools/crawlers/entra-id",
