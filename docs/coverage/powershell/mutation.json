@@ -1,23 +1,15 @@
 {
   "generatedFrom": "PSMutant",
-  "mutationScore": 84.7,
-  "total": 215,
-  "killed": 182,
-  "survived": 33,
+  "mutationScore": 93.2,
+  "total": 249,
+  "killed": 232,
+  "survived": 17,
   "thresholds": {
-    "high": 80,
-    "low": 60,
-    "break": 80
+    "high": 90,
+    "low": 70,
+    "break": 90
   },
   "survivors": [
-    {
-      "Id": 1,
-      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
-      "Line": 44,
-      "Operator": "BinaryOperator",
-      "Description": "-and -> -or",
-      "Status": "Survived"
-    },
     {
       "Id": 9,
       "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
@@ -35,115 +27,67 @@
       "Status": "Survived"
     },
     {
-      "Id": 17,
-      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
-      "Line": 201,
+      "Id": 5,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.PrincipalRelationships.ps1",
+      "Line": 75,
       "Operator": "BinaryOperator",
-      "Description": "-and -> -or",
+      "Description": "-gt -> -le",
       "Status": "Survived"
     },
     {
-      "Id": 22,
-      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
-      "Line": 245,
+      "Id": 7,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.PrincipalRelationships.ps1",
+      "Line": 90,
       "Operator": "BinaryOperator",
-      "Description": "-ne -> -eq",
+      "Description": "-gt -> -le",
       "Status": "Survived"
     },
     {
-      "Id": 39,
-      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
-      "Line": 555,
-      "Operator": "BinaryOperator",
-      "Description": "-or -> -and",
-      "Status": "Survived"
-    },
-    {
-      "Id": 42,
-      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
-      "Line": 617,
-      "Operator": "BinaryOperator",
-      "Description": "-and -> -or",
-      "Status": "Survived"
-    },
-    {
-      "Id": 62,
-      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
-      "Line": 430,
-      "Operator": "BooleanLiteral",
-      "Description": "$false -> $true",
-      "Status": "Survived"
-    },
-    {
-      "Id": 66,
-      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
-      "Line": 568,
+      "Id": 8,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.PrincipalRelationships.ps1",
+      "Line": 51,
       "Operator": "BooleanLiteral",
       "Description": "$true -> $false",
       "Status": "Survived"
     },
     {
-      "Id": 70,
-      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
-      "Line": 54,
+      "Id": 10,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.PrincipalRelationships.ps1",
+      "Line": 72,
+      "Operator": "NumberLiteral",
+      "Description": "16 -> 17",
+      "Status": "Survived"
+    },
+    {
+      "Id": 13,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.PrincipalRelationships.ps1",
+      "Line": 75,
       "Operator": "NumberLiteral",
       "Description": "0 -> 1",
       "Status": "Survived"
     },
     {
-      "Id": 72,
-      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
-      "Line": 88,
+      "Id": 15,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.PrincipalRelationships.ps1",
+      "Line": 87,
       "Operator": "NumberLiteral",
-      "Description": "3 -> 4",
+      "Description": "16 -> 17",
       "Status": "Survived"
     },
     {
-      "Id": 73,
-      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
-      "Line": 121,
+      "Id": 18,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.PrincipalRelationships.ps1",
+      "Line": 90,
       "Operator": "NumberLiteral",
       "Description": "0 -> 1",
       "Status": "Survived"
     },
     {
-      "Id": 74,
-      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
-      "Line": 124,
+      "Id": 3,
+      "File": "tools/crawlers/shared/Get-CapabilityId.ps1",
+      "Line": 45,
       "Operator": "NumberLiteral",
-      "Description": "0 -> 1",
-      "Status": "Survived"
-    },
-    {
-      "Id": 75,
-      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
-      "Line": 128,
-      "Operator": "NumberLiteral",
-      "Description": "0 -> 1",
-      "Status": "Survived"
-    },
-    {
-      "Id": 76,
-      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
-      "Line": 164,
-      "Operator": "NumberLiteral",
-      "Description": "0 -> 1",
-      "Status": "Survived"
-    },
-    {
-      "Id": 81,
-      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
-      "Line": 516,
-      "Operator": "NumberLiteral",
-      "Description": "0 -> 1",
-      "Status": "Survived"
-    },
-    {
-      "Id": 82,
-      "File": "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
-      "Line": 602,
-      "Operator": "NumberLiteral",
-      "Description": "0 -> 1",
+      "Description": "15 -> 16",
       "Status": "Survived"
     },
     {
@@ -201,78 +145,6 @@
       "Operator": "NumberLiteral",
       "Description": "1 -> 2",
       "Status": "Survived"
-    },
-    {
-      "Id": 31,
-      "File": "tools/crawlers/csv/CSVCrawler.Transform.ps1",
-      "Line": 81,
-      "Operator": "NumberLiteral",
-      "Description": "0 -> 1",
-      "Status": "Survived"
-    },
-    {
-      "Id": 32,
-      "File": "tools/crawlers/csv/CSVCrawler.Transform.ps1",
-      "Line": 84,
-      "Operator": "NumberLiteral",
-      "Description": "0 -> 1",
-      "Status": "Survived"
-    },
-    {
-      "Id": 33,
-      "File": "tools/crawlers/csv/CSVCrawler.Transform.ps1",
-      "Line": 91,
-      "Operator": "NumberLiteral",
-      "Description": "0 -> 1",
-      "Status": "Survived"
-    },
-    {
-      "Id": 34,
-      "File": "tools/crawlers/csv/CSVCrawler.Transform.ps1",
-      "Line": 138,
-      "Operator": "NumberLiteral",
-      "Description": "0 -> 1",
-      "Status": "Survived"
-    },
-    {
-      "Id": 35,
-      "File": "tools/crawlers/csv/CSVCrawler.Transform.ps1",
-      "Line": 187,
-      "Operator": "NumberLiteral",
-      "Description": "0 -> 1",
-      "Status": "Survived"
-    },
-    {
-      "Id": 36,
-      "File": "tools/crawlers/csv/CSVCrawler.Transform.ps1",
-      "Line": 188,
-      "Operator": "NumberLiteral",
-      "Description": "0 -> 1",
-      "Status": "Survived"
-    },
-    {
-      "Id": 37,
-      "File": "tools/crawlers/csv/CSVCrawler.Transform.ps1",
-      "Line": 189,
-      "Operator": "NumberLiteral",
-      "Description": "0 -> 1",
-      "Status": "Survived"
-    },
-    {
-      "Id": 38,
-      "File": "tools/crawlers/csv/CSVCrawler.Transform.ps1",
-      "Line": 190,
-      "Operator": "NumberLiteral",
-      "Description": "0 -> 1",
-      "Status": "Survived"
-    },
-    {
-      "Id": 39,
-      "File": "tools/crawlers/csv/CSVCrawler.Transform.ps1",
-      "Line": 191,
-      "Operator": "NumberLiteral",
-      "Description": "0 -> 1",
-      "Status": "Survived"
     }
   ],
   "mutants": [
@@ -282,7 +154,7 @@
       "Line": 44,
       "Operator": "BinaryOperator",
       "Description": "-and -> -or",
-      "Status": "Survived"
+      "Status": "Killed"
     },
     {
       "Id": 2,
@@ -410,7 +282,7 @@
       "Line": 201,
       "Operator": "BinaryOperator",
       "Description": "-and -> -or",
-      "Status": "Survived"
+      "Status": "Killed"
     },
     {
       "Id": 18,
@@ -450,7 +322,7 @@
       "Line": 245,
       "Operator": "BinaryOperator",
       "Description": "-ne -> -eq",
-      "Status": "Survived"
+      "Status": "Killed"
     },
     {
       "Id": 23,
@@ -586,7 +458,7 @@
       "Line": 555,
       "Operator": "BinaryOperator",
       "Description": "-or -> -and",
-      "Status": "Survived"
+      "Status": "Killed"
     },
     {
       "Id": 40,
@@ -610,7 +482,7 @@
       "Line": 617,
       "Operator": "BinaryOperator",
       "Description": "-and -> -or",
-      "Status": "Survived"
+      "Status": "Killed"
     },
     {
       "Id": 43,
@@ -706,7 +578,7 @@
       "Line": 430,
       "Operator": "BooleanLiteral",
       "Description": "$false -> $true",
-      "Status": "Survived"
+      "Status": "Killed"
     },
     {
       "Id": 63,
@@ -738,7 +610,7 @@
       "Line": 568,
       "Operator": "BooleanLiteral",
       "Description": "$true -> $false",
-      "Status": "Survived"
+      "Status": "Killed"
     },
     {
       "Id": 67,
@@ -770,7 +642,7 @@
       "Line": 54,
       "Operator": "NumberLiteral",
       "Description": "0 -> 1",
-      "Status": "Survived"
+      "Status": "Killed"
     },
     {
       "Id": 71,
@@ -786,7 +658,7 @@
       "Line": 88,
       "Operator": "NumberLiteral",
       "Description": "3 -> 4",
-      "Status": "Survived"
+      "Status": "Killed"
     },
     {
       "Id": 73,
@@ -794,7 +666,7 @@
       "Line": 121,
       "Operator": "NumberLiteral",
       "Description": "0 -> 1",
-      "Status": "Survived"
+      "Status": "Killed"
     },
     {
       "Id": 74,
@@ -802,7 +674,7 @@
       "Line": 124,
       "Operator": "NumberLiteral",
       "Description": "0 -> 1",
-      "Status": "Survived"
+      "Status": "Killed"
     },
     {
       "Id": 75,
@@ -810,7 +682,7 @@
       "Line": 128,
       "Operator": "NumberLiteral",
       "Description": "0 -> 1",
-      "Status": "Survived"
+      "Status": "Killed"
     },
     {
       "Id": 76,
@@ -818,7 +690,7 @@
       "Line": 164,
       "Operator": "NumberLiteral",
       "Description": "0 -> 1",
-      "Status": "Survived"
+      "Status": "Killed"
     },
     {
       "Id": 77,
@@ -858,7 +730,7 @@
       "Line": 516,
       "Operator": "NumberLiteral",
       "Description": "0 -> 1",
-      "Status": "Survived"
+      "Status": "Killed"
     },
     {
       "Id": 82,
@@ -866,7 +738,7 @@
       "Line": 602,
       "Operator": "NumberLiteral",
       "Description": "0 -> 1",
-      "Status": "Survived"
+      "Status": "Killed"
     },
     {
       "Id": 88,
@@ -1099,6 +971,278 @@
       "Operator": "NegationRemoval",
       "Description": "remove negation",
       "Status": "Killed"
+    },
+    {
+      "Id": 1,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.AppOwners.ps1",
+      "Line": 56,
+      "Operator": "BinaryOperator",
+      "Description": "-or -> -and",
+      "Status": "Killed"
+    },
+    {
+      "Id": 25,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.AppOwners.ps1",
+      "Line": 56,
+      "Operator": "NegationRemoval",
+      "Description": "remove negation",
+      "Status": "Killed"
+    },
+    {
+      "Id": 26,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.AppOwners.ps1",
+      "Line": 56,
+      "Operator": "NegationRemoval",
+      "Description": "remove negation",
+      "Status": "Killed"
+    },
+    {
+      "Id": 27,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.AppOwners.ps1",
+      "Line": 58,
+      "Operator": "NegationRemoval",
+      "Description": "remove negation",
+      "Status": "Killed"
+    },
+    {
+      "Id": 28,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.AppOwners.ps1",
+      "Line": 60,
+      "Operator": "NegationRemoval",
+      "Description": "remove negation",
+      "Status": "Killed"
+    },
+    {
+      "Id": 1,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.AppPermissions.ps1",
+      "Line": 63,
+      "Operator": "BinaryOperator",
+      "Description": "-and -> -or",
+      "Status": "Killed"
+    },
+    {
+      "Id": 2,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.AppPermissions.ps1",
+      "Line": 89,
+      "Operator": "BinaryOperator",
+      "Description": "-or -> -and",
+      "Status": "Killed"
+    },
+    {
+      "Id": 3,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.AppPermissions.ps1",
+      "Line": 89,
+      "Operator": "BinaryOperator",
+      "Description": "-or -> -and",
+      "Status": "Killed"
+    },
+    {
+      "Id": 7,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.AppPermissions.ps1",
+      "Line": 98,
+      "Operator": "BooleanLiteral",
+      "Description": "$true -> $false",
+      "Status": "Killed"
+    },
+    {
+      "Id": 16,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.AppPermissions.ps1",
+      "Line": 60,
+      "Operator": "NegationRemoval",
+      "Description": "remove negation",
+      "Status": "Killed"
+    },
+    {
+      "Id": 17,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.AppPermissions.ps1",
+      "Line": 89,
+      "Operator": "NegationRemoval",
+      "Description": "remove negation",
+      "Status": "Killed"
+    },
+    {
+      "Id": 18,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.AppPermissions.ps1",
+      "Line": 89,
+      "Operator": "NegationRemoval",
+      "Description": "remove negation",
+      "Status": "Killed"
+    },
+    {
+      "Id": 19,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.AppPermissions.ps1",
+      "Line": 89,
+      "Operator": "NegationRemoval",
+      "Description": "remove negation",
+      "Status": "Killed"
+    },
+    {
+      "Id": 20,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.AppPermissions.ps1",
+      "Line": 93,
+      "Operator": "NegationRemoval",
+      "Description": "remove negation",
+      "Status": "Killed"
+    },
+    {
+      "Id": 21,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.AppPermissions.ps1",
+      "Line": 103,
+      "Operator": "NegationRemoval",
+      "Description": "remove negation",
+      "Status": "Killed"
+    },
+    {
+      "Id": 1,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.PrincipalRelationships.ps1",
+      "Line": 47,
+      "Operator": "BinaryOperator",
+      "Description": "-or -> -and",
+      "Status": "Killed"
+    },
+    {
+      "Id": 2,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.PrincipalRelationships.ps1",
+      "Line": 48,
+      "Operator": "BinaryOperator",
+      "Description": "-eq -> -ne",
+      "Status": "Killed"
+    },
+    {
+      "Id": 3,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.PrincipalRelationships.ps1",
+      "Line": 68,
+      "Operator": "BinaryOperator",
+      "Description": "-eq -> -ne",
+      "Status": "Killed"
+    },
+    {
+      "Id": 4,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.PrincipalRelationships.ps1",
+      "Line": 71,
+      "Operator": "BinaryOperator",
+      "Description": "-eq -> -ne",
+      "Status": "Killed"
+    },
+    {
+      "Id": 5,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.PrincipalRelationships.ps1",
+      "Line": 75,
+      "Operator": "BinaryOperator",
+      "Description": "-gt -> -le",
+      "Status": "Survived"
+    },
+    {
+      "Id": 6,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.PrincipalRelationships.ps1",
+      "Line": 86,
+      "Operator": "BinaryOperator",
+      "Description": "-eq -> -ne",
+      "Status": "Killed"
+    },
+    {
+      "Id": 7,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.PrincipalRelationships.ps1",
+      "Line": 90,
+      "Operator": "BinaryOperator",
+      "Description": "-gt -> -le",
+      "Status": "Survived"
+    },
+    {
+      "Id": 8,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.PrincipalRelationships.ps1",
+      "Line": 51,
+      "Operator": "BooleanLiteral",
+      "Description": "$true -> $false",
+      "Status": "Survived"
+    },
+    {
+      "Id": 9,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.PrincipalRelationships.ps1",
+      "Line": 71,
+      "Operator": "NumberLiteral",
+      "Description": "0 -> 1",
+      "Status": "Killed"
+    },
+    {
+      "Id": 10,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.PrincipalRelationships.ps1",
+      "Line": 72,
+      "Operator": "NumberLiteral",
+      "Description": "16 -> 17",
+      "Status": "Survived"
+    },
+    {
+      "Id": 13,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.PrincipalRelationships.ps1",
+      "Line": 75,
+      "Operator": "NumberLiteral",
+      "Description": "0 -> 1",
+      "Status": "Survived"
+    },
+    {
+      "Id": 14,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.PrincipalRelationships.ps1",
+      "Line": 86,
+      "Operator": "NumberLiteral",
+      "Description": "0 -> 1",
+      "Status": "Killed"
+    },
+    {
+      "Id": 15,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.PrincipalRelationships.ps1",
+      "Line": 87,
+      "Operator": "NumberLiteral",
+      "Description": "16 -> 17",
+      "Status": "Survived"
+    },
+    {
+      "Id": 18,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.PrincipalRelationships.ps1",
+      "Line": 90,
+      "Operator": "NumberLiteral",
+      "Description": "0 -> 1",
+      "Status": "Survived"
+    },
+    {
+      "Id": 21,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.PrincipalRelationships.ps1",
+      "Line": 47,
+      "Operator": "NegationRemoval",
+      "Description": "remove negation",
+      "Status": "Killed"
+    },
+    {
+      "Id": 22,
+      "File": "tools/crawlers/entra-id/EntraIDCrawler.PrincipalRelationships.ps1",
+      "Line": 47,
+      "Operator": "NegationRemoval",
+      "Description": "remove negation",
+      "Status": "Killed"
+    },
+    {
+      "Id": 1,
+      "File": "tools/crawlers/shared/Get-CapabilityId.ps1",
+      "Line": 36,
+      "Operator": "BinaryOperator",
+      "Description": "-or -> -and",
+      "Status": "Killed"
+    },
+    {
+      "Id": 2,
+      "File": "tools/crawlers/shared/Get-CapabilityId.ps1",
+      "Line": 45,
+      "Operator": "NumberLiteral",
+      "Description": "0 -> 1",
+      "Status": "Killed"
+    },
+    {
+      "Id": 3,
+      "File": "tools/crawlers/shared/Get-CapabilityId.ps1",
+      "Line": 45,
+      "Operator": "NumberLiteral",
+      "Description": "15 -> 16",
+      "Status": "Survived"
     },
     {
       "Id": 1,
@@ -1690,7 +1834,7 @@
       "Line": 81,
       "Operator": "NumberLiteral",
       "Description": "0 -> 1",
-      "Status": "Survived"
+      "Status": "Killed"
     },
     {
       "Id": 32,
@@ -1698,7 +1842,7 @@
       "Line": 84,
       "Operator": "NumberLiteral",
       "Description": "0 -> 1",
-      "Status": "Survived"
+      "Status": "Killed"
     },
     {
       "Id": 33,
@@ -1706,7 +1850,7 @@
       "Line": 91,
       "Operator": "NumberLiteral",
       "Description": "0 -> 1",
-      "Status": "Survived"
+      "Status": "Killed"
     },
     {
       "Id": 34,
@@ -1714,7 +1858,7 @@
       "Line": 138,
       "Operator": "NumberLiteral",
       "Description": "0 -> 1",
-      "Status": "Survived"
+      "Status": "Killed"
     },
     {
       "Id": 35,
@@ -1722,7 +1866,7 @@
       "Line": 187,
       "Operator": "NumberLiteral",
       "Description": "0 -> 1",
-      "Status": "Survived"
+      "Status": "Killed"
     },
     {
       "Id": 36,
@@ -1730,7 +1874,7 @@
       "Line": 188,
       "Operator": "NumberLiteral",
       "Description": "0 -> 1",
-      "Status": "Survived"
+      "Status": "Killed"
     },
     {
       "Id": 37,
@@ -1738,7 +1882,7 @@
       "Line": 189,
       "Operator": "NumberLiteral",
       "Description": "0 -> 1",
-      "Status": "Survived"
+      "Status": "Killed"
     },
     {
       "Id": 38,
@@ -1746,7 +1890,7 @@
       "Line": 190,
       "Operator": "NumberLiteral",
       "Description": "0 -> 1",
-      "Status": "Survived"
+      "Status": "Killed"
     },
     {
       "Id": 39,
@@ -1754,7 +1898,7 @@
       "Line": 191,
       "Operator": "NumberLiteral",
       "Description": "0 -> 1",
-      "Status": "Survived"
+      "Status": "Killed"
     },
     {
       "Id": 40,
