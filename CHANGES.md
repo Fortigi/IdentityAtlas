@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Updated the CodeQL analysis workflow to codeql-action 4.37.3 across the init, autobuild, and analyze steps together (they must stay on a single version).
+
+## Changes in this PR
+
 - Patched a high-severity denial-of-service advisory (GHSA-3jxr-9vmj-r5cp in `brace-expansion`) pulled in transitively by the UI build tooling, clearing the dependency-audit backlog.
 
 ## Changes in this PR
