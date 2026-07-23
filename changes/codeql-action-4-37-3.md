@@ -1,0 +1,1 @@
+- Updated the CodeQL analysis workflow to codeql-action 4.37.3 across the init, autobuild, and analyze steps together (they must stay on a single version).
