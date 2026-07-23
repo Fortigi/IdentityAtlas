@@ -1,0 +1,1 @@
+- Patched a high-severity denial-of-service advisory (GHSA-3jxr-9vmj-r5cp in `brace-expansion`) pulled in transitively by the UI build tooling, clearing the dependency-audit backlog.
