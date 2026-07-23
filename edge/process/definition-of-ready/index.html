@@ -23,7 +23,7 @@
     
     
       
-        <title>Definition of Ready v2 — the "ready-to-build" checklist - Identity Atlas</title>
+        <title>Definition of Ready v3 — the "ready-to-build" process - Identity Atlas</title>
       
     
     
@@ -76,7 +76,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#definition-of-ready-v2-the-ready-to-build-checklist" class="md-skip">
+        <a href="#definition-of-ready-v3-the-ready-to-build-process" class="md-skip">
           Skip to content
         </a>
       
@@ -115,7 +115,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Definition of Ready v2 — the "ready-to-build" checklist
+              Definition of Ready v3 — the "ready-to-build" process
             
           </span>
         </div>
@@ -3593,6 +3593,28 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#the-process-at-a-glance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The process at a glance
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#roles-lanes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Roles (lanes)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#phase-a-intent-interview-what-why" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3604,10 +3626,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#phase-b-build-readiness-probe-can-it-actually-be-built-the-part-that-makes-a-spec-real" class="md-nav__link">
+  <a href="#phase-b-build-readiness-probe-can-it-actually-be-built" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Phase B — Build-readiness probe (can it actually be built?) ← the part that makes a spec real
+        Phase B — Build-readiness probe (can it actually be built?)
       
     </span>
   </a>
@@ -3615,10 +3637,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#phase-c-sign-offs" class="md-nav__link">
+  <a href="#phase-c-sign-offs-three-distinct-gates-may-be-one-person-several-hats" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Phase C — Sign-offs
+        Phase C — Sign-offs (three distinct gates; may be one person, several hats)
       
     </span>
   </a>
@@ -3626,10 +3648,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#the-bar-how-we-know-a-spec-passed" class="md-nav__link">
+  <a href="#phase-d-build-validate-and-the-feedback-loop-first-class" class="md-nav__link">
     <span class="md-ellipsis">
       
-        The bar (how we know a spec passed)
+        Phase D — Build, validate, and the feedback loop (first-class)
       
     </span>
   </a>
@@ -3637,10 +3659,32 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#why-v2-differs-from-v1-generalized-lessons-not-feature-facts" class="md-nav__link">
+  <a href="#appendix-definition-of-done-the-probe-must-design-against" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Why v2 differs from v1 (generalized lessons, not feature facts)
+        Appendix — Definition of Done the probe must design against
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-bar" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The bar
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#version-history-generalized-lessons" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Version history (generalized lessons)
       
     </span>
   </a>
@@ -3675,49 +3719,141 @@
   
 
 
-<h1 id="definition-of-ready-v2-the-ready-to-build-checklist">Definition of Ready v2 — the "ready-to-build" checklist<a class="headerlink" href="#definition-of-ready-v2-the-ready-to-build-checklist" title="Permanent link">&para;</a></h1>
-<p><strong>Purpose.</strong> Produce a spec so complete that building, testing and documenting run with <strong>no human decisions mid-build and no silent assumptions</strong>. All human decisions are front-loaded into intake. The build is decision-free; the only human step after is a <em>mechanical</em> functional check against fixture-backed acceptance criteria.</p>
-<p><strong>Gate.</strong> A spec is <code>ready-to-build</code> only when <strong>Phase A and Phase B are complete and Phase B's final pass surfaced nothing new</strong>, and the requestor has confirmed the summary. It is buildable only after the separate product GO (<code>approved</code>). Missing any of this ⇒ <code>needs-clarification</code> (hard blocker — the build must not start).</p>
+<h1 id="definition-of-ready-v3-the-ready-to-build-process">Definition of Ready v3 — the "ready-to-build" process<a class="headerlink" href="#definition-of-ready-v3-the-ready-to-build-process" title="Permanent link">&para;</a></h1>
+<p><strong>Purpose.</strong> Produce a spec complete enough that building, testing and documenting run with <strong>zero <em>functional</em> human decisions and zero silent <em>functional</em> assumptions</strong>. Non-functional decisions (architecture, design/UX, product fit) are not eliminated — they are <strong>routed to the role that owns them</strong> at spec time, and <em>form</em> (look/feel/interaction) is expected to need a <strong>feedback loop</strong>, because taste is a see-it reaction that cannot be fully pre-specified.</p>
+<p><strong>The realistic bar (corrected from v2).</strong> "One perfect spec → build once" is reachable for <strong>function</strong>, not for <strong>form</strong>. So: front-load every <em>functional</em> decision; route every <em>architectural / design / product</em> decision to its owner; and treat post-build feedback as a normal, first-class loop, not a failure.</p>
+<hr />
+<h2 id="the-process-at-a-glance">The process at a glance<a class="headerlink" href="#the-process-at-a-glance" title="Permanent link">&para;</a></h2>
+<pre class="mermaid"><code>flowchart TD
+  classDef req fill:#dbeafe,stroke:#3b82f6,color:#0b1f4d
+  classDef ai fill:#ede9fe,stroke:#7c3aed,color:#2a0f52
+  classDef arch fill:#dcfce7,stroke:#16a34a,color:#0a2e14
+  classDef des fill:#fef9c3,stroke:#ca8a04,color:#3a2606
+  classDef po fill:#ffe4e6,stroke:#e11d48,color:#4a0a1e
+
+  start([Feature idea]):::req --&gt; pre{PO pre-screen:&lt;br/&gt;does this belong?}:::po
+  pre --&gt;|no| drop([Park / drop]):::po
+  pre --&gt;|yes| intv[Phase A — Intent interview&lt;br/&gt;problem · scope · backlog ·&lt;br/&gt;TIME-TRAVEL: happy because / disappointed because]:::ai
+  intv --&gt; probe[Phase B — Build-readiness probe&lt;br/&gt;draft real queries vs schema · enumerate consumers ·&lt;br/&gt;resolve choices · pin scope · adversarial pass ·&lt;br/&gt;dry-run CI/DoD gates · form artifact for UI]:::ai
+  probe --&gt; q{Open questions?&lt;br/&gt;tag each by owning role}:::ai
+  q --&gt;|functional| reqQ[Requestor answers]:::req
+  q --&gt;|architectural| archQ[Architect answers]:::arch
+  q --&gt;|design / UX| desQ[Designer answers]:::des
+  reqQ --&gt; probe
+  archQ --&gt; probe
+  desQ --&gt; probe
+  q --&gt;|none new| sum[Summary:&lt;br/&gt;decisions register + fixture ACs + form spec]:::ai
+  sum --&gt; c1{Requestor confirms&lt;br/&gt;functional summary}:::req
+  c1 --&gt;|no| intv
+  c1 --&gt;|yes| c2{Architect signs off&lt;br/&gt;technical approach}:::arch
+  c2 --&gt;|no| probe
+  c2 --&gt;|yes| c3{Product Owner GO}:::po
+  c3 --&gt;|no| drop
+  c3 --&gt;|yes| rtb([READY-TO-BUILD + APPROVED]):::po
+  rtb --&gt; build[Autonomous build on SK3&lt;br/&gt;implement · fixture-AC tests · docs · PR · CI green · deploy]:::ai
+  build --&gt; bd([BUILD-DONE]):::ai
+  bd --&gt; val{Requestor functional validation&lt;br/&gt;vs ACs + time-travel criteria}:::req
+  val --&gt;|disappointed / form feedback| fb[Structured feedback = new intent]:::req
+  fb --&gt; intv
+  val --&gt;|happy| appr[Requestor approves PR → merge]:::req
+  appr --&gt; ship([Shipped]):::req</code></pre>
+<h2 id="roles-lanes">Roles (lanes)<a class="headerlink" href="#roles-lanes" title="Permanent link">&para;</a></h2>
+<p>One human may wear several hats — on a small team the same person is requestor, architect and PO. The point is not headcount; it's that <strong>each question is answered by the right <em>hat</em>, and a hat with no open question is not consulted.</strong></p>
+<table>
+<thead>
+<tr>
+<th>Role</th>
+<th>Owns</th>
+<th>Answers questions about</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Requestor</strong></td>
+<td>Intent + functional decisions; the time-travel success/failure criteria</td>
+<td>what it should do, for whom, which cases matter, "just another attribute vs. a new surface"</td>
+</tr>
+<tr>
+<td><strong>Architect / tech lead</strong></td>
+<td>Technical approach; coherence of the codebase</td>
+<td>registry vs engine, additive vs mutate-shared-contract, matview vs query-time, migrations</td>
+</tr>
+<tr>
+<td><strong>Designer</strong></td>
+<td>Form: interaction model, information architecture</td>
+<td>how it looks/feels, whether it integrates with an existing control or stands alone</td>
+</tr>
+<tr>
+<td><strong>Product Owner</strong></td>
+<td>Desirability / product coherence — the GO</td>
+<td>does this move the product toward its goals or just add complexity/bloat</td>
+</tr>
+<tr>
+<td><strong>Builder (AI)</strong></td>
+<td>Runs Phases A/B, then builds/tests/documents autonomously</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Optionality rule.</strong> When routing questions, only pose a question to a role if a genuine question is <em>owned</em> by that role. Do <strong>not</strong> ask the requestor an architectural question; do <strong>not</strong> ask any hat for an opinion it doesn't own. Skip hats with no open questions.</p>
 <hr />
 <h2 id="phase-a-intent-interview-what-why">Phase A — Intent interview (what &amp; why)<a class="headerlink" href="#phase-a-intent-interview-what-why" title="Permanent link">&para;</a></h2>
 <ul>
-<li><strong>A1 Problem &amp; value</strong> — stated as a user/governance question, not a solution; who it's for; why it's worth doing now.</li>
-<li><strong>A2 Scope boundaries</strong> — what it deliberately does NOT do, written down.</li>
-<li><strong>A3 Backlog context</strong> — related issues identified; anything that is a <em>precondition</em> (must be done first) or overlaps/duplicates; the feature is weighed against the rest of the backlog, not in isolation.</li>
-<li><strong>A4 External dependencies</strong> — known and secured, or explicitly N/A.</li>
-<li><strong>A5 Architecture fit</strong> — it fits the existing architecture, OR it names exactly which architecture principle must change (and that change is agreed).</li>
-<li><strong>A6 Documentation needs</strong> — what a user/developer will need to understand it, surfaced now.</li>
+<li><strong>A1 Problem &amp; value</strong> — a user/governance question, not a solution; who for; why now.</li>
+<li><strong>A2 Scope boundaries</strong> — what it deliberately does NOT do.</li>
+<li><strong>A3 Backlog context</strong> — related/precondition/duplicate issues; weighed against the whole backlog.</li>
+<li><strong>A4 External dependencies</strong> — known and secured, or N/A.</li>
+<li><strong>A5 Architecture fit</strong> — fits the existing architecture, or names the principle-change (this often <em>raises</em> an architectural question → route to the architect, do not resolve it with the requestor).</li>
+<li><strong>A6 Documentation needs</strong> — what a user/dev will need.</li>
+<li><strong>A7 Time-travel pre-mortem (Rob's question).</strong> Ask the requestor, in their own words: <em>"We fast-forward to the moment I show you the finished feature. You're delighted because… ? You're disappointed because… ?"</em> Capture both. The "disappointed because" answers become <strong>explicit acceptance/rejection criteria</strong> — this is where <em>form</em> preferences ("I wanted it to be just another attribute") surface before any code.</li>
 </ul>
-<h2 id="phase-b-build-readiness-probe-can-it-actually-be-built-the-part-that-makes-a-spec-real">Phase B — Build-readiness probe (can it actually be built?) ← the part that makes a spec <em>real</em><a class="headerlink" href="#phase-b-build-readiness-probe-can-it-actually-be-built-the-part-that-makes-a-spec-real" title="Permanent link">&para;</a></h2>
-<p>Intent is now fixed. <strong>Draft the actual implementation against the real code and schema — far enough to hit the walls.</strong> This is an implementation dry-run, <em>not</em> a second read-through: contradictions only appear when you write the real thing. (Re-reading with intent is what let the last defect through — the author had already read the schema.)</p>
+<h2 id="phase-b-build-readiness-probe-can-it-actually-be-built">Phase B — Build-readiness probe (can it actually be built?)<a class="headerlink" href="#phase-b-build-readiness-probe-can-it-actually-be-built" title="Permanent link">&para;</a></h2>
+<p>Intent is fixed. <strong>Draft the actual implementation against the real code and schema — far enough to hit the walls.</strong> An implementation dry-run, not a re-read.
+- <strong>B1 Trace every value to its real storage</strong> — for each value/condition/edge/derived field, find the EXACT storage and <strong>write the real query</strong>. Multi-hop → write the join path. Not modelled as assumed (derived / blob / N hops away / premise self-refuted) → that's a question; raise it.
+- <strong>B2 Enumerate consumers</strong> of every shared contract/function/wire-format/table/component touched, with the compatibility approach for each.
+- <strong>B3 Resolve every choice to one option</strong> — no "A or B", no "TBD". <strong>This includes UX-shaping words</strong> — "alongside / integrated / shared / inline" are hidden A-or-B choices; resolve them explicitly.
+- <strong>B4 Pin the exact scope set</strong> — the concrete list, never "whatever the data contains".
+- <strong>B5 Delivery decomposition</strong> — one PR or a required stack, and the order.
+- <strong>B6 Adversarial pass (independent)</strong> — a second reviewer tasked only with <em>"find where this spec contradicts the real code/schema — assume a hidden hop, an unlisted consumer, an unhandled empty/edge case, or an ambiguous UX word."</em>
+- <strong>B7 Dry-run the CI / Definition of Done</strong> (see appendix) — not just the schema. "Will each new unit stay under the complexity ceiling? Does my contract test isolate its own rows? Does this new route need OpenAPI? Dark mode + accessible name + <code>@ui/</code> alias?" Design against the gates so they are not discovered mid-build.
+- <strong>B8 Tag every open question by owning role</strong> (functional / architectural / design / product) and route per the optionality rule.
+- <strong>B9 Outputs:</strong>
+  - <strong>Decisions register</strong> — every decision + option taken + <strong>owning role</strong>.
+  - <strong>Fixture-backed acceptance criteria</strong> — concrete input → expected output vs the REAL model (double as automated tests; make validation mechanical). Include empty/zero/error cases.
+  - <strong>Form artifact (UI features)</strong> — a concrete interaction spec or low-fi/ASCII mock the requestor + designer sign off on. Fixture ACs pin <em>behavior</em>; the form artifact pins <em>form</em>.
+  - <strong>Test plan</strong> that keeps the ratchets green; <strong>docs + changelog targets</strong>.
+- <strong>B10 Loop</strong> until a probe pass surfaces nothing new.</p>
+<h2 id="phase-c-sign-offs-three-distinct-gates-may-be-one-person-several-hats">Phase C — Sign-offs (three distinct gates; may be one person, several hats)<a class="headerlink" href="#phase-c-sign-offs-three-distinct-gates-may-be-one-person-several-hats" title="Permanent link">&para;</a></h2>
 <ul>
-<li><strong>B1 Trace every value to its real storage.</strong> For each value, condition, edge, or derived field the feature needs, locate the EXACT storage (table+column, JSON path, relationship, matview) and <strong>write the real query / pseudocode that produces it.</strong> If a value spans more than one hop or table, write the full join path. If a value the feature assumes does not exist as modelled — it's derived, lives in a blob, or is several hops away — that is a question: raise it, don't paper over it.</li>
-<li><strong>B2 Enumerate consumers of everything you touch.</strong> For any shared contract, function, wire-format, table, or component the change modifies, list its CURRENT consumers and state the compatibility approach for each.</li>
-<li><strong>B3 Resolve every choice to one option.</strong> No "A or B", "either/or", or "TBD" survives into a ready spec. Each is decided, with the reason.</li>
-<li><strong>B4 Pin the exact scope set.</strong> Enumerate the concrete items the slice ships (the exact list), never "whatever the registry/config/data happens to contain."</li>
-<li><strong>B5 State delivery decomposition intent.</strong> One PR, or a required stack — say which, and the order.</li>
-<li><strong>B6 Adversarial pass (independent).</strong> A second reviewer whose only job is: <em>"find where this spec contradicts the real code/schema — assume there is a hidden hop, an unlisted consumer, or an unhandled empty/edge/error case."</em> Single-pass self-review is not enough.</li>
-<li><strong>B7 Required outputs of the probe:</strong></li>
-<li><strong>Decisions register</strong> — every decision made + option taken (sign-off reviews <em>decisions</em>, not prose).</li>
-<li><strong>Fixture-backed acceptance criteria</strong> — concrete input state → expected output, computed against the REAL model. These double as the automated tests and make end-validation mechanical. Include empty / zero / error cases.</li>
-<li><strong>Test plan</strong> that keeps the coverage ratchet green — which layers, and contract tests for SQL-heavy paths.</li>
-<li><strong>Docs + changelog targets.</strong></li>
-<li><strong>B8 Loop.</strong> Every question the probe raises goes to the human; answer; re-probe. Repeat until a probe pass surfaces nothing new. Only then is Phase B done.</li>
+<li><strong>C1 Requestor</strong> confirms the functional summary + the time-travel criteria are captured ⇒ <em>functional</em> <code>ready-to-build</code>.</li>
+<li><strong>C2 Architect</strong> signs off the technical approach (the decisions register's architectural entries) ⇒ <em>technical</em> ready. The architect is the technical-coherence gate that stops cheap building from becoming spaghetti.</li>
+<li><strong>C3 Product Owner</strong> GO — moves the product forward vs. adds bloat ⇒ <code>approved</code>. Only now may autonomous build start.</li>
 </ul>
-<h2 id="phase-c-sign-offs">Phase C — Sign-offs<a class="headerlink" href="#phase-c-sign-offs" title="Permanent link">&para;</a></h2>
+<h2 id="phase-d-build-validate-and-the-feedback-loop-first-class">Phase D — Build, validate, and the feedback loop (first-class)<a class="headerlink" href="#phase-d-build-validate-and-the-feedback-loop-first-class" title="Permanent link">&para;</a></h2>
 <ul>
-<li><strong>C1 Requestor confirmation</strong> — the interview+probe summary is read back; the requestor confirms it is correct ⇒ <code>ready-to-build</code>.</li>
-<li><strong>C2 Product GO</strong> — a product owner decides: does this move the product toward its goals, or does it only solve a narrow edge case and add complexity/bloat? ⇒ <code>approved</code> (only now may autonomous build start). <em>Optional:</em> a cheap coherence pre-screen BEFORE Phase A, so you don't fully spec features you'll reject.</li>
+<li><strong>D1 Autonomous build</strong> on SK3: implement, run the fixture-AC tests, docs, changelog, PR, CI green, deploy ⇒ <code>build-done</code>.</li>
+<li><strong>D2 Functional validation</strong> by the requestor against the fixture ACs <strong>and the time-travel criteria</strong> (not just "does it run" — check the numbers, and check the "disappointed because" list).</li>
+<li><strong>D3 Feedback loop.</strong> If the requestor is disappointed (usually <em>form</em>), the feedback is captured as <strong>new intent</strong> and re-enters at Phase A. This is expected and cheap — it is the point of cheap building, not a failure. If happy ⇒ requestor approves the PR ⇒ merge.</li>
 </ul>
 <hr />
-<h2 id="the-bar-how-we-know-a-spec-passed">The bar (how we know a spec passed)<a class="headerlink" href="#the-bar-how-we-know-a-spec-passed" title="Permanent link">&para;</a></h2>
-<p>A fresh builder given ONLY this spec — no author, no thread, no tribal memory — builds, tests, and documents it with <strong>zero human decisions and zero silent assumptions</strong>, and the end functional check is mechanical against the fixture ACs. If the builder has to ask or assume, Phase B was incomplete: that gap is a defect, folded back into this checklist.</p>
-<h2 id="why-v2-differs-from-v1-generalized-lessons-not-feature-facts">Why v2 differs from v1 (generalized lessons, not feature facts)<a class="headerlink" href="#why-v2-differs-from-v1-generalized-lessons-not-feature-facts" title="Permanent link">&para;</a></h2>
+<h2 id="appendix-definition-of-done-the-probe-must-design-against">Appendix — Definition of Done the probe must design against<a class="headerlink" href="#appendix-definition-of-done-the-probe-must-design-against" title="Permanent link">&para;</a></h2>
+<p>Standing repo gates (design against these in B7; they are knowable, so they must not be mid-build surprises):
+- <strong>Coverage</strong> — aggregate + per-file ratchet (only ratchets up) + diff-coverage on changed lines. New code ships with tests.
+- <strong>File size</strong> — &gt;1000 lines must split; &gt;600 is a smell. Grandfathered files may only shrink.
+- <strong>Complexity</strong> — per-unit cyclomatic + cognitive ratchets; new/touched units under the per-language threshold.
+- <strong>Duplication</strong> — jscpd gate; reuse before creating.
+- <strong>Contract tests</strong> — run against real PostgreSQL; each test <strong>DELETEs its own rows</strong> (never DROP/TRUNCATE, never assume a clean shared DB).
+- <strong>OpenAPI</strong> — a new router must be documented in <code>openapi.yaml</code> or allowlisted, or the drift guard fails.
+- <strong>UI</strong> — dark mode from the start; WCAG AA contrast (no bare <code>text-*-300/400</code>); real accessible names (not placeholders); no native <code>alert/confirm/prompt</code>; <code>@ui/</code> alias (no relative traversal); nothing crawler-specific under <code>app/ui/</code>.
+- <strong>Changelog</strong> — a fragment under <code>changes/</code> for functional changes (never edit <code>CHANGES.md</code>; docs-only changes need no fragment).
+- <strong>Merge</strong> — 1 approval; never admin-merge / bypass branch protection.</p>
+<p><strong>Baseline precondition.</strong> Verify <code>main</code> (and the target Sidekick) is green <em>before</em> starting. A pre-existing failure (e.g. a transitive npm-audit advisory) is repo debt, not a defect of the feature — fix it as a disclosed separate chore, and don't attribute it to the feature's DoR.</p>
+<h2 id="the-bar">The bar<a class="headerlink" href="#the-bar" title="Permanent link">&para;</a></h2>
+<p>A fresh builder given ONLY the spec builds, tests and documents it with <strong>zero functional decisions and zero silent functional assumptions</strong>; end-validation is mechanical against the fixture ACs + time-travel criteria. Architectural/design/product decisions were made by their owners at spec time. Residual <em>form</em> gaps are handled by the D3 feedback loop, cheaply.</p>
+<h2 id="version-history-generalized-lessons">Version history (generalized lessons)<a class="headerlink" href="#version-history-generalized-lessons" title="Permanent link">&para;</a></h2>
 <ul>
-<li>v1 gated on "the design has no open questions" but let a <em>review</em> satisfy it. v2 requires an <em>executed</em> dry-run (B1) — because a value can look modelled and not be (wrong hop-count, blob, derived) in a way only writing the query reveals.</li>
-<li>v1 said "keep the touched contract equivalent" without forcing you to list who depends on it (B2).</li>
-<li>v1 tolerated "A or B" and "the exact set is whatever the data contains" (B3, B4).</li>
-<li>v1 had no independent adversarial pass (B6) and no fixture-backed ACs (B7) — so a subtly-wrong result could ship green and pass a casual human glance.</li>
+<li><strong>v1 → v2:</strong> "no open design questions" was satisfiable by <em>review</em>; v2 requires an <em>executed</em> build-readiness probe (a value can look modelled and not be). Added consumer-enumeration, no-A-or-B, pinned scope, adversarial pass, fixture ACs.</li>
+<li><strong>v2 → v3:</strong> v2 collapsed a whole product team into "the requestor." v3 <strong>routes questions by role</strong> (and skips hats with no question), adds the <strong>time-travel pre-mortem</strong> (surfaces form/success criteria), a <strong>form artifact</strong> for UI, <strong>dry-runs the CI/DoD gates</strong> (not just the schema), and makes the <strong>feedback loop first-class</strong> — because form/taste can't be fully pre-specified.</li>
 </ul>
 
 
