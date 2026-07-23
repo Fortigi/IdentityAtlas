@@ -5,6 +5,7 @@ import { parseJsonbColumn } from '../lib/jsonb.js';
 import { buildOrderBy } from '../lib/listSort.js';
 import { getResourceColumns, getResourceColumnValues } from '../db/columnCache.js';
 import { ensureTagTables, buildFilterWhere, parseTags } from './tags.js';
+import { relFilterGuard, relFiltersToSql } from '../relationships/relationshipSql.js';
 import { UUID_RE, cleanRow, getPermissionTable } from './details/shared.js';
 import { isMissingSchema } from '../db/schemaErrors.js';
 
@@ -27,7 +28,7 @@ if (useSql) {
 
 // ─── GET /api/resources ─────────────────────────────────────────
 // List resources with pagination, filtering, and search
-router.get('/resources', async (req, res) => {
+router.get('/resources', relFilterGuard('Resource'), async (req, res) => {
   try {
     if (!useSql) return res.json({ data: [], total: 0 });
 
@@ -103,6 +104,11 @@ router.get('/resources', async (req, res) => {
         INNER JOIN "GraphTags" _rt ON _rta."tagId" = _rt.id AND _rt."name" = ${bind(resourceTagFilter)} AND _rt."entityType" IN ('resource', 'group')`;
     }
     where += buildFilterWhere(attrFilters, colNames, 'r', bind);
+
+    // Relationship filters (#840): presence/absence/count over graph edges.
+    // Validated by relFilterGuard; bound through the same `bind` before the
+    // countParams snapshot so the COUNT query gets the same placeholders.
+    where += relFiltersToSql(req.relFilters || [], { alias: 'r', bind });
 
     // Returns every Resources column so the same endpoint feeds the UI grid
     // AND the Power Query Excel export (which auto-expands extendedAttributes

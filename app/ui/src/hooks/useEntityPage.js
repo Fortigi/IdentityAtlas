@@ -44,6 +44,13 @@ export default function useEntityPage({ authFetch, entityType, listEndpoint, col
   const [availableColumns, setAvailableColumns] = useState([]);
   const [columnsLoading, setColumnsLoading] = useState(true);
   const [activeFilters, setActiveFilters] = usePersistedState(skey('filters'), []);
+  // Relationship filters (#840): [{edge, op, n?}] — presence/absence/count over
+  // graph edges. Only meaningful for entities that map to a relationship target
+  // (Resource / Principal); the Identities list maps to neither and never shows
+  // the control. Persisted alongside the attribute filters.
+  const [relFilters, setRelFilters] = usePersistedState(skey('relFilters'), []);
+  const REL_TARGET = { user: 'Principal', resource: 'Resource', group: 'Resource' };
+  const relTargetType = REL_TARGET[entityType] || null;
 
   // Filter state
   const [search, setSearch] = usePersistedState(skey('search'), '');
@@ -74,7 +81,7 @@ export default function useEntityPage({ authFetch, entityType, listEndpoint, col
 
   // Reset page & selection when filters change — during render via a
   // value-signature compare, so no synchronous setState lives in an effect.
-  const filterResetSig = JSON.stringify({ debouncedSearch, activeFilters, baseFilters, includeDeleted, sortCol, sortDir });
+  const filterResetSig = JSON.stringify({ debouncedSearch, activeFilters, relFilters, baseFilters, includeDeleted, sortCol, sortDir });
   const [seenFilterResetSig, setSeenFilterResetSig] = useState(filterResetSig);
   if (filterResetSig !== seenFilterResetSig) {
     setSeenFilterResetSig(filterResetSig);
@@ -123,6 +130,7 @@ export default function useEntityPage({ authFetch, entityType, listEndpoint, col
     const params = new URLSearchParams({ limit: PAGE_SIZE, offset: page * PAGE_SIZE });
     if (debouncedSearch) params.set('search', debouncedSearch);
     if (filtersObj) params.set('filters', JSON.stringify(filtersObj));
+    if (relFilters.length) params.set('relFilters', JSON.stringify(relFilters));
     if (includeDeleted) params.set('includeDeleted', 'true');
     // Sort is applied server-side over the full result set — a column header
     // sorts every match, not just the rows already on this page (audit H-14).
@@ -150,7 +158,7 @@ export default function useEntityPage({ authFetch, entityType, listEndpoint, col
         if (version === fetchVersion.current) setError(err);
       })
       .finally(() => { if (version === fetchVersion.current) setLoading(false); });
-  }, [page, debouncedSearch, filtersObj, authFetch, listEndpoint, includeDeleted, entityType, sortCol, sortDir]);
+  }, [page, debouncedSearch, filtersObj, relFilters, authFetch, listEndpoint, includeDeleted, entityType, sortCol, sortDir]);
 
   useEffect(() => { fetchItems(); }, [fetchItems]);
 
@@ -197,8 +205,19 @@ export default function useEntityPage({ authFetch, entityType, listEndpoint, col
 
   const clearAllFilters = () => {
     setActiveFilters([]);
+    setRelFilters([]);
     setSearch('');
   };
+
+  // Relationship-filter helpers (#840). Conditions are keyed by edge id, so
+  // adding an edge that's already active replaces its operator/count.
+  const addRelFilter = useCallback((cond) => {
+    setRelFilters(prev => [...prev.filter(f => f.edge !== cond.edge), cond]);
+  }, [setRelFilters]);
+
+  const removeRelFilter = useCallback((edge) => {
+    setRelFilters(prev => prev.filter(f => f.edge !== edge));
+  }, [setRelFilters]);
 
   // Active tag filter
   const activeTagFilter = activeFilters.find(f => f.field === tagFilterKey)?.value || '';
@@ -249,6 +268,7 @@ export default function useEntityPage({ authFetch, entityType, listEndpoint, col
           entityType,
           search: debouncedSearch || undefined,
           filters: filtersObj || undefined,
+          relFilters: relFilters.length ? relFilters : undefined,
         }),
       });
       if (res.ok) {
@@ -289,7 +309,7 @@ export default function useEntityPage({ authFetch, entityType, listEndpoint, col
 
   const totalPages = Math.ceil(total / PAGE_SIZE);
   const allOnPageSelected = items.length > 0 && selected.size === items.length;
-  const hasAnyFilter = activeFilters.length > 0 || debouncedSearch;
+  const hasAnyFilter = activeFilters.length > 0 || relFilters.length > 0 || debouncedSearch;
 
   // Build filterFields from availableColumns. Keys that start with `ext.`
   // are extended-attribute filters (see api columnCache.js / buildFilterWhere)
@@ -324,6 +344,7 @@ export default function useEntityPage({ authFetch, entityType, listEndpoint, col
     search, setSearch, debouncedSearch,
     includeDeleted, setIncludeDeleted,
     activeFilters, addFilter, removeFilter, clearAllFilters,
+    relFilters, addRelFilter, removeRelFilter, relTargetType,
     hasAnyFilter, activeTagFilter, filtersObj,
     columnsLoading, getFilterFields, getOptionsForField,
     // Selection

@@ -33,6 +33,8 @@ tags:
     description: Crawler management (requires Entra ID auth)
   - name: Effective Access
     description: On-demand effective-access resolution — computed per request, never stored
+  - name: Relationship Filter
+    description: Relationship-presence/absence/count filter edges for the entity lists
 
 paths:
   # ─── Ingest Endpoints ──────────────────────────────────────────
@@ -473,6 +475,30 @@ paths:
           description: Per-capability effective access at the node
         '400':
           description: Missing node, or unknown resolution policy
+
+  /relationship-edges:
+    get:
+      tags: [Relationship Filter]
+      summary: List relationship-filter edges available for an entity
+      operationId: listRelationshipEdges
+      description: >
+        Returns the relationship edges (e.g. has owners, has a sponsor) offered on the
+        Resources or Users list filter, each with a live `available` flag indicating whether
+        any data of that edge's mechanism exists — so edges from opt-in crawler phases are
+        hidden/annotated until that data is present. Backs the #840 relationship filter.
+      security:
+        - EntraIdBearer: []
+      parameters:
+        - name: entity
+          in: query
+          required: true
+          description: Resource or Principal (also accepts the list entityType resource/user).
+          schema: { type: string }
+      responses:
+        '200':
+          description: The edges for the entity, each with id, label, ops and availability
+        '400':
+          description: entity must be Resource or Principal
 
 components:
   securitySchemes:

@@ -1,0 +1,4 @@
+- Added a relationship filter to the Resources and Users lists: filter entities by whether they **have** or **have no** a related edge, or by a **count** (`= / < / > N`) of it. Answers hygiene questions like "groups with no owners", "groups with fewer than 2 owners", "AI agents with no owner", and "guests with no sponsor" directly from the list — compose it with the existing attribute filters (e.g. Resource Type = Group).
+- Relationship edges cover group/app **owners**, resource **members**, principal **owner** and **sponsor**, and their inverses.
+- The relationship picker only offers edges that actually have data, with a "no data yet" hint for edges that come from an opt-in crawler phase that hasn't run.
+- "Tag all matching" now respects an active relationship filter, so it tags the same set the list shows.

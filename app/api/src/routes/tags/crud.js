@@ -15,6 +15,7 @@ import { recalcMemberCountsForChain } from '../../contexts/memberCounts.js';
 import { requirePermission } from '../../middleware/auth.js';
 import { createParams } from '../../db/sqlParams.js';
 import { useSql, db, ensureTagTables, buildFilterWhere, ENTITY_TO_TARGET, UUID_RE } from './shared.js';
+import { relFilterGuard, relFiltersToSql } from '../../relationships/relationshipSql.js';
 
 const router = Router();
 const writeTags = requirePermission('data.write.tags');
@@ -226,7 +227,7 @@ router.post('/tags/:id/unassign', writeTags, async (req, res) => {
 
 // ─── POST /api/tags/:id/assign-by-filter ──────────────────────────
 // Bulk-assign: tags ALL entities matching a search filter (server-side)
-router.post('/tags/:id/assign-by-filter', writeTags, async (req, res) => {
+router.post('/tags/:id/assign-by-filter', writeTags, relFilterGuard((req) => ENTITY_TO_TARGET[req.body.entityType]), async (req, res) => {
   try {
     if (!useSql) return res.status(400).json({ error: 'SQL mode required' });
     const { entityType, search: rawSearch, filters } = req.body;
@@ -278,6 +279,12 @@ router.post('/tags/:id/assign-by-filter', writeTags, async (req, res) => {
       const colNames = new Set(cols.map(c => c.name));
       where += buildFilterWhere(filters, colNames, alias, bind);
     }
+
+    // Apply relationship filters (#840) so "Tag all matching" respects the same
+    // relationship conditions the list is narrowed by — otherwise a relationship-
+    // filtered list would tag the broader attribute-only set. Validated by
+    // relFilterGuard (entity derived from the body's entityType).
+    where += relFiltersToSql(req.relFilters || [], { alias, bind });
 
     // Tags now live in Contexts — write directly to ContextMembers, skipping
     // dupes via ON CONFLICT. INSERT count comes back as pg's rowCount.

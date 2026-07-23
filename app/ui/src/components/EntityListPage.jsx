@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
 import useEntityPage from '@ui/hooks/useEntityPage';
 import FilterBar from './FilterBar';
+import RelationshipFilterBar from './RelationshipFilterBar';
 import EmptyState from './EmptyState';
 import { TAG_COLORS, tagPillStyle } from '@ui/utils/colors';
 import { useIsDark } from '@ui/contexts/ThemeContext';
@@ -157,6 +158,21 @@ export default function EntityListPage({
           onRemoveFilter={ep.removeFilter}
           loading={ep.columnsLoading}
         />
+
+        {/* Relationship filters (#840) — only for entities with a relationship
+            target (Resources / Users); the Identities list maps to neither. */}
+        {ep.relTargetType && (
+          <>
+            <div className="border-l border-gray-300 dark:border-gray-600 h-5 mx-1" />
+            <RelationshipFilterBar
+              entity={ep.relTargetType}
+              authFetch={authFetch}
+              relFilters={ep.relFilters}
+              onAdd={ep.addRelFilter}
+              onRemove={ep.removeRelFilter}
+            />
+          </>
+        )}
 
         <div className="border-l border-gray-300 dark:border-gray-600 h-5 mx-1" />
 

@@ -12,6 +12,7 @@ import { createParams } from '../../db/sqlParams.js';
 import { parseJsonbColumn } from '../../lib/jsonb.js';
 import { buildOrderBy } from '../../lib/listSort.js';
 import { useSql, db, ensureTagTables, buildFilterWhere, UUID_RE, parseTags } from './shared.js';
+import { relFilterGuard, relFiltersToSql } from '../../relationships/relationshipSql.js';
 
 const router = Router();
 
@@ -103,7 +104,7 @@ async function groupColumnsHandler(req, res) {
 }
 
 // ─── GET /api/users ───────────────────────────────────────────────
-router.get('/users', async (req, res) => {
+router.get('/users', relFilterGuard('Principal'), async (req, res) => {
   try {
     if (!useSql) return res.json({ data: [], total: 0 });
 
@@ -150,6 +151,10 @@ router.get('/users', async (req, res) => {
         INNER JOIN "GraphTags" _ut ON _uta."tagId" = _ut.id AND _ut."name" = ${bind(userTagFilter)} AND _ut."entityType" = 'user'`;
     }
     where += buildFilterWhere(attrFilters, colNames, 'u', bind);
+
+    // Relationship filters (#840). Validated by relFilterGuard; bound through the
+    // same `bind` before the countParams snapshot.
+    where += relFiltersToSql(req.relFilters || [], { alias: 'u', bind });
 
     // Paginate FIRST (cheap), then resolve the per-row tag string only for the
     // page's rows. The tagString subquery used to sit in the top-level SELECT, so
