@@ -35,14 +35,14 @@
     "cors": "^2.8.5",
     "exceljs": "^4.4.0",
     "express": "^5.2.1",
-    "express-rate-limit": "^8.2.1",
+    "express-rate-limit": "^8.6.0",
     "helmet": "^8.3.0",
     "jsonwebtoken": "^9.0.2",
     "jwks-rsa": "^4.1.0",
     "multer": "^2.1.1",
     "pg": "^8.22.0",
     "pg-copy-streams": "^7.0.0",
-    "re2": "^1.26.0",
+    "re2": "^1.26.1",
     "swagger-ui-express": "^5.0.1",
     "yamljs": "^0.3.0"
   }

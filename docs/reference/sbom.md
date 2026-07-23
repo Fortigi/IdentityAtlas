@@ -25,14 +25,14 @@ This document lists all major software components, dependencies, and infrastruct
 | pg | ^8.22.0 | PostgreSQL client | MIT |
 | pg-copy-streams | ^7.0.0 | High-performance bulk import | MIT |
 | ajv | ^8.20.0 | JSON Schema validation for crawler configs | MIT |
-| re2 | ^1.26.0 | Safe regex engine (ReDoS protection) | BSD-3-Clause |
+| re2 | ^1.26.1 | Safe regex engine (ReDoS protection) | BSD-3-Clause |
 
 ### Security & Authentication
 
 | Package | Version | Purpose | License |
 |---------|---------|---------|---------|
 | helmet | ^8.3.0 | Security headers middleware | MIT |
-| express-rate-limit | ^8.2.1 | Rate limiting protection | MIT |
+| express-rate-limit | ^8.6.0 | Rate limiting protection | MIT |
 | cors | ^2.8.5 | Cross-Origin Resource Sharing | MIT |
 | jsonwebtoken | ^9.0.2 | JWT token validation | MIT |
 | jwks-rsa | ^4.1.0 | JWKS key retrieval for Entra ID | MIT |
@@ -70,8 +70,8 @@ This document lists all major software components, dependencies, and infrastruct
 
 | Package | Version | Purpose | License |
 |---------|---------|---------|---------|
-| react | ^19.2.7 | UI framework | MIT |
-| react-dom | ^19.2.7 | React DOM renderer | MIT |
+| react | ^19.2.8 | UI framework | MIT |
+| react-dom | ^19.2.8 | React DOM renderer | MIT |
 | vite | ^8.1.5 | Build tool and dev server | MIT |
 
 ### Styling
@@ -79,7 +79,7 @@ This document lists all major software components, dependencies, and infrastruct
 | Package | Version | Purpose | License |
 |---------|---------|---------|---------|
 | tailwindcss | ^4.3.0 | Utility-first CSS framework | MIT |
-| @tailwindcss/vite | ^4.3.2 | Vite plugin for Tailwind | MIT |
+| @tailwindcss/vite | ^4.3.3 | Vite plugin for Tailwind | MIT |
 
 ### Authentication & Authorization
 
@@ -107,7 +107,7 @@ This document lists all major software components, dependencies, and infrastruct
 
 | Package | Version | Purpose | License |
 |---------|---------|---------|---------|
-| @vitejs/plugin-react | ^6.0.3 | Vite React plugin | MIT |
+| @vitejs/plugin-react | ^6.0.4 | Vite React plugin | MIT |
 | eslint | ^10.7.0 | JavaScript linter | MIT |
 | eslint-plugin-react-hooks | ^7.1.1 | React hooks linting rules | MIT |
 | eslint-plugin-react-refresh | ^0.5.3 | React refresh linting | MIT |
