@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Patched a high-severity denial-of-service advisory (GHSA-3jxr-9vmj-r5cp in `brace-expansion`) pulled in transitively by the UI build tooling, clearing the dependency-audit backlog.
+
+## Changes in this PR
+
 - Fixed the built-in demo crawler failing on a fresh Docker install — it now regenerates the demo dataset on every run instead of trusting a possibly-stale bundled copy, so the full demo company (systems, principals, resources, assignments, identities, governance) loads reliably rather than stopping after the first few systems.
 
 ## Changes in this PR
