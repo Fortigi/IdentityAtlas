@@ -119,6 +119,7 @@ nav:
           - Portable Windows Launcher: architecture/desktop-portable.md
           - Release & Branching Strategy: architecture/branching-strategy.md
           - Ingest API: architecture/ingest-api.md
+          - Relationship Filters: architecture/relationship-filters.md
           - Audit History: architecture/audit-history.md
           - Soft-Delete & Tombstones: architecture/soft-delete.md
           - Matrix Scope Statistics: architecture/matrix-scope-statistics.md

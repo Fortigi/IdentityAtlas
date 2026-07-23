@@ -3,6 +3,7 @@ import { timedQuery } from '../perf/sqlTimer.js';
 import { createParams } from '../db/sqlParams.js';
 import { parseJsonbColumn } from '../lib/jsonb.js';
 import { buildOrderBy } from '../lib/listSort.js';
+import { applyRelationshipFilters, advertiseRelationshipColumns } from '../lib/relationshipFilters.js';
 import { getResourceColumns, getResourceColumnValues } from '../db/columnCache.js';
 import { ensureTagTables, buildFilterWhere, parseTags } from './tags.js';
 import { UUID_RE, cleanRow, getPermissionTable } from './details/shared.js';
@@ -102,6 +103,11 @@ router.get('/resources', async (req, res) => {
         INNER JOIN "GraphTagAssignments" _rta ON _rta."entityId" = UPPER(r.id::text)
         INNER JOIN "GraphTags" _rt ON _rta."tagId" = _rt.id AND _rt."name" = ${bind(resourceTagFilter)} AND _rt."entityType" IN ('resource', 'group')`;
     }
+    // Relationship filters (hasOwner / hasMembers) consume their own keys first,
+    // then the remaining attribute filters go through buildFilterWhere. The
+    // relationship fragment binds no params, so the countParams snapshot below
+    // stays correct.
+    where += await applyRelationshipFilters(p, 'resource', attrFilters, 'r');
     where += buildFilterWhere(attrFilters, colNames, 'r', bind);
 
     // Returns every Resources column so the same endpoint feeds the UI grid
@@ -484,6 +490,10 @@ router.get('/resource-columns', async (req, res) => {
       const resourceTags = tagResult.rows.map(r => r.name);
       grouped['__resourceTag'] = schemaOnly ? [] : resourceTags;
     } catch (e) { if (!isMissingSchema(e)) throw e; /* tag tables may not exist yet */ }
+
+    // Advertise relationship filters ("Has owner" / "Has members") when the data
+    // exists. Static Yes/No values, so they surface even in schema-only mode.
+    Object.assign(grouped, await advertiseRelationshipColumns(p, 'resource'));
 
     return res.json(Object.entries(grouped).map(([column, values]) => ({ column, values })));
   } catch (err) {

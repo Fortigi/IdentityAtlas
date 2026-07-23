@@ -11,6 +11,7 @@ import { getResourceColumns as getResourceCols, getPrincipalOrUserColumns, getPr
 import { createParams } from '../../db/sqlParams.js';
 import { parseJsonbColumn } from '../../lib/jsonb.js';
 import { buildOrderBy } from '../../lib/listSort.js';
+import { applyRelationshipFilters, advertiseRelationshipColumns } from '../../lib/relationshipFilters.js';
 import { useSql, db, ensureTagTables, buildFilterWhere, UUID_RE, parseTags } from './shared.js';
 
 const router = Router();
@@ -47,6 +48,9 @@ router.get('/user-columns-page', async (req, res) => {
       const userTags = tagResult.rows.map(r => r.name);
       if (userTags.length > 0) grouped['__userTag'] = userTags;
     } catch { /* tag tables may not exist yet */ }
+
+    // Advertise relationship filters (e.g. "Has owner") when the data exists.
+    Object.assign(grouped, await advertiseRelationshipColumns(p, 'principal'));
 
     return res.json(Object.entries(grouped).map(([column, values]) => ({ column, values })));
   } catch (err) {
@@ -149,6 +153,11 @@ router.get('/users', async (req, res) => {
         INNER JOIN "GraphTagAssignments" _uta ON _uta."entityId" = UPPER(u.id::text)
         INNER JOIN "GraphTags" _ut ON _uta."tagId" = _ut.id AND _ut."name" = ${bind(userTagFilter)} AND _ut."entityType" = 'user'`;
     }
+    // Relationship filters (e.g. hasOwner=No) consume their own keys, then the
+    // remaining attribute filters go through buildFilterWhere. Both append to
+    // `where` before the countParams snapshot; the relationship fragment binds
+    // no params so the COUNT query stays correct.
+    where += await applyRelationshipFilters(p, 'principal', attrFilters, 'u');
     where += buildFilterWhere(attrFilters, colNames, 'u', bind);
 
     // Paginate FIRST (cheap), then resolve the per-row tag string only for the

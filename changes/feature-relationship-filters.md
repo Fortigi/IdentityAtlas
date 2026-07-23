@@ -1,0 +1,4 @@
+- Added relationship filters to the entity lists: you can now filter by whether an object **has** or **lacks** a relationship, not just by attributes on the object itself.
+- On the **AI Agents** (and other principal) list, a new **"Has owner"** filter finds agents that do — or do not — have an owner.
+- On the **Resources / groups** list, new **"Has owner"** and **"Has members"** filters find, for example, groups without an owner or groups without any members.
+- The filters appear in the normal **"+ Add filter"** control (values **Yes** / **No**) and combine with your other filters; they only show up when the underlying relationship data exists.
