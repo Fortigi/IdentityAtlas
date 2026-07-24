@@ -88,6 +88,36 @@ describe('EntityListPage pagination', () => {
     // tagPillStyle emits a solid tint + an AA-safe text colour instead.
     expect(style).not.toContain('#1d4ed820');
   });
+
+  it('renders a row whose entity carries tags without crashing (#762)', async () => {
+    // Regression guard: the extracted EntityListTable renders per-row tag pills via
+    // tagPillStyle(t.color, isDark). isDark was declared only in the parent and was
+    // not threaded into the child, so rendering any *tagged row* threw
+    // `ReferenceError: isDark is not defined`. The other tests never tripped it
+    // because their list items had no `tags`; this one gives the item a tag.
+    const af = makeAuthFetch((url) => {
+      const s = String(url);
+      if (s.includes(COLUMNS)) return [];
+      if (s.includes('/api/tags')) return [];
+      if (s.includes(LIST)) {
+        return {
+          data: [{ id: '1', displayName: 'Bob', tags: [{ id: 'r1', name: 'Prod', color: '#1d4ed8' }] }],
+          total: 1,
+        };
+      }
+      return undefined;
+    });
+
+    renderPage(af);
+
+    // The row renders (pre-fix this threw during render and hit the error boundary).
+    expect(await screen.findByText('Bob')).toBeInTheDocument();
+    // The per-row tag pill is styled via tagPillStyle — solid tint, not the alpha hack.
+    const rowPill = screen.getByText('Prod');
+    const style = rowPill.getAttribute('style') || '';
+    expect(style).toMatch(/background-color/);
+    expect(style).not.toContain('#1d4ed820');
+  });
 });
 
 describe('EntityListPage error state (audit H6)', () => {

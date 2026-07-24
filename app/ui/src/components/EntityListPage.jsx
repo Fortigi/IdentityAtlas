@@ -251,6 +251,7 @@ export default function EntityListPage({
         renderEntityCell={renderEntityCell}
         renderDataCells={renderDataCells}
         onOpenDetail={onOpenDetail}
+        isDark={isDark}
       />
 
       {/* Pagination */}
@@ -284,7 +285,7 @@ export default function EntityListPage({
 
 // The list body's four states (loading / error / empty / table) are their
 // own component so EntityListPage's render stays under the complexity ceiling.
-function EntityListTable({ ep, label, tableColumns, renderEntityCell, renderDataCells, onOpenDetail }) {
+function EntityListTable({ ep, label, tableColumns, renderEntityCell, renderDataCells, onOpenDetail, isDark }) {
   return (
     ep.loading ? (
         <div className="text-center text-gray-500 dark:text-gray-400 py-12">Loading {label}...</div>

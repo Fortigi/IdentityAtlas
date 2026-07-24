@@ -1,0 +1,1 @@
+- Fixed a crash ("Something went wrong — isDark is not defined") when opening the Resources list, or any entity list containing tagged rows, in either light or dark mode. Tagged rows now render with correctly themed tag pills.
