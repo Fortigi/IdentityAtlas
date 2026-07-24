@@ -1,0 +1,1 @@
+- Fixed a grey empty band that appeared in the Matrix when several column-header rows were shown and you scrolled down — the pinned header row no longer detaches and leaves a gap once it locks to the top.
