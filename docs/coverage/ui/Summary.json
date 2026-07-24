@@ -1,27 +1,27 @@
 {
   "summary": {
-    "generatedon": "2026-07-23T14:09:59Z",
+    "generatedon": "2026-07-24T07:13:48Z",
     "parser": "LCov",
     "assemblies": 1,
     "classes": 135,
     "files": 135,
-    "coveredlines": 5145,
-    "uncoveredlines": 1988,
+    "coveredlines": 5146,
+    "uncoveredlines": 1987,
     "coverablelines": 7133,
-    "totallines": 24228,
+    "totallines": 24229,
     "linecoverage": 72.1,
     "coveredbranches": 4934,
     "totalbranches": 8323,
     "branchcoverage": 59.2,
-    "coveredmethods": 1434,
-    "fullcoveredmethods": 1602,
+    "coveredmethods": 1435,
+    "fullcoveredmethods": 1603,
     "totalmethods": 2472,
     "methodcoverage": 58,
     "fullmethodcoverage": 64.8
  },
   "coverage": {
     "assemblies": [
-      { "name": "Default", "classes": 135, "coverage": 72.1, "coveredlines": 5145, "coverablelines": 7133, "totallines": 24228, "branchcoverage": 59.2, "coveredbranches": 4934, "totalbranches": 8323, "methodcoverage": 58, "fullmethodcoverage": 64.8, "coveredmethods": 1434, "fullcoveredmethods": 1602, "totalmethods": 2472, "classesinassembly": [
+      { "name": "Default", "classes": 135, "coverage": 72.1, "coveredlines": 5146, "coverablelines": 7133, "totallines": 24229, "branchcoverage": 59.2, "coveredbranches": 4934, "totalbranches": 8323, "methodcoverage": 58, "fullmethodcoverage": 64.8, "coveredmethods": 1435, "fullcoveredmethods": 1603, "totalmethods": 2472, "classesinassembly": [
         { "name": "src/App.jsx", "coverage": 43.7, "coveredlines": 95, "coverablelines": 217, "totallines": 664, "branchcoverage": 27.8, "coveredbranches": 57, "totalbranches": 205, "methodcoverage": 22.6, "fullmethodcoverage": 46.3, "coveredmethods": 22, "fullcoveredmethods": 45, "totalmethods": 97 },
         { "name": "src/auth/AuthGate.js", "coverage": 66.6, "coveredlines": 2, "coverablelines": 3, "totallines": 20, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 25, "fullmethodcoverage": 75, "coveredmethods": 1, "fullcoveredmethods": 3, "totalmethods": 4 },
         { "name": "src/auth/AuthGateProvider.jsx", "coverage": 0, "coveredlines": 0, "coverablelines": 78, "totallines": 318, "branchcoverage": 0, "coveredbranches": 0, "totalbranches": 57, "methodcoverage": 0, "fullmethodcoverage": 0, "coveredmethods": 0, "fullcoveredmethods": 0, "totalmethods": 17 },
@@ -70,7 +70,7 @@
         { "name": "src/components/EntityDetailPage.jsx", "coverage": 97, "coveredlines": 33, "coverablelines": 34, "totallines": 152, "branchcoverage": 77.7, "coveredbranches": 35, "totalbranches": 45, "methodcoverage": 81.8, "fullmethodcoverage": 90.9, "coveredmethods": 9, "fullcoveredmethods": 10, "totalmethods": 11 },
         { "name": "src/components/EntityGraph.jsx", "coverage": 85.2, "coveredlines": 104, "coverablelines": 122, "totallines": 430, "branchcoverage": 80, "coveredbranches": 120, "totalbranches": 150, "methodcoverage": 73, "fullmethodcoverage": 76.9, "coveredmethods": 19, "fullcoveredmethods": 20, "totalmethods": 26 },
         { "name": "src/components/entityGraphShape.js", "coverage": 98.6, "coveredlines": 145, "coverablelines": 147, "totallines": 454, "branchcoverage": 90.2, "coveredbranches": 221, "totalbranches": 245, "methodcoverage": 88, "fullmethodcoverage": 96, "coveredmethods": 44, "fullcoveredmethods": 48, "totalmethods": 50 },
-        { "name": "src/components/EntityListPage.jsx", "coverage": 42.8, "coveredlines": 15, "coverablelines": 35, "totallines": 377, "branchcoverage": 50, "coveredbranches": 28, "totalbranches": 56, "methodcoverage": 31, "fullmethodcoverage": 37.9, "coveredmethods": 9, "fullcoveredmethods": 11, "totalmethods": 29 },
+        { "name": "src/components/EntityListPage.jsx", "coverage": 45.7, "coveredlines": 16, "coverablelines": 35, "totallines": 378, "branchcoverage": 50, "coveredbranches": 28, "totalbranches": 56, "methodcoverage": 34.4, "fullmethodcoverage": 41.3, "coveredmethods": 10, "fullcoveredmethods": 12, "totalmethods": 29 },
         { "name": "src/components/EntityTimeline.jsx", "coverage": 90.9, "coveredlines": 40, "coverablelines": 44, "totallines": 167, "branchcoverage": 74, "coveredbranches": 37, "totalbranches": 50, "methodcoverage": 69.2, "fullmethodcoverage": 69.2, "coveredmethods": 9, "fullcoveredmethods": 9, "totalmethods": 13 },
         { "name": "src/components/ErrorBoundary.jsx", "coverage": 50, "coveredlines": 4, "coverablelines": 8, "totallines": 35, "branchcoverage": 50, "coveredbranches": 1, "totalbranches": 2, "methodcoverage": 40, "fullmethodcoverage": 20, "coveredmethods": 2, "fullcoveredmethods": 1, "totalmethods": 5 },
         { "name": "src/components/ExpandedItemsList.helpers.js", "coverage": 86.6, "coveredlines": 13, "coverablelines": 15, "totallines": 47, "branchcoverage": 56.6, "coveredbranches": 17, "totalbranches": 30, "methodcoverage": 71.4, "fullmethodcoverage": 85.7, "coveredmethods": 5, "fullcoveredmethods": 6, "totalmethods": 7 },
