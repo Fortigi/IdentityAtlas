@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Fixed a crash ("Something went wrong — isDark is not defined") when opening the Resources list, or any entity list containing tagged rows, in either light or dark mode. Tagged rows now render with correctly themed tag pills.
+
+## Changes in this PR
+
 - Updated the CodeQL analysis workflow to codeql-action 4.37.3 across the init, autobuild, and analyze steps together (they must stay on a single version).
 
 ## Changes in this PR
