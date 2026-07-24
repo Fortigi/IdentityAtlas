@@ -5,6 +5,7 @@ import { parseJsonbColumn } from '../lib/jsonb.js';
 import { buildOrderBy } from '../lib/listSort.js';
 import { getResourceColumns, getResourceColumnValues } from '../db/columnCache.js';
 import { ensureTagTables, buildFilterWhere, parseTags } from './tags.js';
+import { extractRelFilters, buildRelationshipWhere, discoverReferenceFields } from '../lib/referenceFilters.js';
 import { UUID_RE, cleanRow, getPermissionTable } from './details/shared.js';
 import { isMissingSchema } from '../db/schemaErrors.js';
 
@@ -57,6 +58,8 @@ router.get('/resources', async (req, res) => {
       resourceTagFilter = String(attrFilters['__groupTag']);
       delete attrFilters['__groupTag'];
     }
+    // Reference-field (rel.*) filters — applied as correlated count subqueries.
+    const relFilters = extractRelFilters(attrFilters);
 
     const p = await db.getPool();
     await ensureTagTables(p);
@@ -103,6 +106,7 @@ router.get('/resources', async (req, res) => {
         INNER JOIN "GraphTags" _rt ON _rta."tagId" = _rt.id AND _rt."name" = ${bind(resourceTagFilter)} AND _rt."entityType" IN ('resource', 'group')`;
     }
     where += buildFilterWhere(attrFilters, colNames, 'r', bind);
+    where += buildRelationshipWhere(relFilters, 'resources', 'r');
 
     // Returns every Resources column so the same endpoint feeds the UI grid
     // AND the Power Query Excel export (which auto-expands extendedAttributes
@@ -485,7 +489,18 @@ router.get('/resource-columns', async (req, res) => {
       grouped['__resourceTag'] = schemaOnly ? [] : resourceTags;
     } catch (e) { if (!isMissingSchema(e)) throw e; /* tag tables may not exist yet */ }
 
-    return res.json(Object.entries(grouped).map(([column, values]) => ({ column, values })));
+    const columns = Object.entries(grouped).map(([column, values]) => ({ column, values }));
+
+    // Reference-field (relationship) filters for resources — only offered where
+    // data exists. Skipped on the schema-only fast path (no values needed).
+    if (!schemaOnly) {
+      try {
+        const relFields = await discoverReferenceFields('resources', { resourceType: req.query.resourceType });
+        columns.push(...relFields);
+      } catch (e) { console.error('resource reference-field discovery failed:', e.message); }
+    }
+
+    return res.json(columns);
   } catch (err) {
     console.error('resource-columns query failed:', err.message);
     return res.json([]);

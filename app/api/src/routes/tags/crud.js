@@ -15,6 +15,7 @@ import { recalcMemberCountsForChain } from '../../contexts/memberCounts.js';
 import { requirePermission } from '../../middleware/auth.js';
 import { createParams } from '../../db/sqlParams.js';
 import { useSql, db, ensureTagTables, buildFilterWhere, ENTITY_TO_TARGET, UUID_RE } from './shared.js';
+import { extractRelFilters, buildRelationshipWhere, storeForEntityType } from '../../lib/referenceFilters.js';
 
 const router = Router();
 const writeTags = requirePermission('data.write.tags');
@@ -272,11 +273,17 @@ router.post('/tags/:id/assign-by-filter', writeTags, async (req, res) => {
     // (v5: temporal tables / `ValidTo` were dropped during the postgres
     // migration — no version-filtering clause needed here anymore.)
 
-    // Apply attribute filters
+    // Apply attribute filters. Reference-field (rel.*) filters MUST be applied
+    // here too: bulk-tag re-runs the same filter set the list showed, so a
+    // dropped rel.* constraint would tag every row instead of the matching
+    // subset (silent over-tag). extractRelFilters pulls them out first so
+    // buildFilterWhere sees only real columns.
     if (filters && typeof filters === 'object') {
+      const relFilters = extractRelFilters(filters);
       const cols = entityType === 'user' ? await getPrincipalOrUserColumns(p) : (entityType === 'resource' ? await getResourceCols(p) : await getGroupCols(p));
       const colNames = new Set(cols.map(c => c.name));
       where += buildFilterWhere(filters, colNames, alias, bind);
+      where += buildRelationshipWhere(relFilters, storeForEntityType(entityType), alias);
     }
 
     // Tags now live in Contexts — write directly to ContextMembers, skipping

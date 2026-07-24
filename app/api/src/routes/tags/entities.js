@@ -12,6 +12,7 @@ import { createParams } from '../../db/sqlParams.js';
 import { parseJsonbColumn } from '../../lib/jsonb.js';
 import { buildOrderBy } from '../../lib/listSort.js';
 import { useSql, db, ensureTagTables, buildFilterWhere, UUID_RE, parseTags } from './shared.js';
+import { extractRelFilters, buildRelationshipWhere, discoverReferenceFields } from '../../lib/referenceFilters.js';
 
 const router = Router();
 
@@ -48,7 +49,16 @@ router.get('/user-columns-page', async (req, res) => {
       if (userTags.length > 0) grouped['__userTag'] = userTags;
     } catch { /* tag tables may not exist yet */ }
 
-    return res.json(Object.entries(grouped).map(([column, values]) => ({ column, values })));
+    const columns = Object.entries(grouped).map(([column, values]) => ({ column, values }));
+
+    // Reference-field (relationship) filters, scoped to the active principalType
+    // sub-tab so only relationships with data in THIS view are offered.
+    try {
+      const relFields = await discoverReferenceFields('principals', { principalType: req.query.principalType });
+      columns.push(...relFields);
+    } catch (e) { console.error('user reference-field discovery failed:', e.message); }
+
+    return res.json(columns);
   } catch (err) {
     console.error('user-columns-page query failed:', err.message);
     return res.json([]);
@@ -124,6 +134,9 @@ router.get('/users', async (req, res) => {
       userTagFilter = String(attrFilters['__userTag']);
       delete attrFilters['__userTag'];
     }
+    // Pull reference-field (rel.*) filters out before column validation — they
+    // are applied as correlated count subqueries, not scalar column matches.
+    const relFilters = extractRelFilters(attrFilters);
 
     const p = await db.getPool();
     await ensureTagTables(p);
@@ -150,6 +163,7 @@ router.get('/users', async (req, res) => {
         INNER JOIN "GraphTags" _ut ON _uta."tagId" = _ut.id AND _ut."name" = ${bind(userTagFilter)} AND _ut."entityType" = 'user'`;
     }
     where += buildFilterWhere(attrFilters, colNames, 'u', bind);
+    where += buildRelationshipWhere(relFilters, 'principals', 'u');
 
     // Paginate FIRST (cheap), then resolve the per-row tag string only for the
     // page's rows. The tagString subquery used to sit in the top-level SELECT, so

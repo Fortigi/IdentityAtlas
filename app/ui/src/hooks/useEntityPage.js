@@ -82,16 +82,24 @@ export default function useEntityPage({ authFetch, entityType, listEndpoint, col
     setSelected(new Set());
   }
 
-  // Fetch available columns for filter dropdowns
+  // Fetch available columns for filter dropdowns. The page's active sub-view
+  // (baseFilters — e.g. the Users principalType tab) is passed through so the
+  // API scopes reference-field discovery to it: a relationship only appears in
+  // the dropdown when rows in THIS view actually have it. Refetches on tab change.
   useEffect(() => {
     (async () => {
       try {
-        const res = await authFetch(columnsEndpoint);
+        const qs = new URLSearchParams();
+        for (const [k, v] of Object.entries(baseFilters || {})) {
+          if (v != null && v !== '') qs.set(k, v);
+        }
+        const url = qs.toString() ? `${columnsEndpoint}?${qs}` : columnsEndpoint;
+        const res = await authFetch(url);
         if (res.ok) setAvailableColumns(await res.json());
       } catch (err) { console.error('Failed to fetch columns:', err); }
       setColumnsLoading(false);
     })();
-  }, [authFetch, columnsEndpoint]);
+  }, [authFetch, columnsEndpoint, baseFilters]);
 
   // Fetch tags
   const fetchTags = useCallback(() => {
@@ -291,15 +299,20 @@ export default function useEntityPage({ authFetch, entityType, listEndpoint, col
   const allOnPageSelected = items.length > 0 && selected.size === items.length;
   const hasAnyFilter = activeFilters.length > 0 || debouncedSearch;
 
-  // Build filterFields from availableColumns. Keys that start with `ext.`
-  // are extended-attribute filters (see api columnCache.js / buildFilterWhere)
-  // — we strip the prefix for display and tag the label with "(ext)" so
-  // they're visually distinct from real columns in the dropdown.
+  // Build filterFields from availableColumns. Reference-field (relationship)
+  // columns arrive with an API-supplied `label` and a `rel.` key, and otherwise
+  // look exactly like a normal column (a `values` picklist) — so they render as
+  // an ordinary filter with no special UI. Keys that start with `ext.` are
+  // extended-attribute filters — we strip the prefix and tag "(ext)". Real
+  // columns fall through to a humanised label.
   const getFilterFields = useCallback((fieldLabels) => {
     const humanize = (s) => s.replace(/([A-Z])/g, ' $1').replace(/^./, c => c.toUpperCase()).trim();
     return availableColumns
       .filter(col => col.values && col.values.length >= 1 && col.values.length <= 500)
       .map(col => {
+        if (col.label) {
+          return { key: col.column, label: col.label };
+        }
         if (fieldLabels[col.column]) {
           return { key: col.column, label: fieldLabels[col.column] };
         }
