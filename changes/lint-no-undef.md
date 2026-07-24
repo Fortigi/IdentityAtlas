@@ -1,0 +1,2 @@
+- Hardened the UI build so undefined-variable bugs (like a value used in a component without being passed in) now fail linting in CI instead of shipping as a runtime crash.
+- Added an end-to-end test that renders a resource list containing a tagged row, guarding against the tag-pill render crash from reaching production again.

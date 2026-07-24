@@ -60,6 +60,16 @@ export default [
     },
     rules: {
       ...reactHooks.configs.recommended.rules,
+      // Core correctness rule: flag references to identifiers that aren't
+      // declared in scope. This is the cheapest gate against a whole class of
+      // bugs — a typo'd variable, or a value used inside an extracted child
+      // component without being threaded in as a prop. A dropped `isDark` prop
+      // in EntityListPage's extracted table row (#762) reached production
+      // precisely because this rule was off; it renders as a client-side
+      // `ReferenceError` the moment the affected branch is hit. Kept as an
+      // explicit rule rather than pulling in all of `@eslint/js` recommended,
+      // so the ruleset stays intentional.
+      'no-undef': 'error',
       'local/no-low-contrast-text': 'error',
       // Flags two plain dark: utilities setting the same color property (the
       // audit's C1/C2/M6 class — the later one silently wins). The missing-hover
@@ -101,6 +111,23 @@ export default [
     // banned terms (as patterns / assertions / test names) — don't flag them.
     files: ['eslint-rules/**', '**/*.test.{js,jsx}', 'e2e/**'],
     rules: { 'local/no-legacy-jargon': 'off' },
+  },
+  {
+    // Vitest/jsdom unit + mount tests reference Node globals: `global` (jsdom
+    // env shims) and `Buffer` (byte assertions in the Excel-export tests).
+    // Merge Node globals on top of the browser set so `no-undef` doesn't flag
+    // them. (Flat config merges languageOptions across matching blocks.)
+    files: ['**/*.test.{js,jsx}', 'src/__tests__/**/*.{js,jsx}', 'src/test-utils/**/*.{js,jsx}'],
+    languageOptions: {
+      globals: { ...globals.node },
+    },
+  },
+  {
+    // Build/test tooling configs run in Node (`process`, `__dirname`, …).
+    files: ['*.config.{js,ts}'],
+    languageOptions: {
+      globals: { ...globals.node },
+    },
   },
   {
     // Playwright E2E tests run in Node.js, not the browser
