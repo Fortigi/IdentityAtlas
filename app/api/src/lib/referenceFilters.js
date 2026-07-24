@@ -28,13 +28,16 @@ import * as db from '../db/connection.js';
 export const MULTI_OPTIONS = ['None (0)', 'Any (1 or more)', 'Exactly 1', '2 or more', '3 or more'];
 export const SINGLE_OPTIONS = ['None (0)', 'Any (1 or more)'];
 
-const VALUE_TO_OPN = {
+// Null-prototype so a user-supplied value that happens to name an inherited
+// member (e.g. 'constructor', 'toString') resolves to undefined and fails
+// closed, rather than returning a truthy Object.prototype member.
+const VALUE_TO_OPN = Object.assign(Object.create(null), {
   'None (0)': { op: '=', n: 0 },
   'Any (1 or more)': { op: '>=', n: 1 },
   'Exactly 1': { op: '=', n: 1 },
   '2 or more': { op: '>=', n: 2 },
   '3 or more': { op: '>=', n: 3 },
-};
+});
 
 // Only these two shapes reach SQL, so op is never attacker-controlled.
 const SAFE_ALIAS_RE = /^[a-z][a-z0-9]*$/;
@@ -103,15 +106,16 @@ function optionsFor(entry) {
   return entry.card === 'one' ? SINGLE_OPTIONS : MULTI_OPTIONS;
 }
 
-// Pull `rel.*` keys out of the attribute-filters object (mutating it, like the
-// routes already do for `__*Tag` virtual keys) and return them separately.
+// Collect the `rel.*` reference-field filters as a list of {field, value}
+// pairs. The user-supplied key is carried as a VALUE, never used as a property
+// name (no dynamic property write → no prototype-pollution surface). We don't
+// strip them from attrFilters: buildFilterWhere only matches `ext.*` and real
+// column names, so a leftover `rel.*` key is already ignored there.
+const REL_PREFIX = 'rel.';
 export function extractRelFilters(attrFilters) {
-  const rel = {};
-  for (const k of Object.keys(attrFilters)) {
-    if (k.startsWith('rel.')) {
-      rel[k] = attrFilters[k];
-      delete attrFilters[k];
-    }
+  const rel = [];
+  for (const k of Object.keys(attrFilters || {})) {
+    if (k.startsWith(REL_PREFIX)) rel.push({ field: k, value: attrFilters[k] });
   }
   return rel;
 }
@@ -121,12 +125,12 @@ export function extractRelFilters(attrFilters) {
 // is a validated small integer — so callers need no `bind`, and the fragment is
 // safe to append after `buildFilterWhere` (before the COUNT snapshot).
 export function buildRelationshipWhere(relFilters, table, alias) {
-  if (!relFilters || !SAFE_ALIAS_RE.test(alias) || !TABLES[table]) {
-    return relFilters && Object.keys(relFilters).length ? ' AND 1=0' : '';
-  }
+  const list = Array.isArray(relFilters) ? relFilters : [];
+  if (list.length === 0) return '';
+  if (!SAFE_ALIAS_RE.test(alias) || !TABLES[table]) return ' AND 1=0';
   let where = '';
-  for (const [field, value] of Object.entries(relFilters)) {
-    const key = field.slice(4); // strip 'rel.'
+  for (const { field, value } of list) {
+    const key = String(field).slice(REL_PREFIX.length); // strip 'rel.'
     const entry = REGISTRY.find((e) => e.table === table && e.key === key);
     const opn = VALUE_TO_OPN[value];
     // Fail closed: unknown field, unknown value, or a count operator on a
