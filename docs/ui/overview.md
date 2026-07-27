@@ -142,6 +142,32 @@ Browse all synced resources (groups, directory roles, app roles, etc.) with pagi
 
 ---
 
+### Filtering by references (relationships)
+
+The **Add filter** dropdown on the Users and Resources pages lists reference
+fields — a row's relationships — alongside its ordinary attribute columns, and
+you filter them exactly the same way: pick the field, pick a value. No separate
+control.
+
+- **Reference fields** include *Owners* and *Sponsors* (on AI agents / service
+  principals / guests), *Manager* and *Direct reports* (on users), *Owns agents*
+  (the inverse of ownership), and *Members* and *Owners* (on groups/resources).
+- **Values are counts**, so you can answer "how many": **None (0)**, **Any (1 or
+  more)**, **Exactly 1**, **2 or more**, **3 or more**. Single-valued references
+  (a manager) offer only *None*/*Any*. For example, filter AI Agents by
+  *Owners = None (0)* to find every agent with no accountable owner, or Groups by
+  *Members = None (0)* to find empty groups.
+- **Only relationships that actually have data in the current view are listed** —
+  the same dynamic behaviour as attribute filters. *Manager* won't appear on the
+  AI-Agents sub-tab, and *Owners* won't appear on the ordinary Users tab.
+- Reference filters combine with attribute filters and with **bulk-tag by
+  filter**, so you can tag every matching row in one action.
+
+Member counts include all assignment types (direct, indirect and eligible), and
+accounts that have been removed (soft-deleted) are not counted.
+
+---
+
 ### Systems Page
 
 Card-based view of all connected authorization systems.
