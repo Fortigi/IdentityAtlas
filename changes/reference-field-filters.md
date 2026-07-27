@@ -1,5 +1,0 @@
-- Added reference-field (relationship) filters to the Users and Resources list pages: filter on a row's relationships — Owners, Sponsors, Manager, Direct reports, Owns agents, Members — using the same "Add filter" dropdown as attribute filters, with no separate control.
-- Reference filters use count values, so you can find "how many": None (0), Any (1 or more), Exactly 1, 2 or more, or 3 or more (single-valued references like Manager offer only None/Any). For example, filter AI Agents by Owners = None (0) to find agents with no accountable owner, or Groups by Members = None (0) to find empty groups.
-- Reference fields appear in the dropdown only when rows in the current view actually have that relationship — the same dynamic behaviour as attribute filters, scoped to the active sub-tab.
-- Reference filters combine with attribute filters and with "tag all matching by filter", so a bulk tag applies to exactly the filtered set.
-- Member counts include direct, indirect and eligible assignments, and removed (soft-deleted) accounts are excluded from all reference counts.
