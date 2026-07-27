@@ -1,4 +1,14 @@
+---
+type: task
+prereq: concepts/data-model.md
+outcome: You can prove what someone can reach after every inheritance hop.
+---
+
 # Answer: who can access resource X, and why
+
+!!! info "Before this page"
+    Assumes you have read **[Data Model](../concepts/data-model.md)**.
+    Brand new? Start at [The words you need first](../start/glossary.md).
 
 A task guide for the recurring analyst question: **"Who can reach this resource, and how did they get it?"** Identity Atlas answers it by resolving *effective* access — not just who is directly assigned, but everyone who inherits access through a group or a containing scope, together with the path that got them there.
 

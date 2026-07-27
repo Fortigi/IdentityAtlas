@@ -21,7 +21,7 @@
 #   8. audit      — npm audit on frontend and API packages
 #   9. hygiene    — tests + changelog fragment required for code changes
 #  10. crawler-manifest — CrawlerMeta.js completeness check
-#  11. docs-nav   — crawler docs registered in mkdocs.yml nav
+#  11. docs-structure — nav completeness, cross-links, learning-path contract
 #  12. duplication — jscpd clone detection; threshold in .jscpd.json
 #  13. filesize   — file-length ratchet (folded in from filesize.yml)
 #  14. complexity — cyclomatic + cognitive complexity ratchet (from complexity.yml)
@@ -112,6 +112,7 @@ jobs:
       api:     ${{ steps.f.outputs.api }}
       ui:      ${{ steps.f.outputs.ui }}
       openapi: ${{ steps.f.outputs.openapi }}
+      docs:    ${{ steps.f.outputs.docs }}
       code:    ${{ steps.f.outputs.code }}
       outcome: ${{ steps.f.outcome }}
     steps:
@@ -151,6 +152,14 @@ jobs:
               - 'tools/crawlers/**/*.test.jsx'
             openapi:
               - 'app/api/src/openapi.yaml'
+            # The docs site: pages, the hand-curated nav, and the guard itself.
+            # A docs-only PR matches no other scope, so without this the
+            # structure guard would never run on exactly the PRs that can break
+            # the nav or a cross-link.
+            docs:
+              - 'docs/**'
+              - 'mkdocs.yml'
+              - 'app/api/src/docs/**'
             # Any source file the file-length / complexity ratchets measure, keyed
             # by extension. A docs-only / version-bump / baseline PR matches none
             # of these, so `code` is false and both ratchets skip (they re-measure
@@ -726,32 +735,37 @@ jobs:
           if [ "$FAIL" = "1" ]; then exit 1; fi
           echo "Crawler manifest check passed."
 
-  # ── Stage 9: Crawler docs registered in site nav ─────────────────────────
-  # Every page under docs/sync/ documents a data source / crawler and must be
-  # reachable from the docs site menu. mkdocs.yml's nav: is hand-curated, so a
-  # new page is easy to forget — this check fails the build instead of letting
-  # it go unnoticed (it happened before, see PR #292).
-  docs-nav:
-    name: 'Lint: Crawler docs registered in site nav'
-    needs: [changes]
-    if: needs.changes.outputs.has_product_changes == 'true'
+  # ── Stage 9: Docs structure, links and learning path ─────────────────────
+  # Supersedes the older docs/sync-only nav check (PR #292): the guard asserts
+  # nav completeness for EVERY page — docs/sync/*.md included — plus cross-link
+  # integrity and the learning-path front-matter contract.
+  #
+  # This is the ONLY PR-time signal that the documentation still hangs together:
+  # .github/workflows/docs.yml builds the site on push to main, so without this
+  # job a broken nav or a dead cross-link is only discovered after merge. Hence
+  # it also runs for docs-only PRs, which match no code path scope.
+  docs-structure:
+    name: 'Lint: Docs structure, links & learning path'
+    needs: [filter]
+    if: needs.filter.outputs.docs == 'true' || needs.filter.outputs.api == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Check every docs/sync/*.md page is referenced in mkdocs.yml
-        run: |
-          set -euo pipefail
-          FAIL=0
-          for f in docs/sync/*.md; do
-            rel="${f#docs/}"
-            if ! grep -qF "$rel" mkdocs.yml; then
-              echo "::error file=mkdocs.yml::docs/$rel is not referenced in mkdocs.yml — add it under nav: so it appears in the docs site menu"
-              FAIL=1
-            fi
-          done
-          if [ "$FAIL" = "1" ]; then exit 1; fi
-          echo "All crawler docs are registered in the site nav."
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: app/api/package-lock.json
+
+      - name: Install dependencies
+        working-directory: app/api
+        run: npm ci
+
+      - name: Check nav completeness, cross-links and learning-path contract
+        working-directory: app/api
+        run: npx vitest run src/docs/
 
   # ── Stage 10: Code duplication threshold ─────────────────────────────────
   # Fails if overall duplication exceeds the threshold in .jscpd.json.
@@ -911,7 +925,7 @@ jobs:
       - supply-chain
       - hygiene
       - crawler-manifest
-      - docs-nav
+      - docs-structure
       - duplication
       - filesize
       - complexity

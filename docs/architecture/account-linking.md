@@ -1,4 +1,14 @@
+---
+type: concept
+prereq: concepts/data-model.md
+outcome: You know how several accounts become one person, and what happens when the match is wrong.
+---
+
 # Account Linking — architecture
+
+!!! info "Before this page"
+    Assumes you have read **[Data Model](../concepts/data-model.md)**.
+    Brand new? Start at [The words you need first](../start/glossary.md).
 
 > **Status:** current as of June 2026.
 > Companion to [`030_account_linking.sql`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/db/migrations/030_account_linking.sql) and the [Context Redesign](context-redesign.md) (the `orphaned-accounts` plugin).

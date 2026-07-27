@@ -1,4 +1,14 @@
+---
+type: concept
+prereq: concepts/data-model.md
+outcome: You can tell designed access from accumulated access, and know where each is stored.
+---
+
 # Governance Model
+
+!!! info "Before this page"
+    Assumes you have read **[Data Model](./data-model.md)**.
+    Brand new? Start at [The words you need first](../start/glossary.md).
 
 Identity Atlas supports business roles, certification reviews, and access policies from any IGA platform — not just Entra ID. The governance model is unified with the resource model: business roles **are** Resources, their assignments **are** ResourceAssignments, and their resource grants **are** ResourceRelationships. Only governance-specific metadata (policies, requests, certification decisions) lives in dedicated tables.
 

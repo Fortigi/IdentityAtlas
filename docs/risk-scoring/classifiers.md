@@ -1,4 +1,14 @@
+---
+type: concept
+prereq: risk-scoring/overview.md
+outcome: You can read, and change, the rules that decide what counts as sensitive.
+---
+
 # Risk Classifiers
+
+!!! info "Before this page"
+    Assumes you have read **[How Scoring Works](./overview.md)**.
+    Brand new? Start at [The words you need first](../start/glossary.md).
 
 ## What Are Classifiers
 

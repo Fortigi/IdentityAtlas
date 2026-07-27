@@ -9,9 +9,12 @@ theme:
   name: material
   logo: assets/logo.png
   favicon: assets/logo.png
-  font:
-    text: Inter
-    code: JetBrains Mono
+  # Google Fonts off. identityatlas.io renders in the system UI stack, and the
+  # docs are meant to read as the same product one click deeper — a different
+  # typeface is the loudest possible seam. The exact stack is pinned in
+  # assets/extra.css so both sides stay in step. (Also drops a third-party
+  # font request from the docs site.)
+  font: false
   palette:
     - scheme: default
       primary: custom
@@ -29,7 +32,9 @@ theme:
     - navigation.tabs
     - navigation.tabs.sticky
     - navigation.sections
-    - navigation.expand
+    # navigation.expand is deliberately OFF: the nav is now a reader-ordered
+    # learning path with deeper sections, and expanding every section at once
+    # buries the "Start here" ladder in a wall of links.
     - navigation.path
     - navigation.top
     - search.suggest
@@ -78,79 +83,123 @@ extra_css:
 nav:
   - Home: index.md
 
-  - Guide:
-      - Quick Start: quickstart.md
-      - Concepts:
+  # ── The on-ramp. Ordered: vocabulary → running → guided first finding → the exam.
+  - Start here:
+      - The words you need first: start/glossary.md
+      - Get it running: quickstart.md
+      - Your first 15 minutes: start/first-15-minutes.md
+      - Capture the Flag:
+          - Before you play: demo/before-you-play.md
+          - The twelve flags: demo/capture-the-flag.md
+
+  # ── The mental models, easiest first. No screens here — just the ideas.
+  - Learn:
+      - The model:
           - Data Model: concepts/data-model.md
-          - Governance Model: concepts/governance-model.md
-          - Risk Scoring Model: concepts/risk-scoring-model.md
-      - Data Sources:
-          - Entra ID: sync/entra-id.md
-          - Azure Resource Manager: sync/azure-rm.md
-          - CSV Import: sync/csv-import.md
-          - CSV Schema Reference: architecture/csv-import-schema.md
-          - midPoint: sync/midpoint.md
-          - midPoint Configuration Reference: sync/midpoint-crawler-configuration.md
-          - Omada IGA: sync/omada.md
-          - Omada Data Model Reference: architecture/omada-crawler-datamodel.md
-          - Building a Crawler: sync/building-a-crawler.md
-          - Custom Connector (Push API): sync/custom-connector.md
-      - Try It:
-          - Capture the Flag: demo/capture-the-flag.md
-      - Using Identity Atlas:
-          - Role Mining UI: ui/overview.md
-          - Dashboard: ui/dashboard.md
-          - Contexts: ui/contexts.md
-          - Effective Access (Who Can Access X): ui/effective-access.md
-          - Local Development: ui/local-dev.md
+          - Governance & Business Roles: concepts/governance-model.md
+          - One Person, Many Accounts: architecture/account-linking.md
+      - Risk scoring:
+          - What a Risk Score Means: concepts/risk-scoring-model.md
+          - How Scoring Works: risk-scoring/overview.md
+          - Classifiers: risk-scoring/classifiers.md
+          - AI Agents & Non-Human Identities: risk-scoring/ai-agents.md
+
+  # ── Task guides: doing things in the product.
+  - Use:
+      - The app at a glance: ui/overview.md
+      - Dashboard: ui/dashboard.md
+      - The matrix:
+          - Reading the Matrix: architecture/matrix.md
+          - Scope Statistics: architecture/matrix-scope-statistics.md
+      - Contexts: ui/contexts.md
+      - Effective Access (Who Can Access X): ui/effective-access.md
+      - Entity Detail Pages: architecture/entity-detail-pages.md
+      - Get data out:
           - Excel Export (Power Query): admin/excel-powerquery-export.md
           - Excel Template Authoring: admin/excel-template-authoring.md
 
-  - Concepts:
-      - Risk Scoring:
-          - Overview: risk-scoring/overview.md
-          - Classifiers: risk-scoring/classifiers.md
-          - AI Agents: risk-scoring/ai-agents.md
-          - Engine Design: risk-scoring/design.md
-          - Plugin Architecture: risk-scoring/plugin-architecture.md
-          - Resource Cluster Algorithm: architecture/resource-cluster-algorithm.md
-      - Architecture:
+  # ── Operator territory: deploy it, connect real systems, keep it healthy.
+  - Set up & run:
+      - Deploy:
           - Docker Setup: architecture/docker-setup.md
+          - Azure Deployment Walkthrough: architecture/azure-deployment-walkthrough.md
+          - Azure Deployment Reference: architecture/azure-deployment.md
           - Portable Windows Launcher: architecture/desktop-portable.md
-          - Release & Branching Strategy: architecture/branching-strategy.md
-          - Ingest API: architecture/ingest-api.md
-          - Audit History: architecture/audit-history.md
-          - Soft-Delete & Tombstones: architecture/soft-delete.md
-          - Matrix Scope Statistics: architecture/matrix-scope-statistics.md
-          - LLM & Risk Scoring Internals: architecture/llm-and-risk-scoring.md
-          - Crawler Architecture: architecture/crawler-architecture.md
-          - Account Linking: architecture/account-linking.md
-          - Effective Access Engine: architecture/effective-access-engine.md
-      - Operations:
+          - Scaling & Load Testing: architecture/scaling.md
+      - Connect your systems:
+          - Entra ID: sync/entra-id.md
+          - Azure Resource Manager: sync/azure-rm.md
+          - Omada IGA: sync/omada.md
+          - Omada Data Model Reference: architecture/omada-crawler-datamodel.md
+          - midPoint: sync/midpoint.md
+          - midPoint Configuration Reference: sync/midpoint-crawler-configuration.md
+          - CSV Import: sync/csv-import.md
+          - Custom Connector (Push API): sync/custom-connector.md
+      - Administer:
           - Authentication & SSO: admin/authentication.md
           - Data & Maintenance: admin/data-tab.md
           - Automatic Updates: admin/auto-updates.md
-          - Azure Deployment: architecture/azure-deployment-walkthrough.md
-          - Azure Deployment Reference: architecture/azure-deployment.md
-          - Scaling & Load Testing: architecture/scaling.md
-          - Demo Dataset: architecture/demo-dataset.md
           - Nightly Review: operations/nightly-review.md
-          - Troubleshooting: reference/troubleshooting.md
+      - Troubleshooting: reference/troubleshooting.md
 
+  # ── Where the advanced reader goes for the one detail they need. Lookup
+  #    tables AND the deep technical explanations live here together, because
+  #    "I need the exact answer" is one intent, not two.
   - Reference:
-      - API:
+      - HTTP API:
           - Overview: api/index.md
           - Matrix & Permissions: api/matrix.md
           - Entity Detail: api/entities.md
           - Governance & Business Roles: api/governance.md
           - Risk Scores: api/risk-scores.md
+          - Ingest API: architecture/ingest-api.md
       - Configuration: reference/config.md
       - Permissions & Roles: reference/permissions.md
       - Database Views: reference/sql-views.md
+      - CSV Schema Reference: architecture/csv-import-schema.md
       - Software Bill of Materials: reference/sbom.md
       - Test Coverage: reference/coverage.md
+      - Under the hood:
+          - Crawler Architecture: architecture/crawler-architecture.md
+          - Audit History: architecture/audit-history.md
+          - Soft-Delete & Tombstones: architecture/soft-delete.md
+          - Effective Access Engine: architecture/effective-access-engine.md
+          - Resource Cluster Algorithm: architecture/resource-cluster-algorithm.md
+          - Risk Scoring Engine Design: risk-scoring/design.md
+          - Risk Scoring Plugin Architecture: risk-scoring/plugin-architecture.md
+          - LLM & Risk Scoring Internals: architecture/llm-and-risk-scoring.md
+          - Assignments & Identity Support: architecture/resource-assignments-identity-support.md
+          - Dashboard Trends: architecture/dashboard-trends.md
+          - Demo Dataset (contains CTF spoilers): architecture/demo-dataset.md
 
+  # ── Everything about the project itself: internals, contributing, provenance.
   - Project:
+      - Contributing:
+          - Report a Bug or Request a Feature: contributing/report-an-issue.md
+          - Contribute a Change: contributing/contribute.md
+          - Local Development: ui/local-dev.md
+          - Building a Crawler: sync/building-a-crawler.md
+          - UI Style Guide: contributing/style-guide.md
+          - CI Pipeline: contributing/ci-pipeline.md
+          - CI Scope Testing: architecture/ci-scope-testing.md
+          - Release & Branching Strategy: architecture/branching-strategy.md
+          - Definition of Ready: process/definition-of-ready.md
+      - Design archive:
+          - About the archive: architecture/design-archive.md
+          - Context Redesign: architecture/context-redesign.md
+          - Context Redesign — Plan: architecture/context-redesign-plan.md
+          - Context Redesign — UI: architecture/context-redesign-ui.md
+          - Assignment Model Redesign: architecture/assignment-model-redesign.md
+          - IdentityType Design: architecture/identitytype-design.md
+          - Risk Scoring Plugins (proposal): architecture/risk-scoring-plugins.md
+          - Rule Mining Discussion: architecture/rule-mining-discussion.md
+      - Quality & audits:
+          - Documentation Gap Audit: docs-gap-audit.md
+          - Documentation Remediation Plan: docs-remediation-plan.md
+          - Maintenance Backlog: maintenance-backlog.md
+          - User Experience Assessment: ux/assessment.md
+          - Security Assessment: security/assessment.md
+          - Maintenance Audit (June 2026): security/maintenance-audit-2026-06.md
       - Marketing & Press Kit:
           - Overview: marketing/index.md
           - Product Brief: marketing/product-brief.md
@@ -163,17 +212,6 @@ nav:
           - Boilerplate: marketing/boilerplate.md
       - About Identity Atlas: about.md
       - History: history.md
-      - Contributing:
-          - Report a Bug or Request a Feature: contributing/report-an-issue.md
-          - Contribute a Change: contributing/contribute.md
-          - CI Pipeline: contributing/ci-pipeline.md
-          - UI Style Guide: contributing/style-guide.md
-          - CI Scope Testing: architecture/ci-scope-testing.md
-      - User Experience:
-          - Assessment & Remediation: ux/assessment.md
-      - Security:
-          - Assessment & Remediation: security/assessment.md
-          - Maintenance Audit (June 2026): security/maintenance-audit-2026-06.md
 
 extra:
   version:

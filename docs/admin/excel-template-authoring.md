@@ -1,4 +1,14 @@
+---
+type: task
+prereq: admin/excel-powerquery-export.md
+outcome: You can build a reusable Excel template for other people to refresh.
+---
+
 # Authoring the Excel Power Query template
+
+!!! info "Before this page"
+    Assumes you have read **[Excel Export (Power Query)](./excel-powerquery-export.md)**.
+    Brand new? Start at [The words you need first](../start/glossary.md).
 
 This document is for the maintainer creating `tools/excel-queries/template.xlsx`.
 End users never see this file — they only get a copy with their token stamped

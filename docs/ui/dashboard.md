@@ -1,4 +1,14 @@
+---
+type: task
+prereq: ui/overview.md
+outcome: You can read the landing page and know when it is telling you something.
+---
+
 # Dashboard
+
+!!! info "Before this page"
+    Assumes you have read **[The app at a glance](./overview.md)**.
+    Brand new? Start at [The words you need first](../start/glossary.md).
 
 The **Dashboard** is the landing page — the first thing you see when you open
 Identity Atlas. It's a one-shot overview of what's loaded, whether the key

@@ -1,4 +1,14 @@
+---
+type: concept
+prereq: concepts/data-model.md
+outcome: You know what the number on an identity means before you trust it.
+---
+
 # Risk Scoring Data Model
+
+!!! info "Before this page"
+    Assumes you have read **[Data Model](./data-model.md)**.
+    Brand new? Start at [The words you need first](../start/glossary.md).
 
 Identity Atlas stores risk intelligence in a set of dedicated SQL tables that sit alongside the core data model. These tables hold the inputs that drive scoring (org context, classifier patterns) and the outputs (per-entity scores, clusters, overrides).
 

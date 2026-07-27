@@ -1,4 +1,14 @@
+---
+type: concept
+prereq: concepts/risk-scoring-model.md
+outcome: You can follow a score from raw signal to final tier.
+---
+
 # Identity Risk Scoring
+
+!!! info "Before this page"
+    Assumes you have read **[What a Risk Score Means](../concepts/risk-scoring-model.md)**.
+    Brand new? Start at [The words you need first](../start/glossary.md).
 
 !!! warning "v5 status"
     In v5, risk scoring is driven from the UI (Admin > Risk Scoring). The PowerShell risk scoring functions (`Invoke-FGRiskScoring`, `New-FGRiskProfile`, `New-FGRiskClassifiers`) in `tools/riskscoring/` are **stubbed** and return "not yet implemented in v5". The in-browser wizard and the Node.js scoring engine (`app/api/src/riskscoring/engine.js`) are the active implementation path.
