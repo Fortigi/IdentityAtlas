@@ -14,17 +14,16 @@
 #   1. lint-ps    — PSScriptAnalyzer on all PowerShell files
 #   2. lint-js    — ESLint on the frontend (app/ui)
 #   3. unit-tests — Pester tests with code coverage report
-#   4. unit-js    — Vitest tests for the API (validation, middleware)
+#   4. unit-js    — Vitest tests for the API (validation, middleware, docs structure)
 #   5. unit-ui    — Vitest tests for the UI
 #   6. node-launcher-ui-build — crawler wizard bundle check
 #   7. openapi    — Spectral lint on app/api/src/openapi.yaml
 #   8. audit      — npm audit on frontend and API packages
 #   9. hygiene    — tests + changelog fragment required for code changes
 #  10. crawler-manifest — CrawlerMeta.js completeness check
-#  11. docs-structure — nav completeness, cross-links, learning-path contract
-#  12. duplication — jscpd clone detection; threshold in .jscpd.json
-#  13. filesize   — file-length ratchet (folded in from filesize.yml)
-#  14. complexity — cyclomatic + cognitive complexity ratchet (from complexity.yml)
+#  11. duplication — jscpd clone detection; threshold in .jscpd.json
+#  12. filesize   — file-length ratchet (folded in from filesize.yml)
+#  13. complexity — cyclomatic + cognitive complexity ratchet (from complexity.yml)
 #
 # All of the above feed ci-passed, so none needs to be an individual required
 # check — mark only ci-passed required, and it self-skips per the filter scopes.
@@ -351,8 +350,17 @@ jobs:
   unit-js:
     name: 'Unit Tests: Vitest (API)'
     needs: [filter]
+    # Also runs on the `docs` scope: src/docs/ holds the documentation structure
+    # guard (nav completeness, cross-links, learning-path contract, depth
+    # anchors), and a docs-only PR matches no code scope. The docs site is only
+    # built on push to main, so without this a broken nav or dead cross-link is
+    # discovered after merge — which is how 15 pages fell out of the menu.
+    # Deliberately folded into this job rather than given its own: a second job
+    # would duplicate the checkout + setup-node + npm ci block (jscpd flagged
+    # exactly that).
     if: |
       needs.filter.outputs.api == 'true' ||
+      needs.filter.outputs.docs == 'true' ||
       needs.filter.result == 'failure'
     runs-on: ubuntu-latest
     steps:
@@ -735,38 +743,6 @@ jobs:
           if [ "$FAIL" = "1" ]; then exit 1; fi
           echo "Crawler manifest check passed."
 
-  # ── Stage 9: Docs structure, links and learning path ─────────────────────
-  # Supersedes the older docs/sync-only nav check (PR #292): the guard asserts
-  # nav completeness for EVERY page — docs/sync/*.md included — plus cross-link
-  # integrity and the learning-path front-matter contract.
-  #
-  # This is the ONLY PR-time signal that the documentation still hangs together:
-  # .github/workflows/docs.yml builds the site on push to main, so without this
-  # job a broken nav or a dead cross-link is only discovered after merge. Hence
-  # it also runs for docs-only PRs, which match no code path scope.
-  docs-structure:
-    name: 'Lint: Docs structure, links & learning path'
-    needs: [filter]
-    if: needs.filter.outputs.docs == 'true' || needs.filter.outputs.api == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
-        with:
-          node-version: '24'
-          cache: 'npm'
-          cache-dependency-path: app/api/package-lock.json
-
-      - name: Install dependencies
-        working-directory: app/api
-        run: npm ci
-
-      - name: Check nav completeness, cross-links and learning-path contract
-        working-directory: app/api
-        run: npx vitest run src/docs/
-
   # ── Stage 10: Code duplication threshold ─────────────────────────────────
   # Fails if overall duplication exceeds the threshold in .jscpd.json.
   # Threshold is 2% (above the 1.65% baseline after dedup phases 1-4). Lower it
@@ -925,7 +901,6 @@ jobs:
       - supply-chain
       - hygiene
       - crawler-manifest
-      - docs-structure
       - duplication
       - filesize
       - complexity
