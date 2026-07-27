@@ -1418,6 +1418,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#filtering-by-references-relationships" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Filtering by references (relationships)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#systems-page" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4197,6 +4208,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#filtering-by-references-relationships" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Filtering by references (relationships)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#systems-page" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4606,6 +4628,29 @@
 <li><strong>System filter:</strong> restrict to a specific connected system</li>
 <li><strong>Tag management:</strong> same as the Principals (Users) page</li>
 </ul>
+<hr />
+<h3 id="filtering-by-references-relationships">Filtering by references (relationships)<a class="headerlink" href="#filtering-by-references-relationships" title="Permanent link">&para;</a></h3>
+<p>The <strong>Add filter</strong> dropdown on the Users and Resources pages lists reference
+fields — a row's relationships — alongside its ordinary attribute columns, and
+you filter them exactly the same way: pick the field, pick a value. No separate
+control.</p>
+<ul>
+<li><strong>Reference fields</strong> include <em>Owners</em> and <em>Sponsors</em> (on AI agents / service
+  principals / guests), <em>Manager</em> and <em>Direct reports</em> (on users), <em>Owns agents</em>
+  (the inverse of ownership), and <em>Members</em> and <em>Owners</em> (on groups/resources).</li>
+<li><strong>Values are counts</strong>, so you can answer "how many": <strong>None (0)</strong>, <strong>Any (1 or
+  more)</strong>, <strong>Exactly 1</strong>, <strong>2 or more</strong>, <strong>3 or more</strong>. Single-valued references
+  (a manager) offer only <em>None</em>/<em>Any</em>. For example, filter AI Agents by
+  <em>Owners = None (0)</em> to find every agent with no accountable owner, or Groups by
+  <em>Members = None (0)</em> to find empty groups.</li>
+<li><strong>Only relationships that actually have data in the current view are listed</strong> —
+  the same dynamic behaviour as attribute filters. <em>Manager</em> won't appear on the
+  AI-Agents sub-tab, and <em>Owners</em> won't appear on the ordinary Users tab.</li>
+<li>Reference filters combine with attribute filters and with <strong>bulk-tag by
+  filter</strong>, so you can tag every matching row in one action.</li>
+</ul>
+<p>Member counts include all assignment types (direct, indirect and eligible), and
+accounts that have been removed (soft-deleted) are not counted.</p>
 <hr />
 <h3 id="systems-page">Systems Page<a class="headerlink" href="#systems-page" title="Permanent link">&para;</a></h3>
 <p>Card-based view of all connected authorization systems.</p>
