@@ -1,6 +1,116 @@
 # Operationalising the Definition of Ready — automation platform
 
-**Status: design — not yet built.** This describes the system that *runs* the [Definition of Ready](definition-of-ready.md) process at scale (multiple features, multiple people, multiple infrastructures, in parallel), and a work breakdown to build it end-to-end. No component here exists yet.
+**Status: phase 1 (the spec side) is in build; steps 8+ (build / validate / merge on a sidekick) remain design.** This describes the system that *runs* the [Definition of Ready](definition-of-ready.md) process at scale (multiple features, multiple people, multiple infrastructures, in parallel), and a work breakdown to build it end-to-end. The **Phase 1** section immediately below records what is actually built, decided, and grounded against the live repo/GitHub state (surveyed 2026-07-28); everything from **Topology** onward is the full aspirational design, most of which is not built yet.
+
+---
+
+## Phase 1 — the spec side (grounded build status, 2026-07-28)
+
+Phase 1 automates the **cloud-only spec side**: everything up to and including reaching the `Awaiting approval` value gate (FSM `needs_clarification → awaiting_signoff → ready_to_build → approved`), then **STOP**. It runs entirely on **GitHub-hosted runners**, reusing the existing CI and secrets — **no sidekick, no build job, no merge**. Steps 8+ (provision a sidekick → implement → test → deploy → merge) are out of phase-1 scope and remain the design from **Topology** onward.
+
+### Spec-side pipeline — steps 1–7 (at a glance)
+
+The **foundation prerequisites are in place** — board #2 (Status = canonical phase), `state:*`/gate labels, the BOT app token (Projects R/W + Issues R/W + **Members Read**), `CLAUDE_CODE_OAUTH_TOKEN`, the `main` rulesets, and the D5 self-approve hole closed. The seven step-automations an issue travels through:
+
+| Step | Stage | Automation artifact | Status |
+|------|-------|---------------------|--------|
+| 1 | **Intake** — structured issue template (delighted/disappointed, does-NOT-do, generality) | `.github/ISSUE_TEMPLATE/feature_request.yml` | built (this PR) |
+| 2 | **Triage** — add-to-board · "Requested by" · known/unknown-requestor filter | `dor-triage.yml` | built (this PR) |
+| 3 | **Interview** — Phase-A generative intent, multi-persona lenses | `dor-agent.yml` | built (this PR) |
+| 4 | **Route** — requestor / design / off-ramp (Decompose · Blocked · Out) | `dor-agent` (label + Status) + `dor-board-sync.yml` | built (this PR) |
+| 5 | **Probe** — Phase-B build-readiness vs live code/schema → verdict | `dor-agent.yml` | built (this PR) |
+| 6 | **Sign-off** — spec complete → *Awaiting approval* | `dor-agent` (label + Status) | built (this PR) |
+| 7 | **Value gate** — Product-board GO (or park) | manual Status move now / Environment gate later | manual (auto = later phase) |
+
+**Cross-cutting backstop — `dor-reconcile.yml` (level-triggered sweep, this PR).** Steps 1–6 are edge-triggered (GitHub events), so a dropped webhook, a failed run, or a concurrency race could silently strand an issue. A **daily scheduled** reconcile re-derives desired state from *actual* state and heals or flags drift: an open `enhancement` issue missing from the board → add it; board Status ≠ `state:*` label → re-sync; on the board but un-routed after N hours → flag (the agent likely never ran); stale in *Awaiting requestor/design* → nudge then flag; *Awaiting approval* backlog → flag the Product board; closed-but-still-active → move to *Done*. Deterministic (no LLM), **exception-only** reporting, and it maintains a single **"DoR pipeline health"** tracking issue. Being level-triggered it self-corrects even if the cron itself slips.
+
+**Kill-switch.** Every DoR workflow is **inert until repo variable `DOR_ENABLED=true`** — the whole set can merge and be smoke-tested before anything runs.
+
+### Roles → GitHub identity
+
+| Role | Owns / answers | GitHub identity |
+|------|----------------|-----------------|
+| **Requestor** | intent, functional scope, the time-travel success/failure criteria | **any Fortigi org member** (live-enumerated allow-list — self-maintaining) |
+| **Design board** (architect + designer) | technical approach + form: registry-vs-engine, additive-vs-mutate, integrate-vs-standalone | `WimvandenHeijkant`, `TaekeK` |
+| **Product board** (the value GO + final merge go/no-go) | desirability / product coherence — the GO | `WimvandenHeijkant`, `TaekeK`, `robb536` — **any one suffices; nobody else may pass the value gate** |
+| **Builder (AI)** | runs the Phase-A interview + Phase-B probe (later: builds) | Claude via `claude-code-action` |
+| **Unknown requestor** (non-member opens an issue) | — | **deterministic triage** (no AI): post a notice, assign Wim/Taeke/Rob, stop |
+
+### AI usage per workflow
+
+AI is spent **only where linguistic judgment is unavoidable** (interviewing a human, reasoning a spec against live code). Board/label mechanics and the spam filter are deterministic — no tokens.
+
+| Workflow | Kind | Model | Auth | Cost |
+|----------|------|-------|------|------|
+| **triage** (add-to-board, "Requested by", unknown-requestor filter) | deterministic — no LLM | — | BOT app token | free (Actions minutes) |
+| **interview** (Phase A — intent) | **AI** | **Fable 5 → Opus 5 fallback** | `CLAUDE_CODE_OAUTH_TOKEN` (Max subscription) | subscription quota |
+| **probe** (Phase B — build-readiness) | **AI** | **Fable 5 → Opus 5 fallback** | `CLAUDE_CODE_OAUTH_TOKEN` (Max subscription) | subscription quota |
+| **board-sync** (Status-field moves) | deterministic — no LLM | — | BOT app token | free |
+| **reconcile** (daily drift-sweep + health issue) | deterministic — no LLM | — | BOT app token | free |
+
+> The judgment-heavy, hard-to-verify phase (human language + deep code reasoning) gets the **most capable** model; everything else — triage, board-sync, the reconcile sweep, and the build phase (step 8+, mechanical + test-gated) — is deterministic or can use a lesser model.
+
+### Model + auth decision (why Fable, why the subscription)
+
+Interview + probe use **Claude Fable 5** (fallback **Opus 5** on refusal or when Fable is unavailable), authenticated with the **subscription** OAuth token (`CLAUDE_CODE_OAUTH_TOKEN` via `claude setup-token`) rather than per-token API credits — far cheaper at this volume. The catch is plan-gated:
+
+| Plan | Fable 5 | Opus 5 | What the subscription token reaches |
+|------|---------|--------|--------------------------------------|
+| **Max** | included (up to ~50% of weekly usage limits) | included, default, no ceiling | **Fable 5 — no credits** |
+| **Pro** | metered pay-as-you-go **credits** only | included, top model | Opus 5 free; Fable would bill credits |
+
+So **Fable-via-subscription requires Max.** Wim is on **Max until 2026-08-19**, then Pro for a holiday — after which the workflow degrades to **Opus 5** rather than burning credits. Gotcha: a known intermittent `validateHeaders` failure with Max OAuth tokens right after a Pro→Max upgrade → re-run `claude setup-token` and update the secret. (The fallback mechanism is TBD at build time: `claude-code-action` may not pass the API `fallbacks` param through, so "fall back to Opus" is likely workflow-level retry-with-opus.)
+
+### Currently in place vs. still to add
+
+Legend: **in place** = exists and usable today · **partial** = exists but needs reconciliation · **build** = phase-1 work to write now · **blocked** = phase-1 but gated on an external action · **later** = deferred to a subsequent phase · **rec** = recommended hardening.
+
+| # | Component | Status | Detail (grounded 2026-07-28) |
+|---|-----------|--------|------------------------------|
+| 1 | Board — Projects #2 "IdentityAtlas — Feature Pipeline" (`PVT_kwDOAhfTz84Bern-`) | **in place** | 65 items; **Status** single-select (`PVTSSF_…zhZEAac`, 11 options) is the canonical phase; **Requested by** single-select (`PVTSSF_…zhZEFTM`, only 5 options) |
+| 2 | Phase/state labels | **in place** | 7 `state:*` labels + `ready-to-build` / `approved` / `build-done` gate labels |
+| 3 | BOT app token (`fortigi-ci-bot`) | **in place** | **org Projects R/W + Issues R/W + Members Read** (P1 + D1 granted & validated); minted via `actions/create-github-app-token@v3.2.0` |
+| 4 | `claude-code-action` availability | **in place** | pinned `@6c0083bb… # v1`; `CLAUDE_CODE_OAUTH_TOKEN` present |
+| 5 | Merge / CI gates on `main` | **in place** | rulesets: 1 approval + CODEOWNERS (`@taekek`, `@wimvandenheijkant`) + required checks (PR Summary, CI Passed, Integration CI Passed) + CodeQL; squash-only |
+| 6 | Governance hardening (D5) | **in place** | "Actions can approve PRs" **unticked** (done); read-only `GITHUB_TOKEN` default staged pending a naked-workflow (`pr.yml`/`pr-integration.yml`) audit |
+| 7 | **`dor-authorize`** composite — org-member gate | **built (this PR)** | mints a **Members:Read**-scoped BOT token, `GET /orgs/Fortigi/members/{actor}`, fails closed; the only defense for public `issues`/`issue_comment` |
+| 8 | **`feature_request.yml`** — intake form | **built (this PR)** | front-loads Phase A (delighted/disappointed, generality, screenshots); 5 required, rest optional |
+| 9 | **`dor-triage.yml`** — add-to-board + route by requestor | **built (this PR)** | member → board + Requested-by (D2) + initial Status; non-member → notice + assign Wim/Taeke/Rob |
+| 10 | **`dor-agent.yml`** — interview + probe (Phase A/B) | **built (this PR)** | Fable 5; **no-Bash deterministic split** (fetch → sandboxed reason → validated post); 7 persona lenses; sets comment + one `state:*` label + Status |
+| 11 | **`dor-board-sync.yml`** — label → Status reconciler | **built (this PR)** | BOT token; syncs Status when a human changes a `state:*` label |
+| 12 | **`dor_set_status.sh`** — board Status helper | **built (this PR)** | shared by triage/agent/board-sync/reconcile; option IDs resolved by name at runtime (regeneration-proof); idempotent add |
+| 13 | **`dor-reconcile.yml`** — level-triggered daily sweep | **built (this PR)** | heals board/label drift, flags stuck/failed/stale, maintains the "DoR pipeline health" issue — the backstop for the event-based design |
+| 14 | Kill-switch — `DOR_ENABLED` repo variable | **built (this PR)** | every DoR workflow inert until set `true` — merge + smoke-test before enabling |
+| 15 | B1 — canonical vocabulary | **partial** | Status field vs FSM labels unreconciled → **Status field canonical** (D3); the FSM diagram below is stale |
+| 16 | B2 — guard (revert *illegal* transitions) | **later** | the reconcile sweep (#13) is the phase-1 drift backstop; hard illegal-transition *reverts* are a later addition |
+| 17 | B3 — value-gate Environment (3 reviewers) | **later** | nothing to gate in phase 1 (no build job); the GO is a manual Status move by the Product board until the build workflow lands |
+| 18 | B5 slash-commands · B6 tracking-issue bootstrap | **later** | |
+| 19 | A1–A7 sidekick lifecycle · C4 build · control-plane | **later** | step 8+; `[hypervisor session]` owner; full design below |
+
+### Open decisions from the grounded survey (pin these)
+
+- **D1 — actor-gate token *(BLOCKS the org-member gate; org-admin action, like P1)*.** The known-requestor allow-list must verify Fortigi org membership, and the default `GITHUB_TOKEN` can't (it isn't an org member and can't see private membership → returns HTTP 302, not 204/404). Options: **(a)** grant the `fortigi-ci-bot` app **Organization → Members: Read** and mint a gate token from it *(recommended — same one-time grant+accept as P1)*; **(b)** a fine-grained PAT with `read:org` (long-lived static secret); **(c)** a weaker `author_association == MEMBER/OWNER` check (only sees **public** members — silently denies private-visibility members). **Chosen (2026-07-28): (a)** — grant `fortigi-ci-bot` **Organization → Members: Read** and mint the gate token from it (pending the grant + installation-accept, same as P1).
+- **D2 — "Requested by" field.** Single-select with only 5 predefined options; the other org members have none, and adding options **regenerates every option ID** (orphaning the 65 items' assignments — a known GraphQL gotcha). **Phase-1 default:** set "Requested by" only when the opener matches an existing option; otherwise leave it blank.
+- **D3 — canonical phase vocabulary.** The **board Status single-select** (11 options) is canonical; `state:*` labels are an optional secondary mirror; the operationalization **FSM diagram** (snake_case states, and its front-of-line "PO pre-screen") is **stale** — the v3.4 flowchart is authoritative (value gate is post-spec, first-pass only; no front pre-screen). To be reconciled in a later doc pass.
+- **D4 — interview/probe execution locus.** Phase-1 runs both on **GitHub-hosted cloud runners** — `claude-code-action` reads the repo + schema, which is all the probe needs (no running app). This supersedes C2's "AI-step jobs on the sidekick" for the spec side.
+- **D5 — governance hardening (recommended, not blocking phase 1).** Set the repo/org default `GITHUB_TOKEN` to read-only with per-job elevation, and **disable "Allow GitHub Actions to approve pull requests,"** before the build/merge side exists. **Chosen (2026-07-28): harden now**, in two steps — **(i) now, zero-risk:** untick "Allow GitHub Actions to create and approve pull requests" (nothing legitimate relies on it); **(ii) staged:** flipping the default `GITHUB_TOKEN` to read-only can break workflows that assume the write default (e.g. a PR-summary comment step in `pr.yml` / `pr-integration.yml`, which declare no per-job `permissions:`), so first audit those and add explicit per-job `permissions:`, *then* flip the default.
+
+### Security note — the DoR agent's injection residual (phase 1)
+
+The `dor-agent` reads **untrusted public-issue content** while `claude-code-action` holds the Claude **subscription token in-env** — a genuine prompt-injection / token-exfiltration surface on a public repo. Mitigations shipped in phase 1:
+
+- **Deterministic split.** The reasoning step runs the model with **Read/Grep/Glob/Write only — no shell, no `gh`, no network** — bracketed by a deterministic *fetch* step (writes the issue thread + backlog to files) and a deterministic *post* step (the only thing that writes to GitHub).
+- **Fixed label allow-list** — the post step accepts only the six valid `state:*` routes; anything else aborts.
+- **Repo-script restore + deterministic egress token-scan** — before executing any repo script the post step restores all `.github` files to their committed state (defusing a *Write→execute* escalation where the model overwrites the helper), and refuses to post if the agent's output contains **any** live token (the subscription token *or* the injected `github.token`). The reasoning step's `Write` is also path-scoped to `.dor/out/**`.
+- **Org-member-only triggering**, the **human value gate** downstream (a mis-routed label still can't build without a human GO), and the **`DOR_ENABLED` kill-switch** (inert until flipped).
+
+**Residual (be honest):** the reasoning step's `Read` tool could in principle reach `/proc/self/environ`. The egress scan catches a **literal** token leak; an **encoded** leak is only fully closed by a **raw-API script with path-restricted tools** — the v2 option (it also pairs naturally with idea 2's cross-model verify, since we'd own the agent loop). **Smoke-test the flow before setting `DOR_ENABLED=true`.**
+
+### Considered enhancements (roadmap)
+
+- **Structured intake template (idea 3) — in phase 1.** A GitHub **Issue Form** front-loads the Phase-A skeleton (problem & value, does-NOT-do, "I'm delighted when… / disappointed when…", generality, completeness, screenshots) so the agent starts from a rich brief instead of an empty one — fewer questions, fewer loops, fewer tokens. **Self-improving feedback loop:** periodically mine the questions the agent keeps asking and fold the recurring ones back into the form. Keep the form short (a minimal required core, the rest optional) so it doesn't deter requestors — thin issues still fall through to the interview.
+- **Multi-persona review (idea 1) — in phase 1.** The agent runs its "looks at the issue" step through several **persona lenses** — requestor · architect · designer · product · **security** · **data-quality / edge-cases** · end-user — so gaps surface in a single pass (fewer human round-trips). Anchored to the DoR roles; ~5–7 lenses, not twenty. (The pattern is gstack's multi-persona idea; gstack itself is a local tool that does not run in the Action — the agent carries the lenses in its prompt / via sub-reviewers.)
+- **Cross-model "outside voice" verify (idea 2) — v2.** A second, independent-provider model reviews the probe's adversarial pass (different blind spots catch different defects). **Constraint:** OpenAI's ChatGPT subscription is **not** usable in CI — Codex ChatGPT-sign-in is interactive/local only, automation uses a pay-per-token API key — so an OpenAI outside-voice bills API credits, it does **not** ride the ChatGPT plan (unlike Claude Max, which does work in Actions). Try **Opus-5 verifying Fable-5** first (same provider, on the Max subscription, still meaningful diversity); reach for the OpenAI outside-voice only if that isn't skeptical enough.
 
 ## Goals & principles
 

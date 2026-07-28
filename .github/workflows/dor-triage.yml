@@ -1,0 +1,95 @@
+name: DoR triage (add to board)
+
+# On a newly-opened feature issue: put it on the Feature Pipeline board and route by requestor.
+# Deterministic — no LLM. Inert until repo variable DOR_ENABLED=true.
+#   • known requestor (Fortigi org member)  → add to board, set "Requested by", Status=Awaiting requestor.
+#   • unknown requestor (non-member)         → thank + assign the maintainers for validation; no board add.
+
+on:
+  issues:
+    types: [opened]
+
+permissions: {}
+
+concurrency:
+  group: dor-triage-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  # Compute membership (no model secret here); both downstream jobs branch on it.
+  authorize:
+    if: >-
+      vars.DOR_ENABLED == 'true' &&
+      github.event.sender.type != 'Bot' &&
+      !github.event.issue.pull_request &&
+      contains(github.event.issue.labels.*.name, 'enhancement')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      is-member: ${{ steps.auth.outputs.is-member }}
+    steps:
+      - name: Checkout the authorize action
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: .github/actions/dor-authorize
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+      - name: Require Fortigi org membership
+        id: auth
+        uses: ./.github/actions/dor-authorize
+        with:
+          app-id: ${{ secrets.BOT_APP_ID }}
+          private-key: ${{ secrets.BOT_PRIVATE_KEY }}
+          actor: ${{ github.actor }}
+
+  # Known requestor → onto the board.
+  member:
+    needs: authorize
+    if: needs.authorize.outputs.is-member == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout the board helper
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: .github/scripts/dor_set_status.sh
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+      - name: Mint BOT token (org Projects write)
+        id: bot
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ secrets.BOT_APP_ID }}
+          private-key: ${{ secrets.BOT_PRIVATE_KEY }}
+          owner: Fortigi
+          permission-organization-projects: write
+          permission-issues: read          # dor_set_status.sh must read the issue node id first
+      - name: Add to board + Requested-by + initial Status
+        env:
+          GH_TOKEN: ${{ steps.bot.outputs.token }}
+          ISSUE: ${{ github.event.issue.number }}
+          REQ_BY_ACTOR: ${{ github.actor }}
+        run: bash .github/scripts/dor_set_status.sh "$ISSUE" state:awaiting-requestor
+
+  # Unknown requestor → thank + assign the maintainers; do NOT add to the pipeline board.
+  unknown:
+    needs: authorize
+    if: needs.authorize.outputs.is-member == 'false'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Notify + assign maintainers for validation
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE: ${{ github.event.issue.number }}
+          REPO: ${{ github.repository }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          set -euo pipefail
+          gh issue comment "$ISSUE" --repo "$REPO" \
+            --body "Thanks for the suggestion, @${ACTOR}! A maintainer will take a look and validate it before it enters our feature pipeline."
+          gh issue edit "$ISSUE" --repo "$REPO" \
+            --add-assignee WimvandenHeijkant,TaekeK,robb536

@@ -1,0 +1,46 @@
+name: DoR reconcile (drift sweep)
+
+# Level-triggered backstop for the event-based DoR automation: heals safe drift (an open feature not
+# on the board) and flags stuck / failed / stale / drifted items into a single "DoR pipeline health"
+# issue. Deterministic — no LLM. Idempotent + exception-only. Inert until repo variable DOR_ENABLED=true.
+#
+# Scheduled workflows run from the DEFAULT branch only, so this starts sweeping once merged to main
+# and DOR_ENABLED is set. Being level-triggered, a skipped cron just delays the next correction.
+
+on:
+  schedule:
+    - cron: '17 6 * * *'   # daily ~06:17 UTC (off the hour to dodge scheduler congestion)
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: dor-reconcile
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    if: vars.DOR_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout the DoR scripts
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: .github/scripts
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+      - name: Mint BOT token (org Projects + Issues write)
+        id: bot
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ secrets.BOT_APP_ID }}
+          private-key: ${{ secrets.BOT_PRIVATE_KEY }}
+          owner: Fortigi
+          permission-organization-projects: write
+          permission-issues: write
+      - name: Run the reconcile sweep
+        env:
+          GH_TOKEN: ${{ steps.bot.outputs.token }}
+        run: bash .github/scripts/dor_reconcile.sh

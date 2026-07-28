@@ -1,0 +1,48 @@
+name: DoR board sync (label → Status)
+
+# Keeps the board Status in sync when a HUMAN changes a state:* label directly on an issue.
+# (The dor-agent already sets Status itself when it routes; this reconciles manual label edits.
+# The agent's own label writes use GITHUB_TOKEN, which does not re-trigger workflows, so this
+# fires only for human label changes — no loop.)
+# Deterministic — no LLM. Inert until repo variable DOR_ENABLED=true.
+
+on:
+  issues:
+    types: [labeled]
+
+permissions: {}
+
+concurrency:
+  group: dor-board-sync-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    if: >-
+      vars.DOR_ENABLED == 'true' &&
+      startsWith(github.event.label.name, 'state:')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout the board helper
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: .github/scripts/dor_set_status.sh
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+      - name: Mint BOT token (org Projects write)
+        id: bot
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ secrets.BOT_APP_ID }}
+          private-key: ${{ secrets.BOT_PRIVATE_KEY }}
+          owner: Fortigi
+          permission-organization-projects: write
+          permission-issues: read          # dor_set_status.sh must read the issue node id first
+      - name: Sync Status from the label
+        env:
+          GH_TOKEN: ${{ steps.bot.outputs.token }}
+          ISSUE: ${{ github.event.issue.number }}
+          LABEL: ${{ github.event.label.name }}
+        run: bash .github/scripts/dor_set_status.sh "$ISSUE" "$LABEL"

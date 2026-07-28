@@ -1,0 +1,120 @@
+name: ✨ Feature request
+description: Propose a feature. The more of this you fill in, the faster it's ready to build — and the fewer questions you'll get back.
+title: "[FEATURE] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for proposing a feature! 🙌
+
+        This form front-loads the questions our readiness review would otherwise
+        ask you one at a time — the better you fill it in, the fewer back-and-forth
+        rounds before it's ready to build. Only the first few fields are required;
+        the rest genuinely help, but leave them blank if you're unsure.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem & value — what problem, for whom, and why now?
+      description: Describe the user or governance **need**, not a solution. Who feels this pain, and why does it matter now?
+      placeholder: "As a <role>, I can't <do X>, which means <consequence>. This matters now because …"
+    validations:
+      required: true
+
+  - type: textarea
+    id: outcome
+    attributes:
+      label: What should it let someone do?
+      description: The capability in a sentence or two — the observable outcome, not how it's built.
+    validations:
+      required: true
+
+  - type: textarea
+    id: delighted
+    attributes:
+      label: "✅ I'm delighted when…"
+      description: Fast-forward to seeing the finished feature — what would make you genuinely happy? These become the acceptance criteria.
+      placeholder: |
+        - I can see …
+        - It handles … correctly
+        - …
+    validations:
+      required: true
+
+  - type: textarea
+    id: disappointed
+    attributes:
+      label: "❌ I'm disappointed when…"
+      description: What would make you think "that's not what I meant"? Missing cases, wrong shape, too narrow, ugly? These become explicit reject criteria.
+      placeholder: |
+        - It only works on … but not …
+        - It looks …
+        - …
+    validations:
+      required: true
+
+  - type: dropdown
+    id: generality
+    attributes:
+      label: How general should this be?
+      description: Name your first case as the example, but tell us the scope you actually want — we'll build the general version if that's the intent.
+      options:
+        - "Just this one specific case"
+        - "A general capability (this case is only the first example)"
+        - "Not sure — let's decide together"
+    validations:
+      required: true
+
+  - type: textarea
+    id: completeness
+    attributes:
+      label: How complete? (optional)
+      description: "Beyond the bare minimum, what's in scope? e.g. just **view**, or also **edit** / **bulk**? just **existence**, or also **count** / **range**? inverse directions or adjacent cases?"
+    validations:
+      required: false
+
+  - type: textarea
+    id: not-do
+    attributes:
+      label: What it deliberately does NOT do (optional)
+      description: Anything you want to consciously leave out — it keeps the scope honest.
+    validations:
+      required: false
+
+  - type: input
+    id: reach
+    attributes:
+      label: Where should it appear? (optional)
+      description: One page/screen, or everywhere the pattern exists?
+    validations:
+      required: false
+
+  - type: textarea
+    id: related
+    attributes:
+      label: Related issues / dependencies (optional)
+      description: "Links to related or blocking issues. Does it need a real tenant / Azure / Excel / other infra to build or test? Say so — otherwise we'll assume not."
+    validations:
+      required: false
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots / examples (optional)
+      description: A screenshot, sketch, or example of where this fits — or what "good" looks like — is worth a lot. Drag images straight in here.
+    validations:
+      required: false
+
+  - type: dropdown
+    id: driver
+    attributes:
+      label: What's driving this now? (optional)
+      options:
+        - "A customer / user asked for it"
+        - "It unblocks other work"
+        - "Compliance / governance need"
+        - "Quality / tech-debt / cleanup"
+        - "Nice-to-have / idea"
+    validations:
+      required: false

@@ -1,0 +1,62 @@
+name: DoR authorize (org-member gate)
+description: >-
+  Mint an org-scoped token from the fortigi-ci-bot app and report whether an actor
+  is a Fortigi organization member. This is the mandatory gate for any DoR workflow
+  that runs on issues / issue_comment in this PUBLIC repo — those events run with
+  secrets for ANY commenter and are NOT covered by the fork-approval setting, so
+  org membership is the only real defense. The default GITHUB_TOKEN cannot answer
+  this (it is repo-scoped and cannot see private org membership); the BOT app token
+  carries Organization → Members: Read.
+
+inputs:
+  app-id:
+    description: BOT app client id (pass secrets.BOT_APP_ID).
+    required: true
+  private-key:
+    description: BOT app private key (pass secrets.BOT_PRIVATE_KEY).
+    required: true
+  actor:
+    description: The GitHub login to check (pass github.actor).
+    required: true
+
+outputs:
+  is-member:
+    description: "'true' if the actor is a Fortigi org member, else 'false'."
+    value: ${{ steps.check.outputs.is-member }}
+  # No `token` output: the minted token is now scoped to Members:Read only, so it is
+  # useless for board/issue writes anyway. A workflow that needs to write the board
+  # (e.g. dor-triage / dor-board-sync) mints its OWN projects-scoped token separately.
+
+runs:
+  using: composite
+  steps:
+    - name: Mint org-scoped BOT token
+      id: bot-token
+      uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+      with:
+        client-id: ${{ inputs.app-id }}
+        private-key: ${{ inputs.private-key }}
+        owner: Fortigi
+        # Down-scope: this token only needs to answer GET /orgs/Fortigi/members/{user}.
+        # Without this it would carry the app's FULL grant (Issues + Projects write, org-wide).
+        permission-members: read
+
+    - name: Check Fortigi org membership
+      id: check
+      shell: bash
+      env:
+        GH_TOKEN: ${{ steps.bot-token.outputs.token }}
+        # Intermediate env var — never interpolate ${{ }} straight into the shell.
+        ACTOR: ${{ inputs.actor }}
+      run: |
+        set -euo pipefail
+        # GET /orgs/{org}/members/{user}: 204 = member, 404 = not a member.
+        # The token is an org-installed app token with Members:Read, so this reads
+        # private membership correctly (a repo-scoped token would return 302).
+        if gh api "orgs/Fortigi/members/${ACTOR}" --silent 2>/dev/null; then
+          echo "is-member=true" >> "$GITHUB_OUTPUT"
+          echo "::notice::${ACTOR} is a Fortigi organization member — authorized."
+        else
+          echo "is-member=false" >> "$GITHUB_OUTPUT"
+          echo "::notice::${ACTOR} is NOT a Fortigi organization member — DoR automation will not run."
+        fi
