@@ -23,7 +23,7 @@
     
     
       
-        <title>Definition of Ready v3.3 — the "ready-to-build" process - Identity Atlas</title>
+        <title>Definition of Ready v3.4 — the "ready-to-build" process - Identity Atlas</title>
       
     
     
@@ -76,7 +76,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#definition-of-ready-v33-the-ready-to-build-process" class="md-skip">
+        <a href="#definition-of-ready-v34-the-ready-to-build-process" class="md-skip">
           Skip to content
         </a>
       
@@ -115,7 +115,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Definition of Ready v3.3 — the "ready-to-build" process
+              Definition of Ready v3.4 — the "ready-to-build" process
             
           </span>
         </div>
@@ -3741,7 +3741,7 @@
   
 
 
-<h1 id="definition-of-ready-v33-the-ready-to-build-process">Definition of Ready v3.3 — the "ready-to-build" process<a class="headerlink" href="#definition-of-ready-v33-the-ready-to-build-process" title="Permanent link">&para;</a></h1>
+<h1 id="definition-of-ready-v34-the-ready-to-build-process">Definition of Ready v3.4 — the "ready-to-build" process<a class="headerlink" href="#definition-of-ready-v34-the-ready-to-build-process" title="Permanent link">&para;</a></h1>
 <p><strong>Purpose.</strong> Produce a spec complete enough that building, testing and documenting run with <strong>zero <em>functional</em> human decisions and zero silent <em>functional</em> assumptions</strong> — while spending the fewest possible <strong>human round-trips</strong>. Non-functional decisions (architecture, design/UX, product fit) are <strong>routed to the role that owns them</strong>, <em>batched</em>, and resolved in as few interactions as possible. <em>Form</em> is expected to need a <strong>feedback loop</strong>. Every feature is tracked by a <strong>GitHub issue</strong> that is its durable spine from intent to close.</p>
 <p><strong>The realistic bar.</strong> "One perfect spec → build once" is reachable for <strong>function</strong>, not <strong>form</strong>. Front-load every <em>functional</em> decision; route every <em>architectural / design / product</em> decision to its owner; keep round-trips minimal; treat post-build feedback as a normal, cheap loop.</p>
 <hr />
@@ -3749,27 +3749,41 @@
 <pre class="mermaid"><code>flowchart TD
   classDef req fill:#dbeafe,stroke:#3b82f6,color:#0b1f4d
   classDef ai fill:#ede9fe,stroke:#7c3aed,color:#2a0f52
-  classDef arch fill:#dcfce7,stroke:#16a34a,color:#0a2e14
-  classDef po fill:#ffe4e6,stroke:#e11d48,color:#4a0a1e
+  classDef pb fill:#ffe4e6,stroke:#e11d48,color:#4a0a1e
+  classDef term fill:#e5e7eb,stroke:#6b7280,color:#111827
 
-  start([Feature idea]):::req --&gt; pre{PO pre-screen}:::po
-  pre --&gt;|no| drop([Park / drop]):::po
-  pre --&gt;|yes| issue[/Create tracking issue&lt;br/&gt;label needs-clarification · seed intent/]:::ai
-  issue --&gt; intv[Phase A — Intent interview&lt;br/&gt;GENERATIVE · scope battery · time-travel]:::ai
-  intv --&gt; probe[Phase B — probe · adversarial · CI dry-run&lt;br/&gt;decisions register + ACs recorded in the issue]:::ai
-  probe --&gt;|re-probe until nothing new — AI only, no human| probe
-  probe --&gt; collate[Collate ONCE: decisions to ratify +&lt;br/&gt;blocking questions grouped by role]:::ai
-  collate --&gt; packet[[Single consolidated packet&lt;br/&gt;batched per role · one packet if one person]]:::ai
-  packet --&gt; c1[Requestor: answer + confirm → label ready-to-build]:::req
-  packet --&gt; c2[Architect: answer + sign off]:::arch
-  packet --&gt; c3[Designer confirm + PO GO → label approved]:::po
-  c1 --&gt; build
-  c2 --&gt; build
-  c3 --&gt; build[Autonomous build on SK3 · impl · fixture-AC tests ·&lt;br/&gt;load demo data if runtime · docs · PR Closes #N · CI green · deploy → build-done]:::ai
-  build --&gt; val{Requestor functional validation&lt;br/&gt;vs ACs + time-travel criteria}:::req
-  val --&gt;|disappointed / form / missed scope| fb[Feedback = new intent · comment on issue]:::req
-  fb --&gt; intv
-  val --&gt;|happy| appr[Approve PR → merge → close issue with outcome comment]:::req</code></pre>
+  start(["Requestor: creates issue"]):::req --&gt; look
+  look["AI: looks at the issue — runs the full checklist&lt;br/&gt;INCLUDING the build-readiness probe&lt;br/&gt;(drafts the real implementation vs. the live code/schema)"]:::ai
+  look --&gt; q{"Open items from&lt;br/&gt;checklist + probe?"}:::ai
+
+  q --&gt;|"Question for the requestor"| aw_req["Status: Awaiting requestor&lt;br/&gt;requestor answers in the issue"]:::req
+  q --&gt;|"Question for someone else&lt;br/&gt;(designer / architect / PO)"| aw_des["Status: Awaiting design&lt;br/&gt;the best actor answers in the issue"]:::pb
+  q --&gt;|"Too large"| decomp["Status: Decompose&lt;br/&gt;split into slices (new issues)"]:::term
+  q --&gt;|"Needs tenant / Azure / Excel / infra"| blocked["Status: Blocked (external)&lt;br/&gt;parked until resolved"]:::term
+  q --&gt;|"Not a feature (CI / meta)"| oop["Status: Out of pipeline"]:::term
+
+  aw_req --&gt; look
+  aw_des --&gt; look
+
+  q --&gt;|"None — spec complete and buildable"| ready["AI: Status to Awaiting approval&lt;br/&gt;feature ready for fully autonomous build"]:::ai
+  ready --&gt; gate{"Product Board already&lt;br/&gt;approved this feature?"}:::pb
+  gate --&gt;|"Yes (a later pass)"| build
+  gate --&gt;|"No (first time)"| pbval["Product Board: is this feature&lt;br/&gt;worth building? (value gate)"]:::pb
+  pbval --&gt; pbdec{"Approve?"}:::pb
+  pbdec --&gt;|"No"| closed(["Product Board closes the issue&lt;br/&gt;with an explanation — case closed"]):::term
+  pbdec --&gt;|"Yes"| build
+
+  build["AI: builds and tests (loop),&lt;br/&gt;opens PR + CI green,&lt;br/&gt;deploys a functional test env"]:::ai
+  build --&gt; ftest["Requestor: functional testing&lt;br/&gt;on the test env, updates the issue"]:::req
+  ftest --&gt; happy{"Requestor happy?"}:::req
+  happy --&gt;|"No — findings"| look
+  happy --&gt;|"Yes"| merge{"Product Board:&lt;br/&gt;final go / no-go on merge"}:::pb
+  merge --&gt;|"Needs adjustments"| look
+  merge --&gt;|"Reject"| closed
+  merge --&gt;|"Go"| merged(["Product Board merges the PR to main"]):::pb</code></pre>
+<blockquote>
+<p><strong>Note — flowchart corrected (this is the authoritative process).</strong> It differs from the phase prose further below in two ways that the prose is still being reconciled to: (1) the <strong>Product Board decision sits <em>after</em> the spec is complete</strong> — a value gate on the <strong>first pass only</strong>, not a front-of-line pre-screen (feedback loops skip it); and (2) there is a <strong>final Product-Board go / no-go on merge</strong> (go · needs-adjustments · reject). The build-readiness probe runs <strong>inside</strong> the AI's "looks at the issue" step; its questions must all clear before the Product Board looks.</p>
+</blockquote>
 <h2 id="roles-lanes">Roles (lanes)<a class="headerlink" href="#roles-lanes" title="Permanent link">&para;</a></h2>
 <p>One human may wear several hats. The point is not headcount; it's that <strong>each question is answered by the right <em>hat</em>, a hat with no open question is not consulted, and a hat is touched as few times as possible.</strong></p>
 <table>
@@ -3886,6 +3900,7 @@
 <li><strong>v3 → v3.1:</strong> round-trip discipline — exhaust AI work first, prefer proposed-decisions, batch per role, ≈two touchpoints.</li>
 <li><strong>v3.1 → v3.2:</strong> efficiency had starved the interview — made Phase A generative with the scope battery; validation-data seeding; AC-result transparency.</li>
 <li><strong>v3.2 → v3.3:</strong> the gate labels had no home and the decisions trail died with the session — added the <strong>tracking issue</strong> as the durable spine (created at pre-screen, decisions in the body, trail in comments, labels ride it, <code>Closes #N</code>, closed with an outcome comment). Made the validation-data load use the <strong>full demo dataset</strong> and scoped it to features with a runtime surface.</li>
+<li><strong>v3.3 → v3.4:</strong> corrected the process flowchart to match how the pipeline actually runs: the <strong>build-readiness probe is explicit inside the AI's "looks at the issue" step</strong> (its questions must all clear first); open items route to <em>Awaiting requestor</em> / <em>Awaiting design</em>, or to <em>Decompose / Blocked / Out-of-pipeline</em>; <strong>Product-Board value-approval moved to <em>after</em> the spec is ready and only on the first pass</strong> (was a front-of-line pre-screen; feedback loops now skip it); and a <strong>final Product-Board go / no-go on merge</strong> was added (go · needs-adjustments · reject). Phase A–D prose still to be reconciled to this flow.</li>
 </ul>
 
 
