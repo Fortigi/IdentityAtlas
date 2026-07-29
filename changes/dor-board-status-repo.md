@@ -1,1 +1,0 @@
-- Fixed the opt-in Definition-of-Ready automation so an issue's Feature Pipeline board status updates correctly after the review agent runs (the board-sync helper was mis-reading the repository name and failing the update).

@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Fixed the opt-in Definition-of-Ready automation so an issue's Feature Pipeline board status updates correctly after the review agent runs (the board-sync helper was mis-reading the repository name and failing the update).
+
+## Changes in this PR
+
 - Fixed the opt-in Definition-of-Ready automation so its review agent can actually record its findings — a tool-permission mismatch was silently blocking it from writing its comment and routing decision, leaving reviewed issues untouched.
 
 ## Changes in this PR
