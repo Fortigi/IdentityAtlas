@@ -26,6 +26,8 @@ The **foundation prerequisites are in place** — board #2 (Status = canonical p
 
 **Kill-switch.** Every DoR workflow is **inert until repo variable `DOR_ENABLED=true`** — the whole set can merge and be smoke-tested before anything runs.
 
+**Live board — which issue is in which phase:** [github.com/orgs/Fortigi/projects/2](https://github.com/orgs/Fortigi/projects/2) (grouped by **Status**, the canonical phase). The [end-to-end map](#end-to-end-map--build-side-design-v2--pooled-sidekicks) below is its legend.
+
 ### Roles → GitHub identity
 
 | Role | Owns / answers | GitHub identity |
@@ -112,6 +114,41 @@ The `dor-agent` reads **untrusted public-issue content** while `claude-code-acti
 - **Multi-persona review (idea 1) — in phase 1.** The agent runs its "looks at the issue" step through several **persona lenses** — requestor · architect · designer · product · **security** · **data-quality / edge-cases** · end-user — so gaps surface in a single pass (fewer human round-trips). Anchored to the DoR roles; ~5–7 lenses, not twenty. (The pattern is gstack's multi-persona idea; gstack itself is a local tool that does not run in the Action — the agent carries the lenses in its prompt / via sub-reviewers.)
 - **Cross-model "outside voice" verify (idea 2) — v2.** A second, independent-provider model reviews the probe's adversarial pass (different blind spots catch different defects). **Constraint:** OpenAI's ChatGPT subscription is **not** usable in CI — Codex ChatGPT-sign-in is interactive/local only, automation uses a pay-per-token API key — so an OpenAI outside-voice bills API credits, it does **not** ride the ChatGPT plan (unlike Claude Max, which does work in Actions). Try **Opus-5 verifying Fable-5** first (same provider, on the Max subscription, still meaningful diversity); reach for the OpenAI outside-voice only if that isn't skeptical enough.
 
+## End-to-end map & build-side design (v2 — pooled sidekicks)
+
+**Live board (which issue is in which phase):** [github.com/orgs/Fortigi/projects/2](https://github.com/orgs/Fortigi/projects/2) — the **Status** field is the canonical phase; this table is the legend. Phase 1 above ships rows **1–6 + 15** (live); rows **8–13** are the build side (design). Cloud = ☁️ (GitHub-hosted runners, reuses existing CI); private = 🔒 (a pool sidekick VM).
+
+| # | Step | Actor / type | Trigger | Automate via | Runs on |
+|---|---|---|---|---|---|
+| 1 | Issue created → auto-add to board, set *Ready for AI probe* | human + Action | `issues.opened` | native Projects auto-add + Action | ☁️ **Cloud** |
+| 2 | **AI looks — interview + build-readiness probe** | **AI** | issue opened / comment / moved back | `claude-code-action` headless | ☁️ **Cloud** |
+| 3 | Route → *Awaiting requestor/design* or *Decompose/Blocked/Out* | AI (`state:*` label) | probe output | part of step 2 | ☁️ Cloud |
+| 4 | Human answers the question | **human** | — | — | 🌐 browser |
+| 5 | Re-probe when an answer lands | AI | `issue_comment.created` | `claude-code-action` | ☁️ Cloud |
+| 6 | Spec complete → *Awaiting approval* | AI (sets Status) | probe output | Action | ☁️ Cloud |
+| 7 | **① VALUE GATE — "worth building?"** | **HUMAN GATE** | build job pauses | Actions Environment + required reviewers (Product Board) | 🌐 GitHub UI |
+| 8 | **AI build on the sidekick** — implement → `docker build` + run at `n.build…` → self-validate (build green? renders? smoke passes?) → **open PR** | **AI (self-hosted)** | on approval | `claude-code-action` on a pool runner + Docker | 🔒 **Pool VM** |
+| 9 | **PR CI** — unit + contract (testcontainers) + lint + coverage/complexity/filesize ratchets | CI | PR opened | existing CI | ☁️ **Cloud** |
+| 10 | Build-done → *Awaiting functional acceptance* | Action (sets Status) | PR green + live | Action | ☁️ Cloud |
+| 11 | Functional validation (click around `n.build…`) | **human** | — | — | 🌐 → 🔒 pool VM |
+| 12 | **② MERGE GATE — final go / no-go** | **HUMAN GATE** | PR review | branch protection + CODEOWNERS | 🌐 GitHub UI |
+| 13 | Merge → *Done*; **reset sidekick** (`down -v` + prune images/volumes, return to pool) | Action + sidekick runner | on merge/reject | Action + runner reset job | ☁️ + 🔒 (reset) |
+| 14 | Feedback ("not happy") → back to AI looks | human → AI | `/feedback` / reopen | `claude-code-action` re-run | ☁️ Cloud |
+| 15 | Board upkeep: `state:*` → Status sync, reconcile | Action | `issues.labeled` / nightly cron | Action | ☁️ Cloud |
+
+**The entire private-infra footprint is the sidekick pool (rows 8, 11, 13).** Everything else — the whole spec side *and* PR CI — is cloud, reusing the current CI.
+
+### Build-side design (v2): a pre-enrolled pool, not provision-per-build
+
+- **Pool, not per-build provisioning.** N always-on sidekicks (`1.build.identityatlas.io`, `2…`, `3…`, …), each configured **once, in advance**: a standard Traefik vhost + one self-hosted GitHub runner (label `dor-build`) that controls only *its own* Docker. Two are enrolled today; more added over time. This deletes the old "provision a fresh VM + mint a Traefik route per build" step (former row 8) entirely.
+- **No runner holds hypervisor or Traefik credentials.** A sidekick runner can `docker build/up/down` on its own box and nothing else — the most dangerous credential in the v1 design (Proxmox + Traefik on a long-lived control-plane runner) is gone. "Acquire a sidekick" is native GitHub runner-pool dispatch (`runs-on: [self-hosted, dor-build]`), so there is **no custom orchestrator to build**.
+- **The AI builds *on* the sidekick, with a live env (row 8).** After the value gate the implement step runs on a pool runner, so the model can `docker build`, run the stack at the sidekick's fixed URL, and check its own work — build green? page renders? smoke passes? — **before** opening the PR. Cloud CI (row 9) then runs on the PR as the objective gate. Writing code with the ability to actually run it beats commit-blind-and-wait; it also makes the live browsable env a by-product of the build rather than a separate deploy step.
+- **Reservation across the validation window (rows 8 → 13).** A build can't deploy-and-exit, or the freed runner would pick up the next build and clobber the stack a human is still validating at row 11 (which can take weeks). So a sidekick is **reserved** for one feature from build through merge/reject: the job takes its own runner offline (or drops its `available` label) and records a durable `sidekick → issue` mapping; the reset job re-enables it on completion. A finite pool ⇒ a finite number of parallel builds — the throughput knob you widen by enrolling more sidekicks.
+- **Reset, not teardown (row 13).** On merge or reject the sidekick runs `docker compose down -v` + an image/volume prune back to a clean baseline, then re-registers as available. No VM lifecycle, no hypervisor calls — a fast recycle.
+- **Security.** Post-value-gate the sidekick runner holds the Claude subscription token and runs AI-authored code with a shell — acceptable because its input is the **approved** spec (human-gated at row 7), not raw public-issue text, and each run is isolated to a VM that is reset between uses. The pool must be reachable **only** by the controlled post-approval dispatch — **never** by `pull_request` from a fork (self-hosted runner + untrusted fork PR = arbitrary code execution). Human browse access to `n.build…` stays behind the existing authentik/Traefik forward-auth against the Fortigi tenant.
+
+> **This supersedes** the *provision-per-build* model in **Topology** and the **Control-plane worker contract** below — a long-lived runner holding Proxmox + Traefik creds that creates/destroys a VM per feature. Those sections predate this simplification; the pooled model above is the current plan. Former row 8 (provision) and the VM-teardown half of row 13 are gone.
+
 ## Goals & principles
 
 - **Scale & parallelism.** Many features in flight at once, across the team, on heterogeneous infrastructure (each colleague can host their own sidekicks).
@@ -122,6 +159,8 @@ The `dor-agent` reads **untrusted public-issue content** while `claude-code-acti
 - **No new orchestration product unless it earns it.** Code-defined GitHub Actions (in-repo, reviewable, and the only place you get native RBAC gates) over a GUI tool like n8n — reach for n8n only if non-engineers will own the flows.
 
 ## Topology
+
+> **⚠️ Superseded on the build side** by [Build-side design (v2): a pre-enrolled pool](#build-side-design-v2-a-pre-enrolled-pool-not-provision-per-build). The control-plane runner + per-build VM provisioning below is the earlier design; the current plan is a pre-enrolled pool of sidekicks whose runners hold no Proxmox/Traefik creds. The spec-side topology (GitHub → cloud runners) is unchanged.
 
 ```mermaid
 flowchart LR
