@@ -102,8 +102,11 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           # Model: Fable 5 by default (Max-only on subscription); set repo var DOR_PROBE_MODEL to
-          # claude-opus-5 when off the Max plan. Tools: read + write files only.
-          claude_args: "--model ${{ vars.DOR_PROBE_MODEL || 'claude-fable-5' }} --fallback-model claude-opus-5 --allowedTools Read,Grep,Glob,Write(.dor/out/**)"
+          # claude-opus-5 when off the Max plan. Tools: read anything + create/edit files under .dor/out only.
+          # NB: file-permission rules only match Edit(path)/Read(path) — a Write(path) rule is accepted but
+          # NEVER matched by Claude Code, so it silently denies every write. Use Edit() to scope file output;
+          # the Edit tool creates new files (and parent dirs) too. See permissions docs (v2.1.210+).
+          claude_args: "--model ${{ vars.DOR_PROBE_MODEL || 'claude-fable-5' }} --fallback-model claude-opus-5 --allowedTools Read,Grep,Glob,Edit(.dor/out/**)"
           prompt: |
             You are the Definition-of-Ready (DoR) agent for the IdentityAtlas repository, reviewing
             issue #${{ github.event.issue.number }} in ${{ github.repository }}. This is the "AI looks
@@ -111,7 +114,8 @@ jobs:
             probe against the REAL code + schema, and choose exactly one route — with the FEWEST human
             round-trips.
 
-            YOUR ONLY OUTPUTS ARE TWO FILES (you have Read/Grep/Glob/Write — no shell, no network):
+            YOUR ONLY OUTPUTS ARE TWO FILES — create them with the Edit tool (you have
+            Read/Grep/Glob/Edit — no Write, no shell, no network):
               • .dor/out/comment.md — the single Markdown comment to post to the issue.
               • .dor/out/route.txt  — exactly ONE token on one line, the chosen state label, one of:
                   state:awaiting-requestor | state:awaiting-design | state:decompose |
@@ -197,11 +201,11 @@ jobs:
           owner: Fortigi
           permission-organization-projects: write
           permission-issues: read          # dor_set_status.sh must read the issue node id first
-      # Undo any workspace tampering by the (Write-capable) reasoning step BEFORE we execute any repo
+      # Undo any workspace tampering by the (Edit-capable) reasoning step BEFORE we execute any repo
       # script: restore all tracked .github files to their committed state. Closes the "model writes a
       # malicious dor_set_status.sh, and the post step executes it with tokens in env" escalation —
-      # even if the Write(.dor/out/**) path-scope is not honoured by the CLI, this guarantees the
-      # executed helper is the committed one. (Write to .dor/out is intentional and handled as DATA below.)
+      # even if the Edit(.dor/out/**) path-scope is not honoured by the CLI, this guarantees the
+      # executed helper is the committed one. (Edits to .dor/out are intentional and handled as DATA below.)
       - name: Restore repo scripts (defuse Write→exec)
         run: git restore --source=HEAD --staged --worktree -- .github
 
