@@ -1,1 +1,0 @@
-- Fixed the opt-in Definition-of-Ready automation so its review agent can actually record its findings — a tool-permission mismatch was silently blocking it from writing its comment and routing decision, leaving reviewed issues untouched.

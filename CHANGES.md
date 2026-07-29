@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Fixed the opt-in Definition-of-Ready automation so its review agent can actually record its findings — a tool-permission mismatch was silently blocking it from writing its comment and routing decision, leaving reviewed issues untouched.
+
+## Changes in this PR
+
 - Added a structured "Feature request" issue form that front-loads intent (problem & value, "I'm delighted when… / disappointed when…", scope, and how general it should be) so proposals arrive closer to ready-to-build.
 - Added an opt-in Definition-of-Ready automation (off by default) that reviews new feature issues, tracks them on the Feature Pipeline board, and flags stuck or out-of-sync items via a daily health sweep.
 
