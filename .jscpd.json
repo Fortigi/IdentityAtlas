@@ -13,6 +13,7 @@
     "**/package-lock.json",
     "CHANGES.md",
     "changes/**",
-    "**/__snapshots__/**"
+    "**/__snapshots__/**",
+    ".github/workflows/**"
   ]
 }
