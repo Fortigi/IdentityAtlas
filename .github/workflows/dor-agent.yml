@@ -8,9 +8,9 @@ name: DoR agent (interview + probe)
 # EXECUTION MODEL — a deterministic split, to contain prompt injection on a PUBLIC repo where
 # issue/comment content is attacker-controllable:
 #   1. FETCH  (deterministic)  — read the issue thread + backlog into files.
-#   2. REASON (LLM, sandboxed) — claude-code-action with Read/Grep/Glob/Write ONLY: no shell, no
-#      gh, no network. The model reads those files + the repo and WRITES its decision to output
-#      files. Without a shell it cannot curl/gh to exfiltrate the subscription token in its env.
+#   2. REASON (LLM, sandboxed) — claude-code-action with Read/Grep/Glob + Edit(.dor/out/**) ONLY:
+#      no shell, no gh, no network. The model reads those files + the repo and writes its decision
+#      to output files. Without a shell it cannot curl/gh to exfiltrate the subscription token in its env.
 #   3. POST   (deterministic)  — validate the chosen label against a fixed allow-list, scan the
 #      output for the token (egress filter), then post the comment + set the one label.
 # Documented residual: the model's Read tool could in principle reach /proc/self/environ; the
@@ -94,7 +94,7 @@ jobs:
           gh issue list --repo "$REPO" --state open --limit 100 \
             --json number,title,labels > .dor/in/backlog.json
 
-      # 2. REASON (LLM, sandboxed) — Read/Grep/Glob/Write ONLY. No GH_TOKEN in this step's env;
+      # 2. REASON (LLM, sandboxed) — Read/Grep/Glob + Edit(.dor/out/**) ONLY. No GH_TOKEN in this step's env;
       #    no shell/gh/network tool, so untrusted issue content cannot shell out or exfiltrate the
       #    subscription token. The model's only outputs are the two files it writes.
       - name: DoR interview + probe (reasoning only)

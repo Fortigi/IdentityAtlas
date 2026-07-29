@@ -15,6 +15,10 @@ ISSUE="${1:?usage: dor_set_status.sh <issue-number> <state-label>}"
 LABEL="${2:?usage: dor_set_status.sh <issue-number> <state-label>}"
 OWNER="${OWNER:-Fortigi}"
 REPO="${REPO:-IdentityAtlas}"
+# Accept an owner-qualified REPO (GitHub Actions' github.repository is "owner/name"). Callers that
+# also `gh --repo "$REPO"` pass the qualified form, so split it — otherwise the GraphQL
+# repository(owner,name) lookup below gets name="owner/name" and 404s ("owner/owner/name").
+if [[ "$REPO" == */* ]]; then OWNER="${REPO%%/*}"; REPO="${REPO##*/}"; fi
 PROJECT_ID="${PROJECT_ID:-PVT_kwDOAhfTz84Bern-}"
 STATUS_FIELD_ID="${STATUS_FIELD_ID:-PVTSSF_lADOAhfTz84Bern-zhZEAac}"
 REQ_FIELD_ID="${REQ_FIELD_ID:-PVTSSF_lADOAhfTz84Bern-zhZEFTM}"

@@ -13,6 +13,9 @@ set -euo pipefail
 
 OWNER="${OWNER:-Fortigi}"
 REPO="${REPO:-IdentityAtlas}"
+# Accept an owner-qualified REPO (github.repository = "owner/name"); split so `--repo "$OWNER/$REPO"`
+# below doesn't become "owner/owner/name". Same guard as dor_set_status.sh.
+if [[ "$REPO" == */* ]]; then OWNER="${REPO%%/*}"; REPO="${REPO##*/}"; fi
 PROJECT_ID="${PROJECT_ID:-PVT_kwDOAhfTz84Bern-}"
 UNROUTED_HOURS="${UNROUTED_HOURS:-6}"
 STALE_FLAG_DAYS="${STALE_FLAG_DAYS:-14}"
