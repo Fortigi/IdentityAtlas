@@ -219,40 +219,5 @@ jobs:
           GH_CONFIG_DIR: ${{ runner.temp }}/dor-ghcfg
           # Present ONLY so this deterministic step can scan the agent output for leaked tokens.
           OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-        run: |
-          set -euo pipefail
-          comment=".dor/out/comment.md"
-          routefile=".dor/out/route.txt"
-          route="$(tr -d '[:space:]' < "$routefile" 2>/dev/null || true)"
-
-          # 3a. Route must be exactly one allowed state label (or 'none' = no action).
-          case "$route" in
-            none|"")
-              echo "::notice::Agent chose no action this run."; exit 0 ;;
-            state:awaiting-requestor|state:awaiting-design|state:decompose|state:blocked-external|state:out-of-pipeline|state:awaiting-approval)
-              : ;;
-            *)
-              echo "::error::Agent returned an invalid route '${route}' — refusing to act."; exit 1 ;;
-          esac
-
-          # 3b. Egress filter: never post if the agent output contains ANY live token reachable in the
-          #     reasoning step's env — the subscription token OR the injected github.token (which the
-          #     action places in env + .git/config, so a no-Bash Read could still reach it).
-          for secret in "${OAUTH_TOKEN:-}" "${GH_TOKEN:-}"; do
-            [ -n "$secret" ] || continue
-            if grep -qF -- "$secret" "$comment" "$routefile" 2>/dev/null; then
-              echo "::error::Agent output contains a live token — aborting (possible injection)."; exit 1
-            fi
-          done
-
-          if [ ! -s "$comment" ]; then echo "::error::No comment body produced."; exit 1; fi
-
-          # 3c. Post the comment, then set exactly one state:* label (remove all the others).
-          gh issue comment "$ISSUE" --repo "$REPO" --body-file "$comment"
-          all="state:awaiting-requestor state:awaiting-design state:ready-to-probe state:awaiting-approval state:decompose state:blocked-external state:out-of-pipeline"
-          remove=""
-          for l in $all; do [ "$l" != "$route" ] && remove="${remove:+$remove,}$l"; done
-          gh issue edit "$ISSUE" --repo "$REPO" --add-label "$route" --remove-label "$remove"
-
-          # Sync the board Status to the chosen route (board-scoped BOT token, NOT the LLM's).
-          GH_TOKEN="$BOARD_TOKEN" bash .github/scripts/dor_set_status.sh "$ISSUE" "$route"
+        # Route allow-list + egress token-scan + comment/label/board-sync, shared with the bug agent.
+        run: bash .github/scripts/dor_post_decision.sh

@@ -1,0 +1,39 @@
+name: DoR blank-issue triage
+
+# A blank (unformatted) issue — neither the Feature Form (label `enhancement`) nor the Bug Form
+# (label `bug`) — is the manual escape hatch. We keep it, but make sure it doesn't fall through the
+# cracks: assign the maintainers so they're notified, and label it `needs-triage` for filtering.
+# Deterministic — no LLM, no board write. Inert until repo variable DOR_ENABLED=true.
+
+on:
+  issues:
+    types: [opened]
+
+permissions: {}
+
+concurrency:
+  group: dor-blank-triage-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  triage:
+    if: >-
+      vars.DOR_ENABLED == 'true' &&
+      github.event.sender.type != 'Bot' &&
+      !github.event.issue.pull_request &&
+      !contains(github.event.issue.labels.*.name, 'enhancement') &&
+      !contains(github.event.issue.labels.*.name, 'bug')
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Assign maintainers + label needs-triage
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE: ${{ github.event.issue.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          gh issue edit "$ISSUE" --repo "$REPO" \
+            --add-label needs-triage \
+            --add-assignee WimvandenHeijkant,TaekeK,robb536

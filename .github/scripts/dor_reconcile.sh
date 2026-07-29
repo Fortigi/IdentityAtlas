@@ -17,6 +17,7 @@ REPO="${REPO:-IdentityAtlas}"
 # below doesn't become "owner/owner/name". Same guard as dor_set_status.sh.
 if [[ "$REPO" == */* ]]; then OWNER="${REPO%%/*}"; REPO="${REPO##*/}"; fi
 PROJECT_ID="${PROJECT_ID:-PVT_kwDOAhfTz84Bern-}"
+LABEL="${LABEL:-enhancement}"                 # gate label for this pipeline (enhancement | bug)
 UNROUTED_HOURS="${UNROUTED_HOURS:-6}"
 STALE_FLAG_DAYS="${STALE_FLAG_DAYS:-14}"
 HEALTH_TITLE="${HEALTH_TITLE:-DoR pipeline health}"
@@ -64,14 +65,14 @@ on_board()        { printf '%s\n' "$board" | awk -F'\t' -v n="$1" '$1==n {f=1} E
 # 2. Walk every OPEN enhancement issue. Capture the list first so a transient failure aborts under
 #    set -e rather than silently reporting "healthy"; state_label is LAST so an empty label (the
 #    common case) is a trailing field that `read` strips cleanly instead of shifting the columns.
-issues_tsv="$(gh issue list --repo "$OWNER/$REPO" --state open --label enhancement --limit 201 \
+issues_tsv="$(gh issue list --repo "$OWNER/$REPO" --state open --label "$LABEL" --limit 201 \
   --json number,labels,createdAt,updatedAt \
   --jq '.[] | [(.number|tostring),
                (.createdAt | fromdateiso8601 | tostring),
                (.updatedAt | fromdateiso8601 | tostring),
                ([.labels[].name | select(startswith("state:"))][0] // "")] | @tsv')"
 if [ "$(printf '%s' "$issues_tsv" | grep -c .)" -ge 201 ]; then
-  add_ex "⚠️ Over 200 open enhancement issues — reconcile inspected only the first 200; add pagination."
+  add_ex "⚠️ Over 200 open ${LABEL} issues — reconcile inspected only the first 200; add pagination."
   issues_tsv="$(printf '%s\n' "$issues_tsv" | head -n 200)"
 fi
 approval_backlog=0

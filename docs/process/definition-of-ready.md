@@ -120,6 +120,30 @@ Draft the actual implementation against the real code and schema — far enough 
 
 ---
 
+## Bugs — the reproduce-first variant
+
+Bug reports run the **same spine** (tracking issue · `state:*` routes · board Status · human GO) with
+one substitution: the "AI looks at the issue" step is a **reproduce-first probe**, not an intent
+interview. Bugs are the *easier* case — a feature's hard question ("is this the right thing to
+build?") is a judgment call, but a bug has an **objective Definition of Done: it no longer
+reproduces.**
+
+The probe, in order: **reproduce** the report statically against the real code **and the demo
+dataset** (evidence as `file:line`; does it reproduce on demo data, or only real tenant data?);
+pin the **root cause** at the layer that *produces* the wrong value (*fix at the source, not the
+surface*); map the **blast radius** (every consumer of what would change); and **draft the
+reproducing regression test** (red today, green once fixed) — which *is* the acceptance criterion and
+ratchets coverage by construction. Routes reuse the same set: confirmed + root-caused + red test →
+*Awaiting approval* (a light human **GO on the fix**); can't-reproduce / needs detail → *Awaiting
+requestor*; needs real tenant/data → *Blocked (external)*; a fix with a genuine design tradeoff →
+*Awaiting design*; several bugs bundled → *Decompose*; not-a-bug → *Out of pipeline*.
+
+**Runtime** reproduction (running the fix against a live demo env until the red test goes green) is
+the deferred build-side step. Bugs live on their **own board** (Bug Pipeline, project #3) and are
+**org-members-only** (external reports are assigned to maintainers first). The wiring — `bug` gate
+label, `dor-bug-agent`, the Bug Form, and the shared scripts — is in
+[`operationalization.md`](operationalization.md#bug-pipeline-spec-side-live).
+
 ## Appendix — Definition of Done the probe must design against
 - **Coverage** — aggregate + per-file ratchet (only up) + diff-coverage. New code ships with tests.
 - **File size** — >1000 lines must split; >600 is a smell.
