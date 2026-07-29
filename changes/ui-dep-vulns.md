@@ -1,0 +1,1 @@
+- Patched known-vulnerable transitive dependencies (the `brace-expansion` denial-of-service and, in the API, the `postcss` path-traversal), clearing all high-severity `npm audit` findings in the API and UI.
