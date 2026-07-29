@@ -184,6 +184,7 @@ nav:
           - CI Scope Testing: architecture/ci-scope-testing.md
           - Release & Branching Strategy: architecture/branching-strategy.md
           - Definition of Ready: process/definition-of-ready.md
+          - Operationalising the DoR: process/operationalization.md
       - Design archive:
           - About the archive: architecture/design-archive.md
           - Context Redesign: architecture/context-redesign.md
