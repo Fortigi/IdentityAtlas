@@ -3593,6 +3593,111 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#phase-1-the-spec-side-grounded-build-status-2026-07-28" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 1 — the spec side (grounded build status, 2026-07-28)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Phase 1 — the spec side (grounded build status, 2026-07-28)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#spec-side-pipeline-steps-17-at-a-glance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Spec-side pipeline — steps 1–7 (at a glance)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#roles-github-identity" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Roles → GitHub identity
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ai-usage-per-workflow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        AI usage per workflow
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#model-auth-decision-why-fable-why-the-subscription" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Model + auth decision (why Fable, why the subscription)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#currently-in-place-vs-still-to-add" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Currently in place vs. still to add
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#open-decisions-from-the-grounded-survey-pin-these" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Open decisions from the grounded survey (pin these)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#security-note-the-dor-agents-injection-residual-phase-1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Security note — the DoR agent's injection residual (phase 1)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#considered-enhancements-roadmap" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Considered enhancements (roadmap)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#goals-principles" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3770,7 +3875,336 @@
 
 
 <h1 id="operationalising-the-definition-of-ready-automation-platform">Operationalising the Definition of Ready — automation platform<a class="headerlink" href="#operationalising-the-definition-of-ready-automation-platform" title="Permanent link">&para;</a></h1>
-<p><strong>Status: design — not yet built.</strong> This describes the system that <em>runs</em> the <a href="../definition-of-ready/">Definition of Ready</a> process at scale (multiple features, multiple people, multiple infrastructures, in parallel), and a work breakdown to build it end-to-end. No component here exists yet.</p>
+<p><strong>Status: phase 1 (the spec side) is in build; steps 8+ (build / validate / merge on a sidekick) remain design.</strong> This describes the system that <em>runs</em> the <a href="../definition-of-ready/">Definition of Ready</a> process at scale (multiple features, multiple people, multiple infrastructures, in parallel), and a work breakdown to build it end-to-end. The <strong>Phase 1</strong> section immediately below records what is actually built, decided, and grounded against the live repo/GitHub state (surveyed 2026-07-28); everything from <strong>Topology</strong> onward is the full aspirational design, most of which is not built yet.</p>
+<hr />
+<h2 id="phase-1-the-spec-side-grounded-build-status-2026-07-28">Phase 1 — the spec side (grounded build status, 2026-07-28)<a class="headerlink" href="#phase-1-the-spec-side-grounded-build-status-2026-07-28" title="Permanent link">&para;</a></h2>
+<p>Phase 1 automates the <strong>cloud-only spec side</strong>: everything up to and including reaching the <code>Awaiting approval</code> value gate (FSM <code>needs_clarification → awaiting_signoff → ready_to_build → approved</code>), then <strong>STOP</strong>. It runs entirely on <strong>GitHub-hosted runners</strong>, reusing the existing CI and secrets — <strong>no sidekick, no build job, no merge</strong>. Steps 8+ (provision a sidekick → implement → test → deploy → merge) are out of phase-1 scope and remain the design from <strong>Topology</strong> onward.</p>
+<h3 id="spec-side-pipeline-steps-17-at-a-glance">Spec-side pipeline — steps 1–7 (at a glance)<a class="headerlink" href="#spec-side-pipeline-steps-17-at-a-glance" title="Permanent link">&para;</a></h3>
+<p>The <strong>foundation prerequisites are in place</strong> — board #2 (Status = canonical phase), <code>state:*</code>/gate labels, the BOT app token (Projects R/W + Issues R/W + <strong>Members Read</strong>), <code>CLAUDE_CODE_OAUTH_TOKEN</code>, the <code>main</code> rulesets, and the D5 self-approve hole closed. The seven step-automations an issue travels through:</p>
+<table>
+<thead>
+<tr>
+<th>Step</th>
+<th>Stage</th>
+<th>Automation artifact</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td><strong>Intake</strong> — structured issue template (delighted/disappointed, does-NOT-do, generality)</td>
+<td><code>.github/ISSUE_TEMPLATE/feature_request.yml</code></td>
+<td>built (this PR)</td>
+</tr>
+<tr>
+<td>2</td>
+<td><strong>Triage</strong> — add-to-board · "Requested by" · known/unknown-requestor filter</td>
+<td><code>dor-triage.yml</code></td>
+<td>built (this PR)</td>
+</tr>
+<tr>
+<td>3</td>
+<td><strong>Interview</strong> — Phase-A generative intent, multi-persona lenses</td>
+<td><code>dor-agent.yml</code></td>
+<td>built (this PR)</td>
+</tr>
+<tr>
+<td>4</td>
+<td><strong>Route</strong> — requestor / design / off-ramp (Decompose · Blocked · Out)</td>
+<td><code>dor-agent</code> (label + Status) + <code>dor-board-sync.yml</code></td>
+<td>built (this PR)</td>
+</tr>
+<tr>
+<td>5</td>
+<td><strong>Probe</strong> — Phase-B build-readiness vs live code/schema → verdict</td>
+<td><code>dor-agent.yml</code></td>
+<td>built (this PR)</td>
+</tr>
+<tr>
+<td>6</td>
+<td><strong>Sign-off</strong> — spec complete → <em>Awaiting approval</em></td>
+<td><code>dor-agent</code> (label + Status)</td>
+<td>built (this PR)</td>
+</tr>
+<tr>
+<td>7</td>
+<td><strong>Value gate</strong> — Product-board GO (or park)</td>
+<td>manual Status move now / Environment gate later</td>
+<td>manual (auto = later phase)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Cross-cutting backstop — <code>dor-reconcile.yml</code> (level-triggered sweep, this PR).</strong> Steps 1–6 are edge-triggered (GitHub events), so a dropped webhook, a failed run, or a concurrency race could silently strand an issue. A <strong>daily scheduled</strong> reconcile re-derives desired state from <em>actual</em> state and heals or flags drift: an open <code>enhancement</code> issue missing from the board → add it; board Status ≠ <code>state:*</code> label → re-sync; on the board but un-routed after N hours → flag (the agent likely never ran); stale in <em>Awaiting requestor/design</em> → nudge then flag; <em>Awaiting approval</em> backlog → flag the Product board; closed-but-still-active → move to <em>Done</em>. Deterministic (no LLM), <strong>exception-only</strong> reporting, and it maintains a single <strong>"DoR pipeline health"</strong> tracking issue. Being level-triggered it self-corrects even if the cron itself slips.</p>
+<p><strong>Kill-switch.</strong> Every DoR workflow is <strong>inert until repo variable <code>DOR_ENABLED=true</code></strong> — the whole set can merge and be smoke-tested before anything runs.</p>
+<h3 id="roles-github-identity">Roles → GitHub identity<a class="headerlink" href="#roles-github-identity" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Role</th>
+<th>Owns / answers</th>
+<th>GitHub identity</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Requestor</strong></td>
+<td>intent, functional scope, the time-travel success/failure criteria</td>
+<td><strong>any Fortigi org member</strong> (live-enumerated allow-list — self-maintaining)</td>
+</tr>
+<tr>
+<td><strong>Design board</strong> (architect + designer)</td>
+<td>technical approach + form: registry-vs-engine, additive-vs-mutate, integrate-vs-standalone</td>
+<td><code>WimvandenHeijkant</code>, <code>TaekeK</code></td>
+</tr>
+<tr>
+<td><strong>Product board</strong> (the value GO + final merge go/no-go)</td>
+<td>desirability / product coherence — the GO</td>
+<td><code>WimvandenHeijkant</code>, <code>TaekeK</code>, <code>robb536</code> — <strong>any one suffices; nobody else may pass the value gate</strong></td>
+</tr>
+<tr>
+<td><strong>Builder (AI)</strong></td>
+<td>runs the Phase-A interview + Phase-B probe (later: builds)</td>
+<td>Claude via <code>claude-code-action</code></td>
+</tr>
+<tr>
+<td><strong>Unknown requestor</strong> (non-member opens an issue)</td>
+<td>—</td>
+<td><strong>deterministic triage</strong> (no AI): post a notice, assign Wim/Taeke/Rob, stop</td>
+</tr>
+</tbody>
+</table>
+<h3 id="ai-usage-per-workflow">AI usage per workflow<a class="headerlink" href="#ai-usage-per-workflow" title="Permanent link">&para;</a></h3>
+<p>AI is spent <strong>only where linguistic judgment is unavoidable</strong> (interviewing a human, reasoning a spec against live code). Board/label mechanics and the spam filter are deterministic — no tokens.</p>
+<table>
+<thead>
+<tr>
+<th>Workflow</th>
+<th>Kind</th>
+<th>Model</th>
+<th>Auth</th>
+<th>Cost</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>triage</strong> (add-to-board, "Requested by", unknown-requestor filter)</td>
+<td>deterministic — no LLM</td>
+<td>—</td>
+<td>BOT app token</td>
+<td>free (Actions minutes)</td>
+</tr>
+<tr>
+<td><strong>interview</strong> (Phase A — intent)</td>
+<td><strong>AI</strong></td>
+<td><strong>Fable 5 → Opus 5 fallback</strong></td>
+<td><code>CLAUDE_CODE_OAUTH_TOKEN</code> (Max subscription)</td>
+<td>subscription quota</td>
+</tr>
+<tr>
+<td><strong>probe</strong> (Phase B — build-readiness)</td>
+<td><strong>AI</strong></td>
+<td><strong>Fable 5 → Opus 5 fallback</strong></td>
+<td><code>CLAUDE_CODE_OAUTH_TOKEN</code> (Max subscription)</td>
+<td>subscription quota</td>
+</tr>
+<tr>
+<td><strong>board-sync</strong> (Status-field moves)</td>
+<td>deterministic — no LLM</td>
+<td>—</td>
+<td>BOT app token</td>
+<td>free</td>
+</tr>
+<tr>
+<td><strong>reconcile</strong> (daily drift-sweep + health issue)</td>
+<td>deterministic — no LLM</td>
+<td>—</td>
+<td>BOT app token</td>
+<td>free</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>The judgment-heavy, hard-to-verify phase (human language + deep code reasoning) gets the <strong>most capable</strong> model; everything else — triage, board-sync, the reconcile sweep, and the build phase (step 8+, mechanical + test-gated) — is deterministic or can use a lesser model.</p>
+</blockquote>
+<h3 id="model-auth-decision-why-fable-why-the-subscription">Model + auth decision (why Fable, why the subscription)<a class="headerlink" href="#model-auth-decision-why-fable-why-the-subscription" title="Permanent link">&para;</a></h3>
+<p>Interview + probe use <strong>Claude Fable 5</strong> (fallback <strong>Opus 5</strong> on refusal or when Fable is unavailable), authenticated with the <strong>subscription</strong> OAuth token (<code>CLAUDE_CODE_OAUTH_TOKEN</code> via <code>claude setup-token</code>) rather than per-token API credits — far cheaper at this volume. The catch is plan-gated:</p>
+<table>
+<thead>
+<tr>
+<th>Plan</th>
+<th>Fable 5</th>
+<th>Opus 5</th>
+<th>What the subscription token reaches</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Max</strong></td>
+<td>included (up to ~50% of weekly usage limits)</td>
+<td>included, default, no ceiling</td>
+<td><strong>Fable 5 — no credits</strong></td>
+</tr>
+<tr>
+<td><strong>Pro</strong></td>
+<td>metered pay-as-you-go <strong>credits</strong> only</td>
+<td>included, top model</td>
+<td>Opus 5 free; Fable would bill credits</td>
+</tr>
+</tbody>
+</table>
+<p>So <strong>Fable-via-subscription requires Max.</strong> Wim is on <strong>Max until 2026-08-19</strong>, then Pro for a holiday — after which the workflow degrades to <strong>Opus 5</strong> rather than burning credits. Gotcha: a known intermittent <code>validateHeaders</code> failure with Max OAuth tokens right after a Pro→Max upgrade → re-run <code>claude setup-token</code> and update the secret. (The fallback mechanism is TBD at build time: <code>claude-code-action</code> may not pass the API <code>fallbacks</code> param through, so "fall back to Opus" is likely workflow-level retry-with-opus.)</p>
+<h3 id="currently-in-place-vs-still-to-add">Currently in place vs. still to add<a class="headerlink" href="#currently-in-place-vs-still-to-add" title="Permanent link">&para;</a></h3>
+<p>Legend: <strong>in place</strong> = exists and usable today · <strong>partial</strong> = exists but needs reconciliation · <strong>build</strong> = phase-1 work to write now · <strong>blocked</strong> = phase-1 but gated on an external action · <strong>later</strong> = deferred to a subsequent phase · <strong>rec</strong> = recommended hardening.</p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Component</th>
+<th>Status</th>
+<th>Detail (grounded 2026-07-28)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Board — Projects #2 "IdentityAtlas — Feature Pipeline" (<code>PVT_kwDOAhfTz84Bern-</code>)</td>
+<td><strong>in place</strong></td>
+<td>65 items; <strong>Status</strong> single-select (<code>PVTSSF_…zhZEAac</code>, 11 options) is the canonical phase; <strong>Requested by</strong> single-select (<code>PVTSSF_…zhZEFTM</code>, only 5 options)</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Phase/state labels</td>
+<td><strong>in place</strong></td>
+<td>7 <code>state:*</code> labels + <code>ready-to-build</code> / <code>approved</code> / <code>build-done</code> gate labels</td>
+</tr>
+<tr>
+<td>3</td>
+<td>BOT app token (<code>fortigi-ci-bot</code>)</td>
+<td><strong>in place</strong></td>
+<td><strong>org Projects R/W + Issues R/W + Members Read</strong> (P1 + D1 granted &amp; validated); minted via <code>actions/create-github-app-token@v3.2.0</code></td>
+</tr>
+<tr>
+<td>4</td>
+<td><code>claude-code-action</code> availability</td>
+<td><strong>in place</strong></td>
+<td>pinned <code>@6c0083bb… # v1</code>; <code>CLAUDE_CODE_OAUTH_TOKEN</code> present</td>
+</tr>
+<tr>
+<td>5</td>
+<td>Merge / CI gates on <code>main</code></td>
+<td><strong>in place</strong></td>
+<td>rulesets: 1 approval + CODEOWNERS (<code>@taekek</code>, <code>@wimvandenheijkant</code>) + required checks (PR Summary, CI Passed, Integration CI Passed) + CodeQL; squash-only</td>
+</tr>
+<tr>
+<td>6</td>
+<td>Governance hardening (D5)</td>
+<td><strong>in place</strong></td>
+<td>"Actions can approve PRs" <strong>unticked</strong> (done); read-only <code>GITHUB_TOKEN</code> default staged pending a naked-workflow (<code>pr.yml</code>/<code>pr-integration.yml</code>) audit</td>
+</tr>
+<tr>
+<td>7</td>
+<td><strong><code>dor-authorize</code></strong> composite — org-member gate</td>
+<td><strong>built (this PR)</strong></td>
+<td>mints a <strong>Members:Read</strong>-scoped BOT token, <code>GET /orgs/Fortigi/members/{actor}</code>, fails closed; the only defense for public <code>issues</code>/<code>issue_comment</code></td>
+</tr>
+<tr>
+<td>8</td>
+<td><strong><code>feature_request.yml</code></strong> — intake form</td>
+<td><strong>built (this PR)</strong></td>
+<td>front-loads Phase A (delighted/disappointed, generality, screenshots); 5 required, rest optional</td>
+</tr>
+<tr>
+<td>9</td>
+<td><strong><code>dor-triage.yml</code></strong> — add-to-board + route by requestor</td>
+<td><strong>built (this PR)</strong></td>
+<td>member → board + Requested-by (D2) + initial Status; non-member → notice + assign Wim/Taeke/Rob</td>
+</tr>
+<tr>
+<td>10</td>
+<td><strong><code>dor-agent.yml</code></strong> — interview + probe (Phase A/B)</td>
+<td><strong>built (this PR)</strong></td>
+<td>Fable 5; <strong>no-Bash deterministic split</strong> (fetch → sandboxed reason → validated post); 7 persona lenses; sets comment + one <code>state:*</code> label + Status</td>
+</tr>
+<tr>
+<td>11</td>
+<td><strong><code>dor-board-sync.yml</code></strong> — label → Status reconciler</td>
+<td><strong>built (this PR)</strong></td>
+<td>BOT token; syncs Status when a human changes a <code>state:*</code> label</td>
+</tr>
+<tr>
+<td>12</td>
+<td><strong><code>dor_set_status.sh</code></strong> — board Status helper</td>
+<td><strong>built (this PR)</strong></td>
+<td>shared by triage/agent/board-sync/reconcile; option IDs resolved by name at runtime (regeneration-proof); idempotent add</td>
+</tr>
+<tr>
+<td>13</td>
+<td><strong><code>dor-reconcile.yml</code></strong> — level-triggered daily sweep</td>
+<td><strong>built (this PR)</strong></td>
+<td>heals board/label drift, flags stuck/failed/stale, maintains the "DoR pipeline health" issue — the backstop for the event-based design</td>
+</tr>
+<tr>
+<td>14</td>
+<td>Kill-switch — <code>DOR_ENABLED</code> repo variable</td>
+<td><strong>built (this PR)</strong></td>
+<td>every DoR workflow inert until set <code>true</code> — merge + smoke-test before enabling</td>
+</tr>
+<tr>
+<td>15</td>
+<td>B1 — canonical vocabulary</td>
+<td><strong>partial</strong></td>
+<td>Status field vs FSM labels unreconciled → <strong>Status field canonical</strong> (D3); the FSM diagram below is stale</td>
+</tr>
+<tr>
+<td>16</td>
+<td>B2 — guard (revert <em>illegal</em> transitions)</td>
+<td><strong>later</strong></td>
+<td>the reconcile sweep (#13) is the phase-1 drift backstop; hard illegal-transition <em>reverts</em> are a later addition</td>
+</tr>
+<tr>
+<td>17</td>
+<td>B3 — value-gate Environment (3 reviewers)</td>
+<td><strong>later</strong></td>
+<td>nothing to gate in phase 1 (no build job); the GO is a manual Status move by the Product board until the build workflow lands</td>
+</tr>
+<tr>
+<td>18</td>
+<td>B5 slash-commands · B6 tracking-issue bootstrap</td>
+<td><strong>later</strong></td>
+<td></td>
+</tr>
+<tr>
+<td>19</td>
+<td>A1–A7 sidekick lifecycle · C4 build · control-plane</td>
+<td><strong>later</strong></td>
+<td>step 8+; <code>[hypervisor session]</code> owner; full design below</td>
+</tr>
+</tbody>
+</table>
+<h3 id="open-decisions-from-the-grounded-survey-pin-these">Open decisions from the grounded survey (pin these)<a class="headerlink" href="#open-decisions-from-the-grounded-survey-pin-these" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>D1 — actor-gate token <em>(BLOCKS the org-member gate; org-admin action, like P1)</em>.</strong> The known-requestor allow-list must verify Fortigi org membership, and the default <code>GITHUB_TOKEN</code> can't (it isn't an org member and can't see private membership → returns HTTP 302, not 204/404). Options: <strong>(a)</strong> grant the <code>fortigi-ci-bot</code> app <strong>Organization → Members: Read</strong> and mint a gate token from it <em>(recommended — same one-time grant+accept as P1)</em>; <strong>(b)</strong> a fine-grained PAT with <code>read:org</code> (long-lived static secret); <strong>(c)</strong> a weaker <code>author_association == MEMBER/OWNER</code> check (only sees <strong>public</strong> members — silently denies private-visibility members). <strong>Chosen (2026-07-28): (a)</strong> — grant <code>fortigi-ci-bot</code> <strong>Organization → Members: Read</strong> and mint the gate token from it (pending the grant + installation-accept, same as P1).</li>
+<li><strong>D2 — "Requested by" field.</strong> Single-select with only 5 predefined options; the other org members have none, and adding options <strong>regenerates every option ID</strong> (orphaning the 65 items' assignments — a known GraphQL gotcha). <strong>Phase-1 default:</strong> set "Requested by" only when the opener matches an existing option; otherwise leave it blank.</li>
+<li><strong>D3 — canonical phase vocabulary.</strong> The <strong>board Status single-select</strong> (11 options) is canonical; <code>state:*</code> labels are an optional secondary mirror; the operationalization <strong>FSM diagram</strong> (snake_case states, and its front-of-line "PO pre-screen") is <strong>stale</strong> — the v3.4 flowchart is authoritative (value gate is post-spec, first-pass only; no front pre-screen). To be reconciled in a later doc pass.</li>
+<li><strong>D4 — interview/probe execution locus.</strong> Phase-1 runs both on <strong>GitHub-hosted cloud runners</strong> — <code>claude-code-action</code> reads the repo + schema, which is all the probe needs (no running app). This supersedes C2's "AI-step jobs on the sidekick" for the spec side.</li>
+<li><strong>D5 — governance hardening (recommended, not blocking phase 1).</strong> Set the repo/org default <code>GITHUB_TOKEN</code> to read-only with per-job elevation, and <strong>disable "Allow GitHub Actions to approve pull requests,"</strong> before the build/merge side exists. <strong>Chosen (2026-07-28): harden now</strong>, in two steps — <strong>(i) now, zero-risk:</strong> untick "Allow GitHub Actions to create and approve pull requests" (nothing legitimate relies on it); <strong>(ii) staged:</strong> flipping the default <code>GITHUB_TOKEN</code> to read-only can break workflows that assume the write default (e.g. a PR-summary comment step in <code>pr.yml</code> / <code>pr-integration.yml</code>, which declare no per-job <code>permissions:</code>), so first audit those and add explicit per-job <code>permissions:</code>, <em>then</em> flip the default.</li>
+</ul>
+<h3 id="security-note-the-dor-agents-injection-residual-phase-1">Security note — the DoR agent's injection residual (phase 1)<a class="headerlink" href="#security-note-the-dor-agents-injection-residual-phase-1" title="Permanent link">&para;</a></h3>
+<p>The <code>dor-agent</code> reads <strong>untrusted public-issue content</strong> while <code>claude-code-action</code> holds the Claude <strong>subscription token in-env</strong> — a genuine prompt-injection / token-exfiltration surface on a public repo. Mitigations shipped in phase 1:</p>
+<ul>
+<li><strong>Deterministic split.</strong> The reasoning step runs the model with <strong>Read/Grep/Glob/Write only — no shell, no <code>gh</code>, no network</strong> — bracketed by a deterministic <em>fetch</em> step (writes the issue thread + backlog to files) and a deterministic <em>post</em> step (the only thing that writes to GitHub).</li>
+<li><strong>Fixed label allow-list</strong> — the post step accepts only the six valid <code>state:*</code> routes; anything else aborts.</li>
+<li><strong>Repo-script restore + deterministic egress token-scan</strong> — before executing any repo script the post step restores all <code>.github</code> files to their committed state (defusing a <em>Write→execute</em> escalation where the model overwrites the helper), and refuses to post if the agent's output contains <strong>any</strong> live token (the subscription token <em>or</em> the injected <code>github.token</code>). The reasoning step's <code>Write</code> is also path-scoped to <code>.dor/out/**</code>.</li>
+<li><strong>Org-member-only triggering</strong>, the <strong>human value gate</strong> downstream (a mis-routed label still can't build without a human GO), and the <strong><code>DOR_ENABLED</code> kill-switch</strong> (inert until flipped).</li>
+</ul>
+<p><strong>Residual (be honest):</strong> the reasoning step's <code>Read</code> tool could in principle reach <code>/proc/self/environ</code>. The egress scan catches a <strong>literal</strong> token leak; an <strong>encoded</strong> leak is only fully closed by a <strong>raw-API script with path-restricted tools</strong> — the v2 option (it also pairs naturally with idea 2's cross-model verify, since we'd own the agent loop). <strong>Smoke-test the flow before setting <code>DOR_ENABLED=true</code>.</strong></p>
+<h3 id="considered-enhancements-roadmap">Considered enhancements (roadmap)<a class="headerlink" href="#considered-enhancements-roadmap" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Structured intake template (idea 3) — in phase 1.</strong> A GitHub <strong>Issue Form</strong> front-loads the Phase-A skeleton (problem &amp; value, does-NOT-do, "I'm delighted when… / disappointed when…", generality, completeness, screenshots) so the agent starts from a rich brief instead of an empty one — fewer questions, fewer loops, fewer tokens. <strong>Self-improving feedback loop:</strong> periodically mine the questions the agent keeps asking and fold the recurring ones back into the form. Keep the form short (a minimal required core, the rest optional) so it doesn't deter requestors — thin issues still fall through to the interview.</li>
+<li><strong>Multi-persona review (idea 1) — in phase 1.</strong> The agent runs its "looks at the issue" step through several <strong>persona lenses</strong> — requestor · architect · designer · product · <strong>security</strong> · <strong>data-quality / edge-cases</strong> · end-user — so gaps surface in a single pass (fewer human round-trips). Anchored to the DoR roles; ~5–7 lenses, not twenty. (The pattern is gstack's multi-persona idea; gstack itself is a local tool that does not run in the Action — the agent carries the lenses in its prompt / via sub-reviewers.)</li>
+<li><strong>Cross-model "outside voice" verify (idea 2) — v2.</strong> A second, independent-provider model reviews the probe's adversarial pass (different blind spots catch different defects). <strong>Constraint:</strong> OpenAI's ChatGPT subscription is <strong>not</strong> usable in CI — Codex ChatGPT-sign-in is interactive/local only, automation uses a pay-per-token API key — so an OpenAI outside-voice bills API credits, it does <strong>not</strong> ride the ChatGPT plan (unlike Claude Max, which does work in Actions). Try <strong>Opus-5 verifying Fable-5</strong> first (same provider, on the Max subscription, still meaningful diversity); reach for the OpenAI outside-voice only if that isn't skeptical enough.</li>
+</ul>
 <h2 id="goals-principles">Goals &amp; principles<a class="headerlink" href="#goals-principles" title="Permanent link">&para;</a></h2>
 <ul>
 <li><strong>Scale &amp; parallelism.</strong> Many features in flight at once, across the team, on heterogeneous infrastructure (each colleague can host their own sidekicks).</li>
