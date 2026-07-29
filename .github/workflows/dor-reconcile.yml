@@ -40,7 +40,16 @@ jobs:
           owner: Fortigi
           permission-organization-projects: write
           permission-issues: write
-      - name: Run the reconcile sweep
+      - name: Run the reconcile sweep (Feature board + Bug board)
         env:
           GH_TOKEN: ${{ steps.bot.outputs.token }}
-        run: bash .github/scripts/dor_reconcile.sh
+        run: |
+          set -euo pipefail
+          # Features → Feature Pipeline board (#2), "DoR pipeline health".
+          bash .github/scripts/dor_reconcile.sh
+          # Bugs → Bug Pipeline board (#3), its own "DoR bug-pipeline health" issue.
+          LABEL=bug \
+          PROJECT_ID=PVT_kwDOAhfTz84BezXo \
+          STATUS_FIELD_ID=PVTSSF_lADOAhfTz84BezXozhZK4Vo \
+          HEALTH_TITLE="DoR bug-pipeline health" \
+            bash .github/scripts/dor_reconcile.sh

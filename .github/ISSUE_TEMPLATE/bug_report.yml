@@ -1,0 +1,143 @@
+name: 🐞 Bug report
+description: Report something that's broken. The more you fill in, the faster we can reproduce, confirm, and fix it.
+title: "[BUG] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug! 🐞
+
+        This form front-loads what our readiness review needs to **reproduce and
+        confirm** the bug from the real code — the better you fill it in, the faster
+        it's confirmed and fixed, and the fewer questions you'll get back. The first
+        few fields are required; the rest genuinely help.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: What's wrong? (one or two sentences)
+      description: The symptom, not a guess at the cause. What did you see that shouldn't happen?
+      placeholder: "On the Principal detail page, the assignment count shows 0 even though the user clearly has group memberships."
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: The exact sequence that triggers it. Number them — the more precise, the faster we reproduce it.
+      placeholder: |
+        1. Go to …
+        2. Click …
+        3. Observe …
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: ✅ What did you expect to happen?
+      description: The correct behaviour, as you understand it. This becomes the acceptance criterion for the fix.
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: ❌ What actually happened?
+      description: The observed (wrong) behaviour. Include exact figures/text/IDs where you can — copying the raw value beats describing it.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: repro-data
+    attributes:
+      label: Does it reproduce on the demo data?
+      description: "This decides whether we can confirm it automatically. If it only shows up with your real tenant/data, we can't reproduce it in CI — say so and we'll route it accordingly."
+      options:
+        - "Reproduces on the standard demo dataset"
+        - "Only with specific / real tenant data (describe it below)"
+        - "Not sure"
+    validations:
+      required: true
+
+  - type: input
+    id: area
+    attributes:
+      label: Where does it happen? (optional)
+      description: The page, entity type, crawler, or API — e.g. "Matrix view", "Entra crawler", "GET /api/user/:id".
+    validations:
+      required: false
+
+  - type: input
+    id: version
+    attributes:
+      label: Version / build (optional)
+      description: The version string from the app footer (e.g. `5.5xx.2026…`), or `:edge` / `:latest` / a tag.
+    validations:
+      required: false
+
+  - type: dropdown
+    id: environment
+    attributes:
+      label: Where are you running it? (optional)
+      options:
+        - "Docker self-hosted"
+        - "Azure"
+        - "A sidekick / demo environment"
+        - "Other / not sure"
+    validations:
+      required: false
+
+  - type: dropdown
+    id: frequency
+    attributes:
+      label: How often does it happen? (optional)
+      options:
+        - "Every time"
+        - "Intermittently"
+        - "Saw it once"
+    validations:
+      required: false
+
+  - type: dropdown
+    id: regression
+    attributes:
+      label: Did it work before? (optional)
+      description: A regression (worked, now broken) usually points straight at a recent change.
+      options:
+        - "It used to work — this is a regression"
+        - "It never worked"
+        - "Not sure"
+    validations:
+      required: false
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: How bad is it? (optional)
+      description: Your read on impact — helps us prioritise, doesn't change how it's handled.
+      options:
+        - "Critical — data loss, security, or the app is unusable"
+        - "High — a core workflow is broken with no workaround"
+        - "Medium — broken but there's a workaround"
+        - "Low — cosmetic or minor"
+    validations:
+      required: false
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Logs / screenshots (optional)
+      description: A screenshot, a console/network error, or the relevant worker/API log lines. Drag images straight in here.
+    validations:
+      required: false
+
+  - type: textarea
+    id: related
+    attributes:
+      label: Related issues (optional)
+      description: Links to related reports or anything you think shares a root cause.
+    validations:
+      required: false

@@ -40,9 +40,21 @@ jobs:
           owner: Fortigi
           permission-organization-projects: write
           permission-issues: read          # dor_set_status.sh must read the issue node id first
+      # Sync to whichever board the issue belongs to: bugs → Bug board (#3), else Feature board (#2).
+      - name: Pick pipeline (feature vs bug)
+        id: pick
+        run: |
+          set -euo pipefail
+          if [[ "${{ contains(github.event.issue.labels.*.name, 'bug') }}" == "true" ]]; then
+            { echo "project_id=PVT_kwDOAhfTz84BezXo"; echo "status_field_id=PVTSSF_lADOAhfTz84BezXozhZK4Vo"; } >> "$GITHUB_OUTPUT"
+          else
+            { echo "project_id=PVT_kwDOAhfTz84Bern-"; echo "status_field_id=PVTSSF_lADOAhfTz84Bern-zhZEAac"; } >> "$GITHUB_OUTPUT"
+          fi
       - name: Sync Status from the label
         env:
           GH_TOKEN: ${{ steps.bot.outputs.token }}
           ISSUE: ${{ github.event.issue.number }}
           LABEL: ${{ github.event.label.name }}
+          PROJECT_ID: ${{ steps.pick.outputs.project_id }}
+          STATUS_FIELD_ID: ${{ steps.pick.outputs.status_field_id }}
         run: bash .github/scripts/dor_set_status.sh "$ISSUE" "$LABEL"

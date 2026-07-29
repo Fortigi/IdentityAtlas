@@ -1,0 +1,3 @@
+- Added a structured "Bug report" form that front-loads what's needed to reproduce and confirm a bug — steps, expected vs actual, whether it reproduces on the demo data, version, and area.
+- The opt-in Definition-of-Ready automation now reviews bug reports too: it reproduces the bug from the real code and demo data, pins the root cause, drafts a regression test, and tracks it on a dedicated Bug pipeline board — routing to a quick human "go" on the fix.
+- Blank (unformatted) issues now get the maintainers assigned and a `needs-triage` label so nothing slips through the cracks.

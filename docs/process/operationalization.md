@@ -149,6 +149,51 @@ The `dor-agent` reads **untrusted public-issue content** while `claude-code-acti
 
 > **This supersedes** the *provision-per-build* model in **Topology** and the **Control-plane worker contract** below — a long-lived runner holding Proxmox + Traefik creds that creates/destroys a VM per feature. Those sections predate this simplification; the pooled model above is the current plan. Former row 8 (provision) and the VM-teardown half of row 13 are gone.
 
+## Bug pipeline (spec side, live)
+
+Bugs run a **parallel spec-side pipeline** that reuses the feature machinery — the `dor-authorize`
+action, the board helper (`dor_set_status.sh`), the deterministic-split execution model, the shared
+post step (`dor_post_decision.sh`), the label→Status sync, and the reconcile backstop — on a
+**separate Bug Pipeline board**: [github.com/orgs/Fortigi/projects/3](https://github.com/orgs/Fortigi/projects/3)
+(same Status vocabulary as the Feature board, so the same scripts drive it). Gate label: `bug`
+(applied by the Bug Form). **Org-members-only**: a non-member's bug report is assigned to the
+maintainers for validation, not auto-probed.
+
+**Why bugs are the *better* automation target:** a feature's hard question is "did we build the right
+thing?" — a judgment call needing humans. A bug has an **objective definition of done: it no longer
+reproduces.** So the flow front-loads that objectivity — the probe drafts a **reproducing regression
+test** (red today, green once fixed), which *is* the acceptance criterion and satisfies the
+coverage-ratchet by construction.
+
+| # | Step | Actor | Automate via | Status |
+|---|------|-------|--------------|--------|
+| 1 | Bug reported (Bug Form → `bug`) → onto the Bug board at *Ready for AI probe* | human + Action | `dor-triage` (bug branch) | **live** |
+| 2 | **AI reproduces** from the real code **+ demo data**, pins the **root cause** (file:line + layer), maps blast radius, **drafts the red regression test** | AI | `dor-bug-agent` | **live** |
+| 3 | Route — confirmed · needs-info · blocked-external · design-tradeoff · decompose · not-a-bug | AI (`state:*` label) | `dor-bug-agent` | **live** |
+| 4 | Human answers (only if the probe couldn't reproduce / needs steps·version·data) | human | — | **live** |
+| 5 | **① GO on the fix** — confirmed + root-caused + red test → *Awaiting approval* | HUMAN | manual Status move | **live** (gate manual) |
+| 6 | **Runtime reproduce + fix + auto-verify** — run the fix on a live demo env until the red test goes **green** | AI + runner | dedicated bug-validation runner / pooled sidekick | **deferred (build side)** |
+| 7 | Quick glance the bug's gone → merge | human | branch protection + CODEOWNERS | **deferred (build side)** |
+
+**Reproduction — static now, runtime later.** The spec-side agent is sandboxed (Read/Grep/Glob only —
+no shell), so it reproduces **statically**: it reads the real code path *and the demo dataset*
+(`app/api/src/mock/*`, the demo seed) to argue, with `file:line` evidence, whether the bug is real
+and whether it reproduces **on the standard demo data** or only with real tenant data (→
+`blocked-external`). **Runtime** reproduction — actually standing up the app + demo data and driving
+the bug — is step 6, the deferred build-side capability. Two notes on it:
+
+- **Demo-data reproduction does *not* need a private runner.** The stack is Dockerised and the demo
+  data is synthetic, so a GitHub-hosted runner can `docker compose up` + seed + reproduce. A private
+  runner is only needed for bugs that require *real* tenant/customer data — which is exactly the
+  `blocked-external` route.
+- **A dedicated "bug-validation" runner is the right optimization** — an always-on runner holding a
+  pre-warmed demo environment reproduces (and later re-verifies the fix) far faster than a cold
+  spin-up each time. It's the bug flow's signature build-side step.
+
+**Blank (unformatted) issues** — neither Form label — are kept as the manual escape hatch, but
+`dor-blank-triage` assigns the maintainers and applies `needs-triage` so nothing falls through the
+cracks. No AI, no board.
+
 ## Goals & principles
 
 - **Scale & parallelism.** Many features in flight at once, across the team, on heterogeneous infrastructure (each colleague can host their own sidekicks).
