@@ -3681,6 +3681,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#bugs-the-reproduce-first-variant" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bugs — the reproduce-first variant
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#appendix-definition-of-done-the-probe-must-design-against" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3878,6 +3889,26 @@
 <li><strong>D3 Feedback loop.</strong> Disappointment (form, or missed scope) is captured as <strong>new intent</strong> (a comment on the issue) and re-enters at Phase A. Expected and cheap. Happy ⇒ approve PR ⇒ merge ⇒ close the issue with the outcome comment.</li>
 </ul>
 <hr />
+<h2 id="bugs-the-reproduce-first-variant">Bugs — the reproduce-first variant<a class="headerlink" href="#bugs-the-reproduce-first-variant" title="Permanent link">&para;</a></h2>
+<p>Bug reports run the <strong>same spine</strong> (tracking issue · <code>state:*</code> routes · board Status · human GO) with
+one substitution: the "AI looks at the issue" step is a <strong>reproduce-first probe</strong>, not an intent
+interview. Bugs are the <em>easier</em> case — a feature's hard question ("is this the right thing to
+build?") is a judgment call, but a bug has an <strong>objective Definition of Done: it no longer
+reproduces.</strong></p>
+<p>The probe, in order: <strong>reproduce</strong> the report statically against the real code <strong>and the demo
+dataset</strong> (evidence as <code>file:line</code>; does it reproduce on demo data, or only real tenant data?);
+pin the <strong>root cause</strong> at the layer that <em>produces</em> the wrong value (<em>fix at the source, not the
+surface</em>); map the <strong>blast radius</strong> (every consumer of what would change); and <strong>draft the
+reproducing regression test</strong> (red today, green once fixed) — which <em>is</em> the acceptance criterion and
+ratchets coverage by construction. Routes reuse the same set: confirmed + root-caused + red test →
+<em>Awaiting approval</em> (a light human <strong>GO on the fix</strong>); can't-reproduce / needs detail → <em>Awaiting
+requestor</em>; needs real tenant/data → <em>Blocked (external)</em>; a fix with a genuine design tradeoff →
+<em>Awaiting design</em>; several bugs bundled → <em>Decompose</em>; not-a-bug → <em>Out of pipeline</em>.</p>
+<p><strong>Runtime</strong> reproduction (running the fix against a live demo env until the red test goes green) is
+the deferred build-side step. Bugs live on their <strong>own board</strong> (Bug Pipeline, project #3) and are
+<strong>org-members-only</strong> (external reports are assigned to maintainers first). The wiring — <code>bug</code> gate
+label, <code>dor-bug-agent</code>, the Bug Form, and the shared scripts — is in
+<a href="../operationalization/#bug-pipeline-spec-side-live"><code>operationalization.md</code></a>.</p>
 <h2 id="appendix-definition-of-done-the-probe-must-design-against">Appendix — Definition of Done the probe must design against<a class="headerlink" href="#appendix-definition-of-done-the-probe-must-design-against" title="Permanent link">&para;</a></h2>
 <ul>
 <li><strong>Coverage</strong> — aggregate + per-file ratchet (only up) + diff-coverage. New code ships with tests.</li>

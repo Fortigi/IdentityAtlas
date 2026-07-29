@@ -3726,6 +3726,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#bug-pipeline-spec-side-live" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bug pipeline (spec side, live)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#goals-principles" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4383,6 +4394,99 @@
 <blockquote>
 <p><strong>This supersedes</strong> the <em>provision-per-build</em> model in <strong>Topology</strong> and the <strong>Control-plane worker contract</strong> below — a long-lived runner holding Proxmox + Traefik creds that creates/destroys a VM per feature. Those sections predate this simplification; the pooled model above is the current plan. Former row 8 (provision) and the VM-teardown half of row 13 are gone.</p>
 </blockquote>
+<h2 id="bug-pipeline-spec-side-live">Bug pipeline (spec side, live)<a class="headerlink" href="#bug-pipeline-spec-side-live" title="Permanent link">&para;</a></h2>
+<p>Bugs run a <strong>parallel spec-side pipeline</strong> that reuses the feature machinery — the <code>dor-authorize</code>
+action, the board helper (<code>dor_set_status.sh</code>), the deterministic-split execution model, the shared
+post step (<code>dor_post_decision.sh</code>), the label→Status sync, and the reconcile backstop — on a
+<strong>separate Bug Pipeline board</strong>: <a href="https://github.com/orgs/Fortigi/projects/3">github.com/orgs/Fortigi/projects/3</a>
+(same Status vocabulary as the Feature board, so the same scripts drive it). Gate label: <code>bug</code>
+(applied by the Bug Form). <strong>Org-members-only</strong>: a non-member's bug report is assigned to the
+maintainers for validation, not auto-probed.</p>
+<p><strong>Why bugs are the <em>better</em> automation target:</strong> a feature's hard question is "did we build the right
+thing?" — a judgment call needing humans. A bug has an <strong>objective definition of done: it no longer
+reproduces.</strong> So the flow front-loads that objectivity — the probe drafts a <strong>reproducing regression
+test</strong> (red today, green once fixed), which <em>is</em> the acceptance criterion and satisfies the
+coverage-ratchet by construction.</p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Step</th>
+<th>Actor</th>
+<th>Automate via</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Bug reported (Bug Form → <code>bug</code>) → onto the Bug board at <em>Ready for AI probe</em></td>
+<td>human + Action</td>
+<td><code>dor-triage</code> (bug branch)</td>
+<td><strong>live</strong></td>
+</tr>
+<tr>
+<td>2</td>
+<td><strong>AI reproduces</strong> from the real code <strong>+ demo data</strong>, pins the <strong>root cause</strong> (file:line + layer), maps blast radius, <strong>drafts the red regression test</strong></td>
+<td>AI</td>
+<td><code>dor-bug-agent</code></td>
+<td><strong>live</strong></td>
+</tr>
+<tr>
+<td>3</td>
+<td>Route — confirmed · needs-info · blocked-external · design-tradeoff · decompose · not-a-bug</td>
+<td>AI (<code>state:*</code> label)</td>
+<td><code>dor-bug-agent</code></td>
+<td><strong>live</strong></td>
+</tr>
+<tr>
+<td>4</td>
+<td>Human answers (only if the probe couldn't reproduce / needs steps·version·data)</td>
+<td>human</td>
+<td>—</td>
+<td><strong>live</strong></td>
+</tr>
+<tr>
+<td>5</td>
+<td><strong>① GO on the fix</strong> — confirmed + root-caused + red test → <em>Awaiting approval</em></td>
+<td>HUMAN</td>
+<td>manual Status move</td>
+<td><strong>live</strong> (gate manual)</td>
+</tr>
+<tr>
+<td>6</td>
+<td><strong>Runtime reproduce + fix + auto-verify</strong> — run the fix on a live demo env until the red test goes <strong>green</strong></td>
+<td>AI + runner</td>
+<td>dedicated bug-validation runner / pooled sidekick</td>
+<td><strong>deferred (build side)</strong></td>
+</tr>
+<tr>
+<td>7</td>
+<td>Quick glance the bug's gone → merge</td>
+<td>human</td>
+<td>branch protection + CODEOWNERS</td>
+<td><strong>deferred (build side)</strong></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Reproduction — static now, runtime later.</strong> The spec-side agent is sandboxed (Read/Grep/Glob only —
+no shell), so it reproduces <strong>statically</strong>: it reads the real code path <em>and the demo dataset</em>
+(<code>app/api/src/mock/*</code>, the demo seed) to argue, with <code>file:line</code> evidence, whether the bug is real
+and whether it reproduces <strong>on the standard demo data</strong> or only with real tenant data (→
+<code>blocked-external</code>). <strong>Runtime</strong> reproduction — actually standing up the app + demo data and driving
+the bug — is step 6, the deferred build-side capability. Two notes on it:</p>
+<ul>
+<li><strong>Demo-data reproduction does <em>not</em> need a private runner.</strong> The stack is Dockerised and the demo
+  data is synthetic, so a GitHub-hosted runner can <code>docker compose up</code> + seed + reproduce. A private
+  runner is only needed for bugs that require <em>real</em> tenant/customer data — which is exactly the
+  <code>blocked-external</code> route.</li>
+<li><strong>A dedicated "bug-validation" runner is the right optimization</strong> — an always-on runner holding a
+  pre-warmed demo environment reproduces (and later re-verifies the fix) far faster than a cold
+  spin-up each time. It's the bug flow's signature build-side step.</li>
+</ul>
+<p><strong>Blank (unformatted) issues</strong> — neither Form label — are kept as the manual escape hatch, but
+<code>dor-blank-triage</code> assigns the maintainers and applies <code>needs-triage</code> so nothing falls through the
+cracks. No AI, no board.</p>
 <h2 id="goals-principles">Goals &amp; principles<a class="headerlink" href="#goals-principles" title="Permanent link">&para;</a></h2>
 <ul>
 <li><strong>Scale &amp; parallelism.</strong> Many features in flight at once, across the team, on heterogeneous infrastructure (each colleague can host their own sidekicks).</li>
