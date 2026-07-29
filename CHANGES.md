@@ -1,5 +1,10 @@
 ## Changes in this PR
 
+- Added a structured "Feature request" issue form that front-loads intent (problem & value, "I'm delighted when… / disappointed when…", scope, and how general it should be) so proposals arrive closer to ready-to-build.
+- Added an opt-in Definition-of-Ready automation (off by default) that reviews new feature issues, tracks them on the Feature Pipeline board, and flags stuck or out-of-sync items via a daily health sweep.
+
+## Changes in this PR
+
 - Patched known-vulnerable transitive dependencies (the `brace-expansion` denial-of-service and, in the API, the `postcss` path-traversal), clearing all high-severity `npm audit` findings in the API and UI.
 
 ## Changes in this PR
