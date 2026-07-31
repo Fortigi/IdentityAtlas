@@ -1,0 +1,191 @@
+name: DoR build agent (implement → validate → PR)
+
+# Build-side slice D (operationalization.md row 8): the AI implements an APPROVED spec on a dor-build
+# sidekick, builds + runs + self-validates it on the live env, and opens a PR. Triggered when a
+# maintainer applies `ready-to-build` to an approved issue. INERT until DOR_ENABLED=true.
+#
+# ── SECURITY (read before touching) ─────────────────────────────────────────────────────────────
+# Unlike the spec-side agents (dor-agent / dor-bug-agent), this agent has shell + Docker + network —
+# it CANNOT be sandboxed or egress-filtered, because it runs third-party build code (npm, Docker).
+# It is contained instead by:
+#   1. TRUSTED INPUT — it only ever builds a HUMAN-APPROVED spec (issue past the value gate, member
+#      applies `ready-to-build`); never raw public-issue text.
+#   2. ISOLATED, DISPOSABLE VM — runs on a pool sidekick that holds nothing but its own Docker and is
+#      reset between uses (slice B). Public repo → fork PRs can't reach these runners (approval policy).
+#   3. NO MERGE POWER — the token is contents + pull-requests write only; the worst it can produce is a
+#      PR a human reviews. CI runs on that PR as the objective gate. It cannot push to or merge main.
+#   4. RECYCLE — the sidekick is reserved for the resulting PR and reset on close (slices A/B rails).
+# The Claude Max OAuth token is in-env here by explicit choice (reused from the spec agents); a leaked
+# token is revocable via `claude setup-token`. Consider egress-restricting the sidekicks' network.
+
+on:
+  issues:
+    types: [labeled]
+
+permissions: {}
+
+concurrency:
+  group: dor-build-agent-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  # ── Gate: org-members-only, on an approved issue tagged ready-to-build. No model secret here. ──
+  authorize:
+    if: >-
+      vars.DOR_ENABLED == 'true' &&
+      github.event.sender.type != 'Bot' &&
+      !github.event.issue.pull_request &&
+      github.event.label.name == 'ready-to-build'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      is-member: ${{ steps.auth.outputs.is-member }}
+    steps:
+      - name: Checkout the authorize action only
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: .github/actions/dor-authorize
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+      - name: Require Fortigi org membership
+        id: auth
+        uses: ./.github/actions/dor-authorize
+        with:
+          app-id: ${{ secrets.BOT_APP_ID }}
+          private-key: ${{ secrets.BOT_PRIVATE_KEY }}
+          actor: ${{ github.actor }}
+
+  # ── The build agent: reserve a sidekick → implement + build + self-validate → open a PR. ──
+  build:
+    needs: authorize
+    if: needs.authorize.outputs.is-member == 'true'
+    runs-on:
+      - self-hosted
+      - dor-build
+    permissions:
+      contents: write        # push the implementation branch
+      pull-requests: write    # open the PR
+      issues: write           # comment the functional-test URL
+    steps:
+      - name: Identify this sidekick + its public URL
+        id: sk
+        run: |
+          set -euo pipefail
+          case "$(hostname)" in
+            dev-docker-05) url="https://5.build.identityatlas.io" ;;
+            dev-docker-06) url="https://6.build.identityatlas.io" ;;
+            *) echo "::error::unknown sidekick $(hostname)"; exit 1 ;;
+          esac
+          { echo "host=$(hostname)"; echo "url=$url"; } >> "$GITHUB_OUTPUT"
+
+      - name: Reserve this sidekick (soft) for issue #${{ github.event.issue.number }}
+        env:
+          ISSUE: ${{ github.event.issue.number }}
+        run: |
+          set -euo pipefail
+          lock="$HOME/.dor-reservation"
+          if [ -f "$lock" ] && [ "$(cat "$lock")" != "issue-$ISSUE" ]; then
+            echo "::error::$(hostname) is reserved ($(cat "$lock")). Free that slot or use the other sidekick."
+            exit 1
+          fi
+          # Hold with an issue-scoped marker; rewritten to the PR number once the PR exists.
+          echo "issue-$ISSUE" > "$lock"
+
+      - name: Checkout main (base for the implementation branch)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: true   # so the agent can `git push` its branch with GITHUB_TOKEN
+
+      - name: Fetch the approved spec (issue + comments) for the agent
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE: ${{ github.event.issue.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          mkdir -p .dor/in
+          gh issue view "$ISSUE" --repo "$REPO" \
+            --json number,title,body,author,labels,comments > .dor/in/spec.json
+          # The behind-Traefik override the build must use, so the live env is correct over HTTPS.
+          cat > dor-tls.override.yml <<YAML
+          services:
+            web:
+              environment:
+                BEHIND_TLS: "true"
+                PUBLIC_BASE_URL: "${{ steps.sk.outputs.url }}"
+          YAML
+
+      - name: Implement + build + self-validate + open PR (AI, full tools)
+        uses: anthropics/claude-code-action@6c0083bb7289c31716797a039b6367b3079cc46e # v1
+        env:
+          GH_TOKEN: ${{ github.token }}   # so the agent's `gh`/`git push` are authenticated
+          PUBLIC_URL: ${{ steps.sk.outputs.url }}
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ github.token }}
+          # Build agent = broad tools (bare Bash allows all commands; Edit/Write for the implementation).
+          # Headless auto-denies anything not listed — no interactive stalls. No bypassPermissions: the
+          # listed tools already cover implement + build + git + gh.
+          claude_args: "--model ${{ vars.DOR_BUILD_MODEL || 'claude-fable-5' }} --fallback-model claude-opus-5 --allowedTools Read,Edit,Write,Grep,Glob,Bash"
+          prompt: |
+            You are the Definition-of-Ready (DoR) BUILD agent for IdentityAtlas. Issue
+            #${{ github.event.issue.number }} has passed the value gate and been approved to build.
+            Implement it end to end, prove it runs on this sidekick, and open ONE pull request.
+
+            THE APPROVED SPEC is .dor/in/spec.json (the issue body + comments — read the CERTIFIED /
+            approval comment; it is the authoritative plan). Build exactly what was approved; do not
+            expand scope. This spec is trusted input.
+
+            FOLLOW CLAUDE.md AND THE SUBDIR GUIDES, especially:
+              • Fix at the SOURCE, not the surface (crawler/ingest/schema/matview over a UI patch).
+              • Every code change ships TESTS covering the lines/branches it adds — coverage must not drop.
+              • Reuse before creating; keep files small; match surrounding style.
+              • ADD A CHANGELOG FRAGMENT at changes/dor-issue-${{ github.event.issue.number }}.md
+                (user-facing bullets). NEVER edit CHANGES.md or setup/IdentityAtlas.psd1.
+              • Do NOT modify .github/** (workflows/actions/scripts) — out of scope for a feature build.
+
+            WORK ON THIS SIDEKICK:
+              1. Create a branch:  git checkout -b dor/issue-${{ github.event.issue.number }}
+              2. Implement the approved change.
+              3. SELF-VALIDATE — this is required before you open the PR:
+                 a. Unit tests green:  (cd app/api && npx vitest run)  and  (cd app/ui && npx vitest run)
+                    for the areas you touched. Fix until green.
+                 b. Live env: docker compose -f docker-compose.yml -f dor-tls.override.yml up -d --build
+                    then poll http://localhost:3001/ for HTTP 200, and verify the behaviour the spec
+                    describes actually works (query the API / inspect the built UI as appropriate). Leave
+                    the stack running — it is the human's functional-test env at ${PUBLIC_URL}.
+              4. Commit with a clear message, push the branch, and open ONE PR:
+                 gh pr create --base main --head dor/issue-${{ github.event.issue.number }} \
+                   --title "<concise title>" \
+                   --body "Closes #${{ github.event.issue.number }}\n\n<what you built + how you validated it>\n\n**Functional test:** ${PUBLIC_URL} (Fortigi-tenant sign-in)."
+
+            DO NOT: merge anything, push to main, touch other stacks on this box, or write any secret /
+            token / environment value into files or the PR. Your job ends when the PR is open and green
+            locally. CI + a human review + merge are the gates after you.
+
+      - name: Record the PR reservation + comment the functional-test URL
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE: ${{ github.event.issue.number }}
+          REPO: ${{ github.repository }}
+          URL: ${{ steps.sk.outputs.url }}
+          HOST: ${{ steps.sk.outputs.host }}
+        run: |
+          set -uo pipefail
+          pr=$(gh pr list --repo "$REPO" --head "dor/issue-$ISSUE" --state open --json number --jq '.[0].number // empty')
+          if [ -z "$pr" ]; then
+            echo "::warning::No PR found for dor/issue-$ISSUE — the build agent did not open one. Leaving the reservation as issue-$ISSUE for reconcile/manual cleanup."
+            exit 0
+          fi
+          # Rewrite the reservation to the PR number so slice B (reset-on-close) releases the box.
+          echo "$pr" > "$HOME/.dor-reservation"
+          body="🤖 Built and self-validated on **${HOST}** → live at **${URL}** (Fortigi-tenant sign-in). Reserved this sidekick for this PR until it's merged or closed."
+          curl -sS -X POST \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${REPO}/issues/${pr}/comments" \
+            -d "$(printf '{"body":"%s"}' "$body")" -o /dev/null -w 'PR comment: HTTP %{http_code}\n'
