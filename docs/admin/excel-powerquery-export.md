@@ -1,4 +1,14 @@
+---
+type: task
+prereq: ui/overview.md
+outcome: You can pull live Identity Atlas data into Excel and refresh it.
+---
+
 # Excel Power Query workbook export
+
+!!! info "Before this page"
+    Assumes you have read **[The app at a glance](../ui/overview.md)**.
+    Brand new? Start at [The words you need first](../start/glossary.md).
 
 Identity Atlas can hand a data analyst a pre-configured Excel workbook that
 pulls live data from the API via Power Query. A freshly-minted read-only

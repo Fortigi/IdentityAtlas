@@ -1,4 +1,14 @@
+---
+type: start
+prereq: none
+outcome: Identity Atlas is running on your machine with the demo data loaded.
+---
+
 # Quick Start
+
+!!! info "Where this sits"
+    This is a *Start here* page — it assumes nothing. New to Identity Atlas?
+    [The words you need first](start/glossary.md) is the eight minutes that make everything else readable.
 
 Identity Atlas runs as a Docker stack — no Azure subscription, no git clone required. All you need is Docker and a one-line `.env` that sets a database password.
 

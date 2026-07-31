@@ -1,4 +1,13 @@
+---
+type: task
+prereq: start/glossary.md
+outcome: You can build a context, run a plugin, and scope the matrix to the result.
+---
+
 # Contexts
+
+!!! info "Before this page"
+    Assumes you have read **[The words you need first](../start/glossary.md)** — the eight minutes that make the rest of this readable.
 
 The **Contexts** tab is where you group the people, accounts, resources, and systems in your data into named, hierarchical trees — then use those groupings to slice the Matrix. It replaces the old Org Chart tab and the Risk-Scoring Clusters page: manager hierarchies and resource clusters are now just two of the trees you can build here.
 

@@ -1,4 +1,13 @@
+---
+type: task
+prereq: start/glossary.md
+outcome: You know what every screen is for and which one answers your question.
+---
+
 # Role Mining UI
+
+!!! info "Before this page"
+    Assumes you have read **[The words you need first](../start/glossary.md)** — the eight minutes that make the rest of this readable.
 
 ## Overview
 

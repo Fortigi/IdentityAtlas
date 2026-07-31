@@ -1,4 +1,14 @@
+---
+type: concept
+prereq: risk-scoring/overview.md
+outcome: You can find the non-human identities in your tenant and judge what they can reach.
+---
+
 # AI Agent Identities
+
+!!! info "Before this page"
+    Assumes you have read **[How Scoring Works](./overview.md)**.
+    Brand new? Start at [The words you need first](../start/glossary.md).
 
 ## The Challenge
 

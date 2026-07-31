@@ -1,4 +1,14 @@
+---
+type: start
+prereq: demo/before-you-play.md
+outcome: You have answered twelve questions that a raw export cannot answer.
+---
+
 # Capture the Flag
+
+!!! info "Before this page"
+    Assumes you have read **[Before you play](./before-you-play.md)**.
+    Brand new? Start at [The words you need first](../start/glossary.md).
 
 Twelve questions hidden in the demo data.
 

@@ -1,4 +1,14 @@
+---
+type: task
+prereq: ui/overview.md
+outcome: You can read any cell in the matrix and say exactly how that access is held.
+---
+
 # Matrix view — architecture
+
+!!! info "Before this page"
+    Assumes you have read **[The app at a glance](../ui/overview.md)**.
+    Brand new? Start at [The words you need first](../start/glossary.md).
 
 > **Status:** current as of May 2026.
 > Companion to [`013_matrix_matviews_and_indexes.sql`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/db/migrations/013_matrix_matviews_and_indexes.sql), [`024_matrix_view_all_assignment_types.sql`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/db/migrations/024_matrix_view_all_assignment_types.sql), [`046_owner_as_resource.sql`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/db/migrations/046_owner_as_resource.sql), [`049_governed_intent_rows.sql`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/db/migrations/049_governed_intent_rows.sql).

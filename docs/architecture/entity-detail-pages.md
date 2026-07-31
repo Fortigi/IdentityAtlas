@@ -1,4 +1,14 @@
+---
+type: task
+prereq: ui/overview.md
+outcome: You can take any entity apart: attributes, memberships and how it changed.
+---
+
 # Entity Detail Pages
+
+!!! info "Before this page"
+    Assumes you have read **[The app at a glance](../ui/overview.md)**.
+    Brand new? Start at [The words you need first](../start/glossary.md).
 
 Every user, resource, identity, and business role in Identity Atlas has a
 "detail tab" that opens as a closable tab alongside the list pages. This doc

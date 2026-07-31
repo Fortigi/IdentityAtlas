@@ -1,4 +1,14 @@
+---
+type: task
+prereq: architecture/matrix.md
+outcome: You can read the numbers a scope reports without mistaking one for another.
+---
+
 # Matrix — Scope Statistics
+
+!!! info "Before this page"
+    Assumes you have read **[Reading the Matrix](./matrix.md)**.
+    Brand new? Start at [The words you need first](../start/glossary.md).
 
 > Companion to [`matrix.js`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/routes/matrix.js), [`scopeHistory.js`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/matrix/scopeHistory.js), [`MatrixScopePanel.jsx`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/ui/src/components/matrix/MatrixScopePanel.jsx), [`TimeSeriesChart.jsx`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/ui/src/components/TimeSeriesChart.jsx). See also [Audit History](audit-history.md).
 

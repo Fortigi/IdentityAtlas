@@ -465,3 +465,65 @@ body,
 ::-webkit-scrollbar-thumb:hover {
   background-color: var(--ia-lime-300);
 }
+
+/* ═════════════════════════════════════════════════════════════════
+   Seam with identityatlas.io
+   ─────────────────────────────────────────────────────────────────
+   The docs are the next click after the landing page, so they have to
+   read as the same product rather than a different site that happens
+   to share a logo. The palette above already matches site/assets/
+   base.css token-for-token (same lime, same blue, same greys). These
+   are the three things that did NOT match and gave the seam away:
+   typography, dark-mode surfaces, and corner radius.
+
+   Keep these values in step with site/assets/base.css :root.
+   ═════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* Exactly the stack in site/assets/base.css — `font: false` in
+     mkdocs.yml stops Material loading Inter from Google Fonts so this
+     is the one that wins. */
+  --md-text-font-family: system-ui, -apple-system, "Segoe UI", Roboto,
+                         Helvetica, Arial, sans-serif;
+  --md-code-font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo,
+                         Consolas, "Liberation Mono", monospace;
+
+  /* site: --radius: 16px */
+  --ia-radius: 16px;
+  --ia-radius-sm: 10px;
+}
+
+/* Dark mode used Tailwind slate (#0f172a / #1e293b) while the landing
+   page uses a cooler, deeper set. Switching to the landing page's own
+   surfaces removes the "different site" jolt when a reader crosses over
+   with dark mode on. Foreground stays Material's, which clears AA on
+   these darker backgrounds by a wider margin than it did before. */
+[data-md-color-scheme=slate] body,
+[data-md-color-scheme=slate] .md-main {
+  background-color: #0d1117;   /* site --bg */
+}
+[data-md-color-scheme=slate] .md-content {
+  background-color: #161b22;   /* site --bg-elev */
+}
+[data-md-color-scheme=slate][data-md-color-primary=custom] {
+  --md-primary-fg-color:        #161b22;   /* site --bg-elev */
+  --md-primary-fg-color--light: #1c2430;   /* site --bg-soft  */
+  --md-primary-fg-color--dark:  #0d1117;   /* site --bg       */
+  --md-default-fg-color:        #f3f4f6;   /* site --fg       */
+}
+[data-md-color-scheme=slate] .md-header,
+[data-md-color-scheme=slate] .md-tabs {
+  border-bottom-color: #2b3444;            /* site --border   */
+}
+
+/* The landing page is built out of soft 16px cards. Matching the radius
+   on the surfaces the reader meets first carries that over. */
+.md-typeset .admonition,
+.md-typeset details,
+.md-typeset .grid.cards > ul > li {
+  border-radius: var(--ia-radius);
+}
+.md-typeset pre > code,
+.md-typeset table:not([class]) {
+  border-radius: var(--ia-radius-sm);
+}

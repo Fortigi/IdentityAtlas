@@ -1,4 +1,14 @@
+---
+type: concept
+prereq: start/glossary.md
+outcome: You can explain how any system’s permissions land in the same four tables.
+---
+
 # Data Model
+
+!!! info "Before this page"
+    Assumes you have read **[The words you need first](../start/glossary.md)**.
+    Brand new? Start at [The words you need first](../start/glossary.md).
 
 Identity Atlas uses a unified data model (v3.1) that stores all authorization entities — from any source system — in a consistent structure backed by PostgreSQL with trigger-based audit history.
 
