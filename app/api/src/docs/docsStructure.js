@@ -98,6 +98,54 @@ export function brokenLinks() {
   return broken;
 }
 
+// Reproduces python-markdown's default `toc` slugify, which is what mkdocs uses
+// to build heading ids: drop everything that is not a letter, digit, underscore,
+// space or hyphen; lowercase; collapse runs of spaces/hyphens to one hyphen.
+// Note what this does to punctuation authors do not think about — an en dash is
+// simply deleted, so "A–Z index" becomes "az-index", not "a-z-index".
+export function slugify(heading) {
+  return heading
+    .replace(/[*`_]/g, '')
+    .replace(/[^\p{L}\p{N}_\s-]/gu, '')
+    .trim()
+    .toLowerCase()
+    .replace(/[-\s]+/g, '-');
+}
+
+/** Heading anchors mkdocs will generate for a page. */
+export function anchorsFor(page) {
+  const body = readFileSync(join(DOCS_ROOT, page), 'utf8');
+  return new Set(
+    body.split('\n')
+      .filter(line => /^#{1,6}\s+\S/.test(line))
+      .map(line => slugify(line.replace(/^#+\s+/, '')))
+  );
+}
+
+/**
+ * Links pointing at a #anchor that the target page will not generate. Scoped to
+ * the learning path: mkdocs only reports these as INFO, so they never fail a
+ * build, and the older pages carry a few that are not this change's to fix.
+ */
+export function brokenAnchors() {
+  const path = new Set(learningPathPages());
+  const broken = [];
+  for (const page of path) {
+    const body = readFileSync(join(DOCS_ROOT, page), 'utf8');
+    for (const [, raw] of body.matchAll(LINK_RE)) {
+      const [target, anchor] = raw.split('#');
+      if (!anchor) continue;
+      if (EXTERNAL_RE.test(target) || target.startsWith('/')) continue;
+      const targetPage = target
+        ? posix.normalize(posix.join(posix.dirname(page), target))
+        : page;
+      if (!path.has(targetPage)) continue;
+      if (!anchorsFor(targetPage).has(anchor)) broken.push({ page, target: raw });
+    }
+  }
+  return broken;
+}
+
 /** Front matter of a page as a plain object (empty when the page has none). */
 export function frontMatter(page) {
   const body = readFileSync(join(DOCS_ROOT, page), 'utf8');

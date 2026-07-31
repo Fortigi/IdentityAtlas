@@ -6,6 +6,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   LEARNING_PATH_TABS,
+  anchorsFor,
   brokenLinks,
   frontMatter,
   learningPathPages,
@@ -13,6 +14,7 @@ import {
   navEntries,
   orphanPages,
   prereqCycles,
+  slugify,
 } from './docsStructure.js';
 
 describe('listPages', () => {
@@ -31,6 +33,27 @@ describe('listPages', () => {
     const pages = listPages();
     expect(pages).toEqual([...pages].sort());
     expect(new Set(pages).size).toBe(pages.length);
+  });
+});
+
+describe('slugify', () => {
+  // Verified against the ids mkdocs actually emitted for these headings.
+  it.each([
+    ['A–Z index', 'az-index'],                       // en dash is deleted, not hyphenated
+    ['2. Account — which this product calls a *principal*', '2-account-which-this-product-calls-a-principal'],
+    ['1. System', '1-system'],
+    ['Group and role — the difference people get wrong', 'group-and-role-the-difference-people-get-wrong'],
+  ])('slugifies %j to %j', (heading, expected) => {
+    expect(slugify(heading)).toBe(expected);
+  });
+});
+
+describe('anchorsFor', () => {
+  it('collects the ids a page will generate', () => {
+    const anchors = anchorsFor('start/glossary.md');
+    expect(anchors.has('az-index')).toBe(true);
+    expect(anchors.has('4-resource')).toBe(true);
+    expect(anchors.has('a-z-index')).toBe(false);
   });
 });
 

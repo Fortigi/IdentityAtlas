@@ -10,6 +10,7 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 import {
   DOCS_ROOT,
+  brokenAnchors,
   brokenLinks,
   contractViolations,
   danglingNavEntries,
@@ -49,6 +50,17 @@ describe('documentation structure', () => {
     expect(
       broken,
       `Broken cross-links between docs pages:${list(broken)}`
+    ).toEqual([]);
+  });
+
+  it('resolves every #anchor used on the learning path', () => {
+    // mkdocs only reports a dead anchor as INFO, so the site builds green with
+    // links that go nowhere — that is how the glossary shipped a review-me link
+    // to "#a-z-index" when the heading actually generates "#az-index".
+    const broken = brokenAnchors().map(b => `${b.page} → #${b.target.split('#')[1]}`);
+    expect(
+      broken,
+      `Links to headings that will not exist:${list(broken)}`
     ).toEqual([]);
   });
 });

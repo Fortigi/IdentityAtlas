@@ -13,7 +13,7 @@ This page is the vocabulary, **in the order you need it** — not alphabetically
 If you already know IAM, skim it anyway: a couple of these words mean something narrower here than they do in your last product.
 
 !!! tip "Keep it open"
-    Nothing on this page is worth memorising. It is worth knowing *where it is*. There is an [A–Z index](#a-z-index) at the bottom for when you arrive here from a search.
+    Nothing on this page is worth memorising. It is worth knowing *where it is*. There is an [A–Z index](#az-index) at the bottom for when you arrive here from a search.
 
 ---
 
