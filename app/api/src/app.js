@@ -229,6 +229,13 @@ export function createApp() {
     res.json({ status: 'ok', schemaReady: isSchemaReady() });
   });
 
+  // Liveness probe (#908): fixed 200 body with no auth, no DB, and no schema
+  // dependency — unlike /api/health it doesn't report migration state, so it
+  // stays byte-for-byte identical for dumb HTTP checkers.
+  app.get('/api/ping', publicLimiter, (req, res) => {
+    res.json({ status: 'ok' });
+  });
+
   app.get('/api/version', publicLimiter, (req, res) => {
     const composeFileVersion = parseInt(process.env.COMPOSE_FILE_VERSION || '0', 10);
     res.json({

@@ -1,0 +1,1 @@
+- Added a lightweight `/api/ping` liveness endpoint (always returns `{"status":"ok"}` — no authentication or database required).
