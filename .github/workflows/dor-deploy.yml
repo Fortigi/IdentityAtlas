@@ -1,0 +1,117 @@
+name: DoR deploy (PR branch → sidekick)
+
+# Build-side slice A (deterministic — no AI): deploy a PR's branch onto a free `dor-build` sidekick
+# so it can be functionally tested at its N.build.identityatlas.io URL (behind authentik). Triggered
+# when a maintainer applies the `deploy-to-sidekick` label to a NON-FORK PR. INERT until DOR_ENABLED=true.
+#
+# SECURITY — self-hosted runners on a PUBLIC repo. This job only ever runs for SAME-REPO
+# (member-pushed) branches (head.repo == base repo), so the runner executes only trusted code — never
+# a fork's. Forks are additionally gated by the repo's `all_external_contributors` approval policy.
+# The sidekick holds no Traefik/authentik creds; it only brings up the app on :3001, which the
+# infra-managed Traefik routes to.
+#
+# Reservation here is SOFT (a lock file; a second deploy onto a busy sidekick is refused). The HARD
+# reservation (pull the runner from the pool so nothing new lands) + reset-on-close are the next
+# slices. See operationalization.md rows 8-13.
+
+on:
+  pull_request:
+    types: [labeled]
+
+permissions: {}
+
+concurrency:
+  group: dor-deploy-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: >-
+      vars.DOR_ENABLED == 'true' &&
+      github.event.label.name == 'deploy-to-sidekick' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, dor-build]
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Identify this sidekick + its public URL
+        id: sk
+        run: |
+          set -euo pipefail
+          case "$(hostname)" in
+            dev-docker-05) url="https://5.build.identityatlas.io" ;;
+            dev-docker-06) url="https://6.build.identityatlas.io" ;;
+            *) echo "::error::unknown sidekick $(hostname) — not in the dor-build pool map"; exit 1 ;;
+          esac
+          { echo "host=$(hostname)"; echo "url=$url"; } >> "$GITHUB_OUTPUT"
+
+      - name: Reservation check (soft) — refuse a sidekick already holding another PR
+        env:
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          lock="$HOME/.dor-reservation"
+          if [ -f "$lock" ] && [ "$(cat "$lock")" != "$PR" ]; then
+            echo "::error::$(hostname) is reserved for PR #$(cat "$lock"). Free that slot (merge/close it) or re-run when the other sidekick is free."
+            exit 1
+          fi
+
+      - name: Deploy the PR branch (free :3001 → clone → build → up → health)
+        env:
+          PR: ${{ github.event.pull_request.number }}
+          BRANCH: ${{ github.event.pull_request.head.ref }}
+          REPO: ${{ github.repository }}
+          PUBLIC_URL: ${{ steps.sk.outputs.url }}
+        run: |
+          set -euo pipefail
+          # Free the single :3001 slot: stop the edge placeholder and any prior stack on this box.
+          for d in "$HOME"/stacks/*/; do
+            [ -d "$d" ] || continue
+            ( cd "$d" && { docker compose down 2>/dev/null || docker compose -f docker-compose.prod.yml down 2>/dev/null || true; } )
+          done
+          dir="$HOME/stacks/pr-$PR"
+          rm -rf "$dir"
+          git clone --depth 1 --branch "$BRANCH" "https://github.com/${REPO}.git" "$dir"
+          cd "$dir"
+          # The dev compose builds from source but hardcodes env with no BEHIND_TLS/PUBLIC_BASE_URL —
+          # add them so the app behaves correctly behind the HTTPS Traefik in front of it.
+          cat > dor-tls.override.yml <<YAML
+          services:
+            web:
+              environment:
+                BEHIND_TLS: "true"
+                PUBLIC_BASE_URL: "${PUBLIC_URL}"
+          YAML
+          docker compose -f docker-compose.yml -f dor-tls.override.yml up -d --build
+          # First boot runs migrations; poll :3001 for 200 (up to ~10 min).
+          code=000
+          for i in $(seq 1 60); do
+            code=$(curl -fsS -o /dev/null -w '%{http_code}' http://localhost:3001/ 2>/dev/null || echo 000)
+            [ "$code" = "200" ] && break
+            sleep 10
+          done
+          echo "http://localhost:3001/ -> ${code} after ~$((i*10))s"
+          if [ "$code" != "200" ]; then
+            echo "::error::stack did not become healthy on $(hostname)"
+            docker compose -f docker-compose.yml -f dor-tls.override.yml logs --tail 60 web || true
+            exit 1
+          fi
+          echo "$PR" > "$HOME/.dor-reservation"
+
+      - name: Comment the functional-test URL on the PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+          URL: ${{ steps.sk.outputs.url }}
+          HOST: ${{ steps.sk.outputs.host }}
+        run: |
+          set -euo pipefail
+          body="🚀 Deployed to **${HOST}** for functional testing → **${URL}** (Fortigi-tenant sign-in via authentik).\n\nThis sidekick is now reserved for this PR until it's merged or closed. If the page 502s, the stack is still building — give it a minute."
+          curl -sS -X POST \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${REPO}/issues/${PR}/comments" \
+            -d "$(printf '{"body":"%s"}' "$body")" -o /dev/null -w 'comment posted: HTTP %{http_code}\n'
