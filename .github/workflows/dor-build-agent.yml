@@ -60,6 +60,12 @@ jobs:
   build:
     needs: authorize
     if: needs.authorize.outputs.is-member == 'true'
+    # THE REAL APPROVAL GATE (row 7). The `ready-to-build` label only proposes a build (GitHub can't
+    # restrict who applies a label); this Environment's required reviewers — the Product Board (Wim /
+    # Taeke / Rob) — are the only people who can approve it to actually run. The job PAUSES here for a
+    # human "Approve" in the Actions UI BEFORE the agent runs or any token is spent. Same class of gate
+    # as a required PR approval. Configure reviewers under Settings → Environments → build-approval.
+    environment: build-approval
     runs-on:
       - self-hosted
       - dor-build
