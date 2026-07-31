@@ -16,8 +16,8 @@ It contains **no answers and no spoilers.** Read it freely.
 
 Answer each one to yourself. Every "no" has a link.
 
-1. **What is the difference between an identity and a principal?**
-   If the answer is not roughly *"one is the person, the other is one of their logins"* → [The words you need first §3](../start/glossary.md#3-identity)
+1. **What is the difference between an identity and an account?**
+   If the answer is not roughly *"one is the person, the other is one of their logins"* — and if you did not know that this product calls an account a *principal* — → [The words you need first §3](../start/glossary.md#3-identity)
 
 2. **What is a resource here?**
    If you said "a file" or "a server", it is broader than that → [§4](../start/glossary.md#4-resource)

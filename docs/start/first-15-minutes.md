@@ -12,7 +12,7 @@ Nothing here is a Capture the Flag answer. This is the method; [the flags](../de
 
 !!! info "What you need first"
     - Identity Atlas running with the demo data loaded — see [Quick Start](../quickstart.md).
-    - The vocabulary from [The words you need first](glossary.md). If *principal*, *assignment* and *Direct / Indirect / Eligible* mean nothing to you yet, spend eight minutes there. The rest of this page will not land otherwise.
+    - The vocabulary from [The words you need first](glossary.md). If *account* (which this product calls a *principal*), *resource*, *assignment* and *Direct / Indirect / Eligible* mean nothing to you yet, spend eight minutes there. The rest of this page will not land otherwise.
 
 ---
 
@@ -28,12 +28,12 @@ Click **Matrix**.
 
 ## Step 2 — Ask a question, not for "the data"
 
-The matrix does not show you everything, on purpose. A grid of every principal against every resource is unreadable and, worse, unaskable.
+The matrix does not show you everything, on purpose. A grid of every account against every resource is unreadable and, worse, unaskable.
 
 So you start by choosing what is in it. That choice is the **scope**, and you build it in the filter wizard, which has three steps:
 
 1. **Setup** — what kind of subject you are looking at, and which way round the grid runs.
-2. **Subject conditions** — which people or principals are in it.
+2. **Subject conditions** — which people or accounts are in it.
 3. **Resource conditions** — which resources are in it.
 
 Each step shows you a live count, so you can see the grid getting smaller as you narrow it.

@@ -6,7 +6,7 @@ outcome: You can read any other page here without stopping to look up a word.
 
 # The words you need first
 
-Identity Atlas talks about identities, principals, resources and assignments. Four words, and if you have never worked in identity and access management, none of them mean what you would guess.
+Identity Atlas talks about identities, accounts, resources and assignments. Four words, and if you have never worked in identity and access management, none of them mean quite what you would guess — and if you *have*, at least one of them means something different here than in the platform you came from.
 
 This page is the vocabulary, **in the order you need it** — not alphabetically. Read it top to bottom once and the rest of the documentation stops being a foreign language. It takes about eight minutes.
 
@@ -19,39 +19,46 @@ If you already know IAM, skim it anyway: a couple of these words mean something 
 
 ## 1. System
 
-**A place permissions live.** Entra ID is a system. So is an Azure subscription, an SAP landscape, a SharePoint tenant, a CSV export from Omada.
+**A place permissions live.** Entra ID is a system. So is an Azure subscription, an SAP landscape, a SharePoint tenant, an Omada Identity installation, a CSV export from SailPoint.
+
+How Identity Atlas *reaches* a system varies — some have a dedicated crawler (Entra ID, Azure Resource Manager, Omada, midPoint), others arrive by [CSV import](../sync/csv-import.md) or the [ingest API](../architecture/ingest-api.md). That is a connection detail. Either way it is a system, and everything below hangs off one.
 
 Identity Atlas does not replace your systems and does not write to them. It reads them and puts what it finds side by side.
 
 > Everything below belongs to exactly one system. That is the whole reason the rest of the model can stay simple.
 
-## 2. Account — in this product, a *principal*
+## 2. Account — which this product calls a *principal*
 
 **A login that exists inside one system.** `piet.jansen@fortigidemo.com` in Entra ID is one account. Piet's SAP user is a *different* account. So is the service account that runs your deployment pipeline.
 
-Identity Atlas calls these **principals**, because "account" makes people think of humans and most of them are not:
+**Account** is the word most systems use, and it is the one to keep in your head. **Principal** is what *Identity Atlas* calls the same thing — it is the name of the table the data lands in, and you will see it throughout the UI and the API. The two are interchangeable when you read this documentation.
 
-| The principal is a… | Example |
+Why a different word at all? Because "account" makes people picture a human, and most of them are not:
+
+| The account / principal is a… | Example |
 |---|---|
 | Person | An employee's Entra user |
 | Service principal | An app registration that calls an API |
 | Managed identity | An Azure workload that authenticates without a secret |
 | AI agent | A Copilot Studio agent acting on someone's behalf |
 
-**The trap:** a principal is not a person. One person usually has several. That is the next word's entire job.
+!!! note "If you come from Entra ID"
+    Entra also uses "principal" (in *service principal*, *security principal*). Identity Atlas means something slightly broader: **any** account in **any** connected system, Entra or not. An SAP user is a principal here; in Entra's vocabulary it would not be.
+
+**The trap:** an account is not a person. One person usually has several. That is the next word's entire job.
 
 ## 3. Identity
 
 **The actual human being (or the actual robot), stitched together from their accounts.**
 
-Piet has an Entra account, an SAP account and an Azure account. Those are three principals and one **identity**. Identity Atlas links them for you — the process is called [account linking](../architecture/account-linking.md).
+Piet has an Entra account, an SAP account and an Azure account. Those are three accounts — three principals — and one **identity**. Identity Atlas links them for you; the process is called [account linking](../architecture/account-linking.md).
 
 Why bother? Because every interesting question is asked about the *person*, not the login:
 
 - *"What can Piet actually do?"* — not answerable from any single system.
 - *"Which department has the most SAP users?"* — an SAP account list does not record a department. The identity does.
 
-> **Identity = who.** **Principal = which login.** If you only remember one distinction from this page, make it this one.
+> **Identity = who.** **Account (principal) = which login.** If you only remember one distinction from this page, make it this one.
 
 ## 4. Resource
 
@@ -59,11 +66,25 @@ Why bother? Because every interesting question is asked about the *person*, not 
 
 This is broader than it sounds, and deliberately so. Identity Atlas stores an Entra security group and an SAP role in the same table, with the same shape, because the question *"who holds this, and how?"* is the same question either way. What kind of thing it is lives in a field called `resourceType`.
 
+!!! warning "This word does not travel well"
+    "Resource" is one of the most overloaded words in identity management, and your platform almost certainly uses it to mean something else. Read this row before you map anything:
+
+    | If you come from… | *There*, "resource" means | *Here*, that thing is a… |
+    |---|---|---|
+    | **midPoint** | `ResourceType` — a connected system with accounts in it (AD, an HR database, a CSV feed) | **System** — see [§1](#1-system). **Not** a resource. This is the one that catches people. |
+    | **Omada** | very broad — a `Resource` object covers permissions, entitlements and more | **Resource**, mostly. Omada's `ROLECATEGORY` decides the exact `resourceType`; see [Omada Data Model Reference](../architecture/omada-crawler-datamodel.md) |
+    | **Azure Resource Manager** | a deployed thing — a VM, a storage account, a resource group | **Resource** — and the RBAC role assignment on it is the [assignment](#5-assignment) |
+    | **Entra ID** | not really Entra's word; it says group, role, app role | **Resource** — all of those are resources here |
+
+    In Identity Atlas the test is single and mechanical: **if holding it gives someone access, it is a resource.** If it is the place the access lives, it is a system.
+
 ## 5. Assignment
 
-**The link: this principal holds this resource.**
+**The link: this account holds this resource.**
 
 An assignment is the atom of the whole product. Everything else — the matrix, risk scoring, access reviews — is a way of looking at a pile of assignments.
+
+Both halves are the words you just met: the account from [§2](#2-account-which-this-product-calls-a-principal), the resource from [§4](#4-resource) — in *this* product's sense of "resource", not your platform's. In the database the row is a `ResourceAssignment` and it names a `principalId` and a `resourceId`.
 
 Every assignment records not just *that* someone has access, but **how**:
 
@@ -170,8 +191,8 @@ For when you arrived here from a search box.
 
 | Term | Section |
 |---|---|
-| Account | [Account / principal](#2-account-in-this-product-a-principal) |
-| AI agent | [Account / principal](#2-account-in-this-product-a-principal) |
+| Account | [Account (principal)](#2-account-which-this-product-calls-a-principal) |
+| AI agent | [Account (principal)](#2-account-which-this-product-calls-a-principal) |
 | Assignment | [Assignment](#5-assignment) |
 | Business role | [Group and role](#6-group-and-role-the-difference-people-get-wrong) |
 | Context | [Context](#11-context) |
@@ -185,14 +206,14 @@ For when you arrived here from a search box.
 | Identity | [Identity](#3-identity) |
 | Indirect | [Assignment](#5-assignment) |
 | IST / SOLL | [Group and role](#6-group-and-role-the-difference-people-get-wrong) |
-| Managed identity | [Account / principal](#2-account-in-this-product-a-principal) |
+| Managed identity | [Account (principal)](#2-account-which-this-product-calls-a-principal) |
 | Matrix | [The matrix](#9-the-matrix) |
 | Ownership | [Ownership](#7-ownership) |
 | Plugin | [Context](#11-context) |
-| Principal | [Account / principal](#2-account-in-this-product-a-principal) |
+| Principal | [Account (principal)](#2-account-which-this-product-calls-a-principal) |
 | Resource | [Resource](#4-resource) |
 | Risk tier | [Risk score and tier](#13-risk-score-and-tier) |
 | Scope | [Scope](#10-scope) |
-| Service principal | [Account / principal](#2-account-in-this-product-a-principal) |
+| Service principal | [Account (principal)](#2-account-which-this-product-calls-a-principal) |
 | Sync | [Crawler and sync](#8-crawler-and-sync) |
 | System | [System](#1-system) |

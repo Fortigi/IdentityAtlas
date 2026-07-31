@@ -24,7 +24,7 @@ New to Identity Atlas? Take these four in order. About an hour end to end, and y
 
     ---
 
-    Identity, principal, resource, assignment. Four words that do not mean what you would guess. Eight minutes, and the rest of this site stops being a foreign language.
+    Identity, account, resource, assignment. Four words that do not mean what you would guess — and one of them means something different here than in the platform you came from. Eight minutes, and the rest of this site stops being a foreign language.
 
 -   :material-rocket-launch:{ .lg .middle } **[Get it running](quickstart.md)**
 

@@ -19,7 +19,7 @@ describe('glossary', () => {
   // The vocabulary a first-time reader cannot proceed without. Adding a term to
   // the product's language means adding it here.
   const REQUIRED = [
-    'System', 'principal', 'Identity', 'Resource', 'Assignment',
+    'System', 'Account', 'principal', 'Identity', 'Resource', 'Assignment',
     'Direct', 'Indirect', 'Eligible', 'governed', 'Ownership',
     'matrix', 'Scope', 'Context', 'Effective access', 'Risk score',
   ];
@@ -32,6 +32,32 @@ describe('glossary', () => {
 
   it('offers an A–Z index for readers arriving from search', () => {
     expect(glossary).toContain('A–Z index');
+  });
+
+  // Review feedback on #874: the glossary described Omada as a CSV export. It
+  // has had a dedicated crawler (OData REST API) for some time — the same error
+  // this PR corrected on the front page and missed here. SailPoint is the
+  // accurate CSV example: there is no SailPoint crawler under tools/crawlers/.
+  it('does not describe Omada as a CSV source', () => {
+    expect(glossary).not.toMatch(/CSV export from Omada/i);
+    expect(glossary, 'Omada should be named as a crawler source').toContain('Omada');
+  });
+
+  // Review feedback on #874: "principal" is this product's table name; "account"
+  // is what most systems call it, and a newcomer needs the generic word too.
+  it('leads with "account" and names "principal" as this product\'s term', () => {
+    expect(glossary).toMatch(/##\s*2\.\s*Account/);
+    expect(glossary).toContain('**Account** is the word most systems use');
+  });
+
+  // Review feedback on #874: "resource" collides across platforms — in midPoint
+  // a Resource is a connected system, which maps to an IA *System*, not a
+  // Resource. Without this the reader maps their vocabulary onto the wrong table.
+  it('explains how "resource" differs on other platforms', () => {
+    for (const platform of ['midPoint', 'Omada', 'Azure Resource Manager', 'Entra ID']) {
+      expect(glossary, `resource section should map ${platform}`).toContain(platform);
+    }
+    expect(glossary).toMatch(/This word does not travel well/);
   });
 
   it('states the risk tiers exactly as the code computes them', () => {
