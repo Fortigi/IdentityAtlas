@@ -1,0 +1,197 @@
+name: DoR acceptance (requestor feedback + approval)
+
+# Build-side loops E + F. Fires on every comment on an issue that is in "Awaiting functional
+# acceptance" (the `build-done` label). One triage job gates on org membership + classifies the
+# comment, then branches:
+#   - "approved"  → loop F: move the board to "Awaiting merge" for the Product Board (deterministic,
+#                   no AI, no sidekick). The sidekick is released later, when the PR actually merges
+#                   (dor-reset.yml).
+#   - anything else → loop E: the sidekick that holds this feature re-invokes the AI to adjust the
+#                   build for the feedback, re-deploys to the same live env, re-verifies, and reports
+#                   back — the issue stays in functional acceptance for another look.
+#
+# SECURITY: issue_comment runs with secrets for ANY commenter on a PUBLIC repo and is NOT covered by
+# fork-PR approval, so org membership (dor-authorize) is the gate. INERT until DOR_ENABLED=true.
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions: {}
+
+concurrency:
+  group: dor-acceptance-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  triage:
+    if: >-
+      vars.DOR_ENABLED == 'true' &&
+      github.event.comment.user.type != 'Bot' &&
+      !github.event.issue.pull_request &&
+      contains(github.event.issue.labels.*.name, 'build-done')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      is-member: ${{ steps.auth.outputs.is-member }}
+      is-approval: ${{ steps.classify.outputs.is-approval }}
+    steps:
+      - name: Checkout the authorize action only
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: .github/actions/dor-authorize
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+      - name: Require Fortigi org membership
+        id: auth
+        uses: ./.github/actions/dor-authorize
+        with:
+          app-id: ${{ secrets.BOT_APP_ID }}
+          private-key: ${{ secrets.BOT_PRIVATE_KEY }}
+          actor: ${{ github.actor }}
+      - name: Classify the comment (approval vs feedback)
+        id: classify
+        env:
+          BODY: ${{ github.event.comment.body }}
+        run: |
+          set -euo pipefail
+          # Approval = the whole comment is essentially the word "approved" (case/space/punct-tolerant).
+          norm="$(printf '%s' "$BODY" | tr '[:upper:]' '[:lower:]' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+          if printf '%s' "$norm" | grep -qiE '^approve(d)?[[:punct:][:space:]]*$'; then
+            echo "is-approval=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "is-approval=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  # Loop F — the requestor said "approved". Hand off to the Product Board for the merge.
+  approve:
+    needs: triage
+    if: needs.triage.outputs.is-member == 'true' && needs.triage.outputs.is-approval == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Checkout the board script only
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: .github/scripts
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+      - name: Mint BOT token (board move + PR lookup)
+        id: bot
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ secrets.BOT_APP_ID }}
+          private-key: ${{ secrets.BOT_PRIVATE_KEY }}
+          owner: Fortigi
+          permission-organization-projects: write
+          permission-pull-requests: read
+          permission-issues: read
+      - name: Move to Awaiting merge + notify the Product Board
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BOARD_TOKEN: ${{ steps.bot.outputs.token }}
+          ISSUE: ${{ github.event.issue.number }}
+          REPO: ${{ github.repository }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          set -uo pipefail
+          pr=$(GH_TOKEN="$BOARD_TOKEN" gh pr list --repo "$REPO" --head "dor/issue-${ISSUE}" --state open --json number --jq '.[0].number // empty')
+          GH_TOKEN="$BOARD_TOKEN" bash .github/scripts/dor_set_status.sh "$ISSUE" awaiting-merge || true
+          # Drop build-done so the feedback loop stops firing; the board is now canonical.
+          gh issue edit "$ISSUE" --repo "$REPO" --remove-label build-done >/dev/null 2>&1 || true
+          gh issue comment "$ISSUE" --repo "$REPO" --body "$(printf '✅ @%s accepted this feature. @WimvandenHeijkant @TaekeK @robb536 (Product Board) — it'\''s ready for the **final merge review** of PR #%s. Merging it releases the build sidekick and closes this issue.' "$ACTOR" "${pr:-?}")" >/dev/null 2>&1 || true
+          echo "::notice::#${ISSUE} accepted by ${ACTOR} → Awaiting merge (PR #${pr:-?})"
+
+  # Loop E — feedback. Only the sidekick that holds this feature's live env acts; the others no-op.
+  feedback:
+    needs: triage
+    if: needs.triage.outputs.is-member == 'true' && needs.triage.outputs.is-approval != 'true'
+    strategy:
+      matrix:
+        sk: [sk5, sk6, sk3]
+    runs-on:
+      - self-hosted
+      - ${{ matrix.sk }}
+    timeout-minutes: 350
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Am I the holder of issue #${{ github.event.issue.number }}?
+        id: sk
+        env:
+          ISSUE: ${{ github.event.issue.number }}
+        run: |
+          set -euo pipefail
+          if [ ! -d "$HOME/stacks/dor-${ISSUE}/.git" ]; then
+            echo "::notice::$(hostname) does not hold issue #${ISSUE} — nothing to adjust."
+            echo "holder=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          case "$(hostname)" in
+            dev-docker-03) url="https://3.build.identityatlas.io" ;;
+            dev-docker-05) url="https://5.build.identityatlas.io" ;;
+            dev-docker-06) url="https://6.build.identityatlas.io" ;;
+            *) echo "::error::unknown sidekick $(hostname)"; echo "holder=false" >> "$GITHUB_OUTPUT"; exit 0 ;;
+          esac
+          { echo "holder=true"; echo "host=$(hostname)"; echo "url=$url"; } >> "$GITHUB_OUTPUT"
+
+      - name: Checkout main
+        if: steps.sk.outputs.holder == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Ensure the claude CLI is on PATH
+        if: steps.sk.outputs.holder == 'true'
+        run: |
+          set -euo pipefail
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          "$HOME/.local/bin/claude" --version || curl -fsSL https://claude.ai/install.sh | bash
+
+      - name: Mint BOT token (Exceptions board move if it breaks)
+        if: steps.sk.outputs.holder == 'true'
+        id: bot
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ secrets.BOT_APP_ID }}
+          private-key: ${{ secrets.BOT_PRIVATE_KEY }}
+          owner: Fortigi
+          permission-organization-projects: write
+          permission-pull-requests: write
+          permission-contents: read
+          permission-issues: read
+
+      - name: Adjust the build for the feedback → re-deploy → re-verify → report
+        if: steps.sk.outputs.holder == 'true'
+        env:
+          ISSUE: ${{ github.event.issue.number }}
+          REPO: ${{ github.repository }}
+          URL: ${{ steps.sk.outputs.url }}
+          HOST: ${{ steps.sk.outputs.host }}
+          WORK: ${{ github.workspace }}
+          GH_TOKEN: ${{ github.token }}
+          BOARD_TOKEN: ${{ steps.bot.outputs.token }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          DOR_BUILD_MODEL: ${{ vars.DOR_BUILD_MODEL }}
+          FEEDBACK: ${{ github.event.comment.body }}
+          FEEDBACK_AUTHOR: ${{ github.actor }}
+        run: bash .github/scripts/dor_feedback_flow.sh
+
+      - name: On unexpected failure → Exceptions (backstop)
+        if: failure() && steps.sk.outputs.holder == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BOARD_TOKEN: ${{ steps.bot.outputs.token }}
+          ISSUE: ${{ github.event.issue.number }}
+          REPO: ${{ github.repository }}
+          HOST: ${{ steps.sk.outputs.host }}
+        run: |
+          set -uo pipefail
+          [ -f "$RUNNER_TEMP/dor-bailed" ] && { echo "flow already handled the failure"; exit 0; }
+          GH_TOKEN="$BOARD_TOKEN" bash .github/scripts/dor_set_status.sh "$ISSUE" exception 2>/dev/null || true
+          gh issue comment "$ISSUE" --repo "$REPO" \
+            --body "⚠️ @WimvandenHeijkant @TaekeK @robb536 — the automated adjustment for this feature failed unexpectedly on ${HOST}. Moved to **Exceptions** — please check the workflow run." >/dev/null 2>&1 || true
