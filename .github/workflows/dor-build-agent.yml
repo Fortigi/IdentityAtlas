@@ -1,22 +1,16 @@
-name: DoR build agent (implement → validate → PR)
+name: DoR build agent (implement → verify → PR)
 
-# Build-side slice D (operationalization.md row 8): the AI implements an APPROVED spec on a dor-build
-# sidekick, builds + runs + self-validates it on the live env, and opens a PR. Triggered when a
-# maintainer applies `ready-to-build` to an approved issue. INERT until DOR_ENABLED=true.
+# Build-side slice D — the full Definition-of-Done. On `ready-to-build` (after the value-gate
+# approval), a dor-build sidekick: implements the approved spec, deploys it + loads demo data + runs
+# the resource context plugins, verifies the feature with its e2e on the LIVE env, opens a PR, and
+# drives CI to green (auto-fix up to 8×). Only when ALL of that passes does it move the issue to
+# "Awaiting functional acceptance" and @-mention the requestor + commenters with the test URL. ANY
+# break → the issue goes to the "Exceptions" column for human triage. The orchestration is in
+# .github/scripts/dor_build_flow.sh (a real loop, driven by the `claude` CLI — a `uses:` action can't loop).
 #
-# ── SECURITY (read before touching) ─────────────────────────────────────────────────────────────
-# Unlike the spec-side agents (dor-agent / dor-bug-agent), this agent has shell + Docker + network —
-# it CANNOT be sandboxed or egress-filtered, because it runs third-party build code (npm, Docker).
-# It is contained instead by:
-#   1. TRUSTED INPUT — it only ever builds a HUMAN-APPROVED spec (issue past the value gate, member
-#      applies `ready-to-build`); never raw public-issue text.
-#   2. ISOLATED, DISPOSABLE VM — runs on a pool sidekick that holds nothing but its own Docker and is
-#      reset between uses (slice B). Public repo → fork PRs can't reach these runners (approval policy).
-#   3. NO MERGE POWER — the token is contents + pull-requests write only; the worst it can produce is a
-#      PR a human reviews. CI runs on that PR as the objective gate. It cannot push to or merge main.
-#   4. RECYCLE — the sidekick is reserved for the resulting PR and reset on close (slices A/B rails).
-# The Claude Max OAuth token is in-env here by explicit choice (reused from the spec agents); a leaked
-# token is revocable via `claude setup-token`. Consider egress-restricting the sidekicks' network.
+# SECURITY: post-value-gate, so the input is the human-APPROVED spec, not raw issue text. Runs on an
+# isolated, reset-between-uses sidekick. Push token is contents write (NO merge); a board-scoped BOT
+# token opens the PR + moves the board. The human merge gate is unchanged. INERT until DOR_ENABLED=true.
 
 on:
   issues:
@@ -29,7 +23,6 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # ── Gate: org-members-only, on an approved issue tagged ready-to-build. No model secret here. ──
   authorize:
     if: >-
       vars.DOR_ENABLED == 'true' &&
@@ -56,23 +49,20 @@ jobs:
           private-key: ${{ secrets.BOT_PRIVATE_KEY }}
           actor: ${{ github.actor }}
 
-  # ── The build agent: reserve a sidekick → implement + build + self-validate → open a PR. ──
   build:
     needs: authorize
     if: needs.authorize.outputs.is-member == 'true'
-    # THE REAL APPROVAL GATE (row 7). The `ready-to-build` label only proposes a build (GitHub can't
-    # restrict who applies a label); this Environment's required reviewers — the Product Board (Wim /
-    # Taeke / Rob) — are the only people who can approve it to actually run. The job PAUSES here for a
-    # human "Approve" in the Actions UI BEFORE the agent runs or any token is spent. Same class of gate
-    # as a required PR approval. Configure reviewers under Settings → Environments → build-approval.
+    # THE value gate — the build-approval Environment's required reviewers (Product Board) must approve
+    # before ANY of this runs (no AI, no token spend until then). Same class as a required PR approval.
     environment: build-approval
     runs-on:
       - self-hosted
       - dor-build
+    timeout-minutes: 350   # the deploy+e2e+CI(8×) loop can run long; a timeout trips the Exceptions backstop
     permissions:
-      contents: write        # push the implementation branch
-      pull-requests: write    # open the PR
-      issues: write           # comment the functional-test URL
+      contents: write        # the flow pushes the implementation branch (github.token via persist-credentials)
+      pull-requests: write
+      issues: write
     steps:
       - name: Identify this sidekick + its public URL
         id: sk
@@ -82,30 +72,23 @@ jobs:
             dev-docker-03) url="https://3.build.identityatlas.io" ;;
             dev-docker-05) url="https://5.build.identityatlas.io" ;;
             dev-docker-06) url="https://6.build.identityatlas.io" ;;
-            *) echo "::error::unknown sidekick $(hostname)"; exit 1 ;;
+            *) echo "::error::unknown sidekick $(hostname) — not in the dor-build pool map"; exit 1 ;;
           esac
           { echo "host=$(hostname)"; echo "url=$url"; } >> "$GITHUB_OUTPUT"
-
-      - name: Reserve this sidekick (soft) for issue #${{ github.event.issue.number }}
-        env:
-          ISSUE: ${{ github.event.issue.number }}
-        run: |
-          set -euo pipefail
-          lock="$HOME/.dor-reservation"
-          if [ -f "$lock" ] && [ "$(cat "$lock")" != "issue-$ISSUE" ]; then
-            echo "::error::$(hostname) is reserved ($(cat "$lock")). Free that slot or use the other sidekick."
-            exit 1
-          fi
-          # Hold with an issue-scoped marker; rewritten to the PR number once the PR exists.
-          echo "issue-$ISSUE" > "$lock"
 
       - name: Checkout main (base for the implementation branch)
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-          persist-credentials: true   # so the agent can `git push` its branch with GITHUB_TOKEN
+          persist-credentials: true   # so the flow can `git push` the branch with GITHUB_TOKEN
 
-      - name: Fetch the approved spec (issue + comments) for the agent
+      - name: Ensure the claude CLI is on PATH
+        run: |
+          set -euo pipefail
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          "$HOME/.local/bin/claude" --version || curl -fsSL https://claude.ai/install.sh | bash
+
+      - name: Fetch the approved spec + write the implement prompt
         env:
           GH_TOKEN: ${{ github.token }}
           ISSUE: ${{ github.event.issue.number }}
@@ -113,135 +96,65 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p .dor/in
-          gh issue view "$ISSUE" --repo "$REPO" \
-            --json number,title,body,author,labels,comments > .dor/in/spec.json
+          gh issue view "$ISSUE" --repo "$REPO" --json number,title,body,author,labels,comments > .dor/in/spec.json
+          cat > .dor/in/prompt.txt <<PROMPT
+          You are the DoR BUILD agent for IdentityAtlas, implementing APPROVED issue #${ISSUE}.
+          The approved spec is .dor/in/spec.json — the issue body plus its CERTIFIED / approval comment,
+          which is the authoritative plan. Build exactly what was approved; do not expand scope.
 
-      - name: Implement + make unit tests green + push the branch (AI)
-        uses: anthropics/claude-code-action@6c0083bb7289c31716797a039b6367b3079cc46e # v1
-        env:
-          GH_TOKEN: ${{ github.token }}   # so the agent's `git push` is authenticated
-        with:
-          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          github_token: ${{ github.token }}
-          # Broad tools (bare Bash = all commands; Edit/Write for the implementation). Headless
-          # auto-denies anything not listed — no interactive stalls.
-          claude_args: "--model ${{ vars.DOR_BUILD_MODEL || 'claude-fable-5' }} --fallback-model claude-opus-5 --allowedTools Read,Edit,Write,Grep,Glob,Bash"
-          prompt: |
-            You are the Definition-of-Ready (DoR) BUILD agent for IdentityAtlas. Issue
-            #${{ github.event.issue.number }} has passed the value gate and been approved to build.
-            Implement it and push a branch. A DETERMINISTIC workflow step (not you) then opens the PR and
-            deploys your branch to this sidekick for functional testing — so YOUR job is exactly:
-            implement → make the unit tests green → commit → push. **Do NOT run docker. Do NOT open a PR.**
+          Follow CLAUDE.md and the subdirectory guides:
+            - Fix at the SOURCE, not the surface (crawler/ingest/schema/matview over a UI patch).
+            - Every code change ships TESTS covering the lines/branches it adds; coverage must not drop.
+            - Reuse before creating; keep files small; match surrounding style.
+            - Update any docs the change affects; add a changelog fragment at changes/dor-issue-${ISSUE}.md
+              (user-facing bullets). NEVER edit CHANGES.md or setup/IdentityAtlas.psd1.
+            - Do NOT modify anything under .github/.
 
-            THE APPROVED SPEC is .dor/in/spec.json (the issue body + comments — read the CERTIFIED /
-            approval comment; it is the authoritative plan). Build exactly what was approved; do not
-            expand scope. This spec is trusted input.
+          Also ADD or EXTEND a Playwright e2e under app/ui/e2e/ that exercises this feature per its
+          acceptance criteria; it is run against the live, demo-data-loaded app to prove the feature works.
 
-            FOLLOW CLAUDE.md AND THE SUBDIR GUIDES:
-              • Fix at the SOURCE, not the surface (crawler/ingest/schema/matview over a UI patch).
-              • Every code change ships TESTS covering the lines/branches it adds — coverage must not drop.
-              • Reuse before creating; keep files small; match surrounding style.
-              • ADD A CHANGELOG FRAGMENT at changes/dor-issue-${{ github.event.issue.number }}.md
-                (user-facing bullets). NEVER edit CHANGES.md or setup/IdentityAtlas.psd1.
-              • Do NOT modify .github/** (workflows/actions/scripts) — out of scope for a feature build.
+          Make the relevant unit tests pass (cd app/api && npx vitest run <touched>; cd app/ui && npx vitest run <touched>).
+          Do NOT run docker. Do NOT commit, push, or open a PR - leave your changes in the working tree;
+          the workflow handles git, deploy, and the PR.
+          PROMPT
 
-            STEPS:
-              1. git checkout -b dor/issue-${{ github.event.issue.number }}
-              2. Implement the approved change.
-              3. Make the relevant unit tests green (no docker — the workflow builds + runs the stack after you):
-                   (cd app/api && npx vitest run <the files/areas you touched>)   # API
-                   (cd app/ui  && npx vitest run <the files/areas you touched>)   # UI
-                 Iterate until they pass.
-              4. git add -A && git commit -m "<concise message> (#${{ github.event.issue.number }})"
-              5. git push -u origin dor/issue-${{ github.event.issue.number }}
-
-            DO NOT: open a PR, run docker, merge, push to main, touch other files under .github, or write
-            any secret/token/environment value into files. Your job ends when the branch is pushed with
-            green unit tests. The workflow handles the PR, the live deploy, and moving the board.
-
-      # ── Deterministic handoff (the AI is done) — restore .github, open the PR, deploy on THIS sidekick,
-      #    move the board, comment the URL. Not the agent, so it's reliable. ──
-      # The shell-capable agent could have tampered with tracked .github files; restore them before we
-      # execute any repo script (dor_set_status.sh) with a board token in scope.
-      - name: Restore repo scripts (defuse Write→exec)
-        run: git restore --source=HEAD --staged --worktree -- .github
-
-      # BOT token for (a) opening the PR and (b) moving the board. It creates the PR because the
-      # default GITHUB_TOKEN can't — the org's "Allow Actions to create/approve PRs" toggle is off
-      # (kept off on purpose so Actions can't self-approve). An App token isn't subject to that toggle.
-      # Requires the fortigi-ci-bot app to have Pull requests: write + Contents: read granted.
-      - name: Mint BOT token (open PR + board move)
-        id: board-token
+      - name: Mint BOT token (open PR + board moves)
+        id: bot
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         with:
           client-id: ${{ secrets.BOT_APP_ID }}
           private-key: ${{ secrets.BOT_PRIVATE_KEY }}
           owner: Fortigi
           permission-organization-projects: write
-          permission-pull-requests: write   # open the PR (GITHUB_TOKEN can't — see above)
-          permission-contents: read          # read the head/base refs for the PR
+          permission-pull-requests: write
+          permission-contents: read
           permission-issues: read
 
-      - name: Open PR → deploy on this sidekick → move board to functional testing → comment URL
+      - name: Build → deploy+seed → e2e-verify → PR → CI (8× auto-fix) → gated notify
         env:
-          GH_TOKEN: ${{ github.token }}
-          BOARD_TOKEN: ${{ steps.board-token.outputs.token }}
           ISSUE: ${{ github.event.issue.number }}
           REPO: ${{ github.repository }}
           URL: ${{ steps.sk.outputs.url }}
           HOST: ${{ steps.sk.outputs.host }}
-          BRANCH: dor/issue-${{ github.event.issue.number }}
+          WORK: ${{ github.workspace }}
+          GH_TOKEN: ${{ github.token }}
+          BOARD_TOKEN: ${{ steps.bot.outputs.token }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          DOR_BUILD_MODEL: ${{ vars.DOR_BUILD_MODEL }}
+        run: bash .github/scripts/dor_build_flow.sh
+
+      - name: On unexpected failure → Exceptions (backstop)
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BOARD_TOKEN: ${{ steps.bot.outputs.token }}
+          ISSUE: ${{ github.event.issue.number }}
+          REPO: ${{ github.repository }}
+          HOST: ${{ steps.sk.outputs.host }}
         run: |
-          set -euo pipefail
-          # The agent's contract: implement + green unit tests + push the branch. Verify it did.
-          if ! git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
-            echo "::error::branch $BRANCH was not pushed — the build agent didn't produce it."; exit 1
-          fi
-
-          # 1. Open ONE PR from the pushed branch (idempotent — reuse if it already exists).
-          pr=$(gh pr list --repo "$REPO" --head "$BRANCH" --state open --json number --jq '.[0].number // empty')
-          if [ -z "$pr" ]; then
-            title=$(gh issue view "$ISSUE" --repo "$REPO" --json title --jq '.title')
-            pr_body=$(printf 'Closes #%s\n\nBuilt autonomously by the DoR build agent from the approved spec. **Functional test:** %s (Fortigi-tenant sign-in). CI on this PR is the objective gate — review + merge to ship.' "$ISSUE" "$URL")
-            pr_url=$(GH_TOKEN="$BOARD_TOKEN" gh pr create --repo "$REPO" --base main --head "$BRANCH" --title "$title" --body "$pr_body")
-            pr=$(printf '%s' "$pr_url" | grep -oE '[0-9]+$')
-          fi
-          echo "PR #$pr"
-
-          # 2. Deploy the branch on THIS sidekick so ${URL} serves the build (persistent + resettable).
-          for d in "$HOME"/stacks/*/; do
-            [ -d "$d" ] || continue
-            ( cd "$d" && { docker compose down 2>/dev/null || docker compose -f docker-compose.prod.yml down 2>/dev/null || true; } )
-          done
-          dir="$HOME/stacks/pr-$pr"; rm -rf "$dir"
-          git clone --depth 1 --branch "$BRANCH" "https://github.com/${REPO}.git" "$dir"
-          printf 'services:\n  web:\n    environment:\n      BEHIND_TLS: "true"\n      PUBLIC_BASE_URL: "%s"\n' "$URL" > "$dir/dor-tls.override.yml"
-          cd "$dir"
-          docker compose -f docker-compose.yml -f dor-tls.override.yml up -d --build
-          code=000
-          for i in $(seq 1 60); do
-            code=$(curl -fsS -o /dev/null -w '%{http_code}' http://localhost:3001/ 2>/dev/null || echo 000)
-            [ "$code" = "200" ] && break; sleep 10
-          done
-          echo "http://localhost:3001/ -> $code"
-          if [ "$code" != "200" ]; then
-            echo "::error::deployed stack not healthy on $(hostname)"
-            docker compose -f docker-compose.yml -f dor-tls.override.yml logs --tail 50 web || true; exit 1
-          fi
-          cd "$GITHUB_WORKSPACE"
-
-          # 3. Reserve the box for this PR (slice B resets it on close).
-          echo "$pr" > "$HOME/.dor-reservation"
-
-          # 4. Move the linked issue into the functional-testing phase on the board (+ label).
-          gh issue edit "$ISSUE" --repo "$REPO" --add-label build-done --remove-label state:awaiting-approval >/dev/null 2>&1 || true
-          GH_TOKEN="$BOARD_TOKEN" bash .github/scripts/dor_set_status.sh "$ISSUE" build-done
-
-          # 5. Comment the functional-test URL on the PR.
-          cmt=$(printf '🤖 Built on **%s** and deployed for functional testing → **%s** (Fortigi-tenant sign-in). Board moved to *Awaiting functional acceptance*; sidekick reserved for this PR until merge/close.' "$HOST" "$URL")
-          curl -sS -X POST \
-            -H "Authorization: Bearer ${GH_TOKEN}" \
-            -H "Accept: application/vnd.github+json" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            "https://api.github.com/repos/${REPO}/issues/${pr}/comments" \
-            -d "$(printf '{"body":%s}' "$(printf '%s' "$cmt" | jq -Rs .)")" -o /dev/null -w 'PR comment: HTTP %{http_code}\n'
+          set -uo pipefail
+          # If the flow already routed to Exceptions (its bail() marker), don't double-post.
+          [ -f "$RUNNER_TEMP/dor-bailed" ] && { echo "flow already handled the failure"; exit 0; }
+          GH_TOKEN="$BOARD_TOKEN" bash .github/scripts/dor_set_status.sh "$ISSUE" exception 2>/dev/null || true
+          gh issue comment "$ISSUE" --repo "$REPO" \
+            --body "⚠️ @WimvandenHeijkant @TaekeK @robb536 — the automated build job for this feature failed unexpectedly (before the flow could self-report), on ${HOST}. Moved to **Exceptions** — please check the workflow run." >/dev/null 2>&1 || true
