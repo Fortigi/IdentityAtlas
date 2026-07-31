@@ -8,6 +8,7 @@ import { ensureTagTables, buildFilterWhere, parseTags } from './tags.js';
 import { extractRelFilters, buildRelationshipWhere, discoverReferenceFields } from '../lib/referenceFilters.js';
 import { UUID_RE, cleanRow, getPermissionTable } from './details/shared.js';
 import { isMissingSchema } from '../db/schemaErrors.js';
+import { buildResourceContextsSql } from '../matrix/resourceContexts.js';
 
 const router = Router();
 const useSql = process.env.USE_SQL === 'true';
@@ -315,12 +316,9 @@ router.get('/resources/:id/contexts', async (req, res) => {
   if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'Invalid ID format' });
   if (!useSql) return res.json([]);
   try {
+    // Shared join with the matrix's resourceContexts sidecar (matrix/resourceContexts.js).
     const rows = (await db.query(
-      `SELECT c.id, c."displayName", c."contextType", c."targetType", c.variant
-         FROM "ContextMembers" cm
-         JOIN "Contexts" c ON c.id = cm."contextId"
-        WHERE cm."memberId"::text = $1
-        ORDER BY c."contextType", c."displayName"`,
+      buildResourceContextsSql(`cm."memberId"::text = $1`),
       [req.params.id]
     )).rows;
     res.json(rows);

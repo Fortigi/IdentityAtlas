@@ -43,6 +43,8 @@ Shape:
 
 The view itself is a single `SELECT FROM "ResourceAssignments"` with no `assignmentType` filter — every type stored in the base table flows through automatically. The legacy hardcoded UNION of `Direct/Owner/Eligible/Governed` was removed in migration 024 so future assignment types don't need a migration to surface.
 
+**Per-resource sidecars.** Alongside the assignment rows, the flat-grid response of `POST /api/matrix/data` carries two batched per-resource arrays, each computed by one extra query scoped to the visible resources: `managedByPackages` (which business roles cover which cell — the SOLL overlay) and `resourceContexts` (which [Contexts](context-redesign.md) each resource is a member of — group category, tags, clusters, …; `ContextMembers` rows with `memberType='Resource'`, via the shared join in `app/api/src/matrix/resourceContexts.js`). `resourceContexts` feeds the right-side **Contexts** metadata column next to `#` and Description: the first 2 contexts as chips (server-sorted by `contextType`, then `displayName`) with a `+N` inline expand. Display-only — filtering by context stays in the wizard's context filter. The Excel export writes the same column with **all** context names comma-joined. Flat per-subject grid only; the roll-up/layered views have no per-resource rows.
+
 ## Badge collapse — what each letter actually means
 
 The user reads three letters. The DB stores a handful of assignment types. The translation lives in migration 049's CASE expression and is intentionally lossy:

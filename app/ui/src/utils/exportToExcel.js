@@ -2,6 +2,7 @@ import ExcelJS from 'exceljs';
 import { TYPE_COLORS as TYPE_COLORS_SRC, AP_COLORS } from './colors';
 import { hexToArgb, thinBorder, setHeaderCell, safeCell } from './excelHelpers';
 import { friendlyLabel } from './formatters';
+import { contextNames, contextsFor } from '@ui/components/matrix/resourceContextCell';
 
 /**
  * Exports the matrix view to an Excel workbook matching the on-screen layout.
@@ -22,7 +23,7 @@ const TYPE_COLORS = Object.fromEntries(
   ])
 );
 
-export async function exportToExcel({ users, orderedGroups, memberships, managedApMap, apIdToIndex, activeFilters, filterFields, accessPackages = [], apGroupMap, shareUrl, sortAttributes = [] }) {
+export async function exportToExcel({ users, orderedGroups, memberships, managedApMap, apIdToIndex, activeFilters, filterFields, accessPackages = [], apGroupMap, resourceContextMap, shareUrl, sortAttributes = [] }) {
   const wb = new ExcelJS.Workbook();
   wb.creator = 'Identity Atlas';
   wb.created = new Date();
@@ -57,8 +58,9 @@ export async function exportToExcel({ users, orderedGroups, memberships, managed
   for (let a = 0; a < apCount; a++) {
     ws.getColumn(apColStart + a).width = 4;
   }
-  ws.getColumn(metaColStart).width = 5;     // #
-  ws.getColumn(metaColStart + 1).width = 30; // Description
+  ws.getColumn(metaColStart).width = 5;      // #
+  ws.getColumn(metaColStart + 1).width = 30; // Contexts
+  ws.getColumn(metaColStart + 2).width = 30; // Description
 
   // ===== Attribute header rows (one per sort attribute, no merging) =====
   for (let L = 0; L < headerLevels; L++) {
@@ -128,13 +130,17 @@ export async function exportToExcel({ users, orderedGroups, memberships, managed
   }
 
   setHeaderCell(ws.getCell(namesRow, metaColStart), '#', true);
-  setHeaderCell(ws.getCell(namesRow, metaColStart + 1), 'Description', true);
+  setHeaderCell(ws.getCell(namesRow, metaColStart + 1), 'Contexts', true);
+  setHeaderCell(ws.getCell(namesRow, metaColStart + 2), 'Description', true);
 
   // ===== Data rows: resources =====
   orderedGroups.forEach((group, gIdx) => {
     const rowNum = gIdx + namesRow + 1;
     const row = ws.getRow(rowNum);
     row.height = 18;
+    // Real resource id for owner rows (synthetic id) — shared by the GUID,
+    // Contexts, and AP-lookup cells below.
+    const rowGid = group.realGroupId || group.id;
 
     // Info columns: Resource Name | Type | GUID
     const nameCell = ws.getCell(rowNum, 1);
@@ -148,7 +154,7 @@ export async function exportToExcel({ users, orderedGroups, memberships, managed
     typeCell.border = thinBorder();
 
     const guidCell = ws.getCell(rowNum, 3);
-    guidCell.value = group.realGroupId || group.id;
+    guidCell.value = rowGid;
     guidCell.font = { size: 11, color: { argb: 'FF9CA3AF' } };
     guidCell.border = thinBorder();
 
@@ -202,23 +208,29 @@ export async function exportToExcel({ users, orderedGroups, memberships, managed
       excelCell.border = thinBorder();
     }
 
-    // Meta columns (right side): # | Description
+    // Meta columns (right side): # | Contexts | Description
     const countCell = ws.getCell(rowNum, metaColStart);
     countCell.value = group.memberCount;
     countCell.font = { size: 11 };
     countCell.alignment = { horizontal: 'center' };
     countCell.border = thinBorder();
 
-    const descCell = ws.getCell(rowNum, metaColStart + 1);
+    // All context names, comma-joined and untruncated (unlike the on-screen
+    // "first 2 + expand" cell — the export is for offline analysis).
+    const ctxCell = ws.getCell(rowNum, metaColStart + 1);
+    ctxCell.value = safeCell(contextNames(contextsFor(resourceContextMap, rowGid)));
+    ctxCell.font = { size: 11 };
+    ctxCell.border = thinBorder();
+
+    const descCell = ws.getCell(rowNum, metaColStart + 2);
     descCell.value = safeCell(group.description);
     descCell.font = { size: 11 };
     descCell.border = thinBorder();
 
     // Access package cells (each AP column uses its own color)
     const isOwnerRow = !!group.realGroupId;
-    const lookupGid = group.realGroupId || group.id;
     for (let a = 0; a < apCount; a++) {
-      const apKey = `${lookupGid.toUpperCase()}|${accessPackages[a].id.toLowerCase()}`;
+      const apKey = `${rowGid.toUpperCase()}|${accessPackages[a].id.toLowerCase()}`;
       const roleName = apGroupMap?.get(apKey);
       const apCell = ws.getCell(rowNum, apColStart + a);
 

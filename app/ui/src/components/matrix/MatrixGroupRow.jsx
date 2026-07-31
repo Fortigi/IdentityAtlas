@@ -1,4 +1,6 @@
 ﻿import MatrixCell from './MatrixCell';
+import ResourceContextsCell from './ResourceContextsCell';
+import { contextsFor } from './resourceContextCell';
 import { getAccessPackageColor } from '@ui/utils/colors';
 import { useIsDark } from '@ui/contexts/ThemeContext';
 
@@ -26,6 +28,7 @@ export default function MatrixGroupRow({
   accessPackages = [],
   apGroupMap,
   managedFilter,
+  resourceContextMap,
   onOpenDetail,
   onExplainInherited,
   // Nested group expansion props
@@ -207,11 +210,12 @@ export default function MatrixGroupRow({
         );
       })}
 
-      {/* Right-side metadata: # | Description */}
+      {/* Right-side metadata: # | Contexts | Description */}
       <td className="border-l-2 border-b border-gray-200 dark:border-gray-700 px-2 py-0.5 text-xs text-gray-600 dark:text-gray-400 text-center"
           style={{ minWidth: '40px' }}>
         {memberCount}
       </td>
+      <ResourceContextsCell contexts={contextsFor(resourceContextMap, realGidForExpand)} />
       <td className="border-b border-gray-200 dark:border-gray-700 px-2 py-0.5 text-xs text-gray-600 dark:text-gray-500 max-w-[500px]"
           title={group.description}>
         <div className="truncate">{group.description}</div>

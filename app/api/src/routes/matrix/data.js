@@ -19,6 +19,7 @@ import {
   buildContextRolesSql, buildContextRolesAsRowsSql,
 } from '../../matrix/contextRollup.js';
 import { buildAttrCutCellsSql, buildAttrCutNodesSql, tupleToNode } from '../../matrix/attributeCut.js';
+import { buildResourceContextsSql, groupResourceContexts } from '../../matrix/resourceContexts.js';
 import { buildRollupSql, buildRollupRolesSql, buildRolesAsRowsSql, buildGroupTotalsSql, buildRolesDrillSql } from '../../matrix/rollupBuilders.js';
 import { parseFilter, buildSubqueries, scopeCounts, runBound, collectResources } from './shared.js';
 import { GROUP_PRINCIPAL_TYPE } from '../../lib/principalTypes.js';
@@ -584,6 +585,21 @@ async function handleRollupResources(res, ctx, resolved, groupTotals) {
   });
 }
 
+// Contexts sidecar for the flat grid (#870): which Contexts each visible
+// resource is a member of, in one batch query scoped to the grid's resources
+// (mirrors the managedByPackages block — same tolerant failure mode, since
+// ContextMembers may be absent on older deployments).
+async function flatGridResourceContexts(p, res, built) {
+  try {
+    const rc = createParams();
+    const rcResourceSql = built.resource(rc.bind).sql;
+    const memberIdSql = rcResourceSql ? `cm."memberId" IN ${rcResourceSql}` : 'TRUE';
+    const result = await timedQuery(p, 'matrix-data-resource-contexts', res,
+      buildResourceContextsSql(memberIdSql), rc.params);
+    return groupResourceContexts(result.rows);
+  } catch { return []; }
+}
+
 // ─── Flat per-subject grid (default) ───
 // Every in-scope (subject, resource) assignment as its own row. The heaviest
 // payload; guarded by MAX_FLAT_ROWS below.
@@ -702,6 +718,8 @@ async function handleFlatGrid(res, ctx) {
       }));
   } catch { /* AP view may not exist */ }
 
+  const resourceContexts = await flatGridResourceContexts(p, res, built);
+
   return res.json({
     data: result.rows,
     rowType,
@@ -712,6 +730,7 @@ async function handleFlatGrid(res, ctx) {
     // Backward-compat alias used by the existing matrix toolbar footer.
     totalUsers: subjectTotal,
     managedByPackages,
+    resourceContexts,
     warnings: built.warnings,
   });
 }
@@ -719,7 +738,7 @@ async function handleFlatGrid(res, ctx) {
 router.post('/matrix/data', async (req, res) => {
   if (!useSql) {
     return res.json({
-      data: [], rowType: 'principal', managedByPackages: [],
+      data: [], rowType: 'principal', managedByPackages: [], resourceContexts: [],
       subjectCount: 0, subjectTotal: 0, resourceCount: 0, resourceTotal: 0, assignmentCount: 0,
     });
   }

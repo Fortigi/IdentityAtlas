@@ -72,6 +72,22 @@ test.describe('Matrix View', () => {
     }
   });
 
+  test('right-side Contexts metadata column renders on the flat grid (#870)', async ({ page }) => {
+    test.slow(); // permissions API cold start
+    const table = page.locator('table').first();
+    const emptyHeading = page.getByRole('heading', { name: /Pick a slice to inspect/i });
+    await expect(table.or(emptyHeading)).toBeVisible({ timeout: 60000 });
+    if (await table.isVisible()) {
+      // The pinned names row carries the Contexts header between # and
+      // Description; cells show context chips or an em-dash empty state.
+      // (Chip content depends on which context plugins have run against the
+      // seeded data, so only the column's presence is asserted here — the
+      // "first 2 + expand" behaviour is covered by the component mount test.)
+      await expect(table.getByRole('columnheader', { name: 'Contexts' })).toBeVisible({ timeout: 10000 });
+      await expect(table.getByRole('columnheader', { name: 'Description' })).toBeVisible();
+    }
+  });
+
   test('share button exists', async ({ page }) => {
     const shareButton = page.getByRole('button', { name: /Share/i });
     if (await shareButton.count() > 0) {

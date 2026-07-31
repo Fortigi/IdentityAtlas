@@ -213,6 +213,39 @@ describe('matrix/data — flat per-subject grid', () => {
     expect(res.body.managedByPackages).toEqual([]);
   });
 
+  it('returns the resourceContexts sidecar grouped per resource (#870)', async () => {
+    labelHandlers = {
+      'matrix-data[': [{ resourceId: 'r1', memberId: 'm1' }],
+      'matrix-data-resource-contexts': [
+        { resourceId: 'r1', id: 'c1', displayName: 'Microsoft 365', contextType: 'entra-group-category', targetType: 'Resource', variant: 'generated' },
+        { resourceId: 'r1', id: 'c2', displayName: 'Finance', contextType: 'Tag', targetType: 'Resource', variant: 'manual' },
+        { resourceId: 'r2', id: 'c2', displayName: 'Finance', contextType: 'Tag', targetType: 'Resource', variant: 'manual' },
+      ],
+    };
+    const res = await post({ filter: {} });
+    expect(res.status).toBe(200);
+    expect(res.body.resourceContexts).toEqual([
+      {
+        resourceId: 'r1',
+        contexts: [
+          { id: 'c1', displayName: 'Microsoft 365', contextType: 'entra-group-category', variant: 'generated' },
+          { id: 'c2', displayName: 'Finance', contextType: 'Tag', variant: 'manual' },
+        ],
+      },
+      { resourceId: 'r2', contexts: [{ id: 'c2', displayName: 'Finance', contextType: 'Tag', variant: 'manual' }] },
+    ]);
+  });
+
+  it('resourceContexts query failure is swallowed (empty sidecar, no 500)', async () => {
+    labelHandlers = {
+      'matrix-data[': [{ resourceId: 'r1', memberId: 'm1' }],
+      'matrix-data-resource-contexts': () => { throw new Error('ContextMembers missing'); },
+    };
+    const res = await post({ filter: {} });
+    expect(res.status).toBe(200);
+    expect(res.body.resourceContexts).toEqual([]);
+  });
+
   it('folds inherited flat rows (declared wins, dedup by resource|member)', async () => {
     labelHandlers = { 'matrix-data[': [{ resourceId: 'r1', memberId: 'm1' }] };
     inhFlat = async () => [

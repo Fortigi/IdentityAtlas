@@ -1,0 +1,2 @@
+- Added a Contexts column to the matrix view: each resource row now shows the contexts it belongs to (group category, tags, clusters, business processes, …) as chips next to the member count — the first two are shown, with a "+N" control to expand the rest inline.
+- The matrix Excel export gains a matching Contexts column listing all of a resource's context names.

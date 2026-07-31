@@ -53,6 +53,7 @@ export default function SortableMatrixBody({
   accessPackages,
   apGroupMap,
   managedFilter,
+  resourceContextMap,
   onOpenDetail,
   onExplainInherited,
   // Nested group expansion props
@@ -103,6 +104,7 @@ export default function SortableMatrixBody({
     accessPackages,
     apGroupMap,
     managedFilter,
+    resourceContextMap,
     onOpenDetail,
     onExplainInherited,
     groupsWithNested,

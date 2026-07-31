@@ -154,6 +154,37 @@ describe('exportToExcel', () => {
     expect(multi.richText.map((rt) => rt.text)).toEqual(['I', 'E']);
   });
 
+  it('writes a Contexts meta column with all names comma-joined (untruncated)', async () => {
+    const users = [{ id: 'u1', displayName: 'Alice', sortKeys: ['HR'] }];
+    const orderedGroups = [
+      { id: 'g1', displayName: 'Admins', groupType: '', description: 'desc', memberCount: 1 },
+      { id: 'g2', displayName: 'NoCtx', groupType: '', description: '', memberCount: 1 },
+    ];
+    // Keys are UPPERCASED resource ids (buildResourceContextMap contract).
+    const resourceContextMap = new Map([
+      ['G1', [
+        { id: 'c1', displayName: 'Finance', contextType: 'Tag', variant: 'manual' },
+        { id: 'c2', displayName: 'M365', contextType: 'entra-group-category', variant: 'generated' },
+        { id: 'c3', displayName: 'Cluster-A', contextType: 'resource-cluster', variant: 'generated' },
+      ]],
+    ]);
+
+    await exportToExcel(baseInput({ users, orderedGroups, resourceContextMap }));
+    const wb = await loadCapturedWorkbook();
+    const ws = wb.getWorksheet('Role Mining Matrix');
+
+    const namesRow = 2;
+    const metaColStart = 3 + 1 + 1; // infoColCount + 1 user + 1
+    expect(ws.getCell(namesRow, metaColStart + 1).value).toBe('Contexts');
+    expect(ws.getCell(namesRow, metaColStart + 2).value).toBe('Description');
+
+    // All 3 names — the export doesn't apply the on-screen "first 2" cap.
+    expect(ws.getCell(namesRow + 1, metaColStart + 1).value).toBe('Finance, M365, Cluster-A');
+    expect(ws.getCell(namesRow + 1, metaColStart + 2).value).toBe('desc');
+    // A resource in no contexts gets an empty cell.
+    expect(ws.getCell(namesRow + 2, metaColStart + 1).value || '').toBe('');
+  });
+
   it('fills managed intersection cells with an AP color (indexed and fallback)', async () => {
     const users = [
       { id: 'u1', displayName: 'Alice', sortKeys: ['HR'] },
