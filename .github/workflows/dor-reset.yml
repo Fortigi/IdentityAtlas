@@ -1,13 +1,16 @@
-name: DoR reset (release sidekick on PR close)
+name: DoR reset (release sidekick + finalize board on PR close)
 
-# Build-side slice B (deterministic — no AI): when a deployed PR is merged or closed, reset the
-# sidekick that was holding it (docker compose down -v + image prune), clear its reservation, and
-# bring the edge placeholder back so its N.build URL serves something between builds. INERT until
-# DOR_ENABLED=true.
+# Build-side slice B + the pipeline's terminal transition. When a DoR-built PR (head `dor/issue-N`)
+# is closed:
+#   - reset job: the sidekick holding it (docker compose down -v + image prune), clear its
+#     reservation, bring the edge placeholder back so its N.build URL serves between builds.
+#   - finalize job: move the issue's board to its terminal column — Done + close the issue if the PR
+#     merged, or Out of pipeline if it was closed unmerged (rejected).
+# Deterministic, no AI. INERT until DOR_ENABLED=true.
 #
-# Targeting without a runner-admin token: run one job per sidekick, each pinned to its stable label
-# (sk5 / sk6); each self-checks whether IT holds this PR's reservation and only the holder acts. The
-# rest no-op. (The HARD reservation — pulling the runner from the pool while reserved — is slice C.)
+# Targeting the right sidekick without a runner-admin token: one job per sidekick, each pinned to its
+# stable label (sk5 / sk6 / sk3); each self-checks whether IT holds this PR's reservation
+# ("<PR> <ISSUE>" in ~/.dor-reservation) and only the holder acts. The rest no-op.
 
 on:
   pull_request:
@@ -23,7 +26,8 @@ jobs:
   reset:
     if: >-
       vars.DOR_ENABLED == 'true' &&
-      github.event.pull_request.head.repo.full_name == github.repository
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      startsWith(github.event.pull_request.head.ref, 'dor/issue-')
     strategy:
       matrix:
         sk: [sk5, sk6, sk3]
@@ -40,13 +44,15 @@ jobs:
         run: |
           set -euo pipefail
           lock="$HOME/.dor-reservation"
-          if [ ! -f "$lock" ] || [ "$(cat "$lock")" != "$PR" ]; then
+          plock=""; pissue=""
+          [ -f "$lock" ] && read -r plock pissue < "$lock" || true
+          if [ "$plock" != "$PR" ]; then
             echo "::notice::$(hostname) is not holding PR #$PR — nothing to reset."
             echo "did=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          echo "$(hostname) holds PR #$PR — resetting."
-          dir="$HOME/stacks/pr-$PR"
+          echo "$(hostname) holds PR #$PR (issue #$pissue) — resetting."
+          dir="$HOME/stacks/dor-${pissue}"
           if [ -d "$dir" ]; then
             ( cd "$dir" && { docker compose -f docker-compose.yml -f dor-tls.override.yml down -v 2>/dev/null \
                               || docker compose down -v 2>/dev/null || true; } )
@@ -79,3 +85,52 @@ jobs:
             -H "X-GitHub-Api-Version: 2022-11-28" \
             "https://api.github.com/repos/${REPO}/issues/${PR}/comments" \
             -d "$(printf '{"body":"%s"}' "$body")" -o /dev/null -w 'comment posted: HTTP %{http_code}\n'
+
+  # Terminal board transition for the linked issue (derived from the head branch dor/issue-N).
+  finalize:
+    if: >-
+      vars.DOR_ENABLED == 'true' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      startsWith(github.event.pull_request.head.ref, 'dor/issue-')
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Checkout the board script only
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: .github/scripts
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+      - name: Mint BOT token (board move)
+        id: bot
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ secrets.BOT_APP_ID }}
+          private-key: ${{ secrets.BOT_PRIVATE_KEY }}
+          owner: Fortigi
+          permission-organization-projects: write
+          permission-issues: write
+      - name: Move the issue to its terminal column
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BOARD_TOKEN: ${{ steps.bot.outputs.token }}
+          REPO: ${{ github.repository }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          MERGED: ${{ github.event.pull_request.merged }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          set -uo pipefail
+          issue="${HEAD_REF##*dor/issue-}"
+          case "$issue" in ''|*[!0-9]*) echo "::notice::head ref '$HEAD_REF' has no issue number — skip."; exit 0 ;; esac
+          if [ "$MERGED" = "true" ]; then
+            GH_TOKEN="$BOARD_TOKEN" bash .github/scripts/dor_set_status.sh "$issue" done || true
+            gh issue close "$issue" --repo "$REPO" --reason completed \
+              --comment "🎉 Shipped — PR #${PR} merged. Closing." >/dev/null 2>&1 || true
+            echo "::notice::issue #${issue} → Done + closed (PR #${PR} merged)."
+          else
+            GH_TOKEN="$BOARD_TOKEN" bash .github/scripts/dor_set_status.sh "$issue" state:out-of-pipeline || true
+            gh issue comment "$issue" --repo "$REPO" \
+              --body "PR #${PR} was closed without merging — moved to **Out of pipeline**. Re-open or file a new request to restart." >/dev/null 2>&1 || true
+            echo "::notice::issue #${issue} → Out of pipeline (PR #${PR} closed unmerged)."
+          fi
