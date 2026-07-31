@@ -26,7 +26,7 @@ jobs:
       github.event.pull_request.head.repo.full_name == github.repository
     strategy:
       matrix:
-        sk: [sk5, sk6]
+        sk: [sk5, sk6, sk3]
     runs-on:
       - self-hosted
       - ${{ matrix.sk }}

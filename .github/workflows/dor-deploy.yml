@@ -40,6 +40,7 @@ jobs:
         run: |
           set -euo pipefail
           case "$(hostname)" in
+            dev-docker-03) url="https://3.build.identityatlas.io" ;;
             dev-docker-05) url="https://5.build.identityatlas.io" ;;
             dev-docker-06) url="https://6.build.identityatlas.io" ;;
             *) echo "::error::unknown sidekick $(hostname) — not in the dor-build pool map"; exit 1 ;;
