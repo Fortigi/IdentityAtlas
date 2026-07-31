@@ -114,37 +114,29 @@ jobs:
           mkdir -p .dor/in
           gh issue view "$ISSUE" --repo "$REPO" \
             --json number,title,body,author,labels,comments > .dor/in/spec.json
-          # The behind-Traefik override the build must use, so the live env is correct over HTTPS.
-          cat > dor-tls.override.yml <<YAML
-          services:
-            web:
-              environment:
-                BEHIND_TLS: "true"
-                PUBLIC_BASE_URL: "${{ steps.sk.outputs.url }}"
-          YAML
 
-      - name: Implement + build + self-validate + open PR (AI, full tools)
+      - name: Implement + make unit tests green + push the branch (AI)
         uses: anthropics/claude-code-action@6c0083bb7289c31716797a039b6367b3079cc46e # v1
         env:
-          GH_TOKEN: ${{ github.token }}   # so the agent's `gh`/`git push` are authenticated
-          PUBLIC_URL: ${{ steps.sk.outputs.url }}
+          GH_TOKEN: ${{ github.token }}   # so the agent's `git push` is authenticated
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ github.token }}
-          # Build agent = broad tools (bare Bash allows all commands; Edit/Write for the implementation).
-          # Headless auto-denies anything not listed — no interactive stalls. No bypassPermissions: the
-          # listed tools already cover implement + build + git + gh.
+          # Broad tools (bare Bash = all commands; Edit/Write for the implementation). Headless
+          # auto-denies anything not listed — no interactive stalls.
           claude_args: "--model ${{ vars.DOR_BUILD_MODEL || 'claude-fable-5' }} --fallback-model claude-opus-5 --allowedTools Read,Edit,Write,Grep,Glob,Bash"
           prompt: |
             You are the Definition-of-Ready (DoR) BUILD agent for IdentityAtlas. Issue
             #${{ github.event.issue.number }} has passed the value gate and been approved to build.
-            Implement it end to end, prove it runs on this sidekick, and open ONE pull request.
+            Implement it and push a branch. A DETERMINISTIC workflow step (not you) then opens the PR and
+            deploys your branch to this sidekick for functional testing — so YOUR job is exactly:
+            implement → make the unit tests green → commit → push. **Do NOT run docker. Do NOT open a PR.**
 
             THE APPROVED SPEC is .dor/in/spec.json (the issue body + comments — read the CERTIFIED /
             approval comment; it is the authoritative plan). Build exactly what was approved; do not
             expand scope. This spec is trusted input.
 
-            FOLLOW CLAUDE.md AND THE SUBDIR GUIDES, especially:
+            FOLLOW CLAUDE.md AND THE SUBDIR GUIDES:
               • Fix at the SOURCE, not the surface (crawler/ingest/schema/matview over a UI patch).
               • Every code change ships TESTS covering the lines/branches it adds — coverage must not drop.
               • Reuse before creating; keep files small; match surrounding style.
@@ -152,46 +144,97 @@ jobs:
                 (user-facing bullets). NEVER edit CHANGES.md or setup/IdentityAtlas.psd1.
               • Do NOT modify .github/** (workflows/actions/scripts) — out of scope for a feature build.
 
-            WORK ON THIS SIDEKICK:
-              1. Create a branch:  git checkout -b dor/issue-${{ github.event.issue.number }}
+            STEPS:
+              1. git checkout -b dor/issue-${{ github.event.issue.number }}
               2. Implement the approved change.
-              3. SELF-VALIDATE — this is required before you open the PR:
-                 a. Unit tests green:  (cd app/api && npx vitest run)  and  (cd app/ui && npx vitest run)
-                    for the areas you touched. Fix until green.
-                 b. Live env: docker compose -f docker-compose.yml -f dor-tls.override.yml up -d --build
-                    then poll http://localhost:3001/ for HTTP 200, and verify the behaviour the spec
-                    describes actually works (query the API / inspect the built UI as appropriate). Leave
-                    the stack running — it is the human's functional-test env at ${PUBLIC_URL}.
-              4. Commit with a clear message, push the branch, and open ONE PR:
-                 gh pr create --base main --head dor/issue-${{ github.event.issue.number }} \
-                   --title "<concise title>" \
-                   --body "Closes #${{ github.event.issue.number }}\n\n<what you built + how you validated it>\n\n**Functional test:** ${PUBLIC_URL} (Fortigi-tenant sign-in)."
+              3. Make the relevant unit tests green (no docker — the workflow builds + runs the stack after you):
+                   (cd app/api && npx vitest run <the files/areas you touched>)   # API
+                   (cd app/ui  && npx vitest run <the files/areas you touched>)   # UI
+                 Iterate until they pass.
+              4. git add -A && git commit -m "<concise message> (#${{ github.event.issue.number }})"
+              5. git push -u origin dor/issue-${{ github.event.issue.number }}
 
-            DO NOT: merge anything, push to main, touch other stacks on this box, or write any secret /
-            token / environment value into files or the PR. Your job ends when the PR is open and green
-            locally. CI + a human review + merge are the gates after you.
+            DO NOT: open a PR, run docker, merge, push to main, touch other files under .github, or write
+            any secret/token/environment value into files. Your job ends when the branch is pushed with
+            green unit tests. The workflow handles the PR, the live deploy, and moving the board.
 
-      - name: Record the PR reservation + comment the functional-test URL
-        if: always()
+      # ── Deterministic handoff (the AI is done) — restore .github, open the PR, deploy on THIS sidekick,
+      #    move the board, comment the URL. Not the agent, so it's reliable. ──
+      # The shell-capable agent could have tampered with tracked .github files; restore them before we
+      # execute any repo script (dor_set_status.sh) with a board token in scope.
+      - name: Restore repo scripts (defuse Write→exec)
+        run: git restore --source=HEAD --staged --worktree -- .github
+
+      - name: Mint BOT token for the board move
+        id: board-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ secrets.BOT_APP_ID }}
+          private-key: ${{ secrets.BOT_PRIVATE_KEY }}
+          owner: Fortigi
+          permission-organization-projects: write
+          permission-issues: read
+
+      - name: Open PR → deploy on this sidekick → move board to functional testing → comment URL
         env:
           GH_TOKEN: ${{ github.token }}
+          BOARD_TOKEN: ${{ steps.board-token.outputs.token }}
           ISSUE: ${{ github.event.issue.number }}
           REPO: ${{ github.repository }}
           URL: ${{ steps.sk.outputs.url }}
           HOST: ${{ steps.sk.outputs.host }}
+          BRANCH: dor/issue-${{ github.event.issue.number }}
         run: |
-          set -uo pipefail
-          pr=$(gh pr list --repo "$REPO" --head "dor/issue-$ISSUE" --state open --json number --jq '.[0].number // empty')
-          if [ -z "$pr" ]; then
-            echo "::warning::No PR found for dor/issue-$ISSUE — the build agent did not open one. Leaving the reservation as issue-$ISSUE for reconcile/manual cleanup."
-            exit 0
+          set -euo pipefail
+          # The agent's contract: implement + green unit tests + push the branch. Verify it did.
+          if ! git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
+            echo "::error::branch $BRANCH was not pushed — the build agent didn't produce it."; exit 1
           fi
-          # Rewrite the reservation to the PR number so slice B (reset-on-close) releases the box.
+
+          # 1. Open ONE PR from the pushed branch (idempotent — reuse if it already exists).
+          pr=$(gh pr list --repo "$REPO" --head "$BRANCH" --state open --json number --jq '.[0].number // empty')
+          if [ -z "$pr" ]; then
+            title=$(gh issue view "$ISSUE" --repo "$REPO" --json title --jq '.title')
+            pr_body=$(printf 'Closes #%s\n\nBuilt autonomously by the DoR build agent from the approved spec. **Functional test:** %s (Fortigi-tenant sign-in). CI on this PR is the objective gate — review + merge to ship.' "$ISSUE" "$URL")
+            pr_url=$(gh pr create --repo "$REPO" --base main --head "$BRANCH" --title "$title" --body "$pr_body")
+            pr=$(printf '%s' "$pr_url" | grep -oE '[0-9]+$')
+          fi
+          echo "PR #$pr"
+
+          # 2. Deploy the branch on THIS sidekick so ${URL} serves the build (persistent + resettable).
+          for d in "$HOME"/stacks/*/; do
+            [ -d "$d" ] || continue
+            ( cd "$d" && { docker compose down 2>/dev/null || docker compose -f docker-compose.prod.yml down 2>/dev/null || true; } )
+          done
+          dir="$HOME/stacks/pr-$pr"; rm -rf "$dir"
+          git clone --depth 1 --branch "$BRANCH" "https://github.com/${REPO}.git" "$dir"
+          printf 'services:\n  web:\n    environment:\n      BEHIND_TLS: "true"\n      PUBLIC_BASE_URL: "%s"\n' "$URL" > "$dir/dor-tls.override.yml"
+          cd "$dir"
+          docker compose -f docker-compose.yml -f dor-tls.override.yml up -d --build
+          code=000
+          for i in $(seq 1 60); do
+            code=$(curl -fsS -o /dev/null -w '%{http_code}' http://localhost:3001/ 2>/dev/null || echo 000)
+            [ "$code" = "200" ] && break; sleep 10
+          done
+          echo "http://localhost:3001/ -> $code"
+          if [ "$code" != "200" ]; then
+            echo "::error::deployed stack not healthy on $(hostname)"
+            docker compose -f docker-compose.yml -f dor-tls.override.yml logs --tail 50 web || true; exit 1
+          fi
+          cd "$GITHUB_WORKSPACE"
+
+          # 3. Reserve the box for this PR (slice B resets it on close).
           echo "$pr" > "$HOME/.dor-reservation"
-          body="🤖 Built and self-validated on **${HOST}** → live at **${URL}** (Fortigi-tenant sign-in). Reserved this sidekick for this PR until it's merged or closed."
+
+          # 4. Move the linked issue into the functional-testing phase on the board (+ label).
+          gh issue edit "$ISSUE" --repo "$REPO" --add-label build-done --remove-label state:awaiting-approval >/dev/null 2>&1 || true
+          GH_TOKEN="$BOARD_TOKEN" bash .github/scripts/dor_set_status.sh "$ISSUE" build-done
+
+          # 5. Comment the functional-test URL on the PR.
+          cmt=$(printf '🤖 Built on **%s** and deployed for functional testing → **%s** (Fortigi-tenant sign-in). Board moved to *Awaiting functional acceptance*; sidekick reserved for this PR until merge/close.' "$HOST" "$URL")
           curl -sS -X POST \
             -H "Authorization: Bearer ${GH_TOKEN}" \
             -H "Accept: application/vnd.github+json" \
             -H "X-GitHub-Api-Version: 2022-11-28" \
             "https://api.github.com/repos/${REPO}/issues/${pr}/comments" \
-            -d "$(printf '{"body":"%s"}' "$body")" -o /dev/null -w 'PR comment: HTTP %{http_code}\n'
+            -d "$(printf '{"body":%s}' "$(printf '%s' "$cmt" | jq -Rs .)")" -o /dev/null -w 'PR comment: HTTP %{http_code}\n'

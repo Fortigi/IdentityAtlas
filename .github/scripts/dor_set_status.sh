@@ -23,7 +23,7 @@ PROJECT_ID="${PROJECT_ID:-PVT_kwDOAhfTz84Bern-}"
 STATUS_FIELD_ID="${STATUS_FIELD_ID:-PVTSSF_lADOAhfTz84Bern-zhZEAac}"
 REQ_FIELD_ID="${REQ_FIELD_ID:-PVTSSF_lADOAhfTz84Bern-zhZEFTM}"
 
-# state:* label -> board Status column name.
+# state:* label (spec side) OR a build-side phase token -> board Status column name.
 case "$LABEL" in
   state:awaiting-requestor) STATUS_NAME="Awaiting requestor" ;;
   state:awaiting-design)    STATUS_NAME="Awaiting design" ;;
@@ -32,7 +32,12 @@ case "$LABEL" in
   state:decompose)          STATUS_NAME="Decompose" ;;
   state:blocked-external)   STATUS_NAME="Blocked (external)" ;;
   state:out-of-pipeline)    STATUS_NAME="Out of pipeline" ;;
-  *) echo "::error::dor_set_status: unknown state label '$LABEL'"; exit 1 ;;
+  # Build side (set directly by the build workflows, not via a state:* label):
+  building)                 STATUS_NAME="Building" ;;
+  build-done)               STATUS_NAME="Awaiting functional acceptance" ;;
+  awaiting-merge)           STATUS_NAME="Awaiting merge" ;;
+  done)                     STATUS_NAME="Done" ;;
+  *) echo "::error::dor_set_status: unknown phase token '$LABEL'"; exit 1 ;;
 esac
 
 # Resolve a single-select option id by field name + option name.
