@@ -165,7 +165,11 @@ jobs:
       - name: Restore repo scripts (defuse Write→exec)
         run: git restore --source=HEAD --staged --worktree -- .github
 
-      - name: Mint BOT token for the board move
+      # BOT token for (a) opening the PR and (b) moving the board. It creates the PR because the
+      # default GITHUB_TOKEN can't — the org's "Allow Actions to create/approve PRs" toggle is off
+      # (kept off on purpose so Actions can't self-approve). An App token isn't subject to that toggle.
+      # Requires the fortigi-ci-bot app to have Pull requests: write + Contents: read granted.
+      - name: Mint BOT token (open PR + board move)
         id: board-token
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         with:
@@ -173,6 +177,8 @@ jobs:
           private-key: ${{ secrets.BOT_PRIVATE_KEY }}
           owner: Fortigi
           permission-organization-projects: write
+          permission-pull-requests: write   # open the PR (GITHUB_TOKEN can't — see above)
+          permission-contents: read          # read the head/base refs for the PR
           permission-issues: read
 
       - name: Open PR → deploy on this sidekick → move board to functional testing → comment URL
@@ -196,7 +202,7 @@ jobs:
           if [ -z "$pr" ]; then
             title=$(gh issue view "$ISSUE" --repo "$REPO" --json title --jq '.title')
             pr_body=$(printf 'Closes #%s\n\nBuilt autonomously by the DoR build agent from the approved spec. **Functional test:** %s (Fortigi-tenant sign-in). CI on this PR is the objective gate — review + merge to ship.' "$ISSUE" "$URL")
-            pr_url=$(gh pr create --repo "$REPO" --base main --head "$BRANCH" --title "$title" --body "$pr_body")
+            pr_url=$(GH_TOKEN="$BOARD_TOKEN" gh pr create --repo "$REPO" --base main --head "$BRANCH" --title "$title" --body "$pr_body")
             pr=$(printf '%s' "$pr_url" | grep -oE '[0-9]+$')
           fi
           echo "PR #$pr"
