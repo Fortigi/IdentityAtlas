@@ -128,22 +128,31 @@ export function anchorsFor(page) {
  * build, and the older pages carry a few that are not this change's to fix.
  */
 export function brokenAnchors() {
-  const path = new Set(learningPathPages());
+  const inPath = new Set(learningPathPages());
   const broken = [];
-  for (const page of path) {
+  for (const page of inPath) {
     const body = readFileSync(join(DOCS_ROOT, page), 'utf8');
     for (const [, raw] of body.matchAll(LINK_RE)) {
-      const [target, anchor] = raw.split('#');
-      if (!anchor) continue;
-      if (EXTERNAL_RE.test(target) || target.startsWith('/')) continue;
-      const targetPage = target
-        ? posix.normalize(posix.join(posix.dirname(page), target))
-        : page;
-      if (!path.has(targetPage)) continue;
-      if (!anchorsFor(targetPage).has(anchor)) broken.push({ page, target: raw });
+      const link = anchorLinkTarget(page, raw, inPath);
+      if (link && !anchorsFor(link.page).has(link.anchor)) broken.push({ page, target: raw });
     }
   }
   return broken;
+}
+
+/**
+ * Resolve one markdown link to the {page, anchor} it points at, or null when it
+ * is not an in-path anchor link we can check (no anchor, external, absolute, or
+ * a page outside the learning path).
+ */
+function anchorLinkTarget(fromPage, raw, inPath) {
+  const [target, anchor] = raw.split('#');
+  if (!anchor) return null;
+  if (EXTERNAL_RE.test(target) || target.startsWith('/')) return null;
+  const page = target
+    ? posix.normalize(posix.join(posix.dirname(fromPage), target))
+    : fromPage;
+  return inPath.has(page) ? { page, anchor } : null;
 }
 
 /** Front matter of a page as a plain object (empty when the page has none). */
