@@ -203,6 +203,37 @@ describe('matrix/data — flat per-subject grid', () => {
     expect(res.body.error).toMatch(/too many to load/);
   });
 
+  it('returns the resourceContexts sidecar grouped per resource (#870)', async () => {
+    labelHandlers = {
+      'matrix-data[': [{ resourceId: 'r1', memberId: 'm1' }],
+      'matrix-data-resource-contexts': [
+        { resourceId: 'r1', id: 'c1', displayName: 'M365', contextType: 'category', targetType: 'Resource', variant: 'generated' },
+        { resourceId: 'r1', id: 'c2', displayName: 'Finance', contextType: 'tag', targetType: 'Resource', variant: 'manual' },
+      ],
+    };
+    const res = await post({ filter: {} });
+    expect(res.status).toBe(200);
+    expect(res.body.resourceContexts).toEqual([
+      {
+        resourceId: 'r1',
+        contexts: [
+          { id: 'c1', displayName: 'M365', contextType: 'category', targetType: 'Resource', variant: 'generated' },
+          { id: 'c2', displayName: 'Finance', contextType: 'tag', targetType: 'Resource', variant: 'manual' },
+        ],
+      },
+    ]);
+  });
+
+  it('resource-contexts query failure is swallowed (empty resourceContexts)', async () => {
+    labelHandlers = {
+      'matrix-data[': [{ resourceId: 'r1', memberId: 'm1' }],
+      'matrix-data-resource-contexts': () => { throw new Error('ContextMembers missing'); },
+    };
+    const res = await post({ filter: {} });
+    expect(res.status).toBe(200);
+    expect(res.body.resourceContexts).toEqual([]);
+  });
+
   it('AP-mapping query failure is swallowed (empty managedByPackages)', async () => {
     labelHandlers = {
       'matrix-data[': [{ resourceId: 'r1', memberId: 'm1' }],

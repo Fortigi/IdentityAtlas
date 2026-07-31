@@ -72,6 +72,23 @@ test.describe('Matrix View', () => {
     }
   });
 
+  test('Contexts metadata column renders with the grid (#870)', async ({ page }) => {
+    test.slow(); // permissions API cold start
+    const table = page.locator('table').first();
+    const emptyHeading = page.getByRole('heading', { name: /Pick a slice to inspect/i });
+    await expect(table.or(emptyHeading)).toBeVisible({ timeout: 60000 });
+    if (await table.isVisible()) {
+      // The right-side metadata header row carries the new column.
+      await expect(page.getByRole('columnheader', { name: 'Contexts' })).toBeVisible({ timeout: 10000 });
+      // If any row is in 3+ contexts, the +N control expands the rest inline.
+      const expand = page.getByRole('button', { name: /more contexts/i }).first();
+      if (await expand.count() > 0) {
+        await expand.click();
+        await expect(page.getByRole('button', { name: /Show fewer contexts/i }).first()).toBeVisible();
+      }
+    }
+  });
+
   test('share button exists', async ({ page }) => {
     const shareButton = page.getByRole('button', { name: /Share/i });
     if (await shareButton.count() > 0) {

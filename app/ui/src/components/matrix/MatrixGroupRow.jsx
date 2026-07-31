@@ -1,5 +1,7 @@
 ﻿import MatrixCell from './MatrixCell';
+import MatrixContextsCell from './MatrixContextsCell';
 import { getAccessPackageColor } from '@ui/utils/colors';
+import { contextsForGroup } from '@ui/utils/matrixContexts';
 import { useIsDark } from '@ui/contexts/ThemeContext';
 
 // Map AP resource role names to the same badge style used in user/group cells.
@@ -26,6 +28,7 @@ export default function MatrixGroupRow({
   accessPackages = [],
   apGroupMap,
   managedFilter,
+  resourceContextsMap,
   onOpenDetail,
   onExplainInherited,
   // Nested group expansion props
@@ -216,6 +219,7 @@ export default function MatrixGroupRow({
           title={group.description}>
         <div className="truncate">{group.description}</div>
       </td>
+      <MatrixContextsCell contexts={contextsForGroup(resourceContextsMap, group)} />
     </tr>
   );
 }

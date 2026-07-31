@@ -14,12 +14,16 @@ import {
 // row per visible resource, so the orchestrator's column/sort/grouping wiring
 // runs end to end.
 vi.mock('./matrix/SortableMatrixBody', () => ({
-  default: ({ columnHeaders, orderedGroups = [] }) =>
+  default: ({ columnHeaders, orderedGroups = [], resourceContextsMap }) =>
     h('table', null,
       columnHeaders,
       h('tbody', null,
         orderedGroups.map(g =>
-          h('tr', { key: g.id }, h('td', null, h('span', { 'data-testid': 'row-label' }, g.displayName))),
+          h('tr', { key: g.id },
+            h('td', null, h('span', { 'data-testid': 'row-label' }, g.displayName)),
+            h('td', null, h('span', { 'data-testid': 'row-contexts' },
+              (resourceContextsMap?.get(g.id.toUpperCase()) || []).map(c => c.displayName).join('|'))),
+          ),
         ),
       ),
     ),
@@ -85,6 +89,7 @@ function renderView(props = {}, authFetch = makeFetch()) {
       managedFilter: props.managedFilter || 'all',
       setManagedFilter,
       groupTagMap: props.groupTagMap,
+      resourceContexts: props.resourceContexts,
       refreshing: props.refreshing || false,
       shareUrl: 'https://example.test/matrix',
       onOpenDetail,
@@ -196,6 +201,20 @@ describe('MatrixView (mounted)', () => {
         expect.objectContaining({ method: 'POST' }),
       ),
     );
+  });
+
+  it('builds the per-resource contexts map from the sidecar and threads it to rows (#870)', async () => {
+    renderView({
+      resourceContexts: [
+        { resourceId: 'res-1', contexts: [{ id: 'c1', displayName: 'Finance' }, { id: 'c2', displayName: 'M365' }] },
+      ],
+    });
+    await waitFor(() => {
+      const cells = screen.queryAllByTestId('row-contexts').filter(el => el.isConnected);
+      expect(cells.some(el => el.textContent === 'Finance|M365')).toBe(true);
+    });
+    // The Contexts header renders on the names row.
+    expect(screen.getAllByText('Contexts').length).toBeGreaterThan(0);
   });
 
   it('uses a group tag map without error', async () => {

@@ -131,9 +131,10 @@ export default function MatrixColumnHeaders({
             );
           })}
 
-          {/* Right metadata column placeholders (#, Description) */}
+          {/* Right metadata column placeholders (#, Description, Contexts) */}
           <th className="border-b border-l-2 border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800" style={{ minWidth: '40px' }} />
           <th className="border-b border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800" style={{ minWidth: '500px' }} />
+          <th className="border-b border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800" style={{ minWidth: '220px' }} />
         </tr>
       ))}
 
@@ -258,6 +259,10 @@ export default function MatrixColumnHeaders({
         <th className="sticky top-0 z-20 border-b border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800 px-2 py-1 text-xs text-gray-600 dark:text-gray-400 font-medium text-left"
             style={{ minWidth: '500px' }}>
           Description
+        </th>
+        <th className="sticky top-0 z-20 border-b border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800 px-2 py-1 text-xs text-gray-600 dark:text-gray-400 font-medium text-left"
+            style={{ minWidth: '220px' }}>
+          Contexts
         </th>
       </tr>
     </thead>

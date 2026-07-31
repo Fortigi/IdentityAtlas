@@ -40,6 +40,12 @@ describe('MatrixColumnHeaders sticky header', () => {
     expect(thead.style.top).toBe(`-${attrs.length * GROUP_ROW_H}px`);
   });
 
+  it('renders the right-side metadata headers including the Contexts column (#870)', () => {
+    const { getByText } = renderHeaders([{ attribute: 'department' }]);
+    getByText('Description');
+    getByText('Contexts');
+  });
+
   it('scales the offset with the number of grouping rows', () => {
     const one = renderHeaders([{ attribute: 'department' }]);
     expect(one.container.querySelector('thead').style.top).toBe(`-${GROUP_ROW_H}px`);

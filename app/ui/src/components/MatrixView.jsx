@@ -14,6 +14,7 @@ import MatrixScopePanel from './matrix/MatrixScopePanel';
 import MatrixColumnHeaders from './matrix/MatrixColumnHeaders';
 import { makeUserComparator, buildSortKeys } from './matrix/sortUsers';
 import MatrixGroupRow from './matrix/MatrixGroupRow';
+import { buildResourceContextsMap } from '@ui/utils/matrixContexts';
 
 // Inline arrayMove so MatrixView doesn't depend on @dnd-kit
 function arrayMove(arr, from, to) {
@@ -97,6 +98,7 @@ function makeAccountCol(parent, acc, sortKeys) {
 
 export default function MatrixView({
   data, accessPackageGroups = [], managedByPackages = [],
+  resourceContexts, // no default: buildResourceContextsMap tolerates undefined (keeps this unit at its complexity baseline)
   filter,
   counts,
   managedFilter, setManagedFilter,
@@ -416,6 +418,9 @@ export default function MatrixView({
     return map;
   }, [managedByPackages]);
 
+  // Per-resource Contexts lookup for the right-side metadata column (#870).
+  const resourceContextsMap = useMemo(() => buildResourceContextsMap(resourceContexts), [resourceContexts]);
+
   // Build access package data (SOLL matrix): which groups are in which access packages
   // Only include APs where at least one visible user actually has an assignment through that AP.
   const { accessPackages, apGroupMap } = useMemo(() => {
@@ -687,8 +692,9 @@ export default function MatrixView({
       apGroupMap,
       shareUrl,
       sortAttributes: sortAttrs,
+      resourceContextsMap,
     });
-  }, [users, orderedGroups, memberships, managedApMap, apIdToIndex, accessPackages, apGroupMap, shareUrl, sortAttrs]);
+  }, [users, orderedGroups, memberships, managedApMap, apIdToIndex, accessPackages, apGroupMap, shareUrl, sortAttrs, resourceContextsMap]);
 
   // Share: copy URL to clipboard
   const handleShare = useCallback(async () => {
@@ -997,6 +1003,7 @@ export default function MatrixView({
               accessPackages={visibleAccessPackages}
               apGroupMap={apGroupMap}
               managedFilter={managedFilter}
+              resourceContextsMap={resourceContextsMap}
               onOpenDetail={onOpenDetail}
               onExplainInherited={explainHandler}
               groupsWithNested={groupsWithNested}
@@ -1022,6 +1029,7 @@ export default function MatrixView({
                     accessPackages={visibleAccessPackages}
                     apGroupMap={apGroupMap}
                     managedFilter={managedFilter}
+                    resourceContextsMap={resourceContextsMap}
                     onOpenDetail={onOpenDetail}
                     onExplainInherited={explainHandler}
                     groupsWithNested={groupsWithNested}

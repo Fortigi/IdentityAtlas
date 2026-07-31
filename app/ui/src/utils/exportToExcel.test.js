@@ -118,6 +118,33 @@ describe('exportToExcel', () => {
     expect(ws.getCell(1, 1).value).toBe('Department');
   });
 
+  it('writes a Contexts meta column with the full comma-joined list (#870)', async () => {
+    const users = [{ id: 'u1', displayName: 'Alice', sortKeys: ['HR'] }];
+    const orderedGroups = [
+      { id: 'g1', displayName: 'Admins', groupType: 'Security', description: '', memberCount: 1 },
+      { id: 'g2', displayName: 'Sales', groupType: 'Security', description: '', memberCount: 1 },
+    ];
+    const resourceContextsMap = new Map([
+      ['G1', [
+        { id: 'c1', displayName: 'Finance', contextType: 'tag' },
+        { id: 'c2', displayName: 'M365', contextType: 'category' },
+        { id: 'c3', displayName: 'Cluster A', contextType: 'cluster' },
+      ]],
+    ]);
+
+    await exportToExcel(baseInput({ users, orderedGroups, resourceContextsMap }));
+    const wb = await loadCapturedWorkbook();
+    const ws = wb.getWorksheet('Role Mining Matrix');
+
+    const namesRow = 2;                 // one default attribute level
+    const metaColStart = 3 + 1 + 0 + 1; // info cols + 1 user + 0 APs, 1-based
+    expect(ws.getCell(namesRow, metaColStart + 2).value).toBe('Contexts');
+    // Full untruncated list — the on-screen 2-chip cap does not apply here.
+    expect(ws.getCell(namesRow + 1, metaColStart + 2).value).toBe('Finance, M365, Cluster A');
+    // A resource with no contexts gets an empty cell, not a crash.
+    expect(ws.getCell(namesRow + 2, metaColStart + 2).value).toBeFalsy();
+  });
+
   it('lays out user columns, group rows and membership letters', async () => {
     const users = [
       { id: 'u1', displayName: 'Alice', sortKeys: ['HR'] },

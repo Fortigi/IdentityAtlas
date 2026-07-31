@@ -2,6 +2,7 @@ import ExcelJS from 'exceljs';
 import { TYPE_COLORS as TYPE_COLORS_SRC, AP_COLORS } from './colors';
 import { hexToArgb, thinBorder, setHeaderCell, safeCell } from './excelHelpers';
 import { friendlyLabel } from './formatters';
+import { contextsForGroup, contextNames } from './matrixContexts';
 
 /**
  * Exports the matrix view to an Excel workbook matching the on-screen layout.
@@ -22,7 +23,7 @@ const TYPE_COLORS = Object.fromEntries(
   ])
 );
 
-export async function exportToExcel({ users, orderedGroups, memberships, managedApMap, apIdToIndex, activeFilters, filterFields, accessPackages = [], apGroupMap, shareUrl, sortAttributes = [] }) {
+export async function exportToExcel({ users, orderedGroups, memberships, managedApMap, apIdToIndex, activeFilters, filterFields, accessPackages = [], apGroupMap, shareUrl, sortAttributes = [], resourceContextsMap }) {
   const wb = new ExcelJS.Workbook();
   wb.creator = 'Identity Atlas';
   wb.created = new Date();
@@ -59,6 +60,7 @@ export async function exportToExcel({ users, orderedGroups, memberships, managed
   }
   ws.getColumn(metaColStart).width = 5;     // #
   ws.getColumn(metaColStart + 1).width = 30; // Description
+  ws.getColumn(metaColStart + 2).width = 40; // Contexts
 
   // ===== Attribute header rows (one per sort attribute, no merging) =====
   for (let L = 0; L < headerLevels; L++) {
@@ -129,6 +131,7 @@ export async function exportToExcel({ users, orderedGroups, memberships, managed
 
   setHeaderCell(ws.getCell(namesRow, metaColStart), '#', true);
   setHeaderCell(ws.getCell(namesRow, metaColStart + 1), 'Description', true);
+  setHeaderCell(ws.getCell(namesRow, metaColStart + 2), 'Contexts', true);
 
   // ===== Data rows: resources =====
   orderedGroups.forEach((group, gIdx) => {
@@ -213,6 +216,12 @@ export async function exportToExcel({ users, orderedGroups, memberships, managed
     descCell.value = safeCell(group.description);
     descCell.font = { size: 11 };
     descCell.border = thinBorder();
+
+    // Contexts: the full, untruncated membership list (the grid caps at 2 + expand).
+    const ctxCell = ws.getCell(rowNum, metaColStart + 2);
+    ctxCell.value = safeCell(contextNames(contextsForGroup(resourceContextsMap, group)));
+    ctxCell.font = { size: 11 };
+    ctxCell.border = thinBorder();
 
     // Access package cells (each AP column uses its own color)
     const isOwnerRow = !!group.realGroupId;
