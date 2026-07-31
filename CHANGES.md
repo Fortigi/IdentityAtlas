@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Updated the CodeQL security scanner to 4.37.4.
+
+## Changes in this PR
+
 - Restructured the documentation site into a reading order instead of a folder listing: **Start here → Learn → Use → Set up & run → Reference → Project**, so a first-time reader is taken from the landing page to the technical detail rather than dropped into a reference tree.
 - Added **The words you need first** — a plain-language glossary of the vocabulary (identity, principal, resource, assignment, governed, context, scope, effective access) written for someone who has never worked with identity data, ordered by when you need each word rather than alphabetically.
 - Added **Your first 15 minutes** — a guided walkthrough that takes you from "there is a grid on my screen" to finding something nobody meant to grant.
