@@ -3665,6 +3665,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#as-built-validated-end-to-end-2026-07-31" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        As built (validated end-to-end, 2026-07-31)
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -4897,6 +4908,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#as-built-validated-end-to-end-2026-07-31" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        As built (validated end-to-end, 2026-07-31)
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -5157,7 +5179,7 @@
 
 
 <h1 id="operationalising-the-definition-of-ready-automation-platform">Operationalising the Definition of Ready — automation platform<a class="headerlink" href="#operationalising-the-definition-of-ready-automation-platform" title="Permanent link">&para;</a></h1>
-<p><strong>Status: phase 1 (the spec side) is in build; steps 8+ (build / validate / merge on a sidekick) remain design.</strong> This describes the system that <em>runs</em> the <a href="../definition-of-ready/">Definition of Ready</a> process at scale (multiple features, multiple people, multiple infrastructures, in parallel), and a work breakdown to build it end-to-end. The <strong>Phase 1</strong> section immediately below records what is actually built, decided, and grounded against the live repo/GitHub state (surveyed 2026-07-28); everything from <strong>Topology</strong> onward is the full aspirational design, most of which is not built yet.</p>
+<p><strong>Status (2026-07-31): both halves are built and validated end-to-end — the spec side (steps 1–7) is live, and the build side (steps 8–13), the pooled-sidekick model in <em>End-to-end map</em> below, is built and smoke-tested.</strong> The pipeline runs approve → AI builds + self-validates on a sidekick → PR → human review → merge → recycle, with two GitHub-enforced human gates (value gate + merge gate) bracketing the AI. This describes the system that <em>runs</em> the <a href="../definition-of-ready/">Definition of Ready</a> process at scale (multiple features, multiple people, in parallel). The <strong>Phase 1</strong>, <strong>End-to-end map</strong>, and <strong>Bug pipeline</strong> sections record what is actually built and validated against the live repo/GitHub state; <strong>everything from <em>Topology</em> onward</strong> (topology, state machine, security model, control-plane worker contract, work breakdown) is the <em>earlier, superseded</em> provision-per-build design, kept for historical context — the current build side is the pooled-sidekick model in <em>End-to-end map</em> (see its supersede note).</p>
 <hr />
 <h2 id="phase-1-the-spec-side-grounded-build-status-2026-07-28">Phase 1 — the spec side (grounded build status, 2026-07-28)<a class="headerlink" href="#phase-1-the-spec-side-grounded-build-status-2026-07-28" title="Permanent link">&para;</a></h2>
 <p>Phase 1 automates the <strong>cloud-only spec side</strong>: everything up to and including reaching the <code>Awaiting approval</code> value gate (FSM <code>needs_clarification → awaiting_signoff → ready_to_build → approved</code>), then <strong>STOP</strong>. It runs entirely on <strong>GitHub-hosted runners</strong>, reusing the existing CI and secrets — <strong>no sidekick, no build job, no merge</strong>. Steps 8+ (provision a sidekick → implement → test → deploy → merge) are out of phase-1 scope and remain the design from <strong>Topology</strong> onward.</p>
@@ -5489,7 +5511,7 @@
 <li><strong>Cross-model "outside voice" verify (idea 2) — v2.</strong> A second, independent-provider model reviews the probe's adversarial pass (different blind spots catch different defects). <strong>Constraint:</strong> OpenAI's ChatGPT subscription is <strong>not</strong> usable in CI — Codex ChatGPT-sign-in is interactive/local only, automation uses a pay-per-token API key — so an OpenAI outside-voice bills API credits, it does <strong>not</strong> ride the ChatGPT plan (unlike Claude Max, which does work in Actions). Try <strong>Opus-5 verifying Fable-5</strong> first (same provider, on the Max subscription, still meaningful diversity); reach for the OpenAI outside-voice only if that isn't skeptical enough.</li>
 </ul>
 <h2 id="end-to-end-map-build-side-design-v2-pooled-sidekicks">End-to-end map &amp; build-side design (v2 — pooled sidekicks)<a class="headerlink" href="#end-to-end-map-build-side-design-v2-pooled-sidekicks" title="Permanent link">&para;</a></h2>
-<p><strong>Live board (which issue is in which phase):</strong> <a href="https://github.com/orgs/Fortigi/projects/2">github.com/orgs/Fortigi/projects/2</a> — the <strong>Status</strong> field is the canonical phase; this table is the legend. Phase 1 above ships rows <strong>1–6 + 15</strong> (live); rows <strong>8–13</strong> are the build side (design). Cloud = ☁️ (GitHub-hosted runners, reuses existing CI); private = 🔒 (a pool sidekick VM).</p>
+<p><strong>Live board (which issue is in which phase):</strong> <a href="https://github.com/orgs/Fortigi/projects/2">github.com/orgs/Fortigi/projects/2</a> — the <strong>Status</strong> field is the canonical phase; this table is the legend. Rows <strong>1–6 + 15</strong> (spec side) and rows <strong>8–13</strong> (build side, the pooled-sidekick model) are all <strong>built and validated</strong> (2026-07-31) — see <a href="#as-built-validated-end-to-end-2026-07-31"><em>As built</em></a> below. Rows <strong>7</strong> and <strong>12</strong> are the two GitHub-enforced human gates. Cloud = ☁️ (GitHub-hosted runners, reuses existing CI); private = 🔒 (a pool sidekick VM).</p>
 <table>
 <thead>
 <tr>
@@ -5630,13 +5652,27 @@
 <li><strong>Pool, not per-build provisioning.</strong> N always-on sidekicks (<code>1.build.identityatlas.io</code>, <code>2…</code>, <code>3…</code>, …), each configured <strong>once, in advance</strong>: a standard Traefik vhost + one self-hosted GitHub runner (label <code>dor-build</code>) that controls only <em>its own</em> Docker. Two are enrolled today; more added over time. This deletes the old "provision a fresh VM + mint a Traefik route per build" step (former row 8) entirely.</li>
 <li><strong>No runner holds hypervisor or Traefik credentials.</strong> A sidekick runner can <code>docker build/up/down</code> on its own box and nothing else — the most dangerous credential in the v1 design (Proxmox + Traefik on a long-lived control-plane runner) is gone. "Acquire a sidekick" is native GitHub runner-pool dispatch (<code>runs-on: [self-hosted, dor-build]</code>), so there is <strong>no custom orchestrator to build</strong>.</li>
 <li><strong>The AI builds <em>on</em> the sidekick, with a live env (row 8).</strong> After the value gate the implement step runs on a pool runner, so the model can <code>docker build</code>, run the stack at the sidekick's fixed URL, and check its own work — build green? page renders? smoke passes? — <strong>before</strong> opening the PR. Cloud CI (row 9) then runs on the PR as the objective gate. Writing code with the ability to actually run it beats commit-blind-and-wait; it also makes the live browsable env a by-product of the build rather than a separate deploy step.</li>
-<li><strong>Reservation across the validation window (rows 8 → 13).</strong> A build can't deploy-and-exit, or the freed runner would pick up the next build and clobber the stack a human is still validating at row 11 (which can take weeks). So a sidekick is <strong>reserved</strong> for one feature from build through merge/reject: the job takes its own runner offline (or drops its <code>available</code> label) and records a durable <code>sidekick → issue</code> mapping; the reset job re-enables it on completion. A finite pool ⇒ a finite number of parallel builds — the throughput knob you widen by enrolling more sidekicks.</li>
+<li><strong>Reservation across the validation window (rows 8 → 13).</strong> A build can't deploy-and-exit, or a later build could clobber the stack a human is still validating at row 11 (which can take weeks). So a sidekick is <strong>reserved</strong> for one feature from build through merge/reject. <strong>As built this is a <em>soft</em> reservation:</strong> the job writes a <code>~/.dor-reservation</code> lock (the PR number) and refuses a deploy onto a sidekick already holding another PR; reset-on-close clears it. The <em>hard</em> reservation (pulling the runner from the pool via a runner-label swap, so nothing new can even land) was <strong>shelved</strong> — it needs a repo-<code>Administration</code> credential to manage runner labels, deliberately not granted for a marginal gain. A finite pool ⇒ a finite number of parallel builds — the throughput knob you widen by enrolling more sidekicks.</li>
 <li><strong>Reset, not teardown (row 13).</strong> On merge or reject the sidekick runs <code>docker compose down -v</code> + an image/volume prune back to a clean baseline, then re-registers as available. No VM lifecycle, no hypervisor calls — a fast recycle.</li>
 <li><strong>Security.</strong> Post-value-gate the sidekick runner holds the Claude subscription token and runs AI-authored code with a shell — acceptable because its input is the <strong>approved</strong> spec (human-gated at row 7), not raw public-issue text, and each run is isolated to a VM that is reset between uses. The pool must be reachable <strong>only</strong> by the controlled post-approval dispatch — <strong>never</strong> by <code>pull_request</code> from a fork (self-hosted runner + untrusted fork PR = arbitrary code execution). Human browse access to <code>n.build…</code> stays behind the existing authentik/Traefik forward-auth against the Fortigi tenant.</li>
 </ul>
 <blockquote>
 <p><strong>This supersedes</strong> the <em>provision-per-build</em> model in <strong>Topology</strong> and the <strong>Control-plane worker contract</strong> below — a long-lived runner holding Proxmox + Traefik creds that creates/destroys a VM per feature. Those sections predate this simplification; the pooled model above is the current plan. Former row 8 (provision) and the VM-teardown half of row 13 are gone.</p>
 </blockquote>
+<h3 id="as-built-validated-end-to-end-2026-07-31">As built (validated end-to-end, 2026-07-31)<a class="headerlink" href="#as-built-validated-end-to-end-2026-07-31" title="Permanent link">&para;</a></h3>
+<p>Three workflows, all inert until repo variable <code>DOR_ENABLED=true</code>, on the <code>dor-build</code> pool — <strong>sidekick-5</strong> (<code>dev-docker-05</code> → <code>5.build.identityatlas.io</code>) and <strong>sidekick-6</strong> (<code>dev-docker-06</code> → <code>6.build.identityatlas.io</code>):</p>
+<ul>
+<li><strong><code>dor-deploy.yml</code> (slice A):</strong> apply <code>deploy-to-sidekick</code> to a <strong>non-fork</strong> PR → a pool runner frees <code>:3001</code>, builds + runs the PR branch (with a <code>BEHIND_TLS</code> + <code>PUBLIC_BASE_URL</code> compose override), health-checks it, writes a soft-reservation lock, and comments the <code>N.build</code> URL. Same-repo branches only (<code>head.repo == base repo</code>) so the runner never executes a fork's code.</li>
+<li><strong><code>dor-reset.yml</code> (slice B):</strong> on PR close/merge → a matrix job pinned per sidekick (stable <code>sk5</code>/<code>sk6</code> labels); the holder runs <code>docker compose down -v</code> + prune, clears the lock, restores the placeholder, and releases the box.</li>
+<li><strong><code>dor-build-agent.yml</code> (slice D):</strong> apply <code>ready-to-build</code> to an approved issue → the AI implements the approved spec on a sidekick (<code>claude-code-action</code>, full tools), tests/self-validates, and opens a PR (<code>Closes #N</code>).</li>
+</ul>
+<p><strong>The approval gate (row 7) — the real one.</strong> <code>ready-to-build</code> only <em>proposes</em> a build (GitHub can't restrict who applies a label). The build job runs in the <strong><code>build-approval</code> Environment</strong> whose <strong>required reviewers are the Product Board (Wim / Taeke / Rob)</strong> — the job <strong>pauses</strong> for an Approve click in the Actions UI, and only they can approve, <strong>before the agent runs or any token is spent</strong>. Same enforcement class as a required PR approval (self-approval currently allowed). With the <strong>merge gate (row 12)</strong>, two GitHub-enforced human gates bracket the AI. The repo's fork-PR policy is set to <code>all_external_contributors</code> so no fork PR can reach the self-hosted runners.</p>
+<p><strong>Sidekick baseline.</strong> A pool sidekick needs more than the fresh-clone default (<code>git</code> + <code>docker</code>): also <strong><code>gh</code>, Node 22, <code>unzip</code>, <code>jq</code>, <code>build-essential</code></strong> (the agent uses <code>gh</code> for the PR and <code>npx vitest</code> to self-validate; <code>claude-code-action</code> needs <code>unzip</code> for its bundled Bun runtime). Enrolling a new member = install that baseline + register a <code>dor-build</code> self-hosted runner (systemd, auto-start) + a stable <code>skN</code> label. The runner holds no Traefik/authentik creds — an infra-managed central Traefik routes <code>N.build</code> → the sidekick's <code>:3001</code>.</p>
+<p><strong>Known hardening follow-ups (not yet done — surfaced by the first live run):</strong>
+- <strong>Deterministic PR-open + persistent test env.</strong> In the first run the agent implemented correctly and pushed the branch, but didn't reliably fire the final <code>gh pr create</code>, and its live env (built in the runner's throwaway workspace) didn't persist at <code>N.build</code>. Fix: let the agent do implement + test + push (its strength), and have the <strong>workflow</strong> deterministically open the PR and <strong>deploy the branch to a stable <code>~/stacks/pr-N</code></strong> (reusing slice A) as the persistent functional-test env.
+- <strong>Reconcile backstop for orphaned reservations.</strong> A plain PR close/merge fires reset correctly, but <em>close + delete-branch in one action</em> suppresses the <code>pull_request closed</code> run, leaving a reservation stuck. Add a periodic sweep (the <code>dor-reconcile</code> pattern) that resets any sidekick whose reserved PR is already closed/merged.
+- <strong>Build-side board-Status transitions</strong> (Building / Awaiting functional acceptance / Awaiting merge / Done) — deferred; deploy/reset currently comment on the PR rather than move the board.
+- <strong>Notify on pending approval</strong> — an @-mention comment (or a push channel) when a build reaches the gate, so reviewers get a GitHub-mobile ping instead of being told out-of-band.</p>
 <h2 id="bug-pipeline-spec-side-live">Bug pipeline (spec side, live)<a class="headerlink" href="#bug-pipeline-spec-side-live" title="Permanent link">&para;</a></h2>
 <p>Bugs run a <strong>parallel spec-side pipeline</strong> that reuses the feature machinery — the <code>dor-authorize</code>
 action, the board helper (<code>dor_set_status.sh</code>), the deterministic-split execution model, the shared
