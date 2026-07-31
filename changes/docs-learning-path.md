@@ -1,9 +1,0 @@
-- Restructured the documentation site into a reading order instead of a folder listing: **Start here → Learn → Use → Set up & run → Reference → Project**, so a first-time reader is taken from the landing page to the technical detail rather than dropped into a reference tree.
-- Added **The words you need first** — a plain-language glossary of the vocabulary (identity, principal, resource, assignment, governed, context, scope, effective access) written for someone who has never worked with identity data, ordered by when you need each word rather than alphabetically.
-- Added **Your first 15 minutes** — a guided walkthrough that takes you from "there is a grid on my screen" to finding something nobody meant to grant.
-- Added **Before you play** — a readiness check for the Capture the Flag, so someone unfamiliar with the terminology can attempt it without being blocked by vocabulary.
-- Rewrote the documentation home page as a doorway that continues from identityatlas.io and routes you by what you are trying to do (analyst, operator, integrator, contributor) instead of repeating the product pitch.
-- Every page on the newcomer path now states what it assumes you have already read and what you will be able to do afterwards.
-- 15 pages that existed but appeared in no menu — reachable only by search — are now in the navigation, and internal design proposals moved into a clearly-marked **Design archive** so they are no longer mistaken for descriptions of how the product works today.
-- Fixed the front page listing Omada as CSV-only when it has had its own crawler for some time, and removed the duplicated install instructions that contradicted the Quick Start.
-- The documentation structure is now checked automatically on every pull request: a page missing from the menu, a broken link between pages, or a learning-path page that does not declare its prerequisites fails the build.
