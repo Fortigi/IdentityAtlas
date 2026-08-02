@@ -39,7 +39,7 @@ if git diff --cached --quiet; then
   comment_issue "$(printf '🤖 @%s — I looked at that but couldn'\''t find a concrete code change to make from it. Could you point me at the specific behaviour to change? (Or reply `approved` if it'\''s actually fine as-is.)' "$FEEDBACK_AUTHOR")"
   exit 0
 fi
-git commit -q -m "fix: address requestor feedback (#${ISSUE})"
+git commit -q -m "fix: address requestor feedback (#${ISSUE})" || bail "git commit failed"
 git push --force-with-lease origin "$BRANCH" || bail "could not push the adjustment for #${ISSUE}"
 
 # 2. Re-deploy + re-verify on the live env (feature e2e + PR CI, auto-fix up to 8×; else Exceptions).

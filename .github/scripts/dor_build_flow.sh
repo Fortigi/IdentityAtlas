@@ -36,7 +36,7 @@ claude -p "$(cat "$WORK/.dor/in/prompt.txt")" \
 git restore --source=origin/main --staged --worktree -- .github 2>/dev/null || true   # never let the build touch .github
 git add -A
 git diff --cached --quiet && bail "the AI produced no changes"
-git commit -q -m "$(gh issue view "$ISSUE" --repo "$REPO" --json title --jq '.title') (#${ISSUE})"
+git commit -q -m "$(gh issue view "$ISSUE" --repo "$REPO" --json title --jq '.title') (#${ISSUE})" || bail "git commit failed"
 git push -u origin "$BRANCH" --force-with-lease || bail "could not push $BRANCH"
 
 # 2. Open the PR (BOT token — GITHUB_TOKEN can't create PRs here).
