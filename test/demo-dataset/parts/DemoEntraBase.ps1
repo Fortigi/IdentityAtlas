@@ -31,17 +31,22 @@ function Add-DemoEntraBase {
     }
     $State['Res'] = $res
 
+    # Each group carries the crawler-derived groupCategory the real Entra
+    # transform stamps (Get-EntraGroupClassification), so the
+    # entra-group-category-tree context plugin groups them exactly as it would
+    # a live tenant's.
     $groups = @(
-        @{ Id = $res.AllEmp;     Name = 'SG-AllEmployees' }
-        @{ Id = $res.Eng;        Name = 'SG-Engineering' }
-        @{ Id = $res.Fin;        Name = 'SG-Finance' }
-        @{ Id = $res.VPN;        Name = 'SG-VPN-Access' }
-        @{ Id = $res.AdminTier0; Name = 'SG-Admin-Tier0'; Desc = 'Tier 0 administrative access - critical' }
-        @{ Id = $res.PAM;        Name = 'SG-PAM-Users' }
+        @{ Id = $res.AllEmp;     Name = 'SG-AllEmployees'; Cat = 'DynamicSecurityGroup' }
+        @{ Id = $res.Eng;        Name = 'SG-Engineering';  Cat = 'Microsoft365' }
+        @{ Id = $res.Fin;        Name = 'SG-Finance';      Cat = 'SecurityGroup' }
+        @{ Id = $res.VPN;        Name = 'SG-VPN-Access';   Cat = 'SecurityGroup' }
+        @{ Id = $res.AdminTier0; Name = 'SG-Admin-Tier0';  Cat = 'SecurityGroup'; Desc = 'Tier 0 administrative access - critical' }
+        @{ Id = $res.PAM;        Name = 'SG-PAM-Users';    Cat = 'SecurityGroup' }
     )
     foreach ($g in $groups) {
         $desc = if ($g.ContainsKey('Desc')) { $g.Desc } else { '' }
-        $null = Add-DemoResource $State -Id $g.Id -DisplayName $g.Name -ResourceType 'Group' -SystemId $sysEntra -Description $desc
+        $null = Add-DemoResource $State -Id $g.Id -DisplayName $g.Name -ResourceType 'Group' -SystemId $sysEntra -Description $desc `
+            -Extended @{ groupCategory = $g.Cat }
     }
 
     foreach ($dr in @(

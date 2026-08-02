@@ -193,6 +193,39 @@ Describe 'Demo dataset — group ownership (#713)' {
     }
 }
 
+Describe 'Demo dataset — group categories (#870)' {
+
+    BeforeAll {
+        # Every Group carries the crawler-derived groupCategory the real Entra
+        # transform stamps (Get-EntraGroupClassification), so the
+        # entra-group-category-tree context plugin — and through it the matrix
+        # Contexts column — behaves on demo data as it would on a live tenant.
+        $script:groupResources = @($script:data.resources | Where-Object { $_.resourceType -eq 'Group' })
+        $script:validCategories = @(
+            'Team', 'Microsoft365', 'SecurityGroup', 'DistributionList', 'MailEnabledSecurity',
+            'DynamicTeam', 'DynamicMicrosoft365', 'DynamicSecurityGroup'
+        )
+    }
+
+    It 'stamps a groupCategory on every Group resource' {
+        $script:groupResources.Count | Should -BeGreaterThan 0
+        foreach ($g in $script:groupResources) {
+            $g.extendedAttributes.groupCategory | Should -Not -BeNullOrEmpty -Because "$($g.displayName) needs a groupCategory"
+        }
+    }
+
+    It 'only uses categories the Entra crawler classification can produce' {
+        foreach ($g in $script:groupResources) {
+            $script:validCategories | Should -Contain $g.extendedAttributes.groupCategory
+        }
+    }
+
+    It 'spans more than one category so the category tree has multiple branches' {
+        @($script:groupResources | ForEach-Object { $_.extendedAttributes.groupCategory } | Sort-Object -Unique).Count |
+            Should -BeGreaterThan 1
+    }
+}
+
 Describe 'Demo dataset — Capture-the-Flag scenarios (#705)' {
 
     BeforeAll {

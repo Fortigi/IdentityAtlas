@@ -59,21 +59,23 @@ function Add-DemoSalesScenario {
     }
     $State['Sales'] = $sales
 
+    # groupCategory mirrors what the Entra crawler transform stamps, feeding the
+    # entra-group-category-tree context plugin (same as DemoEntraBase groups).
     $groups = @(
-        @{ Id = $sales.Group; Name = 'SG-Sales'
+        @{ Id = $sales.Group; Name = 'SG-Sales'; Cat = 'SecurityGroup'
            Desc = 'Sales department security group — shared drives, distribution list.' }
-        @{ Id = $sales.Crm; Name = 'SG-CRM-Users'
+        @{ Id = $sales.Crm; Name = 'SG-CRM-Users'; Cat = 'SecurityGroup'
            Desc = 'CRM access — customer accounts, opportunities and pipeline.' }
-        @{ Id = $sales.SharePoint; Name = 'SG-Sales-SharePoint'
+        @{ Id = $sales.SharePoint; Name = 'SG-Sales-SharePoint'; Cat = 'Microsoft365'
            Desc = 'Sales team SharePoint site — proposals, battlecards and templates.' }
         # The description is the signal that separates the trap from the
         # candidate: sensitive, cross-department, manager-only.
-        @{ Id = $sales.FinReports; Name = 'SG-Finance-Reports'
+        @{ Id = $sales.FinReports; Name = 'SG-Finance-Reports'; Cat = 'MailEnabledSecurity'
            Desc = 'Sensitive financial reporting — quarterly revenue, margin and forecast data. Restricted to department managers and Finance.' }
     )
     foreach ($g in $groups) {
         $null = Add-DemoResource $State -Id $g.Id -DisplayName $g.Name -ResourceType 'Group' `
-            -SystemId $sysEntra -Description $g.Desc
+            -SystemId $sysEntra -Description $g.Desc -Extended @{ groupCategory = $g.Cat }
     }
 
     $null = Add-DemoResource $State -Id $sales.BR -DisplayName 'BR-Sales' -ResourceType 'BusinessRole' `
