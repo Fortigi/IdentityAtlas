@@ -20,6 +20,12 @@ MAINTAINERS="@WimvandenHeijkant @TaekeK @robb536"
 PLUGINS="entra-group-category-tree resource-type-tree resource-cluster scope-hierarchy risky-consent"
 FLOW_NOUN="${FLOW_NOUN:-build}"
 
+# Self-hosted runners have no git identity of their own; without one `git commit` aborts
+# ("unable to auto-detect email address") and the flow would push an empty branch and then fail
+# confusingly at PR-create ("No commits between main and ..."). Pin a local identity on the checkout.
+git -C "$WORK" config user.email "dor-agent@fortigi.nl"    >/dev/null 2>&1 || true
+git -C "$WORK" config user.name  "IdentityAtlas DoR agent" >/dev/null 2>&1 || true
+
 issue_mentions() {  # requestor (author) + commenters, deduped, bots excluded, @-prefixed
   gh issue view "$ISSUE" --repo "$REPO" --json author,comments \
     --jq '([.author.login]+[.comments[].author.login]) | map(select(. and (endswith("[bot]")|not))) | unique | map("@"+.) | join(" ")'
@@ -106,7 +112,9 @@ verify_loop() {
       || bail "the AI fix step errored on attempt ${attempt}"
     git restore --source=origin/main --staged --worktree -- .github 2>/dev/null || true
     git add -A
-    git diff --cached --quiet || git commit -q -m "fix: address e2e/CI failures (attempt ${attempt}, #${ISSUE})"
+    if ! git diff --cached --quiet; then
+      git commit -q -m "fix: address e2e/CI failures (attempt ${attempt}, #${ISSUE})" || bail "git commit failed during fix (attempt ${attempt})"
+    fi
     git push --force-with-lease origin "$BRANCH" || bail "could not push fix on attempt ${attempt}"
   done
 }
