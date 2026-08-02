@@ -50,7 +50,7 @@ describe('buildMatrixContext', () => {
 });
 
 const EMPTY_PAYLOAD = {
-  data: [], rowType: 'principal', managedByPackages: [],
+  data: [], rowType: 'principal', managedByPackages: [], resourceContexts: [],
   subjectCount: 0, subjectTotal: 0, resourceCount: 0, resourceTotal: 0, assignmentCount: 0,
 };
 
@@ -59,6 +59,9 @@ describe('POST /matrix/data (extracted router)', () => {
     const res = await request(app).post('/matrix/data').send({ filter: { rowType: 'principal' } });
     expect(res.status).toBe(200);
     expect(res.body).toEqual(EMPTY_PAYLOAD);
+    // The flat grid's Contexts-column sidecar is always present as an array,
+    // so the frontend never needs a null-guard.
+    expect(Array.isArray(res.body.resourceContexts)).toBe(true);
   });
 
   // The handler was decomposed into a dispatcher + one function per view mode

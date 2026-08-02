@@ -19,6 +19,7 @@ import {
   buildContextRolesSql, buildContextRolesAsRowsSql,
 } from '../../matrix/contextRollup.js';
 import { buildAttrCutCellsSql, buildAttrCutNodesSql, tupleToNode } from '../../matrix/attributeCut.js';
+import { fetchResourceContexts } from '../../matrix/resourceContexts.js';
 import { buildRollupSql, buildRollupRolesSql, buildRolesAsRowsSql, buildGroupTotalsSql, buildRolesDrillSql } from '../../matrix/rollupBuilders.js';
 import { parseFilter, buildSubqueries, scopeCounts, runBound, collectResources } from './shared.js';
 import { GROUP_PRINCIPAL_TYPE } from '../../lib/principalTypes.js';
@@ -702,6 +703,14 @@ async function handleFlatGrid(res, ctx) {
       }));
   } catch { /* AP view may not exist */ }
 
+  // Contexts sidecar — which Contexts each visible resource is a member of,
+  // for the display-only Contexts column. Same scoped-batch pattern as the AP
+  // mapping above; tolerant so an older DB without Contexts still serves data.
+  let resourceContexts = [];
+  try {
+    resourceContexts = await fetchResourceContexts(p, res, built);
+  } catch { /* Contexts tables may not exist */ }
+
   return res.json({
     data: result.rows,
     rowType,
@@ -712,6 +721,7 @@ async function handleFlatGrid(res, ctx) {
     // Backward-compat alias used by the existing matrix toolbar footer.
     totalUsers: subjectTotal,
     managedByPackages,
+    resourceContexts,
     warnings: built.warnings,
   });
 }
@@ -719,7 +729,7 @@ async function handleFlatGrid(res, ctx) {
 router.post('/matrix/data', async (req, res) => {
   if (!useSql) {
     return res.json({
-      data: [], rowType: 'principal', managedByPackages: [],
+      data: [], rowType: 'principal', managedByPackages: [], resourceContexts: [],
       subjectCount: 0, subjectTotal: 0, resourceCount: 0, resourceTotal: 0, assignmentCount: 0,
     });
   }

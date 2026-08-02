@@ -27,6 +27,31 @@ const GROUP_COL_ALIASES = {
   groupDescription: 'resourceDescription',
 };
 
+// Normalise a roll-up response body into the defaulted shape RollupMatrixView
+// consumes (every field present, arrays never undefined).
+function normalizeRollup(body) {
+  return {
+    attribute:     body.rollup,
+    rollupKind:    body.rollupKind    || 'attribute',
+    rollupContextId: body.rollupContextId || null,
+    focusId:       body.focusId       || null,
+    breadcrumb:    body.breadcrumb    || [],
+    nodes:         body.nodes         || [],
+    rollupContent: body.rollupContent || 'resources-and-roles',
+    layered:       body.layered       || false,
+    layeredAttributes: body.layeredAttributes || false,
+    maxDepth:      body.maxDepth       || 1,
+    resources:     body.resources     || [],
+    groupValues:   body.groupValues   || [],
+    groupTotals:   body.groupTotals   || [],
+    counts:        body.counts        || [],
+    businessRoles: body.businessRoles || [],
+    roleCounts:    body.roleCounts    || [],
+    roleRows:      body.roleRows      || [],
+    cells:         body.cells         || [],
+  };
+}
+
 export function useMatrix(filter) {
   const { authFetch } = useAuth();
 
@@ -39,6 +64,8 @@ export function useMatrix(filter) {
     assignmentCount: 0,
   });
   const [managedByPackages, setManagedByPackages] = useReducer(valueReducer, []);
+  // Per-resource Contexts sidecar (flat grid only) — drives the Contexts column.
+  const [resourceContexts, setResourceContexts] = useReducer(valueReducer, []);
   // Roll-up payload (null when not in roll-up mode):
   //   { attribute, resources:[…], groupValues:[…], counts:[{resourceId,groupValue,directCount}] }
   const [rollup, setRollup] = useReducer(valueReducer, null);
@@ -129,6 +156,7 @@ export function useMatrix(filter) {
     if (!hasConditions) {
       setData([]);
       setManagedByPackages([]);
+      setResourceContexts([]);
       setRollup(null);
       setCounts({ subjectCount: 0, subjectTotal: 0, resourceCount: 0, resourceTotal: 0, assignmentCount: 0 });
       setLoading(false);
@@ -158,32 +186,15 @@ export function useMatrix(filter) {
         const body = await res.json();
         if (cancelled) return;
         if (body.rollup) {
-          setRollup({
-            attribute:     body.rollup,
-            rollupKind:    body.rollupKind    || 'attribute',
-            rollupContextId: body.rollupContextId || null,
-            focusId:       body.focusId       || null,
-            breadcrumb:    body.breadcrumb    || [],
-            nodes:         body.nodes         || [],
-            rollupContent: body.rollupContent || 'resources-and-roles',
-            layered:       body.layered       || false,
-            layeredAttributes: body.layeredAttributes || false,
-            maxDepth:      body.maxDepth       || 1,
-            resources:     body.resources     || [],
-            groupValues:   body.groupValues   || [],
-            groupTotals:   body.groupTotals   || [],
-            counts:        body.counts        || [],
-            businessRoles: body.businessRoles || [],
-            roleCounts:    body.roleCounts    || [],
-            roleRows:      body.roleRows      || [],
-            cells:         body.cells         || [],
-          });
+          setRollup(normalizeRollup(body));
           setData([]);
           setManagedByPackages([]);
+          setResourceContexts([]);
         } else {
           setRollup(null);
           setData(body.data || []);
           setManagedByPackages(body.managedByPackages || []);
+          setResourceContexts(body.resourceContexts || []);
         }
         setRowType(body.rowType || 'principal');
         setCounts({
@@ -227,6 +238,7 @@ export function useMatrix(filter) {
     totalUsers: counts.subjectTotal,
     accessPackageGroups: accessPackageGroupsAliased,
     managedByPackages,
+    resourceContexts,
     groupTagMap,
     userColumns,
     loading,

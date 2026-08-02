@@ -1,6 +1,9 @@
-﻿import MatrixCell from './MatrixCell';
+﻿import { useState } from 'react';
+import MatrixCell from './MatrixCell';
 import { getAccessPackageColor } from '@ui/utils/colors';
 import { useIsDark } from '@ui/contexts/ThemeContext';
+import { variantMeta } from '@ui/utils/contextStyles';
+import { contextsForGroup, splitContextsForDisplay } from '@ui/utils/matrixContexts';
 
 // Map AP resource role names to the same badge style used in user/group cells.
 // Group ownership is its own resource (resourceType='GroupOwnership') now, so
@@ -12,6 +15,52 @@ function getRoleBadge(roleName) {
   const lower = (roleName || '').toLowerCase();
   if (lower.includes('eligible')) return BADGE_ELIGIBLE;
   return BADGE_DIRECT;
+}
+
+// One context chip — same visual language as the ContextFilterControl chips
+// (variant dot + name), sized down for the metadata column.
+function ContextChip({ ctx }) {
+  const variant = variantMeta(ctx.variant);
+  return (
+    <span
+      className="inline-flex items-center gap-1 text-[10px] bg-slate-50 dark:bg-gray-700/50 border border-slate-200 dark:border-gray-600 rounded px-1 py-0"
+      title={`${ctx.displayName} (${ctx.contextType})`}
+    >
+      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${variant.dotClass}`} aria-hidden="true" />
+      <span className="max-w-[8rem] truncate text-gray-700 dark:text-gray-300">{ctx.displayName}</span>
+    </span>
+  );
+}
+
+// Contexts metadata cell (display-only): the first 2 chips always show, the
+// rest sit behind an inline +N toggle. See utils/matrixContexts for the split.
+function ContextsCell({ contexts }) {
+  const [expanded, setExpanded] = useState(false);
+  const { shown, hidden } = splitContextsForDisplay(contexts);
+  return (
+    <td className="border-b border-gray-200 dark:border-gray-700 px-2 py-0.5 text-xs"
+        style={{ minWidth: '200px', maxWidth: '320px' }}>
+      {contexts.length === 0 ? (
+        <span className="text-gray-600 dark:text-gray-500">—</span>
+      ) : (
+        <div className="flex items-center gap-1 flex-wrap">
+          {(expanded ? contexts : shown).map(ctx => (
+            <ContextChip key={ctx.id} ctx={ctx} />
+          ))}
+          {hidden.length > 0 && (
+            <button
+              onClick={() => setExpanded(v => !v)}
+              aria-label={expanded ? 'Show fewer contexts' : `Show ${hidden.length} more contexts`}
+              title={expanded ? 'Show fewer contexts' : `Show ${hidden.length} more contexts`}
+              className="text-[10px] font-medium px-1 rounded border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700"
+            >
+              {expanded ? '−' : `+${hidden.length}`}
+            </button>
+          )}
+        </div>
+      )}
+    </td>
+  );
 }
 
 export default function MatrixGroupRow({
@@ -28,6 +77,7 @@ export default function MatrixGroupRow({
   managedFilter,
   onOpenDetail,
   onExplainInherited,
+  resourceContextsMap,
   // Nested group expansion props
   groupsWithNested,
   expandedGroups,
@@ -207,11 +257,12 @@ export default function MatrixGroupRow({
         );
       })}
 
-      {/* Right-side metadata: # | Description */}
+      {/* Right-side metadata: # | Contexts | Description */}
       <td className="border-l-2 border-b border-gray-200 dark:border-gray-700 px-2 py-0.5 text-xs text-gray-600 dark:text-gray-400 text-center"
           style={{ minWidth: '40px' }}>
         {memberCount}
       </td>
+      <ContextsCell contexts={contextsForGroup(resourceContextsMap, group)} />
       <td className="border-b border-gray-200 dark:border-gray-700 px-2 py-0.5 text-xs text-gray-600 dark:text-gray-500 max-w-[500px]"
           title={group.description}>
         <div className="truncate">{group.description}</div>

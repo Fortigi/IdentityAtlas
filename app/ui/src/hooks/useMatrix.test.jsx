@@ -50,6 +50,7 @@ describe('useMatrix', () => {
       '/api/matrix/data': {
         data: [{ id: 'u1' }, { id: 'u2' }],
         managedByPackages: ['ap1'],
+        resourceContexts: [{ resourceId: 'r1', contexts: [{ id: 'c1', displayName: 'Finance', contextType: 'Tag' }] }],
         rowType: 'principal',
         subjectCount: 2,
         subjectTotal: 10,
@@ -72,6 +73,9 @@ describe('useMatrix', () => {
     await waitFor(() => expect(result.current.data.length).toBe(2));
     expect(result.current.rowType).toBe('principal');
     expect(result.current.managedByPackages).toEqual(['ap1']);
+    expect(result.current.resourceContexts).toEqual([
+      { resourceId: 'r1', contexts: [{ id: 'c1', displayName: 'Finance', contextType: 'Tag' }] },
+    ]);
     expect(result.current.counts.assignmentCount).toBe(7);
     expect(result.current.totalUsers).toBe(10);
     expect(result.current.loading).toBe(false);
@@ -107,6 +111,8 @@ describe('useMatrix', () => {
     expect(result.current.rollup.attribute).toBe('department');
     expect(result.current.rollup.groupValues).toEqual(['IT', 'HR']);
     expect(result.current.data).toEqual([]);
+    // Roll-up payloads carry no flat-grid sidecar — it must be cleared.
+    expect(result.current.resourceContexts).toEqual([]);
     await waitFor(() => expect(result.current.hasData).toBe(false));
   });
 

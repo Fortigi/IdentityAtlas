@@ -60,6 +60,7 @@ export default function SortableMatrixBody({
   expandedGroups,
   onToggleExpand,
   loadingNested,
+  resourceContextsMap,
 }) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
@@ -109,6 +110,7 @@ export default function SortableMatrixBody({
     expandedGroups,
     onToggleExpand,
     loadingNested,
+    resourceContextsMap,
   };
 
   // Render a single row — nested rows are plain (not sortable), others are sortable

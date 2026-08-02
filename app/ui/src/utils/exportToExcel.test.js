@@ -229,6 +229,37 @@ describe('exportToExcel', () => {
     expect(ws.getCell(dataRow, apColStart).value).toBe('D');
   });
 
+  it('writes a Contexts meta column with the full, untruncated name list', async () => {
+    const orderedGroups = [
+      { id: 'g1', displayName: 'Grp', groupType: '', description: 'desc', memberCount: 1 },
+      { id: 'g2', displayName: 'Grp2', groupType: '', description: '', memberCount: 0 },
+    ];
+    // Map is keyed by UPPERCASE resource id (buildResourceContextsMap contract).
+    const resourceContextsMap = new Map([
+      ['G1', [
+        { id: 'c1', displayName: 'Finance' },
+        { id: 'c2', displayName: 'M365' },
+        { id: 'c3', displayName: 'Cluster-A' },
+      ]],
+    ]);
+
+    await exportToExcel(baseInput({ orderedGroups, resourceContextsMap }));
+    const wb = await loadCapturedWorkbook();
+    const ws = wb.getWorksheet('Role Mining Matrix');
+
+    // metaColStart = infoColCount(3) + 0 users + 1 = 4 → # | Contexts | Description
+    const namesRow = 2;
+    expect(ws.getCell(namesRow, 4).value).toBe('#');
+    expect(ws.getCell(namesRow, 5).value).toBe('Contexts');
+    expect(ws.getCell(namesRow, 6).value).toBe('Description');
+
+    // All three context names, comma-joined — NOT truncated to the on-screen 2.
+    expect(ws.getCell(3, 5).value).toBe('Finance, M365, Cluster-A');
+    expect(ws.getCell(3, 6).value).toBe('desc');
+    // A resource with no contexts exports an empty Contexts cell.
+    expect(ws.getCell(4, 5).value).toBeFalsy();
+  });
+
   it('populates the Legend sheet with all membership types', async () => {
     await exportToExcel(baseInput());
     const wb = await loadCapturedWorkbook();

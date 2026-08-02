@@ -7,6 +7,7 @@ import { getResourceColumns, getResourceColumnValues } from '../db/columnCache.j
 import { ensureTagTables, buildFilterWhere, parseTags } from './tags.js';
 import { extractRelFilters, buildRelationshipWhere, discoverReferenceFields } from '../lib/referenceFilters.js';
 import { UUID_RE, cleanRow, getPermissionTable } from './details/shared.js';
+import { buildResourceContextsSql } from '../matrix/resourceContexts.js';
 import { isMissingSchema } from '../db/schemaErrors.js';
 
 const router = Router();
@@ -316,11 +317,7 @@ router.get('/resources/:id/contexts', async (req, res) => {
   if (!useSql) return res.json([]);
   try {
     const rows = (await db.query(
-      `SELECT c.id, c."displayName", c."contextType", c."targetType", c.variant
-         FROM "ContextMembers" cm
-         JOIN "Contexts" c ON c.id = cm."contextId"
-        WHERE cm."memberId"::text = $1
-        ORDER BY c."contextType", c."displayName"`,
+      buildResourceContextsSql(`cm."memberId"::text = $1`),
       [req.params.id]
     )).rows;
     res.json(rows);

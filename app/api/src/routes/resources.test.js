@@ -139,3 +139,35 @@ describe('GET /resources/:id — optional-data error handling (Q2 de-masking)', 
     expect(res.status).toBe(500);
   });
 });
+
+// The endpoint shares its SQL with the matrix Contexts-column batch via
+// buildResourceContextsSql (issue #870) — pin that the single-resource filter
+// and the shared join both reach the database.
+describe('GET /resources/:id/contexts', () => {
+  it('400 on a non-UUID id', async () => {
+    const res = await request(app).get('/api/resources/not-a-uuid/contexts');
+    expect(res.status).toBe(400);
+  });
+
+  it('runs the shared ContextMembers→Contexts join filtered to this resource', async () => {
+    const rows = [
+      { resourceId: VALID_ID, id: 'c1', displayName: 'Finance', contextType: 'Tag', targetType: 'Resource', variant: 'manual' },
+    ];
+    mockDb.query.mockResolvedValueOnce({ rows });
+    const res = await request(app).get(`/api/resources/${VALID_ID}/contexts`);
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual(rows);
+    const [sql, values] = mockDb.query.mock.calls[0];
+    expect(sql).toContain('FROM "ContextMembers" cm');
+    expect(sql).toContain(`cm."memberId"::text = $1`);
+    expect(sql).toContain('ORDER BY cm."memberId", c."contextType", c."displayName"');
+    expect(values).toEqual([VALID_ID]);
+  });
+
+  it('500s with a generic message when the query fails', async () => {
+    mockDb.query.mockRejectedValueOnce(new Error('boom'));
+    const res = await request(app).get(`/api/resources/${VALID_ID}/contexts`);
+    expect(res.status).toBe(500);
+    expect(res.body.error).toBe('Failed to fetch resource contexts');
+  });
+});

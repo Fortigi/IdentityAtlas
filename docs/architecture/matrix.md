@@ -43,6 +43,8 @@ Shape:
 
 The view itself is a single `SELECT FROM "ResourceAssignments"` with no `assignmentType` filter — every type stored in the base table flows through automatically. The legacy hardcoded UNION of `Direct/Owner/Eligible/Governed` was removed in migration 024 so future assignment types don't need a migration to surface.
 
+**Per-resource sidecars.** The flat-grid response of `POST /api/matrix/data` carries two extra arrays computed by their own scoped batch queries (never per row/cell): `managedByPackages` (the SOLL/AP mapping from `vw_UserPermissionAssignmentViaBusinessRole`) and `resourceContexts` — for each visible resource, the Contexts it is a member of (`ContextMembers` where `memberType='Resource'`, joined to `Contexts`, ordered by `contextType` then `displayName`). The join lives in `app/api/src/matrix/resourceContexts.js` and is shared with `GET /api/resources/:id/contexts`. `resourceContexts` feeds the display-only **Contexts** column in the right-side metadata block (`# | Contexts | Description`): the first 2 contexts render as chips, the rest expand inline via a `+N` toggle. The column deliberately has **no sort or filter** — filtering by context stays in the wizard's existing context-filter path. Flat per-subject grid only; the roll-up / layered views have no per-resource rows.
+
 ## Badge collapse — what each letter actually means
 
 The user reads three letters. The DB stores a handful of assignment types. The translation lives in migration 049's CASE expression and is intentionally lossy:
@@ -193,6 +195,8 @@ header row per shown level (every sort attribute / every org level). On-screen
 merged spans are written as the **same value repeated** across each column — cells
 are not merged in the file (`exportRollupToExcel.js`, `exportToExcel.js`). All
 externally-influenced cells route through `safeCell` (formula-injection guard).
+The per-subject export includes a **Contexts** meta column listing every context
+the resource belongs to, comma-joined and untruncated (unlike the on-screen 2-chip cap).
 
 ## Related references
 

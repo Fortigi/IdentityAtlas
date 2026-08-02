@@ -48,3 +48,24 @@ describe('MatrixColumnHeaders sticky header', () => {
     expect(two.container.querySelector('thead').style.top).toBe(`-${2 * GROUP_ROW_H}px`);
   });
 });
+
+describe('MatrixColumnHeaders right metadata columns', () => {
+  it('renders the Contexts header between # and Description on the pinned names row', () => {
+    const { container } = renderHeaders([{ attribute: 'department' }]);
+    const labels = [...container.querySelectorAll('thead tr:last-child th')].map(th => th.textContent.trim());
+    const hashIdx = labels.indexOf('# ▼');
+    expect(hashIdx).toBeGreaterThan(-1);
+    expect(labels[hashIdx + 1]).toBe('Contexts');
+    expect(labels[hashIdx + 2]).toBe('Description');
+  });
+
+  it('keeps one placeholder cell per metadata column on the attribute grouping rows', () => {
+    const { container } = renderHeaders([{ attribute: 'department' }]);
+    const groupingRow = container.querySelector('thead tr'); // first row = attribute row
+    // Placeholders carry no text; count the trailing empty THs (#, Contexts, Description).
+    const cells = [...groupingRow.querySelectorAll('th')];
+    const trailingEmpty = [];
+    for (let i = cells.length - 1; i >= 0 && !cells[i].textContent.trim(); i--) trailingEmpty.push(cells[i]);
+    expect(trailingEmpty.length).toBe(3);
+  });
+});

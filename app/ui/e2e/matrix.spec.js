@@ -173,3 +173,92 @@ test.describe('Matrix — no double scrollbar', () => {
     expect(m.pageOverflow, 'page should not scroll when only the grid does').toBeLessThanOrEqual(4);
   });
 });
+
+// ─── Contexts column (#870) ────────────────────────────────────────────────────
+//
+// The flat grid gained a display-only "Contexts" metadata column showing which
+// Contexts each resource belongs to (group category, tags, clusters, …): the
+// first 2 as chips, the rest behind an inline "+N" toggle, and "—" for a
+// resource in no contexts. Data rides the /matrix/data response as the
+// `resourceContexts` sidecar. MatrixGroupRow is a pure-JSX shell (the accepted
+// v8 coverage blind spot, #725), so the column's render + expand behaviour is
+// proven here rather than in unit tests.
+test.describe('Matrix — Contexts column', () => {
+  test.setTimeout(90000);
+
+  test.beforeEach(async ({ page }) => {
+    // Apply an all-data flat-grid filter directly via the hash (bypasses the
+    // wizard — same pattern as the double-scrollbar regression test above).
+    const filter = {
+      rowType: 'principal',
+      orientation: 'rows-as-resources',
+      subject: { include: [], exclude: [] },
+      resource: { include: [], exclude: [] },
+    };
+    await page.goto('/#matrix?filter=' + encodeURIComponent(JSON.stringify(filter)));
+    await page.waitForLoadState('networkidle');
+  });
+
+  test('the grid has a Contexts header and every row renders chips or the — empty state', async ({ page }) => {
+    const table = page.locator('table').first();
+    try {
+      await expect(table).toBeVisible({ timeout: 40000 });
+    } catch {
+      test.skip(true, 'matrix grid did not render (no data) — cannot exercise the Contexts column');
+      return;
+    }
+
+    // Header sits on the pinned names row, between # and Description.
+    const header = page.getByRole('columnheader', { name: 'Contexts', exact: true });
+    await expect(header).toBeVisible({ timeout: 10000 });
+
+    // Every rendered resource row has a Contexts cell: chips (with the variant
+    // dot + name) when the resource is in contexts, or the "—" placeholder.
+    // The cell is the second-to-last td (… | # | Contexts | Description).
+    const rows = table.locator('tbody tr:not([aria-hidden="true"])');
+    expect(await rows.count()).toBeGreaterThan(0);
+    const ctxCell = rows.first().locator('td:nth-last-child(2)');
+    const hasChips = (await ctxCell.locator('span[aria-hidden="true"]').count()) > 0;
+    const text = (await ctxCell.textContent()).trim();
+    expect(hasChips || text === '—', 'Contexts cell must show chips or the — empty state').toBe(true);
+  });
+
+  test('a resource in more than 2 contexts shows 2 chips and an inline +N expand toggle', async ({ page }) => {
+    const table = page.locator('table').first();
+    try {
+      await expect(table).toBeVisible({ timeout: 40000 });
+    } catch {
+      test.skip(true, 'matrix grid did not render (no data) — cannot exercise the Contexts column');
+      return;
+    }
+
+    // The demo data's generated plugins (resource-type / cluster / group
+    // category) put most resources in ≥3 contexts, so a +N button should
+    // exist; skip (not fail) if this dataset genuinely has none.
+    const moreBtn = page.getByRole('button', { name: /more contexts/i }).first();
+    if ((await moreBtn.count()) === 0) {
+      test.skip(true, 'no resource with >2 contexts in this dataset — nothing to expand');
+      return;
+    }
+    await moreBtn.scrollIntoViewIfNeeded();
+
+    const cell = moreBtn.locator('xpath=ancestor::td[1]');
+    const chipsBefore = await cell.locator('span[aria-hidden="true"]').count();
+    expect(chipsBefore).toBe(2); // exactly 2 chips before expanding
+
+    // aria-label carries the hidden count: "Show N more contexts".
+    const label = await moreBtn.getAttribute('aria-label');
+    const hidden = Number(label.match(/Show (\d+) more contexts/)[1]);
+    expect(hidden).toBeGreaterThan(0);
+
+    // Expand inline: all chips appear in the same cell, toggle flips to "fewer".
+    await moreBtn.click();
+    await expect(cell.locator('span[aria-hidden="true"]')).toHaveCount(2 + hidden);
+    const fewerBtn = cell.getByRole('button', { name: 'Show fewer contexts' });
+    await expect(fewerBtn).toBeVisible();
+
+    // And collapse back to the first 2.
+    await fewerBtn.click();
+    await expect(cell.locator('span[aria-hidden="true"]')).toHaveCount(2);
+  });
+});
