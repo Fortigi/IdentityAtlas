@@ -55,6 +55,7 @@ verify_loop "$pr"
 # 3. Adjustment deployed + verified → back to Awaiting functional acceptance, and report back.
 GH_TOKEN="$BOARD_TOKEN" bash "$SCRIPTS/dor_set_status.sh" "$ISSUE" build-done 2>/dev/null || true
 summary=$(jq -r '.result // empty' /tmp/adjust.json 2>/dev/null | head -c 1000)
-[ -n "$summary" ] || summary="Applied your feedback; the feature e2e on the live env and the full PR CI are green again."
+[ "${#summary}" -lt 25 ] && summary="$(changed_summary origin/main..HEAD)"   # terse output → describe from the diff
+[ -n "$summary" ] || summary="Applied your feedback; the feature e2e on the live env is green again."
 comment_issue "$(printf '%s — ✅ updated per your feedback and re-deployed.\n\n🔗 **Re-test here:** %s\n📦 **PR:** #%s (CI green)\n\n**What changed:**\n%s\n\nTake another look — comment anything still off, or reply `approved` when you'\''re happy and it moves to the Product Board for merge.' "$(issue_mentions)" "$URL" "$pr" "$summary")"
 echo "::notice::#${ISSUE} adjusted per feedback → still Awaiting functional acceptance (PR #${pr})"

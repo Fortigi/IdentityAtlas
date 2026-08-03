@@ -36,7 +36,14 @@ git -C "$WORK" config user.name  "IdentityAtlas DoR agent" >/dev/null 2>&1 || tr
 
 issue_mentions() {  # requestor (author) + commenters, deduped, bots excluded, @-prefixed
   gh issue view "$ISSUE" --repo "$REPO" --json author,comments \
-    --jq '([.author.login]+[.comments[].author.login]) | map(select(. and (endswith("[bot]")|not))) | unique | map("@"+.) | join(" ")'
+    --jq '([.author.login]+[.comments[].author.login]) | map(select(. and (endswith("[bot]")|not) and (.!="github-actions"))) | unique | map("@"+.) | join(" ")'
+}
+
+# A short, deterministic description of what a commit changed (files touched), for report comments —
+# more useful than the AI'\''s terse final message. $1 = git range (e.g. origin/main..HEAD).
+changed_summary() {
+  local stat; stat="$(git -C "$WORK" diff --stat "$1" 2>/dev/null | tail -8)"
+  [ -n "$stat" ] && printf 'Files changed:\n```\n%s\n```' "$stat"
 }
 comment_issue() { gh issue comment "$ISSUE" --repo "$REPO" --body "$1" >/dev/null 2>&1 || true; }
 
