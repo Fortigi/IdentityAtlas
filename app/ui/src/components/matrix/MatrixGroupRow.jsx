@@ -98,14 +98,12 @@ export default function MatrixGroupRow({
         </div>
       </td>
 
-      {/* Type column - sticky left */}
-      <td
-        className={`sticky ${nestedBg} border-r border-b border-gray-200 dark:border-gray-700 px-2 py-0.5 text-xs text-gray-500 dark:text-gray-400 truncate`}
+      {/* Contexts column - sticky left */}
+      <MatrixContextsCell
+        contexts={group.contexts}
+        className={`sticky border-r ${nestedBg}`}
         style={{ left: '299px', minWidth: '180px', maxWidth: '180px', zIndex: 10 }}
-        title={group.groupType}
-      >
-        {group.groupType}
-      </td>
+      />
 
       {/* Intersection cells */}
       {users.map(user => {
@@ -208,12 +206,16 @@ export default function MatrixGroupRow({
         );
       })}
 
-      {/* Right-side metadata: # | Contexts | Description */}
+      {/* Right-side metadata: # | Type | Description */}
       <td className="border-l-2 border-b border-gray-200 dark:border-gray-700 px-2 py-0.5 text-xs text-gray-600 dark:text-gray-400 text-center"
           style={{ minWidth: '40px' }}>
         {memberCount}
       </td>
-      <MatrixContextsCell contexts={group.contexts} />
+      <td className="border-b border-gray-200 dark:border-gray-700 px-2 py-0.5 text-xs text-gray-600 dark:text-gray-400 truncate"
+          style={{ minWidth: '180px', maxWidth: '180px' }}
+          title={group.groupType}>
+        {group.groupType}
+      </td>
       <td className="border-b border-gray-200 dark:border-gray-700 px-2 py-0.5 text-xs text-gray-600 dark:text-gray-500 max-w-[500px]"
           title={group.description}>
         <div className="truncate">{group.description}</div>

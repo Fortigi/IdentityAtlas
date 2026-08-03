@@ -115,8 +115,9 @@ test.describe('Matrix View', () => {
 // ─── Contexts column (#870) ────────────────────────────────────────────────────
 //
 // Each resource row carries the Contexts it belongs to (group category, tags,
-// clusters, …) as a right-side metadata column: up to two chips, the rest behind
-// a "+N" toggle. Display only — filtering by context stays in the filter wizard.
+// clusters, …) pinned next to the resource name: up to two chips, the rest behind
+// a "+N" toggle. Resource Type moved to the right-side metadata block in its
+// place. Display only — filtering by context stays in the filter wizard.
 test.describe('Matrix — Contexts column', () => {
   test.setTimeout(90000);
 
@@ -143,6 +144,29 @@ test.describe('Matrix — Contexts column', () => {
     await openGrid(page);
     await expect(page.getByRole('columnheader', { name: 'Contexts', exact: true }).first())
       .toBeVisible({ timeout: 20000 });
+  });
+
+  test('Contexts is pinned beside Resource Name and Type sits on the right', async ({ page }) => {
+    const table = await openGrid(page);
+    const namesRow = table.locator('thead tr').last();
+    const headers = namesRow.locator('th');
+
+    // Info block, left to right: drag handle | Resource Name | Contexts.
+    await expect(headers.nth(1)).toHaveText('Resource Name');
+    await expect(headers.nth(2)).toHaveText('Contexts');
+    // Contexts is pinned, so it stays put while the grid scrolls horizontally.
+    await expect(headers.nth(2)).toHaveCSS('position', 'sticky');
+
+    // Right-side metadata block ends with … | Type | Description.
+    const count = await headers.count();
+    await expect(headers.nth(count - 2)).toHaveText('Type');
+    await expect(headers.nth(count - 1)).toHaveText('Description');
+
+    // The first data row lines up with those headers: chips (or a dash) in the
+    // pinned Contexts cell, the resource type in the second-to-last cell.
+    const cells = table.locator('tbody tr').first().locator('td');
+    await expect(cells.nth(2)).toHaveCSS('position', 'sticky');
+    await expect(cells.nth(2)).not.toBeEmpty();
   });
 
   test('the API serves a per-resource contexts sidecar for the grid', async ({ page }) => {

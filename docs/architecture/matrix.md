@@ -43,12 +43,15 @@ Shape:
 
 The view itself is a single `SELECT FROM "ResourceAssignments"` with no `assignmentType` filter — every type stored in the base table flows through automatically. The legacy hardcoded UNION of `Direct/Owner/Eligible/Governed` was removed in migration 024 so future assignment types don't need a migration to surface.
 
-### Right-side metadata columns (`#` | Contexts | Description)
+### Resource metadata columns (Contexts pinned left, `#` | Type | Description right)
 
-Beyond the grid itself, each resource row carries three read-only columns on the
-right. **Contexts** lists the Contexts the resource belongs to — group category,
-tags, clusters, business processes — so the category of a group is visible
-without an export.
+Every resource row carries read-only metadata either side of the grid. The
+pinned info block is **drag handle | Resource Name | Contexts**; the right-side
+block is **`#` | Type | Description**. **Contexts** lists the Contexts the
+resource belongs to — group category, tags, clusters, business processes — so
+the category of a group is visible without an export. It sits in the pinned
+block (where resource Type used to be) so it stays on screen while the grid
+scrolls horizontally; Type moved to the right-side block in exchange.
 
 It rides the flat-grid response as a sidecar, not a per-row fetch: `handleFlatGrid`
 returns `resourceContexts: [{ resourceId, contexts: [{ id, displayName, contextType }] }]`,
@@ -218,8 +221,9 @@ header row per shown level (every sort attribute / every org level). On-screen
 merged spans are written as the **same value repeated** across each column — cells
 are not merged in the file (`exportRollupToExcel.js`, `exportToExcel.js`). All
 externally-influenced cells route through `safeCell` (formula-injection guard).
-The per-subject export carries the same right-side metadata columns as the grid —
-`#`, **Contexts** (every context name, comma-joined and untruncated), Description.
+The per-subject export mirrors the grid's column order: **Contexts** (every context
+name, comma-joined and untruncated) sits in the info block next to Resource Name,
+and the right-side block is `#`, Type, Description.
 
 ## Related references
 

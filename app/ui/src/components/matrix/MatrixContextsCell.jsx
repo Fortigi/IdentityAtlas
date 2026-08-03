@@ -2,14 +2,18 @@ import { useState } from 'react';
 import { targetTypeMeta } from '@ui/utils/contextStyles';
 import { splitContexts } from '@ui/utils/resourceContexts';
 
-// Right-side metadata cell listing the Contexts a resource row belongs to
-// (group category, tags, clusters, …). Display only — filtering by context
-// stays in the matrix filter wizard's context picker.
+// Cell listing the Contexts a resource row belongs to (group category, tags,
+// clusters, …). Display only — filtering by context stays in the matrix filter
+// wizard's context picker.
 //
 // Two chips show by default (server-sorted by contextType, then name); the rest
 // expand inline via a "+N" toggle so a resource in many contexts doesn't stretch
 // every row.
-export default function MatrixContextsCell({ contexts }) {
+//
+// The caller supplies the cell chrome (`className`/`style`) because the column
+// is pinned next to the resource name, so the <td> needs the row's own sticky
+// classes and left offset — the same ones the header cell above it carries.
+export default function MatrixContextsCell({ contexts, className = '', style }) {
   const [expanded, setExpanded] = useState(false);
   const all = Array.isArray(contexts) ? contexts : [];
   const { shown, hiddenCount } = splitContexts(all);
@@ -17,7 +21,7 @@ export default function MatrixContextsCell({ contexts }) {
   const chipClass = targetTypeMeta('Resource').badgeClass;
 
   return (
-    <td className="border-b border-gray-200 dark:border-gray-700 px-2 py-0.5 text-xs max-w-[260px]">
+    <td className={`border-b border-gray-200 dark:border-gray-700 px-2 py-0.5 text-xs ${className}`} style={style}>
       {visible.length === 0 ? (
         <span className="text-gray-600 dark:text-gray-500">&mdash;</span>
       ) : (

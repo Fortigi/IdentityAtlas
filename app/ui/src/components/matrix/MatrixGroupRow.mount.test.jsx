@@ -22,8 +22,8 @@ function renderRow(group) {
   );
 }
 
-describe('MatrixGroupRow right-side metadata', () => {
-  it('renders the Contexts cell between the member count and the description', () => {
+describe('MatrixGroupRow metadata columns', () => {
+  it('pins Contexts next to the resource name and puts Type on the right', () => {
     const { container } = renderRow({
       id: 'g1', displayName: 'Admins', groupType: 'Group', description: 'All admins', memberCount: 1,
       contexts: [
@@ -33,15 +33,27 @@ describe('MatrixGroupRow right-side metadata', () => {
       ],
     });
 
-    // drag handle + name + type + one cell per subject + # | Contexts | Description
-    expect(container.querySelectorAll('td').length).toBe(3 + users.length + 3);
-    expect(screen.getByText('Finance')).toBeInTheDocument();
+    const cells = [...container.querySelectorAll('td')];
+    // drag handle + name + contexts + one cell per subject + # | Type | Description
+    expect(cells.length).toBe(3 + users.length + 3);
+
+    // Contexts is the third sticky cell, offset past the drag handle + name.
+    const contextsCell = cells[2];
+    expect(contextsCell.style.left).toBe('299px');
+    expect(contextsCell.className).toContain('sticky');
+    expect(contextsCell).toHaveTextContent('Finance');
     expect(screen.getByRole('button', { name: /show 1 more contexts/i })).toBeInTheDocument();
-    expect(screen.getByText('All admins')).toBeInTheDocument();
+
+    // Type now sits in the right-side metadata block, between # and Description.
+    expect(cells[cells.length - 3]).toHaveTextContent('1');       // member count
+    expect(cells[cells.length - 2]).toHaveTextContent('Group');   // Type
+    expect(cells[cells.length - 2].className).not.toContain('sticky');
+    expect(cells[cells.length - 1]).toHaveTextContent('All admins');
   });
 
   it('renders an empty Contexts cell for a resource in no contexts', () => {
     renderRow({ id: 'g2', displayName: 'Readers', groupType: 'Group', description: '', memberCount: 0 });
     expect(screen.getByText('—')).toBeInTheDocument();
+    expect(screen.getByTitle('Group')).toHaveTextContent('Group');
   });
 });

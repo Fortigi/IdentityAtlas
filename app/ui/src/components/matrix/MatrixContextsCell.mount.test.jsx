@@ -8,9 +8,9 @@ import { renderWithProviders } from '@ui/test-utils/renderWithProviders';
 
 const ctx = (id, displayName, contextType) => ({ id, displayName, contextType });
 
-function renderCell(contexts) {
+function renderCell(contexts, props = {}) {
   return renderWithProviders(
-    h('table', null, h('tbody', null, h('tr', null, h(MatrixContextsCell, { contexts })))),
+    h('table', null, h('tbody', null, h('tr', null, h(MatrixContextsCell, { contexts, ...props })))),
   );
 }
 
@@ -50,6 +50,24 @@ describe('MatrixContextsCell', () => {
   it('tolerates a missing contexts list', () => {
     renderCell(undefined);
     expect(screen.getByText('—')).toBeInTheDocument();
+  });
+
+  it('applies the caller-supplied cell chrome so it can be pinned left', () => {
+    const { container } = renderCell([ctx('c1', 'Finance', 'Tag')], {
+      className: 'sticky border-r',
+      style: { left: '299px', minWidth: '180px' },
+    });
+    const cell = container.querySelector('td');
+    expect(cell.className).toContain('sticky');
+    expect(cell.className).toContain('border-b'); // base chrome is kept
+    expect(cell.style.left).toBe('299px');
+  });
+
+  it('renders without cell chrome when the caller supplies none', () => {
+    const { container } = renderCell([ctx('c1', 'Finance', 'Tag')]);
+    const cell = container.querySelector('td');
+    expect(cell.className).not.toContain('sticky');
+    expect(cell.style.left).toBe('');
   });
 
   it('titles each chip with its context type', () => {

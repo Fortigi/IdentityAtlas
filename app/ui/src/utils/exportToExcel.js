@@ -8,8 +8,8 @@ import { contextNames } from './resourceContexts';
  * Exports the matrix view to an Excel workbook matching the on-screen layout.
  *
  * Layout:
- *   Row 1: (3 blank info cols) | Job Title merged headers | AP banner | # | Contexts | Description
- *   Row 2: (empty) | Category | Group Name | user names... | AP names... | # | Contexts | Description
+ *   Row 1: (3 blank info cols) | Job Title merged headers | AP banner | # | Type | Description
+ *   Row 2: (empty) | Category | Group Name | user names... | AP names... | # | Type | Description
  *   Row 3+: group rows with colored cells
  *
  * Plus a "Legend" sheet showing membership types and active filters.
@@ -28,7 +28,7 @@ export async function exportToExcel({ users, orderedGroups, memberships, managed
   wb.creator = 'Identity Atlas';
   wb.created = new Date();
 
-  const infoColCount = 3; // Resource Name | Type | GUID (matching UI left columns)
+  const infoColCount = 3; // Resource Name | Contexts | GUID (matching UI left columns)
   const userCount = users.length;
   const apCount = accessPackages.length;
 
@@ -50,7 +50,7 @@ export async function exportToExcel({ users, orderedGroups, memberships, managed
 
   // ---------- Column widths ----------
   ws.getColumn(1).width = 38;  // Resource Name
-  ws.getColumn(2).width = 24;  // Type
+  ws.getColumn(2).width = 34;  // Contexts
   ws.getColumn(3).width = 38;  // GUID
   for (let u = 0; u < userCount; u++) {
     ws.getColumn(infoColCount + u + 1).width = 4;
@@ -59,7 +59,7 @@ export async function exportToExcel({ users, orderedGroups, memberships, managed
     ws.getColumn(apColStart + a).width = 4;
   }
   ws.getColumn(metaColStart).width = 5;      // #
-  ws.getColumn(metaColStart + 1).width = 34; // Contexts
+  ws.getColumn(metaColStart + 1).width = 24; // Type
   ws.getColumn(metaColStart + 2).width = 30; // Description
 
   // ===== Attribute header rows (one per sort attribute, no merging) =====
@@ -99,7 +99,7 @@ export async function exportToExcel({ users, orderedGroups, memberships, managed
   rowN.height = 80;
 
   setHeaderCell(ws.getCell(namesRow, 1), 'Resource Name');
-  setHeaderCell(ws.getCell(namesRow, 2), 'Type');
+  setHeaderCell(ws.getCell(namesRow, 2), 'Contexts');
   setHeaderCell(ws.getCell(namesRow, 3), 'GUID');
 
   for (let u = 0; u < userCount; u++) {
@@ -130,7 +130,7 @@ export async function exportToExcel({ users, orderedGroups, memberships, managed
   }
 
   setHeaderCell(ws.getCell(namesRow, metaColStart), '#', true);
-  setHeaderCell(ws.getCell(namesRow, metaColStart + 1), 'Contexts', true);
+  setHeaderCell(ws.getCell(namesRow, metaColStart + 1), 'Type', true);
   setHeaderCell(ws.getCell(namesRow, metaColStart + 2), 'Description', true);
 
   // ===== Data rows: resources =====
@@ -139,16 +139,18 @@ export async function exportToExcel({ users, orderedGroups, memberships, managed
     const row = ws.getRow(rowNum);
     row.height = 18;
 
-    // Info columns: Resource Name | Type | GUID
+    // Info columns: Resource Name | Contexts | GUID
     const nameCell = ws.getCell(rowNum, 1);
     nameCell.value = safeCell(group.displayName);
     nameCell.font = { size: 11 };
     nameCell.border = thinBorder();
 
-    const typeCell = ws.getCell(rowNum, 2);
-    typeCell.value = safeCell(group.groupType || '');
-    typeCell.font = { size: 11, color: { argb: 'FF6B7280' } };
-    typeCell.border = thinBorder();
+    // Every context the resource belongs to — full list, unlike the on-screen
+    // cell which caps at two chips plus a "+N" expander.
+    const contextsCell = ws.getCell(rowNum, 2);
+    contextsCell.value = safeCell(contextNames(group.contexts));
+    contextsCell.font = { size: 11 };
+    contextsCell.border = thinBorder();
 
     const guidCell = ws.getCell(rowNum, 3);
     guidCell.value = group.realGroupId || group.id;
@@ -205,19 +207,17 @@ export async function exportToExcel({ users, orderedGroups, memberships, managed
       excelCell.border = thinBorder();
     }
 
-    // Meta columns (right side): # | Contexts | Description
+    // Meta columns (right side): # | Type | Description
     const countCell = ws.getCell(rowNum, metaColStart);
     countCell.value = group.memberCount;
     countCell.font = { size: 11 };
     countCell.alignment = { horizontal: 'center' };
     countCell.border = thinBorder();
 
-    // Every context the resource belongs to — full list, unlike the on-screen
-    // cell which caps at two chips plus a "+N" expander.
-    const contextsCell = ws.getCell(rowNum, metaColStart + 1);
-    contextsCell.value = safeCell(contextNames(group.contexts));
-    contextsCell.font = { size: 11 };
-    contextsCell.border = thinBorder();
+    const typeCell = ws.getCell(rowNum, metaColStart + 1);
+    typeCell.value = safeCell(group.groupType || '');
+    typeCell.font = { size: 11, color: { argb: 'FF6B7280' } };
+    typeCell.border = thinBorder();
 
     const descCell = ws.getCell(rowNum, metaColStart + 2);
     descCell.value = safeCell(group.description);
