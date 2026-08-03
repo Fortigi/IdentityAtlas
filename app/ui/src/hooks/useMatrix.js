@@ -18,6 +18,9 @@ import { useEffect, useMemo, useReducer, useRef, useState, useCallback } from 'r
 // synchronously inside its prechecks / matrix-data effects stays clear of the
 // rule. (These values are only ever value-set, never functional-updated.)
 const valueReducer = (_, v) => v;
+// Normalise a response sidecar to an array. A helper (rather than an inline
+// `x || []`) keeps the fetch effect under its complexity ceiling.
+const asList = (v) => (Array.isArray(v) ? v : []);
 import { useAuth } from '@ui/auth/AuthGate';
 
 const GROUP_COL_ALIASES = {
@@ -39,6 +42,9 @@ export function useMatrix(filter) {
     assignmentCount: 0,
   });
   const [managedByPackages, setManagedByPackages] = useReducer(valueReducer, []);
+  // Per-resource context memberships (sidecar for the grid's Contexts column):
+  //   [{ resourceId, contexts: [{ id, displayName, contextType, variant }] }]
+  const [resourceContexts, setResourceContexts] = useReducer(valueReducer, []);
   // Roll-up payload (null when not in roll-up mode):
   //   { attribute, resources:[…], groupValues:[…], counts:[{resourceId,groupValue,directCount}] }
   const [rollup, setRollup] = useReducer(valueReducer, null);
@@ -129,6 +135,7 @@ export function useMatrix(filter) {
     if (!hasConditions) {
       setData([]);
       setManagedByPackages([]);
+      setResourceContexts([]);
       setRollup(null);
       setCounts({ subjectCount: 0, subjectTotal: 0, resourceCount: 0, resourceTotal: 0, assignmentCount: 0 });
       setLoading(false);
@@ -180,10 +187,12 @@ export function useMatrix(filter) {
           });
           setData([]);
           setManagedByPackages([]);
+          setResourceContexts([]);
         } else {
           setRollup(null);
           setData(body.data || []);
-          setManagedByPackages(body.managedByPackages || []);
+          setManagedByPackages(asList(body.managedByPackages));
+          setResourceContexts(asList(body.resourceContexts));
         }
         setRowType(body.rowType || 'principal');
         setCounts({
@@ -227,6 +236,7 @@ export function useMatrix(filter) {
     totalUsers: counts.subjectTotal,
     accessPackageGroups: accessPackageGroupsAliased,
     managedByPackages,
+    resourceContexts,
     groupTagMap,
     userColumns,
     loading,

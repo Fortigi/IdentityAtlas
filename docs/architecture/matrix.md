@@ -41,6 +41,21 @@ Shape:
 | `membershipType` | What badge to render — see badge collapse below |
 | `managedByAccessPackage` | Drives AP color overlay on the cell |
 
+### Right-side metadata columns (`# | Contexts | Description`)
+
+Beyond the grid itself the flat per-subject response carries two per-resource **sidecars**, each one extra query scoped to the same visible-resource sub-select the grid uses (so nothing is computed per cell):
+
+| Sidecar | Shape | Feeds |
+|---|---|---|
+| `managedByPackages` | `[{ memberId, resourceId, accessPackageIds[] }]` | AP (SOLL) columns + the cell colour overlay |
+| `resourceContexts` | `[{ resourceId, contexts: [{ id, displayName, contextType, variant }] }]` | The **Contexts** metadata column |
+
+`resourceContexts` is a batched `ContextMembers → Contexts` join (`app/api/src/db/resourceContexts.js`, shared verbatim with `GET /api/resources/:id/contexts`), restricted to `memberType='Resource'` and ordered by `contextType` then `displayName`. Only **Resource-targeted** contexts can appear on a resource row — an Identity-targeted context that happens to contain the resource's *members* is a property of those people, not of the resource.
+
+Because a resource is typically in several contexts (group category, tags, clusters, …), the column shows the first two chips and a `+N` button that reveals the rest inline. It is **display-only**: filtering by context stays in the matrix filter wizard's context control, so there is only one context-filtering mechanism. The Excel export gets the same column, listing every context untruncated.
+
+Flat-grid only — the roll-up / layered / attribute-fold views aggregate away the per-resource row, so they carry no sidecar.
+
 The view itself is a single `SELECT FROM "ResourceAssignments"` with no `assignmentType` filter — every type stored in the base table flows through automatically. The legacy hardcoded UNION of `Direct/Owner/Eligible/Governed` was removed in migration 024 so future assignment types don't need a migration to surface.
 
 ## Badge collapse — what each letter actually means

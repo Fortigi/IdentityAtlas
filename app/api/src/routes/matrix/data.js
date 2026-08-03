@@ -10,6 +10,7 @@ import * as db from '../../db/connection.js';
 import { timedQuery } from '../../perf/sqlTimer.js';
 import { createParams } from '../../db/sqlParams.js';
 import { buildIdentityJoinExprs, buildRoleSubjectJoinExprs, buildApMemberExprs, mergeGroupTotals } from '../../db/matrixHelpers.js';
+import { fetchResourceContexts } from '../../db/resourceContexts.js';
 import { resolveAttrExpr } from '../../matrix/attrExpr.js';
 import { buildInheritedFlatRows, buildInheritedRollupCounts, buildInheritedContextCounts, buildInheritedFoldCounts } from '../../matrix/inheritedAccess.js';
 import {
@@ -702,6 +703,11 @@ async function handleFlatGrid(res, ctx) {
       }));
   } catch { /* AP view may not exist */ }
 
+  // Contexts sidecar — the contexts each visible resource belongs to, so the
+  // grid can show a Contexts column (group category, tags, clusters, …). One
+  // scoped batch query, same shape of sidecar as managedByPackages above.
+  const resourceContexts = await fetchResourceContexts(p, res, built);
+
   return res.json({
     data: result.rows,
     rowType,
@@ -712,6 +718,7 @@ async function handleFlatGrid(res, ctx) {
     // Backward-compat alias used by the existing matrix toolbar footer.
     totalUsers: subjectTotal,
     managedByPackages,
+    resourceContexts,
     warnings: built.warnings,
   });
 }
@@ -719,7 +726,7 @@ async function handleFlatGrid(res, ctx) {
 router.post('/matrix/data', async (req, res) => {
   if (!useSql) {
     return res.json({
-      data: [], rowType: 'principal', managedByPackages: [],
+      data: [], rowType: 'principal', managedByPackages: [], resourceContexts: [],
       subjectCount: 0, subjectTotal: 0, resourceCount: 0, resourceTotal: 0, assignmentCount: 0,
     });
   }

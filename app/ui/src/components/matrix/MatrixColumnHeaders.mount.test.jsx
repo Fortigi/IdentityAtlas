@@ -25,6 +25,29 @@ function renderHeaders(sortAttributes) {
   );
 }
 
+describe('MatrixColumnHeaders right-side metadata columns', () => {
+  it('labels the Contexts column on the pinned names row', () => {
+    const { container } = renderHeaders([{ attribute: 'department' }]);
+    const headerRow = container.querySelectorAll('thead tr')[1];
+    const labels = [...headerRow.querySelectorAll('th')].map(th => th.textContent.trim());
+    // Contexts sits between the member count and the description.
+    expect(labels.slice(-3)).toEqual(['# \u25BC', 'Contexts', 'Description']);
+  });
+
+  it('adds a matching placeholder cell on every attribute grouping row so the columns stay aligned', () => {
+    const attrs = [{ attribute: 'businessUnit' }, { attribute: 'department' }];
+    const { container } = renderHeaders(attrs);
+    const rows = [...container.querySelectorAll('thead tr')];
+    // Each grouping row ends with the same three metadata cells as the names
+    // row (#, Contexts, Description) — otherwise the columns shear.
+    for (const row of rows.slice(0, attrs.length)) {
+      const trailing = [...row.querySelectorAll('th')].slice(-3);
+      expect(trailing).toHaveLength(3);
+      expect(trailing.every(th => th.textContent === '')).toBe(true);
+    }
+  });
+});
+
 describe('MatrixColumnHeaders sticky header', () => {
   it('pins the whole <thead> with a negative top so grouping rows scroll away without leaving a grey gap', () => {
     const attrs = [{ attribute: 'businessUnit' }, { attribute: 'division' }, { attribute: 'department' }];

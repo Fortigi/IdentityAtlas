@@ -1,0 +1,3 @@
+- Added a **Contexts** column to the matrix grid: every resource row now shows the contexts it belongs to — group category (Security / Microsoft 365 / Distribution / Teams), tags, clusters and any other resource context — without exporting first.
+- The column shows the first two contexts and a **+N** button that reveals the rest inline, so wide rows stay readable.
+- The Excel export of the matrix gained a matching **Contexts** column, listing every context in full.

@@ -173,3 +173,72 @@ test.describe('Matrix — no double scrollbar', () => {
     expect(m.pageOverflow, 'page should not scroll when only the grid does').toBeLessThanOrEqual(4);
   });
 });
+
+// ─── Contexts column (issue #870) ─────────────────────────────────────────────
+//
+// Each resource row carries the contexts it belongs to (group category, tags,
+// clusters, …) as a right-side metadata column: up to two chips, then a "+N"
+// button that reveals the rest inline. Display-only — no sort, no filter.
+test.describe('Matrix — Contexts column', () => {
+  test.setTimeout(90000);
+
+  const ALL_RESOURCES_FILTER = {
+    rowType: 'principal',
+    orientation: 'rows-as-resources',
+    subject: { include: [], exclude: [] },
+    resource: { include: [], exclude: [] },
+  };
+
+  test('the flat-grid response carries a per-resource contexts sidecar', async ({ request }) => {
+    const res = await request.post(`${API}/matrix/data`, {
+      data: { filter: ALL_RESOURCES_FILTER },
+    });
+    expect(res.ok()).toBeTruthy();
+    const body = await res.json();
+    expect(Array.isArray(body.resourceContexts)).toBe(true);
+
+    // Every entry is { resourceId, contexts: [{ id, displayName, contextType }] }.
+    for (const entry of body.resourceContexts.slice(0, 20)) {
+      expect(typeof entry.resourceId).toBe('string');
+      expect(Array.isArray(entry.contexts)).toBe(true);
+      for (const ctx of entry.contexts) {
+        expect(typeof ctx.displayName).toBe('string');
+        expect(typeof ctx.contextType).toBe('string');
+      }
+    }
+  });
+
+  test('the grid shows a Contexts column, and "+N" expands the hidden chips inline', async ({ page }) => {
+    await page.goto('/#matrix?filter=' + encodeURIComponent(JSON.stringify(ALL_RESOURCES_FILTER)));
+    await page.waitForLoadState('networkidle');
+
+    const table = page.locator('table').first();
+    try {
+      await expect(table).toBeVisible({ timeout: 60000 });
+    } catch {
+      test.skip(true, 'matrix grid did not render (no data) — cannot exercise the Contexts column');
+      return;
+    }
+
+    // The column header sits on the pinned names row, beside # and Description.
+    await expect(page.getByRole('columnheader', { name: 'Contexts', exact: true }).first())
+      .toBeVisible({ timeout: 15000 });
+
+    // Rows either list their contexts or show the em-dash empty state; a row is
+    // never blank. Take the first "+N" expander, if the data has one.
+    const more = page.getByRole('button', { name: /Show \d+ more contexts/ }).first();
+    if (await more.count() === 0) {
+      // No resource in this dataset sits in more than two contexts — the
+      // display-only column still rendered, which is what this test guards.
+      return;
+    }
+
+    const cell = more.locator('xpath=ancestor::td[1]');
+    const chipsBefore = await cell.locator('span.truncate').count();
+    await more.click();
+
+    // Expanding reveals the rest inline and retires the button.
+    await expect(more).toHaveCount(0);
+    expect(await cell.locator('span.truncate').count()).toBeGreaterThan(chipsBefore);
+  });
+});

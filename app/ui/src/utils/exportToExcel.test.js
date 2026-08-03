@@ -154,6 +154,37 @@ describe('exportToExcel', () => {
     expect(multi.richText.map((rt) => rt.text)).toEqual(['I', 'E']);
   });
 
+  it('writes a Contexts meta column listing every context, untruncated', async () => {
+    const users = [{ id: 'u1', displayName: 'Alice', sortKeys: ['HR'] }];
+    const orderedGroups = [
+      {
+        id: 'g1', displayName: 'Admins', groupType: 'Security', description: 'desc', memberCount: 1,
+        contexts: [
+          { id: 'c1', displayName: 'Finance' },
+          { id: 'c2', displayName: 'Microsoft 365' },
+          { id: 'c3', displayName: 'Cluster-A' },
+        ],
+      },
+      { id: 'g2', displayName: 'Readers', groupType: 'Security', description: 'desc', memberCount: 1 },
+    ];
+
+    await exportToExcel(baseInput({ users, orderedGroups }));
+    const wb = await loadCapturedWorkbook();
+    const ws = wb.getWorksheet('Role Mining Matrix');
+
+    const namesRow = 2;                 // one default attribute level
+    const metaColStart = 3 + 1 + 1;     // 3 info cols + 1 user col + 1 (1-based), no APs
+    expect(ws.getCell(namesRow, metaColStart).value).toBe('#');
+    expect(ws.getCell(namesRow, metaColStart + 1).value).toBe('Contexts');
+    expect(ws.getCell(namesRow, metaColStart + 2).value).toBe('Description');
+
+    // All three contexts are exported — the on-screen "+N" cap doesn't apply.
+    expect(ws.getCell(namesRow + 1, metaColStart + 1).value).toBe('Finance, Microsoft 365, Cluster-A');
+    expect(ws.getCell(namesRow + 1, metaColStart + 2).value).toBe('desc');
+    // A resource with no contexts exports an empty cell, not "undefined".
+    expect(ws.getCell(namesRow + 2, metaColStart + 1).value ?? '').toBe('');
+  });
+
   it('fills managed intersection cells with an AP color (indexed and fallback)', async () => {
     const users = [
       { id: 'u1', displayName: 'Alice', sortKeys: ['HR'] },

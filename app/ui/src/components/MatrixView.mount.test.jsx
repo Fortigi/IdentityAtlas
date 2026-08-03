@@ -19,7 +19,11 @@ vi.mock('./matrix/SortableMatrixBody', () => ({
       columnHeaders,
       h('tbody', null,
         orderedGroups.map(g =>
-          h('tr', { key: g.id }, h('td', null, h('span', { 'data-testid': 'row-label' }, g.displayName))),
+          h('tr', { key: g.id },
+            h('td', null, h('span', { 'data-testid': 'row-label' }, g.displayName)),
+            h('td', null, h('span', { 'data-testid': `row-contexts-${g.id}` },
+              (g.contexts || []).map(c => c.displayName).join('|'))),
+          ),
         ),
       ),
     ),
@@ -80,6 +84,7 @@ function renderView(props = {}, authFetch = makeFetch()) {
       data: 'data' in props ? props.data : makeData(),
       accessPackageGroups: props.accessPackageGroups || [],
       managedByPackages: props.managedByPackages || [],
+      resourceContexts: props.resourceContexts || [],
       filter: 'filter' in props ? props.filter : baseFilter,
       counts: 'counts' in props ? props.counts : counts,
       managedFilter: props.managedFilter || 'all',
@@ -196,6 +201,28 @@ describe('MatrixView (mounted)', () => {
         expect.objectContaining({ method: 'POST' }),
       ),
     );
+  });
+
+  it('attaches each resource\'s contexts from the resourceContexts sidecar (case-insensitive id match)', async () => {
+    renderView({
+      resourceContexts: [
+        { resourceId: 'RES-1', contexts: [
+          { id: 'c1', displayName: 'Finance', contextType: 'Tag', variant: 'manual' },
+          { id: 'c2', displayName: 'Microsoft 365', contextType: 'group-category', variant: 'generated' },
+        ] },
+      ],
+    });
+    await expectRowVisible('Finance App');
+    // res-1 (lowercase in the grid) matches the RES-1 sidecar entry.
+    expect(screen.getByTestId('row-contexts-res-1').textContent).toBe('Finance|Microsoft 365');
+    // A resource with no contexts gets an empty list, not undefined.
+    expect(screen.getByTestId('row-contexts-res-2').textContent).toBe('');
+  });
+
+  it('renders the Contexts metadata column header', async () => {
+    renderView();
+    await expectRowVisible('Finance App');
+    expect(screen.getByText('Contexts')).toBeInTheDocument();
   });
 
   it('uses a group tag map without error', async () => {
