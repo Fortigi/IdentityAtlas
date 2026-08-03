@@ -69,8 +69,13 @@ GH_TOKEN="$BOARD_TOKEN" bash "$SCRIPTS/dor_set_status.sh" "$ISSUE" building 2>/d
 verify_loop "$pr"
 
 # 6. All criteria met → move to Awaiting functional acceptance + notify requestor & commenters.
+touch "${RUNNER_TEMP:-/tmp}/dor-done"   # tell the workflow's fresh-token reconcile step this succeeded
 gh issue edit "$ISSUE" --repo "$REPO" --add-label build-done --remove-label state:awaiting-approval >/dev/null 2>&1 || true
-GH_TOKEN="$BOARD_TOKEN" bash "$SCRIPTS/dor_set_status.sh" "$ISSUE" build-done || bail "could not move the board to functional acceptance"
+# Best-effort: on a >1h build the BOARD_TOKEN (minted at job start, 1h life) may have expired. The
+# build-done LABEL above is canonical for the acceptance workflow; the board column is reconciled by
+# the workflow's always-run fresh-token step. So this is NOT fatal — the notify below must still run.
+GH_TOKEN="$BOARD_TOKEN" bash "$SCRIPTS/dor_set_status.sh" "$ISSUE" build-done 2>/dev/null \
+  || echo "::warning::board move failed (BOT token likely expired on a long build) — label is set; the fresh-token step reconciles the column"
 
 summary=$(jq -r '.result // empty' /tmp/impl.json 2>/dev/null | head -c 1200)
 [ -n "$summary" ] || summary="Implemented the approved spec; unit tests, the feature e2e on the live env, and the full PR CI are all green."
