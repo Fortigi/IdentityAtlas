@@ -37,6 +37,7 @@ case "$LABEL" in
   build-done)               STATUS_NAME="Awaiting functional acceptance" ;;
   awaiting-merge)           STATUS_NAME="Awaiting merge" ;;
   done)                     STATUS_NAME="Done" ;;
+  paused)                   STATUS_NAME="Paused" ;;       # hit a usage limit; dor-resume re-dispatches
   exception)                STATUS_NAME="Exceptions" ;;   # dead-letter: broke somewhere in the pipeline
   *) echo "::error::dor_set_status: unknown phase token '$LABEL'"; exit 1 ;;
 esac

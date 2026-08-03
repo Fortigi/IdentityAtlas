@@ -1,0 +1,52 @@
+name: DoR resume (re-dispatch paused builds)
+
+# When a build hits a Claude usage limit it PAUSES (dor_build_lib.sh → pause_and_exit): work is saved
+# on the branch, the issue gets the `dor-paused` label + the Paused column, and the runner is released.
+# This scheduled sweep re-dispatches those paused issues so the build continues when capacity is back.
+#
+# Cadence: every 6h — matches the ~5h rolling-usage-limit reset; a weekly cap just takes a few cycles
+# (each re-dispatch that is still limited simply re-pauses and waits for the next sweep). Re-dispatch =
+# re-apply `ready-to-build` with the BOT app token (a GITHUB_TOKEN label edit would NOT trigger the
+# build workflow), which re-enters dor-build-agent.yml — including its approval gate. The resume-aware
+# flow then continues from the saved branch instead of re-implementing. INERT until DOR_ENABLED=true.
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: dor-resume
+  cancel-in-progress: false
+
+jobs:
+  resume:
+    if: vars.DOR_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Mint BOT token (label edits that re-trigger the build)
+        id: bot
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ secrets.BOT_APP_ID }}
+          private-key: ${{ secrets.BOT_PRIVATE_KEY }}
+          owner: Fortigi
+          permission-issues: write
+      - name: Re-dispatch every paused issue
+        env:
+          GH_TOKEN: ${{ steps.bot.outputs.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -uo pipefail
+          mapfile -t issues < <(gh issue list --repo "$REPO" --state open --label dor-paused --json number --jq '.[].number')
+          if [ "${#issues[@]}" -eq 0 ]; then echo "no paused issues"; exit 0; fi
+          for n in "${issues[@]}"; do
+            echo "resuming #$n"
+            # Remove the pause marker first, then re-add ready-to-build (as the app → triggers the build).
+            gh issue edit "$n" --repo "$REPO" --remove-label dor-paused >/dev/null 2>&1 || true
+            gh issue edit "$n" --repo "$REPO" --add-label ready-to-build >/dev/null 2>&1 \
+              && gh issue comment "$n" --repo "$REPO" --body "▶️ Capacity check — re-dispatching this build (resumes from the saved branch). If the limit is still hit it will pause again and retry on the next sweep." >/dev/null 2>&1 \
+              || echo "::warning::could not re-dispatch #$n"
+          done

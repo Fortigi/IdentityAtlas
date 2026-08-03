@@ -6,7 +6,7 @@
 # Source this ("source dor_build_lib.sh"); do NOT execute it. The caller must export at least
 # ISSUE REPO URL HOST WORK GH_TOKEN BOARD_TOKEN before sourcing; everything else is derived here so
 # both flows stay in lock-step. Set FLOW_NOUN (e.g. "build" / "adjustment") before sourcing to tune
-# the human-facing wording of bail().
+# the human-facing wording of bail()/pause().
 
 export PATH="$HOME/.local/bin:$PATH"
 
@@ -14,15 +14,23 @@ export PATH="$HOME/.local/bin:$PATH"
 BRANCH="dor/issue-${ISSUE}"
 DIR="$HOME/stacks/dor-${ISSUE}"                 # persistent deploy dir = the functional-test env
 SCRIPTS="$WORK/.github/scripts"                 # restored to committed state before we call them
-MODEL="${DOR_BUILD_MODEL:-claude-fable-5}"
+# The build/fix loop uses Opus 5, NOT Fable 5 — Fable is reserved for the spec-side interview/probe
+# (its weekly bucket is small and it is ~2× the price). Opus is plenty for a scoped, test-gated change.
+# Overridable via the DOR_BUILD_MODEL repo variable.
+MODEL="${DOR_BUILD_MODEL:-claude-opus-5}"
+FALLBACK_MODEL="${DOR_FALLBACK_MODEL:-claude-sonnet-5}"
 MAX_ATTEMPTS="${MAX_ATTEMPTS:-8}"
+IMPLEMENT_TURNS="${IMPLEMENT_TURNS:-150}"       # generous — a real feature can need many turns
+FIX_TURNS="${FIX_TURNS:-60}"                    # a fix is scoped; cap it so a confused agent can't run away
 MAINTAINERS="@WimvandenHeijkant @TaekeK @robb536"
 PLUGINS="entra-group-category-tree resource-type-tree resource-cluster scope-hierarchy risky-consent"
 FLOW_NOUN="${FLOW_NOUN:-build}"
+# Terse working output (the agent runs headless — nobody reads its narration), but keep the DELIVERABLES
+# professional. Appended to every prompt.
+TERSE=$'\n\nWork directly and without narration: make the edits and run the commands, do not explain your steps or write prose summaries. Keep the actual deliverables — commit messages, the PR description, code comments, and changelog entries — normal, clear and professional.'
 
 # Self-hosted runners have no git identity of their own; without one `git commit` aborts
-# ("unable to auto-detect email address") and the flow would push an empty branch and then fail
-# confusingly at PR-create ("No commits between main and ..."). Pin a local identity on the checkout.
+# ("unable to auto-detect email address") and the flow would push an empty branch. Pin an identity.
 git -C "$WORK" config user.email "dor-agent@fortigi.nl"    >/dev/null 2>&1 || true
 git -C "$WORK" config user.name  "IdentityAtlas DoR agent" >/dev/null 2>&1 || true
 
@@ -31,6 +39,33 @@ issue_mentions() {  # requestor (author) + commenters, deduped, bots excluded, @
     --jq '([.author.login]+[.comments[].author.login]) | map(select(. and (endswith("[bot]")|not))) | unique | map("@"+.) | join(" ")'
 }
 comment_issue() { gh issue comment "$ISSUE" --repo "$REPO" --body "$1" >/dev/null 2>&1 || true; }
+
+# Make git push/fetch on THIS checkout authenticate as the BOT app instead of the job's GITHUB_TOKEN.
+# GitHub suppresses workflow runs for commits pushed with GITHUB_TOKEN (anti-recursion) — which is why
+# the bot PR got ZERO CI checks. Pushing as the app makes the PR's CI actually run. Call once, after
+# checkout, before any push. (BOARD_TOKEN must carry contents:write.)
+use_bot_remote() {
+  git -C "$WORK" config --local --unset-all 'http.https://github.com/.extraheader' 2>/dev/null || true
+  git -C "$WORK" remote set-url origin "https://x-access-token:${BOARD_TOKEN}@github.com/${REPO}.git"
+}
+
+# Run the AI once. $1=prompt $2=outfile $3=max-turns. Returns: 0 ok · 2 usage/spend LIMIT (429, → pause)
+# · 1 any other error (→ bail). Centralises model, turn cap, terse output, and limit detection.
+run_claude() {
+  claude -p "$1${TERSE}" \
+    --allowedTools "Read,Edit,Write,Bash,Grep,Glob" \
+    --model "$MODEL" --fallback-model "$FALLBACK_MODEL" \
+    --max-turns "${3:-$FIX_TURNS}" \
+    --output-format json >"$2" 2>&1
+  local rc=$?
+  # A usage/spend limit is NOT a code failure — the caller should PAUSE, not route to Exceptions.
+  if grep -qE '"api_error_status"[[:space:]]*:[[:space:]]*429' "$2" 2>/dev/null \
+     || grep -qiE 'spend limit|usage limit|reached your.*limit|hit your (org|plan|weekly)' "$2" 2>/dev/null; then
+    return 2
+  fi
+  grep -qE '"is_error"[[:space:]]*:[[:space:]]*true' "$2" 2>/dev/null && return 1
+  return "$rc"
+}
 
 # Route to the Exceptions column + notify maintainers, then stop. Called on any unrecoverable failure.
 bail() {
@@ -42,6 +77,23 @@ bail() {
   gh issue edit "$ISSUE" --repo "$REPO" --add-label needs-triage >/dev/null 2>&1 || true
   comment_issue "$(printf '⚠️ %s — the automated %s for this feature hit a problem and was moved to **Exceptions** for triage.\n\n**What broke:** %s\n\nBranch `%s` on **%s**. A maintainer needs to look.' "$MAINTAINERS" "$FLOW_NOUN" "$reason" "$BRANCH" "$HOST")"
   exit 1
+}
+
+# Hit a Claude usage limit — NOT an error. Save work-in-progress on the branch, park the issue in the
+# "Paused" column, and exit cleanly (0). dor-resume.yml re-dispatches it when capacity returns, and the
+# resume-aware flow continues from the saved branch instead of re-implementing.
+pause_and_exit() {
+  local reason="$1"
+  echo "::warning::PAUSING (${FLOW_NOUN}): ${reason}"
+  touch "${RUNNER_TEMP:-/tmp}/dor-paused"   # tell the workflow's failure backstop this is a pause
+  git -C "$WORK" restore --source=origin/main --staged --worktree -- .github 2>/dev/null || true
+  git -C "$WORK" add -A 2>/dev/null || true
+  git -C "$WORK" diff --cached --quiet 2>/dev/null || git -C "$WORK" commit -q -m "wip: paused on usage limit (#${ISSUE})" 2>/dev/null || true
+  git -C "$WORK" push --force-with-lease origin "$BRANCH" 2>/dev/null || true
+  GH_TOKEN="$BOARD_TOKEN" bash "$SCRIPTS/dor_set_status.sh" "$ISSUE" paused 2>/dev/null || true
+  gh issue edit "$ISSUE" --repo "$REPO" --add-label dor-paused --remove-label ready-to-build >/dev/null 2>&1 || true
+  comment_issue "$(printf '⏸️ **Paused** — the %s hit a Claude usage limit (%s). Work so far is saved on `%s`, so nothing is lost. It will **auto-resume** when capacity returns (usage limits reset periodically) — no action needed. A maintainer can also re-run it by re-applying `ready-to-build`.' "$FLOW_NOUN" "$reason" "$BRANCH")"
+  exit 0
 }
 
 # Deploy the current $BRANCH to the persistent dir on THIS sidekick, load demo data + resource context
@@ -88,28 +140,46 @@ run_feature_e2e() {
     && E2E_BASE_URL=http://localhost:3001 npx playwright test $specs --config=playwright.ci.config.js --project=chromium >/tmp/e2e.log 2>&1 )
 }
 
-# All required PR checks green? Blocks (watch) until they settle or ~25 min. 0=all pass/skip.
-poll_ci() { timeout 1800 gh pr checks "$1" --repo "$REPO" --required --watch >/tmp/ci.log 2>&1; }
+# Settle the PR's required checks and classify: echoes `pass`, `fail`, or `none` (no checks registered).
+# --watch blocks until every check finishes (or ~25 min), so "pending" never leaks out.
+ci_state() {
+  local out rc
+  out="$(timeout 1800 gh pr checks "$1" --repo "$REPO" --required --watch 2>&1)"; rc=$?
+  echo "$out" > /tmp/ci.log
+  if echo "$out" | grep -qiE 'no checks reported'; then echo none; return; fi
+  [ "$rc" = 0 ] && { echo pass; return; }
+  echo fail
+}
 
-# The verify loop shared by both flows: deploy+seed → e2e on live env → CI green; AI-fix + retry up
-# to MAX_ATTEMPTS; bail on infra failure or exhaustion. $1 = the open PR number.
+# The verify loop shared by both flows: deploy+seed → e2e on live env → CI. The AI fixer is invoked
+# ONLY on a REAL failure (e2e failed, or a required check is red) — never merely because CI hasn't
+# reported yet (that spin is what burned a week of budget). $1 = the open PR number.
 verify_loop() {
-  local pr="$1" attempt=0 e2e_ok ci_ok ctx
+  local pr="$1" attempt=0 e2e_rc ci ctx
   while : ; do
     deploy_and_seed || bail "deploy/seed of the live env failed on $HOST (infra)"
-    e2e_ok=0; run_feature_e2e && e2e_ok=1
-    ci_ok=0; [ "$e2e_ok" = 1 ] && { poll_ci "$pr" && ci_ok=1; }
-    [ "$e2e_ok" = 1 ] && [ "$ci_ok" = 1 ] && return 0
+    run_feature_e2e; e2e_rc=$?
+    ci="$(ci_state "$pr")"
+
+    # Success: the feature e2e passed AND CI is not red. ("none" = the PR registered no checks; accept
+    # on the e2e pass but flag it, since after the bot-push fix checks should appear.)
+    if [ "$e2e_rc" = 0 ] && [ "$ci" != fail ]; then
+      [ "$ci" = none ] && echo "::warning::PR #$pr registered no CI checks — accepting on the e2e pass; check the CI trigger."
+      return 0
+    fi
 
     attempt=$((attempt+1))
-    [ "$attempt" -ge "$MAX_ATTEMPTS" ] && bail "still failing after ${MAX_ATTEMPTS} fix attempts (e2e_ok=${e2e_ok}, ci_ok=${ci_ok}). Last e2e: $(tail -c 800 /tmp/e2e.log 2>/dev/null); last CI: $(tail -c 800 /tmp/ci.log 2>/dev/null)"
+    [ "$attempt" -ge "$MAX_ATTEMPTS" ] && bail "still failing after ${MAX_ATTEMPTS} fix attempts (e2e_rc=${e2e_rc}, ci=${ci}). Last e2e: $(tail -c 800 /tmp/e2e.log 2>/dev/null); last CI: $(tail -c 800 /tmp/ci.log 2>/dev/null)"
 
-    ctx="Fix so BOTH the feature e2e passes on the running app AND the PR's CI goes green."
-    [ "$e2e_ok" = 0 ] && ctx="$ctx"$'\n\nFeature e2e output:\n'"$(tail -c 3000 /tmp/e2e.log 2>/dev/null)"
-    [ "$ci_ok" = 0 ] && [ "$e2e_ok" = 1 ] && ctx="$ctx"$'\n\nFailing CI checks:\n'"$(gh pr checks "$pr" --repo "$REPO" --required 2>/dev/null | grep -iE 'fail')"
-    claude -p "The build for issue #${ISSUE} is not passing yet. ${ctx}. Investigate and fix in this repo. Do NOT touch .github. Do NOT commit — just leave the fixes in the working tree." \
-      --allowedTools "Read,Edit,Write,Bash,Grep,Glob" --model "$MODEL" --fallback-model claude-opus-5 --output-format json >/tmp/fix.json 2>&1 \
-      || bail "the AI fix step errored on attempt ${attempt}"
+    ctx="Fix so BOTH the feature e2e passes on the running app AND the PR's required CI is green."
+    [ "$e2e_rc" != 0 ] && ctx="$ctx"$'\n\nFeature e2e output:\n'"$(tail -c 3000 /tmp/e2e.log 2>/dev/null)"
+    [ "$ci" = fail ] && ctx="$ctx"$'\n\nFailing CI checks:\n'"$(gh pr checks "$pr" --repo "$REPO" --required 2>/dev/null | grep -iE 'fail')"
+    run_claude "The build for issue #${ISSUE} is not passing yet. ${ctx}. Investigate and fix in this repo. Do NOT touch .github. Do NOT commit — leave the fixes in the working tree." /tmp/fix.json "$FIX_TURNS"
+    case $? in
+      0) : ;;
+      2) pause_and_exit "hit a usage limit during a fix attempt (attempt ${attempt})" ;;
+      *) bail "the AI fix step errored on attempt ${attempt}" ;;
+    esac
     git restore --source=origin/main --staged --worktree -- .github 2>/dev/null || true
     git add -A
     if ! git diff --cached --quiet; then

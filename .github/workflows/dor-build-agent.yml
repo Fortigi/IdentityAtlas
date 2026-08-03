@@ -127,7 +127,8 @@ jobs:
           owner: Fortigi
           permission-organization-projects: write
           permission-pull-requests: write
-          permission-contents: read
+          permission-contents: write   # the flow pushes the branch AS the app so the PR's CI runs (a
+                                        # GITHUB_TOKEN push is suppressed by GitHub's anti-recursion rule)
           permission-issues: read
 
       - name: Build → deploy+seed → e2e-verify → PR → CI (8× auto-fix) → gated notify
@@ -153,8 +154,9 @@ jobs:
           HOST: ${{ steps.sk.outputs.host }}
         run: |
           set -uo pipefail
-          # If the flow already routed to Exceptions (its bail() marker), don't double-post.
+          # If the flow already routed to Exceptions (bail) or Paused (usage limit), don't double-post.
           [ -f "$RUNNER_TEMP/dor-bailed" ] && { echo "flow already handled the failure"; exit 0; }
+          [ -f "$RUNNER_TEMP/dor-paused" ] && { echo "flow paused on a usage limit — not an error"; exit 0; }
           GH_TOKEN="$BOARD_TOKEN" bash .github/scripts/dor_set_status.sh "$ISSUE" exception 2>/dev/null || true
           gh issue comment "$ISSUE" --repo "$REPO" \
             --body "⚠️ @WimvandenHeijkant @TaekeK @robb536 — the automated build job for this feature failed unexpectedly (before the flow could self-report), on ${HOST}. Moved to **Exceptions** — please check the workflow run." >/dev/null 2>&1 || true
