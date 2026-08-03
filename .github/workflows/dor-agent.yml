@@ -37,13 +37,21 @@ jobs:
   authorize:
     # Only act on a real (non-bot) human, on an ISSUE (not a PR — issue_comment fires on PRs too),
     # in the feature pipeline (labelled `enhancement`, which the Feature Form applies).
+    # STOP at the value gate: once an issue is approved-to-build or in any build-side phase, this
+    # SPEC-side agent must not touch it — otherwise a feedback comment (handled by dor-acceptance)
+    # also re-runs the interview and shoves the issue back to "Awaiting approval".
     # Kill-switch: INERT until you set repo variable DOR_ENABLED=true — lets the set merge safely
     # and be smoke-tested before anything runs.
     if: >-
       vars.DOR_ENABLED == 'true' &&
       github.event.sender.type != 'Bot' &&
       !github.event.issue.pull_request &&
-      contains(github.event.issue.labels.*.name, 'enhancement')
+      contains(github.event.issue.labels.*.name, 'enhancement') &&
+      !contains(github.event.issue.labels.*.name, 'ready-to-build') &&
+      !contains(github.event.issue.labels.*.name, 'build-done') &&
+      !contains(github.event.issue.labels.*.name, 'dor-paused') &&
+      !contains(github.event.issue.labels.*.name, 'awaiting-merge') &&
+      !contains(github.event.issue.labels.*.name, 'needs-triage')
     runs-on: ubuntu-latest
     permissions:
       contents: read
