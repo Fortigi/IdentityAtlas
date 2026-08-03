@@ -84,6 +84,6 @@ GH_TOKEN="$BOARD_TOKEN" bash "$SCRIPTS/dor_set_status.sh" "$ISSUE" build-done 2>
 summary=$(jq -r '.result // empty' /tmp/impl.json 2>/dev/null | head -c 1200)
 [ "${#summary}" -lt 25 ] && summary="$(changed_summary origin/main..HEAD)"   # terse output → describe from the diff
 [ -n "$summary" ] || summary="Implemented the approved spec; unit tests and the feature e2e on the live env pass."
-comment_issue "$(printf '%s — ✅ this feature has been **built and verified**, and is ready for your functional testing.\n\n🔗 **Test it here:** %s (Fortigi-tenant sign-in via authentik)\n📦 **PR:** #%s (CI green)\n\n**What was built & tested:**\n%s\n\nThe demo dataset + context plugins are loaded so the feature has data to exercise. Please try it and **comment anything that is not yet 100%% right** — I monitor this thread and will adjust the build incrementally. When you are fully happy, **reply `approved`** and it moves to the Product Board for the final merge.' "$(issue_mentions)" "$URL" "$pr" "$summary")"
-gh pr comment "$pr" --repo "$REPO" --body "🤖 Built + verified on **${HOST}**. e2e on the live env + full CI green. Functional testing: ${URL}. Awaiting requestor acceptance on #${ISSUE}." >/dev/null 2>&1 || true
+comment_issue "$(printf '%s — ✅ built and ready to test.\n\n🔗 **Test:** %s   ·   📦 **PR:** #%s\n\n%s\n\nReply with anything that'\''s off, or **`approved`** to send it to merge.' "$(issue_mentions)" "$URL" "$pr" "$summary")"
+gh pr comment "$pr" --repo "$REPO" --body "🤖 Built + verified on **${HOST}** (e2e + CI green) → ${URL}" >/dev/null 2>&1 || true
 echo "::notice::#${ISSUE} built + verified → Awaiting functional acceptance (PR #${pr}, ${URL})"

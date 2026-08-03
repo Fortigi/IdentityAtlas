@@ -84,7 +84,7 @@ bail() {
   git -C "$WORK" restore --source=HEAD --staged --worktree -- .github 2>/dev/null || true
   GH_TOKEN="$BOARD_TOKEN" bash "$SCRIPTS/dor_set_status.sh" "$ISSUE" exception 2>/dev/null || true
   gh issue edit "$ISSUE" --repo "$REPO" --add-label needs-triage >/dev/null 2>&1 || true
-  comment_issue "$(printf '⚠️ %s — the automated %s for this feature hit a problem and was moved to **Exceptions** for triage.\n\n**What broke:** %s\n\nBranch `%s` on **%s**. A maintainer needs to look.' "$MAINTAINERS" "$FLOW_NOUN" "$reason" "$BRANCH" "$HOST")"
+  comment_issue "$(printf '⚠️ %s — %s hit a problem → **Exceptions** (needs triage).\n**What broke:** %s  (`%s` on %s)' "$MAINTAINERS" "$FLOW_NOUN" "$reason" "$BRANCH" "$HOST")"
   exit 1
 }
 
@@ -101,7 +101,7 @@ pause_and_exit() {
   git -C "$WORK" push --force-with-lease origin "$BRANCH" 2>/dev/null || true
   GH_TOKEN="$BOARD_TOKEN" bash "$SCRIPTS/dor_set_status.sh" "$ISSUE" paused 2>/dev/null || true
   gh issue edit "$ISSUE" --repo "$REPO" --add-label dor-paused --remove-label ready-to-build >/dev/null 2>&1 || true
-  comment_issue "$(printf '⏸️ **Paused** — the %s hit a Claude usage limit (%s). Work so far is saved on `%s`, so nothing is lost. It will **auto-resume** when capacity returns (usage limits reset periodically) — no action needed. A maintainer can also re-run it by re-applying `ready-to-build`.' "$FLOW_NOUN" "$reason" "$BRANCH")"
+  comment_issue "$(printf '⏸️ **Paused** — hit a Claude usage limit. Work is saved on `%s`; will **auto-resume** when capacity returns (no action needed).' "$BRANCH")"
   exit 0
 }
 

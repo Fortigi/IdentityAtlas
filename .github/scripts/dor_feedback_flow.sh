@@ -26,7 +26,7 @@ git checkout -B "$BRANCH" "origin/$BRANCH" || bail "could not check out $BRANCH 
 pr=$(gh pr list --repo "$REPO" --head "$BRANCH" --state open --json number --jq '.[0].number // empty')
 [ -n "$pr" ] || { comment_issue "🤖 The PR for this build is no longer open, so there's nothing to adjust. Re-open it or file a new request."; exit 0; }
 
-comment_issue "$(printf '🤖 @%s — on it. Adjusting the build to address your feedback, then I'\''ll re-deploy to %s and report back.' "$FEEDBACK_AUTHOR" "$URL")"
+comment_issue "$(printf '🤖 On it — adjusting for your feedback, then re-deploying to %s.' "$URL")"
 # The AI is now working — reflect that on the board (not "Awaiting functional acceptance", which reads
 # as "ready for you to test"). Restored to functional acceptance when the adjustment is deployed.
 GH_TOKEN="$BOARD_TOKEN" bash "$SCRIPTS/dor_set_status.sh" "$ISSUE" building 2>/dev/null || true
@@ -43,7 +43,7 @@ git restore --source=origin/main --staged --worktree -- .github 2>/dev/null || t
 git add -A
 if git diff --cached --quiet; then
   GH_TOKEN="$BOARD_TOKEN" bash "$SCRIPTS/dor_set_status.sh" "$ISSUE" build-done 2>/dev/null || true   # nothing to rebuild → back to functional acceptance
-  comment_issue "$(printf '🤖 @%s — I looked at that but couldn'\''t find a concrete code change to make from it. Could you point me at the specific behaviour to change? (Or reply `approved` if it'\''s actually fine as-is.)' "$FEEDBACK_AUTHOR")"
+  comment_issue "$(printf '🤖 @%s — couldn'\''t find a concrete change to make from that. Which specific behaviour should change? (Or reply **`approved`** if it'\''s fine.)' "$FEEDBACK_AUTHOR")"
   exit 0
 fi
 git commit -q -m "fix: address requestor feedback (#${ISSUE})" || bail "git commit failed"
@@ -57,5 +57,5 @@ GH_TOKEN="$BOARD_TOKEN" bash "$SCRIPTS/dor_set_status.sh" "$ISSUE" build-done 2>
 summary=$(jq -r '.result // empty' /tmp/adjust.json 2>/dev/null | head -c 1000)
 [ "${#summary}" -lt 25 ] && summary="$(changed_summary origin/main..HEAD)"   # terse output → describe from the diff
 [ -n "$summary" ] || summary="Applied your feedback; the feature e2e on the live env is green again."
-comment_issue "$(printf '%s — ✅ updated per your feedback and re-deployed.\n\n🔗 **Re-test here:** %s\n📦 **PR:** #%s (CI green)\n\n**What changed:**\n%s\n\nTake another look — comment anything still off, or reply `approved` when you'\''re happy and it moves to the Product Board for merge.' "$(issue_mentions)" "$URL" "$pr" "$summary")"
+comment_issue "$(printf '%s — ✅ updated and re-deployed.\n\n🔗 **Re-test:** %s   ·   📦 **PR:** #%s\n\n%s\n\nAnything still off? Comment. Happy? Reply **`approved`**.' "$(issue_mentions)" "$URL" "$pr" "$summary")"
 echo "::notice::#${ISSUE} adjusted per feedback → still Awaiting functional acceptance (PR #${pr})"
