@@ -31,7 +31,7 @@ comment_issue "$(printf '🤖 @%s — on it. Adjusting the build to address your
 # 1. Adjust the implementation to address the feedback (AI edits the tree; the flow owns git).
 run_claude "$(printf 'You are the DoR build agent for IdentityAtlas. Issue #%s is in functional acceptance and the requestor left this feedback:\n\n---\n%s\n---\n\nAdjust the implementation on this branch to address it. Keep scope to the feedback. Follow CLAUDE.md (fix at the source; ship/extend tests so coverage does not drop; update any affected docs + the changes/dor-issue-%s.md fragment). Update or extend the feature Playwright e2e under app/ui/e2e/ if the behaviour changed. Do NOT modify anything under .github. Do NOT commit or push — leave the changes in the working tree.' "$ISSUE" "$FEEDBACK" "$ISSUE")" /tmp/adjust.json "$IMPLEMENT_TURNS"
 case $? in
-  0) : ;;
+  0|3) : ;;   # 3 = ran out of turns; proceed with what it produced (no-changes guard below catches an empty result)
   2) pause_and_exit "hit a usage limit while adjusting for feedback" ;;
   *) bail "the AI adjustment step errored (see run log)" ;;
 esac
