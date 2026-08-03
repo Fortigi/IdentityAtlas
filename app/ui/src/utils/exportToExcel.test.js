@@ -199,6 +199,37 @@ describe('exportToExcel', () => {
     expect(ws.getCell(2, 4).value).toBe('Backend');
   });
 
+  it('exports a Contexts meta column listing every context, untruncated', async () => {
+    const users = [{ id: 'u1', displayName: 'Alice', sortKeys: ['HR'] }];
+    const orderedGroups = [
+      {
+        id: 'g1', displayName: 'Admins', groupType: 'Security', description: 'desc', memberCount: 2,
+        contexts: [
+          { id: 'c1', displayName: 'Finance', contextType: 'Tag' },
+          { id: 'c2', displayName: 'Microsoft 365', contextType: 'group-category' },
+          { id: 'c3', displayName: 'Cluster-A', contextType: 'cluster' },
+        ],
+      },
+      { id: 'g2', displayName: 'Readers', groupType: 'Security', description: '', memberCount: 1 },
+    ];
+
+    await exportToExcel(baseInput({ users, orderedGroups }));
+    const wb = await loadCapturedWorkbook();
+    const ws = wb.getWorksheet('Role Mining Matrix');
+
+    const namesRow = 2;
+    const metaColStart = 3 + 1 + 1; // infoColCount + userCount + 1, no AP columns
+    expect(ws.getCell(namesRow, metaColStart).value).toBe('#');
+    expect(ws.getCell(namesRow, metaColStart + 1).value).toBe('Contexts');
+    expect(ws.getCell(namesRow, metaColStart + 2).value).toBe('Description');
+
+    // All three contexts — the on-screen cell caps at two chips, the file doesn't.
+    expect(ws.getCell(namesRow + 1, metaColStart + 1).value).toBe('Finance, Microsoft 365, Cluster-A');
+    expect(ws.getCell(namesRow + 1, metaColStart + 2).value).toBe('desc');
+    // A resource with no contexts exports an empty cell, not 'undefined'.
+    expect(ws.getCell(namesRow + 2, metaColStart + 1).value).toBeFalsy();
+  });
+
   it('renders access-package columns and a banner', async () => {
     const accessPackages = [
       { id: 'ap1', displayName: 'Package One' },

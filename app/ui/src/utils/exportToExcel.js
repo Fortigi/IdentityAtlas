@@ -2,13 +2,14 @@ import ExcelJS from 'exceljs';
 import { TYPE_COLORS as TYPE_COLORS_SRC, AP_COLORS } from './colors';
 import { hexToArgb, thinBorder, setHeaderCell, safeCell } from './excelHelpers';
 import { friendlyLabel } from './formatters';
+import { contextNames } from './resourceContexts';
 
 /**
  * Exports the matrix view to an Excel workbook matching the on-screen layout.
  *
  * Layout:
- *   Row 1: (3 blank info cols) | Job Title merged headers | AP banner | # | % | Type | Description
- *   Row 2: (empty) | Category | Group Name | user names... | AP names... | # | % | Type | Description
+ *   Row 1: (3 blank info cols) | Job Title merged headers | AP banner | # | Contexts | Description
+ *   Row 2: (empty) | Category | Group Name | user names... | AP names... | # | Contexts | Description
  *   Row 3+: group rows with colored cells
  *
  * Plus a "Legend" sheet showing membership types and active filters.
@@ -57,8 +58,9 @@ export async function exportToExcel({ users, orderedGroups, memberships, managed
   for (let a = 0; a < apCount; a++) {
     ws.getColumn(apColStart + a).width = 4;
   }
-  ws.getColumn(metaColStart).width = 5;     // #
-  ws.getColumn(metaColStart + 1).width = 30; // Description
+  ws.getColumn(metaColStart).width = 5;      // #
+  ws.getColumn(metaColStart + 1).width = 34; // Contexts
+  ws.getColumn(metaColStart + 2).width = 30; // Description
 
   // ===== Attribute header rows (one per sort attribute, no merging) =====
   for (let L = 0; L < headerLevels; L++) {
@@ -128,7 +130,8 @@ export async function exportToExcel({ users, orderedGroups, memberships, managed
   }
 
   setHeaderCell(ws.getCell(namesRow, metaColStart), '#', true);
-  setHeaderCell(ws.getCell(namesRow, metaColStart + 1), 'Description', true);
+  setHeaderCell(ws.getCell(namesRow, metaColStart + 1), 'Contexts', true);
+  setHeaderCell(ws.getCell(namesRow, metaColStart + 2), 'Description', true);
 
   // ===== Data rows: resources =====
   orderedGroups.forEach((group, gIdx) => {
@@ -202,14 +205,21 @@ export async function exportToExcel({ users, orderedGroups, memberships, managed
       excelCell.border = thinBorder();
     }
 
-    // Meta columns (right side): # | Description
+    // Meta columns (right side): # | Contexts | Description
     const countCell = ws.getCell(rowNum, metaColStart);
     countCell.value = group.memberCount;
     countCell.font = { size: 11 };
     countCell.alignment = { horizontal: 'center' };
     countCell.border = thinBorder();
 
-    const descCell = ws.getCell(rowNum, metaColStart + 1);
+    // Every context the resource belongs to — full list, unlike the on-screen
+    // cell which caps at two chips plus a "+N" expander.
+    const contextsCell = ws.getCell(rowNum, metaColStart + 1);
+    contextsCell.value = safeCell(contextNames(group.contexts));
+    contextsCell.font = { size: 11 };
+    contextsCell.border = thinBorder();
+
+    const descCell = ws.getCell(rowNum, metaColStart + 2);
     descCell.value = safeCell(group.description);
     descCell.font = { size: 11 };
     descCell.border = thinBorder();

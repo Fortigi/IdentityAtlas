@@ -1,0 +1,4 @@
+- Added a **Contexts** column to the matrix: every resource row now shows the contexts it belongs to — group category (Security / Microsoft 365 / Teams / Distribution), tags, clusters, business processes — so you no longer need an export to see them.
+- The column shows the first two contexts and reveals the rest inline with a "+N" button; resources without a context show a dash.
+- The Excel export of the matrix gained a matching **Contexts** column listing every context name in full.
+- Filtering and sorting by context is unchanged — keep using the context picker in the matrix filter.

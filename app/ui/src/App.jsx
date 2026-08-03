@@ -104,7 +104,7 @@ export default function App() {
   const [managedFilter, setManagedFilter] = useReducer(setStateReducer, initial.managed);
   const [wizardOpen, setWizardOpen] = useReducer(setStateReducer, false);
 
-  const { data, rollup, counts, accessPackageGroups, managedByPackages, groupTagMap, loading, refreshing, error, forceRefresh, hasData, defaultFilter, refetchPreChecks } = useMatrix(matrixFilter);
+  const { data, rollup, counts, accessPackageGroups, managedByPackages, resourceContexts, groupTagMap, loading, refreshing, error, forceRefresh, hasData, defaultFilter, refetchPreChecks } = useMatrix(matrixFilter);
   const { account, logout, authFetch } = useAuth();
   const [page, navigate] = useHashRoute();
   const [moduleVersion, setModuleVersion] = useState(null);
@@ -633,6 +633,7 @@ export default function App() {
                   data={data}
                   accessPackageGroups={accessPackageGroups}
                   managedByPackages={managedByPackages}
+                  resourceContexts={resourceContexts}
                   filter={matrixFilter}
                   counts={counts}
                   managedFilter={managedFilter}

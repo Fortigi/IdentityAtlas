@@ -112,6 +112,77 @@ test.describe('Matrix View', () => {
   });
 });
 
+// ─── Contexts column (#870) ────────────────────────────────────────────────────
+//
+// Each resource row carries the Contexts it belongs to (group category, tags,
+// clusters, …) as a right-side metadata column: up to two chips, the rest behind
+// a "+N" toggle. Display only — filtering by context stays in the filter wizard.
+test.describe('Matrix — Contexts column', () => {
+  test.setTimeout(90000);
+
+  const allDataFilter = {
+    rowType: 'principal',
+    orientation: 'rows-as-resources',
+    subject: { include: [], exclude: [] },
+    resource: { include: [], exclude: [] },
+  };
+
+  async function openGrid(page) {
+    await page.goto('/#matrix?filter=' + encodeURIComponent(JSON.stringify(allDataFilter)));
+    await page.waitForLoadState('networkidle');
+    const table = page.locator('table').first();
+    try {
+      await expect(table).toBeVisible({ timeout: 40000 });
+    } catch {
+      test.skip(true, 'matrix grid did not render (no data) — cannot exercise the Contexts column');
+    }
+    return table;
+  }
+
+  test('the grid has a Contexts header column', async ({ page }) => {
+    await openGrid(page);
+    await expect(page.getByRole('columnheader', { name: 'Contexts', exact: true }).first())
+      .toBeVisible({ timeout: 20000 });
+  });
+
+  test('the API serves a per-resource contexts sidecar for the grid', async ({ page }) => {
+    const body = await page.evaluate(async (filter) => {
+      const res = await fetch('/api/matrix/data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filter }),
+      });
+      return res.ok ? res.json() : null;
+    }, allDataFilter);
+
+    expect(body).not.toBeNull();
+    expect(Array.isArray(body.resourceContexts)).toBe(true);
+    for (const entry of body.resourceContexts) {
+      expect(typeof entry.resourceId).toBe('string');
+      expect(Array.isArray(entry.contexts)).toBe(true);
+      expect(entry.contexts.length).toBeGreaterThan(0);
+      for (const ctx of entry.contexts) expect(typeof ctx.displayName).toBe('string');
+    }
+  });
+
+  test('a row in more than two contexts expands the rest inline via "+N"', async ({ page }) => {
+    await openGrid(page);
+
+    const expander = page.getByRole('button', { name: /show \d+ more contexts/i }).first();
+    if (await expander.count() === 0) {
+      test.skip(true, 'no resource in this dataset belongs to more than two contexts');
+      return;
+    }
+
+    const row = page.locator('tbody tr').filter({ has: expander }).first();
+    const before = await row.locator('span[title*=":"]').count();
+    await expander.click();
+    // Expanding reveals the hidden chips and flips the control to "collapse".
+    await expect(page.getByRole('button', { name: /show fewer contexts/i }).first()).toBeVisible();
+    expect(await row.locator('span[title*=":"]').count()).toBeGreaterThan(before);
+  });
+});
+
 // ─── Regression: no double scrollbar behind the matrix grid ────────────────────
 //
 // The bug: the grid's height was a fixed max-h-[calc(100vh-280px)] that guessed

@@ -139,3 +139,37 @@ describe('GET /resources/:id — optional-data error handling (Q2 de-masking)', 
     expect(res.status).toBe(500);
   });
 });
+
+describe('GET /resources/:id/contexts', () => {
+  beforeEach(() => {
+    mockDb.query.mockReset();
+    mockDb.query.mockResolvedValue({ rows: [] });
+  });
+
+  it('400 on a malformed id', async () => {
+    const res = await request(app).get('/api/resources/not-a-uuid/contexts');
+    expect(res.status).toBe(400);
+    expect(mockDb.query).not.toHaveBeenCalled();
+  });
+
+  it('returns the contexts via the shared ContextMembers join', async () => {
+    mockDb.query.mockResolvedValue({
+      rows: [{ id: 'c1', displayName: 'M365', contextType: 'group-category', targetType: 'Resource', variant: 'generated' }],
+    });
+    const res = await request(app).get(`/api/resources/${VALID_ID}/contexts`);
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual([
+      { id: 'c1', displayName: 'M365', contextType: 'group-category', targetType: 'Resource', variant: 'generated' },
+    ]);
+    const [sql, values] = mockDb.query.mock.calls[0];
+    expect(sql).toContain('FROM "ContextMembers" cm');
+    expect(sql).toContain('WHERE cm."memberId"::text = $1');
+    expect(values).toEqual([VALID_ID]);
+  });
+
+  it('500 when the query fails', async () => {
+    mockDb.query.mockRejectedValue(new Error('boom'));
+    const res = await request(app).get(`/api/resources/${VALID_ID}/contexts`);
+    expect(res.status).toBe(500);
+  });
+});

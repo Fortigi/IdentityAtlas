@@ -14,6 +14,7 @@ import MatrixScopePanel from './matrix/MatrixScopePanel';
 import MatrixColumnHeaders from './matrix/MatrixColumnHeaders';
 import { makeUserComparator, buildSortKeys } from './matrix/sortUsers';
 import MatrixGroupRow from './matrix/MatrixGroupRow';
+import { buildResourceContextMap, contextsFor } from '@ui/utils/resourceContexts';
 
 // Inline arrayMove so MatrixView doesn't depend on @dnd-kit
 function arrayMove(arr, from, to) {
@@ -96,7 +97,7 @@ function makeAccountCol(parent, acc, sortKeys) {
 }
 
 export default function MatrixView({
-  data, accessPackageGroups = [], managedByPackages = [],
+  data, accessPackageGroups = [], managedByPackages = [], resourceContexts,
   filter,
   counts,
   managedFilter, setManagedFilter,
@@ -284,6 +285,11 @@ export default function MatrixView({
   // Owner memberships are split into separate synthetic rows (id: "groupId__owner",
   // realGroupId: original groupId, displayName suffixed with "(Owner)").
   // D/I/E memberships stay on the regular group row.
+  // Contexts each resource belongs to (group category, tags, clusters, …),
+  // keyed by uppercase resource id — rendered as the right-side Contexts column.
+  const resourceContextMap = useMemo(
+    () => buildResourceContextMap(resourceContexts), [resourceContexts]);
+
   const { users, groups, memberships, managedMap } = useMemo(() => {
     const userMap = new Map();
     const groupMap = new Map();
@@ -320,6 +326,7 @@ export default function MatrixView({
           id: gid,
           displayName: name,
           tags,
+          contexts: contextsFor(resourceContextMap, gid),
           description: d.resourceDescription || d.groupDescription || '',
           groupType: d.resourceType || d.groupTypeCalculated || '',
           systemName: d.systemName || '',
@@ -381,7 +388,7 @@ export default function MatrixView({
       });
 
     return { users, groups, memberships: membershipMap, managedMap: managed };
-  }, [filteredData, groupTagMap, sortAttrs, hierActive, hierDepth, hierPaths]);
+  }, [filteredData, groupTagMap, resourceContextMap, sortAttrs, hierActive, hierDepth, hierPaths]);
 
   // Seed the initial fold state from the wizard's foldOnLoad setting, once per
   // matrix (storageKey) when its subjects have loaded. 'auto' folds only for
@@ -589,6 +596,7 @@ export default function MatrixView({
           description: ng.description || '',
           systemName: ng.systemName || '',
           tags: [],
+          contexts: contextsFor(resourceContextMap, ng.resourceId || ng.groupId),
           isNestedRow: true,
           nestLevel: level + 1,
           parentGroupId: realGid,
@@ -604,7 +612,7 @@ export default function MatrixView({
       addGroupWithNested(group, 0);
     }
     return result;
-  }, [orderedGroups, expandedGroups, nestedDataCache, nestedMemberships, users]);
+  }, [orderedGroups, expandedGroups, nestedDataCache, nestedMemberships, users, resourceContextMap]);
 
   const displayMemberships = useMemo(() => {
     if (nestedMemberships.size === 0) return memberships;

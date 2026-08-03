@@ -43,6 +43,30 @@ Shape:
 
 The view itself is a single `SELECT FROM "ResourceAssignments"` with no `assignmentType` filter — every type stored in the base table flows through automatically. The legacy hardcoded UNION of `Direct/Owner/Eligible/Governed` was removed in migration 024 so future assignment types don't need a migration to surface.
 
+### Right-side metadata columns (`#` | Contexts | Description)
+
+Beyond the grid itself, each resource row carries three read-only columns on the
+right. **Contexts** lists the Contexts the resource belongs to — group category,
+tags, clusters, business processes — so the category of a group is visible
+without an export.
+
+It rides the flat-grid response as a sidecar, not a per-row fetch: `handleFlatGrid`
+returns `resourceContexts: [{ resourceId, contexts: [{ id, displayName, contextType }] }]`,
+computed by one indexed batch query over `ContextMembers` → `Contexts`
+(`fetchResourceContexts` in `app/api/src/matrix/resourceContexts.js`), scoped to
+the resources actually on the grid and to `memberType = 'Resource'`. The same
+join backs `GET /api/resources/:id/contexts`. Rows are server-sorted by
+`contextType`, then `displayName`; the cell shows the first two as chips and
+collapses the rest behind a `+N` toggle, while the Excel export writes the full
+comma-joined list.
+
+Only **Resource-targeted** memberships appear — an Identity- or Principal-targeted
+context (a department, an org unit) is a property of the people in a group, not of
+the group, and never shows on a resource row. The column is display-only: filtering
+by context stays in the filter wizard's context picker (`buildContextClause` in
+`matrix/filterSql.js`). Flat per-subject grid only; the roll-up / layered /
+attribute-fold views aggregate resources and have no per-resource row.
+
 ## Badge collapse — what each letter actually means
 
 The user reads three letters. The DB stores a handful of assignment types. The translation lives in migration 049's CASE expression and is intentionally lossy:
@@ -100,6 +124,7 @@ A user who is both a member and an owner of a group holds two separate resources
 
 - The matview is refreshed `CONCURRENTLY` after the first run (which is non-concurrent because the matview starts empty).
 - The unique covering index `(resourceId, principalId, membershipType)` is required for `REFRESH CONCURRENTLY` and also makes the matrix endpoint's per-principal lookups index-only.
+- The Contexts sidecar is one extra indexed query per flat-grid request (`ix_ContextMembers_member`), bounded by the grid's distinct resources — computed once per resource, never per cell.
 - The recursive CTE that previously expanded nested groups *inside* the matview was removed in 013 — it was the dominant cost on the load-test dataset and produced the same matrix for tenants without group-in-group nesting. Group-level expansion happens lazily at click time via the `/nested-groups` endpoint instead.
 
 ## Identity rows
@@ -193,6 +218,8 @@ header row per shown level (every sort attribute / every org level). On-screen
 merged spans are written as the **same value repeated** across each column — cells
 are not merged in the file (`exportRollupToExcel.js`, `exportToExcel.js`). All
 externally-influenced cells route through `safeCell` (formula-injection guard).
+The per-subject export carries the same right-side metadata columns as the grid —
+`#`, **Contexts** (every context name, comma-joined and untruncated), Description.
 
 ## Related references
 

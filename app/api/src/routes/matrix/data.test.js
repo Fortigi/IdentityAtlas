@@ -50,7 +50,7 @@ describe('buildMatrixContext', () => {
 });
 
 const EMPTY_PAYLOAD = {
-  data: [], rowType: 'principal', managedByPackages: [],
+  data: [], rowType: 'principal', managedByPackages: [], resourceContexts: [],
   subjectCount: 0, subjectTotal: 0, resourceCount: 0, resourceTotal: 0, assignmentCount: 0,
 };
 
