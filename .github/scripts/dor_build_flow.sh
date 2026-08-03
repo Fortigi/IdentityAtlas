@@ -42,7 +42,7 @@ else
   # 1. Implement the approved spec (unit tests green). The AI edits the tree; the flow owns git.
   run_claude "$(cat "$WORK/.dor/in/prompt.txt")" /tmp/impl.json "$IMPLEMENT_TURNS"
   case $? in
-    0) : ;;
+    0|3) : ;;   # 3 = ran out of turns; proceed with what it produced (the no-changes guard below catches an empty result)
     2) pause_and_exit "hit a usage limit during implement" ;;
     *) bail "the AI implement step errored (see run log)" ;;
   esac

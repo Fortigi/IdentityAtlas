@@ -63,6 +63,8 @@ run_claude() {
      || grep -qiE 'spend limit|usage limit|reached your.*limit|hit your (org|plan|weekly)' "$2" 2>/dev/null; then
     return 2
   fi
+  # Running out of turns is not a hard error — the caller can commit partial work and re-verify.
+  grep -qE '"subtype"[[:space:]]*:[[:space:]]*"error_max_turns"' "$2" 2>/dev/null && return 3
   grep -qE '"is_error"[[:space:]]*:[[:space:]]*true' "$2" 2>/dev/null && return 1
   return "$rc"
 }
@@ -140,15 +142,23 @@ run_feature_e2e() {
     && E2E_BASE_URL=http://localhost:3001 npx playwright test $specs --config=playwright.ci.config.js --project=chromium >/tmp/e2e.log 2>&1 )
 }
 
-# Settle the PR's required checks and classify: echoes `pass`, `fail`, or `none` (no checks registered).
-# --watch blocks until every check finishes (or ~25 min), so "pending" never leaks out.
+# Settle the PR's required checks and classify: echoes `pass`, `fail`, or `none` (no checks at all).
+# The required "CI Passed" gate registers a little AFTER the push (it `needs:` every other job), so a
+# naive poll races it and sees "no required checks reported" — which must NOT be read as a failure.
+# Retry until the checks register, then --watch blocks until they finish (so "pending" never leaks).
+# Only conclude `none` if nothing ever registers within the window (a genuinely CI-less change).
 ci_state() {
-  local out rc
-  out="$(timeout 1800 gh pr checks "$1" --repo "$REPO" --required --watch 2>&1)"; rc=$?
-  echo "$out" > /tmp/ci.log
-  if echo "$out" | grep -qiE 'no checks reported'; then echo none; return; fi
-  [ "$rc" = 0 ] && { echo pass; return; }
-  echo fail
+  local pr="$1" out rc waited=0
+  while [ "$waited" -lt 1800 ]; do
+    out="$(timeout 1500 gh pr checks "$pr" --repo "$REPO" --required --watch 2>&1)"; rc=$?
+    echo "$out" > /tmp/ci.log
+    if echo "$out" | grep -qiE 'no( required)? checks reported'; then
+      sleep 45; waited=$((waited+45)); continue   # not registered yet — wait for CI to appear
+    fi
+    [ "$rc" = 0 ] && { echo pass; return; }
+    echo fail; return
+  done
+  echo none
 }
 
 # The verify loop shared by both flows: deploy+seed → e2e on live env → CI. The AI fixer is invoked
@@ -173,10 +183,12 @@ verify_loop() {
 
     ctx="Fix so BOTH the feature e2e passes on the running app AND the PR's required CI is green."
     [ "$e2e_rc" != 0 ] && ctx="$ctx"$'\n\nFeature e2e output:\n'"$(tail -c 3000 /tmp/e2e.log 2>/dev/null)"
-    [ "$ci" = fail ] && ctx="$ctx"$'\n\nFailing CI checks:\n'"$(gh pr checks "$pr" --repo "$REPO" --required 2>/dev/null | grep -iE 'fail')"
+    # List ALL failing checks (not just the required aggregate) so the fixer sees the real culprit,
+    # e.g. "Lint: Code duplication (jscpd)" rather than just "CI Passed".
+    [ "$ci" = fail ] && ctx="$ctx"$'\n\nFailing CI checks:\n'"$(gh pr checks "$pr" --repo "$REPO" 2>/dev/null | grep -iE 'fail')"
     run_claude "The build for issue #${ISSUE} is not passing yet. ${ctx}. Investigate and fix in this repo. Do NOT touch .github. Do NOT commit — leave the fixes in the working tree." /tmp/fix.json "$FIX_TURNS"
     case $? in
-      0) : ;;
+      0|3) : ;;   # 3 = ran out of turns; commit whatever it managed and re-verify (bounded by MAX_ATTEMPTS)
       2) pause_and_exit "hit a usage limit during a fix attempt (attempt ${attempt})" ;;
       *) bail "the AI fix step errored on attempt ${attempt}" ;;
     esac
