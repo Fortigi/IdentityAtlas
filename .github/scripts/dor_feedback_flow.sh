@@ -15,6 +15,7 @@ FLOW_NOUN="adjustment"
 source "$(dirname "${BASH_SOURCE[0]}")/dor_build_lib.sh"
 
 cd "$WORK"
+use_bot_remote   # push as the BOT app so the PR's CI actually runs
 grep -qxF '.dor/' .git/info/exclude 2>/dev/null || echo '.dor/' >> .git/info/exclude
 grep -qxF 'dor-tls.override.yml' .git/info/exclude 2>/dev/null || echo 'dor-tls.override.yml' >> .git/info/exclude
 
@@ -28,10 +29,12 @@ pr=$(gh pr list --repo "$REPO" --head "$BRANCH" --state open --json number --jq 
 comment_issue "$(printf '🤖 @%s — on it. Adjusting the build to address your feedback, then I'\''ll re-deploy to %s and report back.' "$FEEDBACK_AUTHOR" "$URL")"
 
 # 1. Adjust the implementation to address the feedback (AI edits the tree; the flow owns git).
-claude -p "$(printf 'You are the DoR build agent for IdentityAtlas. Issue #%s is in functional acceptance and the requestor left this feedback:\n\n---\n%s\n---\n\nAdjust the implementation on this branch to address it. Keep scope to the feedback. Follow CLAUDE.md (fix at the source; ship/extend tests so coverage does not drop; update any affected docs + the changes/dor-issue-%s.md fragment). Update or extend the feature Playwright e2e under app/ui/e2e/ if the behaviour changed. Do NOT modify anything under .github. Do NOT commit or push — leave the changes in the working tree.' "$ISSUE" "$FEEDBACK" "$ISSUE")" \
-  --allowedTools "Read,Edit,Write,Bash,Grep,Glob" \
-  --model "$MODEL" --fallback-model claude-opus-5 --output-format json >/tmp/adjust.json 2>&1 \
-  || bail "the AI adjustment step errored (see run log)"
+run_claude "$(printf 'You are the DoR build agent for IdentityAtlas. Issue #%s is in functional acceptance and the requestor left this feedback:\n\n---\n%s\n---\n\nAdjust the implementation on this branch to address it. Keep scope to the feedback. Follow CLAUDE.md (fix at the source; ship/extend tests so coverage does not drop; update any affected docs + the changes/dor-issue-%s.md fragment). Update or extend the feature Playwright e2e under app/ui/e2e/ if the behaviour changed. Do NOT modify anything under .github. Do NOT commit or push — leave the changes in the working tree.' "$ISSUE" "$FEEDBACK" "$ISSUE")" /tmp/adjust.json "$IMPLEMENT_TURNS"
+case $? in
+  0) : ;;
+  2) pause_and_exit "hit a usage limit while adjusting for feedback" ;;
+  *) bail "the AI adjustment step errored (see run log)" ;;
+esac
 
 git restore --source=origin/main --staged --worktree -- .github 2>/dev/null || true
 git add -A

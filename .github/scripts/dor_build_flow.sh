@@ -15,29 +15,44 @@
 #        GH_TOKEN                           — github.token: git push + gh reads + issue comments/labels
 #        BOARD_TOKEN                        — BOT app token: gh pr create + board Status moves
 #        WORK                               — the runner checkout dir ($GITHUB_WORKSPACE)
-#        DOR_BUILD_MODEL (opt)              — model (default claude-fable-5)
+#        DOR_BUILD_MODEL (opt)              — model (default claude-opus-5; Fable is reserved for the spec side)
 set -uo pipefail
 FLOW_NOUN="build"
 source "$(dirname "${BASH_SOURCE[0]}")/dor_build_lib.sh"
 
 # ── Flow ─────────────────────────────────────────────────────────────────────────────────────────
 cd "$WORK"
+use_bot_remote   # push as the BOT app so the PR's CI actually runs (GITHUB_TOKEN pushes don't trigger it)
 # Never let the agent's scratch (.dor/in/*) or the deploy override get committed into the PR.
 grep -qxF '.dor/' .git/info/exclude 2>/dev/null || echo '.dor/' >> .git/info/exclude
 grep -qxF 'dor-tls.override.yml' .git/info/exclude 2>/dev/null || echo 'dor-tls.override.yml' >> .git/info/exclude
-git checkout -B "$BRANCH" origin/main || bail "could not create branch $BRANCH"
+# Consume the trigger label now so dor-resume.yml can re-apply it to re-dispatch a paused build.
+gh issue edit "$ISSUE" --repo "$REPO" --remove-label ready-to-build >/dev/null 2>&1 || true
 
-# 1. Implement the approved spec (unit tests green). The AI edits the tree; the flow owns git.
-claude -p "$(cat "$WORK/.dor/in/prompt.txt")" \
-  --allowedTools "Read,Edit,Write,Bash,Grep,Glob" \
-  --model "$MODEL" --fallback-model claude-opus-5 --output-format json >/tmp/impl.json 2>&1 \
-  || bail "the AI implement step errored (see run log)"
+# Resume-aware: if a branch with real work already exists (a previous run paused on a usage limit),
+# continue from it instead of re-implementing from scratch — that is the expensive part we must not
+# repeat (and re-running implement would just re-hit the limit).
+git fetch origin "$BRANCH" -q 2>/dev/null || true
+if git rev-parse --verify -q "origin/$BRANCH" >/dev/null && [ -n "$(git log --oneline "origin/main..origin/$BRANCH" 2>/dev/null)" ]; then
+  echo "::notice::resuming from existing branch $BRANCH — skipping implement"
+  git checkout -B "$BRANCH" "origin/$BRANCH" || bail "could not check out $BRANCH to resume"
+else
+  git checkout -B "$BRANCH" origin/main || bail "could not create branch $BRANCH"
 
-git restore --source=origin/main --staged --worktree -- .github 2>/dev/null || true   # never let the build touch .github
-git add -A
-git diff --cached --quiet && bail "the AI produced no changes"
-git commit -q -m "$(gh issue view "$ISSUE" --repo "$REPO" --json title --jq '.title') (#${ISSUE})" || bail "git commit failed"
-git push -u origin "$BRANCH" --force-with-lease || bail "could not push $BRANCH"
+  # 1. Implement the approved spec (unit tests green). The AI edits the tree; the flow owns git.
+  run_claude "$(cat "$WORK/.dor/in/prompt.txt")" /tmp/impl.json "$IMPLEMENT_TURNS"
+  case $? in
+    0) : ;;
+    2) pause_and_exit "hit a usage limit during implement" ;;
+    *) bail "the AI implement step errored (see run log)" ;;
+  esac
+
+  git restore --source=origin/main --staged --worktree -- .github 2>/dev/null || true   # never let the build touch .github
+  git add -A
+  git diff --cached --quiet && bail "the AI produced no changes"
+  git commit -q -m "$(gh issue view "$ISSUE" --repo "$REPO" --json title --jq '.title') (#${ISSUE})" || bail "git commit failed"
+  git push -u origin "$BRANCH" --force-with-lease || bail "could not push $BRANCH"
+fi
 
 # 2. Open the PR (BOT token — GITHUB_TOKEN can't create PRs here).
 pr=$(gh pr list --repo "$REPO" --head "$BRANCH" --state open --json number --jq '.[0].number // empty')
