@@ -27,6 +27,9 @@ pr=$(gh pr list --repo "$REPO" --head "$BRANCH" --state open --json number --jq 
 [ -n "$pr" ] || { comment_issue "🤖 The PR for this build is no longer open, so there's nothing to adjust. Re-open it or file a new request."; exit 0; }
 
 comment_issue "$(printf '🤖 @%s — on it. Adjusting the build to address your feedback, then I'\''ll re-deploy to %s and report back.' "$FEEDBACK_AUTHOR" "$URL")"
+# The AI is now working — reflect that on the board (not "Awaiting functional acceptance", which reads
+# as "ready for you to test"). Restored to functional acceptance when the adjustment is deployed.
+GH_TOKEN="$BOARD_TOKEN" bash "$SCRIPTS/dor_set_status.sh" "$ISSUE" building 2>/dev/null || true
 
 # 1. Adjust the implementation to address the feedback (AI edits the tree; the flow owns git).
 run_claude "$(printf 'You are the DoR build agent for IdentityAtlas. Issue #%s is in functional acceptance and the requestor left this feedback:\n\n---\n%s\n---\n\nAdjust the implementation on this branch to address it. Keep scope to the feedback. Follow CLAUDE.md (fix at the source; ship/extend tests so coverage does not drop; update any affected docs + the changes/dor-issue-%s.md fragment). Update or extend the feature Playwright e2e under app/ui/e2e/ if the behaviour changed. Do NOT modify anything under .github. Do NOT commit or push — leave the changes in the working tree.' "$ISSUE" "$FEEDBACK" "$ISSUE")" /tmp/adjust.json "$IMPLEMENT_TURNS"
@@ -39,6 +42,7 @@ esac
 git restore --source=origin/main --staged --worktree -- .github 2>/dev/null || true
 git add -A
 if git diff --cached --quiet; then
+  GH_TOKEN="$BOARD_TOKEN" bash "$SCRIPTS/dor_set_status.sh" "$ISSUE" build-done 2>/dev/null || true   # nothing to rebuild → back to functional acceptance
   comment_issue "$(printf '🤖 @%s — I looked at that but couldn'\''t find a concrete code change to make from it. Could you point me at the specific behaviour to change? (Or reply `approved` if it'\''s actually fine as-is.)' "$FEEDBACK_AUTHOR")"
   exit 0
 fi
@@ -48,7 +52,8 @@ git push --force-with-lease origin "$BRANCH" || bail "could not push the adjustm
 # 2. Re-deploy + re-verify on the live env (feature e2e + PR CI, auto-fix up to 8×; else Exceptions).
 verify_loop "$pr"
 
-# 3. Report back — still in Awaiting functional acceptance for another look.
+# 3. Adjustment deployed + verified → back to Awaiting functional acceptance, and report back.
+GH_TOKEN="$BOARD_TOKEN" bash "$SCRIPTS/dor_set_status.sh" "$ISSUE" build-done 2>/dev/null || true
 summary=$(jq -r '.result // empty' /tmp/adjust.json 2>/dev/null | head -c 1000)
 [ -n "$summary" ] || summary="Applied your feedback; the feature e2e on the live env and the full PR CI are green again."
 comment_issue "$(printf '%s — ✅ updated per your feedback and re-deployed.\n\n🔗 **Re-test here:** %s\n📦 **PR:** #%s (CI green)\n\n**What changed:**\n%s\n\nTake another look — comment anything still off, or reply `approved` when you'\''re happy and it moves to the Product Board for merge.' "$(issue_mentions)" "$URL" "$pr" "$summary")"
