@@ -16,7 +16,7 @@
         <link rel="prev" href="../definition-of-ready/">
       
       
-        <link rel="next" href="../../architecture/design-archive/">
+        <link rel="next" href="../dor-sidekick-setup/">
       
       
         
@@ -3850,6 +3850,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../dor-sidekick-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    DoR sidekick setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -5667,7 +5695,7 @@
 <li><strong><code>dor-build-agent.yml</code> (slice D):</strong> apply <code>ready-to-build</code> to an approved issue → the AI implements the approved spec on a sidekick (<code>claude-code-action</code>, full tools), tests/self-validates, and opens a PR (<code>Closes #N</code>).</li>
 </ul>
 <p><strong>The approval gate (row 7) — the real one.</strong> <code>ready-to-build</code> only <em>proposes</em> a build (GitHub can't restrict who applies a label). The build job runs in the <strong><code>build-approval</code> Environment</strong> whose <strong>required reviewers are the Product Board (Wim / Taeke / Rob)</strong> — the job <strong>pauses</strong> for an Approve click in the Actions UI, and only they can approve, <strong>before the agent runs or any token is spent</strong>. Same enforcement class as a required PR approval (self-approval currently allowed). With the <strong>merge gate (row 12)</strong>, two GitHub-enforced human gates bracket the AI. The repo's fork-PR policy is set to <code>all_external_contributors</code> so no fork PR can reach the self-hosted runners.</p>
-<p><strong>Sidekick baseline.</strong> A pool sidekick needs more than the fresh-clone default (<code>git</code> + <code>docker</code>): also <strong><code>gh</code>, Node 22, <code>unzip</code>, <code>jq</code>, <code>build-essential</code></strong> (the agent uses <code>gh</code> for the PR and <code>npx vitest</code> to self-validate; <code>claude-code-action</code> needs <code>unzip</code> for its bundled Bun runtime). Enrolling a new member = install that baseline + register a <code>dor-build</code> self-hosted runner (systemd, auto-start) + a stable <code>skN</code> label. The runner holds no Traefik/authentik creds — an infra-managed central Traefik routes <code>N.build</code> → the sidekick's <code>:3001</code>.</p>
+<p><strong>Sidekick baseline.</strong> A pool sidekick needs more than the fresh-clone default (<code>git</code> + <code>docker</code>): also the <strong><code>claude</code> CLI</strong>, <strong><code>gh</code>, Node 22, <code>unzip</code>, <code>jq</code>, <code>build-essential</code>, <code>python3</code>, <code>pkg-config</code></strong>, a <strong>git identity</strong> (without one <code>git commit</code> aborts → the branch pushes empty → PR-create fails), a pre-cached Playwright browser, and the <code>edge</code> placeholder stack. Enrolling a new member = run that baseline + register a <code>dor-build</code> self-hosted runner (systemd, auto-start) with a stable <code>skN</code> label + wire the sidekick→URL map and reset matrix in the workflows. The runner holds no Traefik/authentik creds — an infra-managed central Traefik routes <code>N.build</code> → the sidekick's <code>:3001</code>. <strong>The full, executable checklist is <a href="../dor-sidekick-setup/">dor-sidekick-setup.md</a></strong> (idempotent <code>tools/dor/provision-sidekick.sh</code> + the manual runner/DNS steps).</p>
 <p><strong>Known hardening follow-ups (not yet done — surfaced by the first live run):</strong>
 - <strong>Deterministic PR-open + persistent test env.</strong> In the first run the agent implemented correctly and pushed the branch, but didn't reliably fire the final <code>gh pr create</code>, and its live env (built in the runner's throwaway workspace) didn't persist at <code>N.build</code>. Fix: let the agent do implement + test + push (its strength), and have the <strong>workflow</strong> deterministically open the PR and <strong>deploy the branch to a stable <code>~/stacks/pr-N</code></strong> (reusing slice A) as the persistent functional-test env.
 - <strong>Reconcile backstop for orphaned reservations.</strong> A plain PR close/merge fires reset correctly, but <em>close + delete-branch in one action</em> suppresses the <code>pull_request closed</code> run, leaving a reservation stuck. Add a periodic sweep (the <code>dor-reconcile</code> pattern) that resets any sidekick whose reserved PR is already closed/merged.
