@@ -160,3 +160,32 @@ jobs:
           GH_TOKEN="$BOARD_TOKEN" bash .github/scripts/dor_set_status.sh "$ISSUE" exception 2>/dev/null || true
           gh issue comment "$ISSUE" --repo "$REPO" \
             --body "⚠️ @WimvandenHeijkant @TaekeK @robb536 — the automated build job for this feature failed unexpectedly (before the flow could self-report), on ${HOST}. Moved to **Exceptions** — please check the workflow run." >/dev/null 2>&1 || true
+
+      # The BOARD_TOKEN minted above lives 1h; a build can run longer, so the flow's own terminal board
+      # move can fail on an expired token. Mint a FRESH token here and set the board from the outcome the
+      # flow recorded (markers in RUNNER_TEMP) — so the column is always correct regardless of build length.
+      - name: Mint a fresh BOT token to reconcile the board
+        if: always()
+        id: bot2
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ secrets.BOT_APP_ID }}
+          private-key: ${{ secrets.BOT_PRIVATE_KEY }}
+          owner: Fortigi
+          permission-organization-projects: write
+          permission-issues: read
+      - name: Reconcile the board column with the fresh token
+        if: always()
+        env:
+          BOARD_TOKEN: ${{ steps.bot2.outputs.token }}
+          ISSUE: ${{ github.event.issue.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -uo pipefail
+          if   [ -f "$RUNNER_TEMP/dor-done" ];   then tok=build-done
+          elif [ -f "$RUNNER_TEMP/dor-paused" ]; then tok=paused
+          elif [ -f "$RUNNER_TEMP/dor-bailed" ]; then tok=exception
+          else echo "no terminal marker — nothing to reconcile"; exit 0; fi
+          GH_TOKEN="$BOARD_TOKEN" bash .github/scripts/dor_set_status.sh "$ISSUE" "$tok" \
+            && echo "::notice::reconciled board → $tok (fresh token)" \
+            || echo "::warning::board reconcile still failed for $tok"
