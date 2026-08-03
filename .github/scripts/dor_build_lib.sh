@@ -183,7 +183,9 @@ verify_loop() {
 
     ctx="Fix so BOTH the feature e2e passes on the running app AND the PR's required CI is green."
     [ "$e2e_rc" != 0 ] && ctx="$ctx"$'\n\nFeature e2e output:\n'"$(tail -c 3000 /tmp/e2e.log 2>/dev/null)"
-    [ "$ci" = fail ] && ctx="$ctx"$'\n\nFailing CI checks:\n'"$(gh pr checks "$pr" --repo "$REPO" --required 2>/dev/null | grep -iE 'fail')"
+    # List ALL failing checks (not just the required aggregate) so the fixer sees the real culprit,
+    # e.g. "Lint: Code duplication (jscpd)" rather than just "CI Passed".
+    [ "$ci" = fail ] && ctx="$ctx"$'\n\nFailing CI checks:\n'"$(gh pr checks "$pr" --repo "$REPO" 2>/dev/null | grep -iE 'fail')"
     run_claude "The build for issue #${ISSUE} is not passing yet. ${ctx}. Investigate and fix in this repo. Do NOT touch .github. Do NOT commit — leave the fixes in the working tree." /tmp/fix.json "$FIX_TURNS"
     case $? in
       0|3) : ;;   # 3 = ran out of turns; commit whatever it managed and re-verify (bounded by MAX_ATTEMPTS)
