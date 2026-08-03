@@ -10,11 +10,16 @@ import { isUuid } from './contextRollup.js';
 
 // `memberWhere` is trusted, caller-authored SQL (never user input); every
 // value-bearing predicate binds through the caller's params array.
+//
+// `memberType='Resource'` is baked in rather than left to the caller: a member
+// id is only unique per member type, so an Identity- or Principal-targeted
+// membership that happens to carry the same uuid would otherwise leak onto the
+// resource. Both consumers need the filter, so neither can forget it.
 export function buildResourceContextsSql(memberWhere, { selectPrefix = '', orderPrefix = '' } = {}) {
   return `SELECT ${selectPrefix}c.id, c."displayName", c."contextType", c."targetType", c.variant
             FROM "ContextMembers" cm
             JOIN "Contexts" c ON c.id = cm."contextId"
-           WHERE ${memberWhere}
+           WHERE cm."memberType" = 'Resource' AND (${memberWhere})
            ORDER BY ${orderPrefix}c."contextType", c."displayName"`;
 }
 
@@ -46,7 +51,7 @@ export async function fetchResourceContexts(p, res, resourceIds) {
   const ids = [...new Set((resourceIds || []).filter(isUuid))];
   if (ids.length === 0) return [];
   const sql = buildResourceContextsSql(
-    `cm."memberType" = 'Resource' AND cm."memberId" = ANY($1::uuid[])`,
+    `cm."memberId" = ANY($1::uuid[])`,
     { selectPrefix: 'cm."memberId"::text AS "resourceId", ', orderPrefix: 'cm."memberId", ' },
   );
   try {

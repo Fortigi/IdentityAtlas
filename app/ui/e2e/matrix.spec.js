@@ -146,6 +146,10 @@ test.describe('Matrix — Contexts column', () => {
   });
 
   test('the API serves a per-resource contexts sidecar for the grid', async ({ page }) => {
+    // The fetch below uses an app-relative URL, so the page must be on the app's
+    // origin first — evaluating on the initial about:blank cannot resolve it.
+    await page.goto('/');
+
     const body = await page.evaluate(async (filter) => {
       const res = await fetch('/api/matrix/data', {
         method: 'POST',

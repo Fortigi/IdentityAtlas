@@ -297,7 +297,10 @@ router.get('/resources/:id', async (req, res) => {
     let contextCount = 0;
     try {
       const r = await db.queryOne(
-        `SELECT COUNT(*)::int AS cnt FROM "ContextMembers" WHERE "memberId"::text = $1`,
+        // Same `memberType='Resource'` scope as the contexts list below — a
+        // member id is only unique per type, so without it the badge count can
+        // exceed the contexts actually listed.
+        `SELECT COUNT(*)::int AS cnt FROM "ContextMembers" WHERE "memberType" = 'Resource' AND "memberId"::text = $1`,
         [resourceId]
       );
       contextCount = r?.cnt ?? 0;

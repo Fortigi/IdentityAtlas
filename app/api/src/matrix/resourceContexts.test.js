@@ -23,12 +23,19 @@ describe('buildResourceContextsSql', () => {
     const sql = buildResourceContextsSql('cm."memberId"::text = $1');
     expect(sql).toContain('FROM "ContextMembers" cm');
     expect(sql).toContain('JOIN "Contexts" c ON c.id = cm."contextId"');
-    expect(sql).toContain('WHERE cm."memberId"::text = $1');
+    expect(sql).toContain('WHERE cm."memberType" = \'Resource\' AND (cm."memberId"::text = $1)');
     expect(sql).toContain('ORDER BY c."contextType", c."displayName"');
   });
 
+  it('always scopes to Resource-typed memberships, whatever the caller passes', () => {
+    // A same-uuid Identity/Principal membership must never surface as a
+    // resource's context — no caller can opt out of the filter.
+    const sql = buildResourceContextsSql('1=1');
+    expect(sql).toContain('cm."memberType" = \'Resource\' AND (1=1)');
+  });
+
   it('supports a select/order prefix for the batched (per-resource) form', () => {
-    const sql = buildResourceContextsSql('cm."memberType" = \'Resource\'', {
+    const sql = buildResourceContextsSql('cm."memberId" = ANY($1::uuid[])', {
       selectPrefix: 'cm."memberId"::text AS "resourceId", ',
       orderPrefix: 'cm."memberId", ',
     });
