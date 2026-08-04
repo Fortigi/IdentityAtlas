@@ -176,6 +176,34 @@ grid-side consumers (`MatrixView`, `sortUsers`, the Excel export) already fall
 back to `DEFAULT_SORT` on their own, so a partial filter renders — it was only
 the wizard that assumed the full shape.
 
+### Matrix identity — comparing two filters
+
+"Is this the matrix I saved?" is asked by the summary bar
+(`MatrixFilterSummary`), which labels the applied matrix with its saved name or
+"Not saved". Filters are compared with `matrixFilterFingerprint()` — canonical
+(key-order-independent) JSON of the **normalised** filter, minus the view-state
+keys `rollupExpanded` / `rollupCollapsed` / `rollupPath` / `foldAttributes`.
+Never compare filters with raw `JSON.stringify`:
+
+* the applied filter is always the full shape while a stored one may carry only
+  a few fields (and a `managed` key the filter itself doesn't have), so a raw
+  compare made a matrix stop matching the saved row it was loaded from the
+  moment the analyst opened the wizard and applied without changing anything;
+* the view-state keys say where the analyst is *in* the matrix (which groups are
+  folded, how far they've drilled), not which matrix it is, and the wizard
+  rewrites them on every apply.
+
+### Adjusting without changing anything
+
+Opening "Adjust matrix", walking the steps and applying without touching a
+control has to be a no-op — every step renders, and the matrix that comes back
+is the same one, still carrying its saved name. That contract is what the two
+regressions above broke, and it's covered end-to-end in
+[`app/ui/e2e/matrix.spec.js`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/ui/e2e/matrix.spec.js)
+("Matrix — adjust without changing anything") for each way a filter reaches the
+wizard: the org-wide default, a shared link, an identity matrix, and a second
+adjust of the wizard's own output.
+
 ## Sorting, folding & server-side aggregation
 
 The column axis can get very wide (one column per subject). Three mechanisms keep

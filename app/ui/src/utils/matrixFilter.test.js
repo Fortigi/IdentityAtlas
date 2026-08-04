@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { DEFAULT_SORT, EMPTY_FILTER, normalizeMatrixFilter } from './matrixFilter';
+import { DEFAULT_SORT, EMPTY_FILTER, matrixFilterFingerprint, normalizeMatrixFilter } from './matrixFilter';
 
 describe('normalizeMatrixFilter', () => {
   it('returns the empty filter shape for null / undefined / non-objects', () => {
@@ -95,5 +95,71 @@ describe('normalizeMatrixFilter', () => {
     a.sortAttributes[0].attribute = 'city';
     expect(b.sortAttributes).toEqual(DEFAULT_SORT);
     expect(DEFAULT_SORT[0].attribute).toBe('department');
+  });
+});
+
+describe('matrixFilterFingerprint', () => {
+  // What test/demo-dataset/Ingest-DemoDataset.ps1 stores as the org-wide default.
+  const seeded = {
+    rowType: 'principal',
+    orientation: 'rows-as-resources',
+    subject: { include: [], exclude: [] },
+    resource: { include: [], exclude: [] },
+  };
+
+  it('is null for a missing filter', () => {
+    for (const input of [null, undefined, 'nonsense']) {
+      expect(matrixFilterFingerprint(input)).toBeNull();
+    }
+  });
+
+  it('matches a stored partial filter to the full one the wizard applies', () => {
+    // Adjusting the seeded default without changing anything applies the
+    // normalised shape — still the same matrix, so it keeps its saved name.
+    expect(matrixFilterFingerprint(normalizeMatrixFilter(seeded)))
+      .toBe(matrixFilterFingerprint(seeded));
+  });
+
+  it('ignores key order and the managed-state toggle saved alongside the filter', () => {
+    const reordered = {
+      resource: { exclude: [], include: [] },
+      subject: { exclude: [], include: [] },
+      orientation: 'rows-as-resources',
+      rowType: 'principal',
+      managed: 'governed',
+    };
+    expect(matrixFilterFingerprint(reordered)).toBe(matrixFilterFingerprint(seeded));
+  });
+
+  it('ignores view state — folding and drilling do not make it another matrix', () => {
+    const drilled = {
+      ...seeded,
+      rollupExpanded: ['node-1'],
+      rollupCollapsed: ['tuple-1'],
+      rollupPath: ['node-1', 'node-2'],
+      foldAttributes: true,
+    };
+    expect(matrixFilterFingerprint(drilled)).toBe(matrixFilterFingerprint(seeded));
+  });
+
+  it('separates matrices that really differ', () => {
+    const base = matrixFilterFingerprint(seeded);
+    expect(matrixFilterFingerprint({ ...seeded, rowType: 'identity' })).not.toBe(base);
+    expect(matrixFilterFingerprint({ ...seeded, orientation: 'rows-as-subjects' })).not.toBe(base);
+    expect(matrixFilterFingerprint({ ...seeded, rollup: 'department' })).not.toBe(base);
+    expect(matrixFilterFingerprint({ ...seeded, foldOnLoad: true })).not.toBe(base);
+    expect(matrixFilterFingerprint({
+      ...seeded, sortAttributes: [{ attribute: 'jobTitle', dir: 'asc' }],
+    })).not.toBe(base);
+    expect(matrixFilterFingerprint({
+      ...seeded, subject: { include: [{ kind: 'attribute', field: 'department', values: ['HR'] }], exclude: [] },
+    })).not.toBe(base);
+  });
+
+  it('keeps condition order significant', () => {
+    const hr = { kind: 'attribute', field: 'department', values: ['HR'] };
+    const it_ = { kind: 'attribute', field: 'department', values: ['IT'] };
+    expect(matrixFilterFingerprint({ ...seeded, subject: { include: [hr, it_], exclude: [] } }))
+      .not.toBe(matrixFilterFingerprint({ ...seeded, subject: { include: [it_, hr], exclude: [] } }));
   });
 });

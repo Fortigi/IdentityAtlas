@@ -5,3 +5,5 @@
 - Filtering and sorting by context is unchanged — keep using the context picker in the matrix filter.
 - Fixed a resource's Contexts list and context count on the resource detail page, which could include contexts that belong to an identity or principal rather than the resource itself.
 - Fixed "Something went wrong" when adjusting a matrix: stepping past the Resources step onto the Sort step crashed the page for any matrix opened from a shared link, an older saved matrix, or the default matrix seeded with the demo data. The wizard now fills in whatever the matrix doesn't specify (such as the column sort) instead of failing.
+- Fixed a matrix losing the name of the saved matrix it came from: walking through "Adjust matrix" and applying without changing anything relabelled it "Not saved". Folding a column group or drilling into a roll-up no longer changes that label either.
+- Adjusting a matrix without changing anything is now checked automatically on every build — for the default matrix, a shared link, an identity matrix, and a second adjust in a row — so this class of breakage is caught before it reaches a review.

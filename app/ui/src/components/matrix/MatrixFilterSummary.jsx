@@ -7,17 +7,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
-
-// Canonical stringify: stable key order so two semantically-equal filters
-// produced via different paths (UI builder vs. JSONB round-trip from the DB)
-// compare equal. Arrays preserve their order — moving conditions around in
-// the wizard counts as a different filter, which matches user intuition.
-function canonical(obj) {
-  if (obj === null || typeof obj !== 'object') return JSON.stringify(obj);
-  if (Array.isArray(obj)) return '[' + obj.map(canonical).join(',') + ']';
-  const keys = Object.keys(obj).sort();
-  return '{' + keys.map(k => JSON.stringify(k) + ':' + canonical(obj[k])).join(',') + '}';
-}
+import { matrixFilterFingerprint } from '@ui/utils/matrixFilter';
 
 export default function MatrixFilterSummary({ filter, preview, onAdjust }) {
   const { authFetch } = useAuth();
@@ -37,11 +27,13 @@ export default function MatrixFilterSummary({ filter, preview, onAdjust }) {
     return () => { cancelled = true; };
   }, [authFetch, filterKey]);
 
-  // Match the current filter against saved ones by canonical JSON.
+  // Match the current filter against the saved ones. Compared by fingerprint,
+  // not raw JSON, so a saved matrix keeps its badge after being adjusted (or
+  // folded/drilled) without actually being changed — see utils/matrixFilter.js.
   const savedMatch = useMemo(() => {
     if (!savedFilters || !filter) return null;
-    const fingerprint = canonical(filter);
-    return savedFilters.find(s => canonical(s.filter) === fingerprint) || null;
+    const fingerprint = matrixFilterFingerprint(filter);
+    return savedFilters.find(s => matrixFilterFingerprint(s.filter) === fingerprint) || null;
   }, [savedFilters, filter]);
 
   // Resolve display names for any context conditions in the filter.

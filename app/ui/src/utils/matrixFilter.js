@@ -64,11 +64,31 @@ export const EMPTY_FILTER = {
   foldOnLoad: 'auto',
 };
 
+// Per-field readers, so the normaliser below stays a flat list of fields
+// instead of a wall of nested ternaries.
+
+// One of `allowed`, else the first entry (the default).
+const oneOf = (value, allowed) => (allowed.includes(value) ? value : allowed[0]);
+// A non-empty string, else null.
+const text = (value) => (typeof value === 'string' && value ? value : null);
+// An array, deep-copied so wizard edits can't mutate the caller's filter.
+const list = (value) => (Array.isArray(value) ? structuredClone(value) : []);
+
 // One condition block (subject / resource): both sides always present, always
-// arrays, and deep-copied so wizard edits can't mutate the caller's filter.
+// arrays, always copied.
 function normalizeBlock(block) {
-  const side = (v) => (Array.isArray(v) ? structuredClone(v) : []);
-  return { include: side(block?.include), exclude: side(block?.exclude) };
+  return { include: list(block?.include), exclude: list(block?.exclude) };
+}
+
+// 1–6 sort levels; an empty or missing list falls back to the default sort.
+function normalizeSort(value) {
+  const rows = Array.isArray(value) && value.length ? value.slice(0, 6) : DEFAULT_SORT;
+  return structuredClone(rows);
+}
+
+// Manager-Hierarchy sort: { contextId } or null (= sort by attributes).
+function normalizeHierarchy(value) {
+  return typeof value?.contextId === 'string' ? { ...value } : null;
 }
 
 // Any partial / legacy / hand-edited filter → the full shape above. Unknown or
@@ -77,26 +97,57 @@ function normalizeBlock(block) {
 export function normalizeMatrixFilter(f) {
   const src = f && typeof f === 'object' ? f : EMPTY_FILTER;
   return {
-    rowType:     src.rowType === 'identity' ? 'identity' : 'principal',
-    orientation: src.orientation === 'rows-as-subjects' ? 'rows-as-subjects' : 'rows-as-resources',
+    rowType:     oneOf(src.rowType, ['principal', 'identity']),
+    orientation: oneOf(src.orientation, ['rows-as-resources', 'rows-as-subjects']),
     subject:  normalizeBlock(src.subject),
     resource: normalizeBlock(src.resource),
-    rollup: typeof src.rollup === 'string' && src.rollup ? src.rollup : null,
-    rollupContent: ['resources-and-roles', 'resources-only', 'roles-only'].includes(src.rollupContent)
-      ? src.rollupContent : 'resources-and-roles',
-    rollupMetric: src.rollupMetric === 'percent' ? 'percent' : 'count',
-    rollupKind: src.rollupKind === 'context' ? 'context' : 'attribute',
-    rollupContextId: typeof src.rollupContextId === 'string' && src.rollupContextId ? src.rollupContextId : null,
-    rollupPath: Array.isArray(src.rollupPath) ? structuredClone(src.rollupPath) : [],
+    rollup: text(src.rollup),
+    rollupContent: oneOf(src.rollupContent, ['resources-and-roles', 'resources-only', 'roles-only']),
+    rollupMetric: oneOf(src.rollupMetric, ['count', 'percent']),
+    rollupKind: oneOf(src.rollupKind, ['attribute', 'context']),
+    rollupContextId: text(src.rollupContextId),
+    rollupPath: list(src.rollupPath),
     // View state (drill-down / fold) of the matrix being adjusted — preserved so
     // reopening the wizard doesn't collapse what the analyst expanded.
-    rollupExpanded: Array.isArray(src.rollupExpanded) ? structuredClone(src.rollupExpanded) : [],
-    rollupCollapsed: Array.isArray(src.rollupCollapsed) ? structuredClone(src.rollupCollapsed) : [],
+    rollupExpanded: list(src.rollupExpanded),
+    rollupCollapsed: list(src.rollupCollapsed),
     foldAttributes: !!src.foldAttributes,
-    sortAttributes: Array.isArray(src.sortAttributes) && src.sortAttributes.length
-      ? structuredClone(src.sortAttributes.slice(0, 6)) : structuredClone(DEFAULT_SORT),
-    sortHierarchy: (src.sortHierarchy && typeof src.sortHierarchy.contextId === 'string')
-      ? { ...src.sortHierarchy } : null,
-    foldOnLoad: [true, false, 'auto'].includes(src.foldOnLoad) ? src.foldOnLoad : 'auto',
+    sortAttributes: normalizeSort(src.sortAttributes),
+    sortHierarchy: normalizeHierarchy(src.sortHierarchy),
+    foldOnLoad: oneOf(src.foldOnLoad, ['auto', true, false]),
   };
+}
+
+// ─── Matrix identity ────────────────────────────────────────────────────────
+//
+// "Is this the matrix I saved?" — asked by the summary bar to label the applied
+// matrix with its saved name. Two things must NOT count as a different matrix:
+//
+//   * missing fields. The applied filter is always the full shape; a stored one
+//     may predate a field or only carry what its writer cared about (the demo
+//     seed writes four keys). Comparing raw JSON made a matrix stop matching
+//     the saved row it came from the moment it was adjusted — so opening the
+//     wizard and applying without changing anything relabelled the demo default
+//     "Not saved".
+//   * view state. Which groups are folded and how far the analyst has drilled
+//     is where they are IN the matrix, not which matrix it is; the wizard
+//     rewrites those keys on every apply.
+const VIEW_STATE_KEYS = ['rollupExpanded', 'rollupCollapsed', 'rollupPath', 'foldAttributes'];
+
+// Stable key order, so two semantically-equal filters built along different
+// paths (the wizard vs. a JSONB round-trip out of the database) compare equal.
+// Arrays keep their order — reordering conditions is a real change.
+function canonical(obj) {
+  if (obj === null || typeof obj !== 'object') return JSON.stringify(obj);
+  if (Array.isArray(obj)) return '[' + obj.map(canonical).join(',') + ']';
+  return '{' + Object.keys(obj).sort()
+    .map(k => JSON.stringify(k) + ':' + canonical(obj[k])).join(',') + '}';
+}
+
+// Comparable identity of a matrix filter: equal fingerprints = the same matrix.
+export function matrixFilterFingerprint(filter) {
+  if (!filter || typeof filter !== 'object') return null;
+  const normalized = normalizeMatrixFilter(filter);
+  for (const key of VIEW_STATE_KEYS) delete normalized[key];
+  return canonical(normalized);
 }
