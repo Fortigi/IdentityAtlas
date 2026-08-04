@@ -14,6 +14,50 @@ function getRoleBadge(roleName) {
   return BADGE_DIRECT;
 }
 
+// Fold affordance state for this row, or null when the row is not a foldable
+// business role (only roles that are present in the grid AND grant at least one
+// visible resource get one — see useBusinessRoleFold).
+function roleFoldState({ group, foldableRoles, foldedRoles, roleChildCounts }) {
+  const roleKey = String(group.realGroupId || group.id || '').toUpperCase();
+  if (group.isNestedRow || !foldableRoles?.has(roleKey)) return null;
+  return {
+    roleKey,
+    folded: !!foldedRoles?.has(roleKey),
+    count: roleChildCounts?.get(roleKey) || 0,
+  };
+}
+
+// Chevron that folds a business role's resources away (and back). Rendered
+// unconditionally so the row body stays branch-free; renders nothing for rows
+// that aren't foldable business roles.
+function RoleFoldToggle({ fold, onToggle }) {
+  if (!fold) return null;
+  const label = fold.folded ? 'Unfold business role resources' : 'Fold business role resources';
+  return (
+    <button
+      onClick={(e) => { e.stopPropagation(); onToggle?.(fold.roleKey); }}
+      className="flex-shrink-0 w-4 h-4 flex items-center justify-center text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 rounded"
+      aria-label={label}
+      title={label}
+    >
+      <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
+        <path strokeLinecap="round" strokeLinejoin="round" d={fold.folded ? 'M9 5l7 7-7 7' : 'M19 9l-7 7-7-7'} />
+      </svg>
+    </button>
+  );
+}
+
+// "N resources folded" chip on a collapsed business role row. The row's own
+// cells are untouched — folding hides rows, it never rolls access up.
+function RoleFoldChip({ fold }) {
+  if (!fold?.folded || fold.count === 0) return null;
+  return (
+    <span className="flex-shrink-0 ml-1 px-1 rounded text-[10px] font-medium bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300">
+      {fold.count} resource{fold.count === 1 ? '' : 's'} folded
+    </span>
+  );
+}
+
 export default function MatrixGroupRow({
   group,
   users,
@@ -33,6 +77,11 @@ export default function MatrixGroupRow({
   expandedGroups,
   onToggleExpand,
   loadingNested,
+  // Business-role fold props
+  foldableRoles,
+  foldedRoles,
+  roleChildCounts,
+  onToggleRoleFold,
   // Optional DnD props (provided by SortableRow wrapper)
   sortableRef,
   sortableStyle,
@@ -47,6 +96,10 @@ export default function MatrixGroupRow({
   const canExpand = (group.nestLevel || 0) < 4 && groupsWithNested?.has(realGidForExpand);
   const isExpanded = expandedGroups?.has(realGidForExpand);
   const isLoadingNested = loadingNested?.has(realGidForExpand);
+
+  // Business-role fold (never clashes with the nested-expand chevron above: a
+  // business role is not a principal, so it is never in groupsWithNested).
+  const roleFold = roleFoldState({ group, foldableRoles, foldedRoles, roleChildCounts });
 
   const nestedBg = group.isNestedRow ? 'bg-gray-50/60 dark:bg-gray-700/40' : 'bg-white dark:bg-gray-800';
 
@@ -71,6 +124,7 @@ export default function MatrixGroupRow({
         title={group.displayName}
       >
         <div className="flex items-center gap-0.5" style={{ paddingLeft: (group.nestLevel || 0) * 16 }}>
+          <RoleFoldToggle fold={roleFold} onToggle={onToggleRoleFold} />
           {canExpand && (
             <button
               onClick={(e) => { e.stopPropagation(); onToggleExpand?.(realGidForExpand); }}
@@ -94,6 +148,7 @@ export default function MatrixGroupRow({
             onClick={() => onOpenDetail?.('resource', group.realGroupId || group.id, group.displayName)}>
             {group.displayName}
           </div>
+          <RoleFoldChip fold={roleFold} />
         </div>
       </td>
 

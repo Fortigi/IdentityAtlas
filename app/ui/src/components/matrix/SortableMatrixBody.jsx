@@ -60,6 +60,11 @@ export default function SortableMatrixBody({
   expandedGroups,
   onToggleExpand,
   loadingNested,
+  // Business-role fold props
+  foldableRoles,
+  foldedRoles,
+  roleChildCounts,
+  onToggleRoleFold,
 }) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
@@ -109,6 +114,10 @@ export default function SortableMatrixBody({
     expandedGroups,
     onToggleExpand,
     loadingNested,
+    foldableRoles,
+    foldedRoles,
+    roleChildCounts,
+    onToggleRoleFold,
   };
 
   // Render a single row — nested rows are plain (not sortable), others are sortable

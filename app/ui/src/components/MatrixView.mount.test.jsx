@@ -36,6 +36,28 @@ function makeData() {
   ];
 }
 
+// A matrix that contains a business role (br-1) granting one of the resource
+// rows (res-1) — the shape the business-role fold operates on. res-2 is granted
+// by no role, so it must survive every fold.
+function makeRoleData() {
+  return [
+    ...makeData(),
+    { memberId: 'u1', memberDisplayName: 'Alice Eng', department: 'Engineering', memberType: 'User', resourceId: 'br-1', resourceDisplayName: 'HR Manager Role', resourceType: 'BusinessRole', membershipType: 'Direct' },
+  ];
+}
+const roleProps = {
+  data: makeRoleData(),
+  accessPackageGroups: [
+    { accessPackageId: 'br-1', accessPackageName: 'HR Manager Role', resourceId: 'res-1', roleName: 'Member', totalAssignments: 1 },
+  ],
+  managedByPackages: [
+    { resourceId: 'res-1', memberId: 'u1', accessPackageIds: ['br-1'] },
+  ],
+};
+
+const rowLabels = () =>
+  screen.queryAllByTestId('row-label').filter(el => el.isConnected).map(el => el.textContent);
+
 const baseFilter = {
   rowType: 'user',
   subject: { include: [], exclude: [] },
@@ -225,6 +247,36 @@ describe('MatrixView (mounted)', () => {
         }),
       ),
     );
+  });
+
+  it('folds a business role\'s resources away and back from the toolbar', async () => {
+    renderView(roleProps);
+    const user = userEvent.setup();
+    await expectRowVisible('HR Manager Role');
+    await expectRowVisible('Finance App');
+
+    await user.click(await screen.findByText('Fold roles'));
+    // Only the role row and the resource no role grants remain.
+    await waitFor(() => expect(rowLabels()).not.toContain('Finance App'));
+    expect(rowLabels()).toContain('HR Manager Role');
+    expect(rowLabels()).toContain('HR Portal');
+
+    await user.click(await screen.findByText('Unfold roles'));
+    await expectRowVisible('Finance App');
+  });
+
+  it('promotes the business-role row directly above the resources it grants', async () => {
+    renderView(roleProps);
+    await expectRowVisible('HR Manager Role');
+    const labels = rowLabels();
+    expect(labels.indexOf('HR Manager Role')).toBe(labels.indexOf('Finance App') - 1);
+  });
+
+  it('offers no fold controls in a matrix without business-role rows', async () => {
+    renderView();
+    await expectRowVisible('Finance App');
+    expect(screen.queryByText('Fold roles')).not.toBeInTheDocument();
+    expect(screen.queryByText('Unfold roles')).not.toBeInTheDocument();
   });
 
   it('clears expanded nesting when the matrix filter changes (#674)', async () => {

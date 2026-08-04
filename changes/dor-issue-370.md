@@ -1,0 +1,5 @@
+- Matrix: a business role row can now be folded to hide the resources it grants, leaving just the role plus an "N resources folded" chip — click the chevron again to bring them back.
+- Matrix: new "Fold roles" / "Unfold roles" toolbar buttons fold every business role at once, reducing the grid to business roles plus the resources no role grants.
+- Business roles arrive expanded, and your fold choices are remembered per matrix so they are still there when you come back to the same slice.
+- A resource granted by more than one business role stays visible until every one of those roles is folded.
+- Matrix rows: a business role now sits directly above the resources it grants in the staircase order (any saved custom row order is reset once as a result).

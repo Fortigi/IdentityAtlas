@@ -7,6 +7,7 @@ const setStateReducer = (s, a) => (typeof a === 'function' ? a(s) : a);
 import { useAuth } from '@ui/auth/AuthGate';
 import { useMatrixRowOrder } from '@ui/hooks/useMatrixRowOrder';
 import { useNestedGroupExpand, MAX_NEST_LEVEL } from '@ui/hooks/useNestedGroupExpand';
+import { useBusinessRoleFold } from '@ui/hooks/useBusinessRoleFold';
 import MatrixToolbar from './matrix/MatrixToolbar';
 import MatrixLegend from './matrix/MatrixLegend';
 import MatrixFilterSummary from './matrix/MatrixFilterSummary';
@@ -61,6 +62,20 @@ export const AGG_SENTINEL = '@@AGG@@';
 
 // Above this many assignments, an 'auto' fold-on-load matrix opens folded.
 const FOLD_AUTO_THRESHOLD = 5000;
+
+// The AP-staircase bucket a resource row falls into: the leftmost access-package
+// column that grants it, or accessPackages.length ("unmanaged") when none does.
+// Owner rows only match AP columns whose role is Owner.
+function leftmostApBucket(group, accessPackages, apGroupMap) {
+  const gidUpper = (group.realGroupId || group.id).toUpperCase();
+  const isOwnerRow = !!group.realGroupId;
+  for (let i = 0; i < accessPackages.length; i++) {
+    const role = apGroupMap.get(`${gidUpper}|${accessPackages[i].id.toLowerCase()}`);
+    if (!role) continue;
+    if (isOwnerRow === role.toLowerCase().includes('owner')) return i;
+  }
+  return accessPackages.length;
+}
 
 // Short label for a manager-hierarchy node name ("A · B · C (Manager)" → "C").
 function orgShort(name) {
@@ -491,39 +506,33 @@ export default function MatrixView({
     if (managedFilter === 'unmanaged') return groups;
     if (accessPackages.length === 0) return groups; // no APs, keep member count sort
 
-    // Assign each group to the AP bucket of its leftmost AP column
+    // Assign each group to the AP bucket of its leftmost AP column. A business
+    // role's OWN row is promoted into its own bucket so it sits directly above
+    // the resources it grants — folding is only coherent when a parent row is
+    // adjacent to the children it hides.
     const groupApBucket = new Map();
+    const roleRowIds = new Set();
     for (const g of groups) {
-      let bucket = accessPackages.length; // unmanaged = after all APs
-      const gidUpper = (g.realGroupId || g.id).toUpperCase(); // use realGroupId for owner rows
-      const isOwnerRow = !!g.realGroupId;
-      for (let i = 0; i < accessPackages.length; i++) {
-        const mapKey = `${gidUpper}|${accessPackages[i].id.toLowerCase()}`;
-        if (apGroupMap.has(mapKey)) {
-          // Owner rows only match AP buckets where the role is Owner
-          const role = apGroupMap.get(mapKey);
-          const roleIsOwner = (role || '').toLowerCase().includes('owner');
-          if (isOwnerRow ? roleIsOwner : !roleIsOwner) {
-            bucket = i;
-            break;
-          }
-        }
-      }
-      groupApBucket.set(g.id, bucket);
+      const selfBucket = g.realGroupId ? undefined : apIdToIndex.get(g.id.toLowerCase());
+      if (selfBucket != null) roleRowIds.add(g.id);
+      groupApBucket.set(g.id, selfBucket ?? leftmostApBucket(g, accessPackages, apGroupMap));
     }
 
     return [...groups].sort((a, b) => {
       const aBucket = groupApBucket.get(a.id);
       const bBucket = groupApBucket.get(b.id);
       if (aBucket !== bBucket) return aBucket - bBucket;
-      // Same bucket: sort by type priority (Direct > Eligible > Indirect)
+      // Same bucket: the business role row itself comes first, above its resources
+      const aRole = roleRowIds.has(a.id);
+      if (aRole !== roleRowIds.has(b.id)) return aRole ? -1 : 1;
+      // Then by type priority (Direct > Eligible > Indirect)
       const directCmp = (b.directCount || 0) - (a.directCount || 0);
       if (directCmp !== 0) return directCmp;
       const eligibleCmp = (b.eligibleCount || 0) - (a.eligibleCount || 0);
       if (eligibleCmp !== 0) return eligibleCmp;
       return b.memberCount - a.memberCount;
     });
-  }, [groups, accessPackages, apGroupMap, managedFilter]);
+  }, [groups, accessPackages, apGroupMap, apIdToIndex, managedFilter]);
 
   // Apply custom drag-row order on top of the default AP staircase sort. All
   // subject/resource selection happens through the filter wizard, so there
@@ -650,6 +659,17 @@ export default function MatrixView({
       });
     });
   }, [displayGroups, managedFilter, accessPackages, apGroupMap, users, managedApMap, displayMemberships]);
+
+  // ─── Business-role fold ─────────────────────────────────────────
+  // Folding a business role hides the rows of the resources it grants, so the
+  // grid can be reduced to "business roles + resources no role covers". Applied
+  // last in the row pipeline, so it composes with the All/Governed/Non-governed/
+  // Gaps toggles and with the injected nested sub-rows.
+  const {
+    visibleRows: foldedGroups,
+    foldableRoles, foldedRoles, roleChildCounts,
+    toggleRoleFold, foldAllRoles, unfoldAllRoles, canFoldRoles, hasFoldedRoles,
+  } = useBusinessRoleFold({ accessPackageGroups, rows: visibleGroups, storageKey });
 
   // Lazy-load SortableMatrixBody (contains @dnd-kit + @tanstack/react-virtual)
   const [SortableBody, setSortableBody] = useState(null);
@@ -958,6 +978,10 @@ export default function MatrixView({
         isFolded={collapsedGroups.size > 0}
         onFoldAllColumns={foldAllColumns}
         onUnfoldAllColumns={unfoldAllColumns}
+        canFoldRoles={canFoldRoles}
+        hasFoldedRoles={hasFoldedRoles}
+        onFoldAllRoles={foldAllRoles}
+        onUnfoldAllRoles={unfoldAllRoles}
       />
 
       {filterIsApplied && <MatrixLegend />}
@@ -984,7 +1008,7 @@ export default function MatrixView({
           {SortableBody ? (
             <SortableBody
               scrollRef={scrollRef}
-              orderedGroups={visibleGroups}
+              orderedGroups={foldedGroups}
               groupIds={groupIds}
               onDragEnd={handleRowDragEnd}
               columnHeaders={columnHeaders}
@@ -1003,12 +1027,16 @@ export default function MatrixView({
               expandedGroups={expandedGroups}
               onToggleExpand={toggleExpand}
               loadingNested={loadingNested}
+              foldableRoles={foldableRoles}
+              foldedRoles={foldedRoles}
+              roleChildCounts={roleChildCounts}
+              onToggleRoleFold={toggleRoleFold}
             />
           ) : (
             <table className="border-collapse" style={{ tableLayout: 'fixed' }}>
               {columnHeaders}
               <tbody>
-                {visibleGroups.map(group => (
+                {foldedGroups.map(group => (
                   <MatrixGroupRow
                     key={group.id}
                     group={group}
@@ -1028,6 +1056,10 @@ export default function MatrixView({
                     expandedGroups={expandedGroups}
                     onToggleExpand={toggleExpand}
                     loadingNested={loadingNested}
+                    foldableRoles={foldableRoles}
+                    foldedRoles={foldedRoles}
+                    roleChildCounts={roleChildCounts}
+                    onToggleRoleFold={toggleRoleFold}
                   />
                 ))}
               </tbody>

@@ -144,6 +144,44 @@ count of Direct assignments. `▾`/`↳` explode an aggregate back into its memb
 (direct + indirect, or direct only). This is all **client-side** on the flat
 per-subject payload — it changes what is *rendered*, not what is *fetched*.
 
+### Business-role fold (rows)
+
+The column fold above collapses *columns*; the **business-role fold** collapses
+*rows*. A business-role row (`resourceType='BusinessRole'`) carries a chevron
+that hides the rows of the resources that role grants — its `Contains` children
+— leaving the role row with an "*N* resources folded" chip. A **Fold roles /
+Unfold roles** toolbar pair does it for every role at once, which reduces the
+grid to exactly "business roles + resources no role grants" — the role-mining
+view without the duplication between a role and its contents.
+
+The parent → child mapping is not derived client-side: it is the same
+`ResourceRelationships` / `relationshipType='Contains'` data that
+`GET /api/access-package-groups` already delivers for the SOLL columns
+(`accessPackageGroups`). Folding is pure view state, the same tier as the column
+fold and the nested-group expand — it changes what is *rendered*, never what is
+fetched, counted or exported. It lives in
+[`hooks/useBusinessRoleFold.js`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/ui/src/hooks/useBusinessRoleFold.js)
+and is applied last in the row pipeline, so it composes with the
+All / Governed / Non-governed / Gaps toggles and with injected nested sub-rows.
+
+Rules worth knowing:
+
+- **Default expanded.** Fold choices persist per matrix filter in versioned
+  localStorage (`fgraph-rolefold-<filter>`), the mechanism the custom row order
+  uses — so two different matrix slices keep independent fold state.
+- **A resource granted by several roles** stays visible until *every* role
+  granting it that is present in the grid is folded.
+- **A role with no row of its own** (nobody visible holds it) gets no fold
+  affordance and hides nothing — a resource never disappears without a visible
+  parent to unfold it from.
+- **The folded role's own cells are untouched.** Folding hides rows; it never
+  rolls a child's assignments up into the parent row.
+- **Ownership rows are not folded** — they hang off a group by `HasOwnership`,
+  not off a role by `Contains`.
+- The AP staircase promotes a **business role's own row to the top of its
+  bucket**, directly above the resources it grants, so a parent is always
+  adjacent to the children it folds away.
+
 ### Size gate
 
 Folding does not shrink the fetch, so a flat per-subject matrix has a hard size
