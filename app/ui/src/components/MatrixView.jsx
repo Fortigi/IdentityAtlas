@@ -1,4 +1,4 @@
-import { useMemo, useState, useReducer, useCallback, useEffect, useLayoutEffect, useRef } from 'react';
+import { useMemo, useState, useReducer, useCallback, useEffect, useRef } from 'react';
 
 // useState-equivalent backed by useReducer (supports value + functional
 // updates): dispatch isn't flagged by react-hooks/set-state-in-effect, so the
@@ -8,6 +8,7 @@ import { useAuth } from '@ui/auth/AuthGate';
 import { useMatrixRowOrder } from '@ui/hooks/useMatrixRowOrder';
 import { useNestedGroupExpand, MAX_NEST_LEVEL } from '@ui/hooks/useNestedGroupExpand';
 import { useBusinessRoleFold } from '@ui/hooks/useBusinessRoleFold';
+import useViewportFitHeight from '@ui/hooks/useViewportFitHeight';
 import MatrixToolbar from './matrix/MatrixToolbar';
 import MatrixLegend from './matrix/MatrixLegend';
 import MatrixFilterSummary from './matrix/MatrixFilterSummary';
@@ -930,44 +931,9 @@ export default function MatrixView({
   const filterIsApplied = filter !== null && filter !== undefined;
 
   // Cap the grid's height to the remaining viewport so ONLY the grid scrolls,
-  // never the page too. A fixed viewport-minus-fixed-pixels max-height guesses
-  // the chrome height; the real chrome (auth banner + scope stats + "How to
-  // read") is taller, so the grid sat too low and the page got a second
-  // scrollbar. Measure the grid's real document-top instead and re-measure on
-  // any layout change (header content loads late, panels toggle).
+  // never the page too.
   const rootRef = useRef(null);
-  const [gridMaxH, setGridMaxH] = useState(null);
-  useLayoutEffect(() => {
-    const measure = () => {
-      const el = scrollRef.current;
-      if (!el) return;
-      // Reserve room for the app footer (below <main>) + main's bottom padding.
-      const footer = document.querySelector('footer');
-      const below = (footer ? footer.getBoundingClientRect().height : 0) + 28;
-      // clientHeight = real layout height; document-relative top (rect.top is
-      // viewport-relative, so a scrolled page would read too small and cap the
-      // grid too tall — a self-sustaining overflow). scrollY corrects that.
-      const vh = document.documentElement.clientHeight;
-      const gridTop = el.getBoundingClientRect().top + window.scrollY;
-      // Fit the grid into the remaining viewport so ONLY the grid scrolls. Use
-      // the available space directly (so the page never gets a second
-      // scrollbar); a fixed 240px floor on a short viewport with tall chrome
-      // (e.g. gridTop ~530 on an 800px viewport leaves ~206px) overflowed the
-      // page by ~30px. A small 160px floor keeps the grid usable without
-      // re-introducing the overflow in any realistic viewport.
-      const avail = vh - gridTop - below;
-      setGridMaxH(Math.max(160, avail));
-    };
-    measure();
-    const raf = requestAnimationFrame(measure);
-    window.addEventListener('resize', measure);
-    let ro;
-    if (typeof ResizeObserver !== 'undefined') {
-      ro = new ResizeObserver(measure); // body: anything above the grid shifts it down
-      ro.observe(document.body);
-    }
-    return () => { cancelAnimationFrame(raf); window.removeEventListener('resize', measure); if (ro) ro.disconnect(); };
-  }, [filterIsApplied, users.length]);
+  const gridMaxH = useViewportFitHeight(scrollRef, [filterIsApplied, users.length]);
 
   return (
     <div ref={rootRef} className="flex flex-col gap-3">

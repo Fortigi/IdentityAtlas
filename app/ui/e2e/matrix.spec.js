@@ -426,18 +426,24 @@ test.describe('Matrix — fold business-role resources', () => {
 // the chrome height. The real chrome (auth banner + scope-statistics + "How to
 // read") is taller, so the grid was too tall and the PAGE got a second
 // scrollbar next to the grid's own (measured ~310px page overflow). The fix
-// measures the remaining viewport and caps the grid to fit, so only the grid
-// scrolls. This test renders a tall grid (all data) and asserts the page itself
-// does not overflow.
+// measures the space really left below the grid and caps it to fit — and when
+// less than a usable grid is left, drops the cap so the page is the single
+// scroller instead. Either way exactly one of the two scrolls.
 test.describe('Matrix — no double scrollbar', () => {
   test.setTimeout(90000);
 
-  test('the page does not scroll when the grid does (only one scrollbar)', async ({ page }) => {
-    // A viewport tall enough that the fix has room (it floors the grid at 240px),
-    // but where a full-data grid is far taller than the space left for it — so
-    // the OLD fixed cap would push the page past the viewport.
-    await page.setViewportSize({ width: 1280, height: 800 });
+  // Measures which of the two scrolls: the grid (internally) or the page.
+  const readScrollState = (page) => page.evaluate(() => {
+    const de = document.documentElement;
+    const gridScrolls = [...document.querySelectorAll('div')].some((el) => {
+      const s = getComputedStyle(el);
+      return /auto|scroll/.test(s.overflowY) && el.scrollHeight > el.clientHeight + 2;
+    });
+    // A few px of slack for sub-pixel rounding.
+    return { pageScrolls: de.scrollHeight - de.clientHeight > 4, gridScrolls };
+  });
 
+  async function openFullMatrix(page) {
     // Apply an all-data filter directly via the hash (resources as rows → many
     // rows → a grid taller than the viewport). Bypasses the wizard.
     const filter = {
@@ -452,32 +458,41 @@ test.describe('Matrix — no double scrollbar', () => {
     // Need the grid to actually render. If it doesn't (no demo data in this
     // environment), the scrollbar path can't be exercised — skip rather than
     // fail on an unrelated data condition.
-    const table = page.locator('table').first();
     try {
-      await expect(table).toBeVisible({ timeout: 40000 });
+      await expect(page.locator('table').first()).toBeVisible({ timeout: 40000 });
     } catch {
-      test.skip(true, 'matrix grid did not render (no data) — cannot exercise the scrollbar path');
-      return;
+      return false;
     }
     await page.waitForTimeout(1500); // let the height-measuring effect settle
+    return true;
+  }
 
-    const m = await page.evaluate(() => {
-      const de = document.documentElement;
-      // The grid is the lone vertical-overflow scroll container.
-      const gridScrolls = [...document.querySelectorAll('div')].some((el) => {
-        const s = getComputedStyle(el);
-        return /auto|scroll/.test(s.overflowY) && el.scrollHeight > el.clientHeight + 2;
-      });
-      return { pageOverflow: de.scrollHeight - de.clientHeight, gridScrolls };
-    });
+  test('the grid and the page never scroll at the same time', async ({ page }) => {
+    // Short viewport + the "How to read this matrix" panel open: the chrome eats
+    // most of the window, which is exactly the case the old fixed cap got wrong.
+    await page.setViewportSize({ width: 1280, height: 800 });
+    test.skip(!await openFullMatrix(page), 'matrix grid did not render (no data)');
 
-    if (!m.gridScrolls) {
-      test.skip(true, 'grid is not taller than the viewport in this dataset — nothing to assert');
-      return;
-    }
+    const m = await readScrollState(page);
+    expect(m.gridScrolls && m.pageScrolls, 'only one of grid/page may scroll').toBe(false);
+    // Something must scroll — a full-data grid cannot fit an 800px window. This
+    // keeps the assertion above from passing vacuously.
+    expect(m.gridScrolls || m.pageScrolls, 'the full-data matrix must scroll somewhere').toBe(true);
+  });
 
-    // The grid scrolls internally; the page must NOT (a few px of slack for
-    // sub-pixel rounding). On the old fixed-cap code this overflowed by ~200px.
-    expect(m.pageOverflow, 'page should not scroll when only the grid does').toBeLessThanOrEqual(4);
+  test('with room for the grid, only the grid scrolls', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    test.skip(!await openFullMatrix(page), 'matrix grid did not render (no data)');
+
+    // Collapse the legend to free the ~270px that keeps the grid from getting a
+    // usable height. The measuring hook re-measures and caps the grid.
+    const legend = page.getByRole('button', { name: /How to read this matrix/i }).first();
+    await expect(legend).toBeVisible({ timeout: 20000 });
+    if (await legend.getAttribute('aria-expanded') === 'true') await legend.click();
+    await page.waitForTimeout(1000);
+
+    const m = await readScrollState(page);
+    expect(m.gridScrolls, 'the grid should scroll internally').toBe(true);
+    expect(m.pageScrolls, 'the page should not scroll when the grid does').toBe(false);
   });
 });

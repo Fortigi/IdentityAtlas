@@ -1,0 +1,10 @@
+import { chromium } from '@playwright/test';
+const b = await chromium.launch();
+const p = await b.newPage({ viewport: { width: 1280, height: 800 } });
+const filter = { rowType:'principal', orientation:'rows-as-resources', subject:{include:[],exclude:[]}, resource:{include:[],exclude:[]} };
+await p.goto('http://localhost:5173/#matrix?filter=' + encodeURIComponent(JSON.stringify(filter)));
+await p.waitForLoadState('networkidle');
+await p.locator('table').first().waitFor({ timeout: 40000 });
+await p.waitForTimeout(2000);
+await p.screenshot({ path: '/tmp/matrix-800.png', fullPage: true });
+await b.close();
