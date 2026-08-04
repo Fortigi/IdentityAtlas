@@ -190,11 +190,13 @@ describe('collectFoldedChildRows', () => {
 
 describe('markRoleChildren', () => {
   const childrenByRole = buildRoleChildMap(AP_GROUPS);
-  const { foldableRoles, rolesByChild } = analyseRoleRows(ROWS, childrenByRole);
+  const { foldableRoles, rolesByChild, roleNames } = analyseRoleRows(ROWS, childrenByRole);
   const parents = (rows) => rows.map((r) => r.roleParentId || null);
+  const mark = (rows, roles = foldableRoles) => markRoleChildren(rows, roles, rolesByChild, roleNames);
+  const owners = (rows) => rows.map((r) => (r.roleOwners || []).map((o) => o.name));
 
   it('marks the resources sitting directly under the role that grants them', () => {
-    const marked = markRoleChildren(ROWS, foldableRoles, rolesByChild);
+    const marked = mark(ROWS);
     expect(ids(marked)).toEqual(ids(ROWS));
     expect(parents(marked)).toEqual([null, 'BR1', 'BR1', null, 'BR2', null]);
   });
@@ -202,7 +204,7 @@ describe('markRoleChildren', () => {
   it('does not indent a resource that is not adjacent to one of its roles', () => {
     // G1 has drifted below G4, away from BR1's block.
     const rows = [{ id: 'BR1' }, { id: 'G4' }, { id: 'G1' }];
-    expect(parents(markRoleChildren(rows, foldableRoles, rolesByChild))).toEqual([null, null, null]);
+    expect(parents(mark(rows))).toEqual([null, null, null]);
   });
 
   it('carries the marking onto a child row\'s own nested sub-rows', () => {
@@ -213,13 +215,44 @@ describe('markRoleChildren', () => {
       { id: 'G4' },
       { id: 'G4__nested__Y', isNestedRow: true, nestLevel: 1 },
     ];
-    expect(parents(markRoleChildren(rows, foldableRoles, rolesByChild)))
-      .toEqual([null, 'BR1', 'BR1', null, null]);
+    expect(parents(mark(rows))).toEqual([null, 'BR1', 'BR1', null, null]);
   });
 
   it('returns the rows untouched when nothing can be marked', () => {
-    expect(markRoleChildren(ROWS, new Set(), rolesByChild)).toBe(ROWS);
-    expect(markRoleChildren([{ id: 'G4' }], foldableRoles, rolesByChild)).toHaveLength(1);
+    expect(markRoleChildren(ROWS, new Set(), rolesByChild, roleNames)).toBe(ROWS);
+    expect(mark([{ id: 'G4' }])).toHaveLength(1);
+  });
+
+  // Rows keep whatever position the user drags them to, so "which role does
+  // this group belong to?" must be answerable from the row itself.
+  it('names the granting role on a resource that was moved away from it', () => {
+    const rows = [{ id: 'BR1', displayName: 'Business Role 1' }, { id: 'G4' }, { id: 'G1' }];
+    const marked = mark(rows);
+    expect(owners(marked)).toEqual([[], [], ['Business Role 1']]);
+    expect(marked[2].roleGrantedBy).toBe('Business Role 1');
+  });
+
+  it('does not repeat the role a resource already sits under', () => {
+    const marked = mark(ROWS);
+    const byId = new Map(marked.map((r) => [r.id, r]));
+    expect(byId.get('G1').roleOwners).toBeUndefined();
+    // G2 sits under BR1 but is granted by BR2 as well — that one still needs saying.
+    expect(byId.get('G2').roleOwners.map((o) => o.name)).toEqual(['Business Role 2']);
+    expect(byId.get('G2').roleGrantedBy).toBe('Business Role 1, Business Role 2');
+  });
+
+  it('falls back to the role id when the role row has no display name', () => {
+    const rows = [{ id: 'BR1' }, { id: 'G4' }, { id: 'G1' }];
+    const nameless = analyseRoleRows(rows, childrenByRole);
+    const marked = markRoleChildren(rows, nameless.foldableRoles, nameless.rolesByChild, nameless.roleNames);
+    expect(marked[2].roleOwners).toEqual([{ id: 'BR1', name: 'BR1' }]);
+  });
+
+  it('says nothing about a resource no role in the grid grants', () => {
+    const marked = mark(ROWS);
+    const g4 = marked.find((r) => r.id === 'G4');
+    expect(g4.roleOwners).toBeUndefined();
+    expect(g4.roleGrantedBy).toBeUndefined();
   });
 });
 
@@ -248,6 +281,15 @@ describe('useBusinessRoleFold', () => {
     expect(byId.get('G1').roleParentId).toBe('BR1');
     expect(byId.get('G3').roleParentId).toBe('BR2');
     expect(byId.get('G4').roleParentId).toBeUndefined();
+  });
+
+  it('names the granting role on a resource the user dragged away from it', () => {
+    // G1 moved to the bottom of the grid, out of BR1's block.
+    const rows = ROWS.filter((r) => r.id !== 'G1').concat(ROWS.find((r) => r.id === 'G1'));
+    const { result } = render({ rows });
+    const g1 = result.current.visibleRows.find((r) => r.id === 'G1');
+    expect(g1.roleParentId).toBeUndefined();
+    expect(g1.roleOwners).toEqual([{ id: 'BR1', name: 'Business Role 1' }]);
   });
 
   it('reports the rows each folded role took away', () => {

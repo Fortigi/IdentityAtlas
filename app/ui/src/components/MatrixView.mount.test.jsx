@@ -65,6 +65,22 @@ const roleProps = {
   ],
 };
 
+// The same matrix plus Carol, who holds the role but not the resource it grants
+// — the "fewer than the role assigns" side. Its own filter, so the fold state a
+// previous test persisted (per filter) can't carry into it.
+const driftProps = {
+  ...roleProps,
+  data: [
+    ...makeRoleData(),
+    { memberId: 'u3', memberDisplayName: 'Carol Sales', department: 'Sales', memberType: 'User', resourceId: 'br-1', resourceDisplayName: 'HR Manager Role', resourceType: 'BusinessRole', membershipType: 'Direct' },
+  ],
+  managedByPackages: [
+    ...roleProps.managedByPackages,
+    { resourceId: 'res-1', memberId: 'u3', accessPackageIds: ['br-1'] },
+    { resourceId: 'br-1', memberId: 'u3', accessPackageIds: ['br-1'] },
+  ],
+};
+
 const rowLabels = () =>
   screen.queryAllByTestId('row-label').filter(el => el.isConnected).map(el => el.textContent);
 
@@ -326,6 +342,31 @@ describe('MatrixView (mounted)', () => {
     expect(body.props.roleExtraCounts.get('BR-1|u1')).toBeUndefined();
     // Bob's Indirect membership on the same resource is not covered by it.
     expect(body.props.roleExtraCounts.get('BR-1|u2')).toBe(1);
+  });
+
+  // Requestor feedback on #370: folding must summarise both directions of drift
+  // — Carol holds the role but not the resource it grants (fewer), while Bob
+  // holds that resource without the role (more).
+  it('tallies what a folded role assigns that the subject does not have', async () => {
+    renderView({ ...driftProps, filter: { ...baseFilter, sortAttributes: [{ attribute: 'jobTitle', dir: 'asc' }] } });
+    const user = userEvent.setup();
+    await expectRowVisible('Finance App');
+    expect(body.props.roleMissingCounts).toBeNull();
+
+    await user.click(await screen.findByText('Fold roles'));
+    await waitFor(() => expect(body.props.roleMissingCounts).not.toBeNull());
+    expect(body.props.roleMissingCounts.get('BR-1|u3')).toBe(1);
+    expect(body.props.roleMissingCounts.get('BR-1|u1')).toBeUndefined();
+    // ...and the opposite drift is still counted in the same folded row.
+    expect(body.props.roleExtraCounts.get('BR-1|u2')).toBe(1);
+  });
+
+  it('keeps only the rows a subject is short on in the Gaps view', async () => {
+    renderView({ ...driftProps, managedFilter: 'gaps' });
+    // Carol holds the role but not the resource it grants — the only gap here.
+    await expectRowVisible('Finance App');
+    expect(rowLabels()).not.toContain('HR Portal');     // no role covers it
+    expect(rowLabels()).not.toContain('HR Manager Role'); // everyone holding it has it
   });
 
   it('offers no fold controls in a matrix without business-role rows', async () => {

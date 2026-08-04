@@ -15,6 +15,7 @@ import MatrixScopePanel from './matrix/MatrixScopePanel';
 import MatrixColumnHeaders from './matrix/MatrixColumnHeaders';
 import { makeUserComparator, buildSortKeys } from './matrix/sortUsers';
 import MatrixGroupRow from './matrix/MatrixGroupRow';
+import { buildRoleDeviationCounts, cellDeviation, NO_ROLE_DEVIATIONS } from './matrix/coverageDeviation';
 
 // Inline arrayMove so MatrixView doesn't depend on @dnd-kit
 function arrayMove(arr, from, to) {
@@ -654,22 +655,15 @@ export default function MatrixView({
       });
       if (groupAps.length === 0) return false;
 
+      // A row is a gap row when some subject is short of what a role covering
+      // this cell assigns — the same comparison the cell markers use, so the
+      // Gaps view and the amber "!" can never disagree.
       const groupApIdSetLower = new Set(groupAps.map(ap => ap.id.toLowerCase()));
       return users.some(user => {
         const cellKeyLower = `${realGid.toLowerCase()}|${user.id.toLowerCase()}`;
-        const userApIds = (managedApMap?.get(cellKeyLower) || []).filter(id => groupApIdSetLower.has(id));
-        if (userApIds.length === 0) return false;
-
-        const cellKey = `${group.id}|${user.id}`;
-        const cellTypes = displayMemberships.get(cellKey);
-        return userApIds.some(apId => {
-          const apObj = groupAps.find(a => a.id.toLowerCase() === apId);
-          const role = apObj ? (apGroupMap?.get(`${lookupGid}|${apObj.id.toLowerCase()}`) || 'Member') : 'Member';
-          const lower = role.toLowerCase();
-          if (lower.includes('owner')) return !cellTypes?.has('Owner');
-          if (lower.includes('eligible')) return !cellTypes?.has('Eligible');
-          return !cellTypes?.has('Direct');
-        });
+        const apIds = (managedApMap?.get(cellKeyLower) || []).filter(id => groupApIdSetLower.has(id));
+        const types = displayMemberships.get(`${group.id}|${user.id}`);
+        return cellDeviation({ types, apIds, apGroupMap, resourceKey: lookupGid }).missing.length > 0;
       });
     });
   }, [displayGroups, managedFilter, accessPackages, apGroupMap, users, managedApMap, displayMemberships]);
@@ -839,31 +833,15 @@ export default function MatrixView({
     return counts;
   }, [colMemberships, userToAgg, collapsedGroups]);
 
-  // Per (folded role, subject column): how many of the rows that role folded
-  // away carry access the role itself does NOT grant. Folding a role otherwise
-  // hides exactly what a role-mining review is looking for — the grants a role
-  // does not account for — so the folded row keeps a count of them. Coverage
-  // comes from managedApMap (the server's business-role → cell mapping), never
-  // from a client-side guess at what a role ought to grant.
-  const roleExtraCounts = useMemo(() => {
-    if (foldedChildRows.size === 0) return null;
-    const counts = new Map();
-    for (const [roleId, hiddenRows] of foldedChildRows) {
-      const roleIdLower = roleId.toLowerCase();
-      for (const row of hiddenRows) {
-        const realGid = (row.realGroupId || row.id).toLowerCase();
-        for (const u of users) {
-          const types = colMemberships.get(`${row.id}|${u.id}`);
-          if (!types || types.size === 0) continue;
-          if (managedApMap.get(`${realGid}|${u.id.toLowerCase()}`)?.includes(roleIdLower)) continue;
-          // A folded subject column carries the tally of everyone behind it.
-          const key = `${roleId}|${userToAgg.get(u.id) || u.id}`;
-          counts.set(key, (counts.get(key) || 0) + 1);
-        }
-      }
-    }
-    return counts;
-  }, [foldedChildRows, users, colMemberships, managedApMap, userToAgg]);
+  // Per (folded role, subject column): how the rows a role folded away deviate
+  // from what the role assigns — more than it grants (red) and fewer (amber).
+  // Folding a role otherwise hides exactly what a role-mining review is looking
+  // for, in both directions, so the folded row keeps both counts. Coverage comes
+  // from managedApMap (the server's business-role → cell mapping), never from a
+  // client-side guess at what a role ought to grant.
+  const roleDeviations = useMemo(() => buildRoleDeviationCounts({
+    foldedChildRows, users, memberships: colMemberships, managedApMap, apGroupMap, userToAgg,
+  }) || NO_ROLE_DEVIATIONS, [foldedChildRows, users, colMemberships, managedApMap, apGroupMap, userToAgg]);
 
   // Fold every top-level (first sort attribute) group into one aggregate column;
   // unfold clears all collapses. There's something to fold only when the first
@@ -1070,7 +1048,8 @@ export default function MatrixView({
               foldableRoles={foldableRoles}
               foldedRoles={foldedRoles}
               roleChildCounts={roleChildCounts}
-              roleExtraCounts={roleExtraCounts}
+              roleExtraCounts={roleDeviations.extra}
+              roleMissingCounts={roleDeviations.missing}
               onToggleRoleFold={toggleRoleFold}
             />
           ) : (
@@ -1100,7 +1079,8 @@ export default function MatrixView({
                     foldableRoles={foldableRoles}
                     foldedRoles={foldedRoles}
                     roleChildCounts={roleChildCounts}
-                    roleExtraCounts={roleExtraCounts}
+                    roleExtraCounts={roleDeviations.extra}
+                    roleMissingCounts={roleDeviations.missing}
                     onToggleRoleFold={toggleRoleFold}
                   />
                 ))}

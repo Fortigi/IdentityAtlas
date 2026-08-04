@@ -185,14 +185,65 @@ Rules worth knowing:
   adjacent to the children it folds away — and those resources are drawn as its
   children (indented, with the elbow). A resource that is *not* adjacent to one
   of its roles stays a plain top-level row rather than being indented under an
-  unrelated one.
-- **A folded role says how much it is hiding that it does not grant.** Per
-  subject column, the folded row carries a red count of the folded resources
-  that subject holds *outside* this role. Folding is a summary, never a
-  cover-up: the access a role does not account for — exactly what role mining is
-  looking for — stays on screen. Coverage comes from the server's business-role
-  mapping (`managedByPackages`), not from a client-side guess at what a role
-  ought to grant.
+  unrelated one — it **names its role on the row instead** (see below).
+- **A folded role says how much it is hiding that it does not grant, and how
+  much it grants that isn't there.** Per subject column, the folded row carries
+  a red count bottom-right (folded resources the subject holds outside this
+  role) and an amber count bottom-left (folded resources the role assigns that
+  the subject does not have). Folding is a summary, never a cover-up — in
+  either direction. Coverage comes from the server's business-role mapping
+  (`managedByPackages`), not from a client-side guess at what a role ought to
+  grant.
+
+### Which business role does this row belong to?
+
+Rows are draggable and **keep the position they are dropped in**, so a resource
+can easily end up far from — or above — the business role that grants it. The
+indent + elbow then stops being an answer, so the row carries one of its own:
+
+- Every resource row a business role grants states its role(s) in the row
+  tooltip (`Granted by business role: …`), whatever position it sits in.
+- A row that is *not* drawn directly under one of its granting roles also shows
+  that role's name as a chip next to the resource name; clicking it opens the
+  role. Where a row *is* drawn under its role, the chip is omitted (the layout
+  already says it) — except for any *other* role that also grants it, which is
+  still named.
+
+Both come from `markRoleChildren` in
+[`useBusinessRoleFold.js`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/ui/src/hooks/useBusinessRoleFold.js),
+off the same `Contains` data the fold uses.
+
+### Fewer and more than the role assigns
+
+A business role states what a subject should have (SOLL); the assignments state
+what they do have (IST). The grid marks both directions of drift, and a subject
+can carry both at once — short on one resource of a role, over on another:
+
+| Deviation | Where it shows | Marker |
+|---|---|---|
+| **Fewer** — the role assigns a membership the subject does not have | On the resource's own cell | Amber `!` top-left (the provisioning gap), tooltip naming the expected type |
+| **Fewer**, while the role is folded | On the folded role's cell | Amber count bottom-left |
+| **More** — the role grants *eligibility* (`roleName` contains "Eligible") but the subject holds a standing membership | On the resource's own cell | Red `+` bottom-right |
+| **More**, while the role is folded | On the folded role's cell | Red count bottom-right (also counts folded resources held with no coverage from this role at all) |
+
+The comparison lives in
+[`matrix/coverageDeviation.js`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/ui/src/components/matrix/coverageDeviation.js)
+and reads only what the server already states: the `Contains` edge's `roleName`
+(what the role assigns, delivered with `GET /api/access-package-groups`) and the
+coverage matview (which cells a role covers for which subject). Two deliberate
+asymmetries:
+
+- **Fewer means "does not have it at all".** Holding a resource eligibly rather
+  than actively is a legitimate way to hold what a role assigns, so it is not
+  reported as an under-grant — otherwise every PIM-eligible role holder would
+  light up.
+- **More means standing access where only eligibility was granted.** `Direct`
+  and `Indirect` are both standing access — the difference between them is
+  *how* the subject holds it, not *how much*, so an inherited membership is
+  neither more nor less than a direct one.
+
+`docs/architecture/demo-dataset.md` → "Fewer and more than the role assigns"
+describes the demo data that exercises every row of the table above.
 
 ### A business role's own row
 

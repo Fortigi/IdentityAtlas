@@ -70,4 +70,39 @@ describe('MatrixCell', () => {
       expect(td.querySelector('.bg-rose-600')).toBeNull();
     });
   });
+
+  // Requestor feedback on #370: over-granting was visible, under-granting was
+  // not — and one subject can be short on one resource of a role and over on
+  // another, so both must be able to show at once.
+  describe('fewer than the business role assigns', () => {
+    it('counts it on a folded role\'s cell and explains it', () => {
+      const td = renderCell({ missingAccessCount: 2 });
+      expect(screen.getByText('2')).toBeInTheDocument();
+      expect(td.getAttribute('title')).toContain('2 assignments on the folded resources that this business role assigns');
+      expect(td).toHaveStyle({ position: 'relative' });
+    });
+
+    it('shows the fewer and the more count side by side on one cell', () => {
+      const td = renderCell({ missingAccessCount: 1, extraAccessCount: 3 });
+      expect(td.querySelector('.bg-amber-500')).toHaveTextContent('1');
+      expect(td.querySelector('.bg-rose-600')).toHaveTextContent('3');
+      expect(td.getAttribute('title')).toContain('does not grant');
+      expect(td.getAttribute('title')).toContain('but this subject does not have');
+    });
+  });
+
+  describe('more than the business role assigns, on one cell', () => {
+    it('marks a standing membership where the role grants eligibility', () => {
+      const td = renderCell({ membershipTypes: types('Direct'), managed: true, overGrant: 'Eligible' });
+      expect(screen.getByText('+')).toBeInTheDocument();
+      expect(td.getAttribute('title')).toContain('More than the business role assigns');
+      expect(td.getAttribute('title')).toContain('Eligible');
+    });
+
+    it('yields the corner to the folded-role count so the two never overlap', () => {
+      const td = renderCell({ membershipTypes: types('Direct'), overGrant: 'Eligible', extraAccessCount: 2 });
+      expect(screen.queryByText('+')).toBeNull();
+      expect(td.querySelector('.bg-rose-600')).toHaveTextContent('2');
+    });
+  });
 });

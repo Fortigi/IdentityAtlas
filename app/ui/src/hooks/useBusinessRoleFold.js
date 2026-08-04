@@ -84,6 +84,16 @@ function linkRoleChildren(roleId, children, rowIds, rolesByChild) {
   return n;
 }
 
+// Display name of every row, keyed by resource id — so a resource can name the
+// business role that grants it without a second lookup table.
+function rowNames(rows) {
+  const names = new Map();
+  for (const row of rows || []) {
+    if (!row.isNestedRow) names.set(rowResourceKey(row), row.displayName || row.id);
+  }
+  return names;
+}
+
 // Which roles in the grid can be folded, how many rows each one folds away, and
 // — per contained resource — the roles that are actually present as rows.
 // D4: a role with no row of its own gets no fold affordance and hides nothing,
@@ -98,7 +108,12 @@ export function analyseRoleRows(rows, childrenByRole) {
     const n = linkRoleChildren(roleId, children, rowIds, rolesByChild);
     if (n > 0) childCounts.set(roleId, n);
   }
-  return { foldableRoles: new Set(childCounts.keys()), rolesByChild, childCounts };
+  return {
+    foldableRoles: new Set(childCounts.keys()),
+    rolesByChild,
+    childCounts,
+    roleNames: rowNames(rows),
+  };
 }
 
 // A contained resource is hidden only when EVERY business role that grants it and
@@ -146,42 +161,70 @@ export function collectFoldedChildRows(rows, rolesByChild, folded) {
   return byRole;
 }
 
+// The roles granting a resource that its own row does not already sit under,
+// as [{id, name}] — what the row has to say for itself once position stops
+// answering the question. Rows are draggable and keep their new position, so a
+// resource can be moved away from (or above) the role that grants it; the
+// answer therefore has to live on the row, not in the layout.
+function detachedOwners(key, rolesByChild, roleNames, parentId) {
+  const owners = [];
+  for (const id of rolesByChild.get(key) || []) {
+    if (id === parentId) continue;
+    owners.push({ id, name: roleNames?.get(id) || id });
+  }
+  return owners;
+}
+
+// Mark up one resource row: the role it is drawn beneath (adjacent, so it gets
+// the indent + elbow) and the granting roles it is NOT beneath (named on the
+// row itself). `roleGrantedBy` lists every granting role for the row tooltip,
+// so the question is answerable from any position.
+function markResourceRow(row, key, rolesByChild, roleNames, parentId) {
+  const roles = rolesByChild.get(key);
+  if (!roles?.size) return row;
+  const owners = detachedOwners(key, rolesByChild, roleNames, parentId);
+  const marked = { ...row, roleGrantedBy: [...roles].map(id => roleNames?.get(id) || id).join(', ') };
+  if (parentId) marked.roleParentId = parentId;
+  if (owners.length) marked.roleOwners = owners;
+  return marked;
+}
+
 // Mark the resources that sit directly beneath the business role granting them
 // (the AP staircase puts them there) so the grid can render them as that role's
 // children — the same indent + elbow an expanded nested group already uses. A
 // resource that is not adjacent to one of its roles stays a plain top-level row
-// rather than being indented under an unrelated one.
-export function markRoleChildren(rows, foldableRoles, rolesByChild) {
+// rather than being indented under an unrelated one, and carries the name of
+// the role(s) that grant it instead.
+export function markRoleChildren(rows, foldableRoles, rolesByChild, roleNames) {
   if (!foldableRoles || foldableRoles.size === 0) return rows;
   const out = [];
-  let roleId = null;      // the role block we are currently inside
-  let underChild = false; // the last top-level row was one of its resources
+  // Where the walk currently stands: the role block we are inside, and the role
+  // the last top-level row was drawn under.
+  const pos = { roleId: null, childOf: null };
   let marked = false;
   for (const row of rows) {
-    if (row.isNestedRow) {
-      // Sub-rows follow the row they were expanded from, so they inherit its
-      // place in the role block.
-      out.push(underChild ? { ...row, roleParentId: roleId } : row);
-      continue;
-    }
-    const key = rowResourceKey(row);
-    if (foldableRoles.has(key)) {
-      roleId = key;
-      underChild = false;
-      out.push(row);
-      continue;
-    }
-    if (roleId && rolesByChild.get(key)?.has(roleId)) {
-      underChild = true;
-      marked = true;
-      out.push({ ...row, roleParentId: roleId });
-      continue;
-    }
-    roleId = null;
-    underChild = false;
-    out.push(row);
+    const next = markOneRow(row, { foldableRoles, rolesByChild, roleNames }, pos);
+    if (next !== row) marked = true;
+    out.push(next);
   }
   return marked ? out : rows;
+}
+
+// One row of that walk: advances `pos` and returns the row as it should render.
+function markOneRow(row, { foldableRoles, rolesByChild, roleNames }, pos) {
+  // Sub-rows follow the row they were expanded from, so they inherit its place
+  // in the role block.
+  if (row.isNestedRow) return pos.childOf ? { ...row, roleParentId: pos.childOf } : row;
+
+  const key = rowResourceKey(row);
+  if (foldableRoles.has(key)) {
+    pos.roleId = key;
+    pos.childOf = null;
+    return row;
+  }
+  pos.childOf = pos.roleId && rolesByChild.get(key)?.has(pos.roleId) ? pos.roleId : null;
+  if (!pos.childOf) pos.roleId = null;
+  return markResourceRow(row, key, rolesByChild, roleNames, pos.childOf);
 }
 
 /**
@@ -205,7 +248,7 @@ export function useBusinessRoleFold({ accessPackageGroups, rows, storageKey }) {
   }
 
   const childrenByRole = useMemo(() => buildRoleChildMap(accessPackageGroups), [accessPackageGroups]);
-  const { foldableRoles, rolesByChild, childCounts } = useMemo(
+  const { foldableRoles, rolesByChild, childCounts, roleNames } = useMemo(
     () => analyseRoleRows(rows, childrenByRole), [rows, childrenByRole]);
 
   const applyFolds = useCallback((next) => {
@@ -225,8 +268,8 @@ export function useBusinessRoleFold({ accessPackageGroups, rows, storageKey }) {
   const unfoldAllRoles = useCallback(() => applyFolds(new Set()), [applyFolds]);
 
   const visibleRows = useMemo(
-    () => markRoleChildren(hideFoldedRows(rows, rolesByChild, foldedRoles), foldableRoles, rolesByChild),
-    [rows, rolesByChild, foldedRoles, foldableRoles]);
+    () => markRoleChildren(hideFoldedRows(rows, rolesByChild, foldedRoles), foldableRoles, rolesByChild, roleNames),
+    [rows, rolesByChild, foldedRoles, foldableRoles, roleNames]);
 
   const foldedChildRows = useMemo(
     () => collectFoldedChildRows(rows, rolesByChild, foldedRoles), [rows, rolesByChild, foldedRoles]);

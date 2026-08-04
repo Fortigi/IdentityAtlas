@@ -34,4 +34,16 @@ describe('MatrixLegend', () => {
     expect(html).toContain('folded business role');
     expect(html).toContain('outside the role');
   });
+
+  // Feedback on #370: over-granting was explained, under-granting was not, and
+  // the two can occur together on one subject.
+  it('explains fewer permissions than the role assigns, in both views', () => {
+    expect(html).toContain('More than the role assigns');
+    expect(html).toContain('the role assigns this subject but they do not have');
+    expect(html).toContain('both counts at once');
+  });
+
+  it('explains the chip naming the business role a moved row belongs to', () => {
+    expect(html).toContain('named on the row itself');
+  });
 });

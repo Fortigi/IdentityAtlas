@@ -16,6 +16,7 @@
       DemoEntraBase.ps1      — Entra groups / directory roles / app roles / ownership
       DemoGovernance.ps1     — IGA catalogs, business roles, policies, certifications
       DemoSalesScenario.ps1  — the Sales role-mining scenario (flags 1-7)
+      DemoRoleDrift.ps1      — holders with fewer / more access than their role assigns
       DemoConsent.ps1        — OAuth consent + shadow IT (flags 11-12)
       DemoSap.ps1            — the SAP ERP system (flag 8)
       DemoAzure.ps1          — the AzureRM system (flag 10)
@@ -39,7 +40,7 @@ if (-not $OutputPath) { $OutputPath = Join-Path $PSScriptRoot 'demo-company.json
 $partsDir = Join-Path $PSScriptRoot 'parts'
 foreach ($part in @(
     'DemoState.ps1', 'DemoOrg.ps1', 'DemoEntraBase.ps1', 'DemoGovernance.ps1',
-    'DemoSalesScenario.ps1', 'DemoConsent.ps1', 'DemoSap.ps1', 'DemoAzure.ps1'
+    'DemoSalesScenario.ps1', 'DemoRoleDrift.ps1', 'DemoConsent.ps1', 'DemoSap.ps1', 'DemoAzure.ps1'
 )) {
     . (Join-Path $partsDir $part)
 }
@@ -52,6 +53,7 @@ Add-DemoOrg           $state
 Add-DemoEntraBase     $state
 Add-DemoGovernance    $state
 Add-DemoSalesScenario $state
+Add-DemoRoleDrift     $state
 Add-DemoConsent       $state
 Add-DemoSap           $state
 Add-DemoAzure         $state

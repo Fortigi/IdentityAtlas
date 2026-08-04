@@ -116,6 +116,85 @@ describe('MatrixGroupRow — a resource shown under the role that grants it', ()
   });
 });
 
+describe('MatrixGroupRow — which business role a resource belongs to', () => {
+  const owners = [{ id: 'BR1', name: 'HR Manager BR' }];
+
+  it('names the granting role on a row that was moved away from it', async () => {
+    const onOpenDetail = vi.fn();
+    renderRow(
+      { id: 'G1', displayName: 'Finance Group', memberCount: 2, roleOwners: owners, roleGrantedBy: 'HR Manager BR' },
+      { onOpenDetail },
+    );
+    const chip = screen.getByRole('button', { name: 'HR Manager BR' });
+    expect(chip).toHaveAttribute('title', 'Granted by business role: HR Manager BR');
+    // The chip is a way into the role itself.
+    await userEvent.setup().click(chip);
+    expect(onOpenDetail).toHaveBeenCalledWith('resource', 'BR1', 'HR Manager BR');
+  });
+
+  it('summarises several granting roles and lists them all in the tooltip', () => {
+    renderRow({
+      id: 'G2', displayName: 'Shared Group', memberCount: 2,
+      roleOwners: [...owners, { id: 'BR2', name: 'Finance BR' }],
+    });
+    const chip = screen.getByRole('button', { name: 'HR Manager BR +1' });
+    expect(chip).toHaveAttribute('title', 'Granted by business role: HR Manager BR, Finance BR');
+  });
+
+  it('answers the question from the row tooltip whatever the row\'s position', () => {
+    const { container } = renderRow({
+      id: 'G1', displayName: 'Finance Group', memberCount: 2, roleParentId: 'BR1', roleGrantedBy: 'HR Manager BR',
+    });
+    expect(container.querySelector('td[title*="Granted by business role: HR Manager BR"]')).not.toBeNull();
+    // Sitting directly under its role, the row says it by position — no chip.
+    expect(screen.queryByRole('button', { name: /HR Manager BR/ })).toBeNull();
+  });
+
+  it('leaves a resource no business role grants unlabelled', () => {
+    renderRow({ id: 'G4', displayName: 'Unmanaged Group', memberCount: 1 });
+    expect(screen.queryByRole('button', { name: /BR/ })).toBeNull();
+  });
+});
+
+describe('MatrixGroupRow — how a cell deviates from what its role assigns', () => {
+  const cellRow = { id: 'G1', displayName: 'Finance Group', memberCount: 1 };
+  const covered = {
+    managedApMap: new Map([['g1|u1', ['br1']]]),
+    apIdToIndex: new Map([['br1', 0]]),
+    accessPackages: [{ id: 'br1', displayName: 'HR Manager BR' }],
+  };
+
+  it('marks the cell when the role assigns a membership the subject lacks', () => {
+    renderRow(cellRow, { ...covered, apGroupMap: new Map([['G1|br1', 'Member']]) });
+    expect(screen.getByText('!')).toBeInTheDocument();
+  });
+
+  it('marks the cell when the subject holds permanently what the role grants just-in-time', () => {
+    renderRow(cellRow, {
+      ...covered,
+      apGroupMap: new Map([['G1|br1', 'Eligible Member']]),
+      memberships: new Map([['G1|u1', new Set(['Direct'])]]),
+    });
+    expect(screen.getByText('+')).toBeInTheDocument();
+    expect(screen.queryByText('!')).toBeNull();
+  });
+
+  it('marks nothing when the subject holds exactly what the role assigns', () => {
+    renderRow(cellRow, {
+      ...covered,
+      apGroupMap: new Map([['G1|br1', 'Member']]),
+      memberships: new Map([['G1|u1', new Set(['Direct'])]]),
+    });
+    expect(screen.queryByText('!')).toBeNull();
+    expect(screen.queryByText('+')).toBeNull();
+  });
+
+  it('marks nothing on a cell no business role covers', () => {
+    renderRow(cellRow, { apGroupMap: new Map([['G1|br1', 'Member']]) });
+    expect(screen.queryByText('!')).toBeNull();
+  });
+});
+
 describe('MatrixGroupRow — access a folded role does not grant', () => {
   const folded = {
     foldedRoles: new Set(['BR1']),
@@ -143,5 +222,42 @@ describe('MatrixGroupRow — access a folded role does not grant', () => {
       roleExtraCounts: new Map([['BR1|agg-1', 5]]),
     });
     expect(extraBadge()).toHaveTextContent('5');
+  });
+});
+
+describe('MatrixGroupRow — access a folded role assigns but the subject lacks', () => {
+  const role = { id: 'BR1', displayName: 'HR Manager BR', memberCount: 9 };
+  const missingBadge = () => screen.queryAllByTitle(/does not have/).at(-1) ?? null;
+  const extraBadge = () => screen.queryAllByTitle(/does not grant/).at(-1) ?? null;
+
+  it('counts it on the folded role row', () => {
+    renderRow(role, { foldedRoles: new Set(['BR1']), roleMissingCounts: new Map([['BR1|u1', 2]]) });
+    expect(missingBadge()).toHaveTextContent('2');
+  });
+
+  it('shows both directions of drift on the same subject at once', () => {
+    renderRow(role, {
+      foldedRoles: new Set(['BR1']),
+      roleMissingCounts: new Map([['BR1|u1', 1]]),
+      roleExtraCounts: new Map([['BR1|u1', 4]]),
+    });
+    expect(missingBadge()).toHaveTextContent('1');
+    expect(extraBadge()).toHaveTextContent('4');
+  });
+
+  it('shows nothing while the role is expanded — the rows speak for themselves', () => {
+    renderRow(role, { roleMissingCounts: new Map([['BR1|u1', 2]]) });
+    expect(missingBadge()).toBeNull();
+  });
+
+  it('tallies it on a folded subject column too', () => {
+    renderRow(role, {
+      foldedRoles: new Set(['BR1']),
+      users: [{ id: 'agg-1', isAggregateCol: true, displayName: 'Engineering' }],
+      roleMissingCounts: new Map([['BR1|agg-1', 3]]),
+      roleExtraCounts: new Map([['BR1|agg-1', 2]]),
+    });
+    expect(missingBadge()).toHaveTextContent('3');
+    expect(extraBadge()).toHaveTextContent('2');
   });
 });

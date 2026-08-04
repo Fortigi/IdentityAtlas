@@ -189,6 +189,10 @@ function Add-DemoAssignment {
     $State.Assignments.Add($rec)
 }
 
+# RoleName is the SOLL side of a Contains edge: what the business role assigns
+# on that resource. A name containing 'Eligible' means just-in-time access, any
+# other name (or none) means a standing membership — that is how the matrix
+# tells "more than the role assigns" from "exactly what it assigns".
 function Add-DemoRelationship {
     param(
         [Parameter(Mandatory)]$State,
@@ -197,13 +201,16 @@ function Add-DemoRelationship {
         [Parameter(Mandatory)]
         [ValidateSet('Contains', 'GrantsAccessTo', 'DelegatesScope', 'HasAppRole',
                      'HasOwnership', 'HasAppOwnership', 'HasApplicationPermission')]
-        [string]$RelationshipType
+        [string]$RelationshipType,
+        [string]$RoleName
     )
-    $State.Relationships.Add(@{
+    $rec = @{
         parentResourceId = $ParentResourceId
         childResourceId  = $ChildResourceId
         relationshipType = $RelationshipType
-    })
+    }
+    if ($RoleName) { $rec['roleName'] = $RoleName }
+    $State.Relationships.Add($rec)
 }
 
 function Add-DemoIdentity {

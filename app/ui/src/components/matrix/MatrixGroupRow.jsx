@@ -1,4 +1,6 @@
-﻿import MatrixCell, { ExtraAccessBadge } from './MatrixCell';
+﻿import MatrixCell from './MatrixCell';
+import { ExtraAccessBadge, MissingAccessBadge } from './CellBadges';
+import { cellDeviation, NO_DEVIATION } from './coverageDeviation';
 import { getAccessPackageColor } from '@ui/utils/colors';
 import { useIsDark } from '@ui/contexts/ThemeContext';
 
@@ -63,6 +65,28 @@ function RoleFoldToggle({ fold, onToggle }) {
   );
 }
 
+// Which business role a resource row belongs to, said on the row itself rather
+// than by where the row sits. Rows can be dragged anywhere and stay there, so a
+// resource can end up far from the role that grants it (or above it) — the
+// indent + elbow alone would then leave its role a guess. The chip is rendered
+// only when the row is NOT drawn directly under that role, so the common,
+// undisturbed case stays uncluttered.
+function RoleOwnerChip({ owners, onOpenDetail }) {
+  if (!owners?.length) return null;
+  const [first, ...rest] = owners;
+  const label = rest.length ? `${first.name} +${rest.length}` : first.name;
+  return (
+    <button
+      type="button"
+      onClick={(e) => { e.stopPropagation(); onOpenDetail?.('resource', first.id, first.name); }}
+      title={`Granted by business role: ${owners.map(o => o.name).join(', ')}`}
+      className="flex-shrink-0 ml-1 px-1 rounded text-[10px] font-medium max-w-[110px] truncate bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-700 dark:hover:bg-indigo-900/50"
+    >
+      {label}
+    </button>
+  );
+}
+
 // "N resources folded" chip on a collapsed business role row. The row's own
 // cells are untouched — folding hides rows, it never rolls access up.
 function RoleFoldChip({ fold }) {
@@ -72,6 +96,20 @@ function RoleFoldChip({ fold }) {
       {fold.count} resource{fold.count === 1 ? '' : 's'} folded
     </span>
   );
+}
+
+// The name cell's tooltip. A resource row states the business role(s) granting
+// it whatever position it has been moved to, so the answer never depends on the
+// row still sitting under its role.
+function rowTitle(group) {
+  return group.roleGrantedBy
+    ? `${group.displayName}\nGranted by business role: ${group.roleGrantedBy}`
+    : group.displayName;
+}
+
+// Sticky columns paint their own background, so it has to match the row's.
+function stickyBg(group) {
+  return group.isNestedRow ? 'bg-gray-50/60 dark:bg-gray-700/40' : 'bg-white dark:bg-gray-800';
 }
 
 export default function MatrixGroupRow({
@@ -98,6 +136,7 @@ export default function MatrixGroupRow({
   foldedRoles,
   roleChildCounts,
   roleExtraCounts,
+  roleMissingCounts,
   onToggleRoleFold,
   // Optional DnD props (provided by SortableRow wrapper)
   sortableRef,
@@ -118,16 +157,20 @@ export default function MatrixGroupRow({
   // business role is not a principal, so it is never in groupsWithNested).
   const roleFold = roleFoldState({ group, foldableRoles, foldedRoles, roleChildCounts });
 
-  // How many hidden assignments this folded role does NOT grant, per column.
+  // What the rows this folded role hides say per column: how much access it does
+  // NOT grant (more than the role assigns) and how much it assigns that the
+  // subject does not have (fewer). Both can be non-zero for the same subject.
   const extraAccessFor = (userId) =>
     (roleFold?.folded && roleExtraCounts?.get(`${roleFold.roleKey}|${userId}`)) || 0;
+  const missingAccessFor = (userId) =>
+    (roleFold?.folded && roleMissingCounts?.get(`${roleFold.roleKey}|${userId}`)) || 0;
 
   // A resource shown beneath the business role that grants it is drawn as that
   // role's child — same indent + elbow as an expanded nested group.
   const isRoleChild = !!group.roleParentId;
   const indentLevel = (group.nestLevel || 0) + (isRoleChild ? 1 : 0);
 
-  const nestedBg = group.isNestedRow ? 'bg-gray-50/60 dark:bg-gray-700/40' : 'bg-white dark:bg-gray-800';
+  const nestedBg = stickyBg(group);
 
   return (
     <tr ref={sortableRef} style={sortableStyle || {}} className={`hover:bg-gray-50/30 dark:hover:bg-gray-700/30 ${group.isNestedRow ? 'bg-gray-50/40 dark:bg-gray-700/30' : ''}`}>
@@ -147,7 +190,7 @@ export default function MatrixGroupRow({
       <td
         className={`sticky ${nestedBg} border-r border-b border-gray-200 dark:border-gray-700 px-2 py-0.5 text-xs text-gray-900 dark:text-gray-100 font-medium`}
         style={{ left: '24px', minWidth: '275px', maxWidth: '275px', zIndex: 10 }}
-        title={group.displayName}
+        title={rowTitle(group)}
       >
         <div className="flex items-center gap-0.5" style={{ paddingLeft: indentLevel * 16 }}>
           <RoleFoldToggle fold={roleFold} onToggle={onToggleRoleFold} />
@@ -166,6 +209,7 @@ export default function MatrixGroupRow({
             onClick={() => onOpenDetail?.('resource', group.realGroupId || group.id, group.displayName)}>
             {group.displayName}
           </div>
+          <RoleOwnerChip owners={group.roleOwners} onOpenDetail={onOpenDetail} />
           <RoleFoldChip fold={roleFold} />
         </div>
       </td>
@@ -186,14 +230,16 @@ export default function MatrixGroupRow({
         if (user.isAggregateCol) {
           const n = aggDirectCounts?.get(`${group.id} ${user.id}`) || 0;
           const extra = extraAccessFor(user.id);
+          const short = missingAccessFor(user.id);
           return (
             <td key={user.id}
               className="border-r border-b border-gray-200 dark:border-gray-700 text-center px-0 py-0 bg-indigo-50/40 dark:bg-indigo-900/10"
-              style={{ width: '24px', minWidth: '24px', position: extra > 0 ? 'relative' : undefined }}>
+              style={{ width: '24px', minWidth: '24px', position: extra > 0 || short > 0 ? 'relative' : undefined }}>
               {n > 0
                 ? <span className="text-[10px] font-semibold text-gray-800 dark:text-gray-200">{n}</span>
                 : <span className="text-gray-500 dark:text-gray-700">·</span>}
               <ExtraAccessBadge count={extra} />
+              <MissingAccessBadge count={short} />
             </td>
           );
         }
@@ -222,13 +268,13 @@ export default function MatrixGroupRow({
           });
         }
 
-        // Provisioning gap: the cell is governance-managed (an access package the
-        // subject holds Contains this resource — server-computed managedByAccessPackage)
-        // but the subject has no actual membership. The SOLL coverage is derived in
-        // the data; the gap is just "managed and empty".
-        const hasActual = cellTypes && cellTypes.size > 0;
-        const provisioningGap = managed && !hasActual;
-        const gapExpected = provisioningGap ? 'Direct' : null;
+        // How this cell deviates from what the business roles covering it assign:
+        // `missing` = fewer than they assign (the provisioning gap), `excess` =
+        // more (a standing membership where the role only grants eligibility).
+        // Both sides read off server-computed coverage — see coverageDeviation.js.
+        const deviation = managed
+          ? cellDeviation({ types: cellTypes, apIds: relevantApIds, apGroupMap, resourceKey: realGid.toUpperCase() })
+          : NO_DEVIATION;
 
         return (
           <MatrixCell
@@ -239,9 +285,11 @@ export default function MatrixGroupRow({
             apColor={apColor}
             apCount={apCount}
             apNames={apNames}
-            provisioningGap={provisioningGap}
-            gapExpected={gapExpected}
+            provisioningGap={deviation.missing.length > 0}
+            gapExpected={deviation.missing[0] || null}
+            overGrant={deviation.excess[0] || null}
             extraAccessCount={extraAccessFor(user.id)}
+            missingAccessCount={missingAccessFor(user.id)}
             onExplainInherited={onExplainInherited}
           />
         );

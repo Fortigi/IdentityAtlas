@@ -87,9 +87,9 @@ Write-Host "`n--- Row Counts ---" -ForegroundColor Yellow
 $counts = @{
     'Systems'                = @{ Min = 5;  Max = 5 }   # EntraID + HR + IGA + SAP + AzureRM (#705)
     'Principals'             = @{ Min = 45; Max = 45 }  # 26 employees + 5 edge cases + IGA acct + 10 SAP + 3 app SPs
-    'Resources'              = @{ Min = 39; Max = 39 }  # Entra 10 + ownership 3 + business roles 5 + Sales 4 + consent 4 + SAP 4 + Azure 9
-    'ResourceAssignments'    = @{ Min = 143; Max = 143 }
-    'ResourceRelationships'  = @{ Min = 20; Max = 20 }  # 14 Contains + 1 GrantsAccessTo + 3 HasOwnership + 2 DelegatesScope
+    'Resources'              = @{ Min = 43; Max = 43 }  # Entra 10 + ownership 3 + business roles 6 + Sales 4 + role drift 3 + consent 4 + SAP 4 + Azure 9
+    'ResourceAssignments'    = @{ Min = 157; Max = 157 }
+    'ResourceRelationships'  = @{ Min = 23; Max = 23 }  # 17 Contains + 1 GrantsAccessTo + 3 HasOwnership + 2 DelegatesScope
     'Identities'             = @{ Min = 27; Max = 27 }  # 26 employees + the leaver
     'IdentityMembers'        = @{ Min = 38; Max = 38 }  # 27 Entra + 1 IGA + 10 SAP
     'GovernanceCatalogs'     = @{ Min = 2;  Max = 2 }
@@ -382,6 +382,64 @@ WHERE r."resourceType" = 'DelegatedPermission' AND r."deletedAt" IS NULL
   AND NOT EXISTS (
     SELECT 1 FROM "Principals" p WHERE p."id"::text = r."extendedAttributes"->>'clientSpId'
   )
+'@
+
+# ─── Role drift: fewer / more access than the business role assigns ───────
+# The matrix shows both directions of drift against a business role, so the
+# dataset has to contain both. These guard the scenario the grid renders (see
+# parts/DemoRoleDrift.ps1 and docs/architecture/matrix.md).
+
+Write-Host "`n--- Role drift ---" -ForegroundColor Yellow
+
+# BR-Service-Desk grants three resources, one of them just-in-time only.
+Assert-Count 'Drift-RoleGrantsThreeResources' -Min 3 -Max 3 -Query @'
+SELECT COUNT(*) FROM "ResourceRelationships" rr
+JOIN "Resources" parent ON parent."id" = rr."parentResourceId"
+WHERE parent."displayName" = 'BR-Service-Desk' AND rr."relationshipType" = 'Contains'
+'@
+
+Assert-Count 'Drift-AdminIsEligibleOnly' -Min 1 -Max 1 -Query @'
+SELECT COUNT(*) FROM "ResourceRelationships" rr
+JOIN "Resources" parent ON parent."id" = rr."parentResourceId"
+JOIN "Resources" child  ON child."id"  = rr."childResourceId"
+WHERE parent."displayName" = 'BR-Service-Desk' AND child."displayName" = 'SG-Servicedesk-Admin'
+  AND lower(rr."roleName") LIKE '%eligible%'
+'@
+
+# FEWER — Tom Bakker holds the role but only one of the three resources.
+Assert-Count 'Drift-HolderShortOfWhatRoleAssigns' -Min 1 -Max 1 -Label '1 of 3 resources held' -Query @'
+SELECT COUNT(*) FROM "ResourceAssignments" ra
+JOIN "Resources"  r ON r."id" = ra."resourceId"
+JOIN "Principals" p ON p."id" = ra."principalId"
+WHERE p."displayName" = 'Tom Bakker' AND ra."deletedAt" IS NULL
+  AND r."displayName" IN ('SG-Servicedesk-Tools', 'SG-Servicedesk-KB', 'SG-Servicedesk-Admin')
+'@
+
+# BOTH AT ONCE — Wendy Xu is missing the KB the role assigns...
+Assert-Count 'Drift-BothDirections-MissingKb' -Min 0 -Max 0 -Label '0 KB memberships' -Query @'
+SELECT COUNT(*) FROM "ResourceAssignments" ra
+JOIN "Resources"  r ON r."id" = ra."resourceId"
+JOIN "Principals" p ON p."id" = ra."principalId"
+WHERE p."displayName" = 'Wendy Xu' AND r."displayName" = 'SG-Servicedesk-KB' AND ra."deletedAt" IS NULL
+'@
+
+# ...while holding permanently what the role only makes her eligible for.
+Assert-Count 'Drift-BothDirections-StandingOnEligible' -Min 1 -Max 1 -Query @'
+SELECT COUNT(*) FROM "ResourceAssignments" ra
+JOIN "Resources"  r ON r."id" = ra."resourceId"
+JOIN "Principals" p ON p."id" = ra."principalId"
+WHERE p."displayName" = 'Wendy Xu' AND r."displayName" = 'SG-Servicedesk-Admin'
+  AND ra."assignmentType" = 'Direct' AND ra."deletedAt" IS NULL
+'@
+
+# Both role holders who match their role exactly must stay clean, or the
+# deviations above read as the norm rather than as findings.
+Assert-Count 'Drift-CleanHoldersMatchTheRole' -Min 6 -Max 6 -Label '2 holders × 3 resources' -Query @'
+SELECT COUNT(*) FROM "ResourceAssignments" ra
+JOIN "Resources"  r ON r."id" = ra."resourceId"
+JOIN "Principals" p ON p."id" = ra."principalId"
+WHERE p."displayName" IN ('Ursula Visser', 'Victor Wang') AND ra."deletedAt" IS NULL
+  AND r."displayName" IN ('SG-Servicedesk-Tools', 'SG-Servicedesk-KB', 'SG-Servicedesk-Admin')
 '@
 
 # ─── API Verification ─────────────────────────────────────────────

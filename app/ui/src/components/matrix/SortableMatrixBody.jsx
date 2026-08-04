@@ -65,6 +65,7 @@ export default function SortableMatrixBody({
   foldedRoles,
   roleChildCounts,
   roleExtraCounts,
+  roleMissingCounts,
   onToggleRoleFold,
 }) {
   const sensors = useSensors(
@@ -118,7 +119,8 @@ export default function SortableMatrixBody({
     foldableRoles,
     foldedRoles,
     roleChildCounts,
-  roleExtraCounts,
+    roleExtraCounts,
+    roleMissingCounts,
     onToggleRoleFold,
   };
 

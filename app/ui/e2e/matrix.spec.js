@@ -283,6 +283,92 @@ test.describe('Matrix — fold business-role resources', () => {
     await unfoldAll(page).click();
     await expect(marker).toHaveCount(0);
   });
+
+  // Requestor feedback on #370: the grid showed only over-granting. The demo
+  // dataset's BR-Service-Desk carries both directions (see DemoRoleDrift.ps1).
+  test('a folded role counts what it assigns that the subject does not have', async ({ page }) => {
+    await openFoldableGrid(page);
+
+    const marker = page.locator('tbody span[title*="does not have"]');
+    await expect(marker).toHaveCount(0);
+
+    await foldAll(page).click();
+    await expect(unfoldAll(page)).toBeVisible();
+
+    if (await marker.count()) {
+      await expect(marker.first()).toHaveText(/^[1-9]\d*$/);
+      await expect(marker.first()).toHaveAttribute(
+        'title', /assignments? on the folded resources that this business role assigns but this subject does not have/,
+      );
+    }
+    await unfoldAll(page).click();
+    await expect(marker).toHaveCount(0);
+  });
+
+  test('marks a standing membership where the role only grants eligibility', async ({ page }) => {
+    await openFoldableGrid(page);
+
+    // Unfolded, the deviation sits on the resource's own cell.
+    const overGrant = page.locator('tbody span[title*="More than the business role assigns"]');
+    if (await overGrant.count()) {
+      await expect(overGrant.first()).toHaveText('+');
+      await expect(overGrant.first()).toHaveAttribute('title', /just-in-time/);
+    }
+  });
+
+  // Rows keep whatever position they are moved to, so a resource can end up far
+  // from the role that grants it. The row must still say which role that is.
+  test('a resource still names its business role after being moved away from it', async ({ page }) => {
+    await openFoldableGrid(page);
+
+    // Every resource a role grants answers the question from its row tooltip,
+    // wherever it sits.
+    const named = page.locator('tbody td[title*="Granted by business role:"]');
+    await expect.poll(() => named.count()).toBeGreaterThan(0);
+
+    // Persist a row order the way the drag handle does — clicking the "#"
+    // header sorts by member count, which writes the current ids to storage.
+    await page.locator('th[title="Sort by member count (descending)"]').click();
+
+    // Then move one role-granted resource to the very top, above every role row
+    // — the "user dragged it away from its role" case.
+    const pairs = await (await page.request.get('/api/access-package-groups')).json();
+    const moved = await page.evaluate((rows) => {
+      const key = Object.keys(localStorage).find(k => k.startsWith('fgraph-roworder-'));
+      if (!key) return null;
+      const saved = JSON.parse(localStorage.getItem(key));
+      const order = saved.order.map(id => String(id).toUpperCase());
+      // A pair whose role AND resource both have a row — only then is there a
+      // role in the grid to name.
+      const pair = rows.find(r => r.resourceId
+        && order.includes(String(r.accessPackageId).toUpperCase())
+        && order.includes(String(r.resourceId).toUpperCase()));
+      if (!pair) return null;
+      const child = saved.order.find(id => String(id).toUpperCase() === String(pair.resourceId).toUpperCase());
+      localStorage.setItem(key, JSON.stringify({
+        ...saved,
+        order: [child, ...saved.order.filter(id => id !== child)],
+      }));
+      return { role: pair.accessPackageName };
+    }, pairs);
+    test.skip(!moved, 'no business role and one of its resources share this grid');
+
+    await page.reload();
+    await page.waitForLoadState('networkidle');
+    await expect(page.locator('table').first()).toBeVisible({ timeout: 40000 });
+
+    // The moved row now names its role on the row itself. (A resource granted by
+    // several roles lists them all in the chip's tooltip, hence the substring.)
+    const chip = page.locator(`tbody button[title^="Granted by business role:"][title*="${moved.role}"]`).first();
+    await expect(chip).toBeVisible({ timeout: 20000 });
+
+    // Leave the browser profile clean for the next test.
+    await page.evaluate(() => {
+      for (const k of Object.keys(localStorage)) {
+        if (k.startsWith('fgraph-roworder-')) localStorage.removeItem(k);
+      }
+    });
+  });
 });
 
 // ─── Regression: no double scrollbar behind the matrix grid ────────────────────
