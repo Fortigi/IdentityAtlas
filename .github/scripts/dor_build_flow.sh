@@ -67,7 +67,8 @@ if [ -z "$pr" ]; then
       | grep -oE '[0-9]+$') || bail "could not open the PR"
 fi
 echo "$pr $ISSUE" > "$HOME/.dor-reservation"   # <PR> <ISSUE> — dor-reset/feedback route off this
-# (board was already moved to Building at the start of the run)
+# (board was already moved to Building at the start of the run) — now post the PR + follow link.
+comment_issue "$(printf '🔨 Building (PR #%s) — I'\''ll comment when it'\''s ready to test.%s' "$pr" "${RUN_URL:+ · 👀 [follow progress]($RUN_URL)}")"
 
 # 3-5. Verify: deploy+seed → e2e on live env → CI green. Fix + retry up to MAX_ATTEMPTS (else Exceptions).
 verify_loop "$pr"

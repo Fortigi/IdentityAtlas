@@ -26,7 +26,7 @@ git checkout -B "$BRANCH" "origin/$BRANCH" || bail "could not check out $BRANCH 
 pr=$(gh pr list --repo "$REPO" --head "$BRANCH" --state open --json number --jq '.[0].number // empty')
 [ -n "$pr" ] || { comment_issue "🤖 The PR for this build is no longer open, so there's nothing to adjust. Re-open it or file a new request."; exit 0; }
 
-comment_issue "$(printf '🤖 On it — adjusting for your feedback, then re-deploying to %s.' "$URL")"
+comment_issue "$(printf '🤖 On it — adjusting for your feedback, then re-deploying to %s.%s' "$URL" "${RUN_URL:+ · 👀 [follow progress]($RUN_URL)}")"
 # The AI is now working — reflect that on the board (not "Awaiting functional acceptance", which reads
 # as "ready for you to test"). Restored to functional acceptance when the adjustment is deployed.
 GH_TOKEN="$BOARD_TOKEN" bash "$SCRIPTS/dor_set_status.sh" "$ISSUE" building 2>/dev/null || true

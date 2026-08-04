@@ -25,6 +25,9 @@ FIX_TURNS="${FIX_TURNS:-60}"                    # a fix is scoped; cap it so a c
 MAINTAINERS="@WimvandenHeijkant @TaekeK @robb536"
 PLUGINS="entra-group-category-tree resource-type-tree resource-cluster scope-hierarchy risky-consent"
 FLOW_NOUN="${FLOW_NOUN:-build}"
+# Link to THIS workflow run so a comment can say "follow progress → here". Empty off-Actions.
+RUN_URL=""
+[ -n "${GITHUB_RUN_ID:-}" ] && RUN_URL="${GITHUB_SERVER_URL:-https://github.com}/${GITHUB_REPOSITORY:-$REPO}/actions/runs/${GITHUB_RUN_ID}"
 # Terse working output (the agent runs headless — nobody reads its narration), but keep the DELIVERABLES
 # professional. Appended to every prompt.
 TERSE=$'\n\nWork directly and without narration: make the edits and run the commands, do not explain your steps or write prose summaries. Keep the actual deliverables — commit messages, the PR description, code comments, and changelog entries — normal, clear and professional.'
