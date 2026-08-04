@@ -3,3 +3,4 @@
 - Business roles arrive expanded, and your fold choices are remembered per matrix so they are still there when you come back to the same slice.
 - A resource granted by more than one business role stays visible until every one of those roles is folded.
 - Matrix rows: a business role now sits directly above the resources it grants in the staircase order (any saved custom row order is reset once as a result).
+- Matrix scope statistics: each headline number is now announced together with the metric it belongs to (e.g. "Resources, 39") by screen readers.

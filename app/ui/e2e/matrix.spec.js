@@ -128,12 +128,22 @@ test.describe('Matrix — fold business-role resources', () => {
     subject: { include: [], exclude: [] },
     resource: { include: [], exclude: [] },
   };
-  const MATRIX_URL = '/#matrix?filter=' + encodeURIComponent(JSON.stringify(ALL_DATA_FILTER));
+  const matrixUrl = (filter) => '/#matrix?filter=' + encodeURIComponent(JSON.stringify(filter));
+
+  // Load a matrix slice in a fresh document. The app reads `?filter=` once, at
+  // mount — the matrix hash is a share/bookmark entry point, not a live route —
+  // so a hash-only change would leave the previous slice on screen. Going via
+  // about:blank forces the real navigation (localStorage survives it, which is
+  // what the fold-persistence assertions rely on).
+  async function gotoSlice(page, filter) {
+    await page.goto('about:blank');
+    await page.goto(matrixUrl(filter));
+    await page.waitForLoadState('networkidle');
+  }
 
   // Open the all-data matrix. Returns false when no grid renders (no data here).
   async function openGrid(page) {
-    await page.goto(MATRIX_URL);
-    await page.waitForLoadState('networkidle');
+    await gotoSlice(page, ALL_DATA_FILTER);
     try {
       await expect(page.locator('table').first()).toBeVisible({ timeout: 40000 });
     } catch {
@@ -152,10 +162,14 @@ test.describe('Matrix — fold business-role resources', () => {
     return tbody ? Math.round(tbody.getBoundingClientRect().height) : 0;
   });
 
-  // Value shown next to a scope-statistics label ("Resources", "Assignments").
-  const statValue = (page, label) =>
-    page.locator('span').filter({ hasText: new RegExp(`^${label}$`) }).first()
-      .locator('xpath=preceding-sibling::span[1]').innerText();
+  // Value shown in a scope-statistics tile ("Resources", "Assignments"). Each
+  // tile is a group named after its metric; the number is its first span. Waits
+  // out the em-dash placeholder the tile shows until scope-stats has loaded.
+  async function statValue(page, label) {
+    const value = page.getByRole('group', { name: label, exact: true }).locator('span').first();
+    await expect(value).not.toHaveText('—', { timeout: 30000 });
+    return value.innerText();
+  }
 
   async function openFoldableGrid(page) {
     const rendered = await openGrid(page);
@@ -223,14 +237,11 @@ test.describe('Matrix — fold business-role resources', () => {
     await expect.poll(() => rowsHeight(page)).toBe(folded);
 
     // A different matrix slice keeps its own (expanded) state.
-    const other = { ...ALL_DATA_FILTER, rowType: 'identity' };
-    await page.goto('/#matrix?filter=' + encodeURIComponent(JSON.stringify(other)));
-    await page.waitForLoadState('networkidle');
+    await gotoSlice(page, { ...ALL_DATA_FILTER, rowType: 'identity' });
     await expect(unfoldAll(page)).toHaveCount(0);
 
     // Leave the browser profile clean for the next test.
-    await page.goto(MATRIX_URL);
-    await page.waitForLoadState('networkidle');
+    await gotoSlice(page, ALL_DATA_FILTER);
     if (await unfoldAll(page).count()) await unfoldAll(page).click();
   });
 });
