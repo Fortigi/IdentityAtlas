@@ -28,6 +28,10 @@ grep -qxF '.dor/' .git/info/exclude 2>/dev/null || echo '.dor/' >> .git/info/exc
 grep -qxF 'dor-tls.override.yml' .git/info/exclude 2>/dev/null || echo 'dor-tls.override.yml' >> .git/info/exclude
 # Consume the trigger label now so dor-resume.yml can re-apply it to re-dispatch a paused build.
 gh issue edit "$ISSUE" --repo "$REPO" --remove-label ready-to-build >/dev/null 2>&1 || true
+# Flip the board to Building the moment the build starts (i.e. right after the Product Board approved
+# the gate) — not only after the PR is created ~15-20 min later, which would leave it wrongly reading
+# "Awaiting approval" for the whole implement phase.
+GH_TOKEN="$BOARD_TOKEN" bash "$SCRIPTS/dor_set_status.sh" "$ISSUE" building 2>/dev/null || true
 
 # Resume-aware: if a branch with real work already exists (a previous run paused on a usage limit),
 # continue from it instead of re-implementing from scratch — that is the expensive part we must not
@@ -63,7 +67,7 @@ if [ -z "$pr" ]; then
       | grep -oE '[0-9]+$') || bail "could not open the PR"
 fi
 echo "$pr $ISSUE" > "$HOME/.dor-reservation"   # <PR> <ISSUE> — dor-reset/feedback route off this
-GH_TOKEN="$BOARD_TOKEN" bash "$SCRIPTS/dor_set_status.sh" "$ISSUE" building 2>/dev/null || true
+# (board was already moved to Building at the start of the run)
 
 # 3-5. Verify: deploy+seed → e2e on live env → CI green. Fix + retry up to MAX_ATTEMPTS (else Exceptions).
 verify_loop "$pr"
