@@ -25,6 +25,9 @@ FIX_TURNS="${FIX_TURNS:-60}"                    # a fix is scoped; cap it so a c
 MAINTAINERS="@WimvandenHeijkant @TaekeK @robb536"
 PLUGINS="entra-group-category-tree resource-type-tree resource-cluster scope-hierarchy risky-consent"
 FLOW_NOUN="${FLOW_NOUN:-build}"
+# Link to THIS workflow run so a comment can say "follow progress → here". Empty off-Actions.
+RUN_URL=""
+[ -n "${GITHUB_RUN_ID:-}" ] && RUN_URL="${GITHUB_SERVER_URL:-https://github.com}/${GITHUB_REPOSITORY:-$REPO}/actions/runs/${GITHUB_RUN_ID}"
 # Terse working output (the agent runs headless — nobody reads its narration), but keep the DELIVERABLES
 # professional. Appended to every prompt.
 TERSE=$'\n\nWork directly and without narration: make the edits and run the commands, do not explain your steps or write prose summaries. Keep the actual deliverables — commit messages, the PR description, code comments, and changelog entries — normal, clear and professional.'
@@ -36,7 +39,14 @@ git -C "$WORK" config user.name  "IdentityAtlas DoR agent" >/dev/null 2>&1 || tr
 
 issue_mentions() {  # requestor (author) + commenters, deduped, bots excluded, @-prefixed
   gh issue view "$ISSUE" --repo "$REPO" --json author,comments \
-    --jq '([.author.login]+[.comments[].author.login]) | map(select(. and (endswith("[bot]")|not))) | unique | map("@"+.) | join(" ")'
+    --jq '([.author.login]+[.comments[].author.login]) | map(select(. and (endswith("[bot]")|not) and (.!="github-actions"))) | unique | map("@"+.) | join(" ")'
+}
+
+# A short, deterministic description of what a commit changed (files touched), for report comments —
+# more useful than the AI'\''s terse final message. $1 = git range (e.g. origin/main..HEAD).
+changed_summary() {
+  local stat; stat="$(git -C "$WORK" diff --stat "$1" 2>/dev/null | tail -8)"
+  [ -n "$stat" ] && printf 'Files changed:\n```\n%s\n```' "$stat"
 }
 comment_issue() { gh issue comment "$ISSUE" --repo "$REPO" --body "$1" >/dev/null 2>&1 || true; }
 
@@ -77,7 +87,7 @@ bail() {
   git -C "$WORK" restore --source=HEAD --staged --worktree -- .github 2>/dev/null || true
   GH_TOKEN="$BOARD_TOKEN" bash "$SCRIPTS/dor_set_status.sh" "$ISSUE" exception 2>/dev/null || true
   gh issue edit "$ISSUE" --repo "$REPO" --add-label needs-triage >/dev/null 2>&1 || true
-  comment_issue "$(printf '⚠️ %s — the automated %s for this feature hit a problem and was moved to **Exceptions** for triage.\n\n**What broke:** %s\n\nBranch `%s` on **%s**. A maintainer needs to look.' "$MAINTAINERS" "$FLOW_NOUN" "$reason" "$BRANCH" "$HOST")"
+  comment_issue "$(printf '⚠️ %s — %s hit a problem → **Exceptions** (needs triage).\n**What broke:** %s  (`%s` on %s)' "$MAINTAINERS" "$FLOW_NOUN" "$reason" "$BRANCH" "$HOST")"
   exit 1
 }
 
@@ -94,7 +104,7 @@ pause_and_exit() {
   git -C "$WORK" push --force-with-lease origin "$BRANCH" 2>/dev/null || true
   GH_TOKEN="$BOARD_TOKEN" bash "$SCRIPTS/dor_set_status.sh" "$ISSUE" paused 2>/dev/null || true
   gh issue edit "$ISSUE" --repo "$REPO" --add-label dor-paused --remove-label ready-to-build >/dev/null 2>&1 || true
-  comment_issue "$(printf '⏸️ **Paused** — the %s hit a Claude usage limit (%s). Work so far is saved on `%s`, so nothing is lost. It will **auto-resume** when capacity returns (usage limits reset periodically) — no action needed. A maintainer can also re-run it by re-applying `ready-to-build`.' "$FLOW_NOUN" "$reason" "$BRANCH")"
+  comment_issue "$(printf '⏸️ **Paused** — hit a Claude usage limit. Work is saved on `%s`; will **auto-resume** when capacity returns (no action needed).' "$BRANCH")"
   exit 0
 }
 
