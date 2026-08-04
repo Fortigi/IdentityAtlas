@@ -1,0 +1,1 @@
+- Patched high-severity advisories in bundled dependencies (brace-expansion, fast-uri, ip-address, undici) flagged by `npm audit`.
