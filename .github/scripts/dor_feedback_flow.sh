@@ -42,6 +42,7 @@ esac
 git restore --source=origin/main --staged --worktree -- .github 2>/dev/null || true
 git add -A
 if git diff --cached --quiet; then
+  touch "${RUNNER_TEMP:-/tmp}/dor-done"   # success (nothing to change) → the reconcile step keeps it at functional acceptance
   GH_TOKEN="$BOARD_TOKEN" bash "$SCRIPTS/dor_set_status.sh" "$ISSUE" build-done 2>/dev/null || true   # nothing to rebuild → back to functional acceptance
   comment_issue "$(printf '🤖 @%s — couldn'\''t find a concrete change to make from that. Which specific behaviour should change? (Or reply **`approved`** if it'\''s fine.)' "$FEEDBACK_AUTHOR")"
   exit 0
@@ -53,6 +54,7 @@ git push --force-with-lease origin "$BRANCH" || bail "could not push the adjustm
 verify_loop "$pr"
 
 # 3. Adjustment deployed + verified → back to Awaiting functional acceptance, and report back.
+touch "${RUNNER_TEMP:-/tmp}/dor-done"   # success → the workflow's fresh-token reconcile step asserts build-done (survives >1h cycles)
 GH_TOKEN="$BOARD_TOKEN" bash "$SCRIPTS/dor_set_status.sh" "$ISSUE" build-done 2>/dev/null || true
 summary=$(jq -r '.result // empty' /tmp/adjust.json 2>/dev/null | head -c 1000)
 [ "${#summary}" -lt 25 ] && summary="$(changed_summary origin/main..HEAD)"   # terse output → describe from the diff
