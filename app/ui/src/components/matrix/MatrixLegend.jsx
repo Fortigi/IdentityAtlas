@@ -94,6 +94,12 @@ export default function MatrixLegend() {
                 <span className="font-medium">Provisioning gap</span> — a business role expects this membership but the user doesn&apos;t have it.
               </span>
             </div>
+            <div className="flex items-center gap-1.5">
+              <span className="inline-flex w-4 h-4 items-center justify-center rounded-full bg-rose-600 text-white border border-rose-700 text-[8px] font-bold shrink-0" aria-hidden="true">3</span>
+              <span className="text-gray-700 dark:text-gray-300">
+                On a <span className="font-medium">folded business role</span> — more is handed out below than the role hands out: the number counts the folded resources this subject holds outside the role.
+              </span>
+            </div>
           </div>
         </div>
       )}

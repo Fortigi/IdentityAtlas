@@ -13,16 +13,23 @@ import {
 // element MatrixView builds (exercising MatrixColumnHeaders) plus one labelled
 // row per visible resource, so the orchestrator's column/sort/grouping wiring
 // runs end to end.
+// `body.props` keeps the last props the grid body received, so tests can assert
+// on the derived structures MatrixView hands it (SOLL mapping, row marking,
+// folded-role tallies) without reimplementing the cell rendering here.
+const body = vi.hoisted(() => ({ props: null }));
 vi.mock('./matrix/SortableMatrixBody', () => ({
-  default: ({ columnHeaders, orderedGroups = [] }) =>
-    h('table', null,
+  default: (props) => {
+    body.props = props;
+    const { columnHeaders, orderedGroups = [] } = props;
+    return h('table', null,
       columnHeaders,
       h('tbody', null,
         orderedGroups.map(g =>
           h('tr', { key: g.id }, h('td', null, h('span', { 'data-testid': 'row-label' }, g.displayName))),
         ),
       ),
-    ),
+    );
+  },
 }));
 
 // A small but realistic matrix dataset: two resources, three subjects across two
@@ -50,8 +57,11 @@ const roleProps = {
   accessPackageGroups: [
     { accessPackageId: 'br-1', accessPackageName: 'HR Manager Role', resourceId: 'res-1', roleName: 'Member', totalAssignments: 1 },
   ],
+  // Server-side business-role coverage: the role covers the resource it
+  // Contains AND its own membership row (migration 061).
   managedByPackages: [
     { resourceId: 'res-1', memberId: 'u1', accessPackageIds: ['br-1'] },
+    { resourceId: 'br-1', memberId: 'u1', accessPackageIds: ['br-1'] },
   ],
 };
 
@@ -270,6 +280,52 @@ describe('MatrixView (mounted)', () => {
     await expectRowVisible('HR Manager Role');
     const labels = rowLabels();
     expect(labels.indexOf('HR Manager Role')).toBe(labels.indexOf('Finance App') - 1);
+  });
+
+  it('grants a business role its own SOLL cell, so its column is not blank on its own row', async () => {
+    renderView(roleProps);
+    await expectRowVisible('HR Manager Role');
+    // Holding the role IS the assignment; the diagonal cell renders it as a
+    // Member (D) grant in the role's own column.
+    expect(body.props.apGroupMap.get('BR-1|br-1')).toBe('Member');
+    expect(body.props.apGroupMap.get('RES-1|br-1')).toBe('Member');
+  });
+
+  it('keeps a business role\'s column when only its own row is on screen', async () => {
+    renderView({
+      ...roleProps,
+      // The role grants a resource that is outside this matrix slice.
+      accessPackageGroups: [
+        { accessPackageId: 'br-1', accessPackageName: 'HR Manager Role', resourceId: 'res-99', roleName: 'Member', totalAssignments: 1 },
+      ],
+      managedByPackages: [{ resourceId: 'br-1', memberId: 'u1', accessPackageIds: ['br-1'] }],
+    });
+    await expectRowVisible('HR Manager Role');
+    expect(body.props.accessPackages.map(ap => ap.id)).toEqual(['br-1']);
+    expect(body.props.apGroupMap.get('BR-1|br-1')).toBe('Member');
+  });
+
+  it('shows the resources a role grants as that role\'s children', async () => {
+    renderView(roleProps);
+    await expectRowVisible('Finance App');
+    const rows = new Map(body.props.orderedGroups.map(g => [g.displayName, g]));
+    expect(rows.get('Finance App').roleParentId).toBe('BR-1');
+    // A resource no role grants stays a plain top-level row.
+    expect(rows.get('HR Portal').roleParentId).toBeUndefined();
+  });
+
+  it('tallies the access a folded role hides but does not grant', async () => {
+    renderView(roleProps);
+    const user = userEvent.setup();
+    await expectRowVisible('Finance App');
+    expect(body.props.roleExtraCounts).toBeNull();
+
+    await user.click(await screen.findByText('Fold roles'));
+    await waitFor(() => expect(body.props.roleExtraCounts).not.toBeNull());
+    // Alice holds Finance App through the role — covered, so not counted.
+    expect(body.props.roleExtraCounts.get('BR-1|u1')).toBeUndefined();
+    // Bob's Indirect membership on the same resource is not covered by it.
+    expect(body.props.roleExtraCounts.get('BR-1|u2')).toBe(1);
   });
 
   it('offers no fold controls in a matrix without business-role rows', async () => {

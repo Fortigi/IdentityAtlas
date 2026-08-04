@@ -244,6 +244,45 @@ test.describe('Matrix — fold business-role resources', () => {
     await gotoSlice(page, ALL_DATA_FILTER);
     if (await unfoldAll(page).count()) await unfoldAll(page).click();
   });
+
+  // The resources a role grants hang under it with the same indent + elbow an
+  // expanded nested group uses, so "what is in this role" reads off the grid.
+  const childElbows = (page) => page.locator('tbody tr td span', { hasText: /^└$/ }).count();
+
+  test('a role\'s resources hang under it as child rows, and go with it when it folds', async ({ page }) => {
+    await openFoldableGrid(page);
+
+    const before = await childElbows(page);
+    test.skip(before === 0, 'no role and one of its resources are on screen together here');
+
+    await foldAll(page).click();
+    await expect(unfoldAll(page)).toBeVisible();
+    await expect.poll(() => childElbows(page)).toBeLessThan(before);
+
+    await unfoldAll(page).click();
+    await expect.poll(() => childElbows(page)).toBe(before);
+  });
+
+  test('a folded role counts the access it hides but does not grant', async ({ page }) => {
+    await openFoldableGrid(page);
+
+    // Nothing is folded yet, so the marker cannot be on screen.
+    const marker = page.locator('tbody span[title*="does not grant"]');
+    await expect(marker).toHaveCount(0);
+
+    await foldAll(page).click();
+    await expect(unfoldAll(page)).toBeVisible();
+
+    if (await marker.count()) {
+      // Every marker states a count of ungoverned assignments it stands for.
+      await expect(marker.first()).toHaveText(/^[1-9]\d*$/);
+      await expect(marker.first()).toHaveAttribute(
+        'title', /assignments? on the folded resources that this business role does not grant/,
+      );
+    }
+    await unfoldAll(page).click();
+    await expect(marker).toHaveCount(0);
+  });
 });
 
 // ─── Regression: no double scrollbar behind the matrix grid ────────────────────

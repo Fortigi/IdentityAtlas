@@ -3,4 +3,7 @@
 - Business roles arrive expanded, and your fold choices are remembered per matrix so they are still there when you come back to the same slice.
 - A resource granted by more than one business role stays visible until every one of those roles is folded.
 - Matrix rows: a business role now sits directly above the resources it grants in the staircase order (any saved custom row order is reset once as a result).
+- Matrix: the resources a business role grants are now shown as its children — indented under the role with the same triangle and elbow that expanding a group already used.
+- Matrix: a business role's own row now shows the "D" badge in its own column and its cells are coloured as governed, like any other access a business role hands out. Business-role memberships are also counted as governed in the scope statistics instead of as ungoverned assignments.
+- Matrix: a folded business role now shows, per subject, a red count of the folded resources that subject holds outside the role — so folding never hides that more is handed out than the role hands out. The "How to read this matrix" legend explains the marker.
 - Matrix scope statistics: each headline number is now announced together with the metric it belongs to (e.g. "Resources, 39") by screen readers.

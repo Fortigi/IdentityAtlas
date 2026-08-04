@@ -11,7 +11,7 @@ outcome: You can read any cell in the matrix and say exactly how that access is 
     Brand new? Start at [The words you need first](../start/glossary.md).
 
 > **Status:** current as of May 2026.
-> Companion to [`013_matrix_matviews_and_indexes.sql`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/db/migrations/013_matrix_matviews_and_indexes.sql), [`024_matrix_view_all_assignment_types.sql`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/db/migrations/024_matrix_view_all_assignment_types.sql), [`046_owner_as_resource.sql`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/db/migrations/046_owner_as_resource.sql), [`049_governed_intent_rows.sql`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/db/migrations/049_governed_intent_rows.sql).
+> Companion to [`013_matrix_matviews_and_indexes.sql`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/db/migrations/013_matrix_matviews_and_indexes.sql), [`024_matrix_view_all_assignment_types.sql`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/db/migrations/024_matrix_view_all_assignment_types.sql), [`046_owner_as_resource.sql`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/db/migrations/046_owner_as_resource.sql), [`049_governed_intent_rows.sql`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/db/migrations/049_governed_intent_rows.sql), [`061_business_role_covers_itself.sql`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/db/migrations/061_business_role_covers_itself.sql).
 
 ## The grid
 
@@ -147,12 +147,14 @@ per-subject payload — it changes what is *rendered*, not what is *fetched*.
 ### Business-role fold (rows)
 
 The column fold above collapses *columns*; the **business-role fold** collapses
-*rows*. A business-role row (`resourceType='BusinessRole'`) carries a chevron
-that hides the rows of the resources that role grants — its `Contains` children
-— leaving the role row with an "*N* resources folded" chip. A **Fold roles /
-Unfold roles** toolbar pair does it for every role at once, which reduces the
-grid to exactly "business roles + resources no role grants" — the role-mining
-view without the duplication between a role and its contents.
+*rows*. A business-role row (`resourceType='BusinessRole'`) carries the grid's
+ordinary expand triangle (`▼`/`▶` — the same control, and the same indent + `└`
+elbow on the rows below it, as the nested-group expand): collapsing it hides the
+rows of the resources that role grants — its `Contains` children — leaving the
+role row with an "*N* resources folded" chip. A **Fold roles / Unfold roles**
+toolbar pair does it for every role at once, which reduces the grid to exactly
+"business roles + resources no role grants" — the role-mining view without the
+duplication between a role and its contents.
 
 The parent → child mapping is not derived client-side: it is the same
 `ResourceRelationships` / `relationshipType='Contains'` data that
@@ -180,7 +182,35 @@ Rules worth knowing:
   not off a role by `Contains`.
 - The AP staircase promotes a **business role's own row to the top of its
   bucket**, directly above the resources it grants, so a parent is always
-  adjacent to the children it folds away.
+  adjacent to the children it folds away — and those resources are drawn as its
+  children (indented, with the elbow). A resource that is *not* adjacent to one
+  of its roles stays a plain top-level row rather than being indented under an
+  unrelated one.
+- **A folded role says how much it is hiding that it does not grant.** Per
+  subject column, the folded row carries a red count of the folded resources
+  that subject holds *outside* this role. Folding is a summary, never a
+  cover-up: the access a role does not account for — exactly what role mining is
+  looking for — stays on screen. Coverage comes from the server's business-role
+  mapping (`managedByPackages`), not from a client-side guess at what a role
+  ought to grant.
+
+### A business role's own row
+
+A business role is a resource row like any other, and holding it is a `Direct`
+assignment carrying `governed=true`. Two consequences the grid makes visible:
+
+- **Its own SOLL column is filled in.** The role grants itself, so the diagonal
+  cell (role row × its own column) renders the **D** badge in the role's colour.
+  That grant is not a `Contains` relationship, so it can never arrive as a
+  (role, resource) pair from `GET /api/access-package-groups`; `MatrixView`
+  fills the diagonal when it builds the SOLL mapping.
+- **Its cells are coloured governed.**
+  [`061_business_role_covers_itself.sql`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/db/migrations/061_business_role_covers_itself.sql)
+  adds a self arm to `vw_UserPermissionAssignmentViaBusinessRole`, so a role
+  covers its own membership row as well as the resources it Contains. Before
+  that, the role row painted ungoverned, dropped out of the **Governed** view,
+  and every business-role membership counted as an *ungoverned* assignment in
+  the scope statistics.
 
 ### Size gate
 

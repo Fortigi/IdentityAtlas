@@ -1,41 +1,59 @@
 import { memo } from 'react';
 import { TYPE_COLORS } from '@ui/utils/colors';
+import { extraAccessTitle } from './cellMarkers';
 
-function MatrixCell({ cellKey, membershipTypes, managed, apColor, apCount, apNames, provisioningGap, gapExpected, onExplainInherited }) {
-  const hasMembership = membershipTypes && membershipTypes.size > 0;
+// Access that a folded business role hides but does NOT grant — the subject
+// holds it on one of the folded resources through some other route. Shown as a
+// count on the folded role's own cell so folding can never quietly swallow the
+// very thing a role-mining review is hunting for. Exported so the aggregate
+// (folded-column) cell can render the same marker.
+export function ExtraAccessBadge({ count }) {
+  if (!count) return null;
+  return (
+    <span
+      className="absolute -bottom-1 -right-1 flex items-center justify-center w-3 h-3 rounded-full text-[7px] font-bold leading-none bg-rose-600 text-white border border-rose-700 shadow-sm"
+      style={{ zIndex: 2 }}
+      title={extraAccessTitle(count)}
+    >
+      {count}
+    </span>
+  );
+}
 
-  // Background: AP color for managed cells only; unmanaged cells stay white
-  let bgColor;
-  if (hasMembership && managed) {
-    bgColor = apColor || '#dbeafe';
-  }
-
-  // Tooltip
-  let title;
-  if (hasMembership) {
+// Everything the cell says on hover: how the access is held, which business
+// roles govern it, and any marker it carries. Pulled out of the component so
+// the wording lives in one readable place.
+function cellTitle({ membershipTypes, managed, apNames, provisioningGap, gapExpected, extraAccessCount }) {
+  const parts = [];
+  const managedBy = apNames?.length ? `Managed by: ${apNames.join(', ')}` : null;
+  if (membershipTypes?.size) {
     const types = [...membershipTypes].join(', ');
-    if (apNames && apNames.length > 0) {
-      title = `${types}\nManaged by: ${apNames.join(', ')}`;
-    } else if (managed) {
-      title = `${types} (managed by business role)`;
-    } else {
-      title = types;
-    }
+    parts.push(managedBy ? `${types}\n${managedBy}` : (managed ? `${types} (managed by business role)` : types));
     if (provisioningGap) {
-      const expectedLabel = gapExpected ? ` (expects ${gapExpected})` : '';
-      title += `\n\u26a0 Provisioning gap: user lacks the membership type specified by the business role${expectedLabel}`;
+      const expected = gapExpected ? ` (expects ${gapExpected})` : '';
+      parts.push(`\u26a0 Provisioning gap: user lacks the membership type specified by the business role${expected}`);
     }
   } else if (provisioningGap) {
-    // AP manages this cell but user has no membership at all
-    const expectedLabel = gapExpected ? ` ${gapExpected}` : '';
-    title = `\u26a0 Provisioning gap: business role expects${expectedLabel} membership but user has none`;
-    if (apNames && apNames.length > 0) {
-      title += `\nManaged by: ${apNames.join(', ')}`;
-    }
-    bgColor = apColor || '#dbeafe';
+    // A business role manages this cell but the subject has no membership at all.
+    const expected = gapExpected ? ` ${gapExpected}` : '';
+    parts.push(`\u26a0 Provisioning gap: business role expects${expected} membership but user has none`);
+    if (managedBy) parts.push(managedBy);
   }
+  if (extraAccessCount > 0) parts.push(extraAccessTitle(extraAccessCount));
+  return parts.length ? parts.join('\n') : undefined;
+}
 
-  const needsRelative = apCount > 1 || provisioningGap;
+function MatrixCell({ cellKey, membershipTypes, managed, apColor, apCount, apNames, provisioningGap, gapExpected, extraAccessCount = 0, onExplainInherited }) {
+  const hasMembership = membershipTypes && membershipTypes.size > 0;
+
+  // Background: the business role's colour on a governed cell — and on a
+  // provisioning gap, which is governance without the membership. An ungoverned
+  // cell stays white.
+  const bgColor = (hasMembership ? managed : provisioningGap) ? (apColor || '#dbeafe') : undefined;
+
+  const title = cellTitle({ membershipTypes, managed, apNames, provisioningGap, gapExpected, extraAccessCount });
+
+  const needsRelative = apCount > 1 || provisioningGap || extraAccessCount > 0;
 
   return (
     <td
@@ -88,6 +106,7 @@ function MatrixCell({ cellKey, membershipTypes, managed, apColor, apCount, apNam
           {apCount}
         </span>
       )}
+      <ExtraAccessBadge count={extraAccessCount} />
     </td>
   );
 }
@@ -101,6 +120,7 @@ export default memo(MatrixCell, (prev, next) => {
     prev.apNames === next.apNames &&
     prev.provisioningGap === next.provisioningGap &&
     prev.gapExpected === next.gapExpected &&
+    prev.extraAccessCount === next.extraAccessCount &&
     prev.onExplainInherited === next.onExplainInherited
   );
 });

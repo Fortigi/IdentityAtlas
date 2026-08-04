@@ -29,4 +29,9 @@ describe('MatrixLegend', () => {
     expect(html).toContain('governed');
     expect(html).toContain('Provisioning gap');
   });
+
+  it('explains the count a folded business role shows for access it does not grant', () => {
+    expect(html).toContain('folded business role');
+    expect(html).toContain('outside the role');
+  });
 });

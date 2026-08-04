@@ -3,7 +3,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { renderHook, act } from '@ui/test-utils/renderWithProviders';
 import {
   useBusinessRoleFold, buildRoleChildMap, analyseRoleRows, hideFoldedRows,
-  rowResourceKey, ROLE_FOLD_VERSION,
+  collectFoldedChildRows, markRoleChildren, rowResourceKey, ROLE_FOLD_VERSION,
 } from './useBusinessRoleFold';
 
 const storeKey = (k) => `fgraph-rolefold-${k || 'all'}`;
@@ -160,6 +160,69 @@ describe('hideFoldedRows', () => {
   });
 });
 
+describe('collectFoldedChildRows', () => {
+  const childrenByRole = buildRoleChildMap(AP_GROUPS);
+  const { rolesByChild } = analyseRoleRows(ROWS, childrenByRole);
+
+  it('is empty when nothing is folded', () => {
+    expect(collectFoldedChildRows(ROWS, rolesByChild, new Set()).size).toBe(0);
+  });
+
+  it('lists the rows a folded role took away', () => {
+    const byRole = collectFoldedChildRows(ROWS, rolesByChild, new Set(['BR1', 'BR2']));
+    expect(ids(byRole.get('BR1'))).toEqual(['G1', 'G2']);
+    expect(ids(byRole.get('BR2'))).toEqual(['G2', 'G3']);
+  });
+
+  it('omits a shared resource that is still visible because one role is expanded', () => {
+    const byRole = collectFoldedChildRows(ROWS, rolesByChild, new Set(['BR1']));
+    // G2 is also granted by the expanded BR2, so it never left the grid.
+    expect(ids(byRole.get('BR1'))).toEqual(['G1']);
+    expect(byRole.has('BR2')).toBe(false);
+  });
+
+  it('ignores nested sub-rows — they follow the row they hang under', () => {
+    const rows = [...ROWS, { id: 'G1__nested__X', realGroupId: 'G1', isNestedRow: true, nestLevel: 1 }];
+    const byRole = collectFoldedChildRows(rows, rolesByChild, new Set(['BR1', 'BR2']));
+    expect(ids(byRole.get('BR1'))).toEqual(['G1', 'G2']);
+  });
+});
+
+describe('markRoleChildren', () => {
+  const childrenByRole = buildRoleChildMap(AP_GROUPS);
+  const { foldableRoles, rolesByChild } = analyseRoleRows(ROWS, childrenByRole);
+  const parents = (rows) => rows.map((r) => r.roleParentId || null);
+
+  it('marks the resources sitting directly under the role that grants them', () => {
+    const marked = markRoleChildren(ROWS, foldableRoles, rolesByChild);
+    expect(ids(marked)).toEqual(ids(ROWS));
+    expect(parents(marked)).toEqual([null, 'BR1', 'BR1', null, 'BR2', null]);
+  });
+
+  it('does not indent a resource that is not adjacent to one of its roles', () => {
+    // G1 has drifted below G4, away from BR1's block.
+    const rows = [{ id: 'BR1' }, { id: 'G4' }, { id: 'G1' }];
+    expect(parents(markRoleChildren(rows, foldableRoles, rolesByChild))).toEqual([null, null, null]);
+  });
+
+  it('carries the marking onto a child row\'s own nested sub-rows', () => {
+    const rows = [
+      { id: 'BR1' },
+      { id: 'G1' },
+      { id: 'G1__nested__X', isNestedRow: true, nestLevel: 1 },
+      { id: 'G4' },
+      { id: 'G4__nested__Y', isNestedRow: true, nestLevel: 1 },
+    ];
+    expect(parents(markRoleChildren(rows, foldableRoles, rolesByChild)))
+      .toEqual([null, 'BR1', 'BR1', null, null]);
+  });
+
+  it('returns the rows untouched when nothing can be marked', () => {
+    expect(markRoleChildren(ROWS, new Set(), rolesByChild)).toBe(ROWS);
+    expect(markRoleChildren([{ id: 'G4' }], foldableRoles, rolesByChild)).toHaveLength(1);
+  });
+});
+
 describe('rowResourceKey', () => {
   it('prefers the real resource id of a synthetic row', () => {
     expect(rowResourceKey({ id: 'g1__owner', realGroupId: 'g1' })).toBe('G1');
@@ -177,6 +240,22 @@ describe('useBusinessRoleFold', () => {
     expect(result.current.hasFoldedRoles).toBe(false);
     expect(ids(result.current.visibleRows)).toEqual(ids(ROWS));
     expect(result.current.roleChildCounts.get('BR1')).toBe(2);
+  });
+
+  it('renders the resources of an expanded role as its children', () => {
+    const { result } = render();
+    const byId = new Map(result.current.visibleRows.map((r) => [r.id, r]));
+    expect(byId.get('G1').roleParentId).toBe('BR1');
+    expect(byId.get('G3').roleParentId).toBe('BR2');
+    expect(byId.get('G4').roleParentId).toBeUndefined();
+  });
+
+  it('reports the rows each folded role took away', () => {
+    const { result } = render();
+    expect(result.current.foldedChildRows.size).toBe(0);
+    act(() => result.current.foldAllRoles());
+    expect(ids(result.current.foldedChildRows.get('BR1'))).toEqual(['G1', 'G2']);
+    expect(ids(result.current.foldedChildRows.get('BR2'))).toEqual(['G2', 'G3']);
   });
 
   it('offers no fold at all for a matrix without business-role rows', () => {

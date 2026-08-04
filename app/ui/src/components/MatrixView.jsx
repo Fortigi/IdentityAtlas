@@ -110,6 +110,50 @@ function makeAccountCol(parent, acc, sortKeys) {
   };
 }
 
+// Which business role grants which resource row, from the (role, resource)
+// payload — the SOLL side of the grid. Two things earn a role a column: it
+// grants a resource that is on screen, or its OWN row is (holding the role IS a
+// governed Direct assignment on it, which is not a `Contains` relationship and
+// so can never arrive as a pair — without this the role's column was blank on
+// its own row). Returns the roles keyed by id plus a "RESOURCE|role" → roleName
+// mapping.
+function buildApMapping(accessPackageGroups, visibleGroupIds) {
+  const apMap = new Map();
+  const mapping = new Map();
+  for (const row of accessPackageGroups) {
+    const gid = (row.resourceId || row.groupId)?.toUpperCase();
+    const selfGid = row.accessPackageId?.toUpperCase();
+    const selfVisible = !!selfGid && visibleGroupIds.has(selfGid);
+    const childVisible = !!gid && visibleGroupIds.has(gid);
+    if (!selfVisible && !childVisible) continue;
+    if (!apMap.has(row.accessPackageId)) {
+      apMap.set(row.accessPackageId, {
+        id: row.accessPackageId,
+        displayName: row.accessPackageName,
+        catalogName: row.catalogName,
+        totalAssignments: row.totalAssignments || 0,
+        categoryName: row.categoryName || null,
+        categoryColor: row.categoryColor || null,
+      });
+    }
+    const apKey = row.accessPackageId.toLowerCase();
+    if (selfVisible) mapping.set(`${selfGid}|${apKey}`, 'Member');
+    if (childVisible) mapping.set(`${gid}|${apKey}`, row.roleName || 'Member');
+  }
+  return { apMap, mapping };
+}
+
+// Column order: by category name, then by total assignments descending within
+// each category; uncategorized roles go last.
+function compareAccessPackages(a, b) {
+  const aCat = a.categoryName;
+  const bCat = b.categoryName;
+  if (aCat && !bCat) return -1;
+  if (!aCat && bCat) return 1;
+  if (aCat && bCat && aCat !== bCat) return aCat.localeCompare(bCat);
+  return b.totalAssignments - a.totalAssignments || a.displayName.localeCompare(b.displayName);
+}
+
 export default function MatrixView({
   data, accessPackageGroups = [], managedByPackages = [],
   filter,
@@ -439,24 +483,7 @@ export default function MatrixView({
     }
     const visibleGroupIds = new Set(groups.map(g => (g.realGroupId || g.id).toUpperCase()));
     const visibleUserIds = new Set(users.map(u => u.id.toLowerCase()));
-    const apMap = new Map();
-    const mapping = new Map(); // "groupId|apId" -> roleName
-
-    for (const row of accessPackageGroups) {
-      const gid = (row.resourceId || row.groupId)?.toUpperCase();
-      if (!gid || !visibleGroupIds.has(gid)) continue;
-      if (!apMap.has(row.accessPackageId)) {
-        apMap.set(row.accessPackageId, {
-          id: row.accessPackageId,
-          displayName: row.accessPackageName,
-          catalogName: row.catalogName,
-          totalAssignments: row.totalAssignments || 0,
-          categoryName: row.categoryName || null,
-          categoryColor: row.categoryColor || null,
-        });
-      }
-      mapping.set(`${gid}|${row.accessPackageId.toLowerCase()}`, row.roleName || 'Member');
-    }
+    const { apMap, mapping } = buildApMapping(accessPackageGroups, visibleGroupIds);
 
     // Filter to APs that have at least one visible user assignment
     const apIdsWithAssignments = new Set();
@@ -474,20 +501,7 @@ export default function MatrixView({
       }
     }
 
-    // Sort access packages: by category name first, then by total assignments
-    // descending within each category. Uncategorized APs go at the end.
-    const accessPackages = [...apMap.values()].sort((a, b) => {
-      const aCat = a.categoryName;
-      const bCat = b.categoryName;
-      // Uncategorized after all categorized
-      if (aCat && !bCat) return -1;
-      if (!aCat && bCat) return 1;
-      // Both categorized: sort by category name
-      if (aCat && bCat && aCat !== bCat) return aCat.localeCompare(bCat);
-      // Same category (or both uncategorized): sort by total assignments descending
-      return b.totalAssignments - a.totalAssignments || a.displayName.localeCompare(b.displayName);
-    });
-    return { accessPackages, apGroupMap: mapping };
+    return { accessPackages: [...apMap.values()].sort(compareAccessPackages), apGroupMap: mapping };
   }, [accessPackageGroups, groups, users, managedApMap]);
 
   // AP ID (lowercase) -> sorted index (for consistent color lookup)
@@ -666,7 +680,7 @@ export default function MatrixView({
   // last in the row pipeline, so it composes with the All/Governed/Non-governed/
   // Gaps toggles and with the injected nested sub-rows.
   const {
-    visibleRows: foldedGroups,
+    visibleRows: foldedGroups, foldedChildRows,
     foldableRoles, foldedRoles, roleChildCounts,
     toggleRoleFold, foldAllRoles, unfoldAllRoles, canFoldRoles, hasFoldedRoles,
   } = useBusinessRoleFold({ accessPackageGroups, rows: visibleGroups, storageKey });
@@ -824,6 +838,32 @@ export default function MatrixView({
     }
     return counts;
   }, [colMemberships, userToAgg, collapsedGroups]);
+
+  // Per (folded role, subject column): how many of the rows that role folded
+  // away carry access the role itself does NOT grant. Folding a role otherwise
+  // hides exactly what a role-mining review is looking for — the grants a role
+  // does not account for — so the folded row keeps a count of them. Coverage
+  // comes from managedApMap (the server's business-role → cell mapping), never
+  // from a client-side guess at what a role ought to grant.
+  const roleExtraCounts = useMemo(() => {
+    if (foldedChildRows.size === 0) return null;
+    const counts = new Map();
+    for (const [roleId, hiddenRows] of foldedChildRows) {
+      const roleIdLower = roleId.toLowerCase();
+      for (const row of hiddenRows) {
+        const realGid = (row.realGroupId || row.id).toLowerCase();
+        for (const u of users) {
+          const types = colMemberships.get(`${row.id}|${u.id}`);
+          if (!types || types.size === 0) continue;
+          if (managedApMap.get(`${realGid}|${u.id.toLowerCase()}`)?.includes(roleIdLower)) continue;
+          // A folded subject column carries the tally of everyone behind it.
+          const key = `${roleId}|${userToAgg.get(u.id) || u.id}`;
+          counts.set(key, (counts.get(key) || 0) + 1);
+        }
+      }
+    }
+    return counts;
+  }, [foldedChildRows, users, colMemberships, managedApMap, userToAgg]);
 
   // Fold every top-level (first sort attribute) group into one aggregate column;
   // unfold clears all collapses. There's something to fold only when the first
@@ -1030,6 +1070,7 @@ export default function MatrixView({
               foldableRoles={foldableRoles}
               foldedRoles={foldedRoles}
               roleChildCounts={roleChildCounts}
+              roleExtraCounts={roleExtraCounts}
               onToggleRoleFold={toggleRoleFold}
             />
           ) : (
@@ -1059,6 +1100,7 @@ export default function MatrixView({
                     foldableRoles={foldableRoles}
                     foldedRoles={foldedRoles}
                     roleChildCounts={roleChildCounts}
+                    roleExtraCounts={roleExtraCounts}
                     onToggleRoleFold={toggleRoleFold}
                   />
                 ))}

@@ -1,4 +1,4 @@
-﻿import MatrixCell from './MatrixCell';
+﻿import MatrixCell, { ExtraAccessBadge } from './MatrixCell';
 import { getAccessPackageColor } from '@ui/utils/colors';
 import { useIsDark } from '@ui/contexts/ThemeContext';
 
@@ -27,23 +27,39 @@ function roleFoldState({ group, foldableRoles, foldedRoles, roleChildCounts }) {
   };
 }
 
-// Chevron that folds a business role's resources away (and back). Rendered
-// unconditionally so the row body stays branch-free; renders nothing for rows
-// that aren't foldable business roles.
-function RoleFoldToggle({ fold, onToggle }) {
-  if (!fold) return null;
-  const label = fold.folded ? 'Unfold business role resources' : 'Fold business role resources';
+// The one expand/collapse affordance of the grid — used both by the nested-group
+// expand and by the business-role fold, so a row that opens into sub-rows always
+// looks and behaves the same wherever those sub-rows come from.
+function RowExpandToggle({ expanded, loading, onClick, label }) {
   return (
     <button
-      onClick={(e) => { e.stopPropagation(); onToggle?.(fold.roleKey); }}
-      className="flex-shrink-0 w-4 h-4 flex items-center justify-center text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 rounded"
+      onClick={(e) => { e.stopPropagation(); onClick(); }}
+      className="flex-shrink-0 w-4 h-4 flex items-center justify-center text-gray-600 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 rounded hover:bg-gray-200 dark:hover:bg-gray-600"
       aria-label={label}
       title={label}
     >
-      <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
-        <path strokeLinecap="round" strokeLinejoin="round" d={fold.folded ? 'M9 5l7 7-7 7' : 'M19 9l-7 7-7-7'} />
-      </svg>
+      {loading ? (
+        <svg className="animate-spin w-3 h-3" viewBox="0 0 24 24" fill="none">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+        </svg>
+      ) : (
+        <span className="text-[10px] leading-none">{expanded ? '▼' : '▶'}</span>
+      )}
     </button>
+  );
+}
+
+// Folds a business role's resources away (and back). Renders nothing for rows
+// that aren't foldable business roles.
+function RoleFoldToggle({ fold, onToggle }) {
+  if (!fold) return null;
+  return (
+    <RowExpandToggle
+      expanded={!fold.folded}
+      onClick={() => onToggle?.(fold.roleKey)}
+      label={fold.folded ? 'Unfold business role resources' : 'Fold business role resources'}
+    />
   );
 }
 
@@ -81,6 +97,7 @@ export default function MatrixGroupRow({
   foldableRoles,
   foldedRoles,
   roleChildCounts,
+  roleExtraCounts,
   onToggleRoleFold,
   // Optional DnD props (provided by SortableRow wrapper)
   sortableRef,
@@ -100,6 +117,15 @@ export default function MatrixGroupRow({
   // Business-role fold (never clashes with the nested-expand chevron above: a
   // business role is not a principal, so it is never in groupsWithNested).
   const roleFold = roleFoldState({ group, foldableRoles, foldedRoles, roleChildCounts });
+
+  // How many hidden assignments this folded role does NOT grant, per column.
+  const extraAccessFor = (userId) =>
+    (roleFold?.folded && roleExtraCounts?.get(`${roleFold.roleKey}|${userId}`)) || 0;
+
+  // A resource shown beneath the business role that grants it is drawn as that
+  // role's child — same indent + elbow as an expanded nested group.
+  const isRoleChild = !!group.roleParentId;
+  const indentLevel = (group.nestLevel || 0) + (isRoleChild ? 1 : 0);
 
   const nestedBg = group.isNestedRow ? 'bg-gray-50/60 dark:bg-gray-700/40' : 'bg-white dark:bg-gray-800';
 
@@ -123,25 +149,17 @@ export default function MatrixGroupRow({
         style={{ left: '24px', minWidth: '275px', maxWidth: '275px', zIndex: 10 }}
         title={group.displayName}
       >
-        <div className="flex items-center gap-0.5" style={{ paddingLeft: (group.nestLevel || 0) * 16 }}>
+        <div className="flex items-center gap-0.5" style={{ paddingLeft: indentLevel * 16 }}>
           <RoleFoldToggle fold={roleFold} onToggle={onToggleRoleFold} />
           {canExpand && (
-            <button
-              onClick={(e) => { e.stopPropagation(); onToggleExpand?.(realGidForExpand); }}
-              className="flex-shrink-0 w-4 h-4 flex items-center justify-center text-gray-600 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 rounded hover:bg-gray-200 dark:hover:bg-gray-600"
-              title={isExpanded ? 'Collapse nested groups' : 'Expand nested groups'}
-            >
-              {isLoadingNested ? (
-                <svg className="animate-spin w-3 h-3" viewBox="0 0 24 24" fill="none">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                </svg>
-              ) : (
-                <span className="text-[10px] leading-none">{isExpanded ? '\u25BC' : '\u25B6'}</span>
-              )}
-            </button>
+            <RowExpandToggle
+              expanded={isExpanded}
+              loading={isLoadingNested}
+              onClick={() => onToggleExpand?.(realGidForExpand)}
+              label={isExpanded ? 'Collapse nested groups' : 'Expand nested groups'}
+            />
           )}
-          {group.isNestedRow && (
+          {(group.isNestedRow || isRoleChild) && (
             <span className="text-gray-500 dark:text-gray-600 text-[10px] mr-0.5 flex-shrink-0">{'\u2514'}</span>
           )}
           <div className="truncate cursor-pointer hover:text-blue-600 dark:hover:text-blue-400"
@@ -167,13 +185,15 @@ export default function MatrixGroupRow({
         // assignments among its users instead of per-subject badges.
         if (user.isAggregateCol) {
           const n = aggDirectCounts?.get(`${group.id} ${user.id}`) || 0;
+          const extra = extraAccessFor(user.id);
           return (
             <td key={user.id}
               className="border-r border-b border-gray-200 dark:border-gray-700 text-center px-0 py-0 bg-indigo-50/40 dark:bg-indigo-900/10"
-              style={{ width: '24px', minWidth: '24px' }}>
+              style={{ width: '24px', minWidth: '24px', position: extra > 0 ? 'relative' : undefined }}>
               {n > 0
                 ? <span className="text-[10px] font-semibold text-gray-800 dark:text-gray-200">{n}</span>
                 : <span className="text-gray-500 dark:text-gray-700">·</span>}
+              <ExtraAccessBadge count={extra} />
             </td>
           );
         }
@@ -221,6 +241,7 @@ export default function MatrixGroupRow({
             apNames={apNames}
             provisioningGap={provisioningGap}
             gapExpected={gapExpected}
+            extraAccessCount={extraAccessFor(user.id)}
             onExplainInherited={onExplainInherited}
           />
         );

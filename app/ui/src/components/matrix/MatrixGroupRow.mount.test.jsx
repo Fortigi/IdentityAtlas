@@ -80,4 +80,68 @@ describe('MatrixGroupRow — business-role fold affordance', () => {
     );
     expect(foldButton()).toBeNull();
   });
+
+  it('uses the same triangle affordance as the nested-group expand', () => {
+    renderRow({ id: 'BR1', displayName: 'HR Manager BR', memberCount: 3 });
+    expect(screen.getByRole('button', { name: /fold business role resources/i })).toHaveTextContent('▼');
+    renderRow(
+      { id: 'BR2', displayName: 'Other BR', memberCount: 3 },
+      { foldableRoles: new Set(['BR2']), foldedRoles: new Set(['BR2']), roleChildCounts: new Map([['BR2', 1]]) },
+    );
+    expect(screen.getByRole('button', { name: /unfold business role resources/i })).toHaveTextContent('▶');
+  });
+});
+
+describe('MatrixGroupRow — a resource shown under the role that grants it', () => {
+  it('indents the row and marks it with the nested elbow', () => {
+    const { container } = renderRow({
+      id: 'G1', displayName: 'Finance Group', memberCount: 2, roleParentId: 'BR1',
+    });
+    expect(screen.getByText('└')).toBeInTheDocument();
+    expect(container.querySelector('td [style*="padding-left: 16px"]')).not.toBeNull();
+  });
+
+  it('indents a sub-row of such a resource one level deeper', () => {
+    const { container } = renderRow({
+      id: 'G1__nested__X', realGroupId: 'X', displayName: 'Nested', isNestedRow: true,
+      nestLevel: 1, roleParentId: 'BR1',
+    });
+    expect(container.querySelector('td [style*="padding-left: 32px"]')).not.toBeNull();
+  });
+
+  it('leaves a resource no role grants flush left', () => {
+    const { container } = renderRow({ id: 'G4', displayName: 'Unmanaged Group', memberCount: 1 });
+    expect(screen.queryByText('└')).toBeNull();
+    expect(container.querySelector('td [style*="padding-left: 0px"]')).not.toBeNull();
+  });
+});
+
+describe('MatrixGroupRow — access a folded role does not grant', () => {
+  const folded = {
+    foldedRoles: new Set(['BR1']),
+    roleExtraCounts: new Map([['BR1|u1', 3]]),
+  };
+  const role = { id: 'BR1', displayName: 'HR Manager BR', memberCount: 9 };
+  // The cell and its corner badge share the explanation, so hovering anywhere
+  // in the cell shows it; the badge is the innermost of the two.
+  const extraBadge = () => screen.queryAllByTitle(/does not grant/).at(-1) ?? null;
+
+  it('counts it on the folded role row', () => {
+    renderRow(role, folded);
+    expect(extraBadge()).toHaveTextContent('3');
+  });
+
+  it('shows nothing while the role is expanded — the rows speak for themselves', () => {
+    renderRow(role, { roleExtraCounts: folded.roleExtraCounts });
+    expect(extraBadge()).toBeNull();
+  });
+
+  it('tallies it on a folded subject column too', () => {
+    renderRow(role, {
+      ...folded,
+      users: [{ id: 'agg-1', isAggregateCol: true, displayName: 'Engineering' }],
+      roleExtraCounts: new Map([['BR1|agg-1', 5]]),
+    });
+    expect(extraBadge()).toHaveTextContent('5');
+  });
 });
