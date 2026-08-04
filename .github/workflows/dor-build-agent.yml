@@ -24,14 +24,18 @@ concurrency:
 
 jobs:
   authorize:
+    # Note: no `sender.type != 'Bot'` gate — ready-to-build is applied by the pipeline (dor-propose-build
+    # / dor-resume) via the BOT app, not only by humans. The real guards are the requestor's org
+    # membership (below) + the build-approval Environment gate. We validate the ISSUE AUTHOR (the
+    # requestor whose feature this is), not whoever applied the label.
     if: >-
       vars.DOR_ENABLED == 'true' &&
-      github.event.sender.type != 'Bot' &&
       !github.event.issue.pull_request &&
       github.event.label.name == 'ready-to-build'
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      issues: write
     outputs:
       is-member: ${{ steps.auth.outputs.is-member }}
     steps:
@@ -41,13 +45,23 @@ jobs:
           sparse-checkout: .github/actions/dor-authorize
           sparse-checkout-cone-mode: false
           persist-credentials: false
-      - name: Require Fortigi org membership
+      - name: Require the requestor to be a Fortigi org member
         id: auth
         uses: ./.github/actions/dor-authorize
         with:
           app-id: ${{ secrets.BOT_APP_ID }}
           private-key: ${{ secrets.BOT_PRIVATE_KEY }}
-          actor: ${{ github.actor }}
+          actor: ${{ github.event.issue.user.login }}
+      - name: Post the one-click approval link (value gate)
+        if: steps.auth.outputs.is-member == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE: ${{ github.event.issue.number }}
+          REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -uo pipefail
+          gh issue comment "$ISSUE" --repo "$REPO" --body "$(printf '🗳️ @WimvandenHeijkant @TaekeK @robb536 — ready for the **value gate**. **[Review & approve to build →](%s)** (open the run → *Review deployments* → approve `build-approval`). Nothing runs or spends until you do.' "$RUN_URL")" >/dev/null 2>&1 || true
 
   build:
     needs: authorize
