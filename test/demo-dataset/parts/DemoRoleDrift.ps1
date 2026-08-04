@@ -28,6 +28,11 @@
       Lars Muller   (E0024) — holds Tools directly without holding the role at
                               all: access the role does not account for.
 
+    A fourth resource — the Ticketing-Agent app role — is added to this role by
+    DemoSharedGrants.ps1, which also gives it to BR-IT-Operations. It lives
+    there because it belongs to that scenario (one resource, two roles), not
+    because it is a fourth drift case. Tom is left out of it as well.
+
     WHY THE Indirect ROWS ARE EXPLICIT: same reason as DemoSalesScenario.ps1 —
     the matrix matview reads declared rows, so access a role confers has to be
     emitted as a real assignment. Leaving one out is exactly what makes it read

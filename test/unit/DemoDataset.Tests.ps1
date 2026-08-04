@@ -390,6 +390,70 @@ Describe 'Demo dataset — Capture-the-Flag scenarios (#705)' {
     }
 }
 
+Describe 'Demo dataset — one resource, two business roles (#370)' {
+
+    # Catalogues overlap: the same group or app role is granted by more than one
+    # business role. The matrix has to resolve that (a shared row survives until
+    # every granting role is folded), so the dataset has to contain it — one
+    # group and one application role, both granted twice. See
+    # parts/DemoSharedGrants.ps1 and docs/architecture/matrix.md.
+    BeforeAll {
+        $script:sharedResByName = @{}
+        foreach ($r in $script:data.resources) { $script:sharedResByName[$r.displayName] = $r }
+        $script:sharedPrincByName = @{}
+        foreach ($p in $script:data.principals) { $script:sharedPrincByName[$p.displayName] = $p }
+
+        # childResourceId -> the parents that Contain it. A resource with two
+        # entries here is one granted by two business roles.
+        $script:containsByChild = @{}
+        foreach ($rel in $script:data.resourceRelationships) {
+            if ($rel.relationshipType -ne 'Contains') { continue }
+            if (-not $script:containsByChild.ContainsKey($rel.childResourceId)) {
+                $script:containsByChild[$rel.childResourceId] = @()
+            }
+            $script:containsByChild[$rel.childResourceId] += $rel.parentResourceId
+        }
+    }
+
+    It 'grants one GROUP from two different business roles' {
+        $tools = $script:sharedResByName['SG-Servicedesk-Tools']
+        $tools.resourceType | Should -Be 'Group'
+        @($script:containsByChild[$tools.id]).Count | Should -Be 2
+    }
+
+    It 'grants one APPLICATION ROLE from two different business roles' {
+        $ticketing = $script:sharedResByName['Ticketing-Agent']
+        $ticketing.resourceType | Should -Be 'AppRole'
+        @($script:containsByChild[$ticketing.id]).Count | Should -Be 2
+    }
+
+    It 'gives each of the two roles a resource of its own, so folding one still hides a row' {
+        foreach ($name in @('SG-Monitoring-Tools', 'SG-Servicedesk-KB')) {
+            @($script:containsByChild[$script:sharedResByName[$name].id]).Count | Should -Be 1
+        }
+    }
+
+    It 'stores a membership covered by two roles once — the overlap is coverage, not access' {
+        $tools = $script:sharedResByName['SG-Servicedesk-Tools'].id
+        foreach ($who in @('Victor Wang', 'Wendy Xu')) {
+            $pid = $script:sharedPrincByName[$who].id
+            @($script:data.resourceAssignments |
+                Where-Object { $_.resourceId -eq $tools -and $_.principalId -eq $pid }).Count | Should -Be 1
+        }
+    }
+
+    It 'gives one holder only the new role, so the shared rows are not the service desk alone' {
+        $only = $script:sharedPrincByName['Fatih Gunay'].id
+        $held = @($script:data.resourceAssignments | Where-Object { $_.principalId -eq $only } |
+            ForEach-Object { $_.resourceId })
+        $held | Should -Contain $script:sharedResByName['BR-IT-Operations'].id
+        $held | Should -Not -Contain $script:sharedResByName['BR-Service-Desk'].id
+        # ...and he holds the resources that role shares with the service desk.
+        $held | Should -Contain $script:sharedResByName['SG-Servicedesk-Tools'].id
+        $held | Should -Contain $script:sharedResByName['Ticketing-Agent'].id
+    }
+}
+
 Describe 'Demo dataset — vendor-neutral IGA (#705)' {
 
     It 'names the governance system generically, not after a vendor' {

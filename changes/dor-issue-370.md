@@ -11,4 +11,7 @@
 - Matrix: a cell is now marked when someone holds a permanent membership on a resource their business role only makes them eligible for — more access than the role assigns.
 - Matrix: a subject who is short on one resource of a business role and over on another now shows both deviations at the same time, on the same business role.
 - Matrix: a resource row now names the business role it belongs to — in its tooltip wherever it sits, and as a clickable chip once the row has been moved away from that role, so a dragged row is never orphaned from its role.
+- Matrix: a resource that more than one business role grants is now handled end to end — it stays on screen until every one of those roles is folded, stops being drawn under a role once that role is collapsed, and names the role that is still showing it.
+- Matrix: a folded business role now reports what it actually hid ("1 of 3 resources folded") when another role it shares resources with is still open, and its tooltip names that role — so the count can never overstate what went away.
+- Demo data: added an IT operations business role that shares a group and an application role with the service desk role, so the "same resource in two roles" case is visible in the demo.
 - Demo data: added a service desk business role whose holders show the full picture — one person short of what the role assigns, one both short on one group and over-provisioned on another, one holding a group of the role without holding the role, and two holding exactly what the role assigns.

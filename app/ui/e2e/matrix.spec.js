@@ -316,6 +316,55 @@ test.describe('Matrix — fold business-role resources', () => {
     }
   });
 
+  // Requestor feedback on #370: what happens to a group / app role that two
+  // business roles grant. The demo dataset's BR-Service-Desk and
+  // BR-IT-Operations share exactly that (see DemoSharedGrants.ps1).
+  test('a resource two roles grant survives the first fold, and the role says so', async ({ page }) => {
+    await openFoldableGrid(page);
+
+    // Find a (resource, role) pair where the resource is granted by two roles
+    // and both roles have a row — the scenario under test.
+    const pairs = await (await page.request.get('/api/access-package-groups')).json();
+    const byResource = new Map();
+    for (const r of pairs) {
+      if (!r.resourceId) continue;
+      const key = String(r.resourceId).toUpperCase();
+      if (!byResource.has(key)) byResource.set(key, []);
+      byResource.get(key).push(r);
+    }
+    const shared = [...byResource.values()].find(rows => rows.length > 1);
+    test.skip(!shared, 'no resource in this dataset is granted by more than one business role');
+
+    // Fold every role but the last one that grants the shared resource: the row
+    // must still be on screen, because that role is still expanded.
+    const keepOpen = shared[shared.length - 1].accessPackageName;
+    const sharedRow = page.locator('tbody td', { hasText: shared[0].resourceName }).first();
+    const wasOnScreen = await sharedRow.count() > 0;
+    await foldAll(page).click();
+    await expect(unfoldAll(page)).toBeVisible();
+    const role = page.locator('tbody tr', { hasText: keepOpen })
+      .filter({ has: page.getByRole('button', { name: 'Unfold business role resources' }) }).first();
+    test.skip(await role.count() === 0, `the ${keepOpen} row is not rendered in this grid`);
+    await role.getByRole('button', { name: 'Unfold business role resources' }).click();
+    await expect(page.getByRole('button', { name: 'Fold business role resources' }).first()).toBeVisible();
+
+    // The shared resource is back even though the other role granting it is
+    // still folded — one expanded role is enough to keep it on screen.
+    if (wasOnScreen) await expect.poll(() => sharedRow.count()).toBeGreaterThan(0);
+
+    // Some other role folded a row it shares with the one just re-opened, so it
+    // reports what it really hid rather than everything it grants.
+    const partial = page.getByText(/\d+ of \d+ resources folded/);
+    if (await partial.count()) {
+      await expect(partial.first()).toHaveAttribute('title', /stay on screen/);
+      await expect(partial.first()).toHaveAttribute('title', /also granted by/);
+    }
+
+    // Leave the browser profile clean for the next test.
+    await unfoldAll(page).click();
+    await expect(unfoldAll(page)).toHaveCount(0);
+  });
+
   // Rows keep whatever position they are moved to, so a resource can end up far
   // from the role that grants it. The row must still say which role that is.
   test('a resource still names its business role after being moved away from it', async ({ page }) => {

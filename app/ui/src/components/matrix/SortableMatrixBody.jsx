@@ -63,7 +63,7 @@ export default function SortableMatrixBody({
   // Business-role fold props
   foldableRoles,
   foldedRoles,
-  roleChildCounts,
+  roleFoldInfo,
   roleExtraCounts,
   roleMissingCounts,
   onToggleRoleFold,
@@ -118,7 +118,7 @@ export default function SortableMatrixBody({
     loadingNested,
     foldableRoles,
     foldedRoles,
-    roleChildCounts,
+    roleFoldInfo,
     roleExtraCounts,
     roleMissingCounts,
     onToggleRoleFold,

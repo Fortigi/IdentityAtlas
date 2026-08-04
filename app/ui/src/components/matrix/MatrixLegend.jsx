@@ -118,6 +118,12 @@ export default function MatrixLegend() {
                 The business role that grants this resource, named on the row itself when the row does not sit directly under that role (after you drag it elsewhere, for example).
               </span>
             </div>
+            <div className="flex items-center gap-1.5">
+              <span className="inline-flex px-1 items-center justify-center rounded bg-indigo-50 text-indigo-700 border border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-700 text-[9px] font-medium shrink-0" aria-hidden="true">BR +1</span>
+              <span className="text-gray-700 dark:text-gray-300">
+                A resource granted by <span className="font-medium">more than one business role</span> names them all, and stays on screen until every one of those roles is folded — a folded role then reports &ldquo;N of M resources folded&rdquo; and says which role is still showing the rest.
+              </span>
+            </div>
           </div>
         </div>
       )}

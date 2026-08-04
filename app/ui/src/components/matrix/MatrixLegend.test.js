@@ -46,4 +46,11 @@ describe('MatrixLegend', () => {
   it('explains the chip naming the business role a moved row belongs to', () => {
     expect(html).toContain('named on the row itself');
   });
+
+  // Feedback on #370: how a resource granted by several business roles behaves.
+  it('explains a resource granted by more than one business role', () => {
+    expect(html).toContain('more than one business role');
+    expect(html).toContain('until every one of those roles is folded');
+    expect(html).toContain('N of M resources folded');
+  });
 });

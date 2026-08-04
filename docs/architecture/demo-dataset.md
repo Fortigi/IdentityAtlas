@@ -19,6 +19,7 @@ It also backs the **public demo environment** and hides the **Capture-the-Flag**
 | `DemoGovernance.ps1` | IGA catalogs, business roles, policies, certifications |
 | `DemoSalesScenario.ps1` | The Sales role-mining scenario (flags 1–7) |
 | `DemoRoleDrift.ps1` | Role holders with fewer / more access than their business role assigns |
+| `DemoSharedGrants.ps1` | The overlap between two business roles — one group and one app role granted by both |
 | `DemoConsent.ps1` | OAuth consent + shadow IT (flags 11–12) |
 | `DemoSap.ps1` | The SAP ERP system (flag 8) |
 | `DemoAzure.ps1` | The AzureRM system (flag 10) |
@@ -154,7 +155,7 @@ AU-Netherlands
 | BR-Finance-Systems | BusinessRole | IGA | Financial systems access |
 | BR-Admin-Privileged | BusinessRole | IGA | Privileged admin access |
 | BR-Sales | BusinessRole | IGA | Sales role — Contains SG-Sales + SG-CRM-Users |
-| BR-Service-Desk | BusinessRole | IGA | Service desk role — Contains the two service desk groups as a membership and SG-Servicedesk-Admin as *eligibility only*. The role-drift scenario hangs off it |
+| BR-Service-Desk | BusinessRole | IGA | Service desk role — Contains the two service desk groups as a membership, SG-Servicedesk-Admin as *eligibility only*, and the Ticketing-Agent app role it shares with BR-IT-Operations. The role-drift scenario hangs off it |
 | SG-Engineering | GroupOwnership | EntraID | Owners of the Engineering group (a GroupOwnership resource is named after the group it owns) |
 | SG-Finance | GroupOwnership | EntraID | Owners of the Finance group |
 | SG-Admin-Tier0 | GroupOwnership | EntraID | Owners of the Tier-0 admin group |
@@ -165,6 +166,9 @@ AU-Netherlands
 | SG-Servicedesk-Tools | Group | EntraID | Granted **by** BR-Service-Desk as a membership |
 | SG-Servicedesk-KB | Group | EntraID | Granted **by** BR-Service-Desk as a membership — the one two holders never got (fewer than the role assigns) |
 | SG-Servicedesk-Admin | Group | EntraID | Granted **by** BR-Service-Desk as *eligibility*; one holder has it as a standing membership (more than the role assigns) |
+| BR-IT-Operations | BusinessRole | IGA | IT operations role — overlaps BR-Service-Desk on two resources. The shared-grant scenario hangs off it |
+| Ticketing-Agent | AppRole | EntraID | Granted **by** BR-Service-Desk *and* BR-IT-Operations — the app role in two business roles |
+| SG-Monitoring-Tools | Group | EntraID | Granted **by** BR-IT-Operations alone, so folding that role still takes a row away |
 | FileSync Pro | Application | EntraID | Third-party app, unverified publisher — the risky one |
 | Files.ReadWrite.All | DelegatedPermission | EntraID | The risky consent scope (flags 11–12) |
 | Contoso Timesheets | Application | EntraID | Approved app, verified publisher — the control |
@@ -204,6 +208,10 @@ AU-Netherlands
 | E0034 (Tom Bakker) | SG-Servicedesk-Tools only | Indirect | **Fewer** than the role assigns: never provisioned into the KB or the admin eligibility |
 | E0030 (Wendy Xu) | SG-Servicedesk-Tools (Indirect), SG-Servicedesk-Admin (**Direct**) | Indirect / Direct | Both directions at once: no KB (**fewer**) and a standing membership where the role only grants eligibility (**more**) |
 | E0024 (Lars Muller) | SG-Servicedesk-Tools | Direct | Holds one of the role's resources without holding the role — access the role does not account for |
+| E0010, E0029, E0030 | BR-IT-Operations | Direct (`governed=true`) | The shared-grant cast — E0010 holds this role only, E0029/E0030 hold both roles. See [One resource, two business roles](#one-resource-two-business-roles) |
+| E0010, E0029, E0030 | SG-Monitoring-Tools | Indirect | What only BR-IT-Operations grants |
+| E0010, E0014, E0029, E0030 | Ticketing-Agent | Indirect | The shared app role. E0034 is left out — one more thing his role assigns that he never got |
+| E0010 | SG-Servicedesk-Tools | Indirect | The shared group. E0029/E0030 already hold it through BR-Service-Desk — a second role covering a membership adds coverage, **not** a second assignment |
 
 ### Resource Relationships
 
@@ -222,6 +230,10 @@ AU-Netherlands
 | BR-Service-Desk | SG-Servicedesk-Tools | Contains (`roleName='Member'`) | A standing membership |
 | BR-Service-Desk | SG-Servicedesk-KB | Contains (`roleName='Member'`) | A standing membership |
 | BR-Service-Desk | SG-Servicedesk-Admin | Contains (`roleName='Eligible Member'`) | Just-in-time only — `roleName` is what makes a standing membership on it read as *more than the role assigns* |
+| BR-Service-Desk | Ticketing-Agent | Contains (`roleName='Member'`) | The app role it shares with BR-IT-Operations |
+| BR-IT-Operations | Ticketing-Agent | Contains (`roleName='Member'`) | The second grant of the same app role |
+| BR-IT-Operations | SG-Servicedesk-Tools | Contains (`roleName='Member'`) | The second grant of the same group |
+| BR-IT-Operations | SG-Monitoring-Tools | Contains (`roleName='Member'`) | Granted by this role alone |
 | FileSync Pro | Files.ReadWrite.All | DelegatesScope | App → the scope consented to it |
 | Contoso Timesheets | User.Read | DelegatesScope | The control app |
 | Fortigi Demo Tenant → rg-prod-eastus / rg-prod-westeurope → their storage accounts | Contains | Contains | The Azure scope tree (4 edges) |
@@ -234,7 +246,7 @@ AU-Netherlands
 
 | Entity | Data |
 |---|---|
-| Catalog: "Employee Access" | Contains BR-Employee-Base, BR-Engineering-Tools, BR-Finance-Systems, BR-Sales, BR-Service-Desk |
+| Catalog: "Employee Access" | Contains BR-Employee-Base, BR-Engineering-Tools, BR-Finance-Systems, BR-Sales, BR-Service-Desk, BR-IT-Operations |
 | Catalog: "Privileged Access" | Contains BR-Admin-Privileged |
 | Policy: "Auto-assign all employees" | On BR-Employee-Base, scope: all, auto-approve |
 | Policy: "Manager approval" | On BR-Engineering-Tools, requires manager approval |
@@ -316,12 +328,14 @@ Matching access is the easy case. `DemoRoleDrift.ps1` supplies the two that a
 role-mining review actually hunts for, on one business role —
 **BR-Service-Desk**, which grants `SG-Servicedesk-Tools` and
 `SG-Servicedesk-KB` as memberships and `SG-Servicedesk-Admin` as *eligibility
-only* (`roleName='Eligible Member'` on the `Contains` edge):
+only* (`roleName='Eligible Member'` on the `Contains` edge). The fourth thing it
+grants — the `Ticketing-Agent` app role — belongs to the
+[shared-grant scenario](#one-resource-two-business-roles) below:
 
 | Person | What they have | What the matrix shows |
 |---|---|---|
 | Ursula Visser (E0014), Victor Wang (E0029) | All three, exactly as assigned | Nothing — the control, so the deviations don't read as the norm |
-| Tom Bakker (E0034) | Tools only | **Fewer**: two of the three resources the role assigns him are missing |
+| Tom Bakker (E0034) | Tools only | **Fewer**: two of the three groups the role assigns him are missing — as is the Ticketing-Agent app role it shares with BR-IT-Operations |
 | Wendy Xu (E0030) | Tools, plus Admin as a *standing* membership; no KB | **Fewer and more at once** — the case the folded role row has to summarise in both directions |
 | Lars Muller (E0024) | Tools, without holding the role | Access the role does not account for |
 
@@ -331,6 +345,36 @@ provisioning needs the `roleName` on the edge — without it every child reads a
 "standing membership expected" and holding one permanently is exactly right.
 See [`matrix.md`](matrix.md) → "Fewer and more than the role assigns" for how
 each is rendered.
+
+### One resource, two business roles
+
+Real catalogues overlap — the same group or application role is handed out by
+more than one business role. `DemoSharedGrants.ps1` builds that overlap between
+**BR-Service-Desk** and a second role, **BR-IT-Operations**:
+
+| Resource | Granted by | Why it is there |
+|---|---|---|
+| `SG-Servicedesk-Tools` (Group) | BR-Service-Desk **+** BR-IT-Operations | The group in two roles |
+| `Ticketing-Agent` (AppRole) | BR-Service-Desk **+** BR-IT-Operations | The application role in two roles |
+| `SG-Monitoring-Tools` (Group) | BR-IT-Operations only | So folding one of the two roles still takes a row away |
+
+The holders make the overlap non-trivial: Victor Wang (E0029) and Wendy Xu
+(E0030) hold **both** roles, while Fatih Gunay (E0010) holds BR-IT-Operations
+only — so the shared rows cannot be attributed to the service desk alone.
+
+Two properties of the data are the point, and
+`Verify-DemoDataset.ps1` guards both:
+
+- **A membership covered by two roles is one assignment.** Victor's
+  `SG-Servicedesk-Tools` row is emitted once; the second role adds a second
+  `Contains` edge, i.e. coverage, not a second grant. That is why
+  `DemoSharedGrants.ps1` skips the memberships `DemoRoleDrift.ps1` already
+  emitted.
+- **Each role also grants something exclusively**, so "fold one role" and "fold
+  both" are visibly different states.
+
+See [`matrix.md`](matrix.md) → "One resource, several business roles" for what
+the grid does with it.
 
 ---
 
@@ -352,9 +396,9 @@ The dataset is a single JSON file that maps directly to the Ingest API endpoints
     "entityCounts": {
       "systems": 5,
       "principals": 45,
-      "resources": 43,
-      "resourceAssignments": 157,
-      "resourceRelationships": 23,
+      "resources": 46,
+      "resourceAssignments": 168,
+      "resourceRelationships": 27,
       "identities": 27,
       "identityMembers": 38,
       "contexts": 9,
@@ -392,9 +436,9 @@ Counted with `deletedAt IS NULL` on `Principals`, `Resources` and `ResourceAssig
 |---|---|---|
 | Systems | 5 | Entra ID + HR + IGA + SAP ERP + AzureRM |
 | Principals | 45 | 26 employees + 1 disabled + 1 contractor + 1 `ServicePrincipal` + 1 `AIAgent` + 1 `SharedMailbox` + 1 IGA account + 10 SAP accounts + 3 app service principals |
-| Resources | 43 | Entra 10 + group-ownership 3 + business roles 6 + Sales 4 + role drift 3 + consent 4 + SAP 4 + Azure 9 |
-| ResourceAssignments | 157 | `Direct` + `Indirect` (role-derived) + `Eligible`; the `governed=true` ones are the business-role memberships |
-| ResourceRelationships | 23 | 17 Contains + 1 GrantsAccessTo + 3 HasOwnership + 2 DelegatesScope |
+| Resources | 46 | Entra 10 + group-ownership 3 + business roles 7 + Sales 4 + role drift 3 + shared grants 2 + consent 4 + SAP 4 + Azure 9 |
+| ResourceAssignments | 168 | `Direct` + `Indirect` (role-derived) + `Eligible`; the `governed=true` ones are the business-role memberships |
+| ResourceRelationships | 27 | 21 Contains + 1 GrantsAccessTo + 3 HasOwnership + 2 DelegatesScope |
 | Identities | 27 | 26 employees + 1 disabled |
 | IdentityMembers | 38 | 27 Entra + 1 IGA + 10 SAP |
 | Contexts | 9 | 1 root + 5 departments + 2 teams + 1 admin unit — all `variant='synced'` |
@@ -448,13 +492,17 @@ These are **exact**, because the generator is deterministic. If one fails after 
 | 5 principals consented to `Files.ReadWrite.All` (flag 11) | True |
 | 2 principals are risky-consenters with never-expiring passwords, and the "any consent" trap is wider at 3 (flag 12) | True |
 | Every `DelegatedPermission`'s `clientSpId` resolves to a Principal | True |
+| BR-Service-Desk grants 4 resources, one of them `Eligible Member` only | True |
+| `SG-Servicedesk-Tools` (Group) and `Ticketing-Agent` (AppRole) each have 2 `Contains` parents | True |
+| A membership covered by two roles is stored once, not twice | True |
+| One BR-IT-Operations holder (E0010) does not hold BR-Service-Desk | True |
 
 ### UI Verification (Playwright)
 
 | Check | How |
 |---|---|
-| Resources page shows 34 resources (excluding BusinessRoles) | Count rows, filter by non-BusinessRole |
-| Business Roles page shows 5 business roles | Count rows |
+| Resources page shows 39 resources (excluding BusinessRoles) | Count rows, filter by non-BusinessRole |
+| Business Roles page shows 7 business roles | Count rows |
 | Users page shows 45 principals | Count visible or total indicator |
 | Matrix shows data (not "0 users x 0 resources") | Assert text not present |
 | Click CTO user → detail page opens | Navigate, check heading |

@@ -172,7 +172,8 @@ Rules worth knowing:
   localStorage (`fgraph-rolefold-<filter>`), the mechanism the custom row order
   uses — so two different matrix slices keep independent fold state.
 - **A resource granted by several roles** stays visible until *every* role
-  granting it that is present in the grid is folded.
+  granting it that is present in the grid is folded — see
+  [One resource, several business roles](#one-resource-several-business-roles).
 - **A role with no row of its own** (nobody visible holds it) gets no fold
   affordance and hides nothing — a resource never disappears without a visible
   parent to unfold it from.
@@ -212,6 +213,33 @@ indent + elbow then stops being an answer, so the row carries one of its own:
 Both come from `markRoleChildren` in
 [`useBusinessRoleFold.js`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/ui/src/hooks/useBusinessRoleFold.js),
 off the same `Contains` data the fold uses.
+
+### One resource, several business roles
+
+Catalogues overlap: the same group or application role is routinely handed out
+by more than one business role. That is one row with two (or more) `Contains`
+parents — **never** a duplicated row or a duplicated assignment. The membership
+is stored once; what the second role adds is *coverage*, and the grid resolves
+the overlap in five places:
+
+| Where | What it does |
+|---|---|
+| **SOLL columns** | The row shows a badge under **every** role that grants it, so the overlap is readable straight off the grid |
+| **Cell colour** | The cell carries a count bubble — "covered by *n* business roles" — and takes the colour of the first role in `managedByPackages` for that cell |
+| **Row position** | The AP staircase files the row under its **leftmost** granting role; the others are named on the row (chip + tooltip), so no role's claim is lost |
+| **Folding** | The row survives until *every* granting role is folded. Fold one, and it stays — drawn as a plain top-level row rather than as a child of the collapsed role, naming the role that is still showing it first |
+| **The fold chip** | Reads "*N* of *M* resources folded" when this fold took fewer rows than the role grants, and its tooltip names the still-expanded role holding the rest |
+
+The last two are the point: a folded role never claims to have hidden a row
+that is still on screen, and unfolding *either* role brings a shared row back.
+The deviation tallies follow the same rule — a shared row that is still visible
+is counted by neither folded role, because its own cell is right there saying
+it. `summariseFolds` and `collectFoldedChildRows` walk the grid through one
+shared helper so the count and the rows can never drift apart.
+
+`docs/architecture/demo-dataset.md` → "One resource, two business roles"
+describes the demo data (`BR-Service-Desk` and `BR-IT-Operations` sharing a
+group and an app role) that exercises every row of this table.
 
 ### Fewer and more than the role assigns
 

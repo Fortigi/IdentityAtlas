@@ -22,7 +22,7 @@ function renderRow(group, props = {}) {
         managedFilter: 'all',
         foldableRoles: new Set(['BR1']),
         foldedRoles: new Set(),
-        roleChildCounts: new Map([['BR1', 2]]),
+        roleFoldInfo: new Map([['BR1', { total: 2, hidden: 2, shownBy: [] }]]),
         ...props,
         onToggleRoleFold,
       }))),
@@ -52,9 +52,24 @@ describe('MatrixGroupRow — business-role fold affordance', () => {
   it('singularises the chip for a single folded resource', () => {
     renderRow(
       { id: 'BR1', displayName: 'HR Manager BR', memberCount: 1 },
-      { foldedRoles: new Set(['BR1']), roleChildCounts: new Map([['BR1', 1]]) },
+      { foldedRoles: new Set(['BR1']), roleFoldInfo: new Map([['BR1', { total: 1, hidden: 1, shownBy: [] }]]) },
     );
     expect(screen.getByText('1 resource folded')).toBeInTheDocument();
+  });
+
+  // Feedback on #370: a resource granted by two business roles only disappears
+  // once both are folded, so this fold can take away fewer rows than it grants.
+  it('counts only what the fold really hid when another role still shows the rest', () => {
+    renderRow(
+      { id: 'BR1', displayName: 'HR Manager BR', memberCount: 3 },
+      {
+        foldedRoles: new Set(['BR1']),
+        roleFoldInfo: new Map([['BR1', { total: 3, hidden: 1, shownBy: ['Finance BR'] }]]),
+      },
+    );
+    const chip = screen.getByText('1 of 3 resources folded');
+    expect(chip).toHaveAttribute('title', expect.stringContaining('Finance BR'));
+    expect(chip).toHaveAttribute('title', expect.stringContaining('2 of the 3 resources'));
   });
 
   it('reports the role id to onToggleRoleFold when clicked', async () => {
@@ -76,7 +91,7 @@ describe('MatrixGroupRow — business-role fold affordance', () => {
   it('renders nothing extra when no fold props are supplied at all', () => {
     renderRow(
       { id: 'BR1', displayName: 'HR Manager BR', memberCount: 1 },
-      { foldableRoles: undefined, foldedRoles: undefined, roleChildCounts: undefined },
+      { foldableRoles: undefined, foldedRoles: undefined, roleFoldInfo: undefined },
     );
     expect(foldButton()).toBeNull();
   });
@@ -86,7 +101,7 @@ describe('MatrixGroupRow — business-role fold affordance', () => {
     expect(screen.getByRole('button', { name: /fold business role resources/i })).toHaveTextContent('▼');
     renderRow(
       { id: 'BR2', displayName: 'Other BR', memberCount: 3 },
-      { foldableRoles: new Set(['BR2']), foldedRoles: new Set(['BR2']), roleChildCounts: new Map([['BR2', 1]]) },
+      { foldableRoles: new Set(['BR2']), foldedRoles: new Set(['BR2']), roleFoldInfo: new Map([['BR2', { total: 1, hidden: 1, shownBy: [] }]]) },
     );
     expect(screen.getByRole('button', { name: /unfold business role resources/i })).toHaveTextContent('▶');
   });

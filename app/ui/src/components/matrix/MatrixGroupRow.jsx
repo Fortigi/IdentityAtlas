@@ -19,13 +19,16 @@ function getRoleBadge(roleName) {
 // Fold affordance state for this row, or null when the row is not a foldable
 // business role (only roles that are present in the grid AND grant at least one
 // visible resource get one — see useBusinessRoleFold).
-function roleFoldState({ group, foldableRoles, foldedRoles, roleChildCounts }) {
+function roleFoldState({ group, foldableRoles, foldedRoles, roleFoldInfo }) {
   const roleKey = String(group.realGroupId || group.id || '').toUpperCase();
   if (group.isNestedRow || !foldableRoles?.has(roleKey)) return null;
+  const info = roleFoldInfo?.get(roleKey);
   return {
     roleKey,
     folded: !!foldedRoles?.has(roleKey),
-    count: roleChildCounts?.get(roleKey) || 0,
+    total: info?.total || 0,
+    hidden: info?.hidden || 0,
+    shownBy: info?.shownBy || [],
   };
 }
 
@@ -89,11 +92,26 @@ function RoleOwnerChip({ owners, onOpenDetail }) {
 
 // "N resources folded" chip on a collapsed business role row. The row's own
 // cells are untouched — folding hides rows, it never rolls access up.
+//
+// A resource granted by more than one business role stays on screen until every
+// one of those roles is folded, so this role's fold can take away fewer rows
+// than it grants. The chip then reads "N of M" and names the role still showing
+// the rest, rather than claiming rows it did not take.
 function RoleFoldChip({ fold }) {
-  if (!fold?.folded || fold.count === 0) return null;
+  if (!fold?.folded || fold.total === 0) return null;
+  const { hidden, total, shownBy } = fold;
+  const label = hidden === total
+    ? `${total} resource${total === 1 ? '' : 's'} folded`
+    : `${hidden} of ${total} resources folded`;
+  const title = shownBy.length
+    ? `${total - hidden} of the ${total} resources this role grants stay on screen — they are also granted by ${shownBy.join(', ')}, which is still unfolded.`
+    : undefined;
   return (
-    <span className="flex-shrink-0 ml-1 px-1 rounded text-[10px] font-medium bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300">
-      {fold.count} resource{fold.count === 1 ? '' : 's'} folded
+    <span
+      title={title}
+      className="flex-shrink-0 ml-1 px-1 rounded text-[10px] font-medium bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300"
+    >
+      {label}
     </span>
   );
 }
@@ -134,7 +152,7 @@ export default function MatrixGroupRow({
   // Business-role fold props
   foldableRoles,
   foldedRoles,
-  roleChildCounts,
+  roleFoldInfo,
   roleExtraCounts,
   roleMissingCounts,
   onToggleRoleFold,
@@ -155,7 +173,7 @@ export default function MatrixGroupRow({
 
   // Business-role fold (never clashes with the nested-expand chevron above: a
   // business role is not a principal, so it is never in groupsWithNested).
-  const roleFold = roleFoldState({ group, foldableRoles, foldedRoles, roleChildCounts });
+  const roleFold = roleFoldState({ group, foldableRoles, foldedRoles, roleFoldInfo });
 
   // What the rows this folded role hides say per column: how much access it does
   // NOT grant (more than the role assigns) and how much it assigns that the

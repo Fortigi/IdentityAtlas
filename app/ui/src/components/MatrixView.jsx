@@ -675,7 +675,7 @@ export default function MatrixView({
   // Gaps toggles and with the injected nested sub-rows.
   const {
     visibleRows: foldedGroups, foldedChildRows,
-    foldableRoles, foldedRoles, roleChildCounts,
+    foldableRoles, foldedRoles, roleFoldInfo,
     toggleRoleFold, foldAllRoles, unfoldAllRoles, canFoldRoles, hasFoldedRoles,
   } = useBusinessRoleFold({ accessPackageGroups, rows: visibleGroups, storageKey });
 
@@ -1047,7 +1047,7 @@ export default function MatrixView({
               loadingNested={loadingNested}
               foldableRoles={foldableRoles}
               foldedRoles={foldedRoles}
-              roleChildCounts={roleChildCounts}
+              roleFoldInfo={roleFoldInfo}
               roleExtraCounts={roleDeviations.extra}
               roleMissingCounts={roleDeviations.missing}
               onToggleRoleFold={toggleRoleFold}
@@ -1078,7 +1078,7 @@ export default function MatrixView({
                     loadingNested={loadingNested}
                     foldableRoles={foldableRoles}
                     foldedRoles={foldedRoles}
-                    roleChildCounts={roleChildCounts}
+                    roleFoldInfo={roleFoldInfo}
                     roleExtraCounts={roleDeviations.extra}
                     roleMissingCounts={roleDeviations.missing}
                     onToggleRoleFold={toggleRoleFold}

@@ -3,7 +3,8 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { renderHook, act } from '@ui/test-utils/renderWithProviders';
 import {
   useBusinessRoleFold, buildRoleChildMap, analyseRoleRows, hideFoldedRows,
-  collectFoldedChildRows, markRoleChildren, rowResourceKey, ROLE_FOLD_VERSION,
+  collectFoldedChildRows, summariseFolds, markRoleChildren, rowResourceKey,
+  ROLE_FOLD_VERSION,
 } from './useBusinessRoleFold';
 
 const storeKey = (k) => `fgraph-rolefold-${k || 'all'}`;
@@ -188,6 +189,46 @@ describe('collectFoldedChildRows', () => {
   });
 });
 
+// A resource in two roles is the case the fold has to resolve: it survives the
+// first fold, so the role that folded must not claim to have hidden it.
+describe('summariseFolds', () => {
+  const childrenByRole = buildRoleChildMap(AP_GROUPS);
+  const { rolesByChild, childCounts, roleNames } = analyseRoleRows(ROWS, childrenByRole);
+  const summarise = (folded) => summariseFolds(ROWS, rolesByChild, childCounts, folded, roleNames);
+
+  it('reports every foldable role as hiding nothing while all are expanded', () => {
+    const info = summarise(new Set());
+    expect(info.get('BR1')).toEqual({ total: 2, hidden: 0, shownBy: [] });
+    expect(info.get('BR2')).toEqual({ total: 2, hidden: 0, shownBy: [] });
+  });
+
+  it('counts only the rows the fold really took away, and names who shows the rest', () => {
+    const info = summarise(new Set(['BR1']));
+    // G1 went; G2 stayed because BR2 grants it and is still expanded.
+    expect(info.get('BR1')).toEqual({ total: 2, hidden: 1, shownBy: ['Business Role 2'] });
+    // BR2 is not folded, so it hides nothing and owes no explanation.
+    expect(info.get('BR2')).toEqual({ total: 2, hidden: 0, shownBy: [] });
+  });
+
+  it('counts a shared row under both roles once every one of them is folded', () => {
+    const info = summarise(new Set(['BR1', 'BR2']));
+    expect(info.get('BR1')).toEqual({ total: 2, hidden: 2, shownBy: [] });
+    expect(info.get('BR2')).toEqual({ total: 2, hidden: 2, shownBy: [] });
+  });
+
+  it('falls back to the role id when the role keeping a row on screen has no name', () => {
+    const rows = [{ id: 'BR1' }, { id: 'BR2' }, { id: 'G2' }];
+    const analysis = analyseRoleRows(rows, childrenByRole);
+    const info = summariseFolds(rows, analysis.rolesByChild, analysis.childCounts,
+      new Set(['BR1']), new Map());
+    expect(info.get('BR1').shownBy).toEqual(['BR2']);
+  });
+
+  it('tolerates a missing fold set', () => {
+    expect(summariseFolds(ROWS, rolesByChild, childCounts, null, roleNames).get('BR1').hidden).toBe(0);
+  });
+});
+
 describe('markRoleChildren', () => {
   const childrenByRole = buildRoleChildMap(AP_GROUPS);
   const { foldableRoles, rolesByChild, roleNames } = analyseRoleRows(ROWS, childrenByRole);
@@ -254,6 +295,20 @@ describe('markRoleChildren', () => {
     expect(g4.roleOwners).toBeUndefined();
     expect(g4.roleGrantedBy).toBeUndefined();
   });
+
+  // A folded role hides its resources, so anything still drawn below it is only
+  // there because another role grants it — it must not be indented under the
+  // collapsed one.
+  it('draws no children under a folded role', () => {
+    const rows = hideFoldedRows(ROWS, rolesByChild, new Set(['BR1']));
+    const marked = markRoleChildren(rows, foldableRoles, rolesByChild, roleNames, new Set(['BR1']));
+    const g2 = marked.find((r) => r.id === 'G2');
+    expect(g2.roleParentId).toBeUndefined();
+    // ...and it names both roles instead, the expanded one first, since that is
+    // the role keeping it on screen.
+    expect(g2.roleOwners.map((o) => o.name)).toEqual(['Business Role 2', 'Business Role 1']);
+    expect(marked.find((r) => r.id === 'G3').roleParentId).toBe('BR2');
+  });
 });
 
 describe('rowResourceKey', () => {
@@ -272,7 +327,7 @@ describe('useBusinessRoleFold', () => {
     expect(result.current.canFoldRoles).toBe(true);
     expect(result.current.hasFoldedRoles).toBe(false);
     expect(ids(result.current.visibleRows)).toEqual(ids(ROWS));
-    expect(result.current.roleChildCounts.get('BR1')).toBe(2);
+    expect(result.current.roleFoldInfo.get('BR1')).toEqual({ total: 2, hidden: 0, shownBy: [] });
   });
 
   it('renders the resources of an expanded role as its children', () => {
@@ -313,6 +368,28 @@ describe('useBusinessRoleFold', () => {
     expect(ids(result.current.visibleRows)).toEqual(['BR1', 'G2', 'BR2', 'G3', 'G4']);
     act(() => result.current.toggleRoleFold('BR1'));
     expect(ids(result.current.visibleRows)).toEqual(ids(ROWS));
+  });
+
+  // Feedback on #370 — the whole shared-resource story, end to end: G2 is
+  // granted by BR1 and BR2.
+  it('keeps a resource two roles grant until both fold, and says so on the role row', () => {
+    const { result } = render();
+    act(() => result.current.toggleRoleFold('BR1'));
+
+    // Still on screen, no longer drawn as BR1's child, and naming both roles.
+    const g2 = result.current.visibleRows.find((r) => r.id === 'G2');
+    expect(g2.roleParentId).toBeUndefined();
+    expect(g2.roleGrantedBy).toBe('Business Role 1, Business Role 2');
+    // BR1 folded one of the two resources it grants, and BR2 is showing the other.
+    expect(result.current.roleFoldInfo.get('BR1')).toEqual({
+      total: 2, hidden: 1, shownBy: ['Business Role 2'],
+    });
+    // It is not counted as hidden by either role, so no deviation tally claims it.
+    expect(ids(result.current.foldedChildRows.get('BR1'))).toEqual(['G1']);
+
+    act(() => result.current.toggleRoleFold('BR2'));
+    expect(ids(result.current.visibleRows)).toEqual(['BR1', 'BR2', 'G4']);
+    expect(result.current.roleFoldInfo.get('BR1')).toEqual({ total: 2, hidden: 2, shownBy: [] });
   });
 
   it('folds every role at once, leaving roles plus ungranted resources', () => {
