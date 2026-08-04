@@ -4,3 +4,4 @@
 - The Excel export of the matrix follows the same column order — Contexts next to the resource name (listing every context name in full), Type on the right.
 - Filtering and sorting by context is unchanged — keep using the context picker in the matrix filter.
 - Fixed a resource's Contexts list and context count on the resource detail page, which could include contexts that belong to an identity or principal rather than the resource itself.
+- Fixed "Something went wrong" when adjusting a matrix: stepping past the Resources step onto the Sort step crashed the page for any matrix opened from a shared link, an older saved matrix, or the default matrix seeded with the demo data. The wizard now fills in whatever the matrix doesn't specify (such as the column sort) instead of failing.

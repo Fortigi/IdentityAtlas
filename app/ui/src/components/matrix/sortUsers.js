@@ -8,7 +8,7 @@
 // attribute name is only ever READ, in buildSortKeys, to populate the static
 // `sortKeys` array.
 
-const DEFAULT_SORT = [{ attribute: 'department', dir: 'asc' }];
+import { DEFAULT_SORT } from '@ui/utils/matrixFilter';
 
 const collate = (a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
 

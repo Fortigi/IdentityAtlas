@@ -154,6 +154,28 @@ The wizard's "+ Context" picker is filtered by the subject row type so an analys
 
 The subject-condition step also offers an "+ Attribute" filter. When `rowType=identity`, the column list comes from `GET /api/matrix/columns?entity=Identity` (loaded lazily the first time the analyst switches to identities), so identities can be narrowed by their own attributes (department, jobTitle, companyName, city, country, employeeId, …) and by identity tag. Switching row type clears the subject conditions, since the available columns differ between principals and identities.
 
+### Filter shape — normalised at the wizard boundary
+
+A matrix filter reaches the wizard from four places and only one of them is
+guaranteed to carry every field:
+
+| Source | Completeness |
+|---|---|
+| The wizard's own **Apply** | complete |
+| A saved matrix (`SavedMatrixFilters`) | may predate a field, or be seeded with only a few |
+| The `#matrix?filter=…` URL | shared from an older build, or hand-edited |
+| The org-wide default matrix (auto-applied without opening the wizard) | as seeded — `Ingest-DemoDataset.ps1` seeds `rowType`/`orientation`/`subject`/`resource` and nothing else |
+
+The wizard's steps read those fields directly (`sortAttributes.length`,
+`subject.include`, …), so every filter entering wizard state — the `initialFilter`
+prop *and* a matrix loaded from the saved-matrix dropdown — goes through
+`normalizeMatrixFilter()` in [`app/ui/src/utils/matrixFilter.js`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/ui/src/utils/matrixFilter.js)
+first. It fills missing fields from `EMPTY_FILTER`, drops wrongly-typed values,
+and deep-copies the source so wizard edits can't mutate the applied filter. The
+grid-side consumers (`MatrixView`, `sortUsers`, the Excel export) already fall
+back to `DEFAULT_SORT` on their own, so a partial filter renders — it was only
+the wizard that assumed the full shape.
+
 ## Sorting, folding & server-side aggregation
 
 The column axis can get very wide (one column per subject). Three mechanisms keep

@@ -211,6 +211,56 @@ test.describe('Matrix — Contexts column', () => {
   });
 });
 
+// ─── Regression: adjusting a matrix built from a partial filter ───────────────
+//
+// A matrix filter does not only come from the wizard: it also arrives from a
+// shared `#matrix?filter=…` URL, from an older saved matrix, and from the
+// org-wide default the demo dataset seeds (rowType/orientation/subject/resource
+// and nothing else). Adjusting such a filter crashed the whole page on the Sort
+// step — `sortAttributes.length` on undefined — so the analyst saw "Something
+// went wrong" instead of the wizard.
+//
+// The earlier matrix specs all missed this because they either drive the grid
+// through a URL filter without reopening the wizard, or open the wizard on a
+// brand-new (complete) filter. This one walks the real "Adjust matrix" path
+// from a deliberately minimal filter, which is what a demo install starts with.
+test.describe('Matrix — adjusting a partial filter', () => {
+  test.setTimeout(90000);
+
+  // Exactly what test/demo-dataset/Ingest-DemoDataset.ps1 seeds as the default.
+  const seededFilter = {
+    rowType: 'principal',
+    orientation: 'rows-as-resources',
+    subject: { include: [], exclude: [] },
+    resource: { include: [], exclude: [] },
+  };
+
+  test('walks Setup → Subjects → Resources → Sort without crashing', async ({ page }) => {
+    const crashes = [];
+    page.on('pageerror', (err) => crashes.push(err.message));
+
+    await page.goto('/#matrix?filter=' + encodeURIComponent(JSON.stringify(seededFilter)));
+    await page.waitForLoadState('networkidle');
+
+    await page.getByRole('button', { name: 'Adjust matrix' }).click();
+    await expect(page.getByText('Subject type')).toBeVisible({ timeout: 10000 });
+
+    for (const _ of [0, 1, 2]) {
+      await page.getByRole('button', { name: 'Next', exact: true }).click();
+    }
+
+    // The Sort step renders, seeded with the default sort attribute.
+    await expect(page.getByText('Sort columns')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText('Sort by')).toBeVisible();
+    // Apply closes the wizard instead of blowing up the page.
+    await page.getByRole('button', { name: 'Apply', exact: true }).click();
+    await expect(page.getByText('Sort columns')).toBeHidden({ timeout: 10000 });
+
+    await expect(page.getByText('Something went wrong')).toBeHidden();
+    expect(crashes).toEqual([]);
+  });
+});
+
 // ─── Regression: no double scrollbar behind the matrix grid ────────────────────
 //
 // The bug: the grid's height was a fixed max-h-[calc(100vh-280px)] that guessed
