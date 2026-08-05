@@ -454,6 +454,47 @@ Describe 'Demo dataset — one resource, two business roles (#370)' {
     }
 }
 
+Describe 'Demo dataset — access held outside the role that grants it (#370)' {
+
+    # BR-Engineering-Tools grants SG-VPN-Access, and the demo has to show both
+    # sides of that: the engineers who hold it *through* the role (so the row
+    # carries no provisioning gap) and the two SysAdmins who hold it without the
+    # role at all (the cells the matrix marks red). See parts/DemoGovernance.ps1.
+    BeforeAll {
+        $script:vpnResByName = @{}
+        foreach ($r in $script:data.resources) { $script:vpnResByName[$r.displayName] = $r }
+        $script:vpnId  = $script:vpnResByName['SG-VPN-Access'].id
+        $script:brEngId = $script:vpnResByName['BR-Engineering-Tools'].id
+        $script:vpnHolders = @($script:data.resourceAssignments | Where-Object { $_.resourceId -eq $script:vpnId })
+        $script:brEngHolders = @($script:data.resourceAssignments |
+            Where-Object { $_.resourceId -eq $script:brEngId } | ForEach-Object { $_.principalId })
+    }
+
+    It 'materialises the VPN membership the role grants, so no role holder reads as a gap' {
+        $script:brEngHolders.Count | Should -BeGreaterThan 0
+        foreach ($holder in $script:brEngHolders) {
+            @($script:vpnHolders | Where-Object { $_.principalId -eq $holder }).Count | Should -Be 1
+        }
+    }
+
+    It 'emits the role-derived memberships as Indirect, and only those' {
+        $viaRole = @($script:vpnHolders | Where-Object { $script:brEngHolders -contains $_.principalId })
+        $viaRole.Count | Should -Be $script:brEngHolders.Count
+        foreach ($a in $viaRole) { $a.assignmentType | Should -Be 'Indirect' }
+    }
+
+    It 'keeps two Direct memberships held by people who do not hold the role' {
+        $outside = @($script:vpnHolders | Where-Object { $script:brEngHolders -notcontains $_.principalId })
+        $outside.Count | Should -Be 2
+        foreach ($a in $outside) { $a.assignmentType | Should -Be 'Direct' }
+
+        $princById = @{}
+        foreach ($p in $script:data.principals) { $princById[$p.id] = $p }
+        @($outside | ForEach-Object { $princById[$_.principalId].displayName } | Sort-Object) |
+            Should -Be @('Victor Wang', 'Wendy Xu')
+    }
+}
+
 Describe 'Demo dataset — vendor-neutral IGA (#705)' {
 
     It 'names the governance system generically, not after a vendor' {

@@ -1,5 +1,5 @@
 import {
-  extraAccessTitle, missingAccessTitle, overGrantTitle, hasCellMarkers,
+  extraAccessTitle, missingAccessTitle, overGrantTitle, heldOutsideTitle, hasCellMarkers,
 } from './cellMarkers';
 
 // Every marker an intersection cell can carry is drawn here, in ONE strip along
@@ -38,10 +38,11 @@ function FewerMarker({ provisioningGap, missingAccessCount }) {
 }
 
 // More than the business role assigns: a standing membership where the role
-// only grants eligibility, or — on a folded role — how many of the folded
-// resources this subject holds outside the role. The folded count wins the slot
-// when both apply; the cell tooltip still explains both.
-function MoreMarker({ overGrant, extraAccessCount }) {
+// only grants eligibility, a membership held outside the role that grants the
+// resource at all, or — on a folded role — how many of the folded resources this
+// subject holds outside it. The folded count wins the slot when both apply; the
+// cell tooltip still explains both.
+function MoreMarker({ overGrant, extraAccessCount, heldOutsideCount, heldOutsideNames }) {
   if (extraAccessCount > 0) {
     return (
       <Marker className="bg-rose-600 text-white" title={extraAccessTitle(extraAccessCount)}>
@@ -51,6 +52,16 @@ function MoreMarker({ overGrant, extraAccessCount }) {
   }
   if (overGrant) {
     return <Marker className="bg-rose-600 text-white" title={overGrantTitle(overGrant)}>+</Marker>;
+  }
+  if (heldOutsideCount > 0) {
+    return (
+      <Marker
+        className="bg-rose-600 text-white"
+        title={heldOutsideTitle(heldOutsideCount, heldOutsideNames)}
+      >
+        {heldOutsideCount}
+      </Marker>
+    );
   }
   return <EmptySlot />;
 }
@@ -68,15 +79,23 @@ function RoleCountMarker({ apCount }) {
 
 export default function CellMarkerStrip({
   provisioningGap, overGrant, apCount, extraAccessCount, missingAccessCount,
+  heldOutsideCount, heldOutsideNames,
 }) {
-  if (!hasCellMarkers({ apCount, provisioningGap, overGrant, extraAccessCount, missingAccessCount })) {
+  if (!hasCellMarkers({
+    apCount, provisioningGap, overGrant, extraAccessCount, missingAccessCount, heldOutsideCount,
+  })) {
     return null;
   }
   return (
     <span className="absolute inset-x-0 top-0 flex h-2 items-center justify-between">
       <FewerMarker provisioningGap={provisioningGap} missingAccessCount={missingAccessCount} />
       <RoleCountMarker apCount={apCount} />
-      <MoreMarker overGrant={overGrant} extraAccessCount={extraAccessCount} />
+      <MoreMarker
+        overGrant={overGrant}
+        extraAccessCount={extraAccessCount}
+        heldOutsideCount={heldOutsideCount}
+        heldOutsideNames={heldOutsideNames}
+      />
     </span>
   );
 }

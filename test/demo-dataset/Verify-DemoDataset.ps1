@@ -88,7 +88,7 @@ $counts = @{
     'Systems'                = @{ Min = 5;  Max = 5 }   # EntraID + HR + IGA + SAP + AzureRM (#705)
     'Principals'             = @{ Min = 45; Max = 45 }  # 26 employees + 5 edge cases + IGA acct + 10 SAP + 3 app SPs
     'Resources'              = @{ Min = 46; Max = 46 }  # Entra 10 + ownership 3 + business roles 7 + Sales 4 + role drift 3 + shared grants 2 + consent 4 + SAP 4 + Azure 9
-    'ResourceAssignments'    = @{ Min = 168; Max = 168 }
+    'ResourceAssignments'    = @{ Min = 176; Max = 176 }
     'ResourceRelationships'  = @{ Min = 27; Max = 27 }  # 21 Contains + 1 GrantsAccessTo + 3 HasOwnership + 2 DelegatesScope
     'Identities'             = @{ Min = 27; Max = 27 }  # 26 employees + the leaver
     'IdentityMembers'        = @{ Min = 38; Max = 38 }  # 27 Entra + 1 IGA + 10 SAP
@@ -500,6 +500,43 @@ JOIN "Resources"  r ON r."id" = ra."resourceId"
 JOIN "Principals" p ON p."id" = ra."principalId"
 WHERE p."displayName" = 'Victor Wang' AND r."displayName" = 'SG-Servicedesk-Tools'
   AND ra."deletedAt" IS NULL
+'@
+
+# ─── Held outside the role ───────────────────────────────────────────────
+# SG-VPN-Access carries the third statement the matrix makes about a resource a
+# business role grants: a membership held by someone the role does not hand it
+# to. Both halves of it are load-bearing (see parts/DemoGovernance.ps1).
+
+Write-Host "`n--- Held outside the role ---" -ForegroundColor Yellow
+
+# Everyone BR-Engineering-Tools grants the VPN group actually has it, so the
+# role produces no provisioning gap on that row.
+Assert-Count 'Outside-RoleGrantIsMaterialised' -Min 0 -Max 0 -Label '0 engineers without the VPN group' -Query @'
+SELECT COUNT(*) FROM "ResourceAssignments" role_ra
+JOIN "Resources" role_r ON role_r."id" = role_ra."resourceId"
+WHERE role_r."displayName" = 'BR-Engineering-Tools' AND role_ra."deletedAt" IS NULL
+  AND NOT EXISTS (
+    SELECT 1 FROM "ResourceAssignments" ra
+    JOIN "Resources" r ON r."id" = ra."resourceId"
+    WHERE ra."principalId" = role_ra."principalId" AND r."displayName" = 'SG-VPN-Access'
+      AND ra."deletedAt" IS NULL
+  )
+'@
+
+# ...and exactly two people hold that same group WITHOUT the role behind it —
+# the cells the grid marks red. Lose these and the scenario shows nothing.
+Assert-Count 'Outside-HeldWithoutTheRole' -Min 2 -Max 2 -Label '2 memberships outside the role' -Query @'
+SELECT COUNT(*) FROM "ResourceAssignments" ra
+JOIN "Resources"  r ON r."id" = ra."resourceId"
+JOIN "Principals" p ON p."id" = ra."principalId"
+WHERE r."displayName" = 'SG-VPN-Access' AND ra."assignmentType" = 'Direct'
+  AND ra."deletedAt" IS NULL
+  AND NOT EXISTS (
+    SELECT 1 FROM "ResourceAssignments" ra2
+    JOIN "Resources" r2 ON r2."id" = ra2."resourceId"
+    WHERE ra2."principalId" = p."id" AND r2."displayName" = 'BR-Engineering-Tools'
+      AND ra2."deletedAt" IS NULL
+  )
 '@
 
 # ─── API Verification ─────────────────────────────────────────────

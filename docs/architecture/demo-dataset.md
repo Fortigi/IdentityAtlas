@@ -186,13 +186,14 @@ AU-Netherlands
 | Every employee except the intern (25) | SG-AllEmployees | Direct | E0031 is the deliberate zero-assignment case — see Edge Cases |
 | Engineering employees except the intern (8) | SG-Engineering | Direct | By `department` (includes the CTO E0002); the unprovisioned intern E0031 is excluded |
 | Every Finance employee (4) | SG-Finance | Direct | By `department` |
-| E0029, E0030 (SysAdmins) | SG-VPN-Access | Direct | |
+| E0029, E0030 (SysAdmins) | SG-VPN-Access | Direct | Held **without** BR-Engineering-Tools behind it — see [Held outside the role that grants it](#held-outside-the-role-that-grants-it) |
 | E0002 (CTO) | SG-Admin-Tier0 | Direct | CTO is a member of the critical Tier-0 admin group |
 | E0029 (SysAdmin) | SG-Admin-Tier0 | Direct | Member of high-risk group |
 | SVC-001 (Deploy Pipeline) | SG-Admin-Tier0 | Direct | Service principal in admin group |
 | E0002 (CTO) | Global Administrator | Direct | Directory role assignment |
 | Every employee except the intern (25) | BR-Employee-Base | Direct (`governed=true`) | Via business role — governance is the `governed` flag, not an assignment type |
 | Engineering employees except the intern (8) | BR-Engineering-Tools | Direct (`governed=true`) | Via business role |
+| Everyone holding BR-Engineering-Tools (8) | SG-VPN-Access | Indirect | The materialised role-derived access. Without it the role's `Contains` edge reads as eight provisioning gaps on a group the role does hand them |
 | E0029 (SysAdmin) | BR-Admin-Privileged | Eligible | PIM-eligible, not active |
 | E0010 → SG-Engineering; E0012 → SG-Finance; E0002 + E0029 → SG-Admin-Tier0 | GroupOwnership | Direct | Ownership is a Direct assignment on a synthetic GroupOwnership resource, never an `Owner` type |
 | The 6 Sales members **+ E0034 Tom Bakker + E0035 Nadia Haddad** | BR-Sales | Direct (`governed=true`) | The two outsiders are flag 3's answer — a role assignment that survived a transfer / a project |
@@ -220,7 +221,7 @@ AU-Netherlands
 | BR-Employee-Base | SG-AllEmployees | Contains | Business role grants group |
 | BR-Employee-Base | FortigiGraph-App | Contains | Business role grants app role — deliberately with no effective assignment, so it renders as a provisioning gap |
 | BR-Engineering-Tools | SG-Engineering | Contains | |
-| BR-Engineering-Tools | SG-VPN-Access | Contains | |
+| BR-Engineering-Tools | SG-VPN-Access | Contains | Materialised as `Indirect` for every role holder; the two SysAdmins hold the same group *directly*, outside the role |
 | BR-Finance-Systems | SG-Finance | Contains | |
 | BR-Finance-Systems | SAP-Finance-Role | Contains | |
 | BR-Admin-Privileged | SG-Admin-Tier0 | Contains | |
@@ -337,7 +338,7 @@ grants — the `Ticketing-Agent` app role — belongs to the
 | Ursula Visser (E0014), Victor Wang (E0029) | All three, exactly as assigned | Nothing — the control, so the deviations don't read as the norm |
 | Tom Bakker (E0034) | Tools only | **Fewer**: two of the three groups the role assigns him are missing — as is the Ticketing-Agent app role it shares with BR-IT-Operations |
 | Wendy Xu (E0030) | Tools, plus Admin as a *standing* membership; no KB | **Fewer and more at once** — the case the folded role row has to summarise in both directions |
-| Lars Muller (E0024) | Tools, without holding the role | Access the role does not account for |
+| Lars Muller (E0024) | Tools, without holding the role | Access the role does not account for — the red "held outside the role" mark on that cell, and part of the role's red count once it is folded |
 
 Under-provisioning is modelled by *leaving an assignment out*: a `Contains`
 child with no effective assignment is what the grid reads as fewer. Over-
@@ -345,6 +346,27 @@ provisioning needs the `roleName` on the edge — without it every child reads a
 "standing membership expected" and holding one permanently is exactly right.
 See [`matrix.md`](matrix.md) → "Fewer and more than the role assigns" for how
 each is rendered.
+
+### Held outside the role that grants it
+
+The third thing the matrix says about a resource a business role hands out:
+someone holds it who the role does **not** hand it to. `SG-VPN-Access` carries
+that case, and both halves of it are load-bearing:
+
+| Who | What they have | What the matrix shows |
+|---|---|---|
+| The 8 BR-Engineering-Tools holders | The VPN group, `Indirect`, through the role | Governed access, in the role's colour — no marker |
+| Victor Wang (E0029), Wendy Xu (E0030) | The VPN group, `Direct`, without the role | A red count on those two cells: a membership no business role accounts for |
+
+Drop the `Indirect` rows and every engineer turns into a provisioning gap on a
+group their role really does grant — eight bogus gaps that bury the two
+deliberate ones (`BR-Employee-Base` → `FortigiGraph-App`, and the role drift
+above). Give the SysAdmins the role and the "held outside the role" example
+disappears instead. `Verify-DemoDataset.ps1` and `test/unit/DemoDataset.Tests.ps1`
+guard both halves.
+
+See [`matrix.md`](matrix.md) → "Fewer and more than the role assigns" for how it
+is rendered, folded and unfolded.
 
 ### One resource, two business roles
 
@@ -397,7 +419,7 @@ The dataset is a single JSON file that maps directly to the Ingest API endpoints
       "systems": 5,
       "principals": 45,
       "resources": 46,
-      "resourceAssignments": 168,
+      "resourceAssignments": 176,
       "resourceRelationships": 27,
       "identities": 27,
       "identityMembers": 38,
@@ -437,7 +459,7 @@ Counted with `deletedAt IS NULL` on `Principals`, `Resources` and `ResourceAssig
 | Systems | 5 | Entra ID + HR + IGA + SAP ERP + AzureRM |
 | Principals | 45 | 26 employees + 1 disabled + 1 contractor + 1 `ServicePrincipal` + 1 `AIAgent` + 1 `SharedMailbox` + 1 IGA account + 10 SAP accounts + 3 app service principals |
 | Resources | 46 | Entra 10 + group-ownership 3 + business roles 7 + Sales 4 + role drift 3 + shared grants 2 + consent 4 + SAP 4 + Azure 9 |
-| ResourceAssignments | 168 | `Direct` + `Indirect` (role-derived) + `Eligible`; the `governed=true` ones are the business-role memberships |
+| ResourceAssignments | 176 | `Direct` + `Indirect` (role-derived) + `Eligible`; the `governed=true` ones are the business-role memberships |
 | ResourceRelationships | 27 | 21 Contains + 1 GrantsAccessTo + 3 HasOwnership + 2 DelegatesScope |
 | Identities | 27 | 26 employees + 1 disabled |
 | IdentityMembers | 38 | 27 Entra + 1 IGA + 10 SAP |

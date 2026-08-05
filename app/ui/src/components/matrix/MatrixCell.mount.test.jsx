@@ -103,6 +103,37 @@ describe('MatrixCell', () => {
     });
   });
 
+  // Requestor feedback on #370: the two SysAdmins who hold SG-VPN-Access
+  // without BR-Engineering-Tools showed a plain "D" — the red count the folded
+  // role gave them disappeared as soon as the role was unfolded.
+  describe('held outside the business role that grants the resource', () => {
+    it('keeps the badge and adds the red count next to it', () => {
+      const td = renderCell({
+        membershipTypes: types('Direct'), heldOutsideCount: 1,
+        heldOutsideNames: 'BR-Engineering-Tools',
+      });
+      expect(screen.getByText('D')).toBeInTheDocument();
+      expect(td.querySelector('.bg-rose-600')).toHaveTextContent('1');
+      expect(td.getAttribute('title')).toContain('Direct');
+      expect(td.getAttribute('title')).toContain('Held outside the business role that grants this resource');
+      expect(td.getAttribute('title')).toContain('BR-Engineering-Tools');
+    });
+
+    it('names all the granting roles when more than one fails to account for it', () => {
+      const td = renderCell({
+        membershipTypes: types('Direct'), heldOutsideCount: 2, heldOutsideNames: 'BR-A, BR-B',
+      });
+      expect(td.querySelector('.bg-rose-600')).toHaveTextContent('2');
+      expect(td.getAttribute('title')).toContain('the 2 business roles that grant this resource');
+      expect(td.getAttribute('title')).toContain('does not hold any of them');
+    });
+
+    it('renders no marker on a cell whose access the role does account for', () => {
+      const td = renderCell({ membershipTypes: types('Indirect'), managed: true, heldOutsideCount: 0 });
+      expect(td.querySelector('.bg-rose-600')).toBeNull();
+    });
+  });
+
   describe('more than the business role assigns, on one cell', () => {
     it('marks a standing membership where the role grants eligibility', () => {
       const td = renderCell({ membershipTypes: types('Direct'), managed: true, overGrant: 'Eligible' });

@@ -221,6 +221,53 @@ describe('MatrixGroupRow — how a cell deviates from what its role assigns', ()
   });
 });
 
+// Requestor feedback on #370: on the row of a resource a business role grants,
+// a subject who holds it *without* that role showed a bare badge. The folded
+// role already counts exactly this access in red, so unfolding it must not make
+// the finding disappear.
+describe('MatrixGroupRow — a membership held outside the role that grants the row', () => {
+  const grantedRow = {
+    id: 'G1', displayName: 'SG-VPN-Access', memberCount: 10,
+    roleParentId: 'BR1', roleGrantIds: ['BR1'], roleGrantedBy: 'BR-Engineering-Tools',
+  };
+  const held = new Map([['G1|u1', new Set(['Direct'])]]);
+  const outsideBadge = () => screen.queryAllByTitle(/Held outside/).at(-1) ?? null;
+
+  it('marks the cell of a subject the role does not hand the resource to', () => {
+    renderRow(grantedRow, { memberships: held });
+    expect(outsideBadge()).toHaveTextContent('1');
+    expect(outsideBadge().getAttribute('title')).toContain('BR-Engineering-Tools');
+    // The access itself is still shown for what it is.
+    expect(screen.getByText('D')).toBeInTheDocument();
+  });
+
+  it('marks nothing for a subject who holds it through the role', () => {
+    renderRow(grantedRow, {
+      memberships: new Map([['G1|u1', new Set(['Indirect'])]]),
+      managedApMap: new Map([['g1|u1', ['br1']]]),
+      apIdToIndex: new Map([['br1', 0]]),
+      accessPackages: [{ id: 'br1', displayName: 'BR-Engineering-Tools' }],
+      apGroupMap: new Map([['G1|br1', 'Member']]),
+    });
+    expect(outsideBadge()).toBeNull();
+  });
+
+  it('marks nothing on a subject who does not hold the resource at all', () => {
+    renderRow(grantedRow, { memberships: new Map() });
+    expect(outsideBadge()).toBeNull();
+  });
+
+  it('marks nothing on a row no business role grants', () => {
+    renderRow({ id: 'G1', displayName: 'Ad-hoc Group', memberCount: 1 }, { memberships: held });
+    expect(outsideBadge()).toBeNull();
+  });
+
+  it('stays out of the non-governed view, like every other business-role indicator', () => {
+    renderRow(grantedRow, { memberships: held, managedFilter: 'unmanaged' });
+    expect(outsideBadge()).toBeNull();
+  });
+});
+
 describe('MatrixGroupRow — access a folded role does not grant', () => {
   const folded = {
     foldedRoles: new Set(['BR1']),

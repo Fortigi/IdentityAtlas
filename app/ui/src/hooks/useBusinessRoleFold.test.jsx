@@ -282,6 +282,18 @@ describe('markRoleChildren', () => {
     expect(byId.get('G2').roleGrantedBy).toBe('Business Role 1, Business Role 2');
   });
 
+  // The names answer "which role grants this row?" for a reader; the ids answer
+  // "did this subject's membership come through one of them?" for the cells.
+  it('carries the granting role ids on the row, whatever position it sits in', () => {
+    const byId = new Map(mark(ROWS).map((r) => [r.id, r]));
+    expect(byId.get('G1').roleGrantIds).toEqual(['BR1']);
+    expect(byId.get('G2').roleGrantIds).toEqual(['BR1', 'BR2']);
+    expect(byId.get('G4').roleGrantIds).toBeUndefined();
+    // A row dragged away from its role keeps them.
+    const moved = mark([{ id: 'BR1', displayName: 'Business Role 1' }, { id: 'G4' }, { id: 'G1' }]);
+    expect(moved[2].roleGrantIds).toEqual(['BR1']);
+  });
+
   it('falls back to the role id when the role row has no display name', () => {
     const rows = [{ id: 'BR1' }, { id: 'G4' }, { id: 'G1' }];
     const nameless = analyseRoleRows(rows, childrenByRole);

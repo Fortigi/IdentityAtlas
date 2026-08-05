@@ -195,6 +195,10 @@ Rules worth knowing:
   summary, never a cover-up — in either direction. Coverage comes from the
   server's business-role mapping (`managedByPackages`), not from a client-side
   guess at what a role ought to grant.
+- **Both counts are roll-ups of marks the rows carry themselves**, so unfolding
+  a role never makes a finding disappear: the resource rows show the same amber
+  gap and the same red "held outside this role" mark on their own cells. See
+  [Fewer and more than the role assigns](#fewer-and-more-than-the-role-assigns).
 
 ### Which business role does this row belong to?
 
@@ -256,7 +260,8 @@ can carry both at once — short on one resource of a role, over on another:
 | **Fewer** — the role assigns a membership the subject does not have | On the resource's own cell | Amber `!` in the strip's left slot (the provisioning gap), tooltip naming the expected type |
 | **Fewer**, while the role is folded | On the folded role's cell | Amber count in the strip's left slot |
 | **More** — the role grants *eligibility* (`roleName` contains "Eligible") but the subject holds a standing membership | On the resource's own cell | Red `+` in the strip's right slot |
-| **More**, while the role is folded | On the folded role's cell | Red count in the strip's right slot (also counts folded resources held with no coverage from this role at all) |
+| **Outside** — a business role hands this resource out, but not to this subject: they hold it by some other route | On the resource's own cell | Red count in the strip's right slot — how many roles grant the row, tooltip naming them |
+| **More / outside**, while the role is folded | On the folded role's cell | Red count in the strip's right slot (folded resources held over what the role assigns, *plus* those held with no coverage from it at all) |
 
 The comparison lives in
 [`matrix/coverageDeviation.js`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/ui/src/components/matrix/coverageDeviation.js)
@@ -273,6 +278,18 @@ asymmetries:
   and `Indirect` are both standing access — the difference between them is
   *how* the subject holds it, not *how much*, so an inherited membership is
   neither more nor less than a direct one.
+
+A third statement shares the red slot: **held outside the role**. The resource
+is one a business role hands out — the row says so, and the SOLL column agrees —
+but this subject is not one of the people that role hands it to, so the
+membership stands outside the governance that is supposed to cover it. This is
+deliberately the *same* finding a folded role reports as its red count, said on
+the resource's own row so folding and unfolding a role never change what the
+grid claims: fold the role and the marks on the rows it hides roll up into one
+count on the role's row; unfold it and they go back to the cells they came
+from. It is all-or-nothing across the roles granting a row (`heldOutsideRoleCount`
+in `coverageDeviation.js`) — one role that *does* cover the cell already explains
+the access, and the others are then simply not the route it came through.
 
 `docs/architecture/demo-dataset.md` → "Fewer and more than the role assigns"
 describes the demo data that exercises every row of the table above.
@@ -307,7 +324,7 @@ means the same thing:
 |---|---|---|
 | Left | Amber | **Fewer** than the business role assigns — the `!` provisioning gap, or a folded role's count |
 | Centre | White | Covered by **more than one** business role (the number says how many; the cell tooltip names them) |
-| Right | Red | **More** than the business role assigns — the `+` over-grant, or a folded role's count |
+| Right | Red | **More** than the business role assigns — the `+` over-grant, a count of the roles that grant this resource without granting it to *this* subject, or a folded role's count |
 
 Markers used to hang off the cell's corners on negative offsets, which drew each
 one partly over the row above and the column to the right — the white count

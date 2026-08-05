@@ -8,7 +8,8 @@
 //
 //   left   — amber: FEWER permissions than the business role assigns
 //   centre — white: how many business roles cover this cell (only when > 1)
-//   right  — red:   MORE permissions than the business role assigns
+//   right  — red:   MORE than the business role assigns, or access it does not
+//                   account for at all
 //
 // The markers used to hang off the cell's corners with negative offsets, so
 // each one was drawn partly over the cell above and the cell to its right — the
@@ -32,9 +33,11 @@ export const CELL_BOX_STYLE = {
 
 // Does this cell have anything to put in the strip? Cells that don't skip it
 // entirely — on a full grid that is the overwhelming majority of them.
-export function hasCellMarkers({ apCount, provisioningGap, overGrant, extraAccessCount, missingAccessCount }) {
+export function hasCellMarkers({
+  apCount, provisioningGap, overGrant, extraAccessCount, missingAccessCount, heldOutsideCount,
+}) {
   return apCount > 1 || !!provisioningGap || !!overGrant
-    || extraAccessCount > 0 || missingAccessCount > 0;
+    || extraAccessCount > 0 || missingAccessCount > 0 || heldOutsideCount > 0;
 }
 
 const plural = (count, word) => `${count} ${word}${count === 1 ? '' : 's'}`;
@@ -50,6 +53,19 @@ export function extraAccessTitle(count) {
 // subject does not have the membership the role assigns.
 export function missingAccessTitle(count) {
   return `⚠ ${plural(count, 'assignment')} on the folded resources that this business role assigns but this subject does not have`;
+}
+
+// The unfolded twin of extraAccessTitle: this resource IS handed out by
+// business role(s) in the grid, but none of them hands it to this subject — so
+// the membership stands outside the role that is supposed to govern it. Folding
+// the role turns the same finding into its red count, which is why both sit in
+// the strip's red slot.
+export function heldOutsideTitle(count, names) {
+  const which = count === 1
+    ? 'the business role that grants this resource'
+    : `the ${count} business roles that grant this resource`;
+  const holds = count === 1 ? 'that role' : 'any of them';
+  return `⚠ Held outside ${which}${names ? ` (${names})` : ''} — the subject does not hold ${holds}`;
 }
 
 // One cell where the subject holds permanently what the role only makes them

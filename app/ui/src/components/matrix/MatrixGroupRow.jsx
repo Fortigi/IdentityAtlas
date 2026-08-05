@@ -1,7 +1,7 @@
 ﻿import MatrixCell from './MatrixCell';
 import CellMarkerStrip from './CellMarkerStrip';
 import { CELL_BOX_STYLE } from './cellMarkers';
-import { cellDeviation, NO_DEVIATION } from './coverageDeviation';
+import { cellDeviation, heldOutsideRoleCount, NO_DEVIATION } from './coverageDeviation';
 import { getAccessPackageColor } from '@ui/utils/colors';
 import { useIsDark } from '@ui/contexts/ThemeContext';
 
@@ -301,6 +301,15 @@ export default function MatrixGroupRow({
           ? cellDeviation({ types: cellTypes, apIds: relevantApIds, apGroupMap, resourceKey: realGid.toUpperCase() })
           : NO_DEVIATION;
 
+        // The subject holds a resource the business role(s) on this row hand
+        // out, without the role handing it to them — what a folded role reports
+        // as its red count, said here on the resource's own row so the two
+        // views agree. Suppressed in the non-governed view along with every
+        // other business-role indicator.
+        const heldOutsideCount = managedFilter === 'unmanaged' ? 0 : heldOutsideRoleCount({
+          types: cellTypes, roleGrantIds: group.roleGrantIds, apIds: relevantApIds,
+        });
+
         return (
           <MatrixCell
             key={cellKey}
@@ -315,6 +324,8 @@ export default function MatrixGroupRow({
             overGrant={deviation.excess[0] || null}
             extraAccessCount={extraAccessFor(user.id)}
             missingAccessCount={missingAccessFor(user.id)}
+            heldOutsideCount={heldOutsideCount}
+            heldOutsideNames={group.roleGrantedBy}
             onExplainInherited={onExplainInherited}
           />
         );

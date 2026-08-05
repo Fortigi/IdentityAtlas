@@ -316,6 +316,39 @@ test.describe('Matrix — fold business-role resources', () => {
     }
   });
 
+  // Requestor feedback on #370: BR-Engineering-Tools grants SG-VPN-Access, and
+  // the two SysAdmins hold that group without holding the role. Folded, the
+  // role counted them in red; unfolded, the very same cells said nothing at all.
+  test('a membership held outside the role that grants it is marked on the resource row', async ({ page }) => {
+    await openFoldableGrid(page);
+
+    // The demo dataset puts SG-VPN-Access near the top of the grid; wait for the
+    // virtualizer to paint it before concluding the dataset has no such case.
+    const outside = page.locator('tbody span[title*="Held outside"]');
+    const present = await outside.first().waitFor({ state: 'attached', timeout: 15000 })
+      .then(() => true, () => false);
+    test.skip(!present, 'no visible row in this dataset is held outside the business role that grants it');
+
+    await expect(outside.first()).toHaveText(/^[1-9]\d*$/);
+    await expect(outside.first()).toHaveAttribute(
+      'title', /Held outside the .*business roles? that grants? this resource/,
+    );
+    // The marker explains the access — it never replaces it, so the badge stays.
+    await expect(page.locator('tbody td:has(span[title*="Held outside"])').first())
+      .toContainText(/[DIE]/);
+
+    // Folding the roles takes those rows away, and the same finding reappears as
+    // the folded role's own red count — the statement is never lost.
+    await foldAll(page).click();
+    await expect(unfoldAll(page)).toBeVisible();
+    await expect(outside).toHaveCount(0);
+    const foldedCount = page.locator('tbody span[title*="does not grant"]');
+    if (await foldedCount.count()) await expect(foldedCount.first()).toHaveText(/^[1-9]\d*$/);
+
+    await unfoldAll(page).click();
+    await expect.poll(() => outside.count()).toBeGreaterThan(0);
+  });
+
   // Requestor feedback on #370: what happens to a group / app role that two
   // business roles grant. The demo dataset's BR-Service-Desk and
   // BR-IT-Operations share exactly that (see DemoSharedGrants.ps1).

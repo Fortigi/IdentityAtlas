@@ -237,12 +237,18 @@ function detachedOwners(key, rolesByChild, roleNames, parentId, folded) {
 // Mark up one resource row: the role it is drawn beneath (adjacent, so it gets
 // the indent + elbow) and the granting roles it is NOT beneath (named on the
 // row itself). `roleGrantedBy` lists every granting role for the row tooltip,
-// so the question is answerable from any position.
+// so the question is answerable from any position, and `roleGrantIds` carries
+// the same list as ids — that is what lets a cell say whether the subject's
+// membership actually came through one of those roles.
 function markResourceRow(row, key, { rolesByChild, roleNames, folded }, parentId) {
   const roles = rolesByChild.get(key);
   if (!roles?.size) return row;
   const owners = detachedOwners(key, rolesByChild, roleNames, parentId, folded);
-  const marked = { ...row, roleGrantedBy: [...roles].map(id => roleNames?.get(id) || id).join(', ') };
+  const marked = {
+    ...row,
+    roleGrantedBy: [...roles].map(id => roleNames?.get(id) || id).join(', '),
+    roleGrantIds: [...roles],
+  };
   if (parentId) marked.roleParentId = parentId;
   if (owners.length) marked.roleOwners = owners;
   return marked;

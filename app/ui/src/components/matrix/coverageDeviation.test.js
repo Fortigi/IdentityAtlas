@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  expectedTypeFor, cellDeviation, buildRoleDeviationCounts, NO_DEVIATION,
+  expectedTypeFor, cellDeviation, buildRoleDeviationCounts, heldOutsideRoleCount, NO_DEVIATION,
 } from './coverageDeviation';
 
 // SOLL mapping as MatrixView builds it: "RESOURCEID|roleid" → role name on the
@@ -62,6 +62,41 @@ describe('cellDeviation', () => {
 
   it('treats an unmapped role as assigning a standing membership', () => {
     expect(deviate({ types: types(), apIds: ['unknown'], resourceKey: 'G9' }).missing).toEqual(['Direct']);
+  });
+});
+
+describe('heldOutsideRoleCount', () => {
+  // BR1 grants this row; the subject either got it through BR1 or from somewhere
+  // else entirely. Ids are compared case-insensitively — the row carries them
+  // uppercased, the coverage map lowercased.
+  const outside = (props) => heldOutsideRoleCount({ roleGrantIds: ['BR1'], ...props });
+
+  it('counts the granting role when the subject holds the resource without it', () => {
+    expect(outside({ types: types('Direct'), apIds: [] })).toBe(1);
+  });
+
+  it('says nothing when the role that grants it is what the subject holds it through', () => {
+    expect(outside({ types: types('Indirect'), apIds: ['br1'] })).toBe(0);
+  });
+
+  it('says nothing for a row no business role in the grid grants', () => {
+    expect(heldOutsideRoleCount({ types: types('Direct'), roleGrantIds: [], apIds: [] })).toBe(0);
+    expect(heldOutsideRoleCount({ types: types('Direct'), apIds: [] })).toBe(0);
+  });
+
+  it('says nothing when the subject holds nothing — that is a gap, not excess', () => {
+    expect(outside({ types: undefined, apIds: [] })).toBe(0);
+    expect(outside({ types: types(), apIds: [] })).toBe(0);
+  });
+
+  it('counts every granting role when none of them accounts for the access', () => {
+    expect(heldOutsideRoleCount({ types: types('Direct'), roleGrantIds: ['BR1', 'BR2'], apIds: [] })).toBe(2);
+  });
+
+  it('is all-or-nothing: one covering role already explains the access', () => {
+    expect(heldOutsideRoleCount({
+      types: types('Direct'), roleGrantIds: ['BR1', 'BR2'], apIds: ['br2'],
+    })).toBe(0);
   });
 });
 

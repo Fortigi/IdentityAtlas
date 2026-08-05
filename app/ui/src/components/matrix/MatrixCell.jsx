@@ -2,13 +2,13 @@ import { memo } from 'react';
 import { TYPE_COLORS } from '@ui/utils/colors';
 import CellMarkerStrip from './CellMarkerStrip';
 import {
-  CELL_BOX_STYLE, extraAccessTitle, missingAccessTitle, overGrantTitle,
+  CELL_BOX_STYLE, extraAccessTitle, missingAccessTitle, overGrantTitle, heldOutsideTitle,
 } from './cellMarkers';
 
 // Everything the cell says on hover: how the access is held, which business
 // roles govern it, and any marker it carries. Pulled out of the component so
 // the wording lives in one readable place.
-function cellTitle({ membershipTypes, managed, apNames, provisioningGap, gapExpected, overGrant, extraAccessCount, missingAccessCount }) {
+function cellTitle({ membershipTypes, managed, apNames, provisioningGap, gapExpected, overGrant, extraAccessCount, missingAccessCount, heldOutsideCount, heldOutsideNames }) {
   const parts = [];
   const managedBy = apNames?.length ? `Managed by: ${apNames.join(', ')}` : null;
   if (membershipTypes?.size) {
@@ -23,6 +23,7 @@ function cellTitle({ membershipTypes, managed, apNames, provisioningGap, gapExpe
   if (overGrant) parts.push(overGrantTitle(overGrant));
   if (extraAccessCount > 0) parts.push(extraAccessTitle(extraAccessCount));
   if (missingAccessCount > 0) parts.push(missingAccessTitle(missingAccessCount));
+  if (heldOutsideCount > 0) parts.push(heldOutsideTitle(heldOutsideCount, heldOutsideNames));
   return parts.length ? parts.join('\n') : undefined;
 }
 
@@ -50,7 +51,8 @@ function MembershipBadges({ membershipTypes, cellKey, onExplainInherited }) {
 function MatrixCell({
   cellKey, membershipTypes, managed, apColor, apCount, apNames,
   provisioningGap, gapExpected, overGrant = null,
-  extraAccessCount = 0, missingAccessCount = 0, onExplainInherited,
+  extraAccessCount = 0, missingAccessCount = 0,
+  heldOutsideCount = 0, heldOutsideNames = null, onExplainInherited,
 }) {
   const hasMembership = membershipTypes && membershipTypes.size > 0;
 
@@ -61,7 +63,7 @@ function MatrixCell({
 
   const title = cellTitle({
     membershipTypes, managed, apNames, provisioningGap, gapExpected,
-    overGrant, extraAccessCount, missingAccessCount,
+    overGrant, extraAccessCount, missingAccessCount, heldOutsideCount, heldOutsideNames,
   });
 
   return (
@@ -83,6 +85,8 @@ function MatrixCell({
         apCount={apCount}
         extraAccessCount={extraAccessCount}
         missingAccessCount={missingAccessCount}
+        heldOutsideCount={heldOutsideCount}
+        heldOutsideNames={heldOutsideNames}
       />
     </td>
   );
@@ -100,6 +104,8 @@ export default memo(MatrixCell, (prev, next) => {
     prev.overGrant === next.overGrant &&
     prev.extraAccessCount === next.extraAccessCount &&
     prev.missingAccessCount === next.missingAccessCount &&
+    prev.heldOutsideCount === next.heldOutsideCount &&
+    prev.heldOutsideNames === next.heldOutsideNames &&
     prev.onExplainInherited === next.onExplainInherited
   );
 });

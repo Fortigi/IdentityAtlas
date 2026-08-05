@@ -2,7 +2,9 @@
 import { describe, it, expect } from 'vitest';
 import { createElement as h } from 'react';
 import CellMarkerStrip from './CellMarkerStrip';
-import { hasCellMarkers, CELL_BOX_STYLE, MARKER_STRIP_HEIGHT, CELL_SIZE } from './cellMarkers';
+import {
+  hasCellMarkers, heldOutsideTitle, CELL_BOX_STYLE, MARKER_STRIP_HEIGHT, CELL_SIZE,
+} from './cellMarkers';
 import { renderWithProviders } from '@ui/test-utils/renderWithProviders';
 
 // Requestor feedback on #370: the white "covered by N business roles" bubble was
@@ -29,6 +31,16 @@ describe('hasCellMarkers', () => {
     expect(hasCellMarkers({ overGrant: 'Eligible' })).toBe(true);
     expect(hasCellMarkers({ extraAccessCount: 1 })).toBe(true);
     expect(hasCellMarkers({ missingAccessCount: 1 })).toBe(true);
+    expect(hasCellMarkers({ heldOutsideCount: 1 })).toBe(true);
+  });
+});
+
+describe('heldOutsideTitle', () => {
+  it('reads as one role or several, and drops the names when there are none', () => {
+    expect(heldOutsideTitle(1, 'BR-Engineering-Tools'))
+      .toBe('⚠ Held outside the business role that grants this resource (BR-Engineering-Tools) — the subject does not hold that role');
+    expect(heldOutsideTitle(2)).toBe(
+      '⚠ Held outside the 2 business roles that grant this resource — the subject does not hold any of them');
   });
 });
 
@@ -84,5 +96,24 @@ describe('CellMarkerStrip', () => {
     const both = slots(renderMarkers({ overGrant: 'Eligible', extraAccessCount: 5 }))[2];
     expect(both).toHaveTextContent('5');
     expect(both).not.toHaveTextContent('+');
+  });
+
+  // Requestor feedback on #370: a membership the business role above the row
+  // does not hand this subject rendered as a bare badge, so the red count the
+  // folded role showed for it vanished the moment the role was unfolded.
+  it('marks a membership held outside the role that grants the resource', () => {
+    const strip = renderMarkers({ heldOutsideCount: 1, heldOutsideNames: 'BR-Engineering-Tools' });
+    const [fewer, , more] = slots(strip);
+    expect(fewer).toHaveTextContent('');
+    expect(more).toHaveTextContent('1');
+    expect(more.className).toContain('bg-rose-600');
+    expect(more.getAttribute('title')).toContain('Held outside the business role');
+    expect(more.getAttribute('title')).toContain('BR-Engineering-Tools');
+  });
+
+  it('yields the red slot to a folded role\'s own count, which is more specific', () => {
+    const more = slots(renderMarkers({ heldOutsideCount: 1, extraAccessCount: 2 }))[2];
+    expect(more).toHaveTextContent('2');
+    expect(more.getAttribute('title')).toContain('folded resources');
   });
 });

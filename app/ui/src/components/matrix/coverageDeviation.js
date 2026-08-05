@@ -5,6 +5,11 @@
 //   missing — FEWER permissions than the role assigns (the provisioning gap)
 //   excess  — MORE permissions than the role assigns
 //
+// A third statement sits next to those two: the subject holds a resource a
+// business role hands out, but not through that role (`heldOutsideRoleCount`).
+// It is the same thing a folded role reports as a red count, said on the
+// resource's own row so the folded and unfolded views agree.
+//
 // Both sides come from data the server already states: the `Contains` edge and
 // its `roleName` (delivered as the SOLL mapping behind `apGroupMap`) say what a
 // role assigns, the coverage matview (`managedByPackages`) says which cells a
@@ -61,6 +66,30 @@ export function cellDeviation({ types, apIds, apGroupMap, resourceKey }) {
   if (wantsEligible && !wantsStanding && standing) return { missing: [], excess: ['Eligible'] };
 
   return NO_DEVIATION;
+}
+
+/**
+ * How many of the business roles that grant this resource fail to account for
+ * this subject holding it — i.e. the subject has the membership, the roles that
+ * hand this resource out are right there in the grid, and none of them covers
+ * this cell.
+ *
+ * This is the same statement a folded role makes with its red count ("held on
+ * the folded resources that this role does not grant"), said on the resource's
+ * own row so folding and unfolding agree. It is all-or-nothing on purpose: one
+ * granting role that does cover the cell already explains the access, and the
+ * other roles are then simply not the route it came through.
+ *
+ * @param {object}   args
+ * @param {Set}      args.types        - membership types the subject actually has
+ * @param {string[]} args.roleGrantIds - ids of the roles granting this row (upper)
+ * @param {string[]} args.apIds        - ids of the roles covering this cell (lower)
+ * @returns {number} 0 when the access is accounted for, else the role count
+ */
+export function heldOutsideRoleCount({ types, roleGrantIds, apIds }) {
+  if (!types?.size || !roleGrantIds?.length) return 0;
+  const covering = new Set((apIds || []).map(id => String(id).toUpperCase()));
+  return roleGrantIds.some(id => covering.has(String(id).toUpperCase())) ? 0 : roleGrantIds.length;
 }
 
 function bump(map, key) {

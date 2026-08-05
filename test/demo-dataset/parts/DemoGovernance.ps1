@@ -22,6 +22,14 @@
     BR-Employee-Base deliberately Contains FortigiGraph-App without anyone
     holding an effective assignment on it — that is the demo's provisioning-gap
     example, visible under the matrix's Gaps toggle. Do not "fix" it.
+
+    SG-VPN-Access is the mirror image and equally deliberate: BR-Engineering-
+    Tools grants it, every engineer holds it through the role (Indirect), and
+    the two SysAdmins hold it *directly* without holding the role at all — a
+    membership no business role accounts for, which the matrix marks in red on
+    those two cells. Keep both halves: drop the Indirect rows and the engineers
+    turn into eight bogus provisioning gaps; give the SysAdmins the role and the
+    "held outside the role" example disappears.
 #>
 
 Set-StrictMode -Version Latest
@@ -83,7 +91,16 @@ function Add-DemoGovernance {
         Add-DemoAssignment $State -ResourceId $br.Base -PrincipalId (Get-DemoPrincipalId $emp.id) -AssignmentType 'Direct' -Governed
     }
     foreach ($emp in (Get-DemoProvisioned $State -Department 'Engineering')) {
-        Add-DemoAssignment $State -ResourceId $br.Eng -PrincipalId (Get-DemoPrincipalId $emp.id) -AssignmentType 'Direct' -Governed
+        $p = Get-DemoPrincipalId $emp.id
+        Add-DemoAssignment $State -ResourceId $br.Eng -PrincipalId $p -AssignmentType 'Direct' -Governed
+        # BR-Engineering-Tools really grants the VPN group, so the membership it
+        # confers has to exist as an assignment — see the model note above. Its
+        # other child, SG-Engineering, is already held directly by every
+        # engineer, so only this one needs materialising. Leaving it out made
+        # every engineer read as a provisioning gap on a group the role does
+        # hand them (requestor feedback on #370), which also buried the demo's
+        # two deliberate gaps under eight accidental ones.
+        Add-DemoAssignment $State -ResourceId $res.VPN -PrincipalId $p -AssignmentType 'Indirect'
     }
 
     # SysAdmin is eligible for privileged admin rather than holding it.

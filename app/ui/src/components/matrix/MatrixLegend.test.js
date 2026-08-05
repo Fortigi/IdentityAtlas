@@ -43,6 +43,12 @@ describe('MatrixLegend', () => {
     expect(html).toContain('both counts at once');
   });
 
+  // Feedback on #370: the same finding has to read the same folded or not.
+  it('explains a membership held outside the business role that grants it', () => {
+    expect(html).toContain('held outside the business role');
+    expect(html).toContain('they hold it by some other route');
+  });
+
   it('explains the chip naming the business role a moved row belongs to', () => {
     expect(html).toContain('named on the row itself');
   });
