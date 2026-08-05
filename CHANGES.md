@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Patched high-severity advisories in bundled dependencies (brace-expansion, fast-uri, ip-address, undici) flagged by `npm audit`.
+
+## Changes in this PR
+
 - Updated the CodeQL security scanner to 4.37.4.
 
 ## Changes in this PR

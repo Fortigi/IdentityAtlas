@@ -28,6 +28,10 @@ grep -qxF '.dor/' .git/info/exclude 2>/dev/null || echo '.dor/' >> .git/info/exc
 grep -qxF 'dor-tls.override.yml' .git/info/exclude 2>/dev/null || echo 'dor-tls.override.yml' >> .git/info/exclude
 # Consume the trigger label now so dor-resume.yml can re-apply it to re-dispatch a paused build.
 gh issue edit "$ISSUE" --repo "$REPO" --remove-label ready-to-build >/dev/null 2>&1 || true
+# Flip the board to Building the moment the build starts (i.e. right after the Product Board approved
+# the gate) — not only after the PR is created ~15-20 min later, which would leave it wrongly reading
+# "Awaiting approval" for the whole implement phase.
+GH_TOKEN="$BOARD_TOKEN" bash "$SCRIPTS/dor_set_status.sh" "$ISSUE" building 2>/dev/null || true
 
 # Resume-aware: if a branch with real work already exists (a previous run paused on a usage limit),
 # continue from it instead of re-implementing from scratch — that is the expensive part we must not
@@ -63,7 +67,8 @@ if [ -z "$pr" ]; then
       | grep -oE '[0-9]+$') || bail "could not open the PR"
 fi
 echo "$pr $ISSUE" > "$HOME/.dor-reservation"   # <PR> <ISSUE> — dor-reset/feedback route off this
-GH_TOKEN="$BOARD_TOKEN" bash "$SCRIPTS/dor_set_status.sh" "$ISSUE" building 2>/dev/null || true
+# (board was already moved to Building at the start of the run) — now post the PR + follow link.
+comment_issue "$(printf '🔨 Building (PR #%s) — I'\''ll comment when it'\''s ready to test.%s' "$pr" "${RUN_URL:+ · 👀 [follow progress]($RUN_URL)}")"
 
 # 3-5. Verify: deploy+seed → e2e on live env → CI green. Fix + retry up to MAX_ATTEMPTS (else Exceptions).
 verify_loop "$pr"
@@ -78,7 +83,8 @@ GH_TOKEN="$BOARD_TOKEN" bash "$SCRIPTS/dor_set_status.sh" "$ISSUE" build-done 2>
   || echo "::warning::board move failed (BOT token likely expired on a long build) — label is set; the fresh-token step reconciles the column"
 
 summary=$(jq -r '.result // empty' /tmp/impl.json 2>/dev/null | head -c 1200)
-[ -n "$summary" ] || summary="Implemented the approved spec; unit tests, the feature e2e on the live env, and the full PR CI are all green."
-comment_issue "$(printf '%s — ✅ this feature has been **built and verified**, and is ready for your functional testing.\n\n🔗 **Test it here:** %s (Fortigi-tenant sign-in via authentik)\n📦 **PR:** #%s (CI green)\n\n**What was built & tested:**\n%s\n\nThe demo dataset + context plugins are loaded so the feature has data to exercise. Please try it and **comment anything that is not yet 100%% right** — I monitor this thread and will adjust the build incrementally. When you are fully happy, **reply `approved`** and it moves to the Product Board for the final merge.' "$(issue_mentions)" "$URL" "$pr" "$summary")"
-gh pr comment "$pr" --repo "$REPO" --body "🤖 Built + verified on **${HOST}**. e2e on the live env + full CI green. Functional testing: ${URL}. Awaiting requestor acceptance on #${ISSUE}." >/dev/null 2>&1 || true
+[ "${#summary}" -lt 25 ] && summary="$(changed_summary origin/main..HEAD)"   # terse output → describe from the diff
+[ -n "$summary" ] || summary="Implemented the approved spec; unit tests and the feature e2e on the live env pass."
+comment_issue "$(printf '%s — ✅ built and ready to test.\n\n🔗 **Test:** %s   ·   📦 **PR:** #%s\n\n%s\n\nReply with anything that'\''s off, or **`approved`** to send it to merge.' "$(issue_mentions)" "$URL" "$pr" "$summary")"
+gh pr comment "$pr" --repo "$REPO" --body "🤖 Built + verified on **${HOST}** (e2e + CI green) → ${URL}" >/dev/null 2>&1 || true
 echo "::notice::#${ISSUE} built + verified → Awaiting functional acceptance (PR #${pr}, ${URL})"

@@ -1,0 +1,53 @@
+name: DoR propose build (auto-reach the value gate)
+
+# When the spec side signs an issue off to the value gate (labels it `state:awaiting-approval`), this
+# auto-proposes the build: it applies `ready-to-build`, which triggers dor-build-agent. That build job
+# pauses at the `build-approval` Environment gate (holding no runner), and its authorize job posts a
+# one-click "Review & approve to build" link on the issue. So the Product Board's whole action is:
+# open that link → approve. Nothing runs or spends until they do.
+#
+# Applying the label AS THE BOT APP (not GITHUB_TOKEN) is what lets it trigger dor-build-agent.
+# INERT until DOR_ENABLED=true.
+
+on:
+  issues:
+    types: [labeled]
+
+permissions: {}
+
+concurrency:
+  group: dor-propose-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  propose:
+    if: >-
+      vars.DOR_ENABLED == 'true' &&
+      !github.event.issue.pull_request &&
+      github.event.label.name == 'state:awaiting-approval'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Mint BOT token (apply the label as the app → triggers the gated build)
+        id: bot
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ secrets.BOT_APP_ID }}
+          private-key: ${{ secrets.BOT_PRIVATE_KEY }}
+          owner: Fortigi
+          permission-issues: write
+      - name: Propose the build (reach the value gate)
+        env:
+          GH_TOKEN: ${{ steps.bot.outputs.token }}
+          ISSUE: ${{ github.event.issue.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -uo pipefail
+          # Skip if it's already building/built/paused/etc — only propose from a clean awaiting-approval state.
+          labels="$(gh issue view "$ISSUE" --repo "$REPO" --json labels --jq '[.labels[].name]|join(" ")')"
+          case " $labels " in
+            *" ready-to-build "*|*" build-done "*|*" building "*|*" dor-paused "*|*" awaiting-merge "*)
+              echo "::notice::#$ISSUE already past the value gate — not re-proposing"; exit 0 ;;
+          esac
+          gh issue edit "$ISSUE" --repo "$REPO" --add-label ready-to-build >/dev/null 2>&1 \
+            && echo "::notice::#$ISSUE proposed for build → build pauses at the approval gate" \
+            || echo "::warning::could not apply ready-to-build to #$ISSUE"
