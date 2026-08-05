@@ -18,8 +18,34 @@ import { useLayoutEffect, useState } from 'react';
 export const MIN_USABLE_HEIGHT = 200;
 
 /**
+ * Everything that still has to fit UNDERNEATH the container inside its own
+ * layout — the resize grip below the matrix grid, say. Walks the in-flow
+ * siblings below `el` at every level up to the <main> (or the body), adding the
+ * row gap that separates them. Out-of-flow siblings (a fixed modal, an absolute
+ * overlay) take no space and are skipped.
+ *
+ * Missing this is how a "fit the window" cap overflows the page by exactly the
+ * height of whatever was added below the grid.
+ */
+function spaceBelowInFlow(el, win, doc) {
+  const stop = (typeof el.closest === 'function' ? el.closest('main') : null) || doc.body;
+  let total = 0;
+  for (let node = el; node && node !== stop && node.parentElement; node = node.parentElement) {
+    const gap = parseFloat(win.getComputedStyle(node.parentElement).rowGap) || 0;
+    for (let sib = node.nextElementSibling; sib; sib = sib.nextElementSibling) {
+      const s = win.getComputedStyle(sib);
+      if (s.position === 'fixed' || s.position === 'absolute' || s.display === 'none') continue;
+      if (sib.tagName === 'FOOTER') continue; // already subtracted on its own
+      total += (sib.getBoundingClientRect().height || 0) + gap;
+    }
+  }
+  return total;
+}
+
+/**
  * Space left for `el` between its top edge and the bottom of the viewport,
- * minus the app footer and the bottom padding of the <main> it lives in.
+ * minus the app footer, the bottom padding of the <main> it lives in, and
+ * whatever is laid out below it.
  * Returns null when there is nothing to measure.
  */
 export function measureAvailableHeight(el) {
@@ -32,6 +58,7 @@ export function measureAvailableHeight(el) {
   const footerH = footer ? footer.getBoundingClientRect().height : 0;
   const main = typeof el.closest === 'function' ? el.closest('main') : null;
   const mainPad = main ? parseFloat(win.getComputedStyle(main).paddingBottom) : 0;
+  const below = spaceBelowInFlow(el, win, doc);
 
   // clientHeight is the real layout height. getBoundingClientRect().top is
   // viewport-relative, so on a scrolled page it reads too small and would cap
@@ -42,7 +69,7 @@ export function measureAvailableHeight(el) {
   // Never rounded up to a floor: a cap taller than the space available is the
   // page overflow this exists to prevent (a 240px floor with 200px of room
   // overflows the page by 40px).
-  return Math.max(0, doc.documentElement.clientHeight - top - footerH - (Number.isFinite(mainPad) ? mainPad : 0));
+  return Math.max(0, doc.documentElement.clientHeight - top - footerH - below - (Number.isFinite(mainPad) ? mainPad : 0));
 }
 
 /**

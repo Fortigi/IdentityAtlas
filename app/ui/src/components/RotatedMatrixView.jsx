@@ -14,7 +14,8 @@
 // per-cell membership-type badges) works the same as the default view.
 
 import { useMemo, useCallback, useState, useRef } from 'react';
-import useViewportFitHeight from '@ui/hooks/useViewportFitHeight';
+import useResizableGridHeight from '@ui/hooks/useResizableGridHeight';
+import GridResizeHandle from './matrix/GridResizeHandle';
 import MatrixToolbar from './matrix/MatrixToolbar';
 import MatrixFilterSummary from './matrix/MatrixFilterSummary';
 import MatrixCell from './matrix/MatrixCell';
@@ -62,10 +63,12 @@ export default function RotatedMatrixView({
   const filterIsApplied = filter !== null && filter !== undefined;
 
   // Cap the grid to the remaining viewport so only the grid scrolls, not the
-  // page too (mirrors MatrixView).
+  // page too — and let the analyst drag it to a height of their own (mirrors
+  // MatrixView).
   const rootRef = useRef(null);
   const gridRef = useRef(null);
-  const gridMaxH = useViewportFitHeight(gridRef, [filterIsApplied]);
+  const gridHeight = useResizableGridHeight(gridRef, [filterIsApplied]);
+  const gridMaxH = gridHeight.height;
 
   // Same client-side managed-state toggle as MatrixView.
   const filteredData = useMemo(() => {
@@ -183,6 +186,7 @@ export default function RotatedMatrixView({
           No assignments match the current matrix. Adjust the subjects or resources to widen the view.
         </div>
       ) : (
+        <>
         <div ref={gridRef} className="relative border border-gray-200 dark:border-gray-700 rounded-lg overflow-auto" style={{ maxHeight: gridMaxH ? `${gridMaxH}px` : undefined }}>
           {refreshing && (
             <div className="absolute inset-0 bg-white/60 dark:bg-gray-900/60 z-10 flex items-center justify-center">
@@ -313,6 +317,13 @@ export default function RotatedMatrixView({
             </tbody>
           </table>
         </div>
+        <GridResizeHandle
+          isCustom={gridHeight.isCustom}
+          onStartDrag={gridHeight.startDrag}
+          onResizeBy={gridHeight.resizeBy}
+          onReset={gridHeight.reset}
+        />
+        </>
       )}
     </div>
   );

@@ -140,19 +140,30 @@ describe('MatrixGroupRow — which business role a resource belongs to', () => {
       { id: 'G1', displayName: 'Finance Group', memberCount: 2, roleOwners: owners, roleGrantedBy: 'HR Manager BR' },
       { onOpenDetail },
     );
-    const chip = screen.getByRole('button', { name: 'HR Manager BR' });
+    const chip = screen.getByRole('button', { name: 'Granted by business role: HR Manager BR' });
     expect(chip).toHaveAttribute('title', 'Granted by business role: HR Manager BR');
     // The chip is a way into the role itself.
     await userEvent.setup().click(chip);
     expect(onOpenDetail).toHaveBeenCalledWith('resource', 'BR1', 'HR Manager BR');
   });
 
-  it('summarises several granting roles and lists them all in the tooltip', () => {
+  // Requestor feedback on #370: the chip does not need to spell out role names
+  // in the resource column — a "BR" / "BR+N" marker plus the tooltip is enough.
+  it('labels the chip BR and keeps the role name in the tooltip only', () => {
+    renderRow({
+      id: 'G1', displayName: 'Finance Group', memberCount: 2, roleOwners: owners,
+    });
+    expect(screen.getByRole('button', { name: /Granted by business role/ })).toHaveTextContent('BR');
+    expect(screen.queryByText('HR Manager BR')).toBeNull();
+  });
+
+  it('counts several granting roles on the chip and lists them all in the tooltip', () => {
     renderRow({
       id: 'G2', displayName: 'Shared Group', memberCount: 2,
       roleOwners: [...owners, { id: 'BR2', name: 'Finance BR' }],
     });
-    const chip = screen.getByRole('button', { name: 'HR Manager BR +1' });
+    const chip = screen.getByRole('button', { name: 'Granted by business role: HR Manager BR, Finance BR' });
+    expect(chip).toHaveTextContent('BR+2');
     expect(chip).toHaveAttribute('title', 'Granted by business role: HR Manager BR, Finance BR');
   });
 
@@ -162,7 +173,7 @@ describe('MatrixGroupRow — which business role a resource belongs to', () => {
     });
     expect(container.querySelector('td[title*="Granted by business role: HR Manager BR"]')).not.toBeNull();
     // Sitting directly under its role, the row says it by position — no chip.
-    expect(screen.queryByRole('button', { name: /HR Manager BR/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Granted by business role/ })).toBeNull();
   });
 
   it('leaves a resource no business role grants unlabelled', () => {

@@ -199,15 +199,22 @@ export function summariseFolds(rows, rolesByChild, childCounts, folded, roleName
   const info = new Map();
   for (const [roleId, total] of childCounts) info.set(roleId, { total, hidden: 0, shownBy: new Set() });
   for (const { roles, hidden } of foldedRowParents(rows, rolesByChild, foldedSet)) {
-    const stillShowing = roles.filter(id => !foldedSet.has(id));
-    for (const id of roles) {
-      const entry = foldedSet.has(id) ? info.get(id) : null;
-      if (!entry) continue;
-      if (hidden) entry.hidden++;
-      else for (const other of stillShowing) entry.shownBy.add(other);
-    }
+    tallyFoldedRow(info, roles, hidden, foldedSet);
   }
   return nameSharingRoles(info, roleNames);
+}
+
+// One resource row a fold reached, against every folded role that grants it:
+// either the fold took the row away, or a role that is still expanded is
+// keeping it on screen — and that role gets named on the folded one.
+function tallyFoldedRow(info, roles, hidden, foldedSet) {
+  const stillShowing = roles.filter(id => !foldedSet.has(id));
+  for (const id of roles) {
+    const entry = foldedSet.has(id) ? info.get(id) : null;
+    if (!entry) continue;
+    if (hidden) entry.hidden++;
+    else for (const other of stillShowing) entry.shownBy.add(other);
+  }
 }
 
 // The roles granting a resource that its own row does not already sit under,

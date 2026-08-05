@@ -84,44 +84,50 @@ export default function MatrixLegend() {
                 Coloured cell = membership is <span className="font-medium">governed</span> by a business role / access package (the colour matches its column).
               </span>
             </div>
+            <div className="text-gray-500 dark:text-gray-400 pt-1">
+              Markers sit in a strip along the top of a cell, above its badge — always in the same
+              three places: <span className="font-medium">left</span> = fewer than the business role
+              assigns, <span className="font-medium">centre</span> = how many roles cover the
+              cell, <span className="font-medium">right</span> = more than the role assigns.
+            </div>
             <div className="flex items-center gap-1.5">
               <span className="inline-flex w-4 h-4 items-center justify-center rounded-full bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-500 text-[8px] font-bold shrink-0" aria-hidden="true">2</span>
-              <span className="text-gray-700 dark:text-gray-300">Covered by more than one business role (the number shows how many).</span>
+              <span className="text-gray-700 dark:text-gray-300">Centre — covered by more than one business role (the number shows how many; the cell&apos;s tooltip names them).</span>
             </div>
             <div className="flex items-center gap-1.5">
               <span className="inline-flex w-4 h-4 items-center justify-center rounded-full bg-amber-500 text-white border border-amber-600 text-[8px] font-bold shrink-0" aria-hidden="true">!</span>
               <span className="text-gray-700 dark:text-gray-300">
-                <span className="font-medium">Provisioning gap</span> — a business role expects this membership but the user doesn&apos;t have it.
+                Left — <span className="font-medium">Provisioning gap</span>: a business role expects this membership but the user doesn&apos;t have it.
               </span>
             </div>
             <div className="flex items-center gap-1.5">
               <span className="inline-flex w-4 h-4 items-center justify-center rounded-full bg-rose-600 text-white border border-rose-700 text-[8px] font-bold shrink-0" aria-hidden="true">+</span>
               <span className="text-gray-700 dark:text-gray-300">
-                <span className="font-medium">More than the role assigns</span> — the business role grants just-in-time (Eligible) access here, but the subject holds a standing membership.
+                Right — <span className="font-medium">More than the role assigns</span>: the business role grants just-in-time (Eligible) access here, but the subject holds a standing membership.
               </span>
             </div>
             <div className="flex items-center gap-1.5">
               <span className="inline-flex w-4 h-4 items-center justify-center rounded-full bg-rose-600 text-white border border-rose-700 text-[8px] font-bold shrink-0" aria-hidden="true">3</span>
               <span className="text-gray-700 dark:text-gray-300">
-                On a <span className="font-medium">folded business role</span>, bottom-right — more is handed out below than the role hands out: the number counts the folded resources this subject holds outside the role.
+                On a <span className="font-medium">folded business role</span>, right — more is handed out below than the role hands out: the number counts the folded resources this subject holds outside the role.
               </span>
             </div>
             <div className="flex items-center gap-1.5">
               <span className="inline-flex w-4 h-4 items-center justify-center rounded-full bg-amber-500 text-white border border-amber-600 text-[8px] font-bold shrink-0" aria-hidden="true">2</span>
               <span className="text-gray-700 dark:text-gray-300">
-                On a <span className="font-medium">folded business role</span>, bottom-left — <span className="font-medium">fewer</span>: the number counts the folded resources the role assigns this subject but they do not have. A subject can carry both counts at once.
+                On a <span className="font-medium">folded business role</span>, left — <span className="font-medium">fewer</span>: the number counts the folded resources the role assigns this subject but they do not have. A subject can carry both counts at once.
               </span>
             </div>
             <div className="flex items-center gap-1.5">
               <span className="inline-flex px-1 items-center justify-center rounded bg-indigo-50 text-indigo-700 border border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-700 text-[9px] font-medium shrink-0" aria-hidden="true">BR</span>
               <span className="text-gray-700 dark:text-gray-300">
-                The business role that grants this resource, named on the row itself when the row does not sit directly under that role (after you drag it elsewhere, for example).
+                This resource is granted by a business role — named on the row itself when the row does not sit directly under that role (after you drag it elsewhere, for example). Hover it for the role&apos;s name; click it to open the role.
               </span>
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="inline-flex px-1 items-center justify-center rounded bg-indigo-50 text-indigo-700 border border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-700 text-[9px] font-medium shrink-0" aria-hidden="true">BR +1</span>
+              <span className="inline-flex px-1 items-center justify-center rounded bg-indigo-50 text-indigo-700 border border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-700 text-[9px] font-medium shrink-0" aria-hidden="true">BR+2</span>
               <span className="text-gray-700 dark:text-gray-300">
-                A resource granted by <span className="font-medium">more than one business role</span> names them all, and stays on screen until every one of those roles is folded — a folded role then reports &ldquo;N of M resources folded&rdquo; and says which role is still showing the rest.
+                A resource granted by <span className="font-medium">more than one business role</span> counts them — the tooltip names them all — and stays on screen until every one of those roles is folded; a folded role then reports &ldquo;N of M resources folded&rdquo; and says which role is still showing the rest.
               </span>
             </div>
           </div>

@@ -1,5 +1,41 @@
-// Wording of the matrix cell markers, kept out of the cell components so both
-// the cell and the aggregate (folded-column) cell explain a marker identically.
+// Wording and geometry of the matrix cell markers, kept out of the cell
+// components so both the cell and the aggregate (folded-column) cell explain
+// and place a marker identically.
+//
+// Every marker lives in ONE strip along the top of the cell, above the D/I/E
+// badge, in three fixed slots — so where a marker sits always means the same
+// thing:
+//
+//   left   — amber: FEWER permissions than the business role assigns
+//   centre — white: how many business roles cover this cell (only when > 1)
+//   right  — red:   MORE permissions than the business role assigns
+//
+// The markers used to hang off the cell's corners with negative offsets, so
+// each one was drawn partly over the cell above and the cell to its right — the
+// white "covered by N roles" bubble landed straight on the neighbours' badges
+// (requestor feedback on #370). Reserving the strip is what makes an overlap
+// impossible: the strip owns the top 8px of the 24px cell, the badge row owns
+// the other 16, and nothing is ever painted outside the cell's own box.
+
+export const MARKER_STRIP_HEIGHT = 8;
+export const CELL_SIZE = 24;
+
+// The geometry every intersection cell shares — the marker strip on top, the
+// badge row below it.
+export const CELL_BOX_STYLE = {
+  position: 'relative',
+  width: `${CELL_SIZE}px`,
+  minWidth: `${CELL_SIZE}px`,
+  height: `${CELL_SIZE}px`,
+  padding: `${MARKER_STRIP_HEIGHT}px 0 0`,
+};
+
+// Does this cell have anything to put in the strip? Cells that don't skip it
+// entirely — on a full grid that is the overwhelming majority of them.
+export function hasCellMarkers({ apCount, provisioningGap, overGrant, extraAccessCount, missingAccessCount }) {
+  return apCount > 1 || !!provisioningGap || !!overGrant
+    || extraAccessCount > 0 || missingAccessCount > 0;
+}
 
 const plural = (count, word) => `${count} ${word}${count === 1 ? '' : 's'}`;
 

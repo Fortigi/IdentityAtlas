@@ -1,7 +1,9 @@
 import { memo } from 'react';
 import { TYPE_COLORS } from '@ui/utils/colors';
-import CellBadges from './CellBadges';
-import { extraAccessTitle, missingAccessTitle, overGrantTitle } from './cellMarkers';
+import CellMarkerStrip from './CellMarkerStrip';
+import {
+  CELL_BOX_STYLE, extraAccessTitle, missingAccessTitle, overGrantTitle,
+} from './cellMarkers';
 
 // Everything the cell says on hover: how the access is held, which business
 // roles govern it, and any marker it carries. Pulled out of the component so
@@ -62,20 +64,10 @@ function MatrixCell({
     overGrant, extraAccessCount, missingAccessCount,
   });
 
-  const needsRelative = apCount > 1 || provisioningGap || !!overGrant
-    || extraAccessCount > 0 || missingAccessCount > 0;
-
   return (
     <td
-      className="px-0 py-0 text-center border-r border-b border-gray-100 dark:border-gray-700"
-      style={{
-        backgroundColor: bgColor,
-        minWidth: '24px',
-        width: '24px',
-        height: '24px',
-        position: needsRelative ? 'relative' : undefined,
-        zIndex: needsRelative ? 1 : undefined,
-      }}
+      className="text-center border-r border-b border-gray-100 dark:border-gray-700"
+      style={{ ...CELL_BOX_STYLE, backgroundColor: bgColor }}
       title={title}
     >
       {hasMembership && (
@@ -85,7 +77,7 @@ function MatrixCell({
           onExplainInherited={onExplainInherited}
         />
       )}
-      <CellBadges
+      <CellMarkerStrip
         provisioningGap={provisioningGap}
         overGrant={overGrant}
         apCount={apCount}

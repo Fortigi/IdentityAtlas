@@ -1,5 +1,6 @@
 ﻿import MatrixCell from './MatrixCell';
-import { ExtraAccessBadge, MissingAccessBadge } from './CellBadges';
+import CellMarkerStrip from './CellMarkerStrip';
+import { CELL_BOX_STYLE } from './cellMarkers';
 import { cellDeviation, NO_DEVIATION } from './coverageDeviation';
 import { getAccessPackageColor } from '@ui/utils/colors';
 import { useIsDark } from '@ui/contexts/ThemeContext';
@@ -74,16 +75,23 @@ function RoleFoldToggle({ fold, onToggle }) {
 // indent + elbow alone would then leave its role a guess. The chip is rendered
 // only when the row is NOT drawn directly under that role, so the common,
 // undisturbed case stays uncluttered.
+//
+// The chip is a marker, not a name: "BR" for one role, "BR+3" for three. Role
+// names are long and the resource-name column is the one place in the grid that
+// has to stay readable, so the names live in the tooltip (and behind the click)
+// instead of on the row — requestor feedback on #370.
 function RoleOwnerChip({ owners, onOpenDetail }) {
   if (!owners?.length) return null;
-  const [first, ...rest] = owners;
-  const label = rest.length ? `${first.name} +${rest.length}` : first.name;
+  const [first] = owners;
+  const label = owners.length > 1 ? `BR+${owners.length}` : 'BR';
+  const title = `Granted by business role: ${owners.map(o => o.name).join(', ')}`;
   return (
     <button
       type="button"
       onClick={(e) => { e.stopPropagation(); onOpenDetail?.('resource', first.id, first.name); }}
-      title={`Granted by business role: ${owners.map(o => o.name).join(', ')}`}
-      className="flex-shrink-0 ml-1 px-1 rounded text-[10px] font-medium max-w-[110px] truncate bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-700 dark:hover:bg-indigo-900/50"
+      title={title}
+      aria-label={title}
+      className="flex-shrink-0 ml-1 px-1 rounded text-[10px] font-medium bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-700 dark:hover:bg-indigo-900/50"
     >
       {label}
     </button>
@@ -251,13 +259,12 @@ export default function MatrixGroupRow({
           const short = missingAccessFor(user.id);
           return (
             <td key={user.id}
-              className="border-r border-b border-gray-200 dark:border-gray-700 text-center px-0 py-0 bg-indigo-50/40 dark:bg-indigo-900/10"
-              style={{ width: '24px', minWidth: '24px', position: extra > 0 || short > 0 ? 'relative' : undefined }}>
+              className="border-r border-b border-gray-200 dark:border-gray-700 text-center bg-indigo-50/40 dark:bg-indigo-900/10"
+              style={CELL_BOX_STYLE}>
               {n > 0
                 ? <span className="text-[10px] font-semibold text-gray-800 dark:text-gray-200">{n}</span>
                 : <span className="text-gray-500 dark:text-gray-700">·</span>}
-              <ExtraAccessBadge count={extra} />
-              <MissingAccessBadge count={short} />
+              <CellMarkerStrip extraAccessCount={extra} missingAccessCount={short} />
             </td>
           );
         }

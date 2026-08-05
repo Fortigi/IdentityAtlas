@@ -64,6 +64,33 @@ describe('measureAvailableHeight', () => {
     expect(measureAvailableHeight(grid)).toBe(700);
   });
 
+  // The resize grip lives below the grid. Forgetting it overflows the page by
+  // exactly its height — the double scrollbar this whole hook exists to avoid.
+  it('leaves room for whatever is laid out below the grid', () => {
+    document.body.innerHTML = '<main style="padding-bottom:24px"><div id="wrap">'
+      + '<div id="grid"></div><div id="grip"></div></div></main><footer></footer>';
+    const grid = document.getElementById('grid');
+    grid.getBoundingClientRect = () => ({ top: 300 });
+    document.getElementById('grip').getBoundingClientRect = () => ({ height: 28 });
+    document.querySelector('footer').getBoundingClientRect = () => ({ height: 40 });
+    vi.spyOn(document.documentElement, 'clientHeight', 'get').mockReturnValue(800);
+    expect(measureAvailableHeight(grid)).toBe(800 - 300 - 40 - 24 - 28);
+  });
+
+  it('ignores siblings that are out of flow, hidden, or the footer itself', () => {
+    document.body.innerHTML = '<main><div id="wrap"><div id="grid"></div>'
+      + '<div id="modal" style="position:fixed"></div>'
+      + '<div id="hidden" style="display:none"></div>'
+      + '<footer id="inner"></footer></div></main>';
+    const grid = document.getElementById('grid');
+    grid.getBoundingClientRect = () => ({ top: 300 });
+    for (const id of ['modal', 'hidden', 'inner']) {
+      document.getElementById(id).getBoundingClientRect = () => ({ height: 100 });
+    }
+    vi.spyOn(document.documentElement, 'clientHeight', 'get').mockReturnValue(800);
+    expect(measureAvailableHeight(grid)).toBe(500 - 100); // only the <footer> subtraction
+  });
+
   it('copes with an element outside a <main>', () => {
     document.body.innerHTML = '<div id="grid"></div>';
     const grid = document.getElementById('grid');

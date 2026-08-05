@@ -8,7 +8,8 @@ import { useAuth } from '@ui/auth/AuthGate';
 import { useMatrixRowOrder } from '@ui/hooks/useMatrixRowOrder';
 import { useNestedGroupExpand, MAX_NEST_LEVEL } from '@ui/hooks/useNestedGroupExpand';
 import { useBusinessRoleFold } from '@ui/hooks/useBusinessRoleFold';
-import useViewportFitHeight from '@ui/hooks/useViewportFitHeight';
+import useResizableGridHeight from '@ui/hooks/useResizableGridHeight';
+import GridResizeHandle from './matrix/GridResizeHandle';
 import MatrixToolbar from './matrix/MatrixToolbar';
 import MatrixLegend from './matrix/MatrixLegend';
 import MatrixFilterSummary from './matrix/MatrixFilterSummary';
@@ -931,9 +932,11 @@ export default function MatrixView({
   const filterIsApplied = filter !== null && filter !== undefined;
 
   // Cap the grid's height to the remaining viewport so ONLY the grid scrolls,
-  // never the page too.
+  // never the page too — until the analyst drags the grip below the grid to a
+  // height of their own, which then wins and is remembered.
   const rootRef = useRef(null);
-  const gridMaxH = useViewportFitHeight(scrollRef, [filterIsApplied, users.length]);
+  const gridHeight = useResizableGridHeight(scrollRef, [filterIsApplied, users.length]);
+  const gridMaxH = gridHeight.height;
 
   return (
     <div ref={rootRef} className="flex flex-col gap-3">
@@ -977,6 +980,7 @@ export default function MatrixView({
           No assignments match the current filter. Adjust the subjects or resources to widen the view.
         </div>
       ) : (
+        <>
         <div ref={scrollRef} className="relative border border-gray-200 dark:border-gray-700 rounded-lg overflow-auto" style={{ maxHeight: gridMaxH ? `${gridMaxH}px` : undefined }}>
           {refreshing && (
             <div className="absolute inset-0 bg-white/60 dark:bg-gray-900/60 z-10 flex items-center justify-center">
@@ -1054,6 +1058,13 @@ export default function MatrixView({
             </table>
           )}
         </div>
+        <GridResizeHandle
+          isCustom={gridHeight.isCustom}
+          onStartDrag={gridHeight.startDrag}
+          onResizeBy={gridHeight.resizeBy}
+          onReset={gridHeight.reset}
+        />
+        </>
       )}
       {pathExplain && (
         <div

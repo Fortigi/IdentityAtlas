@@ -189,12 +189,12 @@ Rules worth knowing:
   unrelated one — it **names its role on the row instead** (see below).
 - **A folded role says how much it is hiding that it does not grant, and how
   much it grants that isn't there.** Per subject column, the folded row carries
-  a red count bottom-right (folded resources the subject holds outside this
-  role) and an amber count bottom-left (folded resources the role assigns that
-  the subject does not have). Folding is a summary, never a cover-up — in
-  either direction. Coverage comes from the server's business-role mapping
-  (`managedByPackages`), not from a client-side guess at what a role ought to
-  grant.
+  a red count on the right of the cell's marker strip (folded resources the
+  subject holds outside this role) and an amber count on the left (folded
+  resources the role assigns that the subject does not have). Folding is a
+  summary, never a cover-up — in either direction. Coverage comes from the
+  server's business-role mapping (`managedByPackages`), not from a client-side
+  guess at what a role ought to grant.
 
 ### Which business role does this row belong to?
 
@@ -204,11 +204,15 @@ indent + elbow then stops being an answer, so the row carries one of its own:
 
 - Every resource row a business role grants states its role(s) in the row
   tooltip (`Granted by business role: …`), whatever position it sits in.
-- A row that is *not* drawn directly under one of its granting roles also shows
-  that role's name as a chip next to the resource name; clicking it opens the
-  role. Where a row *is* drawn under its role, the chip is omitted (the layout
-  already says it) — except for any *other* role that also grants it, which is
-  still named.
+- A row that is *not* drawn directly under one of its granting roles also
+  carries a chip next to the resource name; clicking it opens the role. Where a
+  row *is* drawn under its role, the chip is omitted (the layout already says
+  it) — except for any *other* role that also grants it, which is still marked.
+- **The chip is a marker, not a name**: `BR` for one granting role, `BR+3` for
+  three. The names are in its tooltip (and behind the click). Role names are
+  long, and the resource-name column is the one column that has to stay
+  readable, so the count goes on the grid and the names stay one hover away.
+  The tooltip doubles as the chip's accessible name.
 
 Both come from `markRoleChildren` in
 [`useBusinessRoleFold.js`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/ui/src/hooks/useBusinessRoleFold.js),
@@ -225,8 +229,8 @@ the overlap in five places:
 | Where | What it does |
 |---|---|
 | **SOLL columns** | The row shows a badge under **every** role that grants it, so the overlap is readable straight off the grid |
-| **Cell colour** | The cell carries a count bubble — "covered by *n* business roles" — and takes the colour of the first role in `managedByPackages` for that cell |
-| **Row position** | The AP staircase files the row under its **leftmost** granting role; the others are named on the row (chip + tooltip), so no role's claim is lost |
+| **Cell colour** | The cell carries a count bubble — "covered by *n* business roles" — in the centre of its marker strip, and takes the colour of the first role in `managedByPackages` for that cell |
+| **Row position** | The AP staircase files the row under its **leftmost** granting role; the others are marked on the row (`BR+N` chip + tooltip), so no role's claim is lost |
 | **Folding** | The row survives until *every* granting role is folded. Fold one, and it stays — drawn as a plain top-level row rather than as a child of the collapsed role, naming the role that is still showing it first |
 | **The fold chip** | Reads "*N* of *M* resources folded" when this fold took fewer rows than the role grants, and its tooltip names the still-expanded role holding the rest |
 
@@ -249,10 +253,10 @@ can carry both at once — short on one resource of a role, over on another:
 
 | Deviation | Where it shows | Marker |
 |---|---|---|
-| **Fewer** — the role assigns a membership the subject does not have | On the resource's own cell | Amber `!` top-left (the provisioning gap), tooltip naming the expected type |
-| **Fewer**, while the role is folded | On the folded role's cell | Amber count bottom-left |
-| **More** — the role grants *eligibility* (`roleName` contains "Eligible") but the subject holds a standing membership | On the resource's own cell | Red `+` bottom-right |
-| **More**, while the role is folded | On the folded role's cell | Red count bottom-right (also counts folded resources held with no coverage from this role at all) |
+| **Fewer** — the role assigns a membership the subject does not have | On the resource's own cell | Amber `!` in the strip's left slot (the provisioning gap), tooltip naming the expected type |
+| **Fewer**, while the role is folded | On the folded role's cell | Amber count in the strip's left slot |
+| **More** — the role grants *eligibility* (`roleName` contains "Eligible") but the subject holds a standing membership | On the resource's own cell | Red `+` in the strip's right slot |
+| **More**, while the role is folded | On the folded role's cell | Red count in the strip's right slot (also counts folded resources held with no coverage from this role at all) |
 
 The comparison lives in
 [`matrix/coverageDeviation.js`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/ui/src/components/matrix/coverageDeviation.js)
@@ -290,6 +294,47 @@ assignment carrying `governed=true`. Two consequences the grid makes visible:
   that, the role row painted ungoverned, dropped out of the **Governed** view,
   and every business-role membership counted as an *ungoverned* assignment in
   the scope statistics.
+
+### The cell marker strip
+
+An intersection cell is 24×24px and carries two things: the D/I/E badge for how
+the access is held, and up to three *markers* about it. They do not share
+pixels — the cell reserves the top **8px** as a marker strip and gives the badge
+row the other 16. The strip has three fixed slots, so where a marker sits always
+means the same thing:
+
+| Slot | Colour | Meaning |
+|---|---|---|
+| Left | Amber | **Fewer** than the business role assigns — the `!` provisioning gap, or a folded role's count |
+| Centre | White | Covered by **more than one** business role (the number says how many; the cell tooltip names them) |
+| Right | Red | **More** than the business role assigns — the `+` over-grant, or a folded role's count |
+
+Markers used to hang off the cell's corners on negative offsets, which drew each
+one partly over the row above and the column to the right — the white count
+bubble landed straight on its neighbours' badges. Nothing is painted outside the
+cell's own box now, so no marker can overlap another label; the geometry lives in
+[`matrix/cellMarkers.js`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/ui/src/components/matrix/cellMarkers.js)
+(`CELL_BOX_STYLE`) and is shared by the ordinary cell and the aggregate
+(folded-column) cell, so the two can't drift apart. `app/ui/e2e/matrix.spec.js`
+asserts the invariant on the busiest grid the demo data can produce.
+
+### Grid height
+
+The grid is capped to the space the window really has left below it
+(`useViewportFitHeight` measures it — chrome, footer, `<main>` padding and
+whatever is laid out under the grid, including the resize grip), so exactly one
+of the grid and the page ever scrolls.
+
+That measurement is a **default, not a verdict**: how much of the window the
+grid deserves next to the scope-statistics and legend panels above it is a
+judgement call. The grip under the grid
+([`matrix/GridResizeHandle.jsx`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/ui/src/components/matrix/GridResizeHandle.jsx))
+resizes it by drag or arrow keys; the chosen height overrides the fit, is
+remembered in `localStorage` under `fgraph-matrix-height`, and is handed back to
+the measured fit by **Fit to window** (or double-click / `Home` / `Esc`).
+`useResizableGridHeight` composes the two and is shared by all three
+orientations, so resizing behaves the same in the per-subject, rotated and
+roll-up grids.
 
 ### Size gate
 

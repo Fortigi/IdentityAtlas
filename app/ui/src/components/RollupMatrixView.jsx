@@ -1,6 +1,6 @@
 import { useMemo, useState, useCallback, useRef } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
-import useViewportFitHeight from '@ui/hooks/useViewportFitHeight';
+import useResizableGridHeight from '@ui/hooks/useResizableGridHeight';
 import { friendlyLabel } from '@ui/utils/formatters';
 import { getAccessPackageColor } from '@ui/utils/colors';
 import { exportRollupToExcel } from '@ui/utils/exportRollupToExcel';
@@ -10,6 +10,7 @@ import MatrixScopePanel from './matrix/MatrixScopePanel';
 import MatrixLegend from './matrix/MatrixLegend';
 import MatrixFilterSummary from './matrix/MatrixFilterSummary';
 import MatrixToolbar from './matrix/MatrixToolbar';
+import GridResizeHandle from './matrix/GridResizeHandle';
 
 // Roll-up matrix: the subject (column) axis is aggregated by an attribute (e.g.
 // department). Rows are resources; each cell is the count of distinct subjects
@@ -302,7 +303,8 @@ export default function RollupMatrixView({
   // (matches MatrixView). overflow-auto then gives both scrollbars, including
   // the horizontal one when the columns are wider than the screen.
   const scrollRef = useRef(null);
-  const gridMaxH = useViewportFitHeight(scrollRef, [columns.length, visibleRoles.length]);
+  const gridHeight = useResizableGridHeight(scrollRef, [columns.length, visibleRoles.length]);
+  const gridMaxH = gridHeight.height;
 
   const trailingCols = visibleRoles.length + 3; // resource + # + Description (+ roles handled separately)
 
@@ -705,6 +707,13 @@ export default function RollupMatrixView({
           </tbody>
         </table>
       </div>
+
+      <GridResizeHandle
+        isCustom={gridHeight.isCustom}
+        onStartDrag={gridHeight.startDrag}
+        onResizeBy={gridHeight.resizeBy}
+        onReset={gridHeight.reset}
+      />
     </div>
   );
 }

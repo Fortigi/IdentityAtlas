@@ -158,6 +158,64 @@ describe('RollupMatrixView (mounted)', () => {
     expect(screen.getByText(/No assignments match the current filter/i)).toBeInTheDocument();
   });
 
+  // A context (org-tree) roll-up: columns are context nodes rather than plain
+  // attribute values, and the drill path is navigable.
+  describe('context roll-up (org tree)', () => {
+    const contextRollup = (overrides = {}) => makeRollup({
+      rollupKind: 'context',
+      attribute: 'manager-hierarchy',
+      groupValues: ['node-eng', 'node-sales'],
+      counts: [
+        { resourceId: 'res-1', groupValue: 'node-eng', directCount: 5, governedCount: 2 },
+        { resourceId: 'res-2', groupValue: 'node-sales', directCount: 2, governedCount: 0 },
+      ],
+      groupTotals: [{ groupValue: 'node-eng', total: 20 }, { groupValue: 'node-sales', total: 9 }],
+      nodes: [
+        { id: 'node-eng', displayName: 'Acme · Engineering (Manager, Ada)', total: 20, childCount: 3, directMembers: 4, depth: 2, pathIds: ['root', 'node-eng'], pathNames: ['Acme', 'Acme · Engineering'] },
+        { id: 'node-sales', displayName: 'Acme · Sales (Manager, Bo)', total: 9, childCount: 0, directMembers: 9, depth: 2, pathIds: ['root', 'node-sales'], pathNames: ['Acme', 'Acme · Sales'] },
+      ],
+      breadcrumb: [{ id: 'root', displayName: 'Acme' }, { id: 'node-eng', displayName: 'Acme · Engineering (Manager, Ada)' }],
+      ...overrides,
+    });
+
+    it('labels the columns with the deepest org segment and shows the drill path', () => {
+      renderView({ rollup: contextRollup() });
+      expect(screen.getByText('Drill path:')).toBeInTheDocument();
+      // Column headers use the short label, not the full "A · B (Manager)" path.
+      expect(screen.getAllByText('Engineering').length).toBeGreaterThan(0);
+      expect(screen.getByText('Sales')).toBeInTheDocument();
+    });
+
+    it('zooms out to an earlier step of the drill path', async () => {
+      const { onFilterChange } = renderView({ rollup: contextRollup() });
+      await userEvent.setup().click(screen.getByTitle('Zoom out to Acme'));
+      expect(onFilterChange).toHaveBeenCalledWith(expect.objectContaining({ rollupPath: [] }));
+    });
+
+    it('zooms into a node that has sub-teams', async () => {
+      const { onFilterChange } = renderView({ rollup: contextRollup() });
+      await userEvent.setup().click(screen.getByTitle(/Zoom into Engineering/));
+      expect(onFilterChange).toHaveBeenCalledWith(
+        expect.objectContaining({ rollupPath: ['node-eng'] }),
+      );
+    });
+
+    it('expands and collapses an org in place in the layered view', async () => {
+      const { onFilterChange } = renderView({ rollup: contextRollup({ layered: true, maxDepth: 2 }) });
+      const user = userEvent.setup();
+      // The team header splits the team into its sub-teams…
+      await user.click(screen.getByTitle(/Click to split Engineering into its 3 sub-teams/));
+      expect(onFilterChange).toHaveBeenCalledWith(
+        expect.objectContaining({ rollupExpanded: ['node-eng'] }),
+      );
+      // …and the merged ancestor header collapses the branch back.
+      await user.click(screen.getAllByTitle(/Collapse Acme back into one column/)[0]);
+      expect(onFilterChange).toHaveBeenCalledWith(
+        expect.objectContaining({ rollupExpanded: [] }),
+      );
+    });
+  });
+
   it('renders the roles-only variant with business roles on the rows', () => {
     renderView({
       rollup: makeRollup({

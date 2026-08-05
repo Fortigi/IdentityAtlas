@@ -42,6 +42,18 @@ describe('MatrixCell', () => {
     expect(screen.getByText('2')).toBeInTheDocument();
   });
 
+  // Requestor feedback on #370: that count used to be drawn half outside the
+  // cell, over the badges of the row above and the column to the right.
+  it('keeps the role count inside its own cell, clear of the badge', () => {
+    const td = renderCell({ membershipTypes: types('Direct'), managed: true, apCount: 2 });
+    const strip = td.querySelector('span.absolute');
+    expect(strip).not.toBeNull();
+    // The strip has the top of the cell to itself — the padding reserves it.
+    expect(td).toHaveStyle({ position: 'relative', padding: '8px 0px 0px' });
+    expect(strip.className).not.toMatch(/-(top|right|bottom|left)-/);
+    expect(strip).toHaveTextContent('2');
+  });
+
   it('explains inherited access on click', async () => {
     const onExplainInherited = vi.fn();
     renderCell({ membershipTypes: types('Indirect'), onExplainInherited });

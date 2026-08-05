@@ -411,12 +411,142 @@ test.describe('Matrix — fold business-role resources', () => {
     const chip = page.locator(`tbody button[title^="Granted by business role:"][title*="${moved.role}"]`).first();
     await expect(chip).toBeVisible({ timeout: 20000 });
 
+    // Requestor feedback on #370: the chip is a marker, not a name — "BR" for
+    // one role, "BR+N" for several. The names stay in the tooltip.
+    await expect(chip).toHaveText(/^BR(\+\d+)?$/);
+
     // Leave the browser profile clean for the next test.
     await page.evaluate(() => {
       for (const k of Object.keys(localStorage)) {
         if (k.startsWith('fgraph-roworder-')) localStorage.removeItem(k);
       }
     });
+  });
+
+  // Requestor feedback on #370: the white "covered by N business roles" bubble
+  // was drawn over the labels of the cells around it. Every marker now lives in
+  // a strip the cell reserves for it, so no marker can reach another cell — or
+  // the badge underneath it.
+  test('no cell marker is drawn over another label', async ({ page }) => {
+    await openFoldableGrid(page);
+    // Fold the roles so the deviation counts are on screen alongside the
+    // role-count bubbles and the gap markers — the busiest the grid ever gets.
+    await foldAll(page).click();
+    await expect(unfoldAll(page)).toBeVisible();
+
+    const overlaps = await page.evaluate(() => {
+      const markers = [...document.querySelectorAll('tbody td span.absolute > span')]
+        .filter(s => s.textContent.trim() !== '');
+      const escaped = [];
+      const inside = (m, cell) => {
+        const a = m.getBoundingClientRect();
+        const b = cell.getBoundingClientRect();
+        // 1px of slack for sub-pixel rounding and collapsed borders.
+        return a.left >= b.left - 1 && a.right <= b.right + 1
+          && a.top >= b.top - 1 && a.bottom <= b.bottom + 1;
+      };
+      for (const m of markers) {
+        const cell = m.closest('td');
+        if (!inside(m, cell)) escaped.push({ text: m.textContent, cls: m.className });
+        // The badge row starts below the strip, so a marker can never sit on it.
+        for (const badge of cell.querySelectorAll(':scope > span:not(.absolute)')) {
+          const a = m.getBoundingClientRect();
+          const b = badge.getBoundingClientRect();
+          const hit = a.left < b.right - 1 && a.right > b.left + 1
+            && a.top < b.bottom - 1 && a.bottom > b.top + 1;
+          if (hit) escaped.push({ text: m.textContent, over: badge.textContent });
+        }
+      }
+      return { count: markers.length, escaped };
+    });
+
+    expect(overlaps.count, 'the folded grid must show at least one marker').toBeGreaterThan(0);
+    expect(overlaps.escaped).toEqual([]);
+
+    await unfoldAll(page).click();
+  });
+});
+
+// ─── Resizing the matrix (#370) ───────────────────────────────────────────────
+//
+// The measured "fit the rest of the window" height is a default, not a verdict:
+// how much of the window the grid deserves next to the panels above it is the
+// analyst's call. The grip under the grid makes it theirs, and remembers it.
+test.describe('Matrix — resizing the grid height', () => {
+  test.setTimeout(90000);
+
+  const gridHeight = (page) => page.evaluate(() => {
+    const el = document.querySelector('div[style*="max-height"]');
+    return el ? Math.round(el.getBoundingClientRect().height) : 0;
+  });
+
+  const grip = (page) => page.getByRole('button', { name: 'Resize the matrix height' });
+
+  async function openMatrix(page) {
+    const filter = {
+      rowType: 'principal',
+      orientation: 'rows-as-resources',
+      subject: { include: [], exclude: [] },
+      resource: { include: [], exclude: [] },
+    };
+    await page.goto('about:blank');
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto('/#matrix?filter=' + encodeURIComponent(JSON.stringify(filter)));
+    await page.waitForLoadState('networkidle');
+    try {
+      await expect(page.locator('table').first()).toBeVisible({ timeout: 40000 });
+    } catch {
+      return false;
+    }
+    // Collapse "How to read this matrix" so the chrome leaves the grid a
+    // measurable cap to start from (the same setup the scrollbar spec uses).
+    const legend = page.getByRole('button', { name: /How to read this matrix/i }).first();
+    await expect(legend).toBeVisible({ timeout: 20000 });
+    if (await legend.getAttribute('aria-expanded') === 'true') await legend.click();
+    await page.waitForTimeout(1500); // let the measuring effect settle
+    return true;
+  }
+
+  test('dragging the grip resizes the grid, and the height is remembered', async ({ page }) => {
+    test.skip(!await openMatrix(page), 'matrix grid did not render (no data)');
+
+    const before = await gridHeight(page);
+    const box = await grip(page).boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2 - 200, { steps: 10 });
+    await page.mouse.up();
+
+    await expect.poll(() => gridHeight(page)).toBeLessThan(before);
+    const shrunk = await gridHeight(page);
+
+    // Still exactly one scroller — a resized grid is not a broken layout.
+    expect(await page.evaluate(() => {
+      const de = document.documentElement;
+      return de.scrollHeight - de.clientHeight > 4;
+    })).toBe(false);
+
+    // The choice survives a reload.
+    await page.reload();
+    await page.waitForLoadState('networkidle');
+    await expect(page.locator('table').first()).toBeVisible({ timeout: 40000 });
+    await expect.poll(() => gridHeight(page)).toBe(shrunk);
+
+    // "Fit to window" hands the decision back to the measured fit.
+    await page.getByRole('button', { name: 'Fit to window' }).click();
+    await expect.poll(() => gridHeight(page)).toBe(before);
+    await expect(page.getByRole('button', { name: 'Fit to window' })).toHaveCount(0);
+  });
+
+  test('the arrow keys resize it too, so the grip is not mouse-only', async ({ page }) => {
+    test.skip(!await openMatrix(page), 'matrix grid did not render (no data)');
+
+    const before = await gridHeight(page);
+    await grip(page).focus();
+    await page.keyboard.press('ArrowUp');
+    await expect.poll(() => gridHeight(page)).toBeLessThan(before);
+    await page.keyboard.press('Escape');
+    await expect.poll(() => gridHeight(page)).toBe(before);
   });
 });
 
