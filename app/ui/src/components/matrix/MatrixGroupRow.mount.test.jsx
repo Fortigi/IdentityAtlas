@@ -236,9 +236,23 @@ describe('MatrixGroupRow — a membership held outside the role that grants the 
   it('marks the cell of a subject the role does not hand the resource to', () => {
     renderRow(grantedRow, { memberships: held });
     expect(outsideBadge()).toHaveTextContent('1');
-    expect(outsideBadge().getAttribute('title')).toContain('BR-Engineering-Tools');
+    const title = outsideBadge().getAttribute('title');
+    expect(title).toContain('BR-Engineering-Tools');
+    // Requestor feedback on #370: the marker must not read as "this subject
+    // holds no business role" — it is about the role that grants this row.
+    expect(title).toContain('no business role this subject holds grants this resource');
     // The access itself is still shown for what it is.
     expect(screen.getByText('D')).toBeInTheDocument();
+  });
+
+  // A role covers a cell only by granting the resource to someone who holds the
+  // role, so a role outside this matrix's scope still accounts for the access.
+  it('marks nothing when a business role outside the grid accounts for the access', () => {
+    renderRow(grantedRow, {
+      memberships: held,
+      managedApMap: new Map([['g1|u1', ['br-off-grid']]]),
+    });
+    expect(outsideBadge()).toBeNull();
   });
 
   it('marks nothing for a subject who holds it through the role', () => {
@@ -276,7 +290,7 @@ describe('MatrixGroupRow — access a folded role does not grant', () => {
   const role = { id: 'BR1', displayName: 'HR Manager BR', memberCount: 9 };
   // The cell and its corner badge share the explanation, so hovering anywhere
   // in the cell shows it; the badge is the innermost of the two.
-  const extraBadge = () => screen.queryAllByTitle(/does not grant/).at(-1) ?? null;
+  const extraBadge = () => screen.queryAllByTitle(/does not account for/).at(-1) ?? null;
 
   it('counts it on the folded role row', () => {
     renderRow(role, folded);
@@ -301,7 +315,7 @@ describe('MatrixGroupRow — access a folded role does not grant', () => {
 describe('MatrixGroupRow — access a folded role assigns but the subject lacks', () => {
   const role = { id: 'BR1', displayName: 'HR Manager BR', memberCount: 9 };
   const missingBadge = () => screen.queryAllByTitle(/does not have/).at(-1) ?? null;
-  const extraBadge = () => screen.queryAllByTitle(/does not grant/).at(-1) ?? null;
+  const extraBadge = () => screen.queryAllByTitle(/does not account for/).at(-1) ?? null;
 
   it('counts it on the folded role row', () => {
     renderRow(role, { foldedRoles: new Set(['BR1']), roleMissingCounts: new Map([['BR1|u1', 2]]) });

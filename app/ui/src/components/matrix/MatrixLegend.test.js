@@ -32,7 +32,7 @@ describe('MatrixLegend', () => {
 
   it('explains the count a folded business role shows for access it does not grant', () => {
     expect(html).toContain('folded business role');
-    expect(html).toContain('outside the role');
+    expect(html).toContain('the role does not account for');
   });
 
   // Feedback on #370: over-granting was explained, under-granting was not, and
@@ -45,7 +45,8 @@ describe('MatrixLegend', () => {
 
   // Feedback on #370: the same finding has to read the same folded or not.
   it('explains a membership held outside the business role that grants it', () => {
-    expect(html).toContain('held outside the business role');
+    expect(html).toContain('held outside business-role governance');
+    expect(html).toContain('no business role this subject holds grants it to them');
     expect(html).toContain('they hold it by some other route');
   });
 

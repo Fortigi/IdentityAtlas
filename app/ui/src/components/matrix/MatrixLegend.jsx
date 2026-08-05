@@ -109,13 +109,13 @@ export default function MatrixLegend() {
             <div className="flex items-center gap-1.5">
               <span className="inline-flex w-4 h-4 items-center justify-center rounded-full bg-rose-600 text-white border border-rose-700 text-[8px] font-bold shrink-0" aria-hidden="true">1</span>
               <span className="text-gray-700 dark:text-gray-300">
-                Right — <span className="font-medium">held outside the business role</span>: a business role hands this resource out, but not to this subject — they hold it by some other route. The number counts the roles that grant it.
+                Right — <span className="font-medium">held outside business-role governance</span>: a business role hands this resource out, and no business role this subject holds grants it to them — they hold it by some other route. The number counts the roles that grant it; the tooltip names them.
               </span>
             </div>
             <div className="flex items-center gap-1.5">
               <span className="inline-flex w-4 h-4 items-center justify-center rounded-full bg-rose-600 text-white border border-rose-700 text-[8px] font-bold shrink-0" aria-hidden="true">3</span>
               <span className="text-gray-700 dark:text-gray-300">
-                On a <span className="font-medium">folded business role</span>, right — more is handed out below than the role hands out: the number counts the folded resources this subject holds outside the role. Fold a role and the marks on the rows it hides roll up into this one.
+                On a <span className="font-medium">folded business role</span>, right — more is handed out below than the role hands out: the number counts the folded resources this subject holds that the role does not account for. Fold a role and the marks on the rows it hides roll up into this one.
               </span>
             </div>
             <div className="flex items-center gap-1.5">

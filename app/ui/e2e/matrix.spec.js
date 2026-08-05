@@ -263,11 +263,11 @@ test.describe('Matrix — fold business-role resources', () => {
     await expect.poll(() => childElbows(page)).toBe(before);
   });
 
-  test('a folded role counts the access it hides but does not grant', async ({ page }) => {
+  test('a folded role counts the access it hides but does not account for', async ({ page }) => {
     await openFoldableGrid(page);
 
     // Nothing is folded yet, so the marker cannot be on screen.
-    const marker = page.locator('tbody span[title*="does not grant"]');
+    const marker = page.locator('tbody span[title*="does not account for"]');
     await expect(marker).toHaveCount(0);
 
     await foldAll(page).click();
@@ -277,7 +277,7 @@ test.describe('Matrix — fold business-role resources', () => {
       // Every marker states a count of ungoverned assignments it stands for.
       await expect(marker.first()).toHaveText(/^[1-9]\d*$/);
       await expect(marker.first()).toHaveAttribute(
-        'title', /assignments? on the folded resources that this business role does not grant/,
+        'title', /assignments? on the folded resources that this business role does not account for/,
       );
     }
     await unfoldAll(page).click();
@@ -330,8 +330,14 @@ test.describe('Matrix — fold business-role resources', () => {
     test.skip(!present, 'no visible row in this dataset is held outside the business role that grants it');
 
     await expect(outside.first()).toHaveText(/^[1-9]\d*$/);
+    // The finding leads; the role that grants the resource is context. It must
+    // never read as "this subject holds no business role" — the two SysAdmins
+    // this marks hold three of them (requestor feedback on #370).
     await expect(outside.first()).toHaveAttribute(
-      'title', /Held outside the .*business roles? that grants? this resource/,
+      'title', /^⚠ Held outside business-role governance: no business role this subject holds grants this resource\./,
+    );
+    await expect(outside.first()).toHaveAttribute(
+      'title', /It is granted by (business role .+|\d+ business roles.*), (which this subject does not hold|none of which this subject holds)\.$/,
     );
     // The marker explains the access — it never replaces it, so the badge stays.
     await expect(page.locator('tbody td:has(span[title*="Held outside"])').first())
@@ -342,11 +348,36 @@ test.describe('Matrix — fold business-role resources', () => {
     await foldAll(page).click();
     await expect(unfoldAll(page)).toBeVisible();
     await expect(outside).toHaveCount(0);
-    const foldedCount = page.locator('tbody span[title*="does not grant"]');
+    const foldedCount = page.locator('tbody span[title*="does not account for"]');
     if (await foldedCount.count()) await expect(foldedCount.first()).toHaveText(/^[1-9]\d*$/);
 
     await unfoldAll(page).click();
     await expect.poll(() => outside.count()).toBeGreaterThan(0);
+  });
+
+  // The exact cell the requestor checked. SG-VPN-Access is granted by
+  // BR-Engineering-Tools, and the two SysAdmins who hold the group do not hold
+  // that role — but they do hold three others, so a marker that reads "the
+  // subject does not hold that role" was taken to be claiming they hold no
+  // business role at all. The tooltip has to be unambiguous about which of the
+  // two it asserts.
+  test('the held-outside marker names the granting role without claiming the subject is ungoverned', async ({ page }) => {
+    await openFoldableGrid(page);
+
+    const vpnRow = page.locator('tbody tr').filter({ has: page.getByTitle(/^SG-VPN-Access/) });
+    const present = await vpnRow.first().waitFor({ state: 'attached', timeout: 15000 })
+      .then(() => true, () => false);
+    test.skip(!present, 'SG-VPN-Access is not part of this matrix slice');
+
+    const marker = vpnRow.first().locator('span[title*="Held outside"]');
+    test.skip(await marker.count() === 0, 'nobody in this slice holds SG-VPN-Access outside the role that grants it');
+
+    const title = await marker.first().getAttribute('title');
+    expect(title).toContain('no business role this subject holds grants this resource');
+    expect(title).toContain('BR-Engineering-Tools');
+    // The old wording, which read as a statement about business-role membership
+    // in general rather than about this one role.
+    expect(title).not.toContain('the subject does not hold that role');
   });
 
   // Requestor feedback on #370: what happens to a group / app role that two

@@ -35,12 +35,30 @@ describe('hasCellMarkers', () => {
   });
 });
 
+// Requestor feedback on #370: the old wording named the granting role first and
+// closed on "the subject does not hold that role", which reads as a claim that
+// the subject holds no business role at all — wrong for someone who holds three
+// other roles, none of which happens to grant this resource. The finding leads
+// now; the granting role is context.
 describe('heldOutsideTitle', () => {
-  it('reads as one role or several, and drops the names when there are none', () => {
-    expect(heldOutsideTitle(1, 'BR-Engineering-Tools'))
-      .toBe('⚠ Held outside the business role that grants this resource (BR-Engineering-Tools) — the subject does not hold that role');
+  it('states the finding before it names the role that grants the resource', () => {
+    expect(heldOutsideTitle(1, 'BR-Engineering-Tools')).toBe(
+      '⚠ Held outside business-role governance: no business role this subject holds grants this resource.'
+      + ' It is granted by business role BR-Engineering-Tools, which this subject does not hold.');
+  });
+
+  it('reads as several roles, and drops the names when there are none', () => {
+    expect(heldOutsideTitle(2, 'BR-A, BR-B')).toBe(
+      '⚠ Held outside business-role governance: no business role this subject holds grants this resource.'
+      + ' It is granted by 2 business roles (BR-A, BR-B), none of which this subject holds.');
     expect(heldOutsideTitle(2)).toBe(
-      '⚠ Held outside the 2 business roles that grant this resource — the subject does not hold any of them');
+      '⚠ Held outside business-role governance: no business role this subject holds grants this resource.'
+      + ' It is granted by 2 business roles, none of which this subject holds.');
+    expect(heldOutsideTitle(1)).toContain('It is granted by a business role, which this subject does not hold.');
+  });
+
+  it('never claims the subject holds no business role', () => {
+    expect(heldOutsideTitle(1, 'BR-Engineering-Tools')).not.toMatch(/does not hold (that role|any of them)$/);
   });
 });
 
@@ -107,7 +125,7 @@ describe('CellMarkerStrip', () => {
     expect(fewer).toHaveTextContent('');
     expect(more).toHaveTextContent('1');
     expect(more.className).toContain('bg-rose-600');
-    expect(more.getAttribute('title')).toContain('Held outside the business role');
+    expect(more.getAttribute('title')).toContain('Held outside business-role governance');
     expect(more.getAttribute('title')).toContain('BR-Engineering-Tools');
   });
 

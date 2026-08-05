@@ -66,9 +66,8 @@ describe('cellDeviation', () => {
 });
 
 describe('heldOutsideRoleCount', () => {
-  // BR1 grants this row; the subject either got it through BR1 or from somewhere
-  // else entirely. Ids are compared case-insensitively — the row carries them
-  // uppercased, the coverage map lowercased.
+  // BR1 grants this row; the subject either got it through a business role they
+  // hold or from somewhere else entirely.
   const outside = (props) => heldOutsideRoleCount({ roleGrantIds: ['BR1'], ...props });
 
   it('counts the granting role when the subject holds the resource without it', () => {
@@ -97,6 +96,14 @@ describe('heldOutsideRoleCount', () => {
     expect(heldOutsideRoleCount({
       types: types('Direct'), roleGrantIds: ['BR1', 'BR2'], apIds: ['br2'],
     })).toBe(0);
+  });
+
+  // A role only covers a cell by granting the resource to someone who holds the
+  // role, so a covering role explains the membership even when it has no row in
+  // this matrix. Marking such a cell red claimed the subject's access was
+  // outside business-role governance when a role of theirs did account for it.
+  it('says nothing when a covering role has no row of its own in the grid', () => {
+    expect(outside({ types: types('Indirect'), apIds: ['br-off-grid'] })).toBe(0);
   });
 });
 
@@ -141,6 +148,16 @@ describe('buildRoleDeviationCounts', () => {
     const { extra, missing } = build();
     expect(extra.get('BR1|u3')).toBe(1);
     expect(missing.get('BR1|u3')).toBeUndefined();
+  });
+
+  // The folded count is a roll-up of the marks the hidden rows carry themselves,
+  // so it has to clear on the same condition: another business role covering the
+  // cell already accounts for the membership.
+  it('leaves access another business role accounts for uncounted', () => {
+    const { extra } = build({
+      managedApMap: new Map([...managedApMap, ['g1|u3', ['br2']]]),
+    });
+    expect(extra.get('BR1|u3')).toBeUndefined();
   });
 
   it('tallies onto the aggregate column when subjects are folded together', () => {

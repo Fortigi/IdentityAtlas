@@ -43,10 +43,11 @@ export function hasCellMarkers({
 const plural = (count, word) => `${count} ${word}${count === 1 ? '' : 's'}`;
 
 // A folded business role hides rows; this is the access on those rows that the
-// role itself does NOT grant — the subject holds it through some other route,
-// or holds permanently what the role only makes them eligible for.
+// role itself does NOT account for — held permanently where the role only makes
+// the subject eligible, or held with no business role of theirs granting it.
 export function extraAccessTitle(count) {
-  return `⚠ ${plural(count, 'assignment')} on the folded resources that this business role does not grant`;
+  return `⚠ ${plural(count, 'assignment')} on the folded resources that this business role does not account for`
+    + ' — more than it assigns, or held with no business role of this subject granting it';
 }
 
 // The mirror image: rows the folded role DOES grant this subject, where the
@@ -55,17 +56,29 @@ export function missingAccessTitle(count) {
   return `⚠ ${plural(count, 'assignment')} on the folded resources that this business role assigns but this subject does not have`;
 }
 
+// The role(s) that hand this resource out, as the tooltip names them.
+function grantingRoles(count, names) {
+  if (count === 1) return names ? `business role ${names}` : 'a business role';
+  return names ? `${count} business roles (${names})` : `${count} business roles`;
+}
+
 // The unfolded twin of extraAccessTitle: this resource IS handed out by
-// business role(s) in the grid, but none of them hands it to this subject — so
-// the membership stands outside the role that is supposed to govern it. Folding
-// the role turns the same finding into its red count, which is why both sit in
-// the strip's red slot.
+// business role(s) in the grid, but no business role the subject holds hands it
+// to them — so the membership stands outside the governance that is supposed to
+// cover it. Folding the role turns the same finding into its red count, which is
+// why both sit in the strip's red slot.
+//
+// The wording leads with what the finding actually is and only then names the
+// role(s) that grant the resource. Naming the role first and closing on "the
+// subject does not hold that role" read as a claim about business-role
+// membership in general — and someone who does hold other roles (just not one
+// that grants this resource) reasonably read it as simply wrong (requestor
+// feedback on #370). The subject's own roles are the point; the granting role is
+// the context.
 export function heldOutsideTitle(count, names) {
-  const which = count === 1
-    ? 'the business role that grants this resource'
-    : `the ${count} business roles that grant this resource`;
-  const holds = count === 1 ? 'that role' : 'any of them';
-  return `⚠ Held outside ${which}${names ? ` (${names})` : ''} — the subject does not hold ${holds}`;
+  const notHeld = count === 1 ? 'which this subject does not hold' : 'none of which this subject holds';
+  return '⚠ Held outside business-role governance: no business role this subject holds grants this resource.'
+    + ` It is granted by ${grantingRoles(count, names)}, ${notHeld}.`;
 }
 
 // One cell where the subject holds permanently what the role only makes them

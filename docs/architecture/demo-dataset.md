@@ -338,7 +338,7 @@ grants — the `Ticketing-Agent` app role — belongs to the
 | Ursula Visser (E0014), Victor Wang (E0029) | All three, exactly as assigned | Nothing — the control, so the deviations don't read as the norm |
 | Tom Bakker (E0034) | Tools only | **Fewer**: two of the three groups the role assigns him are missing — as is the Ticketing-Agent app role it shares with BR-IT-Operations |
 | Wendy Xu (E0030) | Tools, plus Admin as a *standing* membership; no KB | **Fewer and more at once** — the case the folded role row has to summarise in both directions |
-| Lars Muller (E0024) | Tools, without holding the role | Access the role does not account for — the red "held outside the role" mark on that cell, and part of the role's red count once it is folded |
+| Lars Muller (E0024) | Tools, without holding the role | Access no business role of his accounts for — the red "held outside business-role governance" mark on that cell, and part of the role's red count once it is folded |
 
 Under-provisioning is modelled by *leaving an assignment out*: a `Contains`
 child with no effective assignment is what the grid reads as fewer. Over-
@@ -351,12 +351,21 @@ each is rendered.
 
 The third thing the matrix says about a resource a business role hands out:
 someone holds it who the role does **not** hand it to. `SG-VPN-Access` carries
-that case, and both halves of it are load-bearing:
+that case, and both halves of it are load-bearing.
+
+The two SysAdmins are deliberately *not* people without governance — they hold
+`BR-Employee-Base`, `BR-Service-Desk` and `BR-IT-Operations`. None of those
+grants `SG-VPN-Access`; only `BR-Engineering-Tools` does, and they do not hold
+it. That is the whole point of the case, and why the marker's tooltip states the
+finding as "no business role this subject holds grants this resource" before it
+names the role that does — reading it the other way round suggests these two hold
+no business roles at all, which is plainly not what the grid shows (requestor
+feedback on #370).
 
 | Who | What they have | What the matrix shows |
 |---|---|---|
 | The 8 BR-Engineering-Tools holders | The VPN group, `Indirect`, through the role | Governed access, in the role's colour — no marker |
-| Victor Wang (E0029), Wendy Xu (E0030) | The VPN group, `Direct`, without the role | A red count on those two cells: a membership no business role accounts for |
+| Victor Wang (E0029), Wendy Xu (E0030) | The VPN group, `Direct`, without the role | A red count on those two cells: a membership none of the business roles they *do* hold (`BR-Employee-Base`, `BR-Service-Desk`, `BR-IT-Operations`) accounts for |
 
 Drop the `Indirect` rows and every engineer turns into a provisioning gap on a
 group their role really does grant — eight bogus gaps that bury the two

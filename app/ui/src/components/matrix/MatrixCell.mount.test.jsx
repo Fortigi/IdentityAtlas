@@ -98,7 +98,7 @@ describe('MatrixCell', () => {
       const td = renderCell({ missingAccessCount: 1, extraAccessCount: 3 });
       expect(td.querySelector('.bg-amber-500')).toHaveTextContent('1');
       expect(td.querySelector('.bg-rose-600')).toHaveTextContent('3');
-      expect(td.getAttribute('title')).toContain('does not grant');
+      expect(td.getAttribute('title')).toContain('does not account for');
       expect(td.getAttribute('title')).toContain('but this subject does not have');
     });
   });
@@ -115,7 +115,8 @@ describe('MatrixCell', () => {
       expect(screen.getByText('D')).toBeInTheDocument();
       expect(td.querySelector('.bg-rose-600')).toHaveTextContent('1');
       expect(td.getAttribute('title')).toContain('Direct');
-      expect(td.getAttribute('title')).toContain('Held outside the business role that grants this resource');
+      expect(td.getAttribute('title')).toContain('no business role this subject holds grants this resource');
+      expect(td.getAttribute('title')).toContain('which this subject does not hold');
       expect(td.getAttribute('title')).toContain('BR-Engineering-Tools');
     });
 
@@ -124,8 +125,8 @@ describe('MatrixCell', () => {
         membershipTypes: types('Direct'), heldOutsideCount: 2, heldOutsideNames: 'BR-A, BR-B',
       });
       expect(td.querySelector('.bg-rose-600')).toHaveTextContent('2');
-      expect(td.getAttribute('title')).toContain('the 2 business roles that grant this resource');
-      expect(td.getAttribute('title')).toContain('does not hold any of them');
+      expect(td.getAttribute('title')).toContain('granted by 2 business roles (BR-A, BR-B)');
+      expect(td.getAttribute('title')).toContain('none of which this subject holds');
     });
 
     it('renders no marker on a cell whose access the role does account for', () => {

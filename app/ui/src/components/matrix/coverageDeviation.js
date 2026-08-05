@@ -6,9 +6,10 @@
 //   excess  — MORE permissions than the role assigns
 //
 // A third statement sits next to those two: the subject holds a resource a
-// business role hands out, but not through that role (`heldOutsideRoleCount`).
-// It is the same thing a folded role reports as a red count, said on the
-// resource's own row so the folded and unfolded views agree.
+// business role hands out, and no business role they hold accounts for them
+// having it (`heldOutsideRoleCount`). It is the same thing a folded role reports
+// as a red count, said on the resource's own row so the folded and unfolded
+// views agree.
 //
 // Both sides come from data the server already states: the `Contains` edge and
 // its `roleName` (delivered as the SOLL mapping behind `apGroupMap`) say what a
@@ -69,27 +70,29 @@ export function cellDeviation({ types, apIds, apGroupMap, resourceKey }) {
 }
 
 /**
- * How many of the business roles that grant this resource fail to account for
- * this subject holding it — i.e. the subject has the membership, the roles that
- * hand this resource out are right there in the grid, and none of them covers
- * this cell.
+ * How many business roles grant this resource without any business role the
+ * subject holds accounting for them having it — i.e. the subject has the
+ * membership, at least one role in the grid hands this resource out, and not one
+ * of the roles the subject holds covers this cell.
  *
- * This is the same statement a folded role makes with its red count ("held on
- * the folded resources that this role does not grant"), said on the resource's
- * own row so folding and unfolding agree. It is all-or-nothing on purpose: one
- * granting role that does cover the cell already explains the access, and the
- * other roles are then simply not the route it came through.
+ * This is the same statement a folded role makes with its red count, said on the
+ * resource's own row so folding and unfolding agree. Any covering role clears
+ * it, not just one of the granting rows: a role only covers a cell by granting
+ * that resource to a subject who holds the role, so a covering role explains the
+ * membership whether or not it has a row of its own in the grid. Suppressing
+ * only on the granting rows marked cells red that a business role outside the
+ * current scope already accounted for.
  *
  * @param {object}   args
  * @param {Set}      args.types        - membership types the subject actually has
  * @param {string[]} args.roleGrantIds - ids of the roles granting this row (upper)
  * @param {string[]} args.apIds        - ids of the roles covering this cell (lower)
- * @returns {number} 0 when the access is accounted for, else the role count
+ * @returns {number} 0 when a business role accounts for the access, else the
+ *                   number of roles in the grid that grant this resource
  */
 export function heldOutsideRoleCount({ types, roleGrantIds, apIds }) {
   if (!types?.size || !roleGrantIds?.length) return 0;
-  const covering = new Set((apIds || []).map(id => String(id).toUpperCase()));
-  return roleGrantIds.some(id => covering.has(String(id).toUpperCase())) ? 0 : roleGrantIds.length;
+  return apIds?.length ? 0 : roleGrantIds.length;
 }
 
 function bump(map, key) {
@@ -98,11 +101,13 @@ function bump(map, key) {
 
 // One (folded role, subject, folded row) triple: does it read as more, as less,
 // or as exactly what the role assigns?
-function tallyFoldedCell({ counts, key, types, covered, roleIdLower, apGroupMap, resourceKey }) {
-  if (!covered) {
+function tallyFoldedCell({ counts, key, types, covering, roleIdLower, apGroupMap, resourceKey }) {
+  if (!covering.includes(roleIdLower)) {
     // The subject holds a resource this role folded away without this role
-    // handing it out — access the role does not account for.
-    if (types?.size) bump(counts.extra, key);
+    // handing it out. It only counts when no business role they hold accounts
+    // for the membership — otherwise the covering role explains it, which is
+    // exactly what the row's own marker says when the role is unfolded.
+    if (types?.size && covering.length === 0) bump(counts.extra, key);
     return;
   }
   const dev = cellDeviation({ types, apIds: [roleIdLower], apGroupMap, resourceKey });
@@ -135,7 +140,7 @@ export function buildRoleDeviationCounts({
           // A folded subject column carries the tally of everyone behind it.
           key: `${roleId}|${userToAgg?.get(u.id) || u.id}`,
           types: memberships?.get(`${row.id}|${u.id}`),
-          covered: !!managedApMap?.get(`${coverageKey}|${u.id.toLowerCase()}`)?.includes(roleIdLower),
+          covering: managedApMap?.get(`${coverageKey}|${u.id.toLowerCase()}`) || [],
           roleIdLower,
           apGroupMap,
           resourceKey,

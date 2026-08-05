@@ -190,14 +190,16 @@ Rules worth knowing:
 - **A folded role says how much it is hiding that it does not grant, and how
   much it grants that isn't there.** Per subject column, the folded row carries
   a red count on the right of the cell's marker strip (folded resources the
-  subject holds outside this role) and an amber count on the left (folded
+  subject holds that this role does not account for) and an amber count on the
+  left (folded
   resources the role assigns that the subject does not have). Folding is a
   summary, never a cover-up — in either direction. Coverage comes from the
   server's business-role mapping (`managedByPackages`), not from a client-side
   guess at what a role ought to grant.
 - **Both counts are roll-ups of marks the rows carry themselves**, so unfolding
   a role never makes a finding disappear: the resource rows show the same amber
-  gap and the same red "held outside this role" mark on their own cells. See
+  gap and the same red "held outside business-role governance" mark on their
+  own cells. See
   [Fewer and more than the role assigns](#fewer-and-more-than-the-role-assigns).
 
 ### Which business role does this row belong to?
@@ -260,8 +262,8 @@ can carry both at once — short on one resource of a role, over on another:
 | **Fewer** — the role assigns a membership the subject does not have | On the resource's own cell | Amber `!` in the strip's left slot (the provisioning gap), tooltip naming the expected type |
 | **Fewer**, while the role is folded | On the folded role's cell | Amber count in the strip's left slot |
 | **More** — the role grants *eligibility* (`roleName` contains "Eligible") but the subject holds a standing membership | On the resource's own cell | Red `+` in the strip's right slot |
-| **Outside** — a business role hands this resource out, but not to this subject: they hold it by some other route | On the resource's own cell | Red count in the strip's right slot — how many roles grant the row, tooltip naming them |
-| **More / outside**, while the role is folded | On the folded role's cell | Red count in the strip's right slot (folded resources held over what the role assigns, *plus* those held with no coverage from it at all) |
+| **Outside** — a business role hands this resource out, and no business role the subject holds grants it to them: they hold it by some other route | On the resource's own cell | Red count in the strip's right slot — how many roles grant the row, tooltip naming them |
+| **More / outside**, while the role is folded | On the folded role's cell | Red count in the strip's right slot (folded resources held over what the role assigns, *plus* those held with no business role of the subject's granting them) |
 
 The comparison lives in
 [`matrix/coverageDeviation.js`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/ui/src/components/matrix/coverageDeviation.js)
@@ -279,17 +281,30 @@ asymmetries:
   *how* the subject holds it, not *how much*, so an inherited membership is
   neither more nor less than a direct one.
 
-A third statement shares the red slot: **held outside the role**. The resource
-is one a business role hands out — the row says so, and the SOLL column agrees —
-but this subject is not one of the people that role hands it to, so the
-membership stands outside the governance that is supposed to cover it. This is
-deliberately the *same* finding a folded role reports as its red count, said on
-the resource's own row so folding and unfolding a role never change what the
-grid claims: fold the role and the marks on the rows it hides roll up into one
-count on the role's row; unfold it and they go back to the cells they came
-from. It is all-or-nothing across the roles granting a row (`heldOutsideRoleCount`
-in `coverageDeviation.js`) — one role that *does* cover the cell already explains
-the access, and the others are then simply not the route it came through.
+A third statement shares the red slot: **held outside business-role
+governance**. The resource is one a business role hands out — the row says so,
+and the SOLL column agrees — but not one of the business roles this subject holds
+grants it to them, so the membership stands outside the governance that is
+supposed to cover it. This is deliberately the *same* finding a folded role
+reports as its red count, said on the resource's own row so folding and unfolding
+a role never change what the grid claims: fold the role and the marks on the rows
+it hides roll up into one count on the role's row; unfold it and they go back to
+the cells they came from.
+
+`heldOutsideRoleCount` in `coverageDeviation.js` clears the mark as soon as
+**any** business role covers the cell — not only one of the roles that have a row
+in this matrix. A role can only cover a cell by granting that resource to a
+subject who holds the role, so a covering role explains the membership whether or
+not it is in the current scope; suppressing on the granting rows alone marked
+cells red that a role outside the scope already accounted for.
+
+The wording matters as much as the mark. The tooltip leads with the finding —
+*no business role this subject holds grants this resource* — and only then names
+the role(s) that do grant it, noting that the subject holds none of them. Naming
+the granting role first and closing on "the subject does not hold that role" read
+as a claim about business-role membership in general, which someone who does hold
+several other roles reasonably read as simply wrong (requestor feedback on #370).
+The subject's own roles are the finding; the granting role is the context.
 
 `docs/architecture/demo-dataset.md` → "Fewer and more than the role assigns"
 describes the demo data that exercises every row of the table above.
