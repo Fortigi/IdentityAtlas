@@ -36,6 +36,13 @@ gh issue edit "$ISSUE" --repo "$REPO" --remove-label ready-to-build >/dev/null 2
 # the gate) — not only after the PR is created ~15-20 min later, which would leave it wrongly reading
 # "Awaiting approval" for the whole implement phase.
 GH_TOKEN="$BOARD_TOKEN" bash "$SCRIPTS/dor_set_status.sh" "$ISSUE" building 2>/dev/null || true
+# Say so on the issue NOW, not after the PR exists. For a bug the PR is opened only after the whole
+# red/green proof has run, so the first comment used to arrive 30-45 minutes in — the thread just sat
+# silent while the machine worked, which is indistinguishable from the machine being dead. That
+# ambiguity is the exact failure that left #370's requestor waiting 19 hours on a loop that had died.
+comment_issue "$(printf '🔨 Started — building a fix.%s%s' \
+  "$(is_bug && printf ' I reproduce the bug with a failing test first, fix it, then replay it on a live environment; expect ~30 min.' || printf '')" \
+  "${RUN_URL:+ · 👀 [follow progress]($RUN_URL)}")"
 
 # Resume-aware: if a branch with real work already exists (a previous run paused on a usage limit),
 # continue from it instead of re-implementing from scratch — that is the expensive part we must not
@@ -99,7 +106,11 @@ Leave your changes in the working tree — do NOT commit, push or open a PR.%s' 
     run_touched_tests "origin/main...HEAD"
     case $? in
       1) cp /tmp/unit.log /tmp/red.log 2>/dev/null || true
-         echo "::notice::red proof OK — the regression test fails against unfixed code" ;;
+         echo "::notice::red proof OK — the regression test fails against unfixed code"
+         # The most informative moment of the whole build: the bug is now demonstrably real, in a
+         # test, before anything has been fixed. Worth telling the thread.
+         comment_issue "$(printf '🔴 Reproduced — the new regression test fails against today'\''s code:\n\n```\n%s\n```\n\nNow fixing it at the source.' \
+           "$(grep -E 'FAIL|AssertionError|Expected:|Received:|✕|×' /tmp/red.log 2>/dev/null | head -6)")" ;;
       0) bail "the regression test PASSES against unfixed code, so it does not reproduce #${ISSUE}. A test that was never red proves nothing about the fix that follows it. Last run: $(tail -c 800 /tmp/unit.log 2>/dev/null)" ;;
       3) bail "the change contains no runnable unit test — only an e2e or no test at all. The red/green proof needs a test that can run before the fix exists." ;;
       4) bail "this change is PowerShell-only and no sidekick has pwsh installed, so the test cannot be proven red here. Install pwsh on the pool (tools/dor/provision-sidekick.sh) or take this one by hand." ;;
