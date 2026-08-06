@@ -6,7 +6,14 @@
   "dependsOn": [],
   "configSchema": {
     "type": "object",
-    "properties": {}
+    "properties": {
+      "includeVolumeData": {
+        "type": "boolean",
+        "title": "Include high-cardinality volume data",
+        "description": "Adds ~520 extra synthetic groups, each with its own description, so the dataset holds more than 500 distinct resource descriptions. Use it to exercise the matrix wizard's paged/searchable attribute values on a test environment. Leave off for the normal demo.",
+        "default": false
+      }
+    }
   },
   "postSyncHooks": []
 }

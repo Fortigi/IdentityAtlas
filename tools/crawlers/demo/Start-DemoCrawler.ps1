@@ -12,7 +12,14 @@
     Job ID for progress reporting.
 
 .PARAMETER ConfigPath
-    Path to a temporary JSON file containing the crawler configuration (unused for demo).
+    Path to a temporary JSON file containing the crawler configuration. The demo
+    crawler reads one optional key from it:
+
+      includeVolumeData  — when true, generate the dataset with its opt-in volume
+                           slice (~520 extra groups with distinct descriptions),
+                           so the environment holds more than 500 distinct
+                           resource descriptions. See test/demo-dataset/parts/
+                           DemoVolume.ps1.
 #>
 [CmdletBinding()]
 param(
@@ -23,6 +30,20 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+
+# The demo job is normally queued with no config at all, so a missing or
+# unreadable file simply means "all defaults" rather than an error.
+$includeVolumeData = $false
+if (Test-Path $ConfigPath) {
+    try {
+        $config = Get-Content $ConfigPath -Raw | ConvertFrom-Json
+        if ($config.PSObject.Properties.Name -contains 'includeVolumeData') {
+            $includeVolumeData = [bool]$config.includeVolumeData
+        }
+    } catch {
+        Write-Host "  Warning: could not read crawler config — using defaults ($($_.Exception.Message))" -ForegroundColor Yellow
+    }
+}
 
 $appRoot     = if ($env:IA_APP_ROOT) { $env:IA_APP_ROOT.TrimEnd('/\') } else { '/app' }
 $datasetPath = "$appRoot/test/demo-dataset/demo-company.json"
@@ -52,7 +73,12 @@ Update-DemoProgress -Step 'Loading demo dataset' -Pct 10
 $genScript = "$appRoot/test/demo-dataset/Generate-DemoDataset.ps1"
 if (Test-Path $genScript) {
     Update-DemoProgress -Step 'Generating demo dataset' -Pct 5
-    & $genScript -OutputPath $datasetPath
+    if ($includeVolumeData) {
+        Write-Host "  Including the high-cardinality volume slice" -ForegroundColor Cyan
+        & $genScript -OutputPath $datasetPath -IncludeVolume
+    } else {
+        & $genScript -OutputPath $datasetPath
+    }
 } elseif (-not (Test-Path $datasetPath)) {
     throw "Demo dataset not found at $datasetPath and generator not available"
 }

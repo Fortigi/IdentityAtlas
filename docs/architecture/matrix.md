@@ -174,11 +174,34 @@ A column can have far more distinct values than any dropdown can ship (`descript
 
 `column` is validated against the discovered columns / `ext.*` keys before it is interpolated into the SQL; the search term is always bound.
 
-#### Page size — and how to test the capped path on a small deployment
+#### Verifying it on a deployment that has fewer than 500 distinct values
+
+The capped path only appears once a column holds more distinct values than the page, so a test environment with a couple of hundred resources shows nothing. There is no need to create resources by hand — resources only enter Identity Atlas through crawlers, and there is no bulk-create UI. Two supported ways to get there instead:
+
+| | What you change | Who can do it | What you end up looking at |
+|---|---|---|---|
+| **A. Load high-cardinality demo data** | A checkbox on the Demo Dataset crawler | Anyone with Admin access, from the browser | A real column with **more than 500** distinct descriptions — the reporter's scenario at full size |
+| **B. Lower the page size** | `MATRIX_VALUE_PAGE_SIZE` on the web container | Whoever can recreate the container | The same behaviour at miniature scale, on whatever data is already loaded |
+
+##### A. Load high-cardinality demo data (no configuration change)
+
+Admin → Crawlers → **Demo Dataset** → tick **"Also load high-cardinality test data"** → Load Demo Data. The generator's opt-in volume slice (`test/demo-dataset/parts/DemoVolume.ps1`, switched on by `Generate-DemoDataset.ps1 -IncludeVolume`) appends ~520 extra groups `SG-Vol-0001…`, each with its own description, plus one sentinel group **`SG-Zzz-Cap-Probe`** whose description starts with `Zzz` so it sorts alphabetically *last* and is therefore guaranteed to fall outside the preloaded page.
+
+Then walk the reporter's path — Matrix → Adjust matrix → Next → Next → **+ Attribute**:
+
+1. The Field entry reads **`description (500+)`** — the `+` marks the count as a floor, so the list is a page rather than everything.
+2. The listed values are the alphabetically first 500, in order — no holes anywhere in the middle.
+3. Type `Zzz` into **Search values**. `Zzz - beyond the preloaded 500 (#928 probe)` comes back from the server even though it is not in the page. Tick it, add the filter, and the matrix shows `SG-Zzz-Cap-Probe`.
+
+The slice is off by default: the public demo, the Capture-the-Flag answers, `Verify-DemoDataset.ps1`'s exact row counts and the E2E suite all assume the standard 39-resource company. `test/unit/DemoDataset.Tests.ps1` pins both halves: the slice crosses 500 with the sentinel behind the page, and the default dataset is unchanged without the switch.
+
+To undo it, re-run the Demo Dataset crawler with the box unticked *and* clean the database first (Admin → Danger Zone → Clean Database). A plain re-run soft-deletes the extra groups, which is enough to clear them from the resource lists and the matrix — but value discovery reads the whole table, so their descriptions would keep appearing in the dropdowns until the rows are actually gone.
+
+##### B. Lower the page size
 
 The page size is the `MATRIX_VALUE_PAGE_SIZE` environment variable on the web container (default `500`, maximum `5000`; anything unparseable, zero or negative falls back to the default). It is the cache key alongside the 5-minute TTL, so a changed value takes effect on the next request rather than after the TTL expires.
 
-It exists because the capped path only appears once a column holds more distinct values than the page — which a test deployment with a few hundred resources never reaches, leaving the #928 behaviour unverifiable there. Lower the page size and the same behaviour reproduces on any dataset. Both compose files pass the variable through, so an already-built stack only needs its web container recreated — no rebuild, no data changes:
+Lowering it reproduces the same behaviour on any dataset without touching the data at all — useful when the deployment is connected to a real tenant and loading demo data is not an option. Both compose files pass the variable through, so an already-built stack only needs its web container recreated — no rebuild, no data changes:
 
 ```bash
 # In the stack's directory, with the same -f flags it was started with

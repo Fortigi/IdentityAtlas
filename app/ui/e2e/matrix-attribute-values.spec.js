@@ -13,11 +13,16 @@
 // old code dropped — and on a small dataset it is simply a value that must be
 // selectable. Either way the search must find it.
 //
-// Testing the capped path on a small deployment: the page size is the
-// MATRIX_VALUE_PAGE_SIZE env var on the web container (default 500). Start the
-// stack with e.g. MATRIX_VALUE_PAGE_SIZE=5 and every column with more than five
-// distinct values behaves exactly as `description` does in a large tenant — the
-// capped-path assertions below then run instead of being skipped.
+// Testing the capped path on a small deployment — two ways, either of which
+// makes the capped-path assertions below run instead of skip:
+//   * Load the demo dataset with its opt-in volume slice (Admin → Crawlers →
+//     Demo Dataset → "Also load high-cardinality test data"), which puts more
+//     than 500 distinct descriptions in the database. `SG-Zzz-Cap-Probe`'s
+//     description is then exactly the alphabetically-last value this spec picks.
+//   * Or lower the page size: MATRIX_VALUE_PAGE_SIZE on the web container
+//     (default 500). Start the stack with e.g. MATRIX_VALUE_PAGE_SIZE=5 and
+//     every column with more than five distinct values behaves exactly as
+//     `description` does in a large tenant.
 
 import { test, expect } from '@playwright/test';
 
