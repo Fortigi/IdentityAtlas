@@ -36,7 +36,7 @@ The **foundation prerequisites are in place** — board #2 (Status = canonical p
 | **Design board** (architect + designer) | technical approach + form: registry-vs-engine, additive-vs-mutate, integrate-vs-standalone | `WimvandenHeijkant`, `TaekeK` |
 | **Product board** (the value GO + final merge go/no-go) | desirability / product coherence — the GO | `WimvandenHeijkant`, `TaekeK`, `robb536` — **any one suffices; nobody else may pass the value gate** |
 | **Builder (AI)** | runs the Phase-A interview + Phase-B probe (later: builds) | Claude via `claude-code-action` |
-| **Unknown requestor** (non-member opens an issue) | — | **deterministic triage** (no AI): post a notice, assign Wim/Taeke/Rob, stop |
+| **Unknown requestor** (non-member opens an issue) | — | **deterministic triage** (no AI): post a notice, assign Wim/Taeke/Rob, label `needs-vouch`, stop. A maintainer restarts it by **vouching** — see [External requests](definition-of-ready.md#external-requests--the-vouch) |
 
 ### AI usage per workflow
 
@@ -77,7 +77,8 @@ Legend: **in place** = exists and usable today · **partial** = exists but needs
 | 6 | Governance hardening (D5) | **in place** | "Actions can approve PRs" **unticked** (done); read-only `GITHUB_TOKEN` default staged pending a naked-workflow (`pr.yml`/`pr-integration.yml`) audit |
 | 7 | **`dor-authorize`** composite — org-member gate | **built (this PR)** | mints a **Members:Read**-scoped BOT token, `GET /orgs/Fortigi/members/{actor}`, fails closed; the only defense for public `issues`/`issue_comment` |
 | 8 | **`feature_request.yml`** — intake form | **built (this PR)** | front-loads Phase A (delighted/disappointed, generality, screenshots); 5 required, rest optional |
-| 9 | **`dor-triage.yml`** — add-to-board + route by requestor | **built (this PR)** | member → board + Requested-by (D2) + initial Status; non-member → notice + assign Wim/Taeke/Rob |
+| 9 | **`dor-triage.yml`** — add-to-board + route by requestor | **built (this PR)** | member → board + Requested-by (D2) + initial Status; non-member → notice + assign Wim/Taeke/Rob + `needs-vouch` |
+| 9b | **`dor-vouch.yml`** — accept an external request | **built** | maintainer applies `dor-vouched` → requestor role transfers to them (board Requested-by + sole assignee), original author stays @-mentioned; `dor_requestor_of_record.sh` is the shared resolver the build gate reads |
 | 10 | **`dor-agent.yml`** — interview + probe (Phase A/B) | **built (this PR)** | Fable 5; **no-Bash deterministic split** (fetch → sandboxed reason → validated post); 7 persona lenses; sets comment + one `state:*` label + Status |
 | 11 | **`dor-board-sync.yml`** — label → Status reconciler | **built (this PR)** | BOT token; syncs Status when a human changes a `state:*` label |
 | 12 | **`dor_set_status.sh`** — board Status helper | **built (this PR)** | shared by triage/agent/board-sync/reconcile; option IDs resolved by name at runtime (regeneration-proof); idempotent add |

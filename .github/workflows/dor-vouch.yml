@@ -1,0 +1,172 @@
+name: DoR vouch (accept an external request)
+
+# The re-entry point for a request from someone outside the Fortigi org. `dor-triage` parks those
+# with `needs-vouch` and stops — this is how they start moving again.
+#
+# A maintainer applies `dor-vouched`, and that TRANSFERS the requestor role to them:
+#   • they become the requestor of record (board "Requested by", sole assignee) and answer the
+#     interview + probe questions, so the pipeline's org-member gate is satisfied by a real member;
+#   • the original author stays subscribed and @-mentioned, so they follow every step and can still
+#     supply detail — the maintainer relays it.
+# That is deliberately NOT a membership override: no external account gains the ability to trigger
+# workflows, so the public-repo threat model (issue events run with secrets) is unchanged. What
+# changes is only WHO the pipeline treats as the requestor — resolved by dor_requestor_of_record.sh.
+#
+# Deterministic — no LLM, no tokens spent here. The interview itself is dor-agent, which reacts to
+# the same `dor-vouched` event on its own. INERT until repo variable DOR_ENABLED=true.
+
+on:
+  issues:
+    types: [labeled]
+
+permissions: {}
+
+concurrency:
+  group: dor-vouch-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  # Only a Fortigi member may vouch. Applying a label already requires triage permission or above,
+  # but that is an implicit invariant that would break silently the day an outside collaborator gets
+  # triage — so verify membership explicitly and fail closed.
+  authorize:
+    if: >-
+      vars.DOR_ENABLED == 'true' &&
+      !github.event.issue.pull_request &&
+      github.event.label.name == 'dor-vouched'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      is-member: ${{ steps.auth.outputs.is-member }}
+    steps:
+      - name: Checkout the authorize action only
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: .github/actions/dor-authorize
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+      - name: Require the voucher to be a Fortigi org member
+        id: auth
+        uses: ./.github/actions/dor-authorize
+        with:
+          app-id: ${{ secrets.BOT_APP_ID }}
+          private-key: ${{ secrets.BOT_PRIVATE_KEY }}
+          actor: ${{ github.actor }}
+
+  # Non-member somehow applied it → undo, so the label can never be a standing back door.
+  reject:
+    needs: authorize
+    if: needs.authorize.outputs.is-member == 'false'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Remove the label and say why
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE: ${{ github.event.issue.number }}
+          REPO: ${{ github.repository }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          set -euo pipefail
+          gh issue edit "$ISSUE" --repo "$REPO" --remove-label dor-vouched
+          gh issue comment "$ISSUE" --repo "$REPO" \
+            --body "@${ACTOR} — only a Fortigi organization member can vouch for a request, so the \`dor-vouched\` label was removed. This issue stays parked until a maintainer accepts it."
+
+  accept:
+    needs: authorize
+    if: needs.authorize.outputs.is-member == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Checkout the board helper
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: .github/scripts/dor_set_status.sh
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
+      # Mirrors dor-triage's routing: a bug is reproduced next, a feature is interviewed next.
+      # An issue that somehow already carries a state:* label keeps it — a vouch accepts a request,
+      # it does not re-route one.
+      - name: Pick the entry state
+        id: pick
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE: ${{ github.event.issue.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          # "is it a bug?" + any existing state:* label in ONE call. `existing` is LAST so the
+          # common empty case is a trailing field `read` strips cleanly.
+          read -r is_bug existing <<<"$(gh issue view "$ISSUE" --repo "$REPO" --json labels \
+            --jq '[(([.labels[].name] | index("bug")) != null | tostring),
+                   ([.labels[].name | select(startswith("state:"))][0] // "")] | @tsv')"
+          if [ -n "${existing:-}" ]; then
+            initial="$existing"
+          elif [ "$is_bug" = "true" ]; then
+            initial="state:ready-to-probe"
+          else
+            initial="state:awaiting-requestor"
+          fi
+          echo "initial=$initial" >> "$GITHUB_OUTPUT"
+          echo "::notice::#${ISSUE} enters the pipeline at ${initial}"
+
+      - name: Mint BOT token (org Projects write)
+        id: bot
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ secrets.BOT_APP_ID }}
+          private-key: ${{ secrets.BOT_PRIVATE_KEY }}
+          owner: Fortigi
+          permission-organization-projects: write
+          permission-issues: read          # dor_set_status.sh must read the issue node id first
+
+      # The transfer, on the board: "Requested by" becomes the voucher. dor_set_status.sh already
+      # honours REQ_BY_ACTOR and leaves the field blank if there is no matching option (D2), and its
+      # board add is idempotent — so this also covers an issue reconcile already parked on the board.
+      - name: Add to board + entry Status + Requested-by = the voucher
+        env:
+          GH_TOKEN: ${{ steps.bot.outputs.token }}
+          ISSUE: ${{ github.event.issue.number }}
+          REQ_BY_ACTOR: ${{ github.actor }}
+        run: bash .github/scripts/dor_set_status.sh "$ISSUE" "${{ steps.pick.outputs.initial }}"
+
+      # The transfer, on the issue: the voucher owns it alone. dor-triage assigned all three
+      # maintainers for validation — that validation is now done, so drop the other two rather than
+      # leaving a request that looks like it needs three people.
+      - name: Hand ownership to the voucher
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE: ${{ github.event.issue.number }}
+          REPO: ${{ github.repository }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          set -euo pipefail
+          gh issue edit "$ISSUE" --repo "$REPO" --add-assignee "$ACTOR"
+          # Tolerant: a member vouching a member's issue never carried needs-vouch in the first place.
+          gh issue edit "$ISSUE" --repo "$REPO" --remove-label needs-vouch >/dev/null 2>&1 || true
+          for m in WimvandenHeijkant TaekeK robb536; do
+            [ "$m" = "$ACTOR" ] && continue
+            gh issue edit "$ISSUE" --repo "$REPO" --remove-assignee "$m" >/dev/null 2>&1 || true
+          done
+
+      # Posted with GITHUB_TOKEN on purpose: a GITHUB_TOKEN comment does not re-trigger workflows,
+      # so this cannot start a second dor-agent run. The agent starts from the label event itself.
+      - name: Record the transfer and keep the original requestor in the loop
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE: ${{ github.event.issue.number }}
+          REPO: ${{ github.repository }}
+          ACTOR: ${{ github.actor }}
+          AUTHOR: ${{ github.event.issue.user.login }}
+        run: |
+          set -euo pipefail
+          if [ "$ACTOR" = "$AUTHOR" ]; then
+            body="$(printf '✅ **Accepted into the pipeline** by @%s. The AI will pick it up from here.' "$ACTOR")"
+          else
+            body="$(printf '✅ **Accepted into the pipeline.** @%s has vouched for this request and is now the **requestor of record** — they answer the clarification questions and own it through to delivery.\n\n@%s you stay in the loop: you are subscribed to this issue, so every step (questions, the spec, the test environment, delivery) lands in your notifications. Add anything you want considered as a comment here and @%s will pick it up — your comments will not move the pipeline on their own.' "$ACTOR" "$AUTHOR" "$ACTOR")"
+          fi
+          gh issue comment "$ISSUE" --repo "$REPO" --body "$body"

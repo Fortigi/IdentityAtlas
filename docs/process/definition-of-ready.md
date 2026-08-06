@@ -120,6 +120,40 @@ Draft the actual implementation against the real code and schema — far enough 
 
 ---
 
+## External requests — the vouch
+
+The pipeline only accepts requests from **Fortigi org members**. That is a security boundary, not
+an administrative one: this is a **public** repo, so `issues` / `issue_comment` events run **with
+secrets** for anyone who can type in a text box, and org membership is the only real defense for
+the Claude subscription token (see the injection note in
+[`operationalization.md`](operationalization.md#security-note--the-dor-agents-injection-residual-phase-1)).
+
+But customers and partners *do* file good requests. Rather than widening the gate, we **transfer
+the request**:
+
+| | |
+|---|---|
+| **A non-member opens an issue** | `dor-triage` posts a notice, assigns Wim/Taeke/Rob, labels it **`needs-vouch`**, and stops. It is deliberately *not* put on the board — a request nobody has accepted has no requestor, and parking it at "Awaiting requestor" would falsely read as "waiting on them". The nightly reconcile keeps flagging it until someone acts. |
+| **A maintainer accepts it** | Apply the **`dor-vouched`** label. That is the whole gesture. |
+| **What vouching means** | **You become the requestor of record.** The board's "Requested by" becomes you, you become the sole assignee, and you answer the Phase-A interview and Phase-B probe questions. You are accountable for the request as if you had filed it. |
+| **The original reporter** | Stays subscribed and is @-mentioned, so every step — questions, spec, test environment, delivery — reaches them. They can keep commenting, and you relay what matters. **Their comments do not drive the pipeline**; yours do. |
+| **Declining** | Just close the issue with an explanation. Not vouching *is* the "no". |
+
+**Why the requestor role transfers rather than the gate opening.** No external account gains the
+ability to trigger a workflow, so the threat model is unchanged — the only thing that changes is
+*who the pipeline considers the requestor*, resolved in one place by
+`.github/scripts/dor_requestor_of_record.sh` (author by default; the voucher when a vouch exists).
+That resolver is what the **build** gate reads too, so a vouched request builds normally instead of
+being refused at the last step for having been filed by a non-member. Only a human org member can
+vouch: the label is applied via a `labeled` timeline event, `dor-vouch` verifies the applier's
+membership and strips the label if they are not a member, and a bot-applied label never transfers
+the role.
+
+The value gate is untouched — a vouched request still needs a **Product Board GO** before anything
+builds. Vouching says *"this is a real request and I own it"*, not *"build this"*.
+
+---
+
 ## Bugs — the reproduce-first variant
 
 Bug reports run the **same spine** (tracking issue · `state:*` routes · board Status · human GO) with
@@ -140,7 +174,8 @@ requestor*; needs real tenant/data → *Blocked (external)*; a fix with a genuin
 
 **Runtime** reproduction (running the fix against a live demo env until the red test goes green) is
 the deferred build-side step. Bugs live on their **own board** (Bug Pipeline, project #3) and are
-**org-members-only** (external reports are assigned to maintainers first). The wiring — `bug` gate
+**org-members-only** — an external report is parked as `needs-vouch` and enters the same way a
+feature does, via [the vouch](#external-requests--the-vouch). The wiring — `bug` gate
 label, `dor-bug-agent`, the Bug Form, and the shared scripts — is in
 [`operationalization.md`](operationalization.md#bug-pipeline-spec-side-live).
 

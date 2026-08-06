@@ -26,8 +26,10 @@ jobs:
   authorize:
     # Note: no `sender.type != 'Bot'` gate — ready-to-build is applied by the pipeline (dor-propose-build
     # / dor-resume) via the BOT app, not only by humans. The real guards are the requestor's org
-    # membership (below) + the build-approval Environment gate. We validate the ISSUE AUTHOR (the
-    # requestor whose feature this is), not whoever applied the label.
+    # membership (below) + the build-approval Environment gate. We validate the REQUESTOR OF RECORD
+    # (the person whose feature this is), not whoever applied the label — normally the issue author,
+    # but the member who vouched for an accepted external request. Resolving it via the shared script
+    # is what stops a vouched request from clearing spec and the value gate only to be refused here.
     if: >-
       vars.DOR_ENABLED == 'true' &&
       !github.event.issue.pull_request &&
@@ -39,19 +41,32 @@ jobs:
     outputs:
       is-member: ${{ steps.auth.outputs.is-member }}
     steps:
-      - name: Checkout the authorize action only
+      - name: Checkout the authorize action + requestor resolver
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          sparse-checkout: .github/actions/dor-authorize
+          sparse-checkout: |
+            .github/actions/dor-authorize
+            .github/scripts/dor_requestor_of_record.sh
           sparse-checkout-cone-mode: false
           persist-credentials: false
+      - name: Resolve the requestor of record (author, or the member who vouched)
+        id: req
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          ISSUE: ${{ github.event.issue.number }}
+        run: |
+          set -euo pipefail
+          login="$(bash .github/scripts/dor_requestor_of_record.sh "$ISSUE")"
+          echo "login=$login" >> "$GITHUB_OUTPUT"
+          echo "::notice::requestor of record for #${ISSUE}: ${login}"
       - name: Require the requestor to be a Fortigi org member
         id: auth
         uses: ./.github/actions/dor-authorize
         with:
           app-id: ${{ secrets.BOT_APP_ID }}
           private-key: ${{ secrets.BOT_PRIVATE_KEY }}
-          actor: ${{ github.event.issue.user.login }}
+          actor: ${{ steps.req.outputs.login }}
       - name: Post the one-click approval link (value gate)
         if: steps.auth.outputs.is-member == 'true'
         env:
