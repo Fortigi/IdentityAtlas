@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Issues that the DoR agent certifies now automatically reach the value gate: the pipeline posts a "Review & approve to build" link on the issue as soon as it lands in *Awaiting approval*, instead of waiting for someone to add the `ready-to-build` label by hand. This applies to bug reports as well as feature requests.
+
+## Changes in this PR
+
 - Expanded the DoR build-sidekick pool from three machines to seven, so more approved features can be built and validated in parallel.
 - New sidekicks are now recognised by the deploy, build, acceptance and reset automation — each gets its own live preview URL and is properly released back to the pool when its pull request closes.
 - Clarified the sidekick enrolment checklist: it now lists every file that needs updating and warns what happens if the reset step is missed.
