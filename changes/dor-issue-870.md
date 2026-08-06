@@ -1,9 +1,0 @@
-- Added a **Contexts** column to the matrix: every resource row now shows the contexts it belongs to — group category (Security / Microsoft 365 / Teams / Distribution), tags, clusters, business processes — so you no longer need an export to see them.
-- The Contexts column sits directly beside the resource name and stays visible while you scroll the grid sideways; the resource **Type** column moved to the right, between the member count and the description.
-- The column shows the first two contexts and reveals the rest inline with a "+N" button; resources without a context show a dash.
-- The Excel export of the matrix follows the same column order — Contexts next to the resource name (listing every context name in full), Type on the right.
-- Filtering and sorting by context is unchanged — keep using the context picker in the matrix filter.
-- Fixed a resource's Contexts list and context count on the resource detail page, which could include contexts that belong to an identity or principal rather than the resource itself.
-- Fixed "Something went wrong" when adjusting a matrix: stepping past the Resources step onto the Sort step crashed the page for any matrix opened from a shared link, an older saved matrix, or the default matrix seeded with the demo data. The wizard now fills in whatever the matrix doesn't specify (such as the column sort) instead of failing.
-- Fixed a matrix losing the name of the saved matrix it came from: walking through "Adjust matrix" and applying without changing anything relabelled it "Not saved". Folding a column group or drilling into a roll-up no longer changes that label either.
-- Adjusting a matrix without changing anything is now checked automatically on every build — for the default matrix, a shared link, an identity matrix, and a second adjust in a row — so this class of breakage is caught before it reaches a review.
