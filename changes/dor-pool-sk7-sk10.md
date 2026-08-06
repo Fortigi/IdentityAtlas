@@ -1,3 +1,0 @@
-- Expanded the DoR build-sidekick pool from three machines to seven, so more approved features can be built and validated in parallel.
-- New sidekicks are now recognised by the deploy, build, acceptance and reset automation — each gets its own live preview URL and is properly released back to the pool when its pull request closes.
-- Clarified the sidekick enrolment checklist: it now lists every file that needs updating and warns what happens if the reset step is missed.

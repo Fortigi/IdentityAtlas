@@ -1,5 +1,11 @@
 ## Changes in this PR
 
+- Expanded the DoR build-sidekick pool from three machines to seven, so more approved features can be built and validated in parallel.
+- New sidekicks are now recognised by the deploy, build, acceptance and reset automation — each gets its own live preview URL and is properly released back to the pool when its pull request closes.
+- Clarified the sidekick enrolment checklist: it now lists every file that needs updating and warns what happens if the reset step is missed.
+
+## Changes in this PR
+
 - Added a **Contexts** column to the matrix: every resource row now shows the contexts it belongs to — group category (Security / Microsoft 365 / Teams / Distribution), tags, clusters, business processes — so you no longer need an export to see them.
 - The Contexts column sits directly beside the resource name and stays visible while you scroll the grid sideways; the resource **Type** column moved to the right, between the member count and the description.
 - The column shows the first two contexts and reveals the rest inline with a "+N" button; resources without a context show a dash.
