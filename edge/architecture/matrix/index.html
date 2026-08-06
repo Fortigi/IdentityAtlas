@@ -1426,6 +1426,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#access-package-columns-role-scopes-badge-like-memberships" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Access-package columns — role scopes badge like memberships
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#performance-notes" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4846,6 +4857,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#access-package-columns-role-scopes-badge-like-memberships" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Access-package columns — role scopes badge like memberships
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#performance-notes" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5241,6 +5263,27 @@ attribute-fold views aggregate resources and have no per-resource row.</p>
 <p>…without polluting the user-facing matrix grid. The first row is invisible there; the second row paints User Z's cell with an <code>I</code> badge.</p>
 <h2 id="owner-rows-are-their-own-resource">Owner rows are their own resource<a class="headerlink" href="#owner-rows-are-their-own-resource" title="Permanent link">&para;</a></h2>
 <p>A user who is both a member and an owner of a group holds two separate resources: the group itself (a <code>Direct</code> membership) and a synthetic <code>GroupOwnership</code> resource named <code>Owner @ &lt;group&gt;</code> (also a <code>Direct</code> membership). Migration 046 rewrote the old <code>assignmentType='Owner'</code> rows into Direct assignments on this ownership resource, linked back to the group by a <code>HasOwnership</code> relationship — mirroring how an <code>AppRole</code> hangs off its <code>Application</code>. The matrix therefore shows ownership as its own row, with a normal <strong>D</strong> badge, rather than a separate <code>O</code>-type cell on the group row. No client-side row-splitting is involved.</p>
+<h2 id="access-package-columns-role-scopes-badge-like-memberships">Access-package columns — role scopes badge like memberships<a class="headerlink" href="#access-package-columns-role-scopes-badge-like-memberships" title="Permanent link">&para;</a></h2>
+<p>The right-hand access-package block is driven by <code>ResourceRelationships</code> (<code>relationshipType='Contains'</code>), whose <code>roleName</code> holds the role scope as the source system names it — Graph stamps <code>accessPackageResourceRole.displayName</code> verbatim, so <code>Member</code>, <code>Owner</code> and <code>Eligible Member</code> all occur. That name maps to a badge letter the same way everywhere:</p>
+<table>
+<thead>
+<tr>
+<th><code>roleName</code> contains</th>
+<th>Badge</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>eligible</code></td>
+<td><strong>E</strong></td>
+</tr>
+<tr>
+<td>anything else (<code>Member</code>, <code>Owner</code>, empty)</td>
+<td><strong>D</strong></td>
+</tr>
+</tbody>
+</table>
+<p>There is <strong>no <code>O</code> badge here either</strong> — for the same reason as the membership badges: ownership is its own resource, and a package granting a group's Owner role still grants access the subject holds today. The mapping lives in <code>getApRoleBadge</code> (<code>app/ui/src/utils/accessPackageStyles.js</code>) and is shared by the grid (<code>MatrixGroupRow.jsx</code>) and the Excel export (<code>exportToExcel.js</code>) so the file can't disagree with the screen; migration 049 applies the same <code>%eligible%</code> rule server-side when it derives governed-intent rows.</p>
 <h2 id="performance-notes">Performance notes<a class="headerlink" href="#performance-notes" title="Permanent link">&para;</a></h2>
 <ul>
 <li>The matview is refreshed <code>CONCURRENTLY</code> after the first run (which is non-concurrent because the matview starts empty).</li>
