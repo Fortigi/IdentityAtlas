@@ -1,5 +1,10 @@
 ## Changes in this PR
 
+- Fixed the matrix Excel export leaving an access-package column empty when the package grants a resource's Owner role — the exported access-package columns now show the same badge letters as the on-screen matrix.
+- The demo dataset now includes an access package that grants a group's Owner role, so this case is visible in the demo environment.
+
+## Changes in this PR
+
 - A build that gets re-run after an interruption now correctly hands its build environment over to whichever machine picks it up, instead of leaving two machines both recorded as holding it.
 
 ## Changes in this PR

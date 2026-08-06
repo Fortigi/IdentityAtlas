@@ -1,2 +1,0 @@
-- Fixed the matrix Excel export leaving an access-package column empty when the package grants a resource's Owner role — the exported access-package columns now show the same badge letters as the on-screen matrix.
-- The demo dataset now includes an access package that grants a group's Owner role, so this case is visible in the demo environment.
