@@ -3,6 +3,7 @@ import { TYPE_COLORS as TYPE_COLORS_SRC, AP_COLORS } from './colors';
 import { hexToArgb, thinBorder, setHeaderCell, safeCell } from './excelHelpers';
 import { friendlyLabel } from './formatters';
 import { contextNames } from './resourceContexts';
+import { getApRoleBadge } from './accessPackageStyles';
 
 /**
  * Exports the matrix view to an Excel workbook matching the on-screen layout.
@@ -224,20 +225,17 @@ export async function exportToExcel({ users, orderedGroups, memberships, managed
     descCell.font = { size: 11 };
     descCell.border = thinBorder();
 
-    // Access package cells (each AP column uses its own color)
-    const isOwnerRow = !!group.realGroupId;
+    // Access package cells (each AP column uses its own color). Every mapping
+    // the on-screen matrix badges is exported — the badge letter comes from the
+    // shared getApRoleBadge so the file can't disagree with the grid.
     const lookupGid = group.realGroupId || group.id;
     for (let a = 0; a < apCount; a++) {
       const apKey = `${lookupGid.toUpperCase()}|${accessPackages[a].id.toLowerCase()}`;
       const roleName = apGroupMap?.get(apKey);
       const apCell = ws.getCell(rowNum, apColStart + a);
 
-      // Owner rows only show Owner roles; regular rows only show non-Owner roles
-      const roleIsOwner = (roleName || '').toLowerCase().includes('owner');
-      const showRole = roleName && (isOwnerRow ? roleIsOwner : !roleIsOwner);
-      if (showRole) {
-        const lower = (roleName || '').toLowerCase();
-        apCell.value = lower.includes('owner') ? 'O' : lower.includes('eligible') ? 'E' : 'D';
+      if (roleName) {
+        apCell.value = getApRoleBadge(roleName).letter;
         apCell.font = { size: 11, bold: true };
         apCell.alignment = { horizontal: 'center', vertical: 'middle' };
         apCell.fill = {

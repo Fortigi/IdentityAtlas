@@ -9,7 +9,7 @@ const users = [
   { id: 'u2', displayName: 'Bob' },
 ];
 
-function renderRow(group) {
+function renderRow(group, extraProps = {}) {
   return renderWithProviders(
     h('table', null, h('tbody', null,
       h(MatrixGroupRow, {
@@ -17,6 +17,7 @@ function renderRow(group) {
         users,
         totalUsers: users.length,
         memberships: new Map([[`${group.id}|u1`, new Set(['Direct'])]]),
+        ...extraProps,
       }),
     )),
   );
@@ -55,5 +56,29 @@ describe('MatrixGroupRow metadata columns', () => {
     renderRow({ id: 'g2', displayName: 'Readers', groupType: 'Group', description: '', memberCount: 0 });
     expect(screen.getByText('—')).toBeInTheDocument();
     expect(screen.getByTitle('Group')).toHaveTextContent('Group');
+  });
+});
+
+describe('MatrixGroupRow access-package cells', () => {
+  const accessPackages = [
+    { id: 'ap1', displayName: 'PCM - Piket bevoegdheden' },
+    { id: 'ap2', displayName: 'Package Two' },
+  ];
+
+  // The badge letter must match what exportToExcel writes for the same role
+  // name — both read the shared getApRoleBadge (issue #942).
+  it.each([
+    ['Member', 'D'],
+    ['Owner', 'D'],
+    ['Eligible Member', 'E'],
+  ])('badges a "%s" role scope as %s', (roleName, letter) => {
+    renderRow(
+      { id: 'g1', displayName: 'PCM - Piket bevoegdheden', groupType: 'Group', description: '', memberCount: 1 },
+      { accessPackages, apGroupMap: new Map([['G1|ap1', roleName]]) },
+    );
+
+    expect(screen.getByTitle(`PCM - Piket bevoegdheden (${roleName})`)).toHaveTextContent(letter);
+    // The unmapped package's cell stays blank.
+    expect(screen.queryByTitle(/^Package Two/)).toBeNull();
   });
 });

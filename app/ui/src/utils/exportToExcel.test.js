@@ -267,6 +267,53 @@ describe('exportToExcel', () => {
     expect(ws.getCell(dataRow, apColStart).value).toBe('D');
   });
 
+  it('exports an access-package containment whose role name is Owner — matching the GUI (issue #942)', async () => {
+    const accessPackages = [{ id: 'ap1', displayName: 'PCM - Piket bevoegdheden' }];
+    const orderedGroups = [
+      { id: 'g1', displayName: 'PCM - Piket bevoegdheden', groupType: 'Group', description: '', memberCount: 1 },
+    ];
+    // The Entra crawler stamps Graph's resource-role displayName straight into
+    // ResourceRelationships.roleName — an access package granting the group's
+    // Owner role produces exactly this apGroupMap entry.
+    const apGroupMap = new Map([['G1|ap1', 'Owner']]);
+
+    await exportToExcel(baseInput({ accessPackages, orderedGroups, apGroupMap }));
+    const wb = await loadCapturedWorkbook();
+    const ws = wb.getWorksheet('Role Mining Matrix');
+
+    const namesRow = 2;             // one default attribute header level
+    const apColStart = 3 + 0 + 1;   // infoColCount + userCount + 1
+    const dataRow = namesRow + 1;
+
+    // On screen this containment renders a 'D' badge (getApRoleBadge has no
+    // owner branch — ownership is its own resource row in the v5 model).
+    expect(ws.getCell(dataRow, apColStart).value).toBe('D');
+    // …and the cell carries the AP column colour like every shown containment.
+    expect(ws.getCell(dataRow, apColStart).fill?.fgColor?.argb).toBe('FFFDE68A'); // AP_COLORS[0]
+  });
+
+  it('exports an eligible role scope as E and leaves unmapped AP cells empty', async () => {
+    const accessPackages = [
+      { id: 'ap1', displayName: 'Package One' },
+      { id: 'ap2', displayName: 'Package Two' },
+    ];
+    const orderedGroups = [
+      { id: 'g1', displayName: 'Grp', groupType: '', description: '', memberCount: 1 },
+    ];
+    const apGroupMap = new Map([['G1|ap1', 'Eligible Member']]);
+
+    await exportToExcel(baseInput({ accessPackages, orderedGroups, apGroupMap }));
+    const wb = await loadCapturedWorkbook();
+    const ws = wb.getWorksheet('Role Mining Matrix');
+
+    const dataRow = 3;              // namesRow(2) + 1
+    const apColStart = 3 + 0 + 1;
+    expect(ws.getCell(dataRow, apColStart).value).toBe('E');
+    // No containment for the second package => no letter and no fill.
+    expect(ws.getCell(dataRow, apColStart + 1).value).toBeFalsy();
+    expect(ws.getCell(dataRow, apColStart + 1).fill?.fgColor).toBeUndefined();
+  });
+
   it('populates the Legend sheet with all membership types', async () => {
     await exportToExcel(baseInput());
     const wb = await loadCapturedWorkbook();
