@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Bug reports now stay on the Bug Pipeline board for their whole life. Previously anything the build side did to a bug — moving it to Building, Awaiting merge, Done or Exceptions — was applied to the Feature board instead, which would have silently added the bug there while its Bug board card stopped moving.
+
+## Changes in this PR
+
 - Issues that the DoR agent certifies now automatically reach the value gate: the pipeline posts a "Review & approve to build" link on the issue as soon as it lands in *Awaiting approval*, instead of waiting for someone to add the `ready-to-build` label by hand. This applies to bug reports as well as feature requests.
 
 ## Changes in this PR
