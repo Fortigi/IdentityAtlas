@@ -61,6 +61,39 @@ is_bug() {
   [ "$IS_BUG" = yes ]
 }
 
+# The repro contract the probe certified with, pulled back out of the issue thread — the build's only
+# input is .dor/in/spec.json, so the contract travels inside the certified comment. Echoes the JSON;
+# returns non-zero when there isn't one (issues certified before contracts existed still build).
+read_contract() {
+  local body
+  body="$(jq -r '[.comments[].body // empty] | map(select(test("Repro contract"))) | last // empty' \
+          "$WORK/.dor/in/spec.json" 2>/dev/null)" || return 1
+  [ -n "$body" ] || return 1
+  printf '%s\n' "$body" | sed -n '/```json/,/```/p' | sed '1d;$d'
+}
+
+# Did the fix stay inside the blast radius the probe predicted? Drifting outside it means the
+# diagnosis was wrong or the scope crept — either way a human decides, so this is a stop, not a fix
+# loop. Tests, docs, changelog fragments and lockfiles are always allowed. Echoes offending paths.
+blast_radius_violations() {  # $1 = contract file, $2 = git range
+  local globs f g hit
+  globs="$(jq -r '.blast_radius[]' "$1" 2>/dev/null)" || return 0
+  [ -n "$globs" ] || return 0
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    case "$f" in
+      *.test.js|*.test.jsx|*.spec.js|*.Tests.ps1|changes/*|docs/*|*/package-lock.json|package-lock.json) continue ;;
+    esac
+    hit=no
+    while IFS= read -r g; do
+      [ -n "$g" ] || continue
+      # shellcheck disable=SC2254  # the glob is data and must stay unquoted to be a pattern
+      case "$f" in $g) hit=yes; break ;; esac
+    done <<< "$globs"
+    [ "$hit" = no ] && printf '%s\n' "$f"
+  done < <(git -C "$WORK" diff --name-only "$2" 2>/dev/null)
+}
+
 # The automated tests a range touched. e2e specs are excluded — they need the deployed app, and run
 # later against the live env.
 touched_tests() {  # $1 = git range

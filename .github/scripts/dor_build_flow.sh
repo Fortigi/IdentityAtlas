@@ -49,6 +49,23 @@ else
   title="$(gh issue view "$ISSUE" --repo "$REPO" --json title --jq '.title')"
 
   if is_bug; then
+    # The certified contract, if this issue has one. Issues certified before contracts existed still
+    # build — they just get the generic prompts and no blast-radius check, and say so.
+    CONTRACT=""
+    if read_contract > /tmp/contract.json 2>/dev/null && jq -e . /tmp/contract.json >/dev/null 2>&1; then
+      CONTRACT=/tmp/contract.json
+      echo "::notice::repro contract found (confidence: $(jq -r '.confidence' "$CONTRACT"), tier: $(jq -r '.test_tier' "$CONTRACT"))"
+      contract_brief="$(printf '\nThe probe certified this contract — build to it:\n  assertion that must fail then pass: %s\n  root cause: %s\n  expected blast radius: %s\n  test tier: %s\n  reporter path: %s\n' \
+        "$(jq -r '.assertion'  "$CONTRACT")" \
+        "$(jq -r '.root_cause' "$CONTRACT")" \
+        "$(jq -r '.blast_radius | join(", ")' "$CONTRACT")" \
+        "$(jq -r '.test_tier'  "$CONTRACT")" \
+        "$(jq -r '.repro_path' "$CONTRACT")")"
+    else
+      contract_brief=""
+      echo "::warning::#${ISSUE} carries no repro contract — building without the blast-radius check"
+    fi
+
     # ── 1. RED FIRST ────────────────────────────────────────────────────────────────────────────
     # A test that was never red proves nothing. A green suite after a fix is equally consistent with
     # "bug fixed" and "test doesn't touch the bug" — and the same agent writes both, so the ordering
@@ -66,7 +83,7 @@ THIS PASS WRITES THE TEST, AND NOTHING ELSE.
   - Do NOT modify, add or delete any production file. Nothing is fixed yet, so assert only against
     the EXISTING public API; if that means the test is a little indirect, that is correct.
   - Do NOT write a Playwright e2e in this pass; that comes with the fix.
-Leave your changes in the working tree — do NOT commit, push or open a PR.' "$ISSUE")" \
+Leave your changes in the working tree — do NOT commit, push or open a PR.%s' "$ISSUE" "$contract_brief")" \
       /tmp/impl-test.json "$IMPLEMENT_TURNS"
     case $? in
       0|3) : ;;
@@ -102,7 +119,7 @@ is already committed on this branch, and it currently FAILS. Now make it pass.
     bug fix without one cannot be verified.
   - Update any docs the change affects and add the changelog fragment changes/dor-issue-%s.md
     (user-facing bullets). NEVER edit CHANGES.md or setup/IdentityAtlas.psd1. Do NOT touch .github/.
-Leave your changes in the working tree — do NOT commit, push or open a PR.' "$ISSUE" "$ISSUE")" \
+Leave your changes in the working tree — do NOT commit, push or open a PR.%s' "$ISSUE" "$ISSUE" "$contract_brief")" \
       /tmp/impl.json "$IMPLEMENT_TURNS"
     case $? in
       0|3) : ;;
@@ -118,6 +135,15 @@ Leave your changes in the working tree — do NOT commit, push or open a PR.' "$
     run_touched_tests "origin/main...HEAD" \
       || bail "the fix does not make the regression test pass. Last run: $(tail -c 800 /tmp/unit.log 2>/dev/null)"
     echo "::notice::green proof OK — the same test now passes"
+
+    # ── 5. CONFORMANCE ──────────────────────────────────────────────────────────────────────────
+    # The fix landing outside the radius the probe predicted means the diagnosis was wrong or the
+    # scope crept. Neither is something another AI pass should paper over, so it stops here.
+    if [ -n "$CONTRACT" ]; then
+      outside="$(blast_radius_violations "$CONTRACT" "origin/main...HEAD")"
+      [ -n "$outside" ] && bail "the fix reached outside the certified blast radius ($(jq -r '.blast_radius | join(", ")' "$CONTRACT")) and touched: $(printf '%s' "$outside" | tr '\n' ' '). Either the root cause was mis-diagnosed or the scope grew — a human should look before this goes further."
+      echo "::notice::blast-radius conformance OK"
+    fi
   else
     # Features keep the single implement pass: their acceptance criteria are not a defect that can be
     # demonstrated failing first.
