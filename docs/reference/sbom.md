@@ -112,11 +112,11 @@ This document lists all major software components, dependencies, and infrastruct
 | eslint-plugin-react-hooks | ^7.1.1 | React hooks linting rules | MIT |
 | eslint-plugin-react-refresh | ^0.5.3 | React refresh linting | MIT |
 | globals | ^17.8.0 | Global variable definitions | MIT |
-| @playwright/test | ^1.62.0 | End-to-end testing framework | Apache 2.0 |
+| @playwright/test | ^1.62.1 | End-to-end testing framework | Apache 2.0 |
 | @axe-core/playwright | ^4.12.1 | Accessibility testing | MPL 2.0 |
 | @eslint/js | ^10.0.1 | ESLint JavaScript rules | MIT |
-| @types/react | ^19.2.17 | TypeScript type definitions for React | MIT |
-| @types/react-dom | ^19.2.3 | TypeScript type definitions for React DOM | MIT |
+| @types/react | ^19.2.18 | TypeScript type definitions for React | MIT |
+| @types/react-dom | ^19.2.4 | TypeScript type definitions for React DOM | MIT |
 
 ---
 
