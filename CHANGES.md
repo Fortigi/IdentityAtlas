@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- A build that gets re-run after an interruption now correctly hands its build environment over to whichever machine picks it up, instead of leaving two machines both recorded as holding it.
+
+## Changes in this PR
+
 - Added a way to accept a feature request or bug report filed by someone outside the Fortigi organization: a maintainer applies the `dor-vouched` label and the request enters the normal pipeline.
 - Vouching transfers the requestor role to the maintainer who vouched — they become "Requested by" on the board and the sole assignee, and they answer the clarification questions — while the original reporter stays subscribed and is mentioned at every step so they keep following progress and can still contribute detail.
 - External requests are now clearly parked as "awaiting a maintainer vouch" instead of silently appearing on the board as "Awaiting requestor", which made them look like they were waiting on the reporter when nobody had looked at them yet.
