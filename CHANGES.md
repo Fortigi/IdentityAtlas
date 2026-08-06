@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Requestor feedback and sidekick release now go straight to the machine holding the build instead of being offered to every machine in turn. A busy or offline machine no longer leaves the run hanging, and adding a new machine to the pool no longer risks it holding on to a build environment that can never be released.
+
+## Changes in this PR
+
 - Bug reports now stay on the Bug Pipeline board for their whole life. Previously anything the build side did to a bug — moving it to Building, Awaiting merge, Done or Exceptions — was applied to the Feature board instead, which would have silently added the bug there while its Bug board card stopped moving.
 
 ## Changes in this PR

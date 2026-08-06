@@ -1,1 +1,0 @@
-- Requestor feedback and sidekick release now go straight to the machine holding the build instead of being offered to every machine in turn. A busy or offline machine no longer leaves the run hanging, and adding a new machine to the pool no longer risks it holding on to a build environment that can never be released.
