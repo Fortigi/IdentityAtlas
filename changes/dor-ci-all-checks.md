@@ -1,0 +1,1 @@
+- An automated build now judges its pull request on every check, not just the three required ones. Because the overall "CI Passed" check never runs when an individual job fails, a build could previously be reported as verified while unit tests, contract tests and several quality gates were failing.
