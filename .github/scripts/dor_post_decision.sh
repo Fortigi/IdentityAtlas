@@ -39,12 +39,37 @@ esac
 
 # 2. Egress filter: never post if the agent output contains ANY live token reachable in the
 #    reasoning step's env — the subscription token OR the injected github.token.
+contract=".dor/out/contract.json"
 for secret in "${OAUTH_TOKEN:-}" "${GH_TOKEN:-}"; do
   [ -n "$secret" ] || continue
-  if grep -qF -- "$secret" "$comment" "$routefile" 2>/dev/null; then
+  if grep -qF -- "$secret" "$comment" "$routefile" "$contract" 2>/dev/null; then
     echo "::error::Agent output contains a live token — aborting (possible injection)."; exit 1
   fi
 done
+
+# 2b. Certifying a bug means the next thing that happens is a machine changing code, so the verdict
+# has to be checkable, not just readable. Require the repro contract on that route and validate its
+# shape here — a malformed one fails the run rather than certifying on prose alone.
+if [ "${REQUIRE_CONTRACT:-}" = true ] && [ "$route" = state:awaiting-approval ]; then
+  [ -s "$contract" ] || { echo "::error::certified #$ISSUE without .dor/out/contract.json — refusing to certify on prose alone."; exit 1; }
+  jq -e '
+    (.symptom      | type == "string" and (length > 0)) and
+    (.assertion    | type == "string" and (length > 0)) and
+    (.root_cause   | type == "string" and (length > 0)) and
+    (.repro_path   | type == "string" and (length > 0)) and
+    (.blast_radius | type == "array"  and (length > 0) and all(.[]; type == "string" and (length > 0))) and
+    (.test_tier    | . == "unit" or . == "api" or . == "e2e") and
+    (.confidence   | . == "certain" or . == "likely")
+  ' "$contract" >/dev/null 2>&1 \
+    || { echo "::error::contract.json is malformed — see the schema in the agent prompt."; jq -c . "$contract" 2>/dev/null; exit 1; }
+
+  # Carry it in the comment: the build side's only input is the issue thread, and a human reading the
+  # verdict should be able to see exactly what the build will be held to.
+  { printf '\n\n<details><summary>🔒 Repro contract — the build is measured against this</summary>\n\n```json\n'
+    jq -S . "$contract"
+    printf '```\n\n</details>\n'
+  } >> "$comment"
+fi
 
 if [ ! -s "$comment" ]; then echo "::error::No comment body produced."; exit 1; fi
 
