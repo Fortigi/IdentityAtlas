@@ -208,7 +208,9 @@ jobs:
           private-key: ${{ secrets.BOT_PRIVATE_KEY }}
           owner: Fortigi
           permission-organization-projects: write
-          permission-issues: read          # dor_set_status.sh must read the issue node id first
+          permission-issues: write         # read: dor_set_status.sh needs the issue node id. write: the
+                                           # awaiting-approval label is set AS THE APP, so the value-gate
+                                           # cascade fires (a github.token label edit triggers nothing)
       # Undo any workspace tampering by the (Edit-capable) reasoning step BEFORE we execute any repo
       # script: restore all tracked .github files to their committed state. Closes the "model writes a
       # malicious dor_set_status.sh, and the post step executes it with tokens in env" escalation —
