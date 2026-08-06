@@ -246,6 +246,7 @@ An autonomous pipeline is only trustworthy if it is eager to stop. Every one of 
 | Live replay still shows the symptom | The thing we set out to prove failed |
 | CI red after N auto-fix attempts | Flailing; a human reads it faster |
 | Review loop past N iterations | The objection is not something more AI passes will close |
+| Sidekick died mid-flight | The flow dies with it, so it can never route *itself* here. The hourly reconcile sweep detects "active phase, no workflow run alive behind it" and flags + comments once (`dor-stuck`). This is the only stop condition that cannot be self-reported — everything else in this table assumes the pipeline is alive to report it |
 | Model usage limit | **Not a failure** — pause, save the branch, resume (existing `dor-resume`) |
 | Validation-session TTL expired | **Not a failure** — release the box, leave the PR exactly as it was; `/validate` again any time |
 
@@ -258,9 +259,9 @@ Unchanged in shape, three fixes the loss of the human gate makes load-bearing:
 - **Reserve at claim, not at PR-create.** Today `~/.dor-reservation` is written after the PR opens;
   a build that dies before that leaves a box that looks free but has a stack on it. With no human
   pacing the queue, that collides.
-- **Sweep stale reservations.** The daily reconcile gains a check: reservation referencing a closed
-  or non-existent PR → reset the box. Without a human gate, a stranded runner silently shrinks the
-  pool until it starves.
+- **Sweep stale reservations.** *(built)* The reconcile sweep — now hourly — flags an issue that
+  still claims an `sk:*` sidekick with no open PR, and a closed issue that never released one.
+  Without a human gate, a stranded runner silently shrinks the pool until it starves.
 - **A box can be claimed twice in a PR's life** — once by the build, later by a validation session
   ([§5.1](#51-i-want-to-see-it-for-myself--a-validation-session)). The reservation file therefore
   records *why* it is held (`build` vs `validation`) and, for a session, its expiry. A human-held box
