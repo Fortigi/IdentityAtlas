@@ -310,16 +310,39 @@ run_feature_e2e() {
     && E2E_BASE_URL=http://localhost:3001 npx playwright test $specs --config=playwright.ci.config.js --project=chromium >/tmp/e2e.log 2>&1 )
 }
 
-# Settle the PR's required checks and classify: `pass` | `fail` | `blocked` | `none`.
-# The required "CI Passed" gate registers a little AFTER the push (it `needs:` every other job), so a
-# naive poll races it and sees "no required checks reported" — which must NOT be read as a failure.
-# Retry until the checks register, then --watch blocks until they finish (so "pending" never leaks).
+# Did EVERY failing check die in "Set up job" — i.e. before it ran a single real step? That is
+# GitHub failing, not the code. On 2026-08-06 an action-resolution outage ("Failed to resolve action
+# download info. Error: Service Unavailable") took out ten jobs on one PR at once; a fixer pointed at
+# that would spend MAX_ATTEMPTS passes trying to edit code to satisfy an outage.
 #
-# `blocked` is the case that bit us on #942/#949: GitHub held all four workflow runs at
-# `action_required` (they need a maintainer to press "Approve and run"), so they never became checks
-# at all. The old code waited out its whole 30-minute window, returned `none`, and the caller
-# accepted the build on the e2e alone — reporting "CI green" on a PR where CI had never run.
-# Those runs are only visible through the Actions API, not the commit's check-runs (which is empty).
+# Structural, not text-matching: a genuine failure has a dozen green steps and a red one named after
+# the work ("Run Vitest"). Deliberately strict — ALL failures must be setup failures. One real red
+# check alongside the outage means there is something to fix, so we stay on the normal path.
+ci_failures_are_infra() {  # $1 = PR number
+  local ids id total=0 infra=0
+  ids="$(gh pr view "$1" --repo "$REPO" --json statusCheckRollup \
+        --jq '[.statusCheckRollup[]? | select((.conclusion // "") == "FAILURE") | .detailsUrl // ""
+               | capture("/job/(?<id>[0-9]+)")?.id // empty] | .[]' 2>/dev/null)" || return 1
+  [ -n "$ids" ] || return 1
+  while IFS= read -r id; do
+    [ -n "$id" ] || continue
+    total=$((total+1))
+    [ "$(gh api "repos/$REPO/actions/jobs/$id" \
+         --jq '([.steps[]?|select(.conclusion=="failure")|.name]) as $f | (($f|length) > 0) and ($f|all(. == "Set up job"))' \
+         2>/dev/null)" = true ] && infra=$((infra+1))
+  done <<< "$ids"
+  [ "$total" -gt 0 ] && [ "$infra" -eq "$total" ]
+}
+
+# Settle the PR's checks and classify: `pass` | `fail` | `infra` | `blocked` | `none`.
+# Checks register a little after the push, so "nothing reported yet" must not be read as a failure —
+# wait for them to appear, then wait for them to finish.
+#
+# `blocked` is the case that bit #942/#949: GitHub held all four workflow runs at `action_required`
+# (a maintainer has to press "Approve and run"), so they never became checks at all. The old code
+# waited out its window, returned `none`, and the caller accepted the build on the e2e alone —
+# reporting "CI green" on a PR where CI had never run. Held runs are visible only through the
+# Actions API; the commit's check-runs list is empty.
 ci_state() {
   local pr="$1" waited=0 sha rollup total fails pend
   sha="$(gh pr view "$pr" --repo "$REPO" --json headRefOid --jq .headRefOid 2>/dev/null)"
@@ -343,7 +366,10 @@ ci_state() {
     total="$(printf '%s' "$rollup" | jq 'length')"
     fails="$(printf '%s' "$rollup" | jq '[.[]|select(. == "FAILURE" or . == "TIMED_OUT" or . == "CANCELLED" or . == "STARTUP_FAILURE" or . == "STALE")] | length')"
     pend="$( printf '%s' "$rollup" | jq '[.[]|select(. == "PENDING" or . == "QUEUED" or . == "IN_PROGRESS" or . == "WAITING" or . == "EXPECTED" or . == "REQUESTED")] | length')"
-    [ "${fails:-0}" -gt 0 ] && { echo fail; return; }
+    if [ "${fails:-0}" -gt 0 ]; then
+      ci_failures_are_infra "$pr" && { echo infra; return; }
+      echo fail; return
+    fi
     [ "${total:-0}" -eq 0 ] && { sleep 45; waited=$((waited+45)); continue; }
     [ "${pend:-0}" -gt 0 ] && { sleep 45; waited=$((waited+45)); continue; }
     echo pass; return
@@ -355,11 +381,25 @@ ci_state() {
 # ONLY on a REAL failure (e2e failed, or a required check is red) — never merely because CI hasn't
 # reported yet (that spin is what burned a week of budget). $1 = the open PR number.
 verify_loop() {
-  local pr="$1" attempt=0 e2e_rc ci ctx
+  local pr="$1" attempt=0 e2e_rc ci ctx infra_waits=0
   while : ; do
     deploy_and_seed || bail "deploy/seed of the live env failed on $HOST (infra)"
     run_feature_e2e; e2e_rc=$?
     ci="$(ci_state "$pr")"
+
+    # GitHub is down, not the code. Wait it out WITHOUT consuming a fix attempt and WITHOUT
+    # redeploying — the AI cannot edit its way past an action-resolution outage, and re-running the
+    # jobs is what actually clears it. Only CI is re-checked here; the e2e result still stands.
+    while [ "$ci" = infra ]; do
+      infra_waits=$((infra_waits+1))
+      [ "$infra_waits" -gt 5 ] && bail "every failing check on PR #$pr died in 'Set up job' — GitHub is failing to start jobs at all (action resolution). Nothing is wrong with this build; re-run its checks once GitHub recovers."
+      echo "::warning::CI failures are GitHub setup failures, not code (wait ${infra_waits}/5) — re-running the failed jobs"
+      gh run list --repo "$REPO" --branch "$BRANCH" --limit 5 --json databaseId,conclusion \
+        --jq '.[]|select(.conclusion=="failure")|.databaseId' 2>/dev/null \
+        | while read -r r; do gh run rerun "$r" --failed >/dev/null 2>&1 || true; done
+      sleep 180
+      ci="$(ci_state "$pr")"
+    done
 
     # Success needs CI to have actually PASSED. CI that never ran is not CI that passed — accepting
     # `none` is how #949 reached "ready for final merge" with four workflow runs still held at

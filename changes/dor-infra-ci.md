@@ -1,0 +1,1 @@
+- When a build's checks fail because GitHub itself could not start the jobs, the build now waits and re-runs them instead of asking the AI to fix code that was never the problem. A real failure alongside the outage still goes down the normal fix path.
