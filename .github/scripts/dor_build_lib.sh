@@ -43,7 +43,10 @@ issue_mentions() {  # requestor (author) + commenters, deduped, bots excluded, @
 }
 
 # A short, deterministic description of what a commit changed (files touched), for report comments —
-# more useful than the AI'\''s terse final message. $1 = git range (e.g. origin/main..HEAD).
+# more useful than the AI'\''s terse final message. $1 = git range.
+# Callers pass a THREE-dot range (origin/main...HEAD): main keeps moving under a long-lived branch,
+# and a two-dot diff attributes every unrelated merge to this build. #370's feedback report claimed
+# "533 files changed, 6262 insertions" for a tooltip adjustment; the branch itself touched a handful.
 changed_summary() {
   local stat; stat="$(git -C "$WORK" diff --stat "$1" 2>/dev/null | tail -8)"
   [ -n "$stat" ] && printf 'Files changed:\n```\n%s\n```' "$stat"
@@ -167,7 +170,7 @@ deploy_and_seed() {
 # Run the feature's e2e (the specs the branch touched) against the LIVE populated env. 0=pass.
 run_feature_e2e() {
   local specs
-  specs=$(git -C "$WORK" diff --name-only origin/main..HEAD -- 'app/ui/e2e/*.spec.js' 2>/dev/null | sed 's#app/ui/e2e/##' | tr '\n' ' ')
+  specs=$(git -C "$WORK" diff --name-only origin/main...HEAD -- 'app/ui/e2e/*.spec.js' 2>/dev/null | sed 's#app/ui/e2e/##' | tr '\n' ' ')
   if [ -z "${specs// }" ]; then
     # No feature e2e touched — fall back to a smoke check that the populated app serves.
     [ "$(curl -fsS -o /dev/null -w '%{http_code}' http://localhost:3001/ 2>/dev/null || echo 000)" = 200 ]; return
@@ -178,14 +181,24 @@ run_feature_e2e() {
     && E2E_BASE_URL=http://localhost:3001 npx playwright test $specs --config=playwright.ci.config.js --project=chromium >/tmp/e2e.log 2>&1 )
 }
 
-# Settle the PR's required checks and classify: echoes `pass`, `fail`, or `none` (no checks at all).
+# Settle the PR's required checks and classify: `pass` | `fail` | `blocked` | `none`.
 # The required "CI Passed" gate registers a little AFTER the push (it `needs:` every other job), so a
 # naive poll races it and sees "no required checks reported" — which must NOT be read as a failure.
 # Retry until the checks register, then --watch blocks until they finish (so "pending" never leaks).
-# Only conclude `none` if nothing ever registers within the window (a genuinely CI-less change).
+#
+# `blocked` is the case that bit us on #942/#949: GitHub held all four workflow runs at
+# `action_required` (they need a maintainer to press "Approve and run"), so they never became checks
+# at all. The old code waited out its whole 30-minute window, returned `none`, and the caller
+# accepted the build on the e2e alone — reporting "CI green" on a PR where CI had never run.
+# Those runs are only visible through the Actions API, not the commit's check-runs (which is empty).
 ci_state() {
-  local pr="$1" out rc waited=0
+  local pr="$1" out rc waited=0 sha
+  sha="$(gh pr view "$pr" --repo "$REPO" --json headRefOid --jq .headRefOid 2>/dev/null)"
   while [ "$waited" -lt 1800 ]; do
+    if [ -n "$sha" ] && [ "$(gh api "repos/$REPO/actions/runs?head_sha=$sha" \
+         --jq '[.workflow_runs[]?|select(.conclusion=="action_required")]|length' 2>/dev/null || echo 0)" != 0 ]; then
+      echo blocked; return
+    fi
     out="$(timeout 1500 gh pr checks "$pr" --repo "$REPO" --required --watch 2>&1)"; rc=$?
     echo "$out" > /tmp/ci.log
     if echo "$out" | grep -qiE 'no( required)? checks reported'; then
@@ -207,12 +220,16 @@ verify_loop() {
     run_feature_e2e; e2e_rc=$?
     ci="$(ci_state "$pr")"
 
-    # Success: the feature e2e passed AND CI is not red. ("none" = the PR registered no checks; accept
-    # on the e2e pass but flag it, since after the bot-push fix checks should appear.)
-    if [ "$e2e_rc" = 0 ] && [ "$ci" != fail ]; then
-      [ "$ci" = none ] && echo "::warning::PR #$pr registered no CI checks — accepting on the e2e pass; check the CI trigger."
+    # Success needs CI to have actually PASSED. CI that never ran is not CI that passed — accepting
+    # `none` is how #949 reached "ready for final merge" with four workflow runs still held at
+    # `action_required` and zero checks on the head commit.
+    if [ "$e2e_rc" = 0 ] && [ "$ci" = pass ]; then
       return 0
     fi
+
+    # Neither of these is something the AI can fix by editing code, so they skip the fix loop.
+    [ "$ci" = blocked ] && bail "the PR's workflow runs are held at 'action_required' — a maintainer must approve them before CI can run. Nothing is wrong with the build; it just cannot be verified yet."
+    [ "$ci" = none ] && bail "PR #$pr registered no CI checks within 30 minutes — refusing to report a build as verified when its CI never ran. Check the CI trigger for bot-pushed commits."
 
     attempt=$((attempt+1))
     [ "$attempt" -ge "$MAX_ATTEMPTS" ] && bail "still failing after ${MAX_ATTEMPTS} fix attempts (e2e_rc=${e2e_rc}, ci=${ci}). Last e2e: $(tail -c 800 /tmp/e2e.log 2>/dev/null); last CI: $(tail -c 800 /tmp/ci.log 2>/dev/null)"
