@@ -4824,7 +4824,7 @@ wiring (steps 4–5) are manual, because they need a short-lived token / live ou
 </tr>
 <tr>
 <td>4</td>
-<td>Wire the repo config — the sidekick→URL map + the reset matrix</td>
+<td>Wire the repo config — the sidekick→URL map + the <code>sk:skN</code> label</td>
 <td>in the repo</td>
 <td>⚠️ manual (one PR)</td>
 </tr>
@@ -4881,13 +4881,17 @@ Ubuntu 24.04 · git 2.43 · Docker 29.6 / compose 5.3 · gh 2.97 · Node 22 · c
   <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>dev-docker-05<span class="o">)</span><span class="w"> </span><span class="nv">url</span><span class="o">=</span><span class="s2">&quot;https://5.build.identityatlas.io&quot;</span><span class="w"> </span><span class="p">;;</span>
 <a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>dev-docker-0N<span class="o">)</span><span class="w"> </span><span class="nv">url</span><span class="o">=</span><span class="s2">&quot;https://N.build.identityatlas.io&quot;</span><span class="w"> </span><span class="p">;;</span><span class="w">   </span><span class="c1"># ← add</span>
 </code></pre></div></li>
-<li><strong><code>.github/workflows/dor-reset.yml</code></strong> and <strong><code>.github/workflows/dor-acceptance.yml</code></strong> — the reset /
-  feedback matrix <code>sk: [sk3, sk5, sk6, sk7, sk8, sk9, sk10]</code> → add <code>skN</code> so a close/comment reaches the
-  new box.</li>
+<li>Create the label <strong><code>sk:skN</code></strong> in the repo (<code>gh label create "sk:skN" -c ededed -d "DoR: sidekick
+  skN holds this issue's build env"</code>). A build stamps this label on the issue it is holding, and the
+  reset / feedback workflows dispatch off it.</li>
 </ul>
-<p>A sidekick that is registered (step 3) but not wired here will pick up build jobs yet fail the
-"Identify this sidekick" step (<code>unknown sidekick … not in the dor-build pool map</code>) — and, because the
-reset matrix never names it, it keeps its reservation and never returns to the pool.</p>
+<p>That is the whole list — there is no reset or feedback <em>matrix</em> to extend any more. Both workflows
+resolve the holder from the issue's <code>sk:*</code> label and send a single job to that box, so a new sidekick
+is reachable the moment its label exists.</p>
+<p>A sidekick that is registered (step 3) but has no URL mapping will pick up build jobs and fail the
+"Identify this sidekick" step (<code>unknown sidekick … not in the dor-build pool map</code>). If its <code>sk:skN</code>
+label is missing, a build on it can still run, but the reset can't route to it — you'd get a loud
+"no <code>sk:*</code> label" warning on the PR and have to release the box by hand.</p>
 <h2 id="5-network-manual-infra">5. Network (manual — infra)<a class="headerlink" href="#5-network-manual-infra" title="Permanent link">&para;</a></h2>
 <ul>
 <li>DNS <code>N.build.identityatlas.io</code> → the central ingress.</li>
