@@ -205,8 +205,6 @@ jobs:
           REPO: ${{ github.repository }}
           GH_CONFIG_DIR: ${{ runner.temp }}/dor-ghcfg
           OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          # Target the Bug Pipeline board (org project #3) instead of the Feature board.
-          PROJECT_ID: PVT_kwDOAhfTz84BezXo
-          STATUS_FIELD_ID: PVTSSF_lADOAhfTz84BezXozhZK4Vo
+          # No board override needed: dor_set_status.sh routes on the issue's `bug` label (board #3).
         # Route allow-list + egress token-scan + comment/label/board-sync, shared with the feature agent.
         run: bash .github/scripts/dor_post_decision.sh

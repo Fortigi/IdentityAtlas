@@ -69,33 +69,22 @@ jobs:
           owner: Fortigi
           permission-organization-projects: write
           permission-issues: read          # dor_set_status.sh must read the issue node id first
-      # Bugs go on the Bug board (#3) at "Ready for AI probe"; features on the Feature board (#2) at
-      # "Awaiting requestor" with a Requested-by. (bug wins if somehow both labels are present.)
+      # Bugs start at "Ready for AI probe"; features at "Awaiting requestor" with a Requested-by.
+      # (bug wins if somehow both labels are present.) Only the ROUTE is decided here — which board
+      # it lands on is dor_set_status.sh's business, resolved from the issue's own `bug` label.
       - name: Pick pipeline (feature vs bug)
         id: pick
         run: |
           set -euo pipefail
           if [[ "${{ contains(github.event.issue.labels.*.name, 'bug') }}" == "true" ]]; then
-            {
-              echo "project_id=PVT_kwDOAhfTz84BezXo"
-              echo "status_field_id=PVTSSF_lADOAhfTz84BezXozhZK4Vo"
-              echo "initial=state:ready-to-probe"
-              echo "req_by="
-            } >> "$GITHUB_OUTPUT"
+            { echo "initial=state:ready-to-probe"; echo "req_by="; } >> "$GITHUB_OUTPUT"
           else
-            {
-              echo "project_id=PVT_kwDOAhfTz84Bern-"
-              echo "status_field_id=PVTSSF_lADOAhfTz84Bern-zhZEAac"
-              echo "initial=state:awaiting-requestor"
-              echo "req_by=${{ github.actor }}"
-            } >> "$GITHUB_OUTPUT"
+            { echo "initial=state:awaiting-requestor"; echo "req_by=${{ github.actor }}"; } >> "$GITHUB_OUTPUT"
           fi
       - name: Add to board + initial Status (+ Requested-by for features)
         env:
           GH_TOKEN: ${{ steps.bot.outputs.token }}
           ISSUE: ${{ github.event.issue.number }}
-          PROJECT_ID: ${{ steps.pick.outputs.project_id }}
-          STATUS_FIELD_ID: ${{ steps.pick.outputs.status_field_id }}
           REQ_BY_ACTOR: ${{ steps.pick.outputs.req_by }}
         run: bash .github/scripts/dor_set_status.sh "$ISSUE" "${{ steps.pick.outputs.initial }}"
 

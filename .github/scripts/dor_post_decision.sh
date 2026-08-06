@@ -13,8 +13,8 @@
 #                                  the board sync, and for the one label write that must cascade (below).
 #                   ISSUE, REPO  — the target issue number and owner/repo.
 #   Env (optional): OAUTH_TOKEN  — the model's subscription token; scanned for, never used to auth.
-#                   PROJECT_ID / STATUS_FIELD_ID / REQ_* — pass through to dor_set_status.sh; default
-#                   to the Feature board, override for the Bug board.
+#                   PROJECT_ID / STATUS_FIELD_ID / REQ_* — pass through to dor_set_status.sh. Leave
+#                   unset: it picks the board from the issue's own labels (bug → Bug Pipeline).
 set -euo pipefail
 
 : "${ISSUE:?dor_post_decision: ISSUE required}"
