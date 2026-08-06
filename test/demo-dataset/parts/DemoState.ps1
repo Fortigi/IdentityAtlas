@@ -197,13 +197,20 @@ function Add-DemoRelationship {
         [Parameter(Mandatory)]
         [ValidateSet('Contains', 'GrantsAccessTo', 'DelegatesScope', 'HasAppRole',
                      'HasOwnership', 'HasAppOwnership', 'HasApplicationPermission')]
-        [string]$RelationshipType
+        [string]$RelationshipType,
+
+        # The role scope the parent grants on the child, as the source system
+        # names it (Graph: accessPackageResourceRole.displayName — 'Member',
+        # 'Owner', 'Eligible Member', …). Omitted = plain membership.
+        [string]$RoleName
     )
-    $State.Relationships.Add(@{
+    $rec = @{
         parentResourceId = $ParentResourceId
         childResourceId  = $ChildResourceId
         relationshipType = $RelationshipType
-    })
+    }
+    if ($RoleName) { $rec['roleName'] = $RoleName }
+    $State.Relationships.Add($rec)
 }
 
 function Add-DemoIdentity {

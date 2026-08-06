@@ -407,6 +407,16 @@ Describe 'Demo dataset — vendor-neutral IGA (#705)' {
         $roles.Count | Should -Be 5
         foreach ($r in $roles) { $r.systemId | Should -Be $igaSysId }
     }
+
+    It 'grants at least one resource with a non-membership role scope (#942)' {
+        # A real access package can grant a group's Owner role instead of plain
+        # membership. That containment is still access, so the matrix badges it
+        # 'D' and the Excel export must write the same letter — the demo dataset
+        # carries one so the e2e can prove it end to end.
+        $roleScoped = @($script:data.resourceRelationships |
+            Where-Object { $_.relationshipType -eq 'Contains' -and $_.roleName -match '(?i)owner' })
+        $roleScoped.Count | Should -BeGreaterThan 0
+    }
 }
 
 Describe 'Demo dataset — system id remapping (#705)' {

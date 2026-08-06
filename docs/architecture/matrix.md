@@ -123,6 +123,17 @@ This is why we can store *both*:
 
 A user who is both a member and an owner of a group holds two separate resources: the group itself (a `Direct` membership) and a synthetic `GroupOwnership` resource named `Owner @ <group>` (also a `Direct` membership). Migration 046 rewrote the old `assignmentType='Owner'` rows into Direct assignments on this ownership resource, linked back to the group by a `HasOwnership` relationship — mirroring how an `AppRole` hangs off its `Application`. The matrix therefore shows ownership as its own row, with a normal **D** badge, rather than a separate `O`-type cell on the group row. No client-side row-splitting is involved.
 
+## Access-package columns — role scopes badge like memberships
+
+The right-hand access-package block is driven by `ResourceRelationships` (`relationshipType='Contains'`), whose `roleName` holds the role scope as the source system names it — Graph stamps `accessPackageResourceRole.displayName` verbatim, so `Member`, `Owner` and `Eligible Member` all occur. That name maps to a badge letter the same way everywhere:
+
+| `roleName` contains | Badge |
+|---------------------|-------|
+| `eligible` | **E** |
+| anything else (`Member`, `Owner`, empty) | **D** |
+
+There is **no `O` badge here either** — for the same reason as the membership badges: ownership is its own resource, and a package granting a group's Owner role still grants access the subject holds today. The mapping lives in `getApRoleBadge` (`app/ui/src/utils/accessPackageStyles.js`) and is shared by the grid (`MatrixGroupRow.jsx`) and the Excel export (`exportToExcel.js`) so the file can't disagree with the screen; migration 049 applies the same `%eligible%` rule server-side when it derives governed-intent rows.
+
 ## Performance notes
 
 - The matview is refreshed `CONCURRENTLY` after the first run (which is non-concurrent because the matview starts empty).
