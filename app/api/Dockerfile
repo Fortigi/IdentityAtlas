@@ -10,7 +10,7 @@
 # node_modules is installed at /build (not app/ui/node_modules) so Node's
 # ancestor-walk module resolution can find "react" etc. from files under
 # tools/crawlers/ too — they aren't descendants of app/ui.
-FROM node:24-slim AS frontend-build
+FROM node:25-slim AS frontend-build
 WORKDIR /build
 COPY app/ui/package*.json ./
 RUN npm ci
@@ -19,7 +19,7 @@ COPY tools/crawlers ./tools/crawlers
 RUN npm --prefix app/ui run build
 
 # ── Stage 2: Backend runtime ──────────────────────────────────────────────────
-FROM node:24-slim AS runtime
+FROM node:25-slim AS runtime
 
 # Bake the module version into the image so /api/version returns the full
 # version string (e.g. 5.0.20260414.0900) without needing the .psd1 file.
