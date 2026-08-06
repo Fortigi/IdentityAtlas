@@ -7,6 +7,10 @@
 # Definition of Done to reach "Awaiting functional acceptance" (ALL must hold; else fix→retry→Exceptions):
 #   1. build completes   2. demo data + resource context plugins loaded   3. feature e2e green on the
 #   live env   4. PR opened (incl. docs/changelog)   5. PR CI all green (auto-fix up to 8×).
+# For a BUG, two more come FIRST and are not negotiable (docs/process/autonomous-bug-pipeline.md §2.2):
+#   0a. the regression test is committed ALONE and proven to FAIL against unfixed code, and
+#   0b. the same test passes after the fix. Plus the live-env e2e replay is mandatory — no smoke
+#   fallback — because "the app serves" must never be able to stand in for "the symptom is gone".
 # Then: comment the issue (URL + build/test summary + PR link) @-mentioning requestor + commenters.
 # ANY unrecoverable break → move the issue to the Exceptions column + @-mention maintainers, and stop.
 #
@@ -42,19 +46,93 @@ if git rev-parse --verify -q "origin/$BRANCH" >/dev/null && [ -n "$(git log --on
   git checkout -B "$BRANCH" "origin/$BRANCH" || bail "could not check out $BRANCH to resume"
 else
   git checkout -B "$BRANCH" origin/main || bail "could not create branch $BRANCH"
+  title="$(gh issue view "$ISSUE" --repo "$REPO" --json title --jq '.title')"
 
-  # 1. Implement the approved spec (unit tests green). The AI edits the tree; the flow owns git.
-  run_claude "$(cat "$WORK/.dor/in/prompt.txt")" /tmp/impl.json "$IMPLEMENT_TURNS"
-  case $? in
-    0|3) : ;;   # 3 = ran out of turns; proceed with what it produced (the no-changes guard below catches an empty result)
-    2) pause_and_exit "hit a usage limit during implement" ;;
-    *) bail "the AI implement step errored (see run log)" ;;
-  esac
+  if is_bug; then
+    # ── 1. RED FIRST ────────────────────────────────────────────────────────────────────────────
+    # A test that was never red proves nothing. A green suite after a fix is equally consistent with
+    # "bug fixed" and "test doesn't touch the bug" — and the same agent writes both, so the ordering
+    # has to be enforced here rather than asked for in a prompt. Pass A produces the test ALONE and
+    # the flow proves it fails; only then does pass B get to fix anything.
+    run_claude "$(printf 'You are the DoR BUILD agent for IdentityAtlas, working on BUG #%s.
+The certified probe packet is .dor/in/spec.json — the issue plus its CERTIFIED comment, which pins
+the root cause and drafts the reproducing test. Follow CLAUDE.md and the subdirectory guides.
 
-  git restore --source=origin/main --staged --worktree -- .github 2>/dev/null || true   # never let the build touch .github
-  git add -A
-  git diff --cached --quiet && bail "the AI produced no changes"
-  git commit -q -m "$(gh issue view "$ISSUE" --repo "$REPO" --json title --jq '.title') (#${ISSUE})" || bail "git commit failed"
+THIS PASS WRITES THE TEST, AND NOTHING ELSE.
+  - Add or extend the automated test that reproduces the reported defect, at the layer the certified
+    root cause names (app/api, app/ui, SQL, PowerShell).
+  - It MUST fail against the code exactly as it is right now, and fail ON THE REPORTED BEHAVIOUR —
+    an assertion about the wrong value, not a missing import and not a syntax error.
+  - Do NOT modify, add or delete any production file. Nothing is fixed yet, so assert only against
+    the EXISTING public API; if that means the test is a little indirect, that is correct.
+  - Do NOT write a Playwright e2e in this pass; that comes with the fix.
+Leave your changes in the working tree — do NOT commit, push or open a PR.' "$ISSUE")" \
+      /tmp/impl-test.json "$IMPLEMENT_TURNS"
+    case $? in
+      0|3) : ;;
+      2) pause_and_exit "hit a usage limit while writing the regression test" ;;
+      *) bail "the AI errored while writing the regression test (see run log)" ;;
+    esac
+    git restore --source=origin/main --staged --worktree -- .github 2>/dev/null || true
+    git add -A
+    git diff --cached --quiet && bail "no regression test was produced for #${ISSUE} — a bug fix without a test that reproduces it cannot be verified"
+    git commit -q -m "test: reproduce #${ISSUE} (red)" || bail "git commit failed (regression test)"
+
+    # ── 2. PROVE IT RED ─────────────────────────────────────────────────────────────────────────
+    run_touched_tests "origin/main...HEAD"
+    case $? in
+      1) cp /tmp/unit.log /tmp/red.log 2>/dev/null || true
+         echo "::notice::red proof OK — the regression test fails against unfixed code" ;;
+      0) bail "the regression test PASSES against unfixed code, so it does not reproduce #${ISSUE}. A test that was never red proves nothing about the fix that follows it. Last run: $(tail -c 800 /tmp/unit.log 2>/dev/null)" ;;
+      3) bail "the change contains no runnable unit test — only an e2e or no test at all. The red/green proof needs a test that can run before the fix exists." ;;
+      4) bail "this change is PowerShell-only and no sidekick has pwsh installed, so the test cannot be proven red here. Install pwsh on the pool (tools/dor/provision-sidekick.sh) or take this one by hand." ;;
+      *) bail "could not run the regression test (see the run log)" ;;
+    esac
+
+    # ── 3. FIX IT ───────────────────────────────────────────────────────────────────────────────
+    run_claude "$(printf 'You are the DoR BUILD agent for IdentityAtlas. The failing regression test for BUG #%s
+is already committed on this branch, and it currently FAILS. Now make it pass.
+
+  - Fix at the SOURCE, not the surface: the layer that PRODUCES the wrong value (crawler / ingest /
+    schema / matview / API), never a client-side patch over a data-model gap. The certified root
+    cause in .dor/in/spec.json names it.
+  - Do NOT weaken, skip or delete the committed test, and do not change what it asserts.
+  - ALSO add or extend a Playwright e2e under app/ui/e2e/ that walks the reporter path from the
+    packet. This is required: it is replayed against the deployed fix on a live environment, and a
+    bug fix without one cannot be verified.
+  - Update any docs the change affects and add the changelog fragment changes/dor-issue-%s.md
+    (user-facing bullets). NEVER edit CHANGES.md or setup/IdentityAtlas.psd1. Do NOT touch .github/.
+Leave your changes in the working tree — do NOT commit, push or open a PR.' "$ISSUE" "$ISSUE")" \
+      /tmp/impl.json "$IMPLEMENT_TURNS"
+    case $? in
+      0|3) : ;;
+      2) pause_and_exit "hit a usage limit during the fix" ;;
+      *) bail "the AI fix step errored (see run log)" ;;
+    esac
+    git restore --source=origin/main --staged --worktree -- .github 2>/dev/null || true
+    git add -A
+    git diff --cached --quiet && bail "the AI produced no fix for #${ISSUE} (the regression test is still red)"
+    git commit -q -m "$title (#${ISSUE})" || bail "git commit failed"
+
+    # ── 4. PROVE IT GREEN ───────────────────────────────────────────────────────────────────────
+    run_touched_tests "origin/main...HEAD" \
+      || bail "the fix does not make the regression test pass. Last run: $(tail -c 800 /tmp/unit.log 2>/dev/null)"
+    echo "::notice::green proof OK — the same test now passes"
+  else
+    # Features keep the single implement pass: their acceptance criteria are not a defect that can be
+    # demonstrated failing first.
+    run_claude "$(cat "$WORK/.dor/in/prompt.txt")" /tmp/impl.json "$IMPLEMENT_TURNS"
+    case $? in
+      0|3) : ;;   # 3 = ran out of turns; proceed with what it produced (the no-changes guard below catches an empty result)
+      2) pause_and_exit "hit a usage limit during implement" ;;
+      *) bail "the AI implement step errored (see run log)" ;;
+    esac
+
+    git restore --source=origin/main --staged --worktree -- .github 2>/dev/null || true   # never let the build touch .github
+    git add -A
+    git diff --cached --quiet && bail "the AI produced no changes"
+    git commit -q -m "$title (#${ISSUE})" || bail "git commit failed"
+  fi
   git push -u origin "$BRANCH" --force-with-lease || bail "could not push $BRANCH"
 fi
 

@@ -1,0 +1,2 @@
+- Automated bug fixes must now prove they work. The regression test is written and committed on its own first and has to fail against the unfixed code; only then is the fix made, and the same test has to pass. A fix whose test never failed is rejected rather than reported as verified.
+- A bug fix must also ship a browser test that walks the reported path, and it is replayed against the deployed fix on a live environment. Previously, a fix with no browser test was accepted on the basis that the application still loaded.

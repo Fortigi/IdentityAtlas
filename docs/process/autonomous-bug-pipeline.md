@@ -346,7 +346,7 @@ Each phase is independently useful and independently revertible.
 | Phase | Contents | Value on its own |
 |---|---|---|
 | **0** | Board resolution moved into `dor_set_status.sh`; sk7–sk10 pool map (#944) | Unblocks *any* bug reaching the build side |
-| **1** | Red-first sequencing; mandatory live replay (kill the smoke fallback); "no test → Exceptions" | The proof chain — valuable even with the gate still in place |
+| **1** | *(built)* Red-first sequencing; mandatory live replay (smoke fallback removed for bugs); "no test → Exceptions" | The proof chain — valuable even with the gate still in place |
 | **2** | `contract.json` from the probe + conformance check against it | Makes certification falsifiable |
 | **3** | Evidence bundle on the PR | Makes the merge review a review of proof |
 | **4** | The review loop: `/validate` sessions + proof-gap re-runs (incl. red-proved-against-`main`) | Makes "not yet" cheap — useful on *any* bot PR, gate or no gate |
