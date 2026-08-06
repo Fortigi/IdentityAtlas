@@ -48,6 +48,22 @@ if git diff --cached --quiet; then
   exit 0
 fi
 git commit -q -m "fix: address requestor feedback (#${ISSUE})" || bail "git commit failed"
+
+# 1b. For a BUG, re-prove that the regression test still catches the bug. The original red proof came
+# free from commit ordering — the test existed before the fix did. This adjustment edits a tree where
+# the fix is already present, so "the tests pass" proves nothing on its own, and the cheapest way to
+# satisfy awkward feedback is to quietly weaken the test. Putting production back to main and
+# requiring a failure is what makes that impossible.
+if is_bug; then
+  prove_red_against_main "origin/main...HEAD"
+  case $? in
+    0) echo "::notice::re-proved red — the regression test still fails without the fix" ;;
+    1) bail "after this adjustment the regression test PASSES without the fix, so it no longer catches #${ISSUE}. The change itself may be fine, but the test that is supposed to guard it has stopped doing so — a human should look before this goes further." ;;
+    3) echo "::notice::nothing to re-prove in this adjustment (no test + production pair)" ;;
+    *) echo "::warning::could not re-prove the test red — continuing, but that guarantee is unverified this round" ;;
+  esac
+fi
+
 git push --force-with-lease origin "$BRANCH" || bail "could not push the adjustment for #${ISSUE}"
 
 # 2. Re-deploy + re-verify on the live env (feature e2e + PR CI, auto-fix up to 8×; else Exceptions).

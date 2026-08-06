@@ -101,6 +101,50 @@ touched_tests() {  # $1 = git range
     | grep -E '\.(test|spec)\.(js|jsx)$|\.Tests\.ps1$' | grep -v '^app/ui/e2e/' || true
 }
 
+# Re-prove the regression test RED, against main, on a branch that already contains the fix.
+#
+# The first build gets its red proof free from commit ordering: the test exists before the fix does.
+# Nothing after that does — an adjustment, a CI fix, a proof-gap re-run all edit a tree where the fix
+# is already present, so "the tests pass" says nothing about whether they still catch the bug. The
+# obvious failure is an agent quietly weakening the test to get green, and it would look identical to
+# success. So: put the PRODUCTION files back to main, keep the tests as they are now, and require a
+# failure. That is the same manual check that validated #942, automated.
+#
+# 0 = still genuinely red without the fix · 1 = passes without the fix (the test no longer catches it)
+# 3 = nothing to check (no tests, or no production change) · 4 = could not run the check
+prove_red_against_main() {  # $1 = git range
+  local tests prod f rc restore="" removed=""
+  tests="$(touched_tests "$1")"
+  [ -n "$tests" ] || return 3
+  prod="$(git -C "$WORK" diff --name-only "$1" 2>/dev/null \
+          | grep -vE '\.(test|spec)\.(js|jsx)$|\.Tests\.ps1$' \
+          | grep -vE '^(changes|docs)/' || true)"
+  [ -n "$prod" ] || return 3
+
+  # Un-fix: restore each production file to main. A file main does not have (the fix added it) has to
+  # be moved aside instead, or the test would still import the new code and pass for the wrong reason.
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    if git -C "$WORK" cat-file -e "origin/main:$f" 2>/dev/null; then
+      git -C "$WORK" checkout origin/main -- "$f" 2>/dev/null && restore="${restore}${f}"$'\n'
+    else
+      mv "$WORK/$f" "$WORK/$f.dorbak" 2>/dev/null && removed="${removed}${f}"$'\n'
+    fi
+  done <<< "$prod"
+
+  run_touched_tests "$1"; rc=$?
+
+  # Put the fix back before doing anything else with this tree.
+  while IFS= read -r f; do [ -n "$f" ] && git -C "$WORK" checkout HEAD -- "$f" 2>/dev/null; done <<< "$restore"
+  while IFS= read -r f; do [ -n "$f" ] && mv "$WORK/$f.dorbak" "$WORK/$f" 2>/dev/null; done <<< "$removed"
+
+  case "$rc" in
+    1) cp /tmp/unit.log /tmp/red.log 2>/dev/null || true; return 0 ;;   # failed without the fix — good
+    0) return 1 ;;                                                      # passed without the fix — bad
+    *) return 4 ;;
+  esac
+}
+
 # Run the unit tests a range touched, each in its own suite. Output -> /tmp/unit.log
 #   0 = all passed   1 = something failed   3 = the range contains no unit test
 #   4 = there are tests but this box cannot run them (Pester-only change; the pool has no pwsh)
