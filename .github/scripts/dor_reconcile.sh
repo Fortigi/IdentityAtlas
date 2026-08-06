@@ -70,15 +70,26 @@ issues_tsv="$(gh issue list --repo "$OWNER/$REPO" --state open --label "$LABEL" 
   --jq '.[] | [(.number|tostring),
                (.createdAt | fromdateiso8601 | tostring),
                (.updatedAt | fromdateiso8601 | tostring),
+               ((([.labels[].name] | index("needs-vouch")) != null) | tostring),
                ([.labels[].name | select(startswith("state:"))][0] // "")] | @tsv')"
 if [ "$(printf '%s' "$issues_tsv" | grep -c .)" -ge 201 ]; then
   add_ex "⚠️ Over 200 open ${LABEL} issues — reconcile inspected only the first 200; add pagination."
   issues_tsv="$(printf '%s\n' "$issues_tsv" | head -n 200)"
 fi
 approval_backlog=0
-while IFS=$'\t' read -r num created_epoch updated_epoch state_label; do
+while IFS=$'\t' read -r num created_epoch updated_epoch needs_vouch state_label; do
   [ -n "$num" ] || continue
   status="$(board_status_of "$num")"
+
+  # An external request nobody has accepted yet. Do NOT heal it onto the board: it has no requestor
+  # of record, so parking it at "Awaiting requestor" would read as "waiting on the reporter" when
+  # it is really waiting on us. Flag it every sweep instead — an unanswered customer request should
+  # keep nagging until a maintainer either vouches for it or closes it.
+  if [ "$needs_vouch" = "true" ]; then
+    age_d=$(( (now - created_epoch) / 86400 ))
+    add_ex "🎟️ #${num} is an external request awaiting a maintainer vouch (${age_d}d old) — apply \`dor-vouched\` to accept it (you become the requestor of record), or close it."
+    continue
+  fi
 
   if ! on_board "$num"; then
     # HEAL: a feature issue that never made it onto the board (triage missed / failed).

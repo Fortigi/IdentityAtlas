@@ -20,7 +20,10 @@ name: DoR agent (interview + probe)
 
 on:
   issues:
-    types: [opened, edited]
+    # `labeled` is here only for `dor-vouched` (see the guard below) — that is how an accepted
+    # external request enters the interview, since the requestor of record is then the member who
+    # applied the label rather than the author. Every other label write is ignored.
+    types: [opened, edited, labeled]
   issue_comment:
     types: [created]
 
@@ -40,12 +43,21 @@ jobs:
     # STOP at the value gate: once an issue is approved-to-build or in any build-side phase, this
     # SPEC-side agent must not touch it — otherwise a feedback comment (handled by dor-acceptance)
     # also re-runs the interview and shoves the issue back to "Awaiting approval".
+    # EXTERNAL REQUESTS: an issue parked by dor-triage as `needs-vouch` must not be interviewed just
+    # because a maintainer happened to comment on it — the vouch is the one explicit, auditable way
+    # in, and it is what transfers the requestor role to a member (see dor-vouch.yml). Once
+    # `dor-vouched` is on the issue the block lifts. Both labels are present on the vouch event
+    # itself (GitHub includes the new label in the payload), so this reads as "vouched, or never
+    # needed one" and there is no ordering race with dor-vouch removing `needs-vouch`.
     # Kill-switch: INERT until you set repo variable DOR_ENABLED=true — lets the set merge safely
     # and be smoke-tested before anything runs.
     if: >-
       vars.DOR_ENABLED == 'true' &&
       github.event.sender.type != 'Bot' &&
       !github.event.issue.pull_request &&
+      (github.event.action != 'labeled' || github.event.label.name == 'dor-vouched') &&
+      (!contains(github.event.issue.labels.*.name, 'needs-vouch') ||
+       contains(github.event.issue.labels.*.name, 'dor-vouched')) &&
       contains(github.event.issue.labels.*.name, 'enhancement') &&
       !contains(github.event.issue.labels.*.name, 'ready-to-build') &&
       !contains(github.event.issue.labels.*.name, 'build-done') &&

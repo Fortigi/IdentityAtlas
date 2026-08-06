@@ -18,7 +18,9 @@ name: DoR bug agent (reproduce + probe)
 
 on:
   issues:
-    types: [opened, edited]
+    # `labeled` is here only for `dor-vouched` (see the guard below) — how an accepted external
+    # bug report enters the reproduce-first probe. Every other label write is ignored.
+    types: [opened, edited, labeled]
   issue_comment:
     types: [created]
 
@@ -29,12 +31,17 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # ── Gate: org-members-only (external reporters are handled by dor-bug-triage's unknown path). ──
+  # ── Gate: org-members-only. An external reporter is parked by triage as `needs-vouch` until a
+  # member accepts it with `dor-vouched` (dor-vouch.yml), which transfers the requestor role to that
+  # member — so this gate stays exactly as strict as before. ──
   authorize:
     if: >-
       vars.DOR_ENABLED == 'true' &&
       github.event.sender.type != 'Bot' &&
       !github.event.issue.pull_request &&
+      (github.event.action != 'labeled' || github.event.label.name == 'dor-vouched') &&
+      (!contains(github.event.issue.labels.*.name, 'needs-vouch') ||
+       contains(github.event.issue.labels.*.name, 'dor-vouched')) &&
       contains(github.event.issue.labels.*.name, 'bug')
     runs-on: ubuntu-latest
     permissions:

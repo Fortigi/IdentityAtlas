@@ -1,0 +1,5 @@
+- Added a way to accept a feature request or bug report filed by someone outside the Fortigi organization: a maintainer applies the `dor-vouched` label and the request enters the normal pipeline.
+- Vouching transfers the requestor role to the maintainer who vouched — they become "Requested by" on the board and the sole assignee, and they answer the clarification questions — while the original reporter stays subscribed and is mentioned at every step so they keep following progress and can still contribute detail.
+- External requests are now clearly parked as "awaiting a maintainer vouch" instead of silently appearing on the board as "Awaiting requestor", which made them look like they were waiting on the reporter when nobody had looked at them yet.
+- The daily pipeline health report now lists external requests still waiting for someone to accept or close them, so a customer request can no longer go quietly unanswered.
+- A vouched request now builds normally once approved, instead of being refused at the build step because it was originally filed by a non-member.
