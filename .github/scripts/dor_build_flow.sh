@@ -83,7 +83,7 @@ GH_TOKEN="$BOARD_TOKEN" bash "$SCRIPTS/dor_set_status.sh" "$ISSUE" build-done 2>
   || echo "::warning::board move failed (BOT token likely expired on a long build) — label is set; the fresh-token step reconciles the column"
 
 summary=$(jq -r '.result // empty' /tmp/impl.json 2>/dev/null | head -c 1200)
-[ "${#summary}" -lt 25 ] && summary="$(changed_summary origin/main..HEAD)"   # terse output → describe from the diff
+[ "${#summary}" -lt 25 ] && summary="$(changed_summary origin/main...HEAD)"   # terse output → describe from the diff
 [ -n "$summary" ] || summary="Implemented the approved spec; unit tests and the feature e2e on the live env pass."
 comment_issue "$(printf '%s — ✅ built and ready to test.\n\n🔗 **Test:** %s   ·   📦 **PR:** #%s\n\n%s\n\nReply with anything that'\''s off, or **`approved`** to send it to merge.' "$(issue_mentions)" "$URL" "$pr" "$summary")"
 gh pr comment "$pr" --repo "$REPO" --body "🤖 Built + verified on **${HOST}** (e2e + CI green) → ${URL}" >/dev/null 2>&1 || true

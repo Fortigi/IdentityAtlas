@@ -57,7 +57,7 @@ verify_loop "$pr"
 touch "${RUNNER_TEMP:-/tmp}/dor-done"   # success → the workflow's fresh-token reconcile step asserts build-done (survives >1h cycles)
 GH_TOKEN="$BOARD_TOKEN" bash "$SCRIPTS/dor_set_status.sh" "$ISSUE" build-done 2>/dev/null || true
 summary=$(jq -r '.result // empty' /tmp/adjust.json 2>/dev/null | head -c 1000)
-[ "${#summary}" -lt 25 ] && summary="$(changed_summary origin/main..HEAD)"   # terse output → describe from the diff
+[ "${#summary}" -lt 25 ] && summary="$(changed_summary origin/main...HEAD)"   # terse output → describe from the diff
 [ -n "$summary" ] || summary="Applied your feedback; the feature e2e on the live env is green again."
 comment_issue "$(printf '%s — ✅ updated and re-deployed.\n\n🔗 **Re-test:** %s   ·   📦 **PR:** #%s\n\n%s\n\nAnything still off? Comment. Happy? Reply **`approved`**.' "$(issue_mentions)" "$URL" "$pr" "$summary")"
 echo "::notice::#${ISSUE} adjusted per feedback → still Awaiting functional acceptance (PR #${pr})"
