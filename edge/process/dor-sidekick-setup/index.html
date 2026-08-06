@@ -4848,16 +4848,18 @@ Ubuntu 24.04 · git 2.43 · Docker 29.6 / compose 5.3 · gh 2.97 · Node 22 · c
 <h2 id="4-wire-the-repo-config-manual-one-pr">4. Wire the repo config (manual — one PR)<a class="headerlink" href="#4-wire-the-repo-config-manual-one-pr" title="Permanent link">&para;</a></h2>
 <p>Adding a box to the pool means teaching the workflows about it. Update, on a branch → PR:</p>
 <ul>
-<li><strong><code>.github/workflows/dor-build-agent.yml</code></strong> and <strong><code>.github/workflows/dor-acceptance.yml</code></strong> — the
-  <code>case "$(hostname)"</code> block that maps the hostname to its public URL:
+<li><strong><code>.github/workflows/dor-deploy.yml</code></strong>, <strong><code>dor-build-agent.yml</code></strong> and <strong><code>dor-acceptance.yml</code></strong> — all
+  three have a <code>case "$(hostname)"</code> block that maps the hostname to its public URL:
   <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>dev-docker-05<span class="o">)</span><span class="w"> </span><span class="nv">url</span><span class="o">=</span><span class="s2">&quot;https://5.build.identityatlas.io&quot;</span><span class="w"> </span><span class="p">;;</span>
 <a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>dev-docker-0N<span class="o">)</span><span class="w"> </span><span class="nv">url</span><span class="o">=</span><span class="s2">&quot;https://N.build.identityatlas.io&quot;</span><span class="w"> </span><span class="p">;;</span><span class="w">   </span><span class="c1"># ← add</span>
 </code></pre></div></li>
 <li><strong><code>.github/workflows/dor-reset.yml</code></strong> and <strong><code>.github/workflows/dor-acceptance.yml</code></strong> — the reset /
-  feedback matrix <code>sk: [sk5, sk6, sk3]</code> → add <code>skN</code> so a close/comment reaches the new box.</li>
+  feedback matrix <code>sk: [sk3, sk5, sk6, sk7, sk8, sk9, sk10]</code> → add <code>skN</code> so a close/comment reaches the
+  new box.</li>
 </ul>
 <p>A sidekick that is registered (step 3) but not wired here will pick up build jobs yet fail the
-"Identify this sidekick" step (<code>unknown sidekick … not in the dor-build pool map</code>).</p>
+"Identify this sidekick" step (<code>unknown sidekick … not in the dor-build pool map</code>) — and, because the
+reset matrix never names it, it keeps its reservation and never returns to the pool.</p>
 <h2 id="5-network-manual-infra">5. Network (manual — infra)<a class="headerlink" href="#5-network-manual-infra" title="Permanent link">&para;</a></h2>
 <ul>
 <li>DNS <code>N.build.identityatlas.io</code> → the central ingress.</li>
