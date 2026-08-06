@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Pull requests raised for automated bug fixes now carry an evidence summary instead of a one-line claim of success: what the reported bug was, the test failing before the fix, the same test passing after it, the browser replay against the live environment, the CI result, and an explicit note of what the change did not touch (no schema migration, no dependency change). Each row shows the output it is based on, and anything that was not measured says so rather than being asserted.
+
+## Changes in this PR
+
 - Updated the CodeQL security scanner to 4.37.5.
 
 ## Changes in this PR
