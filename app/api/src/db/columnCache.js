@@ -89,19 +89,38 @@ let resourceValuesInflight = null;
 // returns. The preload is a hard payload cap: a column can have hundreds of
 // thousands of distinct values (`description` in a real tenant) and shipping
 // them all would blow up every filter-dropdown response.
-export const VALUE_PAGE_SIZE = 500;
+export const DEFAULT_VALUE_PAGE_SIZE = 500;
+export const MAX_VALUE_PAGE_SIZE = 5000;
 export const VALUE_SEARCH_LIMIT = 50;
+
+// The page size is a deployment setting (`MATRIX_VALUE_PAGE_SIZE`), not a
+// constant, so the capped path can be exercised on a dataset that has nowhere
+// near 500 distinct values. Set it to a handful on a test deployment and every
+// column with more values than that is paged, flagged and searched exactly as
+// `description` is in a tenant with tens of thousands of them — which is what
+// makes #928 verifiable without first importing 500+ resources.
+//
+// Anything unparseable, zero or negative falls back to the default; the value
+// is capped at MAX_VALUE_PAGE_SIZE so a typo can't turn every filter dropdown
+// into a multi-megabyte response.
+export function valuePageSize() {
+  const raw = String(process.env.MATRIX_VALUE_PAGE_SIZE ?? '').trim();
+  if (!raw) return DEFAULT_VALUE_PAGE_SIZE;
+  const n = Number.parseInt(raw, 10);
+  if (!Number.isFinite(n) || n < 1) return DEFAULT_VALUE_PAGE_SIZE;
+  return Math.min(n, MAX_VALUE_PAGE_SIZE);
+}
 
 // Run the UNION ALL of per-column distinct-value subqueries and group the flat
 // (col, val) result in JS.
 //
-// Each subquery fetches VALUE_PAGE_SIZE + 1 values ordered by value, so a column
-// that came back with an extra row is known to have more than we serve: we drop
-// the surplus and flag the column as truncated. Ordering inside the subquery is
+// Each subquery fetches pageSize + 1 values ordered by value, so a column that
+// came back with an extra row is known to have more than we serve: we drop the
+// surplus and flag the column as truncated. Ordering inside the subquery is
 // what makes the served page deterministic — without it Postgres returns an
 // ARBITRARY page of the distinct values, which is what made values vanish from
 // the matrix wizard's "+ Attribute" picker with no way to reach them (#928).
-async function runValueUnion(parts) {
+async function runValueUnion(parts, pageSize) {
   const r = await db.query(parts.join('\nUNION ALL\n') + '\nORDER BY col, val');
   const values = {};
   for (const row of r.rows) {
@@ -110,8 +129,8 @@ async function runValueUnion(parts) {
   }
   const truncated = {};
   for (const [col, vals] of Object.entries(values)) {
-    if (vals.length > VALUE_PAGE_SIZE) {
-      values[col] = vals.slice(0, VALUE_PAGE_SIZE);
+    if (vals.length > pageSize) {
+      values[col] = vals.slice(0, pageSize);
       truncated[col] = true;
     }
   }
@@ -129,24 +148,24 @@ function extValueExpr(key) {
   return `"extendedAttributes"->>'${key}'`;
 }
 
-export async function discoverColumnValues(table, columns) {
+export async function discoverColumnValues(table, columns, pageSize = valuePageSize()) {
   const filterableCols = columns.filter(c => FILTERABLE_TYPES.has(c.type) && SAFE_IDENT_RE.test(c.rawName));
   if (filterableCols.length === 0) return { values: {}, truncated: {} };
   if (!SAFE_IDENT_RE.test(table)) throw new Error(`Invalid table name: ${table}`);
 
   // One UNION ALL query per filterable column. Each gets the alphabetically
-  // first VALUE_PAGE_SIZE distinct non-null values (+1 probe row, see
+  // first `pageSize` distinct non-null values (+1 probe row, see
   // runValueUnion). postgres syntax: ::text cast for non-text columns.
   const parts = filterableCols.map(c =>
     `SELECT '${c.name}' AS col, val FROM (
        SELECT DISTINCT ${columnValueExpr(c.rawName)} AS val FROM "${table}"
         WHERE "${c.rawName}" IS NOT NULL AND ${columnValueExpr(c.rawName)} <> ''
         ORDER BY val
-        LIMIT ${VALUE_PAGE_SIZE + 1}
+        LIMIT ${pageSize + 1}
      ) t`
   );
 
-  return runValueUnion(parts);
+  return runValueUnion(parts, pageSize);
 }
 
 // Discover scalar top-level keys in the `extendedAttributes` JSONB column and
@@ -160,7 +179,7 @@ export async function discoverColumnValues(table, columns) {
 //
 // Object/array-valued keys (e.g. `signInActivity`, `groupTypes`) are skipped —
 // matching on a serialized object is not a useful filter.
-export async function discoverExtendedAttrValues(table) {
+export async function discoverExtendedAttrValues(table, pageSize = valuePageSize()) {
   if (!SAFE_IDENT_RE.test(table)) throw new Error(`Invalid table name: ${table}`);
 
   // Find distinct scalar top-level keys. We use jsonb_typeof on the value so
@@ -187,11 +206,11 @@ export async function discoverExtendedAttrValues(table) {
           AND ${extValueExpr(k)} IS NOT NULL
           AND ${extValueExpr(k)} <> ''
         ORDER BY val
-        LIMIT ${VALUE_PAGE_SIZE + 1}
+        LIMIT ${pageSize + 1}
      ) t`
   );
 
-  return runValueUnion(parts);
+  return runValueUnion(parts, pageSize);
 }
 
 // Search the distinct values of ONE column for a substring — the escape hatch
@@ -231,12 +250,17 @@ export function mergeValueSets(base, ext) {
   };
 }
 
-// The *Meta getters return { values, truncated }; the plain getters return just
-// the value map, which is the shape every existing consumer (filter dropdowns
-// on the Users/Resources/tag pages) already spreads.
+// The *Meta getters return { values, truncated, pageSize }; the plain getters
+// return just the value map, which is the shape every existing consumer (filter
+// dropdowns on the Users/Resources/tag pages) already spreads.
+//
+// `pageSize` is also the cache key alongside the TTL: a deployment that changes
+// MATRIX_VALUE_PAGE_SIZE must not keep serving pages cut to the old size.
 export async function getPrincipalColumnValuesMeta() {
   const now = Date.now();
-  if (principalValuesCache && (now - principalValuesCacheTime) < COLUMN_CACHE_TTL) {
+  const pageSize = valuePageSize();
+  if (principalValuesCache && principalValuesCache.pageSize === pageSize
+      && (now - principalValuesCacheTime) < COLUMN_CACHE_TTL) {
     return principalValuesCache;
   }
   if (principalValuesInflight) return principalValuesInflight;
@@ -244,10 +268,10 @@ export async function getPrincipalColumnValuesMeta() {
     try {
       const cols = await getPrincipalColumns(null);
       const [base, ext] = await Promise.all([
-        discoverColumnValues('Principals', cols),
-        discoverExtendedAttrValues('Principals'),
+        discoverColumnValues('Principals', cols, pageSize),
+        discoverExtendedAttrValues('Principals', pageSize),
       ]);
-      const result = mergeValueSets(base, ext);
+      const result = { ...mergeValueSets(base, ext), pageSize };
       principalValuesCache = result;
       principalValuesCacheTime = Date.now();
       return result;
@@ -260,7 +284,9 @@ export async function getPrincipalColumnValuesMeta() {
 
 export async function getResourceColumnValuesMeta() {
   const now = Date.now();
-  if (resourceValuesCache && (now - resourceValuesCacheTime) < COLUMN_CACHE_TTL) {
+  const pageSize = valuePageSize();
+  if (resourceValuesCache && resourceValuesCache.pageSize === pageSize
+      && (now - resourceValuesCacheTime) < COLUMN_CACHE_TTL) {
     return resourceValuesCache;
   }
   if (resourceValuesInflight) return resourceValuesInflight;
@@ -268,10 +294,10 @@ export async function getResourceColumnValuesMeta() {
     try {
       const cols = await getResourceColumns(null);
       const [base, ext] = await Promise.all([
-        discoverColumnValues('Resources', cols),
-        discoverExtendedAttrValues('Resources'),
+        discoverColumnValues('Resources', cols, pageSize),
+        discoverExtendedAttrValues('Resources', pageSize),
       ]);
-      const result = mergeValueSets(base, ext);
+      const result = { ...mergeValueSets(base, ext), pageSize };
       resourceValuesCache = result;
       resourceValuesCacheTime = Date.now();
       return result;

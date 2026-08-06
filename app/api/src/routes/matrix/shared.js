@@ -9,7 +9,7 @@ import { timedQuery } from '../../perf/sqlTimer.js';
 import { createParams } from '../../db/sqlParams.js';
 import {
   getPrincipalColumns, getResourceColumns,
-  discoverColumnValues, discoverExtendedAttrValues, mergeValueSets,
+  discoverColumnValues, discoverExtendedAttrValues, mergeValueSets, valuePageSize,
 } from '../../db/columnCache.js';
 import { buildEntitySubquery, collectContextIds } from '../../matrix/filterSql.js';
 import { resourceMeta } from '../../db/matrixHelpers.js';
@@ -58,20 +58,22 @@ export async function getIdentityColumns() {
 // dropped whole keys once a tenant had enough extension attributes (#928).
 export async function getIdentityColumnValuesMeta() {
   const now = Date.now();
-  if (identityValuesCache && (now - identityValuesCacheTime) < IDENTITY_CACHE_TTL) {
+  const pageSize = valuePageSize();
+  if (identityValuesCache && identityValuesCache.pageSize === pageSize
+      && (now - identityValuesCacheTime) < IDENTITY_CACHE_TTL) {
     return identityValuesCache;
   }
   const cols = await getIdentityColumns();
-  const base = await discoverColumnValues('Identities', cols);
+  const base = await discoverColumnValues('Identities', cols, pageSize);
 
   // Extension-attribute keys + distinct values, surfaced as ext.<key> so they
   // can be picked and filtered just like Principal/Resource ext attributes.
   let ext = { values: {}, truncated: {} };
   try {
-    ext = await discoverExtendedAttrValues('Identities');
+    ext = await discoverExtendedAttrValues('Identities', pageSize);
   } catch { /* extendedAttributes column may be absent on older schemas */ }
 
-  identityValuesCache = mergeValueSets(base, ext);
+  identityValuesCache = { ...mergeValueSets(base, ext), pageSize };
   identityValuesCacheTime = now;
   return identityValuesCache;
 }

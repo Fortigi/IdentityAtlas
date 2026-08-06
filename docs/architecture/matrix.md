@@ -167,12 +167,33 @@ The subject-condition step also offers an "+ Attribute" filter. When `rowType=id
 
 ### Attribute values — paged discovery, not a silent cap
 
-A column can have far more distinct values than any dropdown can ship (`description` on `Resources` collects descriptions from every resource type, so a real tenant runs to tens of thousands). `GET /api/matrix/columns` therefore serves **one page** of values per column — the alphabetically first 500 — and sets `truncated: true` on any column that has more. Two rules follow:
+A column can have far more distinct values than any dropdown can ship (`description` on `Resources` collects descriptions from every resource type, so a real tenant runs to tens of thousands). `GET /api/matrix/columns` therefore serves **one page** of values per column — the alphabetically first 500 by default — and sets `truncated: true` on any column that has more. Two rules follow:
 
 - **The page is ordered, never arbitrary.** The per-column subquery orders inside the `LIMIT` (`db/columnCache.js`). Without that, Postgres is free to return any 500 distinct values, and the list an analyst browses alphabetically has unpredictable holes — a value they can see on the Excel export is simply absent, while later values are present ([#928](https://github.com/Fortigi/IdentityAtlas/issues/928)).
 - **Everything outside the page stays reachable.** `GET /api/matrix/column-values?entity=&column=&q=` runs a bounded substring search (case-insensitive, 50 results) over *all* distinct values of one column. The "+ Attribute" picker filters the preloaded page client-side as you type, and for a `truncated` column additionally merges in server-side matches. The Field dropdown shows `description (500+)` for a truncated column so the count reads as a floor, not a total.
 
 `column` is validated against the discovered columns / `ext.*` keys before it is interpolated into the SQL; the search term is always bound.
+
+#### Page size — and how to test the capped path on a small deployment
+
+The page size is the `MATRIX_VALUE_PAGE_SIZE` environment variable on the web container (default `500`, maximum `5000`; anything unparseable, zero or negative falls back to the default). It is the cache key alongside the 5-minute TTL, so a changed value takes effect on the next request rather than after the TTL expires.
+
+It exists because the capped path only appears once a column holds more distinct values than the page — which a test deployment with a few hundred resources never reaches, leaving the #928 behaviour unverifiable there. Lower the page size and the same behaviour reproduces on any dataset. Both compose files pass the variable through, so an already-built stack only needs its web container recreated — no rebuild, no data changes:
+
+```bash
+# In the stack's directory, with the same -f flags it was started with
+MATRIX_VALUE_PAGE_SIZE=5 docker compose up -d web
+```
+
+Then, in the matrix wizard's "+ Attribute" picker, any field with more than five distinct values behaves exactly as `description` does in a large tenant:
+
+1. The Field dropdown reads `description (5+)` — the `+` marks the count as a floor.
+2. The picker says *"Showing the first 5 values of more than can be listed"*, and those five are the alphabetically first ones — no holes.
+3. Typing part of a sixth, out-of-page value into **Search values** finds it (that request is `GET /api/matrix/column-values`) and it can be ticked and added as a filter.
+
+Restore the variable (or drop it) and recreate the container to return to the 500-value default. `app/api/contract-tests/columnValuesSmallTenant.contract.test.js` runs this exact recipe against a real database with twelve descriptions and a page size of five.
+
+Independently of the page size, two things are checkable on any deployment, without changing its configuration: `GET /api/matrix/columns?entity=Resource` returns `description` values in alphabetical order (the ordering whose absence caused the holes), and `GET /api/matrix/column-values?entity=Resource&column=description&q=<text>` — the request the picker's search box makes — returns matches for text stored anywhere in the tenant.
 
 ### Filter shape — normalised at the wizard boundary
 

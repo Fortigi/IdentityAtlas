@@ -8,7 +8,7 @@
 // synthetic tag field. These tests pin the casing so that regression can't
 // slip back in.
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // We mock `./connection.js` with a query spy that each test can program.
 // Vitest hoists vi.mock() above imports, so this runs before columnCache
@@ -230,7 +230,7 @@ describe('distinct-value pages are ordered and flagged when truncated (#928)', (
 
     const valuesSql = queryMock.mock.calls[1][0];
     expect(valuesSql).toMatch(/ORDER BY val\s+LIMIT 501/);
-    expect(mod.VALUE_PAGE_SIZE).toBe(500);
+    expect(mod.DEFAULT_VALUE_PAGE_SIZE).toBe(500);
   });
 
   it('flags a column that overflows the page and trims it to the page size', async () => {
@@ -285,6 +285,88 @@ describe('distinct-value pages are ordered and flagged when truncated (#928)', (
     mod.clearColumnCaches();
     await mod.getResourceColumns();
     expect(queryMock).toHaveBeenCalledTimes(2);
+  });
+});
+
+// ─── #928 follow-up — the page size is a deployment setting ────────
+//
+// The capped path only shows up once a column has more distinct values than the
+// page holds. A deployment with a few hundred resources never reaches 500, so
+// MATRIX_VALUE_PAGE_SIZE lowers the threshold to make that path reachable (and
+// testable) on a small dataset.
+
+describe('MATRIX_VALUE_PAGE_SIZE (#928)', () => {
+  function rows(col, n) {
+    return Array.from({ length: n }, (_, i) => ({ col, val: `v${String(i).padStart(4, '0')}` }));
+  }
+
+  const original = process.env.MATRIX_VALUE_PAGE_SIZE;
+  afterEach(() => {
+    if (original === undefined) delete process.env.MATRIX_VALUE_PAGE_SIZE;
+    else process.env.MATRIX_VALUE_PAGE_SIZE = original;
+  });
+
+  it('defaults to 500 and clamps at the maximum', async () => {
+    const mod = await freshModule();
+
+    delete process.env.MATRIX_VALUE_PAGE_SIZE;
+    expect(mod.valuePageSize()).toBe(500);
+
+    process.env.MATRIX_VALUE_PAGE_SIZE = '5';
+    expect(mod.valuePageSize()).toBe(5);
+
+    process.env.MATRIX_VALUE_PAGE_SIZE = '999999';
+    expect(mod.valuePageSize()).toBe(mod.MAX_VALUE_PAGE_SIZE);
+  });
+
+  it('falls back to the default for an unusable value', async () => {
+    const mod = await freshModule();
+    for (const bad of ['', '   ', 'lots', '0', '-10']) {
+      process.env.MATRIX_VALUE_PAGE_SIZE = bad;
+      expect(mod.valuePageSize()).toBe(500);
+    }
+  });
+
+  it('pages and flags a small column when the size is lowered', async () => {
+    process.env.MATRIX_VALUE_PAGE_SIZE = '5';
+    queryMock
+      .mockResolvedValueOnce({ rows: [{ column_name: 'description', data_type: 'text' }] })
+      .mockResolvedValueOnce({ rows: rows('description', 6) })
+      .mockResolvedValueOnce({ rows: [] });
+
+    const mod = await freshModule();
+    const { values, truncated, pageSize } = await mod.getResourceColumnValuesMeta();
+
+    expect(queryMock.mock.calls[1][0]).toMatch(/ORDER BY val\s+LIMIT 6/);
+    expect(values.description).toEqual(['v0000', 'v0001', 'v0002', 'v0003', 'v0004']);
+    expect(truncated.description).toBe(true);
+    expect(pageSize).toBe(5);
+  });
+
+  it('re-discovers instead of serving a cached page cut to the old size', async () => {
+    process.env.MATRIX_VALUE_PAGE_SIZE = '2';
+    queryMock
+      .mockResolvedValueOnce({ rows: [{ column_name: 'description', data_type: 'text' }] })
+      .mockResolvedValueOnce({ rows: rows('description', 3) })
+      .mockResolvedValueOnce({ rows: [] });
+
+    const mod = await freshModule();
+    expect((await mod.getResourceColumnValuesMeta()).values.description).toHaveLength(2);
+    const afterFirst = queryMock.mock.calls.length;
+
+    // Same size → cached.
+    await mod.getResourceColumnValuesMeta();
+    expect(queryMock).toHaveBeenCalledTimes(afterFirst);
+
+    process.env.MATRIX_VALUE_PAGE_SIZE = '10';
+    queryMock
+      .mockResolvedValueOnce({ rows: rows('description', 3) })
+      .mockResolvedValueOnce({ rows: [] });
+    const { values, truncated } = await mod.getResourceColumnValuesMeta();
+
+    expect(queryMock.mock.calls.length).toBeGreaterThan(afterFirst);
+    expect(values.description).toHaveLength(3);
+    expect(truncated.description).toBeUndefined();
   });
 });
 

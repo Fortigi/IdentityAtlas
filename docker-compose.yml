@@ -43,6 +43,10 @@ services:
       AUTH_ENABLED: "false"
       PORT:         "3001"
       CRAWLER_MANIFESTS_DIR: "/app/crawlers"
+      # How many distinct values a filter/attribute dropdown preloads per field
+      # (default 500, max 5000). Lower it to exercise the "more values than fit
+      # in the list" path on a small dataset — see docs/architecture/matrix.md.
+      MATRIX_VALUE_PAGE_SIZE: "${MATRIX_VALUE_PAGE_SIZE:-}"
     ports:
       - "3001:3001"
     volumes:

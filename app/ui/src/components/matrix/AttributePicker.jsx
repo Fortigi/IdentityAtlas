@@ -1,12 +1,13 @@
 // "+ Attribute" dialog used by the matrix wizard's Subject and Resource steps:
 // pick a field, then tick the values to filter on.
 //
-// The value list the API preloads with /matrix/columns is capped (500 distinct
-// values per column) — a real tenant has far more distinct `description`s than
-// that. The API serves the alphabetically first page and flags the column
-// `truncated`; this dialog therefore always offers a search box, and for a
-// truncated column it asks the server (/matrix/column-values) for matches
-// beyond the preloaded page, so every stored value stays reachable (#928).
+// The value list the API preloads with /matrix/columns is capped at one page
+// per column (500 values by default, see MATRIX_VALUE_PAGE_SIZE) — a real
+// tenant has far more distinct `description`s than that. The API serves the
+// alphabetically first page and flags the column `truncated`; this dialog
+// therefore always offers a search box, and for a truncated column it asks the
+// server (/matrix/column-values) for matches beyond the preloaded page, so
+// every stored value stays reachable (#928).
 
 import { useMemo, useState } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
@@ -115,7 +116,7 @@ export default function AttributePicker({ entity, columns, onPick, onClose }) {
             />
             {truncated && (
               <p className="text-[10px] text-gray-600 dark:text-gray-400 mb-2">
-                This field has more values than can be listed — search to find any of them.
+                Showing the first {preloaded.length} values of more than can be listed — search to find any of the others.
               </p>
             )}
 

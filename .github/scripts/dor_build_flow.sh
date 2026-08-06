@@ -36,6 +36,13 @@ gh issue edit "$ISSUE" --repo "$REPO" --remove-label ready-to-build >/dev/null 2
 # the gate) — not only after the PR is created ~15-20 min later, which would leave it wrongly reading
 # "Awaiting approval" for the whole implement phase.
 GH_TOKEN="$BOARD_TOKEN" bash "$SCRIPTS/dor_set_status.sh" "$ISSUE" building 2>/dev/null || true
+# Say so on the issue NOW, not after the PR exists. For a bug the PR is opened only after the whole
+# red/green proof has run, so the first comment used to arrive 30-45 minutes in — the thread just sat
+# silent while the machine worked, which is indistinguishable from the machine being dead. That
+# ambiguity is the exact failure that left #370's requestor waiting 19 hours on a loop that had died.
+comment_issue "$(printf '🔨 Started — building a fix.%s%s' \
+  "$(is_bug && printf ' I reproduce the bug with a failing test first, fix it, then replay it on a live environment; expect ~30 min.' || printf '')" \
+  "${RUN_URL:+ · 👀 [follow progress]($RUN_URL)}")"
 
 # Resume-aware: if a branch with real work already exists (a previous run paused on a usage limit),
 # continue from it instead of re-implementing from scratch — that is the expensive part we must not
@@ -49,6 +56,23 @@ else
   title="$(gh issue view "$ISSUE" --repo "$REPO" --json title --jq '.title')"
 
   if is_bug; then
+    # The certified contract, if this issue has one. Issues certified before contracts existed still
+    # build — they just get the generic prompts and no blast-radius check, and say so.
+    CONTRACT=""
+    if read_contract > /tmp/contract.json 2>/dev/null && jq -e . /tmp/contract.json >/dev/null 2>&1; then
+      CONTRACT=/tmp/contract.json
+      echo "::notice::repro contract found (confidence: $(jq -r '.confidence' "$CONTRACT"), tier: $(jq -r '.test_tier' "$CONTRACT"))"
+      contract_brief="$(printf '\nThe probe certified this contract — build to it:\n  assertion that must fail then pass: %s\n  root cause: %s\n  expected blast radius: %s\n  test tier: %s\n  reporter path: %s\n' \
+        "$(jq -r '.assertion'  "$CONTRACT")" \
+        "$(jq -r '.root_cause' "$CONTRACT")" \
+        "$(jq -r '.blast_radius | join(", ")' "$CONTRACT")" \
+        "$(jq -r '.test_tier'  "$CONTRACT")" \
+        "$(jq -r '.repro_path' "$CONTRACT")")"
+    else
+      contract_brief=""
+      echo "::warning::#${ISSUE} carries no repro contract — building without the blast-radius check"
+    fi
+
     # ── 1. RED FIRST ────────────────────────────────────────────────────────────────────────────
     # A test that was never red proves nothing. A green suite after a fix is equally consistent with
     # "bug fixed" and "test doesn't touch the bug" — and the same agent writes both, so the ordering
@@ -66,7 +90,7 @@ THIS PASS WRITES THE TEST, AND NOTHING ELSE.
   - Do NOT modify, add or delete any production file. Nothing is fixed yet, so assert only against
     the EXISTING public API; if that means the test is a little indirect, that is correct.
   - Do NOT write a Playwright e2e in this pass; that comes with the fix.
-Leave your changes in the working tree — do NOT commit, push or open a PR.' "$ISSUE")" \
+Leave your changes in the working tree — do NOT commit, push or open a PR.%s' "$ISSUE" "$contract_brief")" \
       /tmp/impl-test.json "$IMPLEMENT_TURNS"
     case $? in
       0|3) : ;;
@@ -82,7 +106,11 @@ Leave your changes in the working tree — do NOT commit, push or open a PR.' "$
     run_touched_tests "origin/main...HEAD"
     case $? in
       1) cp /tmp/unit.log /tmp/red.log 2>/dev/null || true
-         echo "::notice::red proof OK — the regression test fails against unfixed code" ;;
+         echo "::notice::red proof OK — the regression test fails against unfixed code"
+         # The most informative moment of the whole build: the bug is now demonstrably real, in a
+         # test, before anything has been fixed. Worth telling the thread.
+         comment_issue "$(printf '🔴 Reproduced — the new regression test fails against today'\''s code:\n\n```\n%s\n```\n\nNow fixing it at the source.' \
+           "$(grep -E 'FAIL|AssertionError|Expected:|Received:|✕|×' /tmp/red.log 2>/dev/null | head -6)")" ;;
       0) bail "the regression test PASSES against unfixed code, so it does not reproduce #${ISSUE}. A test that was never red proves nothing about the fix that follows it. Last run: $(tail -c 800 /tmp/unit.log 2>/dev/null)" ;;
       3) bail "the change contains no runnable unit test — only an e2e or no test at all. The red/green proof needs a test that can run before the fix exists." ;;
       4) bail "this change is PowerShell-only and no sidekick has pwsh installed, so the test cannot be proven red here. Install pwsh on the pool (tools/dor/provision-sidekick.sh) or take this one by hand." ;;
@@ -102,7 +130,7 @@ is already committed on this branch, and it currently FAILS. Now make it pass.
     bug fix without one cannot be verified.
   - Update any docs the change affects and add the changelog fragment changes/dor-issue-%s.md
     (user-facing bullets). NEVER edit CHANGES.md or setup/IdentityAtlas.psd1. Do NOT touch .github/.
-Leave your changes in the working tree — do NOT commit, push or open a PR.' "$ISSUE" "$ISSUE")" \
+Leave your changes in the working tree — do NOT commit, push or open a PR.%s' "$ISSUE" "$ISSUE" "$contract_brief")" \
       /tmp/impl.json "$IMPLEMENT_TURNS"
     case $? in
       0|3) : ;;
@@ -118,6 +146,15 @@ Leave your changes in the working tree — do NOT commit, push or open a PR.' "$
     run_touched_tests "origin/main...HEAD" \
       || bail "the fix does not make the regression test pass. Last run: $(tail -c 800 /tmp/unit.log 2>/dev/null)"
     echo "::notice::green proof OK — the same test now passes"
+
+    # ── 5. CONFORMANCE ──────────────────────────────────────────────────────────────────────────
+    # The fix landing outside the radius the probe predicted means the diagnosis was wrong or the
+    # scope crept. Neither is something another AI pass should paper over, so it stops here.
+    if [ -n "$CONTRACT" ]; then
+      outside="$(blast_radius_violations "$CONTRACT" "origin/main...HEAD")"
+      [ -n "$outside" ] && bail "the fix reached outside the certified blast radius ($(jq -r '.blast_radius | join(", ")' "$CONTRACT")) and touched: $(printf '%s' "$outside" | tr '\n' ' '). Either the root cause was mis-diagnosed or the scope grew — a human should look before this goes further."
+      echo "::notice::blast-radius conformance OK"
+    fi
   else
     # Features keep the single implement pass: their acceptance criteria are not a defect that can be
     # demonstrated failing first.
@@ -164,5 +201,13 @@ summary=$(jq -r '.result // empty' /tmp/impl.json 2>/dev/null | head -c 1200)
 [ "${#summary}" -lt 25 ] && summary="$(changed_summary origin/main...HEAD)"   # terse output → describe from the diff
 [ -n "$summary" ] || summary="Implemented the approved spec; unit tests and the feature e2e on the live env pass."
 comment_issue "$(printf '%s — ✅ built and ready to test.\n\n🔗 **Test:** %s   ·   📦 **PR:** #%s\n\n%s\n\nReply with anything that'\''s off, or **`approved`** to send it to merge.' "$(issue_mentions)" "$URL" "$pr" "$summary")"
-gh pr comment "$pr" --repo "$REPO" --body "🤖 Built + verified on **${HOST}** (e2e + CI green) → ${URL}" >/dev/null 2>&1 || true
+# The PR gets the evidence bundle rather than a one-line assertion of success: this is the artefact
+# the merge review reads, and every claim in it carries the run output behind it. Bugs only — a
+# feature has no red proof to show, and a bundle with half its rows missing teaches reviewers to
+# skim. (Best-effort: a reporting failure must never fail a build that actually passed.)
+if is_bug; then
+  PR="$pr" CONTRACT="${CONTRACT:-}" bash "$SCRIPTS/dor_evidence.sh" || echo "::warning::evidence bundle step failed"
+else
+  gh pr comment "$pr" --repo "$REPO" --body "🤖 Built + verified on **${HOST}** (e2e + CI green) → ${URL}" >/dev/null 2>&1 || true
+fi
 echo "::notice::#${ISSUE} built + verified → Awaiting functional acceptance (PR #${pr}, ${URL})"

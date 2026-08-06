@@ -61,11 +61,88 @@ is_bug() {
   [ "$IS_BUG" = yes ]
 }
 
+# The repro contract the probe certified with, pulled back out of the issue thread — the build's only
+# input is .dor/in/spec.json, so the contract travels inside the certified comment. Echoes the JSON;
+# returns non-zero when there isn't one (issues certified before contracts existed still build).
+read_contract() {
+  local body
+  body="$(jq -r '[.comments[].body // empty] | map(select(test("Repro contract"))) | last // empty' \
+          "$WORK/.dor/in/spec.json" 2>/dev/null)" || return 1
+  [ -n "$body" ] || return 1
+  printf '%s\n' "$body" | sed -n '/```json/,/```/p' | sed '1d;$d'
+}
+
+# Did the fix stay inside the blast radius the probe predicted? Drifting outside it means the
+# diagnosis was wrong or the scope crept — either way a human decides, so this is a stop, not a fix
+# loop. Tests, docs, changelog fragments and lockfiles are always allowed. Echoes offending paths.
+blast_radius_violations() {  # $1 = contract file, $2 = git range
+  local globs f g hit
+  globs="$(jq -r '.blast_radius[]' "$1" 2>/dev/null)" || return 0
+  [ -n "$globs" ] || return 0
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    case "$f" in
+      *.test.js|*.test.jsx|*.spec.js|*.Tests.ps1|changes/*|docs/*|*/package-lock.json|package-lock.json) continue ;;
+    esac
+    hit=no
+    while IFS= read -r g; do
+      [ -n "$g" ] || continue
+      # shellcheck disable=SC2254  # the glob is data and must stay unquoted to be a pattern
+      case "$f" in $g) hit=yes; break ;; esac
+    done <<< "$globs"
+    [ "$hit" = no ] && printf '%s\n' "$f"
+  done < <(git -C "$WORK" diff --name-only "$2" 2>/dev/null)
+}
+
 # The automated tests a range touched. e2e specs are excluded — they need the deployed app, and run
 # later against the live env.
 touched_tests() {  # $1 = git range
   git -C "$WORK" diff --name-only "$1" 2>/dev/null \
     | grep -E '\.(test|spec)\.(js|jsx)$|\.Tests\.ps1$' | grep -v '^app/ui/e2e/' || true
+}
+
+# Re-prove the regression test RED, against main, on a branch that already contains the fix.
+#
+# The first build gets its red proof free from commit ordering: the test exists before the fix does.
+# Nothing after that does — an adjustment, a CI fix, a proof-gap re-run all edit a tree where the fix
+# is already present, so "the tests pass" says nothing about whether they still catch the bug. The
+# obvious failure is an agent quietly weakening the test to get green, and it would look identical to
+# success. So: put the PRODUCTION files back to main, keep the tests as they are now, and require a
+# failure. That is the same manual check that validated #942, automated.
+#
+# 0 = still genuinely red without the fix · 1 = passes without the fix (the test no longer catches it)
+# 3 = nothing to check (no tests, or no production change) · 4 = could not run the check
+prove_red_against_main() {  # $1 = git range
+  local tests prod f rc restore="" removed=""
+  tests="$(touched_tests "$1")"
+  [ -n "$tests" ] || return 3
+  prod="$(git -C "$WORK" diff --name-only "$1" 2>/dev/null \
+          | grep -vE '\.(test|spec)\.(js|jsx)$|\.Tests\.ps1$' \
+          | grep -vE '^(changes|docs)/' || true)"
+  [ -n "$prod" ] || return 3
+
+  # Un-fix: restore each production file to main. A file main does not have (the fix added it) has to
+  # be moved aside instead, or the test would still import the new code and pass for the wrong reason.
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    if git -C "$WORK" cat-file -e "origin/main:$f" 2>/dev/null; then
+      git -C "$WORK" checkout origin/main -- "$f" 2>/dev/null && restore="${restore}${f}"$'\n'
+    else
+      mv "$WORK/$f" "$WORK/$f.dorbak" 2>/dev/null && removed="${removed}${f}"$'\n'
+    fi
+  done <<< "$prod"
+
+  run_touched_tests "$1"; rc=$?
+
+  # Put the fix back before doing anything else with this tree.
+  while IFS= read -r f; do [ -n "$f" ] && git -C "$WORK" checkout HEAD -- "$f" 2>/dev/null; done <<< "$restore"
+  while IFS= read -r f; do [ -n "$f" ] && mv "$WORK/$f.dorbak" "$WORK/$f" 2>/dev/null; done <<< "$removed"
+
+  case "$rc" in
+    1) cp /tmp/unit.log /tmp/red.log 2>/dev/null || true; return 0 ;;   # failed without the fix — good
+    0) return 1 ;;                                                      # passed without the fix — bad
+    *) return 4 ;;
+  esac
 }
 
 # Run the unit tests a range touched, each in its own suite. Output -> /tmp/unit.log
@@ -244,22 +321,34 @@ run_feature_e2e() {
 # accepted the build on the e2e alone — reporting "CI green" on a PR where CI had never run.
 # Those runs are only visible through the Actions API, not the commit's check-runs (which is empty).
 ci_state() {
-  local pr="$1" out rc waited=0 sha
+  local pr="$1" waited=0 sha rollup total fails pend
   sha="$(gh pr view "$pr" --repo "$REPO" --json headRefOid --jq .headRefOid 2>/dev/null)"
   while [ "$waited" -lt 1800 ]; do
     if [ -n "$sha" ] && [ "$(gh api "repos/$REPO/actions/runs?head_sha=$sha" \
          --jq '[.workflow_runs[]?|select(.conclusion=="action_required")]|length' 2>/dev/null || echo 0)" != 0 ]; then
       echo blocked; return
     fi
-    out="$(timeout 1500 gh pr checks "$pr" --repo "$REPO" --required --watch 2>&1)"; rc=$?
-    echo "$out" > /tmp/ci.log
-    if echo "$out" | grep -qiE 'no( required)? checks reported'; then
+    # EVERY check, not just the required ones. "CI Passed" is an aggregate that `needs:` every other
+    # job, so when one of them FAILS, GitHub never runs the aggregate and it stays PENDING rather
+    # than turning red. Watching only required checks is therefore blind to the actual failures:
+    # #928's PR reported CI green to the flow while nine jobs — including Unit Tests (API) and the
+    # contract tests — were red, because the one required check that would have caught it was
+    # stuck pending. Judge the whole rollup instead.
+    rollup="$(gh pr view "$pr" --repo "$REPO" --json statusCheckRollup \
+              --jq '[.statusCheckRollup[]? | (.conclusion // .status // "PENDING") | ascii_upcase]' 2>/dev/null)" || rollup=""
+    if [ -z "$rollup" ] || [ "$rollup" = "[]" ]; then
       sleep 45; waited=$((waited+45)); continue   # not registered yet — wait for CI to appear
     fi
-    [ "$rc" = 0 ] && { echo pass; return; }
-    echo fail; return
+    printf '%s\n' "$rollup" > /tmp/ci.log
+    total="$(printf '%s' "$rollup" | jq 'length')"
+    fails="$(printf '%s' "$rollup" | jq '[.[]|select(. == "FAILURE" or . == "TIMED_OUT" or . == "CANCELLED" or . == "STARTUP_FAILURE" or . == "STALE")] | length')"
+    pend="$( printf '%s' "$rollup" | jq '[.[]|select(. == "PENDING" or . == "QUEUED" or . == "IN_PROGRESS" or . == "WAITING" or . == "EXPECTED" or . == "REQUESTED")] | length')"
+    [ "${fails:-0}" -gt 0 ] && { echo fail; return; }
+    [ "${total:-0}" -eq 0 ] && { sleep 45; waited=$((waited+45)); continue; }
+    [ "${pend:-0}" -gt 0 ] && { sleep 45; waited=$((waited+45)); continue; }
+    echo pass; return
   done
-  echo none
+  echo none   # never settled inside the window — the caller refuses to call that verified
 }
 
 # The verify loop shared by both flows: deploy+seed → e2e on live env → CI. The AI fixer is invoked

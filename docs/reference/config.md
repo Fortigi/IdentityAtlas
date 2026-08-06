@@ -115,5 +115,6 @@ Runs can also be triggered on demand from the same Admin page; each run records 
 | Risk scoring on/off | `WorkerConfig.FEATURE_RISK_SCORING` — set via the Admin → Risk Scoring toggle |
 | Performance monitoring on/off | Runtime flag — set via the Admin → Performance toggle |
 | Database connection | Backend env var `DATABASE_URL` (PostgreSQL connection string) |
+| Filter/attribute value list size | Backend env var `MATRIX_VALUE_PAGE_SIZE` — how many distinct values a filter dropdown preloads per field (default `500`, max `5000`). Lower it on a test deployment to exercise the "more values than fit in the list" behaviour without importing thousands of objects; see [Matrix → Attribute values](../architecture/matrix.md#attribute-values--paged-discovery-not-a-silent-cap) |
 
 The legacy JSON config file is only needed if you want to run a crawler script (`Start-EntraIDCrawler.ps1`, `Start-CSVCrawler.ps1`) on a machine outside the Docker worker.

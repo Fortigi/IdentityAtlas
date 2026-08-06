@@ -62,8 +62,10 @@ describe('AttributePicker value search (#928)', () => {
     const user = userEvent.setup();
     fireEvent.change(screen.getByRole('combobox', { name: /field/i }), { target: { value: 'description' } });
 
-    // The picker tells the user the list is incomplete.
-    expect(await screen.findByText(/search to find any of them/i)).toBeInTheDocument();
+    // The picker tells the user how much of the list it is showing, so a tester
+    // can see at a glance whether the capped path is in play (#928).
+    expect(await screen.findByText(/Showing the first 2 values/i)).toBeInTheDocument();
+    expect(screen.getByText(/search to find any of the others/i)).toBeInTheDocument();
 
     fireEvent.change(screen.getByRole('textbox', { name: /search values/i }), { target: { value: 'could not find' } });
 

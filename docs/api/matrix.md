@@ -106,7 +106,9 @@ Column discovery for the matrix wizard. Returns every filterable column of the r
 ]
 ```
 
-`values` is the **alphabetically first page** (max 500) of the column's distinct values — never an arbitrary subset. `truncated: true` means the column has more values than the page holds; use `/api/matrix/column-values` to reach them.
+`values` is the **alphabetically first page** of the column's distinct values — never an arbitrary subset. `truncated: true` means the column has more values than the page holds; use `/api/matrix/column-values` to reach them.
+
+The page holds 500 values by default. Set `MATRIX_VALUE_PAGE_SIZE` on the web container to change it (max `5000`) — lowering it is how the capped path is exercised on a deployment that has fewer than 500 distinct values in any column. See [Matrix architecture → Attribute values](../architecture/matrix.md#attribute-values--paged-discovery-not-a-silent-cap).
 
 ---
 
@@ -134,7 +136,7 @@ At most 50 matches are returned; `truncated: true` means the search itself hit t
 
 ### GET /api/user-columns
 
-Column discovery for Matrix user-side filters. Queries the `Principals` table to find all non-null columns and returns the alphabetically first 500 distinct values per column so the frontend can render filter dropdowns.
+Column discovery for Matrix user-side filters. Queries the `Principals` table to find all non-null columns and returns the alphabetically first page of distinct values per column (500 by default — see `MATRIX_VALUE_PAGE_SIZE` above) so the frontend can render filter dropdowns.
 
 Also returns virtual columns:
 
