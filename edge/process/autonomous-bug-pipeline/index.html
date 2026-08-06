@@ -5490,6 +5490,10 @@ auto-merges, ever.</p>
 <td>The objection is not something more AI passes will close</td>
 </tr>
 <tr>
+<td>Sidekick died mid-flight</td>
+<td>The flow dies with it, so it can never route <em>itself</em> here. The hourly reconcile sweep detects "active phase, no workflow run alive behind it" and flags + comments once (<code>dor-stuck</code>). This is the only stop condition that cannot be self-reported — everything else in this table assumes the pipeline is alive to report it</td>
+</tr>
+<tr>
 <td>Model usage limit</td>
 <td><strong>Not a failure</strong> — pause, save the branch, resume (existing <code>dor-resume</code>)</td>
 </tr>
@@ -5506,9 +5510,9 @@ auto-merges, ever.</p>
 <li><strong>Reserve at claim, not at PR-create.</strong> Today <code>~/.dor-reservation</code> is written after the PR opens;
   a build that dies before that leaves a box that looks free but has a stack on it. With no human
   pacing the queue, that collides.</li>
-<li><strong>Sweep stale reservations.</strong> The daily reconcile gains a check: reservation referencing a closed
-  or non-existent PR → reset the box. Without a human gate, a stranded runner silently shrinks the
-  pool until it starves.</li>
+<li><strong>Sweep stale reservations.</strong> <em>(built)</em> The reconcile sweep — now hourly — flags an issue that
+  still claims an <code>sk:*</code> sidekick with no open PR, and a closed issue that never released one.
+  Without a human gate, a stranded runner silently shrinks the pool until it starves.</li>
 <li><strong>A box can be claimed twice in a PR's life</strong> — once by the build, later by a validation session
   (<a href="#51-i-want-to-see-it-for-myself--a-validation-session">§5.1</a>). The reservation file therefore
   records <em>why</em> it is held (<code>build</code> vs <code>validation</code>) and, for a session, its expiry. A human-held box
