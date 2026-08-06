@@ -1,5 +1,10 @@
 ## Changes in this PR
 
+- Automated bug fixes must now prove they work. The regression test is written and committed on its own first and has to fail against the unfixed code; only then is the fix made, and the same test has to pass. A fix whose test never failed is rejected rather than reported as verified.
+- A bug fix must also ship a browser test that walks the reported path, and it is replayed against the deployed fix on a live environment. Previously, a fix with no browser test was accepted on the basis that the application still loaded.
+
+## Changes in this PR
+
 - The pipeline health sweep now runs every hour instead of once a day, and detects work that has silently died: an issue that says it is building while no job is actually running for it is now flagged and commented on within the hour, instead of going unnoticed for two weeks.
 - The sweep also reports build machines that are still held by an issue with no open pull request, so a machine can no longer drop out of the pool unnoticed.
 
