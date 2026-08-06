@@ -53,6 +53,51 @@ changed_summary() {
 }
 comment_issue() { gh issue comment "$ISSUE" --repo "$REPO" --body "$1" >/dev/null 2>&1 || true; }
 
+# Is this a bug report? Cached — an issue's labels do not change under us mid-run.
+IS_BUG=""
+is_bug() {
+  [ -n "$IS_BUG" ] || IS_BUG="$(gh issue view "$ISSUE" --repo "$REPO" --json labels \
+      --jq 'if ([.labels[].name] | index("bug")) then "yes" else "no" end' 2>/dev/null || echo no)"
+  [ "$IS_BUG" = yes ]
+}
+
+# The automated tests a range touched. e2e specs are excluded — they need the deployed app, and run
+# later against the live env.
+touched_tests() {  # $1 = git range
+  git -C "$WORK" diff --name-only "$1" 2>/dev/null \
+    | grep -E '\.(test|spec)\.(js|jsx)$|\.Tests\.ps1$' | grep -v '^app/ui/e2e/' || true
+}
+
+# Run the unit tests a range touched, each in its own suite. Output -> /tmp/unit.log
+#   0 = all passed   1 = something failed   3 = the range contains no unit test
+#   4 = there are tests but this box cannot run them (Pester-only change; the pool has no pwsh)
+run_touched_tests() {  # $1 = git range
+  local files ui api ps rc=0
+  files="$(touched_tests "$1")"
+  [ -n "$files" ] || return 3
+  ui="$(printf '%s\n' "$files"  | grep '^app/ui/'  | sed 's#^app/ui/##'  | tr '\n' ' ')"
+  api="$(printf '%s\n' "$files" | grep '^app/api/' | sed 's#^app/api/##' | tr '\n' ' ')"
+  ps="$(printf '%s\n' "$files"  | grep -E '\.Tests\.ps1$' | tr '\n' ' ')"
+  : > /tmp/unit.log
+  if [ -n "${ps// }" ] && [ -z "${ui// }" ] && [ -z "${api// }" ] && ! command -v pwsh >/dev/null 2>&1; then
+    echo "The only tests in this change are PowerShell (Pester), and this sidekick has no pwsh installed." >> /tmp/unit.log
+    return 4
+  fi
+  # shellcheck disable=SC2086  # the file lists are deliberately word-split into args
+  if [ -n "${ui// }" ]; then
+    ( cd "$WORK/app/ui"  && { [ -d node_modules ] || npm ci >/dev/null 2>&1; }; npx vitest run $ui  ) >>/tmp/unit.log 2>&1 || rc=1
+  fi
+  # shellcheck disable=SC2086
+  if [ -n "${api// }" ]; then
+    ( cd "$WORK/app/api" && { [ -d node_modules ] || npm ci >/dev/null 2>&1; }; npx vitest run $api ) >>/tmp/unit.log 2>&1 || rc=1
+  fi
+  # shellcheck disable=SC2086
+  if [ -n "${ps// }" ] && command -v pwsh >/dev/null 2>&1; then
+    ( cd "$WORK" && pwsh -NoProfile -Command "Invoke-Pester -Path $ps -CI" ) >>/tmp/unit.log 2>&1 || rc=1
+  fi
+  return $rc
+}
+
 # This sidekick's stable runner label, derived from its hostname: dev-docker-08 -> sk8 (10# strips
 # the leading zero, so 03 -> sk3 and 10 -> sk10 both work).
 sk_label() { local n; n="$(hostname)"; n="${n##*-}"; printf 'sk%d' "$((10#$n))"; }
@@ -172,7 +217,14 @@ run_feature_e2e() {
   local specs
   specs=$(git -C "$WORK" diff --name-only origin/main...HEAD -- 'app/ui/e2e/*.spec.js' 2>/dev/null | sed 's#app/ui/e2e/##' | tr '\n' ' ')
   if [ -z "${specs// }" ]; then
-    # No feature e2e touched — fall back to a smoke check that the populated app serves.
+    # For a BUG there is no fallback: the whole point is replaying the reporter's symptom against the
+    # deployed fix. "The app serves" would let a unit-only fix be reported as verified — which is
+    # exactly how a green build can mean nothing.
+    if is_bug; then
+      echo "No e2e spec was added for this bug, so the reporter's symptom was never replayed against the running app. Add or extend a spec under app/ui/e2e/ that walks the reported path." > /tmp/e2e.log
+      return 2
+    fi
+    # Feature with no e2e touched — fall back to a smoke check that the populated app serves.
     [ "$(curl -fsS -o /dev/null -w '%{http_code}' http://localhost:3001/ 2>/dev/null || echo 000)" = 200 ]; return
   fi
   ( cd "$DIR/app/ui" \

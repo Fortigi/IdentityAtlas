@@ -38,6 +38,9 @@ verify() {
   have node   && ok "node $(node --version)"                                             || bad "node missing"
   have npm    && ok "npm $(npm --version)"                                               || bad "npm missing"
   [ -x "$HOME/.local/bin/claude" ] && ok "claude $("$HOME/.local/bin/claude" --version 2>/dev/null)" || bad "claude CLI missing (~/.local/bin/claude)"
+  # A warning, not a failure: only a PowerShell-layer bug needs pwsh, and only to prove its test red.
+  have pwsh   && ok "pwsh $(pwsh -NoProfile -c '$PSVersionTable.PSVersion.ToString()' 2>/dev/null)" \
+              || warn "pwsh missing — a PowerShell-only bug fix cannot be proven red on this box"
   local miss=""
   for p in unzip jq build-essential python3 pkg-config curl ca-certificates; do
     dpkg -l "$p" >/dev/null 2>&1 || miss="$miss $p"
@@ -58,6 +61,14 @@ say "1/7  apt baseline"
 sudo apt-get update -qq
 sudo apt-get install -y -qq curl ca-certificates gnupg unzip jq build-essential python3 pkg-config git >/dev/null
 ok "curl ca-certificates gnupg unzip jq build-essential python3 pkg-config git"
+# PowerShell: the red/green proof for a bug has to RUN the regression test on this box, and a
+# crawler-layer bug's test is Pester. Without pwsh those bugs stop at "cannot prove the test red".
+if have pwsh; then
+  ok "pwsh already present ($(pwsh -NoProfile -c '$PSVersionTable.PSVersion.ToString()' 2>/dev/null))"
+else
+  sudo snap install powershell --classic >/dev/null 2>&1 && ok "pwsh installed" \
+    || warn "pwsh not installed — PowerShell-only bug fixes cannot be proven red on this box"
+fi
 
 say "2/7  Docker + compose plugin"
 if have docker && docker compose version >/dev/null 2>&1; then
