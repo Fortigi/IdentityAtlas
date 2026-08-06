@@ -277,22 +277,34 @@ run_feature_e2e() {
 # accepted the build on the e2e alone — reporting "CI green" on a PR where CI had never run.
 # Those runs are only visible through the Actions API, not the commit's check-runs (which is empty).
 ci_state() {
-  local pr="$1" out rc waited=0 sha
+  local pr="$1" waited=0 sha rollup total fails pend
   sha="$(gh pr view "$pr" --repo "$REPO" --json headRefOid --jq .headRefOid 2>/dev/null)"
   while [ "$waited" -lt 1800 ]; do
     if [ -n "$sha" ] && [ "$(gh api "repos/$REPO/actions/runs?head_sha=$sha" \
          --jq '[.workflow_runs[]?|select(.conclusion=="action_required")]|length' 2>/dev/null || echo 0)" != 0 ]; then
       echo blocked; return
     fi
-    out="$(timeout 1500 gh pr checks "$pr" --repo "$REPO" --required --watch 2>&1)"; rc=$?
-    echo "$out" > /tmp/ci.log
-    if echo "$out" | grep -qiE 'no( required)? checks reported'; then
+    # EVERY check, not just the required ones. "CI Passed" is an aggregate that `needs:` every other
+    # job, so when one of them FAILS, GitHub never runs the aggregate and it stays PENDING rather
+    # than turning red. Watching only required checks is therefore blind to the actual failures:
+    # #928's PR reported CI green to the flow while nine jobs — including Unit Tests (API) and the
+    # contract tests — were red, because the one required check that would have caught it was
+    # stuck pending. Judge the whole rollup instead.
+    rollup="$(gh pr view "$pr" --repo "$REPO" --json statusCheckRollup \
+              --jq '[.statusCheckRollup[]? | (.conclusion // .status // "PENDING") | ascii_upcase]' 2>/dev/null)" || rollup=""
+    if [ -z "$rollup" ] || [ "$rollup" = "[]" ]; then
       sleep 45; waited=$((waited+45)); continue   # not registered yet — wait for CI to appear
     fi
-    [ "$rc" = 0 ] && { echo pass; return; }
-    echo fail; return
+    printf '%s\n' "$rollup" > /tmp/ci.log
+    total="$(printf '%s' "$rollup" | jq 'length')"
+    fails="$(printf '%s' "$rollup" | jq '[.[]|select(. == "FAILURE" or . == "TIMED_OUT" or . == "CANCELLED" or . == "STARTUP_FAILURE" or . == "STALE")] | length')"
+    pend="$( printf '%s' "$rollup" | jq '[.[]|select(. == "PENDING" or . == "QUEUED" or . == "IN_PROGRESS" or . == "WAITING" or . == "EXPECTED" or . == "REQUESTED")] | length')"
+    [ "${fails:-0}" -gt 0 ] && { echo fail; return; }
+    [ "${total:-0}" -eq 0 ] && { sleep 45; waited=$((waited+45)); continue; }
+    [ "${pend:-0}" -gt 0 ] && { sleep 45; waited=$((waited+45)); continue; }
+    echo pass; return
   done
-  echo none
+  echo none   # never settled inside the window — the caller refuses to call that verified
 }
 
 # The verify loop shared by both flows: deploy+seed → e2e on live env → CI. The AI fixer is invoked
