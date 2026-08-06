@@ -21,58 +21,12 @@ import ContextPicker from '@ui/components/contexts/ContextPicker';
 import { variantMeta, targetTypeMeta } from '@ui/utils/contextStyles';
 import { useDialog } from '@ui/components/dialogContext';
 import { friendlyLabel } from '@ui/utils/formatters';
+import { DEFAULT_SORT, normalizeMatrixFilter } from '@ui/utils/matrixFilter';
 
 // ─── Constants ──────────────────────────────────────────────────────
 
 const WARN_ASSIGNMENTS  =  5_000;
 const BLOCK_ASSIGNMENTS = 25_000;
-
-const EMPTY_FILTER = {
-  rowType: 'principal',
-  // 'rows-as-resources' — resources on the row axis, subjects on the column
-  //                      axis (current default, good when many resources +
-  //                      few subjects, since vertical scroll is easier).
-  // 'rows-as-subjects'  — subjects on the row axis, resources on the column
-  //                      axis (rotated, good when few resources + many
-  //                      subjects).
-  orientation: 'rows-as-resources',
-  subject:  { include: [], exclude: [] },
-  resource: { include: [], exclude: [] },
-  // Roll-up: aggregate the subject (column) axis by this attribute. null = off.
-  rollup: null,
-  // What the roll-up shows (only when rollup is set):
-  //   'resources-and-roles' — resources as rows + business-role count columns (default)
-  //   'resources-only'      — resources as rows, no business-role columns
-  //   'roles-only'          — business roles as rows (resource filter is skipped)
-  rollupContent: 'resources-and-roles',
-  // How each roll-up cell is shown: 'count' (absolute, default) or 'percent'
-  // (share of the in-scope subjects in that group who hold it).
-  rollupMetric: 'count',
-  // EXPERIMENTAL — aggregate by a Context tree (Manager Hierarchy) instead of an
-  // attribute. 'attribute' uses `rollup`; 'context' uses rollupContextId (the
-  // starting node) and rollupPath (the drill path from root to current focus).
-  rollupKind: 'attribute',
-  rollupContextId: null,
-  rollupPath: [],
-  // Expanded nodes in the Manager-Hierarchy layered view (dynamic drill-down).
-  rollupExpanded: [],
-  // Folded tuple keys in the layered attribute view (default none = all chosen
-  // attributes shown as header rows; fold collapses a group).
-  rollupCollapsed: [],
-  // Set automatically for an oversized attribute fold: serve it as a layered,
-  // server-aggregated view instead of a flat per-subject grid.
-  foldAttributes: false,
-  // Subject-axis sort order — 1..6 attributes, applied client-side. Default
-  // groups columns by department.
-  sortAttributes: [{ attribute: 'department', dir: 'asc' }],
-  // Sort the columns by a Manager-Hierarchy context tree instead of attributes.
-  // { contextId } or null (attribute sort).
-  sortHierarchy: null,
-  // Whether the matrix opens with its top-level groups folded into count
-  // columns. 'auto' folds only when the matrix is large (keeps load fast);
-  // true/false force it.
-  foldOnLoad: 'auto',
-};
 
 // Above this many assignments, 'auto' fold-on-load defaults to folded so the
 // first render stays fast.
@@ -111,8 +65,6 @@ function matrixIsBlocked(filter, anyRollup, assignmentCount) {
   return !(((filter?.sortAttributes?.length || 0) > 0) && willLoadFolded(filter, assignmentCount));
 }
 
-const DEFAULT_SORT = [{ attribute: 'department', dir: 'asc' }];
-
 // Pull selectable attribute names out of a /matrix/columns response. Excludes
 // the display-name column (every value is unique, useless to group/sort by).
 // When realOnly, drops ext.* keys (the flat matrix payload can't sort by them).
@@ -146,7 +98,10 @@ export default function MatrixFilterWizard({
   const { authFetch } = useAuth();
   const dialog = useDialog();
   const [step, setStep] = useState('setup');
-  const [filter, setFilter] = useState(() => structuredClone(initialFilter || EMPTY_FILTER));
+  // Normalised (never structuredClone'd raw): the filter can arrive from a URL,
+  // a saved matrix, or the seeded org default, any of which may be missing
+  // fields the steps read directly. See utils/matrixFilter.js.
+  const [filter, setFilter] = useState(() => normalizeMatrixFilter(initialFilter));
   // The All / Governed / Non-governed toggle lives in the matrix toolbar, not
   // the wizard, but it's part of a saved matrix — carry it so save/load and
   // Apply round-trip it. The wizard has no UI to change it; loading a saved
@@ -180,7 +135,7 @@ export default function MatrixFilterWizard({
   if (open !== wasOpen) {
     setWasOpen(open);
     if (open) {
-      setFilter(structuredClone(initialFilter || EMPTY_FILTER));
+      setFilter(normalizeMatrixFilter(initialFilter));
       setManaged(initialManaged);
       setStep('setup');
       setError(null);
@@ -384,30 +339,11 @@ export default function MatrixFilterWizard({
     const row = savedFilters.find(f => f.id === id);
     if (!row) return;
     // Normalise — older saves might be missing fields (e.g. orientation
-    // didn't exist before).
-    const f = row.filter || EMPTY_FILTER;
+    // didn't exist before). Loading a saved matrix always starts from a clean
+    // view state, unlike adjusting the open one.
+    const f = row.filter || {};
     setFilter({
-      rowType:     f.rowType === 'identity' ? 'identity' : 'principal',
-      orientation: f.orientation === 'rows-as-subjects' ? 'rows-as-subjects' : 'rows-as-resources',
-      subject:  {
-        include: Array.isArray(f.subject?.include) ? f.subject.include : [],
-        exclude: Array.isArray(f.subject?.exclude) ? f.subject.exclude : [],
-      },
-      resource: {
-        include: Array.isArray(f.resource?.include) ? f.resource.include : [],
-        exclude: Array.isArray(f.resource?.exclude) ? f.resource.exclude : [],
-      },
-      rollup: typeof f.rollup === 'string' && f.rollup ? f.rollup : null,
-      rollupContent: ['resources-and-roles', 'resources-only', 'roles-only'].includes(f.rollupContent)
-        ? f.rollupContent : 'resources-and-roles',
-      rollupMetric: f.rollupMetric === 'percent' ? 'percent' : 'count',
-      rollupKind: f.rollupKind === 'context' ? 'context' : 'attribute',
-      rollupContextId: typeof f.rollupContextId === 'string' && f.rollupContextId ? f.rollupContextId : null,
-      rollupPath: Array.isArray(f.rollupPath) ? f.rollupPath : [],
-      sortAttributes: Array.isArray(f.sortAttributes) && f.sortAttributes.length
-        ? f.sortAttributes.slice(0, 6) : DEFAULT_SORT,
-      foldOnLoad: [true, false, 'auto'].includes(f.foldOnLoad) ? f.foldOnLoad : 'auto',
-      sortHierarchy: (f.sortHierarchy && typeof f.sortHierarchy.contextId === 'string') ? f.sortHierarchy : null,
+      ...normalizeMatrixFilter(f),
       rollupExpanded: [],
       rollupCollapsed: [],
       foldAttributes: false,

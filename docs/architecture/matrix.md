@@ -43,6 +43,33 @@ Shape:
 
 The view itself is a single `SELECT FROM "ResourceAssignments"` with no `assignmentType` filter — every type stored in the base table flows through automatically. The legacy hardcoded UNION of `Direct/Owner/Eligible/Governed` was removed in migration 024 so future assignment types don't need a migration to surface.
 
+### Resource metadata columns (Contexts pinned left, `#` | Type | Description right)
+
+Every resource row carries read-only metadata either side of the grid. The
+pinned info block is **drag handle | Resource Name | Contexts**; the right-side
+block is **`#` | Type | Description**. **Contexts** lists the Contexts the
+resource belongs to — group category, tags, clusters, business processes — so
+the category of a group is visible without an export. It sits in the pinned
+block (where resource Type used to be) so it stays on screen while the grid
+scrolls horizontally; Type moved to the right-side block in exchange.
+
+It rides the flat-grid response as a sidecar, not a per-row fetch: `handleFlatGrid`
+returns `resourceContexts: [{ resourceId, contexts: [{ id, displayName, contextType }] }]`,
+computed by one indexed batch query over `ContextMembers` → `Contexts`
+(`fetchResourceContexts` in `app/api/src/matrix/resourceContexts.js`), scoped to
+the resources actually on the grid and to `memberType = 'Resource'`. The same
+join backs `GET /api/resources/:id/contexts`. Rows are server-sorted by
+`contextType`, then `displayName`; the cell shows the first two as chips and
+collapses the rest behind a `+N` toggle, while the Excel export writes the full
+comma-joined list.
+
+Only **Resource-targeted** memberships appear — an Identity- or Principal-targeted
+context (a department, an org unit) is a property of the people in a group, not of
+the group, and never shows on a resource row. The column is display-only: filtering
+by context stays in the filter wizard's context picker (`buildContextClause` in
+`matrix/filterSql.js`). Flat per-subject grid only; the roll-up / layered /
+attribute-fold views aggregate resources and have no per-resource row.
+
 ## Badge collapse — what each letter actually means
 
 The user reads three letters. The DB stores a handful of assignment types. The translation lives in migration 049's CASE expression and is intentionally lossy:
@@ -100,6 +127,7 @@ A user who is both a member and an owner of a group holds two separate resources
 
 - The matview is refreshed `CONCURRENTLY` after the first run (which is non-concurrent because the matview starts empty).
 - The unique covering index `(resourceId, principalId, membershipType)` is required for `REFRESH CONCURRENTLY` and also makes the matrix endpoint's per-principal lookups index-only.
+- The Contexts sidecar is one extra indexed query per flat-grid request (`ix_ContextMembers_member`), bounded by the grid's distinct resources — computed once per resource, never per cell.
 - The recursive CTE that previously expanded nested groups *inside* the matview was removed in 013 — it was the dominant cost on the load-test dataset and produced the same matrix for tenants without group-in-group nesting. Group-level expansion happens lazily at click time via the `/nested-groups` endpoint instead.
 
 ## Identity rows
@@ -125,6 +153,56 @@ The wizard's "+ Context" picker is filtered by the subject row type so an analys
 ### Identity extension-attribute filtering
 
 The subject-condition step also offers an "+ Attribute" filter. When `rowType=identity`, the column list comes from `GET /api/matrix/columns?entity=Identity` (loaded lazily the first time the analyst switches to identities), so identities can be narrowed by their own attributes (department, jobTitle, companyName, city, country, employeeId, …) and by identity tag. Switching row type clears the subject conditions, since the available columns differ between principals and identities.
+
+### Filter shape — normalised at the wizard boundary
+
+A matrix filter reaches the wizard from four places and only one of them is
+guaranteed to carry every field:
+
+| Source | Completeness |
+|---|---|
+| The wizard's own **Apply** | complete |
+| A saved matrix (`SavedMatrixFilters`) | may predate a field, or be seeded with only a few |
+| The `#matrix?filter=…` URL | shared from an older build, or hand-edited |
+| The org-wide default matrix (auto-applied without opening the wizard) | as seeded — `Ingest-DemoDataset.ps1` seeds `rowType`/`orientation`/`subject`/`resource` and nothing else |
+
+The wizard's steps read those fields directly (`sortAttributes.length`,
+`subject.include`, …), so every filter entering wizard state — the `initialFilter`
+prop *and* a matrix loaded from the saved-matrix dropdown — goes through
+`normalizeMatrixFilter()` in [`app/ui/src/utils/matrixFilter.js`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/ui/src/utils/matrixFilter.js)
+first. It fills missing fields from `EMPTY_FILTER`, drops wrongly-typed values,
+and deep-copies the source so wizard edits can't mutate the applied filter. The
+grid-side consumers (`MatrixView`, `sortUsers`, the Excel export) already fall
+back to `DEFAULT_SORT` on their own, so a partial filter renders — it was only
+the wizard that assumed the full shape.
+
+### Matrix identity — comparing two filters
+
+"Is this the matrix I saved?" is asked by the summary bar
+(`MatrixFilterSummary`), which labels the applied matrix with its saved name or
+"Not saved". Filters are compared with `matrixFilterFingerprint()` — canonical
+(key-order-independent) JSON of the **normalised** filter, minus the view-state
+keys `rollupExpanded` / `rollupCollapsed` / `rollupPath` / `foldAttributes`.
+Never compare filters with raw `JSON.stringify`:
+
+* the applied filter is always the full shape while a stored one may carry only
+  a few fields (and a `managed` key the filter itself doesn't have), so a raw
+  compare made a matrix stop matching the saved row it was loaded from the
+  moment the analyst opened the wizard and applied without changing anything;
+* the view-state keys say where the analyst is *in* the matrix (which groups are
+  folded, how far they've drilled), not which matrix it is, and the wizard
+  rewrites them on every apply.
+
+### Adjusting without changing anything
+
+Opening "Adjust matrix", walking the steps and applying without touching a
+control has to be a no-op — every step renders, and the matrix that comes back
+is the same one, still carrying its saved name. That contract is what the two
+regressions above broke, and it's covered end-to-end in
+[`app/ui/e2e/matrix.spec.js`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/ui/e2e/matrix.spec.js)
+("Matrix — adjust without changing anything") for each way a filter reaches the
+wizard: the org-wide default, a shared link, an identity matrix, and a second
+adjust of the wizard's own output.
 
 ## Sorting, folding & server-side aggregation
 
@@ -193,6 +271,9 @@ header row per shown level (every sort attribute / every org level). On-screen
 merged spans are written as the **same value repeated** across each column — cells
 are not merged in the file (`exportRollupToExcel.js`, `exportToExcel.js`). All
 externally-influenced cells route through `safeCell` (formula-injection guard).
+The per-subject export mirrors the grid's column order: **Contexts** (every context
+name, comma-joined and untruncated) sits in the info block next to Resource Name,
+and the right-side block is `#`, Type, Description.
 
 ## Related references
 

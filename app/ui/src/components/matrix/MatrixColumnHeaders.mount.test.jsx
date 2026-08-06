@@ -2,7 +2,7 @@
 import { describe, it, expect } from 'vitest';
 import { createElement as h } from 'react';
 import MatrixColumnHeaders, { GROUP_ROW_H } from './MatrixColumnHeaders';
-import { renderWithProviders } from '@ui/test-utils/renderWithProviders';
+import { renderWithProviders, screen } from '@ui/test-utils/renderWithProviders';
 
 // Build subjects whose sortKeys line up with `sortAttributes`, so the header
 // renders one grouping row per attribute.
@@ -46,5 +46,38 @@ describe('MatrixColumnHeaders sticky header', () => {
 
     const two = renderHeaders([{ attribute: 'businessUnit' }, { attribute: 'department' }]);
     expect(two.container.querySelector('thead').style.top).toBe(`-${2 * GROUP_ROW_H}px`);
+  });
+});
+
+describe('MatrixColumnHeaders metadata columns', () => {
+  it('pins Contexts beside the resource name and labels Type on the right', () => {
+    const { container } = renderHeaders([{ attribute: 'department' }]);
+    const namesRow = [...container.querySelectorAll('thead tr')].at(-1);
+    const headers = [...namesRow.children];
+
+    // Info block: drag handle | Resource Name | Contexts — all sticky-left.
+    expect(headers[1]).toHaveTextContent('Resource Name');
+    expect(headers[2]).toHaveTextContent('Contexts');
+    expect(headers[2].style.left).toBe('299px');
+    expect(headers[2].className).toContain('sticky');
+
+    // Right-side metadata block: # | Type | Description.
+    expect(headers.at(-2)).toHaveTextContent('Type');
+    expect(headers.at(-1)).toHaveTextContent('Description');
+    expect(screen.getByText('Contexts')).toBeInTheDocument();
+  });
+
+  it('keeps every header row the same width as a resource row (# | Type | Description)', () => {
+    const users = makeUsers();
+    const { container } = renderHeaders([{ attribute: 'businessUnit' }, { attribute: 'department' }]);
+    const rows = [...container.querySelectorAll('thead tr')];
+
+    // A resource row emits: drag handle + name + contexts + one cell per subject
+    // + the three right-side metadata cells. Each grouping row spans the three
+    // info columns with a single colSpan cell, so the widths must still match.
+    const widthOf = (tr) => [...tr.children]
+      .reduce((n, th) => n + (Number(th.getAttribute('colspan')) || 1), 0);
+    const expected = 3 + users.length + 3;
+    for (const tr of rows) expect(widthOf(tr)).toBe(expected);
   });
 });

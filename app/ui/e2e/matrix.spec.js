@@ -112,6 +112,303 @@ test.describe('Matrix View', () => {
   });
 });
 
+// ─── Contexts column (#870) ────────────────────────────────────────────────────
+//
+// Each resource row carries the Contexts it belongs to (group category, tags,
+// clusters, …) pinned next to the resource name: up to two chips, the rest behind
+// a "+N" toggle. Resource Type moved to the right-side metadata block in its
+// place. Display only — filtering by context stays in the filter wizard.
+test.describe('Matrix — Contexts column', () => {
+  test.setTimeout(90000);
+
+  const allDataFilter = {
+    rowType: 'principal',
+    orientation: 'rows-as-resources',
+    subject: { include: [], exclude: [] },
+    resource: { include: [], exclude: [] },
+  };
+
+  async function openGrid(page) {
+    await page.goto('/#matrix?filter=' + encodeURIComponent(JSON.stringify(allDataFilter)));
+    await page.waitForLoadState('networkidle');
+    const table = page.locator('table').first();
+    try {
+      await expect(table).toBeVisible({ timeout: 40000 });
+    } catch {
+      test.skip(true, 'matrix grid did not render (no data) — cannot exercise the Contexts column');
+    }
+    return table;
+  }
+
+  test('the grid has a Contexts header column', async ({ page }) => {
+    await openGrid(page);
+    await expect(page.getByRole('columnheader', { name: 'Contexts', exact: true }).first())
+      .toBeVisible({ timeout: 20000 });
+  });
+
+  test('Contexts is pinned beside Resource Name and Type sits on the right', async ({ page }) => {
+    const table = await openGrid(page);
+    const namesRow = table.locator('thead tr').last();
+    const headers = namesRow.locator('th');
+
+    // Info block, left to right: drag handle | Resource Name | Contexts.
+    await expect(headers.nth(1)).toHaveText('Resource Name');
+    await expect(headers.nth(2)).toHaveText('Contexts');
+    // Contexts is pinned, so it stays put while the grid scrolls horizontally.
+    await expect(headers.nth(2)).toHaveCSS('position', 'sticky');
+
+    // Right-side metadata block ends with … | Type | Description.
+    const count = await headers.count();
+    await expect(headers.nth(count - 2)).toHaveText('Type');
+    await expect(headers.nth(count - 1)).toHaveText('Description');
+
+    // The first data row lines up with those headers: chips (or a dash) in the
+    // pinned Contexts cell, the resource type in the second-to-last cell.
+    const cells = table.locator('tbody tr').first().locator('td');
+    await expect(cells.nth(2)).toHaveCSS('position', 'sticky');
+    await expect(cells.nth(2)).not.toBeEmpty();
+  });
+
+  test('the API serves a per-resource contexts sidecar for the grid', async ({ page }) => {
+    // The fetch below uses an app-relative URL, so the page must be on the app's
+    // origin first — evaluating on the initial about:blank cannot resolve it.
+    await page.goto('/');
+
+    const body = await page.evaluate(async (filter) => {
+      const res = await fetch('/api/matrix/data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filter }),
+      });
+      return res.ok ? res.json() : null;
+    }, allDataFilter);
+
+    expect(body).not.toBeNull();
+    expect(Array.isArray(body.resourceContexts)).toBe(true);
+    for (const entry of body.resourceContexts) {
+      expect(typeof entry.resourceId).toBe('string');
+      expect(Array.isArray(entry.contexts)).toBe(true);
+      expect(entry.contexts.length).toBeGreaterThan(0);
+      for (const ctx of entry.contexts) expect(typeof ctx.displayName).toBe('string');
+    }
+  });
+
+  test('a row in more than two contexts expands the rest inline via "+N"', async ({ page }) => {
+    await openGrid(page);
+
+    const expander = page.getByRole('button', { name: /show \d+ more contexts/i }).first();
+    if (await expander.count() === 0) {
+      test.skip(true, 'no resource in this dataset belongs to more than two contexts');
+      return;
+    }
+
+    const row = page.locator('tbody tr').filter({ has: expander }).first();
+    const before = await row.locator('span[title*=":"]').count();
+    await expander.click();
+    // Expanding reveals the hidden chips and flips the control to "collapse".
+    await expect(page.getByRole('button', { name: /show fewer contexts/i }).first()).toBeVisible();
+    expect(await row.locator('span[title*=":"]').count()).toBeGreaterThan(before);
+  });
+});
+
+// ─── Adjusting a matrix without changing anything ─────────────────────────────
+//
+// "Adjust matrix" is the analyst's main loop, and opening the wizard, walking
+// its steps and applying WITHOUT touching a control has to be a no-op: every
+// step renders, and the matrix that comes back is the one they were looking at.
+//
+// It wasn't. A filter that didn't come from the wizard — the org-wide default
+// the demo dataset seeds, a shared `#matrix?filter=…` link, an older saved
+// matrix — carries only the fields its writer cared about, and the steps read
+// the rest directly (`sortAttributes.length`), so the Sort step took down the
+// whole page: the analyst got "Something went wrong" instead of the wizard.
+//
+// Every other matrix spec missed it because they drive the grid through a URL
+// filter and never reopen the wizard, or open it on a freshly-built (complete)
+// filter. The tests below walk the real path for each way a filter reaches the
+// wizard, changing nothing, so this class of break is caught in CI instead of
+// in functional acceptance.
+
+// The steps the wizard can show, and a marker that only renders once that
+// step's body is on screen. Keyed by the label in the step indicator.
+const STEP_MARKERS = {
+  Setup:     'Subject type',
+  Content:   'Roll-up content',
+  Subjects:  /Narrow down the (users|identities) that appear as rows/,
+  Resources: 'Narrow down the resources that appear as columns',
+  Sort:      'Sort columns',
+};
+
+// Records the counts of every matrix payload the page loads, newest last, so a
+// test can assert the matrix before and after an adjust is the same one.
+function trackMatrixLoads(page) {
+  const loads = [];
+  page.on('response', async (res) => {
+    if (res.request().method() !== 'POST' || !res.url().includes('/api/matrix/data')) return;
+    try {
+      const body = await res.json();
+      loads.push({
+        subjectCount:    body.subjectCount,
+        resourceCount:   body.resourceCount,
+        assignmentCount: body.assignmentCount,
+        rowCount:        (body.data || []).length,
+      });
+    } catch { /* a superseded (aborted) request has no body — ignore */ }
+  });
+  return loads;
+}
+
+// The name the summary bar gives the applied matrix: the saved matrix it came
+// from, or "Not saved". It's the bar's leading badge — the bar itself being the
+// innermost element that holds the "Adjust matrix" button. Waits out the "…"
+// the badge shows while the saved-matrix list is still loading.
+async function savedBadgeText(page) {
+  const bar = page.locator('div')
+    .filter({ has: page.getByRole('button', { name: 'Adjust matrix' }) }).last();
+  const badge = bar.locator('> span').first();
+  await expect(badge).not.toHaveText('…', { timeout: 20000 });
+  return (await badge.innerText()).trim();
+}
+
+// The resource names currently rendered in the grid's pinned name column.
+// Row order is deterministic, so this is a cheap "same matrix" fingerprint that
+// survives row virtualisation (it only ever compares the visible window).
+function visibleRowNames(page) {
+  return page.locator('tbody tr td:nth-child(2)').allInnerTexts();
+}
+
+// Open the wizard on the applied matrix, visit EVERY step it offers (via the
+// step indicator, so no step is skipped by a Next that lands elsewhere), change
+// nothing, and apply. Returns the labels of the steps that were visited.
+async function adjustWithoutChanges(page) {
+  await page.getByRole('button', { name: 'Adjust matrix' }).click();
+  await expect(page.getByText(STEP_MARKERS.Setup)).toBeVisible({ timeout: 20000 });
+
+  // The step list is dynamic (a roll-up adds Content and drops Sort), so read it
+  // off the indicator rather than assuming a fixed sequence.
+  const stepButtons = page.getByRole('button', { name: /^Go to step \d+: / });
+  const labels = (await stepButtons.allTextContents()).map(t => t.replace(/^\d+|✓/, '').trim());
+  expect(labels.length).toBeGreaterThan(1);
+
+  for (const [i, label] of labels.entries()) {
+    await stepButtons.nth(i).click();
+    const marker = STEP_MARKERS[label];
+    expect(marker, `unknown wizard step "${label}" — add it to STEP_MARKERS`).toBeTruthy();
+    await expect(page.getByText(marker).first()).toBeVisible({ timeout: 10000 });
+  }
+
+  // Apply is only offered on the last step, which is where the walk ended.
+  await page.getByRole('button', { name: 'Apply', exact: true }).click();
+  await expect(page.getByText(STEP_MARKERS[labels[labels.length - 1]]).first())
+    .toBeHidden({ timeout: 10000 });
+  return labels;
+}
+
+test.describe('Matrix — adjust without changing anything', () => {
+  test.setTimeout(90000);
+
+  // Exactly what test/demo-dataset/Ingest-DemoDataset.ps1 seeds as the org-wide
+  // default: the four fields the seeder cares about and nothing else.
+  const seededFilter = {
+    rowType: 'principal',
+    orientation: 'rows-as-resources',
+    subject: { include: [], exclude: [] },
+    resource: { include: [], exclude: [] },
+  };
+
+  // Loads the matrix and waits for the grid. `hash` omitted = the org-wide
+  // default matrix, auto-applied without the wizard (a demo install's first
+  // visit); otherwise the filter travels in the URL, as a shared link does.
+  async function openMatrix(page, hash = '#matrix') {
+    await page.goto('/' + hash);
+    await page.waitForLoadState('networkidle');
+    const table = page.locator('table').first();
+    try {
+      await expect(table).toBeVisible({ timeout: 40000 });
+    } catch {
+      test.skip(true, 'matrix grid did not render (no data) — cannot exercise the adjust path');
+    }
+    await expect(page.getByRole('button', { name: 'Adjust matrix' })).toBeVisible({ timeout: 20000 });
+  }
+
+  test('the org-wide default matrix survives an adjust that changes nothing', async ({ page }) => {
+    const crashes = [];
+    page.on('pageerror', (err) => crashes.push(err.message));
+    const loads = trackMatrixLoads(page);
+
+    await openMatrix(page);
+    const before = loads[loads.length - 1];
+    const rowsBefore = await visibleRowNames(page);
+    const savedNameBefore = await savedBadgeText(page);
+    // Guard the comparisons below against passing on nothing.
+    expect(before?.rowCount, 'the matrix loaded no assignments').toBeGreaterThan(0);
+    expect(rowsBefore.length, 'the grid rendered no resource rows').toBeGreaterThan(0);
+
+    const steps = await adjustWithoutChanges(page);
+    expect(steps).toEqual(['Setup', 'Subjects', 'Resources', 'Sort']);
+
+    // The page is still the matrix, not the error boundary.
+    await expect(page.getByText('Something went wrong')).toBeHidden();
+    expect(crashes).toEqual([]);
+    await expect(page.locator('table').first()).toBeVisible({ timeout: 20000 });
+
+    // …and it is the SAME matrix: same scope counts, same rows in the same order.
+    await expect.poll(() => loads[loads.length - 1], { timeout: 20000 }).toEqual(before);
+    expect(await visibleRowNames(page)).toEqual(rowsBefore);
+    // Including its identity: it's still the saved matrix it was loaded from,
+    // not a look-alike relabelled "Not saved".
+    await expect.poll(() => savedBadgeText(page), { timeout: 20000 }).toBe(savedNameBefore);
+    expect(savedNameBefore).not.toBe('Not saved');
+  });
+
+  test('a matrix shared as a link survives an adjust that changes nothing', async ({ page }) => {
+    const crashes = [];
+    page.on('pageerror', (err) => crashes.push(err.message));
+
+    await openMatrix(page, '#matrix?filter=' + encodeURIComponent(JSON.stringify(seededFilter)));
+    await adjustWithoutChanges(page);
+
+    await expect(page.getByText('Something went wrong')).toBeHidden();
+    expect(crashes).toEqual([]);
+    await expect(page.locator('table').first()).toBeVisible({ timeout: 20000 });
+  });
+
+  test('an identity matrix survives an adjust that changes nothing', async ({ page }) => {
+    // rowType=identity makes the wizard lazy-load a different column set for the
+    // Subjects and Sort steps — those must render before the columns arrive too.
+    const crashes = [];
+    page.on('pageerror', (err) => crashes.push(err.message));
+
+    await openMatrix(page, '#matrix?filter=' + encodeURIComponent(JSON.stringify({
+      ...seededFilter, rowType: 'identity',
+    })));
+    await adjustWithoutChanges(page);
+
+    await expect(page.getByText('Something went wrong')).toBeHidden();
+    expect(crashes).toEqual([]);
+    await expect(page.locator('table').first()).toBeVisible({ timeout: 20000 });
+  });
+
+  test('adjusting twice in a row keeps the matrix stable', async ({ page }) => {
+    // The second pass adjusts a filter the wizard itself produced, so a step
+    // that mangles a field on the way out shows up as a changed matrix here.
+    const crashes = [];
+    page.on('pageerror', (err) => crashes.push(err.message));
+    const loads = trackMatrixLoads(page);
+
+    await openMatrix(page);
+    const before = loads[loads.length - 1];
+
+    await adjustWithoutChanges(page);
+    await expect(page.locator('table').first()).toBeVisible({ timeout: 20000 });
+    await adjustWithoutChanges(page);
+
+    await expect(page.getByText('Something went wrong')).toBeHidden();
+    expect(crashes).toEqual([]);
+    await expect.poll(() => loads[loads.length - 1], { timeout: 20000 }).toEqual(before);
+  });
+});
+
 // ─── Regression: no double scrollbar behind the matrix grid ────────────────────
 //
 // The bug: the grid's height was a fixed max-h-[calc(100vh-280px)] that guessed

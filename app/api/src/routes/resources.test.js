@@ -138,4 +138,48 @@ describe('GET /resources/:id — optional-data error handling (Q2 de-masking)', 
     const res = await request(app).get(`/api/resources/${VALID_ID}`);
     expect(res.status).toBe(500);
   });
+
+  it('counts only Resource-typed context memberships, matching the contexts list', async () => {
+    mockDb.queryOne.mockResolvedValue({ cnt: 3 });
+    const res = await request(app).get(`/api/resources/${VALID_ID}`);
+    expect(res.status).toBe(200);
+    expect(res.body.contextCount).toBe(3);
+    const ctxSql = mockDb.queryOne.mock.calls.map(([sql]) => sql).find(sql => sql.includes('"ContextMembers"'));
+    expect(ctxSql).toContain(`"memberType" = 'Resource'`);
+  });
+});
+
+describe('GET /resources/:id/contexts', () => {
+  beforeEach(() => {
+    mockDb.query.mockReset();
+    mockDb.query.mockResolvedValue({ rows: [] });
+  });
+
+  it('400 on a malformed id', async () => {
+    const res = await request(app).get('/api/resources/not-a-uuid/contexts');
+    expect(res.status).toBe(400);
+    expect(mockDb.query).not.toHaveBeenCalled();
+  });
+
+  it('returns the contexts via the shared ContextMembers join', async () => {
+    mockDb.query.mockResolvedValue({
+      rows: [{ id: 'c1', displayName: 'M365', contextType: 'group-category', targetType: 'Resource', variant: 'generated' }],
+    });
+    const res = await request(app).get(`/api/resources/${VALID_ID}/contexts`);
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual([
+      { id: 'c1', displayName: 'M365', contextType: 'group-category', targetType: 'Resource', variant: 'generated' },
+    ]);
+    const [sql, values] = mockDb.query.mock.calls[0];
+    expect(sql).toContain('FROM "ContextMembers" cm');
+    expect(sql).toContain('cm."memberType" = \'Resource\'');
+    expect(sql).toContain('cm."memberId"::text = $1');
+    expect(values).toEqual([VALID_ID]);
+  });
+
+  it('500 when the query fails', async () => {
+    mockDb.query.mockRejectedValue(new Error('boom'));
+    const res = await request(app).get(`/api/resources/${VALID_ID}/contexts`);
+    expect(res.status).toBe(500);
+  });
 });

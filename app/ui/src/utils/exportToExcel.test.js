@@ -112,7 +112,7 @@ describe('exportToExcel', () => {
     // No sortAttributes => one default header level ('department') on row 1,
     // names row on row 2.
     expect(ws.getCell(2, 1).value).toBe('Resource Name');
-    expect(ws.getCell(2, 2).value).toBe('Type');
+    expect(ws.getCell(2, 2).value).toBe('Contexts');
     expect(ws.getCell(2, 3).value).toBe('GUID');
     // Default attribute label is the friendly form of 'department'.
     expect(ws.getCell(1, 1).value).toBe('Department');
@@ -124,7 +124,10 @@ describe('exportToExcel', () => {
       { id: 'u2', displayName: 'Bob', sortKeys: ['Finance'] },
     ];
     const orderedGroups = [
-      { id: 'g1', displayName: 'Admins', groupType: 'Security', realGroupId: 'g1', description: 'desc', memberCount: 5 },
+      {
+        id: 'g1', displayName: 'Admins', groupType: 'Security', realGroupId: 'g1', description: 'desc', memberCount: 5,
+        contexts: [{ id: 'c1', displayName: 'Finance', contextType: 'Tag' }],
+      },
     ];
     const memberships = new Map([
       ['g1|u1', new Set(['Direct'])],
@@ -143,9 +146,10 @@ describe('exportToExcel', () => {
     // Group row (first data row = namesRow + 1)
     const dataRow = namesRow + 1;
     expect(ws.getCell(dataRow, 1).value).toBe('Admins');
-    expect(ws.getCell(dataRow, 2).value).toBe('Security');
+    expect(ws.getCell(dataRow, 2).value).toBe('Finance');
     expect(ws.getCell(dataRow, 3).value).toBe('g1');
     expect(ws.getCell(dataRow, 6).value).toBe(5); // # (meta col, metaColStart = 3+2+1 = 6)
+    expect(ws.getCell(dataRow, 7).value).toBe('Security'); // Type moved to the meta block
 
     // Single membership => first letter of the type.
     expect(ws.getCell(dataRow, 4).value).toBe('D');
@@ -197,6 +201,40 @@ describe('exportToExcel', () => {
     // Per-level sort keys for the user.
     expect(ws.getCell(1, 4).value).toBe('Eng');
     expect(ws.getCell(2, 4).value).toBe('Backend');
+  });
+
+  it('exports Contexts as an info column listing every context, untruncated', async () => {
+    const users = [{ id: 'u1', displayName: 'Alice', sortKeys: ['HR'] }];
+    const orderedGroups = [
+      {
+        id: 'g1', displayName: 'Admins', groupType: 'Security', description: 'desc', memberCount: 2,
+        contexts: [
+          { id: 'c1', displayName: 'Finance', contextType: 'Tag' },
+          { id: 'c2', displayName: 'Microsoft 365', contextType: 'group-category' },
+          { id: 'c3', displayName: 'Cluster-A', contextType: 'cluster' },
+        ],
+      },
+      { id: 'g2', displayName: 'Readers', groupType: 'Security', description: '', memberCount: 1 },
+    ];
+
+    await exportToExcel(baseInput({ users, orderedGroups }));
+    const wb = await loadCapturedWorkbook();
+    const ws = wb.getWorksheet('Role Mining Matrix');
+
+    const namesRow = 2;
+    const metaColStart = 3 + 1 + 1; // infoColCount + userCount + 1, no AP columns
+    // Contexts sits next to the resource name; Type moved to the meta block.
+    expect(ws.getCell(namesRow, 2).value).toBe('Contexts');
+    expect(ws.getCell(namesRow, metaColStart).value).toBe('#');
+    expect(ws.getCell(namesRow, metaColStart + 1).value).toBe('Type');
+    expect(ws.getCell(namesRow, metaColStart + 2).value).toBe('Description');
+
+    // All three contexts — the on-screen cell caps at two chips, the file doesn't.
+    expect(ws.getCell(namesRow + 1, 2).value).toBe('Finance, Microsoft 365, Cluster-A');
+    expect(ws.getCell(namesRow + 1, metaColStart + 1).value).toBe('Security');
+    expect(ws.getCell(namesRow + 1, metaColStart + 2).value).toBe('desc');
+    // A resource with no contexts exports an empty cell, not 'undefined'.
+    expect(ws.getCell(namesRow + 2, 2).value).toBeFalsy();
   });
 
   it('renders access-package columns and a banner', async () => {

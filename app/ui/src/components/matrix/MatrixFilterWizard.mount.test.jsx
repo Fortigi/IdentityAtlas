@@ -134,6 +134,49 @@ describe('MatrixFilterWizard (mounted)', () => {
     expect(await screen.findByText(/appear as columns/i)).toBeInTheDocument();
   });
 
+  it('adjusts a partial filter (no sortAttributes) all the way to the Sort step', async () => {
+    // A matrix filter can arrive from a shared URL, an older saved matrix, or
+    // the seeded org default — none of which is guaranteed to carry every
+    // field. Adjusting one used to crash the page on the Sort step
+    // ("Cannot read properties of undefined (reading 'length')"); the wizard
+    // now normalises whatever it is handed.
+    const { onApply } = renderWizard({
+      initialFilter: {
+        rowType: 'principal',
+        orientation: 'rows-as-resources',
+        subject: { include: [], exclude: [] },
+        resource: { include: [], exclude: [] },
+      },
+    });
+    const user = userEvent.setup();
+
+    expect(screen.getByText('Adjust matrix')).toBeInTheDocument();
+    await user.click(screen.getByText('Next')); // → Subjects
+    await user.click(screen.getByText('Next')); // → Resources
+    await user.click(screen.getByText('Next')); // → Sort
+    expect(await screen.findByText('Sort columns')).toBeInTheDocument();
+    // Falls back to the default sort attribute rather than rendering empty.
+    expect(screen.getByText('Sort by')).toBeInTheDocument();
+
+    await user.click(screen.getByText('Apply'));
+    expect(onApply).toHaveBeenCalledWith(
+      expect.objectContaining({ sortAttributes: [{ attribute: 'department', dir: 'asc' }] }),
+      'all',
+    );
+  });
+
+  it('adjusts a filter with no subject/resource blocks at all', async () => {
+    // Same class of input, one step earlier: the Subjects/Resources steps read
+    // filter.subject.include / filter.resource.include directly.
+    renderWizard({ initialFilter: { rowType: 'principal' } });
+    const user = userEvent.setup();
+
+    await user.click(screen.getByText('Next')); // → Subjects
+    expect(await screen.findByText(/appear as rows/i)).toBeInTheDocument();
+    await user.click(screen.getByText('Next')); // → Resources
+    expect(await screen.findByText(/appear as columns/i)).toBeInTheDocument();
+  });
+
   it('resets back to the Setup step when reopened after navigating away', async () => {
     // A stateful harness toggles `open` so the closed→open reset (now done
     // during render rather than in an effect) runs through React normally.
