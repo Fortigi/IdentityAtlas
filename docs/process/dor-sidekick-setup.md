@@ -69,17 +69,19 @@ sudo ./svc.sh install && sudo ./svc.sh start     # systemd service, auto-starts 
 
 Adding a box to the pool means teaching the workflows about it. Update, on a branch → PR:
 
-- **`.github/workflows/dor-build-agent.yml`** and **`.github/workflows/dor-acceptance.yml`** — the
-  `case "$(hostname)"` block that maps the hostname to its public URL:
+- **`.github/workflows/dor-deploy.yml`**, **`dor-build-agent.yml`** and **`dor-acceptance.yml`** — all
+  three have a `case "$(hostname)"` block that maps the hostname to its public URL:
   ```bash
   dev-docker-05) url="https://5.build.identityatlas.io" ;;
   dev-docker-0N) url="https://N.build.identityatlas.io" ;;   # ← add
   ```
 - **`.github/workflows/dor-reset.yml`** and **`.github/workflows/dor-acceptance.yml`** — the reset /
-  feedback matrix `sk: [sk5, sk6, sk3]` → add `skN` so a close/comment reaches the new box.
+  feedback matrix `sk: [sk3, sk5, sk6, sk7, sk8, sk9, sk10]` → add `skN` so a close/comment reaches the
+  new box.
 
 A sidekick that is registered (step 3) but not wired here will pick up build jobs yet fail the
-"Identify this sidekick" step (`unknown sidekick … not in the dor-build pool map`).
+"Identify this sidekick" step (`unknown sidekick … not in the dor-build pool map`) — and, because the
+reset matrix never names it, it keeps its reservation and never returns to the pool.
 
 ## 5. Network (manual — infra)
 
