@@ -1,2 +1,0 @@
-- An automated build now says so on the issue as soon as it starts, with a link to follow along, instead of staying silent until its pull request exists. For a bug that silence had grown to 30–45 minutes, because the reproduce-and-prove steps run before the pull request is opened.
-- When the bug is reproduced, the issue gets the failing test output — the moment the report is confirmed as real, before anything has been fixed.

@@ -1,5 +1,10 @@
 ## Changes in this PR
 
+- An automated build now says so on the issue as soon as it starts, with a link to follow along, instead of staying silent until its pull request exists. For a bug that silence had grown to 30–45 minutes, because the reproduce-and-prove steps run before the pull request is opened.
+- When the bug is reproduced, the issue gets the failing test output — the moment the report is confirmed as real, before anything has been fixed.
+
+## Changes in this PR
+
 - When the automated triage certifies a bug as real, it now also records a short machine-readable summary of its diagnosis — the assertion that must fail before the fix, the layer responsible, the files it expects to change, and the reporter's path to the symptom. It is shown on the issue, and the fix that follows is checked against it.
 - A fix that changes files outside the area the diagnosis predicted is stopped for a human to look at, rather than continuing on the assumption that the diagnosis was right.
 
