@@ -1,0 +1,1 @@
+- When a reporter asks for a change to an automated bug fix, the regression test is re-checked to confirm it still catches the original bug. Previously only the first build proved that: any later adjustment could have weakened the test to make things pass, and it would have looked identical to success.
