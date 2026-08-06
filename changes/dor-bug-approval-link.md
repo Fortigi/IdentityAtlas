@@ -1,0 +1,1 @@
+- Issues that the DoR agent certifies now automatically reach the value gate: the pipeline posts a "Review & approve to build" link on the issue as soon as it lands in *Awaiting approval*, instead of waiting for someone to add the `ready-to-build` label by hand. This applies to bug reports as well as feature requests.
