@@ -1362,6 +1362,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Data source">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#resource-metadata-columns-contexts-pinned-left-type-description-right" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Resource metadata columns (Contexts pinned left, # | Type | Description right)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1447,6 +1464,39 @@
     <span class="md-ellipsis">
       
         Identity extension-attribute filtering
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#filter-shape-normalised-at-the-wizard-boundary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Filter shape — normalised at the wizard boundary
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#matrix-identity-comparing-two-filters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Matrix identity — comparing two filters
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#adjusting-without-changing-anything" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Adjusting without changing anything
       
     </span>
   </a>
@@ -4704,6 +4754,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Data source">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#resource-metadata-columns-contexts-pinned-left-type-description-right" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Resource metadata columns (Contexts pinned left, # | Type | Description right)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -4789,6 +4856,39 @@
     <span class="md-ellipsis">
       
         Identity extension-attribute filtering
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#filter-shape-normalised-at-the-wizard-boundary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Filter shape — normalised at the wizard boundary
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#matrix-identity-comparing-two-filters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Matrix identity — comparing two filters
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#adjusting-without-changing-anything" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Adjusting without changing anything
       
     </span>
   </a>
@@ -5011,6 +5111,29 @@ Companion to <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/api
 </tbody>
 </table>
 <p>The view itself is a single <code>SELECT FROM "ResourceAssignments"</code> with no <code>assignmentType</code> filter — every type stored in the base table flows through automatically. The legacy hardcoded UNION of <code>Direct/Owner/Eligible/Governed</code> was removed in migration 024 so future assignment types don't need a migration to surface.</p>
+<h3 id="resource-metadata-columns-contexts-pinned-left-type-description-right">Resource metadata columns (Contexts pinned left, <code>#</code> | Type | Description right)<a class="headerlink" href="#resource-metadata-columns-contexts-pinned-left-type-description-right" title="Permanent link">&para;</a></h3>
+<p>Every resource row carries read-only metadata either side of the grid. The
+pinned info block is <strong>drag handle | Resource Name | Contexts</strong>; the right-side
+block is <strong><code>#</code> | Type | Description</strong>. <strong>Contexts</strong> lists the Contexts the
+resource belongs to — group category, tags, clusters, business processes — so
+the category of a group is visible without an export. It sits in the pinned
+block (where resource Type used to be) so it stays on screen while the grid
+scrolls horizontally; Type moved to the right-side block in exchange.</p>
+<p>It rides the flat-grid response as a sidecar, not a per-row fetch: <code>handleFlatGrid</code>
+returns <code>resourceContexts: [{ resourceId, contexts: [{ id, displayName, contextType }] }]</code>,
+computed by one indexed batch query over <code>ContextMembers</code> → <code>Contexts</code>
+(<code>fetchResourceContexts</code> in <code>app/api/src/matrix/resourceContexts.js</code>), scoped to
+the resources actually on the grid and to <code>memberType = 'Resource'</code>. The same
+join backs <code>GET /api/resources/:id/contexts</code>. Rows are server-sorted by
+<code>contextType</code>, then <code>displayName</code>; the cell shows the first two as chips and
+collapses the rest behind a <code>+N</code> toggle, while the Excel export writes the full
+comma-joined list.</p>
+<p>Only <strong>Resource-targeted</strong> memberships appear — an Identity- or Principal-targeted
+context (a department, an org unit) is a property of the people in a group, not of
+the group, and never shows on a resource row. The column is display-only: filtering
+by context stays in the filter wizard's context picker (<code>buildContextClause</code> in
+<code>matrix/filterSql.js</code>). Flat per-subject grid only; the roll-up / layered /
+attribute-fold views aggregate resources and have no per-resource row.</p>
 <h2 id="badge-collapse-what-each-letter-actually-means">Badge collapse — what each letter actually means<a class="headerlink" href="#badge-collapse-what-each-letter-actually-means" title="Permanent link">&para;</a></h2>
 <p>The user reads three letters. The DB stores a handful of assignment types. The translation lives in migration 049's CASE expression and is intentionally lossy:</p>
 <table>
@@ -5094,6 +5217,7 @@ Companion to <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/api
 <ul>
 <li>The matview is refreshed <code>CONCURRENTLY</code> after the first run (which is non-concurrent because the matview starts empty).</li>
 <li>The unique covering index <code>(resourceId, principalId, membershipType)</code> is required for <code>REFRESH CONCURRENTLY</code> and also makes the matrix endpoint's per-principal lookups index-only.</li>
+<li>The Contexts sidecar is one extra indexed query per flat-grid request (<code>ix_ContextMembers_member</code>), bounded by the grid's distinct resources — computed once per resource, never per cell.</li>
 <li>The recursive CTE that previously expanded nested groups <em>inside</em> the matview was removed in 013 — it was the dominant cost on the load-test dataset and produced the same matrix for tenants without group-in-group nesting. Group-level expansion happens lazily at click time via the <code>/nested-groups</code> endpoint instead.</li>
 </ul>
 <h2 id="identity-rows">Identity rows<a class="headerlink" href="#identity-rows" title="Permanent link">&para;</a></h2>
@@ -5129,6 +5253,69 @@ Companion to <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/api
 <p>(Resource/System contexts always apply to the resource axis; Identity and Principal contexts to the subject axis.)</p>
 <h3 id="identity-extension-attribute-filtering">Identity extension-attribute filtering<a class="headerlink" href="#identity-extension-attribute-filtering" title="Permanent link">&para;</a></h3>
 <p>The subject-condition step also offers an "+ Attribute" filter. When <code>rowType=identity</code>, the column list comes from <code>GET /api/matrix/columns?entity=Identity</code> (loaded lazily the first time the analyst switches to identities), so identities can be narrowed by their own attributes (department, jobTitle, companyName, city, country, employeeId, …) and by identity tag. Switching row type clears the subject conditions, since the available columns differ between principals and identities.</p>
+<h3 id="filter-shape-normalised-at-the-wizard-boundary">Filter shape — normalised at the wizard boundary<a class="headerlink" href="#filter-shape-normalised-at-the-wizard-boundary" title="Permanent link">&para;</a></h3>
+<p>A matrix filter reaches the wizard from four places and only one of them is
+guaranteed to carry every field:</p>
+<table>
+<thead>
+<tr>
+<th>Source</th>
+<th>Completeness</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>The wizard's own <strong>Apply</strong></td>
+<td>complete</td>
+</tr>
+<tr>
+<td>A saved matrix (<code>SavedMatrixFilters</code>)</td>
+<td>may predate a field, or be seeded with only a few</td>
+</tr>
+<tr>
+<td>The <code>#matrix?filter=…</code> URL</td>
+<td>shared from an older build, or hand-edited</td>
+</tr>
+<tr>
+<td>The org-wide default matrix (auto-applied without opening the wizard)</td>
+<td>as seeded — <code>Ingest-DemoDataset.ps1</code> seeds <code>rowType</code>/<code>orientation</code>/<code>subject</code>/<code>resource</code> and nothing else</td>
+</tr>
+</tbody>
+</table>
+<p>The wizard's steps read those fields directly (<code>sortAttributes.length</code>,
+<code>subject.include</code>, …), so every filter entering wizard state — the <code>initialFilter</code>
+prop <em>and</em> a matrix loaded from the saved-matrix dropdown — goes through
+<code>normalizeMatrixFilter()</code> in <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/ui/src/utils/matrixFilter.js"><code>app/ui/src/utils/matrixFilter.js</code></a>
+first. It fills missing fields from <code>EMPTY_FILTER</code>, drops wrongly-typed values,
+and deep-copies the source so wizard edits can't mutate the applied filter. The
+grid-side consumers (<code>MatrixView</code>, <code>sortUsers</code>, the Excel export) already fall
+back to <code>DEFAULT_SORT</code> on their own, so a partial filter renders — it was only
+the wizard that assumed the full shape.</p>
+<h3 id="matrix-identity-comparing-two-filters">Matrix identity — comparing two filters<a class="headerlink" href="#matrix-identity-comparing-two-filters" title="Permanent link">&para;</a></h3>
+<p>"Is this the matrix I saved?" is asked by the summary bar
+(<code>MatrixFilterSummary</code>), which labels the applied matrix with its saved name or
+"Not saved". Filters are compared with <code>matrixFilterFingerprint()</code> — canonical
+(key-order-independent) JSON of the <strong>normalised</strong> filter, minus the view-state
+keys <code>rollupExpanded</code> / <code>rollupCollapsed</code> / <code>rollupPath</code> / <code>foldAttributes</code>.
+Never compare filters with raw <code>JSON.stringify</code>:</p>
+<ul>
+<li>the applied filter is always the full shape while a stored one may carry only
+  a few fields (and a <code>managed</code> key the filter itself doesn't have), so a raw
+  compare made a matrix stop matching the saved row it was loaded from the
+  moment the analyst opened the wizard and applied without changing anything;</li>
+<li>the view-state keys say where the analyst is <em>in</em> the matrix (which groups are
+  folded, how far they've drilled), not which matrix it is, and the wizard
+  rewrites them on every apply.</li>
+</ul>
+<h3 id="adjusting-without-changing-anything">Adjusting without changing anything<a class="headerlink" href="#adjusting-without-changing-anything" title="Permanent link">&para;</a></h3>
+<p>Opening "Adjust matrix", walking the steps and applying without touching a
+control has to be a no-op — every step renders, and the matrix that comes back
+is the same one, still carrying its saved name. That contract is what the two
+regressions above broke, and it's covered end-to-end in
+<a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/ui/e2e/matrix.spec.js"><code>app/ui/e2e/matrix.spec.js</code></a>
+("Matrix — adjust without changing anything") for each way a filter reaches the
+wizard: the org-wide default, a shared link, an identity matrix, and a second
+adjust of the wizard's own output.</p>
 <h2 id="sorting-folding-server-side-aggregation">Sorting, folding &amp; server-side aggregation<a class="headerlink" href="#sorting-folding-server-side-aggregation" title="Permanent link">&para;</a></h2>
 <p>The column axis can get very wide (one column per subject). Three mechanisms keep
 it usable at scale; which one is in play depends on the wizard's <strong>Sort</strong> step and
@@ -5204,7 +5391,10 @@ grouping rows scroll away.</p>
 header row per shown level (every sort attribute / every org level). On-screen
 merged spans are written as the <strong>same value repeated</strong> across each column — cells
 are not merged in the file (<code>exportRollupToExcel.js</code>, <code>exportToExcel.js</code>). All
-externally-influenced cells route through <code>safeCell</code> (formula-injection guard).</p>
+externally-influenced cells route through <code>safeCell</code> (formula-injection guard).
+The per-subject export mirrors the grid's column order: <strong>Contexts</strong> (every context
+name, comma-joined and untruncated) sits in the info block next to Resource Name,
+and the right-side block is <code>#</code>, Type, Description.</p>
 <h2 id="related-references">Related references<a class="headerlink" href="#related-references" title="Permanent link">&para;</a></h2>
 <ul>
 <li>Crawler emits — <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/tools/crawlers/entra-id/Start-EntraIDCrawler.ps1"><code>tools/crawlers/entra-id/Start-EntraIDCrawler.ps1</code></a> (phases <code>Assignments</code>, <code>PIM</code>, <code>Governance</code>, <code>OAuth2Grants</code>, <code>AppRoles</code>)</li>
