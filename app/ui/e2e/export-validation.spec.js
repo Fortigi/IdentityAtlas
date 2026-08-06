@@ -63,35 +63,48 @@ test.describe('Matrix Excel export — access-package columns match the grid', (
     resource: { include: [], exclude: [] },
   };
 
-  // Every access-package cell the grid renders, as { resource, package, letter }.
-  // AP columns are the header cells that name their catalog; the body rows use
-  // the same column order, so the header index doubles as the cell index.
-  function readGridApCells(page) {
+  // A resource name is NOT unique in the matrix: a group and the GroupOwnership
+  // resource named after it are two separate rows, and a tenant may hold two
+  // like-named resources of different types. Rows are therefore keyed by
+  // name + resource type, and same-key rows are paired up in row order — which
+  // the export preserves, writing the on-screen rows top to bottom.
+  const rowKey = (name, type) => JSON.stringify([name, type]);
+
+  // Every matrix row the grid renders, in order, with its access-package cells:
+  // { resource, type, cells: [{ package, letter, title }] }. AP columns are the
+  // header cells that name their catalog; body rows use the same column order,
+  // so the header index doubles as the cell index.
+  function readGridApRows(page) {
     return page.evaluate(() => {
       const table = document.querySelector('table');
       if (!table) return [];
-      const namesRow = [...table.querySelectorAll('thead tr')].pop();
-      const headers = [...namesRow.querySelectorAll('th')];
+      const headerRow = [...table.querySelectorAll('thead tr')].pop();
+      const headers = [...headerRow.querySelectorAll('th')];
       const apCols = headers
         .map((th, index) => ({ index, title: th.getAttribute('title') || '', name: th.innerText.trim() }))
         .filter(h => h.title.includes('Catalog:'));
 
-      const cells = [];
-      for (const row of table.querySelectorAll('tbody tr')) {
-        const tds = [...row.querySelectorAll('td')];
+      const rows = [];
+      for (const tr of table.querySelectorAll('tbody tr')) {
+        const tds = [...tr.querySelectorAll('td')];
         if (tds.length !== headers.length) continue; // spacer / message row
-        const resource = tds[1]?.innerText.trim();
+        // The name cell carries an expander glyph for expandable rows; the
+        // export writes the bare display name.
+        const resource = (tds[1]?.innerText || '').replace(/^[▶▼]\s*/, '').trim();
+        const type = (tds[headers.length - 2]?.innerText || '').trim();
+        const cells = [];
         for (const col of apCols) {
           const letter = tds[col.index]?.innerText.trim();
-          if (letter) cells.push({ resource, package: col.name, letter, title: tds[col.index].getAttribute('title') || '' });
+          if (letter) cells.push({ package: col.name, letter, title: tds[col.index].getAttribute('title') || '' });
         }
+        rows.push({ resource, type, cells });
       }
-      return cells;
+      return rows;
     });
   }
 
-  // Read the exported sheet back into the same { resource → package → letter } shape.
-  async function readWorkbookApCells(filePath) {
+  // Read the exported sheet back into the same shape, in the same row order.
+  async function readWorkbookApRows(filePath) {
     const wb = new ExcelJS.Workbook();
     await wb.xlsx.readFile(filePath);
     const ws = wb.getWorksheet('Role Mining Matrix');
@@ -105,25 +118,54 @@ test.describe('Matrix Excel export — access-package columns match the grid', (
     }
     expect(namesRow, 'no "Resource Name" header row in the export').toBeGreaterThan(0);
 
-    const meta = new Set(['Resource Name', 'Contexts', 'GUID', '#', 'Type', 'Description']);
-    const apColumns = new Map(); // package name -> column index
+    // The AP block sits between the user columns and the trailing meta columns,
+    // under the banner on the first header row. Locating it by span — rather
+    // than by "header name that isn't a meta label" — keeps a user whose display
+    // name matches an access package out of the comparison.
+    let apColStart = 0;
+    let metaColStart = 0;
     ws.getRow(namesRow).eachCell((cell, col) => {
-      const name = cell.text?.trim();
-      if (name && !meta.has(name)) apColumns.set(name, col);
+      if (cell.text?.trim() === '#' && !metaColStart) metaColStart = col;
     });
+    ws.getRow(1).eachCell((cell, col) => {
+      if (cell.text?.trim() === 'Governed (via Business Roles)' && !apColStart) apColStart = col;
+    });
+    expect(metaColStart, 'no "#" meta column in the export').toBeGreaterThan(0);
 
-    const byResource = new Map(); // resource -> Map(package -> letter)
+    const apColumns = new Map(); // package name -> column index
+    for (let col = apColStart; col > 0 && col < metaColStart; col++) {
+      const name = ws.getCell(namesRow, col).text?.trim();
+      if (name) apColumns.set(name, col);
+    }
+
+    const rows = [];
     for (let r = namesRow + 1; r <= ws.rowCount; r++) {
       const resource = ws.getCell(r, 1).text?.trim();
       if (!resource) continue;
-      const perAp = new Map();
+      const type = ws.getCell(r, metaColStart + 1).text?.trim();
+      const cells = new Map();
       for (const [name, col] of apColumns) {
         const letter = ws.getCell(r, col).text?.trim();
-        if (letter) perAp.set(name, letter);
+        if (letter) cells.set(name, letter);
       }
-      byResource.set(resource, perAp);
+      rows.push({ resource, type, cells });
     }
-    return byResource;
+    return rows;
+  }
+
+  // Pair each grid row with the export row for the same resource, matching
+  // repeats of a name+type key in row order.
+  function pairRows(gridRows, exportRows) {
+    const byKey = new Map();
+    for (const row of exportRows) {
+      const key = rowKey(row.resource, row.type);
+      if (!byKey.has(key)) byKey.set(key, []);
+      byKey.get(key).push(row);
+    }
+    return gridRows.map(gridRow => ({
+      gridRow,
+      exportRow: byKey.get(rowKey(gridRow.resource, gridRow.type))?.shift() || null,
+    }));
   }
 
   test('every badge in the grid is in the exported file, owner role scopes included', async ({ page }) => {
@@ -137,8 +179,9 @@ test.describe('Matrix Excel export — access-package columns match the grid', (
       test.skip(true, 'matrix grid did not render (no data) — cannot compare the export');
     }
 
-    const gridCells = await readGridApCells(page);
-    test.skip(gridCells.length === 0, 'this dataset has no governed access-package columns in the matrix');
+    const gridRows = await readGridApRows(page);
+    const gridCellCount = gridRows.reduce((n, row) => n + row.cells.length, 0);
+    test.skip(gridCellCount === 0, 'this dataset has no governed access-package columns in the matrix');
 
     const [download] = await Promise.all([
       page.waitForEvent('download', { timeout: 60000 }),
@@ -146,26 +189,40 @@ test.describe('Matrix Excel export — access-package columns match the grid', (
     ]);
     const filePath = await download.path();
     expect(filePath).toBeTruthy();
-    const exported = await readWorkbookApCells(filePath);
+    const exportRows = await readWorkbookApRows(filePath);
+    const paired = pairRows(gridRows, exportRows);
 
-    // 1. Nothing the grid shows may be missing from — or differ in — the file.
-    const missing = [];
-    for (const cell of gridCells) {
-      const letter = exported.get(cell.resource)?.get(cell.package);
-      if (letter !== cell.letter) {
-        missing.push(`${cell.resource} × ${cell.package}: grid '${cell.letter}', export '${letter ?? '(empty)'}'`);
+    // 1. The two must agree cell for cell, in both directions: nothing the grid
+    // badges may be missing from (or differ in) the file, and the file may not
+    // badge a cell the grid leaves empty.
+    const disagreements = [];
+    for (const { gridRow, exportRow } of paired) {
+      const label = `${gridRow.resource} (${gridRow.type})`;
+      if (!exportRow) {
+        disagreements.push(`${label}: row missing from the export`);
+        continue;
+      }
+      const seen = new Set();
+      for (const cell of gridRow.cells) {
+        seen.add(cell.package);
+        const letter = exportRow.cells.get(cell.package);
+        if (letter !== cell.letter) {
+          disagreements.push(`${label} × ${cell.package}: grid '${cell.letter}', export '${letter ?? '(empty)'}'`);
+        }
+      }
+      for (const [pkg, letter] of exportRow.cells) {
+        if (!seen.has(pkg)) disagreements.push(`${label} × ${pkg}: grid '(empty)', export '${letter}'`);
       }
     }
-    expect(missing, 'exported access-package cells disagree with the grid').toEqual([]);
+    expect(disagreements, 'exported access-package cells disagree with the grid').toEqual([]);
 
     // 2. The specific regression: a containment whose role scope is Owner.
     // The demo dataset seeds one; a tenant without one still gets check 1.
-    const ownerCells = gridCells.filter(c => /\(owner\)/i.test(c.title));
-    if (ownerCells.length > 0) {
-      for (const cell of ownerCells) {
-        expect(cell.letter, 'the grid badges an owner role scope as Direct').toBe('D');
-        expect(exported.get(cell.resource)?.get(cell.package)).toBe('D');
-      }
+    const ownerCells = paired.flatMap(({ gridRow, exportRow }) =>
+      gridRow.cells.filter(c => /\(owner\)/i.test(c.title)).map(cell => ({ gridRow, exportRow, cell })));
+    for (const { gridRow, exportRow, cell } of ownerCells) {
+      expect(cell.letter, `the grid badges the owner role scope on ${gridRow.resource} as Direct`).toBe('D');
+      expect(exportRow?.cells.get(cell.package), `the export badges the owner role scope on ${gridRow.resource} as Direct`).toBe('D');
     }
   });
 
