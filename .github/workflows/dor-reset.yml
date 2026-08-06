@@ -9,7 +9,7 @@ name: DoR reset (release sidekick + finalize board on PR close)
 # Deterministic, no AI. INERT until DOR_ENABLED=true.
 #
 # Targeting the right sidekick without a runner-admin token: one job per sidekick, each pinned to its
-# stable label (sk5 / sk6 / sk3); each self-checks whether IT holds this PR's reservation
+# stable label (sk3 / sk5 / sk6 / sk7 / sk8 / sk9 / sk10); each self-checks whether IT holds this PR's reservation
 # ("<PR> <ISSUE>" in ~/.dor-reservation) and only the holder acts. The rest no-op.
 
 on:
@@ -30,7 +30,7 @@ jobs:
       startsWith(github.event.pull_request.head.ref, 'dor/issue-')
     strategy:
       matrix:
-        sk: [sk5, sk6, sk3]
+        sk: [sk3, sk5, sk6, sk7, sk8, sk9, sk10]
     runs-on:
       - self-hosted
       - ${{ matrix.sk }}

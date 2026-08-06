@@ -151,10 +151,12 @@ The `dor-agent` reads **untrusted public-issue content** while `claude-code-acti
 
 ### As built (validated end-to-end, 2026-07-31)
 
-Three workflows, all inert until repo variable `DOR_ENABLED=true`, on the `dor-build` pool — **sidekick-5** (`dev-docker-05` → `5.build.identityatlas.io`) and **sidekick-6** (`dev-docker-06` → `6.build.identityatlas.io`):
+Three workflows, all inert until repo variable `DOR_ENABLED=true`, on the `dor-build` pool. The pool is
+**seven sidekicks** (2026-08-05) — `dev-docker-03`, `05`, `06`, `07`, `08`, `09`, `10`, each reachable at
+`N.build.identityatlas.io` and carrying the stable runner label `skN`:
 
 - **`dor-deploy.yml` (slice A):** apply `deploy-to-sidekick` to a **non-fork** PR → a pool runner frees `:3001`, builds + runs the PR branch (with a `BEHIND_TLS` + `PUBLIC_BASE_URL` compose override), health-checks it, writes a soft-reservation lock, and comments the `N.build` URL. Same-repo branches only (`head.repo == base repo`) so the runner never executes a fork's code.
-- **`dor-reset.yml` (slice B):** on PR close/merge → a matrix job pinned per sidekick (stable `sk5`/`sk6` labels); the holder runs `docker compose down -v` + prune, clears the lock, restores the placeholder, and releases the box.
+- **`dor-reset.yml` (slice B):** on PR close/merge → a matrix job pinned per sidekick (stable `skN` labels); the holder runs `docker compose down -v` + prune, clears the lock, restores the placeholder, and releases the box.
 - **`dor-build-agent.yml` (slice D):** apply `ready-to-build` to an approved issue → the AI implements the approved spec on a sidekick (`claude-code-action`, full tools), tests/self-validates, and opens a PR (`Closes #N`).
 
 **The approval gate (row 7) — the real one.** `ready-to-build` only *proposes* a build (GitHub can't restrict who applies a label). The build job runs in the **`build-approval` Environment** whose **required reviewers are the Product Board (Wim / Taeke / Rob)** — the job **pauses** for an Approve click in the Actions UI, and only they can approve, **before the agent runs or any token is spent**. Same enforcement class as a required PR approval (self-approval currently allowed). With the **merge gate (row 12)**, two GitHub-enforced human gates bracket the AI. The repo's fork-PR policy is set to `all_external_contributors` so no fork PR can reach the self-hosted runners.
