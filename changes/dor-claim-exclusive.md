@@ -1,0 +1,1 @@
+- A build that gets re-run after an interruption now correctly hands its build environment over to whichever machine picks it up, instead of leaving two machines both recorded as holding it.
