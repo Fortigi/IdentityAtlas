@@ -1,2 +1,0 @@
-- A build is no longer reported as verified unless its CI actually ran and passed. If the pull request's workflow runs are waiting for a maintainer to release them, the issue now says so and asks for that, instead of quietly declaring success on the strength of the live-environment test alone.
-- Build and feedback reports now list only the files that build actually changed. Long-lived branches were previously reported against a moved main branch, so an unrelated merge could be attributed to the change — one tooltip adjustment was reported as "533 files changed".
