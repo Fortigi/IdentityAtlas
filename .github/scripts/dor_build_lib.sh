@@ -62,8 +62,18 @@ sk_label() { local n; n="$(hostname)"; n="${n##*-}"; printf 'sk%d' "$((10#$n))";
 # the file, so a stale label costs one no-op rather than the wrong box being wiped. $1 = PR number.
 claim_sidekick() {
   echo "$1 $ISSUE" > "$HOME/.dor-reservation"
-  gh issue edit "$ISSUE" --repo "$REPO" --add-label "sk:$(sk_label)" >/dev/null 2>&1 \
-    || echo "::warning::could not label #$ISSUE with sk:$(sk_label) — its sidekick will need releasing by hand"
+  local mine="sk:$(sk_label)" stale
+  # The claim is EXCLUSIVE. A re-dispatched build (infra death, usage-limit resume) is scheduled by
+  # POOL label, so it can land on a different box than the attempt before it — and two sk:* labels on
+  # one issue would leave the resolver picking whichever the API returned first. Drop any other claim
+  # as we take ours.
+  stale="$(gh issue view "$ISSUE" --repo "$REPO" --json labels \
+           --jq "[.labels[].name | select(startswith(\"sk:\")) | select(. != \"$mine\")] | join(\",\")" 2>/dev/null || true)"
+  # shellcheck disable=SC2086  # label names never contain spaces; this expansion must stay unquoted
+  gh issue edit "$ISSUE" --repo "$REPO" --add-label "$mine" ${stale:+--remove-label "$stale"} >/dev/null 2>&1 \
+    || echo "::warning::could not label #$ISSUE with $mine — its sidekick will need releasing by hand"
+  [ -n "$stale" ] && echo "::notice::claim moved to $mine (dropped $stale) — the old box may still hold a stale stack"
+  return 0
 }
 
 # Make git push/fetch on THIS checkout authenticate as the BOT app instead of the job's GITHUB_TOKEN.
