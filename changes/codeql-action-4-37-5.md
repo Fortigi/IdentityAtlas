@@ -1,0 +1,1 @@
+- Updated the CodeQL security scanner to 4.37.5.
