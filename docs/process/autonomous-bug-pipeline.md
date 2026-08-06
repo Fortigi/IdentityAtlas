@@ -2,12 +2,16 @@
 
 > **Status: proposal.** Nothing here is built yet. This document is the shared vision we build
 > against; it supersedes nothing until it is agreed. The feature pipeline
-> ([operationalization](operationalization.md)) is unaffected — see [§9](#9-what-this-does-not-change).
+> ([operationalization](operationalization.md)) is unaffected — see [§10](#10-what-this-does-not-change).
 
 A reported bug that the DoR probe has **certified** — reproduced against real code, root cause
 pinned, regression test drafted — goes from report to a merge-ready PR **without a human in the
 loop**. The only human action is the merge review, and it is a review of *evidence*, not of a
 promise.
+
+That review has three answers, not one: approve, *"let me see it running myself"*, or *"the evidence
+isn't enough"* — and the last two are one command each, not manual work
+([§5](#5-the-review-loop--when-the-reviewer-is-not-satisfied)).
 
 ---
 
@@ -27,8 +31,8 @@ to drop:
 | Function of the gate | The question it answers | For a certified bug |
 |---|---|---|
 | **Value** | Is this worth building at all? | Answered by certification → **drop** |
-| **Spend** | What will this cost in runner time and model quota? | Real, but a *policy* question — bound it with concurrency + budget caps, not a per-issue click ([§7](#7-concurrency-budget-and-kill-switches)) |
-| **Blast radius** | Should the AI change *this part of the codebase* unsupervised? | Real, and the one worth keeping — but as an **automatic rule**, not a human judgement call ([§5](#5-stop-conditions--when-the-machine-must-escalate)) |
+| **Spend** | What will this cost in runner time and model quota? | Real, but a *policy* question — bound it with concurrency + budget caps, not a per-issue click ([§8](#8-concurrency-budget-and-kill-switches)) |
+| **Blast radius** | Should the AI change *this part of the codebase* unsupervised? | Real, and the one worth keeping — but as an **automatic rule**, not a human judgement call ([§6](#6-stop-conditions--when-the-machine-must-escalate)) |
 
 The trade this makes: **the gate moves from before the work to after it.** Before, a human guesses
 whether the work is worth doing. After, a human reads what was actually done, with proof. The second
@@ -119,7 +123,11 @@ flowchart TD
     M --> N[Post evidence bundle to the PR]
     N --> O[Release the sidekick back to the pool]
     O --> P[Human merge review — the only gate]
-    P --> Q[Merged -> issue closed, board Done]
+    P -->|approved| Q[Merged -> issue closed, board Done]
+    P -->|I want hands on it| R[Validation session: re-claim a box, deploy, hand over the URL]
+    P -->|evidence insufficient| S[Proof-gap loop: strengthen the test, re-prove red vs main]
+    R --> P
+    S --> J
 ```
 
 | # | Step | Actor | Trigger | Artifact | On failure |
@@ -136,10 +144,13 @@ flowchart TD
 | 10 | Live replay | flow | — | e2e run + trace | symptom persists → **Exceptions** |
 | 11 | PR + CI | flow | — | PR, CI checks | red after N auto-fixes → **Exceptions** |
 | 12 | Evidence + release | deterministic | CI green | evidence bundle comment; sidekick reset | — |
-| 13 | Merge review | **human** | PR ready | approval | changes requested → feedback flow |
+| 13 | Merge review | **human** | PR ready | approval | → step 14 or 15 |
+| 14 | Validation session *(optional)* | deterministic | `/validate` on the PR | re-claimed box, deployed branch, live URL held for the human | TTL expiry → release the box, PR untouched |
+| 15 | Proof-gap loop *(optional)* | AI + flow | reviewer objection | strengthened test, red re-proved **against `main`**, appended bundle | > N iterations → **Exceptions** |
 
 Steps 6–11 are the Definition of Done. **All** must hold; any failure routes to Exceptions with the
-evidence of *why*, and never silently degrades to "probably fine".
+evidence of *why*, and never silently degrades to "probably fine". Steps 14–15 are the reviewer's
+two ways of saying "not yet" — see [§5](#5-the-review-loop--when-the-reviewer-is-not-satisfied).
 
 ---
 
@@ -165,7 +176,60 @@ block on.
 
 ---
 
-## 5. Stop conditions — when the machine must escalate
+## 5. The review loop — when the reviewer is not satisfied
+
+The merge review is now the only gate, so it is only a real gate if **"no" is as cheap and as
+actionable as "yes"**. A reviewer who has to choose between rubber-stamping and doing the work by
+hand will rubber-stamp. Two distinct kinds of "not yet", each with its own machinery:
+
+### 5.1 "I want to see it for myself" — a validation session
+
+The evidence may be complete and you still want your hands on the running product. That is a
+legitimate, permanent need, not a failure of the pipeline.
+
+- **Trigger:** `/validate` as a PR comment, by any org member (same membership gate as everywhere).
+- **Effect:** claim a pool sidekick, deploy *this PR's branch*, seed demo data + run the context
+  plugins, and post the URL together with the reproduction path from the contract and the exact
+  steps the automated replay performed — so you can check the same thing by hand, or deliberately
+  check something else.
+- **It is a session, not a deployment.** The box is held for you: TTL, a warning comment before it
+  expires, one word to extend, and immediate release on merge, close, or `/release`.
+- **The URL is per session, not per PR.** The build's box was released back to the pool at CI-green
+  (nobody's sidekick sits idle overnight), so a validation session usually lands on a *different*
+  box with a different `N.build` URL. Never trust an older URL from earlier in the thread.
+- **Priority:** a validation claim preempts queued autonomous builds. A waiting human is more
+  expensive than a waiting bot.
+- **Board:** stays *Awaiting merge*, plus a `manual-validation` label so the reconcile sweep does not
+  read a human-held env as a stuck build.
+
+### 5.2 "The evidence is insufficient" — a proof-gap loop
+
+This is the more important half, and the one that keeps the whole bargain honest. If the bundle does
+not convince you, that is a **defect in the proof**, and the pipeline — not you — should close it.
+
+- **Trigger:** the objection in your own words on the PR: *"the e2e only covers the on-screen path,
+  not the export"*, *"the red run proves the unit case, not the reported one"*, *"I don't see the
+  owner-role variant covered"*.
+- **Effect:** the objection is treated as an **amendment to the Definition of Done**, not as chat.
+  It goes back to the build agent — extend or replace the test, widen the assertion, replay a
+  different path — and then the *entire* chain re-runs: deploy, live replay, CI, new bundle.
+- **The subtlety that makes this hard to get right:** red-first is free on the first pass because
+  commit ordering supplies it. On a loop iteration it is not — the fix is already committed, so a
+  newly added test cannot be proven red by ordering. It must be proven red **against `origin/main`**:
+  run the new test on a clean pre-fix tree, where it must fail, then on the branch, where it must
+  pass. Skip that and loop iterations quietly degrade into unproven tests — precisely the failure
+  mode [§2.2](#22-red-before-green) exists to prevent.
+- **The bundle is appended, never replaced** — *"Evidence v2 — what changed since your objection"* —
+  so the trail shows what your "no" actually bought.
+- **Bounded:** capped iterations, then Exceptions and a human takes the wheel. Each iteration counts
+  against the budget guard.
+
+Both paths converge on the same gate: CI green, evidence posted, human approval. Nothing
+auto-merges, ever.
+
+---
+
+## 6. Stop conditions — when the machine must escalate
 
 An autonomous pipeline is only trustworthy if it is eager to stop. Every one of these routes to
 **Exceptions** with a maintainer @-mention, and none of them are recoverable by retrying harder:
@@ -176,18 +240,20 @@ An autonomous pipeline is only trustworthy if it is eager to stop. Every one of 
 | Test passes before the fix | Does not reproduce the bug → the whole proof chain is void |
 | Fix touches files outside `blast_radius` | The diagnosis was wrong, or scope crept — either way a human decides |
 | Touches a schema migration, auth/security path, or crawler credential handling | Blast radius a review cannot cheaply undo |
-| Diff exceeds size limit (files / lines — value in [§12](#12-decisions-i-need-from-you)) | "Bug fix" that is really a refactor |
+| Diff exceeds size limit (files / lines — value in [§13](#13-decisions-i-need-from-you)) | "Bug fix" that is really a refactor |
 | No test added | Violates the DoD and the coverage ratchet |
 | Coverage down, or diff-coverage gate red | Repo hard rule |
 | Live replay still shows the symptom | The thing we set out to prove failed |
 | CI red after N auto-fix attempts | Flailing; a human reads it faster |
+| Review loop past N iterations | The objection is not something more AI passes will close |
 | Model usage limit | **Not a failure** — pause, save the branch, resume (existing `dor-resume`) |
+| Validation-session TTL expired | **Not a failure** — release the box, leave the PR exactly as it was; `/validate` again any time |
 
 ---
 
-## 6. Runner lifecycle
+## 7. Runner lifecycle
 
-Unchanged in shape, two fixes the loss of the human gate makes load-bearing:
+Unchanged in shape, three fixes the loss of the human gate makes load-bearing:
 
 - **Reserve at claim, not at PR-create.** Today `~/.dor-reservation` is written after the PR opens;
   a build that dies before that leaves a box that looks free but has a stack on it. With no human
@@ -195,6 +261,11 @@ Unchanged in shape, two fixes the loss of the human gate makes load-bearing:
 - **Sweep stale reservations.** The daily reconcile gains a check: reservation referencing a closed
   or non-existent PR → reset the box. Without a human gate, a stranded runner silently shrinks the
   pool until it starves.
+- **A box can be claimed twice in a PR's life** — once by the build, later by a validation session
+  ([§5.1](#51-i-want-to-see-it-for-myself--a-validation-session)). The reservation file therefore
+  records *why* it is held (`build` vs `validation`) and, for a session, its expiry. A human-held box
+  must never be swept as a stuck build, and a session must be released on merge/close even if the
+  human never says so.
 
 Release on PR close is already correct (`dor-reset.yml`: stack down, volumes + images pruned,
 reservation cleared, `edge` placeholder restored). One known gap to close first: sk7–sk10 are
@@ -203,12 +274,13 @@ registered runners but absent from the hostname→URL map, so a build landing th
 
 ---
 
-## 7. Concurrency, budget, and kill switches
+## 8. Concurrency, budget, and kill switches
 
 The human gate was also, accidentally, the rate limiter. Replace it explicitly:
 
 - **Concurrency cap** — at most *N* autonomous builds in flight (N ≤ pool size − 1, so a human can
-  always grab a box). Excess queues; queue order by severity then age.
+  always grab a box). Excess queues; queue order by severity then age. Validation sessions count
+  against the pool but **jump the queue** — see [§5.1](#51-i-want-to-see-it-for-myself--a-validation-session).
 - **Budget guard** — a weekly quota ceiling; on breach the pipeline queues instead of building and
   says so on the issue. Bugs share the Max subscription with the spec side, which must never starve:
   triage and certification are cheap and always run.
@@ -218,10 +290,13 @@ The human gate was also, accidentally, the rate limiter. Replace it explicitly:
 
 ---
 
-## 8. What the human still does
+## 9. What the human still does
 
 - **Approves the merge.** The single gate. Already required by the ruleset (1 approval + CODEOWNERS
   + required checks), so this is not new machinery — it is the machinery we stop duplicating.
+- **Says "not yet" cheaply.** `/validate` to get the thing running under your own hands, or state the
+  gap and let the pipeline close it ([§5](#5-the-review-loop--when-the-reviewer-is-not-satisfied)).
+  Neither costs you manual work, which is the point: an expensive "no" is not a real gate.
 - **Reads Exceptions.** The pipeline's job is to be honest about what it could not prove.
 - **Objects, if the reporter disagrees.** The reporter is notified when the PR opens, with the live
   URL. Objection before merge routes into the existing feedback flow. Their voice is preserved as an
@@ -229,7 +304,7 @@ The human gate was also, accidentally, the rate limiter. Replace it explicitly:
 
 ---
 
-## 9. What this does *not* change
+## 10. What this does *not* change
 
 - **Features keep the value gate.** "Is this worth building?" stays a human question. This document
   is only about bugs — the distinction is the whole argument.
@@ -242,7 +317,7 @@ The human gate was also, accidentally, the rate limiter. Replace it explicitly:
 
 ---
 
-## 10. Board and state model
+## 11. Board and state model
 
 The Bug board (org project #3) already carries every Status option needed. Under this design:
 
@@ -252,7 +327,7 @@ The Bug board (org project #3) already carries every Status option needed. Under
 | **Awaiting approval** | **retires** — rename the column to **Queued for build** (certified, waiting on a runner) |
 | Building | set at claim |
 | **Awaiting functional acceptance** | **retires** — replaced by the live replay in step 10 |
-| Awaiting merge | set when the evidence bundle posts; the human queue |
+| Awaiting merge | set when the evidence bundle posts; the human queue. Stays put during a validation session or a proof-gap loop — the `manual-validation` / `reworking` label carries the detail, so the column never lies about where the item is |
 | Done · Exceptions | unchanged |
 
 Prerequisite, and the reason this cannot ship today: the build side is **Feature-board-only** —
@@ -263,7 +338,7 @@ workflows).
 
 ---
 
-## 11. Build order
+## 12. Build order
 
 Each phase is independently useful and independently revertible.
 
@@ -273,14 +348,15 @@ Each phase is independently useful and independently revertible.
 | **1** | Red-first sequencing; mandatory live replay (kill the smoke fallback); "no test → Exceptions" | The proof chain — valuable even with the gate still in place |
 | **2** | `contract.json` from the probe + conformance check against it | Makes certification falsifiable |
 | **3** | Evidence bundle on the PR | Makes the merge review a review of proof |
-| **4** | Flip the gate: `DOR_AUTOBUILD`, concurrency cap, budget guard, stale-reservation sweep | The autonomy itself — last, on top of everything that proves it |
+| **4** | The review loop: `/validate` sessions + proof-gap re-runs (incl. red-proved-against-`main`) | Makes "not yet" cheap — useful on *any* bot PR, gate or no gate |
+| **5** | Flip the gate: `DOR_AUTOBUILD`, concurrency cap, budget guard, stale-reservation sweep | The autonomy itself — last, on top of everything that proves it |
 
-Phases 1–3 are worth shipping regardless of whether we ever flip phase 4. That ordering is
-deliberate: **build the proof before removing the gate that the proof replaces.**
+Phases 1–4 are worth shipping regardless of whether we ever flip phase 5. That ordering is
+deliberate: **build the proof, and the way to reject it, before removing the gate they replace.**
 
 ---
 
-## 12. Decisions I need from you
+## 13. Decisions I need from you
 
 1. **Scope of autonomy** — every certified bug, or only those under a blast-radius/size threshold
    (my recommendation: threshold, with schema/auth/crawler-credential paths always escalating)?
@@ -290,5 +366,8 @@ deliberate: **build the proof before removing the gate that the proof replaces.*
 4. **Severity filter** — do cosmetic/low bugs auto-build too, or only `priority:` medium and up?
 5. **Reporter veto window** — merge as soon as CI is green and a maintainer approves, or hold a
    fixed window (e.g. 24h) for the reporter to object first?
-6. **Column renames** on the Bug board (§10) — these are manual, one-time, and mine to do only if
-   you want them.
+6. **Validation-session TTL** — how long is a box held for you? I suggest 8h idle with a warning at
+   7h and `/extend` to keep it, always released on merge or close.
+7. **Review-loop cap** — I suggest 3 iterations, then Exceptions.
+8. **Column renames** on the Bug board ([§11](#11-board-and-state-model)) — these are manual,
+   one-time, and mine to do only if you want them.
