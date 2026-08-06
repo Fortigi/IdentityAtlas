@@ -348,7 +348,7 @@ Each phase is independently useful and independently revertible.
 | **0** | Board resolution moved into `dor_set_status.sh`; sk7–sk10 pool map (#944) | Unblocks *any* bug reaching the build side |
 | **1** | *(built)* Red-first sequencing; mandatory live replay (smoke fallback removed for bugs); "no test → Exceptions" | The proof chain — valuable even with the gate still in place |
 | **2** | *(built)* `contract.json` from the probe + conformance check against it | Makes certification falsifiable |
-| **3** | Evidence bundle on the PR | Makes the merge review a review of proof |
+| **3** | *(built)* Evidence bundle on the PR | Makes the merge review a review of proof |
 | **4** | The review loop: `/validate` sessions + proof-gap re-runs (incl. red-proved-against-`main`) | Makes "not yet" cheap — useful on *any* bot PR, gate or no gate |
 | **5** | Flip the gate: `DOR_AUTOBUILD`, concurrency cap, budget guard, stale-reservation sweep | The autonomy itself — last, on top of everything that proves it |
 

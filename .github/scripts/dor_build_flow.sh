@@ -201,5 +201,13 @@ summary=$(jq -r '.result // empty' /tmp/impl.json 2>/dev/null | head -c 1200)
 [ "${#summary}" -lt 25 ] && summary="$(changed_summary origin/main...HEAD)"   # terse output → describe from the diff
 [ -n "$summary" ] || summary="Implemented the approved spec; unit tests and the feature e2e on the live env pass."
 comment_issue "$(printf '%s — ✅ built and ready to test.\n\n🔗 **Test:** %s   ·   📦 **PR:** #%s\n\n%s\n\nReply with anything that'\''s off, or **`approved`** to send it to merge.' "$(issue_mentions)" "$URL" "$pr" "$summary")"
-gh pr comment "$pr" --repo "$REPO" --body "🤖 Built + verified on **${HOST}** (e2e + CI green) → ${URL}" >/dev/null 2>&1 || true
+# The PR gets the evidence bundle rather than a one-line assertion of success: this is the artefact
+# the merge review reads, and every claim in it carries the run output behind it. Bugs only — a
+# feature has no red proof to show, and a bundle with half its rows missing teaches reviewers to
+# skim. (Best-effort: a reporting failure must never fail a build that actually passed.)
+if is_bug; then
+  PR="$pr" CONTRACT="${CONTRACT:-}" bash "$SCRIPTS/dor_evidence.sh" || echo "::warning::evidence bundle step failed"
+else
+  gh pr comment "$pr" --repo "$REPO" --body "🤖 Built + verified on **${HOST}** (e2e + CI green) → ${URL}" >/dev/null 2>&1 || true
+fi
 echo "::notice::#${ISSUE} built + verified → Awaiting functional acceptance (PR #${pr}, ${URL})"
