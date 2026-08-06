@@ -3598,6 +3598,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#external-requests-the-vouch" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        External requests — the vouch
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#bugs-the-reproduce-first-variant" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4753,6 +4764,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#external-requests-the-vouch" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        External requests — the vouch
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#bugs-the-reproduce-first-variant" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5027,6 +5049,56 @@
 <li><strong>D3 Feedback loop.</strong> Disappointment (form, or missed scope) is captured as <strong>new intent</strong> (a comment on the issue) and re-enters at Phase A. Expected and cheap. Happy ⇒ approve PR ⇒ merge ⇒ close the issue with the outcome comment.</li>
 </ul>
 <hr />
+<h2 id="external-requests-the-vouch">External requests — the vouch<a class="headerlink" href="#external-requests-the-vouch" title="Permanent link">&para;</a></h2>
+<p>The pipeline only accepts requests from <strong>Fortigi org members</strong>. That is a security boundary, not
+an administrative one: this is a <strong>public</strong> repo, so <code>issues</code> / <code>issue_comment</code> events run <strong>with
+secrets</strong> for anyone who can type in a text box, and org membership is the only real defense for
+the Claude subscription token (see the injection note in
+<a href="../operationalization/#security-note--the-dor-agents-injection-residual-phase-1"><code>operationalization.md</code></a>).</p>
+<p>But customers and partners <em>do</em> file good requests. Rather than widening the gate, we <strong>transfer
+the request</strong>:</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>A non-member opens an issue</strong></td>
+<td><code>dor-triage</code> posts a notice, assigns Wim/Taeke/Rob, labels it <strong><code>needs-vouch</code></strong>, and stops. It is deliberately <em>not</em> put on the board — a request nobody has accepted has no requestor, and parking it at "Awaiting requestor" would falsely read as "waiting on them". The nightly reconcile keeps flagging it until someone acts.</td>
+</tr>
+<tr>
+<td><strong>A maintainer accepts it</strong></td>
+<td>Apply the <strong><code>dor-vouched</code></strong> label. That is the whole gesture.</td>
+</tr>
+<tr>
+<td><strong>What vouching means</strong></td>
+<td><strong>You become the requestor of record.</strong> The board's "Requested by" becomes you, you become the sole assignee, and you answer the Phase-A interview and Phase-B probe questions. You are accountable for the request as if you had filed it.</td>
+</tr>
+<tr>
+<td><strong>The original reporter</strong></td>
+<td>Stays subscribed and is @-mentioned, so every step — questions, spec, test environment, delivery — reaches them. They can keep commenting, and you relay what matters. <strong>Their comments do not drive the pipeline</strong>; yours do.</td>
+</tr>
+<tr>
+<td><strong>Declining</strong></td>
+<td>Just close the issue with an explanation. Not vouching <em>is</em> the "no".</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Why the requestor role transfers rather than the gate opening.</strong> No external account gains the
+ability to trigger a workflow, so the threat model is unchanged — the only thing that changes is
+<em>who the pipeline considers the requestor</em>, resolved in one place by
+<code>.github/scripts/dor_requestor_of_record.sh</code> (author by default; the voucher when a vouch exists).
+That resolver is what the <strong>build</strong> gate reads too, so a vouched request builds normally instead of
+being refused at the last step for having been filed by a non-member. Only a human org member can
+vouch: the label is applied via a <code>labeled</code> timeline event, <code>dor-vouch</code> verifies the applier's
+membership and strips the label if they are not a member, and a bot-applied label never transfers
+the role.</p>
+<p>The value gate is untouched — a vouched request still needs a <strong>Product Board GO</strong> before anything
+builds. Vouching says <em>"this is a real request and I own it"</em>, not <em>"build this"</em>.</p>
+<hr />
 <h2 id="bugs-the-reproduce-first-variant">Bugs — the reproduce-first variant<a class="headerlink" href="#bugs-the-reproduce-first-variant" title="Permanent link">&para;</a></h2>
 <p>Bug reports run the <strong>same spine</strong> (tracking issue · <code>state:*</code> routes · board Status · human GO) with
 one substitution: the "AI looks at the issue" step is a <strong>reproduce-first probe</strong>, not an intent
@@ -5044,7 +5116,8 @@ requestor</em>; needs real tenant/data → <em>Blocked (external)</em>; a fix wi
 <em>Awaiting design</em>; several bugs bundled → <em>Decompose</em>; not-a-bug → <em>Out of pipeline</em>.</p>
 <p><strong>Runtime</strong> reproduction (running the fix against a live demo env until the red test goes green) is
 the deferred build-side step. Bugs live on their <strong>own board</strong> (Bug Pipeline, project #3) and are
-<strong>org-members-only</strong> (external reports are assigned to maintainers first). The wiring — <code>bug</code> gate
+<strong>org-members-only</strong> — an external report is parked as <code>needs-vouch</code> and enters the same way a
+feature does, via <a href="#external-requests--the-vouch">the vouch</a>. The wiring — <code>bug</code> gate
 label, <code>dor-bug-agent</code>, the Bug Form, and the shared scripts — is in
 <a href="../operationalization/#bug-pipeline-spec-side-live"><code>operationalization.md</code></a>.</p>
 <h2 id="appendix-definition-of-done-the-probe-must-design-against">Appendix — Definition of Done the probe must design against<a class="headerlink" href="#appendix-definition-of-done-the-probe-must-design-against" title="Permanent link">&para;</a></h2>

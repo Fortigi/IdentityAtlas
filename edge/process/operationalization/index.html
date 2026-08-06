@@ -5331,7 +5331,7 @@
 <tr>
 <td><strong>Unknown requestor</strong> (non-member opens an issue)</td>
 <td>—</td>
-<td><strong>deterministic triage</strong> (no AI): post a notice, assign Wim/Taeke/Rob, stop</td>
+<td><strong>deterministic triage</strong> (no AI): post a notice, assign Wim/Taeke/Rob, label <code>needs-vouch</code>, stop. A maintainer restarts it by <strong>vouching</strong> — see <a href="../definition-of-ready/#external-requests--the-vouch">External requests</a></td>
 </tr>
 </tbody>
 </table>
@@ -5479,7 +5479,13 @@
 <td>9</td>
 <td><strong><code>dor-triage.yml</code></strong> — add-to-board + route by requestor</td>
 <td><strong>built (this PR)</strong></td>
-<td>member → board + Requested-by (D2) + initial Status; non-member → notice + assign Wim/Taeke/Rob</td>
+<td>member → board + Requested-by (D2) + initial Status; non-member → notice + assign Wim/Taeke/Rob + <code>needs-vouch</code></td>
+</tr>
+<tr>
+<td>9b</td>
+<td><strong><code>dor-vouch.yml</code></strong> — accept an external request</td>
+<td><strong>built</strong></td>
+<td>maintainer applies <code>dor-vouched</code> → requestor role transfers to them (board Requested-by + sole assignee), original author stays @-mentioned; <code>dor_requestor_of_record.sh</code> is the shared resolver the build gate reads</td>
 </tr>
 <tr>
 <td>10</td>
