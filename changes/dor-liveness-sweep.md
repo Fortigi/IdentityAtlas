@@ -1,2 +1,0 @@
-- The pipeline health sweep now runs every hour instead of once a day, and detects work that has silently died: an issue that says it is building while no job is actually running for it is now flagged and commented on within the hour, instead of going unnoticed for two weeks.
-- The sweep also reports build machines that are still held by an issue with no open pull request, so a machine can no longer drop out of the pool unnoticed.

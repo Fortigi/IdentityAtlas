@@ -1,5 +1,10 @@
 ## Changes in this PR
 
+- The pipeline health sweep now runs every hour instead of once a day, and detects work that has silently died: an issue that says it is building while no job is actually running for it is now flagged and commented on within the hour, instead of going unnoticed for two weeks.
+- The sweep also reports build machines that are still held by an issue with no open pull request, so a machine can no longer drop out of the pool unnoticed.
+
+## Changes in this PR
+
 - A build is no longer reported as verified unless its CI actually ran and passed. If the pull request's workflow runs are waiting for a maintainer to release them, the issue now says so and asks for that, instead of quietly declaring success on the strength of the live-environment test alone.
 - Build and feedback reports now list only the files that build actually changed. Long-lived branches were previously reported against a moved main branch, so an unrelated merge could be attributed to the change — one tooltip adjustment was reported as "533 files changed".
 
