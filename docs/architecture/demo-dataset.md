@@ -355,17 +355,18 @@ that case, and both halves of it are load-bearing.
 
 The two SysAdmins are deliberately *not* people without governance — they hold
 `BR-Employee-Base`, `BR-Service-Desk` and `BR-IT-Operations`. None of those
-grants `SG-VPN-Access`; only `BR-Engineering-Tools` does, and they do not hold
-it. That is the whole point of the case, and why the marker's tooltip states the
-finding as "no business role this subject holds grants this resource" before it
-names the role that does — reading it the other way round suggests these two hold
-no business roles at all, which is plainly not what the grid shows (requestor
-feedback on #370).
+grants `SG-VPN-Access`; only `BR-Engineering-Tools` does. That is the whole point
+of the case, and why the marker's tooltip reports what it evaluated — *no
+business role assigns this resource to this subject*, and `BR-Engineering-Tools`
+"carries no assignment of it for this subject" — rather than asserting that they
+do not hold that role. The claim the tooltip used to make about role membership
+was both unchecked and, for anyone who does hold the granting role while its
+grant is missing from their assignments, wrong (requestor feedback on #370).
 
 | Who | What they have | What the matrix shows |
 |---|---|---|
 | The 8 BR-Engineering-Tools holders | The VPN group, `Indirect`, through the role | Governed access, in the role's colour — no marker |
-| Victor Wang (E0029), Wendy Xu (E0030) | The VPN group, `Direct`, without the role | A red count on those two cells: a membership none of the business roles they *do* hold (`BR-Employee-Base`, `BR-Service-Desk`, `BR-IT-Operations`) accounts for |
+| Victor Wang (E0029), Wendy Xu (E0030) | The VPN group, `Direct`, without the role | A red count on those two cells: a membership no business role assigns them — not `BR-Engineering-Tools`, which grants the group, and not one of the three roles they do hold |
 
 Drop the `Indirect` rows and every engineer turns into a provisioning gap on a
 group their role really does grant — eight bogus gaps that bury the two
@@ -387,7 +388,7 @@ more than one business role. `DemoSharedGrants.ps1` builds that overlap between
 |---|---|---|
 | `SG-Servicedesk-Tools` (Group) | BR-Service-Desk **+** BR-IT-Operations | The group in two roles |
 | `Ticketing-Agent` (AppRole) | BR-Service-Desk **+** BR-IT-Operations | The application role in two roles |
-| `SG-Monitoring-Tools` (Group) | BR-IT-Operations only | So folding one of the two roles still takes a row away |
+| `SG-Monitoring-Tools` (Group) | BR-IT-Operations only | So the two roles' blocks are not identical |
 
 The holders make the overlap non-trivial: Victor Wang (E0029) and Wendy Xu
 (E0030) hold **both** roles, while Fatih Gunay (E0010) holds BR-IT-Operations
@@ -403,6 +404,11 @@ Two properties of the data are the point, and
   emitted.
 - **Each role also grants something exclusively**, so "fold one role" and "fold
   both" are visibly different states.
+
+The grid draws the two shared resources **under both roles** — one row in each
+role's block, each carrying the `BR` chip that points at the other role — so the
+overlap is visible without hunting for it, and folding one role removes only its
+own copies.
 
 See [`matrix.md`](matrix.md) → "One resource, several business roles" for what
 the grid does with it.

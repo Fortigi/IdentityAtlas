@@ -109,7 +109,7 @@ export default function MatrixLegend() {
             <div className="flex items-center gap-1.5">
               <span className="inline-flex w-4 h-4 items-center justify-center rounded-full bg-rose-600 text-white border border-rose-700 text-[8px] font-bold shrink-0" aria-hidden="true">1</span>
               <span className="text-gray-700 dark:text-gray-300">
-                Right — <span className="font-medium">held outside business-role governance</span>: a business role hands this resource out, and no business role this subject holds grants it to them — they hold it by some other route. The number counts the roles that grant it; the tooltip names them.
+                Right — <span className="font-medium">held outside business-role governance</span>: a business role hands this resource out, but no business role assigns it to this subject — they hold it by some other route. The number counts the roles that grant it; the tooltip names them and says whether the subject holds one of them.
               </span>
             </div>
             <div className="flex items-center gap-1.5">
@@ -127,13 +127,13 @@ export default function MatrixLegend() {
             <div className="flex items-center gap-1.5">
               <span className="inline-flex px-1 items-center justify-center rounded bg-indigo-50 text-indigo-700 border border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-700 text-[9px] font-medium shrink-0" aria-hidden="true">BR</span>
               <span className="text-gray-700 dark:text-gray-300">
-                This resource is granted by a business role — named on the row itself when the row does not sit directly under that role (after you drag it elsewhere, for example). Hover it for the role&apos;s name; click it to open the role.
+                This resource is <span className="font-medium">also granted by another business role</span>, so it has a row under that role too. Hover the chip for the role&apos;s name; click it to open the role.
               </span>
             </div>
             <div className="flex items-center gap-1.5">
               <span className="inline-flex px-1 items-center justify-center rounded bg-indigo-50 text-indigo-700 border border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-700 text-[9px] font-medium shrink-0" aria-hidden="true">BR+2</span>
               <span className="text-gray-700 dark:text-gray-300">
-                A resource granted by <span className="font-medium">more than one business role</span> counts them — the tooltip names them all — and stays on screen until every one of those roles is folded; a folded role then reports &ldquo;N of M resources folded&rdquo; and says which role is still showing the rest.
+                A resource granted by <span className="font-medium">more than one business role</span> is shown under every one of them, and each of its rows counts the others — so folding one role removes only that role&apos;s copy and the rest stay where they are.
               </span>
             </div>
           </div>

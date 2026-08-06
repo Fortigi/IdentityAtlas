@@ -86,6 +86,10 @@ jobs:
             dev-docker-03) url="https://3.build.identityatlas.io" ;;
             dev-docker-05) url="https://5.build.identityatlas.io" ;;
             dev-docker-06) url="https://6.build.identityatlas.io" ;;
+            dev-docker-07) url="https://7.build.identityatlas.io" ;;
+            dev-docker-08) url="https://8.build.identityatlas.io" ;;
+            dev-docker-09) url="https://9.build.identityatlas.io" ;;
+            dev-docker-10) url="https://10.build.identityatlas.io" ;;
             *) echo "::error::unknown sidekick $(hostname) — not in the dor-build pool map"; exit 1 ;;
           esac
           { echo "host=$(hostname)"; echo "url=$url"; } >> "$GITHUB_OUTPUT"

@@ -22,7 +22,7 @@ function renderRow(group, props = {}) {
         managedFilter: 'all',
         foldableRoles: new Set(['BR1']),
         foldedRoles: new Set(),
-        roleFoldInfo: new Map([['BR1', { total: 2, hidden: 2, shownBy: [] }]]),
+        roleFoldInfo: new Map([['BR1', { total: 2 }]]),
         ...props,
         onToggleRoleFold,
       }))),
@@ -52,24 +52,20 @@ describe('MatrixGroupRow — business-role fold affordance', () => {
   it('singularises the chip for a single folded resource', () => {
     renderRow(
       { id: 'BR1', displayName: 'HR Manager BR', memberCount: 1 },
-      { foldedRoles: new Set(['BR1']), roleFoldInfo: new Map([['BR1', { total: 1, hidden: 1, shownBy: [] }]]) },
+      { foldedRoles: new Set(['BR1']), roleFoldInfo: new Map([['BR1', { total: 1 }]]) },
     );
     expect(screen.getByText('1 resource folded')).toBeInTheDocument();
   });
 
-  // Feedback on #370: a resource granted by two business roles only disappears
-  // once both are folded, so this fold can take away fewer rows than it grants.
-  it('counts only what the fold really hid when another role still shows the rest', () => {
+  // Feedback on #370: every resource a role grants has a row of its own under
+  // that role — including the ones another role grants too — so a fold always
+  // takes away exactly what the role grants and the chip never has to hedge.
+  it('counts every resource the role grants, shared ones included', () => {
     renderRow(
       { id: 'BR1', displayName: 'HR Manager BR', memberCount: 3 },
-      {
-        foldedRoles: new Set(['BR1']),
-        roleFoldInfo: new Map([['BR1', { total: 3, hidden: 1, shownBy: ['Finance BR'] }]]),
-      },
+      { foldedRoles: new Set(['BR1']), roleFoldInfo: new Map([['BR1', { total: 3 }]]) },
     );
-    const chip = screen.getByText('1 of 3 resources folded');
-    expect(chip).toHaveAttribute('title', expect.stringContaining('Finance BR'));
-    expect(chip).toHaveAttribute('title', expect.stringContaining('2 of the 3 resources'));
+    expect(screen.getByText('3 resources folded')).toBeInTheDocument();
   });
 
   it('reports the role id to onToggleRoleFold when clicked', async () => {
@@ -101,7 +97,7 @@ describe('MatrixGroupRow — business-role fold affordance', () => {
     expect(screen.getByRole('button', { name: /fold business role resources/i })).toHaveTextContent('▼');
     renderRow(
       { id: 'BR2', displayName: 'Other BR', memberCount: 3 },
-      { foldableRoles: new Set(['BR2']), foldedRoles: new Set(['BR2']), roleFoldInfo: new Map([['BR2', { total: 1, hidden: 1, shownBy: [] }]]) },
+      { foldableRoles: new Set(['BR2']), foldedRoles: new Set(['BR2']), roleFoldInfo: new Map([['BR2', { total: 1 }]]) },
     );
     expect(screen.getByRole('button', { name: /unfold business role resources/i })).toHaveTextContent('▶');
   });
@@ -131,54 +127,79 @@ describe('MatrixGroupRow — a resource shown under the role that grants it', ()
   });
 });
 
+// Requestor feedback on #370: a resource now has a row under every business
+// role that grants it, so the chip's job is to point at the OTHER rows.
 describe('MatrixGroupRow — which business role a resource belongs to', () => {
-  const owners = [{ id: 'BR1', name: 'HR Manager BR' }];
+  const owners = [{ id: 'BR2', name: 'Finance BR' }];
 
-  it('names the granting role on a row that was moved away from it', async () => {
+  it('marks a resource that another business role grants as well', async () => {
     const onOpenDetail = vi.fn();
     renderRow(
-      { id: 'G1', displayName: 'Finance Group', memberCount: 2, roleOwners: owners, roleGrantedBy: 'HR Manager BR' },
+      {
+        id: 'G1', displayName: 'Finance Group', memberCount: 2, roleParentId: 'BR1',
+        roleOwners: owners, roleGrantedBy: 'HR Manager BR, Finance BR',
+      },
       { onOpenDetail },
     );
-    const chip = screen.getByRole('button', { name: 'Granted by business role: HR Manager BR' });
-    expect(chip).toHaveAttribute('title', 'Granted by business role: HR Manager BR');
-    // The chip is a way into the role itself.
+    const chip = screen.getByRole('button', { name: 'Also granted by business role: Finance BR' });
+    expect(chip).toHaveAttribute('title', 'Also granted by business role: Finance BR');
+    // The chip is a way into the other role — and into its copy of this row.
     await userEvent.setup().click(chip);
-    expect(onOpenDetail).toHaveBeenCalledWith('resource', 'BR1', 'HR Manager BR');
+    expect(onOpenDetail).toHaveBeenCalledWith('resource', 'BR2', 'Finance BR');
   });
 
-  // Requestor feedback on #370: the chip does not need to spell out role names
-  // in the resource column — a "BR" / "BR+N" marker plus the tooltip is enough.
+  // The chip does not need to spell out role names in the resource column — a
+  // "BR" / "BR+N" marker plus the tooltip is enough.
   it('labels the chip BR and keeps the role name in the tooltip only', () => {
-    renderRow({
-      id: 'G1', displayName: 'Finance Group', memberCount: 2, roleOwners: owners,
-    });
-    expect(screen.getByRole('button', { name: /Granted by business role/ })).toHaveTextContent('BR');
-    expect(screen.queryByText('HR Manager BR')).toBeNull();
+    renderRow({ id: 'G1', displayName: 'Finance Group', memberCount: 2, roleOwners: owners });
+    expect(screen.getByRole('button', { name: /Also granted by business role/ })).toHaveTextContent('BR');
+    expect(screen.queryByText('Finance BR')).toBeNull();
   });
 
-  it('counts several granting roles on the chip and lists them all in the tooltip', () => {
+  it('counts the other granting roles on the chip and lists them all in the tooltip', () => {
     renderRow({
       id: 'G2', displayName: 'Shared Group', memberCount: 2,
-      roleOwners: [...owners, { id: 'BR2', name: 'Finance BR' }],
+      roleOwners: [...owners, { id: 'BR3', name: 'IT Ops BR' }],
     });
-    const chip = screen.getByRole('button', { name: 'Granted by business role: HR Manager BR, Finance BR' });
+    const chip = screen.getByRole('button', { name: 'Also granted by business role: Finance BR, IT Ops BR' });
     expect(chip).toHaveTextContent('BR+2');
-    expect(chip).toHaveAttribute('title', 'Granted by business role: HR Manager BR, Finance BR');
   });
 
-  it('answers the question from the row tooltip whatever the row\'s position', () => {
+  it('names every granting role in the row tooltip, from any of its rows', () => {
     const { container } = renderRow({
-      id: 'G1', displayName: 'Finance Group', memberCount: 2, roleParentId: 'BR1', roleGrantedBy: 'HR Manager BR',
+      id: 'G1', displayName: 'Finance Group', memberCount: 2, roleParentId: 'BR1',
+      roleGrantedBy: 'HR Manager BR, Finance BR',
     });
-    expect(container.querySelector('td[title*="Granted by business role: HR Manager BR"]')).not.toBeNull();
-    // Sitting directly under its role, the row says it by position — no chip.
-    expect(screen.queryByRole('button', { name: /Granted by business role/ })).toBeNull();
+    expect(container.querySelector('td[title*="Granted by business role: HR Manager BR, Finance BR"]'))
+      .not.toBeNull();
+  });
+
+  it('leaves a resource only one business role grants uncluttered', () => {
+    renderRow({
+      id: 'G1', displayName: 'Finance Group', memberCount: 2, roleParentId: 'BR1',
+      roleGrantedBy: 'HR Manager BR',
+    });
+    expect(screen.queryByRole('button', { name: /Also granted by business role/ })).toBeNull();
   });
 
   it('leaves a resource no business role grants unlabelled', () => {
     renderRow({ id: 'G4', displayName: 'Unmanaged Group', memberCount: 1 });
     expect(screen.queryByRole('button', { name: /BR/ })).toBeNull();
+  });
+
+  // A role's children move with the role, so they carry no drag handle of their
+  // own — the same rule nested sub-rows already followed.
+  it('gives a role child no drag handle', () => {
+    const { container } = renderRow({
+      id: 'G1', displayName: 'Finance Group', memberCount: 2, roleParentId: 'BR1',
+    });
+    expect(container.querySelector('td.cursor-grab')).toBeNull();
+    expect(screen.queryByText('☰')).toBeNull();
+  });
+
+  it('keeps the drag handle on a resource that belongs to no role', () => {
+    const { container } = renderRow({ id: 'G4', displayName: 'Unmanaged Group', memberCount: 1 });
+    expect(container.querySelector('td.cursor-grab')).not.toBeNull();
   });
 });
 
@@ -238,11 +259,26 @@ describe('MatrixGroupRow — a membership held outside the role that grants the 
     expect(outsideBadge()).toHaveTextContent('1');
     const title = outsideBadge().getAttribute('title');
     expect(title).toContain('BR-Engineering-Tools');
-    // Requestor feedback on #370: the marker must not read as "this subject
-    // holds no business role" — it is about the role that grants this row.
-    expect(title).toContain('no business role this subject holds grants this resource');
+    // Requestor feedback on #370: the marker reports the granting role's missing
+    // assignment; it never claims the subject does not hold that role.
+    expect(title).toContain('no business role assigns this resource to this subject');
+    expect(title).not.toContain('does not hold');
     // The access itself is still shown for what it is.
     expect(screen.getByText('D')).toBeInTheDocument();
+  });
+
+  // The requestor's case: the subject DOES hold BR-Engineering-Tools, but the
+  // role carries no assignment matching this resource for them. Holding the role
+  // is read off the coverage view's self arm (migration 061), not guessed.
+  it('says the subject holds the granting role when the coverage view says so', () => {
+    renderRow(grantedRow, {
+      memberships: held,
+      managedApMap: new Map([['br1|u1', ['br1']]]),
+    });
+    const title = outsideBadge().getAttribute('title');
+    expect(title).toContain('this subject holds a business role that grants this resource');
+    expect(title).toContain('but the role does not assign it to them');
+    expect(title).not.toContain('does not hold');
   });
 
   // A role covers a cell only by granting the resource to someone who holds the

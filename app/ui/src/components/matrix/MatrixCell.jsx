@@ -8,7 +8,7 @@ import {
 // Everything the cell says on hover: how the access is held, which business
 // roles govern it, and any marker it carries. Pulled out of the component so
 // the wording lives in one readable place.
-function cellTitle({ membershipTypes, managed, apNames, provisioningGap, gapExpected, overGrant, extraAccessCount, missingAccessCount, heldOutsideCount, heldOutsideNames }) {
+function cellTitle({ membershipTypes, managed, apNames, provisioningGap, gapExpected, overGrant, extraAccessCount, missingAccessCount, heldOutsideCount, heldOutsideNames, heldOutsideHoldsRole }) {
   const parts = [];
   const managedBy = apNames?.length ? `Managed by: ${apNames.join(', ')}` : null;
   if (membershipTypes?.size) {
@@ -23,7 +23,7 @@ function cellTitle({ membershipTypes, managed, apNames, provisioningGap, gapExpe
   if (overGrant) parts.push(overGrantTitle(overGrant));
   if (extraAccessCount > 0) parts.push(extraAccessTitle(extraAccessCount));
   if (missingAccessCount > 0) parts.push(missingAccessTitle(missingAccessCount));
-  if (heldOutsideCount > 0) parts.push(heldOutsideTitle(heldOutsideCount, heldOutsideNames));
+  if (heldOutsideCount > 0) parts.push(heldOutsideTitle(heldOutsideCount, heldOutsideNames, heldOutsideHoldsRole));
   return parts.length ? parts.join('\n') : undefined;
 }
 
@@ -52,7 +52,7 @@ function MatrixCell({
   cellKey, membershipTypes, managed, apColor, apCount, apNames,
   provisioningGap, gapExpected, overGrant = null,
   extraAccessCount = 0, missingAccessCount = 0,
-  heldOutsideCount = 0, heldOutsideNames = null, onExplainInherited,
+  heldOutsideCount = 0, heldOutsideNames = null, heldOutsideHoldsRole = false, onExplainInherited,
 }) {
   const hasMembership = membershipTypes && membershipTypes.size > 0;
 
@@ -64,6 +64,7 @@ function MatrixCell({
   const title = cellTitle({
     membershipTypes, managed, apNames, provisioningGap, gapExpected,
     overGrant, extraAccessCount, missingAccessCount, heldOutsideCount, heldOutsideNames,
+    heldOutsideHoldsRole,
   });
 
   return (
@@ -87,6 +88,7 @@ function MatrixCell({
         missingAccessCount={missingAccessCount}
         heldOutsideCount={heldOutsideCount}
         heldOutsideNames={heldOutsideNames}
+        heldOutsideHoldsRole={heldOutsideHoldsRole}
       />
     </td>
   );
@@ -106,6 +108,7 @@ export default memo(MatrixCell, (prev, next) => {
     prev.missingAccessCount === next.missingAccessCount &&
     prev.heldOutsideCount === next.heldOutsideCount &&
     prev.heldOutsideNames === next.heldOutsideNames &&
+    prev.heldOutsideHoldsRole === next.heldOutsideHoldsRole &&
     prev.onExplainInherited === next.onExplainInherited
   );
 });

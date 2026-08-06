@@ -997,7 +997,6 @@ export default function MatrixView({
             <SortableBody
               scrollRef={scrollRef}
               orderedGroups={foldedGroups}
-              groupIds={groupIds}
               onDragEnd={handleRowDragEnd}
               columnHeaders={columnHeaders}
               users={colUsers}
@@ -1028,7 +1027,7 @@ export default function MatrixView({
               <tbody>
                 {foldedGroups.map(group => (
                   <MatrixGroupRow
-                    key={group.id}
+                    key={group.rowKey || group.id}
                     group={group}
                     users={colUsers}
                     totalUsers={colUsers.length}

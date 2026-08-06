@@ -171,8 +171,8 @@ Rules worth knowing:
 - **Default expanded.** Fold choices persist per matrix filter in versioned
   localStorage (`fgraph-rolefold-<filter>`), the mechanism the custom row order
   uses — so two different matrix slices keep independent fold state.
-- **A resource granted by several roles** stays visible until *every* role
-  granting it that is present in the grid is folded — see
+- **A resource granted by several roles has a row under each of them**, so
+  folding one role takes away only that role's copy — see
   [One resource, several business roles](#one-resource-several-business-roles).
 - **A role with no row of its own** (nobody visible holds it) gets no fold
   affordance and hides nothing — a resource never disappears without a visible
@@ -181,12 +181,16 @@ Rules worth knowing:
   rolls a child's assignments up into the parent row.
 - **Ownership rows are not folded** — they hang off a group by `HasOwnership`,
   not off a role by `Contains`.
-- The AP staircase promotes a **business role's own row to the top of its
-  bucket**, directly above the resources it grants, so a parent is always
-  adjacent to the children it folds away — and those resources are drawn as its
-  children (indented, with the elbow). A resource that is *not* adjacent to one
-  of its roles stays a plain top-level row rather than being indented under an
-  unrelated one — it **names its role on the row instead** (see below).
+- **A resource a role grants belongs to that role's block.** `buildRoleLayout`
+  draws it directly under the role — indented, with the elbow, exactly like an
+  expanded nested group — and under *every* role that grants it, never also as a
+  loose row somewhere else. It is the role rows and the resources no role grants
+  that the AP staircase and the custom drag order position; a role's children
+  travel with it and carry no drag handle of their own (the rule nested sub-rows
+  already followed).
+- **A business role nested inside another one keeps its own place** rather than
+  being filed under its parent — otherwise folding the parent would take its
+  fold chevron off screen with it.
 - **A folded role says how much it is hiding that it does not grant, and how
   much it grants that isn't there.** Per subject column, the folded row carries
   a red count on the right of the cell's marker strip (folded resources the
@@ -204,23 +208,22 @@ Rules worth knowing:
 
 ### Which business role does this row belong to?
 
-Rows are draggable and **keep the position they are dropped in**, so a resource
-can easily end up far from — or above — the business role that grants it. The
-indent + elbow then stops being an answer, so the row carries one of its own:
+The row's position answers it: a resource sits under the role that grants it,
+under each of them if there are several. Two things say the rest:
 
-- Every resource row a business role grants states its role(s) in the row
-  tooltip (`Granted by business role: …`), whatever position it sits in.
-- A row that is *not* drawn directly under one of its granting roles also
-  carries a chip next to the resource name; clicking it opens the role. Where a
-  row *is* drawn under its role, the chip is omitted (the layout already says
-  it) — except for any *other* role that also grants it, which is still marked.
-- **The chip is a marker, not a name**: `BR` for one granting role, `BR+3` for
-  three. The names are in its tooltip (and behind the click). Role names are
+- Every resource row a business role grants states **all** its roles in the row
+  tooltip (`Granted by business role: …`) — including the ones whose copy of the
+  row is elsewhere in the grid.
+- A row whose resource is *also* granted by another role carries a chip next to
+  the resource name; clicking it opens that role. A resource only one role grants
+  carries no chip — the layout already says everything.
+- **The chip is a marker, not a name**: `BR` for one other granting role, `BR+3`
+  for three. The names are in its tooltip (and behind the click). Role names are
   long, and the resource-name column is the one column that has to stay
   readable, so the count goes on the grid and the names stay one hover away.
   The tooltip doubles as the chip's accessible name.
 
-Both come from `markRoleChildren` in
+Both come from `buildRoleLayout` in
 [`useBusinessRoleFold.js`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/ui/src/hooks/useBusinessRoleFold.js),
 off the same `Contains` data the fold uses.
 
@@ -228,24 +231,30 @@ off the same `Contains` data the fold uses.
 
 Catalogues overlap: the same group or application role is routinely handed out
 by more than one business role. That is one row with two (or more) `Contains`
-parents — **never** a duplicated row or a duplicated assignment. The membership
-is stored once; what the second role adds is *coverage*, and the grid resolves
-the overlap in five places:
+parents — one membership, stored once; what the second role adds is *coverage*.
+
+**The grid shows the resource under every role that grants it.** One row filed
+under the "first" role and a chip pointing at the rest made the overlap
+something you had to go looking for, and made a fold ambiguous — it could take
+away fewer rows than the role granted, so the fold chip had to hedge with "N of
+M". Drawing the resource once per granting role removes both problems
+(requestor feedback on #370). Duplication is in the *rendering* only: the
+membership, the counts, the scope statistics and the Excel export are all still
+per resource, not per role.
 
 | Where | What it does |
 |---|---|
-| **SOLL columns** | The row shows a badge under **every** role that grants it, so the overlap is readable straight off the grid |
+| **Row position** | One row under each granting role, indented as its child. The rows are identical — same cells, same badges, same detail link |
+| **SOLL columns** | Each of those rows shows a badge under **every** role that grants the resource, so the overlap is readable straight off the grid |
 | **Cell colour** | The cell carries a count bubble — "covered by *n* business roles" — in the centre of its marker strip, and takes the colour of the first role in `managedByPackages` for that cell |
-| **Row position** | The AP staircase files the row under its **leftmost** granting role; the others are marked on the row (`BR+N` chip + tooltip), so no role's claim is lost |
-| **Folding** | The row survives until *every* granting role is folded. Fold one, and it stays — drawn as a plain top-level row rather than as a child of the collapsed role, naming the role that is still showing it first |
-| **The fold chip** | Reads "*N* of *M* resources folded" when this fold took fewer rows than the role grants, and its tooltip names the still-expanded role holding the rest |
+| **The `BR+N` chip** | Each row counts the *other* roles that grant it and names them in its tooltip, so one row leads to the rest |
+| **Folding** | Folding a role takes away only that role's copies; the copies under the other roles stay exactly where they are |
+| **The fold chip** | Always reads "*N* resources folded" — a role's fold takes exactly what the role grants, so it can never overstate or understate |
 
-The last two are the point: a folded role never claims to have hidden a row
-that is still on screen, and unfolding *either* role brings a shared row back.
-The deviation tallies follow the same rule — a shared row that is still visible
-is counted by neither folded role, because its own cell is right there saying
-it. `summariseFolds` and `collectFoldedChildRows` walk the grid through one
-shared helper so the count and the rows can never drift apart.
+The deviation tallies follow the same rule: a folded role tallies every resource
+it grants, because it hid every one of its own rows. `buildRoleLayout` produces
+the rows, the fold summary and the folded-row lists in one pass, so what a role
+reports and what it actually took away cannot drift apart.
 
 `docs/architecture/demo-dataset.md` → "One resource, two business roles"
 describes the demo data (`BR-Service-Desk` and `BR-IT-Operations` sharing a
@@ -262,8 +271,8 @@ can carry both at once — short on one resource of a role, over on another:
 | **Fewer** — the role assigns a membership the subject does not have | On the resource's own cell | Amber `!` in the strip's left slot (the provisioning gap), tooltip naming the expected type |
 | **Fewer**, while the role is folded | On the folded role's cell | Amber count in the strip's left slot |
 | **More** — the role grants *eligibility* (`roleName` contains "Eligible") but the subject holds a standing membership | On the resource's own cell | Red `+` in the strip's right slot |
-| **Outside** — a business role hands this resource out, and no business role the subject holds grants it to them: they hold it by some other route | On the resource's own cell | Red count in the strip's right slot — how many roles grant the row, tooltip naming them |
-| **More / outside**, while the role is folded | On the folded role's cell | Red count in the strip's right slot (folded resources held over what the role assigns, *plus* those held with no business role of the subject's granting them) |
+| **Outside** — a business role hands this resource out, and no business role carries an assignment of it for this subject: they hold it by some other route | On the resource's own cell | Red count in the strip's right slot — how many roles grant the row, tooltip naming them |
+| **More / outside**, while the role is folded | On the folded role's cell | Red count in the strip's right slot (folded resources held over what the role assigns, *plus* those held with no business role assigning them to the subject) |
 
 The comparison lives in
 [`matrix/coverageDeviation.js`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/ui/src/components/matrix/coverageDeviation.js)
@@ -283,28 +292,44 @@ asymmetries:
 
 A third statement shares the red slot: **held outside business-role
 governance**. The resource is one a business role hands out — the row says so,
-and the SOLL column agrees — but not one of the business roles this subject holds
-grants it to them, so the membership stands outside the governance that is
-supposed to cover it. This is deliberately the *same* finding a folded role
-reports as its red count, said on the resource's own row so folding and unfolding
-a role never change what the grid claims: fold the role and the marks on the rows
-it hides roll up into one count on the role's row; unfold it and they go back to
-the cells they came from.
+and the SOLL column agrees — but no business role carries an assignment of it for
+this subject, so the membership stands outside the governance that is supposed to
+cover it. This is deliberately the *same* finding a folded role reports as its
+red count, said on the resource's own row so folding and unfolding a role never
+change what the grid claims: fold the role and the marks on the rows it hides
+roll up into one count on the role's row; unfold it and they go back to the cells
+they came from.
 
-`heldOutsideRoleCount` in `coverageDeviation.js` clears the mark as soon as
-**any** business role covers the cell — not only one of the roles that have a row
-in this matrix. A role can only cover a cell by granting that resource to a
-subject who holds the role, so a covering role explains the membership whether or
-not it is in the current scope; suppressing on the granting rows alone marked
-cells red that a role outside the scope already accounted for.
+`heldOutsideRole` in `coverageDeviation.js` clears the mark as soon as **any**
+business role covers the cell — not only one of the roles that have a row in this
+matrix. A role can only cover a cell by granting that resource to a subject who
+holds the role, so a covering role explains the membership whether or not it is
+in the current scope; suppressing on the granting rows alone marked cells red
+that a role outside the scope already accounted for.
 
-The wording matters as much as the mark. The tooltip leads with the finding —
-*no business role this subject holds grants this resource* — and only then names
-the role(s) that do grant it, noting that the subject holds none of them. Naming
-the granting role first and closing on "the subject does not hold that role" read
-as a claim about business-role membership in general, which someone who does hold
-several other roles reasonably read as simply wrong (requestor feedback on #370).
-The subject's own roles are the finding; the granting role is the context.
+**The wording says what was evaluated, and nothing more.** The finding is about
+the *assignments of the business role that grants this resource*: the role hands
+the resource out, and it carries no assignment of it for this subject. That is
+not the same claim as "the subject does not hold that role", which is what the
+tooltip used to close on — and which is plainly wrong whenever the subject does
+hold the role while the role's grant is missing from their assignments
+(requestor feedback on #370). So `heldOutsideRole` also returns
+`holdsGrantingRole`, read off the coverage view's self arm
+([`061`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/db/migrations/061_business_role_covers_itself.sql)
+makes a role cover its own cell exactly when the subject holds it), and the two
+cases are worded separately:
+
+| `holdsGrantingRole` | Tooltip leads with |
+|---|---|
+| `false` — no granting role of the subject's could be established | *no business role assigns this resource to this subject* |
+| `true` — the subject does hold a role that grants the resource | *this subject holds a business role that grants this resource, but the role does not assign it to them* |
+
+Both then name the granting role(s) and say the same thing about them: they
+carry **no assignment of this resource for this subject**. Neither ever asserts
+that a role is not held. The `true` case is what a stale coverage matview looks
+like from the grid — the role assignment has landed but
+`vw_UserPermissionAssignmentViaBusinessRole` has not been refreshed since — so
+the marker describes it accurately instead of blaming the subject.
 
 `docs/architecture/demo-dataset.md` → "Fewer and more than the role assigns"
 describes the demo data that exercises every row of the table above.

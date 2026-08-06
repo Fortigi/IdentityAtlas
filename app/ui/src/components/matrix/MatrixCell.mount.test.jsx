@@ -115,9 +115,22 @@ describe('MatrixCell', () => {
       expect(screen.getByText('D')).toBeInTheDocument();
       expect(td.querySelector('.bg-rose-600')).toHaveTextContent('1');
       expect(td.getAttribute('title')).toContain('Direct');
-      expect(td.getAttribute('title')).toContain('no business role this subject holds grants this resource');
-      expect(td.getAttribute('title')).toContain('which this subject does not hold');
+      expect(td.getAttribute('title')).toContain('no business role assigns this resource to this subject');
+      expect(td.getAttribute('title')).toContain('carries no assignment of it for this subject');
       expect(td.getAttribute('title')).toContain('BR-Engineering-Tools');
+    });
+
+    // The granting role IS one of the subject's — what is missing is the role's
+    // assignment of this resource, not the role membership (requestor feedback
+    // on #370).
+    it('says the role is held when the subject holds it, instead of denying it', () => {
+      const td = renderCell({
+        membershipTypes: types('Direct'), heldOutsideCount: 1,
+        heldOutsideNames: 'BR-Engineering-Tools', heldOutsideHoldsRole: true,
+      });
+      expect(td.getAttribute('title'))
+        .toContain('this subject holds a business role that grants this resource');
+      expect(td.getAttribute('title')).not.toContain('does not hold');
     });
 
     it('names all the granting roles when more than one fails to account for it', () => {
@@ -126,7 +139,8 @@ describe('MatrixCell', () => {
       });
       expect(td.querySelector('.bg-rose-600')).toHaveTextContent('2');
       expect(td.getAttribute('title')).toContain('granted by 2 business roles (BR-A, BR-B)');
-      expect(td.getAttribute('title')).toContain('none of which this subject holds');
+      expect(td.getAttribute('title'))
+        .toContain('none of which carries an assignment of it for this subject');
     });
 
     it('renders no marker on a cell whose access the role does account for', () => {

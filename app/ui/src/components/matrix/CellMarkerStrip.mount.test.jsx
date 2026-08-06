@@ -35,30 +35,46 @@ describe('hasCellMarkers', () => {
   });
 });
 
-// Requestor feedback on #370: the old wording named the granting role first and
-// closed on "the subject does not hold that role", which reads as a claim that
-// the subject holds no business role at all — wrong for someone who holds three
-// other roles, none of which happens to grant this resource. The finding leads
-// now; the granting role is context.
+// Requestor feedback on #370: the old wording closed on "the subject does not
+// hold that role" — a claim about role membership the marker never established,
+// and plainly wrong for a subject who does hold the role while the role carries
+// no assignment matching this resource. What the marker actually evaluated is
+// the granting role's assignments, and that is what it now says.
 describe('heldOutsideTitle', () => {
-  it('states the finding before it names the role that grants the resource', () => {
+  it('reports the missing assignment on the role that grants the resource', () => {
     expect(heldOutsideTitle(1, 'BR-Engineering-Tools')).toBe(
-      '⚠ Held outside business-role governance: no business role this subject holds grants this resource.'
-      + ' It is granted by business role BR-Engineering-Tools, which this subject does not hold.');
+      '⚠ Held outside business-role governance: no business role assigns this resource to this subject.'
+      + ' It is granted by business role BR-Engineering-Tools,'
+      + ' which carries no assignment of it for this subject.');
   });
 
   it('reads as several roles, and drops the names when there are none', () => {
     expect(heldOutsideTitle(2, 'BR-A, BR-B')).toBe(
-      '⚠ Held outside business-role governance: no business role this subject holds grants this resource.'
-      + ' It is granted by 2 business roles (BR-A, BR-B), none of which this subject holds.');
-    expect(heldOutsideTitle(2)).toBe(
-      '⚠ Held outside business-role governance: no business role this subject holds grants this resource.'
-      + ' It is granted by 2 business roles, none of which this subject holds.');
-    expect(heldOutsideTitle(1)).toContain('It is granted by a business role, which this subject does not hold.');
+      '⚠ Held outside business-role governance: no business role assigns this resource to this subject.'
+      + ' It is granted by 2 business roles (BR-A, BR-B),'
+      + ' none of which carries an assignment of it for this subject.');
+    expect(heldOutsideTitle(2)).toContain('It is granted by 2 business roles,');
+    expect(heldOutsideTitle(1)).toContain(
+      'It is granted by a business role, which carries no assignment of it for this subject.');
   });
 
-  it('never claims the subject holds no business role', () => {
-    expect(heldOutsideTitle(1, 'BR-Engineering-Tools')).not.toMatch(/does not hold (that role|any of them)$/);
+  // The exact case the requestor called out: the subject DOES hold the role that
+  // grants the resource, so the tooltip must say what is missing (the role's
+  // assignment) instead of denying the role membership.
+  it('says the subject holds the granting role when they do', () => {
+    const title = heldOutsideTitle(1, 'BR-Engineering-Tools', true);
+    expect(title).toBe(
+      '⚠ Held outside business-role governance: this subject holds a business role that grants this resource,'
+      + ' but the role does not assign it to them.'
+      + ' It is granted by business role BR-Engineering-Tools,'
+      + ' which carries no assignment of it for this subject.');
+  });
+
+  it('never claims the subject does not hold a business role', () => {
+    for (const holds of [false, true]) {
+      expect(heldOutsideTitle(1, 'BR-Engineering-Tools', holds)).not.toContain('does not hold');
+      expect(heldOutsideTitle(2, 'BR-A, BR-B', holds)).not.toContain('does not hold');
+    }
   });
 });
 
@@ -127,6 +143,13 @@ describe('CellMarkerStrip', () => {
     expect(more.className).toContain('bg-rose-600');
     expect(more.getAttribute('title')).toContain('Held outside business-role governance');
     expect(more.getAttribute('title')).toContain('BR-Engineering-Tools');
+  });
+
+  it('passes on whether the subject holds the granting role', () => {
+    const more = slots(renderMarkers({
+      heldOutsideCount: 1, heldOutsideNames: 'BR-Engineering-Tools', heldOutsideHoldsRole: true,
+    }))[2];
+    expect(more.getAttribute('title')).toContain('this subject holds a business role that grants this resource');
   });
 
   it('yields the red slot to a folded role\'s own count, which is more specific', () => {

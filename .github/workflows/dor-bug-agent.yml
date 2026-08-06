@@ -189,7 +189,9 @@ jobs:
           private-key: ${{ secrets.BOT_PRIVATE_KEY }}
           owner: Fortigi
           permission-organization-projects: write
-          permission-issues: read
+          permission-issues: write         # read: dor_set_status.sh needs the issue node id. write: the
+                                           # awaiting-approval label is set AS THE APP, so the value-gate
+                                           # cascade fires (a github.token label edit triggers nothing)
       # Restore all tracked .github files to committed state BEFORE executing any repo script (defuses a
       # model Edit→execute escalation), exactly as the feature agent does.
       - name: Restore repo scripts (defuse Write→exec)
@@ -203,8 +205,6 @@ jobs:
           REPO: ${{ github.repository }}
           GH_CONFIG_DIR: ${{ runner.temp }}/dor-ghcfg
           OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          # Target the Bug Pipeline board (org project #3) instead of the Feature board.
-          PROJECT_ID: PVT_kwDOAhfTz84BezXo
-          STATUS_FIELD_ID: PVTSSF_lADOAhfTz84BezXozhZK4Vo
+          # No board override needed: dor_set_status.sh routes on the issue's `bug` label (board #3).
         # Route allow-list + egress token-scan + comment/label/board-sync, shared with the feature agent.
         run: bash .github/scripts/dor_post_decision.sh

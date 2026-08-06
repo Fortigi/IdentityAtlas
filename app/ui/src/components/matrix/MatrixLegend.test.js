@@ -46,18 +46,21 @@ describe('MatrixLegend', () => {
   // Feedback on #370: the same finding has to read the same folded or not.
   it('explains a membership held outside the business role that grants it', () => {
     expect(html).toContain('held outside business-role governance');
-    expect(html).toContain('no business role this subject holds grants it to them');
+    expect(html).toContain('no business role assigns it to this subject');
     expect(html).toContain('they hold it by some other route');
+    expect(html).toContain('says whether the subject holds one of them');
   });
 
-  it('explains the chip naming the business role a moved row belongs to', () => {
-    expect(html).toContain('named on the row itself');
+  it('explains the chip pointing at the other business roles a resource is in', () => {
+    expect(html).toContain('also granted by another business role');
+    expect(html).toContain('it has a row under that role too');
   });
 
-  // Feedback on #370: how a resource granted by several business roles behaves.
+  // Feedback on #370: a resource several business roles grant is shown under
+  // every one of them.
   it('explains a resource granted by more than one business role', () => {
     expect(html).toContain('more than one business role');
-    expect(html).toContain('until every one of those roles is folded');
-    expect(html).toContain('N of M resources folded');
+    expect(html).toContain('is shown under every one of them');
+    expect(html).toContain('folding one role removes only that role');
   });
 });

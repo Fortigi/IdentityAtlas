@@ -2,8 +2,10 @@ name: DoR board sync (label → Status)
 
 # Keeps the board Status in sync when a HUMAN changes a state:* label directly on an issue.
 # (The dor-agent already sets Status itself when it routes; this reconciles manual label edits.
-# The agent's own label writes use GITHUB_TOKEN, which does not re-trigger workflows, so this
-# fires only for human label changes — no loop.)
+# Most agent label writes use GITHUB_TOKEN, which does not re-trigger workflows. The one exception
+# is `state:awaiting-approval`, deliberately written as the BOT app so it cascades to the value gate
+# — so the job also skips Bot senders, keeping this "human label changes only" and avoiding a
+# redundant second write of the Status the agent just set. Either way: no loop.)
 # Deterministic — no LLM. Inert until repo variable DOR_ENABLED=true.
 
 on:
@@ -20,6 +22,7 @@ jobs:
   sync:
     if: >-
       vars.DOR_ENABLED == 'true' &&
+      github.event.sender.type != 'Bot' &&
       startsWith(github.event.label.name, 'state:')
     runs-on: ubuntu-latest
     permissions:
@@ -40,21 +43,11 @@ jobs:
           owner: Fortigi
           permission-organization-projects: write
           permission-issues: read          # dor_set_status.sh must read the issue node id first
-      # Sync to whichever board the issue belongs to: bugs → Bug board (#3), else Feature board (#2).
-      - name: Pick pipeline (feature vs bug)
-        id: pick
-        run: |
-          set -euo pipefail
-          if [[ "${{ contains(github.event.issue.labels.*.name, 'bug') }}" == "true" ]]; then
-            { echo "project_id=PVT_kwDOAhfTz84BezXo"; echo "status_field_id=PVTSSF_lADOAhfTz84BezXozhZK4Vo"; } >> "$GITHUB_OUTPUT"
-          else
-            { echo "project_id=PVT_kwDOAhfTz84Bern-"; echo "status_field_id=PVTSSF_lADOAhfTz84Bern-zhZEAac"; } >> "$GITHUB_OUTPUT"
-          fi
+      # Which board this issue belongs to is dor_set_status.sh's business — it reads the issue's own
+      # labels (bug → Bug board #3, else Feature board #2), so this workflow needn't know boards exist.
       - name: Sync Status from the label
         env:
           GH_TOKEN: ${{ steps.bot.outputs.token }}
           ISSUE: ${{ github.event.issue.number }}
           LABEL: ${{ github.event.label.name }}
-          PROJECT_ID: ${{ steps.pick.outputs.project_id }}
-          STATUS_FIELD_ID: ${{ steps.pick.outputs.status_field_id }}
         run: bash .github/scripts/dor_set_status.sh "$ISSUE" "$LABEL"

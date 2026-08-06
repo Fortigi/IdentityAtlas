@@ -6,10 +6,9 @@
 //   excess  — MORE permissions than the role assigns
 //
 // A third statement sits next to those two: the subject holds a resource a
-// business role hands out, and no business role they hold accounts for them
-// having it (`heldOutsideRoleCount`). It is the same thing a folded role reports
-// as a red count, said on the resource's own row so the folded and unfolded
-// views agree.
+// business role hands out, and no business role assigns it to them
+// (`heldOutsideRole`). It is the same thing a folded role reports as a red
+// count, said on the resource's own row so the folded and unfolded views agree.
 //
 // Both sides come from data the server already states: the `Contains` edge and
 // its `roleName` (delivered as the SOLL mapping behind `apGroupMap`) say what a
@@ -69,11 +68,33 @@ export function cellDeviation({ types, apIds, apGroupMap, resourceKey }) {
   return NO_DEVIATION;
 }
 
+// Nothing to say about this cell: either no business role grants the resource,
+// or one of the subject's roles assigns it to them.
+export const NO_HELD_OUTSIDE = { count: 0, holdsGrantingRole: false };
+
 /**
- * How many business roles grant this resource without any business role the
- * subject holds accounting for them having it — i.e. the subject has the
- * membership, at least one role in the grid hands this resource out, and not one
- * of the roles the subject holds covers this cell.
+ * Does this subject hold this business role? Read off the coverage matview
+ * rather than guessed: migration 061 gives a governance resource a self arm, so
+ * a role covers its OWN cell exactly when the subject holds it. That is what
+ * lets the marker below evaluate the *parent business role's assignments*
+ * instead of inferring role membership from the absence of coverage — the two
+ * are different findings and used to be reported as one (requestor feedback on
+ * #370).
+ *
+ * @param {Map}    managedApMap - "resourceid|subjectid" (lower) → covering role ids (lower)
+ * @param {string} roleId       - business role id, any case
+ * @param {string} subjectId    - subject (column) id, any case
+ */
+export function holdsBusinessRole(managedApMap, roleId, subjectId) {
+  const role = String(roleId || '').toLowerCase();
+  if (!role) return false;
+  return (managedApMap?.get(`${role}|${String(subjectId || '').toLowerCase()}`) || []).includes(role);
+}
+
+/**
+ * The subject holds a resource that business roles hand out, and none of those
+ * roles assigns it to them — so the membership stands outside the governance
+ * meant to cover it.
  *
  * This is the same statement a folded role makes with its red count, said on the
  * resource's own row so folding and unfolding agree. Any covering role clears
@@ -83,16 +104,26 @@ export function cellDeviation({ types, apIds, apGroupMap, resourceKey }) {
  * only on the granting rows marked cells red that a business role outside the
  * current scope already accounted for.
  *
+ * `holdsGrantingRole` reports whether the subject holds one of the granting
+ * roles anyway — the role hands the resource out but has no assignment of it for
+ * them. The two cases are worded differently, so the marker can never assert
+ * that a subject does not hold a role it has not checked.
+ *
  * @param {object}   args
  * @param {Set}      args.types        - membership types the subject actually has
  * @param {string[]} args.roleGrantIds - ids of the roles granting this row (upper)
  * @param {string[]} args.apIds        - ids of the roles covering this cell (lower)
- * @returns {number} 0 when a business role accounts for the access, else the
- *                   number of roles in the grid that grant this resource
+ * @param {Function} [args.holdsRole]  - (roleId) => does the subject hold it?
+ * @returns {{count: number, holdsGrantingRole: boolean}} count is 0 when a
+ *          business role accounts for the access, else the number of roles in
+ *          the grid that grant this resource
  */
-export function heldOutsideRoleCount({ types, roleGrantIds, apIds }) {
-  if (!types?.size || !roleGrantIds?.length) return 0;
-  return apIds?.length ? 0 : roleGrantIds.length;
+export function heldOutsideRole({ types, roleGrantIds, apIds, holdsRole }) {
+  if (!types?.size || !roleGrantIds?.length || apIds?.length) return NO_HELD_OUTSIDE;
+  return {
+    count: roleGrantIds.length,
+    holdsGrantingRole: !!holdsRole && roleGrantIds.some(id => holdsRole(id)),
+  };
 }
 
 function bump(map, key) {

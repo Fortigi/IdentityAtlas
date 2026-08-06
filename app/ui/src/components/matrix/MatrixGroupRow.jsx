@@ -1,7 +1,9 @@
 ﻿import MatrixCell from './MatrixCell';
 import CellMarkerStrip from './CellMarkerStrip';
 import { CELL_BOX_STYLE } from './cellMarkers';
-import { cellDeviation, heldOutsideRoleCount, NO_DEVIATION } from './coverageDeviation';
+import {
+  cellDeviation, heldOutsideRole, holdsBusinessRole, NO_DEVIATION, NO_HELD_OUTSIDE,
+} from './coverageDeviation';
 import { getAccessPackageColor } from '@ui/utils/colors';
 import { useIsDark } from '@ui/contexts/ThemeContext';
 
@@ -23,13 +25,10 @@ function getRoleBadge(roleName) {
 function roleFoldState({ group, foldableRoles, foldedRoles, roleFoldInfo }) {
   const roleKey = String(group.realGroupId || group.id || '').toUpperCase();
   if (group.isNestedRow || !foldableRoles?.has(roleKey)) return null;
-  const info = roleFoldInfo?.get(roleKey);
   return {
     roleKey,
     folded: !!foldedRoles?.has(roleKey),
-    total: info?.total || 0,
-    hidden: info?.hidden || 0,
-    shownBy: info?.shownBy || [],
+    total: roleFoldInfo?.get(roleKey)?.total || 0,
   };
 }
 
@@ -69,22 +68,21 @@ function RoleFoldToggle({ fold, onToggle }) {
   );
 }
 
-// Which business role a resource row belongs to, said on the row itself rather
-// than by where the row sits. Rows can be dragged anywhere and stay there, so a
-// resource can end up far from the role that grants it (or above it) — the
-// indent + elbow alone would then leave its role a guess. The chip is rendered
-// only when the row is NOT drawn directly under that role, so the common,
-// undisturbed case stays uncluttered.
+// The OTHER business roles that grant this resource — the ones whose copy of the
+// row the reader is not currently looking at. A resource now has a row under
+// every role that grants it, so this chip is what says "and it is in N more":
+// it turns a row that looks unremarkable into a visible catalogue overlap, and
+// clicking it opens the other role.
 //
-// The chip is a marker, not a name: "BR" for one role, "BR+3" for three. Role
-// names are long and the resource-name column is the one place in the grid that
-// has to stay readable, so the names live in the tooltip (and behind the click)
-// instead of on the row — requestor feedback on #370.
+// The chip is a marker, not a name: "BR" for one other role, "BR+3" for three.
+// Role names are long and the resource-name column is the one place in the grid
+// that has to stay readable, so the names live in the tooltip (and behind the
+// click) instead of on the row — requestor feedback on #370.
 function RoleOwnerChip({ owners, onOpenDetail }) {
   if (!owners?.length) return null;
   const [first] = owners;
   const label = owners.length > 1 ? `BR+${owners.length}` : 'BR';
-  const title = `Granted by business role: ${owners.map(o => o.name).join(', ')}`;
+  const title = `Also granted by business role: ${owners.map(o => o.name).join(', ')}`;
   return (
     <button
       type="button"
@@ -99,34 +97,22 @@ function RoleOwnerChip({ owners, onOpenDetail }) {
 }
 
 // "N resources folded" chip on a collapsed business role row. The row's own
-// cells are untouched — folding hides rows, it never rolls access up.
-//
-// A resource granted by more than one business role stays on screen until every
-// one of those roles is folded, so this role's fold can take away fewer rows
-// than it grants. The chip then reads "N of M" and names the role still showing
-// the rest, rather than claiming rows it did not take.
+// cells are untouched — folding hides rows, it never rolls access up. Every
+// resource a role grants has a row of its own under that role, so a fold always
+// takes away exactly what the role grants: no shared row can be left behind.
 function RoleFoldChip({ fold }) {
   if (!fold?.folded || fold.total === 0) return null;
-  const { hidden, total, shownBy } = fold;
-  const label = hidden === total
-    ? `${total} resource${total === 1 ? '' : 's'} folded`
-    : `${hidden} of ${total} resources folded`;
-  const title = shownBy.length
-    ? `${total - hidden} of the ${total} resources this role grants stay on screen — they are also granted by ${shownBy.join(', ')}, which is still unfolded.`
-    : undefined;
+  const { total } = fold;
   return (
-    <span
-      title={title}
-      className="flex-shrink-0 ml-1 px-1 rounded text-[10px] font-medium bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300"
-    >
-      {label}
+    <span className="flex-shrink-0 ml-1 px-1 rounded text-[10px] font-medium bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300">
+      {`${total} resource${total === 1 ? '' : 's'} folded`}
     </span>
   );
 }
 
-// The name cell's tooltip. A resource row states the business role(s) granting
-// it whatever position it has been moved to, so the answer never depends on the
-// row still sitting under its role.
+// The name cell's tooltip. A resource row states every business role that grants
+// it, not just the one whose block this copy of the row sits in — so one hover
+// answers "where else does this appear?" without hunting for the other rows.
 function rowTitle(group) {
   return group.roleGrantedBy
     ? `${group.displayName}\nGranted by business role: ${group.roleGrantedBy}`
@@ -191,10 +177,13 @@ export default function MatrixGroupRow({
   const missingAccessFor = (userId) =>
     (roleFold?.folded && roleMissingCounts?.get(`${roleFold.roleKey}|${userId}`)) || 0;
 
-  // A resource shown beneath the business role that grants it is drawn as that
-  // role's child — same indent + elbow as an expanded nested group.
+  // A resource is drawn beneath each business role that grants it, as that
+  // role's child — same indent + elbow as an expanded nested group. Those rows
+  // belong to the role's block and move with it, so they carry no drag handle of
+  // their own (the same rule nested sub-rows follow).
   const isRoleChild = !!group.roleParentId;
   const indentLevel = (group.nestLevel || 0) + (isRoleChild ? 1 : 0);
+  const isDraggable = !group.isNestedRow && !isRoleChild;
 
   const nestedBg = stickyBg(group);
 
@@ -202,12 +191,12 @@ export default function MatrixGroupRow({
     <tr ref={sortableRef} style={sortableStyle || {}} className={`hover:bg-gray-50/30 dark:hover:bg-gray-700/30 ${group.isNestedRow ? 'bg-gray-50/40 dark:bg-gray-700/30' : ''}`}>
       {/* Drag handle */}
       <td
-        className={`sticky left-0 z-10 ${nestedBg} border-r border-b border-gray-200 dark:border-gray-700 px-1 py-0 text-center ${!group.isNestedRow ? 'cursor-grab active:cursor-grabbing' : ''}`}
+        className={`sticky left-0 z-10 ${nestedBg} border-r border-b border-gray-200 dark:border-gray-700 px-1 py-0 text-center ${isDraggable ? 'cursor-grab active:cursor-grabbing' : ''}`}
         style={{ minWidth: '24px' }}
-        {...(group.isNestedRow ? {} : (sortableAttributes || {}))}
-        {...(group.isNestedRow ? {} : (sortableListeners || {}))}
+        {...(isDraggable ? (sortableAttributes || {}) : {})}
+        {...(isDraggable ? (sortableListeners || {}) : {})}
       >
-        {!group.isNestedRow && (
+        {isDraggable && (
           <span className="text-gray-500 dark:text-gray-600 text-xs select-none">&#x2630;</span>
         )}
       </td>
@@ -302,12 +291,17 @@ export default function MatrixGroupRow({
           : NO_DEVIATION;
 
         // The subject holds a resource the business role(s) on this row hand
-        // out, without the role handing it to them — what a folded role reports
-        // as its red count, said here on the resource's own row so the two
-        // views agree. Suppressed in the non-governed view along with every
-        // other business-role indicator.
-        const heldOutsideCount = managedFilter === 'unmanaged' ? 0 : heldOutsideRoleCount({
-          types: cellTypes, roleGrantIds: group.roleGrantIds, apIds: relevantApIds,
+        // out, and none of those roles carries an assignment of it for them —
+        // what a folded role reports as its red count, said here on the
+        // resource's own row so the two views agree. `holdsRole` reads the
+        // parent role's own assignments off the coverage view, so the marker
+        // says which of the two findings it actually established. Suppressed in
+        // the non-governed view along with every other business-role indicator.
+        const heldOutside = managedFilter === 'unmanaged' ? NO_HELD_OUTSIDE : heldOutsideRole({
+          types: cellTypes,
+          roleGrantIds: group.roleGrantIds,
+          apIds: relevantApIds,
+          holdsRole: roleId => holdsBusinessRole(managedApMap, roleId, user.id),
         });
 
         return (
@@ -324,8 +318,9 @@ export default function MatrixGroupRow({
             overGrant={deviation.excess[0] || null}
             extraAccessCount={extraAccessFor(user.id)}
             missingAccessCount={missingAccessFor(user.id)}
-            heldOutsideCount={heldOutsideCount}
+            heldOutsideCount={heldOutside.count}
             heldOutsideNames={group.roleGrantedBy}
+            heldOutsideHoldsRole={heldOutside.holdsGrantingRole}
             onExplainInherited={onExplainInherited}
           />
         );

@@ -330,14 +330,14 @@ test.describe('Matrix — fold business-role resources', () => {
     test.skip(!present, 'no visible row in this dataset is held outside the business role that grants it');
 
     await expect(outside.first()).toHaveText(/^[1-9]\d*$/);
-    // The finding leads; the role that grants the resource is context. It must
-    // never read as "this subject holds no business role" — the two SysAdmins
-    // this marks hold three of them (requestor feedback on #370).
+    // The marker reports what it evaluated — the granting role's assignments —
+    // and never asserts a role membership it did not check (requestor feedback
+    // on #370).
     await expect(outside.first()).toHaveAttribute(
-      'title', /^⚠ Held outside business-role governance: no business role this subject holds grants this resource\./,
+      'title', /^⚠ Held outside business-role governance: (no business role assigns this resource to this subject|this subject holds a business role that grants this resource)/,
     );
     await expect(outside.first()).toHaveAttribute(
-      'title', /It is granted by (business role .+|\d+ business roles.*), (which this subject does not hold|none of which this subject holds)\.$/,
+      'title', /It is granted by (business role .+|\d+ business roles.*), (which carries no assignment|none of which carries an assignment) of it for this subject\.$/,
     );
     // The marker explains the access — it never replaces it, so the badge stays.
     await expect(page.locator('tbody td:has(span[title*="Held outside"])').first())
@@ -355,13 +355,13 @@ test.describe('Matrix — fold business-role resources', () => {
     await expect.poll(() => outside.count()).toBeGreaterThan(0);
   });
 
-  // The exact cell the requestor checked. SG-VPN-Access is granted by
-  // BR-Engineering-Tools, and the two SysAdmins who hold the group do not hold
-  // that role — but they do hold three others, so a marker that reads "the
-  // subject does not hold that role" was taken to be claiming they hold no
-  // business role at all. The tooltip has to be unambiguous about which of the
-  // two it asserts.
-  test('the held-outside marker names the granting role without claiming the subject is ungoverned', async ({ page }) => {
+  // The exact cell the requestor checked: SG-VPN-Access under
+  // BR-Engineering-Tools. The old tooltip closed on "the subject does not hold
+  // that role" — a claim about role membership the marker never established,
+  // and one the requestor read (correctly) as wrong. What it did establish is
+  // that no business role carries an assignment of this resource for the
+  // subject, and that is all it may say.
+  test('the held-outside marker reports the missing role assignment, not a missing role', async ({ page }) => {
     await openFoldableGrid(page);
 
     const vpnRow = page.locator('tbody tr').filter({ has: page.getByTitle(/^SG-VPN-Access/) });
@@ -373,21 +373,19 @@ test.describe('Matrix — fold business-role resources', () => {
     test.skip(await marker.count() === 0, 'nobody in this slice holds SG-VPN-Access outside the role that grants it');
 
     const title = await marker.first().getAttribute('title');
-    expect(title).toContain('no business role this subject holds grants this resource');
+    expect(title).toContain('carries no assignment of it for this subject');
     expect(title).toContain('BR-Engineering-Tools');
-    // The old wording, which read as a statement about business-role membership
-    // in general rather than about this one role.
-    expect(title).not.toContain('the subject does not hold that role');
+    // The old wording, which asserted a role membership the marker never checked.
+    expect(title).not.toContain('does not hold');
   });
 
   // Requestor feedback on #370: what happens to a group / app role that two
   // business roles grant. The demo dataset's BR-Service-Desk and
   // BR-IT-Operations share exactly that (see DemoSharedGrants.ps1).
-  test('a resource two roles grant survives the first fold, and the role says so', async ({ page }) => {
+  test('a resource two roles grant has a row under each of them', async ({ page }) => {
     await openFoldableGrid(page);
 
-    // Find a (resource, role) pair where the resource is granted by two roles
-    // and both roles have a row — the scenario under test.
+    // Find a resource granted by two roles that both have a row — the scenario.
     const pairs = await (await page.request.get('/api/access-package-groups')).json();
     const byResource = new Map();
     for (const r of pairs) {
@@ -399,43 +397,58 @@ test.describe('Matrix — fold business-role resources', () => {
     const shared = [...byResource.values()].find(rows => rows.length > 1);
     test.skip(!shared, 'no resource in this dataset is granted by more than one business role');
 
-    // Fold every role but the last one that grants the shared resource: the row
-    // must still be on screen, because that role is still expanded.
-    const keepOpen = shared[shared.length - 1].accessPackageName;
-    const sharedRow = page.locator('tbody td', { hasText: shared[0].resourceName }).first();
-    const wasOnScreen = await sharedRow.count() > 0;
+    // Fold everything first: with only the role rows left the grid is short, so
+    // the virtualizer paints every row and the counts below are exact.
     await foldAll(page).click();
     await expect(unfoldAll(page)).toBeVisible();
-    const role = page.locator('tbody tr', { hasText: keepOpen })
+    // Ownership resources are named after their group, so pin the rows to the
+    // ones that actually carry the "granted by a business role" tooltip.
+    const nameCellSelector =
+      `td[title^="${shared[0].resourceName}"][title*="Granted by business role:"]`;
+    const sharedRows = page.locator(`tbody tr:has(${nameCellSelector})`);
+    await expect(sharedRows).toHaveCount(0);
+
+    // Unfold the roles that grant it, one at a time: each one brings its own row
+    // for the shared resource.
+    const roleRow = (name) => page.locator('tbody tr', { hasText: name })
       .filter({ has: page.getByRole('button', { name: 'Unfold business role resources' }) }).first();
-    test.skip(await role.count() === 0, `the ${keepOpen} row is not rendered in this grid`);
-    await role.getByRole('button', { name: 'Unfold business role resources' }).click();
-    await expect(page.getByRole('button', { name: 'Fold business role resources' }).first()).toBeVisible();
-
-    // The shared resource is back even though the other role granting it is
-    // still folded — one expanded role is enough to keep it on screen.
-    if (wasOnScreen) await expect.poll(() => sharedRow.count()).toBeGreaterThan(0);
-
-    // Some other role folded a row it shares with the one just re-opened, so it
-    // reports what it really hid rather than everything it grants.
-    const partial = page.getByText(/\d+ of \d+ resources folded/);
-    if (await partial.count()) {
-      await expect(partial.first()).toHaveAttribute('title', /stay on screen/);
-      await expect(partial.first()).toHaveAttribute('title', /also granted by/);
+    for (const [i, pair] of shared.entries()) {
+      const row = roleRow(pair.accessPackageName);
+      test.skip(await row.count() === 0, `the ${pair.accessPackageName} row is not rendered in this grid`);
+      await row.getByRole('button', { name: 'Unfold business role resources' }).click();
+      await expect(sharedRows).toHaveCount(i + 1);
     }
+
+    // Every one of those rows names all the granting roles, and carries the
+    // "BR+N" chip that points at the others.
+    const nameCell = page.locator(`tbody ${nameCellSelector}`).first();
+    for (const pair of shared) {
+      await expect(nameCell)
+        .toHaveAttribute('title', new RegExp(`Granted by business role:.*${pair.accessPackageName}`, 's'));
+    }
+    await expect(sharedRows.first().locator('button[title^="Also granted by business role:"]'))
+      .toHaveText(/^BR(\+\d+)?$/);
+
+    // Folding one of them takes away only that role's copy; the other stays.
+    await page.locator('tbody tr', { hasText: shared[0].accessPackageName })
+      .filter({ has: page.getByRole('button', { name: 'Fold business role resources' }) }).first()
+      .getByRole('button', { name: 'Fold business role resources' }).click();
+    await expect(sharedRows).toHaveCount(shared.length - 1);
+    // A fold always takes exactly what its role grants, so the chip never hedges.
+    await expect(page.getByText(/\d+ of \d+ resources folded/)).toHaveCount(0);
+    await expect(page.getByText(/\d+ resources? folded/).first()).toBeVisible();
 
     // Leave the browser profile clean for the next test.
     await unfoldAll(page).click();
     await expect(unfoldAll(page)).toHaveCount(0);
   });
 
-  // Rows keep whatever position they are moved to, so a resource can end up far
-  // from the role that grants it. The row must still say which role that is.
-  test('a resource still names its business role after being moved away from it', async ({ page }) => {
+  // A resource lives under the role(s) that grant it, whatever order the rows
+  // were saved in — so it can never be orphaned from its role.
+  test('a resource stays under its business role whatever the saved row order', async ({ page }) => {
     await openFoldableGrid(page);
 
-    // Every resource a role grants answers the question from its row tooltip,
-    // wherever it sits.
+    // Every resource a role grants answers "which role?" from its row tooltip.
     const named = page.locator('tbody td[title*="Granted by business role:"]');
     await expect.poll(() => named.count()).toBeGreaterThan(0);
 
@@ -443,8 +456,7 @@ test.describe('Matrix — fold business-role resources', () => {
     // header sorts by member count, which writes the current ids to storage.
     await page.locator('th[title="Sort by member count (descending)"]').click();
 
-    // Then move one role-granted resource to the very top, above every role row
-    // — the "user dragged it away from its role" case.
+    // Then move one role-granted resource to the very top, above every role row.
     const pairs = await (await page.request.get('/api/access-package-groups')).json();
     const moved = await page.evaluate((rows) => {
       const key = Object.keys(localStorage).find(k => k.startsWith('fgraph-roworder-'));
@@ -452,7 +464,7 @@ test.describe('Matrix — fold business-role resources', () => {
       const saved = JSON.parse(localStorage.getItem(key));
       const order = saved.order.map(id => String(id).toUpperCase());
       // A pair whose role AND resource both have a row — only then is there a
-      // role in the grid to name.
+      // role in the grid to file it under.
       const pair = rows.find(r => r.resourceId
         && order.includes(String(r.accessPackageId).toUpperCase())
         && order.includes(String(r.resourceId).toUpperCase()));
@@ -462,7 +474,7 @@ test.describe('Matrix — fold business-role resources', () => {
         ...saved,
         order: [child, ...saved.order.filter(id => id !== child)],
       }));
-      return { role: pair.accessPackageName };
+      return { role: pair.accessPackageName, resource: pair.resourceName };
     }, pairs);
     test.skip(!moved, 'no business role and one of its resources share this grid');
 
@@ -470,14 +482,14 @@ test.describe('Matrix — fold business-role resources', () => {
     await page.waitForLoadState('networkidle');
     await expect(page.locator('table').first()).toBeVisible({ timeout: 40000 });
 
-    // The moved row now names its role on the row itself. (A resource granted by
-    // several roles lists them all in the chip's tooltip, hence the substring.)
-    const chip = page.locator(`tbody button[title^="Granted by business role:"][title*="${moved.role}"]`).first();
-    await expect(chip).toBeVisible({ timeout: 20000 });
-
-    // Requestor feedback on #370: the chip is a marker, not a name — "BR" for
-    // one role, "BR+N" for several. The names stay in the tooltip.
-    await expect(chip).toHaveText(/^BR(\+\d+)?$/);
+    // The row is drawn under its role again — indented, with the elbow — and
+    // still names it in the tooltip.
+    const row = page.locator(
+      `tbody tr:has(td[title^="${moved.resource}"][title*="Granted by business role:"])`).first();
+    await expect(row).toBeVisible({ timeout: 20000 });
+    await expect(row.locator('td span', { hasText: /^└$/ }).first()).toBeVisible();
+    await expect(page.locator(`tbody td[title*="Granted by business role:"][title*="${moved.role}"]`).first())
+      .toBeVisible();
 
     // Leave the browser profile clean for the next test.
     await page.evaluate(() => {

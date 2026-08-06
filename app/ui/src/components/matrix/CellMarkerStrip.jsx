@@ -42,7 +42,7 @@ function FewerMarker({ provisioningGap, missingAccessCount }) {
 // resource at all, or — on a folded role — how many of the folded resources this
 // subject holds outside it. The folded count wins the slot when both apply; the
 // cell tooltip still explains both.
-function MoreMarker({ overGrant, extraAccessCount, heldOutsideCount, heldOutsideNames }) {
+function MoreMarker({ overGrant, extraAccessCount, heldOutsideCount, heldOutsideNames, heldOutsideHoldsRole }) {
   if (extraAccessCount > 0) {
     return (
       <Marker className="bg-rose-600 text-white" title={extraAccessTitle(extraAccessCount)}>
@@ -57,7 +57,7 @@ function MoreMarker({ overGrant, extraAccessCount, heldOutsideCount, heldOutside
     return (
       <Marker
         className="bg-rose-600 text-white"
-        title={heldOutsideTitle(heldOutsideCount, heldOutsideNames)}
+        title={heldOutsideTitle(heldOutsideCount, heldOutsideNames, heldOutsideHoldsRole)}
       >
         {heldOutsideCount}
       </Marker>
@@ -79,7 +79,7 @@ function RoleCountMarker({ apCount }) {
 
 export default function CellMarkerStrip({
   provisioningGap, overGrant, apCount, extraAccessCount, missingAccessCount,
-  heldOutsideCount, heldOutsideNames,
+  heldOutsideCount, heldOutsideNames, heldOutsideHoldsRole,
 }) {
   if (!hasCellMarkers({
     apCount, provisioningGap, overGrant, extraAccessCount, missingAccessCount, heldOutsideCount,
@@ -95,6 +95,7 @@ export default function CellMarkerStrip({
         extraAccessCount={extraAccessCount}
         heldOutsideCount={heldOutsideCount}
         heldOutsideNames={heldOutsideNames}
+        heldOutsideHoldsRole={heldOutsideHoldsRole}
       />
     </span>
   );

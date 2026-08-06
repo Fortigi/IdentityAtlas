@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
-  expectedTypeFor, cellDeviation, buildRoleDeviationCounts, heldOutsideRoleCount, NO_DEVIATION,
+  expectedTypeFor, cellDeviation, buildRoleDeviationCounts, heldOutsideRole, holdsBusinessRole,
+  NO_DEVIATION, NO_HELD_OUTSIDE,
 } from './coverageDeviation';
 
 // SOLL mapping as MatrixView builds it: "RESOURCEID|roleid" → role name on the
@@ -65,37 +66,62 @@ describe('cellDeviation', () => {
   });
 });
 
-describe('heldOutsideRoleCount', () => {
-  // BR1 grants this row; the subject either got it through a business role they
-  // hold or from somewhere else entirely.
-  const outside = (props) => heldOutsideRoleCount({ roleGrantIds: ['BR1'], ...props });
+// Migration 061 gives a business role a self arm in the coverage view, so the
+// role's own cell answers "does this subject hold it?" — the parent role's
+// assignments, read rather than inferred (requestor feedback on #370).
+describe('holdsBusinessRole', () => {
+  const map = new Map([['br1|u1', ['br1']], ['g1|u1', ['br1']], ['br2|u1', []]]);
+
+  it('reads the role\'s own coverage cell, case-insensitively', () => {
+    expect(holdsBusinessRole(map, 'BR1', 'U1')).toBe(true);
+    expect(holdsBusinessRole(map, 'br1', 'u1')).toBe(true);
+  });
+
+  it('is false when the subject does not hold the role', () => {
+    expect(holdsBusinessRole(map, 'BR2', 'u1')).toBe(false);
+    expect(holdsBusinessRole(map, 'BR3', 'u1')).toBe(false);
+    expect(holdsBusinessRole(map, 'BR1', 'u2')).toBe(false);
+  });
+
+  it('never claims a role is held when there is nothing to read', () => {
+    expect(holdsBusinessRole(undefined, 'BR1', 'u1')).toBe(false);
+    expect(holdsBusinessRole(map, '', 'u1')).toBe(false);
+  });
+});
+
+describe('heldOutsideRole', () => {
+  // BR1 grants this row; the subject either got it through a business role that
+  // assigns it or from somewhere else entirely.
+  const outside = (props) => heldOutsideRole({ roleGrantIds: ['BR1'], ...props });
 
   it('counts the granting role when the subject holds the resource without it', () => {
-    expect(outside({ types: types('Direct'), apIds: [] })).toBe(1);
+    expect(outside({ types: types('Direct'), apIds: [] }))
+      .toEqual({ count: 1, holdsGrantingRole: false });
   });
 
   it('says nothing when the role that grants it is what the subject holds it through', () => {
-    expect(outside({ types: types('Indirect'), apIds: ['br1'] })).toBe(0);
+    expect(outside({ types: types('Indirect'), apIds: ['br1'] })).toBe(NO_HELD_OUTSIDE);
   });
 
   it('says nothing for a row no business role in the grid grants', () => {
-    expect(heldOutsideRoleCount({ types: types('Direct'), roleGrantIds: [], apIds: [] })).toBe(0);
-    expect(heldOutsideRoleCount({ types: types('Direct'), apIds: [] })).toBe(0);
+    expect(heldOutsideRole({ types: types('Direct'), roleGrantIds: [], apIds: [] })).toBe(NO_HELD_OUTSIDE);
+    expect(heldOutsideRole({ types: types('Direct'), apIds: [] })).toBe(NO_HELD_OUTSIDE);
   });
 
   it('says nothing when the subject holds nothing — that is a gap, not excess', () => {
-    expect(outside({ types: undefined, apIds: [] })).toBe(0);
-    expect(outside({ types: types(), apIds: [] })).toBe(0);
+    expect(outside({ types: undefined, apIds: [] })).toBe(NO_HELD_OUTSIDE);
+    expect(outside({ types: types(), apIds: [] })).toBe(NO_HELD_OUTSIDE);
   });
 
   it('counts every granting role when none of them accounts for the access', () => {
-    expect(heldOutsideRoleCount({ types: types('Direct'), roleGrantIds: ['BR1', 'BR2'], apIds: [] })).toBe(2);
+    expect(heldOutsideRole({ types: types('Direct'), roleGrantIds: ['BR1', 'BR2'], apIds: [] }).count)
+      .toBe(2);
   });
 
   it('is all-or-nothing: one covering role already explains the access', () => {
-    expect(heldOutsideRoleCount({
+    expect(heldOutsideRole({
       types: types('Direct'), roleGrantIds: ['BR1', 'BR2'], apIds: ['br2'],
-    })).toBe(0);
+    })).toBe(NO_HELD_OUTSIDE);
   });
 
   // A role only covers a cell by granting the resource to someone who holds the
@@ -103,7 +129,23 @@ describe('heldOutsideRoleCount', () => {
   // this matrix. Marking such a cell red claimed the subject's access was
   // outside business-role governance when a role of theirs did account for it.
   it('says nothing when a covering role has no row of its own in the grid', () => {
-    expect(outside({ types: types('Indirect'), apIds: ['br-off-grid'] })).toBe(0);
+    expect(outside({ types: types('Indirect'), apIds: ['br-off-grid'] })).toBe(NO_HELD_OUTSIDE);
+  });
+
+  // The distinction the tooltip is built on: the role that grants the resource
+  // may well be one the subject holds — what is missing is the role's assignment
+  // of this resource, not the role membership.
+  it('reports that the subject holds the granting role when they do', () => {
+    expect(outside({ types: types('Direct'), apIds: [], holdsRole: id => id === 'BR1' }))
+      .toEqual({ count: 1, holdsGrantingRole: true });
+  });
+
+  it('reports that it could not establish a granting role of the subject\'s', () => {
+    expect(outside({ types: types('Direct'), apIds: [], holdsRole: () => false }).holdsGrantingRole)
+      .toBe(false);
+    expect(heldOutsideRole({
+      types: types('Direct'), roleGrantIds: ['BR1', 'BR2'], apIds: [], holdsRole: id => id === 'BR2',
+    })).toEqual({ count: 2, holdsGrantingRole: true });
   });
 });
 
