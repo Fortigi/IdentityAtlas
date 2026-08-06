@@ -205,3 +205,158 @@ describe('discoverExtendedAttrValues — surfaces JSONB keys as ext.<key>', () =
     expect(extValuesSql).not.toMatch(/DROP TABLE/);
   });
 });
+
+// ─── #928 — deterministic, flagged truncation ──────────────────────
+//
+// The distinct-value preload is capped. It used to be capped with a bare
+// `LIMIT 500` and no ORDER BY, so Postgres served an ARBITRARY page of the
+// distinct values and the matrix wizard's value list had unpredictable holes.
+// The fix: order inside the subquery, fetch one extra row as an overflow probe,
+// serve the first page and flag the column truncated.
+
+describe('distinct-value pages are ordered and flagged when truncated (#928)', () => {
+  function rows(col, n, offset = 0) {
+    return Array.from({ length: n }, (_, i) => ({ col, val: `v${String(i + offset).padStart(4, '0')}` }));
+  }
+
+  it('orders inside the subquery and fetches one row past the page size', async () => {
+    queryMock
+      .mockResolvedValueOnce({ rows: [{ column_name: 'description', data_type: 'text' }] })
+      .mockResolvedValueOnce({ rows: rows('description', 3) })
+      .mockResolvedValueOnce({ rows: [] });
+
+    const mod = await freshModule();
+    await mod.getResourceColumnValues();
+
+    const valuesSql = queryMock.mock.calls[1][0];
+    expect(valuesSql).toMatch(/ORDER BY val\s+LIMIT 501/);
+    expect(mod.VALUE_PAGE_SIZE).toBe(500);
+  });
+
+  it('flags a column that overflows the page and trims it to the page size', async () => {
+    queryMock
+      .mockResolvedValueOnce({ rows: [{ column_name: 'description', data_type: 'text' }] })
+      .mockResolvedValueOnce({ rows: rows('description', 501) })
+      .mockResolvedValueOnce({ rows: [] });
+
+    const mod = await freshModule();
+    const { values, truncated } = await mod.getResourceColumnValuesMeta();
+
+    expect(values.description).toHaveLength(500);
+    expect(values.description[0]).toBe('v0000');
+    expect(values.description[499]).toBe('v0499');
+    expect(truncated.description).toBe(true);
+  });
+
+  it('leaves a column that fits unflagged', async () => {
+    queryMock
+      .mockResolvedValueOnce({ rows: [{ column_name: 'description', data_type: 'text' }] })
+      .mockResolvedValueOnce({ rows: rows('description', 500) })
+      .mockResolvedValueOnce({ rows: [] });
+
+    const mod = await freshModule();
+    const { values, truncated } = await mod.getResourceColumnValuesMeta();
+
+    expect(values.description).toHaveLength(500);
+    expect(truncated.description).toBeUndefined();
+  });
+
+  it('flags an overflowing ext.<key> the same way', async () => {
+    queryMock
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ key: 'costCenter' }] })
+      .mockResolvedValueOnce({ rows: rows('ext.costCenter', 501) });
+
+    const mod = await freshModule();
+    const { values, truncated } = await mod.getPrincipalColumnValuesMeta();
+
+    expect(values['ext.costCenter']).toHaveLength(500);
+    expect(truncated['ext.costCenter']).toBe(true);
+    expect(queryMock.mock.calls[2][0]).toMatch(/ORDER BY val\s+LIMIT 501/);
+  });
+
+  it('clearColumnCaches() forces a re-query', async () => {
+    queryMock.mockResolvedValue({ rows: [] });
+    const mod = await freshModule();
+    await mod.getResourceColumns();
+    await mod.getResourceColumns();
+    expect(queryMock).toHaveBeenCalledTimes(1); // cached
+
+    mod.clearColumnCaches();
+    await mod.getResourceColumns();
+    expect(queryMock).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('searchColumnValues — the escape hatch past a truncated page (#928)', () => {
+  it('binds the needle and matches case-insensitively on a real column', async () => {
+    queryMock.mockResolvedValue({ rows: [{ val: 'Finance team' }] });
+    const mod = await freshModule();
+
+    const found = await mod.searchColumnValues(
+      'Resources', 'description', 'FINANCE', new Set(['description']),
+    );
+
+    expect(found).toEqual(['Finance team']);
+    const [sql, params] = queryMock.mock.calls[0];
+    expect(params).toEqual(['FINANCE']);
+    expect(sql).toMatch(/FROM "Resources"/);
+    expect(sql).toMatch(/strpos\(lower\("description"::text\), lower\(\$1\)\)/);
+    expect(sql).toMatch(/ORDER BY val\s+LIMIT 50/);
+    // The needle must never be interpolated — a wildcard typed by the user is
+    // a literal character, and an apostrophe must not reach the SQL text.
+    expect(sql).not.toMatch(/FINANCE/);
+  });
+
+  it('uses the JSON-path form for an ext.<key> column', async () => {
+    queryMock.mockResolvedValue({ rows: [] });
+    const mod = await freshModule();
+
+    await mod.searchColumnValues('Principals', 'ext.costCenter', 'EU', new Set(['ext.costCenter']));
+
+    const [sql] = queryMock.mock.calls[0];
+    expect(sql).toMatch(/"extendedAttributes"->>'costCenter'/);
+    expect(sql).toMatch(/"extendedAttributes" \? 'costCenter'/);
+  });
+
+  it('refuses a column that is not in the allowlist', async () => {
+    const mod = await freshModule();
+    await expect(
+      mod.searchColumnValues('Resources', 'password"; DROP TABLE "Resources', 'x', new Set(['description'])),
+    ).rejects.toThrow(/Unknown column/);
+    expect(queryMock).not.toHaveBeenCalled();
+  });
+
+  it('refuses an unsafe table name', async () => {
+    const mod = await freshModule();
+    await expect(
+      mod.searchColumnValues('Resources"; DROP', 'description', 'x', new Set(['description'])),
+    ).rejects.toThrow(/Invalid table name/);
+  });
+
+  it('refuses an allowlisted-but-unsafe column name', async () => {
+    const mod = await freshModule();
+    await expect(
+      mod.searchColumnValues('Resources', 'bad name', 'x', new Set(['bad name'])),
+    ).rejects.toThrow(/Invalid column name/);
+  });
+});
+
+describe('value caches', () => {
+  it('serves a second call from the cache and re-queries after clearColumnCaches()', async () => {
+    queryMock.mockResolvedValue({ rows: [] });
+    const mod = await freshModule();
+
+    await mod.getPrincipalColumnValuesMeta();
+    await mod.getResourceColumnValuesMeta();
+    const afterFirst = queryMock.mock.calls.length;
+
+    await mod.getPrincipalColumnValuesMeta();
+    await mod.getResourceColumnValuesMeta();
+    expect(queryMock).toHaveBeenCalledTimes(afterFirst);
+
+    mod.clearColumnCaches();
+    await mod.getPrincipalColumnValuesMeta();
+    expect(queryMock.mock.calls.length).toBeGreaterThan(afterFirst);
+  });
+});

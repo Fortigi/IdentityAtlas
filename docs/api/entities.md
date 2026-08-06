@@ -10,7 +10,7 @@ These endpoints power the detail pages for users, resources, business roles, sys
 
 #### GET /api/user-columns-page
 
-Column discovery for the Users page. Returns all populated columns from the `Principals` table with distinct values, plus the virtual `__userTag` column if any user tags exist. Used to build the filter UI on the Users page.
+Column discovery for the Users page. Returns all populated columns from the `Principals` table with the alphabetically first 500 distinct values each, plus the virtual `__userTag` column if any user tags exist. Used to build the filter UI on the Users page.
 
 Same response format as [`GET /api/user-columns`](matrix.md#get-apiuser-columns).
 
@@ -162,7 +162,7 @@ Version history for a user principal. Each entry represents a recorded change fr
 
 #### GET /api/group-columns
 
-Column discovery for the Groups/Resources page. Returns populated columns from the `Resources` table with distinct values, plus the virtual `__groupTag` column if any group tags exist.
+Column discovery for the Groups/Resources page. Returns populated columns from the `Resources` table with the alphabetically first 500 distinct values each, plus the virtual `__groupTag` column if any group tags exist.
 
 **Reads From:** `Resources` (via `db/columnCache.js`, 5-minute TTL)
 

@@ -165,6 +165,15 @@ The wizard's "+ Context" picker is filtered by the subject row type so an analys
 
 The subject-condition step also offers an "+ Attribute" filter. When `rowType=identity`, the column list comes from `GET /api/matrix/columns?entity=Identity` (loaded lazily the first time the analyst switches to identities), so identities can be narrowed by their own attributes (department, jobTitle, companyName, city, country, employeeId, …) and by identity tag. Switching row type clears the subject conditions, since the available columns differ between principals and identities.
 
+### Attribute values — paged discovery, not a silent cap
+
+A column can have far more distinct values than any dropdown can ship (`description` on `Resources` collects descriptions from every resource type, so a real tenant runs to tens of thousands). `GET /api/matrix/columns` therefore serves **one page** of values per column — the alphabetically first 500 — and sets `truncated: true` on any column that has more. Two rules follow:
+
+- **The page is ordered, never arbitrary.** The per-column subquery orders inside the `LIMIT` (`db/columnCache.js`). Without that, Postgres is free to return any 500 distinct values, and the list an analyst browses alphabetically has unpredictable holes — a value they can see on the Excel export is simply absent, while later values are present ([#928](https://github.com/Fortigi/IdentityAtlas/issues/928)).
+- **Everything outside the page stays reachable.** `GET /api/matrix/column-values?entity=&column=&q=` runs a bounded substring search (case-insensitive, 50 results) over *all* distinct values of one column. The "+ Attribute" picker filters the preloaded page client-side as you type, and for a `truncated` column additionally merges in server-side matches. The Field dropdown shows `description (500+)` for a truncated column so the count reads as a floor, not a total.
+
+`column` is validated against the discovered columns / `ext.*` keys before it is interpolated into the SQL; the search term is always bound.
+
 ### Filter shape — normalised at the wizard boundary
 
 A matrix filter reaches the wizard from four places and only one of them is

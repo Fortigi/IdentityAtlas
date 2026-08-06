@@ -85,9 +85,56 @@ Business role → resource mappings used to build SOLL columns in the Matrix. Re
 
 ---
 
+### GET /api/matrix/columns
+
+Column discovery for the matrix wizard. Returns every filterable column of the requested entity, plus the scalar `extendedAttributes` keys as `ext.<key>` entries.
+
+**Query Parameters**
+
+| Parameter | Type | Description |
+|---|---|---|
+| `entity` | string | `Principal`, `Identity` or `Resource`. Required. |
+| `schema` | bool | `true` returns column names/types only (no value discovery) — the wizard's fast first paint. |
+
+**Response**
+
+```json
+[
+  { "column": "resourceType", "type": "text", "values": ["Application", "Group"], "truncated": false },
+  { "column": "description",  "type": "text", "values": ["A…", "B…"],             "truncated": true  },
+  { "column": "ext.costCenter", "type": "text", "values": ["EU-1"],               "truncated": false }
+]
+```
+
+`values` is the **alphabetically first page** (max 500) of the column's distinct values — never an arbitrary subset. `truncated: true` means the column has more values than the page holds; use `/api/matrix/column-values` to reach them.
+
+---
+
+### GET /api/matrix/column-values
+
+Substring search across **all** distinct values of one column — the escape hatch for a `truncated` column, so any stored value can still be picked as a filter.
+
+**Query Parameters**
+
+| Parameter | Type | Description |
+|---|---|---|
+| `entity` | string | `Principal`, `Identity` or `Resource`. Required. |
+| `column` | string | A column name or `ext.<key>` from `/api/matrix/columns`. Required; anything else returns `400`. |
+| `q` | string | Case-insensitive substring to match (max 200 chars). Wildcards are literal characters. Omit it to get the same preloaded page `/api/matrix/columns` serves. |
+
+**Response**
+
+```json
+{ "column": "description", "values": ["Finance team — payroll"], "truncated": false }
+```
+
+At most 50 matches are returned; `truncated: true` means the search itself hit that limit and the term should be narrowed.
+
+---
+
 ### GET /api/user-columns
 
-Column discovery for Matrix user-side filters. Queries the `Principals` table to find all non-null columns and returns up to 500 distinct values per column so the frontend can render filter dropdowns.
+Column discovery for Matrix user-side filters. Queries the `Principals` table to find all non-null columns and returns the alphabetically first 500 distinct values per column so the frontend can render filter dropdowns.
 
 Also returns virtual columns:
 
