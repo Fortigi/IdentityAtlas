@@ -66,7 +66,7 @@ if [ -z "$pr" ]; then
         --body "$(printf 'Closes #%s\n\nBuilt autonomously by the DoR build agent from the approved spec. Functional-test env: %s\n\nDo not merge until CI is green and the requestor has accepted.' "$ISSUE" "$URL")" \
       | grep -oE '[0-9]+$') || bail "could not open the PR"
 fi
-echo "$pr $ISSUE" > "$HOME/.dor-reservation"   # <PR> <ISSUE> — dor-reset/feedback route off this
+claim_sidekick "$pr"   # ~/.dor-reservation + the sk:<label> that reset/feedback dispatch off
 # (board was already moved to Building at the start of the run) — now post the PR + follow link.
 comment_issue "$(printf '🔨 Building (PR #%s) — I'\''ll comment when it'\''s ready to test.%s' "$pr" "${RUN_URL:+ · 👀 [follow progress]($RUN_URL)}")"
 

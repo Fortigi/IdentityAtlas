@@ -50,6 +50,22 @@ changed_summary() {
 }
 comment_issue() { gh issue comment "$ISSUE" --repo "$REPO" --body "$1" >/dev/null 2>&1 || true; }
 
+# This sidekick's stable runner label, derived from its hostname: dev-docker-08 -> sk8 (10# strips
+# the leading zero, so 03 -> sk3 and 10 -> sk10 both work).
+sk_label() { local n; n="$(hostname)"; n="${n##*-}"; printf 'sk%d' "$((10#$n))"; }
+
+# Claim this box for the issue, recording the holder in BOTH places that need to know:
+#   ~/.dor-reservation   the box's own authority ("<PR> <ISSUE>"), read once a job is ON the box;
+#   sk:<label> on the ISSUE   the GitHub-readable mirror, so reset/feedback can dispatch STRAIGHT
+#                             to the holder instead of fanning a job out to every sidekick.
+# The label is a routing hint and never the authority — the job that lands still verifies against
+# the file, so a stale label costs one no-op rather than the wrong box being wiped. $1 = PR number.
+claim_sidekick() {
+  echo "$1 $ISSUE" > "$HOME/.dor-reservation"
+  gh issue edit "$ISSUE" --repo "$REPO" --add-label "sk:$(sk_label)" >/dev/null 2>&1 \
+    || echo "::warning::could not label #$ISSUE with sk:$(sk_label) — its sidekick will need releasing by hand"
+}
+
 # Make git push/fetch on THIS checkout authenticate as the BOT app instead of the job's GITHUB_TOKEN.
 # GitHub suppresses workflow runs for commits pushed with GITHUB_TOKEN (anti-recursion) — which is why
 # the bot PR got ZERO CI checks. Pushing as the app makes the PR's CI actually run. Call once, after

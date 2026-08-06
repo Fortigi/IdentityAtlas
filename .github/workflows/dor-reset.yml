@@ -8,9 +8,15 @@ name: DoR reset (release sidekick + finalize board on PR close)
 #     merged, or Out of pipeline if it was closed unmerged (rejected).
 # Deterministic, no AI. INERT until DOR_ENABLED=true.
 #
-# Targeting the right sidekick without a runner-admin token: one job per sidekick, each pinned to its
-# stable label (sk3 / sk5 / sk6 / sk7 / sk8 / sk9 / sk10); each self-checks whether IT holds this PR's reservation
-# ("<PR> <ISSUE>" in ~/.dor-reservation) and only the holder acts. The rest no-op.
+# Targeting the right sidekick: the build recorded its holder as an `sk:<label>` label on the ISSUE
+# (claim_sidekick in dor_build_lib.sh), so a tiny resolve job reads that label and the reset job
+# dispatches STRAIGHT to that box. The box still checks its own ~/.dor-reservation before wiping
+# anything — the label routes, the file authorises.
+#
+# This replaced a matrix that fanned one job out to every sidekick and had all but one no-op. That
+# shape cost us twice: a leg pinned to an offline or BUSY box sits queued, so the run never finishes
+# even though the reset already happened; and a sidekick missing from the matrix could never be
+# released at all — it kept its reservation forever.
 
 on:
   pull_request:
@@ -23,19 +29,45 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  reset:
+  # Which box holds this PR? Read the sk:<label> the build put on the issue. Cheap, hosted, and it
+  # never touches a sidekick — so a busy pool can't delay finding out where to go.
+  resolve:
     if: >-
       vars.DOR_ENABLED == 'true' &&
       github.event.pull_request.head.repo.full_name == github.repository &&
       startsWith(github.event.pull_request.head.ref, 'dor/issue-')
-    strategy:
-      matrix:
-        sk: [sk3, sk5, sk6, sk7, sk8, sk9, sk10]
+    runs-on: ubuntu-latest
+    permissions:
+      issues: read
+    outputs:
+      sk: ${{ steps.find.outputs.sk }}
+      issue: ${{ steps.find.outputs.issue }}
+    steps:
+      - name: Find the holding sidekick from the issue's sk:* label
+        id: find
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: |
+          set -euo pipefail
+          issue="${HEAD_REF##*dor/issue-}"
+          case "$issue" in ''|*[!0-9]*) echo "::notice::head ref '$HEAD_REF' has no issue number"; exit 0 ;; esac
+          sk="$(gh issue view "$issue" --repo "$REPO" --json labels \
+                --jq '[.labels[].name | select(startswith("sk:")) | ltrimstr("sk:")][0] // empty')"
+          { echo "issue=$issue"; echo "sk=$sk"; } >> "$GITHUB_OUTPUT"
+          if [ -n "$sk" ]; then echo "::notice::#$issue is held by $sk"; else
+            echo "::warning::#$issue carries no sk:* label — cannot route the reset"; fi
+
+  reset:
+    needs: resolve
+    if: needs.resolve.outputs.sk != ''
     runs-on:
       - self-hosted
-      - ${{ matrix.sk }}
+      - ${{ needs.resolve.outputs.sk }}
     permissions:
       pull-requests: write
+      issues: write        # drop the sk:* label once the box is released
     steps:
       - name: Reset this sidekick if it holds PR #${{ github.event.pull_request.number }}
         id: reset
@@ -85,6 +117,42 @@ jobs:
             -H "X-GitHub-Api-Version: 2022-11-28" \
             "https://api.github.com/repos/${REPO}/issues/${PR}/comments" \
             -d "$(printf '{"body":"%s"}' "$body")" -o /dev/null -w 'comment posted: HTTP %{http_code}\n'
+
+      # Release the routing label whatever happened above: the PR is closed, so the claim is over.
+      # Leaving it would send the next reset/feedback event to a box that no longer holds anything.
+      - name: Drop the sk:* claim label
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          ISSUE: ${{ needs.resolve.outputs.issue }}
+          SK: ${{ needs.resolve.outputs.sk }}
+        run: gh issue edit "$ISSUE" --repo "$REPO" --remove-label "sk:$SK" >/dev/null 2>&1 || true
+
+  # No sk:* label means we cannot tell which box to release — and a silently leaked sidekick shrinks
+  # the pool until a human happens to notice. Say so loudly instead of no-opping.
+  orphan:
+    needs: resolve
+    # Repeat resolve's conditions: a skipped `resolve` (any non-DoR PR) also leaves sk empty, and
+    # this must not comment on every unrelated PR that closes.
+    if: >-
+      vars.DOR_ENABLED == 'true' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      startsWith(github.event.pull_request.head.ref, 'dor/issue-') &&
+      needs.resolve.outputs.sk == ''
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Flag that no holder could be resolved
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          set -uo pipefail
+          gh pr comment "$PR" --repo "$REPO" --body "⚠️ @WimvandenHeijkant @TaekeK — PR closed, but its issue carries no \`sk:*\` label, so I can't tell which sidekick holds the env. If one is still held it needs releasing by hand (\`~/.dor-reservation\` + \`~/stacks/dor-<issue>\`). Builds that started before the sk-label change won't have one." >/dev/null 2>&1 || true
+          echo "::warning::no sk:* label for PR #$PR — a sidekick may need a manual release"
 
   # Terminal board transition for the linked issue (derived from the head branch dor/issue-N).
   finalize:

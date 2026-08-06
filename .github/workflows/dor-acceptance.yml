@@ -104,16 +104,40 @@ jobs:
           gh issue comment "$ISSUE" --repo "$REPO" --body "$(printf '✅ @%s approved. @WimvandenHeijkant @TaekeK @robb536 — PR #%s is ready for **final merge**.' "$ACTOR" "${pr:-?}")" >/dev/null 2>&1 || true
           echo "::notice::#${ISSUE} accepted by ${ACTOR} → Awaiting merge (PR #${pr:-?})"
 
-  # Loop E — feedback. Only the sidekick that holds this feature's live env acts; the others no-op.
-  feedback:
+  # Which sidekick holds this feature's live env? The build recorded it as an sk:<label> on the issue
+  # (claim_sidekick in dor_build_lib.sh). Reading it on a hosted runner costs seconds and never waits
+  # on the pool — where the old per-sidekick matrix had a leg pinned to every box, so one busy or
+  # offline sidekick left the run hanging even after the holder had finished the work.
+  resolve:
     needs: triage
     if: needs.triage.outputs.is-member == 'true' && needs.triage.outputs.is-approval != 'true'
-    strategy:
-      matrix:
-        sk: [sk3, sk5, sk6, sk7, sk8, sk9, sk10]
+    runs-on: ubuntu-latest
+    permissions:
+      issues: read
+    outputs:
+      sk: ${{ steps.find.outputs.sk }}
+    steps:
+      - name: Find the holding sidekick from the issue's sk:* label
+        id: find
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          ISSUE: ${{ github.event.issue.number }}
+        run: |
+          set -euo pipefail
+          sk="$(gh issue view "$ISSUE" --repo "$REPO" --json labels \
+                --jq '[.labels[].name | select(startswith("sk:")) | ltrimstr("sk:")][0] // empty')"
+          echo "sk=$sk" >> "$GITHUB_OUTPUT"
+          if [ -n "$sk" ]; then echo "::notice::#$ISSUE is held by $sk"; else
+            echo "::warning::#$ISSUE carries no sk:* label — cannot route the feedback"; fi
+
+  # Loop E — feedback, dispatched straight to the holder. It still self-verifies on the box.
+  feedback:
+    needs: [triage, resolve]
+    if: needs.resolve.outputs.sk != ''
     runs-on:
       - self-hosted
-      - ${{ matrix.sk }}
+      - ${{ needs.resolve.outputs.sk }}
     timeout-minutes: 350
     permissions:
       contents: write
@@ -229,3 +253,28 @@ jobs:
           GH_TOKEN="$BOARD_TOKEN" bash .github/scripts/dor_set_status.sh "$ISSUE" "$tok" \
             && echo "::notice::reconciled board → $tok (fresh token)" \
             || echo "::warning::board reconcile failed for $tok"
+
+  # No sk:* label means we cannot route the feedback — and silence here is the worst outcome we have
+  # seen: the bot says "on it", nothing runs, and the requestor waits (twice, on #370, for ~19h).
+  # Tell them plainly instead.
+  orphan:
+    needs: [triage, resolve]
+    # Repeat triage's conditions: a skipped `resolve` (e.g. the comment was an approval) also leaves
+    # sk empty, and this must never answer an approval with "I couldn't act on that feedback".
+    if: >-
+      needs.triage.outputs.is-member == 'true' &&
+      needs.triage.outputs.is-approval != 'true' &&
+      needs.resolve.outputs.sk == ''
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Tell the requestor the feedback could not be routed
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          ISSUE: ${{ github.event.issue.number }}
+        run: |
+          set -uo pipefail
+          gh issue comment "$ISSUE" --repo "$REPO" --body "⚠️ I couldn't act on that feedback: this issue carries no \`sk:*\` label, so I can't tell which sidekick holds its live env. @WimvandenHeijkant @TaekeK — this needs the label restored (or the build re-run). Builds started before the sk-label change won't have one." >/dev/null 2>&1 || true
+          echo "::warning::#$ISSUE has no sk:* label — feedback not routed"
