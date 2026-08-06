@@ -1,2 +1,0 @@
-- When the automated triage certifies a bug as real, it now also records a short machine-readable summary of its diagnosis — the assertion that must fail before the fix, the layer responsible, the files it expects to change, and the reporter's path to the symptom. It is shown on the issue, and the fix that follows is checked against it.
-- A fix that changes files outside the area the diagnosis predicted is stopped for a human to look at, rather than continuing on the assumption that the diagnosis was right.

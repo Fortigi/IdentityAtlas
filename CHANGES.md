@@ -1,5 +1,10 @@
 ## Changes in this PR
 
+- When the automated triage certifies a bug as real, it now also records a short machine-readable summary of its diagnosis — the assertion that must fail before the fix, the layer responsible, the files it expects to change, and the reporter's path to the symptom. It is shown on the issue, and the fix that follows is checked against it.
+- A fix that changes files outside the area the diagnosis predicted is stopped for a human to look at, rather than continuing on the assumption that the diagnosis was right.
+
+## Changes in this PR
+
 - Automated bug fixes must now prove they work. The regression test is written and committed on its own first and has to fail against the unfixed code; only then is the fix made, and the same test has to pass. A fix whose test never failed is rejected rather than reported as verified.
 - A bug fix must also ship a browser test that walks the reported path, and it is replayed against the deployed fix on a live environment. Previously, a fix with no browser test was accepted on the basis that the application still loaded.
 
