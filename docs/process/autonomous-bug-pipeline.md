@@ -350,7 +350,7 @@ Each phase is independently useful and independently revertible.
 | **2** | *(built)* `contract.json` from the probe + conformance check against it | Makes certification falsifiable |
 | **3** | *(built)* Evidence bundle on the PR | Makes the merge review a review of proof |
 | **4** | *(built)* The review loop: proof-gap re-runs from either side, red-proved-against-`main`. (`/validate` sessions deferred — the box is held until PR close, so a reviewer's env is already live) | Makes "not yet" cheap — useful on *any* bot PR, gate or no gate |
-| **5** | Flip the gate: `DOR_AUTOBUILD`, concurrency cap, budget guard, stale-reservation sweep | The autonomy itself — last, on top of everything that proves it |
+| **5** | *(built)* Flip the gate: `DOR_AUTOBUILD`, threshold policy, concurrency cap, size ceiling. (Budget guard NOT built — no spend API; the concurrency cap bounds it instead) | The autonomy itself — last, on top of everything that proves it |
 
 Phases 1–4 are worth shipping regardless of whether we ever flip phase 5. That ordering is
 deliberate: **build the proof, and the way to reject it, before removing the gate they replace.**

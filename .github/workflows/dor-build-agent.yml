@@ -67,8 +67,84 @@ jobs:
           app-id: ${{ secrets.BOT_APP_ID }}
           private-key: ${{ secrets.BOT_PRIVATE_KEY }}
           actor: ${{ steps.req.outputs.login }}
+  # ── Does this one still need a human to say go? ───────────────────────────────────────────────────
+  # A certified BUG has already answered the only question the value gate asks. "Is this worth
+  # building?" is contestable for a feature and settled for a bug: the product made a promise and
+  # broke it. What the gate still usefully guards is BLAST RADIUS — whether a machine should change
+  # this particular code unsupervised — so that survives as a rule instead of a click.
+  # Deterministic, no AI. Every "no" falls through to the human gate; nothing is skipped silently.
+  # See docs/process/autonomous-bug-pipeline.md §1 and §13.
+  policy:
+    needs: authorize
+    if: needs.authorize.outputs.is-member == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    outputs:
+      auto: ${{ steps.decide.outputs.auto }}
+    steps:
+      - name: Decide — autonomous, or hold for the value gate?
+        id: decide
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          ISSUE: ${{ github.event.issue.number }}
+          AUTOBUILD: ${{ vars.DOR_AUTOBUILD }}
+          MAX_CONCURRENT: ${{ vars.DOR_MAX_CONCURRENT_BUILDS || '3' }}
+        run: |
+          set -uo pipefail
+          no() { { echo "auto=false"; } >> "$GITHUB_OUTPUT"; echo "::notice::value gate required — $1"; exit 0; }
+
+          [ "$AUTOBUILD" = "true" ] || no "DOR_AUTOBUILD is not enabled"
+
+          labels="$(gh issue view "$ISSUE" --repo "$REPO" --json labels --jq '[.labels[].name]|join(" ")' 2>/dev/null || echo '')"
+          case " $labels " in *" bug "*) : ;; *) no "not a bug — a feature's value is a human question" ;; esac
+          case " $labels " in *" no-autobuild "*) no "the issue carries no-autobuild" ;; esac
+
+          # The contract IS the certification, and the only thing that can answer "safe to build
+          # unattended". No contract (certified before they existed) means no answer.
+          body="$(gh issue view "$ISSUE" --repo "$REPO" --json comments \
+                  --jq '[.comments[].body // empty] | map(select(test("Repro contract"))) | last // empty' 2>/dev/null)"
+          [ -n "$body" ] || no "no repro contract on this issue"
+          printf '%s\n' "$body" | sed -n '/```json/,/```/p' | sed '1d;$d' > /tmp/contract.json
+          jq -e . /tmp/contract.json >/dev/null 2>&1 || no "the contract on this issue is not valid JSON"
+
+          conf="$(jq -r '.confidence // "likely"' /tmp/contract.json)"
+          [ "$conf" = certain ] || no "the probe's confidence is '$conf', not 'certain'"
+
+          # Blast radius: schema migrations, auth/security and credential handling stay supervised.
+          # Matched on PATH SEGMENTS, never substrings — "author" must not trip an "auth" rule.
+          while IFS= read -r g; do
+            [ -n "$g" ] || continue
+            printf '%s\n' "$g" | tr '/' '\n' | grep -qiE '^(migrations?|auth|authn|authz|security|credentials?|secrets?)$' \
+              && no "the predicted blast radius touches restricted code ($g)"
+            printf '%s\n' "$g" | grep -qiE '(credential|secret|token)[^/]*\.(js|jsx|ps1|sql)$' \
+              && no "the predicted blast radius touches credential handling ($g)"
+          done < <(jq -r '.blast_radius[]?' /tmp/contract.json)
+
+          # Concurrency cap — the honest way to bound a bad day. Over the cap we fall back to the
+          # human gate rather than queueing invisibly.
+          live="$(gh api "repos/$REPO/actions/runs?status=in_progress&per_page=100" \
+                  --jq '[.workflow_runs[]?|select(.path|test("dor-build-agent"))]|length' 2>/dev/null || echo 0)"
+          [ "${live:-0}" -lt "$MAX_CONCURRENT" ] || no "$live builds already running (cap $MAX_CONCURRENT)"
+
+          echo "auto=true" >> "$GITHUB_OUTPUT"
+          echo "::notice::autonomous build approved by policy for #$ISSUE"
+          gh issue comment "$ISSUE" --repo "$REPO" --body "🤖 Building autonomously — certified \`confidence: certain\`, with a blast radius clear of migrations, auth and credential handling, so no value gate is needed. The **merge review is still yours**, and the evidence bundle on the PR is what it reviews." >/dev/null 2>&1 || true
+
+  # Holds the Environment gate, and runs ONLY when policy says a human is needed. Its success is what
+  # the build waits on, so approval semantics are unchanged for everything that still needs one:
+  # features, low-confidence bugs, restricted blast radii, anything over the cap.
+  gate:
+    needs: [authorize, policy]
+    if: needs.authorize.outputs.is-member == 'true' && needs.policy.outputs.auto != 'true'
+    runs-on: ubuntu-latest
+    environment: build-approval
+    permissions:
+      issues: write
+    steps:
       - name: Post the one-click approval link (value gate)
-        if: steps.auth.outputs.is-member == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           ISSUE: ${{ github.event.issue.number }}
@@ -79,11 +155,12 @@ jobs:
           gh issue comment "$ISSUE" --repo "$REPO" --body "$(printf '🗳️ @WimvandenHeijkant @TaekeK @robb536 — ready for the **value gate**. **[Review & approve to build →](%s)** (open the run → *Review deployments* → approve `build-approval`). Nothing runs or spends until you do.' "$RUN_URL")" >/dev/null 2>&1 || true
 
   build:
-    needs: authorize
-    if: needs.authorize.outputs.is-member == 'true'
-    # THE value gate — the build-approval Environment's required reviewers (Product Board) must approve
-    # before ANY of this runs (no AI, no token spend until then). Same class as a required PR approval.
-    environment: build-approval
+    needs: [authorize, policy, gate]
+    # `always()` is load-bearing: on the autonomous path `gate` is SKIPPED, and a skipped dependency
+    # would otherwise skip this job too. Either policy cleared it, or a human did.
+    if: >-
+      always() && needs.authorize.outputs.is-member == 'true' &&
+      (needs.policy.outputs.auto == 'true' || needs.gate.result == 'success')
     runs-on:
       - self-hosted
       - dor-build
