@@ -191,13 +191,25 @@ jobs:
           set -uo pipefail
           issue="${HEAD_REF##*dor/issue-}"
           case "$issue" in ''|*[!0-9]*) echo "::notice::head ref '$HEAD_REF' has no issue number — skip."; exit 0 ;; esac
+          # Every in-flight label is now false. `build-done` is the one that matters: dor-acceptance
+          # GATES on it, so a shipped issue keeps advertising itself as awaiting functional acceptance
+          # and a stray comment can still wake the feedback loop. `needs-triage` left over from an
+          # Exceptions bail that was later resolved makes finished work show up in triage sweeps —
+          # #927 and #928 both shipped carrying it.
+          drop_workflow_labels() {
+            gh issue edit "$1" --repo "$REPO" --remove-label \
+              "build-done,needs-triage,ready-to-build,dor-stuck,state:awaiting-approval,state:awaiting-requestor,state:awaiting-design,state:ready-to-probe,state:decompose,state:blocked-external" \
+              >/dev/null 2>&1 || true
+          }
           if [ "$MERGED" = "true" ]; then
             GH_TOKEN="$BOARD_TOKEN" bash .github/scripts/dor_set_status.sh "$issue" done || true
+            drop_workflow_labels "$issue"
             gh issue close "$issue" --repo "$REPO" --reason completed \
               --comment "🎉 Shipped — PR #${PR} merged. Closing." >/dev/null 2>&1 || true
             echo "::notice::issue #${issue} → Done + closed (PR #${PR} merged)."
           else
             GH_TOKEN="$BOARD_TOKEN" bash .github/scripts/dor_set_status.sh "$issue" state:out-of-pipeline || true
+            drop_workflow_labels "$issue"
             gh issue comment "$issue" --repo "$REPO" \
               --body "PR #${PR} was closed without merging — moved to **Out of pipeline**. Re-open or file a new request to restart." >/dev/null 2>&1 || true
             echo "::notice::issue #${issue} → Out of pipeline (PR #${PR} closed unmerged)."
