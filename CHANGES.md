@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Finished bug reports no longer keep the labels that describe work in progress. A shipped issue used to stay marked as awaiting testing and as needing triage, which made completed work reappear in triage views and left a comment on it able to restart the change loop.
+
+## Changes in this PR
+
 - Fixed: the matrix wizard's "+ Attribute" filter now offers **displayName** as a field, so subjects and resources can be narrowed to the specific people or groups you name. It was hidden from the dropdown even though the data and the filtering behind it always supported it.
 - Sorting and roll-up still leave displayName out, where grouping by a near-unique name has nothing to group.
 

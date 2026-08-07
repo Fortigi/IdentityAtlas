@@ -1,1 +1,0 @@
-- Finished bug reports no longer keep the labels that describe work in progress. A shipped issue used to stay marked as awaiting testing and as needing triage, which made completed work reappear in triage views and left a comment on it able to restart the change loop.
