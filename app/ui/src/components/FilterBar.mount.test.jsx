@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
-import { describe, it, expect } from 'vitest';
-import { renderWithProviders, screen } from '@ui/test-utils/renderWithProviders';
+import { describe, it, expect, vi } from 'vitest';
+import { renderWithProviders, screen, fireEvent, within } from '@ui/test-utils/renderWithProviders';
 import FilterBar from '@ui/components/FilterBar';
+
+const noop = () => {};
 
 describe('FilterBar active pill (issue #943)', () => {
   it('displays the actual active value even when it is missing from the options list', () => {
@@ -22,5 +24,149 @@ describe('FilterBar active pill (issue #943)', () => {
     );
 
     expect(screen.getByRole('combobox')).toHaveValue('HaMIS (te controleren groepen)');
+  });
+
+  it('does not duplicate the active value when it is already a known option', () => {
+    renderWithProviders(
+      <FilterBar
+        label="Filters:"
+        filterFields={[{ key: '__resourceTag', label: 'Resource Tag' }]}
+        activeFilters={[{ field: '__resourceTag', value: 'Sensitive' }]}
+        getOptionsForField={() => ['Adobe Licenties', 'Sensitive']}
+        onAddFilter={noop}
+        onRemoveFilter={noop}
+      />
+    );
+
+    const select = screen.getByRole('combobox');
+    expect(select).toHaveValue('Sensitive');
+    expect(within(select).getAllByRole('option').map(o => o.textContent))
+      .toEqual(['Adobe Licenties', 'Sensitive']);
+  });
+
+  it('still renders a pill for an active filter whose field has not been discovered yet', () => {
+    // Sibling symptom of #943: column discovery only surfaces a field once it
+    // has values, so the first tag of a session filters the table while its
+    // field is absent from filterFields. The pill must still appear — otherwise
+    // the filter is active but invisible and cannot be cleared.
+    const onRemoveFilter = vi.fn();
+    renderWithProviders(
+      <FilterBar
+        label="Filters:"
+        filterFields={[]}
+        activeFilters={[{ field: '__resourceTag', value: 'ZZZ-Second' }]}
+        getOptionsForField={() => []}
+        onAddFilter={noop}
+        onRemoveFilter={onRemoveFilter}
+      />
+    );
+
+    expect(screen.getByText('__resourceTag:')).toBeInTheDocument();
+    expect(screen.getByRole('combobox')).toHaveValue('ZZZ-Second');
+
+    fireEvent.click(screen.getByTitle('Remove filter'));
+    expect(onRemoveFilter).toHaveBeenCalledWith('__resourceTag');
+  });
+
+  it('switching an active pill to another value re-applies the filter', () => {
+    const onAddFilter = vi.fn();
+    renderWithProviders(
+      <FilterBar
+        label="Filters:"
+        filterFields={[{ key: 'department', label: 'Department' }]}
+        activeFilters={[{ field: 'department', value: 'Sales' }]}
+        getOptionsForField={() => ['Sales', 'Engineering']}
+        onAddFilter={onAddFilter}
+        onRemoveFilter={noop}
+      />
+    );
+
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'Engineering' } });
+    expect(onAddFilter).toHaveBeenCalledWith('department', 'Engineering');
+  });
+});
+
+describe('FilterBar add/clear controls', () => {
+  it('adds a filter through the inline field + value pickers', () => {
+    const onAddFilter = vi.fn();
+    renderWithProviders(
+      <FilterBar
+        label="Filters:"
+        filterFields={[{ key: 'department', label: 'Department' }]}
+        activeFilters={[]}
+        getOptionsForField={() => ['Sales', 'Engineering']}
+        onAddFilter={onAddFilter}
+        onRemoveFilter={noop}
+      />
+    );
+
+    fireEvent.click(screen.getByText('+ Add filter'));
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'department' } });
+    const [, valueSelect] = screen.getAllByRole('combobox');
+    fireEvent.change(valueSelect, { target: { value: 'Sales' } });
+
+    expect(onAddFilter).toHaveBeenCalledWith('department', 'Sales');
+    // Picker closes again after a value is chosen.
+    expect(screen.getByText('+ Add filter')).toBeInTheDocument();
+  });
+
+  it('cancelling the inline picker adds nothing', () => {
+    const onAddFilter = vi.fn();
+    renderWithProviders(
+      <FilterBar
+        label="Filters:"
+        filterFields={[{ key: 'department', label: 'Department' }]}
+        activeFilters={[]}
+        getOptionsForField={() => ['Sales']}
+        onAddFilter={onAddFilter}
+        onRemoveFilter={noop}
+      />
+    );
+
+    fireEvent.click(screen.getByText('+ Add filter'));
+    fireEvent.click(screen.getByText('×'));
+    expect(onAddFilter).not.toHaveBeenCalled();
+    expect(screen.getByText('+ Add filter')).toBeInTheDocument();
+  });
+
+  it('shows a loading hint instead of the add button while columns are still being fetched', () => {
+    renderWithProviders(
+      <FilterBar
+        label="Filters:"
+        filterFields={[]}
+        activeFilters={[]}
+        getOptionsForField={() => []}
+        onAddFilter={noop}
+        onRemoveFilter={noop}
+        loading
+      />
+    );
+
+    expect(screen.getByText(/Loading filters/i)).toBeInTheDocument();
+    expect(screen.queryByText('+ Add filter')).not.toBeInTheDocument();
+  });
+
+  it('Clear all removes every active filter shown by the bar', () => {
+    const onRemoveFilter = vi.fn();
+    renderWithProviders(
+      <FilterBar
+        label="Filters:"
+        filterFields={[
+          { key: 'department', label: 'Department' },
+          { key: '__resourceTag', label: 'Resource Tag' },
+        ]}
+        activeFilters={[
+          { field: 'department', value: 'Sales' },
+          { field: '__resourceTag', value: 'ZZZ-Second' },
+        ]}
+        getOptionsForField={() => ['Sales']}
+        onAddFilter={noop}
+        onRemoveFilter={onRemoveFilter}
+      />
+    );
+
+    fireEvent.click(screen.getByTitle('Clear all filters'));
+    expect(onRemoveFilter).toHaveBeenCalledWith('department');
+    expect(onRemoveFilter).toHaveBeenCalledWith('__resourceTag');
   });
 });
