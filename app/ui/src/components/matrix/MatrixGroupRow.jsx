@@ -210,7 +210,10 @@ export default function MatrixGroupRow({
           {(group.isNestedRow || isRoleChild) && (
             <span className="text-gray-500 dark:text-gray-600 text-[10px] mr-0.5 flex-shrink-0">{'\u2514'}</span>
           )}
-          <div className="truncate cursor-pointer hover:text-blue-600 dark:hover:text-blue-400"
+          {/* The bare display name, on an element of its own: the name cell also
+              carries fold/expand toggles, the nesting elbow and the BR chips, so
+              scraping the cell's text no longer yields the name. */}
+          <div data-row-name className="truncate cursor-pointer hover:text-blue-600 dark:hover:text-blue-400"
             onClick={() => onOpenDetail?.('resource', group.realGroupId || group.id, group.displayName)}>
             {group.displayName}
           </div>

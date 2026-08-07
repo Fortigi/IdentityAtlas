@@ -420,6 +420,20 @@ describe('MatrixGroupRow metadata columns', () => {
     expect(cells[cells.length - 1]).toHaveTextContent('All admins');
   });
 
+  // export-validation.spec.js reads the grid's row names through this hook,
+  // because the name cell also holds the fold/expand toggles, the nesting elbow
+  // and the BR chips — scraping the cell's text picks those up too.
+  it('exposes the bare display name on its own element', () => {
+    const { container } = renderRow(
+      { id: 'BR1', displayName: 'HR Manager BR', groupType: 'BusinessRole', memberCount: 1, roleOwners: [{ id: 'BR2', name: 'IT Ops' }] },
+      { foldedRoles: new Set(['BR1']) },
+    );
+    // The cell carries the chips; the name element carries only the name.
+    const cell = [...container.querySelectorAll('td')][1];
+    expect(cell.textContent).toContain('BR');
+    expect(cell.querySelector('[data-row-name]').textContent).toBe('HR Manager BR');
+  });
+
   it('renders an empty Contexts cell for a resource in no contexts', () => {
     renderRow({ id: 'g2', displayName: 'Readers', groupType: 'Group', description: '', memberCount: 0 });
     expect(screen.getByText('—')).toBeInTheDocument();
