@@ -1,5 +1,10 @@
 ## Changes in this PR
 
+- Fixed: the matrix wizard's "+ Attribute" filter now offers **displayName** as a field, so subjects and resources can be narrowed to the specific people or groups you name. It was hidden from the dropdown even though the data and the filtering behind it always supported it.
+- Sorting and roll-up still leave displayName out, where grouping by a near-unique name has nothing to group.
+
+## Changes in this PR
+
 - Automated fixes no longer carry a snapshot of the project's CI configuration in their branch, so a long-running fix can no longer conflict with, or undo, changes made to CI while it was in progress.
 - The limit on how many automated builds run at once now also counts follow-up changes made in response to feedback, which occupy a machine in exactly the same way.
 
