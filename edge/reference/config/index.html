@@ -4970,6 +4970,14 @@
 <td>Database connection</td>
 <td>Backend env var <code>DATABASE_URL</code> (PostgreSQL connection string)</td>
 </tr>
+<tr>
+<td>Filter/attribute value list size</td>
+<td>Backend env var <code>MATRIX_VALUE_PAGE_SIZE</code> — how many distinct values a filter dropdown preloads per field (default <code>500</code>, max <code>5000</code>). Lower it on a test deployment to exercise the "more values than fit in the list" behaviour without importing thousands of objects; see <a href="../../architecture/matrix/#attribute-values--paged-discovery-not-a-silent-cap">Matrix → Attribute values</a></td>
+</tr>
+<tr>
+<td>High-cardinality demo data</td>
+<td>Demo Dataset crawler option <strong>"Also load high-cardinality test data"</strong> (<code>includeVolumeData</code>) — set via Admin → Crawlers. Loads ~520 extra groups with distinct descriptions so a test environment crosses the value-list threshold above on real data; off by default</td>
+</tr>
 </tbody>
 </table>
 <p>The legacy JSON config file is only needed if you want to run a crawler script (<code>Start-EntraIDCrawler.ps1</code>, <code>Start-CSVCrawler.ps1</code>) on a machine outside the Docker worker.</p>

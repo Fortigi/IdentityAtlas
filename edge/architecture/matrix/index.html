@@ -1482,6 +1482,62 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#attribute-values-paged-discovery-not-a-silent-cap" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Attribute values — paged discovery, not a silent cap
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Attribute values — paged discovery, not a silent cap">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#verifying-it-on-a-deployment-that-has-fewer-than-500-distinct-values" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Verifying it on a deployment that has fewer than 500 distinct values
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Verifying it on a deployment that has fewer than 500 distinct values">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#a-load-high-cardinality-demo-data-no-configuration-change" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A. Load high-cardinality demo data (no configuration change)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b-lower-the-page-size" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        B. Lower the page size
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#filter-shape-normalised-at-the-wizard-boundary" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4913,6 +4969,62 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#attribute-values-paged-discovery-not-a-silent-cap" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Attribute values — paged discovery, not a silent cap
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Attribute values — paged discovery, not a silent cap">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#verifying-it-on-a-deployment-that-has-fewer-than-500-distinct-values" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Verifying it on a deployment that has fewer than 500 distinct values
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Verifying it on a deployment that has fewer than 500 distinct values">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#a-load-high-cardinality-demo-data-no-configuration-change" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A. Load high-cardinality demo data (no configuration change)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b-lower-the-page-size" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        B. Lower the page size
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#filter-shape-normalised-at-the-wizard-boundary" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5324,6 +5436,63 @@ attribute-fold views aggregate resources and have no per-resource row.</p>
 <p>(Resource/System contexts always apply to the resource axis; Identity and Principal contexts to the subject axis.)</p>
 <h3 id="identity-extension-attribute-filtering">Identity extension-attribute filtering<a class="headerlink" href="#identity-extension-attribute-filtering" title="Permanent link">&para;</a></h3>
 <p>The subject-condition step also offers an "+ Attribute" filter. When <code>rowType=identity</code>, the column list comes from <code>GET /api/matrix/columns?entity=Identity</code> (loaded lazily the first time the analyst switches to identities), so identities can be narrowed by their own attributes (department, jobTitle, companyName, city, country, employeeId, …) and by identity tag. Switching row type clears the subject conditions, since the available columns differ between principals and identities.</p>
+<h3 id="attribute-values-paged-discovery-not-a-silent-cap">Attribute values — paged discovery, not a silent cap<a class="headerlink" href="#attribute-values-paged-discovery-not-a-silent-cap" title="Permanent link">&para;</a></h3>
+<p>A column can have far more distinct values than any dropdown can ship (<code>description</code> on <code>Resources</code> collects descriptions from every resource type, so a real tenant runs to tens of thousands). <code>GET /api/matrix/columns</code> therefore serves <strong>one page</strong> of values per column — the alphabetically first 500 by default — and sets <code>truncated: true</code> on any column that has more. Two rules follow:</p>
+<ul>
+<li><strong>The page is ordered, never arbitrary.</strong> The per-column subquery orders inside the <code>LIMIT</code> (<code>db/columnCache.js</code>). Without that, Postgres is free to return any 500 distinct values, and the list an analyst browses alphabetically has unpredictable holes — a value they can see on the Excel export is simply absent, while later values are present (<a href="https://github.com/Fortigi/IdentityAtlas/issues/928">#928</a>).</li>
+<li><strong>Everything outside the page stays reachable.</strong> <code>GET /api/matrix/column-values?entity=&amp;column=&amp;q=</code> runs a bounded substring search (case-insensitive, 50 results) over <em>all</em> distinct values of one column. The "+ Attribute" picker filters the preloaded page client-side as you type, and for a <code>truncated</code> column additionally merges in server-side matches. The Field dropdown shows <code>description (500+)</code> for a truncated column so the count reads as a floor, not a total.</li>
+</ul>
+<p><code>column</code> is validated against the discovered columns / <code>ext.*</code> keys before it is interpolated into the SQL; the search term is always bound.</p>
+<h4 id="verifying-it-on-a-deployment-that-has-fewer-than-500-distinct-values">Verifying it on a deployment that has fewer than 500 distinct values<a class="headerlink" href="#verifying-it-on-a-deployment-that-has-fewer-than-500-distinct-values" title="Permanent link">&para;</a></h4>
+<p>The capped path only appears once a column holds more distinct values than the page, so a test environment with a couple of hundred resources shows nothing. There is no need to create resources by hand — resources only enter Identity Atlas through crawlers, and there is no bulk-create UI. Two supported ways to get there instead:</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>What you change</th>
+<th>Who can do it</th>
+<th>What you end up looking at</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>A. Load high-cardinality demo data</strong></td>
+<td>A checkbox on the Demo Dataset crawler</td>
+<td>Anyone with Admin access, from the browser</td>
+<td>A real column with <strong>more than 500</strong> distinct descriptions — the reporter's scenario at full size</td>
+</tr>
+<tr>
+<td><strong>B. Lower the page size</strong></td>
+<td><code>MATRIX_VALUE_PAGE_SIZE</code> on the web container</td>
+<td>Whoever can recreate the container</td>
+<td>The same behaviour at miniature scale, on whatever data is already loaded</td>
+</tr>
+</tbody>
+</table>
+<h5 id="a-load-high-cardinality-demo-data-no-configuration-change">A. Load high-cardinality demo data (no configuration change)<a class="headerlink" href="#a-load-high-cardinality-demo-data-no-configuration-change" title="Permanent link">&para;</a></h5>
+<p>Admin → Crawlers → <strong>Demo Dataset</strong> → tick <strong>"Also load high-cardinality test data"</strong> → Load Demo Data. The generator's opt-in volume slice (<code>test/demo-dataset/parts/DemoVolume.ps1</code>, switched on by <code>Generate-DemoDataset.ps1 -IncludeVolume</code>) appends ~520 extra groups <code>SG-Vol-0001…</code>, each with its own description, plus one sentinel group <strong><code>SG-Zzz-Cap-Probe</code></strong> whose description starts with <code>Zzz</code> so it sorts alphabetically <em>last</em> and is therefore guaranteed to fall outside the preloaded page.</p>
+<p>Then walk the reporter's path — Matrix → Adjust matrix → Next → Next → <strong>+ Attribute</strong>:</p>
+<ol>
+<li>The Field entry reads <strong><code>description (500+)</code></strong> — the <code>+</code> marks the count as a floor, so the list is a page rather than everything.</li>
+<li>The listed values are the alphabetically first 500, in order — no holes anywhere in the middle.</li>
+<li>Type <code>Zzz</code> into <strong>Search values</strong>. <code>Zzz - beyond the preloaded 500 (#928 probe)</code> comes back from the server even though it is not in the page. Tick it, add the filter, and the matrix shows <code>SG-Zzz-Cap-Probe</code>.</li>
+</ol>
+<p>The slice is off by default: the public demo, the Capture-the-Flag answers, <code>Verify-DemoDataset.ps1</code>'s exact row counts and the E2E suite all assume the standard 39-resource company. <code>test/unit/DemoDataset.Tests.ps1</code> pins both halves: the slice crosses 500 with the sentinel behind the page, and the default dataset is unchanged without the switch.</p>
+<p>To undo it, re-run the Demo Dataset crawler with the box unticked <em>and</em> clean the database first (Admin → Danger Zone → Clean Database). A plain re-run soft-deletes the extra groups, which is enough to clear them from the resource lists and the matrix — but value discovery reads the whole table, so their descriptions would keep appearing in the dropdowns until the rows are actually gone.</p>
+<h5 id="b-lower-the-page-size">B. Lower the page size<a class="headerlink" href="#b-lower-the-page-size" title="Permanent link">&para;</a></h5>
+<p>The page size is the <code>MATRIX_VALUE_PAGE_SIZE</code> environment variable on the web container (default <code>500</code>, maximum <code>5000</code>; anything unparseable, zero or negative falls back to the default). It is the cache key alongside the 5-minute TTL, so a changed value takes effect on the next request rather than after the TTL expires.</p>
+<p>Lowering it reproduces the same behaviour on any dataset without touching the data at all — useful when the deployment is connected to a real tenant and loading demo data is not an option. Both compose files pass the variable through, so an already-built stack only needs its web container recreated — no rebuild, no data changes:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># In the stack&#39;s directory, with the same -f flags it was started with</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="nv">MATRIX_VALUE_PAGE_SIZE</span><span class="o">=</span><span class="m">5</span><span class="w"> </span>docker<span class="w"> </span>compose<span class="w"> </span>up<span class="w"> </span>-d<span class="w"> </span>web
+</code></pre></div>
+<p>Then, in the matrix wizard's "+ Attribute" picker, any field with more than five distinct values behaves exactly as <code>description</code> does in a large tenant:</p>
+<ol>
+<li>The Field dropdown reads <code>description (5+)</code> — the <code>+</code> marks the count as a floor.</li>
+<li>The picker says <em>"Showing the first 5 values of more than can be listed"</em>, and those five are the alphabetically first ones — no holes.</li>
+<li>Typing part of a sixth, out-of-page value into <strong>Search values</strong> finds it (that request is <code>GET /api/matrix/column-values</code>) and it can be ticked and added as a filter.</li>
+</ol>
+<p>Restore the variable (or drop it) and recreate the container to return to the 500-value default. <code>app/api/contract-tests/columnValuesSmallTenant.contract.test.js</code> runs this exact recipe against a real database with twelve descriptions and a page size of five.</p>
+<p>Independently of the page size, two things are checkable on any deployment, without changing its configuration: <code>GET /api/matrix/columns?entity=Resource</code> returns <code>description</code> values in alphabetical order (the ordering whose absence caused the holes), and <code>GET /api/matrix/column-values?entity=Resource&amp;column=description&amp;q=&lt;text&gt;</code> — the request the picker's search box makes — returns matches for text stored anywhere in the tenant.</p>
 <h3 id="filter-shape-normalised-at-the-wizard-boundary">Filter shape — normalised at the wizard boundary<a class="headerlink" href="#filter-shape-normalised-at-the-wizard-boundary" title="Permanent link">&para;</a></h3>
 <p>A matrix filter reaches the wizard from four places and only one of them is
 guaranteed to carry every field:</p>

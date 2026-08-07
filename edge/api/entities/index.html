@@ -5850,7 +5850,7 @@
 <h2 id="users">Users<a class="headerlink" href="#users" title="Permanent link">&para;</a></h2>
 <h3 id="column-discovery">Column Discovery<a class="headerlink" href="#column-discovery" title="Permanent link">&para;</a></h3>
 <h4 id="get-apiuser-columns-page">GET /api/user-columns-page<a class="headerlink" href="#get-apiuser-columns-page" title="Permanent link">&para;</a></h4>
-<p>Column discovery for the Users page. Returns all populated columns from the <code>Principals</code> table with distinct values, plus the virtual <code>__userTag</code> column if any user tags exist. Used to build the filter UI on the Users page.</p>
+<p>Column discovery for the Users page. Returns all populated columns from the <code>Principals</code> table with the alphabetically first page of distinct values each (500 by default — see <code>MATRIX_VALUE_PAGE_SIZE</code> in <a href="../matrix/#get-apimatrixcolumns">matrix.md</a>), plus the virtual <code>__userTag</code> column if any user tags exist. Used to build the filter UI on the Users page.</p>
 <p>Same response format as <a href="../matrix/#get-apiuser-columns"><code>GET /api/user-columns</code></a>.</p>
 <hr />
 <h3 id="user-list">User List<a class="headerlink" href="#user-list" title="Permanent link">&para;</a></h3>
@@ -5987,7 +5987,7 @@
 <h2 id="resources">Resources<a class="headerlink" href="#resources" title="Permanent link">&para;</a></h2>
 <h3 id="column-discovery_1">Column Discovery<a class="headerlink" href="#column-discovery_1" title="Permanent link">&para;</a></h3>
 <h4 id="get-apigroup-columns">GET /api/group-columns<a class="headerlink" href="#get-apigroup-columns" title="Permanent link">&para;</a></h4>
-<p>Column discovery for the Groups/Resources page. Returns populated columns from the <code>Resources</code> table with distinct values, plus the virtual <code>__groupTag</code> column if any group tags exist.</p>
+<p>Column discovery for the Groups/Resources page. Returns populated columns from the <code>Resources</code> table with the alphabetically first page of distinct values each (500 by default — see <code>MATRIX_VALUE_PAGE_SIZE</code> in <a href="../matrix/#get-apimatrixcolumns">matrix.md</a>), plus the virtual <code>__groupTag</code> column if any group tags exist.</p>
 <p><strong>Reads From:</strong> <code>Resources</code> (via <code>db/columnCache.js</code>, 5-minute TTL)</p>
 <hr />
 <h3 id="resource-list">Resource List<a class="headerlink" href="#resource-list" title="Permanent link">&para;</a></h3>
