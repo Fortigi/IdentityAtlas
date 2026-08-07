@@ -15,9 +15,13 @@ import { PrimaryButton, SecondaryButton } from '@ui/components/contexts/ModalPri
 import { useDebouncedValue } from '@ui/hooks/useDebouncedValue';
 import { useFetch } from '@ui/hooks/useFetch';
 
-// Columns that are never useful as a filter field (identifiers, and the display
-// name where every value is unique).
-const HIDDEN_COLUMNS = ['id', 'principalId', 'resourceId', 'identityId', 'displayName'];
+// Columns that are never useful as a filter field: opaque identifiers nobody
+// filters by hand. `displayName` deliberately stays available — picking the
+// specific subjects or resources you mean by name is a core role-mining ask
+// (#927). It is excluded from the wizard's Sort / roll-up options instead (see
+// attributeOptions() in MatrixFilterWizard), where a near-unique value has
+// nothing to group by.
+const HIDDEN_COLUMNS = ['id', 'principalId', 'resourceId', 'identityId'];
 
 export default function AttributePicker({ entity, columns, onPick, onClose }) {
   const { authFetch } = useAuth();

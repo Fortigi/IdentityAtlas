@@ -25,18 +25,10 @@
 //     `description` does in a large tenant.
 
 import { test, expect } from '@playwright/test';
-
-const BASE = process.env.E2E_BASE_URL || 'http://localhost:3001';
-const API = `${BASE}/api`;
+import { API, matrixColumn, openAttributePicker, resourceValue } from './matrixWizard.js';
 
 // The alphabetically last resource description in the deployment under test.
-async function lastDescription() {
-  const res = await fetch(`${API}/resources?sort=description&dir=desc&limit=1`);
-  if (!res.ok) return null;
-  const body = await res.json();
-  const desc = body?.data?.[0]?.description;
-  return typeof desc === 'string' && desc.trim() ? desc : null;
-}
+const lastDescription = () => resourceValue('description', 'desc');
 
 // A distinctive slice of the value to type into the search box.
 function needleFor(description) {
@@ -44,19 +36,11 @@ function needleFor(description) {
   return trimmed.length > 24 ? trimmed.slice(0, 24) : trimmed;
 }
 
-// The `description` entry of /matrix/columns, or null when the deployment has
-// no such column.
-async function descriptionColumn() {
-  const res = await fetch(`${API}/matrix/columns?entity=Resource`);
-  if (!res.ok) return null;
-  return (await res.json()).find(c => c.column === 'description') || null;
-}
-
 test.describe('#928 — matrix wizard attribute values', () => {
   test.setTimeout(90000);
 
   test('the description value list is a flagged page, never an arbitrary subset', async () => {
-    const description = await descriptionColumn();
+    const description = await matrixColumn('description');
     test.skip(!description, 'no description column discovered in this deployment');
 
     // Whatever the cap is, it is declared rather than silent.
@@ -69,7 +53,7 @@ test.describe('#928 — matrix wizard attribute values', () => {
   });
 
   test('a capped column keeps every value out of the page reachable', async () => {
-    const description = await descriptionColumn();
+    const description = await matrixColumn('description');
     test.skip(!description?.truncated,
       'description is not capped here — lower MATRIX_VALUE_PAGE_SIZE to exercise this path');
 
@@ -105,32 +89,13 @@ test.describe('#928 — matrix wizard attribute values', () => {
     test.skip(!target, 'no resource with a description in this deployment');
     const needle = needleFor(target);
 
-    await page.goto(`${BASE}/#matrix`);
-    await page.waitForLoadState('networkidle');
-
-    // Open the wizard — "Create matrix" on the empty state, "Adjust matrix"
-    // once a matrix is loaded.
-    const openWizard = page.getByRole('button', { name: /Create matrix|Adjust matrix/ }).first();
-    await expect(openWizard).toBeVisible({ timeout: 60000 });
-    await openWizard.click();
-
-    // Setup → Subjects → Resources (the reporter's "Next, Next").
-    const next = page.getByRole('button', { name: 'Next' });
-    await expect(next).toBeVisible({ timeout: 30000 });
-    await next.click();
-    await next.click();
-
-    // + Attribute on the resource Include list.
-    await page.getByRole('button', { name: '+ Attribute' }).first().click();
-    await expect(page.getByText('Add attribute filter')).toBeVisible();
-
     // Field → description. The count carries a "+" when the list is capped.
-    const fieldSelect = page.getByLabel('Field');
+    const fieldSelect = await openAttributePicker(page, 'resources');
     await fieldSelect.selectOption('description');
 
     // A capped column says so, and says how many of its values are listed — the
     // signal a tester needs to know the capped path is the one being exercised.
-    const description = await descriptionColumn();
+    const description = await matrixColumn('description');
     if (description?.truncated) {
       await expect(fieldSelect.locator('option', { hasText: /^description \(\d+\+\)$/ })).toHaveCount(1);
       await expect(page.getByText(/Showing the first \d+ values/)).toBeVisible();

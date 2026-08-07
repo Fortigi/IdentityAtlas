@@ -117,6 +117,9 @@ Before writing any utility function, helper, constant, or component — **search
 - `components/MappingRows.jsx` — generic add/remove/update mapping-row grid for ConfigWizard components; props: `rows`, `onAdd`, `onRemove(i)`, `onUpdate(i,key,val)`, `columns: [{key, render(value,onChange)}]`, `headers?`, `addLabel?`, `minRows?`
 - `utils/crawlerCredentials.js` — `canSubmitCredentials(authMethod, fields, isEdit)`, `buildCredentialFields(authMethod, fields)`, `SECRET_PLACEHOLDER`; covers all auth methods used by crawlers
 
+**Shared e2e helpers in `e2e/`** — a module here is a plain `.js` (never `*.spec.js`, so Playwright's `testMatch` doesn't collect it as an empty suite):
+- `e2e/matrixWizard.js` — `BASE` / `API` (the `E2E_BASE_URL` base URLs), `resourceValue(column, dir)` (one stored resource value, read from the deployment so a spec stays dataset-independent), `matrixColumn(column, entity?)` (an entry of `GET /api/matrix/columns`), and `openAttributePicker(page, 'subjects' | 'resources')` — drives Matrix → Adjust matrix → Next… → "+ Attribute" and returns the picker's Field dropdown. Any spec that reaches the attribute picker uses this rather than re-inlining the click path.
+
 If the same logic already exists in one file and you're about to write it in a second, stop and extract it instead. Three or more files with the same code is a mandatory extraction — don't leave it for later.
 
 ## In-app dialogs (no native `alert`/`confirm`/`prompt`)

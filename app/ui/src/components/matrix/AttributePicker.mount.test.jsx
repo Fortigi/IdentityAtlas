@@ -17,7 +17,7 @@ import {
 const TARGET = 'Zzz — the description the wizard could not find';
 
 const columns = [
-  { column: 'displayName', values: ['ignored'] },
+  { column: 'displayName', values: ['SG-Engineering', 'SG-Finance'], truncated: false },
   { column: 'resourceType', values: ['Group', 'Application'], truncated: false },
   { column: 'description', values: ['Alpha team', 'Beta team'], truncated: true },
 ];
@@ -97,5 +97,25 @@ describe('AttributePicker value search (#928)', () => {
     fireEvent.change(screen.getByRole('textbox', { name: /search values/i }), { target: { value: 'Beta' } });
 
     expect(await screen.findByRole('checkbox', { name: /Alpha team/ })).toBeChecked();
+  });
+});
+
+// Guards #927: displayName must be offered as a filter FIELD — picking specific
+// resources or subjects by name is a core role-mining ask. Only true identifier
+// columns stay hidden here; the sort/roll-up exclusion of displayName is a
+// separate concern that lives in MatrixFilterWizard, not in this picker.
+describe('AttributePicker displayName field (#927)', () => {
+  it('offers displayName in the Field dropdown and lets a name be picked', async () => {
+    const { onPick } = renderPicker();
+    const user = userEvent.setup();
+
+    const select = screen.getByRole('combobox', { name: /field/i });
+    expect(Array.from(select.options).map(o => o.value)).toContain('displayName');
+
+    fireEvent.change(select, { target: { value: 'displayName' } });
+    await user.click(await screen.findByRole('checkbox', { name: /SG-Engineering/ }));
+    await user.click(screen.getByText('Add'));
+
+    expect(onPick).toHaveBeenCalledWith('displayName', ['SG-Engineering']);
   });
 });
