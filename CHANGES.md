@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Commits made by the automated build are now attributed to the project's bot account. They previously carried an email address that matched no GitHub account, so GitHub treated every push as coming from an unknown contributor and held the pull request's checks for manual approval — five approvals per build, and a stalled issue whenever nobody noticed.
+
+## Changes in this PR
+
 - When a build's checks fail because GitHub itself could not start the jobs, the build now waits and re-runs them instead of asking the AI to fix code that was never the problem. A real failure alongside the outage still goes down the normal fix path.
 - Fixed: the matrix wizard's "+ Attribute" filter could not find a value when a field has more distinct values than fit in one list (for example a group description in a large tenant) — the list showed an unpredictable subset with values missing in the middle. It now always shows the alphabetically first values, and a new search box finds any stored value, including ones beyond the list.
 - Added: attribute fields whose value list is incomplete are now marked with a "+" in the field dropdown (e.g. `description (500+)`), and the picker states how many values it is showing, so the count reads as "at least this many" instead of a total.
