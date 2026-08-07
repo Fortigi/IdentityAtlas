@@ -72,17 +72,23 @@ function Add-DemoGovernance {
             -SystemId $sysIga -CatalogId $r.Cat
     }
 
+    # BR-Engineering-Tools grants the VPN group's *Owner* role, not plain
+    # membership — the real-tenant shape that broke the matrix Excel export
+    # (#942). It is ordinary access: the matrix badges it 'D' on screen and the
+    # export must write the same letter, so keep a role-scoped Contains here.
     foreach ($rel in @(
         @{ P = $br.Base;  C = $res.AllEmp }
         @{ P = $br.Base;  C = $res.AppFG }
         @{ P = $br.Eng;   C = $res.Eng }
-        @{ P = $br.Eng;   C = $res.VPN }
+        @{ P = $br.Eng;   C = $res.VPN;  Role = 'Owner' }
         @{ P = $br.Fin;   C = $res.Fin }
         @{ P = $br.Fin;   C = $res.AppSAP }
         @{ P = $br.Admin; C = $res.AdminTier0 }
         @{ P = $br.Admin; C = $res.PAM }
     )) {
-        Add-DemoRelationship $State -ParentResourceId $rel.P -ChildResourceId $rel.C -RelationshipType 'Contains'
+        $roleName = if ($rel.ContainsKey('Role')) { $rel.Role } else { $null }
+        Add-DemoRelationship $State -ParentResourceId $rel.P -ChildResourceId $rel.C `
+            -RelationshipType 'Contains' -RoleName $roleName
     }
     Add-DemoRelationship $State -ParentResourceId $res.Eng -ChildResourceId $res.AllEmp -RelationshipType 'GrantsAccessTo'
 

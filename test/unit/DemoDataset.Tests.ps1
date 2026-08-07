@@ -512,6 +512,16 @@ Describe 'Demo dataset — vendor-neutral IGA (#705)' {
         $roles.Count | Should -Be 5
         foreach ($r in $roles) { $r.systemId | Should -Be $igaSysId }
     }
+
+    It 'grants at least one resource with a non-membership role scope (#942)' {
+        # A real access package can grant a group's Owner role instead of plain
+        # membership. That containment is still access, so the matrix badges it
+        # 'D' and the Excel export must write the same letter — the demo dataset
+        # carries one so the e2e can prove it end to end.
+        $roleScoped = @($script:data.resourceRelationships |
+            Where-Object { $_.relationshipType -eq 'Contains' -and $_.roleName -match '(?i)owner' })
+        $roleScoped.Count | Should -BeGreaterThan 0
+    }
 }
 
 Describe 'Demo dataset — system id remapping (#705)' {
@@ -553,5 +563,60 @@ Describe 'Demo dataset — always regenerated for the built-in demo crawler (fre
         # system, each carrying the `key` the ingest indexes to map system ids.
         @($fresh.metadata.systemKeys).Count | Should -Be @($fresh.systems).Count
         foreach ($sk in $fresh.metadata.systemKeys) { $sk.key | Should -Not -BeNullOrEmpty }
+    }
+}
+
+Describe 'Demo dataset — opt-in high-cardinality volume slice (#928)' {
+
+    # The matrix wizard's "+ Attribute" picker serves one page of a column's
+    # distinct values (500 by default) and flags the column as truncated when
+    # there are more. On the standard 39-resource company — about a dozen
+    # distinct descriptions — that path never activates, so an environment
+    # loaded from the demo dataset cannot demonstrate or verify it. The volume
+    # slice exists purely to cross that threshold on demand.
+    BeforeAll {
+        $script:volumePath = Join-Path $TestDrive 'demo-company-volume.json'
+        & $script:genScript -IncludeVolume -OutputPath $script:volumePath | Out-Null
+        $script:volData = Get-Content $script:volumePath -Raw | ConvertFrom-Json
+        $script:volDescriptions = @($script:volData.resources |
+            ForEach-Object { $_.description } |
+            Where-Object { $_ } |
+            Sort-Object -Unique)
+        $script:volSentinel = @($script:volData.resources |
+            Where-Object { $_.displayName -eq 'SG-Zzz-Cap-Probe' })
+    }
+
+    It 'produces more than 500 distinct non-empty resource descriptions' {
+        $script:volDescriptions.Count | Should -BeGreaterThan 500
+    }
+
+    It 'includes a sentinel group whose description sorts past the preloaded page' {
+        # This is the reporter's scenario, reproducible on demand: a description
+        # that exists in the data (and in the Excel export) but sits beyond the
+        # end of the served list, so only the picker's value search can reach it.
+        $script:volSentinel.Count | Should -Be 1
+        $desc = $script:volSentinel[0].description
+        $desc | Should -BeLike 'Zzz*'
+        ($script:volDescriptions[0..499] -contains $desc) | Should -BeFalse
+        $script:volDescriptions[-1] | Should -Be $desc
+    }
+
+    It 'gives every volume group an assignment so it is a real matrix row' {
+        $volIds = @($script:volData.resources |
+            Where-Object { $_.displayName -like 'SG-Vol-*' -or $_.displayName -eq 'SG-Zzz-Cap-Probe' } |
+            ForEach-Object { $_.id })
+        $volIds.Count | Should -BeGreaterThan 500
+        $assigned = @{}
+        foreach ($a in $script:volData.resourceAssignments) { $assigned[$a.resourceId] = $true }
+        foreach ($id in $volIds) { $assigned.ContainsKey($id) | Should -BeTrue }
+    }
+
+    It 'leaves the default dataset untouched without the switch' {
+        # The opt-in is the whole point: Verify-DemoDataset.ps1's exact counts,
+        # the Capture-the-Flag answers and the E2E suite all pin the standard
+        # company's resource total (46 since #370 added the role-drift and
+        # shared-grant scenarios) — the volume slice must not shift it.
+        @($script:data.resources).Count | Should -Be 46
+        @($script:data.resources | Where-Object { $_.displayName -like 'SG-Vol-*' }).Count | Should -Be 0
     }
 }

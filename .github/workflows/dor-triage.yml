@@ -88,7 +88,11 @@ jobs:
           REQ_BY_ACTOR: ${{ steps.pick.outputs.req_by }}
         run: bash .github/scripts/dor_set_status.sh "$ISSUE" "${{ steps.pick.outputs.initial }}"
 
-  # Unknown requestor → thank + assign the maintainers; do NOT add to the pipeline board.
+  # Unknown requestor → park it as `needs-vouch` + assign the maintainers; do NOT add to the pipeline
+  # board. It stays parked until a maintainer accepts it with `dor-vouched` (dor-vouch.yml), which
+  # transfers the requestor role to them. The `needs-vouch` label is what makes "parked" explicit —
+  # without it the nightly reconcile sweep heals the issue onto the board at "Awaiting requestor",
+  # which reads as "waiting on the reporter" when in fact nobody has looked at it yet.
   unknown:
     needs: authorize
     if: needs.authorize.outputs.is-member == 'false'
@@ -96,7 +100,7 @@ jobs:
     permissions:
       issues: write
     steps:
-      - name: Notify + assign maintainers for validation
+      - name: Park for vouch + assign maintainers for validation
         env:
           GH_TOKEN: ${{ github.token }}
           ISSUE: ${{ github.event.issue.number }}
@@ -105,6 +109,6 @@ jobs:
         run: |
           set -euo pipefail
           gh issue comment "$ISSUE" --repo "$REPO" \
-            --body "Thanks, @${ACTOR}! A maintainer will take a look and validate this before it enters our pipeline."
+            --body "$(printf 'Thanks, @%s! Our automated pipeline only accepts requests from Fortigi organization members, so this one is parked until a maintainer validates it.\n\n**Maintainers** (@WimvandenHeijkant @TaekeK @robb536): apply the `dor-vouched` label to accept this request. Doing so makes **you** the requestor of record — you answer the clarification questions and own it through to delivery — while @%s stays subscribed and is @-mentioned at every step.' "$ACTOR" "$ACTOR")"
           gh issue edit "$ISSUE" --repo "$REPO" \
-            --add-assignee WimvandenHeijkant,TaekeK,robb536
+            --add-assignee WimvandenHeijkant,TaekeK,robb536 --add-label needs-vouch

@@ -27,6 +27,41 @@ const GROUP_COL_ALIASES = {
   groupDescription: 'resourceDescription',
 };
 
+// Response-shape mappers, kept out of the fetch effect so its control flow stays
+// readable (and its complexity ceiling stays put).
+function toRollupState(body) {
+  return {
+    attribute:     body.rollup,
+    rollupKind:    body.rollupKind    || 'attribute',
+    rollupContextId: body.rollupContextId || null,
+    focusId:       body.focusId       || null,
+    breadcrumb:    body.breadcrumb    || [],
+    nodes:         body.nodes         || [],
+    rollupContent: body.rollupContent || 'resources-and-roles',
+    layered:       body.layered       || false,
+    layeredAttributes: body.layeredAttributes || false,
+    maxDepth:      body.maxDepth      || 1,
+    resources:     body.resources     || [],
+    groupValues:   body.groupValues   || [],
+    groupTotals:   body.groupTotals   || [],
+    counts:        body.counts        || [],
+    businessRoles: body.businessRoles || [],
+    roleCounts:    body.roleCounts    || [],
+    roleRows:      body.roleRows      || [],
+    cells:         body.cells         || [],
+  };
+}
+
+function toCounts(body) {
+  return {
+    subjectCount:    body.subjectCount    || 0,
+    subjectTotal:    body.subjectTotal    || 0,
+    resourceCount:   body.resourceCount   || 0,
+    resourceTotal:   body.resourceTotal   || 0,
+    assignmentCount: body.assignmentCount || 0,
+  };
+}
+
 export function useMatrix(filter) {
   const { authFetch } = useAuth();
 
@@ -39,6 +74,8 @@ export function useMatrix(filter) {
     assignmentCount: 0,
   });
   const [managedByPackages, setManagedByPackages] = useReducer(valueReducer, []);
+  // Per-resource Contexts sidecar: [{ resourceId, contexts:[{id,displayName,contextType}] }]
+  const [resourceContexts, setResourceContexts] = useReducer(valueReducer, []);
   // Roll-up payload (null when not in roll-up mode):
   //   { attribute, resources:[…], groupValues:[…], counts:[{resourceId,groupValue,directCount}] }
   const [rollup, setRollup] = useReducer(valueReducer, null);
@@ -129,6 +166,7 @@ export function useMatrix(filter) {
     if (!hasConditions) {
       setData([]);
       setManagedByPackages([]);
+      setResourceContexts([]);
       setRollup(null);
       setCounts({ subjectCount: 0, subjectTotal: 0, resourceCount: 0, resourceTotal: 0, assignmentCount: 0 });
       setLoading(false);
@@ -157,42 +195,14 @@ export function useMatrix(filter) {
         }
         const body = await res.json();
         if (cancelled) return;
-        if (body.rollup) {
-          setRollup({
-            attribute:     body.rollup,
-            rollupKind:    body.rollupKind    || 'attribute',
-            rollupContextId: body.rollupContextId || null,
-            focusId:       body.focusId       || null,
-            breadcrumb:    body.breadcrumb    || [],
-            nodes:         body.nodes         || [],
-            rollupContent: body.rollupContent || 'resources-and-roles',
-            layered:       body.layered       || false,
-            layeredAttributes: body.layeredAttributes || false,
-            maxDepth:      body.maxDepth       || 1,
-            resources:     body.resources     || [],
-            groupValues:   body.groupValues   || [],
-            groupTotals:   body.groupTotals   || [],
-            counts:        body.counts        || [],
-            businessRoles: body.businessRoles || [],
-            roleCounts:    body.roleCounts    || [],
-            roleRows:      body.roleRows      || [],
-            cells:         body.cells         || [],
-          });
-          setData([]);
-          setManagedByPackages([]);
-        } else {
-          setRollup(null);
-          setData(body.data || []);
-          setManagedByPackages(body.managedByPackages || []);
-        }
+        // Roll-up responses have no per-subject rows (and so no per-resource
+        // sidecars); flat-grid responses have no roll-up payload.
+        setRollup(body.rollup ? toRollupState(body) : null);
+        setData(body.rollup ? [] : (body.data || []));
+        setManagedByPackages(body.rollup ? [] : (body.managedByPackages || []));
+        setResourceContexts(body.rollup ? [] : (body.resourceContexts || []));
         setRowType(body.rowType || 'principal');
-        setCounts({
-          subjectCount:    body.subjectCount    || 0,
-          subjectTotal:    body.subjectTotal    || 0,
-          resourceCount:   body.resourceCount   || 0,
-          resourceTotal:   body.resourceTotal   || 0,
-          assignmentCount: body.assignmentCount || 0,
-        });
+        setCounts(toCounts(body));
         setError(null);
       } catch (err) {
         if (cancelled || err.name === 'AbortError') return;
@@ -227,6 +237,7 @@ export function useMatrix(filter) {
     totalUsers: counts.subjectTotal,
     accessPackageGroups: accessPackageGroupsAliased,
     managedByPackages,
+    resourceContexts,
     groupTagMap,
     userColumns,
     loading,

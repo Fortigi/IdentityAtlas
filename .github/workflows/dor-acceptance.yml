@@ -10,6 +10,12 @@ name: DoR acceptance (requestor feedback + approval)
 #                   build for the feedback, re-deploys to the same live env, re-verifies, and reports
 #                   back — the issue stays in functional acceptance for another look.
 #
+# TWO ENTRY POINTS. The requestor talks on the ISSUE in natural language. A MERGE REVIEWER talks on
+# the PR, where the evidence is, using `/rework <what is missing>` — an explicit command there
+# because a merge review is a conversation and "looks good to me" must not start a 40-minute build.
+# Both land in the same adjustment, and #971 re-proves the regression test red against main after it,
+# so no amount of reworking can quietly weaken the thing that catches the bug.
+#
 # SECURITY: issue_comment runs with secrets for ANY commenter on a PUBLIC repo and is NOT covered by
 # fork-PR approval, so org membership (dor-authorize) is the gate. INERT until DOR_ENABLED=true.
 
@@ -25,17 +31,29 @@ concurrency:
 
 jobs:
   triage:
+    # Two entry points, one loop:
+    #   ISSUE side — the requestor, talking where they reported the bug (natural language).
+    #   PR side    — a MERGE REVIEWER saying "the evidence isn't enough", where the evidence lives.
+    # The PR side requires an explicit `/rework` prefix. A merge review is a conversation, and firing
+    # a 40-minute AI build off "looks good to me" would make commenting on a bot PR hazardous; a
+    # reviewer who genuinely wants a change can afford seven characters to say so.
     if: >-
       vars.DOR_ENABLED == 'true' &&
       github.event.comment.user.type != 'Bot' &&
-      !github.event.issue.pull_request &&
-      contains(github.event.issue.labels.*.name, 'build-done')
+      (
+        (!github.event.issue.pull_request && contains(github.event.issue.labels.*.name, 'build-done')) ||
+        (github.event.issue.pull_request && startsWith(github.event.comment.body, '/rework'))
+      )
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      pull-requests: write   # acknowledge a /rework on the PR the reviewer is looking at
+      issues: read
     outputs:
       is-member: ${{ steps.auth.outputs.is-member }}
       is-approval: ${{ steps.classify.outputs.is-approval }}
+      issue: ${{ steps.target.outputs.issue }}
+      feedback: ${{ steps.target.outputs.feedback }}
     steps:
       - name: Checkout the authorize action only
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -50,12 +68,54 @@ jobs:
           app-id: ${{ secrets.BOT_APP_ID }}
           private-key: ${{ secrets.BOT_PRIVATE_KEY }}
           actor: ${{ github.actor }}
+      # Which ISSUE is this about, and what is the feedback text? On the issue side both are the
+      # event. On the PR side the event's "issue" IS the pull request, so the real issue number comes
+      # from its head branch (dor/issue-N) — a PR that isn't one of ours resolves to nothing and the
+      # jobs below all skip.
+      - name: Resolve the target issue + feedback text
+        id: target
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          NUM: ${{ github.event.issue.number }}
+          IS_PR: ${{ github.event.issue.pull_request && 'true' || 'false' }}
+          BODY: ${{ github.event.comment.body }}
+        run: |
+          set -uo pipefail
+          if [ "$IS_PR" = true ]; then
+            head="$(gh pr view "$NUM" --repo "$REPO" --json headRefName --jq .headRefName 2>/dev/null || true)"
+            case "$head" in
+              dor/issue-*) issue="${head##*dor/issue-}" ;;
+              *) echo "::notice::PR #$NUM is not a DoR branch ($head) — ignoring"; echo "issue=" >> "$GITHUB_OUTPUT"; exit 0 ;;
+            esac
+            case "$issue" in ''|*[!0-9]*) echo "issue=" >> "$GITHUB_OUTPUT"; exit 0 ;; esac
+            # Strip the command word; what remains is the objection in the reviewer's own words.
+            fb="$(printf '%s' "$BODY" | sed '1s@^/rework[[:space:]]*@@')"
+            echo "::notice::PR #$NUM → issue #$issue (rework requested)"
+            # Acknowledge where the reviewer is looking. The adjustment reports on the ISSUE, so
+            # without this the PR goes quiet for the whole run — the same silence #967 removed from
+            # the issue side.
+            gh pr comment "$NUM" --repo "$REPO" --body "🔧 Rework requested — dispatching to the sidekick holding #${issue}. The regression test is re-proved against \`main\` afterwards, so an adjustment cannot quietly weaken it.${GITHUB_RUN_ID:+ · 👀 [follow progress](${GITHUB_SERVER_URL}/${REPO}/actions/runs/${GITHUB_RUN_ID})}" >/dev/null 2>&1 || true
+          else
+            issue="$NUM"; fb="$BODY"
+          fi
+          {
+            echo "issue=$issue"
+            echo "feedback<<DOR_EOF"
+            printf '%s\n' "$fb"
+            echo "DOR_EOF"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Classify the comment (approval vs feedback)
         id: classify
         env:
           BODY: ${{ github.event.comment.body }}
+          IS_PR: ${{ github.event.issue.pull_request && 'true' || 'false' }}
         run: |
           set -euo pipefail
+          # A `/rework` on the PR is never an acceptance: functional acceptance belongs to the
+          # requestor on the issue, and a merge approval is a PR review, not a comment.
+          if [ "$IS_PR" = true ]; then echo "is-approval=false" >> "$GITHUB_OUTPUT"; exit 0; fi
           # Approval = the whole comment is essentially the word "approved" (case/space/punct-tolerant).
           norm="$(printf '%s' "$BODY" | tr '[:upper:]' '[:lower:]' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
           if printf '%s' "$norm" | grep -qiE '^approve(d)?[[:punct:][:space:]]*$'; then
@@ -104,26 +164,54 @@ jobs:
           gh issue comment "$ISSUE" --repo "$REPO" --body "$(printf '✅ @%s approved. @WimvandenHeijkant @TaekeK @robb536 — PR #%s is ready for **final merge**.' "$ACTOR" "${pr:-?}")" >/dev/null 2>&1 || true
           echo "::notice::#${ISSUE} accepted by ${ACTOR} → Awaiting merge (PR #${pr:-?})"
 
-  # Loop E — feedback. Only the sidekick that holds this feature's live env acts; the others no-op.
-  feedback:
+  # Which sidekick holds this feature's live env? The build recorded it as an sk:<label> on the issue
+  # (claim_sidekick in dor_build_lib.sh). Reading it on a hosted runner costs seconds and never waits
+  # on the pool — where the old per-sidekick matrix had a leg pinned to every box, so one busy or
+  # offline sidekick left the run hanging even after the holder had finished the work.
+  resolve:
     needs: triage
-    if: needs.triage.outputs.is-member == 'true' && needs.triage.outputs.is-approval != 'true'
-    strategy:
-      matrix:
-        sk: [sk3, sk5, sk6, sk7, sk8, sk9, sk10]
+    # An unresolved issue number (a PR that is not a DoR branch) stops the whole loop here.
+    if: >-
+      needs.triage.outputs.is-member == 'true' &&
+      needs.triage.outputs.is-approval != 'true' &&
+      needs.triage.outputs.issue != ''
+    runs-on: ubuntu-latest
+    permissions:
+      issues: read
+    outputs:
+      sk: ${{ steps.find.outputs.sk }}
+    steps:
+      - name: Find the holding sidekick from the issue's sk:* label
+        id: find
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          ISSUE: ${{ needs.triage.outputs.issue }}
+        run: |
+          set -euo pipefail
+          sk="$(gh issue view "$ISSUE" --repo "$REPO" --json labels \
+                --jq '[.labels[].name | select(startswith("sk:")) | ltrimstr("sk:")][0] // empty')"
+          echo "sk=$sk" >> "$GITHUB_OUTPUT"
+          if [ -n "$sk" ]; then echo "::notice::#$ISSUE is held by $sk"; else
+            echo "::warning::#$ISSUE carries no sk:* label — cannot route the feedback"; fi
+
+  # Loop E — feedback, dispatched straight to the holder. It still self-verifies on the box.
+  feedback:
+    needs: [triage, resolve]
+    if: needs.resolve.outputs.sk != ''
     runs-on:
       - self-hosted
-      - ${{ matrix.sk }}
+      - ${{ needs.resolve.outputs.sk }}
     timeout-minutes: 350
     permissions:
       contents: write
       pull-requests: write
       issues: write
     steps:
-      - name: Am I the holder of issue #${{ github.event.issue.number }}?
+      - name: Am I the holder of issue #${{ needs.triage.outputs.issue }}?
         id: sk
         env:
-          ISSUE: ${{ github.event.issue.number }}
+          ISSUE: ${{ needs.triage.outputs.issue }}
         run: |
           set -euo pipefail
           if [ ! -d "$HOME/stacks/dor-${ISSUE}/.git" ]; then
@@ -166,13 +254,16 @@ jobs:
           owner: Fortigi
           permission-organization-projects: write
           permission-pull-requests: write
-          permission-contents: read
+          permission-contents: write   # the adjustment PUSHES, and it must push AS THE APP: a
+                                        # GITHUB_TOKEN push is suppressed by GitHub's anti-recursion
+                                        # rule, so with `read` here every adjustment landed with NO
+                                        # CI at all (see dor-build-agent.yml, which had this right)
           permission-issues: read
 
       - name: Adjust the build for the feedback → re-deploy → re-verify → report
         if: steps.sk.outputs.holder == 'true'
         env:
-          ISSUE: ${{ github.event.issue.number }}
+          ISSUE: ${{ needs.triage.outputs.issue }}
           REPO: ${{ github.repository }}
           URL: ${{ steps.sk.outputs.url }}
           HOST: ${{ steps.sk.outputs.host }}
@@ -181,7 +272,7 @@ jobs:
           BOARD_TOKEN: ${{ steps.bot.outputs.token }}
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           DOR_BUILD_MODEL: ${{ vars.DOR_BUILD_MODEL }}
-          FEEDBACK: ${{ github.event.comment.body }}
+          FEEDBACK: ${{ needs.triage.outputs.feedback }}
           FEEDBACK_AUTHOR: ${{ github.actor }}
         run: bash .github/scripts/dor_feedback_flow.sh
 
@@ -190,7 +281,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           BOARD_TOKEN: ${{ steps.bot.outputs.token }}
-          ISSUE: ${{ github.event.issue.number }}
+          ISSUE: ${{ needs.triage.outputs.issue }}
           REPO: ${{ github.repository }}
           HOST: ${{ steps.sk.outputs.host }}
         run: |
@@ -218,7 +309,7 @@ jobs:
         if: always() && steps.sk.outputs.holder == 'true'
         env:
           BOARD_TOKEN: ${{ steps.bot2.outputs.token }}
-          ISSUE: ${{ github.event.issue.number }}
+          ISSUE: ${{ needs.triage.outputs.issue }}
           REPO: ${{ github.repository }}
         run: |
           set -uo pipefail
@@ -229,3 +320,27 @@ jobs:
           GH_TOKEN="$BOARD_TOKEN" bash .github/scripts/dor_set_status.sh "$ISSUE" "$tok" \
             && echo "::notice::reconciled board → $tok (fresh token)" \
             || echo "::warning::board reconcile failed for $tok"
+
+  # No sk:* label means we cannot route the feedback — and silence here is the worst outcome we have
+  # seen: the bot says "on it", nothing runs, and the requestor waits (twice, on #370, for ~19h).
+  # Tell them plainly instead.
+  orphan:
+    needs: [triage, resolve]
+    # Repeat triage's conditions: a skipped `resolve` (e.g. the comment was an approval) also leaves
+    # sk empty, and this must never answer an approval with "I couldn't act on that feedback".
+    if: >-
+      needs.triage.outputs.is-member == 'true' && needs.triage.outputs.is-approval != 'true' &&
+      needs.triage.outputs.issue != '' && needs.resolve.outputs.sk == ''
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Tell the requestor the feedback could not be routed
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          ISSUE: ${{ needs.triage.outputs.issue }}
+        run: |
+          set -uo pipefail
+          gh issue comment "$ISSUE" --repo "$REPO" --body "⚠️ I couldn't act on that feedback: this issue carries no \`sk:*\` label, so I can't tell which sidekick holds its live env. @WimvandenHeijkant @TaekeK — this needs the label restored (or the build re-run). Builds started before the sk-label change won't have one." >/dev/null 2>&1 || true
+          echo "::warning::#$ISSUE has no sk:* label — feedback not routed"

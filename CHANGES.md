@@ -1,5 +1,105 @@
 ## Changes in this PR
 
+- Commits made by the automated build are now attributed to the project's bot account. They previously carried an email address that matched no GitHub account, so GitHub treated every push as coming from an unknown contributor and held the pull request's checks for manual approval — five approvals per build, and a stalled issue whenever nobody noticed.
+
+## Changes in this PR
+
+- When a build's checks fail because GitHub itself could not start the jobs, the build now waits and re-runs them instead of asking the AI to fix code that was never the problem. A real failure alongside the outage still goes down the normal fix path.
+- Fixed: the matrix wizard's "+ Attribute" filter could not find a value when a field has more distinct values than fit in one list (for example a group description in a large tenant) — the list showed an unpredictable subset with values missing in the middle. It now always shows the alphabetically first values, and a new search box finds any stored value, including ones beyond the list.
+- Added: attribute fields whose value list is incomplete are now marked with a "+" in the field dropdown (e.g. `description (500+)`), and the picker states how many values it is showing, so the count reads as "at least this many" instead of a total.
+- Added: the number of values a filter dropdown preloads per field is now a deployment setting, `MATRIX_VALUE_PAGE_SIZE` (default 500). Lowering it on a test deployment reproduces the "more values than fit in the list" behaviour without having to import hundreds of extra objects first.
+- Added: the Demo Dataset crawler now has an "Also load high-cardinality test data" option. It loads about 520 extra groups, each with its own description, so a test environment holds more values than a dropdown can list at once — including one group whose description deliberately sorts past the end of the list, to check that the search still finds it. Off by default; the normal demo import is unchanged.
+- Improved: the filter dropdowns on the Users, Groups/Resources and tag pages now list values in the same predictable alphabetical order instead of an arbitrary selection, and identity extension-attribute fields are no longer dropped from the filter list when a tenant has many of them.
+- A reviewer can now ask for changes to an automated fix from the pull request itself, by commenting `/rework` followed by what is missing. Previously feedback only worked from the original issue, so a reviewer looking at the code had nowhere to say "this isn't enough". The regression test is re-checked against the unchanged code afterwards, so a rework cannot weaken it.
+
+## Changes in this PR
+
+- An automated build now judges its pull request on every check, not just the three required ones. Because the overall "CI Passed" check never runs when an individual job fails, a build could previously be reported as verified while unit tests, contract tests and several quality gates were failing.
+- Changes made in response to reporter feedback now get their tests run. Because of a permissions difference, those commits were being pushed in a way that GitHub does not run workflows for, so every follow-up change landed with no checks — and the build then correctly refused to report itself as verified, stalling the issue.
+- When a reporter asks for a change to an automated bug fix, the regression test is re-checked to confirm it still catches the original bug. Previously only the first build proved that: any later adjustment could have weakened the test to make things pass, and it would have looked identical to success.
+
+## Changes in this PR
+
+- Pull requests raised for automated bug fixes now carry an evidence summary instead of a one-line claim of success: what the reported bug was, the test failing before the fix, the same test passing after it, the browser replay against the live environment, the CI result, and an explicit note of what the change did not touch (no schema migration, no dependency change). Each row shows the output it is based on, and anything that was not measured says so rather than being asserted.
+
+## Changes in this PR
+
+- Updated the CodeQL security scanner to 4.37.5.
+
+## Changes in this PR
+
+- An automated build now says so on the issue as soon as it starts, with a link to follow along, instead of staying silent until its pull request exists. For a bug that silence had grown to 30–45 minutes, because the reproduce-and-prove steps run before the pull request is opened.
+- When the bug is reproduced, the issue gets the failing test output — the moment the report is confirmed as real, before anything has been fixed.
+
+## Changes in this PR
+
+- When the automated triage certifies a bug as real, it now also records a short machine-readable summary of its diagnosis — the assertion that must fail before the fix, the layer responsible, the files it expects to change, and the reporter's path to the symptom. It is shown on the issue, and the fix that follows is checked against it.
+- A fix that changes files outside the area the diagnosis predicted is stopped for a human to look at, rather than continuing on the assumption that the diagnosis was right.
+
+## Changes in this PR
+
+- Automated bug fixes must now prove they work. The regression test is written and committed on its own first and has to fail against the unfixed code; only then is the fix made, and the same test has to pass. A fix whose test never failed is rejected rather than reported as verified.
+- A bug fix must also ship a browser test that walks the reported path, and it is replayed against the deployed fix on a live environment. Previously, a fix with no browser test was accepted on the basis that the application still loaded.
+
+## Changes in this PR
+
+- The pipeline health sweep now runs every hour instead of once a day, and detects work that has silently died: an issue that says it is building while no job is actually running for it is now flagged and commented on within the hour, instead of going unnoticed for two weeks.
+- The sweep also reports build machines that are still held by an issue with no open pull request, so a machine can no longer drop out of the pool unnoticed.
+
+## Changes in this PR
+
+- A build is no longer reported as verified unless its CI actually ran and passed. If the pull request's workflow runs are waiting for a maintainer to release them, the issue now says so and asks for that, instead of quietly declaring success on the strength of the live-environment test alone.
+- Build and feedback reports now list only the files that build actually changed. Long-lived branches were previously reported against a moved main branch, so an unrelated merge could be attributed to the change — one tooltip adjustment was reported as "533 files changed".
+
+## Changes in this PR
+
+- Fixed the matrix Excel export leaving an access-package column empty when the package grants a resource's Owner role — the exported access-package columns now show the same badge letters as the on-screen matrix.
+- The demo dataset now includes an access package that grants a group's Owner role, so this case is visible in the demo environment.
+
+## Changes in this PR
+
+- A build that gets re-run after an interruption now correctly hands its build environment over to whichever machine picks it up, instead of leaving two machines both recorded as holding it.
+
+## Changes in this PR
+
+- Added a way to accept a feature request or bug report filed by someone outside the Fortigi organization: a maintainer applies the `dor-vouched` label and the request enters the normal pipeline.
+- Vouching transfers the requestor role to the maintainer who vouched — they become "Requested by" on the board and the sole assignee, and they answer the clarification questions — while the original reporter stays subscribed and is mentioned at every step so they keep following progress and can still contribute detail.
+- External requests are now clearly parked as "awaiting a maintainer vouch" instead of silently appearing on the board as "Awaiting requestor", which made them look like they were waiting on the reporter when nobody had looked at them yet.
+- The daily pipeline health report now lists external requests still waiting for someone to accept or close them, so a customer request can no longer go quietly unanswered.
+- A vouched request now builds normally once approved, instead of being refused at the build step because it was originally filed by a non-member.
+
+## Changes in this PR
+
+- Requestor feedback and sidekick release now go straight to the machine holding the build instead of being offered to every machine in turn. A busy or offline machine no longer leaves the run hanging, and adding a new machine to the pool no longer risks it holding on to a build environment that can never be released.
+
+## Changes in this PR
+
+- Bug reports now stay on the Bug Pipeline board for their whole life. Previously anything the build side did to a bug — moving it to Building, Awaiting merge, Done or Exceptions — was applied to the Feature board instead, which would have silently added the bug there while its Bug board card stopped moving.
+
+## Changes in this PR
+
+- Issues that the DoR agent certifies now automatically reach the value gate: the pipeline posts a "Review & approve to build" link on the issue as soon as it lands in *Awaiting approval*, instead of waiting for someone to add the `ready-to-build` label by hand. This applies to bug reports as well as feature requests.
+
+## Changes in this PR
+
+- Expanded the DoR build-sidekick pool from three machines to seven, so more approved features can be built and validated in parallel.
+- New sidekicks are now recognised by the deploy, build, acceptance and reset automation — each gets its own live preview URL and is properly released back to the pool when its pull request closes.
+- Clarified the sidekick enrolment checklist: it now lists every file that needs updating and warns what happens if the reset step is missed.
+
+## Changes in this PR
+
+- Added a **Contexts** column to the matrix: every resource row now shows the contexts it belongs to — group category (Security / Microsoft 365 / Teams / Distribution), tags, clusters, business processes — so you no longer need an export to see them.
+- The Contexts column sits directly beside the resource name and stays visible while you scroll the grid sideways; the resource **Type** column moved to the right, between the member count and the description.
+- The column shows the first two contexts and reveals the rest inline with a "+N" button; resources without a context show a dash.
+- The Excel export of the matrix follows the same column order — Contexts next to the resource name (listing every context name in full), Type on the right.
+- Filtering and sorting by context is unchanged — keep using the context picker in the matrix filter.
+- Fixed a resource's Contexts list and context count on the resource detail page, which could include contexts that belong to an identity or principal rather than the resource itself.
+- Fixed "Something went wrong" when adjusting a matrix: stepping past the Resources step onto the Sort step crashed the page for any matrix opened from a shared link, an older saved matrix, or the default matrix seeded with the demo data. The wizard now fills in whatever the matrix doesn't specify (such as the column sort) instead of failing.
+- Fixed a matrix losing the name of the saved matrix it came from: walking through "Adjust matrix" and applying without changing anything relabelled it "Not saved". Folding a column group or drilling into a roll-up no longer changes that label either.
+- Adjusting a matrix without changing anything is now checked automatically on every build — for the default matrix, a shared link, an identity matrix, and a second adjust in a row — so this class of breakage is caught before it reaches a review.
+
+## Changes in this PR
+
 - Patched high-severity advisories in bundled dependencies (brace-expansion, fast-uri, ip-address, undici) flagged by `npm audit`.
 
 ## Changes in this PR

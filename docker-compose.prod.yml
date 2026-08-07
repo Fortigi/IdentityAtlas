@@ -75,7 +75,7 @@ services:
       # local docker-compose.prod.yml is outdated. Bump this number whenever
       # the compose file changes in a way that affects runtime behavior
       # (new env vars, volume mounts, group_add, etc.).
-      COMPOSE_FILE_VERSION: "2"
+      COMPOSE_FILE_VERSION: "3"
       # Master key for the secrets vault (LLM API keys, scraper credentials).
       # If unset, the bootstrap auto-generates one and persists it to
       # /data/uploads/.master-key inside the job_data volume. For real production
@@ -88,6 +88,12 @@ services:
       # configured" and renders the setup-required page until they're set.
       AUTH_TENANT_ID: "${AUTH_TENANT_ID:-}"
       AUTH_CLIENT_ID: "${AUTH_CLIENT_ID:-}"
+      # How many distinct values a filter/attribute dropdown preloads per field
+      # (default 500, max 5000). Values past the page stay reachable through the
+      # dropdown's search box. Lower it — e.g. MATRIX_VALUE_PAGE_SIZE=5 — to
+      # exercise that path on a deployment with only a few hundred objects.
+      # See docs/architecture/matrix.md → "Attribute values".
+      MATRIX_VALUE_PAGE_SIZE: "${MATRIX_VALUE_PAGE_SIZE:-}"
     ports:
       - "${PORT:-3001}:3001"
     volumes:

@@ -9,7 +9,8 @@ name: DoR reconcile (drift sweep)
 
 on:
   schedule:
-    - cron: '17 6 * * *'   # daily ~06:17 UTC (off the hour to dodge scheduler congestion)
+    - cron: '17 * * * *'   # hourly at :17 (off the hour to dodge scheduler congestion). Daily was
+                           # enough for drift; the liveness check measures a dead build in minutes.
   workflow_dispatch:
 
 permissions: {}
@@ -24,6 +25,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      actions: read        # the liveness check reads workflow runs; the BOT app has no Actions scope
     steps:
       - name: Checkout the DoR scripts
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -40,9 +42,11 @@ jobs:
           owner: Fortigi
           permission-organization-projects: write
           permission-issues: write
+          permission-pull-requests: read   # "does this claimed sidekick still have an open PR?"
       - name: Run the reconcile sweep (Feature board + Bug board)
         env:
           GH_TOKEN: ${{ steps.bot.outputs.token }}
+          RUNS_TOKEN: ${{ github.token }}   # Actions read — see `actions: read` above
         run: |
           set -euo pipefail
           # Features → Feature Pipeline board (#2), "DoR pipeline health".

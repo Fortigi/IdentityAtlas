@@ -186,6 +186,7 @@ nav:
           - Definition of Ready: process/definition-of-ready.md
           - Operationalising the DoR: process/operationalization.md
           - DoR sidekick setup: process/dor-sidekick-setup.md
+          - Autonomous bug pipeline (proposal): process/autonomous-bug-pipeline.md
       - Design archive:
           - About the archive: architecture/design-archive.md
           - Context Redesign: architecture/context-redesign.md

@@ -1,23 +1,13 @@
 ﻿import MatrixCell from './MatrixCell';
 import CellMarkerStrip from './CellMarkerStrip';
+import MatrixContextsCell from './MatrixContextsCell';
 import { CELL_BOX_STYLE } from './cellMarkers';
 import {
   cellDeviation, heldOutsideRole, holdsBusinessRole, NO_DEVIATION, NO_HELD_OUTSIDE,
 } from './coverageDeviation';
 import { getAccessPackageColor } from '@ui/utils/colors';
+import { getApRoleBadge } from '@ui/utils/accessPackageStyles';
 import { useIsDark } from '@ui/contexts/ThemeContext';
-
-// Map AP resource role names to the same badge style used in user/group cells.
-// Group ownership is its own resource (resourceType='GroupOwnership') now, so
-// access-package role scopes only ever resolve to Member (Direct) or Eligible.
-const BADGE_DIRECT   = { letter: 'D', bg: '#166534', text: '#fff' };
-const BADGE_ELIGIBLE = { letter: 'E', bg: '#854d0e', text: '#fff' };
-
-function getRoleBadge(roleName) {
-  const lower = (roleName || '').toLowerCase();
-  if (lower.includes('eligible')) return BADGE_ELIGIBLE;
-  return BADGE_DIRECT;
-}
 
 // Fold affordance state for this row, or null when the row is not a foldable
 // business role (only roles that are present in the grid AND grant at least one
@@ -229,14 +219,12 @@ export default function MatrixGroupRow({
         </div>
       </td>
 
-      {/* Type column - sticky left */}
-      <td
-        className={`sticky ${nestedBg} border-r border-b border-gray-200 dark:border-gray-700 px-2 py-0.5 text-xs text-gray-500 dark:text-gray-400 truncate`}
+      {/* Contexts column - sticky left */}
+      <MatrixContextsCell
+        contexts={group.contexts}
+        className={`sticky border-r ${nestedBg}`}
         style={{ left: '299px', minWidth: '180px', maxWidth: '180px', zIndex: 10 }}
-        title={group.groupType}
-      >
-        {group.groupType}
-      </td>
+      />
 
       {/* Intersection cells */}
       {users.map(user => {
@@ -348,7 +336,7 @@ export default function MatrixGroupRow({
             title={hasMapping ? `${ap.displayName} (${roleName})${ap.categoryName ? ' — Category: ' + ap.categoryName : ''}` : undefined}
           >
             {hasMapping && (() => {
-              const badge = getRoleBadge(roleName);
+              const badge = getApRoleBadge(roleName);
               return (
                 <span
                   className="inline-block w-4 h-4 rounded-sm text-center font-bold leading-4 text-[9px]"
@@ -362,10 +350,15 @@ export default function MatrixGroupRow({
         );
       })}
 
-      {/* Right-side metadata: # | Description */}
+      {/* Right-side metadata: # | Type | Description */}
       <td className="border-l-2 border-b border-gray-200 dark:border-gray-700 px-2 py-0.5 text-xs text-gray-600 dark:text-gray-400 text-center"
           style={{ minWidth: '40px' }}>
         {memberCount}
+      </td>
+      <td className="border-b border-gray-200 dark:border-gray-700 px-2 py-0.5 text-xs text-gray-600 dark:text-gray-400 truncate"
+          style={{ minWidth: '180px', maxWidth: '180px' }}
+          title={group.groupType}>
+        {group.groupType}
       </td>
       <td className="border-b border-gray-200 dark:border-gray-700 px-2 py-0.5 text-xs text-gray-600 dark:text-gray-500 max-w-[500px]"
           title={group.description}>

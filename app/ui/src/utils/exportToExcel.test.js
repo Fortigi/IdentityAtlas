@@ -112,7 +112,7 @@ describe('exportToExcel', () => {
     // No sortAttributes => one default header level ('department') on row 1,
     // names row on row 2.
     expect(ws.getCell(2, 1).value).toBe('Resource Name');
-    expect(ws.getCell(2, 2).value).toBe('Type');
+    expect(ws.getCell(2, 2).value).toBe('Contexts');
     expect(ws.getCell(2, 3).value).toBe('GUID');
     // Default attribute label is the friendly form of 'department'.
     expect(ws.getCell(1, 1).value).toBe('Department');
@@ -124,7 +124,10 @@ describe('exportToExcel', () => {
       { id: 'u2', displayName: 'Bob', sortKeys: ['Finance'] },
     ];
     const orderedGroups = [
-      { id: 'g1', displayName: 'Admins', groupType: 'Security', realGroupId: 'g1', description: 'desc', memberCount: 5 },
+      {
+        id: 'g1', displayName: 'Admins', groupType: 'Security', realGroupId: 'g1', description: 'desc', memberCount: 5,
+        contexts: [{ id: 'c1', displayName: 'Finance', contextType: 'Tag' }],
+      },
     ];
     const memberships = new Map([
       ['g1|u1', new Set(['Direct'])],
@@ -143,9 +146,10 @@ describe('exportToExcel', () => {
     // Group row (first data row = namesRow + 1)
     const dataRow = namesRow + 1;
     expect(ws.getCell(dataRow, 1).value).toBe('Admins');
-    expect(ws.getCell(dataRow, 2).value).toBe('Security');
+    expect(ws.getCell(dataRow, 2).value).toBe('Finance');
     expect(ws.getCell(dataRow, 3).value).toBe('g1');
     expect(ws.getCell(dataRow, 6).value).toBe(5); // # (meta col, metaColStart = 3+2+1 = 6)
+    expect(ws.getCell(dataRow, 7).value).toBe('Security'); // Type moved to the meta block
 
     // Single membership => first letter of the type.
     expect(ws.getCell(dataRow, 4).value).toBe('D');
@@ -199,6 +203,40 @@ describe('exportToExcel', () => {
     expect(ws.getCell(2, 4).value).toBe('Backend');
   });
 
+  it('exports Contexts as an info column listing every context, untruncated', async () => {
+    const users = [{ id: 'u1', displayName: 'Alice', sortKeys: ['HR'] }];
+    const orderedGroups = [
+      {
+        id: 'g1', displayName: 'Admins', groupType: 'Security', description: 'desc', memberCount: 2,
+        contexts: [
+          { id: 'c1', displayName: 'Finance', contextType: 'Tag' },
+          { id: 'c2', displayName: 'Microsoft 365', contextType: 'group-category' },
+          { id: 'c3', displayName: 'Cluster-A', contextType: 'cluster' },
+        ],
+      },
+      { id: 'g2', displayName: 'Readers', groupType: 'Security', description: '', memberCount: 1 },
+    ];
+
+    await exportToExcel(baseInput({ users, orderedGroups }));
+    const wb = await loadCapturedWorkbook();
+    const ws = wb.getWorksheet('Role Mining Matrix');
+
+    const namesRow = 2;
+    const metaColStart = 3 + 1 + 1; // infoColCount + userCount + 1, no AP columns
+    // Contexts sits next to the resource name; Type moved to the meta block.
+    expect(ws.getCell(namesRow, 2).value).toBe('Contexts');
+    expect(ws.getCell(namesRow, metaColStart).value).toBe('#');
+    expect(ws.getCell(namesRow, metaColStart + 1).value).toBe('Type');
+    expect(ws.getCell(namesRow, metaColStart + 2).value).toBe('Description');
+
+    // All three contexts — the on-screen cell caps at two chips, the file doesn't.
+    expect(ws.getCell(namesRow + 1, 2).value).toBe('Finance, Microsoft 365, Cluster-A');
+    expect(ws.getCell(namesRow + 1, metaColStart + 1).value).toBe('Security');
+    expect(ws.getCell(namesRow + 1, metaColStart + 2).value).toBe('desc');
+    // A resource with no contexts exports an empty cell, not 'undefined'.
+    expect(ws.getCell(namesRow + 2, 2).value).toBeFalsy();
+  });
+
   it('renders access-package columns and a banner', async () => {
     const accessPackages = [
       { id: 'ap1', displayName: 'Package One' },
@@ -227,6 +265,53 @@ describe('exportToExcel', () => {
     // Non-owner row shows a Member role letter 'D' in the matching AP column.
     const dataRow = namesRow + 1;
     expect(ws.getCell(dataRow, apColStart).value).toBe('D');
+  });
+
+  it('exports an access-package containment whose role name is Owner — matching the GUI (issue #942)', async () => {
+    const accessPackages = [{ id: 'ap1', displayName: 'PCM - Piket bevoegdheden' }];
+    const orderedGroups = [
+      { id: 'g1', displayName: 'PCM - Piket bevoegdheden', groupType: 'Group', description: '', memberCount: 1 },
+    ];
+    // The Entra crawler stamps Graph's resource-role displayName straight into
+    // ResourceRelationships.roleName — an access package granting the group's
+    // Owner role produces exactly this apGroupMap entry.
+    const apGroupMap = new Map([['G1|ap1', 'Owner']]);
+
+    await exportToExcel(baseInput({ accessPackages, orderedGroups, apGroupMap }));
+    const wb = await loadCapturedWorkbook();
+    const ws = wb.getWorksheet('Role Mining Matrix');
+
+    const namesRow = 2;             // one default attribute header level
+    const apColStart = 3 + 0 + 1;   // infoColCount + userCount + 1
+    const dataRow = namesRow + 1;
+
+    // On screen this containment renders a 'D' badge (getApRoleBadge has no
+    // owner branch — ownership is its own resource row in the v5 model).
+    expect(ws.getCell(dataRow, apColStart).value).toBe('D');
+    // …and the cell carries the AP column colour like every shown containment.
+    expect(ws.getCell(dataRow, apColStart).fill?.fgColor?.argb).toBe('FFFDE68A'); // AP_COLORS[0]
+  });
+
+  it('exports an eligible role scope as E and leaves unmapped AP cells empty', async () => {
+    const accessPackages = [
+      { id: 'ap1', displayName: 'Package One' },
+      { id: 'ap2', displayName: 'Package Two' },
+    ];
+    const orderedGroups = [
+      { id: 'g1', displayName: 'Grp', groupType: '', description: '', memberCount: 1 },
+    ];
+    const apGroupMap = new Map([['G1|ap1', 'Eligible Member']]);
+
+    await exportToExcel(baseInput({ accessPackages, orderedGroups, apGroupMap }));
+    const wb = await loadCapturedWorkbook();
+    const ws = wb.getWorksheet('Role Mining Matrix');
+
+    const dataRow = 3;              // namesRow(2) + 1
+    const apColStart = 3 + 0 + 1;
+    expect(ws.getCell(dataRow, apColStart).value).toBe('E');
+    // No containment for the second package => no letter and no fill.
+    expect(ws.getCell(dataRow, apColStart + 1).value).toBeFalsy();
+    expect(ws.getCell(dataRow, apColStart + 1).fill?.fgColor).toBeUndefined();
   });
 
   it('populates the Legend sheet with all membership types', async () => {

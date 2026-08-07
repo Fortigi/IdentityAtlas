@@ -18,61 +18,16 @@ import { useAuth } from '@ui/auth/AuthGate';
 import Stepper from '@ui/components/Stepper';
 import { Modal, PrimaryButton, SecondaryButton, ErrorBox } from '@ui/components/contexts/ModalPrimitives';
 import ContextPicker from '@ui/components/contexts/ContextPicker';
+import AttributePicker from './AttributePicker';
 import { variantMeta, targetTypeMeta } from '@ui/utils/contextStyles';
 import { useDialog } from '@ui/components/dialogContext';
 import { friendlyLabel } from '@ui/utils/formatters';
+import { DEFAULT_SORT, normalizeMatrixFilter } from '@ui/utils/matrixFilter';
 
 // ─── Constants ──────────────────────────────────────────────────────
 
 const WARN_ASSIGNMENTS  =  5_000;
 const BLOCK_ASSIGNMENTS = 25_000;
-
-const EMPTY_FILTER = {
-  rowType: 'principal',
-  // 'rows-as-resources' — resources on the row axis, subjects on the column
-  //                      axis (current default, good when many resources +
-  //                      few subjects, since vertical scroll is easier).
-  // 'rows-as-subjects'  — subjects on the row axis, resources on the column
-  //                      axis (rotated, good when few resources + many
-  //                      subjects).
-  orientation: 'rows-as-resources',
-  subject:  { include: [], exclude: [] },
-  resource: { include: [], exclude: [] },
-  // Roll-up: aggregate the subject (column) axis by this attribute. null = off.
-  rollup: null,
-  // What the roll-up shows (only when rollup is set):
-  //   'resources-and-roles' — resources as rows + business-role count columns (default)
-  //   'resources-only'      — resources as rows, no business-role columns
-  //   'roles-only'          — business roles as rows (resource filter is skipped)
-  rollupContent: 'resources-and-roles',
-  // How each roll-up cell is shown: 'count' (absolute, default) or 'percent'
-  // (share of the in-scope subjects in that group who hold it).
-  rollupMetric: 'count',
-  // EXPERIMENTAL — aggregate by a Context tree (Manager Hierarchy) instead of an
-  // attribute. 'attribute' uses `rollup`; 'context' uses rollupContextId (the
-  // starting node) and rollupPath (the drill path from root to current focus).
-  rollupKind: 'attribute',
-  rollupContextId: null,
-  rollupPath: [],
-  // Expanded nodes in the Manager-Hierarchy layered view (dynamic drill-down).
-  rollupExpanded: [],
-  // Folded tuple keys in the layered attribute view (default none = all chosen
-  // attributes shown as header rows; fold collapses a group).
-  rollupCollapsed: [],
-  // Set automatically for an oversized attribute fold: serve it as a layered,
-  // server-aggregated view instead of a flat per-subject grid.
-  foldAttributes: false,
-  // Subject-axis sort order — 1..6 attributes, applied client-side. Default
-  // groups columns by department.
-  sortAttributes: [{ attribute: 'department', dir: 'asc' }],
-  // Sort the columns by a Manager-Hierarchy context tree instead of attributes.
-  // { contextId } or null (attribute sort).
-  sortHierarchy: null,
-  // Whether the matrix opens with its top-level groups folded into count
-  // columns. 'auto' folds only when the matrix is large (keeps load fast);
-  // true/false force it.
-  foldOnLoad: 'auto',
-};
 
 // Above this many assignments, 'auto' fold-on-load defaults to folded so the
 // first render stays fast.
@@ -111,8 +66,6 @@ function matrixIsBlocked(filter, anyRollup, assignmentCount) {
   return !(((filter?.sortAttributes?.length || 0) > 0) && willLoadFolded(filter, assignmentCount));
 }
 
-const DEFAULT_SORT = [{ attribute: 'department', dir: 'asc' }];
-
 // Pull selectable attribute names out of a /matrix/columns response. Excludes
 // the display-name column (every value is unique, useless to group/sort by).
 // When realOnly, drops ext.* keys (the flat matrix payload can't sort by them).
@@ -146,7 +99,10 @@ export default function MatrixFilterWizard({
   const { authFetch } = useAuth();
   const dialog = useDialog();
   const [step, setStep] = useState('setup');
-  const [filter, setFilter] = useState(() => structuredClone(initialFilter || EMPTY_FILTER));
+  // Normalised (never structuredClone'd raw): the filter can arrive from a URL,
+  // a saved matrix, or the seeded org default, any of which may be missing
+  // fields the steps read directly. See utils/matrixFilter.js.
+  const [filter, setFilter] = useState(() => normalizeMatrixFilter(initialFilter));
   // The All / Governed / Non-governed toggle lives in the matrix toolbar, not
   // the wizard, but it's part of a saved matrix — carry it so save/load and
   // Apply round-trip it. The wizard has no UI to change it; loading a saved
@@ -180,7 +136,7 @@ export default function MatrixFilterWizard({
   if (open !== wasOpen) {
     setWasOpen(open);
     if (open) {
-      setFilter(structuredClone(initialFilter || EMPTY_FILTER));
+      setFilter(normalizeMatrixFilter(initialFilter));
       setManaged(initialManaged);
       setStep('setup');
       setError(null);
@@ -384,30 +340,11 @@ export default function MatrixFilterWizard({
     const row = savedFilters.find(f => f.id === id);
     if (!row) return;
     // Normalise — older saves might be missing fields (e.g. orientation
-    // didn't exist before).
-    const f = row.filter || EMPTY_FILTER;
+    // didn't exist before). Loading a saved matrix always starts from a clean
+    // view state, unlike adjusting the open one.
+    const f = row.filter || {};
     setFilter({
-      rowType:     f.rowType === 'identity' ? 'identity' : 'principal',
-      orientation: f.orientation === 'rows-as-subjects' ? 'rows-as-subjects' : 'rows-as-resources',
-      subject:  {
-        include: Array.isArray(f.subject?.include) ? f.subject.include : [],
-        exclude: Array.isArray(f.subject?.exclude) ? f.subject.exclude : [],
-      },
-      resource: {
-        include: Array.isArray(f.resource?.include) ? f.resource.include : [],
-        exclude: Array.isArray(f.resource?.exclude) ? f.resource.exclude : [],
-      },
-      rollup: typeof f.rollup === 'string' && f.rollup ? f.rollup : null,
-      rollupContent: ['resources-and-roles', 'resources-only', 'roles-only'].includes(f.rollupContent)
-        ? f.rollupContent : 'resources-and-roles',
-      rollupMetric: f.rollupMetric === 'percent' ? 'percent' : 'count',
-      rollupKind: f.rollupKind === 'context' ? 'context' : 'attribute',
-      rollupContextId: typeof f.rollupContextId === 'string' && f.rollupContextId ? f.rollupContextId : null,
-      rollupPath: Array.isArray(f.rollupPath) ? f.rollupPath : [],
-      sortAttributes: Array.isArray(f.sortAttributes) && f.sortAttributes.length
-        ? f.sortAttributes.slice(0, 6) : DEFAULT_SORT,
-      foldOnLoad: [true, false, 'auto'].includes(f.foldOnLoad) ? f.foldOnLoad : 'auto',
-      sortHierarchy: (f.sortHierarchy && typeof f.sortHierarchy.contextId === 'string') ? f.sortHierarchy : null,
+      ...normalizeMatrixFilter(f),
       rollupExpanded: [],
       rollupCollapsed: [],
       foldAttributes: false,
@@ -942,6 +879,7 @@ function RadioCard({ active, onClick, title, description, visual }) {
 // ─── Step 2 — Subjects ─────────────────────────────────────────────
 
 function Step2Subject({ rowType, subject, contextMeta, columns, onContextResolved, onAdd, onRemove, onUpdate }) {
+  const entity = rowType === 'identity' ? 'Identity' : 'Principal';
   return (
     <div className="space-y-3">
       <p className="text-xs text-gray-600 dark:text-gray-400">
@@ -953,6 +891,7 @@ function Step2Subject({ rowType, subject, contextMeta, columns, onContextResolve
         allowedTargets={rowType === 'identity' ? ['Identity'] : ['Principal']}
         contextMeta={contextMeta}
         columns={columns}
+        entity={entity}
         onContextResolved={onContextResolved}
         onAdd={(c) => onAdd('include', c)}
         onRemove={(idx) => onRemove('include', idx)}
@@ -965,6 +904,7 @@ function Step2Subject({ rowType, subject, contextMeta, columns, onContextResolve
         allowedTargets={rowType === 'identity' ? ['Identity'] : ['Principal']}
         contextMeta={contextMeta}
         columns={columns}
+        entity={entity}
         onContextResolved={onContextResolved}
         onAdd={(c) => onAdd('exclude', c)}
         onRemove={(idx) => onRemove('exclude', idx)}
@@ -978,6 +918,7 @@ function Step2Subject({ rowType, subject, contextMeta, columns, onContextResolve
 // ─── Step 3 — Resources ────────────────────────────────────────────
 
 function Step3Resource({ resource, contextMeta, columns, onContextResolved, onAdd, onRemove, onUpdate }) {
+  const entity = 'Resource';
   return (
     <div className="space-y-3">
       <p className="text-xs text-gray-600 dark:text-gray-400">
@@ -989,6 +930,7 @@ function Step3Resource({ resource, contextMeta, columns, onContextResolved, onAd
         allowedTargets={['Resource', 'System']}
         contextMeta={contextMeta}
         columns={columns}
+        entity={entity}
         onContextResolved={onContextResolved}
         onAdd={(c) => onAdd('include', c)}
         onRemove={(idx) => onRemove('include', idx)}
@@ -1001,6 +943,7 @@ function Step3Resource({ resource, contextMeta, columns, onContextResolved, onAd
         allowedTargets={['Resource', 'System']}
         contextMeta={contextMeta}
         columns={columns}
+        entity={entity}
         onContextResolved={onContextResolved}
         onAdd={(c) => onAdd('exclude', c)}
         onRemove={(idx) => onRemove('exclude', idx)}
@@ -1013,7 +956,7 @@ function Step3Resource({ resource, contextMeta, columns, onContextResolved, onAd
 
 // ─── Condition list ────────────────────────────────────────────────
 
-function ConditionList({ title, conditions, contextMeta, columns, onContextResolved, onAdd, onRemove, onUpdate, emptyHint, allowedTargets }) {
+function ConditionList({ title, conditions, contextMeta, columns, entity, onContextResolved, onAdd, onRemove, onUpdate, emptyHint, allowedTargets }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [attrOpen, setAttrOpen] = useState(false);
 
@@ -1066,6 +1009,7 @@ function ConditionList({ title, conditions, contextMeta, columns, onContextResol
       />
       {attrOpen && (
         <AttributePicker
+          entity={entity}
           columns={columns}
           onPick={(field, values) => {
             onAdd({ kind: 'attribute', field, values });
@@ -1121,87 +1065,6 @@ function ConditionRow({ cond, contextMeta, onRemove, onUpdate }) {
     );
   }
   return null;
-}
-
-// ─── Attribute picker dialog ───────────────────────────────────────
-
-function AttributePicker({ columns, onPick, onClose }) {
-  const [field, setField] = useState('');
-  const [selectedValues, setSelectedValues] = useState([]);
-
-  // Filter columns to ones with at least one distinct value AND a sensible
-  // type (we hide UUID/ID-like columns since they're not useful filters).
-  const filterable = useMemo(() => {
-    if (!Array.isArray(columns)) return [];
-    return columns
-      .filter(c => !['id', 'principalId', 'resourceId', 'identityId', 'displayName'].includes(c.column))
-      .filter(c => Array.isArray(c.values));
-  }, [columns]);
-
-  const selectedColumn = filterable.find(c => c.column === field);
-  const valueOptions = selectedColumn?.values || [];
-
-  const toggleValue = (v) => {
-    setSelectedValues(prev => prev.includes(v) ? prev.filter(x => x !== v) : [...prev, v]);
-  };
-
-  return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 dark:bg-black/70" onClick={onClose}>
-      <div
-        className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl p-4 w-[480px] max-w-full max-h-[80vh] overflow-auto"
-        onClick={e => e.stopPropagation()}
-      >
-        <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">Add attribute filter</h3>
-
-        <label className="block text-[11px] font-medium text-gray-700 dark:text-gray-300 mb-1">Field</label>
-        <select
-          value={field}
-          onChange={e => { setField(e.target.value); setSelectedValues([]); }}
-          className="w-full px-2 py-1 text-xs rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-200 mb-3"
-        >
-          <option value="">— select a field —</option>
-          {filterable.map(c => (
-            <option key={c.column} value={c.column}>
-              {c.column} ({c.values.length})
-            </option>
-          ))}
-        </select>
-
-        {field && (
-          <>
-            <label className="block text-[11px] font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Values <span className="text-gray-600 dark:text-gray-500">(any of these match — OR)</span>
-            </label>
-            <div className="border border-gray-200 dark:border-gray-700 rounded max-h-48 overflow-y-auto">
-              {valueOptions.length === 0 ? (
-                <p className="text-[11px] text-gray-600 dark:text-gray-500 italic px-2 py-1">No values available</p>
-              ) : (
-                valueOptions.map(v => (
-                  <label key={v} className="flex items-center gap-1.5 px-2 py-1 hover:bg-gray-50 dark:hover:bg-gray-700/30 text-xs cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={selectedValues.includes(v)}
-                      onChange={() => toggleValue(v)}
-                      className="w-3 h-3"
-                    />
-                    <span className="text-gray-800 dark:text-gray-200 truncate">{v}</span>
-                  </label>
-                ))
-              )}
-            </div>
-            <p className="text-[10px] text-gray-600 dark:text-gray-500 mt-1">{selectedValues.length} selected</p>
-          </>
-        )}
-
-        <div className="flex justify-end gap-2 mt-3">
-          <SecondaryButton onClick={onClose}>Cancel</SecondaryButton>
-          <PrimaryButton onClick={() => onPick(field, selectedValues)} disabled={!field || selectedValues.length === 0}>
-            Add
-          </PrimaryButton>
-        </div>
-      </div>
-    </div>
-  );
 }
 
 // ─── Save dialog ───────────────────────────────────────────────────
