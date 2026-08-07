@@ -1,0 +1,1 @@
+- Changes made in response to reporter feedback now get their tests run. Because of a permissions difference, those commits were being pushed in a way that GitHub does not run workflows for, so every follow-up change landed with no checks — and the build then correctly refused to report itself as verified, stalling the issue.
