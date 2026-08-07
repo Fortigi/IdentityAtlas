@@ -39,7 +39,7 @@ case $? in
   *) bail "the AI adjustment step errored (see run log)" ;;
 esac
 
-git restore --source=origin/main --staged --worktree -- .github 2>/dev/null || true
+git restore --source=HEAD --staged --worktree -- .github 2>/dev/null || true
 git add -A
 if git diff --cached --quiet; then
   touch "${RUNNER_TEMP:-/tmp}/dor-done"   # success (nothing to change) → the reconcile step keeps it at functional acceptance

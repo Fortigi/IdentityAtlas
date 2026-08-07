@@ -278,7 +278,7 @@ pause_and_exit() {
   local reason="$1"
   echo "::warning::PAUSING (${FLOW_NOUN}): ${reason}"
   touch "${RUNNER_TEMP:-/tmp}/dor-paused"   # tell the workflow's failure backstop this is a pause
-  git -C "$WORK" restore --source=origin/main --staged --worktree -- .github 2>/dev/null || true
+  git -C "$WORK" restore --source=HEAD --staged --worktree -- .github 2>/dev/null || true
   git -C "$WORK" add -A 2>/dev/null || true
   git -C "$WORK" diff --cached --quiet 2>/dev/null || git -C "$WORK" commit -q -m "wip: paused on usage limit (#${ISSUE})" 2>/dev/null || true
   git -C "$WORK" push --force-with-lease origin "$BRANCH" 2>/dev/null || true
@@ -461,7 +461,7 @@ verify_loop() {
       2) pause_and_exit "hit a usage limit during a fix attempt (attempt ${attempt})" ;;
       *) bail "the AI fix step errored on attempt ${attempt}" ;;
     esac
-    git restore --source=origin/main --staged --worktree -- .github 2>/dev/null || true
+    git restore --source=HEAD --staged --worktree -- .github 2>/dev/null || true
     git add -A
     if ! git diff --cached --quiet; then
       git commit -q -m "fix: address e2e/CI failures (attempt ${attempt}, #${ISSUE})" || bail "git commit failed during fix (attempt ${attempt})"
