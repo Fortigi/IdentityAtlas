@@ -1482,6 +1482,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#which-fields-the-attribute-picker-offers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Which fields the "+ Attribute" picker offers
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#attribute-values-paged-discovery-not-a-silent-cap" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4969,6 +4980,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#which-fields-the-attribute-picker-offers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Which fields the "+ Attribute" picker offers
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#attribute-values-paged-discovery-not-a-silent-cap" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5436,6 +5458,10 @@ attribute-fold views aggregate resources and have no per-resource row.</p>
 <p>(Resource/System contexts always apply to the resource axis; Identity and Principal contexts to the subject axis.)</p>
 <h3 id="identity-extension-attribute-filtering">Identity extension-attribute filtering<a class="headerlink" href="#identity-extension-attribute-filtering" title="Permanent link">&para;</a></h3>
 <p>The subject-condition step also offers an "+ Attribute" filter. When <code>rowType=identity</code>, the column list comes from <code>GET /api/matrix/columns?entity=Identity</code> (loaded lazily the first time the analyst switches to identities), so identities can be narrowed by their own attributes (department, jobTitle, companyName, city, country, employeeId, …) and by identity tag. Switching row type clears the subject conditions, since the available columns differ between principals and identities.</p>
+<h3 id="which-fields-the-attribute-picker-offers">Which fields the "+ Attribute" picker offers<a class="headerlink" href="#which-fields-the-attribute-picker-offers" title="Permanent link">&para;</a></h3>
+<p>The picker (<code>app/ui/src/components/matrix/AttributePicker.jsx</code>) lists every discovered column that carries a value list, minus a small hidden set: <code>id</code>, <code>principalId</code>, <code>resourceId</code>, <code>identityId</code> — opaque identifiers nobody filters by hand.</p>
+<p><code>displayName</code> is <strong>not</strong> hidden: filtering down to the specific subjects or resources you mean by name is a core role-mining ask (<a href="https://github.com/Fortigi/IdentityAtlas/issues/927">#927</a>), and every layer beneath the picker already supports it (the columns endpoint serves the column with its values, <code>buildAttributeClause</code> in <code>app/api/src/matrix/filterSql.js</code> accepts it, and a <code>displayName</code> condition round-trips through a saved matrix unchanged). On a tenant with more names than fit one page, the value search below applies to it like any other column.</p>
+<p>The wizard's <strong>Sort / roll-up</strong> options are a different list (<code>attributeOptions()</code> in <code>MatrixFilterWizard.jsx</code>) and do still exclude <code>displayName</code> — grouping by a near-unique value produces one group per row and nothing to fold.</p>
 <h3 id="attribute-values-paged-discovery-not-a-silent-cap">Attribute values — paged discovery, not a silent cap<a class="headerlink" href="#attribute-values-paged-discovery-not-a-silent-cap" title="Permanent link">&para;</a></h3>
 <p>A column can have far more distinct values than any dropdown can ship (<code>description</code> on <code>Resources</code> collects descriptions from every resource type, so a real tenant runs to tens of thousands). <code>GET /api/matrix/columns</code> therefore serves <strong>one page</strong> of values per column — the alphabetically first 500 by default — and sets <code>truncated: true</code> on any column that has more. Two rules follow:</p>
 <ul>
