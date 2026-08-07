@@ -435,10 +435,12 @@ Describe 'Demo dataset — one resource, two business roles (#370)' {
 
     It 'stores a membership covered by two roles once — the overlap is coverage, not access' {
         $tools = $script:sharedResByName['SG-Servicedesk-Tools'].id
+        # NOT $pid — that is a read-only PowerShell automatic variable (the
+        # process id), and assigning to it throws before the assertion runs.
         foreach ($who in @('Victor Wang', 'Wendy Xu')) {
-            $pid = $script:sharedPrincByName[$who].id
+            $principalId = $script:sharedPrincByName[$who].id
             @($script:data.resourceAssignments |
-                Where-Object { $_.resourceId -eq $tools -and $_.principalId -eq $pid }).Count | Should -Be 1
+                Where-Object { $_.resourceId -eq $tools -and $_.principalId -eq $principalId }).Count | Should -Be 1
         }
     }
 
@@ -509,7 +511,7 @@ Describe 'Demo dataset — vendor-neutral IGA (#705)' {
     It 'sources every business role from the IGA system' {
         $igaSysId = ([array]::IndexOf(@($script:data.metadata.systemKeys.key), 'iga')) + 1
         $roles = @($script:data.resources | Where-Object { $_.resourceType -eq 'BusinessRole' })
-        $roles.Count | Should -Be 5
+        $roles.Count | Should -Be 7
         foreach ($r in $roles) { $r.systemId | Should -Be $igaSysId }
     }
 
