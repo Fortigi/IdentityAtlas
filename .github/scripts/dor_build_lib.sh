@@ -34,8 +34,15 @@ TERSE=$'\n\nWork directly and without narration: make the edits and run the comm
 
 # Self-hosted runners have no git identity of their own; without one `git commit` aborts
 # ("unable to auto-detect email address") and the flow would push an empty branch. Pin an identity.
-git -C "$WORK" config user.email "dor-agent@fortigi.nl"    >/dev/null 2>&1 || true
-git -C "$WORK" config user.name  "IdentityAtlas DoR agent" >/dev/null 2>&1 || true
+#
+# It has to be the BOT APP's noreply address, not a friendly one. GitHub resolves a commit's author
+# by email: `dor-agent@fortigi.nl` matches no account, so every commit came back with author=NONE and
+# committer=NONE, GitHub treated the push as an unknown contributor, and held ALL of the PR's
+# workflow runs at `action_required` — five manual approvals per build, and an Exceptions bail when
+# nobody noticed. Dependabot avoids this the same way (`49699333+dependabot[bot]@users.noreply…`).
+# The number is the bot's user id; the address only resolves with it.
+git -C "$WORK" config user.email "280718603+fortigi-ci-bot[bot]@users.noreply.github.com" >/dev/null 2>&1 || true
+git -C "$WORK" config user.name  "fortigi-ci-bot[bot]"                                    >/dev/null 2>&1 || true
 
 issue_mentions() {  # requestor (author) + commenters, deduped, bots excluded, @-prefixed
   gh issue view "$ISSUE" --repo "$REPO" --json author,comments \
