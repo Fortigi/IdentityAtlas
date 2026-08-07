@@ -13,63 +13,27 @@
 // demo dataset (SG-AllEmployees, SG-Engineering, …) and on a real tenant.
 
 import { test, expect } from '@playwright/test';
-
-const BASE = process.env.E2E_BASE_URL || 'http://localhost:3001';
-const API = `${BASE}/api`;
-
-// The alphabetically first resource name in the deployment under test — the one
-// value guaranteed to be inside the preloaded first page of the column.
-async function firstResourceName() {
-  const res = await fetch(`${API}/resources?sort=displayName&dir=asc&limit=1`);
-  if (!res.ok) return null;
-  const body = await res.json();
-  const name = body?.data?.[0]?.displayName;
-  return typeof name === 'string' && name.trim() ? name : null;
-}
-
-// The `displayName` entry of /matrix/columns, or null when the deployment has
-// no such column.
-async function displayNameColumn() {
-  const res = await fetch(`${API}/matrix/columns?entity=Resource`);
-  if (!res.ok) return null;
-  return (await res.json()).find(c => c.column === 'displayName') || null;
-}
+import { matrixColumn, openAttributePicker, resourceValue } from './matrixWizard.js';
 
 test.describe('#927 — displayName as a matrix wizard attribute filter', () => {
   test.setTimeout(90000);
 
   test('the API serves displayName as a filterable column with values', async () => {
-    const column = await displayNameColumn();
+    const column = await matrixColumn('displayName');
     expect(column, 'displayName must be discovered for entity=Resource').toBeTruthy();
     expect(Array.isArray(column.values)).toBeTruthy();
     expect(column.values.length).toBeGreaterThan(0);
   });
 
   test('the Resources step offers displayName and filters the matrix by name', async ({ page }) => {
-    const target = await firstResourceName();
+    // The alphabetically first resource name — the one value guaranteed to be
+    // inside the preloaded first page of the column.
+    const target = await resourceValue('displayName', 'asc');
     test.skip(!target, 'no named resource in this deployment');
 
-    await page.goto(`${BASE}/#matrix`);
-    await page.waitForLoadState('networkidle');
-
-    // Open the wizard — "Create matrix" on the empty state, "Adjust matrix"
-    // once a matrix is loaded.
-    const openWizard = page.getByRole('button', { name: /Create matrix|Adjust matrix/ }).first();
-    await expect(openWizard).toBeVisible({ timeout: 60000 });
-    await openWizard.click();
-
-    // Setup → Subjects → Resources (the reporter's "Next, Next").
-    const next = page.getByRole('button', { name: 'Next' });
-    await expect(next).toBeVisible({ timeout: 30000 });
-    await next.click();
-    await next.click();
-
-    // + Attribute on the resource Include list.
-    await page.getByRole('button', { name: '+ Attribute' }).first().click();
-    await expect(page.getByText('Add attribute filter')).toBeVisible();
+    const fieldSelect = await openAttributePicker(page, 'resources');
 
     // The reporter's assertion: displayName is in the Field dropdown.
-    const fieldSelect = page.getByLabel('Field');
     await expect(fieldSelect.locator('option[value="displayName"]')).toHaveCount(1);
 
     // And the condition is fully buildable: pick a resource by name.
@@ -87,20 +51,8 @@ test.describe('#927 — displayName as a matrix wizard attribute filter', () => 
   });
 
   test('the subjects step offers displayName too', async ({ page }) => {
-    await page.goto(`${BASE}/#matrix`);
-    await page.waitForLoadState('networkidle');
+    const fieldSelect = await openAttributePicker(page, 'subjects');
 
-    const openWizard = page.getByRole('button', { name: /Create matrix|Adjust matrix/ }).first();
-    await expect(openWizard).toBeVisible({ timeout: 60000 });
-    await openWizard.click();
-
-    const next = page.getByRole('button', { name: 'Next' });
-    await expect(next).toBeVisible({ timeout: 30000 });
-    await next.click(); // Setup → Subjects
-
-    await page.getByRole('button', { name: '+ Attribute' }).first().click();
-    await expect(page.getByText('Add attribute filter')).toBeVisible();
-
-    await expect(page.getByLabel('Field').locator('option[value="displayName"]')).toHaveCount(1);
+    await expect(fieldSelect.locator('option[value="displayName"]')).toHaveCount(1);
   });
 });
