@@ -97,7 +97,7 @@ Leave your changes in the working tree — do NOT commit, push or open a PR.%s' 
       2) pause_and_exit "hit a usage limit while writing the regression test" ;;
       *) bail "the AI errored while writing the regression test (see run log)" ;;
     esac
-    git restore --source=origin/main --staged --worktree -- .github 2>/dev/null || true
+    git restore --source=HEAD --staged --worktree -- .github 2>/dev/null || true
     git add -A
     git diff --cached --quiet && bail "no regression test was produced for #${ISSUE} — a bug fix without a test that reproduces it cannot be verified"
     git commit -q -m "test: reproduce #${ISSUE} (red)" || bail "git commit failed (regression test)"
@@ -137,7 +137,7 @@ Leave your changes in the working tree — do NOT commit, push or open a PR.%s' 
       2) pause_and_exit "hit a usage limit during the fix" ;;
       *) bail "the AI fix step errored (see run log)" ;;
     esac
-    git restore --source=origin/main --staged --worktree -- .github 2>/dev/null || true
+    git restore --source=HEAD --staged --worktree -- .github 2>/dev/null || true
     git add -A
     git diff --cached --quiet && bail "the AI produced no fix for #${ISSUE} (the regression test is still red)"
     git commit -q -m "$title (#${ISSUE})" || bail "git commit failed"
@@ -181,7 +181,12 @@ Leave your changes in the working tree — do NOT commit, push or open a PR.%s' 
       *) bail "the AI implement step errored (see run log)" ;;
     esac
 
-    git restore --source=origin/main --staged --worktree -- .github 2>/dev/null || true   # never let the build touch .github
+    # .github is restored from HEAD, not origin/main. The restore exists to undo MODEL tampering, and
+    # HEAD is already trusted for that — a bot commit never contains .github, precisely because of
+    # this restore. Restoring from a MOVING main instead made every bot branch COMMIT a snapshot of CI
+    # as it was at build time: #978 is carrying #976 and #977 that way, and a long-lived branch can
+    # then conflict with, or partially revert, CI changes made after it started.
+    git restore --source=HEAD --staged --worktree -- .github 2>/dev/null || true
     git add -A
     git diff --cached --quiet && bail "the AI produced no changes"
     git commit -q -m "$title (#${ISSUE})" || bail "git commit failed"
