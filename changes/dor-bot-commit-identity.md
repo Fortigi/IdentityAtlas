@@ -1,0 +1,1 @@
+- Commits made by the automated build are now attributed to the project's bot account. They previously carried an email address that matched no GitHub account, so GitHub treated every push as coming from an unknown contributor and held the pull request's checks for manual approval — five approvals per build, and a stalled issue whenever nobody noticed.
