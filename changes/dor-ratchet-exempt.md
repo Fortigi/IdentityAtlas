@@ -1,0 +1,1 @@
+- An automated fix is no longer stopped for updating the project's coverage and complexity baselines. Those files have to change whenever a fix moves the numbers, so treating them as unexpected scope halted a correct fix.

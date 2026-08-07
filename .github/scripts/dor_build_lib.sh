@@ -88,8 +88,13 @@ blast_radius_violations() {  # $1 = contract file, $2 = git range
   [ -n "$globs" ] || return 0
   while IFS= read -r f; do
     [ -n "$f" ] || continue
+    # `.ci/*` are the committed RATCHET baselines (coverage, file length, complexity). A fix that
+    # legitimately moves coverage MUST update them or CI fails — so they are a consequence of the
+    # change, not part of it, exactly like a changelog fragment. #943's build was stopped for
+    # touching .ci/coverage-baseline.json, which no probe could reasonably have predicted and which
+    # it had no choice but to write.
     case "$f" in
-      *.test.js|*.test.jsx|*.spec.js|*.Tests.ps1|changes/*|docs/*|*/package-lock.json|package-lock.json) continue ;;
+      *.test.js|*.test.jsx|*.spec.js|*.Tests.ps1|changes/*|docs/*|.ci/*|*/package-lock.json|package-lock.json) continue ;;
     esac
     hit=no
     while IFS= read -r g; do
