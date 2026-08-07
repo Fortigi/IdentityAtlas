@@ -86,6 +86,17 @@ for l in $all; do [ "$l" != "$route" ] && remove="${remove:+$remove,}$l"; done
 # Every other route keeps github.token — nothing downstream listens for them, so there is no reason
 # to widen who writes them. (dor-board-sync skips Bot senders, so this write never double-syncs.)
 if [ "$route" = state:awaiting-approval ]; then
+  # Adding a label the issue ALREADY carries is a no-op: GitHub emits no `labeled` event, so the
+  # cascade never fires and the pipeline silently dead-ends. That is exactly what a RE-certification
+  # looks like — the issue is already awaiting approval, the probe confirms it again, and nothing
+  # happens (it stranded #927 and #943). Force the transition so the event always exists.
+  # `// empty` matters: gh prints a bare newline for a null jq result, so a "not null" text test
+  # reports every issue as already-labelled.
+  if [ -n "$(gh issue view "$ISSUE" --repo "$REPO" --json labels \
+             --jq '[.labels[].name] | index("'"$route"'") // empty' 2>/dev/null)" ]; then
+    GH_TOKEN="$BOARD_TOKEN" gh issue edit "$ISSUE" --repo "$REPO" --remove-label "$route" >/dev/null 2>&1 || true
+    echo "::notice::#$ISSUE was already $route — re-applying it so the value-gate cascade fires"
+  fi
   GH_TOKEN="$BOARD_TOKEN" gh issue edit "$ISSUE" --repo "$REPO" --add-label "$route" --remove-label "$remove"
 else
   gh issue edit "$ISSUE" --repo "$REPO" --add-label "$route" --remove-label "$remove"

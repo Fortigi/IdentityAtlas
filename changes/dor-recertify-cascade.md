@@ -1,0 +1,1 @@
+- Re-certifying a bug that is already awaiting approval now moves it forward again. Previously the pipeline stopped silently in that case, because re-applying a label an issue already carries produces no event for the next step to react to.
