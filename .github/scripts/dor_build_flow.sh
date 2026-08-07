@@ -150,6 +150,21 @@ Leave your changes in the working tree — do NOT commit, push or open a PR.%s' 
     # ── 5. CONFORMANCE ──────────────────────────────────────────────────────────────────────────
     # The fix landing outside the radius the probe predicted means the diagnosis was wrong or the
     # scope crept. Neither is something another AI pass should paper over, so it stops here.
+    # Size ceiling. A "bug fix" that rewrites ten production files is a refactor wearing a bug's
+    # clothes — and under autonomy nobody chose to start it. Tests, docs and changelog fragments are
+    # exempt: shipping MORE test than fix is exactly what we want.
+    prod_files="$(git diff --name-only origin/main...HEAD \
+                  | grep -vE '\.(test|spec)\.(js|jsx)$|\.Tests\.ps1$|^changes/|^docs/|package-lock\.json$' | wc -l)"
+    # Field-based, not a regex over the whole line: numstat is "adds<TAB>dels<TAB>path", and a
+    # pattern that depends on a literal tab surviving an edit is a bug waiting to happen.
+    prod_lines="$(git diff --numstat origin/main...HEAD \
+                  | awk -F'\t' '$3 !~ /\.(test|spec)\.(js|jsx)$|\.Tests\.ps1$|package-lock\.json$/ &&
+                                $3 !~ /^(changes|docs)\// {a+=$1; d+=$2} END {print a+d+0}')"
+    if [ "${prod_files:-0}" -gt "${MAX_FIX_FILES:-10}" ] || [ "${prod_lines:-0}" -gt "${MAX_FIX_LINES:-400}" ]; then
+      bail "this fix changed ${prod_files} production files / ${prod_lines} lines, past the ${MAX_FIX_FILES:-10}-file / ${MAX_FIX_LINES:-400}-line ceiling for a bug fix. That is refactor-sized: a human should decide whether it is the right change before it goes further."
+    fi
+    echo "::notice::size OK — ${prod_files} production files, ${prod_lines} lines"
+
     if [ -n "$CONTRACT" ]; then
       outside="$(blast_radius_violations "$CONTRACT" "origin/main...HEAD")"
       [ -n "$outside" ] && bail "the fix reached outside the certified blast radius ($(jq -r '.blast_radius | join(", ")' "$CONTRACT")) and touched: $(printf '%s' "$outside" | tr '\n' ' '). Either the root cause was mis-diagnosed or the scope grew — a human should look before this goes further."

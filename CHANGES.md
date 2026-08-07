@@ -1,5 +1,11 @@
 ## Changes in this PR
 
+- Bug reports that the automated triage certifies with high confidence, in code away from database migrations, authentication and credential handling, now go straight to being built without waiting for someone to approve the work first. The final merge review is unchanged and still human. Anything that does not meet those conditions — features, uncertain diagnoses, sensitive areas, or more than three builds at once — still asks for approval exactly as before.
+- A fix that grows past ten production files or four hundred changed lines now stops for a human, on the grounds that a change that size is no longer a bug fix.
+- Re-certifying a bug that is already awaiting approval now moves it forward again. Previously the pipeline stopped silently in that case, because re-applying a label an issue already carries produces no event for the next step to react to.
+
+## Changes in this PR
+
 - Commits made by the automated build are now attributed to the project's bot account. They previously carried an email address that matched no GitHub account, so GitHub treated every push as coming from an unknown contributor and held the pull request's checks for manual approval — five approvals per build, and a stalled issue whenever nobody noticed.
 
 ## Changes in this PR
