@@ -684,7 +684,7 @@ export default function MatrixView({
   // last in the row pipeline, so it composes with the All/Governed/Non-governed/
   // Gaps toggles and with the injected nested sub-rows.
   const {
-    visibleRows: foldedGroups, foldedChildRows,
+    visibleRows: foldedGroups, foldedChildRows, exportRows,
     foldableRoles, foldedRoles, roleFoldInfo,
     toggleRoleFold, foldAllRoles, unfoldAllRoles, canFoldRoles, hasFoldedRoles,
   } = useBusinessRoleFold({ accessPackageGroups, rows: visibleGroups, storageKey });
@@ -715,7 +715,10 @@ export default function MatrixView({
     const { exportToExcel } = await import('../utils/exportToExcel');
     exportToExcel({
       users,
-      orderedGroups,
+      // The rows the grid lays out, always unfolded: a resource appears under
+      // every business role that grants it (so the file matches what is on
+      // screen), but a folded role never omits its resources from the export.
+      orderedGroups: exportRows,
       memberships,
       managedApMap,
       apIdToIndex,
@@ -726,7 +729,7 @@ export default function MatrixView({
       shareUrl,
       sortAttributes: sortAttrs,
     });
-  }, [users, orderedGroups, memberships, managedApMap, apIdToIndex, accessPackages, apGroupMap, shareUrl, sortAttrs]);
+  }, [users, exportRows, memberships, managedApMap, apIdToIndex, accessPackages, apGroupMap, shareUrl, sortAttrs]);
 
   // Share: copy URL to clipboard
   const handleShare = useCallback(async () => {

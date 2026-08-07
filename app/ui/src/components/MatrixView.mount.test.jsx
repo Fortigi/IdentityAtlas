@@ -17,6 +17,13 @@ import {
 // on the derived structures MatrixView hands it (SOLL mapping, row marking,
 // folded-role tallies) without reimplementing the cell rendering here.
 const body = vi.hoisted(() => ({ props: null }));
+
+// Capture what the Excel exporter is handed, without pulling in ExcelJS.
+const excel = vi.hoisted(() => ({ calls: [] }));
+vi.mock('../utils/exportToExcel', () => ({
+  exportToExcel: (payload) => { excel.calls.push(payload); },
+}));
+
 vi.mock('./matrix/SortableMatrixBody', () => ({
   default: (props) => {
     body.props = props;
@@ -372,6 +379,30 @@ describe('MatrixView (mounted)', () => {
     await expectRowVisible('Finance App');
     expect(rowLabels()).not.toContain('HR Portal');     // no role covers it
     expect(rowLabels()).not.toContain('HR Manager Role'); // everyone holding it has it
+  });
+
+  // Main's #949 pinned "the export matches the matrix". #370 changed what the
+  // matrix shows, so the export follows the grid's row model — but never its
+  // fold state, or a folded role would silently drop resources from an
+  // access-review artifact.
+  it('exports the resources of a folded business role anyway', async () => {
+    excel.calls.length = 0;
+    // Its own filter: fold state is persisted per matrix, so this test must not
+    // inherit (or leave behind) a fold from another one.
+    renderView({ ...roleProps, filter: { ...baseFilter, sortAttributes: [{ attribute: 'email', dir: 'asc' }] } });
+    const user = userEvent.setup();
+    await expectRowVisible('Finance App');
+
+    await user.click(await screen.findByText('Fold roles'));
+    await waitFor(() => expect(rowLabels()).not.toContain('Finance App'));
+
+    await user.click(screen.getByRole('button', { name: /Export Excel/i }));
+    await waitFor(() => expect(excel.calls).toHaveLength(1));
+
+    const exported = excel.calls[0].orderedGroups.map(g => g.displayName);
+    // On screen the role's resource is folded away; in the file it is not.
+    expect(exported).toContain('HR Manager Role');
+    expect(exported).toContain('Finance App');
   });
 
   it('offers no fold controls in a matrix without business-role rows', async () => {

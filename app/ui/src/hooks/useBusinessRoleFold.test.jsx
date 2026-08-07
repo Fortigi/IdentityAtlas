@@ -253,6 +253,32 @@ describe('useBusinessRoleFold', () => {
     expect(result.current.roleFoldInfo.get('BR1')).toEqual({ total: 2 });
   });
 
+  // The Excel export is an access-review artifact, so folding — a reading aid —
+  // must never drop a resource from it. exportRows mirrors the grid's structure
+  // (a shared resource still appears under each granting role) but ignores the
+  // fold state entirely.
+  it('exports every row whatever is folded away on screen', () => {
+    const { result } = render();
+    expect(ids(result.current.exportRows)).toEqual(EXPANDED);
+
+    act(() => result.current.foldAllRoles());
+    // The grid is now down to the roles plus the resource no role grants...
+    expect(ids(result.current.visibleRows)).toEqual(['BR1', 'BR2', 'G4']);
+    // ...but the export is still the whole thing.
+    expect(ids(result.current.exportRows)).toEqual(EXPANDED);
+  });
+
+  it('keeps the export row identity usable for cell lookups', () => {
+    const { result } = render();
+    act(() => result.current.foldAllRoles());
+    // Both copies of the shared resource keep the resource's own id (so the
+    // exporter's membership/AP lookups resolve) while carrying the role they
+    // are filed under.
+    const shared = result.current.exportRows.filter((r) => r.id === 'G2');
+    expect(shared).toHaveLength(2);
+    expect(shared.map((r) => r.roleParentId)).toEqual(['BR1', 'BR2']);
+  });
+
   it('renders the resources of an expanded role as its children', () => {
     const { result } = render();
     const byId = new Map(result.current.visibleRows.map((r) => [r.id, r]));

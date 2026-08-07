@@ -17,6 +17,9 @@ import { useState, useCallback, useMemo } from 'react';
 // Bump when the stored shape changes; older entries are discarded on read.
 export const ROLE_FOLD_VERSION = 1;
 
+// Shared empty fold set, so the "nothing folded" layout memo has a stable dep.
+const NO_FOLDS = new Set();
+
 function foldStorageKey(matrixKey) {
   return `fgraph-rolefold-${matrixKey || 'all'}`;
 }
@@ -255,11 +258,20 @@ export function useBusinessRoleFold({ accessPackageGroups, rows, storageKey }) {
   const { visibleRows, roleFoldInfo, foldedChildRows } = useMemo(
     () => buildRoleLayout(rows, analysis, foldedRoles), [rows, analysis, foldedRoles]);
 
+  // The same layout with nothing folded away — what the Excel export writes.
+  // Folding is a reading aid, so it must not silently drop resources from an
+  // access-review artifact; the export still mirrors the grid's structure
+  // (a resource appears under every role that grants it) by coming from the
+  // very same builder rather than a second, drifting row model.
+  const exportRows = useMemo(
+    () => buildRoleLayout(rows, analysis, NO_FOLDS).visibleRows, [rows, analysis]);
+
   const hasFoldedRoles = useMemo(
     () => [...foldableRoles].some(id => foldedRoles.has(id)), [foldableRoles, foldedRoles]);
 
   return {
     visibleRows,
+    exportRows,
     foldedChildRows,
     foldableRoles,
     foldedRoles,
