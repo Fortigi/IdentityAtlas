@@ -1,0 +1,2 @@
+- Fixed: the matrix wizard's "+ Attribute" filter now offers **displayName** as a field, so subjects and resources can be narrowed to the specific people or groups you name. It was hidden from the dropdown even though the data and the filtering behind it always supported it.
+- Sorting and roll-up still leave displayName out, where grouping by a near-unique name has nothing to group.

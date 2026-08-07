@@ -165,6 +165,14 @@ The wizard's "+ Context" picker is filtered by the subject row type so an analys
 
 The subject-condition step also offers an "+ Attribute" filter. When `rowType=identity`, the column list comes from `GET /api/matrix/columns?entity=Identity` (loaded lazily the first time the analyst switches to identities), so identities can be narrowed by their own attributes (department, jobTitle, companyName, city, country, employeeId, …) and by identity tag. Switching row type clears the subject conditions, since the available columns differ between principals and identities.
 
+### Which fields the "+ Attribute" picker offers
+
+The picker (`app/ui/src/components/matrix/AttributePicker.jsx`) lists every discovered column that carries a value list, minus a small hidden set: `id`, `principalId`, `resourceId`, `identityId` — opaque identifiers nobody filters by hand.
+
+`displayName` is **not** hidden: filtering down to the specific subjects or resources you mean by name is a core role-mining ask ([#927](https://github.com/Fortigi/IdentityAtlas/issues/927)), and every layer beneath the picker already supports it (the columns endpoint serves the column with its values, `buildAttributeClause` in `app/api/src/matrix/filterSql.js` accepts it, and a `displayName` condition round-trips through a saved matrix unchanged). On a tenant with more names than fit one page, the value search below applies to it like any other column.
+
+The wizard's **Sort / roll-up** options are a different list (`attributeOptions()` in `MatrixFilterWizard.jsx`) and do still exclude `displayName` — grouping by a near-unique value produces one group per row and nothing to fold.
+
 ### Attribute values — paged discovery, not a silent cap
 
 A column can have far more distinct values than any dropdown can ship (`description` on `Resources` collects descriptions from every resource type, so a real tenant runs to tens of thousands). `GET /api/matrix/columns` therefore serves **one page** of values per column — the alphabetically first 500 by default — and sets `truncated: true` on any column that has more. Two rules follow:
