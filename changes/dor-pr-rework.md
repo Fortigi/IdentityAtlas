@@ -1,1 +1,0 @@
-- A reviewer can now ask for changes to an automated fix from the pull request itself, by commenting `/rework` followed by what is missing. Previously feedback only worked from the original issue, so a reviewer looking at the code had nowhere to say "this isn't enough". The regression test is re-checked against the unchanged code afterwards, so a rework cannot weaken it.
