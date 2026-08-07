@@ -7,7 +7,10 @@
 import * as db from '../../db/connection.js';
 import { timedQuery } from '../../perf/sqlTimer.js';
 import { createParams } from '../../db/sqlParams.js';
-import { getPrincipalColumns, getResourceColumns } from '../../db/columnCache.js';
+import {
+  getPrincipalColumns, getResourceColumns,
+  discoverColumnValues, discoverExtendedAttrValues, mergeValueSets, valuePageSize,
+} from '../../db/columnCache.js';
 import { buildEntitySubquery, collectContextIds } from '../../matrix/filterSql.js';
 import { resourceMeta } from '../../db/matrixHelpers.js';
 import { GROUP_PRINCIPAL_TYPE } from '../../lib/principalTypes.js';
@@ -48,51 +51,29 @@ export async function getIdentityColumns() {
   return identityColumnsCache;
 }
 
-export async function getIdentityColumnValues() {
+// Identity distinct values, discovered with the same helpers the Principal and
+// Resource sides use (db/columnCache.js) — one ordered page per column/ext key
+// plus a per-column `truncated` flag. The hand-rolled duplicate this replaced
+// also carried a global 5000-row cap across all ext keys, which silently
+// dropped whole keys once a tenant had enough extension attributes (#928).
+export async function getIdentityColumnValuesMeta() {
   const now = Date.now();
-  if (identityValuesCache && (now - identityValuesCacheTime) < IDENTITY_CACHE_TTL) {
+  const pageSize = valuePageSize();
+  if (identityValuesCache && identityValuesCache.pageSize === pageSize
+      && (now - identityValuesCacheTime) < IDENTITY_CACHE_TTL) {
     return identityValuesCache;
   }
-  const grouped = {};
-
-  // Distinct values for real, filterable columns.
   const cols = await getIdentityColumns();
-  const filterable = cols.filter(c => FILTERABLE_TYPES.has(c.type) && SAFE_IDENT_RE.test(c.rawName));
-  if (filterable.length > 0) {
-    const parts = filterable.map(c =>
-      `SELECT '${c.name}' AS col, val FROM (
-         SELECT DISTINCT "${c.rawName}"::text AS val FROM "Identities"
-          WHERE "${c.rawName}" IS NOT NULL AND "${c.rawName}"::text <> ''
-          LIMIT 500
-       ) t`
-    );
-    const r = await db.query(parts.join('\nUNION ALL\n') + '\nORDER BY col, val');
-    for (const row of r.rows) {
-      if (!grouped[row.col]) grouped[row.col] = [];
-      grouped[row.col].push(row.val);
-    }
-  }
+  const base = await discoverColumnValues('Identities', cols, pageSize);
 
   // Extension-attribute keys + distinct values, surfaced as ext.<key> so they
   // can be picked and filtered just like Principal/Resource ext attributes.
+  let ext = { values: {}, truncated: {} };
   try {
-    const ext = await db.query(`
-      SELECT col, val FROM (
-        SELECT DISTINCT 'ext.' || e.key AS col, e.value AS val
-          FROM "Identities" i, LATERAL jsonb_each_text(i."extendedAttributes") e
-         WHERE i."extendedAttributes" IS NOT NULL
-           AND e.value IS NOT NULL AND e.value <> ''
-      ) t
-      ORDER BY col, val
-      LIMIT 5000
-    `);
-    for (const row of ext.rows) {
-      if (!grouped[row.col]) grouped[row.col] = [];
-      if (grouped[row.col].length < 500) grouped[row.col].push(row.val);
-    }
+    ext = await discoverExtendedAttrValues('Identities', pageSize);
   } catch { /* extendedAttributes column may be absent on older schemas */ }
 
-  identityValuesCache = grouped;
+  identityValuesCache = { ...mergeValueSets(base, ext), pageSize };
   identityValuesCacheTime = now;
   return identityValuesCache;
 }

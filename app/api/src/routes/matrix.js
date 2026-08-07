@@ -19,12 +19,16 @@ import { timedQuery } from '../perf/sqlTimer.js';
 import { createParams } from '../db/sqlParams.js';
 import { buildAssignmentExprs } from '../db/matrixHelpers.js';
 import { UUID_RE } from '../matrix/filterSql.js';
-import { getPrincipalColumns, getResourceColumns, getPrincipalColumnValues, getResourceColumnValues } from '../db/columnCache.js';
+import {
+  getPrincipalColumns, getResourceColumns,
+  getPrincipalColumnValuesMeta, getResourceColumnValuesMeta,
+  searchColumnValues, VALUE_SEARCH_LIMIT,
+} from '../db/columnCache.js';
 import { explainInheritance } from '../matrix/inheritedAccess.js';
 import savedFiltersRouter from './matrix/savedFilters.js';
 import scopeRouter from './matrix/scope.js';
 import dataRouter from './matrix/data.js';
-import { getIdentityColumns, getIdentityColumnValues, parseFilter, buildSubqueries, runCount, subjectScopeClauses } from './matrix/shared.js';
+import { getIdentityColumns, getIdentityColumnValuesMeta, parseFilter, buildSubqueries, runCount, subjectScopeClauses } from './matrix/shared.js';
 // normaliseSortAttributes lives in shared.js now; re-export so existing consumers
 // (matrix.rollup.test.js) keep importing it from here.
 export { normaliseSortAttributes } from './matrix/shared.js';
@@ -175,6 +179,23 @@ router.post('/matrix/inheritance-path', async (req, res) => {
   }
 });
 
+// ─── Column discovery ───────────────────────────────────────────────
+// The three filterable entities and the table each one's values live in.
+const ENTITY_TABLES = { Principal: 'Principals', Identity: 'Identities', Resource: 'Resources' };
+
+function entityColumns(entity) {
+  if (entity === 'Principal') return getPrincipalColumns();
+  if (entity === 'Identity')  return getIdentityColumns();
+  return getResourceColumns();
+}
+
+// { values: { col: [...] }, truncated: { col: true } }
+function entityColumnValues(entity) {
+  if (entity === 'Principal') return getPrincipalColumnValuesMeta();
+  if (entity === 'Identity')  return getIdentityColumnValuesMeta();
+  return getResourceColumnValuesMeta();
+}
+
 // ─── GET /api/matrix/columns ────────────────────────────────────────
 router.get('/matrix/columns', async (req, res) => {
   const entity = req.query.entity;
@@ -185,18 +206,7 @@ router.get('/matrix/columns', async (req, res) => {
   if (!useSql) return res.json([]);
 
   try {
-    let cols, vals;
-    if (entity === 'Principal') {
-      cols = await getPrincipalColumns();
-      vals = schemaOnly ? null : await getPrincipalColumnValues();
-    } else if (entity === 'Identity') {
-      cols = await getIdentityColumns();
-      vals = schemaOnly ? null : await getIdentityColumnValues();
-    } else {
-      cols = await getResourceColumns();
-      vals = schemaOnly ? null : await getResourceColumnValues();
-    }
-
+    const cols = await entityColumns(entity);
     if (schemaOnly) {
       return res.json(cols.map(c => ({
         column: c.name,
@@ -204,22 +214,66 @@ router.get('/matrix/columns', async (req, res) => {
         values: [],
       })));
     }
+    // `truncated` marks a column whose distinct values did not fit in one page.
+    // The list served is the alphabetically first page — never an arbitrary
+    // subset — and the rest is reachable via /matrix/column-values (#928).
+    const { values, truncated } = await entityColumnValues(entity);
     // Preserve column order from the schema, fold in values when present.
     return res.json(
       cols.map(c => ({
-        column: c.name,
-        type:   c.type,
-        values: vals[c.name] || [],
+        column:    c.name,
+        type:      c.type,
+        values:    values[c.name] || [],
+        truncated: !!truncated[c.name],
       })).concat(
-        // ext.* keys appear in vals but not in cols.
-        Object.entries(vals)
+        // ext.* keys appear in values but not in cols.
+        Object.entries(values)
           .filter(([k]) => k.startsWith('ext.'))
-          .map(([k, values]) => ({ column: k, type: 'text', values }))
+          .map(([k, vals]) => ({ column: k, type: 'text', values: vals, truncated: !!truncated[k] }))
       )
     );
   } catch (err) {
     console.error('matrix/columns failed:', err.message);
     return res.json([]);
+  }
+});
+
+// ─── GET /api/matrix/column-values ──────────────────────────────────
+// Substring search across ALL distinct values of one column — the escape hatch
+// for columns whose preloaded value list is truncated, so every stored value
+// stays reachable from the wizard's "+ Attribute" picker (#928). An empty `q`
+// returns the same preloaded page /matrix/columns serves.
+router.get('/matrix/column-values', async (req, res) => {
+  const entity = req.query.entity;
+  if (!['Principal', 'Identity', 'Resource'].includes(entity)) {
+    return res.status(400).json({ error: 'entity must be Principal, Identity, or Resource' });
+  }
+  const column = typeof req.query.column === 'string' ? req.query.column : '';
+  if (!column) return res.status(400).json({ error: 'column is required' });
+  const q = typeof req.query.q === 'string' ? req.query.q.slice(0, 200) : '';
+  if (!useSql) return res.json({ column, values: [], truncated: false });
+
+  try {
+    const { values, truncated } = await entityColumnValues(entity);
+    // Allowlist: only columns/ext keys we actually discovered are accepted —
+    // the name is interpolated into the SQL, the search term never is.
+    const allowed = new Set(Object.keys(values));
+    if (!allowed.has(column)) {
+      const cols = await entityColumns(entity);
+      if (cols.some(c => c.name === column)) {
+        // Real column with no values at all — nothing to search.
+        return res.json({ column, values: [], truncated: false });
+      }
+      return res.status(400).json({ error: 'Unknown column' });
+    }
+    if (!q) {
+      return res.json({ column, values: values[column] || [], truncated: !!truncated[column] });
+    }
+    const found = await searchColumnValues(ENTITY_TABLES[entity], column, q, allowed);
+    return res.json({ column, values: found, truncated: found.length >= VALUE_SEARCH_LIMIT });
+  } catch (err) {
+    console.error('matrix/column-values failed:', err.message);
+    return res.status(500).json({ error: 'Failed to search column values' });
   }
 });
 

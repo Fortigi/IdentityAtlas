@@ -19,16 +19,29 @@
       DemoConsent.ps1        — OAuth consent + shadow IT (flags 11-12)
       DemoSap.ps1            — the SAP ERP system (flag 8)
       DemoAzure.ps1          — the AzureRM system (flag 10)
+      DemoVolume.ps1         — opt-in high-cardinality slice (-IncludeVolume)
+
+.PARAMETER IncludeVolume
+    Appends the volume slice: ~520 extra synthetic groups, each with its own
+    description, so the dataset holds more than 500 distinct resource
+    descriptions. Off by default — the standard dataset stays the small,
+    hand-reasoned company every other test and the public demo assume.
 
 .EXAMPLE
     .\Generate-DemoDataset.ps1
     Writes demo-company.json next to this script (gitignored — it is a build
     artifact, always regenerate rather than relying on a committed copy).
+
+.EXAMPLE
+    .\Generate-DemoDataset.ps1 -IncludeVolume
+    Same dataset plus the volume slice, for verifying the paged/searchable
+    attribute-value behaviour of the matrix wizard (issue #928).
 #>
 
 [CmdletBinding()]
 Param(
-    [string]$OutputPath = ''
+    [string]$OutputPath = '',
+    [switch]$IncludeVolume
 )
 
 Set-StrictMode -Version Latest
@@ -39,7 +52,8 @@ if (-not $OutputPath) { $OutputPath = Join-Path $PSScriptRoot 'demo-company.json
 $partsDir = Join-Path $PSScriptRoot 'parts'
 foreach ($part in @(
     'DemoState.ps1', 'DemoOrg.ps1', 'DemoEntraBase.ps1', 'DemoGovernance.ps1',
-    'DemoSalesScenario.ps1', 'DemoConsent.ps1', 'DemoSap.ps1', 'DemoAzure.ps1'
+    'DemoSalesScenario.ps1', 'DemoConsent.ps1', 'DemoSap.ps1', 'DemoAzure.ps1',
+    'DemoVolume.ps1'
 )) {
     . (Join-Path $partsDir $part)
 }
@@ -55,6 +69,12 @@ Add-DemoSalesScenario $state
 Add-DemoConsent       $state
 Add-DemoSap           $state
 Add-DemoAzure         $state
+
+# Opt-in only: everything above is the fixed 39-resource company that the CTF
+# answers, Verify-DemoDataset.ps1's exact counts and the E2E suite pin. The
+# volume slice is appended last so it can never shift the ids or ordering of
+# anything before it.
+if ($IncludeVolume) { Add-DemoVolume $state }
 
 # ─── Derive the system of each assignment / relationship from its resource ────
 # ResourceAssignments and ResourceRelationships both carry a systemId. Rather

@@ -115,7 +115,9 @@ Contract tests verify that the SQL emitted by API code is correct against the re
 
 **Run:** `npm run test:contract` (uses `vitest.contract.config.js`). Not included in `npm test`.
 
-**Infrastructure:** `test-utils/withRealDb.js` starts a `postgres:16-alpine` container via testcontainers, runs all migrations, and returns a connection string. `test-utils/contractGlobalSetup.js` wires this into Vitest's `globalSetup` and exposes `CONTRACT_DB_URL` for the test files.
+**Infrastructure:** `test-utils/withRealDb.js` starts a `postgres:16-alpine` container via testcontainers, runs all migrations, and returns a connection string. `test-utils/contractGlobalSetup.js` wires this into Vitest's `globalSetup` and exposes `CONTRACT_DB_URL` for the test files. `test-utils/contractApp.js` boots the real Express app against that database for supertest.
+
+**Shared fixtures:** when several contract files need the same seeding, put it in `test-utils/` rather than copying it — the jscpd duplication gate counts clones across contract tests too. `test-utils/columnValuesFixture.js` is the example: `seedDescribedResources` / `dropSeededResources` / `storedDescriptions` back the three matrix column-value files, which then contain only their own assertions. A file that calls `vi.resetModules()` must import such a fixture dynamically, after the reset.
 
 **Writing a contract test:**
 - Import `pg` directly and create a `Pool` from `process.env.CONTRACT_DB_URL` in `beforeAll`.

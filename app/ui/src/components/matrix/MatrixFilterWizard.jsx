@@ -18,6 +18,7 @@ import { useAuth } from '@ui/auth/AuthGate';
 import Stepper from '@ui/components/Stepper';
 import { Modal, PrimaryButton, SecondaryButton, ErrorBox } from '@ui/components/contexts/ModalPrimitives';
 import ContextPicker from '@ui/components/contexts/ContextPicker';
+import AttributePicker from './AttributePicker';
 import { variantMeta, targetTypeMeta } from '@ui/utils/contextStyles';
 import { useDialog } from '@ui/components/dialogContext';
 import { friendlyLabel } from '@ui/utils/formatters';
@@ -878,6 +879,7 @@ function RadioCard({ active, onClick, title, description, visual }) {
 // ─── Step 2 — Subjects ─────────────────────────────────────────────
 
 function Step2Subject({ rowType, subject, contextMeta, columns, onContextResolved, onAdd, onRemove, onUpdate }) {
+  const entity = rowType === 'identity' ? 'Identity' : 'Principal';
   return (
     <div className="space-y-3">
       <p className="text-xs text-gray-600 dark:text-gray-400">
@@ -889,6 +891,7 @@ function Step2Subject({ rowType, subject, contextMeta, columns, onContextResolve
         allowedTargets={rowType === 'identity' ? ['Identity'] : ['Principal']}
         contextMeta={contextMeta}
         columns={columns}
+        entity={entity}
         onContextResolved={onContextResolved}
         onAdd={(c) => onAdd('include', c)}
         onRemove={(idx) => onRemove('include', idx)}
@@ -901,6 +904,7 @@ function Step2Subject({ rowType, subject, contextMeta, columns, onContextResolve
         allowedTargets={rowType === 'identity' ? ['Identity'] : ['Principal']}
         contextMeta={contextMeta}
         columns={columns}
+        entity={entity}
         onContextResolved={onContextResolved}
         onAdd={(c) => onAdd('exclude', c)}
         onRemove={(idx) => onRemove('exclude', idx)}
@@ -914,6 +918,7 @@ function Step2Subject({ rowType, subject, contextMeta, columns, onContextResolve
 // ─── Step 3 — Resources ────────────────────────────────────────────
 
 function Step3Resource({ resource, contextMeta, columns, onContextResolved, onAdd, onRemove, onUpdate }) {
+  const entity = 'Resource';
   return (
     <div className="space-y-3">
       <p className="text-xs text-gray-600 dark:text-gray-400">
@@ -925,6 +930,7 @@ function Step3Resource({ resource, contextMeta, columns, onContextResolved, onAd
         allowedTargets={['Resource', 'System']}
         contextMeta={contextMeta}
         columns={columns}
+        entity={entity}
         onContextResolved={onContextResolved}
         onAdd={(c) => onAdd('include', c)}
         onRemove={(idx) => onRemove('include', idx)}
@@ -937,6 +943,7 @@ function Step3Resource({ resource, contextMeta, columns, onContextResolved, onAd
         allowedTargets={['Resource', 'System']}
         contextMeta={contextMeta}
         columns={columns}
+        entity={entity}
         onContextResolved={onContextResolved}
         onAdd={(c) => onAdd('exclude', c)}
         onRemove={(idx) => onRemove('exclude', idx)}
@@ -949,7 +956,7 @@ function Step3Resource({ resource, contextMeta, columns, onContextResolved, onAd
 
 // ─── Condition list ────────────────────────────────────────────────
 
-function ConditionList({ title, conditions, contextMeta, columns, onContextResolved, onAdd, onRemove, onUpdate, emptyHint, allowedTargets }) {
+function ConditionList({ title, conditions, contextMeta, columns, entity, onContextResolved, onAdd, onRemove, onUpdate, emptyHint, allowedTargets }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [attrOpen, setAttrOpen] = useState(false);
 
@@ -1002,6 +1009,7 @@ function ConditionList({ title, conditions, contextMeta, columns, onContextResol
       />
       {attrOpen && (
         <AttributePicker
+          entity={entity}
           columns={columns}
           onPick={(field, values) => {
             onAdd({ kind: 'attribute', field, values });
@@ -1057,87 +1065,6 @@ function ConditionRow({ cond, contextMeta, onRemove, onUpdate }) {
     );
   }
   return null;
-}
-
-// ─── Attribute picker dialog ───────────────────────────────────────
-
-function AttributePicker({ columns, onPick, onClose }) {
-  const [field, setField] = useState('');
-  const [selectedValues, setSelectedValues] = useState([]);
-
-  // Filter columns to ones with at least one distinct value AND a sensible
-  // type (we hide UUID/ID-like columns since they're not useful filters).
-  const filterable = useMemo(() => {
-    if (!Array.isArray(columns)) return [];
-    return columns
-      .filter(c => !['id', 'principalId', 'resourceId', 'identityId', 'displayName'].includes(c.column))
-      .filter(c => Array.isArray(c.values));
-  }, [columns]);
-
-  const selectedColumn = filterable.find(c => c.column === field);
-  const valueOptions = selectedColumn?.values || [];
-
-  const toggleValue = (v) => {
-    setSelectedValues(prev => prev.includes(v) ? prev.filter(x => x !== v) : [...prev, v]);
-  };
-
-  return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 dark:bg-black/70" onClick={onClose}>
-      <div
-        className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl p-4 w-[480px] max-w-full max-h-[80vh] overflow-auto"
-        onClick={e => e.stopPropagation()}
-      >
-        <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">Add attribute filter</h3>
-
-        <label className="block text-[11px] font-medium text-gray-700 dark:text-gray-300 mb-1">Field</label>
-        <select
-          value={field}
-          onChange={e => { setField(e.target.value); setSelectedValues([]); }}
-          className="w-full px-2 py-1 text-xs rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-200 mb-3"
-        >
-          <option value="">— select a field —</option>
-          {filterable.map(c => (
-            <option key={c.column} value={c.column}>
-              {c.column} ({c.values.length})
-            </option>
-          ))}
-        </select>
-
-        {field && (
-          <>
-            <label className="block text-[11px] font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Values <span className="text-gray-600 dark:text-gray-500">(any of these match — OR)</span>
-            </label>
-            <div className="border border-gray-200 dark:border-gray-700 rounded max-h-48 overflow-y-auto">
-              {valueOptions.length === 0 ? (
-                <p className="text-[11px] text-gray-600 dark:text-gray-500 italic px-2 py-1">No values available</p>
-              ) : (
-                valueOptions.map(v => (
-                  <label key={v} className="flex items-center gap-1.5 px-2 py-1 hover:bg-gray-50 dark:hover:bg-gray-700/30 text-xs cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={selectedValues.includes(v)}
-                      onChange={() => toggleValue(v)}
-                      className="w-3 h-3"
-                    />
-                    <span className="text-gray-800 dark:text-gray-200 truncate">{v}</span>
-                  </label>
-                ))
-              )}
-            </div>
-            <p className="text-[10px] text-gray-600 dark:text-gray-500 mt-1">{selectedValues.length} selected</p>
-          </>
-        )}
-
-        <div className="flex justify-end gap-2 mt-3">
-          <SecondaryButton onClick={onClose}>Cancel</SecondaryButton>
-          <PrimaryButton onClick={() => onPick(field, selectedValues)} disabled={!field || selectedValues.length === 0}>
-            Add
-          </PrimaryButton>
-        </div>
-      </div>
-    </div>
-  );
 }
 
 // ─── Save dialog ───────────────────────────────────────────────────

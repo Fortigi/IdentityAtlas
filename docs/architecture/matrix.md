@@ -165,6 +165,59 @@ The wizard's "+ Context" picker is filtered by the subject row type so an analys
 
 The subject-condition step also offers an "+ Attribute" filter. When `rowType=identity`, the column list comes from `GET /api/matrix/columns?entity=Identity` (loaded lazily the first time the analyst switches to identities), so identities can be narrowed by their own attributes (department, jobTitle, companyName, city, country, employeeId, …) and by identity tag. Switching row type clears the subject conditions, since the available columns differ between principals and identities.
 
+### Attribute values — paged discovery, not a silent cap
+
+A column can have far more distinct values than any dropdown can ship (`description` on `Resources` collects descriptions from every resource type, so a real tenant runs to tens of thousands). `GET /api/matrix/columns` therefore serves **one page** of values per column — the alphabetically first 500 by default — and sets `truncated: true` on any column that has more. Two rules follow:
+
+- **The page is ordered, never arbitrary.** The per-column subquery orders inside the `LIMIT` (`db/columnCache.js`). Without that, Postgres is free to return any 500 distinct values, and the list an analyst browses alphabetically has unpredictable holes — a value they can see on the Excel export is simply absent, while later values are present ([#928](https://github.com/Fortigi/IdentityAtlas/issues/928)).
+- **Everything outside the page stays reachable.** `GET /api/matrix/column-values?entity=&column=&q=` runs a bounded substring search (case-insensitive, 50 results) over *all* distinct values of one column. The "+ Attribute" picker filters the preloaded page client-side as you type, and for a `truncated` column additionally merges in server-side matches. The Field dropdown shows `description (500+)` for a truncated column so the count reads as a floor, not a total.
+
+`column` is validated against the discovered columns / `ext.*` keys before it is interpolated into the SQL; the search term is always bound.
+
+#### Verifying it on a deployment that has fewer than 500 distinct values
+
+The capped path only appears once a column holds more distinct values than the page, so a test environment with a couple of hundred resources shows nothing. There is no need to create resources by hand — resources only enter Identity Atlas through crawlers, and there is no bulk-create UI. Two supported ways to get there instead:
+
+| | What you change | Who can do it | What you end up looking at |
+|---|---|---|---|
+| **A. Load high-cardinality demo data** | A checkbox on the Demo Dataset crawler | Anyone with Admin access, from the browser | A real column with **more than 500** distinct descriptions — the reporter's scenario at full size |
+| **B. Lower the page size** | `MATRIX_VALUE_PAGE_SIZE` on the web container | Whoever can recreate the container | The same behaviour at miniature scale, on whatever data is already loaded |
+
+##### A. Load high-cardinality demo data (no configuration change)
+
+Admin → Crawlers → **Demo Dataset** → tick **"Also load high-cardinality test data"** → Load Demo Data. The generator's opt-in volume slice (`test/demo-dataset/parts/DemoVolume.ps1`, switched on by `Generate-DemoDataset.ps1 -IncludeVolume`) appends ~520 extra groups `SG-Vol-0001…`, each with its own description, plus one sentinel group **`SG-Zzz-Cap-Probe`** whose description starts with `Zzz` so it sorts alphabetically *last* and is therefore guaranteed to fall outside the preloaded page.
+
+Then walk the reporter's path — Matrix → Adjust matrix → Next → Next → **+ Attribute**:
+
+1. The Field entry reads **`description (500+)`** — the `+` marks the count as a floor, so the list is a page rather than everything.
+2. The listed values are the alphabetically first 500, in order — no holes anywhere in the middle.
+3. Type `Zzz` into **Search values**. `Zzz - beyond the preloaded 500 (#928 probe)` comes back from the server even though it is not in the page. Tick it, add the filter, and the matrix shows `SG-Zzz-Cap-Probe`.
+
+The slice is off by default: the public demo, the Capture-the-Flag answers, `Verify-DemoDataset.ps1`'s exact row counts and the E2E suite all assume the standard 39-resource company. `test/unit/DemoDataset.Tests.ps1` pins both halves: the slice crosses 500 with the sentinel behind the page, and the default dataset is unchanged without the switch.
+
+To undo it, re-run the Demo Dataset crawler with the box unticked *and* clean the database first (Admin → Danger Zone → Clean Database). A plain re-run soft-deletes the extra groups, which is enough to clear them from the resource lists and the matrix — but value discovery reads the whole table, so their descriptions would keep appearing in the dropdowns until the rows are actually gone.
+
+##### B. Lower the page size
+
+The page size is the `MATRIX_VALUE_PAGE_SIZE` environment variable on the web container (default `500`, maximum `5000`; anything unparseable, zero or negative falls back to the default). It is the cache key alongside the 5-minute TTL, so a changed value takes effect on the next request rather than after the TTL expires.
+
+Lowering it reproduces the same behaviour on any dataset without touching the data at all — useful when the deployment is connected to a real tenant and loading demo data is not an option. Both compose files pass the variable through, so an already-built stack only needs its web container recreated — no rebuild, no data changes:
+
+```bash
+# In the stack's directory, with the same -f flags it was started with
+MATRIX_VALUE_PAGE_SIZE=5 docker compose up -d web
+```
+
+Then, in the matrix wizard's "+ Attribute" picker, any field with more than five distinct values behaves exactly as `description` does in a large tenant:
+
+1. The Field dropdown reads `description (5+)` — the `+` marks the count as a floor.
+2. The picker says *"Showing the first 5 values of more than can be listed"*, and those five are the alphabetically first ones — no holes.
+3. Typing part of a sixth, out-of-page value into **Search values** finds it (that request is `GET /api/matrix/column-values`) and it can be ticked and added as a filter.
+
+Restore the variable (or drop it) and recreate the container to return to the 500-value default. `app/api/contract-tests/columnValuesSmallTenant.contract.test.js` runs this exact recipe against a real database with twelve descriptions and a page size of five.
+
+Independently of the page size, two things are checkable on any deployment, without changing its configuration: `GET /api/matrix/columns?entity=Resource` returns `description` values in alphabetical order (the ordering whose absence caused the holes), and `GET /api/matrix/column-values?entity=Resource&column=description&q=<text>` — the request the picker's search box makes — returns matches for text stored anywhere in the tenant.
+
 ### Filter shape — normalised at the wizard boundary
 
 A matrix filter reaches the wizard from four places and only one of them is

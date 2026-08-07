@@ -1,9 +1,20 @@
 import { useState } from 'react';
 import WizardShell from '@ui/components/WizardShell';
 
+// The demo job runs with an inline config, so the body is the whole contract.
+// Extracted from the component so the "off means no key at all" rule — which
+// keeps an ordinary demo import byte-identical to what it has always been — is
+// unit-testable without rendering anything.
+export function buildDemoJobPayload(includeVolumeData) {
+  return includeVolumeData
+    ? { jobType: 'demo', config: { includeVolumeData: true } }
+    : { jobType: 'demo' };
+}
+
 export default function DemoConfigWizard({ onComplete, onCancel, authFetch }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [includeVolumeData, setIncludeVolumeData] = useState(false);
 
   const handleLoad = async () => {
     setLoading(true);
@@ -12,7 +23,7 @@ export default function DemoConfigWizard({ onComplete, onCancel, authFetch }) {
       const r = await authFetch('/api/admin/crawler-jobs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ jobType: 'demo' }),
+        body: JSON.stringify(buildDemoJobPayload(includeVolumeData)),
       });
       if (!r.ok) {
         const e = await r.json();
@@ -40,6 +51,27 @@ export default function DemoConfigWizard({ onComplete, onCancel, authFetch }) {
           <li>Application roles and delegated permissions</li>
           <li>Business roles with governed assignments</li>
         </ul>
+      </div>
+
+      <div className="mb-5">
+        <label htmlFor="demo-include-volume" className="flex items-start gap-2 text-sm text-gray-700 dark:text-gray-200">
+          <input
+            id="demo-include-volume"
+            type="checkbox"
+            checked={includeVolumeData}
+            onChange={(e) => setIncludeVolumeData(e.target.checked)}
+            disabled={loading}
+            className="mt-0.5"
+          />
+          <span>
+            Also load high-cardinality test data
+            <span className="block text-xs text-gray-600 dark:text-gray-400">
+              Adds ~520 extra groups, each with its own description, so filter and attribute
+              dropdowns hold more values than they can list at once. For testing that behaviour —
+              leave off for a normal demo.
+            </span>
+          </span>
+        </label>
       </div>
 
       <div className="flex gap-3">
