@@ -1,5 +1,11 @@
 ## Changes in this PR
 
+- An automated build now judges its pull request on every check, not just the three required ones. Because the overall "CI Passed" check never runs when an individual job fails, a build could previously be reported as verified while unit tests, contract tests and several quality gates were failing.
+- Changes made in response to reporter feedback now get their tests run. Because of a permissions difference, those commits were being pushed in a way that GitHub does not run workflows for, so every follow-up change landed with no checks — and the build then correctly refused to report itself as verified, stalling the issue.
+- When a reporter asks for a change to an automated bug fix, the regression test is re-checked to confirm it still catches the original bug. Previously only the first build proved that: any later adjustment could have weakened the test to make things pass, and it would have looked identical to success.
+
+## Changes in this PR
+
 - Pull requests raised for automated bug fixes now carry an evidence summary instead of a one-line claim of success: what the reported bug was, the test failing before the fix, the same test passing after it, the browser replay against the live environment, the CI result, and an explicit note of what the change did not touch (no schema migration, no dependency change). Each row shows the output it is based on, and anything that was not measured says so rather than being asserted.
 
 ## Changes in this PR
