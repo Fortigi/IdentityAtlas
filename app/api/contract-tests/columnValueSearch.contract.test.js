@@ -18,7 +18,9 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 // here.
 vi.resetModules();
 
-const { bootContractApp } = await import('../test-utils/contractApp.js');
+const { seedDescribedResources, dropSeededResources } = await import(
+  '../test-utils/columnValuesFixture.js'
+);
 
 let agent, pool, systemId;
 
@@ -31,26 +33,16 @@ const FILLERS = Array.from(
 );
 
 beforeAll(async () => {
-  const booted = await bootContractApp();
-  agent = booted.agent;
-  pool = booted.pool;
-  systemId = (await pool.query(
-    `INSERT INTO "Systems" ("systemType", "displayName")
-     VALUES ('test', 'contract-column-value-search') RETURNING "id"`,
-  )).rows[0].id;
-  await pool.query(
-    `INSERT INTO "Resources" ("systemId", "displayName", "resourceType", "enabled", "description", "extendedAttributes")
-     SELECT $1, 'CS-' || d.ord, 'Group', true, d.val, jsonb_build_object('costCenter', 'CC-' || d.ord)
-       FROM unnest($2::text[]) WITH ORDINALITY AS d(val, ord)`,
-    [systemId, [...FILLERS, TARGET]],
-  );
+  ({ agent, pool, systemId } = await seedDescribedResources({
+    systemName: 'contract-column-value-search',
+    namePrefix: 'CS-',
+    descriptions: [...FILLERS, TARGET],
+    withCostCenter: true, // the ext.<key> search assertion needs a JSON attribute
+  }));
 });
 
 afterAll(async () => {
-  await pool.query(`DELETE FROM "Resources" WHERE "systemId" = $1`, [systemId]);
-  await pool.query(`DELETE FROM "Systems" WHERE "id" = $1`, [systemId]);
-  await pool.end();
-  delete process.env.USE_SQL; // singleFork — env mutations leak across files
+  await dropSeededResources({ pool, systemId });
 });
 
 describe('GET /matrix/column-values (#928)', () => {

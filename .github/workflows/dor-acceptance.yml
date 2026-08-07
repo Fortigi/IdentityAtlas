@@ -190,7 +190,10 @@ jobs:
           owner: Fortigi
           permission-organization-projects: write
           permission-pull-requests: write
-          permission-contents: read
+          permission-contents: write   # the adjustment PUSHES, and it must push AS THE APP: a
+                                        # GITHUB_TOKEN push is suppressed by GitHub's anti-recursion
+                                        # rule, so with `read` here every adjustment landed with NO
+                                        # CI at all (see dor-build-agent.yml, which had this right)
           permission-issues: read
 
       - name: Adjust the build for the feedback → re-deploy → re-verify → report

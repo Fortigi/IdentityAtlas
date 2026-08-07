@@ -21,7 +21,8 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 // file's page size.
 vi.resetModules();
 
-const { bootContractApp } = await import('../test-utils/contractApp.js');
+const { seedDescribedResources, dropSeededResources, storedDescriptions } =
+  await import('../test-utils/columnValuesFixture.js');
 const { clearColumnCaches } = await import('../src/db/columnCache.js');
 
 const PAGE_SIZE = 5;
@@ -37,50 +38,29 @@ const DESCRIPTIONS = Array.from(
   (_, i) => `#928 small-tenant description ${String(i).padStart(2, '0')}`,
 );
 
-// Every distinct, non-empty description currently stored — other contract files
-// share the database, and the endpoint reports on all of their rows too.
-async function storedDescriptions() {
-  const r = await pool.query(
-    `SELECT DISTINCT "description"::text AS val
-       FROM "Resources"
-      WHERE "description" IS NOT NULL AND "description"::text <> ''
-      ORDER BY val`,
-  );
-  return r.rows.map(row => row.val);
-}
-
 beforeAll(async () => {
+  // Set before the app boots — the page size is read through the same config
+  // path the deployment setting uses.
   process.env.MATRIX_VALUE_PAGE_SIZE = String(PAGE_SIZE);
-  const booted = await bootContractApp();
-  agent = booted.agent;
-  pool = booted.pool;
-  systemId = (await pool.query(
-    `INSERT INTO "Systems" ("systemType", "displayName")
-     VALUES ('test', 'contract-column-values-small-tenant') RETURNING "id"`,
-  )).rows[0].id;
-  await pool.query(
-    `INSERT INTO "Resources" ("systemId", "displayName", "resourceType", "enabled", "description")
-     SELECT $1, 'ST-' || d.ord, 'Group', true, d.val
-       FROM unnest($2::text[]) WITH ORDINALITY AS d(val, ord)`,
-    [systemId, DESCRIPTIONS],
-  );
+  ({ agent, pool, systemId } = await seedDescribedResources({
+    systemName: 'contract-column-values-small-tenant',
+    namePrefix: 'ST-',
+    descriptions: DESCRIPTIONS,
+  }));
   clearColumnCaches();
 });
 
 afterAll(async () => {
-  await pool.query(`DELETE FROM "Resources" WHERE "systemId" = $1`, [systemId]);
-  await pool.query(`DELETE FROM "Systems" WHERE "id" = $1`, [systemId]);
-  await pool.end();
+  await dropSeededResources({ pool, systemId });
   clearColumnCaches();
   // singleFork — env mutations leak across files.
   if (originalPageSize === undefined) delete process.env.MATRIX_VALUE_PAGE_SIZE;
   else process.env.MATRIX_VALUE_PAGE_SIZE = originalPageSize;
-  delete process.env.USE_SQL;
 });
 
 describe('#928 verification on a dataset smaller than the default cap', () => {
   it('caps at the configured page size and says so', async () => {
-    const stored = await storedDescriptions();
+    const stored = await storedDescriptions(pool);
     expect(stored.length).toBeGreaterThan(PAGE_SIZE);
     expect(stored.length).toBeLessThan(500); // the point of the fixture
 
@@ -96,7 +76,7 @@ describe('#928 verification on a dataset smaller than the default cap', () => {
   });
 
   it('still finds a value that sorts past the page', async () => {
-    const stored = await storedDescriptions();
+    const stored = await storedDescriptions(pool);
     const target = stored[stored.length - 1];
 
     const preload = await agent.get('/api/matrix/columns?entity=Resource');

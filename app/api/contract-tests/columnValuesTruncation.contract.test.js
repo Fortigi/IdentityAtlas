@@ -30,7 +30,8 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 // therefore the cache — fresh.
 vi.resetModules();
 
-const { bootContractApp } = await import('../test-utils/contractApp.js');
+const { seedDescribedResources, dropSeededResources, storedDescriptions } =
+  await import('../test-utils/columnValuesFixture.js');
 
 let agent, pool, systemId;
 
@@ -43,44 +44,21 @@ const DESCRIPTIONS = Array.from(
   (_, i) => `#928 contract description ${String(i).padStart(4, '0')}`,
 );
 
-// Every distinct, non-empty description currently stored — including any rows
-// left by other contract-test files, since the endpoint reports on all of them.
-async function storedDescriptions() {
-  const r = await pool.query(
-    `SELECT DISTINCT "description"::text AS val
-       FROM "Resources"
-      WHERE "description" IS NOT NULL AND "description"::text <> ''
-      ORDER BY val`,
-  );
-  return r.rows.map(row => row.val);
-}
-
 beforeAll(async () => {
-  const booted = await bootContractApp();
-  agent = booted.agent;
-  pool = booted.pool;
-  systemId = (await pool.query(
-    `INSERT INTO "Systems" ("systemType", "displayName")
-     VALUES ('test', 'contract-column-values-truncation') RETURNING "id"`,
-  )).rows[0].id;
-  await pool.query(
-    `INSERT INTO "Resources" ("systemId", "displayName", "resourceType", "enabled", "description")
-     SELECT $1, 'CG-' || d.ord, 'Group', true, d.val
-       FROM unnest($2::text[]) WITH ORDINALITY AS d(val, ord)`,
-    [systemId, DESCRIPTIONS],
-  );
+  ({ agent, pool, systemId } = await seedDescribedResources({
+    systemName: 'contract-column-values-truncation',
+    namePrefix: 'CG-',
+    descriptions: DESCRIPTIONS,
+  }));
 });
 
 afterAll(async () => {
-  await pool.query(`DELETE FROM "Resources" WHERE "systemId" = $1`, [systemId]);
-  await pool.query(`DELETE FROM "Systems" WHERE "id" = $1`, [systemId]);
-  await pool.end();
-  delete process.env.USE_SQL; // singleFork — env mutations leak across files
+  await dropSeededResources({ pool, systemId });
 });
 
 describe('GET /matrix/columns — a column with more than 500 distinct values (#928)', () => {
   it('serves an alphabetical prefix of the stored values, not an arbitrary subset', async () => {
-    const stored = await storedDescriptions();
+    const stored = await storedDescriptions(pool);
     expect(stored.length).toBeGreaterThan(500); // fixture sanity
 
     const res = await agent.get('/api/matrix/columns?entity=Resource');
@@ -95,7 +73,7 @@ describe('GET /matrix/columns — a column with more than 500 distinct values (#
   });
 
   it('does not skip stored values that sort before ones it did serve', async () => {
-    const stored = await storedDescriptions();
+    const stored = await storedDescriptions(pool);
 
     const res = await agent.get('/api/matrix/columns?entity=Resource');
     const desc = res.body.find(c => c.column === 'description');
