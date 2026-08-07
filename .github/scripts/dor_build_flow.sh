@@ -97,7 +97,7 @@ Leave your changes in the working tree — do NOT commit, push or open a PR.%s' 
       2) pause_and_exit "hit a usage limit while writing the regression test" ;;
       *) bail "the AI errored while writing the regression test (see run log)" ;;
     esac
-    git restore --source=origin/main --staged --worktree -- .github 2>/dev/null || true
+    git restore --source=HEAD --staged --worktree -- .github 2>/dev/null || true
     git add -A
     git diff --cached --quiet && bail "no regression test was produced for #${ISSUE} — a bug fix without a test that reproduces it cannot be verified"
     git commit -q -m "test: reproduce #${ISSUE} (red)" || bail "git commit failed (regression test)"
@@ -137,7 +137,7 @@ Leave your changes in the working tree — do NOT commit, push or open a PR.%s' 
       2) pause_and_exit "hit a usage limit during the fix" ;;
       *) bail "the AI fix step errored (see run log)" ;;
     esac
-    git restore --source=origin/main --staged --worktree -- .github 2>/dev/null || true
+    git restore --source=HEAD --staged --worktree -- .github 2>/dev/null || true
     git add -A
     git diff --cached --quiet && bail "the AI produced no fix for #${ISSUE} (the regression test is still red)"
     git commit -q -m "$title (#${ISSUE})" || bail "git commit failed"
@@ -151,15 +151,16 @@ Leave your changes in the working tree — do NOT commit, push or open a PR.%s' 
     # The fix landing outside the radius the probe predicted means the diagnosis was wrong or the
     # scope crept. Neither is something another AI pass should paper over, so it stops here.
     # Size ceiling. A "bug fix" that rewrites ten production files is a refactor wearing a bug's
-    # clothes — and under autonomy nobody chose to start it. Tests, docs and changelog fragments are
-    # exempt: shipping MORE test than fix is exactly what we want.
+    # clothes — and under autonomy nobody chose to start it. Tests, docs, changelog fragments and the
+    # .ci ratchet baselines are exempt: shipping MORE test than fix is exactly what we want, and the
+    # baselines are a consequence of the change rather than part of it.
     prod_files="$(git diff --name-only origin/main...HEAD \
-                  | grep -vE '\.(test|spec)\.(js|jsx)$|\.Tests\.ps1$|^changes/|^docs/|package-lock\.json$' | wc -l)"
+                  | grep -vE '\.(test|spec)\.(js|jsx)$|\.Tests\.ps1$|^changes/|^docs/|^\.ci/|package-lock\.json$' | wc -l)"
     # Field-based, not a regex over the whole line: numstat is "adds<TAB>dels<TAB>path", and a
     # pattern that depends on a literal tab surviving an edit is a bug waiting to happen.
     prod_lines="$(git diff --numstat origin/main...HEAD \
                   | awk -F'\t' '$3 !~ /\.(test|spec)\.(js|jsx)$|\.Tests\.ps1$|package-lock\.json$/ &&
-                                $3 !~ /^(changes|docs)\// {a+=$1; d+=$2} END {print a+d+0}')"
+                                $3 !~ /^(changes|docs|\.ci)\// {a+=$1; d+=$2} END {print a+d+0}')"
     if [ "${prod_files:-0}" -gt "${MAX_FIX_FILES:-10}" ] || [ "${prod_lines:-0}" -gt "${MAX_FIX_LINES:-400}" ]; then
       bail "this fix changed ${prod_files} production files / ${prod_lines} lines, past the ${MAX_FIX_FILES:-10}-file / ${MAX_FIX_LINES:-400}-line ceiling for a bug fix. That is refactor-sized: a human should decide whether it is the right change before it goes further."
     fi
@@ -180,12 +181,17 @@ Leave your changes in the working tree — do NOT commit, push or open a PR.%s' 
       *) bail "the AI implement step errored (see run log)" ;;
     esac
 
-    git restore --source=origin/main --staged --worktree -- .github 2>/dev/null || true   # never let the build touch .github
+    # .github is restored from HEAD, not origin/main. The restore exists to undo MODEL tampering, and
+    # HEAD is already trusted for that — a bot commit never contains .github, precisely because of
+    # this restore. Restoring from a MOVING main instead made every bot branch COMMIT a snapshot of CI
+    # as it was at build time: #978 is carrying #976 and #977 that way, and a long-lived branch can
+    # then conflict with, or partially revert, CI changes made after it started.
+    git restore --source=HEAD --staged --worktree -- .github 2>/dev/null || true
     git add -A
     git diff --cached --quiet && bail "the AI produced no changes"
     git commit -q -m "$title (#${ISSUE})" || bail "git commit failed"
   fi
-  git push -u origin "$BRANCH" --force-with-lease || bail "could not push $BRANCH"
+  push_as_app --force-with-lease "HEAD:refs/heads/$BRANCH" || bail "could not push $BRANCH"
 fi
 
 # 2. Open the PR (BOT token — GITHUB_TOKEN can't create PRs here).

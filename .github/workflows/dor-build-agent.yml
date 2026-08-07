@@ -126,7 +126,7 @@ jobs:
           # Concurrency cap — the honest way to bound a bad day. Over the cap we fall back to the
           # human gate rather than queueing invisibly.
           live="$(gh api "repos/$REPO/actions/runs?status=in_progress&per_page=100" \
-                  --jq '[.workflow_runs[]?|select(.path|test("dor-build-agent"))]|length' 2>/dev/null || echo 0)"
+                  --jq '[.workflow_runs[]?|select(.path|test("dor-(build-agent|acceptance)"))]|length' 2>/dev/null || echo 0)"
           [ "${live:-0}" -lt "$MAX_CONCURRENT" ] || no "$live builds already running (cap $MAX_CONCURRENT)"
 
           echo "auto=true" >> "$GITHUB_OUTPUT"

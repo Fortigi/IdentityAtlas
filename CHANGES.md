@@ -1,5 +1,18 @@
 ## Changes in this PR
 
+- Automated fixes no longer carry a snapshot of the project's CI configuration in their branch, so a long-running fix can no longer conflict with, or undo, changes made to CI while it was in progress.
+- The limit on how many automated builds run at once now also counts follow-up changes made in response to feedback, which occupy a machine in exactly the same way.
+
+## Changes in this PR
+
+- Follow-up changes made by the automated build are now pushed the same way the first one is, so their checks run instead of waiting for someone to release them. A change made in response to feedback previously landed in a way that left its tests held for manual approval, which then stopped the build as unverifiable.
+
+## Changes in this PR
+
+- An automated fix is no longer stopped for updating the project's coverage and complexity baselines. Those files have to change whenever a fix moves the numbers, so treating them as unexpected scope halted a correct fix.
+
+## Changes in this PR
+
 - Bug reports that the automated triage certifies with high confidence, in code away from database migrations, authentication and credential handling, now go straight to being built without waiting for someone to approve the work first. The final merge review is unchanged and still human. Anything that does not meet those conditions — features, uncertain diagnoses, sensitive areas, or more than three builds at once — still asks for approval exactly as before.
 - A fix that grows past ten production files or four hundred changed lines now stops for a human, on the grounds that a change that size is no longer a bug fix.
 - Re-certifying a bug that is already awaiting approval now moves it forward again. Previously the pipeline stopped silently in that case, because re-applying a label an issue already carries produces no event for the next step to react to.
