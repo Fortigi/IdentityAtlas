@@ -1,5 +1,10 @@
 ## Changes in this PR
 
+- Automated fixes no longer carry a snapshot of the project's CI configuration in their branch, so a long-running fix can no longer conflict with, or undo, changes made to CI while it was in progress.
+- The limit on how many automated builds run at once now also counts follow-up changes made in response to feedback, which occupy a machine in exactly the same way.
+
+## Changes in this PR
+
 - Follow-up changes made by the automated build are now pushed the same way the first one is, so their checks run instead of waiting for someone to release them. A change made in response to feedback previously landed in a way that left its tests held for manual approval, which then stopped the build as unverifiable.
 
 ## Changes in this PR
