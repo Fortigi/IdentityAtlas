@@ -344,7 +344,7 @@ ci_failures_are_infra() {  # $1 = PR number
 # reporting "CI green" on a PR where CI had never run. Held runs are visible only through the
 # Actions API; the commit's check-runs list is empty.
 ci_state() {
-  local pr="$1" waited=0 sha rollup total fails pend
+  local pr="$1" waited=0 sha rollup total fails pend kill
   sha="$(gh pr view "$pr" --repo "$REPO" --json headRefOid --jq .headRefOid 2>/dev/null)"
   while [ "$waited" -lt 1800 ]; do
     if [ -n "$sha" ] && [ "$(gh api "repos/$REPO/actions/runs?head_sha=$sha" \
@@ -364,12 +364,18 @@ ci_state() {
     fi
     printf '%s\n' "$rollup" > /tmp/ci.log
     total="$(printf '%s' "$rollup" | jq 'length')"
-    fails="$(printf '%s' "$rollup" | jq '[.[]|select(. == "FAILURE" or . == "TIMED_OUT" or . == "CANCELLED" or . == "STARTUP_FAILURE" or . == "STALE")] | length')"
+    fails="$(printf '%s' "$rollup" | jq '[.[]|select(. == "FAILURE" or . == "TIMED_OUT" or . == "STARTUP_FAILURE" or . == "STALE")] | length')"
     pend="$( printf '%s' "$rollup" | jq '[.[]|select(. == "PENDING" or . == "QUEUED" or . == "IN_PROGRESS" or . == "WAITING" or . == "EXPECTED" or . == "REQUESTED")] | length')"
+    # CANCELLED is not FAILED. A job killed by an outage, by a superseding push, or by a human never
+    # reached a verdict on the code at all — this PR's OWN checks were cancelled that way during
+    # yesterday's incident. Counting it as a failure sends it to the AI fixer, which is precisely the
+    # mistake this function exists to prevent, so it takes the same wait-and-re-run path as an outage.
+    kill="$(printf '%s' "$rollup" | jq '[.[]|select(. == "CANCELLED")] | length')"
     if [ "${fails:-0}" -gt 0 ]; then
       ci_failures_are_infra "$pr" && { echo infra; return; }
       echo fail; return
     fi
+    [ "${kill:-0}" -gt 0 ] && { echo infra; return; }
     [ "${total:-0}" -eq 0 ] && { sleep 45; waited=$((waited+45)); continue; }
     [ "${pend:-0}" -gt 0 ] && { sleep 45; waited=$((waited+45)); continue; }
     echo pass; return
