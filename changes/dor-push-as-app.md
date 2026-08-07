@@ -1,0 +1,1 @@
+- Follow-up changes made by the automated build are now pushed the same way the first one is, so their checks run instead of waiting for someone to release them. A change made in response to feedback previously landed in a way that left its tests held for manual approval, which then stopped the build as unverifiable.

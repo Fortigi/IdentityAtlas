@@ -222,6 +222,23 @@ use_bot_remote() {
   git -C "$WORK" remote set-url origin "https://x-access-token:${BOARD_TOKEN}@github.com/${REPO}.git"
 }
 
+# Push as the app WITHOUT depending on which credential git decides to prefer.
+#
+# use_bot_remote sets an authenticated remote URL, and for the initial build that works — its pushes
+# land as fortigi-ci-bot[bot] and CI runs. The feedback flow, with an identical checkout and the same
+# helper, pushed as github-actions[bot] anyway, and every one of those commits had its checks held at
+# `action_required` (which then bailed the adjustment, correctly, as unverifiable). actions/checkout
+# v7 persists credentials through an `includeIf` config file as well as the extraheader that this
+# helper clears, so which credential wins is not something to leave to precedence.
+#
+# Passing the URL to `git push` directly removes the question: the token on the command line is the
+# one used. Args after the URL are forwarded, so callers keep their own refspec and flags.
+push_as_app() {  # $@ = refspec + flags
+  local url="https://x-access-token:${BOARD_TOKEN}@github.com/${REPO}.git"
+  git -C "$WORK" push "$url" "$@" 2>&1 | sed "s@${BOARD_TOKEN}@***@g"
+  return "${PIPESTATUS[0]}"
+}
+
 # Run the AI once. $1=prompt $2=outfile $3=max-turns. Returns: 0 ok · 2 usage/spend LIMIT (429, → pause)
 # · 1 any other error (→ bail). Centralises model, turn cap, terse output, and limit detection.
 run_claude() {
@@ -449,6 +466,6 @@ verify_loop() {
     if ! git diff --cached --quiet; then
       git commit -q -m "fix: address e2e/CI failures (attempt ${attempt}, #${ISSUE})" || bail "git commit failed during fix (attempt ${attempt})"
     fi
-    git push --force-with-lease origin "$BRANCH" || bail "could not push fix on attempt ${attempt}"
+    push_as_app --force-with-lease "HEAD:refs/heads/$BRANCH" || bail "could not push fix on attempt ${attempt}"
   done
 }

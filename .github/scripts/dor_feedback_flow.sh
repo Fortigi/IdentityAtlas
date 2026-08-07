@@ -64,7 +64,7 @@ if is_bug; then
   esac
 fi
 
-git push --force-with-lease origin "$BRANCH" || bail "could not push the adjustment for #${ISSUE}"
+push_as_app --force-with-lease "HEAD:refs/heads/$BRANCH" || bail "could not push the adjustment for #${ISSUE}"
 
 # 2. Re-deploy + re-verify on the live env (feature e2e + PR CI, auto-fix up to 8×; else Exceptions).
 verify_loop "$pr"

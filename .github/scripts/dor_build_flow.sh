@@ -186,7 +186,7 @@ Leave your changes in the working tree — do NOT commit, push or open a PR.%s' 
     git diff --cached --quiet && bail "the AI produced no changes"
     git commit -q -m "$title (#${ISSUE})" || bail "git commit failed"
   fi
-  git push -u origin "$BRANCH" --force-with-lease || bail "could not push $BRANCH"
+  push_as_app --force-with-lease "HEAD:refs/heads/$BRANCH" || bail "could not push $BRANCH"
 fi
 
 # 2. Open the PR (BOT token — GITHUB_TOKEN can't create PRs here).
