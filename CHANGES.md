@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Follow-up changes made by the automated build are now pushed the same way the first one is, so their checks run instead of waiting for someone to release them. A change made in response to feedback previously landed in a way that left its tests held for manual approval, which then stopped the build as unverifiable.
+
+## Changes in this PR
+
 - An automated fix is no longer stopped for updating the project's coverage and complexity baselines. Those files have to change whenever a fix moves the numbers, so treating them as unexpected scope halted a correct fix.
 
 ## Changes in this PR
