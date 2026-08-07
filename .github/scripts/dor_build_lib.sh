@@ -88,8 +88,13 @@ blast_radius_violations() {  # $1 = contract file, $2 = git range
   [ -n "$globs" ] || return 0
   while IFS= read -r f; do
     [ -n "$f" ] || continue
+    # `.ci/*` are the committed RATCHET baselines (coverage, file length, complexity). A fix that
+    # legitimately moves coverage MUST update them or CI fails — so they are a consequence of the
+    # change, not part of it, exactly like a changelog fragment. #943's build was stopped for
+    # touching .ci/coverage-baseline.json, which no probe could reasonably have predicted and which
+    # it had no choice but to write.
     case "$f" in
-      *.test.js|*.test.jsx|*.spec.js|*.Tests.ps1|changes/*|docs/*|*/package-lock.json|package-lock.json) continue ;;
+      *.test.js|*.test.jsx|*.spec.js|*.Tests.ps1|changes/*|docs/*|.ci/*|*/package-lock.json|package-lock.json) continue ;;
     esac
     hit=no
     while IFS= read -r g; do
@@ -217,6 +222,23 @@ use_bot_remote() {
   git -C "$WORK" remote set-url origin "https://x-access-token:${BOARD_TOKEN}@github.com/${REPO}.git"
 }
 
+# Push as the app WITHOUT depending on which credential git decides to prefer.
+#
+# use_bot_remote sets an authenticated remote URL, and for the initial build that works — its pushes
+# land as fortigi-ci-bot[bot] and CI runs. The feedback flow, with an identical checkout and the same
+# helper, pushed as github-actions[bot] anyway, and every one of those commits had its checks held at
+# `action_required` (which then bailed the adjustment, correctly, as unverifiable). actions/checkout
+# v7 persists credentials through an `includeIf` config file as well as the extraheader that this
+# helper clears, so which credential wins is not something to leave to precedence.
+#
+# Passing the URL to `git push` directly removes the question: the token on the command line is the
+# one used. Args after the URL are forwarded, so callers keep their own refspec and flags.
+push_as_app() {  # $@ = refspec + flags
+  local url="https://x-access-token:${BOARD_TOKEN}@github.com/${REPO}.git"
+  git -C "$WORK" push "$url" "$@" 2>&1 | sed "s@${BOARD_TOKEN}@***@g"
+  return "${PIPESTATUS[0]}"
+}
+
 # Run the AI once. $1=prompt $2=outfile $3=max-turns. Returns: 0 ok · 2 usage/spend LIMIT (429, → pause)
 # · 1 any other error (→ bail). Centralises model, turn cap, terse output, and limit detection.
 run_claude() {
@@ -256,7 +278,7 @@ pause_and_exit() {
   local reason="$1"
   echo "::warning::PAUSING (${FLOW_NOUN}): ${reason}"
   touch "${RUNNER_TEMP:-/tmp}/dor-paused"   # tell the workflow's failure backstop this is a pause
-  git -C "$WORK" restore --source=origin/main --staged --worktree -- .github 2>/dev/null || true
+  git -C "$WORK" restore --source=HEAD --staged --worktree -- .github 2>/dev/null || true
   git -C "$WORK" add -A 2>/dev/null || true
   git -C "$WORK" diff --cached --quiet 2>/dev/null || git -C "$WORK" commit -q -m "wip: paused on usage limit (#${ISSUE})" 2>/dev/null || true
   git -C "$WORK" push --force-with-lease origin "$BRANCH" 2>/dev/null || true
@@ -439,11 +461,11 @@ verify_loop() {
       2) pause_and_exit "hit a usage limit during a fix attempt (attempt ${attempt})" ;;
       *) bail "the AI fix step errored on attempt ${attempt}" ;;
     esac
-    git restore --source=origin/main --staged --worktree -- .github 2>/dev/null || true
+    git restore --source=HEAD --staged --worktree -- .github 2>/dev/null || true
     git add -A
     if ! git diff --cached --quiet; then
       git commit -q -m "fix: address e2e/CI failures (attempt ${attempt}, #${ISSUE})" || bail "git commit failed during fix (attempt ${attempt})"
     fi
-    git push --force-with-lease origin "$BRANCH" || bail "could not push fix on attempt ${attempt}"
+    push_as_app --force-with-lease "HEAD:refs/heads/$BRANCH" || bail "could not push fix on attempt ${attempt}"
   done
 }
