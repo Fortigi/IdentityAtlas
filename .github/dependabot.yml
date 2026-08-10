@@ -59,6 +59,20 @@ updates:
       - dependency-name: "node"
         update-types: ["version-update:semver-major"]
 
+  # Standalone frontend dev container (app/ui/Dockerfile). Watched so its base
+  # image still gets security/patch bumps — without an entry here it was the one
+  # `FROM node:` in the repo Dependabot never looked at, and could sit on an
+  # unpatched tag indefinitely. Same major suppression as /app/api above.
+  - package-ecosystem: "docker"
+    directory: "/app/ui"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "build"
+    ignore:
+      - dependency-name: "node"
+        update-types: ["version-update:semver-major"]
+
   # Node.js API dependencies
   - package-ecosystem: "npm"
     directory: "/app/api"

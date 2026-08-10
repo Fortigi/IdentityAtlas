@@ -8,7 +8,8 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from ratchet import (  # noqa: E402
-    REPO, parse_expected, scan_workflow, scan_dockerfile, scan_package_json, scan_mjs, evaluate,
+    REPO, parse_expected, scan_workflow, scan_dockerfile, scan_package_json, scan_mjs,
+    evaluate, tracked_files,
 )
 
 
@@ -84,35 +85,68 @@ def test_evaluate_all_match_passes():
     assert evaluate(24, findings) == []
 
 
-def _dependabot_node_ignore():
-    """The `ignore:` entry for `node` in .github/dependabot.yml, as raw text.
+def _dependabot_text():
+    """.github/dependabot.yml, as raw text.
 
-    Parsed with a regex rather than PyYAML so this test needs no dependency
+    Parsed with regexes rather than PyYAML so these tests need no dependency
     beyond pytest (the gate workflow installs nothing else).
     """
-    path = os.path.join(REPO, ".github", "dependabot.yml")
-    with open(path, encoding="utf-8") as f:
-        text = f.read()
-    # The entry runs from `- dependency-name: "node"` to the next list item at
-    # the same indent, or the end of the block.
-    m = re.search(r'-\s*dependency-name:\s*"node".*?(?=\n\s*-\s*dependency-name:|\n\s*\n)',
-                  text, re.S)
-    assert m, "no `dependency-name: \"node\"` ignore entry in .github/dependabot.yml"
-    return m.group(0)
+    with open(os.path.join(REPO, ".github", "dependabot.yml"), encoding="utf-8") as f:
+        return f.read()
+
+
+def _node_ignore_entries():
+    """Every `- dependency-name: "node"` ignore entry, as raw text blocks."""
+    # An entry runs to the next list item at the same indent, a blank line, or EOF.
+    entries = re.findall(
+        r'-\s*dependency-name:\s*"node".*?(?=\n\s*-\s*dependency-name:|\n\s*\n|\Z)',
+        _dependabot_text(), re.S)
+    assert entries, 'no `dependency-name: "node"` ignore entry in .github/dependabot.yml'
+    return entries
+
+
+def _docker_directories():
+    """The `directory:` of every docker-ecosystem update block."""
+    blocks = re.findall(
+        r'-\s*package-ecosystem:\s*"docker".*?(?=\n\s*-\s*package-ecosystem:|\Z)',
+        _dependabot_text(), re.S)
+    return {m.group(1) for b in blocks for m in [re.search(r'directory:\s*"([^"]+)"', b)] if m}
 
 
 def test_dependabot_suppresses_node_major_bumps():
-    # Dependabot only bumps app/api/Dockerfile, so a Node MAJOR bump can never
-    # satisfy this gate (it leaves .nvmrc, app/ui/Dockerfile and the nightly
-    # runner behind). The config must suppress those PRs by update TYPE.
-    assert "version-update:semver-major" in _dependabot_node_ignore()
+    # Dependabot bumps one Dockerfile at a time, so a Node MAJOR bump can never
+    # satisfy this gate (it leaves .nvmrc, the other Dockerfile and the nightly
+    # runner behind). Every node ignore must suppress those PRs by update TYPE.
+    entries = _node_ignore_entries()
+    assert all("version-update:semver-major" in e for e in entries), entries
 
 
 def test_dependabot_does_not_enumerate_node_majors():
     # Enumerating majors (`versions: ["26.*", ">= 27"]`) is what let Node 25
     # through and produced PR #951 — every new major needs remembering. Keep
-    # the ignore bounded by update-type so it cannot develop holes.
-    assert "versions:" not in _dependabot_node_ignore()
+    # the ignores bounded by update-type so they cannot develop holes.
+    entries = _node_ignore_entries()
+    assert not any("versions:" in e for e in entries), entries
+
+
+def test_dependabot_watches_every_node_pinning_dockerfile():
+    # Suppressing majors must not mean ignoring a Dockerfile entirely: each one
+    # that pins a Node base image needs a docker entry so it still receives
+    # security/patch bumps. app/ui/Dockerfile had none and was invisible.
+    watched = _docker_directories()
+    for path in tracked_files():
+        base = os.path.basename(path)
+        if not (base == "Dockerfile" or base.startswith("Dockerfile")
+                or base.endswith(".Dockerfile")):
+            continue
+        with open(os.path.join(REPO, path), encoding="utf-8") as f:
+            if not scan_dockerfile(f.read()):
+                continue                      # no `node:` pin — nothing to watch
+        directory = "/" + os.path.dirname(path)
+        assert directory in watched, (
+            f"{path} pins a Node base image but no docker Dependabot entry watches "
+            f"{directory}, so its base image would never get a security bump. "
+            f"Add a docker update block for {directory} to .github/dependabot.yml.")
 
 
 if __name__ == "__main__":
