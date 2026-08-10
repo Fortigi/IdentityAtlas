@@ -1,0 +1,1 @@
+- Picked up a security patch for a build-time dependency (`nanoid`) used by the API and frontend toolchains, clearing a high-severity advisory reported by the dependency audit.
