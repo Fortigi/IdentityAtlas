@@ -146,7 +146,8 @@ jobs:
           private-key: ${{ secrets.BOT_PRIVATE_KEY }}
           owner: Fortigi
           permission-organization-projects: write
-          permission-pull-requests: read
+          # write (was read): acceptance is what takes the PR out of draft — see below.
+          permission-pull-requests: write
           permission-issues: read
       - name: Move to Awaiting merge + notify the Product Board
         env:
@@ -159,9 +160,17 @@ jobs:
           set -uo pipefail
           pr=$(GH_TOKEN="$BOARD_TOKEN" gh pr list --repo "$REPO" --head "dor/issue-${ISSUE}" --state open --json number --jq '.[0].number // empty')
           GH_TOKEN="$BOARD_TOKEN" bash .github/scripts/dor_set_status.sh "$ISSUE" awaiting-merge || true
+          # Acceptance is the ONLY thing that takes the PR out of draft. The build agent opens it as
+          # a draft precisely so that "green checks" can never be read as "ready to merge" before
+          # the requestor has said the solution is right. This is that moment.
+          if [ -n "${pr:-}" ]; then
+            GH_TOKEN="$BOARD_TOKEN" gh pr ready "$pr" --repo "$REPO" >/dev/null 2>&1 \
+              && echo "::notice::PR #${pr} marked ready for review (accepted by ${ACTOR})" \
+              || echo "::warning::could not mark PR #${pr} ready for review — do it by hand"
+          fi
           # Drop build-done so the feedback loop stops firing; the board is now canonical.
           gh issue edit "$ISSUE" --repo "$REPO" --remove-label build-done >/dev/null 2>&1 || true
-          gh issue comment "$ISSUE" --repo "$REPO" --body "$(printf '✅ @%s approved. @WimvandenHeijkant @TaekeK @robb536 — PR #%s is ready for **final merge**.' "$ACTOR" "${pr:-?}")" >/dev/null 2>&1 || true
+          gh issue comment "$ISSUE" --repo "$REPO" --body "$(printf '✅ @%s approved — PR #%s is out of draft and ready for **final merge**. @WimvandenHeijkant @TaekeK @robb536 — the merge review is yours as usual.' "$ACTOR" "${pr:-?}")" >/dev/null 2>&1 || true
           echo "::notice::#${ISSUE} accepted by ${ACTOR} → Awaiting merge (PR #${pr:-?})"
 
   # Which sidekick holds this feature's live env? The build recorded it as an sk:<label> on the issue
