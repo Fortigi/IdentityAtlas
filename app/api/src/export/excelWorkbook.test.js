@@ -128,6 +128,17 @@ describe('generateWorkbook', () => {
     expect(text).toMatch(/ignore.*privacy level/i);
   });
 
+  it('repeats the privacy-prompt warning on every query sheet, next to the M code', () => {
+    // The prompt fires right after the user pastes the M code and clicks Done
+    // — i.e. while they are looking at a query sheet, not the README. The
+    // paste instruction on each sheet therefore has to mention it too.
+    for (const q of QUERIES) {
+      const instructions = String(wb.getWorksheet(q.sheet).getCell('A4').value ?? '');
+      expect(instructions).toMatch(/privacy/i);
+      expect(instructions).toMatch(/ignore.*privacy level/i);
+    }
+  });
+
   it('auto-expands the extendedAttributes JSONB column', () => {
     // Users of the workbook expect sub-keys (userType, onPremisesSyncEnabled,
     // etc.) to appear as first-class columns, not "Record" cells they have
