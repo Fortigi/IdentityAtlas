@@ -195,11 +195,18 @@ Leave your changes in the working tree — do NOT commit, push or open a PR.%s' 
 fi
 
 # 2. Open the PR (BOT token — GITHUB_TOKEN can't create PRs here).
+#
+# DRAFT, deliberately. A ready-for-review PR with green checks reads as "this can go to main", and
+# for an agent-built change that is a lie: CI green means the agent's own tests pass, not that the
+# requestor accepted the solution. #933 sat non-draft and green through EIGHT rounds of the
+# requestor rejecting the design. dor-acceptance.yml marks it ready the moment they reply `approve`.
+# CI runs on drafts exactly as on any PR (no workflow here filters on draft), so verify_loop below
+# is unaffected — the only thing a draft cannot do is merge.
 pr=$(gh pr list --repo "$REPO" --head "$BRANCH" --state open --json number --jq '.[0].number // empty')
 if [ -z "$pr" ]; then
-  pr=$(GH_TOKEN="$BOARD_TOKEN" gh pr create --repo "$REPO" --base main --head "$BRANCH" \
+  pr=$(GH_TOKEN="$BOARD_TOKEN" gh pr create --repo "$REPO" --base main --head "$BRANCH" --draft \
         --title "$(gh issue view "$ISSUE" --repo "$REPO" --json title --jq '.title')" \
-        --body "$(printf 'Closes #%s\n\nBuilt autonomously by the DoR build agent from the approved spec. Functional-test env: %s\n\nDo not merge until CI is green and the requestor has accepted.' "$ISSUE" "$URL")" \
+        --body "$(printf 'Closes #%s\n\n> **Requestor acceptance: not yet.** This PR is a draft until the requestor replies `approve` on #%s. It becomes ready for review then, and not before.\n\nBuilt autonomously by the DoR build agent from the certified spec. Functional-test env: %s\n\nGreen checks here mean the agent'\''s own tests pass — they say nothing about whether the solution is the one that was asked for.' "$ISSUE" "$ISSUE" "$URL")" \
       | grep -oE '[0-9]+$') || bail "could not open the PR"
 fi
 claim_sidekick "$pr"   # ~/.dor-reservation + the sk:<label> that reset/feedback dispatch off

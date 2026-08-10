@@ -874,6 +874,7 @@ jobs:
           bash test/ci-scripts/test-path-gates.sh
           bash test/ci-scripts/test-crawler-scope.sh
           bash test/ci-scripts/test-commit-range.sh
+          bash test/ci-scripts/test-dor-gate-notice.sh
 
   # ── Gate: single required check for branch protection ───────────────────
   # Replaces the individual job requirements in branch protection. Update branch
