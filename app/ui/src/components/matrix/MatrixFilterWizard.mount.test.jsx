@@ -292,6 +292,17 @@ describe('MatrixFilterWizard (mounted)', () => {
     expect(onClose).toHaveBeenCalled();
   });
 
+  it('does not apply or close when Cancel is clicked', async () => {
+    // Cancel must discard, not commit. Covers the other half of the Cancel handler: onApply is
+    // what triggers the parent's data fetch, so a Cancel that also applied would silently run
+    // the query the user just backed out of.
+    const { onApply, onClose } = renderWizard();
+    const user = userEvent.setup();
+    await user.click(screen.getByText('Cancel'));
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(onApply).not.toHaveBeenCalled();
+  });
+
   it('loads a saved matrix from the dropdown and jumps to the Subjects step', async () => {
     renderWizard();
     const user = userEvent.setup();
