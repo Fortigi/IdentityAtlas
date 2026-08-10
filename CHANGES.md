@@ -1,5 +1,11 @@
 ## Changes in this PR
 
+- A pull request opened by the automated build now starts as a draft and only becomes ready for review once the requestor accepts the result. Previously it was opened ready for review with passing checks from the first build onwards, which read as "this can go to main" while the requestor was still rejecting the solution — one feature went through eight rounds of feedback in that state. The final merge review is unchanged and still yours.
+- The request to approve a build is now addressed to the person who asked for the feature, quotes a link to the specification that was written for it, and asks them to confirm it describes the solution they want — rather than only asking whether the work is worth doing. Anyone on the product board can still approve if that person is unavailable, and the issue now records who approved and whether that was the requestor.
+- Fixed: the "review and approve to build" notice could not reach anyone, because it was being posted from inside the step that waits for that same approval. Any request needing approval would have sat waiting with nothing said on the issue at all.
+
+## Changes in this PR
+
 - The container images stay on Node 24. Dependabot no longer proposes Node major-version upgrades, which it could only apply to one of the several places the Node version is pinned — those proposals always failed CI and were closed by hand. Node minor and patch updates still come through as usual.
 - The frontend dev container's base image is now checked for updates too. It was the one container image nobody was watching, so a security patch to it could have gone unnoticed indefinitely.
 
