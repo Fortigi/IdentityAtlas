@@ -32,7 +32,7 @@ This document lists all major software components, dependencies, and infrastruct
 | Package | Version | Purpose | License |
 |---------|---------|---------|---------|
 | helmet | ^8.3.0 | Security headers middleware | MIT |
-| express-rate-limit | ^8.6.1 | Rate limiting protection | MIT |
+| express-rate-limit | ^8.6.2 | Rate limiting protection | MIT |
 | cors | ^2.8.5 | Cross-Origin Resource Sharing | MIT |
 | jsonwebtoken | ^9.0.2 | JWT token validation | MIT |
 | jwks-rsa | ^4.1.0 | JWKS key retrieval for Entra ID | MIT |
@@ -72,7 +72,7 @@ This document lists all major software components, dependencies, and infrastruct
 |---------|---------|---------|---------|
 | react | ^19.2.8 | UI framework | MIT |
 | react-dom | ^19.2.8 | React DOM renderer | MIT |
-| vite | ^8.2.0 | Build tool and dev server | MIT |
+| vite | ^8.2.1 | Build tool and dev server | MIT |
 
 ### Styling
 
@@ -85,7 +85,7 @@ This document lists all major software components, dependencies, and infrastruct
 
 | Package | Version | Purpose | License |
 |---------|---------|---------|---------|
-| @azure/msal-browser | ^5.17.3 | Microsoft Authentication Library | MIT |
+| @azure/msal-browser | ^5.18.0 | Microsoft Authentication Library | MIT |
 
 ### UI Interactions
 

@@ -117,7 +117,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706 # v3
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v3
         id: f
         with:
           filters: |
@@ -874,6 +874,8 @@ jobs:
           bash test/ci-scripts/test-path-gates.sh
           bash test/ci-scripts/test-crawler-scope.sh
           bash test/ci-scripts/test-commit-range.sh
+          bash test/ci-scripts/test-dor-gate-notice.sh
+          bash test/ci-scripts/test-dor-reconcile-liveness.sh
 
   # ── Gate: single required check for branch protection ───────────────────
   # Replaces the individual job requirements in branch protection. Update branch

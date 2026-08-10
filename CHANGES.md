@@ -1,5 +1,34 @@
 ## Changes in this PR
 
+- Two files opened by the complexity gate are now always closed, rather than left to be cleaned up whenever the interpreter happens to get round to it.
+- Removed an unused import from the matrix wizard and an unused import from the complexity gate's tests. No change to behaviour.
+
+## Changes in this PR
+
+- Fixed: an automated build whose machine died mid-run is now detected within the hour and reported on its own issue, telling you to re-dispatch it. The check meant to catch this could never fire — every issue in the build phase was instead reported as "the agent likely never ran", which reads as old backlog and prompts no action. One feature's work sat dead for 21 hours until someone noticed by hand.
+- The "nobody has picked this up" report now measures how long an issue has actually been untouched, rather than how long ago it was opened — so something that broke minutes ago no longer reads as weeks old, and an issue that is being worked on is no longer reported as forgotten.
+
+## Changes in this PR
+
+- A pull request opened by the automated build now starts as a draft and only becomes ready for review once the requestor accepts the result. Previously it was opened ready for review with passing checks from the first build onwards, which read as "this can go to main" while the requestor was still rejecting the solution — one feature went through eight rounds of feedback in that state. The final merge review is unchanged and still yours.
+- The request to approve a build is now addressed to the person who asked for the feature, quotes a link to the specification that was written for it, and asks them to confirm it describes the solution they want — rather than only asking whether the work is worth doing. Anyone on the product board can still approve if that person is unavailable, and the issue now records who approved and whether that was the requestor.
+- Fixed: the "review and approve to build" notice could not reach anyone, because it was being posted from inside the step that waits for that same approval. Any request needing approval would have sat waiting with nothing said on the issue at all.
+
+## Changes in this PR
+
+- The container images stay on Node 24. Dependabot no longer proposes Node major-version upgrades, which it could only apply to one of the several places the Node version is pinned — those proposals always failed CI and were closed by hand. Node minor and patch updates still come through as usual.
+- The frontend dev container's base image is now checked for updates too. It was the one container image nobody was watching, so a security patch to it could have gone unnoticed indefinitely.
+
+## Changes in this PR
+
+- Picked up a security patch for a build-time dependency (`nanoid`) used by the API and frontend toolchains, clearing a high-severity advisory reported by the dependency audit.
+
+## Changes in this PR
+
+- Finished bug reports no longer keep the labels that describe work in progress. A shipped issue used to stay marked as awaiting testing and as needing triage, which made completed work reappear in triage views and left a comment on it able to restart the change loop.
+
+## Changes in this PR
+
 - Fixed: the matrix wizard's "+ Attribute" filter now offers **displayName** as a field, so subjects and resources can be narrowed to the specific people or groups you name. It was hidden from the dropdown even though the data and the filtering behind it always supported it.
 - Sorting and roll-up still leave displayName out, where grouping by a near-unique name has nothing to group.
 

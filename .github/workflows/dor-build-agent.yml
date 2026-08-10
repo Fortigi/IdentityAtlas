@@ -40,6 +40,9 @@ jobs:
       issues: write
     outputs:
       is-member: ${{ steps.auth.outputs.is-member }}
+      # Exported so the value-gate notice can address the person whose feature this is by name,
+      # and so the post-approval record can say whether the approver WAS that person.
+      requestor: ${{ steps.req.outputs.login }}
     steps:
       - name: Checkout the authorize action + requestor resolver
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -133,9 +136,50 @@ jobs:
           echo "::notice::autonomous build approved by policy for #$ISSUE"
           gh issue comment "$ISSUE" --repo "$REPO" --body "🤖 Building autonomously — certified \`confidence: certain\`, with a blast radius clear of migrations, auth and credential handling, so no value gate is needed. The **merge review is still yours**, and the evidence bundle on the PR is what it reviews." >/dev/null 2>&1 || true
 
+  # Posts the "go and approve" notice. This job MUST NOT carry `environment:` — a job gated by
+  # required reviewers does not run a single step until it has been approved, so a notice posted
+  # from inside the gate can only ever arrive AFTER the approval it is asking for. #977 moved this
+  # step into the gated `gate` job below and silently broke exactly that: an issue needing the value
+  # gate would wait with nothing said on it. Keep the notice here and the gate below, separate.
+  # (test/ci-scripts/test-dor-gate-notice.sh asserts this separation so it can't regress again.)
+  notify:
+    needs: [authorize, policy]
+    if: needs.authorize.outputs.is-member == 'true' && needs.policy.outputs.auto != 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Post the value-gate notice (addressed to the requestor, quoting the spec)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE: ${{ github.event.issue.number }}
+          REPO: ${{ github.repository }}
+          REQUESTOR: ${{ needs.authorize.outputs.requestor }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -uo pipefail
+          # Deep-link the certified spec. It is posted by the spec agent, often days before this
+          # gate, so by now it is buried up-thread — asking someone to confirm a solution without
+          # putting it in front of them is how #370 shipped a spec its requestor never agreed to.
+          spec="$(gh api "repos/$REPO/issues/$ISSUE/comments" --paginate \
+                  --jq '[.[] | select(.body | test("Certified spec"))] | last | .html_url // empty' 2>/dev/null || echo '')"
+          if [ -n "$spec" ]; then
+            spec_line="$(printf '📋 **The certified spec is [here](%s)** — read it before approving.' "$spec")"
+          else
+            spec_line='📋 The certified spec is the last bot comment above — read it before approving.'
+          fi
+          # Address the requestor of record by name. Anyone on the product board may still approve
+          # (an absent requestor must not stall a build); who actually did is recorded after the fact
+          # by the `gate` job, so "approved" can never be mistaken for "the requestor agreed".
+          gh issue comment "$ISSUE" --repo "$REPO" --body "$(printf \
+            '🗳️ @%s — this is your request, so this one is yours to confirm: **does the spec below describe the solution you want?**\n\n%s\n\nIf it does: **[Review & approve to build →](%s)** (open the run → *Review deployments* → approve `build-approval`). If it does not, say what is wrong here instead and it goes back to spec — that is far cheaper than correcting it once the code exists.\n\ncc @WimvandenHeijkant @TaekeK — any of you can approve if @%s is unavailable; the issue will record who did. Nothing runs or spends until someone does.' \
+            "$REQUESTOR" "$spec_line" "$RUN_URL" "$REQUESTOR")" >/dev/null 2>&1 || true
+
   # Holds the Environment gate, and runs ONLY when policy says a human is needed. Its success is what
   # the build waits on, so approval semantics are unchanged for everything that still needs one:
   # features, low-confidence bugs, restricted blast radii, anything over the cap.
+  # Every step here runs POST-approval by construction — which is exactly why the record of who
+  # approved belongs here, and the notice asking for approval does not.
   gate:
     needs: [authorize, policy]
     if: needs.authorize.outputs.is-member == 'true' && needs.policy.outputs.auto != 'true'
@@ -144,15 +188,27 @@ jobs:
     permissions:
       issues: write
     steps:
-      - name: Post the one-click approval link (value gate)
+      - name: Record who passed the value gate, and whether that was the requestor
         env:
           GH_TOKEN: ${{ github.token }}
           ISSUE: ${{ github.event.issue.number }}
           REPO: ${{ github.repository }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          REQUESTOR: ${{ needs.authorize.outputs.requestor }}
+          RUN_ID: ${{ github.run_id }}
         run: |
           set -uo pipefail
-          gh issue comment "$ISSUE" --repo "$REPO" --body "$(printf '🗳️ @WimvandenHeijkant @TaekeK @robb536 — ready for the **value gate**. **[Review & approve to build →](%s)** (open the run → *Review deployments* → approve `build-approval`). Nothing runs or spends until you do.' "$RUN_URL")" >/dev/null 2>&1 || true
+          # Who cleared the Environment gate. Best-effort: if the API is unavailable we still say so
+          # rather than implying the requestor agreed.
+          who="$(gh api "repos/$REPO/actions/runs/$RUN_ID/approvals" \
+                 --jq '[.[] | select(.state == "approved")] | last | .user.login // empty' 2>/dev/null || echo '')"
+          if [ -z "$who" ]; then
+            line='✅ Value gate passed — the approver could not be read back from the API.'
+          elif [ "$who" = "$REQUESTOR" ]; then
+            line="$(printf '✅ Value gate passed by @%s — **the requestor**, so the spec is confirmed by the person who asked for it.' "$who")"
+          else
+            line="$(printf '✅ Value gate passed by @%s — **not the requestor** (@%s). This approves the spend, not the design: @%s has not confirmed the spec, so treat the resulting PR as unagreed until they accept it.' "$who" "$REQUESTOR" "$REQUESTOR")"
+          fi
+          gh issue comment "$ISSUE" --repo "$REPO" --body "$line" >/dev/null 2>&1 || true
 
   build:
     needs: [authorize, policy, gate]

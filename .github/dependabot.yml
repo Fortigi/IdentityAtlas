@@ -43,8 +43,35 @@ updates:
     commit-message:
       prefix: "build"
     ignore:
+      # A Node MAJOR upgrade is a deliberate, repo-wide change: `.nvmrc` is the
+      # single source of truth and the node-version gate (tools/node-version/
+      # ratchet.py) requires every `FROM node:<v>`, workflow `node-version:`,
+      # `engines.node`, `.ps1` docker-run pin and `.mjs` NODE_VERSION to agree
+      # with it. Dependabot only ever bumps app/api/Dockerfile, so its major
+      # bumps leave app/ui/Dockerfile, the nightly runner and .nvmrc behind and
+      # can never pass that gate — they're pure noise.
+      #
+      # Suppress them by update TYPE, not by enumerating majors. The previous
+      # rule listed `["26.*", ">= 27"]` (#322, written when the open PR was
+      # 24 -> 26) and left an unnoticed hole at 25, which Dependabot walked
+      # straight through the moment Node 25 shipped (#951). An update-type
+      # bound cannot develop new holes. Minor/patch bumps still come through.
       - dependency-name: "node"
-        versions: ["26.*", ">= 27"]
+        update-types: ["version-update:semver-major"]
+
+  # Standalone frontend dev container (app/ui/Dockerfile). Watched so its base
+  # image still gets security/patch bumps — without an entry here it was the one
+  # `FROM node:` in the repo Dependabot never looked at, and could sit on an
+  # unpatched tag indefinitely. Same major suppression as /app/api above.
+  - package-ecosystem: "docker"
+    directory: "/app/ui"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "build"
+    ignore:
+      - dependency-name: "node"
+        update-types: ["version-update:semver-major"]
 
   # Node.js API dependencies
   - package-ecosystem: "npm"

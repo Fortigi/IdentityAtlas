@@ -99,6 +99,17 @@ has_live_run() {  # $1 = issue number
 board_status_of() { printf '%s\n' "$board" | awk -F'\t' -v n="$1" '$1==n {print $3; found=1} END{exit !found}' 2>/dev/null || true; }
 on_board()        { printf '%s\n' "$board" | awk -F'\t' -v n="$1" '$1==n {f=1} END{exit !f}'; }
 
+# Is this board Status one the BUILD side owns? Those phases are tracked on the board alone — the
+# build drops the issue's `state:*` label (dor_build_flow.sh) and never restores it — so a
+# label-less issue sitting in one of them is routed, not forgotten, and must still be liveness-
+# checked. Names must match dor_set_status.sh's STATUS_NAME map.
+build_phase() {
+  case "$1" in
+    "Building"|"Awaiting functional acceptance"|"Awaiting merge"|"Exceptions") return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 # 2. Walk every OPEN enhancement issue. Capture the list first so a transient failure aborts under
 #    set -e rather than silently reporting "healthy"; state_label is LAST so an empty label (the
 #    common case) is a trailing field that `read` strips cleanly instead of shifting the columns.
@@ -140,20 +151,37 @@ while IFS=$'\t' read -r num created_epoch updated_epoch needs_vouch sk_label sta
     continue
   fi
 
-  if [ -z "$state_label" ]; then
-    # FLAG: on the board but never routed. If old enough, the agent probably never ran.
-    age_h=$(( (now - created_epoch) / 3600 ))
+  # FLAG: on the board but never routed. If old enough, the agent probably never ran.
+  #
+  # "No `state:*` label" does NOT mean un-routed. The BUILD side deliberately runs without one:
+  # dor_build_flow.sh drops `state:awaiting-approval` when it applies `build-done`, and nothing
+  # re-adds a state label afterwards — the phase lives on the board from then on. So every issue
+  # in the build/feedback phase reaches here label-less, and until #995 this branch `continue`d,
+  # which made the whole `case "$status"` below unreachable for them. That is exactly the
+  # population the 💀 liveness arm was written for (#963): every dead build was found by a human
+  # watching, never by this sweep, because control flow never got that far. Ask the BOARD whether
+  # something owns the issue, and fall through when it does.
+  #
+  # Age is measured from `updated_epoch`, not `created_epoch`: a build that died 18 minutes ago was
+  # reported as "after 1151h" (#370, opened in June), which reads as ancient backlog noise rather
+  # than something that just broke.
+  if [ -z "$state_label" ] && ! build_phase "$status"; then
+    age_h=$(( (now - updated_epoch) / 3600 ))
     if [ "$age_h" -ge "$UNROUTED_HOURS" ]; then
-      add_ex "🕳️ #${num} is on the board (Status: ${status:-none}) with no \`state:*\` label after ${age_h}h — the agent likely never ran."
+      add_ex "🕳️ #${num} is on the board (Status: ${status:-none}) with no \`state:*\` label and untouched for ${age_h}h — the agent likely never ran."
     fi
     continue
   fi
 
   # FLAG: Status ≠ label (human moved one, not the other; or a write failed). Human resolves.
   # (blank $status with a label set is the "Status write failed" case — flag it too.)
-  expected="$(label_to_status "$state_label")"
-  if [ -n "$expected" ] && [ "$status" != "$expected" ]; then
-    add_ex "🔀 #${num} drift: label \`${state_label}\` (→ ${expected}) but board Status is **${status:-<unset>}**."
+  # Needs a label by definition — a build-phase issue reaching here has none, and `label_to_status ""`
+  # is empty, so the guard below already skips it. Kept explicit so that stays true if either changes.
+  if [ -n "$state_label" ]; then
+    expected="$(label_to_status "$state_label")"
+    if [ -n "$expected" ] && [ "$status" != "$expected" ]; then
+      add_ex "🔀 #${num} drift: label \`${state_label}\` (→ ${expected}) but board Status is **${status:-<unset>}**."
+    fi
   fi
 
   # FLAG: stale waiting on a human.
