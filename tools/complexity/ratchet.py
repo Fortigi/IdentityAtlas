@@ -246,7 +246,8 @@ def measure_py():
         if base.startswith("test_") or base.endswith("_test.py") or base == "conftest.py":
             continue   # test files are not production code — same as .Tests.ps1 for PowerShell
         try:
-            tree = ast.parse(open(f, encoding="utf-8").read())
+            with open(f, encoding="utf-8") as fh:
+                tree = ast.parse(fh.read())
         except (SyntaxError, UnicodeDecodeError):
             continue
         cyc = _py_cyclomatic(tree)
@@ -473,7 +474,8 @@ def main():
         print(f"ERROR: no baseline at {relpath(baseline_path)} - run with --update first.",
               file=sys.stderr)
         return 2
-    baseline = json.load(open(baseline_path, encoding="utf-8")).get("files", {})
+    with open(baseline_path, encoding="utf-8") as fh:
+        baseline = json.load(fh).get("files", {})
     violations = check(over, baseline, metric)
     if not violations:
         print(f"{metric['label'].capitalize()} ratchet OK - no unit exceeds its ceiling.")

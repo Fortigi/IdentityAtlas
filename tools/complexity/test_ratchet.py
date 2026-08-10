@@ -6,8 +6,6 @@ import ast
 import importlib.util
 import os
 
-import pytest
-
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _spec = importlib.util.spec_from_file_location("ratchet", os.path.join(_HERE, "ratchet.py"))
 ratchet = importlib.util.module_from_spec(_spec)

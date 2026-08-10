@@ -13,7 +13,7 @@
 // matrix) and live in the `SavedMatrixFilters` table (name retained for
 // backward compat; the user-facing term is "matrix").
 
-import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
 import Stepper from '@ui/components/Stepper';
 import { Modal, PrimaryButton, SecondaryButton, ErrorBox } from '@ui/components/contexts/ModalPrimitives';
