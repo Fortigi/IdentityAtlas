@@ -49,7 +49,7 @@
     "eslint-plugin-sonarjs": "4.2.0",
     "globals": "^17.9.0",
     "jsdom": "^30.0.1",
-    "vite": "^8.2.0",
+    "vite": "^8.2.1",
     "vitest": "^4.1.10"
   },
   "overrides": {
