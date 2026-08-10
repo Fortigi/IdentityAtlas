@@ -85,7 +85,7 @@ This document lists all major software components, dependencies, and infrastruct
 
 | Package | Version | Purpose | License |
 |---------|---------|---------|---------|
-| @azure/msal-browser | ^5.17.3 | Microsoft Authentication Library | MIT |
+| @azure/msal-browser | ^5.18.0 | Microsoft Authentication Library | MIT |
 
 ### UI Interactions
 
