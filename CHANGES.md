@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Picked up a security patch for a build-time dependency (`nanoid`) used by the API and frontend toolchains, clearing a high-severity advisory reported by the dependency audit.
+
+## Changes in this PR
+
 - Finished bug reports no longer keep the labels that describe work in progress. A shipped issue used to stay marked as awaiting testing and as needing triage, which made completed work reappear in triage views and left a comment on it able to restart the change loop.
 
 ## Changes in this PR
