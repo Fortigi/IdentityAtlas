@@ -1,0 +1,1 @@
+- The container images stay on Node 24. Dependabot no longer proposes Node major-version upgrades, which it could only apply to one of the several places the Node version is pinned — those proposals always failed CI and were closed by hand. Node minor and patch updates still come through as usual.

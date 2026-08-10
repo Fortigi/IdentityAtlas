@@ -3,11 +3,12 @@
 Run: python -m pytest tools/node-version/test_ratchet.py   (or: python tools/node-version/test_ratchet.py)
 """
 import os
+import re
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from ratchet import (  # noqa: E402
-    parse_expected, scan_workflow, scan_dockerfile, scan_package_json, scan_mjs, evaluate,
+    REPO, parse_expected, scan_workflow, scan_dockerfile, scan_package_json, scan_mjs, evaluate,
 )
 
 
@@ -81,6 +82,37 @@ def test_evaluate_flags_mismatch_only():
 def test_evaluate_all_match_passes():
     findings = [("a", 24), ("b", 24)]
     assert evaluate(24, findings) == []
+
+
+def _dependabot_node_ignore():
+    """The `ignore:` entry for `node` in .github/dependabot.yml, as raw text.
+
+    Parsed with a regex rather than PyYAML so this test needs no dependency
+    beyond pytest (the gate workflow installs nothing else).
+    """
+    path = os.path.join(REPO, ".github", "dependabot.yml")
+    with open(path, encoding="utf-8") as f:
+        text = f.read()
+    # The entry runs from `- dependency-name: "node"` to the next list item at
+    # the same indent, or the end of the block.
+    m = re.search(r'-\s*dependency-name:\s*"node".*?(?=\n\s*-\s*dependency-name:|\n\s*\n)',
+                  text, re.S)
+    assert m, "no `dependency-name: \"node\"` ignore entry in .github/dependabot.yml"
+    return m.group(0)
+
+
+def test_dependabot_suppresses_node_major_bumps():
+    # Dependabot only bumps app/api/Dockerfile, so a Node MAJOR bump can never
+    # satisfy this gate (it leaves .nvmrc, app/ui/Dockerfile and the nightly
+    # runner behind). The config must suppress those PRs by update TYPE.
+    assert "version-update:semver-major" in _dependabot_node_ignore()
+
+
+def test_dependabot_does_not_enumerate_node_majors():
+    # Enumerating majors (`versions: ["26.*", ">= 27"]`) is what let Node 25
+    # through and produced PR #951 — every new major needs remembering. Keep
+    # the ignore bounded by update-type so it cannot develop holes.
+    assert "versions:" not in _dependabot_node_ignore()
 
 
 if __name__ == "__main__":
