@@ -1,2 +1,0 @@
-- Two files opened by the complexity gate are now always closed, rather than left to be cleaned up whenever the interpreter happens to get round to it.
-- Removed an unused import from the matrix wizard and an unused import from the complexity gate's tests. No change to behaviour.
