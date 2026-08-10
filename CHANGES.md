@@ -1,5 +1,10 @@
 ## Changes in this PR
 
+- Fixed: an automated build whose machine died mid-run is now detected within the hour and reported on its own issue, telling you to re-dispatch it. The check meant to catch this could never fire — every issue in the build phase was instead reported as "the agent likely never ran", which reads as old backlog and prompts no action. One feature's work sat dead for 21 hours until someone noticed by hand.
+- The "nobody has picked this up" report now measures how long an issue has actually been untouched, rather than how long ago it was opened — so something that broke minutes ago no longer reads as weeks old, and an issue that is being worked on is no longer reported as forgotten.
+
+## Changes in this PR
+
 - A pull request opened by the automated build now starts as a draft and only becomes ready for review once the requestor accepts the result. Previously it was opened ready for review with passing checks from the first build onwards, which read as "this can go to main" while the requestor was still rejecting the solution — one feature went through eight rounds of feedback in that state. The final merge review is unchanged and still yours.
 - The request to approve a build is now addressed to the person who asked for the feature, quotes a link to the specification that was written for it, and asks them to confirm it describes the solution they want — rather than only asking whether the work is worth doing. Anyone on the product board can still approve if that person is unavailable, and the issue now records who approved and whether that was the requestor.
 - Fixed: the "review and approve to build" notice could not reach anyone, because it was being posted from inside the step that waits for that same approval. Any request needing approval would have sat waiting with nothing said on the issue at all.
