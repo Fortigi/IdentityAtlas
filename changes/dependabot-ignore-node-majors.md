@@ -1,0 +1,2 @@
+- The container images stay on Node 24. Dependabot no longer proposes Node major-version upgrades, which it could only apply to one of the several places the Node version is pinned — those proposals always failed CI and were closed by hand. Node minor and patch updates still come through as usual.
+- The frontend dev container's base image is now checked for updates too. It was the one container image nobody was watching, so a security patch to it could have gone unnoticed indefinitely.
