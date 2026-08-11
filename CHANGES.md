@@ -1,5 +1,12 @@
 ## Changes in this PR
 
+- Corrected the state-machine documentation, which implied the value gate was approved *before* the build was dispatched. It is the other way round: the trigger label is applied automatically the moment an issue reaches the value gate, and it is what creates the run that then waits for a human — so re-dispatching never bypasses the approval.
+- Explained why an issue can sit at "Awaiting approval" with everything apparently ready: the build column is set by the build itself, on its first act, so nothing moves until someone approves.
+- Added guidance on approving a run that has been parked for a long time. A waiting run is pinned to the code as it was when it was created, so approving an old one builds against an old tree; the page now says how to discard and re-dispatch instead, and why the cancel has to come first.
+- Warned that dragging a card into "Building" by hand is the one manual board move that can raise a false "this build has died" alarm, complete with a label and an @-mention on the issue.
+
+## Changes in this PR
+
 - Documentation links that pointed at files in the repository rather than at pages of the site were silently broken in the published docs. The nine affected links — the migration files and ingest sources referenced by the assignment-model redesign page, and the sidekick provisioning script — now point at the files on GitHub and work.
 - Pull requests that change documentation now build the site with warnings treated as errors, so a broken navigation entry or cross-link is caught before it is merged instead of after it is published.
 
