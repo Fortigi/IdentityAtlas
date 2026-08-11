@@ -4959,6 +4959,17 @@ its Status column (🔀), but a legal-label / illegal-jump combination is invisi
 this page as the contract the workflows keep with each other — and if you move a card by hand,
 you are the one keeping it.</p>
 </div>
+<div class="admonition danger">
+<p class="admonition-title">Dragging a card into <em>Building</em> is the one manual move that raises a real alarm</p>
+<p>Moving a card does not start anything — the column is written <em>by</em> the pipeline, it does not
+drive it. But <em>Building</em> is the one column the sweep actively polices: it asserts that work is
+running <strong>right now</strong>, so 20 minutes later the liveness check asks whether any DoR run is alive
+for that issue. If none is, you get 💀 in the health report, a <code>dor-stuck</code> label on the issue,
+and an @-mention comment saying its sidekick died mid-flight.</p>
+<p>An issue parked at the value gate is exempt, because a <code>waiting</code> run counts as alive — which is
+the only reason moving two gate-parked issues into <em>Building</em> did not fire it. Move one that has
+no run at all and it will.</p>
+</div>
 <hr />
 <h2 id="actors">Actors<a class="headerlink" href="#actors" title="Permanent link">&para;</a></h2>
 <p>Human roles are the lanes from <a href="../definition-of-ready/#roles-lanes">definition-of-ready.md</a>. The
@@ -5135,11 +5146,25 @@ to move a closed issue to Done. Done is the only resting state on the board.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>issue opened
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>  └─ Awaiting requestor            dor-triage
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>       └─ Awaiting approval        spec agent, after interview + readiness probe
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>            └─ Building            Product Board approves → dor-build-agent
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>                 └─ Awaiting functional acceptance
-<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>                      └─ Awaiting merge      requestor accepts
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>                           └─ Done           PR merged → issue closed
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>            │                      dor-propose-build applies `ready-to-build` at once, no human;
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>            │                      that starts dor-build-agent, which PARKS on the gate
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>            └─ Building            the Product Board approves the parked RUN; the build agent
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>                 │                 sets this column itself, as its first act on the sidekick
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>                 └─ Awaiting functional acceptance
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>                      └─ Awaiting merge      requestor accepts
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>                           └─ Done           PR merged → issue closed
 </code></pre></div>
+<div class="admonition warning">
+<p class="admonition-title"><code>ready-to-build</code> comes <em>before</em> the gate, not after</p>
+<p>It is tempting to read the value gate as "a human approves, and then the build is labelled and
+dispatched". It is the other way round: the label is applied <strong>automatically and immediately</strong>
+on entering <em>Awaiting approval</em>, and it is what creates the run that then waits for a human. The
+approval acts on the <strong>run</strong>, not on the label — so re-applying <code>ready-to-build</code> never bypasses
+anything.</p>
+<p>While the run is parked, <code>authorize</code>, <code>policy</code> and <code>notify</code> have already completed and <code>gate</code> is
+<code>waiting</code>; the <code>build</code> job does not exist yet. That is why the column still reads <em>Awaiting
+approval</em> — nothing has set <em>Building</em>, because nothing is building.</p>
+</div>
 <p><strong>Bug</strong> — identical from <code>Awaiting approval</code> onward; it enters one column earlier:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>issue opened (label: bug)
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>  └─ Ready for AI probe            dor-triage
@@ -5221,10 +5246,16 @@ to move a closed issue to Done. Done is the only resting state on the board.</p>
 <td><code>dor-board-sync</code>. Bot senders are ignored</td>
 </tr>
 <tr>
+<td><em>(column unchanged)</em></td>
+<td>Awaiting approval</td>
+<td>the spec agent applied <code>state:awaiting-approval</code></td>
+<td><code>dor-propose-build</code> applies <code>ready-to-build</code> at once — no human. That starts <code>dor-build-agent</code>, whose <code>gate</code> job parks on the <code>build-approval</code> Environment. The column does <strong>not</strong> move yet</td>
+</tr>
+<tr>
 <td>Building</td>
 <td>Awaiting approval</td>
-<td>Product Board approves the gate</td>
-<td><code>dor-propose-build</code> applies <code>ready-to-build</code>; <code>dor-build-agent</code> then pauses on the Environment</td>
+<td>the Product Board approves the parked <strong>run</strong></td>
+<td>the <code>build</code> job then runs on a sidekick and <code>dor_build_flow.sh</code> sets this column itself, first thing — it also <em>consumes</em> <code>ready-to-build</code> (removes it), so that label disappearing is not drift</td>
 </tr>
 <tr>
 <td>Building</td>
@@ -5350,6 +5381,21 @@ prefixed <code>/rework</code> — a merge review is a conversation, and every co
 and Approve or reject in the Actions UI. The notice comment deep-links the certified spec, because by
 then it is usually buried up-thread.</p>
 <p>Rejecting is a normal outcome: remove <code>ready-to-build</code> and route the issue with a <code>state:*</code> label.</p>
+<p><strong>Check the age of a parked run before approving it.</strong> A gate holds indefinitely, and the run is
+pinned to the commit that was <code>main</code> when it was <em>created</em> — not when you approve. Two runs sat here
+for a week and 119 commits; approving those would have had the agent implement against a
+seven-day-old tree. If the run is stale, discard it and re-dispatch, in this order:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># 1. Cancel first. The concurrency group dor-build-agent-&lt;issue&gt; is cancel-in-progress: false,</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="c1">#    so a fresh run would just queue behind the parked one instead of starting.</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>gh<span class="w"> </span>run<span class="w"> </span>cancel<span class="w"> </span>&lt;run-id&gt;<span class="w"> </span>--repo<span class="w"> </span>Fortigi/IdentityAtlas
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="c1"># 2. Re-apply the trigger label to create a fresh run against current main.</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>gh<span class="w"> </span>issue<span class="w"> </span>edit<span class="w"> </span>&lt;issue&gt;<span class="w"> </span>--repo<span class="w"> </span>Fortigi/IdentityAtlas<span class="w"> </span>--remove-label<span class="w"> </span>ready-to-build
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>gh<span class="w"> </span>issue<span class="w"> </span>edit<span class="w"> </span>&lt;issue&gt;<span class="w"> </span>--repo<span class="w"> </span>Fortigi/IdentityAtlas<span class="w"> </span>--add-label<span class="w"> </span>ready-to-build
+</code></pre></div>
+<p>The new run parks at the gate exactly like the old one — this re-dispatches, it does not approve.
+<code>dor-propose-build</code> cannot do this for you: it skips any issue that already carries
+<code>ready-to-build</code>, which by definition includes every issue parked at the gate.</p>
 <h3 id="if-you-are-a-maintainer">If you are a maintainer<a class="headerlink" href="#if-you-are-a-maintainer" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
