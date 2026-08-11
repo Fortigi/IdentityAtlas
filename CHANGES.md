@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Fixed the "this build has died" notice being able to repeat every hour. It comments directly on the affected issue and is meant to do so only once, remembering with a marker label — but it looked that marker up in a way that could never find it on an issue without an `enhancement` / `bug` label, so those issues would have been re-notified on every sweep. 38 open items on the Feature board are in that position.
+
+## Changes in this PR
+
 - The pipeline health report now inspects every issue its board carries, instead of only those carrying the `enhancement` / `bug` gate label. 42 of the Feature board's 74 items had no gate label and were invisible to every check in the sweep — a whole UI cohort parked in "Awaiting design", most of the "Out of pipeline" column, and an issue the "Awaiting approval" count therefore missed, reporting 2 where the board showed 3.
 - Added a check for an issue filed on the wrong pipeline board. One issue sat on the Feature board as "Blocked (external)" while the Bug board had it at "Awaiting functional acceptance"; each sweep only ever looked at its own board, so nothing could see the disagreement.
 - The health report now notifies only when its findings actually change. It used to post a comment on every hourly sweep for as long as anything was open, so a standing backlog meant a notification every hour — and most findings restate a moving age, so the text was never identical. The report itself is still refreshed silently on every sweep.
