@@ -1,5 +1,13 @@
 ## Changes in this PR
 
+- Added **DoR state machine & operating procedure** to the docs: all 13 board columns, every transition the automation makes, and which actor owns each one — plus a per-role operating procedure ("the board says X, do Y") for requestors, the Product Board and maintainers, and a guide to what each health-report marker means and who should act on it.
+- Documented the two human gates that bracket the AI (the value gate and the merge review), and the conditions under which a certified bug may skip the value gate.
+- Corrected the operationalisation guide: the old state-machine diagram described a design that was never built and has been replaced with a pointer to the new page; three "not yet done" items that have since shipped are marked done; the board-upkeep, feedback and issue-triage rows now describe what actually happens.
+- Marked the autonomous bug pipeline document as partly built rather than a proposal, and flagged the parts of it that no longer match the running system.
+- People filing an issue are now told that an AI will read it and may ask follow-up questions, that no work is built or merged without a human deciding so, and where to read the full process.
+
+## Changes in this PR
+
 - Fixed the "this build has died" notice being able to repeat every hour. It comments directly on the affected issue and is meant to do so only once, remembering with a marker label — but it looked that marker up in a way that could never find it on an issue without an `enhancement` / `bug` label, so those issues would have been re-notified on every sweep. 38 open items on the Feature board are in that position.
 
 ## Changes in this PR
