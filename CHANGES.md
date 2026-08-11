@@ -1,5 +1,11 @@
 ## Changes in this PR
 
+- The pipeline health report now inspects every issue its board carries, instead of only those carrying the `enhancement` / `bug` gate label. 42 of the Feature board's 74 items had no gate label and were invisible to every check in the sweep — a whole UI cohort parked in "Awaiting design", most of the "Out of pipeline" column, and an issue the "Awaiting approval" count therefore missed, reporting 2 where the board showed 3.
+- Added a check for an issue filed on the wrong pipeline board. One issue sat on the Feature board as "Blocked (external)" while the Bug board had it at "Awaiting functional acceptance"; each sweep only ever looked at its own board, so nothing could see the disagreement.
+- The health report now notifies only when its findings actually change. It used to post a comment on every hourly sweep for as long as anything was open, so a standing backlog meant a notification every hour — and most findings restate a moving age, so the text was never identical. The report itself is still refreshed silently on every sweep.
+
+## Changes in this PR
+
 - Fixed the DoR pipeline health report claiming that correctly-routed issues were "on the board with no `state:*` label — the agent likely never ran". Any issue that had a routing label but no reserved sidekick was misread as un-routed, which was every routed issue on both boards: all 31 items the two health issues were reporting were false alarms.
 - Restored the health report's drift detection (routing label disagrees with the board's Status column), which had never been able to run for the same reason.
 - The waiting-on-a-human signals — the approval-gate backlog count and the long-stale warnings — now reach the health report; they were being skipped alongside the drift check.
