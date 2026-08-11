@@ -151,12 +151,19 @@ jobs:
               - 'app/api/contract-tests/**'
               - 'app/api/test-utils/**'
               - 'app/api/package.json'
+              # The lockfile is what actually gets installed: package.json declares ranges,
+              # and a transitive bump — the commonest kind, and the likeliest to surprise —
+              # moves only this file. Omitting it meant every lockfile-only PR (every npm
+              # Dependabot PR, every `npm audit fix`) skipped the suites that run against
+              # the tree it installs. See #997.
+              - 'app/api/package-lock.json'
               - 'app/api/vitest.config.js'
               - 'app/api/vitest.contract.config.js'
               - 'app/api/eslint.config.js'
             ui:
               - 'app/ui/src/**'
               - 'app/ui/package.json'
+              - 'app/ui/package-lock.json'   # see the api scope above (#997)
               - 'app/ui/vite.config.js'
               - 'app/ui/eslint.config.js'
               - 'app/ui/eslint-rules/**'
