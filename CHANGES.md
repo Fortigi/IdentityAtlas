@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Dependency-update pull requests are now tested. A change to a lockfile — the shape of every automated npm update and every security fix — matched none of the rules deciding which checks to run, so the unit, contract, integration and browser suites all skipped and the update merged with nothing having run against the dependency tree it installs. The lockfile is what actually gets installed, and a transitive bump touches nothing else.
+
+## Changes in this PR
+
 - The per-file coverage floor can no longer be weakened by accident. Re-baselining after adding tests used to overwrite every floor with whatever the run happened to measure, so a file that came out a point lower — ordinary measurement wobble — quietly had its floor lowered, giving back protection nobody meant to give back. Re-baselining now only ever raises a floor, reports any it declined to lower, and requires an explicit request to lower one.
 
 ## Changes in this PR
