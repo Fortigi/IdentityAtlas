@@ -163,6 +163,11 @@ jobs:
               - 'app/api/Dockerfile'
             load_soak:
               - 'app/api/src/**'
+              # A dependency bump can move runtime behaviour as readily as our own code, and
+              # this is the only job that would notice. Heavier than the rest, so `skip-load-soak`
+              # is there for a bump where it is plainly noise (#997).
+              - 'app/api/package.json'
+              - 'app/api/package-lock.json'
               - 'tools/crawlers/shared/**'
               - 'tools/powershell-sdk/**'
               - 'tools/crawlers/*/Start-*.ps1'
