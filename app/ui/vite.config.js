@@ -34,12 +34,12 @@ export default defineConfig({
       // runs `npm run test:coverage`). A change that drops UI coverage below
       // these fails CI. Set just under current so normal variance doesn't flake;
       // RAISE these when you raise coverage (never lower them — same discipline
-      // as the complexity baseline). Measured: S63.7 B55.1 F56.8 L66.9.
+      // as the complexity baseline). Measured: S71.1 B62.4 F65.1 L74.5.
       thresholds: {
-        statements: 63,
-        branches: 55,
-        functions: 56,
-        lines: 66,
+        statements: 70,
+        branches: 61,
+        functions: 64,
+        lines: 73,
       },
     },
   },
