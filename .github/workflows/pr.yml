@@ -877,6 +877,41 @@ jobs:
           bash test/ci-scripts/test-dor-gate-notice.sh
           bash test/ci-scripts/test-dor-reconcile-liveness.sh
 
+  # ── Stage 15: Docs site build (strict) ────────────────────────────────────
+  # `docs.yml` publishes the site, but it only runs on push to main — so until
+  # now a PR could break the nav, an internal cross-link or a link to a source
+  # file and nobody found out until it was already merged and deployed.
+  #
+  # --strict promotes MkDocs' warnings to errors. That covers a nav entry
+  # pointing at a file that does not exist, and any relative link that resolves
+  # to nothing inside the docs tree — including `../../app/...` links to repo
+  # source, which cannot work in the published site (only docs/** is copied).
+  # Link to source with an absolute https://github.com/Fortigi/IdentityAtlas/blob/main/…
+  # URL instead; that is already the convention in ~70 places.
+  #
+  # Same `docs` scope the filter already defines for exactly this purpose.
+  docs-build:
+    name: 'Docs: MkDocs build (strict)'
+    needs: [filter]
+    if: |
+      needs.filter.outputs.docs == 'true' ||
+      needs.filter.result == 'failure'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.x'
+
+      # The same pinned toolchain docs.yml deploys with, so a PR cannot pass here
+      # and then fail on main.
+      - name: Install the docs toolchain
+        run: pip install -r docs/requirements.txt
+
+      - name: Build the site with warnings as errors
+        run: mkdocs build --strict --site-dir /tmp/docs-site
+
   # ── Gate: single required check for branch protection ───────────────────
   # Replaces the individual job requirements in branch protection. Update branch
   # protection to require only "ci-passed" — not each individual job name.
@@ -907,6 +942,7 @@ jobs:
       - filesize
       - complexity
       - ci-scripts
+      - docs-build
     if: always()
     runs-on: ubuntu-latest
     steps:

@@ -8,7 +8,7 @@ mid-build failure (missing `gh`, `unzip`, Node, and finally **no git identity** 
 `No commits between main and dor/issue-N`); this list exists so a new member is provisioned in one
 pass instead of one missing tool at a time.
 
-> **Most of this is automated.** [`tools/dor/provision-sidekick.sh`](../../tools/dor/provision-sidekick.sh)
+> **Most of this is automated.** [`tools/dor/provision-sidekick.sh`](https://github.com/Fortigi/IdentityAtlas/blob/main/tools/dor/provision-sidekick.sh)
 > is idempotent and does steps 1–2 below. Only the runner registration (step 3) and the repo/DNS
 > wiring (steps 4–5) are manual, because they need a short-lived token / live outside the box.
 
