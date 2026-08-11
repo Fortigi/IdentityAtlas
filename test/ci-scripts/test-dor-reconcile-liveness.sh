@@ -139,8 +139,8 @@ scenario() {
 }
 
 # A board that still lists CLOSED issues and no open ones, so only the closed-issue check speaks.
-# Two rows, so the assertions are two-sided: #370 carries the status under test, #371 is the control
-# that must always be flagged.
+# Two rows, so every assertion is two-sided: #370 carries the status under test, #371 is the control
+# that must always be flagged (which also proves a report was published at all).
 closed_scenario() {
   local dir="$1" status="$2"
   rm -rf "$dir"; mkdir -p "$dir"; make_stub "$dir"
@@ -208,14 +208,19 @@ echo
 echo "DoR reconcile — closed issues on the board"
 echo
 
-# ── 7. "Out of pipeline" is terminal; closing from it is the expected end ───
+# ── 7. Done is the ONLY resting state — "Out of pipeline" must still nag ────
+# Leaving the pipeline is not the same as being filed away: a closed issue parked in "Out of
+# pipeline" still has to be walked over to Done, and this report line is the only reminder that it
+# is sitting there. Pinned because it is tempting to read that column as terminal and silence it.
 out="$(run_sweep "$(closed_scenario "$TMP/closed-oop" 'Out of pipeline')")"
-assert_contains "a closed issue parked mid-pipeline is still flagged" "🔚 #371" "$out"
-assert_lacks    "a closed 'Out of pipeline' issue is not nagged about forever" "🔚 #370" "$out"
+assert_contains "a closed issue parked mid-pipeline is flagged" "🔚 #371" "$out"
+assert_contains "…and a closed 'Out of pipeline' issue is flagged too" "🔚 #370" "$out"
 
-# ── 8. …and "Done" stays terminal too ───────────────────────────────────────
+# ── 8. …but a closed issue that reached Done is left alone ──────────────────
+# #371 still flags, so the report exists and the assertion below is not vacuous.
 out="$(run_sweep "$(closed_scenario "$TMP/closed-done" 'Done')")"
-assert_lacks "a closed Done issue is not flagged" "🔚 #370" "$out"
+assert_contains "the control row still flags" "🔚 #371" "$out"
+assert_lacks    "a closed Done issue is not flagged" "🔚 #370" "$out"
 
 echo
 echo "  $PASS passed, $FAIL failed"

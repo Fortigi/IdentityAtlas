@@ -225,12 +225,12 @@ done < <(printf '%s\n' "$issues_rows")
 [ "$approval_backlog" -gt 0 ] && add_ex "🚦 ${approval_backlog} issue(s) waiting in **Awaiting approval** — the Product board's value gate."
 
 # 3. Closed issues still parked in a non-terminal board Status.
-# "Out of pipeline" is terminal too: it means "this is not a feature for this process — handled by
-# the normal dev flow", so being closed from that column is the expected end, not drift. Flagging it
-# nagged forever on issues that were already resolved exactly as intended (#995, #874).
+# "Out of pipeline" is NOT terminal here, deliberately: an issue that left the pipeline and has since
+# been closed still has to be walked over to Done, and this line is the only reminder that it is
+# sitting there. Done is the single resting state on the board.
 while IFS=$'\t' read -r num istate status; do
   [ "$istate" = "CLOSED" ] || continue
-  case "$status" in ""|"Done"|"Out of pipeline") : ;; *) add_ex "🔚 #${num} is CLOSED but still on the board as **${status}** — move it to Done or off the board." ;; esac
+  case "$status" in ""|"Done") : ;; *) add_ex "🔚 #${num} is CLOSED but still on the board as **${status}** — move it to Done or off the board." ;; esac
 done < <(printf '%s\n' "$board")
 
 # 3b. Closed issues that still claim a sidekick: the release never ran, or ran against the wrong box
