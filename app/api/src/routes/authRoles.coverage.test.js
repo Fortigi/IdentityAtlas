@@ -9,7 +9,7 @@ import { mountRouter } from '../../test-utils/routeTestKit.js';
 process.env.USE_SQL = 'true';
 
 vi.mock('../db/connection.js');   // picks up src/db/__mocks__/connection.js
-import { query, queryOne } from '../db/connection.js';
+import { query } from '../db/connection.js';
 
 const getRolePermissions = vi.fn(() => ({ Admin: ['*'] }));
 const hasCustomRolePermissions = vi.fn(() => false);
