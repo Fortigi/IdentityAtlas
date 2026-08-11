@@ -29,9 +29,31 @@ ACTIVE_STALL_MIN="${ACTIVE_STALL_MIN:-20}"
 HEALTH_TITLE="${HEALTH_TITLE:-DoR pipeline health}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 now="$(date -u +%s)"
+
+# Field separator for every multi-field record this script builds. US, not tab: tab is an *IFS
+# whitespace* character, so `read`/`awk` collapse a run of tabs into ONE delimiter and an empty field
+# in the middle of a record silently shifts every field after it left. Most records here have two
+# optional label fields, so that is the common case, not the corner case. Neither an issue number,
+# a board Status nor a GitHub label name can contain a control character.
+US=$'\x1f'
+
 exceptions=""   # markdown bullet lines
+ex_keys=""      # one stable identity per exception — see the fingerprint in §4
 stalled=""      # issue numbers whose "Building" has no live run behind it
-add_ex() { exceptions="${exceptions}- ${1}"$'\n'; }
+
+# Record an exception, and alongside it a STABLE identity for that exception. The report re-states
+# the same findings every sweep and most lines carry a moving age ("untouched for 17h"), so the text
+# itself cannot answer "has anything actually changed?" — which is what decides whether to notify.
+# Identity is the marker plus the issue the line is about: "🕳️#941". A line naming no issue (🚦, ⚠️)
+# is identified by its marker plus every number in it, because for those the count IS the finding —
+# "🚦3" must read as different from "🚦2", while the timestamps around it must not.
+add_ex() {
+  local msg="$1" num
+  exceptions="${exceptions}- ${msg}"$'\n'
+  num="$(printf '%s' "$msg" | grep -oE '#[0-9]+' | head -n 1 || true)"
+  [ -n "$num" ] || num="$(printf '%s' "$msg" | grep -oE '[0-9]+' | tr -d '\n' || true)"
+  ex_keys="${ex_keys}${msg%% *}${num}"$'\n'
+}
 
 # state:* label -> Status column name (must match dor_set_status.sh + the board options).
 label_to_status() {
@@ -47,18 +69,30 @@ label_to_status() {
   esac
 }
 
-# 1. Board snapshot: one TSV line per item -> "<issue-number>\t<CLOSED|OPEN>\t<Status name>".
-#    65 items today; first:100 covers it. Warn (don't silently truncate) if it ever overflows.
+# 1. Board snapshot: one US-separated record per item —
+#      number, OPEN|CLOSED, Status, created epoch, updated epoch, needs-vouch, sk label, state label, is-bug
+#    The issue's own metadata rides along so §2 can walk BOARD MEMBERSHIP instead of a label query.
+#    74 items today; first:100 covers it. Warn (don't silently truncate) if it ever overflows.
 board="$(gh api graphql \
   -f query='query($p:ID!){ node(id:$p){ ... on ProjectV2 { items(first:100){
       pageInfo{ hasNextPage }
-      nodes{ content{ ... on Issue { number state } }
+      nodes{ content{ ... on Issue { number state createdAt updatedAt labels(first:50){ nodes{ name } } } }
              status: fieldValueByName(name:"Status"){ ... on ProjectV2ItemFieldSingleSelectValue { name } } } } } } }' \
   -f p="$PROJECT_ID" \
   --jq '.data.node.items as $i
-        | (if $i.pageInfo.hasNextPage then "::warn-truncated::\t\t\n" else "" end)
+        | (if $i.pageInfo.hasNextPage then "::warn-truncated::\n" else "" end)
         + ([$i.nodes[] | select(.content.number != null)
-            | [(.content.number|tostring), .content.state, (.status.name // "")] | @tsv] | join("\n"))')"
+            | [.content.labels.nodes[].name] as $l
+            | [(.content.number|tostring),
+               .content.state,
+               (.status.name // ""),
+               (.content.createdAt | fromdateiso8601 | tostring),
+               (.content.updatedAt | fromdateiso8601 | tostring),
+               (($l | index("needs-vouch")) != null | tostring),
+               ([$l[] | select(startswith("sk:"))][0] // ""),
+               ([$l[] | select(startswith("state:"))][0] // ""),
+               (($l | index("bug")) != null | tostring)]
+              | join("'"$US"'")] | join("\n"))')"
 
 if printf '%s\n' "$board" | grep -q '^::warn-truncated::'; then
   add_ex "⚠️ Board has >100 items — reconcile only inspected the first 100. Add pagination."
@@ -96,8 +130,15 @@ has_live_run() {  # $1 = issue number
 }
 
 # Look up an issue's board Status by number (empty if not on the board).
-board_status_of() { printf '%s\n' "$board" | awk -F'\t' -v n="$1" '$1==n {print $3; found=1} END{exit !found}' 2>/dev/null || true; }
-on_board()        { printf '%s\n' "$board" | awk -F'\t' -v n="$1" '$1==n {f=1} END{exit !f}'; }
+board_status_of() { printf '%s\n' "$board" | awk -F"$US" -v n="$1" '$1==n {print $3; found=1} END{exit !found}' 2>/dev/null || true; }
+on_board()        { printf '%s\n' "$board" | awk -F"$US" -v n="$1" '$1==n {f=1} END{exit !f}'; }
+
+# Which board owns an issue is decided by its labels, exactly as dor_set_status.sh decides where to
+# write: `bug` -> Bug Pipeline, everything else -> Feature Pipeline. Mirrored here rather than
+# re-derived, so the two cannot drift. $LABEL says which pipeline this sweep is running for.
+belongs_here() {  # $1 = "true" when the issue carries the `bug` label
+  if [ "$LABEL" = bug ]; then [ "$1" = true ]; else [ "$1" != true ]; fi
+}
 
 # Is this board Status one the BUILD side owns? Those phases are tracked on the board alone — the
 # build drops the issue's `state:*` label (dor_build_flow.sh) and never restores it — so a
@@ -110,32 +151,55 @@ build_phase() {
   esac
 }
 
-# 2. Walk every OPEN enhancement issue. Capture the list first so a transient failure aborts under
-#    set -e rather than silently reporting "healthy".
+# 2. Walk every OPEN issue THIS BOARD carries, plus every open `$LABEL` issue missing from it.
 #
-#    Records are joined on US (\x1f), NOT tabs. Tab is an *IFS whitespace* character, so under
-#    `IFS=$'\t'` bash collapses a run of tabs into ONE delimiter and an empty field in the middle of
-#    the record silently shifts every field after it left. `sk_label` is empty on almost every issue
-#    (only a live build holds a sidekick), so the overwhelmingly common record —
-#    `…<TAB><TAB>state:decompose` — parsed as sk_label='state:decompose', state_label='' and made
-#    every correctly-routed issue look un-routed. US is not IFS whitespace, so empty fields survive.
-#    Neither an issue number nor a GitHub label name can contain a control character.
+#    MEMBERSHIP decides what gets swept, not the gate label. Status is the canonical phase (D3), yet
+#    the walk used to start from `gh issue list --label "$LABEL"`, so an issue could sit on the board
+#    in any phase and be invisible to every check below. That was not a corner case: 42 of the
+#    Feature board's 74 items carried no `enhancement` label — a whole UI cohort parked in "Awaiting
+#    design", most of the "Out of pipeline" column, and an "Awaiting approval" item that the 🚦 count
+#    therefore under-reported (2 where a human counted 3). The label query survives for the one thing
+#    the board cannot show us: an issue that ought to be on it and is not.
+#
+#    Capture both lists first so a transient failure aborts under set -e rather than silently
+#    reporting "healthy".
 issues_rows="$(gh issue list --repo "$OWNER/$REPO" --state open --label "$LABEL" --limit 201 \
   --json number,labels,createdAt,updatedAt \
-  --jq '.[] | [(.number|tostring),
-               (.createdAt | fromdateiso8601 | tostring),
-               (.updatedAt | fromdateiso8601 | tostring),
-               ((([.labels[].name] | index("needs-vouch")) != null) | tostring),
-               ([.labels[].name | select(startswith("sk:"))][0] // ""),
-               ([.labels[].name | select(startswith("state:"))][0] // "")] | join("\u001f")')"
+  --jq '.[] | [.labels[].name] as $l
+      | [(.number|tostring),
+         (.createdAt | fromdateiso8601 | tostring),
+         (.updatedAt | fromdateiso8601 | tostring),
+         (($l | index("needs-vouch")) != null | tostring),
+         ([$l[] | select(startswith("sk:"))][0] // ""),
+         ([$l[] | select(startswith("state:"))][0] // ""),
+         (($l | index("bug")) != null | tostring)] | join("'"$US"'")')"
 if [ "$(printf '%s' "$issues_rows" | grep -c .)" -ge 201 ]; then
   add_ex "⚠️ Over 200 open ${LABEL} issues — reconcile inspected only the first 200; add pagination."
   issues_rows="$(printf '%s\n' "$issues_rows" | head -n 200)"
 fi
+
+# Board rows first — they already carry the Status — then any labelled issue the board is missing.
+# First occurrence of an issue number wins, so an issue in both lists is walked exactly once.
+walk_rows="$( { printf '%s\n' "$board" | awk -F"$US" 'BEGIN{OFS=FS} $2=="OPEN" {print $1,$4,$5,$6,$7,$8,$9}'
+                printf '%s\n' "$issues_rows"; } | awk -F"$US" '$1 != "" && !seen[$1]++')"
+
 approval_backlog=0
-while IFS=$'\x1f' read -r num created_epoch updated_epoch needs_vouch sk_label state_label; do
+while IFS="$US" read -r num created_epoch updated_epoch needs_vouch sk_label state_label is_bug; do
   [ -n "$num" ] || continue
   status="$(board_status_of "$num")"
+
+  # SKIP/FLAG: this board does not own the issue. An item filed on the wrong board is a leftover —
+  # #819 sat on the Feature board at "Blocked (external)" while the Bug board had it at "Awaiting
+  # functional acceptance", and neither sweep could see the disagreement. Caught here because, with
+  # the walk now driven by membership, it would otherwise fall through and be reported as un-routed
+  # — "the agent likely never ran", when the real fault is where it is filed. If it is not on this
+  # board either, stay quiet: the other pipeline's sweep owns it.
+  if ! belongs_here "$is_bug"; then
+    if on_board "$num"; then
+      add_ex "🧭 #${num} sits on this board but its labels route it to the other one (\`bug\` → Bug Pipeline, otherwise → Feature Pipeline) — remove the stale board item, or fix the labels."
+    fi
+    continue
+  fi
 
   # An external request nobody has accepted yet. Do NOT heal it onto the board: it has no requestor
   # of record, so parking it at "Awaiting requestor" would read as "waiting on the reporter" when
@@ -220,7 +284,7 @@ while IFS=$'\x1f' read -r num created_epoch updated_epoch needs_vouch sk_label s
       [ -z "$open_pr" ] && add_ex "🧟 #${num} still claims \`${sk_label}\` with no open PR — that box is probably holding a stale env. Release it, or drop the label if it already was."
     fi
   fi
-done < <(printf '%s\n' "$issues_rows")
+done < <(printf '%s\n' "$walk_rows")
 
 [ "$approval_backlog" -gt 0 ] && add_ex "🚦 ${approval_backlog} issue(s) waiting in **Awaiting approval** — the Product board's value gate."
 
@@ -228,7 +292,7 @@ done < <(printf '%s\n' "$issues_rows")
 # "Out of pipeline" is NOT terminal here, deliberately: an issue that left the pipeline and has since
 # been closed still has to be walked over to Done, and this line is the only reminder that it is
 # sitting there. Done is the single resting state on the board.
-while IFS=$'\t' read -r num istate status; do
+while IFS="$US" read -r num istate status _rest; do
   [ "$istate" = "CLOSED" ] || continue
   case "$status" in ""|"Done") : ;; *) add_ex "🔚 #${num} is CLOSED but still on the board as **${status}** — move it to Done or off the board." ;; esac
 done < <(printf '%s\n' "$board")
@@ -262,24 +326,51 @@ done
 health_num="$(gh issue list --repo "$OWNER/$REPO" --state all --limit 100 \
   --json number,title --jq "[.[] | select(.title==\"$HEALTH_TITLE\") | .number][0] // empty")"
 
+# WHICH exceptions are open, independent of how they are worded. Sorted, so a reordering is not
+# "news". Carried in the body as an HTML comment (invisible when rendered) so the next sweep can read
+# back what the last one found without a second store. This is what lets the report notify on CHANGE
+# rather than on schedule: the body is refreshed every sweep — editing it does not notify — but a
+# comment, which does, is only posted when this string differs from last time. A standing backlog
+# then costs one notification instead of one per hour, which is the whole complaint.
+fingerprint="$(printf '%s' "$ex_keys" | grep . | LC_ALL=C sort | tr '\n' ' ' || true)"
+fingerprint="${fingerprint% }"
+
 stamp="$(date -u +'%Y-%m-%d %H:%M UTC')"
 if [ -z "$exceptions" ]; then
   body="_Last swept ${stamp}: ✅ pipeline healthy — nothing stuck or drifted._"
 else
-  body="$(printf '_Last swept %s — %s item(s) need attention:_\n\n%s' "$stamp" "$(printf '%s' "$exceptions" | grep -c '^- ')" "$exceptions")"
+  body="$(printf '_Last swept %s — %s item(s) need attention:_\n\n%s\n<!-- dor-fingerprint: %s -->' \
+    "$stamp" "$(printf '%s' "$exceptions" | grep -c '^- ')" "$exceptions" "$fingerprint")"
 fi
 
 if [ -n "$health_num" ]; then
+  # What did the last sweep leave behind? Its state decides whether we have to reopen; its
+  # fingerprint decides whether any of this is news. GitHub stores bodies with CRLF, so strip the
+  # carriage returns before matching the line.
+  prev="$(gh issue view "$health_num" --repo "$OWNER/$REPO" --json state,body \
+    --jq '.state + "'"$US"'" + (.body // "")' 2>/dev/null || true)"
+  prev_state="${prev%%"$US"*}"
+  prev_fp="$(printf '%s' "${prev#*"$US"}" | tr -d '\r' \
+    | sed -n 's/^<!-- dor-fingerprint: \(.*\) -->$/\1/p' | head -n 1 || true)"
+
   gh issue edit "$health_num" --repo "$OWNER/$REPO" --body "$body" >/dev/null
   if [ -n "$exceptions" ]; then
-    # Something to act on — surface it (reopen if closed, comment so it hits notifications).
-    gh issue reopen "$health_num" --repo "$OWNER/$REPO" >/dev/null 2>&1 || true
-    gh issue comment "$health_num" --repo "$OWNER/$REPO" --body "$body" >/dev/null
+    # Something to act on — surface it. A closed health issue is out of sight, so reopening always
+    # warrants the comment that goes with it.
+    if [ "$prev_state" = "CLOSED" ]; then
+      gh issue reopen "$health_num" --repo "$OWNER/$REPO" >/dev/null 2>&1 || true
+    fi
+    if [ "$prev_state" = "CLOSED" ] || [ "$fingerprint" != "$prev_fp" ]; then
+      gh issue comment "$health_num" --repo "$OWNER/$REPO" --body "$body" >/dev/null
+      echo "::notice::health issue #${health_num}: exception set changed — commented"
+    else
+      echo "::notice::health issue #${health_num}: same exceptions as last sweep — body refreshed silently"
+    fi
   else
     # Healthy — close it so it stays out of the way until the next issue arises.
     gh issue close "$health_num" --repo "$OWNER/$REPO" >/dev/null 2>&1 || true
+    echo "::notice::health issue #${health_num}: healthy — closed"
   fi
-  echo "::notice::updated health issue #${health_num}"
 elif [ -n "$exceptions" ]; then
   # No state:* / enhancement label — this meta issue must not enter the pipeline or the board.
   gh issue create --repo "$OWNER/$REPO" --title "$HEALTH_TITLE" --body "$body" >/dev/null
