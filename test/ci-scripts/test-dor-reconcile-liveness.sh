@@ -318,6 +318,11 @@ assert_contains "a newly stalled issue is commented on once" "COMMENT: issue com
 # functional acceptance". Membership-driven, it must be named as misfiled rather than un-routed.
 out="$(run_sweep "$(scenario "$TMP/wrongboard" 'Blocked (external)' 600 '' '' '' nogate bug)")"
 assert_contains "a bug on the Feature board is called out as misfiled" "🧭 #370" "$out"
+# It must NAME both boards. The sweep runs once per board into a per-board health issue, and neither
+# title says which — "this board" was unresolvable from the reader's position, so the line about #819
+# read as simply wrong to someone looking at the Bug board where it was correctly filed.
+assert_contains "…naming the board it is wrongly on" "is on the **Feature Pipeline** board" "$out"
+assert_contains "…and the board it belongs on" "route it to the **Bug Pipeline**" "$out"
 assert_lacks    "…and is NOT reported as un-routed" "🕳️ #370" "$out"
 
 echo
