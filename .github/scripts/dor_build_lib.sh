@@ -219,8 +219,12 @@ claim_sidekick() {
 # checkout, before any push. (BOARD_TOKEN must carry contents:write.)
 use_bot_remote() {
   git -C "$WORK" config --local --unset-all 'http.https://github.com/.extraheader' 2>/dev/null || true
-  git -C "$WORK" remote set-url origin "https://x-access-token:${BOARD_TOKEN}@github.com/${REPO}.git"
+  git -C "$WORK" remote set-url origin "$(app_remote_url)"
 }
+
+# The app-authenticated remote URL. Factored out so use_bot_remote, push_as_app's lease resolution
+# and the tests all reach the same string instead of rebuilding it.
+app_remote_url() { printf '%s' "https://x-access-token:${BOARD_TOKEN}@github.com/${REPO}.git"; }
 
 # Push as the app WITHOUT depending on which credential git decides to prefer.
 #
@@ -233,9 +237,37 @@ use_bot_remote() {
 #
 # Passing the URL to `git push` directly removes the question: the token on the command line is the
 # one used. Args after the URL are forwarded, so callers keep their own refspec and flags.
+#
+# A BARE `--force-with-lease` cannot survive that choice. It resolves its expected value from the
+# remote-TRACKING ref, and a push to a URL has none — nor does pushing to a URL ever update one. So
+# git rejects it with `! [rejected] HEAD -> <branch> (stale info)` every single time, and it is not a
+# race: the first push of a build only survives because it CREATES the branch, where the expected
+# value is "absent". Every later push targets a branch that now exists. That made the adjustment push
+# (dor_feedback_flow.sh) and verify_loop's CI auto-fix push impossible, and both then bailed the flow
+# to Exceptions — #665 dead-lettered exactly this way.
+#
+# Resolve the lease against the remote itself, which is what the tracking ref would have stood in
+# for. The window it guards shrinks to ls-remote → push; that is the honest guarantee available when
+# pushing to a URL, and these branches are held by one reserved sidekick at a time anyway. An
+# explicit `--force-with-lease=<ref>:<sha>` from a caller is passed through untouched.
 push_as_app() {  # $@ = refspec + flags
-  local url="https://x-access-token:${BOARD_TOKEN}@github.com/${REPO}.git"
-  git -C "$WORK" push "$url" "$@" 2>&1 | sed "s@${BOARD_TOKEN}@***@g"
+  local url dst="" a sha
+  url="$(app_remote_url)"
+  for a in "$@"; do case "$a" in *:refs/heads/*) dst="${a#*:}" ;; esac; done
+
+  local -a args=()
+  for a in "$@"; do
+    if [ "$a" = "--force-with-lease" ] && [ -n "$dst" ]; then
+      sha="$(git -C "$WORK" ls-remote "$url" "$dst" 2>/dev/null | awk 'NR==1{print $1}')"
+      # No sha means the branch does not exist yet: this push creates it and there is nothing to
+      # protect. Drop the lease rather than invent an expected value.
+      [ -n "$sha" ] && args+=("--force-with-lease=${dst}:${sha}")
+    else
+      args+=("$a")
+    fi
+  done
+
+  git -C "$WORK" push "$url" "${args[@]}" 2>&1 | sed "s@${BOARD_TOKEN}@***@g"
   return "${PIPESTATUS[0]}"
 }
 
