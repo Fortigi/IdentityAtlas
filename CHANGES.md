@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- The per-file coverage floor can no longer be weakened by accident. Re-baselining after adding tests used to overwrite every floor with whatever the run happened to measure, so a file that came out a point lower — ordinary measurement wobble — quietly had its floor lowered, giving back protection nobody meant to give back. Re-baselining now only ever raises a floor, reports any it declined to lower, and requires an explicit request to lower one.
+
+## Changes in this PR
+
 - The file-length and complexity limits can no longer be relaxed by accident. Re-baselining either of them used to record whatever the current code measured, so a file that had grown past its allowance, or a function that had become harder to follow, was quietly re-accepted at the worse value — the opposite of what a ratchet is for. Both now only ever record an improvement, report anything they refused to accept, and require an explicit request to give ground.
 
 ## Changes in this PR
