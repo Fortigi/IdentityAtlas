@@ -1,5 +1,11 @@
 ## Changes in this PR
 
+- Fixed the DoR pipeline health report claiming that correctly-routed issues were "on the board with no `state:*` label — the agent likely never ran". Any issue that had a routing label but no reserved sidekick was misread as un-routed, which was every routed issue on both boards: all 31 items the two health issues were reporting were false alarms.
+- Restored the health report's drift detection (routing label disagrees with the board's Status column), which had never been able to run for the same reason.
+- The waiting-on-a-human signals — the approval-gate backlog count and the long-stale warnings — now reach the health report; they were being skipped alongside the drift check.
+
+## Changes in this PR
+
 - Two files opened by the complexity gate are now always closed, rather than left to be cleaned up whenever the interpreter happens to get round to it.
 - Removed an unused import from the matrix wizard and an unused import from the complexity gate's tests. No change to behaviour.
 
