@@ -95,3 +95,76 @@ def test_main_check_returns_1_on_regression(tmp_path, monkeypatch, capsys):
     lcov = _write_lcov(tmp_path, "SF:src/a.js\nLF:100\nLH:80\nend_of_record\n")  # 80% < 90
     assert ratchet.main(["--lcov", lcov, "--prefix", "app/api/"]) == 1
     assert "below its baselined floor" in capsys.readouterr().out
+
+
+# ─── --update must ratchet, not re-baseline ──────────────────────────────────
+# It used to write every measured floor unconditionally, so a blanket run after adding tests
+# somewhere also gave back ground wherever a file happened to measure a point lower. That is the
+# opposite of a ratchet, and it contradicted the tool's own "only ever ratchets UP" header.
+def _seed(tmp_path, monkeypatch, files):
+    import json
+    p = tmp_path / "coverage-baseline.json"
+    p.write_text(json.dumps({"files": files}), encoding="utf-8")
+    monkeypatch.setattr(ratchet, "BASELINE", str(p))
+    return p
+
+
+def _floors(path):
+    import json
+    return json.loads(path.read_text(encoding="utf-8"))["files"]
+
+
+def test_update_refuses_to_lower_an_existing_floor(tmp_path, monkeypatch, capsys):
+    p = _seed(tmp_path, monkeypatch, {"app/api/src/a.js": 74})
+    # Measures 73 after the safety margin — one point below the committed floor.
+    lcov = _write_lcov(tmp_path, "SF:src/a.js\nLF:100\nLH:74\nend_of_record\n")
+
+    assert ratchet.main(["--lcov", lcov, "--prefix", "app/api/", "--update"]) == 0
+
+    assert _floors(p)["app/api/src/a.js"] == 74          # held, not re-baselined
+    out = capsys.readouterr().out
+    assert "kept app/api/src/a.js at 74%" in out          # and said so
+    assert "--allow-decrease" in out
+
+
+def test_update_still_raises_a_floor(tmp_path, monkeypatch):
+    p = _seed(tmp_path, monkeypatch, {"app/api/src/a.js": 40})
+    lcov = _write_lcov(tmp_path, "SF:src/a.js\nLF:100\nLH:95\nend_of_record\n")
+
+    assert ratchet.main(["--lcov", lcov, "--prefix", "app/api/", "--update"]) == 0
+    assert _floors(p)["app/api/src/a.js"] == 95 - ratchet.SAFETY_MARGIN
+
+
+def test_update_lowers_only_when_the_decrease_is_asked_for(tmp_path, monkeypatch, capsys):
+    p = _seed(tmp_path, monkeypatch, {"app/api/src/a.js": 74})
+    lcov = _write_lcov(tmp_path, "SF:src/a.js\nLF:100\nLH:60\nend_of_record\n")
+
+    assert ratchet.main(["--lcov", lcov, "--prefix", "app/api/",
+                         "--update", "--allow-decrease"]) == 0
+
+    assert _floors(p)["app/api/src/a.js"] == 60 - ratchet.SAFETY_MARGIN
+    assert "LOWERED app/api/src/a.js: 74% ->" in capsys.readouterr().out
+
+
+def test_allow_decrease_without_update_is_rejected(tmp_path, monkeypatch):
+    import pytest
+    _seed(tmp_path, monkeypatch, {})
+    lcov = _write_lcov(tmp_path, "SF:src/a.js\nLF:100\nLH:60\nend_of_record\n")
+    with pytest.raises(SystemExit):
+        ratchet.main(["--lcov", lcov, "--prefix", "app/api/", "--allow-decrease"])
+
+
+def test_a_blanket_update_locks_in_a_gain_without_giving_ground_elsewhere(tmp_path, monkeypatch):
+    # The real scenario: tests added for b.js, while a.js wobbles a point low in the same run.
+    p = _seed(tmp_path, monkeypatch, {"app/api/src/a.js": 74, "app/api/src/b.js": 0})
+    lcov = _write_lcov(
+        tmp_path,
+        "SF:src/a.js\nLF:100\nLH:74\nend_of_record\n"
+        "SF:src/b.js\nLF:100\nLH:99\nend_of_record\n",
+    )
+
+    assert ratchet.main(["--lcov", lcov, "--prefix", "app/api/", "--update"]) == 0
+
+    floors = _floors(p)
+    assert floors["app/api/src/b.js"] == 99 - ratchet.SAFETY_MARGIN   # gain locked in
+    assert floors["app/api/src/a.js"] == 74                           # ground held
