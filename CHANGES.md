@@ -1,5 +1,10 @@
 ## Changes in this PR
 
+- Documentation links that pointed at files in the repository rather than at pages of the site were silently broken in the published docs. The nine affected links — the migration files and ingest sources referenced by the assignment-model redesign page, and the sidekick provisioning script — now point at the files on GitHub and work.
+- Pull requests that change documentation now build the site with warnings treated as errors, so a broken navigation entry or cross-link is caught before it is merged instead of after it is published.
+
+## Changes in this PR
+
 - Added **DoR state machine & operating procedure** to the docs: all 13 board columns, every transition the automation makes, and which actor owns each one — plus a per-role operating procedure ("the board says X, do Y") for requestors, the Product Board and maintainers, and a guide to what each health-report marker means and who should act on it.
 - Documented the two human gates that bracket the AI (the value gate and the merge review), and the conditions under which a certified bug may skip the value gate.
 - Corrected the operationalisation guide: the old state-machine diagram described a design that was never built and has been replaced with a pointer to the new page; three "not yet done" items that have since shipped are marked done; the board-upkeep, feedback and issue-triage rows now describe what actually happens.
