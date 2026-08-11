@@ -95,6 +95,8 @@ simulate_filter() {
 
     # load_soak scope
     { [[ "$f" =~ ^app/api/src/ ]]                       && load_soak="true"; } || true
+    { [[ "$f" = "app/api/package.json" ]]               && load_soak="true"; } || true
+    { [[ "$f" = "app/api/package-lock.json" ]]          && load_soak="true"; } || true
     { [[ "$f" =~ ^tools/crawlers/shared/ ]]             && load_soak="true"; } || true
     { [[ "$f" =~ ^tools/powershell-sdk/ ]]              && load_soak="true"; } || true
     { [[ "$f" =~ ^tools/crawlers/.*/Start-.*\.ps1$ ]]   && load_soak="true"; } || true
@@ -260,10 +262,9 @@ assert "integration: runs"          "true"  "$integration"
 assert "e2e: runs"                  "true"  "$e2e"
 assert "lint-ps: skips"             "false" "$ps"
 assert "unit-tests (Pester): skips" "false" "$pester"
-# Deliberately NOT in scope: load/soak answers a performance question, not "does this tree still
-# work", and it is the heaviest job in CI. The `load-soak` label opts a dependency bump in when the
-# change warrants it.
-assert "load-soak: skips"           "false" "$load_soak"
+# A dependency bump can move runtime behaviour as readily as our own code, and load/soak is the
+# only job that would notice. `skip-load-soak` is there for a bump where it is plainly noise.
+assert "load-soak: runs"            "true"  "$load_soak"
 
 echo ""
 echo "── Scenario: one side's lockfile must not wake the other side"

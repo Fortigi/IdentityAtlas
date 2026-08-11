@@ -1,0 +1,1 @@
+- Dependency updates now also run the load and soak tests. A dependency bump can move runtime behaviour as readily as a change to our own code, and this is the only check that would notice; it can still be waived per pull request when it is plainly noise.
