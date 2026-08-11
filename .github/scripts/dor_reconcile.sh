@@ -140,6 +140,17 @@ belongs_here() {  # $1 = "true" when the issue carries the `bug` label
   if [ "$LABEL" = bug ]; then [ "$1" = true ]; else [ "$1" != true ]; fi
 }
 
+# Human names for the two pipelines. Any line that talks about boards has to NAME them: this sweep
+# runs once per board and reports into a per-board health issue, but neither of those titles says
+# which ("DoR pipeline health" is the Feature one). A message that says "this board" is therefore
+# unresolvable from where the reader sits — the 🧭 line about #819 read as plainly wrong to someone
+# looking at the Bug board, where that issue was correctly filed all along.
+if [ "$LABEL" = bug ]; then
+  THIS_BOARD="Bug Pipeline";     OTHER_BOARD="Feature Pipeline"
+else
+  THIS_BOARD="Feature Pipeline"; OTHER_BOARD="Bug Pipeline"
+fi
+
 # Is this board Status one the BUILD side owns? Those phases are tracked on the board alone — the
 # build drops the issue's `state:*` label (dor_build_flow.sh) and never restores it — so a
 # label-less issue sitting in one of them is routed, not forgotten, and must still be liveness-
@@ -196,7 +207,7 @@ while IFS="$US" read -r num created_epoch updated_epoch needs_vouch sk_label sta
   # board either, stay quiet: the other pipeline's sweep owns it.
   if ! belongs_here "$is_bug"; then
     if on_board "$num"; then
-      add_ex "🧭 #${num} sits on this board but its labels route it to the other one (\`bug\` → Bug Pipeline, otherwise → Feature Pipeline) — remove the stale board item, or fix the labels."
+      add_ex "🧭 #${num} is on the **${THIS_BOARD}** board, but its labels route it to the **${OTHER_BOARD}** (\`bug\` → Bug Pipeline, everything else → Feature Pipeline) — remove the stale ${THIS_BOARD} item, then check the ${OTHER_BOARD} has it. Or fix the labels."
     fi
     continue
   fi
