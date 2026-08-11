@@ -66,3 +66,44 @@ if __name__ == "__main__":
         t()
         print(f"ok  {t.__name__}")
     print(f"\n{len(tests)} passed")
+
+
+# ─── --update must ratchet, not re-baseline ──────────────────────────────────
+# It used to write the current over-ceiling map verbatim, so a grandfathered file that GREW — or a
+# brand-new oversized file — was silently re-baselined at the worse value, which is the opposite of
+# the header's "only ever ratchets DOWN".
+def test_update_merge_records_a_shrink():
+    merged, shrunk, dropped, held = ratchet.merge_baseline({"a.js": 1100}, {"a.js": 1200})
+    assert merged == {"a.js": 1100}
+    assert (shrunk, dropped, held) == (1, 0, [])
+
+
+def test_update_merge_refuses_to_raise_a_grandfathered_ceiling():
+    merged, shrunk, dropped, held = ratchet.merge_baseline({"a.js": 1300}, {"a.js": 1200})
+    assert merged == {"a.js": 1200}          # held, not re-baselined
+    assert held == [("a.js", 1200, 1300)]
+
+
+def test_update_merge_refuses_to_grandfather_a_new_oversized_file():
+    merged, _, _, held = ratchet.merge_baseline({"new.js": 1400}, {})
+    assert merged == {}
+    assert held == [("new.js", None, 1400)]
+
+
+def test_update_merge_drops_a_file_back_under_the_ceiling():
+    merged, _, dropped, _ = ratchet.merge_baseline({}, {"a.js": 1200})
+    assert merged == {} and dropped == 1
+
+
+def test_update_merge_takes_the_gain_and_holds_the_ground_in_one_run():
+    merged, shrunk, _, held = ratchet.merge_baseline(
+        {"shrank.js": 1100, "grew.js": 1300}, {"shrank.js": 1200, "grew.js": 1250})
+    assert merged == {"shrank.js": 1100, "grew.js": 1250}
+    assert shrunk == 1 and held == [("grew.js", 1250, 1300)]
+
+
+def test_update_merge_allows_an_explicit_increase():
+    merged, _, _, held = ratchet.merge_baseline(
+        {"a.js": 1300, "new.js": 1400}, {"a.js": 1200}, allow_increase=True)
+    assert merged == {"a.js": 1300, "new.js": 1400}
+    assert held == []
