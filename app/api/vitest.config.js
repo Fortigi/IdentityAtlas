@@ -29,7 +29,9 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text', 'lcov'],
       include: ['src/**/*.js'],
-      exclude: ['src/**/*.test.js', 'src/index.js'],
+      // src/**/__mocks__/** is test infrastructure (vitest manual mocks), not
+      // product code — keep it out of the coverage numbers.
+      exclude: ['src/**/*.test.js', 'src/**/__mocks__/**', 'src/index.js'],
       // Coverage ratchet: a committed FLOOR that `npm run test:coverage` (run in
       // the PR Checks job) enforces — a change that drops unit coverage below
       // these fails CI. Set just under the current numbers so normal variance

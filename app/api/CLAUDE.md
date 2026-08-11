@@ -39,6 +39,23 @@ cd app/api && npm rebuild re2
 
 Run it once after `npm install` (and again after any `npm install` that repopulates `node_modules`). CI and Docker are unaffected — they install and run on Linux.
 
+## Route Unit Tests — use the shared mocks
+
+Two shared pieces, so a route test is only its own cases:
+
+- `test-utils/routeTestKit.js` — `mountRouter(router)` builds the express app.
+- `src/db/__mocks__/connection.js` — the **manual mock** for `db/connection.js`. Vitest hoists `vi.mock(...)` above the imports, so a mock factory can't reference a helper's exports; a sibling `__mocks__/` module sidesteps that. Don't write an inline `vi.mock('../db/connection.js', () => ({...}))` factory — that boilerplate was the largest jscpd clone family in the suite. Instead:
+
+```js
+vi.mock('../db/connection.js');                        // picks up src/db/__mocks__/connection.js
+import { query, queryOne } from '../db/connection.js'; // the mocked spies
+beforeEach(() => { query.mockReset(); queryOne.mockReset(); });
+```
+
+The mock exports the whole surface (`query`, `queryOne`, `tx`, `getPool`, `closePool`, default), with `tx` and `getPool` routing back through the `query` spy so transaction/pool queries stage the same way. Reset only the spies you stage — resetting `tx`/`getPool` drops that forwarding. `src/db/connectionMock.test.js` pins the surface and ratchets the count of remaining inline factories downward.
+
+**These mocks are SQL-blind** — they return scripted recordsets without parsing the SQL string, so a green unit test says nothing about whether the query is valid. Contract tests (below) remain the only guard for SQL correctness.
+
 ## Database Schema
 
 **Never modify the schema manually.** All schema changes go through versioned migration files in `app/api/src/db/migrations/`. The web container applies them automatically at startup.

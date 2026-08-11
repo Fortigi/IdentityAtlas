@@ -11,13 +11,8 @@ process.env.USE_SQL = 'true';
 
 // All tag handlers use native db.query / db.queryOne now (#663 removed the shim).
 // getPool() is only handed to the mocked ensureTagTables / column-cache helpers.
-const query = vi.fn();
-const queryOne = vi.fn();
-vi.mock('../db/connection.js', () => ({
-  getPool: async () => ({}),
-  query: (...a) => query(...a),
-  queryOne: (...a) => queryOne(...a),
-}));
+vi.mock('../db/connection.js');   // picks up src/db/__mocks__/connection.js
+import { query, queryOne } from '../db/connection.js';
 vi.mock('../middleware/auth.js', () => ({ requirePermission: () => (_q, _s, next) => next() }));
 vi.mock('../db/columnCache.js', () => ({
   getGroupColumns: vi.fn(async () => []), getResourceColumns: vi.fn(async () => []),

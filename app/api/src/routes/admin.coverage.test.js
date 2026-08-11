@@ -10,18 +10,11 @@ import { mountRouter } from '../../test-utils/routeTestKit.js';
 
 process.env.USE_SQL = 'true';
 
-const query = vi.fn();
-const queryOne = vi.fn();
-
 // admin handlers use native db.query / db.queryOne (the mssql compat shim was
 // removed in #663). getPool() is still awaited by the table-existence + ensure*
 // helpers, but it's no longer used as an mssql-style request builder.
-vi.mock('../db/connection.js', () => ({
-  query: (...a) => query(...a),
-  queryOne: (...a) => queryOne(...a),
-  getPool: async () => ({}),
-  default: {},
-}));
+vi.mock('../db/connection.js');   // picks up src/db/__mocks__/connection.js
+import { query, queryOne } from '../db/connection.js';
 vi.mock('../middleware/auth.js', () => ({ requirePermission: () => (_q, _s, next) => next() }));
 vi.mock('../config/authConfig.js', () => ({
   getAuthState: () => ({

@@ -7,9 +7,8 @@ import { mountRouter } from '../../test-utils/routeTestKit.js';
 
 process.env.USE_SQL = 'true';
 
-const query = vi.fn();
-const queryOne = vi.fn();
-vi.mock('../db/connection.js', () => ({ query: (...a) => query(...a), queryOne: (...a) => queryOne(...a) }));
+vi.mock('../db/connection.js');   // picks up src/db/__mocks__/connection.js
+import { query, queryOne } from '../db/connection.js';
 vi.mock('../middleware/auth.js', () => ({ requirePermission: () => (_q, _s, next) => next() }));
 vi.mock('../llm/service.js', () => ({ chatWithSavedConfig: vi.fn(), isLLMConfigured: vi.fn(), getLLMConfig: vi.fn() }));
 vi.mock('../llm/scraper.js', () => ({ scrapeAll: vi.fn(), buildLLMContextFromScrapes: vi.fn() }));
