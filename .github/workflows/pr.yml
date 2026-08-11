@@ -876,6 +876,7 @@ jobs:
           bash test/ci-scripts/test-commit-range.sh
           bash test/ci-scripts/test-dor-gate-notice.sh
           bash test/ci-scripts/test-dor-reconcile-liveness.sh
+          bash test/ci-scripts/test-dor-push-lease.sh
 
   # ── Stage 15: Docs site build (strict) ────────────────────────────────────
   # `docs.yml` publishes the site, but it only runs on push to main — so until
