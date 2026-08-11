@@ -1,5 +1,12 @@
 ## Changes in this PR
 
+- Two checks that were named as gates but blocked nothing now genuinely gate a pull request: the migration-immutability check (never edit an applied migration) and the Node-version consistency check. Both previously ran as their own workflows that no branch protection rule required, so a pull request could go red on either and still merge.
+- PowerShell mutation testing no longer runs on pull requests. It is far heavier than the unit suite and could never have been enforced there, so on a pull request it only ever looked like a gate; it keeps running weekly and on demand, where it still fails below its score floor.
+- The changed-line coverage report is now documented as advisory rather than blocking, which is what it has always been. Making it blocking has to wait for the known blind spot on pure-JSX page views to be fixed, or ordinary UI work would be blocked on lines no test can reach.
+- Added a check that keeps all of this honest: it fails if any job stops feeding the single required check, or if a new workflow starts running on pull requests without a decision recorded about whether it gates.
+
+## Changes in this PR
+
 - Fixed the autonomous builder being unable to push anything after its first commit. Asking a built feature for a change ("/rework") always failed and dead-lettered the issue, and the builder's own attempt to fix a failing CI check could never land either — both bailed with a push rejection. Only the very first push of a build had ever worked, because that one creates the branch; every push after it was rejected outright.
 
 ## Changes in this PR
