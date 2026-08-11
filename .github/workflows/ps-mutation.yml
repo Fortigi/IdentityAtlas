@@ -5,16 +5,16 @@
 #
 # ENFORCED (.ci/psmutant.config.json has thresholds.break = 80): the run FAILS when
 # the mutation score drops below the floor — PSMutant returns a non-zero exit code,
-# which the step below rethrows. PR runs gate but never commit; weekly/on-demand runs
-# gate AND publish the score. Mutation is heavier than unit tests, so it runs weekly,
-# on demand, and on PRs that touch the mutated transforms (not every PR).
+# which the step below rethrows. Mutation is far heavier than the unit suite, so it
+# runs WEEKLY and on demand only — never on a pull request. A regression is caught by
+# the Monday run, not at review time; that is the deliberate trade for the runtime.
 #
 # Because it's the ONLY place mutation runs, the weekly/on-demand run also owns the
 # mutation figure on the Test Coverage docs page: it writes the score to
 # docs/coverage/powershell/mutation.json, re-renders docs/reference/coverage.md from
 # the already-committed coverage summaries (tools/generate-coverage-doc.py), and
 # commits both back to main. coverage.yml (every merge) just reads that file back —
-# it never runs mutation itself. PR runs gate but do not commit. Same
+# it never runs mutation itself. Same
 # protected-main push mechanics as coverage.yml / sbom-update.yml: the GitHub App
 # token is required (GITHUB_TOKEN can't bypass branch protection) and the push
 # rebases-and-retries to absorb a concurrent commit.
@@ -25,13 +25,10 @@ on:
   schedule:
     - cron: '0 3 * * 1' # Weekly, Monday 03:00 UTC
   workflow_dispatch:
-  pull_request:
-    branches: [main]
-    paths:
-      - 'tools/crawlers/**/*.Transform.ps1'
-      - 'test/unit/*CrawlerTransform.Tests.ps1'
-      - '.ci/psmutant.config.json'
-      - '.github/workflows/ps-mutation.yml'
+  # Deliberately NOT on pull_request. Mutation testing is far heavier than the
+  # unit suite, and a path-filtered PR workflow can never be a required check
+  # anyway (GitHub leaves a required check that never reports permanently
+  # pending), so on PRs it only ever looked like a gate. Weekly and on demand.
 
 concurrency:
   group: ps-mutation-${{ github.ref }}
@@ -45,11 +42,10 @@ jobs:
     name: Mutation testing (PSMutant)
     runs-on: ubuntu-latest
     steps:
-      # Bot token only for the publishing (non-PR) runs — PR runs gate on the
-      # score but never push, so they do not need it.
+      # Every run publishes, so the bot token is always needed: GITHUB_TOKEN
+      # cannot push to protected main.
       - name: Generate bot token
         id: bot-token
-        if: github.event_name != 'pull_request'
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         with:
           client-id: ${{ secrets.BOT_APP_ID }}
@@ -57,9 +53,9 @@ jobs:
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # PR: the PR merge ref (score the proposed code). Otherwise: main HEAD,
-          # checked out with the bot token so the publish step can push back.
-          ref: ${{ github.event_name == 'pull_request' && github.ref || 'main' }}
+          # Always main HEAD, checked out with the bot token so the publish step
+          # can push the refreshed score back.
+          ref: main
           token: ${{ steps.bot-token.outputs.token || github.token }}
 
       - name: Install pinned Pester + PSMutant
@@ -89,7 +85,6 @@ jobs:
       # the fresh mutation.json, so line/complexity numbers are preserved as-of the
       # last coverage.yml run and only the mutation column moves.
       - name: Publish mutation score to the coverage docs
-        if: github.event_name != 'pull_request'
         env:
           GITHUB_SHA: ${{ github.sha }}
         run: |
