@@ -1,0 +1,2 @@
+- Documentation links that pointed at files in the repository rather than at pages of the site were silently broken in the published docs. The nine affected links — the migration files and ingest sources referenced by the assignment-model redesign page, and the sidekick provisioning script — now point at the files on GitHub and work.
+- Pull requests that change documentation now build the site with warnings treated as errors, so a broken navigation entry or cross-link is caught before it is merged instead of after it is published.
