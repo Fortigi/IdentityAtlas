@@ -11,7 +11,7 @@
 //      files with different mock shapes (out of scope for #665), so this is a
 //      RATCHET, not a ban: the count may only go down.
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { readFileSync, readdirSync, statSync } from 'fs';
 import { join, dirname, relative } from 'path';
 import { fileURLToPath } from 'url';
