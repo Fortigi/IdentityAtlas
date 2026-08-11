@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- The file-length and complexity limits can no longer be relaxed by accident. Re-baselining either of them used to record whatever the current code measured, so a file that had grown past its allowance, or a function that had become harder to follow, was quietly re-accepted at the worse value — the opposite of what a ratchet is for. Both now only ever record an improvement, report anything they refused to accept, and require an explicit request to give ground.
+
+## Changes in this PR
+
 - Six page views that had no automated test at all are now covered: the Resources, Identities and Principals list pages, and the Resource, Principal and Access Package detail pages. Between them they went from nothing to 90–99% line coverage, which raises the interface's overall coverage and means a regression in any of them is caught before it ships rather than after.
 - Along the way this corrects a mistaken belief recorded in the contributor guide — that these views could not be measured at all. They can; they simply had nothing exercising them, and in one case a test that read the file as text and never ran it. The one genuine exception, the application shell itself, is now named as such instead of standing for a whole class of pages.
 
