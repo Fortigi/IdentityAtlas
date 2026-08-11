@@ -57,6 +57,7 @@ export default function ContextListView({ nodes, onOpenDetail }) {
         />
         <span className="text-xs text-gray-500">{sorted.length} / {flat.length} nodes</span>
       </div>
+      <div className="overflow-x-auto">
       <table className="w-full text-xs">
         <thead>
           <tr className="text-left border-b border-gray-200 bg-gray-50">
@@ -95,6 +96,7 @@ export default function ContextListView({ nodes, onOpenDetail }) {
           })}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }

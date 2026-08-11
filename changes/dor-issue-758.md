@@ -1,0 +1,1 @@
+- Data tables now scroll horizontally instead of crushing their columns on narrow screens.

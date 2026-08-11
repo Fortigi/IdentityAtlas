@@ -120,6 +120,25 @@ describe('EntityListPage pagination', () => {
   });
 });
 
+describe('EntityListPage table wrapper (#758)', () => {
+  it('wraps the table in a horizontally-scrolling container, not overflow-hidden', async () => {
+    const af = makeAuthFetch((url) => {
+      const s = String(url);
+      if (s.includes(COLUMNS)) return [];
+      if (s.includes('/api/tags')) return [];
+      if (s.includes(LIST)) return { data: [{ id: '1', displayName: 'Bob' }], total: 1 };
+      return undefined;
+    });
+
+    const { container } = renderPage(af);
+    await screen.findByText('Bob');
+
+    const wrapper = container.querySelector('table').closest('.overflow-x-auto');
+    expect(wrapper).toBeTruthy();
+    expect(wrapper.className).not.toMatch(/overflow-hidden/);
+  });
+});
+
 describe('EntityListPage error state (audit H6)', () => {
   it('shows a distinct error panel (not the empty state) when the list fetch fails, and recovers on Retry', async () => {
     let listCalls = 0;

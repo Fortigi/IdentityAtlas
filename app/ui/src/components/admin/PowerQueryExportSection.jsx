@@ -176,45 +176,47 @@ export default function PowerQueryExportSection() {
           ) : tokens.length === 0 ? (
             <p className="text-gray-500 dark:text-gray-400 text-xs">No tokens issued yet.</p>
           ) : (
-            <table className="w-full text-xs border border-gray-200 dark:border-gray-700 rounded overflow-hidden">
-              <thead className="bg-gray-50 dark:bg-gray-700/50">
-                <tr className="text-left">
-                  <th className="px-2 py-1 font-medium text-gray-700 dark:text-gray-300">Name</th>
-                  <th className="px-2 py-1 font-medium text-gray-700 dark:text-gray-300">Prefix</th>
-                  <th className="px-2 py-1 font-medium text-gray-700 dark:text-gray-300">Created</th>
-                  <th className="px-2 py-1 font-medium text-gray-700 dark:text-gray-300">Last used</th>
-                  <th className="px-2 py-1 font-medium text-gray-700 dark:text-gray-300">Status</th>
-                  <th className="px-2 py-1"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {tokens.map(t => (
-                  <tr key={t.id} className="border-t border-gray-100 dark:border-gray-700">
-                    <td className="px-2 py-1 text-gray-900 dark:text-gray-200">{t.name}</td>
-                    <td className="px-2 py-1 font-mono text-gray-600 dark:text-gray-400">{t.tokenPrefix}…</td>
-                    <td className="px-2 py-1 text-gray-600 dark:text-gray-400">{fmtDate(t.createdAt)}</td>
-                    <td className="px-2 py-1 text-gray-600 dark:text-gray-400">{fmtDate(t.lastUsedAt)}</td>
-                    <td className="px-2 py-1">
-                      {t.revoked
-                        ? <span className="px-1.5 py-0.5 rounded text-[10px] bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300">Revoked</span>
-                        : t.expiresAt && new Date(t.expiresAt) < new Date()
-                          ? <span className="px-1.5 py-0.5 rounded text-[10px] bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300">Expired</span>
-                          : <span className="px-1.5 py-0.5 rounded text-[10px] bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300">Active</span>}
-                    </td>
-                    <td className="px-2 py-1 text-right">
-                      {!t.revoked && (
-                        <button
-                          onClick={() => revoke(t.id)}
-                          className="px-2 py-0.5 rounded text-[11px] text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 border border-red-200 dark:border-red-700"
-                        >
-                          Revoke
-                        </button>
-                      )}
-                    </td>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs border border-gray-200 dark:border-gray-700 rounded overflow-hidden">
+                <thead className="bg-gray-50 dark:bg-gray-700/50">
+                  <tr className="text-left">
+                    <th className="px-2 py-1 font-medium text-gray-700 dark:text-gray-300">Name</th>
+                    <th className="px-2 py-1 font-medium text-gray-700 dark:text-gray-300">Prefix</th>
+                    <th className="px-2 py-1 font-medium text-gray-700 dark:text-gray-300">Created</th>
+                    <th className="px-2 py-1 font-medium text-gray-700 dark:text-gray-300">Last used</th>
+                    <th className="px-2 py-1 font-medium text-gray-700 dark:text-gray-300">Status</th>
+                    <th className="px-2 py-1"></th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {tokens.map(t => (
+                    <tr key={t.id} className="border-t border-gray-100 dark:border-gray-700">
+                      <td className="px-2 py-1 text-gray-900 dark:text-gray-200">{t.name}</td>
+                      <td className="px-2 py-1 font-mono text-gray-600 dark:text-gray-400">{t.tokenPrefix}…</td>
+                      <td className="px-2 py-1 text-gray-600 dark:text-gray-400">{fmtDate(t.createdAt)}</td>
+                      <td className="px-2 py-1 text-gray-600 dark:text-gray-400">{fmtDate(t.lastUsedAt)}</td>
+                      <td className="px-2 py-1">
+                        {t.revoked
+                          ? <span className="px-1.5 py-0.5 rounded text-[10px] bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300">Revoked</span>
+                          : t.expiresAt && new Date(t.expiresAt) < new Date()
+                            ? <span className="px-1.5 py-0.5 rounded text-[10px] bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300">Expired</span>
+                            : <span className="px-1.5 py-0.5 rounded text-[10px] bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300">Active</span>}
+                      </td>
+                      <td className="px-2 py-1 text-right">
+                        {!t.revoked && (
+                          <button
+                            onClick={() => revoke(t.id)}
+                            className="px-2 py-0.5 rounded text-[11px] text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 border border-red-200 dark:border-red-700"
+                          >
+                            Revoke
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
       </div>

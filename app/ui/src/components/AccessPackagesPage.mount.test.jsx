@@ -91,6 +91,15 @@ describe('AccessPackagesPage (mounted)', () => {
     expect(screen.getByText('Auto')).toBeInTheDocument();
   });
 
+  it('wraps the table in a horizontally-scrolling container, not overflow-hidden', async () => {
+    const { container } = renderWithProviders(h(AccessPackagesPage), { auth: { authFetch: routes() } });
+    await screen.findByText('Payroll Access');
+
+    const wrapper = container.querySelector('table').closest('.overflow-x-auto');
+    expect(wrapper).toBeTruthy();
+    expect(wrapper.className).not.toMatch(/overflow-hidden/);
+  });
+
   it('renders the empty state when no packages are returned', async () => {
     renderWithProviders(h(AccessPackagesPage), {
       auth: { authFetch: routes({ '/api/access-packages': { data: [], total: 0 } }) },

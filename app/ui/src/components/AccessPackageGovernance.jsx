@@ -77,21 +77,23 @@ function ReviewInstance({ instance }) {
         <span className="text-xs text-gray-500 dark:text-gray-400 shrink-0">{reviewed}/{instance.decisions.length} decided</span>
       </button>
       {open && (
-        <table className="w-full text-sm">
-          <tbody>
-            {instance.decisions.map(d => (
-              <tr key={d.id} className="border-t border-gray-50 dark:border-gray-700/50">
-                <td className="px-4 py-1.5 align-top text-gray-900 dark:text-gray-100">{d.principalDisplayName || '—'}</td>
-                <td className="px-2 py-1.5 align-top whitespace-nowrap">
-                  {d.decision && <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${DECISION_STYLE[d.decision] || DECISION_STYLE.NotReviewed}`}>{d.decision}</span>}
-                </td>
-                <td className="px-4 py-1.5 align-top text-xs text-gray-500 dark:text-gray-400">
-                  {d.reviewedByDisplayName ? `by ${d.reviewedByDisplayName}` : ''}{d.reviewedDateTime ? ` · ${formatDateOnly(d.reviewedDateTime)}` : ''}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <tbody>
+              {instance.decisions.map(d => (
+                <tr key={d.id} className="border-t border-gray-50 dark:border-gray-700/50">
+                  <td className="px-4 py-1.5 align-top text-gray-900 dark:text-gray-100">{d.principalDisplayName || '—'}</td>
+                  <td className="px-2 py-1.5 align-top whitespace-nowrap">
+                    {d.decision && <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${DECISION_STYLE[d.decision] || DECISION_STYLE.NotReviewed}`}>{d.decision}</span>}
+                  </td>
+                  <td className="px-4 py-1.5 align-top text-xs text-gray-500 dark:text-gray-400">
+                    {d.reviewedByDisplayName ? `by ${d.reviewedByDisplayName}` : ''}{d.reviewedDateTime ? ` · ${formatDateOnly(d.reviewedDateTime)}` : ''}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );
