@@ -27,7 +27,7 @@
     
     
       
-        <title>Autonomous bug pipeline (proposal) - Identity Atlas</title>
+        <title>Autonomous bug pipeline (partly built) - Identity Atlas</title>
       
     
     
@@ -113,7 +113,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Autonomous bug pipeline (proposal)
+              Autonomous bug pipeline (partly built)
             
           </span>
         </div>
@@ -3478,6 +3478,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../dor-state-machine/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    DoR state machine & operating procedure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../operationalization/" class="md-nav__link">
         
   
@@ -3550,7 +3578,7 @@
   <span class="md-ellipsis">
     
   
-    Autonomous bug pipeline (proposal)
+    Autonomous bug pipeline (partly built)
   
 
     
@@ -3568,7 +3596,7 @@
   <span class="md-ellipsis">
     
   
-    Autonomous bug pipeline (proposal)
+    Autonomous bug pipeline (partly built)
   
 
     
@@ -5048,9 +5076,13 @@
 
 <h1 id="autonomous-bug-pipeline-workflow-definition">Autonomous bug pipeline — workflow definition<a class="headerlink" href="#autonomous-bug-pipeline-workflow-definition" title="Permanent link">&para;</a></h1>
 <blockquote>
-<p><strong>Status: proposal.</strong> Nothing here is built yet. This document is the shared vision we build
-against; it supersedes nothing until it is agreed. The feature pipeline
-(<a href="../operationalization/">operationalization</a>) is unaffected — see <a href="#10-what-this-does-not-change">§10</a>.</p>
+<p><strong>Status: partly built.</strong> This document is the shared vision, written before any of it existed.
+Phases 1–5 of <a href="#12-build-order">§12</a> have since shipped — the bug spec side (<code>dor-bug-agent</code>), the
+repro contract, and the <code>DOR_AUTOBUILD</code> carve-out that lets a certified bug skip the value gate are
+all live. Later phases are still a proposal, and anything here that contradicts
+<a href="../dor-state-machine/">dor-state-machine.md</a> or
+<a href="../operationalization/">operationalization.md</a> is out of date — those describe what runs today.
+The feature pipeline is unaffected — see <a href="#10-what-this-does-not-change">§10</a>.</p>
 </blockquote>
 <p>A reported bug that the DoR probe has <strong>certified</strong> — reproduced against real code, root cause
 pinned, regression test drafted — goes from report to a merge-ready PR <strong>without a human in the
@@ -5564,6 +5596,13 @@ registered runners but absent from the hostname→URL map, so a build landing th
 </ul>
 <hr />
 <h2 id="11-board-and-state-model">11. Board and state model<a class="headerlink" href="#11-board-and-state-model" title="Permanent link">&para;</a></h2>
+<div class="admonition note">
+<p class="admonition-title">This table is the <em>proposed</em> model, not the current one</p>
+<p>The columns as they behave <strong>today</strong> — all 13, on both boards, with the actor who owns each
+transition — are in <a href="../dor-state-machine/">dor-state-machine.md</a>. Nothing below has retired:
+<code>Awaiting approval</code> and <code>Awaiting functional acceptance</code> are both still live and still used by
+bugs. <code>Paused</code> is missing from the table entirely.</p>
+</div>
 <p>The Bug board (org project #3) already carries every Status option needed. Under this design:</p>
 <table>
 <thead>
@@ -5599,11 +5638,10 @@ registered runners but absent from the hostname→URL map, so a build landing th
 </tr>
 </tbody>
 </table>
-<p>Prerequisite, and the reason this cannot ship today: the build side is <strong>Feature-board-only</strong> —
-<code>dor_set_status.sh</code> defaults to project #2 and nine call sites pass no override, so an approved bug
-would be silently added to the Feature board and driven there. Fix by resolving the board from the
-issue's labels inside <code>dor_set_status.sh</code> itself (the picker already exists, copy-pasted, in four
-workflows).</p>
+<p>~~Prerequisite, and the reason this cannot ship today: the build side is <strong>Feature-board-only</strong>~~ —
+<strong>resolved.</strong> <code>dor_set_status.sh</code> now resolves the board from the issue's own labels (<code>bug</code> → Bug
+Pipeline, everything else → Feature Pipeline), at the source, so no call site needs an override. The
+board follows the issue.</p>
 <hr />
 <h2 id="12-build-order">12. Build order<a class="headerlink" href="#12-build-order" title="Permanent link">&para;</a></h2>
 <p>Each phase is independently useful and independently revertible.</p>

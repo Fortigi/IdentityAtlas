@@ -10,13 +10,13 @@
       
       
       
-        <link rel="canonical" href="https://fortigi.github.io/IdentityAtlas/stable/process/definition-of-ready/">
+        <link rel="canonical" href="https://fortigi.github.io/IdentityAtlas/stable/process/dor-state-machine/">
       
       
-        <link rel="prev" href="../../architecture/branching-strategy/">
+        <link rel="prev" href="../definition-of-ready/">
       
       
-        <link rel="next" href="../dor-state-machine/">
+        <link rel="next" href="../operationalization/">
       
       
         
@@ -27,7 +27,7 @@
     
     
       
-        <title>Definition of Ready - Identity Atlas</title>
+        <title>DoR state machine & operating procedure - Identity Atlas</title>
       
     
     
@@ -74,7 +74,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#definition-of-ready-v34-the-ready-to-build-process" class="md-skip">
+        <a href="#dor-state-machine-operating-procedure" class="md-skip">
           Skip to content
         </a>
       
@@ -113,7 +113,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Definition of Ready
+              DoR state machine & operating procedure
             
           </span>
         </div>
@@ -3447,6 +3447,34 @@
                 
   
   
+  
+  
+    <li class="md-nav__item">
+      <a href="../definition-of-ready/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Definition of Ready
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
     
   
   
@@ -3466,7 +3494,7 @@
   <span class="md-ellipsis">
     
   
-    Definition of Ready
+    DoR state machine & operating procedure
   
 
     
@@ -3484,7 +3512,7 @@
   <span class="md-ellipsis">
     
   
-    Definition of Ready
+    DoR state machine & operating procedure
   
 
     
@@ -3510,10 +3538,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#the-process-at-a-glance" class="md-nav__link">
+  <a href="#actors" class="md-nav__link">
     <span class="md-ellipsis">
       
-        The process at a glance
+        Actors
       
     </span>
   </a>
@@ -3521,10 +3549,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#roles-lanes" class="md-nav__link">
+  <a href="#the-columns" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Roles (lanes)
+        The columns
       
     </span>
   </a>
@@ -3532,10 +3560,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#tracking-issue-the-durable-spine" class="md-nav__link">
+  <a href="#default-flow" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Tracking issue — the durable spine
+        Default flow
       
     </span>
   </a>
@@ -3543,10 +3571,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#minimise-human-round-trips-batch-dont-ping-pong" class="md-nav__link">
+  <a href="#every-transition-the-automation-makes" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Minimise human round-trips — batch, don't ping-pong
+        Every transition the automation makes
       
     </span>
   </a>
@@ -3554,98 +3582,99 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#phase-a-intent-interview-generative-one-sitting" class="md-nav__link">
+  <a href="#the-two-gates" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Phase A — Intent interview (GENERATIVE, one sitting)
+        The two gates
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The two gates">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-autonomous-carve-out" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The autonomous carve-out
       
     </span>
   </a>
   
 </li>
+        
+      </ul>
+    </nav>
+  
+</li>
       
         <li class="md-nav__item">
-  <a href="#phase-b-build-readiness-probe-ai-internal-no-human-until-its-exhausted" class="md-nav__link">
+  <a href="#operating-procedure" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Phase B — Build-readiness probe (AI-internal; no human until it's exhausted)
+        Operating procedure
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Operating procedure">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#if-you-are-the-requestor" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        If you are the requestor
       
     </span>
   </a>
   
 </li>
-      
-        <li class="md-nav__item">
-  <a href="#phase-c-consolidated-sign-off-batched-one-packet-if-one-person" class="md-nav__link">
+        
+          <li class="md-nav__item">
+  <a href="#if-you-are-on-the-product-board" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Phase C — Consolidated sign-off (batched; one packet if one person)
+        If you are on the Product Board
       
     </span>
   </a>
   
 </li>
-      
-        <li class="md-nav__item">
-  <a href="#phase-d-build-validate-and-the-feedback-loop-first-class" class="md-nav__link">
+        
+          <li class="md-nav__item">
+  <a href="#if-you-are-a-maintainer" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Phase D — Build, validate, and the feedback loop (first-class)
+        If you are a maintainer
       
     </span>
   </a>
   
 </li>
-      
-        <li class="md-nav__item">
-  <a href="#external-requests-the-vouch" class="md-nav__link">
+        
+          <li class="md-nav__item">
+  <a href="#if-you-are-triaging-a-new-issue" class="md-nav__link">
     <span class="md-ellipsis">
       
-        External requests — the vouch
+        If you are triaging a new issue
       
     </span>
   </a>
   
 </li>
-      
-        <li class="md-nav__item">
-  <a href="#bugs-the-reproduce-first-variant" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Bugs — the reproduce-first variant
-      
-    </span>
-  </a>
+        
+      </ul>
+    </nav>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#appendix-definition-of-done-the-probe-must-design-against" class="md-nav__link">
+  <a href="#the-backstop" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Appendix — Definition of Done the probe must design against
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#the-bar" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        The bar
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#version-history-generalized-lessons" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Version history (generalized lessons)
+        The backstop
       
     </span>
   </a>
@@ -3656,34 +3685,6 @@
   
 </nav>
       
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../dor-state-machine/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    DoR state machine & operating procedure
-  
-
-    
-  </span>
-  
-  
-
-      </a>
     </li>
   
 
@@ -4704,10 +4705,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#the-process-at-a-glance" class="md-nav__link">
+  <a href="#actors" class="md-nav__link">
     <span class="md-ellipsis">
       
-        The process at a glance
+        Actors
       
     </span>
   </a>
@@ -4715,10 +4716,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#roles-lanes" class="md-nav__link">
+  <a href="#the-columns" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Roles (lanes)
+        The columns
       
     </span>
   </a>
@@ -4726,10 +4727,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#tracking-issue-the-durable-spine" class="md-nav__link">
+  <a href="#default-flow" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Tracking issue — the durable spine
+        Default flow
       
     </span>
   </a>
@@ -4737,10 +4738,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#minimise-human-round-trips-batch-dont-ping-pong" class="md-nav__link">
+  <a href="#every-transition-the-automation-makes" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Minimise human round-trips — batch, don't ping-pong
+        Every transition the automation makes
       
     </span>
   </a>
@@ -4748,98 +4749,99 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#phase-a-intent-interview-generative-one-sitting" class="md-nav__link">
+  <a href="#the-two-gates" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Phase A — Intent interview (GENERATIVE, one sitting)
+        The two gates
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The two gates">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-autonomous-carve-out" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The autonomous carve-out
       
     </span>
   </a>
   
 </li>
+        
+      </ul>
+    </nav>
+  
+</li>
       
         <li class="md-nav__item">
-  <a href="#phase-b-build-readiness-probe-ai-internal-no-human-until-its-exhausted" class="md-nav__link">
+  <a href="#operating-procedure" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Phase B — Build-readiness probe (AI-internal; no human until it's exhausted)
+        Operating procedure
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Operating procedure">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#if-you-are-the-requestor" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        If you are the requestor
       
     </span>
   </a>
   
 </li>
-      
-        <li class="md-nav__item">
-  <a href="#phase-c-consolidated-sign-off-batched-one-packet-if-one-person" class="md-nav__link">
+        
+          <li class="md-nav__item">
+  <a href="#if-you-are-on-the-product-board" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Phase C — Consolidated sign-off (batched; one packet if one person)
+        If you are on the Product Board
       
     </span>
   </a>
   
 </li>
-      
-        <li class="md-nav__item">
-  <a href="#phase-d-build-validate-and-the-feedback-loop-first-class" class="md-nav__link">
+        
+          <li class="md-nav__item">
+  <a href="#if-you-are-a-maintainer" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Phase D — Build, validate, and the feedback loop (first-class)
+        If you are a maintainer
       
     </span>
   </a>
   
 </li>
-      
-        <li class="md-nav__item">
-  <a href="#external-requests-the-vouch" class="md-nav__link">
+        
+          <li class="md-nav__item">
+  <a href="#if-you-are-triaging-a-new-issue" class="md-nav__link">
     <span class="md-ellipsis">
       
-        External requests — the vouch
+        If you are triaging a new issue
       
     </span>
   </a>
   
 </li>
-      
-        <li class="md-nav__item">
-  <a href="#bugs-the-reproduce-first-variant" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Bugs — the reproduce-first variant
-      
-    </span>
-  </a>
+        
+      </ul>
+    </nav>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#appendix-definition-of-done-the-probe-must-design-against" class="md-nav__link">
+  <a href="#the-backstop" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Appendix — Definition of Done the probe must design against
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#the-bar" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        The bar
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#version-history-generalized-lessons" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Version history (generalized lessons)
+        The backstop
       
     </span>
   </a>
@@ -4940,238 +4942,538 @@
   
 
 
-<h1 id="definition-of-ready-v34-the-ready-to-build-process">Definition of Ready v3.4 — the "ready-to-build" process<a class="headerlink" href="#definition-of-ready-v34-the-ready-to-build-process" title="Permanent link">&para;</a></h1>
-<p><strong>Purpose.</strong> Produce a spec complete enough that building, testing and documenting run with <strong>zero <em>functional</em> human decisions and zero silent <em>functional</em> assumptions</strong> — while spending the fewest possible <strong>human round-trips</strong>. Non-functional decisions (architecture, design/UX, product fit) are <strong>routed to the role that owns them</strong>, <em>batched</em>, and resolved in as few interactions as possible. <em>Form</em> is expected to need a <strong>feedback loop</strong>. Every feature is tracked by a <strong>GitHub issue</strong> that is its durable spine from intent to close.</p>
-<p><strong>The realistic bar.</strong> "One perfect spec → build once" is reachable for <strong>function</strong>, not <strong>form</strong>. Front-load every <em>functional</em> decision; route every <em>architectural / design / product</em> decision to its owner; keep round-trips minimal; treat post-build feedback as a normal, cheap loop.</p>
+<h1 id="dor-state-machine-operating-procedure">DoR state machine &amp; operating procedure<a class="headerlink" href="#dor-state-machine-operating-procedure" title="Permanent link">&para;</a></h1>
+<p>Who moves an issue, from which column to which, and what to do when it stops moving.</p>
+<p><a href="../definition-of-ready/">definition-of-ready.md</a> describes the <em>process</em> — the questions each phase
+answers and why. <a href="../operationalization/">operationalization.md</a> describes the <em>platform</em> — the
+workflows, tokens and runners. This page is the third thing: the <strong>board columns as a state
+machine</strong>, and the <strong>operating procedure</strong> for each actor.</p>
+<div class="admonition warning">
+<p class="admonition-title">The graph is emergent, not enforced</p>
+<p><code>dor_set_status.sh</code> takes a phase token and writes the column. There is <strong>no from-state check
+anywhere</strong> — nothing rejects an illegal transition, and the board lets you drag a card from Done
+back to Building. Every transition below is one the automation <em>makes</em>, not one the system
+<em>permits</em>.</p>
+<p>The reconcile sweep does not police it either. It flags a <code>state:*</code> label that disagrees with
+its Status column (🔀), but a legal-label / illegal-jump combination is invisible to it. Treat
+this page as the contract the workflows keep with each other — and if you move a card by hand,
+you are the one keeping it.</p>
+</div>
 <hr />
-<h2 id="the-process-at-a-glance">The process at a glance<a class="headerlink" href="#the-process-at-a-glance" title="Permanent link">&para;</a></h2>
-<pre class="mermaid"><code>flowchart TD
-  classDef req fill:#dbeafe,stroke:#3b82f6,color:#0b1f4d
-  classDef ai fill:#ede9fe,stroke:#7c3aed,color:#2a0f52
-  classDef pb fill:#ffe4e6,stroke:#e11d48,color:#4a0a1e
-  classDef term fill:#e5e7eb,stroke:#6b7280,color:#111827
-
-  start(["Requestor: creates issue"]):::req --&gt; look
-  look["AI: looks at the issue — runs the full checklist&lt;br/&gt;INCLUDING the build-readiness probe&lt;br/&gt;(drafts the real implementation vs. the live code/schema)"]:::ai
-  look --&gt; q{"Open items from&lt;br/&gt;checklist + probe?"}:::ai
-
-  q --&gt;|"Question for the requestor"| aw_req["Status: Awaiting requestor&lt;br/&gt;requestor answers in the issue"]:::req
-  q --&gt;|"Question for someone else&lt;br/&gt;(designer / architect / PO)"| aw_des["Status: Awaiting design&lt;br/&gt;the best actor answers in the issue"]:::pb
-  q --&gt;|"Too large"| decomp["Status: Decompose&lt;br/&gt;split into slices (new issues)"]:::term
-  q --&gt;|"Needs tenant / Azure / Excel / infra"| blocked["Status: Blocked (external)&lt;br/&gt;parked until resolved"]:::term
-  q --&gt;|"Not a feature (CI / meta)"| oop["Status: Out of pipeline"]:::term
-
-  aw_req --&gt; look
-  aw_des --&gt; look
-
-  q --&gt;|"None — spec complete and buildable"| ready["AI: Status to Awaiting approval&lt;br/&gt;feature ready for fully autonomous build"]:::ai
-  ready --&gt; gate{"Product Board already&lt;br/&gt;approved this feature?"}:::pb
-  gate --&gt;|"Yes (a later pass)"| build
-  gate --&gt;|"No (first time)"| pbval["Product Board: is this feature&lt;br/&gt;worth building? (value gate)"]:::pb
-  pbval --&gt; pbdec{"Approve?"}:::pb
-  pbdec --&gt;|"No"| closed(["Product Board closes the issue&lt;br/&gt;with an explanation — case closed"]):::term
-  pbdec --&gt;|"Yes"| build
-
-  build["AI: builds and tests (loop),&lt;br/&gt;opens PR + CI green,&lt;br/&gt;deploys a functional test env"]:::ai
-  build --&gt; ftest["Requestor: functional testing&lt;br/&gt;on the test env, updates the issue"]:::req
-  ftest --&gt; happy{"Requestor happy?"}:::req
-  happy --&gt;|"No — findings"| look
-  happy --&gt;|"Yes"| merge{"Product Board:&lt;br/&gt;final go / no-go on merge"}:::pb
-  merge --&gt;|"Needs adjustments"| look
-  merge --&gt;|"Reject"| closed
-  merge --&gt;|"Go"| merged(["Product Board merges the PR to main"]):::pb</code></pre>
-<blockquote>
-<p><strong>Note — flowchart corrected (this is the authoritative process).</strong> It differs from the phase prose further below in two ways that the prose is still being reconciled to: (1) the <strong>Product Board decision sits <em>after</em> the spec is complete</strong> — a value gate on the <strong>first pass only</strong>, not a front-of-line pre-screen (feedback loops skip it); and (2) there is a <strong>final Product-Board go / no-go on merge</strong> (go · needs-adjustments · reject). The build-readiness probe runs <strong>inside</strong> the AI's "looks at the issue" step; its questions must all clear before the Product Board looks.</p>
-</blockquote>
-<h2 id="roles-lanes">Roles (lanes)<a class="headerlink" href="#roles-lanes" title="Permanent link">&para;</a></h2>
-<p>One human may wear several hats. The point is not headcount; it's that <strong>each question is answered by the right <em>hat</em>, a hat with no open question is not consulted, and a hat is touched as few times as possible.</strong></p>
+<h2 id="actors">Actors<a class="headerlink" href="#actors" title="Permanent link">&para;</a></h2>
+<p>Human roles are the lanes from <a href="../definition-of-ready/#roles-lanes">definition-of-ready.md</a>. The
+machine actors are listed with them because on this board they take turns.</p>
 <table>
 <thead>
 <tr>
-<th>Role</th>
+<th>Actor</th>
+<th>Kind</th>
+<th>Moves the board?</th>
 <th>Owns</th>
-<th>Answers questions about</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><strong>Requestor</strong></td>
-<td>Intent + functional decisions; scope; the time-travel success/failure criteria</td>
-<td>what it should do, for whom, how <em>complete/general</em> it should be, "just another attribute vs. a new surface"</td>
+<td><strong>Requestor of record</strong></td>
+<td>human</td>
+<td>no (answers, and accepts)</td>
+<td>Intent, scope, functional acceptance. Normally the issue author; for a vouched external request it is the member who applied <code>dor-vouched</code> (<a href="https://github.com/Fortigi/IdentityAtlas/blob/main/.github/scripts/dor_requestor_of_record.sh"><code>dor_requestor_of_record.sh</code></a>)</td>
+</tr>
+<tr>
+<td><strong>Product Board</strong></td>
+<td>human</td>
+<td>yes — the value gate</td>
+<td>The GO. Required reviewers on the <code>build-approval</code> Environment: the build job <em>pauses</em> until one of them approves</td>
 </tr>
 <tr>
 <td><strong>Architect / tech lead</strong></td>
-<td>Technical approach; coherence of the codebase</td>
-<td>registry vs engine, additive vs mutate-shared-contract, matview vs query-time, migrations</td>
+<td>human</td>
+<td>via labels</td>
+<td>Technical approach; answers a <code>state:awaiting-design</code> question</td>
 </tr>
 <tr>
 <td><strong>Designer</strong></td>
-<td>Form: interaction model, information architecture</td>
-<td>how it looks/feels, integrate with an existing control or stand alone</td>
+<td>human</td>
+<td>via labels</td>
+<td>Form and interaction; the other half of <code>Awaiting design</code></td>
 </tr>
 <tr>
-<td><strong>Product Owner</strong></td>
-<td>Desirability / product coherence — the GO</td>
-<td>does this move the product forward or just add complexity/bloat</td>
+<td><strong>Merge reviewer</strong></td>
+<td>human</td>
+<td>yes — merging is the terminal transition</td>
+<td>Code review. GitHub Actions <strong>cannot</strong> approve a PR (D5), so this is always a person</td>
 </tr>
 <tr>
-<td><strong>Builder (AI)</strong></td>
-<td>Runs Phases A/B, then builds/tests/documents autonomously</td>
+<td><strong>Spec agent</strong></td>
+<td>AI</td>
+<td>yes</td>
+<td><code>dor-agent</code> / <code>dor-bug-agent</code>: interview, probe, and route to exactly one <code>state:*</code></td>
+</tr>
+<tr>
+<td><strong>Build agent</strong></td>
+<td>AI</td>
+<td>yes</td>
+<td><code>dor-build-agent</code>: implement, verify, open the PR</td>
+</tr>
+<tr>
+<td><strong>Deterministic workflows</strong></td>
+<td>machine</td>
+<td>yes</td>
+<td><code>dor-triage</code>, <code>dor-vouch</code>, <code>dor-board-sync</code>, <code>dor-propose-build</code>, <code>dor-deploy</code>, <code>dor-reset</code> — no LLM</td>
+</tr>
+<tr>
+<td><strong>Reconcile sweep</strong></td>
+<td>machine</td>
+<td>almost never</td>
+<td><code>dor-reconcile</code>, hourly. Heals only "open issue missing from the board"; everything else it <em>reports</em></td>
+</tr>
+</tbody>
+</table>
+<p>Everything is inert unless the repository variable <code>DOR_ENABLED</code> is <code>true</code>.</p>
+<p><strong>Authorization.</strong> This is a public repository, and <code>issues</code> / <code>issue_comment</code> events run with secrets
+for <em>any</em> commenter. Every DoR workflow that reacts to those events therefore gates on Fortigi org
+membership first, via <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/.github/actions/dor-authorize/action.yml"><code>.github/actions/dor-authorize</code></a>.
+A non-member's comment is read, and nothing else.</p>
+<hr />
+<h2 id="the-columns">The columns<a class="headerlink" href="#the-columns" title="Permanent link">&para;</a></h2>
+<p>Thirteen. Six belong to the spec side, four to the build side, two are off-path, one is terminal.</p>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Side</th>
+<th>Means</th>
+<th>Who moves it next</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Ready for AI probe</strong></td>
+<td>spec</td>
+<td>A bug, freshly filed, queued for reproduction</td>
+<td>Spec agent</td>
+</tr>
+<tr>
+<td><strong>Awaiting requestor</strong></td>
+<td>spec</td>
+<td>The agent asked a question about intent</td>
+<td>Requestor</td>
+</tr>
+<tr>
+<td><strong>Awaiting design</strong></td>
+<td>spec</td>
+<td>Blocked on approach or form</td>
+<td>Architect / Designer</td>
+</tr>
+<tr>
+<td><strong>Decompose</strong></td>
+<td>spec</td>
+<td>Too big for one build; must be split</td>
+<td>Requestor + Architect</td>
+</tr>
+<tr>
+<td><strong>Awaiting approval</strong></td>
+<td>spec</td>
+<td>Spec certified. <strong>The value gate</strong></td>
+<td>Product Board</td>
+</tr>
+<tr>
+<td><strong>Blocked (external)</strong></td>
+<td>spec</td>
+<td>Waiting on something outside the repo</td>
+<td>Whoever owns the dependency</td>
+</tr>
+<tr>
+<td><strong>Building</strong></td>
+<td>build</td>
+<td>A sidekick is implementing, right now</td>
+<td>Build agent</td>
+</tr>
+<tr>
+<td><strong>Awaiting functional acceptance</strong></td>
+<td>build</td>
+<td>Built and deployed; does it do the job?</td>
+<td>Requestor</td>
+</tr>
+<tr>
+<td><strong>Awaiting merge</strong></td>
+<td>build</td>
+<td>Accepted; needs code review</td>
+<td>Merge reviewer</td>
+</tr>
+<tr>
+<td><strong>Paused</strong></td>
+<td>off-path</td>
+<td>Hit a Claude usage limit; work saved on the branch</td>
+<td><code>dor-resume</code>, automatically</td>
+</tr>
+<tr>
+<td><strong>Exceptions</strong></td>
+<td>off-path</td>
+<td>Dead-letter — broke somewhere in the pipeline</td>
+<td>A maintainer</td>
+</tr>
+<tr>
+<td><strong>Out of pipeline</strong></td>
+<td>off-path</td>
+<td>Not for this process (CI, tooling, docs, meta), or a PR closed unmerged</td>
+<td>Normal dev flow</td>
+</tr>
+<tr>
+<td><strong>Done</strong></td>
+<td>terminal</td>
+<td>PR merged, issue closed</td>
 <td>—</td>
 </tr>
 </tbody>
 </table>
-<h2 id="tracking-issue-the-durable-spine">Tracking issue — the durable spine<a class="headerlink" href="#tracking-issue-the-durable-spine" title="Permanent link">&para;</a></h2>
-<p>Every feature that passes the PO pre-screen gets a <strong>GitHub issue</strong>, created <em>before</em> Phase A and closed <em>after</em> merge + validation. It is the one artifact that outlives the session and the (squash-merged) PR, carries the gate labels, and gives end-to-end traceability. Maintaining it is the <strong>Builder's</strong> job — it adds <strong>no human touchpoints</strong>.</p>
-<ul>
-<li><strong>Created at pre-screen "yes"</strong>, labelled <code>needs-clarification</code>, seeded with the Phase-A intent.</li>
-<li><strong>Body = current-state spec:</strong> pinned scope (A8), time-travel criteria (A7), the <strong>decisions register</strong> (each entry tagged by role, ratify/blocking + how it resolved), the <strong>fixture ACs</strong>, and the form artifact. Updated as Phase B produces them.</li>
-<li><strong>Comments = the trail:</strong> material changes and every feedback-loop iteration ("decisions along the way").</li>
-<li><strong>Labels ride the gates:</strong> <code>needs-clarification</code> → <code>ready-to-build</code> (C1) → <code>approved</code> (C3) → <code>build-done</code> (D1).</li>
-<li><strong>PR references <code>Closes #N</code></strong> so issue ↔ PR link both ways.</li>
-<li><strong>Closed on merge + functional validation</strong>, with an <strong>outcome comment</strong>: what shipped vs. what was consciously de-scoped. The outcome comment is a required closing step, not an afterthought.</li>
-</ul>
-<h2 id="minimise-human-round-trips-batch-dont-ping-pong">Minimise human round-trips — batch, don't ping-pong<a class="headerlink" href="#minimise-human-round-trips-batch-dont-ping-pong" title="Permanent link">&para;</a></h2>
-<ul>
-<li><strong>Efficiency = few round-trips, not few questions.</strong> The discipline limits <em>returns</em> to a human — it does <strong>not</strong> thin the first interview. A <em>complete</em> spec in two touchpoints beats a <em>thin</em> one in two touchpoints.</li>
-<li><strong>Exhaust the AI-resolvable work before touching any human.</strong> The Phase-B probe/adversarial/CI-dry-run loop is AI-internal — never a reason to return to a person.</li>
-<li><strong>Prefer a proposed decision over a question</strong> (bulk-ratify) — <em>except scope-ambition, which is the requestor's to choose (surface it, don't default it away).</em></li>
-<li><strong>Batch by role, ask once</strong>, folding a role's questions into its sign-off. <strong>One person, one packet.</strong></li>
-<li><strong>Target: two human touchpoints</strong> — the Phase-A interview and one consolidated sign-off/GO packet.</li>
-<li><strong>Optionality rule.</strong> Only pose a question to a role that owns it; skip hats with no open question.</li>
-</ul>
+<p><code>Out of pipeline</code> is <strong>not</strong> a resting place for closed work: the reconcile sweep will keep asking you
+to move a closed issue to Done. Done is the only resting state on the board.</p>
 <hr />
-<h2 id="phase-a-intent-interview-generative-one-sitting">Phase A — Intent interview (GENERATIVE, one sitting)<a class="headerlink" href="#phase-a-intent-interview-generative-one-sitting" title="Permanent link">&para;</a></h2>
-<p><strong>Generative, not extractive.</strong> Actively help the requestor find the <em>best and most complete</em> version. An open brain-dump alone under-scopes; start with the open description, then run the scope battery as explicit choices. All touchpoint #1 — no round-trips.
-- <strong>A1 Problem &amp; value</strong> — a user/governance question, not a solution; who for; why now.
-- <strong>A2 Scope boundaries</strong> — what it deliberately does NOT do.
-- <strong>A3 Backlog context</strong> — related/precondition/duplicate issues; weighed against the whole backlog.
-- <strong>A4 External dependencies</strong> — known and secured, or N/A.
-- <strong>A5 Architecture fit</strong> — fits the existing architecture, or <em>raises</em> an architectural question → tag for the architect.
-- <strong>A6 Documentation needs.</strong>
-- <strong>A7 Time-travel pre-mortem.</strong> <em>"We fast-forward to the moment I show you the finished feature. You're delighted because…? You're disappointed because…?"</em> The "disappointed because" answers become explicit accept/reject criteria.
-- <strong>A8 Scope-elicitation battery (ask as explicit choices; include or consciously defer each — never default away):</strong> <strong>generality</strong> (specific case vs general capability) · <strong>operation completeness</strong> (existence → count/threshold → range; view → edit; single → bulk) · <strong>symmetry &amp; variants</strong> (inverse directions, adjacent cases) · <strong>surface / reach</strong> (one page vs everywhere) · <strong>adjacent / phase-2</strong> (a bigger/reusable version) · <strong>driver &amp; priority</strong>.</p>
-<p><strong>Pin the chosen scope explicitly</strong> (feeds B4). A minimal cut is fine — but as a <em>conscious choice</em>.</p>
-<h2 id="phase-b-build-readiness-probe-ai-internal-no-human-until-its-exhausted">Phase B — Build-readiness probe (AI-internal; no human until it's exhausted)<a class="headerlink" href="#phase-b-build-readiness-probe-ai-internal-no-human-until-its-exhausted" title="Permanent link">&para;</a></h2>
-<p>Draft the actual implementation against the real code and schema — far enough to hit the walls. A dry-run, not a re-read.
-- <strong>B1 Trace every value to its real storage</strong> — write the real query; multi-hop → the join path; not modelled as assumed → raise it.
-- <strong>B2 Enumerate consumers</strong> of every shared contract/function/wire-format/table/component touched.
-- <strong>B3 Resolve every choice to one option</strong> — no "A or B", no "TBD"; includes UX-shaping words.
-- <strong>B4 Pin the exact scope set</strong> — matching the scope chosen in A8.
-- <strong>B5 Delivery decomposition</strong> — one PR or a required stack, and the order.
-- <strong>B6 Adversarial pass (independent)</strong> — find where the spec contradicts the real code/schema (hidden hop, unlisted consumer, unhandled empty/edge, ambiguous UX word).
-- <strong>B7 Dry-run the CI / Definition of Done</strong> (appendix) — not just the schema.
-- <strong>B8 Classify each open item</strong> — proposed decision (ratify) vs blocking question; tag by role.
-- <strong>B9 Outputs (recorded in the tracking issue):</strong> decisions register · fixture-backed ACs (input → expected output vs the REAL model; incl. empty/zero/error) · validation-data plan · form artifact for UI · test plan · docs + changelog targets.
-- <strong>B10 Loop</strong> until a pass surfaces nothing new — all AI, no human.</p>
-<h2 id="phase-c-consolidated-sign-off-batched-one-packet-if-one-person">Phase C — Consolidated sign-off (batched; one packet if one person)<a class="headerlink" href="#phase-c-consolidated-sign-off-batched-one-packet-if-one-person" title="Permanent link">&para;</a></h2>
-<ul>
-<li><strong>C1 Requestor</strong> — answers batched functional questions, confirms summary + scope + time-travel criteria ⇒ label <code>ready-to-build</code>.</li>
-<li><strong>C2 Architect</strong> — answers batched architectural questions, signs off the technical approach.</li>
-<li><strong>C3 Product Owner</strong> — GO ⇒ label <code>approved</code>; only now may autonomous build start. (Designer confirms the form artifact here too.)</li>
-</ul>
-<h2 id="phase-d-build-validate-and-the-feedback-loop-first-class">Phase D — Build, validate, and the feedback loop (first-class)<a class="headerlink" href="#phase-d-build-validate-and-the-feedback-loop-first-class" title="Permanent link">&para;</a></h2>
-<ul>
-<li><strong>D1 Autonomous build</strong> on SK3: implement, run the fixture-AC tests, and — <strong>for a feature with a runtime surface</strong> — <strong>load the full demo dataset</strong> (baseline realistic volume; it includes ownership/sponsor/member data) and top up any feature-specific gap, so functional validation runs against real data, not a hand-seeded sliver. Then docs, changelog, PR (<code>Closes #N</code>), CI green, deploy ⇒ label <code>build-done</code>. The handoff <strong>reports the ACs + their green test run</strong> so real testing is visible and distinct from manual validation. <em>(A change with no runtime surface — e.g. docs — skips the demo-data load; note that in the issue rather than forcing it.)</em></li>
-<li><strong>D2 Functional validation</strong> by the requestor against the fixture ACs <strong>and</strong> the time-travel criteria, using the loaded data.</li>
-<li><strong>D3 Feedback loop.</strong> Disappointment (form, or missed scope) is captured as <strong>new intent</strong> (a comment on the issue) and re-enters at Phase A. Expected and cheap. Happy ⇒ approve PR ⇒ merge ⇒ close the issue with the outcome comment.</li>
-</ul>
+<h2 id="default-flow">Default flow<a class="headerlink" href="#default-flow" title="Permanent link">&para;</a></h2>
+<p><strong>Feature</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>issue opened
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>  └─ Awaiting requestor            dor-triage
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>       └─ Awaiting approval        spec agent, after interview + readiness probe
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>            └─ Building            Product Board approves → dor-build-agent
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>                 └─ Awaiting functional acceptance
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>                      └─ Awaiting merge      requestor accepts
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>                           └─ Done           PR merged → issue closed
+</code></pre></div>
+<p><strong>Bug</strong> — identical from <code>Awaiting approval</code> onward; it enters one column earlier:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>issue opened (label: bug)
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>  └─ Ready for AI probe            dor-triage
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>       └─ Awaiting approval        bug agent, after reproduce + root cause + repro contract
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>            └─ …
+</code></pre></div>
+<p>The spec side is a <strong>loop, not a line</strong>. The agent may route to <code>Awaiting requestor</code>,
+<code>Awaiting design</code>, <code>Decompose</code> or <code>Blocked (external)</code> any number of times before it reaches
+<code>Awaiting approval</code>; each answer re-triggers it.</p>
+<pre class="mermaid"><code>stateDiagram-v2
+    [*] --&gt; AwaitingRequestor: feature opened
+    [*] --&gt; ReadyForAIProbe: bug opened
+
+    ReadyForAIProbe --&gt; AwaitingApproval
+    ReadyForAIProbe --&gt; AwaitingRequestor
+    AwaitingRequestor --&gt; AwaitingApproval
+    AwaitingRequestor --&gt; AwaitingDesign
+    AwaitingDesign --&gt; AwaitingApproval
+    AwaitingDesign --&gt; AwaitingRequestor
+    AwaitingApproval --&gt; Decompose
+    Decompose --&gt; AwaitingRequestor
+    AwaitingRequestor --&gt; BlockedExternal
+    BlockedExternal --&gt; AwaitingRequestor
+    AwaitingRequestor --&gt; OutOfPipeline
+
+    AwaitingApproval --&gt; Building: value gate approved
+    Building --&gt; AwaitingFunctionalAcceptance: build succeeded
+    AwaitingFunctionalAcceptance --&gt; Building: /rework or feedback
+    AwaitingFunctionalAcceptance --&gt; AwaitingMerge: requestor accepts
+    AwaitingMerge --&gt; Done: PR merged
+    AwaitingMerge --&gt; OutOfPipeline: PR closed unmerged
+
+    Building --&gt; Paused: usage limit
+    Paused --&gt; Building: dor-resume
+    Building --&gt; Exceptions: bail
+    AwaitingFunctionalAcceptance --&gt; Exceptions: bail
+
+    Done --&gt; [*]</code></pre>
 <hr />
-<h2 id="external-requests-the-vouch">External requests — the vouch<a class="headerlink" href="#external-requests-the-vouch" title="Permanent link">&para;</a></h2>
-<p>The pipeline only accepts requests from <strong>Fortigi org members</strong>. That is a security boundary, not
-an administrative one: this is a <strong>public</strong> repo, so <code>issues</code> / <code>issue_comment</code> events run <strong>with
-secrets</strong> for anyone who can type in a text box, and org membership is the only real defense for
-the Claude subscription token (see the injection note in
-<a href="../operationalization/#security-note--the-dor-agents-injection-residual-phase-1"><code>operationalization.md</code></a>).</p>
-<p>But customers and partners <em>do</em> file good requests. Rather than widening the gate, we <strong>transfer
-the request</strong>:</p>
+<h2 id="every-transition-the-automation-makes">Every transition the automation makes<a class="headerlink" href="#every-transition-the-automation-makes" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
-<th></th>
-<th></th>
+<th>To</th>
+<th>From</th>
+<th>Trigger</th>
+<th>Actor / mechanism</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><strong>A non-member opens an issue</strong></td>
-<td><code>dor-triage</code> posts a notice, assigns Wim/Taeke/Rob, labels it <strong><code>needs-vouch</code></strong>, and stops. It is deliberately <em>not</em> put on the board — a request nobody has accepted has no requestor, and parking it at "Awaiting requestor" would falsely read as "waiting on them". The nightly reconcile keeps flagging it until someone acts.</td>
+<td>Awaiting requestor</td>
+<td><em>(entry)</em></td>
+<td>issue opened, no <code>bug</code> label</td>
+<td><code>dor-triage</code>, deterministic. Also sets "Requested by"</td>
 </tr>
 <tr>
-<td><strong>A maintainer accepts it</strong></td>
-<td>Apply the <strong><code>dor-vouched</code></strong> label. That is the whole gesture.</td>
+<td>Ready for AI probe</td>
+<td><em>(entry)</em></td>
+<td>issue opened with <code>bug</code></td>
+<td><code>dor-triage</code></td>
 </tr>
 <tr>
-<td><strong>What vouching means</strong></td>
-<td><strong>You become the requestor of record.</strong> The board's "Requested by" becomes you, you become the sole assignee, and you answer the Phase-A interview and Phase-B probe questions. You are accountable for the request as if you had filed it.</td>
+<td><em>(same, on the right board)</em></td>
+<td><em>(parked)</em></td>
+<td>member applies <code>dor-vouched</code></td>
+<td><code>dor-vouch</code> — transfers the requestor role to the voucher</td>
 </tr>
 <tr>
-<td><strong>The original reporter</strong></td>
-<td>Stays subscribed and is @-mentioned, so every step — questions, spec, test environment, delivery — reaches them. They can keep commenting, and you relay what matters. <strong>Their comments do not drive the pipeline</strong>; yours do.</td>
+<td>Awaiting requestor · Awaiting design · Decompose · Blocked (external) · Out of pipeline · <strong>Awaiting approval</strong></td>
+<td>any spec column</td>
+<td>agent finishes a pass</td>
+<td>Spec agent → <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/.github/scripts/dor_post_decision.sh"><code>dor_post_decision.sh</code></a> picks <strong>exactly one</strong> of six routes</td>
 </tr>
 <tr>
-<td><strong>Declining</strong></td>
-<td>Just close the issue with an explanation. Not vouching <em>is</em> the "no".</td>
+<td><em>(any)</em></td>
+<td><em>(any)</em></td>
+<td>a human edits a <code>state:*</code> label</td>
+<td><code>dor-board-sync</code>. Bot senders are ignored</td>
+</tr>
+<tr>
+<td>Building</td>
+<td>Awaiting approval</td>
+<td>Product Board approves the gate</td>
+<td><code>dor-propose-build</code> applies <code>ready-to-build</code>; <code>dor-build-agent</code> then pauses on the Environment</td>
+</tr>
+<tr>
+<td>Building</td>
+<td>Awaiting functional acceptance</td>
+<td>requestor comments, or <code>/rework</code> on the PR</td>
+<td><code>dor_feedback_flow.sh</code></td>
+</tr>
+<tr>
+<td>Awaiting functional acceptance</td>
+<td>Building</td>
+<td>build or rework finished</td>
+<td><code>dor_build_flow.sh</code> / <code>dor_feedback_flow.sh</code></td>
+</tr>
+<tr>
+<td>Awaiting merge</td>
+<td>Awaiting functional acceptance</td>
+<td>requestor accepts</td>
+<td><code>dor-acceptance</code>, after the org-member + classify gate</td>
+</tr>
+<tr>
+<td><strong>Done</strong></td>
+<td>Awaiting merge</td>
+<td>PR <strong>merged</strong></td>
+<td><code>dor-reset</code> — also closes the issue and drops every in-flight label</td>
+</tr>
+<tr>
+<td>Out of pipeline</td>
+<td>Awaiting merge</td>
+<td>PR closed <strong>unmerged</strong></td>
+<td><code>dor-reset</code>, with a comment explaining how to restart</td>
+</tr>
+<tr>
+<td>Paused</td>
+<td>Building</td>
+<td>Claude usage limit</td>
+<td><code>dor_build_lib.sh</code> → work saved on the branch, runner released</td>
+</tr>
+<tr>
+<td>Building</td>
+<td>Paused</td>
+<td>every 6h</td>
+<td><code>dor-resume</code> re-dispatches</td>
+</tr>
+<tr>
+<td>Exceptions</td>
+<td>Building / acceptance</td>
+<td><code>bail()</code></td>
+<td>The flow failed somewhere it could still report</td>
 </tr>
 </tbody>
 </table>
-<p><strong>Why the requestor role transfers rather than the gate opening.</strong> No external account gains the
-ability to trigger a workflow, so the threat model is unchanged — the only thing that changes is
-<em>who the pipeline considers the requestor</em>, resolved in one place by
-<code>.github/scripts/dor_requestor_of_record.sh</code> (author by default; the voucher when a vouch exists).
-That resolver is what the <strong>build</strong> gate reads too, so a vouched request builds normally instead of
-being refused at the last step for having been filed by a non-member. Only a human org member can
-vouch: the label is applied via a <code>labeled</code> timeline event, <code>dor-vouch</code> verifies the applier's
-membership and strips the label if they are not a member, and a bot-applied label never transfers
-the role.</p>
-<p>The value gate is untouched — a vouched request still needs a <strong>Product Board GO</strong> before anything
-builds. Vouching says <em>"this is a real request and I own it"</em>, not <em>"build this"</em>.</p>
+<p>Two asymmetries worth knowing:</p>
+<ul>
+<li><strong><code>Ready for AI probe</code> is entry-only.</strong> <code>dor_post_decision.sh</code> accepts six routes and that is not
+  one of them — the agent can never send an issue back to it.</li>
+<li><strong><code>Awaiting approval</code> is the only route that cascades.</strong> Every other route parks the issue and
+  waits for a human. That one triggers <code>dor-propose-build</code>, which is precisely why it is the gate.</li>
+</ul>
 <hr />
-<h2 id="bugs-the-reproduce-first-variant">Bugs — the reproduce-first variant<a class="headerlink" href="#bugs-the-reproduce-first-variant" title="Permanent link">&para;</a></h2>
-<p>Bug reports run the <strong>same spine</strong> (tracking issue · <code>state:*</code> routes · board Status · human GO) with
-one substitution: the "AI looks at the issue" step is a <strong>reproduce-first probe</strong>, not an intent
-interview. Bugs are the <em>easier</em> case — a feature's hard question ("is this the right thing to
-build?") is a judgment call, but a bug has an <strong>objective Definition of Done: it no longer
-reproduces.</strong></p>
-<p>The probe, in order: <strong>reproduce</strong> the report statically against the real code <strong>and the demo
-dataset</strong> (evidence as <code>file:line</code>; does it reproduce on demo data, or only real tenant data?);
-pin the <strong>root cause</strong> at the layer that <em>produces</em> the wrong value (<em>fix at the source, not the
-surface</em>); map the <strong>blast radius</strong> (every consumer of what would change); and <strong>draft the
-reproducing regression test</strong> (red today, green once fixed) — which <em>is</em> the acceptance criterion and
-ratchets coverage by construction. Routes reuse the same set: confirmed + root-caused + red test →
-<em>Awaiting approval</em> (a light human <strong>GO on the fix</strong>); can't-reproduce / needs detail → <em>Awaiting
-requestor</em>; needs real tenant/data → <em>Blocked (external)</em>; a fix with a genuine design tradeoff →
-<em>Awaiting design</em>; several bugs bundled → <em>Decompose</em>; not-a-bug → <em>Out of pipeline</em>.</p>
-<p><strong>Runtime</strong> reproduction (running the fix against a live demo env until the red test goes green) is
-the deferred build-side step. Bugs live on their <strong>own board</strong> (Bug Pipeline, project #3) and are
-<strong>org-members-only</strong> — an external report is parked as <code>needs-vouch</code> and enters the same way a
-feature does, via <a href="#external-requests--the-vouch">the vouch</a>. The wiring — <code>bug</code> gate
-label, <code>dor-bug-agent</code>, the Bug Form, and the shared scripts — is in
-<a href="../operationalization/#bug-pipeline-spec-side-live"><code>operationalization.md</code></a>.</p>
-<h2 id="appendix-definition-of-done-the-probe-must-design-against">Appendix — Definition of Done the probe must design against<a class="headerlink" href="#appendix-definition-of-done-the-probe-must-design-against" title="Permanent link">&para;</a></h2>
+<h2 id="the-two-gates">The two gates<a class="headerlink" href="#the-two-gates" title="Permanent link">&para;</a></h2>
+<p>Two GitHub-enforced human gates bracket the AI. Neither can be bypassed by a workflow.</p>
+<p><strong>1. The value gate — is this worth building?</strong></p>
+<p><code>ready-to-build</code> only <em>proposes</em> a build; GitHub cannot restrict who applies a label. The real gate
+is the <strong><code>build-approval</code> Environment</strong>, whose required reviewers are the Product Board. The build
+job does not run a single step until someone clicks Approve — <em>before the agent runs or any token is
+spent</em>.</p>
+<p>A run parked here shows as <strong><code>waiting</code></strong> in the Actions list, indefinitely. That is a healthy state,
+not a stall, which is why the reconcile sweep's liveness check counts <code>waiting</code> as alive alongside
+<code>in_progress</code> and <code>queued</code>.</p>
+<p>The notice asking you to approve is posted from a <strong>separate, ungated job</strong> — a notice posted from
+inside the gate could only ever arrive after the approval it asks for. <code>test/ci-scripts/test-dor-gate-notice.sh</code>
+pins that separation.</p>
+<p><strong>2. The merge gate — is this good code?</strong></p>
+<p>A human approval on the PR. GitHub Actions cannot approve pull requests (D5), so this is structurally
+impossible to automate.</p>
+<h3 id="the-autonomous-carve-out">The autonomous carve-out<a class="headerlink" href="#the-autonomous-carve-out" title="Permanent link">&para;</a></h3>
+<p>A build may skip the value gate entirely, but only when <strong>every</strong> one of these holds:</p>
 <ul>
-<li><strong>Coverage</strong> — aggregate + per-file ratchet (only up) + diff-coverage. New code ships with tests.</li>
-<li><strong>File size</strong> — &gt;1000 lines must split; &gt;600 is a smell.</li>
-<li><strong>Complexity</strong> — per-unit cyclomatic + cognitive ratchets; under the per-language threshold.</li>
-<li><strong>Duplication</strong> — jscpd gate; reuse before creating.</li>
-<li><strong>Contract tests</strong> — real PostgreSQL; each test <strong>DELETEs its own rows</strong>.</li>
-<li><strong>OpenAPI</strong> — a new router must be documented in <code>openapi.yaml</code> or allowlisted.</li>
-<li><strong>UI</strong> — dark mode; WCAG AA contrast (no bare <code>text-*-300/400</code>); real accessible names; no native <code>alert/confirm/prompt</code>; <code>@ui/</code> alias; nothing crawler-specific under <code>app/ui/</code>.</li>
-<li><strong>Changelog</strong> — a fragment under <code>changes/</code> for functional changes (docs-only needs none).</li>
-<li><strong>Merge</strong> — 1 approval; never admin-merge.</li>
+<li>repository variable <code>DOR_AUTOBUILD</code> is <code>true</code></li>
+<li>the issue is a <strong>bug</strong> — a feature's value is a human question, always</li>
+<li>it does not carry <code>no-autobuild</code></li>
+<li>it has a <strong>repro contract</strong> whose <code>confidence</code> is <code>certain</code></li>
+<li>the contract's predicted <code>blast_radius</code> touches no path segment matching
+  <code>migrations · auth · authn · authz · security · credentials · secrets</code>, and no
+  <code>*credential* / *secret* / *token*</code> source file</li>
+<li>fewer than <code>DOR_MAX_CONCURRENT_BUILDS</code> (default 3) builds are already running</li>
 </ul>
-<p><strong>Baseline precondition.</strong> Verify <code>main</code> (and the target Sidekick) is green <em>before</em> starting. Pre-existing failure = repo debt, fixed as a disclosed separate chore.</p>
-<h2 id="the-bar">The bar<a class="headerlink" href="#the-bar" title="Permanent link">&para;</a></h2>
-<p>A fresh builder given ONLY the spec (via its tracking issue) builds, tests and documents it with <strong>zero functional decisions and zero silent functional assumptions</strong>, in <strong>≈two human touchpoints</strong>, to the <strong>complete</strong> scope the requestor chose. End-validation is mechanical against the fixture ACs + time-travel criteria on real data. Residual <em>form</em> gaps go through the D3 feedback loop. The issue carries the whole trail and closes with an outcome comment.</p>
-<h2 id="version-history-generalized-lessons">Version history (generalized lessons)<a class="headerlink" href="#version-history-generalized-lessons" title="Permanent link">&para;</a></h2>
-<ul>
-<li><strong>v1 → v2:</strong> review didn't satisfy "no open questions" — added the executed build-readiness probe, consumer-enumeration, no-A-or-B, pinned scope, adversarial pass, fixture ACs.</li>
-<li><strong>v2 → v3:</strong> stopped collapsing a product team into "the requestor" — role-routing, time-travel pre-mortem, form artifact, CI/DoD dry-run, first-class feedback loop.</li>
-<li><strong>v3 → v3.1:</strong> round-trip discipline — exhaust AI work first, prefer proposed-decisions, batch per role, ≈two touchpoints.</li>
-<li><strong>v3.1 → v3.2:</strong> efficiency had starved the interview — made Phase A generative with the scope battery; validation-data seeding; AC-result transparency.</li>
-<li><strong>v3.2 → v3.3:</strong> the gate labels had no home and the decisions trail died with the session — added the <strong>tracking issue</strong> as the durable spine (created at pre-screen, decisions in the body, trail in comments, labels ride it, <code>Closes #N</code>, closed with an outcome comment). Made the validation-data load use the <strong>full demo dataset</strong> and scoped it to features with a runtime surface.</li>
-<li><strong>v3.3 → v3.4:</strong> corrected the process flowchart to match how the pipeline actually runs: the <strong>build-readiness probe is explicit inside the AI's "looks at the issue" step</strong> (its questions must all clear first); open items route to <em>Awaiting requestor</em> / <em>Awaiting design</em>, or to <em>Decompose / Blocked / Out-of-pipeline</em>; <strong>Product-Board value-approval moved to <em>after</em> the spec is ready and only on the first pass</strong> (was a front-of-line pre-screen; feedback loops now skip it); and a <strong>final Product-Board go / no-go on merge</strong> was added (go · needs-adjustments · reject). Phase A–D prose still to be reconciled to this flow.</li>
-</ul>
+<p>Anything else falls back to the human gate. The merge review still applies either way — the carve-out
+skips <em>one</em> of the two gates, never both.</p>
+<hr />
+<h2 id="operating-procedure">Operating procedure<a class="headerlink" href="#operating-procedure" title="Permanent link">&para;</a></h2>
+<h3 id="if-you-are-the-requestor">If you are the requestor<a class="headerlink" href="#if-you-are-the-requestor" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>The board says</th>
+<th>Do this</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Awaiting requestor</td>
+<td>Answer the agent's question in a comment. That re-triggers it</td>
+</tr>
+<tr>
+<td>Awaiting design</td>
+<td>Not yours — an architect or designer owes an answer</td>
+</tr>
+<tr>
+<td>Decompose</td>
+<td>Split the issue. Close this one or narrow it, and file the pieces</td>
+</tr>
+<tr>
+<td>Awaiting functional acceptance</td>
+<td>Try it at the deployed URL on the issue and say whether it does the job. Accepting moves it to Awaiting merge</td>
+</tr>
+</tbody>
+</table>
+<p>To ask for a change after a build, comment on the <strong>issue</strong>. On the <strong>PR</strong>, a change request must be
+prefixed <code>/rework</code> — a merge review is a conversation, and every comment should not fire the agent.</p>
+<h3 id="if-you-are-on-the-product-board">If you are on the Product Board<a class="headerlink" href="#if-you-are-on-the-product-board" title="Permanent link">&para;</a></h3>
+<p>An issue at <strong>Awaiting approval</strong> is waiting on you and nothing else is happening. Open the linked run
+and Approve or reject in the Actions UI. The notice comment deep-links the certified spec, because by
+then it is usually buried up-thread.</p>
+<p>Rejecting is a normal outcome: remove <code>ready-to-build</code> and route the issue with a <code>state:*</code> label.</p>
+<h3 id="if-you-are-a-maintainer">If you are a maintainer<a class="headerlink" href="#if-you-are-a-maintainer" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Signal</th>
+<th>What it means</th>
+<th>Do this</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Exceptions</strong></td>
+<td>The flow broke but got far enough to say so</td>
+<td>Read the run log; fix and re-dispatch, or route it out</td>
+</tr>
+<tr>
+<td><strong><code>dor-stuck</code> label + a 💀 comment</strong></td>
+<td>The sidekick died mid-flight; the flow never reached its own error handling</td>
+<td>Re-dispatch: remove and re-apply <code>ready-to-build</code></td>
+</tr>
+<tr>
+<td><strong>Paused</strong></td>
+<td>Usage limit, work is safe on the branch</td>
+<td>Nothing — <code>dor-resume</code> picks it up within 6h. <code>workflow_dispatch</code> it if you are impatient</td>
+</tr>
+<tr>
+<td><strong><code>needs-vouch</code></strong></td>
+<td>An external request nobody has accepted</td>
+<td>Apply <code>dor-vouched</code> — <em>you become the requestor of record</em> — or close it</td>
+</tr>
+<tr>
+<td><strong><code>sk:</code> label with no open PR</strong></td>
+<td>A sidekick is reserved by nothing</td>
+<td>Release the box: <code>~/.dor-reservation</code> + <code>~/stacks/dor-N</code>, then drop the label</td>
+</tr>
+</tbody>
+</table>
+<h3 id="if-you-are-triaging-a-new-issue">If you are triaging a new issue<a class="headerlink" href="#if-you-are-triaging-a-new-issue" title="Permanent link">&para;</a></h3>
+<p>Filed through the web <strong>New issue</strong> form, an issue arrives correctly labelled and <code>dor-triage</code> routes
+it. Filed with <code>gh issue create</code> or the REST API, it does <strong>not</strong> — issue-template labels are applied
+only by the web form. An unlabelled issue still gets swept once it is on a board, but it can never be
+<em>healed</em> back onto one, because the heal path is the deliberate <code>enhancement</code> / <code>bug</code> opt-in.</p>
+<p>Add the gate label by hand when you bulk-file.</p>
+<hr />
+<h2 id="the-backstop">The backstop<a class="headerlink" href="#the-backstop" title="Permanent link">&para;</a></h2>
+<p><code>dor-reconcile</code> runs hourly at <code>:17</code>, once per board. Every other DoR workflow is edge-triggered on a
+GitHub event; a missed edge leaves no trace. This sweep is the only <strong>level-triggered</strong> component —
+it re-derives desired state from actual state, and it is the only reason a dead build is ever noticed.</p>
+<p>It walks <strong>every open issue its board carries</strong>, plus any gate-labelled issue missing from the board.
+It heals exactly one thing — an open issue that never made it onto the board — and reports everything
+else into a single health issue, commenting <strong>only when the set of findings changes</strong>.</p>
+<table>
+<thead>
+<tr>
+<th>Marker</th>
+<th>Means</th>
+<th>Owner</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>🩹</td>
+<td>Healed: added a missing issue to the board</td>
+<td>—</td>
+</tr>
+<tr>
+<td>❌</td>
+<td>Missing from the board and could not be added</td>
+<td>Maintainer</td>
+</tr>
+<tr>
+<td>🎟️</td>
+<td>External request awaiting a vouch</td>
+<td>Maintainer</td>
+</tr>
+<tr>
+<td>🕳️</td>
+<td>On the board, no <code>state:*</code> label, untouched ≥6h — the agent probably never ran</td>
+<td>Maintainer</td>
+</tr>
+<tr>
+<td>🔀</td>
+<td>Label and Status disagree</td>
+<td>Whoever moved one of them</td>
+</tr>
+<tr>
+<td>⏳</td>
+<td>≥14 days in Awaiting requestor / Awaiting design</td>
+<td>The named actor</td>
+</tr>
+<tr>
+<td>🚦</td>
+<td>Count waiting at the value gate</td>
+<td>Product Board</td>
+</tr>
+<tr>
+<td>💀</td>
+<td>Says Building, but no run is alive for it</td>
+<td>Maintainer — re-dispatch</td>
+</tr>
+<tr>
+<td>🧟</td>
+<td>Claims a sidekick with no open PR</td>
+<td>Maintainer — release the box</td>
+</tr>
+<tr>
+<td>🧭</td>
+<td>On this board, but its labels route it to the other one</td>
+<td>Maintainer</td>
+</tr>
+<tr>
+<td>🔚</td>
+<td>Closed but parked outside Done</td>
+<td>Move it to Done</td>
+</tr>
+<tr>
+<td>⚠️</td>
+<td>The sweep itself could not do its job</td>
+<td>Maintainer</td>
+</tr>
+</tbody>
+</table>
+<p>The sweep never overwrites a human's Status from a possibly-stale label — a disagreement is flagged
+for a person, not auto-"healed" (D3).</p>
 
 
 

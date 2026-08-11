@@ -13,7 +13,7 @@
         <link rel="canonical" href="https://fortigi.github.io/IdentityAtlas/stable/process/operationalization/">
       
       
-        <link rel="prev" href="../definition-of-ready/">
+        <link rel="prev" href="../dor-state-machine/">
       
       
         <link rel="next" href="../dor-sidekick-setup/">
@@ -3475,6 +3475,34 @@
                 
   
   
+  
+  
+    <li class="md-nav__item">
+      <a href="../dor-state-machine/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    DoR state machine & operating procedure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
     
   
   
@@ -3670,6 +3698,17 @@
     <span class="md-ellipsis">
       
         As built (validated end-to-end, 2026-07-31)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#autonomous-builds-dor_autobuild" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Autonomous builds (DOR_AUTOBUILD)
       
     </span>
   </a>
@@ -3892,7 +3931,7 @@
   <span class="md-ellipsis">
     
   
-    Autonomous bug pipeline (proposal)
+    Autonomous bug pipeline (partly built)
   
 
     
@@ -4975,6 +5014,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#autonomous-builds-dor_autobuild" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Autonomous builds (DOR_AUTOBUILD)
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -5553,7 +5603,7 @@
 <ul>
 <li><strong>D1 — actor-gate token <em>(BLOCKS the org-member gate; org-admin action, like P1)</em>.</strong> The known-requestor allow-list must verify Fortigi org membership, and the default <code>GITHUB_TOKEN</code> can't (it isn't an org member and can't see private membership → returns HTTP 302, not 204/404). Options: <strong>(a)</strong> grant the <code>fortigi-ci-bot</code> app <strong>Organization → Members: Read</strong> and mint a gate token from it <em>(recommended — same one-time grant+accept as P1)</em>; <strong>(b)</strong> a fine-grained PAT with <code>read:org</code> (long-lived static secret); <strong>(c)</strong> a weaker <code>author_association == MEMBER/OWNER</code> check (only sees <strong>public</strong> members — silently denies private-visibility members). <strong>Chosen (2026-07-28): (a)</strong> — grant <code>fortigi-ci-bot</code> <strong>Organization → Members: Read</strong> and mint the gate token from it (pending the grant + installation-accept, same as P1).</li>
 <li><strong>D2 — "Requested by" field.</strong> Single-select with only 5 predefined options; the other org members have none, and adding options <strong>regenerates every option ID</strong> (orphaning the 65 items' assignments — a known GraphQL gotcha). <strong>Phase-1 default:</strong> set "Requested by" only when the opener matches an existing option; otherwise leave it blank.</li>
-<li><strong>D3 — canonical phase vocabulary.</strong> The <strong>board Status single-select</strong> (11 options) is canonical; <code>state:*</code> labels are an optional secondary mirror; the operationalization <strong>FSM diagram</strong> (snake_case states, and its front-of-line "PO pre-screen") is <strong>stale</strong> — the v3.4 flowchart is authoritative (value gate is post-spec, first-pass only; no front pre-screen). To be reconciled in a later doc pass.</li>
+<li><strong>D3 — canonical phase vocabulary.</strong> The <strong>board Status single-select</strong> (13 options) is canonical; <code>state:*</code> labels are an optional secondary mirror. The old operationalization <strong>FSM diagram</strong> (snake_case states, and its front-of-line "PO pre-screen") was <strong>stale</strong>. <strong>Reconciled 2026-08-11:</strong> it has been replaced by <a href="../dor-state-machine/">dor-state-machine.md</a>, which enumerates all 13 columns, every transition, and the actor who owns each. The v3.4 flowchart in <a href="../definition-of-ready/">definition-of-ready.md</a> remains authoritative for the <em>process</em>; the state-machine page is authoritative for the <em>board</em>.</li>
 <li><strong>D4 — interview/probe execution locus.</strong> Phase-1 runs both on <strong>GitHub-hosted cloud runners</strong> — <code>claude-code-action</code> reads the repo + schema, which is all the probe needs (no running app). This supersedes C2's "AI-step jobs on the sidekick" for the spec side.</li>
 <li><strong>D5 — governance hardening (recommended, not blocking phase 1).</strong> Set the repo/org default <code>GITHUB_TOKEN</code> to read-only with per-job elevation, and <strong>disable "Allow GitHub Actions to approve pull requests,"</strong> before the build/merge side exists. <strong>Chosen (2026-07-28): harden now</strong>, in two steps — <strong>(i) now, zero-risk:</strong> untick "Allow GitHub Actions to create and approve pull requests" (nothing legitimate relies on it); <strong>(ii) staged:</strong> flipping the default <code>GITHUB_TOKEN</code> to read-only can break workflows that assume the write default (e.g. a PR-summary comment step in <code>pr.yml</code> / <code>pr-integration.yml</code>, which declare no per-job <code>permissions:</code>), so first audit those and add explicit per-job <code>permissions:</code>, <em>then</em> flip the default.</li>
 </ul>
@@ -5588,10 +5638,10 @@
 <tbody>
 <tr>
 <td>1</td>
-<td>Issue created → auto-add to board, set <em>Ready for AI probe</em></td>
+<td>Issue created → auto-add to board. A <strong>bug</strong> starts at <em>Ready for AI probe</em>; a <strong>feature</strong> at <em>Awaiting requestor</em></td>
 <td>human + Action</td>
 <td><code>issues.opened</code></td>
-<td>native Projects auto-add + Action</td>
+<td><code>dor-triage.yml</code> (deterministic)</td>
 <td>☁️ <strong>Cloud</strong></td>
 </tr>
 <tr>
@@ -5635,11 +5685,19 @@
 <td>☁️ Cloud</td>
 </tr>
 <tr>
+<td>6b</td>
+<td><em>Awaiting approval</em> → propose the build (apply <code>ready-to-build</code>, which reaches the gate)</td>
+<td>Action</td>
+<td><code>issues.labeled state:awaiting-approval</code></td>
+<td><code>dor-propose-build.yml</code></td>
+<td>☁️ Cloud</td>
+</tr>
+<tr>
 <td>7</td>
 <td><strong>① VALUE GATE — "worth building?"</strong></td>
 <td><strong>HUMAN GATE</strong></td>
 <td>build job pauses</td>
-<td>Actions Environment + required reviewers (Product Board)</td>
+<td>Actions Environment <code>build-approval</code> + required reviewers (Product Board). Skipped only by the <a href="#autonomous-builds-dor_autobuild">autonomous carve-out</a></td>
 <td>🌐 GitHub UI</td>
 </tr>
 <tr>
@@ -5692,18 +5750,26 @@
 </tr>
 <tr>
 <td>14</td>
-<td>Feedback ("not happy") → back to AI looks</td>
+<td>Feedback ("not happy") → back to <em>Building</em></td>
 <td>human → AI</td>
-<td><code>/feedback</code> / reopen</td>
-<td><code>claude-code-action</code> re-run</td>
-<td>☁️ Cloud</td>
+<td>a plain comment on the <strong>issue</strong>, or <code>/rework …</code> on the <strong>PR</strong></td>
+<td><code>dor-acceptance.yml</code> (loops E + F) → <code>dor_feedback_flow.sh</code>, dispatched to the sidekick holding the issue</td>
+<td>🔒 Pool VM</td>
 </tr>
 <tr>
 <td>15</td>
-<td>Board upkeep: <code>state:*</code> → Status sync, reconcile</td>
+<td>Board upkeep: <code>state:*</code> → Status sync; hourly reconcile sweep</td>
 <td>Action</td>
-<td><code>issues.labeled</code> / nightly cron</td>
+<td><code>issues.labeled</code> / cron <code>17 * * * *</code></td>
+<td><code>dor-board-sync.yml</code>, <code>dor-reconcile.yml</code></td>
+<td>☁️ Cloud</td>
+</tr>
+<tr>
+<td>16</td>
+<td>A paused build (Claude usage limit) is re-dispatched</td>
 <td>Action</td>
+<td>cron <code>0 */6 * * *</code></td>
+<td><code>dor-resume.yml</code></td>
 <td>☁️ Cloud</td>
 </tr>
 </tbody>
@@ -5730,13 +5796,51 @@
 <li><strong><code>dor-reset.yml</code> (slice B):</strong> on PR close/merge → a matrix job pinned per sidekick (stable <code>skN</code> labels); the holder runs <code>docker compose down -v</code> + prune, clears the lock, restores the placeholder, and releases the box.</li>
 <li><strong><code>dor-build-agent.yml</code> (slice D):</strong> apply <code>ready-to-build</code> to an approved issue → the AI implements the approved spec on a sidekick (<code>claude-code-action</code>, full tools), tests/self-validates, and opens a PR (<code>Closes #N</code>).</li>
 </ul>
-<p><strong>The approval gate (row 7) — the real one.</strong> <code>ready-to-build</code> only <em>proposes</em> a build (GitHub can't restrict who applies a label). The build job runs in the <strong><code>build-approval</code> Environment</strong> whose <strong>required reviewers are the Product Board (Wim / Taeke / Rob)</strong> — the job <strong>pauses</strong> for an Approve click in the Actions UI, and only they can approve, <strong>before the agent runs or any token is spent</strong>. Same enforcement class as a required PR approval (self-approval currently allowed). With the <strong>merge gate (row 12)</strong>, two GitHub-enforced human gates bracket the AI. The repo's fork-PR policy is set to <code>all_external_contributors</code> so no fork PR can reach the self-hosted runners.</p>
+<p><strong>The approval gate (row 7) — the real one.</strong> <code>ready-to-build</code> only <em>proposes</em> a build (GitHub can't restrict who applies a label), and since <code>dor-propose-build.yml</code> the label is applied <strong>automatically</strong> the moment the spec agent routes an issue to <code>state:awaiting-approval</code> — reaching the gate is no longer a manual step. The build job runs in the <strong><code>build-approval</code> Environment</strong> whose <strong>required reviewers are the Product Board (Wim / Taeke / Rob)</strong> — the job <strong>pauses</strong> for an Approve click in the Actions UI, and only they can approve, <strong>before the agent runs or any token is spent</strong>. Same enforcement class as a required PR approval (self-approval currently allowed). With the <strong>merge gate (row 12)</strong>, two GitHub-enforced human gates bracket the AI. The repo's fork-PR policy is set to <code>all_external_contributors</code> so no fork PR can reach the self-hosted runners.</p>
+<p>A run parked at this gate sits in Actions as <strong><code>waiting</code></strong>, indefinitely and healthily — which is why <code>dor-reconcile</code>'s liveness check counts <code>waiting</code> as alive alongside <code>in_progress</code> and <code>queued</code>. A gate nobody has clicked is not a stalled build.</p>
+<h3 id="autonomous-builds-dor_autobuild">Autonomous builds (<code>DOR_AUTOBUILD</code>)<a class="headerlink" href="#autonomous-builds-dor_autobuild" title="Permanent link">&para;</a></h3>
+<p>A build may skip the <strong>value gate</strong> — never the merge gate — when the <code>policy</code> job in <code>dor-build-agent.yml</code> can certify it is safe to run unattended. Every condition must hold:</p>
+<table>
+<thead>
+<tr>
+<th>Condition</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>vars.DOR_AUTOBUILD == 'true'</code></td>
+<td>the master switch</td>
+</tr>
+<tr>
+<td>the issue is a <strong>bug</strong></td>
+<td>a feature's value is a human question, always</td>
+</tr>
+<tr>
+<td>no <code>no-autobuild</code> label</td>
+<td>per-issue opt-out</td>
+</tr>
+<tr>
+<td>a <strong>repro contract</strong> with <code>confidence: certain</code></td>
+<td>the contract is the certification; no contract means no answer</td>
+</tr>
+<tr>
+<td><code>blast_radius</code> touches no path segment matching <code>migrations · auth · authn · authz · security · credentials · secrets</code>, and no <code>*credential* / *secret* / *token*</code> source file</td>
+<td>matched on path <strong>segments</strong>, never substrings — "author" must not trip an "auth" rule</td>
+</tr>
+<tr>
+<td>fewer than <code>vars.DOR_MAX_CONCURRENT_BUILDS</code> (default 3) builds already running</td>
+<td>bounds a bad day; over the cap it falls back to the human gate rather than queueing invisibly</td>
+</tr>
+</tbody>
+</table>
+<p>Anything else routes to the Product Board as usual, and the issue gets a comment saying which condition sent it there. When policy <em>does</em> clear a build, it says so on the issue: the merge review is still the reviewer's, and the evidence bundle on the PR is what it reviews.</p>
 <p><strong>Sidekick baseline.</strong> A pool sidekick needs more than the fresh-clone default (<code>git</code> + <code>docker</code>): also the <strong><code>claude</code> CLI</strong>, <strong><code>gh</code>, Node 22, <code>unzip</code>, <code>jq</code>, <code>build-essential</code>, <code>python3</code>, <code>pkg-config</code></strong>, a <strong>git identity</strong> (without one <code>git commit</code> aborts → the branch pushes empty → PR-create fails), a pre-cached Playwright browser, and the <code>edge</code> placeholder stack. Enrolling a new member = run that baseline + register a <code>dor-build</code> self-hosted runner (systemd, auto-start) with a stable <code>skN</code> label + wire the sidekick→URL map and reset matrix in the workflows. The runner holds no Traefik/authentik creds — an infra-managed central Traefik routes <code>N.build</code> → the sidekick's <code>:3001</code>. <strong>The full, executable checklist is <a href="../dor-sidekick-setup/">dor-sidekick-setup.md</a></strong> (idempotent <code>tools/dor/provision-sidekick.sh</code> + the manual runner/DNS steps).</p>
 <p><strong>Known hardening follow-ups (not yet done — surfaced by the first live run):</strong>
 - <strong>Deterministic PR-open + persistent test env.</strong> In the first run the agent implemented correctly and pushed the branch, but didn't reliably fire the final <code>gh pr create</code>, and its live env (built in the runner's throwaway workspace) didn't persist at <code>N.build</code>. Fix: let the agent do implement + test + push (its strength), and have the <strong>workflow</strong> deterministically open the PR and <strong>deploy the branch to a stable <code>~/stacks/pr-N</code></strong> (reusing slice A) as the persistent functional-test env.
-- <strong>Reconcile backstop for orphaned reservations.</strong> A plain PR close/merge fires reset correctly, but <em>close + delete-branch in one action</em> suppresses the <code>pull_request closed</code> run, leaving a reservation stuck. Add a periodic sweep (the <code>dor-reconcile</code> pattern) that resets any sidekick whose reserved PR is already closed/merged.
-- <strong>Build-side board-Status transitions</strong> (Building / Awaiting functional acceptance / Awaiting merge / Done) — deferred; deploy/reset currently comment on the PR rather than move the board.
-- <strong>Notify on pending approval</strong> — an @-mention comment (or a push channel) when a build reaches the gate, so reviewers get a GitHub-mobile ping instead of being told out-of-band.</p>
+- ~~<strong>Reconcile backstop for orphaned reservations.</strong>~~ <strong>Done.</strong> <code>dor-reconcile</code> reports any issue still claiming an <code>sk:</code> label with no open PR (🧟), for both open and closed issues.
+- ~~<strong>Build-side board-Status transitions</strong>~~ <strong>Done.</strong> Building / Awaiting functional acceptance / Awaiting merge / Done / Paused / Exceptions are all set by the build side via <code>dor_set_status.sh</code>. See <a href="../dor-state-machine/#every-transition-the-automation-makes">dor-state-machine.md</a>.
+- ~~<strong>Notify on pending approval</strong>~~ <strong>Done.</strong> <code>dor-build-agent</code>'s <code>notify</code> job comments on the issue when a build reaches the gate, addressed to the requestor and deep-linking the certified spec. It runs <strong>outside</strong> the Environment — a notice posted from inside the gate could only ever arrive after the approval it asks for (#977). <code>test/ci-scripts/test-dor-gate-notice.sh</code> pins that separation.</p>
 <h2 id="bug-pipeline-spec-side-live">Bug pipeline (spec side, live)<a class="headerlink" href="#bug-pipeline-spec-side-live" title="Permanent link">&para;</a></h2>
 <p>Bugs run a <strong>parallel spec-side pipeline</strong> that reuses the feature machinery — the <code>dor-authorize</code>
 action, the board helper (<code>dor_set_status.sh</code>), the deterministic-split execution model, the shared
@@ -5867,73 +5971,29 @@ cracks. No AI, no board.</p>
   tf --&gt; sk1
   tf --&gt; sk2</code></pre>
 <h2 id="the-state-machine-how-each-transition-is-really-enforced">The state machine &amp; how each transition is really enforced<a class="headerlink" href="#the-state-machine-how-each-transition-is-really-enforced" title="Permanent link">&para;</a></h2>
-<pre class="mermaid"><code>stateDiagram-v2
-  [*] --&gt; needs_clarification: PO pre-screen (human)
-  needs_clarification --&gt; awaiting_signoff: Phase A + B complete (AI)
-  awaiting_signoff --&gt; ready_to_build: requestor /confirm (actor RBAC)
-  ready_to_build --&gt; approved: GO (Environment required reviewers)
-  approved --&gt; building: control plane provisions (auto)
-  building --&gt; build_done: CI green + deployed (AI + script)
-  build_done --&gt; done: merge (branch protection + CODEOWNERS)
-  build_done --&gt; needs_clarification: feedback loop (human)
-  done --&gt; [*]: teardown + close issue w/ outcome</code></pre>
-<table>
-<thead>
-<tr>
-<th>Transition</th>
-<th>Enforcement mechanism</th>
-<th>Type</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>→ needs-clarification</td>
-<td>PO pre-screen; bot creates the tracking issue</td>
-<td>human</td>
-</tr>
-<tr>
-<td>needs-clarification → awaiting-signoff</td>
-<td>bot, after Phase A interview + Phase B probe complete</td>
-<td>AI</td>
-</tr>
-<tr>
-<td>awaiting-signoff → ready-to-build</td>
-<td><code>/confirm</code> command, actor validated == requestor/assignee</td>
-<td>RBAC (actor)</td>
-</tr>
-<tr>
-<td>ready-to-build → <strong>approved (GO)</strong></td>
-<td><strong>Actions Environment with required reviewers = PO/architect team</strong> — pauses the build job until approved in the GitHub UI</td>
-<td><strong>native RBAC gate</strong></td>
-</tr>
-<tr>
-<td>approved → building</td>
-<td>control-plane runner provisions the sidekick — can only fire <em>after</em> the environment approval</td>
-<td>auto</td>
-</tr>
-<tr>
-<td>building → build-done</td>
-<td>build job green + deployed to the sidekick URL</td>
-<td>AI + script</td>
-</tr>
-<tr>
-<td>build-done → <strong>merged / done</strong></td>
-<td><strong>branch protection + CODEOWNERS required review</strong> on the PR</td>
-<td><strong>native RBAC gate</strong></td>
-</tr>
-<tr>
-<td>build-done → needs-clarification</td>
-<td>feedback comment re-opens the loop</td>
-<td>human</td>
-</tr>
-<tr>
-<td>any illegal label jump</td>
-<td><strong>guard Action reverts it + comments</strong></td>
-<td>reconciler</td>
-</tr>
-</tbody>
-</table>
-<p>The two rows in bold are the real safety gates. Everything else is convenience the guard keeps tidy — because the <em>actions</em> (build, merge) are independently gated, a wrong label can't produce an unapproved build or merge.</p>
+<blockquote>
+<p><strong>Moved (2026-08-11).</strong> The FSM that used to live here described a design that was never built: it
+used a snake_case vocabulary (<code>needs_clarification</code>, <code>awaiting_signoff</code>, <code>ready_to_build</code>,
+<code>build_done</code>) that appears nowhere in the code, a front-of-line "PO pre-screen" that does not
+exist, a <code>/confirm</code> command that was never implemented, and a "guard Action reverts an illegal
+label jump" that was never written. D3 flagged it stale on 2026-07-28; this is the reconciliation
+it asked for.</p>
+<p><strong>The current state machine is <a href="../dor-state-machine/">dor-state-machine.md</a></strong> — all 13 board
+columns, every transition the automation actually makes, which actor owns each one, and the
+operating procedure for each role.</p>
+</blockquote>
+<p>Two claims from the old section survive, and they are the important ones:</p>
+<ul>
+<li>The <strong>value gate</strong> is an Actions Environment (<code>build-approval</code>) with required reviewers — it pauses
+  the build job before a single step runs, and before any token is spent.</li>
+<li>The <strong>merge gate</strong> is a required human approval on the PR; GitHub Actions cannot approve pull
+  requests (D5), so it cannot be automated away.</li>
+</ul>
+<p>Because the <em>actions</em> are independently gated, a wrong label cannot produce an unapproved build or an
+unapproved merge. What the old section got wrong is that nothing reverts a wrong label — there is no
+guard Action, and no from-state check anywhere. Transitions are a convention the workflows keep, not
+a constraint the system enforces. See the warning at the top of
+<a href="../dor-state-machine/">dor-state-machine.md</a>.</p>
 <h2 id="security-model">Security model<a class="headerlink" href="#security-model" title="Permanent link">&para;</a></h2>
 <ul>
 <li><strong>Credential separation = the role boundary.</strong> Control plane holds Proxmox + Traefik creds (never copied to a sidekick). A sidekick gets only a GitHub token scoped to <strong>push branches / open PRs / comment — NOT merge, NOT move <code>approved</code>/<code>ready-to-build</code></strong> — plus a Claude key, injected at provision, destroyed at teardown.</li>
