@@ -1,5 +1,10 @@
 ## Changes in this PR
 
+- Six page views that had no automated test at all are now covered: the Resources, Identities and Principals list pages, and the Resource, Principal and Access Package detail pages. Between them they went from nothing to 90–99% line coverage, which raises the interface's overall coverage and means a regression in any of them is caught before it ships rather than after.
+- Along the way this corrects a mistaken belief recorded in the contributor guide — that these views could not be measured at all. They can; they simply had nothing exercising them, and in one case a test that read the file as text and never ran it. The one genuine exception, the application shell itself, is now named as such instead of standing for a whole class of pages.
+
+## Changes in this PR
+
 - Two checks that were named as gates but blocked nothing now genuinely gate a pull request: the migration-immutability check (never edit an applied migration) and the Node-version consistency check. Both previously ran as their own workflows that no branch protection rule required, so a pull request could go red on either and still merge.
 - PowerShell mutation testing no longer runs on pull requests. It is far heavier than the unit suite and could never have been enforced there, so on a pull request it only ever looked like a gate; it keeps running weekly and on demand, where it still fails below its score floor.
 - The changed-line coverage report is now documented as advisory rather than blocking, which is what it has always been. Making it blocking has to wait for the known blind spot on pure-JSX page views to be fixed, or ordinary UI work would be blocked on lines no test can reach.
