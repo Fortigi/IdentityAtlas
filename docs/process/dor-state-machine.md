@@ -19,6 +19,18 @@ machine**, and the **operating procedure** for each actor.
     this page as the contract the workflows keep with each other — and if you move a card by hand,
     you are the one keeping it.
 
+!!! danger "Dragging a card into *Building* is the one manual move that raises a real alarm"
+
+    Moving a card does not start anything — the column is written *by* the pipeline, it does not
+    drive it. But *Building* is the one column the sweep actively polices: it asserts that work is
+    running **right now**, so 20 minutes later the liveness check asks whether any DoR run is alive
+    for that issue. If none is, you get 💀 in the health report, a `dor-stuck` label on the issue,
+    and an @-mention comment saying its sidekick died mid-flight.
+
+    An issue parked at the value gate is exempt, because a `waiting` run counts as alive — which is
+    the only reason moving two gate-parked issues into *Building* did not fire it. Move one that has
+    no run at all and it will.
+
 ---
 
 ## Actors
@@ -80,11 +92,26 @@ to move a closed issue to Done. Done is the only resting state on the board.
 issue opened
   └─ Awaiting requestor            dor-triage
        └─ Awaiting approval        spec agent, after interview + readiness probe
-            └─ Building            Product Board approves → dor-build-agent
+            │                      dor-propose-build applies `ready-to-build` at once, no human;
+            │                      that starts dor-build-agent, which PARKS on the gate
+            └─ Building            the Product Board approves the parked RUN; the build agent
+                 │                 sets this column itself, as its first act on the sidekick
                  └─ Awaiting functional acceptance
                       └─ Awaiting merge      requestor accepts
                            └─ Done           PR merged → issue closed
 ```
+
+!!! warning "`ready-to-build` comes *before* the gate, not after"
+
+    It is tempting to read the value gate as "a human approves, and then the build is labelled and
+    dispatched". It is the other way round: the label is applied **automatically and immediately**
+    on entering *Awaiting approval*, and it is what creates the run that then waits for a human. The
+    approval acts on the **run**, not on the label — so re-applying `ready-to-build` never bypasses
+    anything.
+
+    While the run is parked, `authorize`, `policy` and `notify` have already completed and `gate` is
+    `waiting`; the `build` job does not exist yet. That is why the column still reads *Awaiting
+    approval* — nothing has set *Building*, because nothing is building.
 
 **Bug** — identical from `Awaiting approval` onward; it enters one column earlier:
 
@@ -142,7 +169,8 @@ stateDiagram-v2
 | *(same, on the right board)* | *(parked)* | member applies `dor-vouched` | `dor-vouch` — transfers the requestor role to the voucher |
 | Awaiting requestor · Awaiting design · Decompose · Blocked (external) · Out of pipeline · **Awaiting approval** | any spec column | agent finishes a pass | Spec agent → [`dor_post_decision.sh`](https://github.com/Fortigi/IdentityAtlas/blob/main/.github/scripts/dor_post_decision.sh) picks **exactly one** of six routes |
 | *(any)* | *(any)* | a human edits a `state:*` label | `dor-board-sync`. Bot senders are ignored |
-| Building | Awaiting approval | Product Board approves the gate | `dor-propose-build` applies `ready-to-build`; `dor-build-agent` then pauses on the Environment |
+| *(column unchanged)* | Awaiting approval | the spec agent applied `state:awaiting-approval` | `dor-propose-build` applies `ready-to-build` at once — no human. That starts `dor-build-agent`, whose `gate` job parks on the `build-approval` Environment. The column does **not** move yet |
+| Building | Awaiting approval | the Product Board approves the parked **run** | the `build` job then runs on a sidekick and `dor_build_flow.sh` sets this column itself, first thing — it also *consumes* `ready-to-build` (removes it), so that label disappearing is not drift |
 | Building | Awaiting functional acceptance | requestor comments, or `/rework` on the PR | `dor_feedback_flow.sh` |
 | Awaiting functional acceptance | Building | build or rework finished | `dor_build_flow.sh` / `dor_feedback_flow.sh` |
 | Awaiting merge | Awaiting functional acceptance | requestor accepts | `dor-acceptance`, after the org-member + classify gate |
@@ -224,6 +252,25 @@ and Approve or reject in the Actions UI. The notice comment deep-links the certi
 then it is usually buried up-thread.
 
 Rejecting is a normal outcome: remove `ready-to-build` and route the issue with a `state:*` label.
+
+**Check the age of a parked run before approving it.** A gate holds indefinitely, and the run is
+pinned to the commit that was `main` when it was *created* — not when you approve. Two runs sat here
+for a week and 119 commits; approving those would have had the agent implement against a
+seven-day-old tree. If the run is stale, discard it and re-dispatch, in this order:
+
+```bash
+# 1. Cancel first. The concurrency group dor-build-agent-<issue> is cancel-in-progress: false,
+#    so a fresh run would just queue behind the parked one instead of starting.
+gh run cancel <run-id> --repo Fortigi/IdentityAtlas
+
+# 2. Re-apply the trigger label to create a fresh run against current main.
+gh issue edit <issue> --repo Fortigi/IdentityAtlas --remove-label ready-to-build
+gh issue edit <issue> --repo Fortigi/IdentityAtlas --add-label ready-to-build
+```
+
+The new run parks at the gate exactly like the old one — this re-dispatches, it does not approve.
+`dor-propose-build` cannot do this for you: it skips any issue that already carries
+`ready-to-build`, which by definition includes every issue parked at the gate.
 
 ### If you are a maintainer
 
