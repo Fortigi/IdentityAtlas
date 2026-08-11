@@ -8,15 +8,8 @@ import { mountRouter } from '../../test-utils/routeTestKit.js';
 
 process.env.USE_SQL = 'true';
 
-const query = vi.fn();
-const queryOne = vi.fn();
-vi.mock('../db/connection.js', () => ({
-  query: (...a) => query(...a),
-  queryOne: (...a) => queryOne(...a),
-  tx: async (fn) => fn({ query: (...a) => query(...a) }),
-  getPool: async () => ({ query: (...a) => query(...a) }),
-  default: {},
-}));
+vi.mock('../db/connection.js');   // picks up src/db/__mocks__/connection.js
+import { query, queryOne } from '../db/connection.js';
 
 const runLinking = vi.fn(() => Promise.resolve());
 vi.mock('../accountlinking/engine.js', () => ({ runLinking: (...a) => runLinking(...a) }));

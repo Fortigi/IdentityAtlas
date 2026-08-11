@@ -7,13 +7,8 @@ import { mountRouter } from '../../test-utils/routeTestKit.js';
 
 process.env.USE_SQL = 'true';
 
-const query = vi.fn();
-const queryOne = vi.fn();
-vi.mock('../db/connection.js', () => ({
-  query: (...a) => query(...a),
-  queryOne: (...a) => queryOne(...a),
-  default: {},
-}));
+vi.mock('../db/connection.js');   // picks up src/db/__mocks__/connection.js
+import { query, queryOne } from '../db/connection.js';
 
 const runScoring = vi.fn(() => Promise.resolve());
 vi.mock('../riskscoring/engine.js', () => ({ runScoring: (...a) => runScoring(...a) }));
