@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Fixed the autonomous builder being unable to push anything after its first commit. Asking a built feature for a change ("/rework") always failed and dead-lettered the issue, and the builder's own attempt to fix a failing CI check could never land either — both bailed with a push rejection. Only the very first push of a build had ever worked, because that one creates the branch; every push after it was rejected outright.
+
+## Changes in this PR
+
 - The pipeline health report now names the boards when it reports an issue filed on the wrong one. It used to say "sits on this board but its labels route it to the other one" without saying which was which — and because the sweep runs once per board into a report whose title doesn't identify it either, the line was unreadable from the reader's position and looked simply wrong to anyone looking at the board where the issue was correctly filed.
 
 ## Changes in this PR
