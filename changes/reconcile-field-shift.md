@@ -1,0 +1,4 @@
+- Fixed the DoR pipeline health report claiming that correctly-routed issues were "on the board with no `state:*` label — the agent likely never ran". Any issue that had a routing label but no reserved sidekick was misread as un-routed, which was every routed issue on both boards: all 31 items the two health issues were reporting were false alarms.
+- Restored the health report's drift detection (routing label disagrees with the board's Status column), which had never been able to run for the same reason.
+- The waiting-on-a-human signals — the approval-gate backlog count and the long-stale warnings — now reach the health report; they were being skipped alongside the drift check.
+- The health report no longer nags about closed issues sitting in **Out of pipeline**. That column means "handled by the normal dev flow", so being closed from it is the expected ending, not drift.

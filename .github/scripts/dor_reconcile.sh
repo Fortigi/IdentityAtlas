@@ -111,22 +111,29 @@ build_phase() {
 }
 
 # 2. Walk every OPEN enhancement issue. Capture the list first so a transient failure aborts under
-#    set -e rather than silently reporting "healthy"; state_label is LAST so an empty label (the
-#    common case) is a trailing field that `read` strips cleanly instead of shifting the columns.
-issues_tsv="$(gh issue list --repo "$OWNER/$REPO" --state open --label "$LABEL" --limit 201 \
+#    set -e rather than silently reporting "healthy".
+#
+#    Records are joined on US (\x1f), NOT tabs. Tab is an *IFS whitespace* character, so under
+#    `IFS=$'\t'` bash collapses a run of tabs into ONE delimiter and an empty field in the middle of
+#    the record silently shifts every field after it left. `sk_label` is empty on almost every issue
+#    (only a live build holds a sidekick), so the overwhelmingly common record —
+#    `…<TAB><TAB>state:decompose` — parsed as sk_label='state:decompose', state_label='' and made
+#    every correctly-routed issue look un-routed. US is not IFS whitespace, so empty fields survive.
+#    Neither an issue number nor a GitHub label name can contain a control character.
+issues_rows="$(gh issue list --repo "$OWNER/$REPO" --state open --label "$LABEL" --limit 201 \
   --json number,labels,createdAt,updatedAt \
   --jq '.[] | [(.number|tostring),
                (.createdAt | fromdateiso8601 | tostring),
                (.updatedAt | fromdateiso8601 | tostring),
                ((([.labels[].name] | index("needs-vouch")) != null) | tostring),
                ([.labels[].name | select(startswith("sk:"))][0] // ""),
-               ([.labels[].name | select(startswith("state:"))][0] // "")] | @tsv')"
-if [ "$(printf '%s' "$issues_tsv" | grep -c .)" -ge 201 ]; then
+               ([.labels[].name | select(startswith("state:"))][0] // "")] | join("\u001f")')"
+if [ "$(printf '%s' "$issues_rows" | grep -c .)" -ge 201 ]; then
   add_ex "⚠️ Over 200 open ${LABEL} issues — reconcile inspected only the first 200; add pagination."
-  issues_tsv="$(printf '%s\n' "$issues_tsv" | head -n 200)"
+  issues_rows="$(printf '%s\n' "$issues_rows" | head -n 200)"
 fi
 approval_backlog=0
-while IFS=$'\t' read -r num created_epoch updated_epoch needs_vouch sk_label state_label; do
+while IFS=$'\x1f' read -r num created_epoch updated_epoch needs_vouch sk_label state_label; do
   [ -n "$num" ] || continue
   status="$(board_status_of "$num")"
 
@@ -213,14 +220,17 @@ while IFS=$'\t' read -r num created_epoch updated_epoch needs_vouch sk_label sta
       [ -z "$open_pr" ] && add_ex "🧟 #${num} still claims \`${sk_label}\` with no open PR — that box is probably holding a stale env. Release it, or drop the label if it already was."
     fi
   fi
-done < <(printf '%s\n' "$issues_tsv")
+done < <(printf '%s\n' "$issues_rows")
 
 [ "$approval_backlog" -gt 0 ] && add_ex "🚦 ${approval_backlog} issue(s) waiting in **Awaiting approval** — the Product board's value gate."
 
 # 3. Closed issues still parked in a non-terminal board Status.
+# "Out of pipeline" is terminal too: it means "this is not a feature for this process — handled by
+# the normal dev flow", so being closed from that column is the expected end, not drift. Flagging it
+# nagged forever on issues that were already resolved exactly as intended (#995, #874).
 while IFS=$'\t' read -r num istate status; do
   [ "$istate" = "CLOSED" ] || continue
-  case "$status" in ""|"Done") : ;; *) add_ex "🔚 #${num} is CLOSED but still on the board as **${status}** — move it to Done or off the board." ;; esac
+  case "$status" in ""|"Done"|"Out of pipeline") : ;; *) add_ex "🔚 #${num} is CLOSED but still on the board as **${status}** — move it to Done or off the board." ;; esac
 done < <(printf '%s\n' "$board")
 
 # 3b. Closed issues that still claim a sidekick: the release never ran, or ran against the wrong box

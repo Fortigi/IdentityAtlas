@@ -7,6 +7,14 @@
 # before the liveness check, and the build side deliberately runs without a state label. Nothing
 # tested this file, which is why it shipped shadowed and stayed that way.
 #
+# The complementary failure was the record encoding itself. `@tsv` + `IFS=$'\t'` collapses a run of
+# tabs (tab is IFS *whitespace*), so an empty `sk_label` in the middle of the record shifted every
+# field after it: `state_label` came out empty on every issue that had a state label but no sidekick
+# — i.e. nearly all of them. Every correctly-routed issue was reported "un-routed", and the drift
+# check, which needs the label, never ran at all. The first version of this harness could not see it
+# because the fixture hand-encoded the record; the stub now serves JSON and applies the script's OWN
+# --jq program to it, so the jq → `read` contract is under test rather than duplicated here.
+#
 # Approach: put a stub `gh` on PATH that serves fixtures and records writes, then run the REAL
 # script end to end and assert on the health-report body it produces. No network, no tokens.
 #
@@ -16,6 +24,11 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 SCRIPT="$REPO_ROOT/.github/scripts/dor_reconcile.sh"
+
+command -v jq >/dev/null 2>&1 || {
+  echo "jq is required: the stub applies the script's real --jq program to the JSON fixtures." >&2
+  exit 1
+}
 
 PASS=0
 FAIL=0
@@ -63,9 +76,17 @@ case "$args" in
   *"actions/runs?status="*)           cat "$FIX/live_runs.txt" ;;
   # has_live_run's title lookup — `gh issue view <num> --repo … --json title`, so the number is $3.
   "issue view"*"--json title"*)       sed -n "s/^$3\t//p" "$FIX/titles.tsv" ;;
-  # The open-issue walk. The script's own --jq is bypassed: we serve the TSV it expects.
+  # The open-issue walk. Serve the JSON real `gh` would return and run the script's OWN --jq program
+  # over it, so the record encoding is exercised instead of being hand-copied into the fixture.
   *"--state open --label dor-stuck"*) cat "$FIX/marked.txt" 2>/dev/null || true ;;
-  *"--state open --label"*"--limit 201"*) cat "$FIX/issues.tsv" ;;
+  *"--state open --label"*"--limit 201"*)
+    jq_prog=""; prev=""
+    for a in "$@"; do
+      if [ "$prev" = "--jq" ]; then jq_prog="$a"; break; fi
+      prev="$a"
+    done
+    jq -r "$jq_prog" "$FIX/issues.json"
+    ;;
   *"--state closed --label"*)         : ;;   # no closed issues claiming a sidekick
   *"--state all --limit 100"*)        : ;;   # no health issue yet -> the script creates one
   "pr list"*)                         : ;;   # no open PR (zombie check)
@@ -90,10 +111,11 @@ run_sweep() {
   sed -n '/^CREATE_BODY: /,$p' "$fix/writes.log" 2>/dev/null || true
 }
 
-# Build a fixture dir. $2 = board Status, $3 = minutes since the issue was updated,
-# $4 = "live" to make a run look alive for it.
+# Build a fixture dir holding ONE open issue (#370).
+#   $2 board Status   $3 minutes since the issue was last updated   $4 "live" to give it a live run
+#   $5 its `sk:*` label ('' for none)   $6 its `state:*` label ('' for none, as the build side leaves it)
 scenario() {
-  local dir="$1" status="$2" upd_min="$3" live="${4:-}"
+  local dir="$1" status="$2" upd_min="$3" live="${4:-}" sk="${5-sk:sk3}" state="${6-}"
   local now created updated
   now="$(date -u +%s)"
   created=$(( now - 3600 * 1000 ))          # ancient: opened ~42 days ago, like #370
@@ -103,14 +125,28 @@ scenario() {
   : > "$dir/writes.log"
   printf '370\tOPEN\t%s\n' "$status"                       > "$dir/board.tsv"
   printf '370\tCollapse managed resources\n'               > "$dir/titles.tsv"
-  # number, created, updated, needs_vouch, sk_label, state_label — state_label EMPTY, as the
-  # build side always leaves it.
-  printf '370\t%s\t%s\tfalse\tsk:sk3\t\n' "$created" "$updated" > "$dir/issues.tsv"
+  jq -n --argjson c "$created" --argjson u "$updated" --arg sk "$sk" --arg st "$state" \
+    '[{ number: 370, createdAt: ($c|todate), updatedAt: ($u|todate),
+        labels: ([{name:"enhancement"}]
+                 + (if $sk == "" then [] else [{name:$sk}] end)
+                 + (if $st == "" then [] else [{name:$st}] end)) }]' > "$dir/issues.json"
   if [ "$live" = "live" ]; then
     printf 'Collapse managed resources\n'                  > "$dir/live_runs.txt"
   else
     : > "$dir/live_runs.txt"
   fi
+  printf '%s' "$dir"
+}
+
+# A board that still lists CLOSED issues and no open ones, so only the closed-issue check speaks.
+# Two rows, so the assertions are two-sided: #370 carries the status under test, #371 is the control
+# that must always be flagged.
+closed_scenario() {
+  local dir="$1" status="$2"
+  rm -rf "$dir"; mkdir -p "$dir"; make_stub "$dir"
+  : > "$dir/writes.log"; : > "$dir/live_runs.txt"; : > "$dir/titles.tsv"
+  printf '370\tCLOSED\t%s\n371\tCLOSED\tBuilding\n' "$status" > "$dir/board.tsv"
+  printf '[]\n' > "$dir/issues.json"
   printf '%s' "$dir"
 }
 
@@ -147,6 +183,39 @@ assert_contains "an issue nothing owns is still flagged un-routed" "🕳️ #370
 # reported "after 1000h" purely because the issue was opened in June.
 out="$(run_sweep "$(scenario "$TMP/fresh" '' 60)")"
 assert_lacks "a recently-updated issue is not flagged on its creation age" "🕳️ #370" "$out"
+
+echo
+echo "DoR reconcile — the record must not shift when a field is empty"
+echo
+
+# ── 5. An issue WITH a state label and NO sidekick — the common shape ───────
+# The record is `…<sep><sep>state:decompose`: `sk_label` empty in the MIDDLE. Under @tsv/IFS-tab the
+# two delimiters collapsed, `state_label` came out empty, and the sweep reported the issue as
+# un-routed while the drift check silently never ran. Status here disagrees with the label, so a
+# working parse MUST produce 🔀 — which also makes the 🕳️ assertion non-vacuous.
+out="$(run_sweep "$(scenario "$TMP/drift" 'Awaiting design' 600 '' '' 'state:decompose')")"
+assert_lacks    "a labelled issue is not mis-reported as un-routed" "🕳️ #370" "$out"
+assert_contains "the drift check can see the state label again" "🔀 #370" "$out"
+assert_contains "…and names both sides of the disagreement" \
+  'label `state:decompose` (→ Decompose) but board Status is **Awaiting design**' "$out"
+
+# ── 6. …and when the label and the board agree, the sweep says nothing ──────
+run_sweep "$(scenario "$TMP/routed" 'Decompose' 600 '' '' 'state:decompose')" >/dev/null
+assert_lacks "a correctly-routed issue publishes no health report at all" "CREATE_BODY" \
+  "$(cat "$TMP/routed/writes.log")"
+
+echo
+echo "DoR reconcile — closed issues on the board"
+echo
+
+# ── 7. "Out of pipeline" is terminal; closing from it is the expected end ───
+out="$(run_sweep "$(closed_scenario "$TMP/closed-oop" 'Out of pipeline')")"
+assert_contains "a closed issue parked mid-pipeline is still flagged" "🔚 #371" "$out"
+assert_lacks    "a closed 'Out of pipeline' issue is not nagged about forever" "🔚 #370" "$out"
+
+# ── 8. …and "Done" stays terminal too ───────────────────────────────────────
+out="$(run_sweep "$(closed_scenario "$TMP/closed-done" 'Done')")"
+assert_lacks "a closed Done issue is not flagged" "🔚 #370" "$out"
 
 echo
 echo "  $PASS passed, $FAIL failed"
