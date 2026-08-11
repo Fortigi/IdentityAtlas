@@ -184,9 +184,10 @@ nav:
           - CI Scope Testing: architecture/ci-scope-testing.md
           - Release & Branching Strategy: architecture/branching-strategy.md
           - Definition of Ready: process/definition-of-ready.md
+          - DoR state machine & operating procedure: process/dor-state-machine.md
           - Operationalising the DoR: process/operationalization.md
           - DoR sidekick setup: process/dor-sidekick-setup.md
-          - Autonomous bug pipeline (proposal): process/autonomous-bug-pipeline.md
+          - Autonomous bug pipeline (partly built): process/autonomous-bug-pipeline.md
       - Design archive:
           - About the archive: architecture/design-archive.md
           - Context Redesign: architecture/context-redesign.md

@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # DoR feedback flow (loop E). Runs ON the sidekick that holds a feature currently in "Awaiting
-# functional acceptance", invoked by dor-feedback.yml when the requestor (or a member) comments
-# something that is NOT "approved". The AI adjusts the implementation to address the feedback,
+# functional acceptance", invoked by dor-acceptance.yml when the requestor (or a member) comments
+# something that is NOT "approved" (on the PR, that means a `/rework …` comment). The AI adjusts the
+# implementation to address the feedback,
 # re-deploys to the same live env, re-verifies (feature e2e + PR CI, auto-fix up to 8×), and reports
 # back on the issue — the board stays in Awaiting functional acceptance for another look. Shares the
 # deploy / e2e / CI / bail helpers with the initial build via dor_build_lib.sh.

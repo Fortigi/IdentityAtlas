@@ -72,6 +72,21 @@ fix — sometimes there's an easier route to what you need.
 - When the work ships, the issue is closed and the change appears in the
   [release notes](https://github.com/Fortigi/IdentityAtlas/blob/main/CHANGES.md){ target=_blank rel=noopener }.
 
+!!! info "Some of those follow-up questions come from an AI"
+
+    Issues here run through an automated **Definition of Ready** pipeline. Shortly after you file,
+    an agent reads your issue, checks it against the real code, and asks whatever it needs to make
+    the request buildable — so the first reply you get may well be a bot. Answer it in a comment as
+    you would a colleague; each answer re-triggers it.
+
+    Nothing is built without a human deciding it should be, and nothing merges without a human code
+    review. If you filed from outside the Fortigi organisation, a maintainer has to accept your
+    request before it moves at all.
+
+    The whole thing is written up in
+    [Definition of Ready](../process/definition-of-ready.md) and
+    [the state machine](../process/dor-state-machine.md).
+
 Want to help fix it yourself? See **[Contribute a change](contribute.md)**.
 
 ## Need guaranteed support or priority features?
