@@ -87,6 +87,34 @@ def load_baseline():
         return json.load(fh).get("files", {})
 
 
+def merge_baseline(measured, baseline, allow_decrease=False):
+    """Fold a fresh measurement into `baseline` IN PLACE, in the improving direction only.
+
+    Returns (raised, added, declined, lowered); `declined` and `lowered` carry
+    (path, baselined, measured). A ratchet that re-baselines downward is not a ratchet: a blanket
+    --update after adding tests must not quietly give back ground somewhere else because one file
+    measured a point lower. Lowering happens only when it is asked for.
+    """
+    raised, added, declined, lowered = 0, 0, [], []
+    for path, (hit, total) in measured.items():
+        if total <= 0:
+            continue
+        new = max(0, floor_pct(hit, total) - SAFETY_MARGIN)
+        old = baseline.get(path)
+        if old is None:
+            baseline[path] = new
+            added += 1
+        elif new > old:
+            baseline[path] = new
+            raised += 1
+        elif new < old and allow_decrease:
+            baseline[path] = new
+            lowered.append((path, old, new))
+        elif new < old:
+            declined.append((path, old, new))
+    return raised, added, declined, lowered
+
+
 def evaluate(measured, baseline):
     """Violation messages for baselined files whose current coverage fell below
     their floor. New files (not in the baseline) and zero-line files are skipped."""
@@ -138,34 +166,15 @@ def main(argv=None):
     baseline = load_baseline()
 
     if args.update:
-        raised, added, declined, lowered = 0, 0, [], []
-        for path, (hit, total) in measured.items():
-            if total <= 0:
-                continue
-            new = max(0, floor_pct(hit, total) - SAFETY_MARGIN)
-            old = baseline.get(path)
-            if old is None:
-                baseline[path] = new
-                added += 1
-            elif new > old:
-                baseline[path] = new
-                raised += 1
-            elif new < old:
-                # A ratchet that re-baselines downward is not a ratchet. Hold the floor unless the
-                # decrease was asked for explicitly — a blanket --update after adding tests must not
-                # quietly give back ground somewhere else because one file measured a point lower.
-                if args.allow_decrease:
-                    baseline[path] = new
-                    lowered.append((path, old, new))
-                else:
-                    declined.append((path, old, new))
+        raised, added, declined, lowered = merge_baseline(measured, baseline, args.allow_decrease)
         write_baseline(baseline)
         print(f"Updated coverage baseline from {', '.join(args.lcov)}: "
               f"{raised} raised, {added} added, {len(declined) + len(lowered)} below their floor.")
-        for path, old, new in lowered:
-            print(f"  LOWERED {path}: {old}% -> {new}% (--allow-decrease)")
-        for path, old, new in declined:
-            print(f"  kept {path} at {old}% (measured {new}%) — re-run with --allow-decrease to lower it")
+        for path, old, new_pct in lowered:
+            print(f"  LOWERED {path}: {old}% -> {new_pct}% (--allow-decrease)")
+        for path, old, new_pct in declined:
+            print(f"  kept {path} at {old}% (measured {new_pct}%) — "
+                  f"re-run with --allow-decrease to lower it")
         return 0
 
     fails = evaluate(measured, baseline)
