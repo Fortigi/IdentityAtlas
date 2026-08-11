@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Internal: consolidated the API route-test database mock into a single shared manual mock, removing duplicated boilerplate across the route unit tests (no user-facing change).
+
+## Changes in this PR
+
 - Dependency-update pull requests are now tested. A change to a lockfile — the shape of every automated npm update and every security fix — matched none of the rules deciding which checks to run, so the unit, contract, integration and browser suites all skipped and the update merged with nothing having run against the dependency tree it installs. The lockfile is what actually gets installed, and a transitive bump touches nothing else.
 
 ## Changes in this PR
