@@ -209,3 +209,61 @@ class TestGate:
         bl = ratchet.build_baseline(over, metric)
         assert bl["files"]["a.ps1"] == [25, 18]
         assert bl["metric"] == "cog"
+
+
+# ─── --update must ratchet, not re-baseline ──────────────────────────────────
+# It used to rebuild the baseline from the current measurement, so a unit that got MORE complex —
+# or a newly over-threshold one — was silently re-baselined at the worse value, the opposite of the
+# header's "only ever ratchets DOWN". check() compares the per-file lists position-wise on values
+# sorted descending, so the merge is position-wise too.
+def _over(**files):
+    """{file: [(unit, value), …]} in the shape over_threshold() produces."""
+    return {f: [({"unit": f"u{i}", "lang": "js"}, v) for i, v in enumerate(vs)]
+            for f, vs in files.items()}
+
+
+def test_update_merge_lowers_a_value_that_fell():
+    merged, improved, dropped, held = ratchet.merge_baseline(_over(**{"a.js": [22]}), {"a.js": [30]})
+    assert merged == {"a.js": [22]}
+    assert (improved, dropped, held) == (1, 0, [])
+
+
+def test_update_merge_refuses_a_value_that_rose():
+    merged, _, _, held = ratchet.merge_baseline(_over(**{"a.js": [35]}), {"a.js": [30]})
+    assert merged == {"a.js": [30]}                 # ceiling held
+    assert held == [("a.js", [30], [35])]
+
+
+def test_update_merge_refuses_an_extra_over_threshold_unit():
+    # Two units over threshold where the baseline grandfathered one: the list must not grow.
+    merged, _, _, held = ratchet.merge_baseline(_over(**{"a.js": [30, 25]}), {"a.js": [30]})
+    assert merged == {"a.js": [30]}
+    assert held == [("a.js", [30], [30, 25])]
+
+
+def test_update_merge_takes_a_shorter_list_as_an_improvement():
+    merged, improved, _, held = ratchet.merge_baseline(_over(**{"a.js": [30]}), {"a.js": [30, 25]})
+    assert merged == {"a.js": [30]} and improved == 1 and held == []
+
+
+def test_update_merge_drops_a_file_no_longer_over_threshold():
+    merged, _, dropped, _ = ratchet.merge_baseline({}, {"a.js": [30]})
+    assert merged == {} and dropped == 1
+
+
+def test_update_merge_refuses_to_grandfather_a_new_file():
+    merged, _, _, held = ratchet.merge_baseline(_over(**{"new.js": [40]}), {})
+    assert merged == {} and held == [("new.js", None, [40])]
+
+
+def test_update_merge_takes_the_gain_and_holds_the_ground_in_one_run():
+    merged, improved, _, held = ratchet.merge_baseline(
+        _over(**{"fell.js": [21], "rose.js": [35]}), {"fell.js": [30], "rose.js": [30]})
+    assert merged == {"fell.js": [21], "rose.js": [30]}
+    assert improved == 1 and held == [("rose.js", [30], [35])]
+
+
+def test_update_merge_allows_an_explicit_increase():
+    merged, _, _, held = ratchet.merge_baseline(
+        _over(**{"a.js": [35], "new.js": [40]}), {"a.js": [30]}, allow_increase=True)
+    assert merged == {"a.js": [35], "new.js": [40]} and held == []

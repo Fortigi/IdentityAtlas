@@ -10,7 +10,11 @@ baseline (.ci/filesize-baseline.json). CI then enforces, per file:
     baselined value);
   - a new file, or a file that crosses the ceiling for the first time, must be
     at or under the ceiling.
-The baseline only ever ratchets DOWN (via --update).
+The baseline only ever ratchets DOWN: `--update` shrinks a grandfathered entry and
+drops a file that is back under the ceiling, but will not raise a ceiling or
+grandfather a new oversized file — that needs `--update --allow-increase`, which
+prints each one. It used to write the current measurement verbatim, so a file that
+GREW was silently re-baselined at the worse value.
 
 Usage:
   python tools/filesize/ratchet.py            # check (CI)
@@ -76,6 +80,42 @@ def load_baseline():
         return json.load(f).get("files", {})
 
 
+def merge_baseline(over, baseline, allow_increase=False):
+    """Fold a fresh measurement into the committed baseline in the improving direction only.
+
+    Returns (merged, shrunk, dropped, held) where `held` lists the (path, baselined, measured)
+    the merge refused to worsen. `--update` used to write `over` verbatim, so a file that GREW
+    past its grandfathered size — or a brand-new file over the ceiling — was silently re-baselined
+    at the worse value, which is the opposite of "only ever ratchets DOWN".
+
+    Improving moves, always taken:
+      - a grandfathered file that shrank      -> record the smaller number
+      - a grandfathered file now at/under the ceiling -> drop it; it is no longer an exception
+    Worsening moves, only with allow_increase:
+      - a grandfathered file that grew        -> raise its ceiling
+      - a new file over the ceiling           -> grandfather it
+    """
+    merged, shrunk, held = dict(baseline), 0, []
+    for p, n in sorted(over.items()):
+        old = baseline.get(p)
+        if old == n:
+            continue                       # unchanged
+        if old is not None and n < old:
+            merged[p] = n                  # shrank — always take it
+            shrunk += 1
+            continue
+        if allow_increase:                 # grew, or newly over the ceiling
+            merged[p] = n
+            continue
+        held.append((p, old, n))
+
+    # Back under the ceiling — stop grandfathering it.
+    gone = [p for p in merged if p not in over]
+    for p in gone:
+        del merged[p]
+    return merged, shrunk, len(gone), held
+
+
 def evaluate(over, baseline):
     """Return the list of violation messages (empty == pass)."""
     fails = []
@@ -93,13 +133,21 @@ def evaluate(over, baseline):
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--update", action="store_true",
-                    help="re-baseline: record current over-ceiling files (ratchets down only)")
+                    help="re-baseline: shrink grandfathered entries and drop files back under the "
+                         "ceiling. Never raises a ceiling or grandfathers a new file.")
+    ap.add_argument("--allow-increase", action="store_true",
+                    help="with --update: also raise a ceiling / grandfather a new oversized file, "
+                         "for an intentional, reviewed increase. Each one is printed.")
     args = ap.parse_args()
+    if args.allow_increase and not args.update:
+        ap.error("--allow-increase only means something with --update")
 
     sizes = measure()
     over = over_ceiling(sizes)
 
     if args.update:
+        merged, shrunk, dropped, held = merge_baseline(
+            over, load_baseline(), allow_increase=args.allow_increase)
         os.makedirs(os.path.dirname(BASELINE), exist_ok=True)
         with open(BASELINE, "w", encoding="utf-8") as f:
             json.dump({
@@ -107,10 +155,16 @@ def main():
                              "ceiling; each may only shrink. Only ever lowered "
                              "(python tools/filesize/ratchet.py --update). See the tool header."),
                 "ceiling": CEILING,
-                "files": dict(sorted(over.items())),
+                "files": dict(sorted(merged.items())),
             }, f, indent=2)
             f.write("\n")
-        print(f"Wrote baseline: {len(over)} file(s) over {CEILING} lines.")
+        print(f"Wrote baseline: {len(merged)} file(s) over {CEILING} lines "
+              f"({shrunk} shrunk, {dropped} dropped, {len(held)} not worsened).")
+        for p, old, n in held:
+            was = f"{old} lines" if old is not None else "not grandfathered"
+            verb = "kept" if old is not None else "did NOT grandfather"
+            print(f"  {verb} {p} ({was}; measured {n}) — "
+                  f"re-run with --allow-increase to accept it")
         return 0
 
     baseline = load_baseline()

@@ -5,7 +5,11 @@ A *ratchet*, not an absolute gate: every unit (function, plus each PowerShell
 script/module body) currently over its language threshold is grandfathered into a
 committed baseline. CI then enforces, per file: no unit may exceed its grandfathered
 ceiling (complexity can only fall), and a new / newly-over-threshold unit must be
-<= the language threshold. The baseline only ever ratchets DOWN.
+<= the language threshold. The baseline only ever ratchets DOWN: `--update` lowers a
+ceiling and drops a file that is no longer over threshold, but will not raise one or
+grandfather a newly over-threshold unit — that needs `--update --allow-increase`, which
+prints each one. It used to rebuild the baseline from the current measurement, so a unit
+that got MORE complex was silently re-baselined at the worse value.
 
 Two independent metrics, each with its own baseline, selected with --metric:
 
@@ -388,7 +392,12 @@ def over_threshold(units, metric):
 
 
 def build_baseline(over, metric):
-    files = {f: sorted((v for _, v in us), reverse=True) for f, us in over.items()}
+    return build_baseline_from(
+        {f: sorted((v for _, v in us), reverse=True) for f, us in over.items()}, metric)
+
+
+def build_baseline_from(files, metric):
+    """Wrap an already-merged {file: [values]} map in the baseline document shape."""
     return {
         "_comment": f"{metric['label'].capitalize()} ratchet baseline. Per file: the "
                     "sorted list of unit values over the language threshold. Only ever "
@@ -397,6 +406,58 @@ def build_baseline(over, metric):
         "thresholds": metric["thresholds"],
         "files": dict(sorted(files.items())),
     }
+
+
+def merge_baseline(over, baseline_files, allow_increase=False):
+    """Fold a fresh measurement into the committed per-file lists, improving direction only.
+
+    `--update` used to write `build_baseline(over)` verbatim, so a unit that got MORE complex —
+    or a brand-new over-threshold unit — was silently re-baselined at the worse value, which is
+    the opposite of "Only ever lowered". Re-baselining upward is not a ratchet.
+
+    Each file's entry is the per-unit values over the threshold, sorted descending, and `check()`
+    compares them position-wise. So the merge is position-wise too:
+      - shorter measured list (fewer units over threshold) -> take it; that is an improvement
+      - value lower at a position                          -> take it
+      - value higher at a position, or an extra unit       -> hold the baseline, unless allowed
+      - file no longer over threshold at all               -> drop it entirely
+
+    Returns (merged, improved, dropped, held) where `held` lists (path, baselined, measured).
+    """
+    merged, improved, held = dict(baseline_files), 0, []
+    for f, us in over.items():
+        cur = sorted((v for _, v in us), reverse=True)
+        base = sorted(baseline_files.get(f, []), reverse=True)
+        if allow_increase:
+            merged[f] = cur
+            continue
+        if not base:
+            held.append((f, None, cur))     # a newly over-threshold file is a new exception
+            continue
+        new, worsened = _merge_values(cur, base)
+        if worsened:
+            held.append((f, base, cur))
+        if new != base:
+            merged[f] = new
+            improved += 1
+
+    # No unit over threshold any more — stop grandfathering the file.
+    gone = [f for f in merged if f not in over]
+    for f in gone:
+        del merged[f]
+    return merged, improved, len(gone), held
+
+
+def _merge_values(cur, base):
+    """One file's descending value lists -> (kept list, did the measurement get worse?).
+
+    Position-wise, because that is how check() reads them: never a higher value at any rank,
+    and never a longer list (an extra over-threshold unit is a new exception, not a ratchet).
+    """
+    keep = min(len(cur), len(base))
+    new = [min(cur[i], base[i]) for i in range(keep)]
+    worsened = len(cur) > len(base) or any(cur[i] > base[i] for i in range(keep))
+    return new, worsened
 
 
 def check(over, baseline_files, metric):
@@ -442,13 +503,20 @@ def main():
     ap = argparse.ArgumentParser(description="Complexity ratchet (cyclomatic / cognitive).")
     ap.add_argument("--metric", choices=list(METRICS), default="cyclomatic",
                     help="which complexity metric to gate (default: cyclomatic)")
-    ap.add_argument("--update", action="store_true", help="regenerate/lower the baseline")
+    ap.add_argument("--update", action="store_true",
+                    help="lower the baseline where complexity fell, and drop files no longer "
+                         "over threshold. Never raises a ceiling or grandfathers a new unit.")
+    ap.add_argument("--allow-increase", action="store_true",
+                    help="with --update: also raise a ceiling / grandfather a newly over-threshold "
+                         "unit, for an intentional, reviewed increase. Each one is printed.")
     ap.add_argument("--baseline", default=None, help="override the baseline path")
     ap.add_argument("--emit-complexity-json", metavar="WORKSPACE", default=None,
                     help="print the full per-unit {file,unit,line,cc,cog} JSON for one JS "
                          "workspace's src (e.g. app/api) and exit — feeds the coverage docs, "
                          "not the gate. Measures every function, not just over-threshold ones.")
     args = ap.parse_args()
+    if args.allow_increase and not args.update:
+        ap.error("--allow-increase only means something with --update")
 
     if args.emit_complexity_json:
         json.dump(measure_js_all_units(args.emit_complexity_json), sys.stdout)
@@ -463,11 +531,22 @@ def main():
     print_summary(args, metric, units, over)
 
     if args.update:
+        existing = {}
+        if os.path.isfile(baseline_path):
+            with open(baseline_path, encoding="utf-8") as fh:
+                existing = json.load(fh).get("files", {})
+        merged, improved, dropped, held = merge_baseline(
+            over, existing, allow_increase=args.allow_increase)
         os.makedirs(os.path.dirname(baseline_path), exist_ok=True)
         with open(baseline_path, "w", encoding="utf-8", newline="\n") as fh:
-            json.dump(build_baseline(over, metric), fh, indent=2)
+            json.dump(build_baseline_from(merged, metric), fh, indent=2)
             fh.write("\n")
-        print(f"Wrote baseline: {relpath(baseline_path)} ({len(over)} files).")
+        print(f"Wrote baseline: {relpath(baseline_path)} ({len(merged)} files; "
+              f"{improved} improved, {dropped} dropped, {len(held)} not worsened).")
+        for f, base, cur in held:
+            was = base if base is not None else "not grandfathered"
+            print(f"  kept {f} at {was} (measured {cur}) - "
+                  f"re-run with --allow-increase to accept it")
         return 0
 
     if not os.path.isfile(baseline_path):
