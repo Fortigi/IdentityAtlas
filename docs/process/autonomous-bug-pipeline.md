@@ -1,8 +1,12 @@
 # Autonomous bug pipeline — workflow definition
 
-> **Status: proposal.** Nothing here is built yet. This document is the shared vision we build
-> against; it supersedes nothing until it is agreed. The feature pipeline
-> ([operationalization](operationalization.md)) is unaffected — see [§10](#10-what-this-does-not-change).
+> **Status: partly built.** This document is the shared vision, written before any of it existed.
+> Phases 1–5 of [§12](#12-build-order) have since shipped — the bug spec side (`dor-bug-agent`), the
+> repro contract, and the `DOR_AUTOBUILD` carve-out that lets a certified bug skip the value gate are
+> all live. Later phases are still a proposal, and anything here that contradicts
+> [dor-state-machine.md](dor-state-machine.md) or
+> [operationalization.md](operationalization.md) is out of date — those describe what runs today.
+> The feature pipeline is unaffected — see [§10](#10-what-this-does-not-change).
 
 A reported bug that the DoR probe has **certified** — reproduced against real code, root cause
 pinned, regression test drafted — goes from report to a merge-ready PR **without a human in the
@@ -320,6 +324,13 @@ The human gate was also, accidentally, the rate limiter. Replace it explicitly:
 
 ## 11. Board and state model
 
+!!! note "This table is the *proposed* model, not the current one"
+
+    The columns as they behave **today** — all 13, on both boards, with the actor who owns each
+    transition — are in [dor-state-machine.md](dor-state-machine.md). Nothing below has retired:
+    `Awaiting approval` and `Awaiting functional acceptance` are both still live and still used by
+    bugs. `Paused` is missing from the table entirely.
+
 The Bug board (org project #3) already carries every Status option needed. Under this design:
 
 | Status | Under autonomy |
@@ -331,11 +342,10 @@ The Bug board (org project #3) already carries every Status option needed. Under
 | Awaiting merge | set when the evidence bundle posts; the human queue. Stays put during a validation session or a proof-gap loop — the `manual-validation` / `reworking` label carries the detail, so the column never lies about where the item is |
 | Done · Exceptions | unchanged |
 
-Prerequisite, and the reason this cannot ship today: the build side is **Feature-board-only** —
-`dor_set_status.sh` defaults to project #2 and nine call sites pass no override, so an approved bug
-would be silently added to the Feature board and driven there. Fix by resolving the board from the
-issue's labels inside `dor_set_status.sh` itself (the picker already exists, copy-pasted, in four
-workflows).
+~~Prerequisite, and the reason this cannot ship today: the build side is **Feature-board-only**~~ —
+**resolved.** `dor_set_status.sh` now resolves the board from the issue's own labels (`bug` → Bug
+Pipeline, everything else → Feature Pipeline), at the source, so no call site needs an override. The
+board follows the issue.
 
 ---
 
