@@ -13,29 +13,27 @@ function scrollWrapper(table) {
   return table.locator('xpath=ancestor-or-self::*[contains(concat(" ", normalize-space(@class), " "), " overflow-x-auto ")]').first();
 }
 
+// Opens `hash` and asserts its first data table sits in exactly one
+// `overflow-x-auto` wrapper that does not also clip the overflow.
+async function expectTableScrolls(page, hash) {
+  await page.goto(hash);
+  const table = page.locator('table').first();
+  await expect(table).toBeVisible({ timeout: 5000 });
+
+  const wrapper = scrollWrapper(table);
+  await expect(wrapper).toHaveCount(1);
+  const cls = await wrapper.getAttribute('class');
+  expect(cls).toContain('overflow-x-auto');
+  expect(cls).not.toContain('overflow-hidden');
+}
+
 test.describe('Data tables — horizontal scroll wrapper', () => {
   test('Users list table (highest-value page) scrolls, not overflow-hidden', async ({ page }) => {
-    await page.goto('/#principals');
-    const table = page.locator('table').first();
-    await expect(table).toBeVisible({ timeout: 5000 });
-
-    const wrapper = scrollWrapper(table);
-    await expect(wrapper).toHaveCount(1);
-    const cls = await wrapper.getAttribute('class');
-    expect(cls).toContain('overflow-x-auto');
-    expect(cls).not.toContain('overflow-hidden');
+    await expectTableScrolls(page, '/#principals');
   });
 
   test('Business Roles (Access Packages) table scrolls, not overflow-hidden', async ({ page }) => {
-    await page.goto('/#access-packages');
-    const table = page.locator('table').first();
-    await expect(table).toBeVisible({ timeout: 5000 });
-
-    const wrapper = scrollWrapper(table);
-    await expect(wrapper).toHaveCount(1);
-    const cls = await wrapper.getAttribute('class');
-    expect(cls).toContain('overflow-x-auto');
-    expect(cls).not.toContain('overflow-hidden');
+    await expectTableScrolls(page, '/#access-packages');
   });
 
   test('a narrow viewport does not crush the Users table columns — the wrapper scrolls instead', async ({ page }) => {

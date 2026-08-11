@@ -2,7 +2,7 @@
 import { describe, it, expect } from 'vitest';
 import { createElement as h } from 'react';
 import PowerQueryExportSection from './PowerQueryExportSection';
-import { renderWithProviders, makeAuthFetch, screen, userEvent } from '@ui/test-utils/renderWithProviders';
+import { renderWithProviders, makeAuthFetch, screen, userEvent, waitFor, within } from '@ui/test-utils/renderWithProviders';
 
 const tokenRow = {
   id: 't1',
@@ -43,6 +43,51 @@ describe('PowerQueryExportSection', () => {
     await screen.findByText('PowerBI prod report');
     const wrapper = container.querySelector('table').closest('.overflow-x-auto');
     expect(wrapper).toBeTruthy();
+  });
+
+  it('revokes a token from its row button once the confirmation is accepted', async () => {
+    const { authFetch } = renderWithProviders(h(PowerQueryExportSection), { auth: { authFetch: routes() } });
+    const user = await openSection();
+
+    await screen.findByText('PowerBI prod report');
+    const row = screen.getByText('PowerBI prod report').closest('tr');
+    await user.click(within(row).getByRole('button', { name: 'Revoke' }));
+
+    // The row button and the dialog's confirm button share the label, so scope
+    // the confirm click to the modal that just appeared.
+    const modal = (await screen.findByText(/Workbooks using it will stop refreshing/)).closest('.fixed');
+    await user.click(within(modal).getByRole('button', { name: 'Revoke' }));
+
+    await waitFor(() => expect(authFetch).toHaveBeenCalledWith(
+      '/api/admin/read-tokens/t1',
+      expect.objectContaining({ method: 'DELETE' }),
+    ));
+  });
+
+  it('leaves the token alone when the revoke confirmation is cancelled', async () => {
+    const { authFetch } = renderWithProviders(h(PowerQueryExportSection), { auth: { authFetch: routes() } });
+    const user = await openSection();
+
+    await screen.findByText('PowerBI prod report');
+    const row = screen.getByText('PowerBI prod report').closest('tr');
+    await user.click(within(row).getByRole('button', { name: 'Revoke' }));
+    await user.click(await screen.findByRole('button', { name: 'Cancel' }));
+
+    expect(authFetch).not.toHaveBeenCalledWith(
+      '/api/admin/read-tokens/t1',
+      expect.objectContaining({ method: 'DELETE' }),
+    );
+  });
+
+  it('offers no revoke button for an already-revoked token', async () => {
+    renderWithProviders(h(PowerQueryExportSection), {
+      auth: { authFetch: routes({ '/api/admin/read-tokens': [{ ...tokenRow, revoked: true }] }) },
+    });
+    await openSection();
+
+    await screen.findByText('PowerBI prod report');
+    expect(screen.getByText('Revoked')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Revoke' })).toBeNull();
   });
 
   it('renders no table when there are no tokens yet', async () => {
