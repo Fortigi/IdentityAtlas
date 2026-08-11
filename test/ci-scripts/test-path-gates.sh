@@ -53,11 +53,15 @@ simulate_filter() {
     { [[ "$f" = "setup/IdentityAtlas.psm1" ]]           && pester="true"; } || true
     { [[ "$f" =~ ^test/unit/ ]]                         && pester="true"; } || true
 
-    # api scope
+    # api scope — package.json declares ranges, package-lock.json is what gets installed (#997)
     { [[ "$f" =~ ^app/api/src/ ]]                       && api="true"; } || true
+    { [[ "$f" = "app/api/package.json" ]]               && api="true"; } || true
+    { [[ "$f" = "app/api/package-lock.json" ]]          && api="true"; } || true
 
     # ui scope
     { [[ "$f" =~ ^app/ui/src/ ]]                        && ui="true"; } || true
+    { [[ "$f" = "app/ui/package.json" ]]                && ui="true"; } || true
+    { [[ "$f" = "app/ui/package-lock.json" ]]           && ui="true"; } || true
     { [[ "$f" =~ ^tools/crawlers/.*\.jsx$ ]]            && ui="true"; } || true
     { [[ "$f" =~ ^tools/crawlers/.*\.test\.js$ ]]       && ui="true"; } || true
     { [[ "$f" =~ ^tools/crawlers/.*\.test\.jsx$ ]]      && ui="true"; } || true
@@ -67,6 +71,8 @@ simulate_filter() {
 
     # integration scope
     { [[ "$f" =~ ^app/api/src/ ]]                       && integration="true"; } || true
+    { [[ "$f" = "app/api/package.json" ]]               && integration="true"; } || true
+    { [[ "$f" = "app/api/package-lock.json" ]]          && integration="true"; } || true
     { [[ "$f" =~ ^tools/crawlers/.*\.ps1$ ]]            && integration="true"; } || true
     { [[ "$f" =~ ^tools/crawlers/.*\.js$ ]]             && integration="true"; } || true
     { [[ "$f" =~ ^tools/crawlers/shared/ ]]             && integration="true"; } || true
@@ -77,8 +83,12 @@ simulate_filter() {
     { [[ "$f" = "setup/docker/Dockerfile.powershell" ]] && integration="true"; } || true
     { [[ "$f" =~ ^docker-compose ]]                     && integration="true"; } || true
 
-    # e2e scope
+    # e2e scope — drives both halves, so both trees matter
     { [[ "$f" =~ ^app/ui/src/ ]]                        && e2e="true"; } || true
+    { [[ "$f" = "app/ui/package.json" ]]                && e2e="true"; } || true
+    { [[ "$f" = "app/ui/package-lock.json" ]]           && e2e="true"; } || true
+    { [[ "$f" = "app/api/package.json" ]]               && e2e="true"; } || true
+    { [[ "$f" = "app/api/package-lock.json" ]]          && e2e="true"; } || true
     { [[ "$f" =~ ^tools/crawlers/.*\.jsx$ ]]            && e2e="true"; } || true
     { [[ "$f" =~ ^app/api/src/ ]]                       && e2e="true"; } || true
     { [[ "$f" = "app/api/Dockerfile" ]]                 && e2e="true"; } || true
@@ -234,6 +244,36 @@ assert "integration: runs"          "true"  "$integration"
 assert "e2e: runs"                  "true"  "$e2e"
 assert "load-soak: runs"            "true"  "$load_soak"
 assert "pester: skips (no shared/sdk)" "false" "$pester"
+
+# ── Scenario: lockfile-only change — the shape of every npm Dependabot PR (#997)
+# package.json declares RANGES; package-lock.json is what actually gets installed, and a
+# transitive bump moves only the lockfile. No filter listed it, so the suites that run against
+# the installed tree all skipped — #985 (nanoid 3.3.16 -> 3.3.18) merged with zero tests behind it.
+echo ""
+echo "── Scenario: lockfile-only change (Dependabot / npm audit fix)"
+simulate_filter "app/api/package-lock.json
+app/ui/package-lock.json
+changes/npm-audit-nanoid.md"
+assert "unit-js (API): runs"        "true"  "$api"
+assert "unit-ui: runs"              "true"  "$ui"
+assert "integration: runs"          "true"  "$integration"
+assert "e2e: runs"                  "true"  "$e2e"
+assert "lint-ps: skips"             "false" "$ps"
+assert "unit-tests (Pester): skips" "false" "$pester"
+# Deliberately NOT in scope: load/soak answers a performance question, not "does this tree still
+# work", and it is the heaviest job in CI. The `load-soak` label opts a dependency bump in when the
+# change warrants it.
+assert "load-soak: skips"           "false" "$load_soak"
+
+echo ""
+echo "── Scenario: one side's lockfile must not wake the other side"
+simulate_filter "app/api/package-lock.json"
+assert "unit-js (API): runs"        "true"  "$api"
+assert "unit-ui: skips"             "false" "$ui"
+simulate_filter "app/ui/package-lock.json"
+assert "unit-ui: runs"              "true"  "$ui"
+assert "unit-js (API): skips"       "false" "$api"
+assert "integration: skips"         "false" "$integration"
 
 # ── Summary ──────────────────────────────────────────────────────────────────
 

@@ -135,6 +135,10 @@ jobs:
           filters: |
             integration:
               - 'app/api/src/**'
+              # A dependency change is precisely when you want to know the app still boots.
+              # Neither file was here, so a lockfile-only PR skipped this too (#997).
+              - 'app/api/package.json'
+              - 'app/api/package-lock.json'
               - 'tools/crawlers/**/*.ps1'
               - 'tools/crawlers/**/*.js'
               - 'tools/crawlers/shared/**'
@@ -146,6 +150,10 @@ jobs:
               - 'docker-compose*.yml'
             e2e:
               - 'app/ui/src/**'
+              - 'app/ui/package.json'
+              - 'app/ui/package-lock.json'
+              - 'app/api/package.json'
+              - 'app/api/package-lock.json'
               - 'app/ui/e2e/**'
               - 'app/ui/scripts/**'
               - 'app/ui/playwright*.config.js'
