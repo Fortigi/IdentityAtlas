@@ -85,7 +85,16 @@ case "$args" in
   "issue view"*"--json title"*)         sed -n "s/^$3\t//p" "$FIX/titles.tsv" ;;
   # The previous sweep's health issue: its state and the fingerprint buried in its body.
   "issue view"*"--json state,body"*)    serve health.json "$@" ;;
-  *"--state open --label dor-stuck"*)   cat "$FIX/marked.txt" 2>/dev/null || true ;;
+  # Issues already marked `dor-stuck`. GitHub AND-s repeated --label filters, and the stub has to
+  # model that: a query gated on the pipeline label sees a different set from one scoped by
+  # ownership, and that difference IS the behaviour under test.
+  *"--state open --label dor-stuck"*)
+    want=""; prev=""
+    for a in "$@"; do [ "$prev" = "--label" ] && want="$want $a"; prev="$a"; done
+    jq -c --arg want "$want" \
+      '[ .[] | select( (($want | split(" ") | map(select(. != ""))) - [.labels[].name]) == [] ) ]' \
+      "$FIX/marked.json" | jq -r "$(jq_arg "$@")" | tr -d '\r'
+    ;;
   # The gate-label query — only issues MISSING from the board still matter to the walk.
   *"--state open --label"*"--limit 201"*) serve issues.json "$@" ;;
   *"--state closed --label"*)           : ;;   # no closed issues claiming a sidekick
@@ -137,6 +146,15 @@ issue_node() {  # $1 number  $2 created  $3 updated  $4 labels csv
        labels: [ $l | split(",")[] | select(. != "") | {name: .} ] }'
 }
 
+# Say that a previous sweep already marked #370 `dor-stuck`, so the "comment once" dedupe has
+# something to find. $2 = the issue's other labels, which is what decides whether a gate-labelled
+# query can see the mark at all.
+mark_stuck() {  # $1 dir  $2 extra labels csv
+  jq -cn --arg l "$2" \
+    '[{ number: 370, labels: ([{name:"dor-stuck"}] + [ $l | split(",")[] | select(. != "") | {name:.} ]) }]' \
+    > "$1/marked.json"
+}
+
 # Give the fixture a health issue as a previous sweep left it, so §4 has something to compare against.
 seed_health() {  # $1 dir  $2 OPEN|CLOSED  $3 body
   jq -cn '[{number: 886, title: "DoR pipeline health"}]' > "$1/health_list.json"
@@ -166,6 +184,7 @@ scenario() {
   : > "$dir/writes.log"
   printf '370\tCollapse managed resources\n' > "$dir/titles.tsv"
   printf '[]\n'                              > "$dir/health_list.json"
+  printf '[]\n'                              > "$dir/marked.json"
 
   if [ "$place" = offboard ]; then
     board_doc                                                                  > "$dir/board.json"
@@ -213,7 +232,7 @@ assert_contains "…and is told to re-dispatch, not that the agent never ran" "r
 assert_lacks    "…and is NOT mis-reported as un-routed" "🕳️ #370" "$out"
 assert_contains "the issue itself gets marked dor-stuck" "add-label dor-stuck" \
   "$(cat "$TMP/dead/writes.log")"
-assert_contains "…and commented on directly" "died mid-flight" \
+assert_contains "…and commented on directly" "COMMENT: issue comment 370" \
   "$(cat "$TMP/dead/writes.log")"
 
 # ── 2. A build that IS alive must stay quiet ────────────────────────────────
@@ -274,7 +293,27 @@ out="$(run_sweep "$(scenario "$TMP/offboard" '' 600 '' '' 'state:decompose' '' '
 assert_contains "an issue missing from the board still reaches the heal path" \
   "#370 is missing from the board" "$out"
 
-# ── 10. An item filed on the wrong board ────────────────────────────────────
+# ── 10. The "comment once" mark must work without the gate label too ────────
+# 💀 comments directly on the issue, and only once — the mark is how it remembers. Once the walk
+# started following board membership, `stalled` could hold an issue with no gate label, while the
+# mark was still looked up with `--label dor-stuck --label "$LABEL"`. That query can never return
+# such an issue, so its mark was invisible and the comment repeated every hour on something already
+# broken. 38 open Feature-board items have no gate label; this was one dead build away from firing.
+dir="$(scenario "$TMP/stuckmark" 'Building' 40 '' '' '' nogate)"
+mark_stuck "$dir" ""            # marked dor-stuck, and carrying no gate label
+run_sweep "$dir" >/dev/null
+assert_lacks    "an already-marked stalled issue is not commented on again" "COMMENT: issue comment 370" \
+  "$(cat "$dir/writes.log")"
+assert_contains "…though it is still reported in the health digest" "💀 #370" \
+  "$(cat "$dir/writes.log")"
+
+# ── 11. …and an unmarked one still gets its one comment ─────────────────────
+dir="$(scenario "$TMP/stuckfirst" 'Building' 40 '' '' '' nogate)"
+run_sweep "$dir" >/dev/null
+assert_contains "a newly stalled issue is commented on once" "COMMENT: issue comment 370" \
+  "$(cat "$dir/writes.log")"
+
+# ── 12. An item filed on the wrong board ────────────────────────────────────
 # #819 sat on the Feature board at "Blocked (external)" while the Bug board had it at "Awaiting
 # functional acceptance". Membership-driven, it must be named as misfiled rather than un-routed.
 out="$(run_sweep "$(scenario "$TMP/wrongboard" 'Blocked (external)' 600 '' '' '' nogate bug)")"

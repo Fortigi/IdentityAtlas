@@ -309,8 +309,19 @@ done < <(gh issue list --repo "$OWNER/$REPO" --state closed --label "$LABEL" --l
 # 3c. A health issue nobody opens is still silence, and a stalled build has no other signal at all —
 # the flow died before it could say anything. Comment ONCE on the issue itself and mark it, so it
 # reaches notifications without re-nagging every hour; clear the mark as soon as it recovers.
-marked="$(gh issue list --repo "$OWNER/$REPO" --state open --label dor-stuck --label "$LABEL" --limit 50 \
-  --json number --jq '.[].number' 2>/dev/null || true)"
+#
+# Scope the existing marks by the SAME ownership rule the walk uses, NOT by the gate label. Since the
+# walk began following board membership, `stalled` can hold an issue that carries no gate label — and
+# a `--label "$LABEL"` query can never return that issue, so its mark would be invisible, the dedupe
+# below would never fire, and the 💀 comment would repeat every hour on something already broken.
+# 38 open items on the Feature board have no gate label, so this was one dead build away from firing.
+marked=""
+while IFS="$US" read -r m_num m_is_bug; do
+  [ -n "$m_num" ] || continue
+  if belongs_here "$m_is_bug"; then marked="${marked}${m_num} "; fi
+done < <(gh issue list --repo "$OWNER/$REPO" --state open --label dor-stuck --limit 50 \
+  --json number,labels \
+  --jq '.[] | [(.number|tostring), (([.labels[].name] | index("bug")) != null | tostring)] | join("'"$US"'")' 2>/dev/null || true)
 for num in $stalled; do
   case " $(printf '%s ' $marked)" in *" $num "*) continue ;; esac
   gh issue edit "$num" --repo "$OWNER/$REPO" --add-label dor-stuck >/dev/null 2>&1 || true
