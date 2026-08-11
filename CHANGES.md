@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- The pipeline health report now names the boards when it reports an issue filed on the wrong one. It used to say "sits on this board but its labels route it to the other one" without saying which was which — and because the sweep runs once per board into a report whose title doesn't identify it either, the line was unreadable from the reader's position and looked simply wrong to anyone looking at the board where the issue was correctly filed.
+
+## Changes in this PR
+
 - Corrected the state-machine documentation, which implied the value gate was approved *before* the build was dispatched. It is the other way round: the trigger label is applied automatically the moment an issue reaches the value gate, and it is what creates the run that then waits for a human — so re-dispatching never bypasses the approval.
 - Explained why an issue can sit at "Awaiting approval" with everything apparently ready: the build column is set by the build itself, on its first act, so nothing moves until someone approves.
 - Added guidance on approving a run that has been parked for a long time. A waiting run is pinned to the code as it was when it was created, so approving an old one builds against an old tree; the page now says how to discard and re-dispatch instead, and why the cancel has to come first.
