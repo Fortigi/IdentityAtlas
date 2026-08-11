@@ -24,9 +24,21 @@
 #  11. duplication — jscpd clone detection; threshold in .jscpd.json
 #  12. filesize   — file-length ratchet (folded in from filesize.yml)
 #  13. complexity — cyclomatic + cognitive complexity ratchet (from complexity.yml)
+#  14. ci-scripts — self-tests for the path gates and the DoR scripts
+#  15. docs-build — MkDocs --strict, so a PR can't break the nav or a cross-link
+#  16. migration-immutability — migration hashes vs .ci/migration-hashes.json
+#  17. node-version — .nvmrc is the single source of truth for the Node major
 #
 # All of the above feed ci-passed, so none needs to be an individual required
 # check — mark only ci-passed required, and it self-skips per the filter scopes.
+#
+# A gate belongs HERE, not in its own workflow. A workflow that filters on
+# `paths:` can never be a required check: GitHub leaves a required check that
+# never reports permanently pending, so it would block every PR that misses
+# those paths. This file has no top-level `paths:` — it always triggers and
+# gates its JOBS instead, which is what lets one required check stand for all
+# of them. test/ci-scripts/test-gate-wiring.sh enforces that every job here is
+# aggregated, and that no other workflow quietly gates a PR from outside.
 #
 # Target branches: PRs into main
 # ─────────────────────────────────────────────────────────────────────────────
@@ -113,6 +125,8 @@ jobs:
       openapi: ${{ steps.f.outputs.openapi }}
       docs:    ${{ steps.f.outputs.docs }}
       code:    ${{ steps.f.outputs.code }}
+      migrations:   ${{ steps.f.outputs.migrations }}
+      node_version: ${{ steps.f.outputs.node_version }}
       outcome: ${{ steps.f.outcome }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -169,6 +183,18 @@ jobs:
               - '**/*.jsx'
               - '**/*.sql'
               - '**/*.py'
+            # The migration files, their committed hash baseline, and the gate itself.
+            migrations:
+              - 'app/api/src/db/migrations/**'
+              - '.ci/migration-hashes.json'
+              - 'tools/migrations/**'
+            # Only the files that can carry a Node version affect that gate.
+            node_version:
+              - '.nvmrc'
+              - '.github/workflows/**'
+              - '**/Dockerfile'
+              - '**/package.json'
+              - 'tools/node-version/**'
 
   # ── Stage 1: PowerShell linting ──────────────────────────────────────────
   lint-ps:
@@ -877,6 +903,7 @@ jobs:
           bash test/ci-scripts/test-dor-gate-notice.sh
           bash test/ci-scripts/test-dor-reconcile-liveness.sh
           bash test/ci-scripts/test-dor-push-lease.sh
+          bash test/ci-scripts/test-gate-wiring.sh
 
   # ── Stage 15: Docs site build (strict) ────────────────────────────────────
   # `docs.yml` publishes the site, but it only runs on push to main — so until
@@ -913,6 +940,55 @@ jobs:
       - name: Build the site with warnings as errors
         run: mkdocs build --strict --site-dir /tmp/docs-site
 
+  # ── Stage 17: Migration immutability ─────────────────────────────────────
+  # "Never edit an existing migration — add a new file." The migration runner
+  # tracks applied files by NAME only (no checksum), so a silent edit to an
+  # applied migration would never re-run and would diverge environments. Hashes
+  # every migration against .ci/migration-hashes.json and fails on any change or
+  # deletion. See tools/migrations/ratchet.py.
+  migration-immutability:
+    name: Migration immutability gate
+    needs: [filter]
+    if: |
+      needs.filter.outputs.migrations == 'true' ||
+      needs.filter.result == 'failure'
+    runs-on: ubuntu-latest   # git + python3 are preinstalled on the GitHub runner
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Validate the gate logic (Python) before it gates anything.
+      - name: Test the gate logic
+        run: |
+          python3 -m pip install --quiet pytest
+          python3 -m pytest tools/migrations/test_ratchet.py -q
+
+      - name: Run migration immutability gate
+        run: python3 tools/migrations/ratchet.py
+
+  # ── Stage 18: Node-version consistency ───────────────────────────────────
+  # .nvmrc is the single source of truth for the Node major. Fails if any
+  # `node-version:` in a workflow, `FROM node:<v>` in a Dockerfile, or
+  # `engines.node` in a package.json declares a different major — so nothing can
+  # silently revert to an older Node. See tools/node-version/ratchet.py.
+  node-version:
+    name: Node-version gate
+    needs: [filter]
+    if: |
+      needs.filter.outputs.node_version == 'true' ||
+      needs.filter.result == 'failure'
+    runs-on: ubuntu-latest   # git + python3 are preinstalled on the GitHub runner
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Validate the gate logic (Python) before it gates anything.
+      - name: Test the gate logic
+        run: |
+          python3 -m pip install --quiet pytest
+          python3 -m pytest tools/node-version/test_ratchet.py -q
+
+      - name: Run node-version gate
+        run: python3 tools/node-version/ratchet.py
+
   # ── Gate: single required check for branch protection ───────────────────
   # Replaces the individual job requirements in branch protection. Update branch
   # protection to require only "ci-passed" — not each individual job name.
@@ -944,6 +1020,8 @@ jobs:
       - complexity
       - ci-scripts
       - docs-build
+      - migration-immutability
+      - node-version
     if: always()
     runs-on: ubuntu-latest
     steps:
