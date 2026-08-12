@@ -210,6 +210,17 @@ claim_sidekick() {
   gh issue edit "$ISSUE" --repo "$REPO" --add-label "$mine" ${stale:+--remove-label "$stale"} >/dev/null 2>&1 \
     || echo "::warning::could not label #$ISSUE with $mine — its sidekick will need releasing by hand"
   [ -n "$stale" ] && echo "::notice::claim moved to $mine (dropped $stale) — the old box may still hold a stale stack"
+  # Exclusive to the BOX, not just to this issue. The line above only clears OTHER boxes claimed by
+  # THIS issue; a previous holder of this box keeps its label, and two open issues then name one
+  # sidekick. That is silent, not loud: dor-acceptance dispatches the stale claimant's next
+  # `/rework` here, this box answers "not my issue", and the job exits without a word to the
+  # requestor. We hold the reservation now, so any other claim on it is stale by construction (#1011).
+  local other
+  for other in $(gh issue list --repo "$REPO" --state open --label "$mine" --json number \
+                 --jq ".[].number | select(. != $ISSUE)" 2>/dev/null || true); do
+    gh issue edit "$other" --repo "$REPO" --remove-label "$mine" >/dev/null 2>&1 \
+      && echo "::notice::dropped the stale $mine claim from #$other — this box now holds #$ISSUE"
+  done
   return 0
 }
 
