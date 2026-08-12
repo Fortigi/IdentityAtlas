@@ -299,6 +299,42 @@ done < <(printf '%s\n' "$walk_rows")
 
 [ "$approval_backlog" -gt 0 ] && add_ex "🚦 ${approval_backlog} issue(s) waiting in **Awaiting approval** — the Product board's value gate."
 
+# Every `sk:*` label that exists. Asking for claim-holders EXACTLY needs this: `gh issue list
+# --label` ANDs repeated labels, while a search's comma list ORs them. Without it the only available
+# query is "issues carrying the gate label", which is blind twice over — an issue with no gate label
+# is invisible (42 of the Feature board's items have none), and so is anything past the page window.
+sk_all="$(gh label list --repo "$OWNER/$REPO" --search 'sk:' --limit 100 --json name \
+          --jq '[.[].name | select(startswith("sk:"))] | join(",")' 2>/dev/null || true)"
+
+# 2b. One box, two claimants. A sidekick holds exactly ONE issue, so two open issues carrying the
+# same `sk:` label means at least one claim is stale — and the consequence is silent. dor-acceptance
+# resolves the sidekick from the label and dispatches the run to that box, where the job asks "am I
+# the holder of #N?" against its own reservation. For the stale claimant that answers no, so it sets
+# holder=false and exits: no comment, no board move, no error. The requestor asked for a change and
+# got nothing back, which is the exact failure the flow's own comments say it exists to prevent.
+#
+# Repo-wide and deliberately OUTSIDE the per-board walk: a collision can span both pipelines — #819
+# on the Bug board and #665 on the Feature board held sk7 together — and no per-board walk can see
+# that. Reported when at least ONE claimant is ours, so a same-board collision is reported once and
+# a cross-board one reaches both owners.
+if [ -n "$sk_all" ]; then
+  while IFS="$US" read -r sk pairs; do
+    [ -n "$sk" ] || continue
+    mine=false who=""
+    for pair in $pairs; do
+      if belongs_here "${pair##*:}"; then mine=true; fi
+      who="${who}#${pair%%:*}, "
+    done
+    [ "$mine" = true ] || continue
+    add_ex "⚔️ \`${sk}\` is claimed by ${who%, } at once — a box holds one issue, so all but one of those claims is stale, and a \`/rework\` on the stale one dies silently on that box. Check \`~/.dor-reservation\` on ${sk}: whichever issue it names is the real holder; drop the \`${sk}\` label from the others."
+  done < <(gh issue list --repo "$OWNER/$REPO" --state open --search "label:$sk_all" --limit 100 \
+    --json number,labels \
+    --jq '[ .[] | {n: .number, bug: (([.labels[].name] | index("bug")) != null)} as $i
+            | .labels[].name | select(startswith("sk:")) | {sk: ., n: $i.n, bug: $i.bug} ]
+          | group_by(.sk)[] | select(length > 1) | sort_by(.n)
+          | [ .[0].sk, ([.[] | "\(.n):\(.bug)"] | join(" ")) ] | join("'"$US"'")' 2>/dev/null || true)
+fi
+
 # 3. Closed issues still parked in a non-terminal board Status.
 # "Out of pipeline" is NOT terminal here, deliberately: an issue that left the pipeline and has since
 # been closed still has to be walked over to Done, and this line is the only reminder that it is
@@ -310,12 +346,21 @@ done < <(printf '%s\n' "$board")
 
 # 3b. Closed issues that still claim a sidekick: the release never ran, or ran against the wrong box
 # (a re-dispatched build can land elsewhere). That box is out of the pool until someone clears it.
-while IFS=$'\t' read -r num sk; do
+#
+# Asked by the `sk:` labels, not by the gate label. `--label "$LABEL"` could only ever return issues
+# carrying it, so a closed issue with no gate label kept its box out of the pool unseen — the same
+# blindness the walk was fixed for. Ownership then decides which board reports it, exactly as in the
+# walk, so the two sweeps do not both report the same one.
+while IFS="$US" read -r num sk c_is_bug; do
   [ -n "$num" ] || continue
+  belongs_here "$c_is_bug" || continue
   add_ex "🧟 #${num} is CLOSED but still claims \`${sk}\` — release that box by hand (\`~/.dor-reservation\` + \`~/stacks/dor-${num}\`), then drop the label."
-done < <(gh issue list --repo "$OWNER/$REPO" --state closed --label "$LABEL" --limit 50 \
+done < <([ -n "$sk_all" ] && gh issue list --repo "$OWNER/$REPO" --state closed --search "label:$sk_all" --limit 50 \
   --json number,labels \
-  --jq '.[] | select([.labels[].name] | any(startswith("sk:"))) | [(.number|tostring), ([.labels[].name | select(startswith("sk:"))][0])] | @tsv' 2>/dev/null || true)
+  --jq '.[] | [.labels[].name] as $l
+      | [(.number|tostring),
+         ([$l[] | select(startswith("sk:"))][0]),
+         (($l | index("bug")) != null | tostring)] | join("'"$US"'")' 2>/dev/null || true)
 
 # 3c. A health issue nobody opens is still silence, and a stalled build has no other signal at all —
 # the flow died before it could say anything. Comment ONCE on the issue itself and mark it, so it

@@ -95,9 +95,14 @@ case "$args" in
       '[ .[] | select( (($want | split(" ") | map(select(. != ""))) - [.labels[].name]) == [] ) ]' \
       "$FIX/marked.json" | jq -r "$(jq_arg "$@")" | tr -d '\r'
     ;;
+  # Every `sk:*` label in the repo — what the two claim queries below are built from.
+  "label list"*)                        serve labels.json "$@" ;;
+  # Claim holders. Asked for with a SEARCH, not --label: repeated --label filters AND, and the
+  # question is "any of these boxes", so the stub must be reachable by that shape and no other.
+  *"--state open --search label:sk:"*)   serve claims.json "$@" ;;
+  *"--state closed --search label:sk:"*) serve closed_claims.json "$@" ;;
   # The gate-label query — only issues MISSING from the board still matter to the walk.
   *"--state open --label"*"--limit 201"*) serve issues.json "$@" ;;
-  *"--state closed --label"*)           : ;;   # no closed issues claiming a sidekick
   # Does a health issue already exist?
   *"--state all --limit 100"*)          serve health_list.json "$@" ;;
   "pr list"*)                           : ;;   # no open PR (zombie check)
@@ -111,7 +116,20 @@ esac
 exit 0
 STUB
   chmod +x "$dir/bin/gh"
+  # Claim-query defaults: the pool has boxes, nobody is fighting over one, nothing closed holds one.
+  # A scenario that cares about claims overwrites these.
+  printf '[{"name":"sk:sk3"},{"name":"sk:sk7"}]\n' > "$dir/labels.json"
+  printf '[]\n'                                    > "$dir/claims.json"
+  printf '[]\n'                                    > "$dir/closed_claims.json"
 }
+
+# One issue as the claim queries return it: a number, the box it claims, and whether it is a bug
+# (which is what decides the board it belongs to).
+claim_node() {  # $1 number  $2 sk label  $3 "bug" to put it on the Bug board
+  jq -cn --argjson n "$1" --arg sk "$2" --arg b "${3:-}" \
+    '{number: $n, labels: ([{name: $sk}] + (if $b == "bug" then [{name: "bug"}] else [] end))}'
+}
+claims_doc() { if [ "$#" -eq 0 ]; then echo '[]'; return; fi; printf '%s\n' "$@" | jq -s .; }
 
 # Run the real sweep against one fixture set; echo the health-report body it tried to publish.
 run_sweep() {
@@ -388,6 +406,72 @@ assert_contains "…and a closed 'Out of pipeline' issue is flagged too" "🔚 #
 out="$(run_sweep "$(closed_scenario "$TMP/closed-done" 'Done')")"
 assert_contains "the control row still flags" "🔚 #371" "$out"
 assert_lacks    "a closed Done issue is not flagged" "🔚 #370" "$out"
+
+echo
+echo "DoR reconcile — a sidekick holds exactly one issue"
+echo
+
+# Scenario 6's shape: a correctly-routed issue that publishes nothing on its own, so anything the
+# report says below comes from the claim checks and nowhere else.
+quiet() { scenario "$1" 'Decompose' 600 '' '' 'state:decompose'; }
+
+# ── 17. Two open issues claiming one box (#1011) ────────────────────────────
+# The 🧟 check asks, per issue, "does this claim have an open PR?" — and for a built issue awaiting
+# acceptance the answer is yes for BOTH claimants, so a collision was invisible. It is silent in
+# effect too: dor-acceptance sends the stale claimant's `/rework` to this box, the box answers "not
+# my issue", and the job exits without telling the requestor anything.
+d="$(quiet "$TMP/collide")"
+claims_doc "$(claim_node 819 sk:sk7)" "$(claim_node 665 sk:sk7)" > "$d/claims.json"
+out="$(run_sweep "$d")"
+assert_contains "two open issues on one box are reported" '⚔️ `sk:sk7` is claimed by #665, #819' "$out"
+assert_contains "…and the report says how to tell which claim is real" '`~/.dor-reservation` on sk:sk7' "$out"
+
+# ── 18. …across boards, which is the case no per-board walk can see ─────────
+# The live collision was #819 on the Bug board and #665 on the Feature board. Each sweep walks one
+# board, so this check has to be repo-wide or it catches nothing.
+d="$(quiet "$TMP/collide-x")"
+claims_doc "$(claim_node 819 sk:sk7 bug)" "$(claim_node 665 sk:sk7)" > "$d/claims.json"
+out="$(run_sweep "$d")"
+assert_contains "a collision spanning both pipelines is reported" '⚔️ `sk:sk7`' "$out"
+
+# ── 19. …but only to a board that owns one of the claimants ─────────────────
+# Repo-wide input, board-scoped reporting: otherwise the Feature sweep nags about two Bug issues.
+d="$(quiet "$TMP/collide-other")"
+claims_doc "$(claim_node 819 sk:sk7 bug)" "$(claim_node 943 sk:sk7 bug)" > "$d/claims.json"
+run_sweep "$d" >/dev/null
+assert_lacks "a collision between two OTHER-board issues is left to that board" "⚔️" \
+  "$(cat "$TMP/collide-other/writes.log")"
+
+# ── 20. One claimant per box is the normal state and must stay silent ───────
+d="$(quiet "$TMP/no-collide")"
+claims_doc "$(claim_node 370 sk:sk3)" "$(claim_node 665 sk:sk7)" > "$d/claims.json"
+run_sweep "$d" >/dev/null
+assert_lacks "boxes with a single claimant publish nothing" "CREATE_BODY" \
+  "$(cat "$TMP/no-collide/writes.log")"
+
+# ── 21. No sk: labels exist at all — the query must not be built ────────────
+# An empty OR-list would make `label:` a malformed search. Guarded, so a fresh repo sweeps clean.
+d="$(quiet "$TMP/no-boxes")"
+printf '[]\n' > "$d/labels.json"
+claims_doc "$(claim_node 819 sk:sk7)" "$(claim_node 665 sk:sk7)" > "$d/claims.json"
+run_sweep "$d" >/dev/null
+assert_lacks "an empty box pool sweeps clean" "CREATE_BODY" "$(cat "$TMP/no-boxes/writes.log")"
+
+# ── 22. A closed issue still holding a box, WITHOUT the gate label ──────────
+# §3b asked `--label "$LABEL"`, so this issue could never be returned and its box stayed out of the
+# pool unseen — the same blindness the walk was fixed for, in the one check that reports it.
+d="$(quiet "$TMP/closed-claim")"
+claims_doc "$(claim_node 900 sk:sk5)" > "$d/closed_claims.json"
+out="$(run_sweep "$d")"
+assert_contains "a closed issue holding a box is reported without a gate label" \
+  '🧟 #900 is CLOSED but still claims `sk:sk5`' "$out"
+
+# ── 23. …and it is reported by ITS board, not by both ───────────────────────
+d="$(quiet "$TMP/closed-claim-bug")"
+claims_doc "$(claim_node 901 sk:sk5 bug)" > "$d/closed_claims.json"
+run_sweep "$d" >/dev/null
+assert_lacks "the other board's closed claim is left to that board" "🧟 #901" \
+  "$(cat "$TMP/closed-claim-bug/writes.log")"
 
 echo
 echo "  $PASS passed, $FAIL failed"
