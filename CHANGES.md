@@ -1,5 +1,10 @@
 ## Changes in this PR
 
+- Fixed the autonomous build pipeline pushing its work under the wrong identity. Every commit the agent pushed after opening a PR — each `/rework` adjustment and each automatic CI fix — went out as the runner rather than as the bot app, so GitHub held all of that commit's checks for manual approval. The agent could not see its own results, gave up, and sent the request to Exceptions for a human to sort out. Adjustments now run their CI unattended, as they were meant to.
+- The pipeline now refuses to push at all if it cannot push as itself, and says so immediately. Previously this surfaced twenty minutes later as "CI is held", which looked like a GitHub outage rather than a fault on our side.
+
+## Changes in this PR
+
 - Fixed the Filters bar naming the wrong tag: after creating a tag and assigning resources to it in the same session, selecting that tag filtered the table correctly but the active filter pill showed an unrelated tag (the alphabetically first one). Affects the Resources, Users and Identities views.
 - The filter dropdowns now refresh after a tag is assigned, removed or deleted, so a tag you just used is immediately available as a filter value.
 - An active filter is now always shown as a pill — including a filter on a field that hasn't been discovered yet — so it can no longer be active but invisible and impossible to clear.
