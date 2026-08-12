@@ -5258,6 +5258,11 @@
 </tr>
 </tbody>
 </table>
+<p>A tag only appears in these values once it <strong>has at least one assignment</strong> — the
+value list is built from assigned tags, not from the tag catalogue. Clients that
+cache a column-discovery response must therefore refresh it after any tag
+assign/unassign/delete, or a tag that was assigned in the current session will
+be missing from the filter dropdowns (issue #943).</p>
 <p><strong>Response</strong></p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="p">{</span>
 <a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">  </span><span class="nt">&quot;columns&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
