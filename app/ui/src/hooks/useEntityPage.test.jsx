@@ -335,6 +335,29 @@ describe('useEntityPage', () => {
     expect(result.current.actionTag).toBe('');
   });
 
+  it('refetches column discovery after a tag is assigned (issue #943)', async () => {
+    // #943: the filter dropdown's options come from the column-discovery
+    // snapshot. A tag only enters that snapshot once it HAS assignments, so
+    // assigning must invalidate the columns — otherwise a tag created and
+    // assigned in this session is absent from the options and the active
+    // filter pill renders the wrong (alphabetically first) tag name.
+    const { af, result } = setup();
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    await waitFor(() => expect(result.current.columnsLoading).toBe(false));
+
+    const columnsCalls = () =>
+      af.mock.calls.filter((c) => String(c[0]).startsWith(COLUMNS)).length;
+    const before = columnsCalls();
+
+    act(() => result.current.toggleSelect('1'));
+    act(() => result.current.setActionTag('t1'));
+    await act(async () => {
+      await result.current.assignTag();
+    });
+
+    await waitFor(() => expect(columnsCalls()).toBe(before + 1));
+  });
+
   it('activeTagFilter reflects a filter on the tag filter key', async () => {
     const { result } = setup();
     await waitFor(() => expect(result.current.loading).toBe(false));

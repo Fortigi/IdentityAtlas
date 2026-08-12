@@ -7,7 +7,11 @@
  * Props:
  *   label          – Section label (e.g. "User Filters:", "Filters:")
  *   filterFields   – [{key, label}] available fields
- *   activeFilters  – [{field, value}] ALL active filters (bar only shows its own)
+ *   activeFilters  – [{field, value}] ALL active filters. Every one of them gets
+ *                    a pill: a filter on a field missing from `filterFields` is
+ *                    still filtering the table, so hiding its pill would leave
+ *                    the user unable to see or clear it (issue #943). It falls
+ *                    back to the raw field key as its label.
  *   getOptionsForField(fieldKey) → string[]
  *   onAddFilter(field, value)
  *   onRemoveFilter(field)
@@ -25,13 +29,6 @@ export default function FilterBar({
   const [adding, setAdding] = useState(false);
   const [selectedField, setSelectedField] = useState('');
 
-  // Only show active filters belonging to this bar's fields
-  const myFieldKeys = useMemo(() => new Set(filterFields.map(f => f.key)), [filterFields]);
-  const myActiveFilters = useMemo(
-    () => activeFilters.filter(af => myFieldKeys.has(af.field)),
-    [activeFilters, myFieldKeys],
-  );
-
   // Fields not yet used as active filters
   const availableFields = useMemo(() => {
     const used = new Set(activeFilters.map(f => f.field));
@@ -43,6 +40,18 @@ export default function FilterBar({
     return getOptionsForField(selectedField);
   }, [selectedField, getOptionsForField]);
 
+  // Options for an ACTIVE pill, guaranteed to contain the value that filter is
+  // actually applying. A controlled <select> whose value matches no <option>
+  // keeps selectedIndex 0, so the browser silently displays the first option —
+  // the pill then names a different value than the one filtering the table
+  // (issue #943). This happens whenever the value is newer than the discovered
+  // options, e.g. a tag created and assigned in the current session.
+  const optionsForActive = (field, value) => {
+    const options = getOptionsForField(field) || [];
+    if (!value || options.includes(value)) return options;
+    return [value, ...options];
+  };
+
   const handleAddValue = (value) => {
     if (selectedField && value) onAddFilter(selectedField, value);
     setAdding(false);
@@ -50,7 +59,7 @@ export default function FilterBar({
   };
 
   const handleClearAll = () => {
-    myActiveFilters.forEach(af => onRemoveFilter(af.field));
+    activeFilters.forEach(af => onRemoveFilter(af.field));
   };
 
   return (
@@ -58,7 +67,7 @@ export default function FilterBar({
       <span className="font-medium text-gray-700 dark:text-gray-300">{label}</span>
 
       {/* Active filter pills */}
-      {myActiveFilters.map(af => {
+      {activeFilters.map(af => {
         const field = filterFields.find(f => f.key === af.field);
         return (
           <span
@@ -71,7 +80,7 @@ export default function FilterBar({
               onChange={e => onAddFilter(af.field, e.target.value)}
               className="bg-transparent border-none text-blue-900 dark:text-blue-200 text-xs font-medium cursor-pointer p-0 pr-4"
             >
-              {getOptionsForField(af.field).map(v => (
+              {optionsForActive(af.field, af.value).map(v => (
                 <option key={v} value={v}>{v}</option>
               ))}
             </select>
@@ -141,7 +150,7 @@ export default function FilterBar({
         )
       )}
 
-      {myActiveFilters.length > 1 && (
+      {activeFilters.length > 1 && (
         <button
           onClick={handleClearAll}
           className="px-2 py-1 rounded text-xs text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700"

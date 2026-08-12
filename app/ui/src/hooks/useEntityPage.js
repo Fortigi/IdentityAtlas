@@ -86,20 +86,25 @@ export default function useEntityPage({ authFetch, entityType, listEndpoint, col
   // (baseFilters — e.g. the Users principalType tab) is passed through so the
   // API scopes reference-field discovery to it: a relationship only appears in
   // the dropdown when rows in THIS view actually have it. Refetches on tab change.
-  useEffect(() => {
-    (async () => {
-      try {
-        const qs = new URLSearchParams();
-        for (const [k, v] of Object.entries(baseFilters || {})) {
-          if (v != null && v !== '') qs.set(k, v);
-        }
-        const url = qs.toString() ? `${columnsEndpoint}?${qs}` : columnsEndpoint;
-        const res = await authFetch(url);
-        if (res.ok) setAvailableColumns(await res.json());
-      } catch (err) { console.error('Failed to fetch columns:', err); }
-      setColumnsLoading(false);
-    })();
+  //
+  // Callable on demand as well as on mount: the tag filter's values are part of
+  // this snapshot, and a tag only enters it once it HAS assignments — so every
+  // mutation that changes tag assignments must refresh it, or the filter
+  // dropdown can't offer a tag that was assigned in this session (issue #943).
+  const fetchColumns = useCallback(() => {
+    const qs = new URLSearchParams();
+    for (const [k, v] of Object.entries(baseFilters || {})) {
+      if (v != null && v !== '') qs.set(k, v);
+    }
+    const url = qs.toString() ? `${columnsEndpoint}?${qs}` : columnsEndpoint;
+    return authFetch(url)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => { if (data) setAvailableColumns(data); })
+      .catch((err) => console.error('Failed to fetch columns:', err))
+      .finally(() => setColumnsLoading(false));
   }, [authFetch, columnsEndpoint, baseFilters]);
+
+  useEffect(() => { fetchColumns(); }, [fetchColumns]);
 
   // Fetch tags
   const fetchTags = useCallback(() => {
@@ -242,7 +247,7 @@ export default function useEntityPage({ authFetch, entityType, listEndpoint, col
         body: JSON.stringify({ entityIds: [...selected] }),
       });
       setActionTag('');
-      await Promise.all([fetchItems(), fetchTags()]);
+      await Promise.all([fetchItems(), fetchTags(), fetchColumns()]);
     } finally { setBusy(false); }
   };
 
@@ -264,7 +269,7 @@ export default function useEntityPage({ authFetch, entityType, listEndpoint, col
         dialog.toast(`Tagged ${json.inserted} ${entityType}s`, { variant: 'success' });
       }
       setActionTag('');
-      await Promise.all([fetchItems(), fetchTags()]);
+      await Promise.all([fetchItems(), fetchTags(), fetchColumns()]);
     } finally { setBusy(false); }
   };
 
@@ -278,7 +283,7 @@ export default function useEntityPage({ authFetch, entityType, listEndpoint, col
         body: JSON.stringify({ entityIds: [...selected] }),
       });
       setActionTag('');
-      await Promise.all([fetchItems(), fetchTags()]);
+      await Promise.all([fetchItems(), fetchTags(), fetchColumns()]);
     } finally { setBusy(false); }
   };
 
@@ -291,7 +296,7 @@ export default function useEntityPage({ authFetch, entityType, listEndpoint, col
       if (deletedTag && activeTagFilter === deletedTag.name) {
         removeFilter(tagFilterKey);
       }
-      await Promise.all([fetchTags(), fetchItems()]);
+      await Promise.all([fetchTags(), fetchItems(), fetchColumns()]);
     } finally { setBusy(false); }
   };
 
@@ -349,6 +354,6 @@ export default function useEntityPage({ authFetch, entityType, listEndpoint, col
     createTag, assignTag, assignTagToAll, removeTagFromSelected, deleteTag,
     actionTag, setActionTag, busy,
     // Refresh
-    fetchItems, fetchTags,
+    fetchItems, fetchTags, fetchColumns,
   };
 }

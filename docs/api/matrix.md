@@ -145,6 +145,12 @@ Also returns virtual columns:
 | `__userTag` | Injects a tag filter subquery when used in `filters`. Values are tag names. |
 | `__groupTag` | Injects a group-side tag filter subquery. Values are tag names. |
 
+A tag only appears in these values once it **has at least one assignment** — the
+value list is built from assigned tags, not from the tag catalogue. Clients that
+cache a column-discovery response must therefore refresh it after any tag
+assign/unassign/delete, or a tag that was assigned in the current session will
+be missing from the filter dropdowns (issue #943).
+
 **Response**
 
 ```json
