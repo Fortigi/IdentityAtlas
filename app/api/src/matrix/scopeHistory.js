@@ -258,12 +258,29 @@ export function buildScopeAsofSql({ filter, principalColSet, resourceColSet, con
     -- assignment type, from 049 on as a normal Direct membership on a resource
     -- flagged governanceResource. The derived governed rows are not history
     -- tracked, so coverage is reconstructed from membership and Contains facts.
+    --
+    -- Two arms, mirroring "vw_UserPermissionAssignmentViaBusinessRole" (049 +
+    -- 061) so the as-of numbers use the same definition of governed as the live
+    -- scope statistics. Without arm 2 the history path reported every
+    -- business-role membership row as ungoverned while the live path counted it,
+    -- so the latest timeseries point disagreed with live scope-stats.
     coverage AS (
+      -- Arm 1: the resources a governance resource Contains.
       SELECT DISTINCT ga.pid AS "userId", rr.child AS "groupId"
         FROM asof_assign ga
         JOIN asof_contains rr ON rr.parent = ga.rid
        WHERE ga.atype = 'Governed'
           OR EXISTS (
+               SELECT 1 FROM asof_resources ar
+                WHERE (ar.state->>'id') = ga.rid
+                  AND COALESCE((ar.state->>'governanceResource')::boolean, false)
+             )
+      UNION
+      -- Arm 2: the governance resource covers its own membership cell —
+      -- holding a business role IS governed access.
+      SELECT DISTINCT ga.pid AS "userId", ga.rid AS "groupId"
+        FROM asof_assign ga
+       WHERE EXISTS (
                SELECT 1 FROM asof_resources ar
                 WHERE (ar.state->>'id') = ga.rid
                   AND COALESCE((ar.state->>'governanceResource')::boolean, false)

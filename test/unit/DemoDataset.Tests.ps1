@@ -390,6 +390,113 @@ Describe 'Demo dataset — Capture-the-Flag scenarios (#705)' {
     }
 }
 
+Describe 'Demo dataset — one resource, two business roles (#370)' {
+
+    # Catalogues overlap: the same group or app role is granted by more than one
+    # business role. The matrix has to resolve that (a shared row survives until
+    # every granting role is folded), so the dataset has to contain it — one
+    # group and one application role, both granted twice. See
+    # parts/DemoSharedGrants.ps1 and docs/architecture/matrix.md.
+    BeforeAll {
+        $script:sharedResByName = @{}
+        foreach ($r in $script:data.resources) { $script:sharedResByName[$r.displayName] = $r }
+        $script:sharedPrincByName = @{}
+        foreach ($p in $script:data.principals) { $script:sharedPrincByName[$p.displayName] = $p }
+
+        # childResourceId -> the parents that Contain it. A resource with two
+        # entries here is one granted by two business roles.
+        $script:containsByChild = @{}
+        foreach ($rel in $script:data.resourceRelationships) {
+            if ($rel.relationshipType -ne 'Contains') { continue }
+            if (-not $script:containsByChild.ContainsKey($rel.childResourceId)) {
+                $script:containsByChild[$rel.childResourceId] = @()
+            }
+            $script:containsByChild[$rel.childResourceId] += $rel.parentResourceId
+        }
+    }
+
+    It 'grants one GROUP from two different business roles' {
+        $tools = $script:sharedResByName['SG-Servicedesk-Tools']
+        $tools.resourceType | Should -Be 'Group'
+        @($script:containsByChild[$tools.id]).Count | Should -Be 2
+    }
+
+    It 'grants one APPLICATION ROLE from two different business roles' {
+        $ticketing = $script:sharedResByName['Ticketing-Agent']
+        $ticketing.resourceType | Should -Be 'AppRole'
+        @($script:containsByChild[$ticketing.id]).Count | Should -Be 2
+    }
+
+    It 'gives each of the two roles a resource of its own, so folding one still hides a row' {
+        foreach ($name in @('SG-Monitoring-Tools', 'SG-Servicedesk-KB')) {
+            @($script:containsByChild[$script:sharedResByName[$name].id]).Count | Should -Be 1
+        }
+    }
+
+    It 'stores a membership covered by two roles once — the overlap is coverage, not access' {
+        $tools = $script:sharedResByName['SG-Servicedesk-Tools'].id
+        # NOT $pid — that is a read-only PowerShell automatic variable (the
+        # process id), and assigning to it throws before the assertion runs.
+        foreach ($who in @('Victor Wang', 'Wendy Xu')) {
+            $principalId = $script:sharedPrincByName[$who].id
+            @($script:data.resourceAssignments |
+                Where-Object { $_.resourceId -eq $tools -and $_.principalId -eq $principalId }).Count | Should -Be 1
+        }
+    }
+
+    It 'gives one holder only the new role, so the shared rows are not the service desk alone' {
+        $only = $script:sharedPrincByName['Fatih Gunay'].id
+        $held = @($script:data.resourceAssignments | Where-Object { $_.principalId -eq $only } |
+            ForEach-Object { $_.resourceId })
+        $held | Should -Contain $script:sharedResByName['BR-IT-Operations'].id
+        $held | Should -Not -Contain $script:sharedResByName['BR-Service-Desk'].id
+        # ...and he holds the resources that role shares with the service desk.
+        $held | Should -Contain $script:sharedResByName['SG-Servicedesk-Tools'].id
+        $held | Should -Contain $script:sharedResByName['Ticketing-Agent'].id
+    }
+}
+
+Describe 'Demo dataset — access held outside the role that grants it (#370)' {
+
+    # BR-Engineering-Tools grants SG-VPN-Access, and the demo has to show both
+    # sides of that: the engineers who hold it *through* the role (so the row
+    # carries no provisioning gap) and the two SysAdmins who hold it without the
+    # role at all (the cells the matrix marks red). See parts/DemoGovernance.ps1.
+    BeforeAll {
+        $script:vpnResByName = @{}
+        foreach ($r in $script:data.resources) { $script:vpnResByName[$r.displayName] = $r }
+        $script:vpnId  = $script:vpnResByName['SG-VPN-Access'].id
+        $script:brEngId = $script:vpnResByName['BR-Engineering-Tools'].id
+        $script:vpnHolders = @($script:data.resourceAssignments | Where-Object { $_.resourceId -eq $script:vpnId })
+        $script:brEngHolders = @($script:data.resourceAssignments |
+            Where-Object { $_.resourceId -eq $script:brEngId } | ForEach-Object { $_.principalId })
+    }
+
+    It 'materialises the VPN membership the role grants, so no role holder reads as a gap' {
+        $script:brEngHolders.Count | Should -BeGreaterThan 0
+        foreach ($holder in $script:brEngHolders) {
+            @($script:vpnHolders | Where-Object { $_.principalId -eq $holder }).Count | Should -Be 1
+        }
+    }
+
+    It 'emits the role-derived memberships as Indirect, and only those' {
+        $viaRole = @($script:vpnHolders | Where-Object { $script:brEngHolders -contains $_.principalId })
+        $viaRole.Count | Should -Be $script:brEngHolders.Count
+        foreach ($a in $viaRole) { $a.assignmentType | Should -Be 'Indirect' }
+    }
+
+    It 'keeps two Direct memberships held by people who do not hold the role' {
+        $outside = @($script:vpnHolders | Where-Object { $script:brEngHolders -notcontains $_.principalId })
+        $outside.Count | Should -Be 2
+        foreach ($a in $outside) { $a.assignmentType | Should -Be 'Direct' }
+
+        $princById = @{}
+        foreach ($p in $script:data.principals) { $princById[$p.id] = $p }
+        @($outside | ForEach-Object { $princById[$_.principalId].displayName } | Sort-Object) |
+            Should -Be @('Victor Wang', 'Wendy Xu')
+    }
+}
+
 Describe 'Demo dataset — vendor-neutral IGA (#705)' {
 
     It 'names the governance system generically, not after a vendor' {
@@ -404,7 +511,7 @@ Describe 'Demo dataset — vendor-neutral IGA (#705)' {
     It 'sources every business role from the IGA system' {
         $igaSysId = ([array]::IndexOf(@($script:data.metadata.systemKeys.key), 'iga')) + 1
         $roles = @($script:data.resources | Where-Object { $_.resourceType -eq 'BusinessRole' })
-        $roles.Count | Should -Be 5
+        $roles.Count | Should -Be 7
         foreach ($r in $roles) { $r.systemId | Should -Be $igaSysId }
     }
 
@@ -508,8 +615,10 @@ Describe 'Demo dataset — opt-in high-cardinality volume slice (#928)' {
 
     It 'leaves the default dataset untouched without the switch' {
         # The opt-in is the whole point: Verify-DemoDataset.ps1's exact counts,
-        # the Capture-the-Flag answers and the E2E suite all pin 39 resources.
-        @($script:data.resources).Count | Should -Be 39
+        # the Capture-the-Flag answers and the E2E suite all pin the standard
+        # company's resource total (46 since #370 added the role-drift and
+        # shared-grant scenarios) — the volume slice must not shift it.
+        @($script:data.resources).Count | Should -Be 46
         @($script:data.resources | Where-Object { $_.displayName -like 'SG-Vol-*' }).Count | Should -Be 0
     }
 }

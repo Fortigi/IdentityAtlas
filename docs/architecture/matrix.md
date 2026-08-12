@@ -11,7 +11,7 @@ outcome: You can read any cell in the matrix and say exactly how that access is 
     Brand new? Start at [The words you need first](../start/glossary.md).
 
 > **Status:** current as of May 2026.
-> Companion to [`013_matrix_matviews_and_indexes.sql`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/db/migrations/013_matrix_matviews_and_indexes.sql), [`024_matrix_view_all_assignment_types.sql`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/db/migrations/024_matrix_view_all_assignment_types.sql), [`046_owner_as_resource.sql`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/db/migrations/046_owner_as_resource.sql), [`049_governed_intent_rows.sql`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/db/migrations/049_governed_intent_rows.sql).
+> Companion to [`013_matrix_matviews_and_indexes.sql`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/db/migrations/013_matrix_matviews_and_indexes.sql), [`024_matrix_view_all_assignment_types.sql`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/db/migrations/024_matrix_view_all_assignment_types.sql), [`046_owner_as_resource.sql`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/db/migrations/046_owner_as_resource.sql), [`049_governed_intent_rows.sql`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/db/migrations/049_governed_intent_rows.sql), [`061_business_role_covers_itself.sql`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/db/migrations/061_business_role_covers_itself.sql).
 
 ## The grid
 
@@ -293,6 +293,255 @@ aggregate column shows the number of child groups, the user count, and a per-row
 count of Direct assignments. `▾`/`↳` explode an aggregate back into its members
 (direct + indirect, or direct only). This is all **client-side** on the flat
 per-subject payload — it changes what is *rendered*, not what is *fetched*.
+
+### Business-role fold (rows)
+
+The column fold above collapses *columns*; the **business-role fold** collapses
+*rows*. A business-role row (`resourceType='BusinessRole'`) carries the grid's
+ordinary expand triangle (`▼`/`▶` — the same control, and the same indent + `└`
+elbow on the rows below it, as the nested-group expand): collapsing it hides the
+rows of the resources that role grants — its `Contains` children — leaving the
+role row with an "*N* resources folded" chip. A **Fold roles / Unfold roles**
+toolbar pair does it for every role at once, which reduces the grid to exactly
+"business roles + resources no role grants" — the role-mining view without the
+duplication between a role and its contents.
+
+The parent → child mapping is not derived client-side: it is the same
+`ResourceRelationships` / `relationshipType='Contains'` data that
+`GET /api/access-package-groups` already delivers for the SOLL columns
+(`accessPackageGroups`). Folding is pure view state, the same tier as the column
+fold and the nested-group expand — it changes what is *rendered*, never what is
+fetched, counted or exported. It lives in
+[`hooks/useBusinessRoleFold.js`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/ui/src/hooks/useBusinessRoleFold.js)
+and is applied last in the row pipeline, so it composes with the
+All / Governed / Non-governed / Gaps toggles and with injected nested sub-rows.
+
+Rules worth knowing:
+
+- **Default expanded.** Fold choices persist per matrix filter in versioned
+  localStorage (`fgraph-rolefold-<filter>`), the mechanism the custom row order
+  uses — so two different matrix slices keep independent fold state.
+- **A resource granted by several roles has a row under each of them**, so
+  folding one role takes away only that role's copy — see
+  [One resource, several business roles](#one-resource-several-business-roles).
+- **A role with no row of its own** (nobody visible holds it) gets no fold
+  affordance and hides nothing — a resource never disappears without a visible
+  parent to unfold it from.
+- **The folded role's own cells are untouched.** Folding hides rows; it never
+  rolls a child's assignments up into the parent row.
+- **Ownership rows are not folded** — they hang off a group by `HasOwnership`,
+  not off a role by `Contains`.
+- **A resource a role grants belongs to that role's block.** `buildRoleLayout`
+  draws it directly under the role — indented, with the elbow, exactly like an
+  expanded nested group — and under *every* role that grants it, never also as a
+  loose row somewhere else. It is the role rows and the resources no role grants
+  that the AP staircase and the custom drag order position; a role's children
+  travel with it and carry no drag handle of their own (the rule nested sub-rows
+  already followed).
+- **A business role nested inside another one keeps its own place** rather than
+  being filed under its parent — otherwise folding the parent would take its
+  fold chevron off screen with it.
+- **A folded role says how much it is hiding that it does not grant, and how
+  much it grants that isn't there.** Per subject column, the folded row carries
+  a red count on the right of the cell's marker strip (folded resources the
+  subject holds that this role does not account for) and an amber count on the
+  left (folded
+  resources the role assigns that the subject does not have). Folding is a
+  summary, never a cover-up — in either direction. Coverage comes from the
+  server's business-role mapping (`managedByPackages`), not from a client-side
+  guess at what a role ought to grant.
+- **Both counts are roll-ups of marks the rows carry themselves**, so unfolding
+  a role never makes a finding disappear: the resource rows show the same amber
+  gap and the same red "held outside business-role governance" mark on their
+  own cells. See
+  [Fewer and more than the role assigns](#fewer-and-more-than-the-role-assigns).
+
+### Which business role does this row belong to?
+
+The row's position answers it: a resource sits under the role that grants it,
+under each of them if there are several. Two things say the rest:
+
+- Every resource row a business role grants states **all** its roles in the row
+  tooltip (`Granted by business role: …`) — including the ones whose copy of the
+  row is elsewhere in the grid.
+- A row whose resource is *also* granted by another role carries a chip next to
+  the resource name; clicking it opens that role. A resource only one role grants
+  carries no chip — the layout already says everything.
+- **The chip is a marker, not a name**: `BR` for one other granting role, `BR+3`
+  for three. The names are in its tooltip (and behind the click). Role names are
+  long, and the resource-name column is the one column that has to stay
+  readable, so the count goes on the grid and the names stay one hover away.
+  The tooltip doubles as the chip's accessible name.
+
+Both come from `buildRoleLayout` in
+[`useBusinessRoleFold.js`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/ui/src/hooks/useBusinessRoleFold.js),
+off the same `Contains` data the fold uses.
+
+### One resource, several business roles
+
+Catalogues overlap: the same group or application role is routinely handed out
+by more than one business role. That is one row with two (or more) `Contains`
+parents — one membership, stored once; what the second role adds is *coverage*.
+
+**The grid shows the resource under every role that grants it.** One row filed
+under the "first" role and a chip pointing at the rest made the overlap
+something you had to go looking for, and made a fold ambiguous — it could take
+away fewer rows than the role granted, so the fold chip had to hedge with "N of
+M". Drawing the resource once per granting role removes both problems
+(requestor feedback on #370). Duplication is in the *rendering* only: the
+membership, the counts, the scope statistics and the Excel export are all still
+per resource, not per role.
+
+| Where | What it does |
+|---|---|
+| **Row position** | One row under each granting role, indented as its child. The rows are identical — same cells, same badges, same detail link |
+| **SOLL columns** | Each of those rows shows a badge under **every** role that grants the resource, so the overlap is readable straight off the grid |
+| **Cell colour** | The cell carries a count bubble — "covered by *n* business roles" — in the centre of its marker strip, and takes the colour of the first role in `managedByPackages` for that cell |
+| **The `BR+N` chip** | Each row counts the *other* roles that grant it and names them in its tooltip, so one row leads to the rest |
+| **Folding** | Folding a role takes away only that role's copies; the copies under the other roles stay exactly where they are |
+| **The fold chip** | Always reads "*N* resources folded" — a role's fold takes exactly what the role grants, so it can never overstate or understate |
+
+The deviation tallies follow the same rule: a folded role tallies every resource
+it grants, because it hid every one of its own rows. `buildRoleLayout` produces
+the rows, the fold summary and the folded-row lists in one pass, so what a role
+reports and what it actually took away cannot drift apart.
+
+`docs/architecture/demo-dataset.md` → "One resource, two business roles"
+describes the demo data (`BR-Service-Desk` and `BR-IT-Operations` sharing a
+group and an app role) that exercises every row of this table.
+
+### Fewer and more than the role assigns
+
+A business role states what a subject should have (SOLL); the assignments state
+what they do have (IST). The grid marks both directions of drift, and a subject
+can carry both at once — short on one resource of a role, over on another:
+
+| Deviation | Where it shows | Marker |
+|---|---|---|
+| **Fewer** — the role assigns a membership the subject does not have | On the resource's own cell | Amber `!` in the strip's left slot (the provisioning gap), tooltip naming the expected type |
+| **Fewer**, while the role is folded | On the folded role's cell | Amber count in the strip's left slot |
+| **More** — the role grants *eligibility* (`roleName` contains "Eligible") but the subject holds a standing membership | On the resource's own cell | Red `+` in the strip's right slot |
+| **Outside** — a business role hands this resource out, and no business role carries an assignment of it for this subject: they hold it by some other route | On the resource's own cell | Red count in the strip's right slot — how many roles grant the row, tooltip naming them |
+| **More / outside**, while the role is folded | On the folded role's cell | Red count in the strip's right slot (folded resources held over what the role assigns, *plus* those held with no business role assigning them to the subject) |
+
+The comparison lives in
+[`matrix/coverageDeviation.js`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/ui/src/components/matrix/coverageDeviation.js)
+and reads only what the server already states: the `Contains` edge's `roleName`
+(what the role assigns, delivered with `GET /api/access-package-groups`) and the
+coverage matview (which cells a role covers for which subject). Two deliberate
+asymmetries:
+
+- **Fewer means "does not have it at all".** Holding a resource eligibly rather
+  than actively is a legitimate way to hold what a role assigns, so it is not
+  reported as an under-grant — otherwise every PIM-eligible role holder would
+  light up.
+- **More means standing access where only eligibility was granted.** `Direct`
+  and `Indirect` are both standing access — the difference between them is
+  *how* the subject holds it, not *how much*, so an inherited membership is
+  neither more nor less than a direct one.
+
+A third statement shares the red slot: **held outside business-role
+governance**. The resource is one a business role hands out — the row says so,
+and the SOLL column agrees — but no business role carries an assignment of it for
+this subject, so the membership stands outside the governance that is supposed to
+cover it. This is deliberately the *same* finding a folded role reports as its
+red count, said on the resource's own row so folding and unfolding a role never
+change what the grid claims: fold the role and the marks on the rows it hides
+roll up into one count on the role's row; unfold it and they go back to the cells
+they came from.
+
+`heldOutsideRole` in `coverageDeviation.js` clears the mark as soon as **any**
+business role covers the cell — not only one of the roles that have a row in this
+matrix. A role can only cover a cell by granting that resource to a subject who
+holds the role, so a covering role explains the membership whether or not it is
+in the current scope; suppressing on the granting rows alone marked cells red
+that a role outside the scope already accounted for.
+
+**The wording says what was evaluated, and nothing more.** The finding is about
+the *assignments of the business role that grants this resource*: the role hands
+the resource out, and it carries no assignment of it for this subject. That is
+not the same claim as "the subject does not hold that role", which is what the
+tooltip used to close on — and which is plainly wrong whenever the subject does
+hold the role while the role's grant is missing from their assignments
+(requestor feedback on #370). So `heldOutsideRole` also returns
+`holdsGrantingRole`, read off the coverage view's self arm
+([`061`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/db/migrations/061_business_role_covers_itself.sql)
+makes a role cover its own cell exactly when the subject holds it), and the two
+cases are worded separately:
+
+| `holdsGrantingRole` | Tooltip leads with |
+|---|---|
+| `false` — no granting role of the subject's could be established | *no business role assigns this resource to this subject* |
+| `true` — the subject does hold a role that grants the resource | *this subject holds a business role that grants this resource, but the role does not assign it to them* |
+
+Both then name the granting role(s) and say the same thing about them: they
+carry **no assignment of this resource for this subject**. Neither ever asserts
+that a role is not held. The `true` case is what a stale coverage matview looks
+like from the grid — the role assignment has landed but
+`vw_UserPermissionAssignmentViaBusinessRole` has not been refreshed since — so
+the marker describes it accurately instead of blaming the subject.
+
+`docs/architecture/demo-dataset.md` → "Fewer and more than the role assigns"
+describes the demo data that exercises every row of the table above.
+
+### A business role's own row
+
+A business role is a resource row like any other, and holding it is a `Direct`
+assignment carrying `governed=true`. Two consequences the grid makes visible:
+
+- **Its own SOLL column is filled in.** The role grants itself, so the diagonal
+  cell (role row × its own column) renders the **D** badge in the role's colour.
+  That grant is not a `Contains` relationship, so it can never arrive as a
+  (role, resource) pair from `GET /api/access-package-groups`; `MatrixView`
+  fills the diagonal when it builds the SOLL mapping.
+- **Its cells are coloured governed.**
+  [`061_business_role_covers_itself.sql`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/db/migrations/061_business_role_covers_itself.sql)
+  adds a self arm to `vw_UserPermissionAssignmentViaBusinessRole`, so a role
+  covers its own membership row as well as the resources it Contains. Before
+  that, the role row painted ungoverned, dropped out of the **Governed** view,
+  and every business-role membership counted as an *ungoverned* assignment in
+  the scope statistics.
+
+### The cell marker strip
+
+An intersection cell is 24×24px and carries two things: the D/I/E badge for how
+the access is held, and up to three *markers* about it. They do not share
+pixels — the cell reserves the top **8px** as a marker strip and gives the badge
+row the other 16. The strip has three fixed slots, so where a marker sits always
+means the same thing:
+
+| Slot | Colour | Meaning |
+|---|---|---|
+| Left | Amber | **Fewer** than the business role assigns — the `!` provisioning gap, or a folded role's count |
+| Centre | White | Covered by **more than one** business role (the number says how many; the cell tooltip names them) |
+| Right | Red | **More** than the business role assigns — the `+` over-grant, a count of the roles that grant this resource without granting it to *this* subject, or a folded role's count |
+
+Markers used to hang off the cell's corners on negative offsets, which drew each
+one partly over the row above and the column to the right — the white count
+bubble landed straight on its neighbours' badges. Nothing is painted outside the
+cell's own box now, so no marker can overlap another label; the geometry lives in
+[`matrix/cellMarkers.js`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/ui/src/components/matrix/cellMarkers.js)
+(`CELL_BOX_STYLE`) and is shared by the ordinary cell and the aggregate
+(folded-column) cell, so the two can't drift apart. `app/ui/e2e/matrix.spec.js`
+asserts the invariant on the busiest grid the demo data can produce.
+
+### Grid height
+
+The grid is capped to the space the window really has left below it
+(`useViewportFitHeight` measures it — chrome, footer, `<main>` padding and
+whatever is laid out under the grid, including the resize grip), so exactly one
+of the grid and the page ever scrolls.
+
+That measurement is a **default, not a verdict**: how much of the window the
+grid deserves next to the scope-statistics and legend panels above it is a
+judgement call. The grip under the grid
+([`matrix/GridResizeHandle.jsx`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/ui/src/components/matrix/GridResizeHandle.jsx))
+resizes it by drag or arrow keys; the chosen height overrides the fit, is
+remembered in `localStorage` under `fgraph-matrix-height`, and is handed back to
+the measured fit by **Fit to window** (or double-click / `Home` / `Esc`).
+`useResizableGridHeight` composes the two and is shared by all three
+orientations, so resizing behaves the same in the per-subject, rotated and
+roll-up grids.
 
 ### Size gate
 

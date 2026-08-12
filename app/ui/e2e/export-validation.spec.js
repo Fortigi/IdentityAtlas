@@ -88,9 +88,13 @@ test.describe('Matrix Excel export — access-package columns match the grid', (
       for (const tr of table.querySelectorAll('tbody tr')) {
         const tds = [...tr.querySelectorAll('td')];
         if (tds.length !== headers.length) continue; // spacer / message row
-        // The name cell carries an expander glyph for expandable rows; the
-        // export writes the bare display name.
-        const resource = (tds[1]?.innerText || '').replace(/^[▶▼]\s*/, '').trim();
+        // The export writes the bare display name, but the name cell also holds
+        // the fold/expand toggles, the nesting elbow and the "BR" overlap chips
+        // — so read the name element itself and only fall back to scraping the
+        // cell (older rows, and the rotated views) when it isn't there.
+        const nameEl = tds[1]?.querySelector('[data-row-name]');
+        const resource = (nameEl?.textContent ?? tds[1]?.innerText ?? '')
+          .replace(/^[▶▼└\s]+/, '').trim();
         const type = (tds[headers.length - 2]?.innerText || '').trim();
         const cells = [];
         for (const col of apCols) {

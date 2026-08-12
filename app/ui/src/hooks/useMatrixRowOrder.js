@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 
 // Bump this when the default sort logic changes (e.g., staircase sort introduced).
 // Stored orders from an older version are discarded so the new default takes effect.
-const ROW_ORDER_VERSION = 6;
+const ROW_ORDER_VERSION = 7;
 
 function getStorageKey(department) {
   return `fgraph-roworder-${department || 'all'}`;

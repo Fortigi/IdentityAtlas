@@ -1,93 +1,95 @@
 import { memo } from 'react';
 import { TYPE_COLORS } from '@ui/utils/colors';
+import CellMarkerStrip from './CellMarkerStrip';
+import {
+  CELL_BOX_STYLE, extraAccessTitle, missingAccessTitle, overGrantTitle, heldOutsideTitle,
+} from './cellMarkers';
 
-function MatrixCell({ cellKey, membershipTypes, managed, apColor, apCount, apNames, provisioningGap, gapExpected, onExplainInherited }) {
+// Everything the cell says on hover: how the access is held, which business
+// roles govern it, and any marker it carries. Pulled out of the component so
+// the wording lives in one readable place.
+function cellTitle({ membershipTypes, managed, apNames, provisioningGap, gapExpected, overGrant, extraAccessCount, missingAccessCount, heldOutsideCount, heldOutsideNames, heldOutsideHoldsRole }) {
+  const parts = [];
+  const managedBy = apNames?.length ? `Managed by: ${apNames.join(', ')}` : null;
+  if (membershipTypes?.size) {
+    const types = [...membershipTypes].join(', ');
+    parts.push(managedBy ? `${types}\n${managedBy}` : (managed ? `${types} (managed by business role)` : types));
+  } else if (provisioningGap) {
+    // A business role manages this cell but the subject has no membership at all.
+    const expected = gapExpected ? ` ${gapExpected}` : '';
+    parts.push(`⚠ Provisioning gap: business role expects${expected} membership but user has none`);
+    if (managedBy) parts.push(managedBy);
+  }
+  if (overGrant) parts.push(overGrantTitle(overGrant));
+  if (extraAccessCount > 0) parts.push(extraAccessTitle(extraAccessCount));
+  if (missingAccessCount > 0) parts.push(missingAccessTitle(missingAccessCount));
+  if (heldOutsideCount > 0) parts.push(heldOutsideTitle(heldOutsideCount, heldOutsideNames, heldOutsideHoldsRole));
+  return parts.length ? parts.join('\n') : undefined;
+}
+
+function MembershipBadges({ membershipTypes, cellKey, onExplainInherited }) {
+  return [...membershipTypes].map(type => {
+    const ind = TYPE_COLORS[type];
+    if (!ind) return <span key={type} className="text-[7px] font-bold text-green-800">?</span>;
+    const clickable = type === 'Indirect' && !!onExplainInherited;
+    return (
+      <span
+        key={type}
+        role={clickable ? 'button' : undefined}
+        tabIndex={clickable ? 0 : undefined}
+        onClick={clickable ? (e) => { e.stopPropagation(); onExplainInherited(cellKey); } : undefined}
+        title={clickable ? 'Show how this inherited access was derived' : undefined}
+        className={`inline-block rounded-sm text-center font-bold ${membershipTypes.size === 1 ? 'w-4 h-4 text-[9px] leading-4' : 'w-[9px] h-[14px] text-[7px] leading-[14px]'} ${clickable ? 'cursor-pointer ring-1 ring-white/50 hover:ring-2 hover:ring-white' : ''}`}
+        style={{ backgroundColor: ind.bg, color: ind.text }}
+      >
+        {ind.letter}
+      </span>
+    );
+  });
+}
+
+function MatrixCell({
+  cellKey, membershipTypes, managed, apColor, apCount, apNames,
+  provisioningGap, gapExpected, overGrant = null,
+  extraAccessCount = 0, missingAccessCount = 0,
+  heldOutsideCount = 0, heldOutsideNames = null, heldOutsideHoldsRole = false, onExplainInherited,
+}) {
   const hasMembership = membershipTypes && membershipTypes.size > 0;
 
-  // Background: AP color for managed cells only; unmanaged cells stay white
-  let bgColor;
-  if (hasMembership && managed) {
-    bgColor = apColor || '#dbeafe';
-  }
+  // Background: the business role's colour on a governed cell — and on a
+  // provisioning gap, which is governance without the membership. An ungoverned
+  // cell stays white.
+  const bgColor = (hasMembership ? managed : provisioningGap) ? (apColor || '#dbeafe') : undefined;
 
-  // Tooltip
-  let title;
-  if (hasMembership) {
-    const types = [...membershipTypes].join(', ');
-    if (apNames && apNames.length > 0) {
-      title = `${types}\nManaged by: ${apNames.join(', ')}`;
-    } else if (managed) {
-      title = `${types} (managed by business role)`;
-    } else {
-      title = types;
-    }
-    if (provisioningGap) {
-      const expectedLabel = gapExpected ? ` (expects ${gapExpected})` : '';
-      title += `\n\u26a0 Provisioning gap: user lacks the membership type specified by the business role${expectedLabel}`;
-    }
-  } else if (provisioningGap) {
-    // AP manages this cell but user has no membership at all
-    const expectedLabel = gapExpected ? ` ${gapExpected}` : '';
-    title = `\u26a0 Provisioning gap: business role expects${expectedLabel} membership but user has none`;
-    if (apNames && apNames.length > 0) {
-      title += `\nManaged by: ${apNames.join(', ')}`;
-    }
-    bgColor = apColor || '#dbeafe';
-  }
-
-  const needsRelative = apCount > 1 || provisioningGap;
+  const title = cellTitle({
+    membershipTypes, managed, apNames, provisioningGap, gapExpected,
+    overGrant, extraAccessCount, missingAccessCount, heldOutsideCount, heldOutsideNames,
+    heldOutsideHoldsRole,
+  });
 
   return (
     <td
-      className="px-0 py-0 text-center border-r border-b border-gray-100 dark:border-gray-700"
-      style={{
-        backgroundColor: bgColor,
-        minWidth: '24px',
-        width: '24px',
-        height: '24px',
-        position: needsRelative ? 'relative' : undefined,
-        zIndex: needsRelative ? 1 : undefined,
-      }}
+      className="text-center border-r border-b border-gray-100 dark:border-gray-700"
+      style={{ ...CELL_BOX_STYLE, backgroundColor: bgColor }}
       title={title}
     >
       {hasMembership && (
-        <>
-          {[...membershipTypes].map(type => {
-            const ind = TYPE_COLORS[type];
-            if (!ind) return <span key={type} className="text-[7px] font-bold text-green-800">?</span>;
-            const clickable = type === 'Indirect' && !!onExplainInherited;
-            return (
-              <span
-                key={type}
-                role={clickable ? 'button' : undefined}
-                tabIndex={clickable ? 0 : undefined}
-                onClick={clickable ? (e) => { e.stopPropagation(); onExplainInherited(cellKey); } : undefined}
-                title={clickable ? 'Show how this inherited access was derived' : undefined}
-                className={`inline-block rounded-sm text-center font-bold ${membershipTypes.size === 1 ? 'w-4 h-4 text-[9px] leading-4' : 'w-[9px] h-[14px] text-[7px] leading-[14px]'} ${clickable ? 'cursor-pointer ring-1 ring-white/50 hover:ring-2 hover:ring-white' : ''}`}
-                style={{ backgroundColor: ind.bg, color: ind.text }}
-              >
-                {ind.letter}
-              </span>
-            );
-          })}
-        </>
+        <MembershipBadges
+          membershipTypes={membershipTypes}
+          cellKey={cellKey}
+          onExplainInherited={onExplainInherited}
+        />
       )}
-      {provisioningGap && (
-        <span
-          className="absolute top-0 left-0 flex items-center justify-center w-2.5 h-2.5 rounded-full text-[6px] font-bold leading-none bg-amber-500 text-white border border-amber-600"
-          style={{ zIndex: 2 }}
-        >
-          !
-        </span>
-      )}
-      {apCount > 1 && (
-        <span
-          className="absolute -top-1 -right-1 flex items-center justify-center w-3 h-3 rounded-full text-[7px] font-bold leading-none bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-500 shadow-sm"
-          style={{ zIndex: 1 }}
-        >
-          {apCount}
-        </span>
-      )}
+      <CellMarkerStrip
+        provisioningGap={provisioningGap}
+        overGrant={overGrant}
+        apCount={apCount}
+        extraAccessCount={extraAccessCount}
+        missingAccessCount={missingAccessCount}
+        heldOutsideCount={heldOutsideCount}
+        heldOutsideNames={heldOutsideNames}
+        heldOutsideHoldsRole={heldOutsideHoldsRole}
+      />
     </td>
   );
 }
@@ -101,6 +103,12 @@ export default memo(MatrixCell, (prev, next) => {
     prev.apNames === next.apNames &&
     prev.provisioningGap === next.provisioningGap &&
     prev.gapExpected === next.gapExpected &&
+    prev.overGrant === next.overGrant &&
+    prev.extraAccessCount === next.extraAccessCount &&
+    prev.missingAccessCount === next.missingAccessCount &&
+    prev.heldOutsideCount === next.heldOutsideCount &&
+    prev.heldOutsideNames === next.heldOutsideNames &&
+    prev.heldOutsideHoldsRole === next.heldOutsideHoldsRole &&
     prev.onExplainInherited === next.onExplainInherited
   );
 });

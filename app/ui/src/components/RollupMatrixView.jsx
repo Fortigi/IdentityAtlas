@@ -1,5 +1,6 @@
-import { useMemo, useState, useCallback, useRef, useLayoutEffect } from 'react';
+import { useMemo, useState, useCallback, useRef } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
+import useResizableGridHeight from '@ui/hooks/useResizableGridHeight';
 import { friendlyLabel } from '@ui/utils/formatters';
 import { getAccessPackageColor } from '@ui/utils/colors';
 import { exportRollupToExcel } from '@ui/utils/exportRollupToExcel';
@@ -9,6 +10,7 @@ import MatrixScopePanel from './matrix/MatrixScopePanel';
 import MatrixLegend from './matrix/MatrixLegend';
 import MatrixFilterSummary from './matrix/MatrixFilterSummary';
 import MatrixToolbar from './matrix/MatrixToolbar';
+import GridResizeHandle from './matrix/GridResizeHandle';
 
 // Roll-up matrix: the subject (column) axis is aggregated by an attribute (e.g.
 // department). Rows are resources; each cell is the count of distinct subjects
@@ -301,24 +303,8 @@ export default function RollupMatrixView({
   // (matches MatrixView). overflow-auto then gives both scrollbars, including
   // the horizontal one when the columns are wider than the screen.
   const scrollRef = useRef(null);
-  const [gridMaxH, setGridMaxH] = useState(null);
-  useLayoutEffect(() => {
-    const measure = () => {
-      const el = scrollRef.current;
-      if (!el) return;
-      const footer = document.querySelector('footer');
-      const below = (footer ? footer.getBoundingClientRect().height : 0) + 28;
-      const vh = document.documentElement.clientHeight;
-      const gridTop = el.getBoundingClientRect().top + window.scrollY;
-      setGridMaxH(Math.max(240, vh - gridTop - below));
-    };
-    measure();
-    const raf = requestAnimationFrame(measure);
-    window.addEventListener('resize', measure);
-    let ro;
-    if (typeof ResizeObserver !== 'undefined') { ro = new ResizeObserver(measure); ro.observe(document.body); }
-    return () => { cancelAnimationFrame(raf); window.removeEventListener('resize', measure); if (ro) ro.disconnect(); };
-  }, [columns.length, visibleRoles.length]);
+  const gridHeight = useResizableGridHeight(scrollRef, [columns.length, visibleRoles.length]);
+  const gridMaxH = gridHeight.height;
 
   const trailingCols = visibleRoles.length + 3; // resource + # + Description (+ roles handled separately)
 
@@ -721,6 +707,13 @@ export default function RollupMatrixView({
           </tbody>
         </table>
       </div>
+
+      <GridResizeHandle
+        isCustom={gridHeight.isCustom}
+        onStartDrag={gridHeight.startDrag}
+        onResizeBy={gridHeight.resizeBy}
+        onReset={gridHeight.reset}
+      />
     </div>
   );
 }

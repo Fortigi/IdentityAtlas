@@ -52,6 +52,20 @@ describe('MatrixScopePanel (mounted)', () => {
     expect(screen.getByText('900 governed')).toBeInTheDocument();
   });
 
+  it('names each stat tile so its number is announced with its metric', async () => {
+    renderWithProviders(h(MatrixScopePanel, { filter }), { auth: { authFetch: routes() } });
+    await screen.findByText('120');
+
+    expect(screen.getByRole('group', { name: 'Principals' })).toHaveTextContent('120');
+    expect(screen.getByRole('group', { name: 'Resources' })).toHaveTextContent('30');
+    // The panel formats with toLocaleString() and no explicit locale, so the
+    // thousands separator follows the runner's locale ('1,500' on en-US CI,
+    // '1.500' on an en-NL box). Assert against the same formatter, not a
+    // hardcoded separator, so the suite is green off en-US too.
+    expect(screen.getByRole('group', { name: 'Assignments' }))
+      .toHaveTextContent((1500).toLocaleString());
+  });
+
   it('expands to fetch the trends timeseries and department breakdown', async () => {
     const authFetch = routes();
     renderWithProviders(h(MatrixScopePanel, { filter }), { auth: { authFetch } });

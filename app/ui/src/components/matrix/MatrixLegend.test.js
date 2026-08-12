@@ -29,4 +29,38 @@ describe('MatrixLegend', () => {
     expect(html).toContain('governed');
     expect(html).toContain('Provisioning gap');
   });
+
+  it('explains the count a folded business role shows for access it does not grant', () => {
+    expect(html).toContain('folded business role');
+    expect(html).toContain('the role does not account for');
+  });
+
+  // Feedback on #370: over-granting was explained, under-granting was not, and
+  // the two can occur together on one subject.
+  it('explains fewer permissions than the role assigns, in both views', () => {
+    expect(html).toContain('More than the role assigns');
+    expect(html).toContain('the role assigns this subject but they do not have');
+    expect(html).toContain('both counts at once');
+  });
+
+  // Feedback on #370: the same finding has to read the same folded or not.
+  it('explains a membership held outside the business role that grants it', () => {
+    expect(html).toContain('held outside business-role governance');
+    expect(html).toContain('no business role assigns it to this subject');
+    expect(html).toContain('they hold it by some other route');
+    expect(html).toContain('says whether the subject holds one of them');
+  });
+
+  it('explains the chip pointing at the other business roles a resource is in', () => {
+    expect(html).toContain('also granted by another business role');
+    expect(html).toContain('it has a row under that role too');
+  });
+
+  // Feedback on #370: a resource several business roles grant is shown under
+  // every one of them.
+  it('explains a resource granted by more than one business role', () => {
+    expect(html).toContain('more than one business role');
+    expect(html).toContain('is shown under every one of them');
+    expect(html).toContain('folding one role removes only that role');
+  });
 });

@@ -87,9 +87,9 @@ Write-Host "`n--- Row Counts ---" -ForegroundColor Yellow
 $counts = @{
     'Systems'                = @{ Min = 5;  Max = 5 }   # EntraID + HR + IGA + SAP + AzureRM (#705)
     'Principals'             = @{ Min = 45; Max = 45 }  # 26 employees + 5 edge cases + IGA acct + 10 SAP + 3 app SPs
-    'Resources'              = @{ Min = 39; Max = 39 }  # Entra 10 + ownership 3 + business roles 5 + Sales 4 + consent 4 + SAP 4 + Azure 9
-    'ResourceAssignments'    = @{ Min = 143; Max = 143 }
-    'ResourceRelationships'  = @{ Min = 20; Max = 20 }  # 14 Contains + 1 GrantsAccessTo + 3 HasOwnership + 2 DelegatesScope
+    'Resources'              = @{ Min = 46; Max = 46 }  # Entra 10 + ownership 3 + business roles 7 + Sales 4 + role drift 3 + shared grants 2 + consent 4 + SAP 4 + Azure 9
+    'ResourceAssignments'    = @{ Min = 176; Max = 176 }
+    'ResourceRelationships'  = @{ Min = 27; Max = 27 }  # 21 Contains + 1 GrantsAccessTo + 3 HasOwnership + 2 DelegatesScope
     'Identities'             = @{ Min = 27; Max = 27 }  # 26 employees + the leaver
     'IdentityMembers'        = @{ Min = 38; Max = 38 }  # 27 Entra + 1 IGA + 10 SAP
     'GovernanceCatalogs'     = @{ Min = 2;  Max = 2 }
@@ -176,7 +176,7 @@ SELECT COUNT(*) FROM "Principals" WHERE "accountEnabled" = false AND "deletedAt"
 '@
 
 # Resource types
-Assert-Count 'BusinessRole-Count' -Min 5 -Max 5 -Query @'
+Assert-Count 'BusinessRole-Count' -Min 7 -Max 7 -Query @'
 SELECT COUNT(*) FROM "Resources" WHERE "resourceType" = 'BusinessRole' AND "deletedAt" IS NULL
 '@
 
@@ -381,6 +381,161 @@ SELECT COUNT(*) FROM "Resources" r
 WHERE r."resourceType" = 'DelegatedPermission' AND r."deletedAt" IS NULL
   AND NOT EXISTS (
     SELECT 1 FROM "Principals" p WHERE p."id"::text = r."extendedAttributes"->>'clientSpId'
+  )
+'@
+
+# ─── Role drift: fewer / more access than the business role assigns ───────
+# The matrix shows both directions of drift against a business role, so the
+# dataset has to contain both. These guard the scenario the grid renders (see
+# parts/DemoRoleDrift.ps1 and docs/architecture/matrix.md).
+
+Write-Host "`n--- Role drift ---" -ForegroundColor Yellow
+
+# BR-Service-Desk grants four resources: three groups, one of them just-in-time
+# only, plus the app role it shares with BR-IT-Operations (DemoSharedGrants.ps1).
+Assert-Count 'Drift-RoleGrantsFourResources' -Min 4 -Max 4 -Query @'
+SELECT COUNT(*) FROM "ResourceRelationships" rr
+JOIN "Resources" parent ON parent."id" = rr."parentResourceId"
+WHERE parent."displayName" = 'BR-Service-Desk' AND rr."relationshipType" = 'Contains'
+'@
+
+Assert-Count 'Drift-AdminIsEligibleOnly' -Min 1 -Max 1 -Query @'
+SELECT COUNT(*) FROM "ResourceRelationships" rr
+JOIN "Resources" parent ON parent."id" = rr."parentResourceId"
+JOIN "Resources" child  ON child."id"  = rr."childResourceId"
+WHERE parent."displayName" = 'BR-Service-Desk' AND child."displayName" = 'SG-Servicedesk-Admin'
+  AND lower(rr."roleName") LIKE '%eligible%'
+'@
+
+# FEWER — Tom Bakker holds the role but only one of the three resources.
+Assert-Count 'Drift-HolderShortOfWhatRoleAssigns' -Min 1 -Max 1 -Label '1 of 3 resources held' -Query @'
+SELECT COUNT(*) FROM "ResourceAssignments" ra
+JOIN "Resources"  r ON r."id" = ra."resourceId"
+JOIN "Principals" p ON p."id" = ra."principalId"
+WHERE p."displayName" = 'Tom Bakker' AND ra."deletedAt" IS NULL
+  AND r."displayName" IN ('SG-Servicedesk-Tools', 'SG-Servicedesk-KB', 'SG-Servicedesk-Admin')
+'@
+
+# BOTH AT ONCE — Wendy Xu is missing the KB the role assigns...
+Assert-Count 'Drift-BothDirections-MissingKb' -Min 0 -Max 0 -Label '0 KB memberships' -Query @'
+SELECT COUNT(*) FROM "ResourceAssignments" ra
+JOIN "Resources"  r ON r."id" = ra."resourceId"
+JOIN "Principals" p ON p."id" = ra."principalId"
+WHERE p."displayName" = 'Wendy Xu' AND r."displayName" = 'SG-Servicedesk-KB' AND ra."deletedAt" IS NULL
+'@
+
+# ...while holding permanently what the role only makes her eligible for.
+Assert-Count 'Drift-BothDirections-StandingOnEligible' -Min 1 -Max 1 -Query @'
+SELECT COUNT(*) FROM "ResourceAssignments" ra
+JOIN "Resources"  r ON r."id" = ra."resourceId"
+JOIN "Principals" p ON p."id" = ra."principalId"
+WHERE p."displayName" = 'Wendy Xu' AND r."displayName" = 'SG-Servicedesk-Admin'
+  AND ra."assignmentType" = 'Direct' AND ra."deletedAt" IS NULL
+'@
+
+# Both role holders who match their role exactly must stay clean, or the
+# deviations above read as the norm rather than as findings.
+Assert-Count 'Drift-CleanHoldersMatchTheRole' -Min 6 -Max 6 -Label '2 holders × 3 resources' -Query @'
+SELECT COUNT(*) FROM "ResourceAssignments" ra
+JOIN "Resources"  r ON r."id" = ra."resourceId"
+JOIN "Principals" p ON p."id" = ra."principalId"
+WHERE p."displayName" IN ('Ursula Visser', 'Victor Wang') AND ra."deletedAt" IS NULL
+  AND r."displayName" IN ('SG-Servicedesk-Tools', 'SG-Servicedesk-KB', 'SG-Servicedesk-Admin')
+'@
+
+# ─── Shared grants: one resource, two business roles ─────────────────────
+# The matrix has to resolve a resource that more than one business role grants
+# (requestor feedback on #370), so the dataset has to contain one of each kind —
+# a group and an application role. See parts/DemoSharedGrants.ps1.
+
+Write-Host "`n--- Shared grants ---" -ForegroundColor Yellow
+
+# A GROUP granted by two roles.
+Assert-Count 'Shared-GroupGrantedByTwoRoles' -Min 2 -Max 2 -Label '2 granting roles' -Query @'
+SELECT COUNT(*) FROM "ResourceRelationships" rr
+JOIN "Resources" child ON child."id" = rr."childResourceId"
+WHERE child."displayName" = 'SG-Servicedesk-Tools' AND rr."relationshipType" = 'Contains'
+'@
+
+# ...and an APPLICATION ROLE granted by two roles — the case the requestor asked
+# about by name. The resourceType matters: it is what makes this the app-role
+# variant rather than a second group.
+Assert-Count 'Shared-AppRoleGrantedByTwoRoles' -Min 2 -Max 2 -Label '2 granting roles' -Query @'
+SELECT COUNT(*) FROM "ResourceRelationships" rr
+JOIN "Resources" child ON child."id" = rr."childResourceId"
+WHERE child."displayName" = 'Ticketing-Agent' AND child."resourceType" = 'AppRole'
+  AND rr."relationshipType" = 'Contains'
+'@
+
+# Each of the two roles must also grant something no other role does, or folding
+# one of them would take no row away and the scenario would show nothing.
+Assert-Count 'Shared-EachRoleAlsoGrantsSomethingAlone' -Min 2 -Max 2 -Label '2 exclusive resources' -Query @'
+SELECT COUNT(*) FROM "ResourceRelationships" rr
+JOIN "Resources" child ON child."id" = rr."childResourceId"
+WHERE child."displayName" IN ('SG-Monitoring-Tools', 'SG-Servicedesk-KB')
+  AND rr."relationshipType" = 'Contains'
+'@
+
+# One holder of the new role must NOT hold the role it overlaps with, or the
+# shared rows could still be read as belonging to the service desk alone.
+Assert-Count 'Shared-HolderOfOneRoleOnly' -Min 1 -Max 1 -Query @'
+SELECT COUNT(*) FROM "ResourceAssignments" ra
+JOIN "Resources"  r ON r."id" = ra."resourceId"
+JOIN "Principals" p ON p."id" = ra."principalId"
+WHERE p."displayName" = 'Fatih Gunay' AND r."displayName" = 'BR-IT-Operations'
+  AND ra."deletedAt" IS NULL
+  AND NOT EXISTS (
+    SELECT 1 FROM "ResourceAssignments" ra2
+    JOIN "Resources" r2 ON r2."id" = ra2."resourceId"
+    WHERE ra2."principalId" = p."id" AND r2."displayName" = 'BR-Service-Desk'
+      AND ra2."deletedAt" IS NULL
+  )
+'@
+
+# A membership covered by two roles is ONE assignment, not two — the overlap is
+# in the coverage. A duplicate here would double-count every shared cell.
+Assert-Count 'Shared-MembershipIsNotDuplicated' -Min 1 -Max 1 -Query @'
+SELECT COUNT(*) FROM "ResourceAssignments" ra
+JOIN "Resources"  r ON r."id" = ra."resourceId"
+JOIN "Principals" p ON p."id" = ra."principalId"
+WHERE p."displayName" = 'Victor Wang' AND r."displayName" = 'SG-Servicedesk-Tools'
+  AND ra."deletedAt" IS NULL
+'@
+
+# ─── Held outside the role ───────────────────────────────────────────────
+# SG-VPN-Access carries the third statement the matrix makes about a resource a
+# business role grants: a membership held by someone the role does not hand it
+# to. Both halves of it are load-bearing (see parts/DemoGovernance.ps1).
+
+Write-Host "`n--- Held outside the role ---" -ForegroundColor Yellow
+
+# Everyone BR-Engineering-Tools grants the VPN group actually has it, so the
+# role produces no provisioning gap on that row.
+Assert-Count 'Outside-RoleGrantIsMaterialised' -Min 0 -Max 0 -Label '0 engineers without the VPN group' -Query @'
+SELECT COUNT(*) FROM "ResourceAssignments" role_ra
+JOIN "Resources" role_r ON role_r."id" = role_ra."resourceId"
+WHERE role_r."displayName" = 'BR-Engineering-Tools' AND role_ra."deletedAt" IS NULL
+  AND NOT EXISTS (
+    SELECT 1 FROM "ResourceAssignments" ra
+    JOIN "Resources" r ON r."id" = ra."resourceId"
+    WHERE ra."principalId" = role_ra."principalId" AND r."displayName" = 'SG-VPN-Access'
+      AND ra."deletedAt" IS NULL
+  )
+'@
+
+# ...and exactly two people hold that same group WITHOUT the role behind it —
+# the cells the grid marks red. Lose these and the scenario shows nothing.
+Assert-Count 'Outside-HeldWithoutTheRole' -Min 2 -Max 2 -Label '2 memberships outside the role' -Query @'
+SELECT COUNT(*) FROM "ResourceAssignments" ra
+JOIN "Resources"  r ON r."id" = ra."resourceId"
+JOIN "Principals" p ON p."id" = ra."principalId"
+WHERE r."displayName" = 'SG-VPN-Access' AND ra."assignmentType" = 'Direct'
+  AND ra."deletedAt" IS NULL
+  AND NOT EXISTS (
+    SELECT 1 FROM "ResourceAssignments" ra2
+    JOIN "Resources" r2 ON r2."id" = ra2."resourceId"
+    WHERE ra2."principalId" = p."id" AND r2."displayName" = 'BR-Engineering-Tools'
+      AND ra2."deletedAt" IS NULL
   )
 '@
 

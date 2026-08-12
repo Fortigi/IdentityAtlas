@@ -16,6 +16,8 @@
       DemoEntraBase.ps1      — Entra groups / directory roles / app roles / ownership
       DemoGovernance.ps1     — IGA catalogs, business roles, policies, certifications
       DemoSalesScenario.ps1  — the Sales role-mining scenario (flags 1-7)
+      DemoRoleDrift.ps1      — holders with fewer / more access than their role assigns
+      DemoSharedGrants.ps1   — one group / app role granted by two business roles
       DemoConsent.ps1        — OAuth consent + shadow IT (flags 11-12)
       DemoSap.ps1            — the SAP ERP system (flag 8)
       DemoAzure.ps1          — the AzureRM system (flag 10)
@@ -52,8 +54,8 @@ if (-not $OutputPath) { $OutputPath = Join-Path $PSScriptRoot 'demo-company.json
 $partsDir = Join-Path $PSScriptRoot 'parts'
 foreach ($part in @(
     'DemoState.ps1', 'DemoOrg.ps1', 'DemoEntraBase.ps1', 'DemoGovernance.ps1',
-    'DemoSalesScenario.ps1', 'DemoConsent.ps1', 'DemoSap.ps1', 'DemoAzure.ps1',
-    'DemoVolume.ps1'
+    'DemoSalesScenario.ps1', 'DemoRoleDrift.ps1', 'DemoSharedGrants.ps1',
+    'DemoConsent.ps1', 'DemoSap.ps1', 'DemoAzure.ps1', 'DemoVolume.ps1'
 )) {
     . (Join-Path $partsDir $part)
 }
@@ -66,11 +68,15 @@ Add-DemoOrg           $state
 Add-DemoEntraBase     $state
 Add-DemoGovernance    $state
 Add-DemoSalesScenario $state
+Add-DemoRoleDrift     $state
+# Shared grants runs after the drift part: it reuses the service desk resources
+# that part creates, and skips memberships it already emitted.
+Add-DemoSharedGrants  $state
 Add-DemoConsent       $state
 Add-DemoSap           $state
 Add-DemoAzure         $state
 
-# Opt-in only: everything above is the fixed 39-resource company that the CTF
+# Opt-in only: everything above is the fixed 46-resource company that the CTF
 # answers, Verify-DemoDataset.ps1's exact counts and the E2E suite pin. The
 # volume slice is appended last so it can never shift the ids or ordering of
 # anything before it.

@@ -65,6 +65,26 @@ describe('buildScopeAsofSql', () => {
     expect(scopeMode).toBe('attribute');
   });
 
+  // The live scope statistics read vw_UserPermissionAssignmentViaBusinessRole,
+  // which since migration 061 has a second arm: holding a business role is
+  // itself governed access. The as-of path rebuilds that definition in SQL
+  // rather than reading the view, so it needs the same arm — without it the
+  // latest timeseries point reported a lower governed count than live
+  // scope-stats for the very same instant.
+  it('counts a governance resource membership as governed in its own right (061 parity)', () => {
+    const { sql } = build(EMPTY);
+    const coverage = sql.slice(sql.indexOf('coverage AS ('), sql.indexOf('sp AS ('));
+
+    // Arm 1 stays: coverage via the Contains relationship.
+    expect(coverage).toContain('asof_contains');
+    // Arm 2: the role's own cell, keyed on the assignment's own resource
+    // (ga.rid) rather than a Contains child.
+    expect(coverage).toMatch(/UNION/);
+    expect(coverage).toMatch(/ga\.rid AS "groupId"/);
+    // Both arms gate on the resource being a governance resource.
+    expect(coverage.match(/governanceResource/g)).toHaveLength(2);
+  });
+
   it('excludes group-shaped principals from the subject count', () => {
     const { sql } = build(EMPTY);
     expect(sql).toContain('#microsoft.graph.group');
