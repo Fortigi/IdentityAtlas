@@ -123,6 +123,19 @@ assert "no unlisted workflow runs on pull_request" "" "${unlisted% }"
 assert "ps-mutation does not run on pull_request" "weekly-only" \
   "$(grep -qE '^[[:space:]]+pull_request:' "$WF/ps-mutation.yml" && echo "runs-on-prs" || echo "weekly-only")"
 
+# ── 4. Anything that commits back to main must survive losing the race ──────
+# Several workflows push to main off the SAME merge — bump-version and coverage both do, seconds
+# apart. Whichever arrives second is rejected `(fetch first)`, and for bump-version that silently
+# dropped a whole version bump: the run went red, the merge was already done, and nothing retried.
+# A bare `git push` (no refspec — i.e. pushing the checked-out main) therefore has to be wrapped in
+# a rebase-and-retry loop. Derived, not listed: add another one and this fails until it retries.
+noretry=""
+for f in "$WF"/*.yml; do
+  grep -qE '^[[:space:]]*(if )?git push[[:space:]]*(;|then|$)' "$f" || continue
+  grep -q 'pull --rebase' "$f" || noretry="${noretry}$(basename "$f") "
+done
+assert "every workflow that pushes main rebases and retries" "" "${noretry% }"
+
 echo
 echo "  $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

@@ -82,4 +82,22 @@ jobs:
           git add setup/IdentityAtlas.psd1 CHANGES.md changes/
           git diff --staged --quiet && echo "No changes to commit" && exit 0
           git commit -m "chore: bump version to ${NEW_VERSION}"
-          git push
+          # coverage.yml pushes "docs: update test coverage report" to main on the same merge and
+          # regularly gets there first, which rejected this push as `(fetch first)` and dropped the
+          # bump for that PR entirely. Rebase & retry — the same loop coverage.yml already runs.
+          for attempt in 1 2 3 4 5; do
+            if git push; then
+              echo "Pushed on attempt $attempt"
+              exit 0
+            fi
+            echo "Push failed (attempt $attempt) — rebasing onto latest main"
+            if ! git pull --rebase origin main; then
+              # Only another bump can actually conflict here (both edit CHANGES.md and the version).
+              # Stop with a clean tree and say so, rather than retrying into the same conflict.
+              git rebase --abort || true
+              echo "::error::Rebase onto main conflicted — another version bump raced this one. Re-run this job."
+              exit 1
+            fi
+          done
+          echo "::error::Could not push the version bump after 5 attempts"
+          exit 1
