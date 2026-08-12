@@ -244,7 +244,10 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-          persist-credentials: true
+          # See dor-build-agent.yml: the adjustment pushes as the BOT app. A persisted runner
+          # credential outranks the app token in the push URL and gets every run held at
+          # action_required, which is what dead-lettered every `/rework` (#1018).
+          persist-credentials: false
 
       - name: Ensure the claude CLI is on PATH
         if: steps.sk.outputs.holder == 'true'

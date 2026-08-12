@@ -222,7 +222,8 @@ jobs:
       - dor-build
     timeout-minutes: 350   # the deploy+e2e+CI(8×) loop can run long; a timeout trips the Exceptions backstop
     permissions:
-      contents: write        # the flow pushes the implementation branch (github.token via persist-credentials)
+      contents: write        # github.token reads the repo; the implementation branch is pushed with
+                             # the BOT app token instead (see the checkout below)
       pull-requests: write
       issues: write
     steps:
@@ -246,7 +247,11 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-          persist-credentials: true   # so the flow can `git push` the branch with GITHUB_TOKEN
+          # The flow pushes as the BOT app, never as GITHUB_TOKEN (a GITHUB_TOKEN push gets its runs
+          # held at action_required, so the build cannot verify itself — #1018). Persisting the
+          # runner's credential here left an Authorization header that outranked the app token in the
+          # push URL; not persisting it is what makes use_bot_remote's identity the only one on offer.
+          persist-credentials: false
 
       - name: Ensure the claude CLI is on PATH
         run: |

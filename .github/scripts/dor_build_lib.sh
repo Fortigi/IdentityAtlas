@@ -213,12 +213,36 @@ claim_sidekick() {
   return 0
 }
 
+# The config key actions/checkout stores its token in. An HTTP Authorization header set here BEATS
+# the userinfo in a push URL, so while it is live nothing the flow does can choose its own identity.
+GH_EXTRAHEADER='http.https://github.com/.extraheader'
+
+# Remove every credential actions/checkout persisted into THIS checkout, in both shapes it uses.
+#
+# Up to v6 the key went straight into --local, and unsetting it there was enough. v7 writes it to a
+# temp file instead and pulls that in with `includeIf.gitdir:<worktree>.path`, so the --local unset
+# below finds nothing (exit 5), reports success, and the header stays live. That silent no-op is the
+# whole of #1018: every adjustment push authenticated as github-actions[bot] rather than the app, and
+# every workflow run of such a push is held at `action_required` — which bailed the flow as
+# unverifiable and dead-lettered the issue to Exceptions. Dropping the include is what checkout's own
+# post-job cleanup does; the value filter keeps us off any unrelated include.
+drop_checkout_credentials() {
+  git -C "$WORK" config --local --unset-all "$GH_EXTRAHEADER" 2>/dev/null || true   # checkout <= v6
+  git -C "$WORK" config --local --get-regexp '^includeIf\.gitdir:' 2>/dev/null \
+    | while read -r key value; do
+        case "$value" in
+          */git-credentials-*.config) git -C "$WORK" config --local --unset-all "$key" 2>/dev/null || true ;;
+        esac
+      done
+  return 0
+}
+
 # Make git push/fetch on THIS checkout authenticate as the BOT app instead of the job's GITHUB_TOKEN.
 # GitHub suppresses workflow runs for commits pushed with GITHUB_TOKEN (anti-recursion) — which is why
 # the bot PR got ZERO CI checks. Pushing as the app makes the PR's CI actually run. Call once, after
 # checkout, before any push. (BOARD_TOKEN must carry contents:write.)
 use_bot_remote() {
-  git -C "$WORK" config --local --unset-all 'http.https://github.com/.extraheader' 2>/dev/null || true
+  drop_checkout_credentials
   git -C "$WORK" remote set-url origin "$(app_remote_url)"
 }
 
@@ -228,15 +252,18 @@ app_remote_url() { printf '%s' "https://x-access-token:${BOARD_TOKEN}@github.com
 
 # Push as the app WITHOUT depending on which credential git decides to prefer.
 #
-# use_bot_remote sets an authenticated remote URL, and for the initial build that works — its pushes
-# land as fortigi-ci-bot[bot] and CI runs. The feedback flow, with an identical checkout and the same
-# helper, pushed as github-actions[bot] anyway, and every one of those commits had its checks held at
-# `action_required` (which then bailed the adjustment, correctly, as unverifiable). actions/checkout
-# v7 persists credentials through an `includeIf` config file as well as the extraheader that this
-# helper clears, so which credential wins is not something to leave to precedence.
+# use_bot_remote sets an authenticated remote URL and the initial build LOOKED like it worked, because
+# the `opened` event's actor is whoever opened the PR — the app, via `gh pr create` — which says
+# nothing about who pushed. On `synchronize` the actor IS the pusher, and there it read
+# github-actions[bot]: BOTH pushes had been going out on the runner's token all along, and the
+# PR-open event simply masked it. Every one of those commits had its runs held at `action_required`,
+# which bailed the adjustment, correctly, as unverifiable (#1018).
 #
-# Passing the URL to `git push` directly removes the question: the token on the command line is the
-# one used. Args after the URL are forwarded, so callers keep their own refspec and flags.
+# Passing the URL to `git push` is not enough on its own: an Authorization header outranks the
+# userinfo in a URL, and actions/checkout v7 keeps one alive through an includeIf'd config file (see
+# drop_checkout_credentials). Both are handled below — the header is reset per-command, and the push
+# is refused outright if one survives. Args after the URL are forwarded, so callers keep their own
+# refspec and flags.
 #
 # A BARE `--force-with-lease` cannot survive that choice. It resolves its expected value from the
 # remote-TRACKING ref, and a push to a URL has none — nor does pushing to a URL ever update one. So
@@ -251,14 +278,34 @@ app_remote_url() { printf '%s' "https://x-access-token:${BOARD_TOKEN}@github.com
 # pushing to a URL, and these branches are held by one reserved sidekick at a time anyway. An
 # explicit `--force-with-lease=<ref>:<sha>` from a caller is passed through untouched.
 push_as_app() {  # $@ = refspec + flags
-  local url dst="" a sha
+  local url dst="" a sha hdr
   url="$(app_remote_url)"
   for a in "$@"; do case "$a" in *:refs/heads/*) dst="${a#*:}" ;; esac; done
+
+  # Reset the Authorization header for github.com on the command line, which outranks every config
+  # file, so a credential the flow did not put there cannot decide who this push comes from. The
+  # generic `http.extraheader=` does NOT do this: a URL-scoped key is more specific and still wins.
+  local -a nocred=(-c "${GH_EXTRAHEADER}=")
+
+  # Then PROVE it, instead of assuming. A header configured under some other URL scope would survive
+  # the reset above and silently push as the wrong identity; the flow only found out ~20 minutes
+  # later, as "CI is held at action_required", which names the symptom and not the cause. Ask git
+  # what it would actually send — --get-urlmatch resolves across every scope, includeIf files
+  # included — and refuse the push instead.
+  hdr="$(git -C "$WORK" "${nocred[@]}" config --get-urlmatch http.extraheader \
+         "https://github.com/${REPO}.git" 2>/dev/null || true)"
+  if [ -n "$hdr" ]; then
+    echo "::error::refusing to push: a git Authorization header is still configured for github.com," \
+         "so this push would authenticate as github-actions[bot] and its CI would be held at" \
+         "action_required. A persisted actions/checkout credential is the usual cause — the job's" \
+         "checkout needs persist-credentials: false."
+    return 1
+  fi
 
   local -a args=()
   for a in "$@"; do
     if [ "$a" = "--force-with-lease" ] && [ -n "$dst" ]; then
-      sha="$(git -C "$WORK" ls-remote "$url" "$dst" 2>/dev/null | awk 'NR==1{print $1}')"
+      sha="$(git -C "$WORK" "${nocred[@]}" ls-remote "$url" "$dst" 2>/dev/null | awk 'NR==1{print $1}')"
       # No sha means the branch does not exist yet: this push creates it and there is nothing to
       # protect. Drop the lease rather than invent an expected value.
       [ -n "$sha" ] && args+=("--force-with-lease=${dst}:${sha}")
@@ -267,7 +314,7 @@ push_as_app() {  # $@ = refspec + flags
     fi
   done
 
-  git -C "$WORK" push "$url" "${args[@]}" 2>&1 | sed "s@${BOARD_TOKEN}@***@g"
+  git -C "$WORK" "${nocred[@]}" push "$url" "${args[@]}" 2>&1 | sed "s@${BOARD_TOKEN}@***@g"
   return "${PIPESTATUS[0]}"
 }
 
