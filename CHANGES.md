@@ -1,5 +1,10 @@
 ## Changes in this PR
 
+- Fixed requests going silent when two of them ended up assigned to the same build machine. Only one could really have it, and asking the other for a change did nothing at all — no reply, no error, no movement on the board. A machine now releases any older assignment when it takes a new one, and the hourly health report calls out a double-booking if one ever happens again.
+- The health report also notices a machine still held by a closed request when that request carries no pipeline label — previously those stayed out of the pool unseen.
+
+## Changes in this PR
+
 - Fixed version bumps going missing after a merge. Two workflows commit to `main` off the same merge, and when the coverage-report one got there first the version bump was rejected and simply lost — the run went red after the PR had already merged, so nothing retried it and that release number was skipped. It now rebases and retries, as the coverage job already did.
 
 ## Changes in this PR

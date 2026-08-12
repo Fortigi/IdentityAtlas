@@ -1,2 +1,0 @@
-- Fixed requests going silent when two of them ended up assigned to the same build machine. Only one could really have it, and asking the other for a change did nothing at all — no reply, no error, no movement on the board. A machine now releases any older assignment when it takes a new one, and the hourly health report calls out a double-booking if one ever happens again.
-- The health report also notices a machine still held by a closed request when that request carries no pipeline label — previously those stayed out of the pool unseen.
