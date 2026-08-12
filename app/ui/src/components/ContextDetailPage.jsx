@@ -319,6 +319,7 @@ export default function ContextDetailPage({ contextId, cachedData, onCacheData, 
           <div className="text-center text-gray-600 dark:text-gray-500 py-8 text-sm">No members found.</div>
         ) : (
           <>
+            <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-xs text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-gray-700">
@@ -376,6 +377,7 @@ export default function ContextDetailPage({ contextId, cachedData, onCacheData, 
                 ))}
               </tbody>
             </table>
+            </div>
 
             {/* Pagination */}
             {totalPages > 1 && (

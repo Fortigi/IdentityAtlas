@@ -93,7 +93,7 @@ export default function ExpandedItemsList({ label, items, loading, onOpenDetail 
           </button>
         </div>
       </div>
-      <div className="max-h-[460px] overflow-y-auto">
+      <div className="max-h-[460px] overflow-y-auto overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="sticky top-0 bg-gray-50 dark:bg-gray-900/40 border-b border-gray-200 dark:border-gray-700">
             <tr>

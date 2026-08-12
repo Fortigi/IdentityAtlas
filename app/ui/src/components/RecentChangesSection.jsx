@@ -63,6 +63,7 @@ export default function RecentChangesSection({
               No relationship changes recorded in the last {sinceDays || 30} days.
             </p>
           ) : (
+            <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <tbody>
                 {events.map((ev, i) => {
@@ -92,6 +93,7 @@ export default function RecentChangesSection({
                 })}
               </tbody>
             </table>
+            </div>
           )}
         </div>
       )}

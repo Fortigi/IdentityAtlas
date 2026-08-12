@@ -219,6 +219,14 @@ describe('ContextDetailPage (mounted)', () => {
     expect(onOpenDetail).toHaveBeenCalledWith('context', 'ctx-child', 'Backend Squad');
   });
 
+  it('wraps the members table in a horizontally-scrolling container', async () => {
+    const { container } = renderWithProviders(h(ContextDetailPage, baseProps), { auth: { authFetch: routes() } });
+
+    await screen.findByText('Alice Engineer');
+    const wrapper = container.querySelector('table').closest('.overflow-x-auto');
+    expect(wrapper).toBeTruthy();
+  });
+
   it('renders the empty members state', async () => {
     const authFetch = routes({
       '/api/contexts/ctx-1/members': { total: 0, data: [] },

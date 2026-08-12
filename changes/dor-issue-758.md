@@ -1,0 +1,2 @@
+- Data tables now scroll horizontally instead of crushing their columns on narrow screens.
+- Revoking a Power Query read-only token now has test coverage for both the confirm and cancel paths.

@@ -69,4 +69,11 @@ describe('ExpandedItemsList render', () => {
   it('renders the empty state when there are no items', () => {
     expect(render([])).toContain('Nothing to show');
   });
+
+  it('scroll container carries both overflow-y-auto and overflow-x-auto (#758)', () => {
+    const html = render(ITEMS);
+    // The scroll container is the single class-bearing div wrapping the table's
+    // sticky header — assert both axes are present on it, not just anywhere in the page.
+    expect(html).toMatch(/class="[^"]*overflow-y-auto[^"]*overflow-x-auto[^"]*"/);
+  });
 });
