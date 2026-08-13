@@ -1,17 +1,18 @@
 // Context write endpoints — POST /api/contexts (create), PATCH /contexts/:id
 // (update), POST /contexts/:id/sync and DELETE /contexts/:id.
 //
-// Extracted verbatim from routes/contexts.js (audit finding C1). Mounted by
-// routes/contexts.js via router.use() so the public paths are unchanged. No
-// behaviour change — pure code move.
+// The create/update validation + update-building lives in ./crudHelpers.js so
+// the handlers stay thin. Extracted from routes/contexts.js (audit finding C1)
+// and further decomposed for complexity (#1032) — the public paths are
+// unchanged and no behaviour differs.
 
 import { Router } from 'express';
 import { randomUUID } from 'crypto';
 import * as db from '../../db/connection.js';
 import { recalcMemberCountsForChain } from '../../contexts/memberCounts.js';
-import { wouldCreateCycle } from '../../contexts/cycleGuard.js';
 import { enqueueRun } from '../../contexts/plugins/runner.js';
-import { useSql, UUID_RE, TARGET_TYPES, writeContexts } from './shared.js';
+import { useSql, UUID_RE, writeContexts } from './shared.js';
+import { validateCreateContextBody, checkCreateParent, buildContextUpdate } from './crudHelpers.js';
 
 const router = Router();
 
@@ -22,22 +23,17 @@ router.post('/contexts', writeContexts, async (req, res) => {
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
   const body = req.body || {};
 
-  if (!TARGET_TYPES.has(body.targetType)) return res.status(400).json({ error: 'targetType is required' });
-  if (!body.contextType || typeof body.contextType !== 'string') return res.status(400).json({ error: 'contextType is required' });
-  if (!body.displayName  || typeof body.displayName  !== 'string') return res.status(400).json({ error: 'displayName is required' });
+  const invalid = validateCreateContextBody(body);
+  if (invalid) return res.status(invalid.status).json({ error: invalid.message });
 
   const id = randomUUID();
   const createdBy = (req.user && (req.user.email || req.user.upn || req.user.name)) || 'unknown';
 
   try {
-    // If a parent is supplied, enforce the invariant: same targetType, and no cycle.
+    // If a parent is supplied, enforce the invariant: same targetType, exists.
     if (body.parentContextId) {
-      if (!UUID_RE.test(body.parentContextId)) return res.status(400).json({ error: 'Invalid parentContextId' });
-      const parent = await db.queryOne(`SELECT "targetType" FROM "Contexts" WHERE id = $1`, [body.parentContextId]);
-      if (!parent) return res.status(400).json({ error: 'Parent context not found' });
-      if (parent.targetType !== body.targetType) {
-        return res.status(400).json({ error: 'Parent context has a different targetType' });
-      }
+      const parentErr = await checkCreateParent(body);
+      if (parentErr) return res.status(parentErr.status).json({ error: parentErr.message });
     }
 
     await db.query(`
@@ -67,68 +63,22 @@ router.post('/contexts', writeContexts, async (req, res) => {
 });
 
 // ─── PATCH /api/contexts/:id ─────────────────────────────────────────
-// Update a manual context. Body keys: displayName, description,
-// parentContextId, ownerUserId, extendedAttributes. Others are ignored
-// (variant, targetType, sourceAlgorithmId are immutable after creation).
+// Update a manual or generated context. Body keys: displayName, description,
+// parentContextId, ownerUserId, extendedAttributes. Immutable fields (variant,
+// targetType, sourceAlgorithmId) are ignored; synced contexts are read-only.
 router.patch('/contexts/:id', writeContexts, async (req, res) => {
   if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'Invalid ID format' });
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
 
   const ctx = await db.queryOne(`SELECT variant, "targetType", "displayName", "parentContextId" FROM "Contexts" WHERE id = $1`, [req.params.id]);
   if (!ctx) return res.status(404).json({ error: 'Context not found' });
-  // Manual and generated (plugin) contexts can be renamed / re-parented by the
-  // analyst. Only synced contexts (mirrored from a source system) are locked.
-  // For generated contexts we record per-field "userRenamed"/"userReparented"
-  // flags so (a) the UI can mark the node as analyst-curated and (b) the plugin
-  // runner keeps the edit instead of overwriting it on the next run.
+  // Only synced contexts (mirrored from a source system) are locked.
   if (ctx.variant === 'synced') return res.status(400).json({ error: 'Synced contexts are read-only (managed by their source system)' });
-  const isGenerated = ctx.variant === 'generated';
 
-  const body = req.body || {};
-  const sets = [];
-  const params = [];
-  const push = (col, val) => { params.push(val); sets.push(`"${col}" = $${params.length}`); };
+  const built = await buildContextUpdate(req.params.id, req.body || {}, ctx, ctx.variant === 'generated');
+  if (built.error) return res.status(built.error.status).json({ error: built.error.message });
 
-  if (typeof body.displayName === 'string') {
-    const name = body.displayName.slice(0, 500);
-    push('displayName', name);
-    // Mark a generated node as analyst-renamed once its name actually diverges.
-    if (isGenerated && name !== (ctx.displayName || '')) push('userRenamed', true);
-  }
-  if (typeof body.description === 'string' || body.description === null) push('description', body.description);
-  if (typeof body.ownerUserId === 'string' || body.ownerUserId === null) push('ownerUserId', body.ownerUserId);
-  if (body.extendedAttributes !== undefined)             push('extendedAttributes', body.extendedAttributes);
-
-  // Track a parent change so we can recompute member counts on both the old and
-  // new ancestor chains afterwards (a moved subtree leaves one branch and joins
-  // another — both branches' totalMemberCount roll-ups go stale otherwise).
-  let parentChanged = false;
-  const oldParentId = ctx.parentContextId || null;
-  let newParentId = oldParentId;
-
-  if (body.parentContextId !== undefined) {
-    if (body.parentContextId === null) {
-      newParentId = null;
-      parentChanged = oldParentId !== null;
-      push('parentContextId', null);
-    } else {
-      if (!UUID_RE.test(body.parentContextId)) return res.status(400).json({ error: 'Invalid parentContextId' });
-      if (body.parentContextId === req.params.id) return res.status(400).json({ error: 'Cannot parent a context to itself' });
-      const parent = await db.queryOne(`SELECT "targetType" FROM "Contexts" WHERE id = $1`, [body.parentContextId]);
-      if (!parent) return res.status(400).json({ error: 'Parent context not found' });
-      if (parent.targetType !== ctx.targetType) return res.status(400).json({ error: 'Parent has a different targetType' });
-      // Prevent cycles at any depth. The old fixed-50-hop JS walk silently
-      // passed trees deeper than 50; the shared guard uses a CYCLE-safe query.
-      if (await wouldCreateCycle(db, req.params.id, body.parentContextId)) {
-        return res.status(400).json({ error: 'Proposed parent would create a cycle' });
-      }
-      newParentId = body.parentContextId;
-      parentChanged = oldParentId !== newParentId;
-      push('parentContextId', body.parentContextId);
-    }
-    if (isGenerated && parentChanged) push('userReparented', true);
-  }
-
+  const { sets, params, parentChanged, oldParentId, newParentId } = built;
   if (sets.length === 0) return res.status(400).json({ error: 'No updatable fields supplied' });
 
   params.push(req.params.id);
@@ -211,11 +161,6 @@ router.post('/contexts/:id/sync', writeContexts, async (req, res) => {
 // Manual and generated contexts are both deletable here. Synced contexts
 // are owned by their source system (crawler) and re-created on the next
 // crawl — deleting them through the API would just get them back.
-//
-// Deleting a generated context is legitimate when the analyst spots a
-// low-signal cluster and wants it gone; re-running the same plugin with
-// the same parameters will re-create it, so for persistent removal the
-// caller should also adjust plugin parameters (e.g., additionalStopwords).
 router.delete('/contexts/:id', writeContexts, async (req, res) => {
   if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'Invalid ID format' });
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
@@ -237,6 +182,5 @@ router.delete('/contexts/:id', writeContexts, async (req, res) => {
     res.status(500).json({ error: 'Failed to delete context' });
   }
 });
-
 
 export default router;
