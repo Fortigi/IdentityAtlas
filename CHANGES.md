@@ -1,5 +1,11 @@
 ## Changes in this PR
 
+- Internal maintainability: decomposed the context create/update endpoints (`POST /api/contexts`, `PATCH /api/contexts/:id`) — required-field validation, parent-validation (targetType/self/cycle checks), and the update SET-clause building now live in dedicated, individually-tested helpers, leaving the handlers thin. No functional change — create/update, the parent-invariant errors, and the analyst rename/re-parent flags all behave exactly as before.
+- Internal maintainability: decomposed the per-entity recent-changes panels (`GET /api/{user,resources,access-package,identities}/:id/recent-changes`) — the per-row event classification now lives in dedicated, individually-tested classifiers behind one shared accumulation loop, leaving each handler a thin query-and-respond. No functional change — every panel produces the same events, add/remove counts and ordering as before.
+- Internal maintainability: decomposed the resource list + detail endpoints (`GET /api/resources`, `GET /api/resources/:id`) — the list handler's filter parsing / WHERE building / row mapping and the detail handler's per-section fetches (attributes, risk score, tags, member breakdown, access-package / parent / history / context counts) now live in dedicated, individually-tested helpers, leaving the handlers thin. No functional change — both endpoints return exactly the same shapes as before.
+
+## Changes in this PR
+
 - Internal maintainability: decomposed the curated-data admin endpoints into focused, individually-tested helpers — the export handler now delegates to read/group helpers, and the import handler to per-tag and per-category upsert/resolve helpers — leaving both `GET /api/admin/export/curated` and `POST /api/admin/import/curated` as thin orchestrators. No functional change — the export payload and import behaviour (GUID match then soft-match, with the same result stats) are exactly as before.
 
 ## Changes in this PR
