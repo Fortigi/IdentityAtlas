@@ -127,6 +127,7 @@
     "app/api/src/routes/preferences.js": 15,
     "app/api/src/routes/recentChanges.js": 99,
     "app/api/src/routes/recentChanges/changes.js": 87,
+    "app/api/src/routes/recentChanges/classify.js": 95,
     "app/api/src/routes/recentChanges/shared.js": 78,
     "app/api/src/routes/recentChanges/timeline.js": 91,
     "app/api/src/routes/resources.js": 50,
