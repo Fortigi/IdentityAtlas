@@ -85,17 +85,25 @@ async function denormalizeScore(p, res, id, entityType, newScore, newTier) {
   } catch { /* entity table may not have risk columns yet */ }
 }
 
+// Resolve the entity params + pool and confirm the risk table exists. Sends the
+// 400/404 and returns null on failure, else { id, entityType, p }.
+async function resolveRiskEntity(req, res) {
+  const parsed = parseEntityParams(req, res);
+  if (!parsed) return null;
+  const p = await db.getPool();
+  if (!await riskTableExists(p, res)) {
+    res.status(404).json({ error: 'Risk scores not available' });
+    return null;
+  }
+  return { ...parsed, p };
+}
+
 // ─── GET /api/risk-scores/:type/:id ──────────────────────────────────
 router.get('/risk-scores/:type/:id', async (req, res) => {
   try {
-    const parsed = parseEntityParams(req, res);
-    if (!parsed) return;
-    const { id, entityType } = parsed;
-
-    const p = await db.getPool();
-    if (!await riskTableExists(p, res)) {
-      return res.status(404).json({ error: 'Risk scores not available' });
-    }
+    const ctx = await resolveRiskEntity(req, res);
+    if (!ctx) return;
+    const { id, entityType, p } = ctx;
 
     const result = await timedQuery(p, 'risk-score-single', res, `
       SELECT rs.*
@@ -193,14 +201,9 @@ router.put('/risk-scores/:type/:id/override', writeRisk, async (req, res) => {
 // Remove an analyst override from an entity.
 router.delete('/risk-scores/:type/:id/override', writeRisk, async (req, res) => {
   try {
-    const parsed = parseEntityParams(req, res);
-    if (!parsed) return;
-    const { id, entityType } = parsed;
-
-    const p = await db.getPool();
-    if (!await riskTableExists(p, res)) {
-      return res.status(404).json({ error: 'Risk scores not available' });
-    }
+    const ctx = await resolveRiskEntity(req, res);
+    if (!ctx) return;
+    const { id, entityType, p } = ctx;
 
     const recomputed = await recomputeScore(p, res, id, entityType);
     if (!recomputed) return;

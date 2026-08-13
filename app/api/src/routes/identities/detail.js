@@ -15,11 +15,19 @@ import {
 
 const router = Router();
 
+// Validate the :id path param as a uuid; sends the 400 and returns null on
+// failure, else the id. (useSql guards vary per handler, so they stay inline.)
+function requireValidIdentityId(req, res) {
+  const identityId = req.params.id;
+  if (!UUID_RE.test(identityId)) { res.status(400).json({ error: 'Invalid identity ID' }); return null; }
+  return identityId;
+}
+
 router.get('/identities/:id', async (req, res) => {
   if (!useSql) return res.status(404).json({ error: 'SQL not configured' });
 
-  const identityId = req.params.id;
-  if (!UUID_RE.test(identityId)) return res.status(400).json({ error: 'Invalid identity ID' });
+  const identityId = requireValidIdentityId(req, res);
+  if (identityId === null) return;
 
   try {
     const p = await db.getPool();
@@ -79,8 +87,8 @@ router.get('/identities/:id/contexts', async (req, res) => {
 // OAuth2Grant are retired — their rows collapse into Direct).
 router.get('/identities/:id/assignments', async (req, res) => {
   if (!useSql) return res.json([]);
-  const identityId = req.params.id;
-  if (!UUID_RE.test(identityId)) return res.status(400).json({ error: 'Invalid identity ID' });
+  const identityId = requireValidIdentityId(req, res);
+  if (identityId === null) return;
   const ALLOWED = ['Direct', 'Indirect', 'Eligible'];
   const type = req.query.type;
   if (!ALLOWED.includes(type)) return res.status(400).json({ error: 'Invalid assignment type' });
@@ -121,8 +129,8 @@ router.get('/identities/:id/assignments', async (req, res) => {
 // identical to a principal-scoped matrix.
 router.get('/identities/:id/account-matrix', async (req, res) => {
   if (!useSql) return res.json({ accounts: [], memberships: [] });
-  const identityId = req.params.id;
-  if (!UUID_RE.test(identityId)) return res.status(400).json({ error: 'Invalid identity ID' });
+  const identityId = requireValidIdentityId(req, res);
+  if (identityId === null) return;
   try {
     const p = await db.getPool();
     const accounts = (await timedQuery(p, 'identity-account-matrix-accounts', res, `

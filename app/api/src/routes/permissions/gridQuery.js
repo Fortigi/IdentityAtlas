@@ -240,6 +240,15 @@ export function shapeManagedByPackages(apMapping) {
     }));
 }
 
+// Shared response shape for both query runners.
+function gridResult(result, totalResult, apMapping) {
+  return {
+    data: result.rows,
+    totalUsers: totalResult.rows[0].totalUsers,
+    managedByPackages: shapeManagedByPackages(apMapping),
+  };
+}
+
 // ── Top-N (userLimit > 0) branch ───────────────────────────────────────────
 // Returns the response payload (never touches res except for timing labels).
 export async function runLimitedGridQuery({ p, res, userLimit, dynamicUserCols, filterClauses, contextClauses, userTagFilter }) {
@@ -367,11 +376,7 @@ export async function runLimitedGridQuery({ p, res, userLimit, dynamicUserCols, 
     apMapping = apRes.rows;
   } catch (e) { if (!isMissingSchema(e)) throw e; /* AP view may not exist */ }
 
-  return {
-    data: result.rows,
-    totalUsers: totalResult.rows[0].totalUsers,
-    managedByPackages: shapeManagedByPackages(apMapping),
-  };
+  return gridResult(result, totalResult, apMapping);
 }
 
 // ── No user limit — single batch for main data + AP mapping ─────────────────
@@ -438,11 +443,7 @@ export async function runUnlimitedGridQuery({ p, res, dynamicUserCols, filterCla
     apMapping = apResult.rows;
   } catch (e) { if (!isMissingSchema(e)) throw e; /* AP view may not exist */ }
 
-  return {
-    data: result.rows,
-    totalUsers: totalResult.rows[0].totalUsers,
-    managedByPackages: shapeManagedByPackages(apMapping),
-  };
+  return gridResult(result, totalResult, apMapping);
 }
 
 // ── Mock-data path (supports filters for local dev) ─────────────────────────

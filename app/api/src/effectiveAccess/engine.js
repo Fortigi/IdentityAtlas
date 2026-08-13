@@ -189,9 +189,17 @@ function logResolve({ resourceId, principalId, cacheHit, dataVersion, started, r
  * admitted once, by its first unblocked path), depth- and node-capped.
  * @returns {Promise<{depthByNode: Map<string, number>, truncated: boolean}>}
  */
-export async function getAncestorNodes(nodeId, opts = {}) {
+// Walk `Contains` edges in one direction ('up' = ancestors, 'down' =
+// descendants) from a focus node, collecting nodes + distance (0 = focus).
+// Stops at a propagates=false edge. DAG-safe, depth- and node-capped.
+async function walkContainsNodes(nodeId, direction, opts = {}) {
   const maxDepth = opts.maxDepth ?? DEFAULTS.maxDepth;
   const maxNodes = opts.maxNodesPerExpansion ?? DEFAULTS.maxNodesPerExpansion;
+  // selCol = the neighbour we collect; whereCol = the side we match the frontier
+  // on; `alias` is the row key (kept direction-specific: parent / child).
+  const [selCol, whereCol, alias] = direction === 'up'
+    ? ['parentResourceId', 'childResourceId', 'parent']
+    : ['childResourceId', 'parentResourceId', 'child'];
   const depthByNode = new Map([[nodeId, 0]]);
   let frontier = [nodeId];
   let depth = 0;
@@ -204,26 +212,31 @@ export async function getAncestorNodes(nodeId, opts = {}) {
     }
     depth++;
     const { rows } = await db.query(
-      `SELECT DISTINCT rr."parentResourceId" AS parent
+      `SELECT DISTINCT rr."${selCol}" AS ${alias}
          FROM "ResourceRelationships" rr
         WHERE rr."relationshipType" = 'Contains'
-          AND rr."childResourceId" = ANY($1)
+          AND rr."${whereCol}" = ANY($1)
           AND COALESCE((rr."extendedAttributes" ->> 'propagates')::boolean, true) = true`,
       [frontier],
     );
     const next = [];
-    for (const { parent } of rows) {
-      if (depthByNode.has(parent)) continue; // already admitted via a shorter/equal path
+    for (const row of rows) {
+      const node = row[alias];
+      if (depthByNode.has(node)) continue; // already admitted via a shorter/equal path
       if (depthByNode.size >= maxNodes) {
         truncated = true;
         break;
       }
-      depthByNode.set(parent, depth);
-      next.push(parent);
+      depthByNode.set(node, depth);
+      next.push(node);
     }
     frontier = next;
   }
   return { depthByNode, truncated };
+}
+
+export async function getAncestorNodes(nodeId, opts = {}) {
+  return walkContainsNodes(nodeId, 'up', opts);
 }
 
 /**
@@ -309,40 +322,7 @@ export async function effectiveAccessAtNode(nodeId, principalId, opts = {}) {
  * @returns {Promise<{depthByNode: Map<string, number>, truncated: boolean}>}
  */
 export async function getDescendantNodes(nodeId, opts = {}) {
-  const maxDepth = opts.maxDepth ?? DEFAULTS.maxDepth;
-  const maxNodes = opts.maxNodesPerExpansion ?? DEFAULTS.maxNodesPerExpansion;
-  const depthByNode = new Map([[nodeId, 0]]);
-  let frontier = [nodeId];
-  let depth = 0;
-  let truncated = false;
-
-  while (frontier.length > 0 && !truncated) {
-    if (depth >= maxDepth) {
-      truncated = true;
-      break;
-    }
-    depth++;
-    const { rows } = await db.query(
-      `SELECT DISTINCT rr."childResourceId" AS child
-         FROM "ResourceRelationships" rr
-        WHERE rr."relationshipType" = 'Contains'
-          AND rr."parentResourceId" = ANY($1)
-          AND COALESCE((rr."extendedAttributes" ->> 'propagates')::boolean, true) = true`,
-      [frontier],
-    );
-    const next = [];
-    for (const { child } of rows) {
-      if (depthByNode.has(child)) continue; // already admitted via a shorter/equal path
-      if (depthByNode.size >= maxNodes) {
-        truncated = true;
-        break;
-      }
-      depthByNode.set(child, depth);
-      next.push(child);
-    }
-    frontier = next;
-  }
-  return { depthByNode, truncated };
+  return walkContainsNodes(nodeId, 'down', opts);
 }
 
 /**

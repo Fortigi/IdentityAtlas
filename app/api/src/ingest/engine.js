@@ -24,6 +24,19 @@ import { createTempTable, bulkInsertIntoTemp } from './tempTableHelpers.js';
 // only changed by migrations at startup, so the cache is safe.
 const schemaCache = new Map();
 
+// Discover a table's columns and keep those present in the records (or needed
+// as keys), minus auto-generated identity columns.
+export async function resolveActiveColumns(tableName, records, keyColumns) {
+  const columns = await discoverColumns(null, tableName);
+  const recordKeys = new Set();
+  for (const rec of records) {
+    for (const k of Object.keys(rec)) recordKeys.add(k);
+  }
+  return columns.filter(c =>
+    (recordKeys.has(c.name) || keyColumns.includes(c.name)) && !c.isIdentity
+  );
+}
+
 export async function discoverColumns(_pool, tableName) {
   if (schemaCache.has(tableName)) return schemaCache.get(tableName);
 
@@ -77,17 +90,7 @@ export async function ingest(_pool, tableName, keyColumns, records, options = {}
     return { inserted: 0, updated: 0, deleted: 0 };
   }
 
-  const columns = await discoverColumns(null, tableName);
-
-  // Filter columns to those present in the records (or required as keys),
-  // excluding identity columns which postgres auto-generates.
-  const recordKeys = new Set();
-  for (const rec of records) {
-    for (const k of Object.keys(rec)) recordKeys.add(k);
-  }
-  const activeColumns = columns.filter(c =>
-    (recordKeys.has(c.name) || keyColumns.includes(c.name)) && !c.isIdentity
-  );
+  const activeColumns = await resolveActiveColumns(tableName, records, keyColumns);
 
   if (activeColumns.length === 0) {
     throw new Error(`No matching columns for table '${tableName}' in records`);
@@ -173,7 +176,11 @@ export async function ingest(_pool, tableName, keyColumns, records, options = {}
 
     let deleted = 0;
     if (syncMode === 'full') {
-      const tableColumnNames = new Set(columns.map(c => c.name));
+      // scopedDelete's guards (systemId / linkConfidence / analystOverride) test
+      // the table's *full* column set, not just the payload columns — so re-read
+      // the cached schema rather than reusing activeColumns.
+      const allColumns = await discoverColumns(null, tableName);
+      const tableColumnNames = new Set(allColumns.map(c => c.name));
       deleted = await scopedDelete(client, tableName, keyColumns, tempName, systemId, scope, systemIdColumn, tableColumnNames, scopeDeleteFilter);
     }
 
