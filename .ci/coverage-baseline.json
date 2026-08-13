@@ -93,6 +93,7 @@
     "app/api/src/routes/dataExport.js": 99,
     "app/api/src/routes/details.js": 99,
     "app/api/src/routes/details/accessPackage.js": 91,
+    "app/api/src/routes/details/accessPackageDetail.js": 100,
     "app/api/src/routes/details/group.js": 99,
     "app/api/src/routes/details/shared.js": 99,
     "app/api/src/routes/details/user.js": 97,

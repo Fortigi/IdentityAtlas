@@ -10,8 +10,12 @@
 import { Router } from 'express';
 import * as db from '../../db/connection.js';
 import { timedQuery } from '../../perf/sqlTimer.js';
-import { isMissingSchema } from '../../db/schemaErrors.js';
-import { useSql, UUID_RE, cleanRow, fetchHistory, countHistory } from './shared.js';
+import { useSql, UUID_RE, cleanRow, fetchHistory } from './shared.js';
+import {
+  fetchApAttributes, fetchAssignmentCount, fetchGroupCount, fetchReviewCount,
+  fetchPendingRequestCount, fetchLastReview, fetchComplianceStatus,
+  fetchPolicySummary, deriveAssignmentType, fetchCategory, fetchHistoryCount,
+} from './accessPackageDetail.js';
 
 const router = Router();
 
@@ -25,161 +29,24 @@ router.get('/access-package/:id', async (req, res) => {
     const pool = await db.getPool();
     const apId = req.params.id;
 
-    // 1. Current attributes + catalog name
-    let apResult;
-    try {
-      apResult = await timedQuery(pool, 'ap-attributes', res, `
-        SELECT ap.*, c."displayName" AS "catalogName"
-        FROM "Resources" ap
-        LEFT JOIN "GovernanceCatalogs" c ON ap."catalogId" = c.id
-        WHERE ap.id = $1 AND ap."resourceType" = 'BusinessRole'
-      `, [apId]);
-    } catch {
-      // GovernanceCatalogs may not exist — fall back to AP-only query
-      apResult = await timedQuery(pool, 'ap-attributes', res,
-        `SELECT * FROM "Resources" WHERE id = $1 AND "resourceType" = 'BusinessRole'`, [apId]);
-    }
-
-    if (apResult.rows.length === 0) {
+    // Attributes first — a missing row is a 404 before we fetch the counts.
+    const attributes = await fetchApAttributes(pool, res, apId);
+    if (attributes === null) {
       return res.status(404).json({ error: 'Access package not found' });
     }
-    const attributes = cleanRow(apResult.rows[0]);
 
-    // 2. Assignment count
-    let assignmentCount = 0;
-    try {
-      const r = await timedQuery(pool, 'ap-assignment-count', res,
-        `SELECT COUNT(*)::int AS cnt FROM "ResourceAssignments" WHERE "resourceId" = $1`, [apId]);
-      assignmentCount = r.rows[0].cnt;
-    } catch (e) { if (!isMissingSchema(e)) throw e; /* table may not exist */ }
-
-    // 3. Group count (resources linked to this AP)
-    let groupCount = 0;
-    try {
-      const r = await timedQuery(pool, 'ap-group-count', res, `
-        SELECT COUNT(DISTINCT "childResourceId")::int AS cnt
-        FROM "ResourceRelationships"
-        WHERE "parentResourceId" = $1 AND "relationshipType" = 'Contains'
-      `, [apId]);
-      groupCount = r.rows[0].cnt;
-    } catch (e) { if (!isMissingSchema(e)) throw e; /* table may not exist */ }
-
-    // 4. Review count
-    let reviewCount = 0;
-    try {
-      const r = await timedQuery(pool, 'ap-review-count', res,
-        `SELECT COUNT(*)::int AS cnt FROM "CertificationDecisions" WHERE "resourceId" = $1`, [apId]);
-      reviewCount = r.rows[0].cnt;
-    } catch (e) { if (!isMissingSchema(e)) throw e; /* table may not exist */ }
-
-    // 5. Pending request count — COUNT only (cheap); full rows are lazy-loaded.
-    let pendingRequestCount = null;
-    try {
-      const r = await timedQuery(pool, 'ap-pending-request-count', res, `
-        SELECT COUNT(*)::int AS cnt FROM "AssignmentRequests"
-        WHERE "resourceId" = $1 AND "requestState" = 'PendingApproval'
-      `, [apId]);
-      pendingRequestCount = r.rows[0].cnt;
-    } catch (e) { if (!isMissingSchema(e)) throw e; /* table may not exist */ }
-
-    // 5b. Last review date + reviewer
-    let lastReviewDate = null;
-    let lastReviewedBy = null;
-    try {
-      const r = await timedQuery(pool, 'ap-last-review-date', res, `
-        SELECT "reviewedDateTime", "reviewedByDisplayName"
-        FROM "CertificationDecisions"
-        WHERE "resourceId" = $1 AND decision IS NOT NULL AND decision <> 'NotReviewed'
-        ORDER BY "reviewedDateTime" DESC
-      `, [apId]);
-      lastReviewDate = r.rows[0]?.reviewedDateTime || null;
-      lastReviewedBy = r.rows[0]?.reviewedByDisplayName || null;
-    } catch (e) { if (!isMissingSchema(e)) throw e; /* table may not exist */ }
-
-    // 5c. Compliance status of the latest review instance — the same calculated
-    //     "Review Status" the Business Roles list shows. Mirrors the
-    //     LAST_REVIEW_CTE logic in governance.js, scoped to one resource.
-    let complianceStatus = null;
-    let daysOverdue = 0;
-    try {
-      const r = await db.query(`
-        WITH li AS (
-          SELECT "reviewInstanceId", "reviewInstanceEndDateTime"
-            FROM "CertificationDecisions"
-           WHERE "resourceId"::text = $1
-           ORDER BY "reviewInstanceEndDateTime" DESC NULLS LAST
-           LIMIT 1
-        )
-        SELECT li."reviewInstanceEndDateTime" AS deadline,
-               SUM(CASE WHEN d.decision = 'NotReviewed' THEN 1 ELSE 0 END)::int AS "notReviewed",
-               SUM(CASE WHEN d.decision <> 'NotReviewed' AND d."reviewedDateTime"::date > li."reviewInstanceEndDateTime"::date THEN 1 ELSE 0 END)::int AS late
-          FROM li JOIN "CertificationDecisions" d
-            ON d."resourceId"::text = $1 AND d."reviewInstanceId" = li."reviewInstanceId"
-         GROUP BY li."reviewInstanceEndDateTime"`, [apId]);
-      const row = r.rows[0];
-      if (row) {
-        const deadline = row.deadline ? new Date(row.deadline) : null;
-        const overdue = deadline && deadline < new Date();
-        if (row.notReviewed === 0 && row.late === 0) complianceStatus = 'Compliant';
-        else if (row.notReviewed > 0 && !overdue) complianceStatus = 'In Progress';
-        else if (row.notReviewed > 0 && overdue) complianceStatus = 'Missed';
-        else complianceStatus = 'Reviewed Late';
-        if (deadline && overdue) daysOverdue = Math.floor((Date.now() - deadline.getTime()) / 86400000);
-      }
-    } catch (e) { if (!isMissingSchema(e)) throw e; /* CertificationDecisions may not exist */ }
-
-    // 6. Policy summary — auto-assigned vs request-based vs auto-removal
-    let policyCount = 0;
-    let autoAddPolicyCount = 0;
-    let autoRemovePolicyCount = 0;
-    try {
-      const r = await timedQuery(pool, 'ap-policy-summary', res, `
-        SELECT
-          COUNT(*)::int AS total,
-          SUM(CASE WHEN "hasAutoAddRule" = TRUE THEN 1 ELSE 0 END)::int AS "autoAdd",
-          SUM(CASE WHEN COALESCE("hasAutoAddRule", FALSE) = FALSE AND "hasAutoRemoveRule" = TRUE THEN 1 ELSE 0 END)::int AS "autoRemoveOnly"
-        FROM "AssignmentPolicies"
-        WHERE "resourceId" = $1
-      `, [apId]);
-      policyCount = r.rows[0].total;
-      autoAddPolicyCount = r.rows[0].autoAdd;
-      autoRemovePolicyCount = r.rows[0].autoRemoveOnly;
-    } catch (e) { if (!isMissingSchema(e)) throw e; /* table may not exist */ }
-
-    // Derive assignment type label
-    let assignmentType = null;
-    if (policyCount > 0) {
-      const requestBasedCount = policyCount - autoAddPolicyCount - autoRemovePolicyCount;
-      if (autoAddPolicyCount > 0 && (requestBasedCount > 0 || autoRemovePolicyCount > 0)) {
-        assignmentType = 'Both';
-      } else if (autoAddPolicyCount > 0) {
-        assignmentType = 'Auto-assigned';
-      } else if (autoRemovePolicyCount > 0) {
-        assignmentType = 'Request-based with auto-removal';
-      } else {
-        assignmentType = 'Request-based';
-      }
-    }
-
-    // 6b. Category
-    let category = null;
-    try {
-      const { ensureCategoryTables } = await import('../categories.js');
-      await ensureCategoryTables(pool);
-      const r = await timedQuery(pool, 'ap-category', res, `
-        SELECT cat.id, cat.name, cat.color
-        FROM "GovernanceCategoryAssignments" ca
-        INNER JOIN "GovernanceCategories" cat ON ca."categoryId" = cat.id
-        WHERE ca."resourceId" = LOWER($1)
-      `, [apId]);
-      if (r.rows.length > 0) {
-        category = r.rows[0];
-      }
-    } catch (e) { if (!isMissingSchema(e)) throw e; /* category tables may not exist */ }
-
-    // 7. History count (v5: queries the _history audit table)
-    let historyCount = 0;
-    try { historyCount = await countHistory('Resources', apId); } catch (e) { if (!isMissingSchema(e)) throw e; /* _history may not exist */ }
+    // The remaining sections are independent optional fetches; each swallows a
+    // missing optional table and rethrows anything else to the 500 below.
+    const assignmentCount = await fetchAssignmentCount(pool, res, apId);
+    const groupCount = await fetchGroupCount(pool, res, apId);
+    const reviewCount = await fetchReviewCount(pool, res, apId);
+    const pendingRequestCount = await fetchPendingRequestCount(pool, res, apId);
+    const { lastReviewDate, lastReviewedBy } = await fetchLastReview(pool, res, apId);
+    const { complianceStatus, daysOverdue } = await fetchComplianceStatus(apId);
+    const { policyCount, autoAddPolicyCount, autoRemovePolicyCount } = await fetchPolicySummary(pool, res, apId);
+    const assignmentType = deriveAssignmentType({ policyCount, autoAddPolicyCount, autoRemovePolicyCount });
+    const category = await fetchCategory(pool, res, apId);
+    const historyCount = await fetchHistoryCount(apId);
 
     res.json({ attributes, assignmentCount, groupCount, reviewCount, pendingRequestCount, lastReviewDate, lastReviewedBy, complianceStatus, daysOverdue, historyCount, hasHistory: historyCount > 0, policyCount, autoAddPolicyCount, assignmentType, category });
   } catch (err) {
