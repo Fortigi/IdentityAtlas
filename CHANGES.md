@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Internal maintainability: decomposed the curated-data admin endpoints into focused, individually-tested helpers — the export handler now delegates to read/group helpers, and the import handler to per-tag and per-category upsert/resolve helpers — leaving both `GET /api/admin/export/curated` and `POST /api/admin/import/curated` as thin orchestrators. No functional change — the export payload and import behaviour (GUID match then soft-match, with the same result stats) are exactly as before.
+
+## Changes in this PR
+
 - Internal maintainability: decomposed the access-package detail endpoint (`GET /api/access-package/:id`) into focused, individually-tested phase helpers — attribute lookup, the assignment/group/review/request counts, last-review, review-compliance status, policy summary, category, and history count — leaving the handler a thin sequence. No functional change — the endpoint returns exactly the same payload as before.
 
 ## Changes in this PR
