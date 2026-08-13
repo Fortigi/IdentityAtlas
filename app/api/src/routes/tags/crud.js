@@ -103,12 +103,20 @@ router.post('/tags', writeTags, async (req, res) => {
   }
 });
 
+// Shared guard for the /tags/:id handlers: SQL mode + a valid uuid. Sends the
+// 400 and returns null on failure, else the id.
+function requireValidTagId(req, res) {
+  if (!useSql) { res.status(400).json({ error: 'SQL mode required' }); return null; }
+  const id = req.params.id;
+  if (!UUID_RE.test(id)) { res.status(400).json({ error: 'Invalid tag ID' }); return null; }
+  return id;
+}
+
 // PATCH /api/tags/:id
 router.patch('/tags/:id', writeTags, async (req, res) => {
   try {
-    if (!useSql) return res.status(400).json({ error: 'SQL mode required' });
-    const id = req.params.id;
-    if (!UUID_RE.test(id)) return res.status(400).json({ error: 'Invalid tag ID' });
+    const id = requireValidTagId(req, res);
+    if (id === null) return;
 
     const { name, color } = req.body;
     if (color && !HEX_COLOR_RE.test(color)) return res.status(400).json({ error: 'color must be a hex value like #3b82f6' });
@@ -143,9 +151,8 @@ router.patch('/tags/:id', writeTags, async (req, res) => {
 // DELETE /api/tags/:id
 router.delete('/tags/:id', writeTags, async (req, res) => {
   try {
-    if (!useSql) return res.status(400).json({ error: 'SQL mode required' });
-    const id = req.params.id;
-    if (!UUID_RE.test(id)) return res.status(400).json({ error: 'Invalid tag ID' });
+    const id = requireValidTagId(req, res);
+    if (id === null) return;
     await db.query(
       `DELETE FROM "Contexts" WHERE id = $1 AND "contextType" = 'Tag'`,
       [id]
@@ -160,9 +167,8 @@ router.delete('/tags/:id', writeTags, async (req, res) => {
 // POST /api/tags/:id/assign
 router.post('/tags/:id/assign', writeTags, async (req, res) => {
   try {
-    if (!useSql) return res.status(400).json({ error: 'SQL mode required' });
-    const id = req.params.id;
-    if (!UUID_RE.test(id)) return res.status(400).json({ error: 'Invalid tag ID' });
+    const id = requireValidTagId(req, res);
+    if (id === null) return;
     const { entityIds } = req.body;
     if (!Array.isArray(entityIds) || entityIds.length === 0) return res.status(400).json({ error: 'entityIds array required' });
     if (entityIds.length > 500) return res.status(400).json({ error: 'Maximum 500 entity IDs per request' });
@@ -199,9 +205,8 @@ router.post('/tags/:id/assign', writeTags, async (req, res) => {
 // POST /api/tags/:id/unassign
 router.post('/tags/:id/unassign', writeTags, async (req, res) => {
   try {
-    if (!useSql) return res.status(400).json({ error: 'SQL mode required' });
-    const id = req.params.id;
-    if (!UUID_RE.test(id)) return res.status(400).json({ error: 'Invalid tag ID' });
+    const id = requireValidTagId(req, res);
+    if (id === null) return;
     const { entityIds } = req.body;
     if (!Array.isArray(entityIds) || entityIds.length === 0) return res.status(400).json({ error: 'entityIds array required' });
     if (entityIds.length > 500) return res.status(400).json({ error: 'Maximum 500 entity IDs per request' });

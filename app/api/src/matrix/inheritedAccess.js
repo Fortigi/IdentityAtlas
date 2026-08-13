@@ -154,11 +154,10 @@ export async function buildInheritedFlatRows(p, built, rowType, subjectCols) {
   return out;
 }
 
-// Folded effective counts (Phase 2): the attribute-rollup count cells, but for
-// inherited access. Reuses the cached engine rows for the scope and aggregates
-// distinct holders per (synthesized capability-resource, group-value), shaped to
-// merge into the attribute-rollup response. Bounded-scope + principal rowType.
-export async function buildInheritedRollupCounts(p, built, rowType, rollupAttr, principalCols) {
+// ── Shared scaffolding for the three inherited-count builders ──────────────
+// Resolve scoped nodes → cached effective access → in-scope holder rows. Returns
+// null when any stage is empty (each builder's early-return path).
+async function inheritedScopeRows(p, built, rowType) {
   if (!built.hasResource) return null;
   const nodeIds = await scopedNodeIds(p, built);
   if (!nodeIds.length) return null;
@@ -167,8 +166,58 @@ export async function buildInheritedRollupCounts(p, built, rowType, rollupAttr, 
   const subjScope = await scopedPrincipalIds(p, built, rowType);
   const rows = subjScope ? eff.filter((e) => subjScope.has(e.principalId)) : eff;
   if (!rows.length) return null;
+  return { nodeIds, rows, pids: [...new Set(rows.map((r) => r.principalId))] };
+}
 
-  const pids = [...new Set(rows.map((r) => r.principalId))];
+// resourceId → { systemId, systemName } for the scope nodes.
+async function fetchNodeMeta(nodeIds) {
+  const { rows } = await db.query(
+    `SELECT r.id, r."systemId", s."displayName" AS "systemName"
+       FROM "Resources" r LEFT JOIN "Systems" s ON s.id = r."systemId" WHERE r.id = ANY($1)`, [nodeIds]);
+  return new Map(rows.map((n) => [n.id, n]));
+}
+
+// The set of principal ids that are groups (excluded from holder counts).
+async function fetchGroupPrincipalIds(pids) {
+  const { rows } = await db.query(`SELECT id, "principalType" AS pt FROM "Principals" WHERE id = ANY($1)`, [pids]);
+  return new Set(rows.filter((r) => r.pt === GROUP_PRINCIPAL_TYPE).map((r) => r.id));
+}
+
+// The resource-meta object added to the `resources` map for a holder row.
+function inheritedResourceMeta(e, nodeById) {
+  const node = nodeById.get(e.nodeId) || {};
+  return {
+    resourceId: e.resourceId, resourceDisplayName: e.displayName,
+    resourceType: e.resourceType, resourceDescription: null,
+    systemId: node.systemId ?? null, systemName: node.systemName ?? null,
+  };
+}
+
+// Flatten the cells Map (resourceId → gv → Set) into count rows.
+function inheritedCountRows(cells) {
+  const counts = [];
+  for (const [resourceId, m] of cells) for (const [gv, set] of m) counts.push({ resourceId, groupValue: gv, directCount: set.size, governedCount: 0 });
+  return counts;
+}
+
+// The rollup/context response shape (counts + per-group totals).
+function inheritedCountResult(resources, cells, groupSets) {
+  return {
+    resources: [...resources.values()],
+    counts: inheritedCountRows(cells),
+    groupValues: [...groupSets.keys()],
+    groupTotals: [...groupSets.entries()].map(([gv, set]) => ({ groupValue: gv, total: set.size })),
+  };
+}
+
+// Folded effective counts (Phase 2): the attribute-rollup count cells, but for
+// inherited access. Reuses the cached engine rows for the scope and aggregates
+// distinct holders per (synthesized capability-resource, group-value), shaped to
+// merge into the attribute-rollup response. Bounded-scope + principal rowType.
+export async function buildInheritedRollupCounts(p, built, rowType, rollupAttr, principalCols) {
+  const scope = await inheritedScopeRows(p, built, rowType);
+  if (!scope) return null;
+  const { nodeIds, rows, pids } = scope;
 
   // group-value per holder = the roll-up attribute on the principal (COALESCE
   // empty → '(none)', matching buildRollupSql). Plus principalType to drop groups.
@@ -178,10 +227,7 @@ export async function buildInheritedRollupCounts(p, built, rowType, rollupAttr, 
     `SELECT id, "principalType" AS pt, ${gvSel} AS gv FROM "Principals" pr WHERE id = ANY($1)`, [pids]);
   const gvBy = new Map(pr.map((r) => [r.id, r]));
 
-  const { rows: nodeMeta } = await db.query(
-    `SELECT r.id, r."systemId", s."displayName" AS "systemName"
-       FROM "Resources" r LEFT JOIN "Systems" s ON s.id = r."systemId" WHERE r.id = ANY($1)`, [nodeIds]);
-  const nodeById = new Map(nodeMeta.map((n) => [n.id, n]));
+  const nodeById = await fetchNodeMeta(nodeIds);
 
   const resources = new Map();           // resourceId -> meta
   const cells = new Map();               // resourceId -> Map(gv -> Set principal)
@@ -190,14 +236,7 @@ export async function buildInheritedRollupCounts(p, built, rowType, rollupAttr, 
     const meta = gvBy.get(e.principalId);
     if (!meta || meta.pt === GROUP_PRINCIPAL_TYPE) continue;
     const gv = meta.gv || '(none)';
-    if (!resources.has(e.resourceId)) {
-      const node = nodeById.get(e.nodeId) || {};
-      resources.set(e.resourceId, {
-        resourceId: e.resourceId, resourceDisplayName: e.displayName,
-        resourceType: e.resourceType, resourceDescription: null,
-        systemId: node.systemId ?? null, systemName: node.systemName ?? null,
-      });
-    }
+    if (!resources.has(e.resourceId)) resources.set(e.resourceId, inheritedResourceMeta(e, nodeById));
     let m = cells.get(e.resourceId); if (!m) { m = new Map(); cells.set(e.resourceId, m); }
     let s = m.get(gv); if (!s) { s = new Set(); m.set(gv, s); }
     s.add(e.principalId);
@@ -205,17 +244,7 @@ export async function buildInheritedRollupCounts(p, built, rowType, rollupAttr, 
     gs.add(e.principalId);
   }
   if (!resources.size) return null;
-
-  const counts = [];
-  for (const [resourceId, m] of cells) {
-    for (const [gv, set] of m) counts.push({ resourceId, groupValue: gv, directCount: set.size, governedCount: 0 });
-  }
-  return {
-    resources: [...resources.values()],
-    counts,
-    groupValues: [...groupSets.keys()],
-    groupTotals: [...groupSets.entries()].map(([gv, set]) => ({ groupValue: gv, total: set.size })),
-  };
+  return inheritedCountResult(resources, cells, groupSets);
 }
 
 // Folded effective counts for the CONTEXT (org-hierarchy) rollup. Same idea as
@@ -223,15 +252,10 @@ export async function buildInheritedRollupCounts(p, built, rowType, rollupAttr, 
 // context node whose subtree contains them (a holder can map to more than one
 // when frontier nodes nest). `frontierIds` are the visible cut's node ids.
 export async function buildInheritedContextCounts(p, built, rowType, frontierIds) {
-  if (!built.hasResource || !Array.isArray(frontierIds) || !frontierIds.length) return null;
-  const nodeIds = await scopedNodeIds(p, built);
-  if (!nodeIds.length) return null;
-  const eff = await cachedEffectiveAccess(nodeIds);
-  if (!eff.length) return null;
-  const subjScope = await scopedPrincipalIds(p, built, rowType);
-  const rows = subjScope ? eff.filter((e) => subjScope.has(e.principalId)) : eff;
-  if (!rows.length) return null;
-  const pids = [...new Set(rows.map((r) => r.principalId))];
+  if (!Array.isArray(frontierIds) || !frontierIds.length) return null;
+  const scope = await inheritedScopeRows(p, built, rowType);
+  if (!scope) return null;
+  const { nodeIds, rows, pids } = scope;
 
   const { rows: fm } = await db.query(
     `WITH RECURSIVE frontier(fid) AS (SELECT unnest($1::uuid[])),
@@ -249,26 +273,15 @@ export async function buildInheritedContextCounts(p, built, rowType, frontierIds
   const gvBy = new Map();
   for (const r of fm) { let a = gvBy.get(r.pid); if (!a) { a = []; gvBy.set(r.pid, a); } a.push(r.gv); }
 
-  const { rows: pt } = await db.query(`SELECT id, "principalType" AS pt FROM "Principals" WHERE id = ANY($1)`, [pids]);
-  const isGroup = new Set(pt.filter((r) => r.pt === GROUP_PRINCIPAL_TYPE).map((r) => r.id));
-  const { rows: nodeMeta } = await db.query(
-    `SELECT r.id, r."systemId", s."displayName" AS "systemName"
-       FROM "Resources" r LEFT JOIN "Systems" s ON s.id = r."systemId" WHERE r.id = ANY($1)`, [nodeIds]);
-  const nodeById = new Map(nodeMeta.map((n) => [n.id, n]));
+  const isGroup = await fetchGroupPrincipalIds(pids);
+  const nodeById = await fetchNodeMeta(nodeIds);
 
   const resources = new Map(), cells = new Map(), groupSets = new Map();
   for (const e of rows) {
     if (isGroup.has(e.principalId)) continue;
     const gvs = gvBy.get(e.principalId);
     if (!gvs) continue;
-    if (!resources.has(e.resourceId)) {
-      const node = nodeById.get(e.nodeId) || {};
-      resources.set(e.resourceId, {
-        resourceId: e.resourceId, resourceDisplayName: e.displayName,
-        resourceType: e.resourceType, resourceDescription: null,
-        systemId: node.systemId ?? null, systemName: node.systemName ?? null,
-      });
-    }
+    if (!resources.has(e.resourceId)) resources.set(e.resourceId, inheritedResourceMeta(e, nodeById));
     for (const gv of gvs) {
       let m = cells.get(e.resourceId); if (!m) { m = new Map(); cells.set(e.resourceId, m); }
       let s = m.get(gv); if (!s) { s = new Set(); m.set(gv, s); }
@@ -278,14 +291,7 @@ export async function buildInheritedContextCounts(p, built, rowType, frontierIds
     }
   }
   if (!resources.size) return null;
-  const counts = [];
-  for (const [resourceId, m] of cells) for (const [gv, set] of m) counts.push({ resourceId, groupValue: gv, directCount: set.size, governedCount: 0 });
-  return {
-    resources: [...resources.values()],
-    counts,
-    groupValues: [...groupSets.keys()],
-    groupTotals: [...groupSets.entries()].map(([gv, set]) => ({ groupValue: gv, total: set.size })),
-  };
+  return inheritedCountResult(resources, cells, groupSets);
 }
 
 // Folded effective counts for the LAYERED ATTRIBUTE FOLD. The group-value of a
@@ -294,15 +300,10 @@ export async function buildInheritedContextCounts(p, built, rowType, frontierIds
 // tuple is computed on the identity for identity rowType — not yet supported).
 export async function buildInheritedFoldCounts(p, built, rowType, sortAttributes, principalCols, collapsed) {
   if (rowType === 'identity') return null;
-  if (!built.hasResource || !Array.isArray(sortAttributes) || !sortAttributes.length) return null;
-  const nodeIds = await scopedNodeIds(p, built);
-  if (!nodeIds.length) return null;
-  const eff = await cachedEffectiveAccess(nodeIds);
-  if (!eff.length) return null;
-  const subjScope = await scopedPrincipalIds(p, built, rowType);
-  const rows = subjScope ? eff.filter((e) => subjScope.has(e.principalId)) : eff;
-  if (!rows.length) return null;
-  const pids = [...new Set(rows.map((r) => r.principalId))];
+  if (!Array.isArray(sortAttributes) || !sortAttributes.length) return null;
+  const scope = await inheritedScopeRows(p, built, rowType);
+  if (!scope) return null;
+  const { nodeIds, rows, pids } = scope;
 
   const attrExprs = [];
   for (const a of sortAttributes) {
@@ -317,35 +318,22 @@ export async function buildInheritedFoldCounts(p, built, rowType, sortAttributes
     `SELECT id, ${vk} AS gv FROM "Principals" pr WHERE id = ANY($1)`, [pids, ...coll]);
   const gvBy = new Map(gvr.map((r) => [r.id, r.gv]));
 
-  const { rows: pt } = await db.query(`SELECT id, "principalType" AS pt FROM "Principals" WHERE id = ANY($1)`, [pids]);
-  const isGroup = new Set(pt.filter((r) => r.pt === GROUP_PRINCIPAL_TYPE).map((r) => r.id));
-  const { rows: nodeMeta } = await db.query(
-    `SELECT r.id, r."systemId", s."displayName" AS "systemName"
-       FROM "Resources" r LEFT JOIN "Systems" s ON s.id = r."systemId" WHERE r.id = ANY($1)`, [nodeIds]);
-  const nodeById = new Map(nodeMeta.map((n) => [n.id, n]));
+  const isGroup = await fetchGroupPrincipalIds(pids);
+  const nodeById = await fetchNodeMeta(nodeIds);
 
   const resources = new Map(), cells = new Map(), gset = new Set();
   for (const e of rows) {
     if (isGroup.has(e.principalId)) continue;
     const gv = gvBy.get(e.principalId);
     if (gv == null) continue;
-    if (!resources.has(e.resourceId)) {
-      const node = nodeById.get(e.nodeId) || {};
-      resources.set(e.resourceId, {
-        resourceId: e.resourceId, resourceDisplayName: e.displayName,
-        resourceType: e.resourceType, resourceDescription: null,
-        systemId: node.systemId ?? null, systemName: node.systemName ?? null,
-      });
-    }
+    if (!resources.has(e.resourceId)) resources.set(e.resourceId, inheritedResourceMeta(e, nodeById));
     let m = cells.get(e.resourceId); if (!m) { m = new Map(); cells.set(e.resourceId, m); }
     let s = m.get(gv); if (!s) { s = new Set(); m.set(gv, s); }
     s.add(e.principalId);
     gset.add(gv);
   }
   if (!resources.size) return null;
-  const counts = [];
-  for (const [resourceId, m] of cells) for (const [gv, set] of m) counts.push({ resourceId, groupValue: gv, directCount: set.size, governedCount: 0 });
-  return { resources: [...resources.values()], counts, groupValues: [...gset] };
+  return { resources: [...resources.values()], counts: inheritedCountRows(cells), groupValues: [...gset] };
 }
 
 // Explain a single inherited cell: "how did this principal get this capability
