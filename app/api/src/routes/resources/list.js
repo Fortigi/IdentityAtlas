@@ -1,6 +1,6 @@
 // Query-building helpers for GET /api/resources, extracted from resources.js so
-// the list handler (which was cyclomatic 25 / cognitive 18) stays under the
-// complexity threshold. Parsing + row-mapping are pure and unit-tested directly;
+// the list handler stays under the complexity threshold. Parsing + row-mapping
+// are pure and unit-tested directly;
 // buildResourceListWhere renders the WHERE + tag join through the caller's
 // binder. Covered end-to-end by resources.test.js. SQL moved verbatim.
 

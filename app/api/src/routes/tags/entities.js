@@ -229,6 +229,51 @@ router.get('/users', async (req, res) => {
   }
 });
 
+// Parse the /groups list query params + tag filter (pulled out of attrFilters).
+function parseGroupsListParams(req) {
+  const search = (req.query.search || '').trim().slice(0, 200);
+  const tagId = req.query.tagId && UUID_RE.test(String(req.query.tagId)) ? String(req.query.tagId) : null;
+  const limit = Math.min(Math.max(parseInt(req.query.limit) || 100, 1), 500);
+  const offset = Math.max(parseInt(req.query.offset) || 0, 0);
+  const resourceType = (req.query.resourceType || '').trim();
+
+  let attrFilters = {};
+  if (req.query.filters) {
+    try { attrFilters = JSON.parse(req.query.filters); } catch { /* ignore bad JSON */ }
+  }
+  let groupTagFilter = null;
+  if (attrFilters['__groupTag']) {
+    groupTagFilter = String(attrFilters['__groupTag']);
+    delete attrFilters['__groupTag'];
+  } else if (attrFilters['__resourceTag']) {
+    groupTagFilter = String(attrFilters['__resourceTag']);
+    delete attrFilters['__resourceTag'];
+  }
+  return { search, tagId, limit, offset, resourceType, attrFilters, groupTagFilter };
+}
+
+// Build the /groups WHERE + optional tag-filter JOIN, binding via `bind`.
+function buildGroupsListWhere(parsed, colNames, bind) {
+  const { search, tagId, resourceType, attrFilters, groupTagFilter } = parsed;
+  let where = '1=1';
+  if (search) {
+    const s = bind(`%${search}%`);
+    where += ` AND (r."displayName" ILIKE ${s} OR r."description" ILIKE ${s})`;
+  }
+  if (resourceType) where += ` AND r."resourceType" = ${bind(resourceType)}`;
+  if (tagId) {
+    where += ` AND EXISTS (SELECT 1 FROM "GraphTagAssignments" ta INNER JOIN "GraphTags" t ON ta."tagId" = t.id WHERE ta."tagId" = ${bind(tagId)} AND ta."entityId" = UPPER(r.id::text) AND t."entityType" IN ('resource', 'group'))`;
+  }
+  let groupTagJoin = '';
+  if (groupTagFilter) {
+    groupTagJoin = `
+        INNER JOIN "GraphTagAssignments" _gta ON _gta."entityId" = UPPER(r.id::text)
+        INNER JOIN "GraphTags" _gt ON _gta."tagId" = _gt.id AND _gt."name" = ${bind(groupTagFilter)} AND _gt."entityType" IN ('resource', 'group')`;
+  }
+  where += buildFilterWhere(attrFilters, colNames, 'r', bind);
+  return { where, groupTagJoin };
+}
+
 // ─── GET /api/groups ──────────────────────────────────────────────
 // Queries the Resources table (v5 has no GraphGroups fallback).
 // Also serves as a filtered view when ?resourceType= is passed.
@@ -236,29 +281,8 @@ router.get('/groups', async (req, res) => {
   try {
     if (!useSql) return res.json({ data: [], total: 0 });
 
-    const search = (req.query.search || '').trim().slice(0, 200);
-    const tagId = req.query.tagId && UUID_RE.test(String(req.query.tagId)) ? String(req.query.tagId) : null;
-    const limit = Math.min(Math.max(parseInt(req.query.limit) || 100, 1), 500);
-    const offset = Math.max(parseInt(req.query.offset) || 0, 0);
-    const resourceType = (req.query.resourceType || '').trim();
-
-    // Parse attribute filters
-    let attrFilters = {};
-    if (req.query.filters) {
-      try { attrFilters = JSON.parse(req.query.filters); } catch { /* ignore bad JSON */ }
-    }
-
-    // Extract virtual tag filter before column validation
-    let groupTagFilter = null;
-    if (attrFilters['__groupTag']) {
-      groupTagFilter = String(attrFilters['__groupTag']);
-      delete attrFilters['__groupTag'];
-    }
-    // Also accept __resourceTag
-    if (!groupTagFilter && attrFilters['__resourceTag']) {
-      groupTagFilter = String(attrFilters['__resourceTag']);
-      delete attrFilters['__resourceTag'];
-    }
+    const parsed = parseGroupsListParams(req);
+    const { limit, offset } = parsed;
 
     const p = await db.getPool();
     await ensureTagTables(p);
@@ -269,24 +293,7 @@ router.get('/groups', async (req, res) => {
     const cols = await getResourceCols(p);
     const colNames = new Set(cols.map(c => c.name));
 
-    let where = '1=1';
-    if (search) {
-      const s = bind(`%${search}%`);
-      where += ` AND (r."displayName" ILIKE ${s} OR r."description" ILIKE ${s})`;
-    }
-    if (resourceType) {
-      where += ` AND r."resourceType" = ${bind(resourceType)}`;
-    }
-    if (tagId) {
-      where += ` AND EXISTS (SELECT 1 FROM "GraphTagAssignments" ta INNER JOIN "GraphTags" t ON ta."tagId" = t.id WHERE ta."tagId" = ${bind(tagId)} AND ta."entityId" = UPPER(r.id::text) AND t."entityType" IN ('resource', 'group'))`;
-    }
-    let groupTagJoin = '';
-    if (groupTagFilter) {
-      groupTagJoin = `
-        INNER JOIN "GraphTagAssignments" _gta ON _gta."entityId" = UPPER(r.id::text)
-        INNER JOIN "GraphTags" _gt ON _gta."tagId" = _gt.id AND _gt."name" = ${bind(groupTagFilter)} AND _gt."entityType" IN ('resource', 'group')`;
-    }
-    where += buildFilterWhere(attrFilters, colNames, 'r', bind);
+    const { where, groupTagJoin } = buildGroupsListWhere(parsed, colNames, bind);
 
     // Page first, then resolve tags only for the page rows; count only on page 1.
     // Same fix as GET /users — stops deep export pages from re-running the per-row

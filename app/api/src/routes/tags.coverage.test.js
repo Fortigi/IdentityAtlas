@@ -229,7 +229,7 @@ describe('POST /tags/:id/assign-by-filter', () => {
     query.mockResolvedValueOnce({ rowCount: 1 });
     const res = await request(app)
       .post(`/api/tags/${VALID}/assign-by-filter`)
-      .send({ entityType: 'resource', search: 'grp' });
+      .send({ entityType: 'resource', search: 'grp', filters: { resourceType: 'Group' } });
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ ok: true, inserted: 1 });
   });
@@ -239,7 +239,7 @@ describe('POST /tags/:id/assign-by-filter', () => {
     query.mockResolvedValueOnce({ rowCount: 0 });
     const res = await request(app)
       .post(`/api/tags/${VALID}/assign-by-filter`)
-      .send({ entityType: 'identity', search: 'bob' });
+      .send({ entityType: 'identity', search: 'bob', filters: { department: 'X' } });
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ ok: true, inserted: 0 });
   });

@@ -68,6 +68,27 @@ selfServiceCrawlersRouter.post('/crawlers/rotate', async (req, res) => {
 // The body merges into CrawlerJobs.progress so the UI can show what the crawler
 // is doing right now ("Group memberships: 1500 of 9633") instead of sitting on the
 // last big-step update from the worker dispatcher.
+// Length/range caps so a misbehaving crawler can't fill the column with junk.
+function sanitizeProgressInput({ step, pct, detail }) {
+  return {
+    step:   step   != null ? String(step).slice(0, 200)   : null,
+    detail: detail != null ? String(detail).slice(0, 500) : null,
+    pct:    (typeof pct === 'number' && pct >= 0 && pct <= 100) ? Math.round(pct) : null,
+  };
+}
+
+// Merge the sanitized fields into the existing progress JSON (server-side merge
+// keeps the crawler's payload tiny — it only sends what changed).
+function mergeJobProgress(existingProgress, safe) {
+  let merged = {};
+  try { if (existingProgress) merged = JSON.parse(existingProgress); } catch { merged = {}; }
+  if (safe.step   !== null) merged.step   = safe.step;
+  if (safe.pct    !== null) merged.pct    = safe.pct;
+  if (safe.detail !== null) merged.detail = safe.detail;
+  merged.updatedAt = new Date().toISOString();
+  return merged;
+}
+
 selfServiceCrawlersRouter.post('/crawlers/job-progress', async (req, res) => {
   if (!req.crawler) return res.status(401).json({ error: 'Not authenticated' });
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
@@ -77,16 +98,10 @@ selfServiceCrawlersRouter.post('/crawlers/job-progress', async (req, res) => {
   if (!Number.isInteger(id) || id <= 0) {
     return res.status(400).json({ error: 'jobId must be a positive integer' });
   }
-
-  // Length caps so a misbehaving crawler can't fill the column with junk
-  const safeStep   = step   != null ? String(step).slice(0, 200)   : null;
-  const safeDetail = detail != null ? String(detail).slice(0, 500) : null;
-  const safePct    = (typeof pct === 'number' && pct >= 0 && pct <= 100) ? Math.round(pct) : null;
+  const safe = sanitizeProgressInput({ step, pct, detail });
 
   try {
     const pool = await db.getPool();
-    // Read existing progress, merge in the new fields, write back. Doing the merge
-    // server-side keeps the crawler's payload tiny — it only sends what changed.
     const cur = await pool.query(`SELECT progress, status FROM "CrawlerJobs" WHERE id = $1`, [id]);
     if (cur.rows.length === 0) return res.status(404).json({ error: 'Job not found' });
     if (cur.rows[0].status !== 'running' && cur.rows[0].status !== 'queued') {
@@ -94,15 +109,7 @@ selfServiceCrawlersRouter.post('/crawlers/job-progress', async (req, res) => {
       return res.status(409).json({ error: `Job is ${cur.rows[0].status}` });
     }
 
-    let merged = {};
-    try { if (cur.rows[0].progress) merged = JSON.parse(cur.rows[0].progress); }
-    catch { merged = {}; }
-
-    if (safeStep   !== null) merged.step   = safeStep;
-    if (safePct    !== null) merged.pct    = safePct;
-    if (safeDetail !== null) merged.detail = safeDetail;
-    merged.updatedAt = new Date().toISOString();
-
+    const merged = mergeJobProgress(cur.rows[0].progress, safe);
     await pool.query(`UPDATE "CrawlerJobs" SET progress = $1 WHERE id = $2`, [JSON.stringify(merged), id]);
 
     res.json({ ok: true });

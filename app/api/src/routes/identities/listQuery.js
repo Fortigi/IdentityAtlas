@@ -1,6 +1,6 @@
 // Query helpers for GET /api/identities and /api/identity-columns, extracted
-// from identities/list.js so the handlers (cognitive 30 and 20) stay under the
-// complexity threshold. parseTagString + buildIdentityListWhere are pure and
+// from identities/list.js so the handlers stay under the complexity
+// threshold. parseTagString + buildIdentityListWhere are pure and
 // unit-tested directly; the summary/columns fetchers are covered end-to-end by
 // identities.coverage.test.js + identities.contract.test.js. SQL moved verbatim.
 

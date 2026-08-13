@@ -1,7 +1,6 @@
 // Data-assembly helpers for GET /api/permissions (the matrix feed), extracted
 // from routes/permissions/grid.js so each unit stays under the complexity
-// threshold (the handler was cognitive 87 / cyclomatic 39 — the worst unit in
-// the route layer). Pure builders (parse/split/shape/clause factories) are
+// threshold. Pure builders (parse/split/shape/clause factories) are
 // unit-tested directly in gridQuery.test.js; the DB-bound runners are covered
 // through permissions.coverage.test.js and permissionsGrid.contract.test.js.
 // All SQL is moved VERBATIM from the original handler — no behaviour change.

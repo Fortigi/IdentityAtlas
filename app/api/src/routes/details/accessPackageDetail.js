@@ -1,7 +1,7 @@
 // Phase helpers for GET /api/access-package/:id, extracted from
-// details/accessPackage.js so the handler (which was cyclomatic 46 / cognitive
-// 55 — a long sequence of independent count/attribute fetches) stays under the
-// complexity threshold. Each fetch keeps its own try/catch (swallow a missing
+// details/accessPackage.js so the handler — a long sequence of independent
+// count/attribute fetches — stays under the complexity threshold. Each fetch
+// keeps its own try/catch (swallow a missing
 // optional table, rethrow anything else to the handler's 500). The two pure
 // derivations are unit-tested directly in accessPackageDetail.test.js; the SQL
 // is moved VERBATIM — no behaviour change.

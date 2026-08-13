@@ -1,6 +1,6 @@
 // Export-side helpers for GET /api/admin/export/curated, extracted from
-// admin/curatedData.js so the handler stays under the complexity threshold
-// (it was cognitive 20). The row-grouping is pure and unit-tested directly in
+// admin/curatedData.js so the handler stays under the complexity threshold.
+// The row-grouping is pure and unit-tested directly in
 // curatedData.helpers.test.js; the SQL is moved verbatim.
 
 import * as db from '../../db/connection.js';

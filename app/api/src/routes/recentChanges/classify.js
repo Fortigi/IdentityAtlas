@@ -1,6 +1,6 @@
 // Row classifiers for the per-entity recent-changes panels, extracted from
-// recentChanges/changes.js so each handler stays under the complexity threshold
-// (/resources was cognitive 42, /user 38, /access-package 17). Each classifier
+// recentChanges/changes.js so each handler stays under the complexity
+// threshold. Each classifier
 // maps one _history row to { event, added, removed } (event may be null);
 // collectHistoryEvents runs the shared accumulation loop that every handler used
 // to inline. Classification + counting are moved verbatim — no behaviour change.

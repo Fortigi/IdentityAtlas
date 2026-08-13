@@ -504,6 +504,58 @@ async function handleRollupRoles(res, ctx, resolved, groupTotals) {
   });
 }
 
+// Fold inherited (effective) access into the rollup — mutates resMap/groupSet
+// and returns the inherited counts + group totals.
+async function foldInheritedRollupCounts(p, built, rowType, filter, resMap, groupSet) {
+  let inhCounts = [];
+  let inhGroupTotals = [];
+  try {
+    const inh = await buildInheritedRollupCounts(p, built, rowType, filter.rollup, built.principalCols);
+    if (inh) {
+      collectResources(resMap, inh.resources, r => r);
+      for (const gv of inh.groupValues) groupSet.add(gv);
+      inhCounts = inh.counts;
+      inhGroupTotals = inh.groupTotals;
+    }
+  } catch (err) { built.warnings.push('inherited rollup fold failed: ' + err.message); }
+  return { inhCounts, inhGroupTotals };
+}
+
+// Business-role (SOLL) counts per resource. Empty when rollupContent is
+// resources-only or the business-role view is absent.
+async function fetchRollupRoleCounts(res, built, rowType, filter, p) {
+  if (filter.rollupContent === 'resources-only') return { businessRoles: [], roleCounts: [] };
+  const roleCounts = [];
+  let businessRoles = [];
+  try {
+    const { memberId: brMemberId, join: brJoin } = buildApMemberExprs(rowType);
+    const brRows = (await runBound(p, 'matrix-rollup-roles', res, built,
+      ({ subjectSql, resourceSql }) => buildRollupRolesSql({ brMemberId, brJoin, subjectSql, resourceSql }))).rows;
+    const roleMap = new Map();
+    for (const r of brRows) {
+      if (!r.roleId) continue;
+      if (!roleMap.has(r.roleId)) roleMap.set(r.roleId, { id: r.roleId, displayName: r.roleName || r.roleId });
+      roleCounts.push({ resourceId: r.resourceId, roleId: r.roleId, count: r.count });
+    }
+    businessRoles = [...roleMap.values()].sort((a, b) => String(a.displayName).localeCompare(String(b.displayName)));
+  } catch { /* business-role view may be absent */ }
+  return { businessRoles, roleCounts };
+}
+
+// Fold inherited (effective) flat rows into `rows` — declared wins on collision.
+async function foldInheritedFlatAccess(p, built, rowType, subjectCols, rows) {
+  try {
+    const effFlat = await buildInheritedFlatRows(p, built, rowType, subjectCols);
+    const seen = new Set(rows.map((r) => `${r.resourceId}|${r.memberId}`));
+    for (const er of effFlat) {
+      const k = `${er.resourceId}|${er.memberId}`;
+      if (!seen.has(k)) { seen.add(k); rows.push(er); } // declared wins
+    }
+  } catch (err) {
+    built.warnings.push('inherited-access fold failed: ' + err.message);
+  }
+}
+
 // ─── Resources as rows (+ optional business-role count columns) ───
 async function handleRollupResources(res, ctx, resolved, groupTotals) {
   const { filter, built, rowType, subjectJoin, memberIdExpr, subjectIdForFilter, includeInherited, p } = ctx;
@@ -522,44 +574,16 @@ async function handleRollupResources(res, ctx, resolved, groupTotals) {
   const resMap = collectResources(new Map(), rollupResult.rows);
   const groupSet = new Set(rollupResult.rows.map(r => r.groupValue));
 
-  // Fold inherited (effective) access into the count cells (Phase 2). The
-  // declared rollup above is empty for scope-node scopes; the engine yields
-  // the effective counts per (synthesized capability, group-value).
+  // Fold inherited (effective) access into the count cells (Phase 2) — the
+  // declared rollup is empty for scope-node scopes.
   let inhCounts = [];
   let inhGroupTotals = [];
   if (includeInherited) {
-    try {
-      const inh = await buildInheritedRollupCounts(p, built, rowType, filter.rollup, built.principalCols);
-      if (inh) {
-        collectResources(resMap, inh.resources, r => r);
-        for (const gv of inh.groupValues) groupSet.add(gv);
-        inhCounts = inh.counts;
-        inhGroupTotals = inh.groupTotals;
-      }
-    } catch (err) { built.warnings.push('inherited rollup fold failed: ' + err.message); }
+    ({ inhCounts, inhGroupTotals } = await foldInheritedRollupCounts(p, built, rowType, filter, resMap, groupSet));
   }
 
-  // Business-role (SOLL) counts: how many in-scope subjects hold each
-  // resource via each business role. Mirrors the SOLL columns of the
-  // per-subject matrix, but aggregated to a count.
-  let businessRoles = [];
-  const roleCounts = [];
-  if (filter.rollupContent !== 'resources-only') {
-    try {
-      const { memberId: brMemberId, join: brJoin } = buildApMemberExprs(rowType);
-      const brRows = (await runBound(p, 'matrix-rollup-roles', res, built,
-        ({ subjectSql, resourceSql }) => buildRollupRolesSql({
-          brMemberId, brJoin, subjectSql, resourceSql,
-        }))).rows;
-      const roleMap = new Map();
-      for (const r of brRows) {
-        if (!r.roleId) continue;
-        if (!roleMap.has(r.roleId)) roleMap.set(r.roleId, { id: r.roleId, displayName: r.roleName || r.roleId });
-        roleCounts.push({ resourceId: r.resourceId, roleId: r.roleId, count: r.count });
-      }
-      businessRoles = [...roleMap.values()].sort((a, b) => String(a.displayName).localeCompare(String(b.displayName)));
-    } catch { /* business-role view may be absent */ }
-  }
+  // Business-role (SOLL) counts per resource (mirrors the SOLL columns, aggregated).
+  const { businessRoles, roleCounts } = await fetchRollupRoleCounts(res, built, rowType, filter, p);
 
   const mergedGroupTotals = mergeGroupTotals(groupTotals, inhGroupTotals);
 
@@ -635,21 +659,9 @@ async function handleFlatGrid(res, ctx) {
     `;
   const result = await timedQuery(p, `matrix-data[${rowType}]`, res, dataSql, params);
 
-  // ── Inherited (effective) access fold ──────────────────────────────────
-  // Additive: the declared query above is empty for scope-node scopes (key
-  // vaults, a region) because Azure access lives on capability-resources, not
-  // the nodes. The engine returns the effective capabilities AT those nodes.
+  // Additive inherited (effective) access fold — empty for non-scope scopes.
   if (includeInherited) {
-    try {
-      const effFlat = await buildInheritedFlatRows(p, built, rowType, subjectCols);
-      const seen = new Set(result.rows.map((r) => `${r.resourceId}|${r.memberId}`));
-      for (const er of effFlat) {
-        const k = `${er.resourceId}|${er.memberId}`;
-        if (!seen.has(k)) { seen.add(k); result.rows.push(er); } // declared wins
-      }
-    } catch (err) {
-      built.warnings.push('inherited-access fold failed: ' + err.message);
-    }
+    await foldInheritedFlatAccess(p, built, rowType, subjectCols, result.rows);
   }
 
   // Backstop: a flat per-subject grid serializes every assignment row into one

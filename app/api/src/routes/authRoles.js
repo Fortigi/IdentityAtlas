@@ -129,6 +129,28 @@ router.get('/admin/roles/audit', gate, async (req, res) => {
   }
 });
 
+// Validate the { role: [permission, ...] } shape. Returns { error } on the first
+// problem, or null when valid.
+function validateRoleMapping(mapping) {
+  for (const [role, perms] of Object.entries(mapping)) {
+    if (typeof role !== 'string' || !role.trim()) {
+      return { error: 'Role names must be non-empty strings' };
+    }
+    if (!Array.isArray(perms)) {
+      return { error: `Role "${role}" must map to an array of permission strings` };
+    }
+    for (const p of perms) {
+      if (typeof p !== 'string') {
+        return { error: `Role "${role}" contains a non-string permission entry` };
+      }
+      if (!isKnownPermission(p)) {
+        return { error: `Unknown permission "${p}" for role "${role}"` };
+      }
+    }
+  }
+  return null;
+}
+
 router.put('/admin/roles', gate, writeLimiter, async (req, res) => {
   const body = req.body || {};
   const mapping = body.mapping;
@@ -138,24 +160,9 @@ router.put('/admin/roles', gate, writeLimiter, async (req, res) => {
   }
 
   // Sanity check shape before normalisation so we can surface a useful 400 on
-  // truly garbage input (setRolePermissions silently filters; we want the
-  // caller to know "your input was wrong" vs "everything went through").
-  for (const [role, perms] of Object.entries(mapping)) {
-    if (typeof role !== 'string' || !role.trim()) {
-      return res.status(400).json({ error: 'Role names must be non-empty strings' });
-    }
-    if (!Array.isArray(perms)) {
-      return res.status(400).json({ error: `Role "${role}" must map to an array of permission strings` });
-    }
-    for (const p of perms) {
-      if (typeof p !== 'string') {
-        return res.status(400).json({ error: `Role "${role}" contains a non-string permission entry` });
-      }
-      if (!isKnownPermission(p)) {
-        return res.status(400).json({ error: `Unknown permission "${p}" for role "${role}"` });
-      }
-    }
-  }
+  // truly garbage input (setRolePermissions silently filters).
+  const invalid = validateRoleMapping(mapping);
+  if (invalid) return res.status(400).json(invalid);
 
   // ── Self-lockout guard ──
   const lockout = checkSelfLockout(req, mapping, {

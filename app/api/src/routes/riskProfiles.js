@@ -18,14 +18,16 @@ import { requirePermission } from '../middleware/auth.js';
 import * as db from '../db/connection.js';
 import { chatWithSavedConfig, isLLMConfigured, getLLMConfig } from '../llm/service.js';
 import { scrapeAll, buildLLMContextFromScrapes } from '../llm/scraper.js';
-import { compilePattern } from '../riskscoring/engine.js';
 import {
   profileGenerationPrompt,
   profileRefinementPrompt,
   classifierGenerationPrompt,
   extractJson,
 } from '../llm/riskPrompts.js';
-import { putSecret, getSecret, deleteSecret } from '../secrets/vault.js';
+import { putSecret, deleteSecret } from '../secrets/vault.js';
+import {
+  resolveScrapeTargets, buildLlmJsonError, buildProfileInsertParams, findInvalidClassifierPatterns,
+} from './riskProfiles/helpers.js';
 
 const router = Router();
 const gate = requirePermission('admin.llm');
@@ -58,25 +60,7 @@ router.post('/risk-profiles/scrape', gate, async (req, res) => {
   }
 
   try {
-    // Resolve credentials per URL (one DB round-trip per credentialId)
-    const targets = [];
-    for (const u of urls) {
-      if (typeof u !== 'object' || !u.url) continue;
-      let credentials = null;
-      if (u.credentialId) {
-        const secret = await getSecret(u.credentialId);
-        if (secret) {
-          // Stored as JSON: {username,password} or {bearer}
-          try { credentials = JSON.parse(secret); }
-          catch { credentials = { bearer: secret }; }
-        }
-      } else if (u.credentials) {
-        // Inline (one-off, never persisted)
-        credentials = u.credentials;
-      }
-      targets.push({ url: u.url, credentials });
-    }
-    const results = await scrapeAll(targets);
+    const results = await scrapeAll(await resolveScrapeTargets(urls));
     // Strip the actual text from the response by default — it can be huge.
     // The caller can re-request with includeText=true if they want a preview.
     const includeText = req.query.includeText === 'true';
@@ -99,21 +83,11 @@ router.post('/risk-profiles/generate', gate, async (req, res) => {
   if (!domain) return res.status(400).json({ error: 'domain is required' });
 
   try {
-    // Optional URL scrape phase. Same credential resolution as /scrape.
+    // Optional URL scrape phase (same credential resolution as /scrape).
     let scrapedContext = '';
     let scrapedSummary = [];
     if (Array.isArray(urls) && urls.length > 0) {
-      const targets = [];
-      for (const u of urls) {
-        if (!u || !u.url) continue;
-        let credentials = null;
-        if (u.credentialId) {
-          const secret = await getSecret(u.credentialId);
-          if (secret) { try { credentials = JSON.parse(secret); } catch { credentials = { bearer: secret }; } }
-        }
-        targets.push({ url: u.url, credentials });
-      }
-      const results = await scrapeAll(targets);
+      const results = await scrapeAll(await resolveScrapeTargets(urls));
       scrapedContext = buildLLMContextFromScrapes(results);
       scrapedSummary = results.map(r => ({ url: r.url, ok: r.ok, status: r.status, bytes: r.bytes, error: r.error }));
     }
@@ -126,22 +100,8 @@ router.post('/risk-profiles/generate', gate, async (req, res) => {
     const parsed = extractJson(llmResp.text);
     if (!parsed) {
       console.error('Profile generation: LLM returned non-JSON. Raw:', llmResp.text.slice(0, 500));
-      // Detect the most common cause (truncation) and give a useful hint.
-      // If the response ends without a closing brace, the LLM hit the token cap.
-      const tail = llmResp.text.trim().slice(-50);
-      const looksTruncated = !tail.endsWith('}') && tail.length > 20;
-      const usage = llmResp.usage;
-      const hitCap = usage && usage.outputTokens && usage.outputTokens >= 8000;
-      const isTruncation = looksTruncated || hitCap;
-      const errorMsg = isTruncation
-        ? `The LLM response was truncated at ${usage?.outputTokens ?? '?'} output tokens. This usually means the profile is too large for the current token budget. Try again, or switch to a smaller model in Admin → LLM Settings.`
-        : 'LLM returned a malformed JSON response. Try again — or check the server logs for the parse error.';
-      return res.status(502).json({
-        error: errorMsg,
-        truncated: isTruncation,
-        outputTokens: usage?.outputTokens ?? null,
-        raw: llmResp.text.slice(0, 1000),
-      });
+      return res.status(502).json(buildLlmJsonError(llmResp, (t) =>
+        `The LLM response was truncated at ${t} output tokens. This usually means the profile is too large for the current token budget. Try again, or switch to a smaller model in Admin → LLM Settings.`));
     }
     const profile = parsed.customer_profile || parsed;
 
@@ -238,20 +198,7 @@ router.post('/risk-profiles', gate, async (req, res) => {
           "llmProvider", "llmModel", version, "isActive", "createdBy", "updatedAt")
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, now())
        RETURNING id, version, "createdAt"`,
-      [
-        displayName,
-        profile?.domain   || null,
-        profile?.industry || null,
-        profile?.country  || null,
-        JSON.stringify(profile),
-        transcript ? JSON.stringify(transcript) : null,
-        sources    ? JSON.stringify(sources)    : null,
-        llmCfg?.provider || null,
-        llmCfg?.model    || null,
-        version,
-        !!makeActive,
-        createdBy,
-      ]
+      buildProfileInsertParams({ displayName, profile, transcript, sources, llmCfg, version, makeActive, createdBy })
     );
     res.status(201).json({ id: ins.id, version: ins.version, createdAt: ins.createdAt, isActive: !!makeActive });
   } catch (err) {
@@ -383,20 +330,8 @@ router.post('/risk-classifiers/generate', gate, async (req, res) => {
     const parsed = extractJson(llmResp.text);
     if (!parsed) {
       console.error('Classifier generation: LLM returned non-JSON. Raw:', llmResp.text.slice(0, 500));
-      const tail = llmResp.text.trim().slice(-50);
-      const looksTruncated = !tail.endsWith('}') && tail.length > 20;
-      const usage = llmResp.usage;
-      const hitCap = usage && usage.outputTokens && usage.outputTokens >= 8000;
-      const isTruncation = looksTruncated || hitCap;
-      const errorMsg = isTruncation
-        ? `The LLM response was truncated at ${usage?.outputTokens ?? '?'} output tokens. The classifier set is too large for the current token budget. Try again, or switch to a smaller/faster model in Admin → LLM Settings.`
-        : 'LLM returned a malformed JSON response. Try again — or check the server logs for the parse error.';
-      return res.status(502).json({
-        error: errorMsg,
-        truncated: isTruncation,
-        outputTokens: usage?.outputTokens ?? null,
-        raw: llmResp.text.slice(0, 1000),
-      });
+      return res.status(502).json(buildLlmJsonError(llmResp, (t) =>
+        `The LLM response was truncated at ${t} output tokens. The classifier set is too large for the current token budget. Try again, or switch to a smaller/faster model in Admin → LLM Settings.`));
     }
     res.json({ classifiers: parsed, llmModel: llmResp.model, usage: llmResp.usage });
   } catch (err) {
@@ -405,25 +340,8 @@ router.post('/risk-classifiers/generate', gate, async (req, res) => {
   }
 });
 
-// Save a classifier set
-// Validate every classifier regex at save time (M-6) — compile each with the
-// same RE2 engine the scorer uses, so an invalid or RE2-unsupported pattern
-// (lookaround, backreferences, or LLM-injected junk) is rejected up front rather
-// than silently skipped at scoring time.
-function findInvalidClassifierPatterns(classifiers) {
-  const bad = [];
-  for (const group of ['groupClassifiers', 'userClassifiers', 'agentClassifiers']) {
-    for (const c of (classifiers?.[group] || [])) {
-      for (const p of (c?.patterns || [])) {
-        if (typeof p !== 'string' || !p.trim()) continue;
-        try { compilePattern(p); }
-        catch (err) { bad.push({ classifier: c.id || c.label || '(unnamed)', pattern: p, reason: err.message }); }
-      }
-    }
-  }
-  return bad;
-}
-
+// Save a classifier set. Every regex is validated at save time (M-6) via
+// findInvalidClassifierPatterns (RE2 compile) so bad patterns are rejected up front.
 router.post('/risk-classifiers', gate, async (req, res) => {
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
   const { displayName, profileId, classifiers, makeActive } = req.body || {};

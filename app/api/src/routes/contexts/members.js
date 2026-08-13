@@ -103,29 +103,8 @@ router.patch('/contexts/:id/members/:memberId/move', writeContexts, async (req, 
   const setBy = (req.user && (req.user.email || req.user.upn || req.user.name)) || 'analyst';
 
   try {
-    // Source managerId — if the member is dropped back on it, clear the override.
-    const principal = await db.queryOne(`SELECT "managerId" FROM "Principals" WHERE id = $1`, [memberId]);
-    if (principal && principal.managerId === managerPrincipalId) {
-      await db.query(`DELETE FROM "ManagerHierarchyOverrides" WHERE "principalId" = $1`, [memberId]);
-    } else {
-      await db.query(`
-        INSERT INTO "ManagerHierarchyOverrides" ("principalId", "managerPrincipalId", "setBy")
-        VALUES ($1, $2, $3)
-        ON CONFLICT ("principalId")
-        DO UPDATE SET "managerPrincipalId" = EXCLUDED."managerPrincipalId",
-                      "setBy" = EXCLUDED."setBy",
-                      "setAt" = (now() AT TIME ZONE 'utc')
-      `, [memberId, managerPrincipalId, setBy]);
-    }
-
-    // Move the membership row now so the tree reflects it immediately.
-    await db.query(`DELETE FROM "ContextMembers" WHERE "contextId" = $1 AND "memberId" = $2`, [id, memberId]);
-    await db.query(`
-      INSERT INTO "ContextMembers" ("contextId", "memberType", "memberId", "addedBy")
-      VALUES ($1, 'Principal', $2, 'analyst')
-      ON CONFLICT ("contextId", "memberId") DO NOTHING
-    `, [toContextId, memberId]);
-
+    await applyManagerOverride(memberId, managerPrincipalId, setBy);
+    await moveMembershipRow(id, toContextId, memberId);
     await recalcMemberCountsForChain(id);
     await recalcMemberCountsForChain(toContextId);
     res.json({ from: id, to: toContextId, memberId, managerPrincipalId });
@@ -134,6 +113,34 @@ router.patch('/contexts/:id/members/:memberId/move', writeContexts, async (req, 
     res.status(500).json({ error: 'Failed to move member' });
   }
 });
+
+// Persist the reparent as a manager override so it survives plugin re-runs;
+// dropping the member back on their source manager clears the override.
+async function applyManagerOverride(memberId, managerPrincipalId, setBy) {
+  const principal = await db.queryOne(`SELECT "managerId" FROM "Principals" WHERE id = $1`, [memberId]);
+  if (principal && principal.managerId === managerPrincipalId) {
+    await db.query(`DELETE FROM "ManagerHierarchyOverrides" WHERE "principalId" = $1`, [memberId]);
+  } else {
+    await db.query(`
+      INSERT INTO "ManagerHierarchyOverrides" ("principalId", "managerPrincipalId", "setBy")
+      VALUES ($1, $2, $3)
+      ON CONFLICT ("principalId")
+      DO UPDATE SET "managerPrincipalId" = EXCLUDED."managerPrincipalId",
+                    "setBy" = EXCLUDED."setBy",
+                    "setAt" = (now() AT TIME ZONE 'utc')
+    `, [memberId, managerPrincipalId, setBy]);
+  }
+}
+
+// Move the ContextMembers row now so the tree reflects the drop immediately.
+async function moveMembershipRow(fromId, toContextId, memberId) {
+  await db.query(`DELETE FROM "ContextMembers" WHERE "contextId" = $1 AND "memberId" = $2`, [fromId, memberId]);
+  await db.query(`
+    INSERT INTO "ContextMembers" ("contextId", "memberType", "memberId", "addedBy")
+    VALUES ($1, 'Principal', $2, 'analyst')
+    ON CONFLICT ("contextId", "memberId") DO NOTHING
+  `, [toContextId, memberId]);
+}
 
 
 export default router;

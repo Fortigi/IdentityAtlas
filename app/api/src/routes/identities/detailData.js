@@ -1,5 +1,5 @@
 // Phase helpers for GET /api/identities/:id, extracted from identities/detail.js
-// so the handler (cognitive 19) stays under the complexity threshold. Optional
+// so the handler stays under the complexity threshold. Optional
 // sections swallow a missing table and rethrow anything else to the handler's
 // 500. Covered through identities.coverage.test.js + identityDetail.contract.test.js.
 // SQL moved verbatim.
