@@ -99,10 +99,6 @@
     "app/api/src/routes/permissions/syncLog.js": [
       17
     ],
-    "app/api/src/routes/resources.js": [
-      37,
-      18
-    ],
     "app/api/src/routes/riskProfiles.js": [
       28,
       17

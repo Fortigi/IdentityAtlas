@@ -43,10 +43,6 @@
     "app/api/src/routes/identities/list.js": [
       30
     ],
-    "app/api/src/routes/resources.js": [
-      30,
-      26
-    ],
     "app/api/src/routes/riskProfiles.js": [
       25,
       24

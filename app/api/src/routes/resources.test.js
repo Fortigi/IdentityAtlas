@@ -183,3 +183,80 @@ describe('GET /resources/:id/contexts', () => {
     expect(res.status).toBe(500);
   });
 });
+
+describe('GET /resources/:id — lazy-loaded sub-resources', () => {
+  it('assignments returns rows', async () => {
+    timedQuery.mockResolvedValue({ rows: [{ principalId: 'p1', assignmentType: 'Direct' }] });
+    const res = await request(app).get(`/api/resources/${VALID_ID}/assignments`);
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual([{ principalId: 'p1', assignmentType: 'Direct' }]);
+  });
+  it('business-roles returns rows', async () => {
+    timedQuery.mockResolvedValue({ rows: [{ businessRoleId: 'br1' }] });
+    expect((await request(app).get(`/api/resources/${VALID_ID}/business-roles`)).status).toBe(200);
+  });
+  it('parent-resources returns rows', async () => {
+    timedQuery.mockResolvedValue({ rows: [{ parentResourceId: 'pr1' }] });
+    expect((await request(app).get(`/api/resources/${VALID_ID}/parent-resources`)).status).toBe(200);
+  });
+  it('members returns rows from the permission view', async () => {
+    timedQuery.mockResolvedValue({ rows: [{ memberId: 'm1' }] });
+    const res = await request(app).get(`/api/resources/${VALID_ID}/members`);
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual([{ memberId: 'm1' }]);
+  });
+  it('history maps _history rows with a synthesised ValidTo', async () => {
+    mockDb.query.mockResolvedValue({ rows: [
+      { operation: 'U', changedAt: '2026-02-01', rowData: { displayName: 'B' } },
+      { operation: 'I', changedAt: '2026-01-01', rowData: { displayName: 'A' } },
+    ] });
+    const res = await request(app).get(`/api/resources/${VALID_ID}/history`);
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(2);
+    expect(res.body[0].ValidTo).toBeNull();               // newest row
+    expect(res.body[1].ValidTo).toBe('2026-02-01');       // prior row's changedAt
+  });
+  it('history returns [] on query failure', async () => {
+    mockDb.query.mockRejectedValue(new Error('boom'));
+    const res = await request(app).get(`/api/resources/${VALID_ID}/history`);
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual([]);
+  });
+  it('rejects a malformed id with 400 on every sub-resource', async () => {
+    for (const sub of ['assignments', 'business-roles', 'parent-resources', 'members', 'history']) {
+      expect((await request(app).get(`/api/resources/not-a-uuid/${sub}`)).status).toBe(400);
+    }
+  });
+  it('surfaces a sub-resource query failure as 500', async () => {
+    timedQuery.mockRejectedValue(new Error('boom'));
+    expect((await request(app).get(`/api/resources/${VALID_ID}/assignments`)).status).toBe(500);
+  });
+});
+
+describe('GET /resource-columns', () => {
+  it('schema=true returns column-name objects incl. the virtual __resourceTag', async () => {
+    const res = await request(app).get('/api/resource-columns?schema=true');
+    expect(res.status).toBe(200);
+    expect(res.body.some((c) => c.column === 'displayName')).toBe(true);
+    expect(res.body.some((c) => c.column === '__resourceTag')).toBe(true);
+  });
+});
+
+describe('GET /resources/:id — missing optional tables are swallowed', () => {
+  it('renders the detail with zero counts when every optional query 42P01s', async () => {
+    const missing = Object.assign(new Error('undefined table'), { code: '42P01' });
+    timedQuery.mockImplementation((sql) =>
+      /FROM "Resources" WHERE id/.test(sql)
+        ? Promise.resolve({ rows: [{ id: VALID_ID, displayName: 'R' }] }) // attributes succeed
+        : Promise.reject(missing));                                       // tags/member(+fallback)/ap/parent
+    mockDb.query.mockRejectedValue(missing);     // risk-score merge
+    mockDb.queryOne.mockRejectedValue(missing);  // history + context counts
+    const res = await request(app).get(`/api/resources/${VALID_ID}`);
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      memberCount: 0, accessPackageCount: 0, parentResourceCount: 0,
+      historyCount: 0, hasHistory: false, contextCount: 0, tags: [],
+    });
+    expect(res.body.assignmentByType).toEqual({ Direct: 0, Indirect: 0, Eligible: 0 });
+  });
+});

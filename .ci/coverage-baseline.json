@@ -132,6 +132,8 @@
     "app/api/src/routes/recentChanges/shared.js": 78,
     "app/api/src/routes/recentChanges/timeline.js": 91,
     "app/api/src/routes/resources.js": 50,
+    "app/api/src/routes/resources/detail.js": 95,
+    "app/api/src/routes/resources/list.js": 100,
     "app/api/src/routes/riskProfiles.js": 99,
     "app/api/src/routes/riskScores.js": 99,
     "app/api/src/routes/riskScores/entity.js": 86,
