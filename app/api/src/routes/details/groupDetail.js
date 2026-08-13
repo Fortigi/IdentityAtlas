@@ -1,5 +1,5 @@
 // Phase helpers for GET /api/group/:id, extracted from details/group.js so the
-// handler (cognitive 17) stays under the complexity threshold. Each fetch keeps
+// handler stays under the complexity threshold. Each fetch keeps
 // its own try/catch (swallow a missing optional table, rethrow otherwise).
 // Covered through details.test.js + groupDetail.contract.test.js. SQL verbatim.
 

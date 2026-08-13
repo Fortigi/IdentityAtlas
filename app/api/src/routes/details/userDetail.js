@@ -1,6 +1,6 @@
 // Phase helpers for GET /api/user/:id, extracted from details/user.js so the
-// handler (cognitive 33 — a long sequence of independent attribute/count
-// fetches) stays under the complexity threshold. Each fetch keeps its own
+// handler — a long sequence of independent attribute/count fetches — stays
+// under the complexity threshold. Each fetch keeps its own
 // try/catch (swallow a missing optional table, rethrow anything else to the
 // handler's 500). Covered through details.test.js. SQL moved verbatim.
 

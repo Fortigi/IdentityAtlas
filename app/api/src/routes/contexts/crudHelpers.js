@@ -1,6 +1,6 @@
 // Validation + update-building helpers for the context write endpoints,
-// extracted from contexts/crud.js so POST (cyclomatic 22) and PATCH (cyclomatic
-// 30 / cognitive 40) stay under the complexity threshold. Errors are returned as
+// extracted from contexts/crud.js so POST and PATCH stay under the complexity
+// threshold. Errors are returned as
 // { status, message } (the handler turns them into a response) rather than sent
 // directly, so the helpers stay testable. SQL + validation logic moved verbatim.
 

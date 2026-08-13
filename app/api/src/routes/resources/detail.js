@@ -1,6 +1,6 @@
 // Phase helpers for GET /api/resources/:id, extracted from resources.js so the
-// handler (which was cyclomatic 29 / cognitive 35 — a long sequence of
-// independent attribute/count fetches) stays under the complexity threshold.
+// handler — a long sequence of independent attribute/count fetches — stays
+// under the complexity threshold.
 // Each fetch keeps its own try/catch (swallow a missing optional table, rethrow
 // anything else to the handler's 500). Covered through resources.test.js +
 // resources.contract.test.js. SQL is moved verbatim — no behaviour change.

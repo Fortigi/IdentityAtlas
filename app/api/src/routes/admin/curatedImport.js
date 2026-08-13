@@ -1,6 +1,6 @@
 // Import-side helpers for POST /api/admin/import/curated, extracted from
-// admin/curatedData.js so the handler (which was cyclomatic 30 / cognitive 46)
-// and importCuratedTag (cognitive 22) stay under the complexity threshold. The
+// admin/curatedData.js so the handler and importCuratedTag stay under the
+// complexity threshold. The
 // colour default is pure and unit-tested directly; the DB-bound helpers are
 // covered through admin.coverage.test.js + curatedData.contract.test.js. All
 // SQL is moved verbatim. Persistence targets the base Contexts / ContextMembers

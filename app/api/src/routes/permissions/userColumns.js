@@ -1,6 +1,6 @@
 // Helpers for GET /api/user-columns (filter-dropdown column names + distinct
 // values), extracted from routes/permissions/grid.js so the handler stays under
-// the complexity threshold (it was cognitive 28). Behaviour is unchanged — the
+// the complexity threshold. Behaviour is unchanged — the
 // mock double-loop and the SQL + tag-augmentation path are moved verbatim.
 
 import { permissionAssignments } from '../../mock/data.js';
