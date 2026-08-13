@@ -1,14 +1,18 @@
 import { Router } from 'express';
 import { timedQuery } from '../perf/sqlTimer.js';
 import { createParams } from '../db/sqlParams.js';
-import { parseJsonbColumn } from '../lib/jsonb.js';
 import { buildOrderBy } from '../lib/listSort.js';
 import { getResourceColumns, getResourceColumnValues } from '../db/columnCache.js';
-import { ensureTagTables, buildFilterWhere, parseTags } from './tags.js';
-import { extractRelFilters, buildRelationshipWhere, discoverReferenceFields } from '../lib/referenceFilters.js';
+import { ensureTagTables } from './tags.js';
+import { discoverReferenceFields } from '../lib/referenceFilters.js';
 import { UUID_RE, cleanRow, getPermissionTable } from './details/shared.js';
 import { isMissingSchema } from '../db/schemaErrors.js';
 import { buildResourceContextsSql } from '../matrix/resourceContexts.js';
+import { parseResourceListParams, buildResourceListWhere, mapResourceRow } from './resources/list.js';
+import {
+  fetchResourceAttributes, mergeResourceRiskScore, fetchResourceTags, fetchMemberBreakdown,
+  fetchAccessPackageCount, fetchParentResourceCount, fetchResourceHistoryCount, fetchResourceContextCount,
+} from './resources/detail.js';
 
 const router = Router();
 const useSql = process.env.USE_SQL === 'true';
@@ -33,34 +37,7 @@ router.get('/resources', async (req, res) => {
   try {
     if (!useSql) return res.json({ data: [], total: 0 });
 
-    const search = (req.query.search || '').trim().slice(0, 200);
-    const resourceType = (req.query.resourceType || '').trim();
-    const systemId = (req.query.systemId || '').trim();
-    const tagId = req.query.tagId ? String(req.query.tagId) : null;
-    // Cap matches the bulk-list endpoints; UI defaults to 100, Power Query
-    // walks in 1000-record pages.
-    const limit = Math.min(Math.max(parseInt(req.query.limit) || 100, 1), 10000);
-    const offset = Math.max(parseInt(req.query.offset) || 0, 0);
-
-    // Parse attribute filters
-    let attrFilters = {};
-    if (req.query.filters) {
-      try { attrFilters = JSON.parse(req.query.filters); } catch { /* ignore bad JSON */ }
-    }
-
-    // Extract virtual tag filter before column validation
-    let resourceTagFilter = null;
-    if (attrFilters['__resourceTag']) {
-      resourceTagFilter = String(attrFilters['__resourceTag']);
-      delete attrFilters['__resourceTag'];
-    }
-    // Backward compat: also accept __groupTag
-    if (!resourceTagFilter && attrFilters['__groupTag']) {
-      resourceTagFilter = String(attrFilters['__groupTag']);
-      delete attrFilters['__groupTag'];
-    }
-    // Reference-field (rel.*) filters — applied as correlated count subqueries.
-    const relFilters = extractRelFilters(attrFilters);
+    const parsed = parseResourceListParams(req);
 
     const p = await db.getPool();
     await ensureTagTables(p);
@@ -71,55 +48,14 @@ router.get('/resources', async (req, res) => {
     const cols = await getResourceColumns(p);
     const colNames = new Set(cols.map(c => c.name));
 
-    let where = '1=1';
-    // Hide soft-deleted resources by default; ?includeDeleted=true reveals them.
-    if (req.query.includeDeleted !== 'true') where += ` AND r."deletedAt" IS NULL`;
-    if (search) {
-      const s = bind(`%${search}%`);
-      where += ` AND (r."displayName" ILIKE ${s} OR r."description" ILIKE ${s})`;
-    }
-    if (resourceType) {
-      where += ` AND r."resourceType" = ${bind(resourceType)}`;
-    } else if (req.query.includeBusinessRoles !== 'true') {
-      // The UI grid lists actual-access resources only; business roles /
-      // access packages live on the governance (SOLL) side and are hidden by
-      // default. The Excel export passes ?includeBusinessRoles=true so an
-      // analyst can rebuild the governance matrix — joining a BusinessRole's
-      // `Contains` relationships to the groups it grants — entirely in Excel.
-      where += ` AND (r."resourceType" IS NULL OR r."resourceType" <> 'BusinessRole')`;
-    }
-    if (systemId && /^\d+$/.test(systemId)) {
-      where += ` AND r."systemId" = ${bind(parseInt(systemId, 10))}`;
-    }
-    if (tagId) {
-      where += ` AND EXISTS (
-        SELECT 1 FROM "GraphTagAssignments" ta
-        INNER JOIN "GraphTags" t ON ta."tagId" = t.id
-        WHERE ta."tagId" = ${bind(tagId)} AND ta."entityId" = UPPER(r.id::text)
-          AND t."entityType" IN ('resource', 'group')
-      )`;
-    }
+    const { where, resourceTagJoin } = buildResourceListWhere(req, parsed, colNames, bind);
 
-    let resourceTagJoin = '';
-    if (resourceTagFilter) {
-      resourceTagJoin = `
-        INNER JOIN "GraphTagAssignments" _rta ON _rta."entityId" = UPPER(r.id::text)
-        INNER JOIN "GraphTags" _rt ON _rta."tagId" = _rt.id AND _rt."name" = ${bind(resourceTagFilter)} AND _rt."entityType" IN ('resource', 'group')`;
-    }
-    where += buildFilterWhere(attrFilters, colNames, 'r', bind);
-    where += buildRelationshipWhere(relFilters, 'resources', 'r');
-
-    // Returns every Resources column so the same endpoint feeds the UI grid
-    // AND the Power Query Excel export (which auto-expands extendedAttributes
-    // into first-class ext_* columns). The UI ignores fields it doesn't need.
-    // Page first, then resolve tags only for the page rows; count only on page 1.
-    // (Same export-pagination fix as /api/users — the per-row tag subquery used to
-    // run for every offset+limit row before OFFSET discarded the first `offset`,
-    // quadratic across an export and slow enough to time out a deep page.)
-    // pg can't run a multi-statement query with bound params, so the data and
-    // COUNT statements run separately (count only on page 1). Snapshot the filter
-    // params before binding the page window so the COUNT query isn't handed the
-    // LIMIT/OFFSET values it never references.
+    // Returns every Resources column so the same endpoint feeds the UI grid AND
+    // the Power Query Excel export (which auto-expands extendedAttributes into
+    // first-class ext_* columns). Page first, then resolve tags only for the
+    // page rows; count only on page 1. Snapshot the filter params before binding
+    // the page window so the COUNT query isn't handed the LIMIT/OFFSET values it
+    // never references.
     const countParams = [...params];
     // Sort the whole result set server-side (audit H-14) so "top N" is correct
     // past page 1; the same expression orders the page window and the outer
@@ -137,7 +73,7 @@ router.get('/resources', async (req, res) => {
           ${resourceTagJoin}
          WHERE ${where}
          ORDER BY ${orderBy}
-         LIMIT ${bind(limit)} OFFSET ${bind(offset)}
+         LIMIT ${bind(parsed.limit)} OFFSET ${bind(parsed.offset)}
       )
       SELECT page.*,
              (SELECT string_agg(t.id::text || ':' || t."name" || ':' || t."color", '|')
@@ -149,23 +85,10 @@ router.get('/resources', async (req, res) => {
        ORDER BY ${orderBy}`;
     const dataResult = await db.query(baseSql, params);
 
-    const data = dataResult.rows.map(row => {
-      const { tagString, extendedAttributes, ...rest } = row;
-      const parsedExtAttrs = parseJsonbColumn(extendedAttributes);
-      return {
-        ...rest,
-        extendedAttributes: parsedExtAttrs,
-        tags: parseTags(tagString),
-        // backward compat aliases
-        groupId: row.id,
-        groupDisplayName: row.displayName,
-        groupDescription: row.description,
-        groupTypeCalculated: row.resourceType,
-      };
-    });
+    const data = dataResult.rows.map(mapResourceRow);
 
     let total = null;
-    if (offset === 0) {
+    if (parsed.offset === 0) {
       const countSql = `SELECT COUNT(*)::int AS total FROM "Resources" r ${resourceTagJoin} WHERE ${where}`;
       total = (await db.query(countSql, countParams)).rows[0]?.total ?? null;
     }
@@ -186,125 +109,21 @@ router.get('/resources/:id', async (req, res) => {
     const pool = await db.getPool();
     const resourceId = req.params.id;
 
-    // 1. Current attributes
-    const resourceResult = await timedQuery(pool, 'resource-attributes', res,
-      `SELECT * FROM "Resources" WHERE id = $1`, [resourceId]);
-
-    if (resourceResult.rows.length === 0) {
+    // Attributes first — a missing row is a 404 before we fetch the rest.
+    const attributes = await fetchResourceAttributes(pool, res, resourceId);
+    if (attributes === null) {
       return res.status(404).json({ error: 'Resource not found' });
     }
-    const attributes = cleanRow(resourceResult.rows[0]);
+    await mergeResourceRiskScore(attributes, resourceId);
 
-    // Normalise extendedAttributes (pg returns JSONB already parsed).
-    if (attributes.extendedAttributes) {
-      attributes.extendedAttributesParsed = parseJsonbColumn(attributes.extendedAttributes);
-    }
-
-    // 1b. Risk score — stored in RiskScores keyed by (entityId, entityType).
-    //     Merge it onto attributes so the detail page's Risk tab can render.
-    try {
-      const rs = await db.query(
-        `SELECT "riskScore", "riskTier", "riskDirectScore", "riskMembershipScore",
-                "riskStructuralScore", "riskPropagatedScore", "riskExplanation",
-                "riskClassifierMatches", "riskOverride", "riskOverrideReason", "riskScoredAt"
-           FROM "RiskScores"
-          WHERE "entityId"::text = $1 AND "entityType" = 'Resource'
-          LIMIT 1`,
-        [resourceId]
-      );
-      if (rs.rows.length > 0) Object.assign(attributes, cleanRow(rs.rows[0]));
-    } catch (e) { if (!isMissingSchema(e)) throw e; /* RiskScores may not exist on older deployments */ }
-
-    // 2. Tags (support both 'resource' and 'group' entity types for backward compat)
-    let tags = [];
-    try {
-      const r = await timedQuery(pool, 'resource-tags', res, `
-          SELECT t.id, t.name, t.color
-          FROM "GraphTagAssignments" ta
-          JOIN "GraphTags" t ON ta."tagId" = t.id
-          WHERE ta."entityId" = $1 AND t."entityType" IN ('resource', 'group')
-        `, [resourceId]);
-      tags = r.rows;
-    } catch (e) { if (!isMissingSchema(e)) throw e; /* table may not exist */ }
-
-    // 3. Member count — broken down by the universal assignmentType so the entity
-    //    graph can show a node per type (Direct / Indirect / Eligible). governed is
-    //    a flag on a Direct assignment, not a type of its own, so a governed grant
-    //    counts as Direct (its governed-ness shows on the assignment, not here);
-    //    Owner is retired (ownership is its own GroupOwnership resource).
-    let memberCount = 0;
-    const assignmentByType = { Direct: 0, Indirect: 0, Eligible: 0 };
-    try {
-      const r = await timedQuery(pool, 'resource-member-breakdown', res, `
-          SELECT "assignmentType",
-                 COUNT(DISTINCT "principalId")::int AS cnt
-          FROM "ResourceAssignments"
-          WHERE "resourceId" = $1
-          GROUP BY "assignmentType"
-        `, [resourceId]);
-      for (const row of r.rows) {
-        if (row.assignmentType in assignmentByType) assignmentByType[row.assignmentType] = row.cnt;
-      }
-      memberCount = Object.values(assignmentByType).reduce((a, b) => a + b, 0);
-    } catch (e) {
-      if (!isMissingSchema(e)) throw e;
-      // Fall back to permission view (no type breakdown there — leave counts 0)
-      try {
-        const table = await getPermissionTable(pool);
-        const r = await timedQuery(pool, 'resource-member-count-view', res,
-          `SELECT COUNT(DISTINCT "memberId") AS cnt FROM ${table} WHERE "resourceId" = $1`, [resourceId]);
-        memberCount = r.rows[0].cnt;
-      } catch (e) { if (!isMissingSchema(e)) throw e; /* view may not exist */ }
-    }
-
-    // 4. Access package count (business roles that contain this resource)
-    let accessPackageCount = 0;
-    try {
-      const r = await timedQuery(pool, 'resource-ap-count', res, `
-          SELECT COUNT(DISTINCT rrs."parentResourceId") AS cnt
-          FROM "ResourceRelationships" rrs
-          INNER JOIN "Resources" br ON rrs."parentResourceId" = br.id AND br."resourceType" = 'BusinessRole'
-          WHERE rrs."childResourceId" = $1
-            AND rrs."relationshipType" = 'Contains'
-            AND rrs."parentResourceId" IS NOT NULL
-        `, [resourceId]);
-      accessPackageCount = r.rows[0].cnt;
-    } catch (e) { if (!isMissingSchema(e)) throw e; /* table may not exist */ }
-
-    // 4b. Parent resource count (all parent resources via any relationship type)
-    let parentResourceCount = 0;
-    try {
-      const r = await timedQuery(pool, 'resource-parent-count', res, `
-          SELECT COUNT(DISTINCT rrs."parentResourceId") AS cnt
-          FROM "ResourceRelationships" rrs
-          WHERE rrs."childResourceId" = $1
-        `, [resourceId]);
-      parentResourceCount = r.rows[0].cnt;
-    } catch (e) { if (!isMissingSchema(e)) throw e; /* table may not exist */ }
-
-    // 5. History count (v5: queries the _history audit table)
-    let historyCount = 0;
-    try {
-      const r = await db.queryOne(
-        `SELECT COUNT(*)::int AS cnt FROM "_history" WHERE "tableName" = 'Resources' AND "rowId" = $1`,
-        [resourceId]
-      );
-      historyCount = r?.cnt ?? 0;
-    } catch (e) { if (!isMissingSchema(e)) throw e; /* _history may not exist on older deployments */ }
-
-    // 6. Context-membership count (v6 — Resources.contextId column was
-    // dropped in favor of the many-to-many ContextMembers join).
-    let contextCount = 0;
-    try {
-      const r = await db.queryOne(
-        // Same `memberType='Resource'` scope as the contexts list below — a
-        // member id is only unique per type, so without it the badge count can
-        // exceed the contexts actually listed.
-        `SELECT COUNT(*)::int AS cnt FROM "ContextMembers" WHERE "memberType" = 'Resource' AND "memberId"::text = $1`,
-        [resourceId]
-      );
-      contextCount = r?.cnt ?? 0;
-    } catch (e) { if (!isMissingSchema(e)) throw e; /* ContextMembers may not exist on older deployments */ }
+    // The remaining sections are independent optional fetches; each swallows a
+    // missing optional table and rethrows anything else to the 500 below.
+    const tags = await fetchResourceTags(pool, res, resourceId);
+    const { memberCount, assignmentByType } = await fetchMemberBreakdown(pool, res, resourceId);
+    const accessPackageCount = await fetchAccessPackageCount(pool, res, resourceId);
+    const parentResourceCount = await fetchParentResourceCount(pool, res, resourceId);
+    const historyCount = await fetchResourceHistoryCount(resourceId);
+    const contextCount = await fetchResourceContextCount(resourceId);
 
     res.json({ attributes, tags, memberCount, assignmentByType, accessPackageCount, parentResourceCount, historyCount, hasHistory: historyCount > 0, contextCount });
   } catch (err) {
