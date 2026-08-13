@@ -41,9 +41,6 @@
     "app/api/src/routes/contexts/members.js": [
       21
     ],
-    "app/api/src/routes/details/accessPackage.js": [
-      46
-    ],
     "app/api/src/routes/details/user.js": [
       25
     ],

@@ -81,9 +81,6 @@
     "app/api/src/routes/crawlers/selfService.js": [
       16
     ],
-    "app/api/src/routes/details/accessPackage.js": [
-      55
-    ],
     "app/api/src/routes/details/group.js": [
       21
     ],
