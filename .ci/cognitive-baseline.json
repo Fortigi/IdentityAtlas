@@ -66,9 +66,6 @@
     "app/api/src/routes/authRoles.js": [
       16
     ],
-    "app/api/src/routes/contexts/crud.js": [
-      40
-    ],
     "app/api/src/routes/crawlers/admin.js": [
       16
     ],
