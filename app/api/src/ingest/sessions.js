@@ -11,7 +11,7 @@
 // timeout is a hard upper bound; idle sessions are reaped to free connections.
 
 import crypto from 'crypto';
-import { discoverColumns, writeSyncLog, scopedDelete } from './engine.js';
+import { resolveActiveColumns, discoverColumns, writeSyncLog, scopedDelete } from './engine.js';
 import * as db from '../db/connection.js';
 import { createTempTable, bulkInsertIntoTemp } from './tempTableHelpers.js';
 
@@ -41,14 +41,10 @@ const copyRows = (client, tempTable, activeColumns, records) =>
 
 export async function startSession(_pool, tableName, keyColumns, records, options = {}) {
   const syncId = crypto.randomUUID();
+  const activeColumns = await resolveActiveColumns(tableName, records, keyColumns);
+  // endSession's full-sync scopedDelete needs the table's full column set (see
+  // engine.js) — keep it on the session. Cached, so no extra round-trip.
   const columns = await discoverColumns(null, tableName);
-  const recordKeys = new Set();
-  for (const rec of records) {
-    for (const k of Object.keys(rec)) recordKeys.add(k);
-  }
-  const activeColumns = columns.filter(c =>
-    (recordKeys.has(c.name) || keyColumns.includes(c.name)) && !c.isIdentity
-  );
 
   const pool = await db.getPool();
   const client = await pool.connect();

@@ -7,24 +7,16 @@
 import { parseJsonbColumn } from '../../lib/jsonb.js';
 import { buildFilterWhere, parseTags } from '../tags.js';
 import { extractRelFilters, buildRelationshipWhere } from '../../lib/referenceFilters.js';
+import { parseListParams } from '../../lib/listParams.js';
 
 // Parse the list query params + attribute/tag/reference filters. Pure. The tag
 // filter is pulled out of the attribute object (which extractRelFilters then
 // mutates) so it isn't validated as a real column.
 export function parseResourceListParams(req) {
-  const search = (req.query.search || '').trim().slice(0, 200);
+  const { search, limit, offset, attrFilters } = parseListParams(req);
   const resourceType = (req.query.resourceType || '').trim();
   const systemId = (req.query.systemId || '').trim();
   const tagId = req.query.tagId ? String(req.query.tagId) : null;
-  // Cap matches the bulk-list endpoints; UI defaults to 100, Power Query walks
-  // in 1000-record pages.
-  const limit = Math.min(Math.max(parseInt(req.query.limit) || 100, 1), 10000);
-  const offset = Math.max(parseInt(req.query.offset) || 0, 0);
-
-  let attrFilters = {};
-  if (req.query.filters) {
-    try { attrFilters = JSON.parse(req.query.filters); } catch { /* ignore bad JSON */ }
-  }
 
   let resourceTagFilter = null;
   if (attrFilters['__resourceTag']) {

@@ -11,6 +11,7 @@ import { getResourceColumns as getResourceCols, getPrincipalOrUserColumns, getPr
 import { createParams } from '../../db/sqlParams.js';
 import { parseJsonbColumn } from '../../lib/jsonb.js';
 import { buildOrderBy } from '../../lib/listSort.js';
+import { parseListParams } from '../../lib/listParams.js';
 import { useSql, db, ensureTagTables, buildFilterWhere, UUID_RE, parseTags } from './shared.js';
 import { extractRelFilters, buildRelationshipWhere, discoverReferenceFields } from '../../lib/referenceFilters.js';
 
@@ -117,18 +118,9 @@ router.get('/users', async (req, res) => {
   try {
     if (!useSql) return res.json({ data: [], total: 0 });
 
-    const search = (req.query.search || '').trim().slice(0, 200);
+    const { search, limit, offset, attrFilters } = parseListParams(req);
     const tagId = req.query.tagId && UUID_RE.test(String(req.query.tagId)) ? String(req.query.tagId) : null;
-    // Cap at 10k to match the bulk-list endpoints. The UI defaults to 100
-    // and never asks for more; the higher cap is there so Power Query /
-    // BI exports can page through the full dataset in fewer round trips.
-    const limit = Math.min(Math.max(parseInt(req.query.limit) || 100, 1), 10000);
-    const offset = Math.max(parseInt(req.query.offset) || 0, 0);
 
-    let attrFilters = {};
-    if (req.query.filters) {
-      try { attrFilters = JSON.parse(req.query.filters); } catch { /* ignore bad JSON */ }
-    }
     let userTagFilter = null;
     if (attrFilters['__userTag']) {
       userTagFilter = String(attrFilters['__userTag']);
