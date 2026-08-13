@@ -75,6 +75,8 @@
     "app/api/src/routes/accountLinking.js": 97,
     "app/api/src/routes/admin.js": 99,
     "app/api/src/routes/admin/curatedData.js": 67,
+    "app/api/src/routes/admin/curatedExport.js": 100,
+    "app/api/src/routes/admin/curatedImport.js": 92,
     "app/api/src/routes/admin/dashboard.js": 91,
     "app/api/src/routes/admin/maintenance.js": 89,
     "app/api/src/routes/admin/riskConfig.js": 99,
