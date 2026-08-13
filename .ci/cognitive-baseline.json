@@ -102,11 +102,6 @@
     "app/api/src/routes/permissions/syncLog.js": [
       17
     ],
-    "app/api/src/routes/recentChanges/changes.js": [
-      42,
-      38,
-      17
-    ],
     "app/api/src/routes/resources.js": [
       37,
       18

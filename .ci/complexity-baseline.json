@@ -47,10 +47,6 @@
     "app/api/src/routes/identities/list.js": [
       30
     ],
-    "app/api/src/routes/recentChanges/changes.js": [
-      30,
-      27
-    ],
     "app/api/src/routes/resources.js": [
       30,
       26
