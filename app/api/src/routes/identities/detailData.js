@@ -6,7 +6,6 @@
 
 import { timedQuery } from '../../perf/sqlTimer.js';
 import { isMissingSchema } from '../../db/schemaErrors.js';
-import { db } from './shared.js';
 
 // Fetch the identity row. Returns null when it doesn't exist (handler → 404).
 export async function fetchIdentity(p, res, identityId) {
