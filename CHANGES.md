@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Internal maintainability: decomposed the access-package detail endpoint (`GET /api/access-package/:id`) into focused, individually-tested phase helpers — attribute lookup, the assignment/group/review/request counts, last-review, review-compliance status, policy summary, category, and history count — leaving the handler a thin sequence. No functional change — the endpoint returns exactly the same payload as before.
+
+## Changes in this PR
+
 - Internal maintainability: decomposed the permission-grid API handlers into focused, unit-tested helpers — the `/api/permissions` matrix feed's phases (request parsing, column discovery, context/tag/attribute filters, the top-N and unlimited query runners, and the mock path) and the `/api/user-columns` builders now live in small single-responsibility modules behind the same thin router. No functional change — both endpoints behave exactly as before.
 
 ## Changes in this PR
