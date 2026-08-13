@@ -8,9 +8,9 @@
 import { Router } from 'express';
 import { timedQuery } from '../../perf/sqlTimer.js';
 import { createParams } from '../../db/sqlParams.js';
-import { isMissingSchema } from '../../db/schemaErrors.js';
 import { buildOrderBy } from '../../lib/listSort.js';
 import { useSql, db, hasTable } from './shared.js';
+import { parseTagString, buildIdentityListWhere, fetchIdentitySummary, fetchIdentityColumns } from './listQuery.js';
 
 const router = Router();
 
@@ -26,14 +26,6 @@ const IDENTITY_SORTS = {
   confidence: '"linkConfidence"',
   linkedAt: '"linkedAt"',
 };
-
-function parseTagString(tagString) {
-  if (!tagString) return [];
-  return tagString.split('|').map(t => {
-    const parts = t.split(':');
-    return { id: parseInt(parts[0]), name: parts[1], color: parts[2] };
-  });
-}
 
 // GET /api/identities — summary + paginated list
 router.get('/identities', async (req, res) => {
@@ -63,93 +55,21 @@ router.get('/identities', async (req, res) => {
     }
 
     // Column-existence check runs first because it determines the shape of
-    // the summary query below. It's a tiny catalog lookup — keeping it out
-    // of the parallel batch is cheap.
+    // the summary query below. It's a tiny catalog lookup.
     const colCheck = await db.query(`
       SELECT column_name AS "COLUMN_NAME" FROM information_schema.columns
       WHERE table_schema = 'public' AND table_name = 'Identities' AND column_name IN ('isHrAnchored', 'orphanStatus')
     `);
     const hasHrCols = colCheck.rows.length >= 2;
 
-    // The three big queries are independent — run them in parallel so
-    // postgres can schedule them on separate backends.
-    const [summaryResult, typeDistResult] = await Promise.all([
-      timedQuery(p, 'identity-summary', res, `
-        SELECT
-          COUNT(*) AS "totalIdentities",
-          SUM(CASE WHEN "accountCount" > 1 THEN 1 ELSE 0 END) AS "multiAccountIdentities",
-          SUM(CASE WHEN "accountCount" = 1 THEN 1 ELSE 0 END) AS "singleAccountIdentities",
-          SUM("accountCount") AS "totalAccounts",
-          AVG(CAST("linkConfidence" AS FLOAT)) AS "avgConfidence",
-          MAX("linkedAt") AS "lastLinkedAt"
-          ${hasHrCols ? `, SUM(CASE WHEN "isHrAnchored" = true THEN 1 ELSE 0 END) AS "hrAnchoredCount",
-          SUM(CASE WHEN "orphanStatus" IS NOT NULL THEN 1 ELSE 0 END) AS "orphanCount"` : ''}
-        FROM "Identities"
-      `),
-      timedQuery(p, 'identity-type-dist', res, `
-        SELECT "accountType", COUNT(*) AS cnt
-        FROM "IdentityMembers"
-        GROUP BY "accountType"
-        ORDER BY cnt DESC
-      `),
-    ]);
-    const summary = summaryResult.rows[0];
-    summary.accountTypeDistribution = typeDistResult.rows;
+    const summary = await fetchIdentitySummary(p, res, hasHrCols);
 
-    // Build filtered query
+    // Build the filtered query.
     const { params, bind } = createParams();
-    let where = 'WHERE 1=1';
-
-    if (search) {
-      const s = bind(`%${search}%`);
-      where += ` AND ("displayName" ILIKE ${s} OR email ILIKE ${s} OR "jobTitle" ILIKE ${s} OR "employeeId" ILIKE ${s})`;
-    }
-
-    if (minAccounts) {
-      const min = parseInt(minAccounts);
-      if (min > 1) where += ` AND "accountCount" >= ${bind(min)}`;
-    }
-
-    if (confidence) {
-      where += ` AND "linkConfidence" >= ${bind(parseInt(confidence))}`;
-    }
-
-    if (hasHrCols) {
-      if (hrAnchored === 'true') {
-        where += ' AND "isHrAnchored" = true';
-      } else if (hrAnchored === 'false') {
-        where += ' AND ("isHrAnchored" = false OR "isHrAnchored" IS NULL)';
-      }
-
-      if (orphanStatus === 'any') {
-        where += ' AND "orphanStatus" IS NOT NULL';
-      } else if (orphanStatus === 'none') {
-        where += ' AND "orphanStatus" IS NULL';
-      } else if (orphanStatus) {
-        where += ` AND "orphanStatus" = ${bind(orphanStatus)}`;
-      }
-    }
-
-    // Apply the attribute filters that useEntityPage sends (simple
-    // field=value equality on whitelisted columns).
-    const IDENTITY_FILTER_COLS = new Set([
-      'displayName', 'email', 'department', 'jobTitle', 'companyName',
-      'city', 'country', 'employeeId', 'accountCount',
-    ]);
-    for (const [field, value] of Object.entries(attrFilters)) {
-      if (!IDENTITY_FILTER_COLS.has(field)) continue;
-      if (value == null || value === '') continue;
-      where += ` AND "${field}" = ${bind(value)}`;
-    }
-
-    // Tag filter (virtual field).
-    let identityTagJoin = '';
-    if (identityTagFilter) {
-      identityTagJoin = `
-        INNER JOIN "GraphTagAssignments" _ita ON _ita."entityId" = UPPER(i.id::text)
-        INNER JOIN "GraphTags" _it ON _ita."tagId" = _it.id
-          AND _it."name" = ${bind(identityTagFilter)} AND _it."entityType" = 'identity'`;
-    }
+    const { where, identityTagJoin } = buildIdentityListWhere(
+      { search, minAccounts, confidence, hrAnchored, orphanStatus, attrFilters, identityTagFilter, hasHrCols },
+      bind,
+    );
 
     // Sort the whole result set server-side (audit H-14), column + direction
     // from the query; unknown columns fall back to displayName ASC.
@@ -238,35 +158,7 @@ router.get('/identity-columns', async (req, res) => {
     const p = await db.getPool();
     if (!(await hasTable(p, 'Identities'))) return res.json([]);
 
-    const grouped = {};
-    if (schemaOnly) {
-      for (const col of FILTER_COLS) grouped[col] = [];
-    } else {
-      // One pass per column — each read is cheap (a few hundred distinct
-      // values at most on a real tenant) and keeps the SQL trivial.
-      for (const col of FILTER_COLS) {
-        try {
-          const r = await db.query(
-            `SELECT DISTINCT "${col}" AS v FROM "Identities" WHERE "${col}" IS NOT NULL AND "${col}" <> '' ORDER BY "${col}" LIMIT 500`
-          );
-          grouped[col] = r.rows.map(x => x.v);
-        } catch (e) { if (!isMissingSchema(e)) throw e; grouped[col] = []; }
-      }
-    }
-
-    // Virtual tag-name column.
-    try {
-      const r = await db.query(`
-        SELECT t.name
-          FROM "GraphTags" t
-         WHERE t."entityType" = 'identity'
-           AND EXISTS (SELECT 1 FROM "GraphTagAssignments" ta WHERE ta."tagId" = t.id)
-         ORDER BY t.name
-      `);
-      grouped['__identityTag'] = schemaOnly ? [] : r.rows.map(x => x.name);
-    } catch (e) { if (!isMissingSchema(e)) throw e; /* GraphTags may not exist yet */ }
-
-    return res.json(Object.entries(grouped).map(([column, values]) => ({ column, values })));
+    return res.json(await fetchIdentityColumns(p, schemaOnly, FILTER_COLS));
   } catch (err) {
     console.error('identity-columns failed:', err.message);
     return res.json([]);

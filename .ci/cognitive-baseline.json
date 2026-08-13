@@ -72,19 +72,6 @@
     "app/api/src/routes/crawlers/selfService.js": [
       16
     ],
-    "app/api/src/routes/details/group.js": [
-      21
-    ],
-    "app/api/src/routes/details/user.js": [
-      33
-    ],
-    "app/api/src/routes/identities/detail.js": [
-      25
-    ],
-    "app/api/src/routes/identities/list.js": [
-      33,
-      20
-    ],
     "app/api/src/routes/matrix/data.js": [
       32,
       21,

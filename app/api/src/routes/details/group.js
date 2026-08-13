@@ -7,9 +7,11 @@
 import { Router } from 'express';
 import * as db from '../../db/connection.js';
 import { timedQuery } from '../../perf/sqlTimer.js';
-import { parseJsonbColumn } from '../../lib/jsonb.js';
-import { isMissingSchema } from '../../db/schemaErrors.js';
-import { useSql, UUID_RE, cleanRow, getPermissionTable, fetchHistory, countHistory } from './shared.js';
+import { useSql, UUID_RE, cleanRow, getPermissionTable, fetchHistory } from './shared.js';
+import {
+  fetchGroupAttributes, fetchGroupTags, fetchGroupMemberCount,
+  fetchGroupAccessPackageCount, fetchGroupHistoryCount,
+} from './groupDetail.js';
 
 const router = Router();
 
@@ -24,56 +26,16 @@ router.get('/group/:id', async (req, res) => {
     const pool = await db.getPool();
     const groupId = req.params.id;
 
-    // 1. Current attributes from the Resources table (v5).
-    const groupResult = await timedQuery(pool, 'group-attributes', res,
-      `SELECT * FROM "Resources" WHERE id = $1`, [groupId]);
-
-    if (groupResult.rows.length === 0) {
+    // Attributes first — a missing row is a 404 before we fetch the counts.
+    const attributes = await fetchGroupAttributes(pool, res, groupId);
+    if (attributes === null) {
       return res.status(404).json({ error: 'Group not found' });
     }
-    const attributes = cleanRow(groupResult.rows[0]);
 
-    // Normalise extendedAttributes (pg returns JSONB already parsed).
-    if (attributes.extendedAttributes) {
-      attributes.extendedAttributesParsed = parseJsonbColumn(attributes.extendedAttributes);
-    }
-
-    // 2. Tags (support both 'resource' and 'group' entity types)
-    let tags = [];
-    try {
-      const r = await timedQuery(pool, 'group-tags', res, `
-        SELECT t.id, t.name, t.color
-        FROM "GraphTagAssignments" ta
-        JOIN "GraphTags" t ON ta."tagId" = t.id
-        WHERE ta."entityId" = UPPER($1) AND t."entityType" IN ('resource', 'group')
-      `, [groupId]);
-      tags = r.rows;
-    } catch (e) { if (!isMissingSchema(e)) throw e; /* table may not exist */ }
-
-    // 3. Member count (fast). The permission view keys members by "principalId"
-    //    (there is no "memberId"/"groupId" column — the old query named both and
-    //    always errored into the isMissingSchema catch, so the count read 0).
-    let memberCount = 0;
-    try {
-      const table = await getPermissionTable(pool);
-      const r = await timedQuery(pool, 'group-member-count', res,
-        `SELECT COUNT(DISTINCT "principalId")::int AS cnt FROM ${table} WHERE "resourceId" = $1`, [groupId]);
-      memberCount = r.rows[0].cnt;
-    } catch (e) { if (!isMissingSchema(e)) throw e; /* view may not exist */ }
-
-    let accessPackageCount = 0;
-    try {
-      const r = await timedQuery(pool, 'group-ap-count', res, `
-        SELECT COUNT(DISTINCT rrs."parentResourceId")::int AS cnt
-        FROM "ResourceRelationships" rrs
-        WHERE UPPER(rrs."childResourceId"::text) = UPPER($1)
-          AND rrs."relationshipType" = 'Contains'
-      `, [groupId]);
-      accessPackageCount = r.rows[0].cnt;
-    } catch (e) { if (!isMissingSchema(e)) throw e; /* table may not exist */ }
-
-    let historyCount = 0;
-    try { historyCount = await countHistory('Resources', groupId); } catch (e) { if (!isMissingSchema(e)) throw e; /* _history table may not exist on older deployments */ }
+    const tags = await fetchGroupTags(pool, res, groupId);
+    const memberCount = await fetchGroupMemberCount(pool, res, groupId);
+    const accessPackageCount = await fetchGroupAccessPackageCount(pool, res, groupId);
+    const historyCount = await fetchGroupHistoryCount(groupId);
 
     res.json({ attributes, tags, memberCount, accessPackageCount, historyCount, hasHistory: historyCount > 0 });
   } catch (err) {

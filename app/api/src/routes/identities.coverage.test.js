@@ -148,6 +148,22 @@ describe('GET /identities/:id', () => {
     expect(res.body.contextCount).toBe(2);
   });
 
+  it('swallows missing optional tables (42P01) and still returns the core detail', async () => {
+    const missing = Object.assign(new Error('undefined table'), { code: '42P01' });
+    mockReq.query
+      .mockResolvedValueOnce({ recordset: [{ id: VALID_ID, displayName: 'Bob' }] })          // identity
+      .mockResolvedValueOnce({ recordset: [{ principalId: VALID_ID2, displayName: 'acc' }] }) // members
+      .mockRejectedValueOnce(missing)   // risks
+      .mockRejectedValueOnce(missing)   // group counts
+      .mockRejectedValueOnce(missing)   // aggregate
+      .mockRejectedValueOnce(missing);  // context count
+    const res = await request(app).get(`/identities/${VALID_ID}`);
+    expect(res.status).toBe(200);
+    expect(res.body.identity.displayName).toBe('Bob');
+    expect(res.body.contextCount).toBe(0);
+    expect(res.body.aggregateAssignments).toEqual({ Direct: 0, Indirect: 0, Governed: 0, Owner: 0, Eligible: 0, OAuth2Grant: 0 });
+  });
+
   it('returns 500 when the detail query rejects', async () => {
     mockReq.query.mockRejectedValueOnce(new Error('boom'));
     const res = await request(app).get(`/identities/${VALID_ID}`);

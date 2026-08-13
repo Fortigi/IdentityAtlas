@@ -7,44 +7,15 @@
 import { Router } from 'express';
 import * as db from '../../db/connection.js';
 import { timedQuery } from '../../perf/sqlTimer.js';
-import { parseJsonbColumn } from '../../lib/jsonb.js';
 import { isMissingSchema } from '../../db/schemaErrors.js';
-import { useSql, UUID_RE, cleanRow, fetchHistory, countHistory } from './shared.js';
+import { useSql, UUID_RE, cleanRow, fetchHistory } from './shared.js';
+import {
+  fetchUserAttributes, mergeUserRiskScore, fetchUserTags, fetchMembershipBreakdown,
+  fetchUserAccessPackageCount, fetchUserHistoryCount, fetchOauth2GrantCount,
+  fetchDirectReportCount, fetchUserContextCount, fetchPrincipalRelationships,
+} from './userDetail.js';
 
 const router = Router();
-
-// Principal→principal relationships (migration 057) for a user: the four
-// directional counts, plus the "linked resource" (the enterprise-app Resource an
-// AI agent / service principal shares its id with). Both are best-effort — absent
-// on older deployments — so each guards isMissingSchema. Extracted from the
-// /user/:id handler to keep that handler under its complexity ceiling.
-async function fetchPrincipalRelationships(pool, userId, res) {
-  const counts = { ownerCount: 0, sponsorCount: 0, ownedAgentCount: 0, sponsoredGuestCount: 0 };
-  try {
-    const r = await timedQuery(pool, 'user-principal-relationships', res, `SELECT
-                COUNT(*) FILTER (WHERE "principalId"::text = $1        AND "relationshipType" = 'Owner')::int   AS "ownerCount",
-                COUNT(*) FILTER (WHERE "principalId"::text = $1        AND "relationshipType" = 'Sponsor')::int AS "sponsorCount",
-                COUNT(*) FILTER (WHERE "relatedPrincipalId"::text = $1 AND "relationshipType" = 'Owner')::int   AS "ownedAgentCount",
-                COUNT(*) FILTER (WHERE "relatedPrincipalId"::text = $1 AND "relationshipType" = 'Sponsor')::int AS "sponsoredGuestCount"
-                FROM "PrincipalRelationships"
-               WHERE "principalId"::text = $1 OR "relatedPrincipalId"::text = $1`, [userId]);
-    Object.assign(counts, r.rows[0] || {});
-  } catch (e) { if (!isMissingSchema(e)) throw e; /* PrincipalRelationships may not exist on older deployments */ }
-
-  // An AI agent / service principal is BOTH a Principal and, as an enterprise app,
-  // an Application Resource with the SAME id (the SP id) — surface it so the
-  // relations tab can jump to its resource view.
-  let linkedResource = null;
-  try {
-    const r = await timedQuery(pool, 'user-linked-resource', res, `SELECT id, "displayName", "resourceType"
-                FROM "Resources"
-               WHERE id = $1 AND "resourceType" = 'Application'
-               LIMIT 1`, [userId]);
-    if (r.rows.length > 0) linkedResource = r.rows[0];
-  } catch (e) { if (!isMissingSchema(e)) throw e; /* Resources always exists, but be defensive */ }
-
-  return { ...counts, linkedResource };
-}
 
 // ────────────────────────────────────────────────────────────────
 // GET /api/user/:id — Lightweight: attributes, tags, counts only
@@ -56,119 +27,22 @@ router.get('/user/:id', async (req, res) => {
     const pool = await db.getPool();
     const userId = req.params.id;
 
-    // 1. Current attributes from Principals (v5 has no GraphUsers fallback)
-    const userResult = await timedQuery(pool, 'user-attributes', res, `SELECT p.*, s."displayName" AS "systemDisplayName"
-                FROM "Principals" p
-                LEFT JOIN "Systems" s ON p."systemId" = s.id
-                WHERE p.id = $1`, [userId]);
-
-    if (userResult.rows.length === 0) {
+    // Attributes first — a missing row is a 404 before we fetch the rest.
+    const attributes = await fetchUserAttributes(pool, res, userId);
+    if (attributes === null) {
       return res.status(404).json({ error: 'User not found' });
     }
-    const attributes = cleanRow(userResult.rows[0]);
+    await mergeUserRiskScore(attributes, userId);
 
-    // extendedAttributes is jsonb (already parsed); normalise defensively.
-    if (attributes.extendedAttributes) {
-      attributes.extendedAttributesParsed = parseJsonbColumn(attributes.extendedAttributes);
-    }
-
-    // 1b. Risk score — stored in RiskScores keyed by (entityId, entityType),
-    //     not on the Principal row. Merge the risk fields onto attributes so
-    //     the detail page's Risk tab can render them.
-    try {
-      const rs = await db.query(
-        `SELECT "riskScore", "riskTier", "riskDirectScore", "riskMembershipScore",
-                "riskStructuralScore", "riskPropagatedScore", "riskExplanation",
-                "riskClassifierMatches", "riskOverride", "riskOverrideReason", "riskScoredAt"
-           FROM "RiskScores"
-          WHERE "entityId"::text = $1 AND "entityType" = 'Principal'
-          LIMIT 1`,
-        [userId]
-      );
-      if (rs.rows.length > 0) Object.assign(attributes, cleanRow(rs.rows[0]));
-    } catch (e) { if (!isMissingSchema(e)) throw e; /* RiskScores may not exist on older deployments */ }
-
-    // 2. Tags
-    let tags = [];
-    try {
-      const r = await timedQuery(pool, 'user-tags', res, `
-          SELECT t.id, t."name", t."color"
-            FROM "GraphTagAssignments" ta
-            JOIN "GraphTags" t ON ta."tagId" = t.id
-           WHERE ta."entityId" = $1 AND t."entityType" = 'user'
-        `, [userId]);
-      tags = r.rows;
-    } catch (e) { if (!isMissingSchema(e)) throw e; /* table may not exist */ }
-
-    // 3. Counts — assignments broken down by the universal assignmentType so the
-    //    entity graph can show a node per type (Direct / Indirect / Eligible) without
-    //    pulling the full list. Each bucket spans every resourceType held that way
-    //    (Group, GroupOwnership, AppRole, DelegatedPermission, …). Owner / OAuth2Grant
-    //    are retired types — those rows now collapse into Direct with their own
-    //    resourceType, so no separate bucket here.
-    const membershipByType = { Direct: 0, Indirect: 0, Eligible: 0 };
-    let membershipCount = 0;
-    try {
-      const r = await timedQuery(pool, 'user-membership-breakdown', res, `SELECT "membershipType",
-                       COUNT(DISTINCT "resourceId")::int AS cnt
-                  FROM "vw_ResourceUserPermissionAssignments"
-                 WHERE "principalId"::text = $1
-                 GROUP BY "membershipType"`, [userId]);
-      for (const row of r.rows) {
-        if (row.membershipType in membershipByType) membershipByType[row.membershipType] = row.cnt;
-      }
-      membershipCount = Object.values(membershipByType).reduce((a, b) => a + b, 0);
-    } catch (e) { if (!isMissingSchema(e)) throw e; /* view may not exist */ }
-
-    let accessPackageCount = 0;
-    try {
-      const r = await timedQuery(pool, 'user-ap-count', res, `SELECT COUNT(DISTINCT ra."resourceId")::int AS cnt
-                  FROM "ResourceAssignments" ra
-                  JOIN "Resources" r ON r.id = ra."resourceId"
-                 WHERE ra."principalId"::text = $1
-                   AND r."governanceResource"`, [userId]);
-      accessPackageCount = r.rows[0].cnt;
-    } catch (e) { if (!isMissingSchema(e)) throw e; /* table may not exist */ }
-
-    let historyCount = 0;
-    try { historyCount = await countHistory('Principals', userId); } catch (e) { if (!isMissingSchema(e)) throw e; /* _history may not exist */ }
-
-    let oauth2GrantCount = 0;
-    try {
-      const r = await timedQuery(pool, 'user-oauth2-grant-count', res, `SELECT COUNT(*)::int AS cnt
-                  FROM "ResourceAssignments"
-                 WHERE "principalId"::text = $1 AND "assignmentType" = 'OAuth2Grant'`, [userId]);
-      oauth2GrantCount = r.rows[0].cnt;
-    } catch (e) { if (!isMissingSchema(e)) throw e; /* column may not exist on older deployments */ }
-
-    // Direct-report count: cheap query on managerId FK.
-    let directReportCount = 0;
-    try {
-      const r = await timedQuery(pool, 'user-reports-count', res,
-        `SELECT COUNT(*)::int AS cnt FROM "Principals" WHERE "managerId" = $1`, [userId]);
-      directReportCount = r.rows[0].cnt;
-    } catch (e) { if (!isMissingSchema(e)) throw e; /* managerId may not exist on older deployments */ }
-
-    // Context-membership count (v6 — replaces the old Principals.contextId
-    // single-context column with a many-to-many ContextMembers join).
-    // A user belongs to a context either directly as a Principal member
-    // (memberType='Principal', memberId=principalId — how Principal-targeted
-    // contexts like Tags store it) or, for an Identity-targeted context, via their
-    // linked Identity. The old query only checked the Identity path, but Principal
-    // is what the write path (contexts.js: memberType=targetType) actually stores —
-    // so every user showed 0 contexts.
-    let contextCount = 0;
-    try {
-      const r = await timedQuery(pool, 'user-context-count', res, `SELECT COUNT(DISTINCT cm."contextId")::int AS cnt
-                  FROM "ContextMembers" cm
-                 WHERE (cm."memberType" = 'Principal' AND cm."memberId"::text = $1)
-                    OR (cm."memberType" = 'Identity'  AND cm."memberId"::text IN (
-                          SELECT im."identityId"::text FROM "IdentityMembers" im
-                           WHERE im."principalId"::text = $1))`, [userId]);
-      contextCount = r.rows[0].cnt;
-    } catch (e) { if (!isMissingSchema(e)) throw e; /* ContextMembers may not exist on older deployments */ }
-
-    // Principal→principal relationships + linked resource (migration 057).
+    // The remaining sections are independent optional fetches; each swallows a
+    // missing optional table and rethrows anything else to the 500 below.
+    const tags = await fetchUserTags(pool, res, userId);
+    const { membershipCount, membershipByType } = await fetchMembershipBreakdown(pool, res, userId);
+    const accessPackageCount = await fetchUserAccessPackageCount(pool, res, userId);
+    const historyCount = await fetchUserHistoryCount(userId);
+    const oauth2GrantCount = await fetchOauth2GrantCount(pool, res, userId);
+    const directReportCount = await fetchDirectReportCount(pool, res, userId);
+    const contextCount = await fetchUserContextCount(pool, res, userId);
     const principalRel = await fetchPrincipalRelationships(pool, userId, res);
 
     res.json({
