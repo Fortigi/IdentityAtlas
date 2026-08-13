@@ -60,34 +60,8 @@
       19,
       16
     ],
-    "app/api/src/routes/admin/maintenance.js": [
-      18
-    ],
-    "app/api/src/routes/authRoles.js": [
-      16
-    ],
-    "app/api/src/routes/crawlers/admin.js": [
-      16
-    ],
-    "app/api/src/routes/crawlers/selfService.js": [
-      16
-    ],
-    "app/api/src/routes/matrix/data.js": [
-      32,
-      21,
-      16
-    ],
     "app/api/src/routes/openapi.drift.test.js": [
       19
-    ],
-    "app/api/src/routes/permissions/accessPackages.js": [
-      18
-    ],
-    "app/api/src/routes/permissions/syncLog.js": [
-      17
-    ],
-    "app/api/src/routes/tags/crud.js": [
-      29
     ],
     "app/api/src/scheduler.js": [
       27

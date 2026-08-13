@@ -106,38 +106,29 @@ adminCrawlersRouter.post('/admin/crawlers', gate, async (req, res) => {
   }
 });
 
+// Build the SET clauses for a crawler metadata PATCH (only supplied fields).
+function buildCrawlerUpdate(body, bind) {
+  const { displayName, description, enabled, systemIds, permissions, expiresAt, rateLimit } = body;
+  const sets = [];
+  if (displayName !== undefined) sets.push(`"displayName" = ${bind(String(displayName).slice(0, 255))}`);
+  if (description !== undefined) sets.push(`"description" = ${bind(String(description).slice(0, 4000))}`);
+  if (enabled     !== undefined) sets.push(`"enabled" = ${bind(enabled ? true : false)}`);
+  if (systemIds   !== undefined) sets.push(`"systemIds" = ${bind(systemIds ? JSON.stringify(systemIds) : null)}`);
+  if (permissions !== undefined) sets.push(`"permissions" = ${bind(JSON.stringify(permissions))}`);
+  if (expiresAt   !== undefined) sets.push(`"expiresAt" = ${bind(expiresAt || null)}`);
+  if (rateLimit   !== undefined) sets.push(`"rateLimit" = ${bind(parseInt(rateLimit, 10) || 100)}`);
+  return sets;
+}
+
 // PATCH /api/admin/crawlers/:id — Update crawler metadata
 adminCrawlersRouter.patch('/admin/crawlers/:id', gate, async (req, res) => {
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) return res.status(400).json({ error: 'Invalid crawler ID' });
 
-  const { displayName, description, enabled, systemIds, permissions, expiresAt, rateLimit } = req.body;
   const pool = await db.getPool();
   const { params, bind } = createParams();
-  const sets = [];
-
-  if (displayName !== undefined) {
-    sets.push(`"displayName" = ${bind(String(displayName).slice(0, 255))}`);
-  }
-  if (description !== undefined) {
-    sets.push(`"description" = ${bind(String(description).slice(0, 4000))}`);
-  }
-  if (enabled !== undefined) {
-    sets.push(`"enabled" = ${bind(enabled ? true : false)}`);
-  }
-  if (systemIds !== undefined) {
-    sets.push(`"systemIds" = ${bind(systemIds ? JSON.stringify(systemIds) : null)}`);
-  }
-  if (permissions !== undefined) {
-    sets.push(`"permissions" = ${bind(JSON.stringify(permissions))}`);
-  }
-  if (expiresAt !== undefined) {
-    sets.push(`"expiresAt" = ${bind(expiresAt || null)}`);
-  }
-  if (rateLimit !== undefined) {
-    sets.push(`"rateLimit" = ${bind(parseInt(rateLimit, 10) || 100)}`);
-  }
+  const sets = buildCrawlerUpdate(req.body, bind);
 
   if (sets.length === 0) return res.status(400).json({ error: 'No fields to update' });
 

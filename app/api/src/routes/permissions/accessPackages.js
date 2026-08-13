@@ -18,6 +18,32 @@ const router = Router();
 router.get('/access-package-groups', accessPackageResourcesHandler);
 router.get('/access-package-resources', accessPackageResourcesHandler);
 
+// Flatten the grouped (AP → resources[]) rows into the legacy (AP, resource)
+// row shape — one null-resource row for an AP with no resources.
+function flattenAccessPackageRows(rows) {
+  const flat = [];
+  for (const row of rows) {
+    const base = {
+      accessPackageId:   row.accessPackageId,
+      businessRoleId:    row.businessRoleId,
+      accessPackageName: row.accessPackageName,
+      systemId:          row.systemId,
+      catalogName:       row.catalogName,
+      totalAssignments:  row.totalAssignments,
+      categoryId:        row.categoryId,
+      categoryName:      row.categoryName,
+      categoryColor:     row.categoryColor,
+    };
+    const resources = Array.isArray(row.resources) ? row.resources : [];
+    if (resources.length === 0) {
+      flat.push({ ...base, resourceId: null, groupId: null, resourceName: null, groupName: null, resourceType: null, roleName: null });
+      continue;
+    }
+    for (const r of resources) flat.push({ ...base, ...r });
+  }
+  return flat;
+}
+
 async function accessPackageResourcesHandler(req, res) {
   try {
     if (useSql) {
@@ -83,29 +109,7 @@ async function accessPackageResourcesHandler(req, res) {
 
       // Callers historically expected a flat (ap, resource) shape. Flatten
       // on the Node side — cheap because postgres already did the join.
-      const flat = [];
-      for (const row of result.rows) {
-        const base = {
-          accessPackageId:   row.accessPackageId,
-          businessRoleId:    row.businessRoleId,
-          accessPackageName: row.accessPackageName,
-          systemId:          row.systemId,
-          catalogName:       row.catalogName,
-          totalAssignments:  row.totalAssignments,
-          categoryId:        row.categoryId,
-          categoryName:      row.categoryName,
-          categoryColor:     row.categoryColor,
-        };
-        const resources = Array.isArray(row.resources) ? row.resources : [];
-        if (resources.length === 0) {
-          flat.push({ ...base, resourceId: null, groupId: null, resourceName: null, groupName: null, resourceType: null, roleName: null });
-          continue;
-        }
-        for (const r of resources) {
-          flat.push({ ...base, ...r });
-        }
-      }
-      return res.json(flat);
+      return res.json(flattenAccessPackageRows(result.rows));
     }
     res.json([]);
   } catch (err) {

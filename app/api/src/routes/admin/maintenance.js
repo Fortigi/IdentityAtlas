@@ -29,6 +29,29 @@ const adminDestructiveLimiter = rateLimit({
 // Deletes all rows from data tables (Principals, Resources, Identities, etc.)
 // but preserves crawler configs, risk profiles, and audit log so the user can
 // re-sync from a clean slate without losing their setup.
+// DELETE each existing table (+ its _history rows); collect wiped/skipped.
+async function wipeTables(tables, existingTables) {
+  const wiped = [];
+  const skipped = [];
+  for (const table of tables) {
+    if (!existingTables.has(table)) {
+      skipped.push({ table, reason: 'does not exist' });
+      continue;
+    }
+    try {
+      const result = await db.query(`DELETE FROM "${table}"`);
+      wiped.push({ table, rowsAffected: result.rowCount || 0 });
+      // Clean the _history audit table for this table too
+      try {
+        await db.query(`DELETE FROM "_history" WHERE "tableName" = $1`, [table]);
+      } catch (err) { console.warn('Could not clean _history for', table, ':', err.message); }
+    } catch (err) {
+      skipped.push({ table, reason: err.message });
+    }
+  }
+  return { wiped, skipped };
+}
+
 router.post('/admin/clean-database', writeSystems, adminDestructiveLimiter, async (req, res) => {
   if (process.env.USE_SQL !== 'true') return res.status(503).json({ error: 'SQL not configured' });
 
@@ -52,9 +75,6 @@ router.post('/admin/clean-database', writeSystems, adminDestructiveLimiter, asyn
   ];
 
   try {
-    const wiped = [];
-    const skipped = [];
-
     // Batch check: discover which tables actually exist (1 query instead of N)
     const existResult = await db.query(
       `SELECT t AS tbl, to_regclass('public."' || t || '"') AS oid
@@ -65,23 +85,7 @@ router.post('/admin/clean-database', writeSystems, adminDestructiveLimiter, asyn
       (existResult.rows || []).filter(r => r.oid).map(r => r.tbl)
     );
 
-    for (const table of TABLES_TO_WIPE) {
-      if (!existingTables.has(table)) {
-        skipped.push({ table, reason: 'does not exist' });
-        continue;
-      }
-      try {
-        const result = await db.query(`DELETE FROM "${table}"`);
-        wiped.push({ table, rowsAffected: result.rowCount || 0 });
-
-        // Clean the _history audit table for this table too
-        try {
-          await db.query(`DELETE FROM "_history" WHERE "tableName" = $1`, [table]);
-        } catch (err) { console.warn('Could not clean _history for', table, ':', err.message); }
-      } catch (err) {
-        skipped.push({ table, reason: err.message });
-      }
-    }
+    const { wiped, skipped } = await wipeTables(TABLES_TO_WIPE, existingTables);
 
     // ANALYZE all wiped tables so pg_class.reltuples (used by dashboard-stats for
     // fast estimates) resets to 0 immediately. Without this the dashboard keeps

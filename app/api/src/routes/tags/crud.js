@@ -225,6 +225,34 @@ router.post('/tags/:id/unassign', writeTags, async (req, res) => {
   }
 });
 
+// Users live in Principals (v5); groups/resources in Resources; identities in Identities.
+function tableForEntityType(entityType) {
+  return entityType === 'user' ? 'Principals'
+       : entityType === 'resource' ? 'Resources'
+       : entityType === 'identity' ? 'Identities'
+       : 'Resources';
+}
+
+// Case-insensitive search clause for the bulk-assign filter (`s` is the bound
+// placeholder). Users/identities search displayName + email; others + description.
+function buildAssignSearchWhere(entityType, alias, s) {
+  if (entityType === 'user' || entityType === 'identity') {
+    return ` AND (${alias}."displayName" ILIKE ${s} OR ${alias}."email" ILIKE ${s})`;
+  }
+  return ` AND (${alias}."displayName" ILIKE ${s} OR ${alias}."description" ILIKE ${s})`;
+}
+
+// Attribute + reference-field (rel.*) filter clauses for the bulk-assign query.
+async function buildAssignFilterWhere(entityType, filters, alias, bind, p) {
+  const relFilters = extractRelFilters(filters);
+  const cols = entityType === 'user' ? await getPrincipalOrUserColumns(p)
+             : entityType === 'resource' ? await getResourceCols(p)
+             : await getGroupCols(p);
+  const colNames = new Set(cols.map(c => c.name));
+  return buildFilterWhere(filters, colNames, alias, bind)
+       + buildRelationshipWhere(relFilters, storeForEntityType(entityType), alias);
+}
+
 // ─── POST /api/tags/:id/assign-by-filter ──────────────────────────
 // Bulk-assign: tags ALL entities matching a search filter (server-side)
 router.post('/tags/:id/assign-by-filter', writeTags, async (req, res) => {
@@ -244,46 +272,20 @@ router.post('/tags/:id/assign-by-filter', writeTags, async (req, res) => {
       [tagId]
     );
     if (!ctx) return res.status(404).json({ error: 'Tag not found' });
-    // Users live in Principals (v5); groups/resources in Resources.
-    const table = entityType === 'user' ? 'Principals'
-                 : entityType === 'resource' ? 'Resources'
-                 : entityType === 'identity' ? 'Identities'
-                 : 'Resources';
+    const table = tableForEntityType(entityType);
     const alias = 'e';
     const search = (rawSearch || '').trim().slice(0, 200);
-    const upnColForSearch = 'email';
 
     const { params, bind } = createParams();
     const tagIdPh = bind(tagId);
     let where = '1=1';
-    if (search) {
-      // ILIKE for case-insensitive search (matches the SQL-Server-era
-      // default-case-insensitive behaviour the original LIKE relied on).
-      // Column identifiers are camelCase, so they must be double-quoted —
-      // unquoted postgres lowercases them and the lookup fails.
-      const s = bind(`%${search}%`);
-      if (entityType === 'user') {
-        where += ` AND (${alias}."displayName" ILIKE ${s} OR ${alias}."${upnColForSearch}" ILIKE ${s})`;
-      } else if (entityType === 'identity') {
-        where += ` AND (${alias}."displayName" ILIKE ${s} OR ${alias}."email" ILIKE ${s})`;
-      } else {
-        where += ` AND (${alias}."displayName" ILIKE ${s} OR ${alias}."description" ILIKE ${s})`;
-      }
-    }
-    // (v5: temporal tables / `ValidTo` were dropped during the postgres
-    // migration — no version-filtering clause needed here anymore.)
+    // ILIKE for case-insensitive search; camelCase columns are double-quoted.
+    if (search) where += buildAssignSearchWhere(entityType, alias, bind(`%${search}%`));
 
-    // Apply attribute filters. Reference-field (rel.*) filters MUST be applied
-    // here too: bulk-tag re-runs the same filter set the list showed, so a
-    // dropped rel.* constraint would tag every row instead of the matching
-    // subset (silent over-tag). extractRelFilters pulls them out first so
-    // buildFilterWhere sees only real columns.
+    // Reference-field (rel.*) filters MUST be applied too: bulk-tag re-runs the
+    // list's filter set, so a dropped rel.* constraint would silently over-tag.
     if (filters && typeof filters === 'object') {
-      const relFilters = extractRelFilters(filters);
-      const cols = entityType === 'user' ? await getPrincipalOrUserColumns(p) : (entityType === 'resource' ? await getResourceCols(p) : await getGroupCols(p));
-      const colNames = new Set(cols.map(c => c.name));
-      where += buildFilterWhere(filters, colNames, alias, bind);
-      where += buildRelationshipWhere(relFilters, storeForEntityType(entityType), alias);
+      where += await buildAssignFilterWhere(entityType, filters, alias, bind, p);
     }
 
     // Tags now live in Contexts — write directly to ContextMembers, skipping
