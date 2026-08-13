@@ -34,15 +34,6 @@
     "app/api/src/routes/contexts/members.js": [
       21
     ],
-    "app/api/src/routes/details/user.js": [
-      25
-    ],
-    "app/api/src/routes/identities/detail.js": [
-      21
-    ],
-    "app/api/src/routes/identities/list.js": [
-      30
-    ],
     "app/api/src/routes/riskProfiles.js": [
       25,
       24

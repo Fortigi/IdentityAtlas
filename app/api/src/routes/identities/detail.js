@@ -7,8 +7,11 @@
 
 import { Router } from 'express';
 import { timedQuery } from '../../perf/sqlTimer.js';
-import { isMissingSchema } from '../../db/schemaErrors.js';
 import { useSql, db, UUID_RE, hasTable, enrichMembers } from './shared.js';
+import {
+  fetchIdentity, fetchIdentityMembers, fetchMemberRisks, fetchMemberGroupCounts,
+  aggregateIdentityAssignments, fetchIdentityContextCount,
+} from './detailData.js';
 
 const router = Router();
 
@@ -21,113 +24,23 @@ router.get('/identities/:id', async (req, res) => {
   try {
     const p = await db.getPool();
 
-    // Fetch identity. Context membership is no longer a column on Identities
-    // (v6 context redesign) — membership now lives in ContextMembers and is
-    // surfaced through the dedicated /api/contexts/* endpoints.
-    const identityResult = await timedQuery(p, 'identity-detail', res,
-      `SELECT i.* FROM "Identities" i WHERE i.id = $1`, [identityId]);
-
-    if (identityResult.rows.length === 0) {
+    // Context membership is no longer a column on Identities (v6 context
+    // redesign) — it now lives in ContextMembers, surfaced via /api/contexts/*.
+    const identity = await fetchIdentity(p, res, identityId);
+    if (identity === null) {
       return res.status(404).json({ error: 'Identity not found' });
     }
 
-    const identity = identityResult.rows[0];
-
-    // Fetch all member accounts from Principals (v5). IdentityMembers stores
-    // displayName opportunistically; many rows have null there so we coalesce
-    // with the Principals record and pull UPN out of Principals.email (v5 has
-    // no separate userPrincipalName column).
-    const membersResult = await timedQuery(p, 'identity-members', res, `
-          SELECT m."identityId", m."principalId", m."isPrimary", m."isHrAuthoritative",
-                 m."accountType", m."accountTypePattern", m."accountEnabled",
-                 m."linkSignals", m."linkConfidence", m."hrScore",
-                 m."hrIndicators", m."analystOverride",
-                 COALESCE(m."displayName", u."displayName") AS "displayName",
-                 u.email AS "userPrincipalName",
-                 u.department, u."jobTitle", u."createdDateTime",
-                 u."accountEnabled" AS "userAccountEnabled"
-          FROM "IdentityMembers" m
-          LEFT JOIN "Principals" u ON m."principalId" = u.id
-          WHERE m."identityId" = $1
-          ORDER BY m."isPrimary" DESC NULLS LAST, m."accountType" ASC
-        `, [identityId]);
-
-    // Enrich members with risk scores (optional).
-    let riskRows = [];
-    try {
-      const riskResult = await timedQuery(p, 'identity-member-risks', res, `
-            SELECT m."principalId", u."riskScore", u."riskTier"
-            FROM "IdentityMembers" m
-            LEFT JOIN "Principals" u ON m."principalId" = u.id
-            WHERE m."identityId" = $1
-          `, [identityId]);
-      riskRows = riskResult.rows;
-    } catch (e) { if (!isMissingSchema(e)) throw e; /* risk columns may not exist yet */ }
-
-    // Fetch group memberships per account for context
-    let groupCountRows = [];
-    try {
-      const groupCountResult = await timedQuery(p, 'identity-member-groups', res, `
-          SELECT m."principalId", COUNT(DISTINCT gm."resourceId")::int AS "groupCount"
-          FROM "IdentityMembers" m
-          LEFT JOIN "ResourceAssignments" gm ON m."principalId" = gm."principalId" AND gm."assignmentType" = 'Direct'
-          WHERE m."identityId" = $1
-          GROUP BY m."principalId"
-        `, [identityId]);
-      groupCountRows = groupCountResult.rows;
-    } catch (e) {
-      if (!isMissingSchema(e)) throw e;  // ResourceAssignments may not exist
-    }
-
+    const members = await fetchIdentityMembers(p, res, identityId);
+    const riskRows = await fetchMemberRisks(p, res, identityId);
+    const groupCountRows = await fetchMemberGroupCounts(p, res, identityId);
     // Attach per-account group counts + risk (keyed by principalId — see enrichMembers).
-    enrichMembers(membersResult.rows, riskRows, groupCountRows);
+    enrichMembers(members, riskRows, groupCountRows);
 
-    // Aggregate relationship counts across every linked account — the entity
-    // graph shows these as nodes ("32 groups across 3 accounts", "4 access
-    // packages"). One query joins IdentityMembers to ResourceAssignments and
-    // groups by assignmentType so we stay cheap.
-    // Keys double as the allow-list for which aggregated types are surfaced
-    // (line below only copies a row whose type is already a key). 'Indirect' is
-    // a universal assignmentType and the entity graph renders an Indirect node,
-    // so it must be present — it was missing, so indirect counts were dropped.
-    const aggregate = { Direct: 0, Indirect: 0, Governed: 0, Owner: 0, Eligible: 0, OAuth2Grant: 0 };
-    try {
-      const aggResult = await timedQuery(p, 'identity-aggregate-counts', res, `
-          SELECT CASE WHEN gov."governanceResource" THEN 'Governed' ELSE ra."assignmentType" END AS "assignmentType",
-                 COUNT(DISTINCT ra."resourceId")::int AS cnt
-          FROM "IdentityMembers" m
-          JOIN "ResourceAssignments" ra ON ra."principalId" = m."principalId"
-          LEFT JOIN "Resources" gov ON gov.id = ra."resourceId"
-          WHERE m."identityId" = $1
-          GROUP BY 1
-        `, [identityId]);
-      for (const row of aggResult.rows) {
-        if (row.assignmentType in aggregate) aggregate[row.assignmentType] = row.cnt;
-      }
-    } catch (e) { if (!isMissingSchema(e)) throw e; /* ResourceAssignments may not exist */ }
+    const aggregateAssignments = await aggregateIdentityAssignments(p, res, identityId);
+    const contextCount = await fetchIdentityContextCount(p, res, identityId);
 
-    // An identity belongs to a context either as an Identity member directly, or
-    // through any of its linked principals (Principal-targeted contexts like Tags
-    // store the principal, not the identity). The old query only checked the
-    // Identity path — of which there are typically none — so it always read 0.
-    let contextCount = 0;
-    try {
-      const r = await timedQuery(p, 'identity-context-count', res,
-        `SELECT COUNT(DISTINCT cm."contextId")::int AS cnt
-                  FROM "ContextMembers" cm
-                 WHERE (cm."memberType" = 'Identity'  AND cm."memberId"::text = $1)
-                    OR (cm."memberType" = 'Principal' AND cm."memberId"::text IN (
-                          SELECT im."principalId"::text FROM "IdentityMembers" im
-                           WHERE im."identityId"::text = $1))`, [identityId]);
-      contextCount = r.rows[0]?.cnt || 0;
-    } catch (e) { if (!isMissingSchema(e)) throw e; /* ContextMembers may not exist */ }
-
-    res.json({
-      identity,
-      members: membersResult.rows,
-      aggregateAssignments: aggregate,
-      contextCount,
-    });
+    res.json({ identity, members, aggregateAssignments, contextCount });
   } catch (err) {
     console.error('Error fetching identity detail:', err.message);
     res.status(500).json({ error: 'Failed to fetch identity detail' });
