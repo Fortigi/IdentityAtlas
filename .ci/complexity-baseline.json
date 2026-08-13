@@ -53,9 +53,6 @@
     "app/api/src/routes/identities/list.js": [
       30
     ],
-    "app/api/src/routes/permissions/grid.js": [
-      46
-    ],
     "app/api/src/routes/recentChanges/changes.js": [
       30,
       27
