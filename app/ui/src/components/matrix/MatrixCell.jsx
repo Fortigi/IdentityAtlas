@@ -1,40 +1,37 @@
 import { memo } from 'react';
 import { TYPE_COLORS } from '@ui/utils/colors';
+import { describeCell } from './MatrixCell.helpers';
+
+// One membership-type swatch (D / I / E). Indirect badges become clickable when
+// an explainer handler is supplied, so the analyst can trace inherited access.
+function MembershipBadge({ type, single, cellKey, onExplainInherited }) {
+  const ind = TYPE_COLORS[type];
+  if (!ind) return <span className="text-[7px] font-bold text-green-800">?</span>;
+
+  const clickable = type === 'Indirect' && !!onExplainInherited;
+  const sizeClass = single ? 'w-4 h-4 text-[9px] leading-4' : 'w-[9px] h-[14px] text-[7px] leading-[14px]';
+  const clickClass = clickable ? 'cursor-pointer ring-1 ring-white/50 hover:ring-2 hover:ring-white' : '';
+
+  return (
+    <span
+      role={clickable ? 'button' : undefined}
+      tabIndex={clickable ? 0 : undefined}
+      onClick={clickable ? (e) => { e.stopPropagation(); onExplainInherited(cellKey); } : undefined}
+      title={clickable ? 'Show how this inherited access was derived' : undefined}
+      className={`inline-block rounded-sm text-center font-bold ${sizeClass} ${clickClass}`}
+      style={{ backgroundColor: ind.bg, color: ind.text }}
+    >
+      {ind.letter}
+    </span>
+  );
+}
 
 function MatrixCell({ cellKey, membershipTypes, managed, apColor, apCount, apNames, provisioningGap, gapExpected, onExplainInherited }) {
   const hasMembership = membershipTypes && membershipTypes.size > 0;
-
-  // Background: AP color for managed cells only; unmanaged cells stay white
-  let bgColor;
-  if (hasMembership && managed) {
-    bgColor = apColor || '#dbeafe';
-  }
-
-  // Tooltip
-  let title;
-  if (hasMembership) {
-    const types = [...membershipTypes].join(', ');
-    if (apNames && apNames.length > 0) {
-      title = `${types}\nManaged by: ${apNames.join(', ')}`;
-    } else if (managed) {
-      title = `${types} (managed by business role)`;
-    } else {
-      title = types;
-    }
-    if (provisioningGap) {
-      const expectedLabel = gapExpected ? ` (expects ${gapExpected})` : '';
-      title += `\n\u26a0 Provisioning gap: user lacks the membership type specified by the business role${expectedLabel}`;
-    }
-  } else if (provisioningGap) {
-    // AP manages this cell but user has no membership at all
-    const expectedLabel = gapExpected ? ` ${gapExpected}` : '';
-    title = `\u26a0 Provisioning gap: business role expects${expectedLabel} membership but user has none`;
-    if (apNames && apNames.length > 0) {
-      title += `\nManaged by: ${apNames.join(', ')}`;
-    }
-    bgColor = apColor || '#dbeafe';
-  }
-
+  const single = hasMembership && membershipTypes.size === 1;
+  const { title, bgColor } = describeCell({
+    hasMembership, membershipTypes, managed, apColor, apNames, provisioningGap, gapExpected,
+  });
   const needsRelative = apCount > 1 || provisioningGap;
 
   return (
@@ -52,24 +49,15 @@ function MatrixCell({ cellKey, membershipTypes, managed, apColor, apCount, apNam
     >
       {hasMembership && (
         <>
-          {[...membershipTypes].map(type => {
-            const ind = TYPE_COLORS[type];
-            if (!ind) return <span key={type} className="text-[7px] font-bold text-green-800">?</span>;
-            const clickable = type === 'Indirect' && !!onExplainInherited;
-            return (
-              <span
-                key={type}
-                role={clickable ? 'button' : undefined}
-                tabIndex={clickable ? 0 : undefined}
-                onClick={clickable ? (e) => { e.stopPropagation(); onExplainInherited(cellKey); } : undefined}
-                title={clickable ? 'Show how this inherited access was derived' : undefined}
-                className={`inline-block rounded-sm text-center font-bold ${membershipTypes.size === 1 ? 'w-4 h-4 text-[9px] leading-4' : 'w-[9px] h-[14px] text-[7px] leading-[14px]'} ${clickable ? 'cursor-pointer ring-1 ring-white/50 hover:ring-2 hover:ring-white' : ''}`}
-                style={{ backgroundColor: ind.bg, color: ind.text }}
-              >
-                {ind.letter}
-              </span>
-            );
-          })}
+          {[...membershipTypes].map(type => (
+            <MembershipBadge
+              key={type}
+              type={type}
+              single={single}
+              cellKey={cellKey}
+              onExplainInherited={onExplainInherited}
+            />
+          ))}
         </>
       )}
       {provisioningGap && (

@@ -21,16 +21,6 @@
       46,
       17
     ],
-    "app/ui/src/components/CrawlersPage.jsx": [
-      18
-    ],
-    "app/ui/src/components/EntityGraph.jsx": [
-      20,
-      16
-    ],
-    "app/ui/src/components/GovernancePage.jsx": [
-      23
-    ],
     "app/ui/src/components/MatrixView.jsx": [
       75,
       24,
@@ -57,30 +47,14 @@
     "app/ui/src/components/admin/LLMSettingsSection.jsx": [
       23
     ],
-    "app/ui/src/components/contexts/ContextTreeView.helpers.js": [
-      21
-    ],
     "app/ui/src/components/contexts/ContextTreeView.jsx": [
       38
     ],
     "app/ui/src/components/contexts/NewContextWizard.jsx": [
       47
     ],
-    "app/ui/src/components/matrix/MatrixCell.jsx": [
-      22
-    ],
     "app/ui/src/components/matrix/MatrixColumnHeaders.jsx": [
       58
-    ],
-    "app/ui/src/components/matrix/MatrixFilterSummary.jsx": [
-      24
-    ],
-    "app/ui/src/components/matrix/MatrixFilterWizard.jsx": [
-      21
-    ],
-    "app/ui/src/utils/exportToExcel.js": [
-      32,
-      20
     ],
     "setup/docker/Invoke-CrawlerJob.ps1": [
       46

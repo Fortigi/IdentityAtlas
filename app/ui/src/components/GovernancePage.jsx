@@ -85,6 +85,105 @@ const STATUS_STYLES = {
   Compliant:      'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300',
 };
 
+// Drill-down section titles keyed by the compliance-bucket filter.
+const FILTER_LABELS = {
+  overdue: 'Overdue Business Roles',
+  'reviewed-late': 'Reviewed Late',
+  compliant: 'Compliant Business Roles',
+  'in-progress': 'Reviews In Progress',
+};
+
+// ─── Category filter dropdown ──────────────────────────────
+function CategoryFilter({ categories, value, onChange }) {
+  if (!categories || categories.length === 0) return null;
+  return (
+    <div className="mb-4 flex items-center gap-2">
+      <label className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Category:</label>
+      <select
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        className="text-sm border border-gray-300 dark:border-gray-600 rounded-md px-2 py-1 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-300"
+      >
+        <option value="">All Categories</option>
+        {categories.map(cat => (
+          <option key={cat.id} value={cat.id}>{cat.name}</option>
+        ))}
+        <option value="uncategorized">Uncategorized</option>
+      </select>
+    </div>
+  );
+}
+
+// A stat tile that becomes a drill-down button once its bucket is non-empty; an
+// empty bucket stays green and inert (matching the "0 = nothing to review" look).
+function ClickableStatCard({ label, count, sub, activeColor, filter, onTileClick }) {
+  const clickable = count > 0;
+  return (
+    <StatCard
+      label={label}
+      value={formatNum(count)}
+      sub={sub}
+      color={clickable ? activeColor : 'green'}
+      onClick={clickable ? () => onTileClick(filter) : undefined}
+    />
+  );
+}
+
+// ─── Stat card row ─────────────────────────────────────────
+function StatCards({ summary, compliantPct, onTileClick }) {
+  const { totalAPs, compliant, overdue, reviewedLate, inProgress } = summary;
+  return (
+    <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4">
+      <StatCard label="Business Roles" value={formatNum(totalAPs)} sub="with periodic reviews" color="gray" />
+      <ClickableStatCard label="Compliant" count={compliant} sub={`${compliantPct}% on time`}
+        activeColor="green" filter="compliant" onTileClick={onTileClick} />
+      <ClickableStatCard label="Overdue" count={overdue} sub="deadline passed, not reviewed"
+        activeColor="red" filter="overdue" onTileClick={onTileClick} />
+      <ClickableStatCard label="Reviewed Late" count={reviewedLate} sub="completed after deadline"
+        activeColor="orange" filter="reviewed-late" onTileClick={onTileClick} />
+      <ClickableStatCard label="In Progress" count={inProgress} sub="deadline not yet passed"
+        activeColor="blue" filter="in-progress" onTileClick={onTileClick} />
+    </div>
+  );
+}
+
+// ─── Stacked compliance bar ────────────────────────────────
+function ComplianceBar({ summary }) {
+  const { totalAPs, compliant, overdue, reviewedLate, inProgress } = summary;
+  if (totalAPs <= 0) return null;
+  return (
+    <div>
+      <div className="flex rounded-full h-4 overflow-hidden bg-gray-100 dark:bg-gray-700">
+        <div className="bg-green-300" style={{ width: `${(compliant / totalAPs * 100)}%` }} title={`${compliant} compliant`} />
+        <div className="bg-red-300" style={{ width: `${(overdue / totalAPs * 100)}%` }} title={`${overdue} overdue`} />
+        <div className="bg-orange-300" style={{ width: `${(reviewedLate / totalAPs * 100)}%` }} title={`${reviewedLate} reviewed late`} />
+        <div className="bg-blue-300" style={{ width: `${(inProgress / totalAPs * 100)}%` }} title={`${inProgress} in progress`} />
+      </div>
+      <div className="flex gap-4 text-xs text-gray-500 dark:text-gray-400 mt-1">
+        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-300 inline-block" />Compliant</span>
+        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-300 inline-block" />Overdue</span>
+        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-orange-300 inline-block" />Reviewed Late</span>
+        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-300 inline-block" />In Progress</span>
+      </div>
+    </div>
+  );
+}
+
+// ─── Drill-down section wrapper ────────────────────────────
+function DrilldownSection({ drilldown, open, onToggle }) {
+  if (!drilldown) return null;
+  return (
+    <CollapsibleSection
+      title={FILTER_LABELS[drilldown.filter] || 'Business Roles'}
+      count={drilldown.data?.length}
+      open={open}
+      onToggle={onToggle}
+    >
+      <DrilldownTable data={drilldown} />
+    </CollapsibleSection>
+  );
+}
+
 // ═══════════════════════════════════════════════════════════
 // Main component
 // ═══════════════════════════════════════════════════════════
@@ -135,15 +234,8 @@ export default function GovernancePage() {
   }
   if (!summary) return null;
 
-  const { totalAPs, compliant, overdue, reviewedLate, inProgress } = summary;
+  const { totalAPs, compliant } = summary;
   const compliantPct = totalAPs > 0 ? Math.round((compliant / totalAPs) * 1000) / 10 : 0;
-
-  const FILTER_LABELS = {
-    overdue: 'Overdue Business Roles',
-    'reviewed-late': 'Reviewed Late',
-    compliant: 'Compliant Business Roles',
-    'in-progress': 'Reviews In Progress',
-  };
 
   return (
     <div className="max-w-6xl mx-auto">
@@ -154,66 +246,17 @@ export default function GovernancePage() {
         </p>
       </div>
 
-      {/* ─── Category Filter ───────────────────────────────── */}
-      {categories && categories.length > 0 && (
-        <div className="mb-4 flex items-center gap-2">
-          <label className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Category:</label>
-          <select
-            value={selectedCategory}
-            onChange={e => handleCategoryChange(e.target.value)}
-            className="text-sm border border-gray-300 dark:border-gray-600 rounded-md px-2 py-1 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-300"
-          >
-            <option value="">All Categories</option>
-            {categories.map(cat => (
-              <option key={cat.id} value={cat.id}>{cat.name}</option>
-            ))}
-            <option value="uncategorized">Uncategorized</option>
-          </select>
-        </div>
-      )}
+      <CategoryFilter categories={categories} value={selectedCategory} onChange={handleCategoryChange} />
 
-      {/* ─── Stat Cards ───────────────────────────────────── */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4">
-        <StatCard label="Business Roles" value={formatNum(totalAPs)} sub="with periodic reviews" color="gray" />
-        <StatCard label="Compliant" value={formatNum(compliant)} sub={`${compliantPct}% on time`} color="green"
-          onClick={compliant > 0 ? () => handleTileClick('compliant') : undefined} />
-        <StatCard label="Overdue" value={formatNum(overdue)} sub="deadline passed, not reviewed"
-          color={overdue > 0 ? 'red' : 'green'} onClick={overdue > 0 ? () => handleTileClick('overdue') : undefined} />
-        <StatCard label="Reviewed Late" value={formatNum(reviewedLate)} sub="completed after deadline"
-          color={reviewedLate > 0 ? 'orange' : 'green'} onClick={reviewedLate > 0 ? () => handleTileClick('reviewed-late') : undefined} />
-        <StatCard label="In Progress" value={formatNum(inProgress)} sub="deadline not yet passed"
-          color={inProgress > 0 ? 'blue' : 'green'} onClick={inProgress > 0 ? () => handleTileClick('in-progress') : undefined} />
-      </div>
+      <StatCards summary={summary} compliantPct={compliantPct} onTileClick={handleTileClick} />
 
-      {/* Compliance bar */}
-      {totalAPs > 0 && (
-        <div>
-          <div className="flex rounded-full h-4 overflow-hidden bg-gray-100 dark:bg-gray-700">
-            <div className="bg-green-300" style={{ width: `${(compliant / totalAPs * 100)}%` }} title={`${compliant} compliant`} />
-            <div className="bg-red-300" style={{ width: `${(overdue / totalAPs * 100)}%` }} title={`${overdue} overdue`} />
-            <div className="bg-orange-300" style={{ width: `${(reviewedLate / totalAPs * 100)}%` }} title={`${reviewedLate} reviewed late`} />
-            <div className="bg-blue-300" style={{ width: `${(inProgress / totalAPs * 100)}%` }} title={`${inProgress} in progress`} />
-          </div>
-          <div className="flex gap-4 text-xs text-gray-500 dark:text-gray-400 mt-1">
-            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-300 inline-block" />Compliant</span>
-            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-300 inline-block" />Overdue</span>
-            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-orange-300 inline-block" />Reviewed Late</span>
-            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-300 inline-block" />In Progress</span>
-          </div>
-        </div>
-      )}
+      <ComplianceBar summary={summary} />
 
-      {/* ─── Drill-down ────────────────────────────────────── */}
-      {drilldown && (
-        <CollapsibleSection
-          title={FILTER_LABELS[drilldown.filter] || 'Business Roles'}
-          count={drilldown.data?.length}
-          open={drilldownOpen}
-          onToggle={() => setDrilldownOpen(o => !o)}
-        >
-          <DrilldownTable data={drilldown} />
-        </CollapsibleSection>
-      )}
+      <DrilldownSection
+        drilldown={drilldown}
+        open={drilldownOpen}
+        onToggle={() => setDrilldownOpen(o => !o)}
+      />
     </div>
   );
 }

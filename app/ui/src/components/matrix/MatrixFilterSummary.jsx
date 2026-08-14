@@ -8,6 +8,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
 import { matrixFilterFingerprint } from '@ui/utils/matrixFilter';
+import { collectChips, collectContextIds } from './MatrixFilterSummary.helpers';
 
 export default function MatrixFilterSummary({ filter, preview, onAdjust }) {
   const { authFetch } = useAuth();
@@ -152,42 +153,4 @@ function Section({ label, chips, preview }) {
       {preview && <span className="text-gray-500 dark:text-gray-400">({preview})</span>}
     </span>
   );
-}
-
-function collectChips(block, contextNames) {
-  if (!block) return [];
-  const out = [];
-  for (const side of ['include', 'exclude']) {
-    for (const c of (block[side] || [])) {
-      if (c?.kind === 'context') {
-        const name = contextNames.get(c.contextId) || c.contextId.slice(0, 8);
-        out.push({
-          side,
-          label: name + (c.includeChildren ? ' +sub' : ''),
-          title: `${side === 'exclude' ? 'NOT in' : 'In'} context "${name}"${c.includeChildren ? ' (incl. descendants)' : ''}`,
-        });
-      } else if (c?.kind === 'attribute') {
-        const vals = (c.values || []).join(', ');
-        out.push({
-          side,
-          label: `${c.field}: ${vals}`,
-          title: `${side === 'exclude' ? 'NOT ' : ''}${c.field} in ${vals}`,
-        });
-      }
-    }
-  }
-  return out;
-}
-
-function collectContextIds(filter) {
-  const ids = new Set();
-  for (const block of [filter?.subject, filter?.resource]) {
-    if (!block) continue;
-    for (const side of [block.include, block.exclude]) {
-      for (const c of (side || [])) {
-        if (c?.kind === 'context' && typeof c.contextId === 'string') ids.add(c.contextId);
-      }
-    }
-  }
-  return [...ids];
 }

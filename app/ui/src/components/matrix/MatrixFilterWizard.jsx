@@ -23,6 +23,7 @@ import { variantMeta, targetTypeMeta } from '@ui/utils/contextStyles';
 import { useDialog } from '@ui/components/dialogContext';
 import { friendlyLabel } from '@ui/utils/formatters';
 import { DEFAULT_SORT, normalizeMatrixFilter } from '@ui/utils/matrixFilter';
+import { deriveSteps } from './MatrixFilterWizard.helpers';
 
 // ─── Constants ──────────────────────────────────────────────────────
 
@@ -356,31 +357,10 @@ export default function MatrixFilterWizard({
   if (!open) return null;
 
   const subjectColumns = filter.rowType === 'identity' ? identityColumns : principalColumns;
-  // Dynamic, keyed steps. Attribute roll-up inserts a "Content" step
-  // (resources/roles shape); roles-only drops the Resources filter. Any roll-up
-  // (attribute or context tree) drops the Sort step. The context-tree roll-up
-  // has no Content step (it's always resources-as-rows).
-  const contextRollup = filter.rollupKind === 'context' && !!filter.rollupContextId;
-  const attrRollup = !!filter.rollup;
-  const rollupOn = attrRollup || contextRollup;
-  // The Content step (resources / +roles / roles-only) applies to BOTH attribute
-  // and context roll-ups. roles-only drops the Resources filter and Sort steps.
-  const rolesOnly = rollupOn && filter.rollupContent === 'roles-only';
-  const steps = [
-    { key: 'setup',       label: 'Setup' },
-    rollupOn ? { key: 'content', label: 'Content' } : null,
-    { key: 'subjects',    label: 'Subjects' },
-    rolesOnly ? null : { key: 'resources', label: 'Resources' },
-    rollupOn ? null : { key: 'sort', label: 'Sort' },
-  ].filter(Boolean);
-  const stepKeys = steps.map(s => s.key);
-  const curPos = Math.max(0, stepKeys.indexOf(step));
-  const isLast = curPos === steps.length - 1;
+  // Dynamic, keyed steps + derived navigation position (see helpers file).
+  const { steps, stepKeys, curPos, isLast, activeStep, rollupOn } = deriveSteps(filter, step);
   const goNext = () => setStep(stepKeys[Math.min(curPos + 1, steps.length - 1)]);
   const goBack = () => setStep(stepKeys[Math.max(curPos - 1, 0)]);
-  // If the current step just became hidden (toggled roll-up / content), render
-  // the nearest still-visible one so the body never goes blank.
-  const activeStep = stepKeys.includes(step) ? step : stepKeys[Math.min(curPos, steps.length - 1)];
 
   // ─── Render ─────────────────────────────────────────────────────
 
@@ -422,7 +402,7 @@ export default function MatrixFilterWizard({
           rowType={filter.rowType}
           subject={filter.subject}
           contextMeta={contextMeta}
-          columns={filter.rowType === 'identity' ? identityColumns : principalColumns}
+          columns={subjectColumns}
           onContextResolved={(node) => setContextMeta(prev => new Map(prev).set(node.id, node))}
           onAdd={(side, cond) => addCondition('subject', side, cond)}
           onRemove={(side, idx) => removeCondition('subject', side, idx)}
@@ -477,23 +457,18 @@ export default function MatrixFilterWizard({
       <LiveSummary preview={preview} loading={previewLoading} rowType={filter.rowType} rollup={filter.rollup} filter={filter} rollupOn={rollupOn} />
 
       {/* Footer buttons */}
-      <div className="flex items-center justify-between gap-2 mt-4 pt-3 border-t border-gray-100 dark:border-gray-700">
-        <div className="flex items-center gap-2">
-          <SecondaryButton onClick={() => setSaveOpen(true)} disabled={!filterHasAnyCondition(filter)}>
-            Save matrix…
-          </SecondaryButton>
-        </div>
-        <div className="flex items-center gap-2">
-          <SecondaryButton onClick={onClose}>Cancel</SecondaryButton>
-          {curPos > 0 && <SecondaryButton onClick={goBack}>Back</SecondaryButton>}
-          {!isLast && <PrimaryButton onClick={goNext}>Next</PrimaryButton>}
-          {isLast && (
-            <PrimaryButton onClick={handleApply} disabled={matrixIsBlocked(filter, rollupOn, preview.assignmentCount)}>
-              Apply
-            </PrimaryButton>
-          )}
-        </div>
-      </div>
+      <WizardFooterButtons
+        canSave={filterHasAnyCondition(filter)}
+        onSave={() => setSaveOpen(true)}
+        onCancel={onClose}
+        onBack={goBack}
+        onNext={goNext}
+        onApply={handleApply}
+        showBack={curPos > 0}
+        showNext={!isLast}
+        showApply={isLast}
+        applyDisabled={matrixIsBlocked(filter, rollupOn, preview.assignmentCount)}
+      />
 
       {/* Save dialog */}
       {saveOpen && (
@@ -507,6 +482,30 @@ export default function MatrixFilterWizard({
         />
       )}
     </Modal>
+  );
+}
+
+// ─── Footer buttons ────────────────────────────────────────────────
+
+function WizardFooterButtons({ canSave, onSave, onCancel, onBack, onNext, onApply, showBack, showNext, showApply, applyDisabled }) {
+  return (
+    <div className="flex items-center justify-between gap-2 mt-4 pt-3 border-t border-gray-100 dark:border-gray-700">
+      <div className="flex items-center gap-2">
+        <SecondaryButton onClick={onSave} disabled={!canSave}>
+          Save matrix…
+        </SecondaryButton>
+      </div>
+      <div className="flex items-center gap-2">
+        <SecondaryButton onClick={onCancel}>Cancel</SecondaryButton>
+        {showBack && <SecondaryButton onClick={onBack}>Back</SecondaryButton>}
+        {showNext && <PrimaryButton onClick={onNext}>Next</PrimaryButton>}
+        {showApply && (
+          <PrimaryButton onClick={onApply} disabled={applyDisabled}>
+            Apply
+          </PrimaryButton>
+        )}
+      </div>
+    </div>
   );
 }
 

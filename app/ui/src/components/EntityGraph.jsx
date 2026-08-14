@@ -1,4 +1,4 @@
-﻿import { useMemo, useState, useRef, useEffect } from 'react';
+import { useMemo, useState, useRef, useEffect } from 'react';
 
 // The graph's pulsing rings/edges use SVG SMIL <animate>, which the global
 // prefers-reduced-motion CSS rule can't reach. Subscribe to the media query so
@@ -47,6 +47,20 @@ const ADDED_ACCENT    = { fill: 'url(#eg-grad-added)',   stroke: '#a16207', text
 // Muted rose for removed relationships — still legible but clearly
 // different from any "healthy" node.
 const REMOVED_ACCENT  = { fill: 'url(#eg-grad-removed)', stroke: '#9f1239', text: '#4c0519', label: '#881337' };
+
+// Recent-change → styling lookups. A discriminant lookup keeps the render
+// path flat instead of a ternary ladder over `recent`.
+const ACCENT_BY_RECENT = { added: ADDED_ACCENT, removed: REMOVED_ACCENT };
+const PULSE_STROKE_BY_RECENT = { added: '#fde047', removed: '#fb7185' };
+
+// Edge visual tiers, in priority order. `edgeTier` picks one and the render
+// pass reads its opacity/stroke/width straight from here.
+const EDGE_STYLE = {
+  selected: { opacity: 0.95, stroke: LIME,      strokeWidth: 2.5 },
+  onPath:   { opacity: 0.8,  stroke: LIME,      strokeWidth: 1.8 },
+  active:   { opacity: 0.65, stroke: '#a3e635', strokeWidth: 1.4 },
+  inactive: { opacity: 0.4,  stroke: '#e5e7eb', strokeWidth: 1 },
+};
 
 // Layout tuning — tweaked to keep 3 expansion levels readable.
 const ROOT_RADIUS_MIN  = 80;
@@ -123,6 +137,132 @@ function flatten(tree, parent) {
     }
   }
   return { edges, nodes };
+}
+
+// Priority-ranked visual tier for an edge, keyed into EDGE_STYLE.
+function edgeTier({ selected, isOnPath, active }) {
+  if (selected) return 'selected';
+  if (isOnPath) return 'onPath';
+  if (active) return 'active';
+  return 'inactive';
+}
+
+// The main satellite circle's paint props. Green glow only suits the green
+// palette, so amber/rose recent nodes skip it to keep the colour clean.
+function nodeCircleProps(active, accent, recent) {
+  return {
+    fill: active ? accent.fill : 'url(#eg-grad-dim)',
+    stroke: active ? accent.stroke : GRAY_DIM,
+    strokeWidth: active ? 1.75 : 1.25,
+    filter: active && !recent ? 'url(#eg-glow)' : undefined,
+  };
+}
+
+// ─── Render sub-parts ────────────────────────────────────────────────
+// Each satellite/edge is its own tiny component so the map callbacks that
+// place them stay trivial.
+
+function GraphEdge({ edge: e, index, selected, isOnPath, reduceMotion }) {
+  const active = (e.to.count || 0) > 0 || e.to.kind === 'item';
+  const style = EDGE_STYLE[edgeTier({ selected, isOnPath, active })];
+  const animate = active && !selected && !isOnPath && !reduceMotion;
+  return (
+    <line
+      x1={e.from.x}
+      y1={e.from.y}
+      x2={e.to.x}
+      y2={e.to.y}
+      stroke={style.stroke}
+      strokeWidth={style.strokeWidth}
+      strokeDasharray={active ? '' : '3,3'}
+      opacity={style.opacity}
+    >
+      {animate && (
+        <animate attributeName="stroke-opacity" values="0.45;0.8;0.45"
+          dur={`${4 + (index % 3)}s`} repeatCount="indefinite"
+          begin={`${(index * 0.29) % 3}s`} />
+      )}
+    </line>
+  );
+}
+
+// Soft pulsing halo around an active, unselected node.
+function PulseRing({ n, r, index, onPath, reduceMotion }) {
+  const stroke = PULSE_STROKE_BY_RECENT[n.recent] || GREEN_MID;
+  return (
+    <circle cx={n.x} cy={n.y} r={r + 4} fill="none"
+      stroke={stroke} strokeWidth={1.1} opacity={onPath ? 0.6 : 0.35}>
+      {!reduceMotion && (
+        <>
+          <animate attributeName="r" values={`${r + 4};${r + 8};${r + 4}`} dur={`${3.5 + index * 0.25}s`} repeatCount="indefinite" />
+          <animate attributeName="opacity" values="0.4;0.05;0.4" dur={`${3.5 + index * 0.25}s`} repeatCount="indefinite" />
+        </>
+      )}
+    </circle>
+  );
+}
+
+// The glyph inside a node: item nodes show an initial letter, category
+// nodes show their formatted count.
+function NodeGlyph({ n, isItem, accent, active }) {
+  if (isItem) {
+    return (
+      <text x={n.x} y={n.y + 4} textAnchor="middle" style={{ fontSize: '12px', fontWeight: 700, pointerEvents: 'none', fill: accent.text }}>
+        {(n.label || '?')[0]}
+      </text>
+    );
+  }
+  return (
+    <text x={n.x} y={n.y + 4} textAnchor="middle" style={{ fontSize: Math.max(10, 13 - n.depth) + 'px', fontWeight: 800, pointerEvents: 'none', fill: active ? accent.text : GRAY_DIM_TEXT }}>
+      {formatCount(n.count)}
+    </text>
+  );
+}
+
+// The caption drawn under a node circle.
+function NodeLabel({ n, r, accent, active }) {
+  return (
+    <text
+      x={n.x}
+      y={n.y + r + 13}
+      textAnchor="middle"
+      style={{
+        fontSize: (10 - Math.min(2, n.depth)) + 'px',
+        fontWeight: 600,
+        fill: active ? accent.label : GRAY_DIM_TEXT,
+        letterSpacing: '0.02em',
+        pointerEvents: 'none',
+      }}
+    >
+      {truncate(n.label, 22)}
+    </text>
+  );
+}
+
+// A single satellite node: selection ring, pulse halo, circle, glyph, label.
+function GraphNode({ node: n, index, selected, onPath, reduceMotion, onNodeClick }) {
+  const isItem = n.kind === 'item';
+  const active = isItem || (n.count || 0) > 0;
+  const accent = ACCENT_BY_RECENT[n.recent] || LIME_ACCENT;
+  const r = radiusFor(isItem ? 1 : n.count, n.depth);
+  const clickable = Boolean((active || isItem) && onNodeClick);
+  const circle = nodeCircleProps(active, accent, n.recent);
+  return (
+    <g
+      style={{ cursor: clickable ? 'pointer' : 'default' }}
+      onClick={() => clickable && onNodeClick(n)}
+    >
+      {selected && (
+        <circle cx={n.x} cy={n.y} r={r + 6} fill="none" stroke={accent.stroke} strokeWidth={2} opacity={0.7} />
+      )}
+      {active && !selected && (
+        <PulseRing n={n} r={r} index={index} onPath={onPath} reduceMotion={reduceMotion} />
+      )}
+      <circle cx={n.x} cy={n.y} r={r} {...circle} />
+      <NodeGlyph n={n} isItem={isItem} accent={accent} active={active} />
+      <NodeLabel n={n} r={r} accent={accent} active={active} />
+    </g>
+  );
 }
 
 export default function EntityGraph({
@@ -301,108 +441,31 @@ export default function EntityGraph({
 
       {/* Edges — parent to each child, drawn behind the nodes */}
       <g>
-        {layout.edges.map((e, i) => {
-          const active = (e.to.count || 0) > 0 || e.to.kind === 'item';
-          const isOnPath = expandedSet.has(e.to.key);
-          const selected = activeKey === e.to.key;
-          const opacity = selected ? 0.95 : isOnPath ? 0.8 : active ? 0.65 : 0.4;
-          return (
-            <line
-              key={`edge-${i}-${e.to.key}`}
-              x1={e.from.x}
-              y1={e.from.y}
-              x2={e.to.x}
-              y2={e.to.y}
-              stroke={selected || isOnPath ? LIME : active ? '#a3e635' : '#e5e7eb'}
-              strokeWidth={selected ? 2.5 : isOnPath ? 1.8 : active ? 1.4 : 1}
-              strokeDasharray={active ? '' : '3,3'}
-              opacity={opacity}
-            >
-              {active && !selected && !isOnPath && !reduceMotion && (
-                <animate attributeName="stroke-opacity" values="0.45;0.8;0.45"
-                  dur={`${4 + (i % 3)}s`} repeatCount="indefinite"
-                  begin={`${(i * 0.29) % 3}s`} />
-              )}
-            </line>
-          );
-        })}
+        {layout.edges.map((e, i) => (
+          <GraphEdge
+            key={`edge-${i}-${e.to.key}`}
+            edge={e}
+            index={i}
+            selected={activeKey === e.to.key}
+            isOnPath={expandedSet.has(e.to.key)}
+            reduceMotion={reduceMotion}
+          />
+        ))}
       </g>
 
       {/* Nodes */}
       <g>
-        {layout.nodes.map((n, i) => {
-          const isItem = n.kind === 'item';
-          const active = isItem ? true : (n.count || 0) > 0;
-          const selected = activeKey === n.key;
-          const onPath = expandedSet.has(n.key);
-          // Recent-change nodes (categories with recent: 'added'/'removed'
-          // or items tagged the same way when they're inside a normal
-          // fanout) pick a different accent so the eye finds them fast.
-          const accent = n.recent === 'added' ? ADDED_ACCENT
-                       : n.recent === 'removed' ? REMOVED_ACCENT
-                       : LIME_ACCENT;
-          const r = radiusFor(isItem ? 1 : n.count, n.depth);
-          const clickable = (active || isItem) && onNodeClick;
-          return (
-            <g
-              key={`node-${n.key}`}
-              style={{ cursor: clickable ? 'pointer' : 'default' }}
-              onClick={() => clickable && onNodeClick(n)}
-            >
-              {selected && (
-                <circle cx={n.x} cy={n.y} r={r + 6} fill="none" stroke={accent.stroke} strokeWidth={2} opacity={0.7} />
-              )}
-              {(active && !selected) && (
-                <circle cx={n.x} cy={n.y} r={r + 4} fill="none"
-                  stroke={n.recent === 'added' ? '#fde047' : n.recent === 'removed' ? '#fb7185' : GREEN_MID}
-                  strokeWidth={1.1} opacity={onPath ? 0.6 : 0.35}>
-                  {!reduceMotion && (
-                    <>
-                      <animate attributeName="r" values={`${r + 4};${r + 8};${r + 4}`} dur={`${3.5 + i * 0.25}s`} repeatCount="indefinite" />
-                      <animate attributeName="opacity" values="0.4;0.05;0.4" dur={`${3.5 + i * 0.25}s`} repeatCount="indefinite" />
-                    </>
-                  )}
-                </circle>
-              )}
-              <circle
-                cx={n.x}
-                cy={n.y}
-                r={r}
-                fill={active ? accent.fill : 'url(#eg-grad-dim)'}
-                stroke={active ? accent.stroke : GRAY_DIM}
-                strokeWidth={active ? 1.75 : 1.25}
-                /* Green glow only suits the green palette — skip it for
-                   amber/rose recent nodes so the colour stays clean. */
-                filter={active && !n.recent ? 'url(#eg-glow)' : undefined}
-              />
-              {isItem ? (
-                // Item nodes show an initial letter; the label underneath
-                // carries the full name so the circle stays uncluttered.
-                <text x={n.x} y={n.y + 4} textAnchor="middle" style={{ fontSize: '12px', fontWeight: 700, pointerEvents: 'none', fill: accent.text }}>
-                  {(n.label || '?')[0]}
-                </text>
-              ) : (
-                <text x={n.x} y={n.y + 4} textAnchor="middle" style={{ fontSize: Math.max(10, 13 - n.depth) + 'px', fontWeight: 800, pointerEvents: 'none', fill: active ? accent.text : GRAY_DIM_TEXT }}>
-                  {formatCount(n.count)}
-                </text>
-              )}
-              <text
-                x={n.x}
-                y={n.y + r + 13}
-                textAnchor="middle"
-                style={{
-                  fontSize: (10 - Math.min(2, n.depth)) + 'px',
-                  fontWeight: 600,
-                  fill: active ? accent.label : GRAY_DIM_TEXT,
-                  letterSpacing: '0.02em',
-                  pointerEvents: 'none',
-                }}
-              >
-                {truncate(n.label, 22)}
-              </text>
-            </g>
-          );
-        })}
+        {layout.nodes.map((n, i) => (
+          <GraphNode
+            key={`node-${n.key}`}
+            node={n}
+            index={i}
+            selected={activeKey === n.key}
+            onPath={expandedSet.has(n.key)}
+            reduceMotion={reduceMotion}
+            onNodeClick={onNodeClick}
+          />
+        ))}
       </g>
 
       {/* Center node — drawn on top so edges terminate inside it visually */}

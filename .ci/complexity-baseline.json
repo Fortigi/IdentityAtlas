@@ -16,25 +16,13 @@
     "app/ui/src/components/ContextDetailPage.jsx": [
       35
     ],
-    "app/ui/src/components/CrawlersPage.jsx": [
-      30
-    ],
-    "app/ui/src/components/EntityGraph.jsx": [
-      25
-    ],
     "app/ui/src/components/MatrixView.jsx": [
       33,
       33,
       23
     ],
-    "app/ui/src/components/PluginsPage.jsx": [
-      27
-    ],
     "app/ui/src/components/RiskProfileWizard.jsx": [
       49
-    ],
-    "app/ui/src/components/RiskScoreSection.jsx": [
-      32
     ],
     "app/ui/src/components/RiskScoringPage.jsx": [
       52,
@@ -51,31 +39,14 @@
     "app/ui/src/components/contexts/ContextTreeView.jsx": [
       41
     ],
-    "app/ui/src/components/contexts/ManualContextEditor.jsx": [
-      27
-    ],
     "app/ui/src/components/contexts/NewContextWizard.jsx": [
       45
-    ],
-    "app/ui/src/components/matrix/MatrixCell.jsx": [
-      22
     ],
     "app/ui/src/components/matrix/MatrixColumnHeaders.jsx": [
       34
     ],
-    "app/ui/src/components/matrix/MatrixFilterWizard.jsx": [
-      27,
-      26
-    ],
     "app/ui/src/hooks/useMatrix.js": [
       36
-    ],
-    "app/ui/src/utils/crawlerCredentials.js": [
-      27
-    ],
-    "app/ui/src/utils/exportToExcel.js": [
-      25,
-      22
     ],
     "setup/docker/Invoke-CrawlerJob.ps1": [
       29
