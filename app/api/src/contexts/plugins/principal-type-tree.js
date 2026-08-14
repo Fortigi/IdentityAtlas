@@ -12,6 +12,37 @@
 
 import * as db from '../../db/connection.js';
 
+// Normalise the plugin's raw parameters into typed, defaulted values.
+export function parseParams(params) {
+  const attribute = (typeof params.attribute === 'string' && params.attribute.trim()) ? params.attribute.trim() : 'principalType';
+  const rootName = (params.rootName || 'Principal Types').slice(0, 500);
+  const systemId = Number.isFinite(parseInt(params.systemId, 10)) ? parseInt(params.systemId, 10) : null;
+  const rawValues = Array.isArray(params.values) ? params.values : [];
+  const allow = new Set(rawValues.filter((v) => typeof v === 'string' && v.trim()).map((v) => v.trim()));
+  return { attribute, rootName, systemId, allow };
+}
+
+// Fold the attribute rows into the two-level tree (synthetic root + one child per distinct value).
+// Returns the built contexts/members plus the count of distinct types for logging.
+export function buildTree(rows, rootName, allow) {
+  const rootExt = 'ptype-root';
+  const contexts = [{ externalId: rootExt, displayName: rootName, contextType: 'PrincipalTypeRoot' }];
+  const members = [];
+  const seen = new Map(); // value → externalId
+  for (const r of rows) {
+    const val = (r.val || '').trim();
+    if (!val) continue;
+    if (allow.size > 0 && !allow.has(val)) continue;
+    if (!seen.has(val)) {
+      const ext = `ptype:${val}`;
+      seen.set(val, ext);
+      contexts.push({ externalId: ext, displayName: val, contextType: 'PrincipalType', parentExternalId: rootExt });
+    }
+    members.push({ contextExternalId: seen.get(val), memberId: r.id });
+  }
+  return { contexts, members, typeCount: seen.size };
+}
+
 /** @type {import('./types.js').ContextPlugin} */
 export default {
   name: 'principal-type-tree',
@@ -37,10 +68,7 @@ export default {
     },
   },
   async run(params, ctx) {
-    const attribute = (typeof params.attribute === 'string' && params.attribute.trim()) ? params.attribute.trim() : 'principalType';
-    const rootName = (params.rootName || 'Principal Types').slice(0, 500);
-    const systemId = Number.isFinite(parseInt(params.systemId, 10)) ? parseInt(params.systemId, 10) : null;
-    const allow = new Set((Array.isArray(params.values) ? params.values : []).filter((v) => typeof v === 'string' && v.trim()).map((v) => v.trim()));
+    const { attribute, rootName, systemId, allow } = parseParams(params);
 
     // The attribute is bound as a parameter (->> $1), never interpolated. Validate as defence-in-depth.
     if (!/^[A-Za-z0-9_.-]{1,200}$/.test(attribute)) {
@@ -62,23 +90,9 @@ export default {
       return { contexts: [], members: [] };
     }
 
-    const rootExt = 'ptype-root';
-    const contexts = [{ externalId: rootExt, displayName: rootName, contextType: 'PrincipalTypeRoot' }];
-    const members = [];
-    const seen = new Map(); // value → externalId
-    for (const r of rows) {
-      const val = (r.val || '').trim();
-      if (!val) continue;
-      if (allow.size > 0 && !allow.has(val)) continue;
-      if (!seen.has(val)) {
-        const ext = `ptype:${val}`;
-        seen.set(val, ext);
-        contexts.push({ externalId: ext, displayName: val, contextType: 'PrincipalType', parentExternalId: rootExt });
-      }
-      members.push({ contextExternalId: seen.get(val), memberId: r.id });
-    }
+    const { contexts, members, typeCount } = buildTree(rows, rootName, allow);
 
-    ctx.log?.(`Grouped ${members.length} principals into ${seen.size} type(s) by "${attribute}".`);
+    ctx.log?.(`Grouped ${members.length} principals into ${typeCount} type(s) by "${attribute}".`);
     return { contexts, members };
   },
 };

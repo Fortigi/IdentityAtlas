@@ -14,9 +14,6 @@
     "app/api/src/contexts/plugins/manager-hierarchy.js": [
       34
     ],
-    "app/api/src/contexts/plugins/principal-type-tree.js": [
-      17
-    ],
     "app/api/src/contexts/plugins/resource-type-tree.js": [
       40
     ],
@@ -28,12 +25,6 @@
       21
     ],
     "app/api/src/effectiveAccess/engineContainment.test.js": [
-      17
-    ],
-    "app/api/src/ingest/normalization.js": [
-      20
-    ],
-    "app/api/src/ingest/sessions.js": [
       17
     ],
     "app/api/src/ingest/validation.js": [
@@ -49,12 +40,6 @@
       22,
       21
     ],
-    "app/api/src/middleware/crawlerAuth.js": [
-      17
-    ],
-    "app/api/src/perf/collector.js": [
-      17
-    ],
     "app/api/src/riskscoring/engine.js": [
       31,
       19,
@@ -62,9 +47,6 @@
     ],
     "app/api/src/routes/openapi.drift.test.js": [
       19
-    ],
-    "app/api/src/scheduler.js": [
-      27
     ],
     "app/ui/src/App.jsx": [
       109,

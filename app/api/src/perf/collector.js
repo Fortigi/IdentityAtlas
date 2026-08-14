@@ -37,60 +37,8 @@ export function record(entry) {
  * plus per-query breakdowns for the slowest endpoints.
  */
 export function summarize() {
-  const byRoute = {};
-
-  for (const entry of buffer) {
-    if (!entry) continue;
-    const key = `${entry.method} ${entry.route}`;
-    if (!byRoute[key]) {
-      byRoute[key] = { method: entry.method, route: entry.route, durations: [], sqlBreakdowns: [], entries: [] };
-    }
-    byRoute[key].durations.push(entry.totalMs);
-    byRoute[key].entries.push(entry);
-    if (entry.sqlQueries?.length) {
-      byRoute[key].sqlBreakdowns.push(entry.sqlQueries);
-    }
-  }
-
-  const summaries = [];
-  for (const [, group] of Object.entries(byRoute)) {
-    const d = group.durations.sort((a, b) => a - b);
-    const count = d.length;
-
-    // Aggregate SQL query labels across all requests for this endpoint
-    const sqlLabelStats = {};
-    for (const queries of group.sqlBreakdowns) {
-      for (const q of queries) {
-        if (!sqlLabelStats[q.label]) sqlLabelStats[q.label] = [];
-        sqlLabelStats[q.label].push(q.ms);
-      }
-    }
-    const sqlSummary = Object.entries(sqlLabelStats).map(([label, times]) => {
-      times.sort((a, b) => a - b);
-      return {
-        label,
-        count: times.length,
-        avg: +(times.reduce((s, v) => s + v, 0) / times.length).toFixed(1),
-        p50: percentile(times, 50),
-        p95: percentile(times, 95),
-        max: times[times.length - 1],
-      };
-    });
-
-    summaries.push({
-      method: group.method,
-      route: group.route,
-      count,
-      avg: +(d.reduce((s, v) => s + v, 0) / count).toFixed(1),
-      min: d[0],
-      max: d[count - 1],
-      p50: percentile(d, 50),
-      p95: percentile(d, 95),
-      p99: percentile(d, 99),
-      sqlBreakdown: sqlSummary,
-    });
-  }
-
+  const byRoute = groupEntriesByRoute(buffer);
+  const summaries = Object.values(byRoute).map(summarizeGroup);
   summaries.sort((a, b) => b.p95 - a.p95); // slowest first
   return { totalRecorded, bufferSize: buffer.length, endpoints: summaries };
 }
@@ -123,6 +71,66 @@ export function clear() {
 }
 
 // ── Helpers ─────────────────────────────────────────────────────
+
+// Bucket recorded entries by "METHOD route", collecting durations, raw
+// entries, and per-request SQL breakdowns for each endpoint.
+function groupEntriesByRoute(entries) {
+  const byRoute = {};
+  for (const entry of entries) {
+    if (!entry) continue;
+    const key = `${entry.method} ${entry.route}`;
+    if (!byRoute[key]) {
+      byRoute[key] = { method: entry.method, route: entry.route, durations: [], sqlBreakdowns: [], entries: [] };
+    }
+    byRoute[key].durations.push(entry.totalMs);
+    byRoute[key].entries.push(entry);
+    if (entry.sqlQueries?.length) {
+      byRoute[key].sqlBreakdowns.push(entry.sqlQueries);
+    }
+  }
+  return byRoute;
+}
+
+// Aggregate SQL query labels across all requests for one endpoint into
+// per-label count/avg/percentile stats.
+function aggregateSqlLabels(sqlBreakdowns) {
+  const sqlLabelStats = {};
+  for (const queries of sqlBreakdowns) {
+    for (const q of queries) {
+      if (!sqlLabelStats[q.label]) sqlLabelStats[q.label] = [];
+      sqlLabelStats[q.label].push(q.ms);
+    }
+  }
+  return Object.entries(sqlLabelStats).map(([label, times]) => {
+    times.sort((a, b) => a - b);
+    return {
+      label,
+      count: times.length,
+      avg: +(times.reduce((s, v) => s + v, 0) / times.length).toFixed(1),
+      p50: percentile(times, 50),
+      p95: percentile(times, 95),
+      max: times[times.length - 1],
+    };
+  });
+}
+
+// Build the aggregation object for a single route group.
+function summarizeGroup(group) {
+  const d = group.durations.sort((a, b) => a - b);
+  const count = d.length;
+  return {
+    method: group.method,
+    route: group.route,
+    count,
+    avg: +(d.reduce((s, v) => s + v, 0) / count).toFixed(1),
+    min: d[0],
+    max: d[count - 1],
+    p50: percentile(d, 50),
+    p95: percentile(d, 95),
+    p99: percentile(d, 99),
+    sqlBreakdown: aggregateSqlLabels(group.sqlBreakdowns),
+  };
+}
 
 function percentile(sorted, pct) {
   if (sorted.length === 0) return 0;
