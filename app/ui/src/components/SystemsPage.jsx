@@ -1,4 +1,4 @@
-﻿import { useState } from 'react';
+import { useState } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
 import { useFetch } from '@ui/hooks/useFetch';
 import EmptyState from './EmptyState';
@@ -21,6 +21,154 @@ function parseJsonArray(val) {
   if (!val) return [];
   if (Array.isArray(val)) return val;
   try { return JSON.parse(val); } catch { return []; }
+}
+
+function SystemStatusBadge({ enabled }) {
+  return (
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+      enabled
+        ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
+        : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
+    }`}>
+      <span className={`w-1.5 h-1.5 rounded-full ${enabled ? 'bg-green-500' : 'bg-red-500'}`} />
+      {enabled ? 'Enabled' : 'Disabled'}
+    </span>
+  );
+}
+
+function SystemCardHeader({ sys, enabled, resourceTypes, owners, onToggle }) {
+  return (
+    <div className="px-5 py-4 cursor-pointer" onClick={onToggle}>
+      <div className="flex items-start justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 flex items-center justify-center text-sm font-bold flex-shrink-0">
+            {(sys.systemType || 'S')[0].toUpperCase()}
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white">{sys.displayName || sys.id}</h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400">Type: {sys.systemType || 'Unknown'}</p>
+          </div>
+        </div>
+        <SystemStatusBadge enabled={enabled} />
+      </div>
+
+      {/* Stats row */}
+      <div className="flex items-center gap-4 mt-3 text-xs text-gray-600 dark:text-gray-400">
+        <span>
+          <span className="font-medium text-gray-900 dark:text-white">{(sys.principalCount || 0).toLocaleString()}</span> Users
+        </span>
+        <span>
+          <span className="font-medium text-gray-900 dark:text-white">{(sys.resourceCount || 0).toLocaleString()}</span> Resources
+        </span>
+        <span>
+          <span className="font-medium text-gray-900 dark:text-white">{(sys.assignmentCount || 0).toLocaleString()}</span> Assignments
+        </span>
+        <span className="ml-auto text-gray-600 dark:text-gray-500">
+          Last sync: {formatRelativeTime(sys.lastSyncDateTime)}
+        </span>
+      </div>
+
+      {/* Resource types */}
+      {resourceTypes.length > 0 && (
+        <div className="flex flex-wrap gap-1 mt-2">
+          {resourceTypes.map(rt => (
+            <span key={rt} className="inline-block px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-600">
+              {rt}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* Owners */}
+      {owners.length > 0 && (
+        <div className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+          Owners: {owners.join(', ')}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SystemCardDetail({ sys, assignmentTypes }) {
+  return (
+    <div className="border-t border-gray-100 dark:border-gray-700 px-5 py-4 bg-gray-50/50 dark:bg-gray-700/50">
+      {sys.description && (
+        <div className="mb-3">
+          <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Description</p>
+          <p className="text-sm text-gray-700 dark:text-gray-300 mt-0.5">{sys.description}</p>
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 gap-3 text-xs">
+        <div>
+          <p className="font-medium text-gray-500 dark:text-gray-400">System ID</p>
+          <p className="text-gray-700 dark:text-gray-300 mt-0.5 font-mono text-[11px] break-all">{sys.id}</p>
+        </div>
+        <div>
+          <p className="font-medium text-gray-500 dark:text-gray-400">System Type</p>
+          <p className="text-gray-700 dark:text-gray-300 mt-0.5">{sys.systemType || 'Unknown'}</p>
+        </div>
+        {sys.tenantId && (
+          <div>
+            <p className="font-medium text-gray-500 dark:text-gray-400">Tenant ID</p>
+            <p className="text-gray-700 dark:text-gray-300 mt-0.5 font-mono text-[11px] break-all">{sys.tenantId}</p>
+          </div>
+        )}
+        {sys.connectionInfo && (
+          <div>
+            <p className="font-medium text-gray-500 dark:text-gray-400">Connection Info</p>
+            <p className="text-gray-700 dark:text-gray-300 mt-0.5">{sys.connectionInfo}</p>
+          </div>
+        )}
+      </div>
+
+      {assignmentTypes.length > 0 && (
+        <div className="mt-3">
+          <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Assignment Types</p>
+          <div className="flex flex-wrap gap-1">
+            {assignmentTypes.map(at => (
+              <span key={at} className="inline-block px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-700">
+                {at}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {sys.createdAt && (
+        <div className="mt-3 text-xs text-gray-600 dark:text-gray-500">
+          Created: {new Date(sys.createdAt).toLocaleString()}
+          {sys.updatedAt && ` | Updated: ${new Date(sys.updatedAt).toLocaleString()}`}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SystemCard({ sys, isExpanded, onToggle }) {
+  const resourceTypes = parseJsonArray(sys.computedResourceTypes || sys.resourceTypes);
+  const assignmentTypes = parseJsonArray(sys.computedAssignmentTypes || sys.assignmentTypes);
+  const owners = parseJsonArray(sys.owners);
+  const enabled = sys.enabled !== false && sys.enabled !== 0;
+
+  return (
+    <div
+      className={`bg-white dark:bg-gray-800 border rounded-lg shadow-sm transition-shadow hover:shadow-md ${
+        isExpanded ? 'border-blue-300 dark:border-blue-700 ring-1 ring-blue-200 dark:ring-blue-700' : 'border-gray-200 dark:border-gray-700'
+      }`}
+    >
+      <SystemCardHeader
+        sys={sys}
+        enabled={enabled}
+        resourceTypes={resourceTypes}
+        owners={owners}
+        onToggle={onToggle}
+      />
+
+      {/* Expanded detail */}
+      {isExpanded && <SystemCardDetail sys={sys} assignmentTypes={assignmentTypes} />}
+    </div>
+  );
 }
 
 export default function SystemsPage() {
@@ -63,137 +211,14 @@ export default function SystemsPage() {
         />
       ) : (
         <div className="grid gap-4 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-2">
-          {systems.map(sys => {
-            const isExpanded = expandedId === sys.id;
-            const resourceTypes = parseJsonArray(sys.computedResourceTypes || sys.resourceTypes);
-            const assignmentTypes = parseJsonArray(sys.computedAssignmentTypes || sys.assignmentTypes);
-            const owners = parseJsonArray(sys.owners);
-            const enabled = sys.enabled !== false && sys.enabled !== 0;
-
-            return (
-              <div
-                key={sys.id}
-                className={`bg-white dark:bg-gray-800 border rounded-lg shadow-sm transition-shadow hover:shadow-md ${
-                  isExpanded ? 'border-blue-300 dark:border-blue-700 ring-1 ring-blue-200 dark:ring-blue-700' : 'border-gray-200 dark:border-gray-700'
-                }`}
-              >
-                {/* Card header */}
-                <div
-                  className="px-5 py-4 cursor-pointer"
-                  onClick={() => setExpandedId(isExpanded ? null : sys.id)}
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-lg bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 flex items-center justify-center text-sm font-bold flex-shrink-0">
-                        {(sys.systemType || 'S')[0].toUpperCase()}
-                      </div>
-                      <div>
-                        <h3 className="text-sm font-semibold text-gray-900 dark:text-white">{sys.displayName || sys.id}</h3>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">Type: {sys.systemType || 'Unknown'}</p>
-                      </div>
-                    </div>
-                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
-                      enabled
-                        ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
-                        : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
-                    }`}>
-                      <span className={`w-1.5 h-1.5 rounded-full ${enabled ? 'bg-green-500' : 'bg-red-500'}`} />
-                      {enabled ? 'Enabled' : 'Disabled'}
-                    </span>
-                  </div>
-
-                  {/* Stats row */}
-                  <div className="flex items-center gap-4 mt-3 text-xs text-gray-600 dark:text-gray-400">
-                    <span>
-                      <span className="font-medium text-gray-900 dark:text-white">{(sys.principalCount || 0).toLocaleString()}</span> Users
-                    </span>
-                    <span>
-                      <span className="font-medium text-gray-900 dark:text-white">{(sys.resourceCount || 0).toLocaleString()}</span> Resources
-                    </span>
-                    <span>
-                      <span className="font-medium text-gray-900 dark:text-white">{(sys.assignmentCount || 0).toLocaleString()}</span> Assignments
-                    </span>
-                    <span className="ml-auto text-gray-600 dark:text-gray-500">
-                      Last sync: {formatRelativeTime(sys.lastSyncDateTime)}
-                    </span>
-                  </div>
-
-                  {/* Resource types */}
-                  {resourceTypes.length > 0 && (
-                    <div className="flex flex-wrap gap-1 mt-2">
-                      {resourceTypes.map(rt => (
-                        <span key={rt} className="inline-block px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-600">
-                          {rt}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Owners */}
-                  {owners.length > 0 && (
-                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                      Owners: {owners.join(', ')}
-                    </div>
-                  )}
-                </div>
-
-                {/* Expanded detail */}
-                {isExpanded && (
-                  <div className="border-t border-gray-100 dark:border-gray-700 px-5 py-4 bg-gray-50/50 dark:bg-gray-700/50">
-                    {sys.description && (
-                      <div className="mb-3">
-                        <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Description</p>
-                        <p className="text-sm text-gray-700 dark:text-gray-300 mt-0.5">{sys.description}</p>
-                      </div>
-                    )}
-
-                    <div className="grid grid-cols-2 gap-3 text-xs">
-                      <div>
-                        <p className="font-medium text-gray-500 dark:text-gray-400">System ID</p>
-                        <p className="text-gray-700 dark:text-gray-300 mt-0.5 font-mono text-[11px] break-all">{sys.id}</p>
-                      </div>
-                      <div>
-                        <p className="font-medium text-gray-500 dark:text-gray-400">System Type</p>
-                        <p className="text-gray-700 dark:text-gray-300 mt-0.5">{sys.systemType || 'Unknown'}</p>
-                      </div>
-                      {sys.tenantId && (
-                        <div>
-                          <p className="font-medium text-gray-500 dark:text-gray-400">Tenant ID</p>
-                          <p className="text-gray-700 dark:text-gray-300 mt-0.5 font-mono text-[11px] break-all">{sys.tenantId}</p>
-                        </div>
-                      )}
-                      {sys.connectionInfo && (
-                        <div>
-                          <p className="font-medium text-gray-500 dark:text-gray-400">Connection Info</p>
-                          <p className="text-gray-700 dark:text-gray-300 mt-0.5">{sys.connectionInfo}</p>
-                        </div>
-                      )}
-                    </div>
-
-                    {assignmentTypes.length > 0 && (
-                      <div className="mt-3">
-                        <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Assignment Types</p>
-                        <div className="flex flex-wrap gap-1">
-                          {assignmentTypes.map(at => (
-                            <span key={at} className="inline-block px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-700">
-                              {at}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {sys.createdAt && (
-                      <div className="mt-3 text-xs text-gray-600 dark:text-gray-500">
-                        Created: {new Date(sys.createdAt).toLocaleString()}
-                        {sys.updatedAt && ` | Updated: ${new Date(sys.updatedAt).toLocaleString()}`}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            );
-          })}
+          {systems.map(sys => (
+            <SystemCard
+              key={sys.id}
+              sys={sys}
+              isExpanded={expandedId === sys.id}
+              onToggle={() => setExpandedId(expandedId === sys.id ? null : sys.id)}
+            />
+          ))}
         </div>
       )}
     </div>

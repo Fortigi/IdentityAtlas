@@ -13,28 +13,13 @@
     "app/ui/src/components/AccessPackagesPage.jsx": [
       36
     ],
-    "app/ui/src/components/AuthSettingsPage.jsx": [
-      26
-    ],
     "app/ui/src/components/ContextDetailPage.jsx": [
       35
     ],
     "app/ui/src/components/CrawlersPage.jsx": [
       30
     ],
-    "app/ui/src/components/DashboardPage.jsx": [
-      31
-    ],
-    "app/ui/src/components/DepartmentDetailPage.jsx": [
-      25
-    ],
-    "app/ui/src/components/EntityDetailPage.jsx": [
-      25
-    ],
     "app/ui/src/components/EntityGraph.jsx": [
-      25
-    ],
-    "app/ui/src/components/JobPhasesModal.jsx": [
       25
     ],
     "app/ui/src/components/MatrixView.jsx": [
@@ -60,17 +45,8 @@
       30,
       26
     ],
-    "app/ui/src/components/SystemsPage.jsx": [
-      24
-    ],
-    "app/ui/src/components/TimeSeriesChart.jsx": [
-      25
-    ],
     "app/ui/src/components/admin/LLMSettingsSection.jsx": [
       36
-    ],
-    "app/ui/src/components/contexts/ContextPicker.jsx": [
-      26
     ],
     "app/ui/src/components/contexts/ContextTreeView.jsx": [
       41
@@ -90,12 +66,6 @@
     "app/ui/src/components/matrix/MatrixFilterWizard.jsx": [
       27,
       26
-    ],
-    "app/ui/src/components/matrix/MatrixGroupRow.jsx": [
-      23
-    ],
-    "app/ui/src/components/matrix/MatrixScopePanel.jsx": [
-      23
     ],
     "app/ui/src/hooks/useMatrix.js": [
       36

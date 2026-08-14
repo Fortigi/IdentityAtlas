@@ -44,6 +44,91 @@ function niceStep(range) {
   return 2.0 * pow;
 }
 
+// Optional title/subtitle block above the chart.
+function ChartHeader({ title, subtitle }) {
+  if (!title && !subtitle) return null;
+  return (
+    <div className="mb-1 px-1">
+      {title    && <div className="text-sm font-medium text-gray-800 dark:text-gray-200">{title}</div>}
+      {subtitle && <div className="text-xs text-gray-500 dark:text-gray-400">{subtitle}</div>}
+    </div>
+  );
+}
+
+// Centered message shown when there are no data points yet.
+function ChartEmptyState({ empty, width, height, axisColor }) {
+  if (!empty) return null;
+  return (
+    <text
+      x={width / 2}
+      y={height / 2}
+      textAnchor="middle"
+      fontSize={12}
+      fill={axisColor}
+    >
+      No data yet — first snapshot writes on the next scheduler tick.
+    </text>
+  );
+}
+
+// The filled area, the line, and the last-point dot.
+function ChartSeries({ empty, points, fillD, pathD, lineColor, fillColor, isDark }) {
+  if (empty) return null;
+  return (
+    <>
+      {points.length > 1 && (
+        <path d={fillD} fill={fillColor} stroke="none" />
+      )}
+      {points.length > 1 && (
+        <path
+          d={pathD}
+          fill="none"
+          stroke={lineColor}
+          strokeWidth={2}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      )}
+      {/* Dot only on the last point — full-series dots get busy fast */}
+      {points.length > 0 && (
+        <circle
+          cx={points[points.length - 1].x}
+          cy={points[points.length - 1].y}
+          r={3.5}
+          fill={lineColor}
+          stroke={isDark ? '#0f172a' : '#fff'}
+          strokeWidth={2}
+        />
+      )}
+    </>
+  );
+}
+
+// Per-point hover affordance (transparent rects, tooltips via <title>).
+function ChartHoverLayer({ empty, points, width, height, yFormat, yUnit }) {
+  if (empty) return null;
+  return points.map((p, i) => {
+    const halfWidth = points.length > 1
+      ? (points[1].x - points[0].x) / 2
+      : 8;
+    const rx = Math.max(p.x - halfWidth, PADDING.left);
+    const rw = Math.min(halfWidth * 2, width - PADDING.right - rx);
+    return (
+      <g key={`hit-${i}`}>
+        <rect
+          x={rx}
+          y={PADDING.top}
+          width={rw}
+          height={height - PADDING.top - PADDING.bottom}
+          fill="transparent"
+        >
+          <title>{`${p.date}: ${yFormat(p.value)}${yUnit}`}</title>
+        </rect>
+      </g>
+    );
+  });
+}
+
 export default function TimeSeriesChart({
   data = [],
   height = 220,
@@ -134,12 +219,7 @@ export default function TimeSeriesChart({
 
   return (
     <div className="flex flex-col">
-      {(title || subtitle) && (
-        <div className="mb-1 px-1">
-          {title    && <div className="text-sm font-medium text-gray-800 dark:text-gray-200">{title}</div>}
-          {subtitle && <div className="text-xs text-gray-500 dark:text-gray-400">{subtitle}</div>}
-        </div>
-      )}
+      <ChartHeader title={title} subtitle={subtitle} />
       <div className="relative w-full">
         <svg
           viewBox={`0 0 ${width} ${height}`}
@@ -187,70 +267,26 @@ export default function TimeSeriesChart({
             </text>
           ))}
 
-          {/* Empty-state */}
-          {empty && (
-            <text
-              x={width / 2}
-              y={height / 2}
-              textAnchor="middle"
-              fontSize={12}
-              fill={axisColor}
-            >
-              No data yet — first snapshot writes on the next scheduler tick.
-            </text>
-          )}
+          <ChartEmptyState empty={empty} width={width} height={height} axisColor={axisColor} />
 
-          {/* Series */}
-          {!empty && (
-            <>
-              {points.length > 1 && (
-                <path d={fillD} fill={fillColor} stroke="none" />
-              )}
-              {points.length > 1 && (
-                <path
-                  d={pathD}
-                  fill="none"
-                  stroke={lineColor}
-                  strokeWidth={2}
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              )}
-              {/* Dot only on the last point — full-series dots get busy fast */}
-              {points.length > 0 && (
-                <circle
-                  cx={points[points.length - 1].x}
-                  cy={points[points.length - 1].y}
-                  r={3.5}
-                  fill={lineColor}
-                  stroke={isDark ? '#0f172a' : '#fff'}
-                  strokeWidth={2}
-                />
-              )}
-            </>
-          )}
+          <ChartSeries
+            empty={empty}
+            points={points}
+            fillD={fillD}
+            pathD={pathD}
+            lineColor={lineColor}
+            fillColor={fillColor}
+            isDark={isDark}
+          />
 
-          {/* Per-point hover affordance (transparent rects, tooltips via <title>) */}
-          {!empty && points.map((p, i) => {
-            const halfWidth = points.length > 1
-              ? (points[1].x - points[0].x) / 2
-              : 8;
-            const rx = Math.max(p.x - halfWidth, PADDING.left);
-            const rw = Math.min(halfWidth * 2, width - PADDING.right - rx);
-            return (
-              <g key={`hit-${i}`}>
-                <rect
-                  x={rx}
-                  y={PADDING.top}
-                  width={rw}
-                  height={height - PADDING.top - PADDING.bottom}
-                  fill="transparent"
-                >
-                  <title>{`${p.date}: ${yFormat(p.value)}${yUnit}`}</title>
-                </rect>
-              </g>
-            );
-          })}
+          <ChartHoverLayer
+            empty={empty}
+            points={points}
+            width={width}
+            height={height}
+            yFormat={yFormat}
+            yUnit={yUnit}
+          />
 
           {/* Axis lines */}
           <line
@@ -274,4 +310,3 @@ export default function TimeSeriesChart({
     </div>
   );
 }
-

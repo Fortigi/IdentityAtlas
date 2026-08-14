@@ -17,6 +17,7 @@ import { useMemo, useCallback, useState, useLayoutEffect, useRef } from 'react';
 import MatrixToolbar from './matrix/MatrixToolbar';
 import MatrixFilterSummary from './matrix/MatrixFilterSummary';
 import MatrixCell from './matrix/MatrixCell';
+import { buildMatrixIndexes, buildTypeSpans } from './RotatedMatrixView.helpers';
 
 function EmptyState({ onAdjustFilter, hasData }) {
   if (hasData === false) {
@@ -96,62 +97,13 @@ export default function RotatedMatrixView({
   }, [data, managedFilter]);
 
   // Build per-user and per-resource indexes + a cell map.
-  const { users, resources, cellMap } = useMemo(() => {
-    const userMap = new Map();
-    const resourceMap = new Map();
-    const cells = new Map(); // "userId|resourceId" -> Set of membership types
-
-    for (const d of filteredData) {
-      if (d.memberId && !userMap.has(d.memberId)) {
-        userMap.set(d.memberId, {
-          id: d.memberId,
-          displayName: d.memberDisplayName || d.memberId,
-          department: d.department || '',
-          jobTitle: d.jobTitle || '',
-          upn: d.memberUPN || '',
-        });
-      }
-      const rid = d.resourceId || d.groupId;
-      if (rid && !resourceMap.has(rid)) {
-        resourceMap.set(rid, {
-          id: rid,
-          displayName: d.resourceDisplayName || d.groupDisplayName || rid,
-          resourceType: d.resourceType || d.groupTypeCalculated || '',
-          systemName: d.systemName || '',
-        });
-      }
-      if (d.memberId && rid) {
-        const key = `${d.memberId}|${rid}`;
-        if (!cells.has(key)) cells.set(key, { types: new Set(), managed: false });
-        cells.get(key).types.add(d.membershipType);
-        if (d.managedByAccessPackage) cells.get(key).managed = true;
-      }
-    }
-
-    // Sort users by displayName, resources by displayName (simple — no APs to staircase against).
-    const users = [...userMap.values()].sort((a, b) =>
-      (a.displayName || '').localeCompare(b.displayName || '')
-    );
-    const resources = [...resourceMap.values()].sort((a, b) =>
-      (a.displayName || '').localeCompare(b.displayName || '')
-    );
-
-    return { users, resources, cellMap: cells };
-  }, [filteredData]);
+  const { users, resources, cellMap } = useMemo(
+    () => buildMatrixIndexes(filteredData),
+    [filteredData],
+  );
 
   // Group consecutive resources by resourceType for merged top header.
-  const typeSpans = useMemo(() => {
-    const spans = [];
-    let i = 0;
-    while (i < resources.length) {
-      const t = resources[i].resourceType || '';
-      let span = 1;
-      while (i + span < resources.length && (resources[i + span].resourceType || '') === t) span++;
-      spans.push({ type: t, span });
-      i += span;
-    }
-    return spans;
-  }, [resources]);
+  const typeSpans = useMemo(() => buildTypeSpans(resources), [resources]);
 
   // Share + export handlers (export not yet supported in rotated mode).
   const handleShare = useCallback(async () => {

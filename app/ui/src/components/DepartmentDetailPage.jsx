@@ -1,15 +1,9 @@
-﻿import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
-import { TIER_STYLES } from '@ui/utils/tierStyles';
-
-const TIER_ORDER = { Critical: 5, High: 4, Medium: 3, Low: 2, Minimal: 1, None: 0 };
-const TIER_DISPLAY = ['Critical', 'High', 'Medium', 'Low', 'Minimal'];
-// Soft (-400) tier fills so the distribution bar matches the app's gentle
-// palette while still reading as a severity ramp; thin marks/text elsewhere
-// keep the stronger tiers. See the UI Style Guide § saturation.
-const TIER_BAR_COLORS = {
-  Critical: '#f87171', High: '#fb923c', Medium: '#facc15', Low: '#60a5fa', Minimal: '#9ca3af', None: '#e5e7eb',
-};
+import { TIER_ORDER } from './departmentTiers';
+import DepartmentHeader from './DepartmentHeader';
+import RiskSummary from './RiskSummary';
+import MembersSection from './MembersSection';
 
 function computeRisk(members) {
   const tierCounts = {};
@@ -143,168 +137,8 @@ function buildDeptTree(users, targetDeptName) {
   return findDept(rootResult.nodes, targetDeptName);
 }
 
-function TierBadge({ tier, showAll }) {
-  if (!showAll && (!tier || tier === 'None' || tier === 'Minimal')) return null;
-  const s = TIER_STYLES[tier] || TIER_STYLES.None;
-  return (
-    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium ${s.bg} ${s.text} ${s.border} border ${s.darkBg} ${s.darkText} ${s.darkBorder} whitespace-nowrap`}>
-      <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />
-      {tier}
-    </span>
-  );
-}
-
-function Avatar({ name, tier }) {
-  const letter = (name || '?')[0].toUpperCase();
-  const style = TIER_STYLES[tier] || TIER_STYLES.None;
-  return (
-    <div
-      className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-semibold shrink-0"
-      style={{ backgroundColor: style.avatar }}
-    >
-      {letter}
-    </div>
-  );
-}
-
-function buildSummaryText(directMembers, allMembers, directRisk, allRisk, node) {
-  const parts = [];
-  const direct = directMembers.length;
-  const total = allMembers.length;
-  const scored = allMembers.filter(m => m.riskScore != null);
-
-  if (scored.length === 0) return 'No risk score data available for this department.';
-
-  const tierParts = TIER_DISPLAY
-    .filter(t => allRisk.tierCounts[t] > 0)
-    .map(t => `${allRisk.tierCounts[t]} ${t.toLowerCase()}`);
-  if (tierParts.length > 0) {
-    const pct = Math.round((scored.length / total) * 100);
-    parts.push(`Of ${total} total member${total !== 1 ? 's' : ''} (${direct} direct${total > direct ? `, ${total - direct} indirect` : ''}), ${pct === 100 ? 'all have' : `${scored.length} have`} risk scores: ${tierParts.join(', ')}.`);
-  }
-
-  const highTiers = TIER_DISPLAY.filter(t => (TIER_ORDER[t] || 0) >= 3 && allRisk.tierCounts[t] > 0);
-  if (highTiers.length > 0) {
-    const highCount = highTiers.reduce((sum, t) => sum + (allRisk.tierCounts[t] || 0), 0);
-    const highPct = Math.round((highCount / scored.length) * 100);
-    parts.push(`${highCount} member${highCount !== 1 ? 's' : ''} (${highPct}%) are rated medium or above, which drives the department's overall ${allRisk.maxTier.toLowerCase()} risk classification.`);
-  } else {
-    parts.push(`No members are rated medium risk or above. The department's risk posture is ${allRisk.maxTier.toLowerCase()}.`);
-  }
-
-  const scores = scored.map(m => m.riskScore);
-  const min = Math.min(...scores);
-  const max = Math.max(...scores);
-  if (min !== max) {
-    parts.push(`Scores range from ${min} to ${max} (avg ${allRisk.avgScore}).`);
-  }
-
-  return parts.join(' ');
-}
-
-function RiskSummary({ directMembers, allMembers, directRisk, allRisk, subDepts, node, onOpenDetail }) {
-  const scored = allMembers.filter(m => m.riskScore != null);
-  if (scored.length === 0) return null;
-
-  const scores = scored.map(m => m.riskScore).sort((a, b) => a - b);
-  const min = scores[0];
-  const max = scores[scores.length - 1];
-  const median = scores.length % 2 === 0
-    ? Math.round((scores[scores.length / 2 - 1] + scores[scores.length / 2]) / 2)
-    : scores[Math.floor(scores.length / 2)];
-
-  const topRisk = [...scored].sort((a, b) => b.riskScore - a.riskScore).slice(0, 5);
-
-  const allTiers = [...TIER_DISPLAY, 'None'];
-  const tierSegments = allTiers
-    .map(t => ({ tier: t, count: allRisk.tierCounts[t] || 0 }))
-    .filter(s => s.count > 0);
-  const totalScored = scored.length;
-
-  const summaryText = buildSummaryText(directMembers, allMembers, directRisk, allRisk, node);
-
-  return (
-    <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm overflow-hidden">
-      <div className="px-6 py-3 border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
-        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Risk Summary</h3>
-      </div>
-
-      <div className="px-6 py-4 space-y-4">
-        <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">{summaryText}</p>
-
-        <div>
-          <div className="text-xs text-gray-500 dark:text-gray-400 mb-1.5">Risk distribution</div>
-          <div className="flex h-6 rounded-md overflow-hidden border border-gray-200 dark:border-gray-600">
-            {tierSegments.map(s => {
-              const pct = (s.count / totalScored) * 100;
-              return (
-                <div
-                  key={s.tier}
-                  className="flex items-center justify-center text-[10px] font-medium text-white transition-all"
-                  style={{ width: `${pct}%`, backgroundColor: TIER_BAR_COLORS[s.tier], minWidth: pct > 0 ? '18px' : 0 }}
-                  title={`${s.tier}: ${s.count} (${Math.round(pct)}%)`}
-                >
-                  {pct >= 10 ? s.count : ''}
-                </div>
-              );
-            })}
-          </div>
-          <div className="flex gap-3 mt-1.5">
-            {tierSegments.map(s => (
-              <div key={s.tier} className="flex items-center gap-1 text-[10px] text-gray-500 dark:text-gray-400">
-                <span className="w-2 h-2 rounded-sm" style={{ backgroundColor: TIER_BAR_COLORS[s.tier] }} />
-                {s.tier} ({s.count})
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">Score statistics</div>
-            <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-              {[
-                { label: 'Average', value: allRisk.avgScore },
-                { label: 'Median', value: median },
-                { label: 'Lowest', value: min },
-                { label: 'Highest', value: max },
-                { label: 'Scored', value: `${scored.length} / ${allMembers.length}` },
-              ].map(s => (
-                <div key={s.label} className="flex justify-between text-xs py-0.5">
-                  <span className="text-gray-600 dark:text-gray-500">{s.label}</span>
-                  <span className="font-mono text-gray-700 dark:text-gray-300">{s.value}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">Highest risk members</div>
-            <div className="space-y-1">
-              {topRisk.map(user => (
-                <div key={user.id} className="flex items-center gap-2 text-xs">
-                  <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: TIER_BAR_COLORS[user.riskTier || 'None'] }} />
-                  <button
-                    onClick={() => onOpenDetail('user', user.id, user.displayName)}
-                    className="text-blue-700 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300 hover:underline truncate"
-                  >
-                    {user.displayName}
-                  </button>
-                  <span className="ml-auto font-mono text-gray-600 dark:text-gray-500 shrink-0">{user.riskScore}</span>
-                  <TierBadge tier={user.riskTier} />
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export default function DepartmentDetailPage({ departmentName, cachedData, onCacheData, onClose, onOpenDetail }) {
   const { authFetch } = useAuth();
-  const [tab, setTab] = useState('direct');
   const [node, setNode] = useState(cachedData?.node || null);
   const [loading, setLoading] = useState(!cachedData?.node);
   const [error, setError] = useState(null);
@@ -350,17 +184,6 @@ export default function DepartmentDetailPage({ departmentName, cachedData, onCac
   const indirectRisk = useMemo(() => computeRisk(indirectMembers), [indirectMembers]);
   const subDepts = useMemo(() => node ? collectSubDepts(node) : [], [node]);
 
-  const displayMembers = tab === 'direct' ? directMembers : tab === 'indirect' ? indirectMembers : allMembers;
-  const displayRisk = tab === 'direct' ? directRisk : tab === 'indirect' ? indirectRisk : allRisk;
-
-  const sortedMembers = useMemo(() => {
-    return [...displayMembers].sort((a, b) => {
-      const riskDiff = (b.riskScore || 0) - (a.riskScore || 0);
-      if (riskDiff !== 0) return riskDiff;
-      return (a.displayName || '').localeCompare(b.displayName || '');
-    });
-  }, [displayMembers]);
-
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -383,70 +206,14 @@ export default function DepartmentDetailPage({ departmentName, cachedData, onCac
 
   return (
     <div className="space-y-4">
-      {/* Header */}
-      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 flex items-center justify-center text-lg font-bold">D</div>
-                <div>
-                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{node.department}</h2>
-                  <div className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-                    {node.directCount || directMembers.length} direct member{(node.directCount || directMembers.length) !== 1 ? 's' : ''}
-                    {(node.indirectCount || 0) > 0 && (
-                      <span> | {node.indirectCount} indirect</span>
-                    )}
-                    {node.children.length > 0 && (
-                      <span> | {node.children.length} sub-department{node.children.length !== 1 ? 's' : ''}</span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <TierBadge tier={directRisk.maxTier} showAll />
-              <button
-                onClick={onClose}
-                className="text-gray-600 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
-                title="Close"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {TIER_DISPLAY.some(t => allRisk.tierCounts[t] > 0) && (
-          <div className="flex gap-2 px-6 py-3 border-b border-gray-100 dark:border-gray-700">
-            <span className="text-xs text-gray-500 dark:text-gray-400 mr-1 self-center">Overall risk:</span>
-            {TIER_DISPLAY.filter(t => allRisk.tierCounts[t] > 0).map(t => {
-              const s = TIER_STYLES[t];
-              return (
-                <span key={t} className={`${s.bg} ${s.text} ${s.darkBg} ${s.darkText} text-xs px-2.5 py-0.5 rounded-full border ${s.border} ${s.darkBorder}`}>
-                  {allRisk.tierCounts[t]} {t}
-                </span>
-              );
-            })}
-          </div>
-        )}
-
-        {subDepts.length > 0 && (
-          <div className="px-6 py-3 border-b border-gray-100 dark:border-gray-700">
-            <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">Sub-departments</div>
-            <div className="flex flex-wrap gap-1.5">
-              {subDepts.map((d, i) => (
-                <span key={i} className="text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-2 py-0.5 rounded-full">
-                  {d.depth > 0 && <span className="text-gray-500 dark:text-gray-500">{'  '.repeat(d.depth)}</span>}
-                  {d.name} <span className="text-gray-600 dark:text-gray-500">({d.directCount})</span>
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
+      <DepartmentHeader
+        node={node}
+        directMembers={directMembers}
+        directRisk={directRisk}
+        allRisk={allRisk}
+        subDepts={subDepts}
+        onClose={onClose}
+      />
 
       {allMembers.some(m => m.riskScore != null) && (
         <RiskSummary
@@ -460,76 +227,15 @@ export default function DepartmentDetailPage({ departmentName, cachedData, onCac
         />
       )}
 
-      {/* Members section */}
-      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm overflow-hidden">
-        <div className="flex border-b border-gray-200 dark:border-gray-700 px-6 bg-gray-50 dark:bg-gray-700/50">
-          {[
-            { key: 'direct', label: 'Direct Members', count: directMembers.length },
-            ...(indirectMembers.length > 0
-              ? [{ key: 'indirect', label: 'Indirect Members', count: indirectMembers.length }]
-              : []),
-            ...(indirectMembers.length > 0
-              ? [{ key: 'all', label: 'All Members', count: allMembers.length }]
-              : []),
-          ].map(t => (
-            <button
-              key={t.key}
-              onClick={() => setTab(t.key)}
-              className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
-                tab === t.key
-                  ? 'border-blue-500 text-blue-700 dark:text-blue-400'
-                  : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
-              }`}
-            >
-              {t.label} ({t.count})
-            </button>
-          ))}
-        </div>
-
-        {TIER_DISPLAY.some(t => displayRisk.tierCounts[t] > 0) && (
-          <div className="flex gap-2 px-6 py-2 border-b border-gray-100 dark:border-gray-700">
-            <span className="text-xs text-gray-600 dark:text-gray-500 mr-1 self-center">Avg. score: {displayRisk.avgScore}</span>
-            <span className="text-gray-500 dark:text-gray-500 self-center">|</span>
-            {TIER_DISPLAY.filter(t => displayRisk.tierCounts[t] > 0).map(t => {
-              const s = TIER_STYLES[t];
-              return (
-                <span key={t} className={`${s.bg} ${s.text} ${s.darkBg} ${s.darkText} text-[11px] px-2 py-0.5 rounded-full border ${s.border} ${s.darkBorder}`}>
-                  {displayRisk.tierCounts[t]} {t}
-                </span>
-              );
-            })}
-          </div>
-        )}
-
-        <div className="divide-y divide-gray-50 dark:divide-gray-700">
-          {sortedMembers.map(user => (
-            <div key={`${user.id}-${user._dept || ''}`} className="flex items-center gap-3 px-6 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700/50">
-              <Avatar name={user.displayName} tier={user.riskTier} />
-              <div className="min-w-0 flex-1">
-                <button
-                  onClick={() => onOpenDetail('user', user.id, user.displayName)}
-                  className="text-sm text-blue-700 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300 hover:underline truncate text-left block font-medium"
-                >
-                  {user.displayName}
-                </button>
-                <div className="text-xs text-gray-600 dark:text-gray-500 truncate">
-                  {user.jobTitle || '—'}
-                  {tab !== 'direct' && user._dept && (
-                    <span className="ml-1.5 text-gray-500 dark:text-gray-600">({user._dept})</span>
-                  )}
-                </div>
-              </div>
-              <TierBadge tier={user.riskTier} />
-              {user.riskScore != null && (
-                <span className="text-xs font-mono text-gray-600 dark:text-gray-500 w-8 text-right shrink-0">{user.riskScore}</span>
-              )}
-            </div>
-          ))}
-          {sortedMembers.length === 0 && (
-            <div className="px-6 py-8 text-center text-sm text-gray-600 dark:text-gray-500">No members found.</div>
-          )}
-        </div>
-      </div>
+      <MembersSection
+        directMembers={directMembers}
+        indirectMembers={indirectMembers}
+        allMembers={allMembers}
+        directRisk={directRisk}
+        indirectRisk={indirectRisk}
+        allRisk={allRisk}
+        onOpenDetail={onOpenDetail}
+      />
     </div>
   );
 }
