@@ -2,10 +2,11 @@ import { getAccessPackageColor } from '@ui/utils/colors';
 import { useIsDark } from '@ui/contexts/ThemeContext';
 import { computeAttributeSpans } from './sortUsers';
 import { friendlyLabel } from '@ui/utils/formatters';
+import { GROUP_ROW_H, apBandBorderClass, buildCrossRows, computeHeaderMode, crossGroupingHeight, spanInteraction } from './headerMode';
+import MatrixCrossTableRows from './MatrixCrossTableRows';
+import MatrixHeaderRowTail from './MatrixHeaderRowTail';
 
-// Height (px) of each attribute grouping row. Drives both the cell height and
-// the sticky `top` offset of the <thead>, so the two can never drift apart.
-export const GROUP_ROW_H = 120;
+export { GROUP_ROW_H };
 
 export default function MatrixColumnHeaders({
   users,
@@ -20,20 +21,34 @@ export default function MatrixColumnHeaders({
   onToggleCollapse,
   onToggleMembers,
   maxHeaderDepth,
+  headerMode,
 }) {
   const isDark = useIsDark();
 
-  // One merged header row per sort attribute (default: department), each
+  // One grouping header level per sort attribute (default: department), each
   // grouping consecutive columns that share the same value (read from each
   // user's precomputed sortKeys[index]). In hierarchy sort, maxHeaderDepth caps
-  // the rows to the unfolded depth so the next org level only appears once a
+  // the levels to the unfolded depth so the next org level only appears once a
   // group is expanded into it.
   const attrs = (Array.isArray(sortAttributes) && sortAttributes.length)
     ? sortAttributes.map(s => s.attribute)
     : ['department'];
   const shown = (typeof maxHeaderDepth === 'number' && maxHeaderDepth > 0)
     ? Math.min(maxHeaderDepth, attrs.length) : attrs.length;
-  const attrRows = attrs.slice(0, shown).map((attribute, index) => ({ attribute, spans: computeAttributeSpans(users, index) }));
+  const attrRows = attrs.slice(0, shown).map((attribute, index) => ({ attribute, level: index }));
+
+  // Cross-table mode renders each level as thin per-value rows instead of one
+  // tall rotated row — far shorter on the small screens the grid has to fit. The
+  // mode comes from the caller (MatrixView), which derives it from the matrix
+  // DEFINITION so folding a group never re-styles the header under the click;
+  // standalone callers fall back to deciding it from what they render.
+  const mode = headerMode || computeHeaderMode(users, shown);
+  const crossLevels = mode === 'cross'
+    ? attrRows.map(row => ({ ...row, ...buildCrossRows(users, row.level) }))
+    : null;
+  const rotatedRows = crossLevels
+    ? []
+    : attrRows.map(row => ({ ...row, spans: computeAttributeSpans(users, row.level) }));
 
   // Keep only the final (names) row pinned on vertical scroll — the attribute
   // grouping rows above it scroll away, so many sort attributes don't bury the
@@ -48,11 +63,22 @@ export default function MatrixColumnHeaders({
   // (issue: multi-header matrix "grey area" on scroll). A sticky <thead> is
   // constrained to the whole table instead, so it stays pinned through the
   // entire body scroll.
-  const groupingOffset = attrRows.length * GROUP_ROW_H;
+  const groupingOffset = crossLevels ? crossGroupingHeight(crossLevels) : attrRows.length * GROUP_ROW_H;
   return (
     <thead className="sticky z-30" style={{ top: `-${groupingOffset}px` }}>
-      {/* One merged row per sort attribute */}
-      {attrRows.map((row, rowIdx) => (
+      {crossLevels ? (
+        <MatrixCrossTableRows
+          levels={crossLevels}
+          users={users}
+          infoColumnCount={infoColumnCount}
+          accessPackages={accessPackages}
+          onToggleCollapse={onToggleCollapse}
+          onToggleMembers={onToggleMembers}
+        />
+      ) : null}
+
+      {/* Rotated fallback: one merged row per sort attribute */}
+      {rotatedRows.map((row, rowIdx) => (
         <tr key={row.attribute + rowIdx}>
           {/* Corner cell spanning the info columns; shows which attribute this row groups */}
           <th
@@ -66,28 +92,11 @@ export default function MatrixColumnHeaders({
           </th>
 
           {row.spans.map((span, idx) => {
-            const col = users[span.start];
-            // `aggHere`: this span IS a collapsed aggregate column at-or-below its
-            // fold level. At ANCESTOR levels (rowIdx < level) the span is just a
-            // normal merged group (its value is the ancestor's), so treat it as
-            // collapsible even though it happens to contain an aggregate column.
-            const aggHere = !!col?.isAggregateCol && rowIdx >= col.level;
-            const showChildCount = aggHere && rowIdx > col.level; // "6 departments"
-            // A member-exploded org: its own level header collapses the members
-            // back into a count; deeper rows are inert placeholders.
-            const memberOwn = !!col?.isMemberCol && rowIdx === col.memberLevel;
-            const memberDeep = !!col?.isMemberCol && rowIdx > col.memberLevel;
-            const collapsible = !!onToggleCollapse && !aggHere && !memberOwn && !memberDeep;
-            const onClick = memberOwn && onToggleMembers
-              ? () => onToggleMembers(col.sortKeys, col.memberLevel)
-              : collapsible
-              ? () => onToggleCollapse(col.sortKeys, rowIdx)
-              : aggHere ? () => onToggleCollapse(col.sortKeys, col.level) : undefined;
-            const title = memberOwn
-              ? `Collapse ${span.value || '(none)'} members back into a count`
-              : collapsible
-              ? `Collapse ${span.value || '(none)'} into one column`
-              : aggHere ? `Expand ${col.value || '(none)'} back into its columns` : undefined;
+            // What this span means at this level (aggregate / member-exploded /
+            // a plain collapsible group) and the click + tooltip it carries —
+            // shared with the cross-table rendering so the two can't drift.
+            const { col, aggHere, showChildCount, memberOwn, onClick, title } =
+              spanInteraction(users, span, rowIdx, { onToggleCollapse, onToggleMembers });
             return (
               <th
                 key={idx}
@@ -116,25 +125,9 @@ export default function MatrixColumnHeaders({
             );
           })}
 
-          {/* Access Package color bands — placeholders on the attribute rows; the
-              labels live on the pinned names row below so they stay visible. */}
-          {accessPackages.map((ap, idx) => {
-            const prevCat = idx > 0 ? (accessPackages[idx - 1].categoryName || null) : undefined;
-            const curCat = ap.categoryName || null;
-            const isCategoryBoundary = idx === 0 || prevCat !== curCat;
-            return (
-              <th
-                key={ap.id}
-                className={`border-b border-r border-gray-200 dark:border-gray-600 ${idx === 0 ? 'border-l-2 border-l-indigo-300 dark:border-l-indigo-500' : isCategoryBoundary ? 'border-l-2 border-l-gray-400 dark:border-l-gray-500' : ''}`}
-                style={{ backgroundColor: getAccessPackageColor(idx, isDark), width: '24px', minWidth: '24px' }}
-              />
-            );
-          })}
-
-          {/* Right metadata column placeholders (#, Type, Description) */}
-          <th className="border-b border-l-2 border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800" style={{ minWidth: '40px' }} />
-          <th className="border-b border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800" style={{ minWidth: '180px' }} />
-          <th className="border-b border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800" style={{ minWidth: '500px' }} />
+          {/* Access-package bands (labels live on the pinned names row) + the
+              right metadata placeholders (#, Type, Description). */}
+          <MatrixHeaderRowTail accessPackages={accessPackages} />
         </tr>
       ))}
 
@@ -230,13 +223,10 @@ export default function MatrixColumnHeaders({
 
         {/* Access Package labels — on the pinned names row so they stay visible. */}
         {accessPackages.map((ap, idx) => {
-          const prevCat = idx > 0 ? (accessPackages[idx - 1].categoryName || null) : undefined;
-          const curCat = ap.categoryName || null;
-          const isCategoryBoundary = idx === 0 || prevCat !== curCat;
           return (
             <th
               key={ap.id}
-              className={`sticky top-0 z-20 border-b border-r border-gray-200 dark:border-gray-600 px-0 py-0 text-center ${idx === 0 ? 'border-l-2 border-l-indigo-300 dark:border-l-indigo-500' : isCategoryBoundary ? 'border-l-2 border-l-gray-400 dark:border-l-gray-500' : ''}`}
+              className={`sticky top-0 z-20 border-b border-r border-gray-200 dark:border-gray-600 px-0 py-0 text-center ${apBandBorderClass(accessPackages, idx)}`}
               style={{ backgroundColor: getAccessPackageColor(idx, isDark), width: '24px', minWidth: '24px', height: '100px', verticalAlign: 'bottom' }}
               title={`${ap.displayName}\nCatalog: ${ap.catalogName || ''}${ap.categoryName ? '\nCategory: ' + ap.categoryName : ''}`}
             >

@@ -13,6 +13,7 @@ import MatrixFilterSummary from './matrix/MatrixFilterSummary';
 import MatrixScopePanel from './matrix/MatrixScopePanel';
 import MatrixColumnHeaders from './matrix/MatrixColumnHeaders';
 import { makeUserComparator, buildSortKeys } from './matrix/sortUsers';
+import { computeHeaderMode } from './matrix/headerMode';
 import MatrixGroupRow from './matrix/MatrixGroupRow';
 import { buildResourceContextMap, contextsFor } from '@ui/utils/resourceContexts';
 
@@ -876,10 +877,17 @@ export default function MatrixView({
     return Math.min(d, sortAttrs.length);
   }, [hierActive, colUsers, sortAttrs.length]);
 
+  // Grouping-header style (compact cross table vs. rotated rows). It is a
+  // property of the matrix DEFINITION — the unfolded subject set across ALL
+  // configured sort levels — so folding, exploding, or expanding a column never
+  // re-styles the header underneath the click.
+  const headerMode = useMemo(() => computeHeaderMode(users, sortAttrs.length), [users, sortAttrs.length]);
+
   // Shared column headers element (used by both sortable and static table)
   const columnHeaders = (
     <MatrixColumnHeaders
       users={colUsers}
+      headerMode={headerMode}
       infoColumnCount={infoColumnCount}
       onSortByCount={handleSortByCount}
       accessPackages={visibleAccessPackages}
