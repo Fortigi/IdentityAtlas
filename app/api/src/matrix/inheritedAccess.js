@@ -73,25 +73,41 @@ async function scopedPrincipalIds(p, built, rowType) {
   return new Set(r.rows.map((x) => x.id));
 }
 
+// ── Small Map/Set accumulation helpers, shared by the count builders ────────
+const newMap = () => new Map();
+const newSet = () => new Set();
+const newArr = () => [];
+
+// Get an existing Map value, or create-and-store one via `make` on first sight.
+function mapEntry(map, key, make) {
+  let v = map.get(key);
+  if (v === undefined) { v = make(); map.set(key, v); }
+  return v;
+}
+
+// Stamp a scope resource's meta into the resources map on first sight.
+function stampResource(resources, e, nodeById) {
+  if (!resources.has(e.resourceId)) resources.set(e.resourceId, inheritedResourceMeta(e, nodeById));
+}
+
+// Record a distinct holder in the (resourceId → gv → holders) cell map.
+function addHolderCell(cells, resourceId, gv, principalId) {
+  mapEntry(mapEntry(cells, resourceId, newMap), gv, newSet).add(principalId);
+}
+
+// Record a distinct holder in the per-group-value total set.
+function addGroupTotal(groupSets, gv, principalId) {
+  mapEntry(groupSets, gv, newSet).add(principalId);
+}
+
 // Produce flat per-(capability, subject) rows in the exact shape the /matrix/data
 // flat path emits, for the inherited access at the scoped resources.
 export async function buildInheritedFlatRows(p, built, rowType, subjectCols) {
-  if (!built.hasResource) return [];                 // bounded scope only
-  const nodeIds = await scopedNodeIds(p, built);
-  if (!nodeIds.length) return [];
+  const scope = await inheritedScopeRows(p, built, rowType);
+  if (!scope) return [];                             // bounded scope only + empty stages
+  const { nodeIds, rows, pids } = scope;
 
-  const eff = await cachedEffectiveAccess(nodeIds);
-  if (!eff.length) return [];
-
-  const subjScope = await scopedPrincipalIds(p, built, rowType);
-  const rows = subjScope ? eff.filter((e) => subjScope.has(e.principalId)) : eff;
-  if (!rows.length) return [];
-
-  const pids = [...new Set(rows.map((r) => r.principalId))];
-  const dynCols = subjectCols
-    .filter((c) => !['displayName', 'email'].includes(c.name))
-    .map((c) => c.name);
-  const colSel = dynCols.length ? ', ' + dynCols.map((n) => `"${n}"`).join(', ') : '';
+  const { dynCols, colSel } = dynamicSubjectColumns(subjectCols);
 
   const [{ rows: princ }, { rows: nodeMeta }] = await Promise.all([
     db.query(
@@ -106,52 +122,70 @@ export async function buildInheritedFlatRows(p, built, rowType, subjectCols) {
   const nodeById = new Map(nodeMeta.map((n) => [n.id, n]));
 
   // rowType=identity rolls each holder principal up to its identities.
-  let identByPrincipal = null;
-  if (rowType === 'identity') {
-    const { rows: im } = await db.query(
-      `SELECT im."principalId" AS pid, i.id, i."displayName", i."email"
-         FROM "IdentityMembers" im JOIN "Identities" i ON i.id = im."identityId"
-        WHERE im."principalId" = ANY($1)`, [pids]);
-    identByPrincipal = new Map();
-    for (const x of im) {
-      if (!identByPrincipal.has(x.pid)) identByPrincipal.set(x.pid, []);
-      identByPrincipal.get(x.pid).push(x);
-    }
-  }
+  const identByPrincipal = rowType === 'identity' ? await fetchIdentityRollup(pids) : null;
 
   const out = [];
-  const emit = (e, u, memberId, memberName, memberUpn, memberType) => {
-    const node = nodeById.get(e.nodeId) || {};
-    const row = {
-      resourceId: e.resourceId, groupId: e.resourceId,
-      resourceDisplayName: e.displayName, groupDisplayName: e.displayName,
-      resourceType: e.resourceType, groupTypeCalculated: e.resourceType,
-      resourceDescription: null, groupDescription: null,
-      systemId: node.systemId ?? null, systemName: node.systemName ?? null,
-      memberId, memberDisplayName: memberName, memberUPN: memberUpn, memberType,
-      membershipType: e.membershipType,
-      extendedAttributes: u.extendedAttributes ?? null,
-      managedByAccessPackage: false,
-      // Carried so the UI can explain an inherited (Indirect) cell on demand
-      // (POST /matrix/inheritance-path) — the path that produced the badge.
-      inheritedNodeId: e.nodeId, inheritedCapabilityId: e.capabilityId, inheritedPrincipalId: e.principalId,
-    };
-    for (const n of dynCols) row[n] = u[n] ?? null;
-    out.push(row);
-  };
-
   for (const e of rows) {
     const u = byId.get(e.principalId);
     if (!u || u.principalType === GROUP_PRINCIPAL_TYPE) continue;
-    if (rowType === 'identity') {
-      for (const id of (identByPrincipal.get(e.principalId) || [])) {
-        emit(e, u, id.id, id.displayName, id.email, 'Identity');
-      }
-    } else {
-      emit(e, u, u.id, u.displayName, u.email, u.principalType);
+    for (const m of holderMembers(u, rowType, identByPrincipal)) {
+      out.push(buildFlatRow(e, u, nodeById, dynCols, m));
     }
   }
   return out;
+}
+
+// The dynamic (non displayName/email) subject columns to also select, plus the
+// SQL fragment that appends them to the principal SELECT.
+function dynamicSubjectColumns(subjectCols) {
+  const dynCols = subjectCols
+    .filter((c) => !['displayName', 'email'].includes(c.name))
+    .map((c) => c.name);
+  const colSel = dynCols.length ? ', ' + dynCols.map((n) => `"${n}"`).join(', ') : '';
+  return { dynCols, colSel };
+}
+
+// principalId → its identities (id, displayName, email), for identity rowType.
+async function fetchIdentityRollup(pids) {
+  const { rows: im } = await db.query(
+    `SELECT im."principalId" AS pid, i.id, i."displayName", i."email"
+       FROM "IdentityMembers" im JOIN "Identities" i ON i.id = im."identityId"
+      WHERE im."principalId" = ANY($1)`, [pids]);
+  const identByPrincipal = new Map();
+  for (const x of im) mapEntry(identByPrincipal, x.pid, newArr).push(x);
+  return identByPrincipal;
+}
+
+// The member tuples a holder principal contributes to the flat rows: itself for
+// principal rowType, or one per rolled-up identity for identity rowType.
+function holderMembers(u, rowType, identByPrincipal) {
+  if (rowType !== 'identity') {
+    return [{ id: u.id, name: u.displayName, upn: u.email, type: u.principalType }];
+  }
+  return (identByPrincipal.get(u.id) || [])
+    .map((id) => ({ id: id.id, name: id.displayName, upn: id.email, type: 'Identity' }));
+}
+
+// One flat matrix row for an effective grant `e` held by principal `u`, emitted
+// for member tuple `member`. Carries the inheritance provenance for the UI.
+function buildFlatRow(e, u, nodeById, dynCols, member) {
+  const node = nodeById.get(e.nodeId) || {};
+  const row = {
+    resourceId: e.resourceId, groupId: e.resourceId,
+    resourceDisplayName: e.displayName, groupDisplayName: e.displayName,
+    resourceType: e.resourceType, groupTypeCalculated: e.resourceType,
+    resourceDescription: null, groupDescription: null,
+    systemId: node.systemId ?? null, systemName: node.systemName ?? null,
+    memberId: member.id, memberDisplayName: member.name, memberUPN: member.upn, memberType: member.type,
+    membershipType: e.membershipType,
+    extendedAttributes: u.extendedAttributes ?? null,
+    managedByAccessPackage: false,
+    // Carried so the UI can explain an inherited (Indirect) cell on demand
+    // (POST /matrix/inheritance-path) — the path that produced the badge.
+    inheritedNodeId: e.nodeId, inheritedCapabilityId: e.capabilityId, inheritedPrincipalId: e.principalId,
+  };
+  for (const n of dynCols) row[n] = u[n] ?? null;
+  return row;
 }
 
 // ── Shared scaffolding for the three inherited-count builders ──────────────
@@ -236,12 +270,9 @@ export async function buildInheritedRollupCounts(p, built, rowType, rollupAttr, 
     const meta = gvBy.get(e.principalId);
     if (!meta || meta.pt === GROUP_PRINCIPAL_TYPE) continue;
     const gv = meta.gv || '(none)';
-    if (!resources.has(e.resourceId)) resources.set(e.resourceId, inheritedResourceMeta(e, nodeById));
-    let m = cells.get(e.resourceId); if (!m) { m = new Map(); cells.set(e.resourceId, m); }
-    let s = m.get(gv); if (!s) { s = new Set(); m.set(gv, s); }
-    s.add(e.principalId);
-    let gs = groupSets.get(gv); if (!gs) { gs = new Set(); groupSets.set(gv, gs); }
-    gs.add(e.principalId);
+    stampResource(resources, e, nodeById);
+    addHolderCell(cells, e.resourceId, gv, e.principalId);
+    addGroupTotal(groupSets, gv, e.principalId);
   }
   if (!resources.size) return null;
   return inheritedCountResult(resources, cells, groupSets);
@@ -257,6 +288,28 @@ export async function buildInheritedContextCounts(p, built, rowType, frontierIds
   if (!scope) return null;
   const { nodeIds, rows, pids } = scope;
 
+  const gvBy = await fetchFrontierGroupValues(frontierIds, pids);
+  const isGroup = await fetchGroupPrincipalIds(pids);
+  const nodeById = await fetchNodeMeta(nodeIds);
+
+  const resources = new Map(), cells = new Map(), groupSets = new Map();
+  for (const e of rows) {
+    if (isGroup.has(e.principalId)) continue;
+    const gvs = gvBy.get(e.principalId);
+    if (!gvs) continue;
+    stampResource(resources, e, nodeById);
+    for (const gv of gvs) {
+      addHolderCell(cells, e.resourceId, gv, e.principalId);
+      addGroupTotal(groupSets, gv, e.principalId);
+    }
+  }
+  if (!resources.size) return null;
+  return inheritedCountResult(resources, cells, groupSets);
+}
+
+// principalId → [frontier context ids whose subtree contains them]. Walks each
+// frontier node's subtree and joins its members back to the in-scope holders.
+async function fetchFrontierGroupValues(frontierIds, pids) {
   const { rows: fm } = await db.query(
     `WITH RECURSIVE frontier(fid) AS (SELECT unnest($1::uuid[])),
        subtree(fid, ctx) AS (
@@ -271,27 +324,8 @@ export async function buildInheritedContextCounts(p, built, rowType, frontierIds
     [frontierIds, pids],
   );
   const gvBy = new Map();
-  for (const r of fm) { let a = gvBy.get(r.pid); if (!a) { a = []; gvBy.set(r.pid, a); } a.push(r.gv); }
-
-  const isGroup = await fetchGroupPrincipalIds(pids);
-  const nodeById = await fetchNodeMeta(nodeIds);
-
-  const resources = new Map(), cells = new Map(), groupSets = new Map();
-  for (const e of rows) {
-    if (isGroup.has(e.principalId)) continue;
-    const gvs = gvBy.get(e.principalId);
-    if (!gvs) continue;
-    if (!resources.has(e.resourceId)) resources.set(e.resourceId, inheritedResourceMeta(e, nodeById));
-    for (const gv of gvs) {
-      let m = cells.get(e.resourceId); if (!m) { m = new Map(); cells.set(e.resourceId, m); }
-      let s = m.get(gv); if (!s) { s = new Set(); m.set(gv, s); }
-      s.add(e.principalId);
-      let gs = groupSets.get(gv); if (!gs) { gs = new Set(); groupSets.set(gv, gs); }
-      gs.add(e.principalId);
-    }
-  }
-  if (!resources.size) return null;
-  return inheritedCountResult(resources, cells, groupSets);
+  for (const r of fm) mapEntry(gvBy, r.pid, newArr).push(r.gv);
+  return gvBy;
 }
 
 // Folded effective counts for the LAYERED ATTRIBUTE FOLD. The group-value of a
@@ -305,18 +339,9 @@ export async function buildInheritedFoldCounts(p, built, rowType, sortAttributes
   if (!scope) return null;
   const { nodeIds, rows, pids } = scope;
 
-  const attrExprs = [];
-  for (const a of sortAttributes) {
-    const r = resolveAttrExpr(a.attribute, 'pr', principalCols);
-    if (r.error) return null;
-    attrExprs.push(r.attrExpr);
-  }
-  const coll = Array.isArray(collapsed) ? collapsed : [];
-  const placeholders = coll.map((_, i) => `$${i + 2}`);
-  const vk = visibleKeyExpr(attrExprs, placeholders);
-  const { rows: gvr } = await db.query(
-    `SELECT id, ${vk} AS gv FROM "Principals" pr WHERE id = ANY($1)`, [pids, ...coll]);
-  const gvBy = new Map(gvr.map((r) => [r.id, r.gv]));
+  const attrExprs = resolveSortAttrExprs(sortAttributes, principalCols);
+  if (!attrExprs) return null;
+  const gvBy = await fetchFoldGroupValues(pids, attrExprs, collapsed);
 
   const isGroup = await fetchGroupPrincipalIds(pids);
   const nodeById = await fetchNodeMeta(nodeIds);
@@ -326,14 +351,33 @@ export async function buildInheritedFoldCounts(p, built, rowType, sortAttributes
     if (isGroup.has(e.principalId)) continue;
     const gv = gvBy.get(e.principalId);
     if (gv == null) continue;
-    if (!resources.has(e.resourceId)) resources.set(e.resourceId, inheritedResourceMeta(e, nodeById));
-    let m = cells.get(e.resourceId); if (!m) { m = new Map(); cells.set(e.resourceId, m); }
-    let s = m.get(gv); if (!s) { s = new Set(); m.set(gv, s); }
-    s.add(e.principalId);
+    stampResource(resources, e, nodeById);
+    addHolderCell(cells, e.resourceId, gv, e.principalId);
     gset.add(gv);
   }
   if (!resources.size) return null;
   return { resources: [...resources.values()], counts: inheritedCountRows(cells), groupValues: [...gset] };
+}
+
+// Resolve each sort attribute to its SQL expression. Returns null if any fails.
+function resolveSortAttrExprs(sortAttributes, principalCols) {
+  const attrExprs = [];
+  for (const a of sortAttributes) {
+    const r = resolveAttrExpr(a.attribute, 'pr', principalCols);
+    if (r.error) return null;
+    attrExprs.push(r.attrExpr);
+  }
+  return attrExprs;
+}
+
+// principalId → collapse-aware tuple key (visibleKeyExpr over the sort attrs).
+async function fetchFoldGroupValues(pids, attrExprs, collapsed) {
+  const coll = Array.isArray(collapsed) ? collapsed : [];
+  const placeholders = coll.map((_, i) => `$${i + 2}`);
+  const vk = visibleKeyExpr(attrExprs, placeholders);
+  const { rows: gvr } = await db.query(
+    `SELECT id, ${vk} AS gv FROM "Principals" pr WHERE id = ANY($1)`, [pids, ...coll]);
+  return new Map(gvr.map((r) => [r.id, r.gv]));
 }
 
 // Explain a single inherited cell: "how did this principal get this capability

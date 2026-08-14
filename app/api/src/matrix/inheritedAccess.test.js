@@ -69,6 +69,35 @@ describe('buildInheritedFlatRows', () => {
     });
   });
 
+  it('rolls each holder principal up to its identities for identity rowType', async () => {
+    const N = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+    effectiveAccessForNodes.mockResolvedValue({ rows: [{ nodeId: N, resourceId: RES, displayName: 'Key Vault', resourceType: 'vault', membershipType: 'Indirect', capabilityId: 'cap1', principalId: P1 }] });
+    db.query.mockImplementation((sql) => {
+      if (/FROM "IdentityMembers" im JOIN "Identities"/.test(sql)) return Promise.resolve({ rows: [{ pid: P1, id: 'ident-1', displayName: 'Alice Person', email: 'alice@x' }] });
+      if (/FROM "Principals" WHERE id = ANY/.test(sql)) return Promise.resolve({ rows: [{ id: P1, displayName: 'Alice', email: 'a@x', principalType: 'User', extendedAttributes: null }] });
+      if (/FROM "Resources" r LEFT JOIN "Systems"/.test(sql)) return Promise.resolve({ rows: [{ id: N, systemId: 7, systemName: 'Azure' }] });
+      return Promise.resolve({ rows: [] });
+    });
+    const out = await buildInheritedFlatRows(makeP([N]), BUILT, 'identity', []);
+    expect(out).toHaveLength(1);
+    expect(out[0]).toMatchObject({ resourceId: RES, memberId: 'ident-1', memberDisplayName: 'Alice Person', memberType: 'Identity', inheritedPrincipalId: P1 });
+  });
+
+  it('selects and carries dynamic (non displayName/email) subject columns', async () => {
+    const N = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
+    effectiveAccessForNodes.mockResolvedValue({ rows: [{ nodeId: N, resourceId: RES, displayName: 'Key Vault', resourceType: 'vault', membershipType: 'Indirect', capabilityId: 'cap1', principalId: P1 }] });
+    let principalSql = '';
+    db.query.mockImplementation((sql) => {
+      if (/FROM "Principals" WHERE id = ANY/.test(sql)) { principalSql = sql; return Promise.resolve({ rows: [{ id: P1, displayName: 'Alice', email: 'a@x', principalType: 'User', extendedAttributes: null, department: 'Eng' }] }); }
+      if (/FROM "Resources" r LEFT JOIN "Systems"/.test(sql)) return Promise.resolve({ rows: [{ id: N, systemId: 7, systemName: 'Azure' }] });
+      return Promise.resolve({ rows: [] });
+    });
+    // displayName/email are dropped from the dynamic set; department is added.
+    const out = await buildInheritedFlatRows(makeP([N]), BUILT, 'principal', [{ name: 'department' }, { name: 'displayName' }]);
+    expect(principalSql).toContain('"department"');
+    expect(out[0].department).toBe('Eng');
+  });
+
   it('returns [] for an unbounded (no resource scope) matrix', async () => {
     expect(await buildInheritedFlatRows(makeP(), { ...BUILT, hasResource: false }, 'principal', [])).toEqual([]);
   });
@@ -113,6 +142,29 @@ describe('buildInheritedContextCounts', () => {
     const r = await buildInheritedContextCounts(makeP(), BUILT, 'principal', ['ctx-A']);
     expect(r.counts).toEqual([{ resourceId: RES, groupValue: 'ctx-A', directCount: 1, governedCount: 0 }]);
     expect(r.groupValues).toEqual(['ctx-A']);
+  });
+
+  it('folds a holder onto multiple frontier nodes and de-duplicates holders per cell', async () => {
+    const N = 'cccccccc-cccc-cccc-cccc-cccccccccccc';
+    const P2 = '44444444-4444-4444-4444-444444444444';
+    effectiveAccessForNodes.mockResolvedValue({ rows: [
+      { nodeId: N, resourceId: RES, displayName: 'Key Vault', resourceType: 'vault', membershipType: 'Indirect', capabilityId: 'cap1', principalId: P1 },
+      { nodeId: N, resourceId: RES, displayName: 'Key Vault', resourceType: 'vault', membershipType: 'Indirect', capabilityId: 'cap1', principalId: P2 },
+    ] });
+    db.query.mockImplementation((sql) => {
+      if (/WITH RECURSIVE frontier/.test(sql)) return Promise.resolve({ rows: [
+        { gv: 'ctx-A', pid: P1 }, { gv: 'ctx-B', pid: P1 }, { gv: 'ctx-A', pid: P2 },
+      ] });
+      if (/"principalType" AS pt FROM "Principals"/.test(sql)) return Promise.resolve({ rows: [{ id: P1, pt: 'User' }, { id: P2, pt: 'User' }] });
+      if (/FROM "Resources" r LEFT JOIN "Systems"/.test(sql)) return Promise.resolve({ rows: [{ id: N, systemId: 7, systemName: 'Azure' }] });
+      return Promise.resolve({ rows: [] });
+    });
+    const r = await buildInheritedContextCounts(makeP([N]), BUILT, 'principal', ['ctx-A', 'ctx-B']);
+    // ctx-A holds P1 + P2 (distinct = 2); ctx-B holds only P1 (distinct = 1).
+    const byGv = Object.fromEntries(r.counts.map((c) => [c.groupValue, c.directCount]));
+    expect(byGv).toEqual({ 'ctx-A': 2, 'ctx-B': 1 });
+    const totals = Object.fromEntries(r.groupTotals.map((t) => [t.groupValue, t.total]));
+    expect(totals).toEqual({ 'ctx-A': 2, 'ctx-B': 1 });
   });
 
   it('returns null without frontier ids', async () => {

@@ -12,6 +12,13 @@ import * as db from '../db/connection.js';
 import { getPolicy, DEFAULT_POLICY, badgeForAce } from './policies.js';
 import { getSyncVersion } from '../lib/syncVersion.js';
 import { capabilityResourceId } from '../lib/capabilityId.js';
+import {
+  groupAtNodeAces,
+  resolveAtNodeCapabilities,
+  atNodeTruncation,
+  groupForNodeGrants,
+  emitNodeRows,
+} from './engine.helpers.js';
 
 export const DEFAULTS = {
   maxDepth: 50,
@@ -269,48 +276,10 @@ export async function effectiveAccessAtNode(nodeId, principalId, opts = {}) {
     [ancestorIds, Array.from(holders)],
   );
 
-  // Group ACEs by capability, honouring propagationScope + distance.
-  const byCap = new Map();
-  for (const row of rows) {
-    const distance = depthByNode.get(row.target);
-    if (distance === undefined) continue;
-    const atFocus = distance === 0;
-    const scope = row.scope ?? 'selfAndDescendants';
-    const reaches = atFocus
-      ? scope === 'self' || scope === 'selfAndDescendants'
-      : scope === 'descendants' || scope === 'selfAndDescendants';
-    if (!reaches) continue;
-
-    const ace = {
-      effect: row.effect ?? 'allow',
-      distance,
-      explicit: atFocus,
-      viaGroupId: row.holder === principalId ? null : row.holder,
-    };
-    if (!byCap.has(row.cap)) byCap.set(row.cap, []);
-    byCap.get(row.cap).push(ace);
-  }
-
-  const capabilities = [];
-  for (const [cap, aces] of byCap) {
-    const res = policy.resolve(aces);
-    if (res.effective === 'none') continue;
-    capabilities.push({
-      capabilityId: cap,
-      capabilityResourceId: capabilityResourceId(nodeId, cap),
-      effective: res.effective,
-      badge: res.decisiveAce ? badgeForAce(res.decisiveAce) : null,
-    });
-  }
-  capabilities.sort((a, b) => a.capabilityId.localeCompare(b.capabilityId)); // stable ordering
-
-  const truncated =
-    holdersTruncated || ancestorsTruncated
-      ? {
-          holders: holdersTruncated ? holders.size : undefined,
-          ancestors: ancestorsTruncated ? depthByNode.size : undefined,
-        }
-      : null;
+  // Group ACEs by capability (honouring propagationScope + distance), then resolve each to one row.
+  const byCap = groupAtNodeAces(rows, depthByNode, principalId);
+  const capabilities = resolveAtNodeCapabilities(byCap, policy, nodeId);
+  const truncated = atNodeTruncation(holdersTruncated, holders, ancestorsTruncated, depthByNode);
   return { nodeId, principalId, capabilities, truncated };
 }
 
@@ -416,6 +385,27 @@ export async function expandCapabilityDown(focusResourceId, opts = {}) {
  * any source with Contains + capability-resources (Azure, DevOps, file shares, SharePoint).
  * @returns {Promise<{rows: Array<{resourceId:string,nodeId:string,capabilityId:string,displayName:string,principalId:string,membershipType:string}>, truncated: object|null}>}
  */
+// Ancestor walk + capability-grant gather for one focus node. Returns the depth map (for scope
+// resolution), the raw grant rows, and whether the ancestor walk was capped.
+async function grantsForNode(node, opts) {
+  const { depthByNode, truncated } = await getAncestorNodes(node, opts);
+  const ancestorIds = [...depthByNode.keys()];
+  const { rows: grantRows } = await db.query(
+    `SELECT r."capabilityId" AS cap,
+            r."targetNodeId" AS target,
+            r."extendedAttributes" ->> 'roleName' AS rolename,
+            r."resourceType"  AS rtype,
+            ra."principalId" AS holder,
+            ra."effect" AS effect,
+            ra."propagationScope" AS scope
+       FROM "Resources" r
+       JOIN "ResourceAssignments" ra ON ra."resourceId" = r.id
+      WHERE r."capabilityId" IS NOT NULL AND r."targetNodeId" = ANY($1) AND ra."principalId" IS NOT NULL`,
+    [ancestorIds],
+  );
+  return { depthByNode, grantRows, truncated };
+}
+
 export async function effectiveAccessForNodes(focusNodeIds, opts = {}) {
   const policy = getPolicy(opts.policy ?? DEFAULT_POLICY);
   const focus = [...new Set((focusNodeIds || []).map(String))];
@@ -432,56 +422,10 @@ export async function effectiveAccessForNodes(focusNodeIds, opts = {}) {
   const rows = [];
   let truncated = false;
   for (const node of focus) {
-    const { depthByNode, truncated: tr } = await getAncestorNodes(node, opts);
+    const { depthByNode, grantRows, truncated: tr } = await grantsForNode(node, opts);
     if (tr) truncated = true;
-    const ancestorIds = [...depthByNode.keys()];
-
-    const { rows: grantRows } = await db.query(
-      `SELECT r."capabilityId" AS cap,
-              r."targetNodeId" AS target,
-              r."extendedAttributes" ->> 'roleName' AS rolename,
-              r."resourceType"  AS rtype,
-              ra."principalId" AS holder,
-              ra."effect" AS effect,
-              ra."propagationScope" AS scope
-         FROM "Resources" r
-         JOIN "ResourceAssignments" ra ON ra."resourceId" = r.id
-        WHERE r."capabilityId" IS NOT NULL AND r."targetNodeId" = ANY($1) AND ra."principalId" IS NOT NULL`,
-      [ancestorIds],
-    );
-
-    // Group ACEs by (capability, holder), honouring propagationScope + distance.
-    const byCapHolder = new Map();
-    for (const g of grantRows) {
-      const distance = depthByNode.get(g.target);
-      if (distance === undefined) continue;
-      const atFocus = distance === 0;
-      const scope = g.scope ?? 'selfAndDescendants';
-      const reaches = atFocus
-        ? scope === 'self' || scope === 'selfAndDescendants'
-        : scope === 'descendants' || scope === 'selfAndDescendants';
-      if (!reaches) continue;
-      const key = `${g.cap} ${g.holder}`;
-      if (!byCapHolder.has(key)) byCapHolder.set(key, { cap: g.cap, rolename: g.rolename, rtype: g.rtype, holder: g.holder, aces: [] });
-      byCapHolder.get(key).aces.push({ effect: g.effect ?? 'allow', distance, explicit: atFocus, viaGroupId: null });
-    }
-
-    const meta = metaById.get(node);
-    const scopeName = meta?.name || node;
-    for (const { cap, rolename, rtype, holder, aces } of byCapHolder.values()) {
-      const res = policy.resolve(aces);
-      if (res.effective === 'none') continue;
-      const roleLabel = rolename || cap;
-      rows.push({
-        resourceId: capabilityResourceId(node, cap),
-        nodeId: node,
-        capabilityId: cap,
-        resourceType: rtype,
-        displayName: meta?.label ? `${roleLabel} @ ${meta.label}: ${scopeName}` : `${roleLabel} @ ${scopeName}`,
-        principalId: holder,
-        membershipType: res.decisiveAce ? badgeForAce(res.decisiveAce) : 'Indirect',
-      });
-    }
+    const byCapHolder = groupForNodeGrants(grantRows, depthByNode);
+    rows.push(...emitNodeRows(byCapHolder, policy, node, metaById.get(node)));
   }
   return { rows, truncated: truncated ? { ancestors: true } : null };
 }

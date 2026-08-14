@@ -7,30 +7,6 @@
     "js": 20
   },
   "files": {
-    "app/api/src/contexts/plugins/manager-hierarchy.js": [
-      36
-    ],
-    "app/api/src/contexts/plugins/resource-type-tree.js": [
-      32
-    ],
-    "app/api/src/contexts/plugins/runner.js": [
-      22
-    ],
-    "app/api/src/effectiveAccess/engine.js": [
-      25
-    ],
-    "app/api/src/ingest/validation.js": [
-      42,
-      24
-    ],
-    "app/api/src/llm/scraper.js": [
-      21
-    ],
-    "app/api/src/matrix/inheritedAccess.js": [
-      24,
-      24,
-      22
-    ],
     "app/ui/src/App.jsx": [
       45
     ],

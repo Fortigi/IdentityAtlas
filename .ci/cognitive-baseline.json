@@ -7,43 +7,8 @@
     "js": 15
   },
   "files": {
-    "app/api/src/accountlinking/engine.js": [
-      19,
-      17
-    ],
-    "app/api/src/contexts/plugins/manager-hierarchy.js": [
-      34
-    ],
-    "app/api/src/contexts/plugins/resource-type-tree.js": [
-      40
-    ],
-    "app/api/src/contexts/plugins/runner.js": [
-      24
-    ],
-    "app/api/src/effectiveAccess/engine.js": [
-      30,
-      21
-    ],
     "app/api/src/effectiveAccess/engineContainment.test.js": [
       17
-    ],
-    "app/api/src/ingest/validation.js": [
-      65,
-      20
-    ],
-    "app/api/src/llm/scraper.js": [
-      21
-    ],
-    "app/api/src/matrix/inheritedAccess.js": [
-      30,
-      25,
-      22,
-      21
-    ],
-    "app/api/src/riskscoring/engine.js": [
-      31,
-      19,
-      16
     ],
     "app/api/src/routes/openapi.drift.test.js": [
       19

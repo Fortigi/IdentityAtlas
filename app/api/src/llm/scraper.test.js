@@ -33,7 +33,7 @@ function makeRequestMock() {
 vi.mock('node:https', () => ({ request: makeRequestMock() }));
 vi.mock('node:http', () => ({ request: makeRequestMock() }));
 
-const { scrapeOne, buildLLMContextFromScrapes, isBlockedIPv4, isBlockedAddress, validateScrapeUrl, pinnedSafeLookup } = await import('./scraper.js');
+const { scrapeOne, buildLLMContextFromScrapes, isBlockedIPv4, isBlockedAddress, validateScrapeUrl, pinnedSafeLookup, isRedirectResponse, isSupportedContentType, extractText } = await import('./scraper.js');
 
 function res({ statusCode = 200, headers = { 'content-type': 'text/html' }, body = '' }) {
   const r = Readable.from([Buffer.from(body, 'utf8')]);
@@ -159,6 +159,44 @@ describe('scrapeOne — request/response handling', () => {
     expect(r.ok).toBe(true);
     expect(h.calls[0].headers.Authorization).toBe('Bearer secret-token'); // sent to original origin
     expect(h.calls[1].headers.Authorization).toBeUndefined();             // NOT sent to the redirect target
+  });
+});
+
+describe('isRedirectResponse', () => {
+  it('is true only for a redirect code carrying a Location header', () => {
+    for (const code of [301, 302, 303, 307, 308]) {
+      expect(isRedirectResponse({ statusCode: code, headers: { location: '/next' } }), String(code)).toBe(true);
+    }
+  });
+  it('is false for a redirect code without a Location header', () => {
+    expect(isRedirectResponse({ statusCode: 302, headers: {} })).toBe(false);
+  });
+  it('is false for a non-redirect status code', () => {
+    expect(isRedirectResponse({ statusCode: 200, headers: { location: '/next' } })).toBe(false);
+  });
+});
+
+describe('isSupportedContentType', () => {
+  it('accepts text/*, html, xml and json', () => {
+    for (const ct of ['text/plain', 'text/html', 'application/xhtml+xml', 'application/json']) {
+      expect(isSupportedContentType(ct), ct).toBe(true);
+    }
+  });
+  it('rejects binary/image content types', () => {
+    for (const ct of ['image/png', 'application/octet-stream', 'audio/mpeg']) {
+      expect(isSupportedContentType(ct), ct).toBe(false);
+    }
+  });
+});
+
+describe('extractText', () => {
+  it('strips tags for html/xml bodies', () => {
+    expect(extractText('text/html', '<p>Hi</p><script>x</script>')).toBe('Hi');
+    expect(extractText('application/xml', '<a>  A  </a>')).toBe('A');
+  });
+  it('only collapses whitespace for non-markup bodies', () => {
+    expect(extractText('text/plain', '  a\n\n b  ')).toBe('a b');
+    expect(extractText('application/json', '{ "k":  1 }')).toBe('{ "k": 1 }');
   });
 });
 
