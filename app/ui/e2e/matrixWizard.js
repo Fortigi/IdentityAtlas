@@ -37,6 +37,19 @@ export async function resourceValue(column, dir) {
 }
 
 /**
+ * Every entry of /matrix/columns for one entity — column, type and the
+ * distinct values the deployment actually stores.
+ *
+ * @param {string} [entity]
+ * @returns {Promise<Array<{column: string, type: string, values: string[], truncated?: boolean}>>}
+ */
+export async function matrixColumns(entity = 'Resource') {
+  const res = await fetch(`${API}/matrix/columns?entity=${entity}`);
+  if (!res.ok) return [];
+  return await res.json();
+}
+
+/**
  * The named entry of /matrix/columns, or null when the deployment has no such
  * column.
  *
@@ -44,9 +57,30 @@ export async function resourceValue(column, dir) {
  * @param {string} [entity]
  */
 export async function matrixColumn(column, entity = 'Resource') {
-  const res = await fetch(`${API}/matrix/columns?entity=${entity}`);
-  if (!res.ok) return null;
-  return (await res.json()).find(c => c.column === column) || null;
+  return (await matrixColumns(entity)).find(c => c.column === column) || null;
+}
+
+/**
+ * Open the matrix straight from a filter, without walking the wizard: the
+ * `#matrix?filter=…` route is the same entry point a shared link uses.
+ *
+ * @param {import('@playwright/test').Page} page
+ * @param {object} filter
+ */
+export async function openMatrixWithFilter(page, filter) {
+  const full = {
+    rowType: 'principal',
+    orientation: 'rows-as-resources',
+    subject: { include: [], exclude: [] },
+    resource: { include: [], exclude: [] },
+    foldOnLoad: false,
+    ...filter,
+  };
+  await page.goto(`${BASE}/#matrix?filter=${encodeURIComponent(JSON.stringify(full))}`);
+  await page.waitForLoadState('networkidle');
+  const table = page.locator('table').first();
+  await expect(table).toBeVisible({ timeout: 60000 });
+  return table;
 }
 
 /**

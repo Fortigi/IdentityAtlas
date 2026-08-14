@@ -286,13 +286,35 @@ the matrix size.
 
 In the default per-subject grid (`MatrixView.jsx`) the columns can be **sorted by
 1–6 attributes** (`sortAttributes`, e.g. `department` then `jobTitle`). Each sort
-attribute becomes a merged header row above the subject names
-(`computeAttributeSpans` in `matrix/sortUsers.js`). A sort group can then be
-**folded** into a single aggregate count column in place (`collapsedGroups`); the
-aggregate column shows the number of child groups, the user count, and a per-row
-count of Direct assignments. `▾`/`↳` explode an aggregate back into its members
-(direct + indirect, or direct only). This is all **client-side** on the flat
-per-subject payload — it changes what is *rendered*, not what is *fetched*.
+attribute becomes a grouping header row above the subject names, built from the
+value-runs `computeAttributeSpans` (`matrix/sortUsers.js`) derives. A sort group
+can then be **folded** into a single aggregate count column in place
+(`collapsedGroups`); the aggregate column shows the number of child groups, the
+user count, and a per-row count of Direct assignments. `▾`/`↳` explode an
+aggregate back into its members (direct + indirect, or direct only). This is all
+**client-side** on the flat per-subject payload — it changes what is *rendered*,
+not what is *fetched*.
+
+**Two header styles, chosen adaptively (`matrix/headerMode.js`).** The grouping
+rows render either as the original **rotated** rows (one 120 px row per level,
+values written vertically inside merged cells) or as a **cross table**
+(`MatrixCrossTableRows.jsx`): one 20 px row per distinct value of a level, its
+label written horizontally in the corner area, with a `✕` in every subject
+column that carries the value. A folded group shows `▤` there instead, an
+exploded one `▾`, and below its fold level an aggregate keeps its child-group
+count in a cell spanning that level's value rows. Each contiguous run of columns
+is one real `<button>` carrying the same fold/unfold click and accessible name
+the merged cell had, so every interaction survives the change of style.
+
+The cross table is used only when it is **no taller** than the rotated stack it
+replaces — `Σ distinct values × 20 px ≤ levels × 120 px`, i.e. an average of at
+most six values per level. The decision is taken over the **unfolded** subject
+set across **all** configured sort levels, and the whole stack switches together
+(never a per-row mix). Two consequences are deliberate: the style is a property
+of the matrix *definition*, so folding or exploding a column never re-styles the
+header under the user's click (#1049); and because folding can only ever draw a
+subset of those values, a cross table that fits in that worst case stays shorter
+than today's header in every reachable state.
 
 ### Size gate
 
@@ -334,12 +356,16 @@ resource, so the header agrees with the cells and with the member drill-down.
 
 **Sticky headers.** With many header rows, only the *deepest* (layered views) or
 the *names* row (per-subject grid) stays pinned on vertical scroll; the upper
-grouping rows scroll away.
+grouping rows scroll away. The per-subject grid does this by making the whole
+`<thead>` sticky with a negative `top` equal to the grouping rows' combined
+height — the summed cross-table row heights, or `levels × 120 px` in rotated
+mode.
 
 ### Excel export
 
 Both renderers export an `.xlsx` that mirrors the on-screen header stack: one
-header row per shown level (every sort attribute / every org level). On-screen
+header row per shown level (every sort attribute / every org level) — including
+when the screen shows the cross table, which is a display choice only. On-screen
 merged spans are written as the **same value repeated** across each column — cells
 are not merged in the file (`exportRollupToExcel.js`, `exportToExcel.js`). All
 externally-influenced cells route through `safeCell` (formula-injection guard).
