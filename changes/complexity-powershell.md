@@ -1,0 +1,1 @@
+- Internal maintainability: continued reducing the complexity baselines — refactored the remaining over-threshold PowerShell crawler/SDK scripts, the Python SBOM-doc generator, and two API test files by extracting focused helpers/functions. No functional change.

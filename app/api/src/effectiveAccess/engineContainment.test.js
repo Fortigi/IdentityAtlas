@@ -22,29 +22,30 @@ const grants = [
   { cap: 'Owner', target: 'sub', holder: 'u1', effect: 'allow', scope: 'self' }, // self-scope at ancestor: must NOT reach vm
 ];
 
+// The propagating-ancestor rows for a frontier (walks Contains upward).
+function ancestorRows(frontier) {
+  const parents = new Set();
+  for (const c of frontier) for (const e of contains[c] || []) if (e.propagates) parents.add(e.parent);
+  return [...parents].map((parent) => ({ parent }));
+}
+// getHolders: the group ids the frontier principals belong to.
+function holderRows(frontier) {
+  const gids = new Set();
+  for (const p of frontier) for (const g of membership[p] || []) gids.add(g);
+  return [...gids].map((gid) => ({ gid }));
+}
+// gather: capability grants at any ancestor, held by any holder.
+function grantRows([ancestorIds, holderArr]) {
+  return grants
+    .filter((g) => ancestorIds.includes(g.target) && holderArr.includes(g.holder))
+    .map((g) => ({ cap: g.cap, target: g.target, holder: g.holder, effect: g.effect, scope: g.scope }));
+}
+
 function wire() {
   db.query.mockImplementation((sql, params) => {
-    if (sql.includes('ResourceRelationships')) {
-      const frontier = params[0];
-      const parents = new Set();
-      for (const c of frontier) for (const e of contains[c] || []) if (e.propagates) parents.add(e.parent);
-      return Promise.resolve({ rows: [...parents].map((parent) => ({ parent })) });
-    }
-    if (sql.includes('resourceType')) {
-      // getHolders
-      const frontier = params[0];
-      const gids = new Set();
-      for (const p of frontier) for (const g of membership[p] || []) gids.add(g);
-      return Promise.resolve({ rows: [...gids].map((gid) => ({ gid })) });
-    }
-    if (sql.includes('targetNodeId')) {
-      // gather
-      const [ancestorIds, holderArr] = params;
-      const rows = grants
-        .filter((g) => ancestorIds.includes(g.target) && holderArr.includes(g.holder))
-        .map((g) => ({ cap: g.cap, target: g.target, holder: g.holder, effect: g.effect, scope: g.scope }));
-      return Promise.resolve({ rows });
-    }
+    if (sql.includes('ResourceRelationships')) return Promise.resolve({ rows: ancestorRows(params[0]) });
+    if (sql.includes('resourceType')) return Promise.resolve({ rows: holderRows(params[0]) });
+    if (sql.includes('targetNodeId')) return Promise.resolve({ rows: grantRows(params) });
     return Promise.resolve({ rows: [] });
   });
 }
