@@ -39,6 +39,49 @@
 
 #region Core query
 
+# Build the list of ARG request scopes. A management-group scope (single query covering the whole
+# subtree, and surfacing the tenant role-definition catalog) wins when supplied; otherwise the
+# subscriptions are chunked to ARG's per-request limit, one scope per chunk.
+function Get-ARGQueryScopes {
+    [CmdletBinding()]
+    param([string[]]$SubscriptionIds, [string[]]$ManagementGroups, [int]$ChunkSize)
+    $scopes = [System.Collections.Generic.List[object]]::new()
+    if ($ManagementGroups.Count -gt 0) {
+        $scopes.Add(@{ managementGroups = @($ManagementGroups) })
+        return $scopes
+    }
+    for ($i = 0; $i -lt $SubscriptionIds.Count; $i += $ChunkSize) {
+        $end = [Math]::Min($i + $ChunkSize, $SubscriptionIds.Count) - 1
+        $scopes.Add(@{ subscriptions = @($SubscriptionIds[$i..$end]) })
+    }
+    return $scopes
+}
+
+# Serialise one ARG request body for a scope/page. $SkipToken threads paging; $ScopeFilter is
+# emitted only when set (management-group / role-definition queries need it).
+function New-ARGRequestBody {
+    [CmdletBinding()]
+    param($Scope, [string]$Query, [int]$PageSize, [string]$ScopeFilter, [string]$SkipToken)
+    $options = @{ '$top' = $PageSize; resultFormat = 'objectArray' }
+    if ($ScopeFilter) { $options['authorizationScopeFilter'] = $ScopeFilter }
+    if ($SkipToken)   { $options['$skipToken'] = $SkipToken }
+    return ($Scope + @{ query = $Query; options = $options }) | ConvertTo-Json -Depth 6 -Compress
+}
+
+# Page one scope to exhaustion, following $skipToken, appending every `data` row to $Accumulator.
+function Add-ARGScopeRows {
+    [CmdletBinding()]
+    param($Scope, [string]$Query, [int]$PageSize, [string]$ScopeFilter, [int]$MaxRetries, $Accumulator)
+    $skipToken = $null
+    while ($true) {
+        $body = New-ARGRequestBody -Scope $Scope -Query $Query -PageSize $PageSize -ScopeFilter $ScopeFilter -SkipToken $skipToken
+        $resp = Invoke-ARGRequestRaw -Body $body -MaxRetries $MaxRetries
+        if ($null -ne $resp.data) { foreach ($row in $resp.data) { [void]$Accumulator.Add($row) } }
+        $skipToken = $resp.'$skipToken'
+        if (-not $skipToken) { break }
+    }
+}
+
 # POST one ARG query, following $skipToken across all pages; returns a flat array of `data` rows.
 # Honours 429/5xx with Retry-After (same contract as Invoke-ARMRequestRaw) and the ARG user-quota
 # headers (x-ms-user-quota-remaining / -resets-after) so a big crawl backs off before it is told to.
@@ -58,31 +101,54 @@ function Invoke-ARGQuery {
     # Scope by management group (single query — covers the whole subtree, and surfaces the tenant
     # role-definition catalog) or by subscriptions (chunked to ARG's per-request limit). MG scope
     # wins when supplied.
-    $scopes = [System.Collections.Generic.List[object]]::new()
-    if ($ManagementGroups.Count -gt 0) {
-        $scopes.Add(@{ managementGroups = @($ManagementGroups) })
-    } else {
-        for ($i = 0; $i -lt $SubscriptionIds.Count; $i += $subChunkSize) {
-            $end = [Math]::Min($i + $subChunkSize, $SubscriptionIds.Count) - 1
-            $scopes.Add(@{ subscriptions = @($SubscriptionIds[$i..$end]) })
-        }
-    }
-
+    $scopes = Get-ARGQueryScopes -SubscriptionIds $SubscriptionIds -ManagementGroups $ManagementGroups -ChunkSize $subChunkSize
     foreach ($scope in $scopes) {
-        $skipToken = $null
-        while ($true) {
-            $options = @{ '$top' = $pageSize; resultFormat = 'objectArray' }
-            if ($ScopeFilter) { $options['authorizationScopeFilter'] = $ScopeFilter }
-            if ($skipToken)   { $options['$skipToken'] = $skipToken }
-            $body = ($scope + @{ query = $Query; options = $options }) | ConvertTo-Json -Depth 6 -Compress
-
-            $resp = Invoke-ARGRequestRaw -Body $body -MaxRetries $MaxRetries
-            if ($null -ne $resp.data) { foreach ($row in $resp.data) { [void]$all.Add($row) } }
-            $skipToken = $resp.'$skipToken'
-            if (-not $skipToken) { break }
-        }
+        Add-ARGScopeRows -Scope $scope -Query $Query -PageSize $pageSize -ScopeFilter $ScopeFilter -MaxRetries $MaxRetries -Accumulator $all
     }
     return $all
+}
+
+# After a successful ARG response, back off proactively when the per-user quota is exhausted —
+# before ARG starts returning 429s. A missing or unparseable header is treated as exhausted
+# (remaining 0), pausing for the reset span the headers advertise or a short default.
+function Invoke-ARGQuotaBackoff {
+    [CmdletBinding()]
+    param($ResponseHeaders)
+    $remaining = 0
+    try { $remaining = [int]($ResponseHeaders['x-ms-user-quota-remaining'] | Select-Object -First 1) } catch {}
+    if ($remaining -gt 0) { return }
+    $resetSpan = $null
+    try { $resetSpan = [TimeSpan]::Parse(($ResponseHeaders['x-ms-user-quota-resets-after'] | Select-Object -First 1)) } catch {}
+    $wait = if ($resetSpan) { [Math]::Ceiling($resetSpan.TotalSeconds) } else { 5 }
+    Write-Host "    ARG quota exhausted: pausing ${wait}s" -ForegroundColor DarkYellow
+    Start-Sleep -Seconds $wait
+}
+
+# The HTTP status from a failed ARG call, or $null when the exception carries no response.
+function Get-ARGErrorStatus {
+    [CmdletBinding()]
+    param($ErrorRecord)
+    $status = $null
+    try { $status = [int]$ErrorRecord.Exception.Response.StatusCode } catch {}
+    return $status
+}
+
+# A transient ARG failure worth retrying: throttling (429), any 5xx, or no status at all.
+function Test-ARGTransient {
+    [CmdletBinding()]
+    param($Status)
+    return ($Status -eq 429) -or ($Status -ge 500 -and $Status -lt 600) -or (-not $Status)
+}
+
+# Seconds to wait before the next ARG retry: honour Retry-After when present, else exponential
+# backoff capped at 60s.
+function Get-ARGRetryAfter {
+    [CmdletBinding()]
+    param($ErrorRecord, [int]$Attempt)
+    $retryAfter = 0
+    try { $retryAfter = [int]($ErrorRecord.Exception.Response.Headers['Retry-After']) } catch {}
+    if ($retryAfter -gt 0) { return $retryAfter }
+    return [Math]::Min(60, [int][Math]::Pow(2, $Attempt))
 }
 
 # Internal: POST the ARG endpoint once, with retry. Reuses the ARM token + refresh from
@@ -102,29 +168,15 @@ function Invoke-ARGRequestRaw {
             $resp = Invoke-RestMethod -Uri $uri -Method Post -Body $Body -TimeoutSec 120 `
                 -Headers $headers -ResponseHeadersVariable respHeaders
             # Proactively back off when the per-user quota is exhausted, before ARG returns a 429.
-            $remaining = 0
-            try { $remaining = [int]($respHeaders['x-ms-user-quota-remaining'] | Select-Object -First 1) } catch {}
-            if ($remaining -le 0) {
-                $resetSpan = $null
-                try { $resetSpan = [TimeSpan]::Parse(($respHeaders['x-ms-user-quota-resets-after'] | Select-Object -First 1)) } catch {}
-                $wait = if ($resetSpan) { [Math]::Ceiling($resetSpan.TotalSeconds) } else { 5 }
-                Write-Host "    ARG quota exhausted: pausing ${wait}s" -ForegroundColor DarkYellow
-                Start-Sleep -Seconds $wait
-            }
+            Invoke-ARGQuotaBackoff -ResponseHeaders $respHeaders
             return $resp
         } catch {
-            $status = $null
-            try { $status = [int]$_.Exception.Response.StatusCode } catch {}
-            $transient = ($status -eq 429) -or ($status -ge 500 -and $status -lt 600) -or (-not $status)
-            if ($transient -and $attempt -le $MaxRetries) {
-                $retryAfter = 0
-                try { $retryAfter = [int]($_.Exception.Response.Headers['Retry-After']) } catch {}
-                $wait = if ($retryAfter -gt 0) { $retryAfter } else { [Math]::Min(60, [int][Math]::Pow(2, $attempt)) }
-                Write-Host "    ARG ${status}: retry $attempt/$MaxRetries in ${wait}s" -ForegroundColor DarkYellow
-                Start-Sleep -Seconds $wait
-                continue
-            }
-            throw
+            $status = Get-ARGErrorStatus -ErrorRecord $_
+            if (-not (Test-ARGTransient -Status $status) -or $attempt -gt $MaxRetries) { throw }
+            $wait = Get-ARGRetryAfter -ErrorRecord $_ -Attempt $attempt
+            Write-Host "    ARG ${status}: retry $attempt/$MaxRetries in ${wait}s" -ForegroundColor DarkYellow
+            Start-Sleep -Seconds $wait
+            continue
         }
     }
 }

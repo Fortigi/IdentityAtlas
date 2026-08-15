@@ -10,12 +10,6 @@
     "app/ui/src/components/RollupMatrixView.jsx": [
       28
     ],
-    "setup/docker/Invoke-CrawlerJob.ps1": [
-      29
-    ],
-    "setup/docker/scheduler.ps1": [
-      23
-    ],
     "test/nightly/Test-RiskScoring.ps1": [
       41
     ],
@@ -27,9 +21,6 @@
     ],
     "tools/powershell-sdk/graph/Get-FGServicePrincipalWithSync.ps1": [
       35
-    ],
-    "tools/powershell-sdk/graph/Update-FGConfig.ps1": [
-      28
     ],
     "tools/update-sbom-doc.py": [
       21

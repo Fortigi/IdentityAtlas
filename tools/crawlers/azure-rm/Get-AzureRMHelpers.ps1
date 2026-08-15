@@ -55,6 +55,32 @@ function Update-ARMTokenIfNeeded {
     }
 }
 
+# Internal: extract the HTTP status code from a caught error record (0/null when absent).
+function Get-ARMErrorStatus {
+    [CmdletBinding()]
+    param($ErrorRecord)
+    try { return [int]$ErrorRecord.Exception.Response.StatusCode } catch { return $null }
+}
+
+# Internal: is this an HTTP status worth retrying (throttling, 5xx, or no status at all)?
+function Test-ARMTransientStatus {
+    [CmdletBinding()]
+    param($Status)
+    if ($Status -eq 429) { return $true }
+    if ($Status -ge 500 -and $Status -lt 600) { return $true }
+    return (-not $Status)
+}
+
+# Internal: seconds to wait before the next retry — honour Retry-After, else exponential backoff.
+function Get-ARMRetryWait {
+    [CmdletBinding()]
+    param($ErrorRecord, [int]$Attempt)
+    $retryAfter = 0
+    try { $retryAfter = [int]($ErrorRecord.Exception.Response.Headers['Retry-After']) } catch {}
+    if ($retryAfter -gt 0) { return $retryAfter }
+    return [Math]::Min(60, [int][Math]::Pow(2, $Attempt))
+}
+
 # Internal: GET one URI with retry on 429/5xx (honouring Retry-After).
 function Invoke-ARMRequestRaw {
     [CmdletBinding()]
@@ -68,18 +94,12 @@ function Invoke-ARMRequestRaw {
             return Invoke-RestMethod -Uri $Uri -Method Get -TimeoutSec 120 `
                 -Headers @{ Authorization = "Bearer $Global:AccessToken" }
         } catch {
-            $status = $null
-            try { $status = [int]$_.Exception.Response.StatusCode } catch {}
-            $transient = ($status -eq 429) -or ($status -ge 500 -and $status -lt 600) -or (-not $status)
-            if ($transient -and $attempt -le $MaxRetries) {
-                $retryAfter = 0
-                try { $retryAfter = [int]($_.Exception.Response.Headers['Retry-After']) } catch {}
-                $wait = if ($retryAfter -gt 0) { $retryAfter } else { [Math]::Min(60, [int][Math]::Pow(2, $attempt)) }
-                Write-Host "    ARM ${status}: retry $attempt/$MaxRetries in ${wait}s" -ForegroundColor DarkYellow
-                Start-Sleep -Seconds $wait
-                continue
-            }
-            throw
+            $status = Get-ARMErrorStatus -ErrorRecord $_
+            $canRetry = (Test-ARMTransientStatus -Status $status) -and ($attempt -le $MaxRetries)
+            if (-not $canRetry) { throw }
+            $wait = Get-ARMRetryWait -ErrorRecord $_ -Attempt $attempt
+            Write-Host "    ARM ${status}: retry $attempt/$MaxRetries in ${wait}s" -ForegroundColor DarkYellow
+            Start-Sleep -Seconds $wait
         }
     }
 }

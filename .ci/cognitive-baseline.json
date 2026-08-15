@@ -7,49 +7,17 @@
     "js": 15
   },
   "files": {
-    "setup/docker/Invoke-CrawlerJob.ps1": [
-      46
-    ],
-    "setup/docker/scheduler.ps1": [
-      38
-    ],
     "test/nightly/Test-RiskScoring.ps1": [
       73
     ],
     "test/nightly/Test-RiskScoringLLM.ps1": [
       95
     ],
-    "tools/crawlers/azure-rm/Get-AzureRGHelpers.ps1": [
-      32,
-      23
-    ],
-    "tools/crawlers/azure-rm/Get-AzureRMHelpers.ps1": [
-      21
-    ],
-    "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1": [
-      17
-    ],
-    "tools/crawlers/midpoint/Invoke-MidpointApi.ps1": [
-      22,
-      22
-    ],
     "tools/crawlers/odata/Invoke-ODataGetRequest.ps1": [
       70
     ],
-    "tools/crawlers/shared/Invoke-CrawlerIngest.ps1": [
-      31
-    ],
-    "tools/powershell-sdk/graph/Get-FGAttributeMapping.ps1": [
-      38
-    ],
     "tools/powershell-sdk/graph/Get-FGServicePrincipalWithSync.ps1": [
       85
-    ],
-    "tools/powershell-sdk/graph/Invoke-FGGetPage.ps1": [
-      35
-    ],
-    "tools/powershell-sdk/graph/Update-FGConfig.ps1": [
-      44
     ],
     "tools/update-sbom-doc.py": [
       30

@@ -15,6 +15,53 @@
 
 #region Functions
 
+# Extract the HTTP status code and response body from a caught request error.
+function Get-FGIngestErrorDetail {
+    [CmdletBinding()]
+    param($ErrorRecord)
+    $statusCode   = $null
+    $responseBody = $null
+    try {
+        $statusCode = $ErrorRecord.Exception.Response.StatusCode.value__
+        # PS7 drains the response stream before the exception bubbles up, so the body
+        # is in ErrorDetails.Message. Fall back to the stream for older engines.
+        if ($ErrorRecord.ErrorDetails -and $ErrorRecord.ErrorDetails.Message) {
+            $responseBody = $ErrorRecord.ErrorDetails.Message
+        } else {
+            $stream = $ErrorRecord.Exception.Response.GetResponseStream()
+            if ($stream) {
+                $reader       = [System.IO.StreamReader]::new($stream)
+                $responseBody = $reader.ReadToEnd()
+                $reader.Close()
+            }
+        }
+    } catch {}
+    return @{ StatusCode = $statusCode; ResponseBody = $responseBody }
+}
+
+# Log a transient failure and sleep with exponential backoff before the next attempt.
+function Wait-FGIngestRetry {
+    [CmdletBinding()]
+    param($Endpoint, $StatusCode, [int]$Attempt, [int]$MaxAttempts, $ErrorRecord)
+    $delay  = [Math]::Pow(2, $Attempt)  # 2, 4, 8, 16, 32 seconds
+    $reason = if ($StatusCode) { "HTTP $StatusCode" } else { $ErrorRecord.Exception.Message }
+    Write-Host "  Transient failure on $Endpoint ($reason) — retry $Attempt/$($MaxAttempts - 1) in ${delay}s" -ForegroundColor Yellow
+    Start-Sleep -Seconds $delay
+}
+
+# Log the final, non-recoverable ingest failure before it is re-thrown.
+function Write-FGIngestFailure {
+    [CmdletBinding()]
+    param($Endpoint, $StatusCode, [int]$Attempt, [string]$Json, $ResponseBody, $ErrorRecord)
+    $payloadMB = [Math]::Round($Json.Length / 1MB, 2)
+    Write-Host "  ERROR: $Endpoint returned $StatusCode after $Attempt attempt(s) (payload: ${payloadMB} MB)" -ForegroundColor Red
+    if ($ResponseBody) {
+        Write-Host "  Response: $ResponseBody" -ForegroundColor Yellow
+    } else {
+        Write-Host "  $($ErrorRecord.Exception.Message)" -ForegroundColor Yellow
+    }
+}
+
 function Invoke-IngestAPI {
     [CmdletBinding()]
     param(
@@ -35,41 +82,16 @@ function Invoke-IngestAPI {
             if ($attempt -gt 1) { Write-Host "  Recovered on attempt $attempt" -ForegroundColor Green }
             return $response
         } catch {
-            $statusCode   = $null
-            $responseBody = $null
-            try {
-                $statusCode = $_.Exception.Response.StatusCode.value__
-                # PS7 drains the response stream before the exception bubbles up, so the body
-                # is in ErrorDetails.Message. Fall back to the stream for older engines.
-                if ($_.ErrorDetails -and $_.ErrorDetails.Message) {
-                    $responseBody = $_.ErrorDetails.Message
-                } else {
-                    $stream = $_.Exception.Response.GetResponseStream()
-                    if ($stream) {
-                        $reader       = [System.IO.StreamReader]::new($stream)
-                        $responseBody = $reader.ReadToEnd()
-                        $reader.Close()
-                    }
-                }
-            } catch {}
-
+            $errorInfo   = Get-FGIngestErrorDetail -ErrorRecord $_
+            $statusCode  = $errorInfo.StatusCode
             $isTransient = (-not $statusCode) -or ($statusCode -ge 500) -or ($statusCode -eq 429)
 
             if ($isTransient -and $attempt -lt $maxAttempts) {
-                $delay  = [Math]::Pow(2, $attempt)  # 2, 4, 8, 16, 32 seconds
-                $reason = if ($statusCode) { "HTTP $statusCode" } else { $_.Exception.Message }
-                Write-Host "  Transient failure on $Endpoint ($reason) — retry $attempt/$($maxAttempts - 1) in ${delay}s" -ForegroundColor Yellow
-                Start-Sleep -Seconds $delay
+                Wait-FGIngestRetry -Endpoint $Endpoint -StatusCode $statusCode -Attempt $attempt -MaxAttempts $maxAttempts -ErrorRecord $_
                 continue
             }
 
-            $payloadMB = [Math]::Round($json.Length / 1MB, 2)
-            Write-Host "  ERROR: $Endpoint returned $statusCode after $attempt attempt(s) (payload: ${payloadMB} MB)" -ForegroundColor Red
-            if ($responseBody) {
-                Write-Host "  Response: $responseBody" -ForegroundColor Yellow
-            } else {
-                Write-Host "  $($_.Exception.Message)" -ForegroundColor Yellow
-            }
+            Write-FGIngestFailure -Endpoint $Endpoint -StatusCode $statusCode -Attempt $attempt -Json $json -ResponseBody $errorInfo.ResponseBody -ErrorRecord $_
             throw
         }
     }

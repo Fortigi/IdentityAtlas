@@ -1,3 +1,94 @@
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+function Get-FGConfigDefaultPreview {
+    # Compact-JSON preview of a template default, truncated for prompt display.
+    param($Value)
+
+    $preview = ($Value | ConvertTo-Json -Depth 3 -Compress)
+    if ($preview.Length -gt 120) { $preview = $preview.Substring(0, 117) + "..." }
+    return $preview
+}
+
+function Get-FGMissingTopLevelSections {
+    # Top-level template keys that are absent from the config (skip list excluded).
+    param($Template, $Config, $SkipTopLevel)
+
+    $missing = [System.Collections.Generic.List[string]]::new()
+    foreach ($key in $Template.PSObject.Properties.Name) {
+        if ($SkipTopLevel -contains $key) { continue }
+        if (-not $Config.PSObject.Properties[$key]) {
+            $missing.Add($key)
+        }
+    }
+    return ,$missing
+}
+
+function Get-FGMissingSyncKeys {
+    # Sync sub-keys present in the template but missing from the config.
+    param($Template, $Config, $InternalSyncKeys)
+
+    $missing = [System.Collections.Generic.List[string]]::new()
+    if ($Template.Sync -and $Config.Sync) {
+        foreach ($key in $Template.Sync.PSObject.Properties.Name) {
+            if ($InternalSyncKeys -contains $key) { continue }
+            if ($key.StartsWith('_')) { continue }   # skip _Comment / _V3_NOTE etc.
+            if (-not $Config.Sync.PSObject.Properties[$key]) {
+                $missing.Add($key)
+            }
+        }
+    }
+    return ,$missing
+}
+
+function Write-FGMissingSectionsReport {
+    # Prints the missing-section summary header and lists.
+    param($ConfigFile, $TotalMissing, $MissingSections, $MissingSyncKeys)
+
+    Write-Host ""
+    Write-Host "========================================" -ForegroundColor Yellow
+    Write-Host " Config file has $TotalMissing missing section(s)" -ForegroundColor Yellow
+    Write-Host "========================================" -ForegroundColor Yellow
+    Write-Host "  Config: $ConfigFile" -ForegroundColor Gray
+
+    if ($MissingSections.Count -gt 0) {
+        Write-Host ""
+        Write-Host "  Missing top-level sections:" -ForegroundColor Yellow
+        foreach ($s in $MissingSections) {
+            Write-Host "    - $s" -ForegroundColor Gray
+        }
+    }
+
+    if ($MissingSyncKeys.Count -gt 0) {
+        Write-Host ""
+        Write-Host "  Missing Sync entries:" -ForegroundColor Yellow
+        foreach ($s in $MissingSyncKeys) {
+            Write-Host "    - Sync.$s" -ForegroundColor Gray
+        }
+    }
+}
+
+function Add-FGMissingConfigMembers {
+    # Prompts for each missing key and adds confirmed defaults to $TargetObject,
+    # recording each added label (prefixed with $KeyPrefix) in $AddedList.
+    param($TargetObject, $TemplateSource, $Keys, $KeyPrefix, $MissingLabel, $AddedList)
+
+    foreach ($key in $Keys) {
+        Write-Host ""
+        $templateValue = $TemplateSource.$key
+        $preview = Get-FGConfigDefaultPreview $templateValue
+        Write-Host "  $MissingLabel`: $KeyPrefix$key" -ForegroundColor Yellow
+        Write-Host "  Default: $preview" -ForegroundColor Gray
+        $answer = Read-Host "  Add '$KeyPrefix$key' with defaults? (Y/N)"
+        if ($answer -match '^[Yy]') {
+            $TargetObject | Add-Member -NotePropertyName $key -NotePropertyValue $templateValue -Force
+            $AddedList.Add("$KeyPrefix$key")
+            Write-Host "  Added: $KeyPrefix$key" -ForegroundColor Green
+        }
+    }
+}
+
+# ── Public function ─────────────────────────────────────────────────────────────
+
 function Update-FGConfig {
     <#
     .SYNOPSIS
@@ -65,34 +156,15 @@ function Update-FGConfig {
         return
     }
 
-    # ── Compare top-level sections ────────────────────────────────────────────
+    # ── Compare template against config ───────────────────────────────────────
 
     # Sections to skip — either auto-generated or internal
     $skipTopLevel = @('_INFO', '_NOTE', '_USAGE', '_LLM_NOTE', '_RISKSCORING_NOTE',
                       '_ACCOUNTCORRELATION_NOTE', '_UI_NOTE', 'Azure', 'Graph', 'UI', 'Sync')
-
-    $missingSections  = [System.Collections.Generic.List[string]]::new()
-    $missingSyncKeys  = [System.Collections.Generic.List[string]]::new()
     $internalSyncKeys = @('ScheduleTimeZone', 'ParallelExecution', 'Views')
 
-    foreach ($key in $template.PSObject.Properties.Name) {
-        if ($skipTopLevel -contains $key) { continue }
-        if (-not $config.PSObject.Properties[$key]) {
-            $missingSections.Add($key)
-        }
-    }
-
-    # ── Compare Sync sub-keys ─────────────────────────────────────────────────
-
-    if ($template.Sync -and $config.Sync) {
-        foreach ($key in $template.Sync.PSObject.Properties.Name) {
-            if ($internalSyncKeys -contains $key) { continue }
-            if ($key.StartsWith('_')) { continue }   # skip _Comment / _V3_NOTE etc.
-            if (-not $config.Sync.PSObject.Properties[$key]) {
-                $missingSyncKeys.Add($key)
-            }
-        }
-    }
+    $missingSections = Get-FGMissingTopLevelSections -Template $template -Config $config -SkipTopLevel $skipTopLevel
+    $missingSyncKeys = Get-FGMissingSyncKeys -Template $template -Config $config -InternalSyncKeys $internalSyncKeys
 
     # ── Report ────────────────────────────────────────────────────────────────
 
@@ -103,27 +175,8 @@ function Update-FGConfig {
         return @{ Missing = @(); Added = @() }
     }
 
-    Write-Host ""
-    Write-Host "========================================" -ForegroundColor Yellow
-    Write-Host " Config file has $totalMissing missing section(s)" -ForegroundColor Yellow
-    Write-Host "========================================" -ForegroundColor Yellow
-    Write-Host "  Config: $ConfigFile" -ForegroundColor Gray
-
-    if ($missingSections.Count -gt 0) {
-        Write-Host ""
-        Write-Host "  Missing top-level sections:" -ForegroundColor Yellow
-        foreach ($s in $missingSections) {
-            Write-Host "    - $s" -ForegroundColor Gray
-        }
-    }
-
-    if ($missingSyncKeys.Count -gt 0) {
-        Write-Host ""
-        Write-Host "  Missing Sync entries:" -ForegroundColor Yellow
-        foreach ($s in $missingSyncKeys) {
-            Write-Host "    - Sync.$s" -ForegroundColor Gray
-        }
-    }
+    Write-FGMissingSectionsReport -ConfigFile $ConfigFile -TotalMissing $totalMissing `
+        -MissingSections $missingSections -MissingSyncKeys $missingSyncKeys
 
     if ($Silent) {
         Write-Host ""
@@ -136,46 +189,15 @@ function Update-FGConfig {
 
     # ── Interactive prompts ───────────────────────────────────────────────────
 
-    $added   = [System.Collections.Generic.List[string]]::new()
-    $changed = $false
-
-    # Top-level sections
-    foreach ($key in $missingSections) {
-        Write-Host ""
-        $templateValue = $template.$key
-        $preview = ($templateValue | ConvertTo-Json -Depth 3 -Compress)
-        if ($preview.Length -gt 120) { $preview = $preview.Substring(0, 117) + "..." }
-        Write-Host "  Missing section: $key" -ForegroundColor Yellow
-        Write-Host "  Default: $preview" -ForegroundColor Gray
-        $answer = Read-Host "  Add '$key' with defaults? (Y/N)"
-        if ($answer -match '^[Yy]') {
-            $config | Add-Member -NotePropertyName $key -NotePropertyValue $templateValue -Force
-            $added.Add($key)
-            $changed = $true
-            Write-Host "  Added: $key" -ForegroundColor Green
-        }
-    }
-
-    # Sync sub-keys
-    foreach ($key in $missingSyncKeys) {
-        Write-Host ""
-        $templateValue = $template.Sync.$key
-        $preview = ($templateValue | ConvertTo-Json -Depth 3 -Compress)
-        if ($preview.Length -gt 120) { $preview = $preview.Substring(0, 117) + "..." }
-        Write-Host "  Missing sync entry: Sync.$key" -ForegroundColor Yellow
-        Write-Host "  Default: $preview" -ForegroundColor Gray
-        $answer = Read-Host "  Add 'Sync.$key' with defaults? (Y/N)"
-        if ($answer -match '^[Yy]') {
-            $config.Sync | Add-Member -NotePropertyName $key -NotePropertyValue $templateValue -Force
-            $added.Add("Sync.$key")
-            $changed = $true
-            Write-Host "  Added: Sync.$key" -ForegroundColor Green
-        }
-    }
+    $added = [System.Collections.Generic.List[string]]::new()
+    Add-FGMissingConfigMembers -TargetObject $config -TemplateSource $template `
+        -Keys $missingSections -KeyPrefix '' -MissingLabel 'Missing section' -AddedList $added
+    Add-FGMissingConfigMembers -TargetObject $config.Sync -TemplateSource $template.Sync `
+        -Keys $missingSyncKeys -KeyPrefix 'Sync.' -MissingLabel 'Missing sync entry' -AddedList $added
 
     # ── Save ──────────────────────────────────────────────────────────────────
 
-    if ($changed) {
+    if ($added.Count -gt 0) {
         try {
             $config | ConvertTo-Json -Depth 10 | Set-Content -Path $ConfigFile -Encoding UTF8
             Write-Host ""

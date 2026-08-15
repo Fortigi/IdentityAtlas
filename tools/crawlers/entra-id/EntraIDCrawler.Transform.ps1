@@ -166,6 +166,26 @@ function ConvertTo-EntraSpActivityRecord {
     return $null
 }
 
+# Resolves the mutually-exclusive base group category ("what kind of group is
+# this") from the raw Graph flags. Extracted from Get-EntraGroupClassification so
+# the classifier stays flat; uses guard clauses instead of an if/elseif ladder.
+function Get-EntraGroupBaseCategory {
+    [CmdletBinding()]
+    param(
+        [bool]$IsUnified,
+        [bool]$IsTeam,
+        [bool]$MailEnabled,
+        [bool]$SecurityEnabled
+    )
+    if ($IsUnified) {
+        if ($IsTeam) { return 'Team' }
+        return 'Microsoft365'
+    }
+    if ($MailEnabled -and $SecurityEnabled) { return 'MailEnabledSecurity' }
+    if ($MailEnabled -and -not $SecurityEnabled) { return 'DistributionList' }
+    return 'SecurityGroup'
+}
+
 # Classifies a Graph group into a single, analyst-readable `groupCategory` plus a
 # few orthogonal facet fields, derived purely from the raw Graph flags. Returns a
 # hashtable that ConvertTo-EntraGroupResourceRecord folds into extendedAttributes.
@@ -192,18 +212,8 @@ function Get-EntraGroupClassification {
     $isTeam          = @($Group.resourceProvisioningOptions) -contains 'Team'
 
     # Base category — the mutually-exclusive "what kind of group is this".
-    if ($isUnified) {
-        $base = if ($isTeam) { 'Team' } else { 'Microsoft365' }
-    }
-    elseif ($mailEnabled -and $securityEnabled) {
-        $base = 'MailEnabledSecurity'
-    }
-    elseif ($mailEnabled -and -not $securityEnabled) {
-        $base = 'DistributionList'
-    }
-    else {
-        $base = 'SecurityGroup'
-    }
+    $base = Get-EntraGroupBaseCategory -IsUnified $isUnified -IsTeam $isTeam `
+        -MailEnabled $mailEnabled -SecurityEnabled $securityEnabled
 
     # Fold the dynamic aspect into the single readable label, guarded to the
     # categories that support Azure AD dynamic membership.
