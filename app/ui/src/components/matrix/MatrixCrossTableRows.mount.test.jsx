@@ -83,7 +83,7 @@ describe('MatrixCrossTableRows layout', () => {
   it('folds a group from the row it labels and unfolds it from the ▤ mark (AC6)', () => {
     const onToggleCollapse = vi.fn();
     const unfolded = [subject('a', 'Finance'), subject('b', 'Ops')];
-    const { container, unmount } = render(unfolded, [{ attribute: 'department' }], { onToggleCollapse });
+    const { unmount } = render(unfolded, [{ attribute: 'department' }], { onToggleCollapse });
     screen.getByRole('button', { name: 'Collapse Finance into one column' }).click();
     expect(onToggleCollapse).toHaveBeenCalledWith(['Finance'], 0);
     unmount();
