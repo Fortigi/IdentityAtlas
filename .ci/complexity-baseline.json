@@ -7,22 +7,10 @@
     "js": 20
   },
   "files": {
-    "app/ui/src/App.jsx": [
-      45
-    ],
-    "app/ui/src/components/AccessPackagesPage.jsx": [
-      36
-    ],
-    "app/ui/src/components/ContextDetailPage.jsx": [
-      35
-    ],
     "app/ui/src/components/MatrixView.jsx": [
       33,
       33,
       23
-    ],
-    "app/ui/src/components/RiskProfileWizard.jsx": [
-      49
     ],
     "app/ui/src/components/RiskScoringPage.jsx": [
       52,
@@ -33,17 +21,8 @@
       30,
       26
     ],
-    "app/ui/src/components/admin/LLMSettingsSection.jsx": [
-      36
-    ],
     "app/ui/src/components/contexts/ContextTreeView.jsx": [
       41
-    ],
-    "app/ui/src/components/contexts/NewContextWizard.jsx": [
-      45
-    ],
-    "app/ui/src/components/matrix/MatrixColumnHeaders.jsx": [
-      34
     ],
     "app/ui/src/hooks/useMatrix.js": [
       36

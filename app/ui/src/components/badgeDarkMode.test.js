@@ -11,7 +11,8 @@ const read = (f) => readFileSync(join(here, f), 'utf8');
 
 describe('status/account badge dark-mode coverage', () => {
   it('AccessPackages COMPLIANCE_STYLES all carry dark: variants', () => {
-    const src = read('AccessPackagesPage.jsx');
+    // COMPLIANCE_STYLES is the shared map in utils/accessPackageStyles.js.
+    const src = read('../utils/accessPackageStyles.js');
     for (const tok of ['dark:bg-green-900/30', 'dark:bg-blue-900/30', 'dark:bg-red-900/30', 'dark:bg-amber-900/30']) {
       expect(src, tok).toContain(tok);
     }

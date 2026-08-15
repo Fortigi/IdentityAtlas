@@ -13,14 +13,6 @@
     "app/api/src/routes/openapi.drift.test.js": [
       19
     ],
-    "app/ui/src/App.jsx": [
-      109,
-      16
-    ],
-    "app/ui/src/components/AccessPackagesPage.jsx": [
-      46,
-      17
-    ],
     "app/ui/src/components/MatrixView.jsx": [
       75,
       24,
@@ -30,9 +22,6 @@
       16,
       16,
       16
-    ],
-    "app/ui/src/components/RiskProfileWizard.jsx": [
-      20
     ],
     "app/ui/src/components/RiskScoringPage.jsx": [
       16
@@ -44,17 +33,8 @@
       22,
       19
     ],
-    "app/ui/src/components/admin/LLMSettingsSection.jsx": [
-      23
-    ],
     "app/ui/src/components/contexts/ContextTreeView.jsx": [
       38
-    ],
-    "app/ui/src/components/contexts/NewContextWizard.jsx": [
-      47
-    ],
-    "app/ui/src/components/matrix/MatrixColumnHeaders.jsx": [
-      58
     ],
     "setup/docker/Invoke-CrawlerJob.ps1": [
       46
