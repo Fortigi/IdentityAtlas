@@ -6,21 +6,5 @@
     "py": 15,
     "js": 15
   },
-  "files": {
-    "test/nightly/Test-RiskScoring.ps1": [
-      73
-    ],
-    "test/nightly/Test-RiskScoringLLM.ps1": [
-      95
-    ],
-    "tools/crawlers/odata/Invoke-ODataGetRequest.ps1": [
-      70
-    ],
-    "tools/powershell-sdk/graph/Get-FGServicePrincipalWithSync.ps1": [
-      85
-    ],
-    "tools/update-sbom-doc.py": [
-      30
-    ]
-  }
+  "files": {}
 }

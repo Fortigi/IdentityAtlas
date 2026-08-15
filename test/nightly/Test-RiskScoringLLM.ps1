@@ -79,167 +79,233 @@ function Invoke-LocalApi {
     return Invoke-RestMethod @params
 }
 
-Write-Host "`n=== Risk Scoring — full LLM flow ===" -ForegroundColor Cyan
-
 # ─── Pre-flight 1: LLM must be configured ────────────────────────
-try {
-    $status = Invoke-LocalApi -Path '/admin/llm/status' -TimeoutSec 10
-    if (-not $status.configured) {
-        Write-Result 'RiskLLM/LLMConfigured' $true 'skipped (no LLM configured)'
-        if (-not $WriteResult) { exit 0 } else { return }
+# Returns $true to continue, $false to stop cleanly (skipped).
+function Test-PreflightLLMConfigured {
+    try {
+        $status = Invoke-LocalApi -Path '/admin/llm/status' -TimeoutSec 10
+        if (-not $status.configured) {
+            Write-Result 'RiskLLM/LLMConfigured' $true 'skipped (no LLM configured)'
+            return $false
+        }
+        Write-Result 'RiskLLM/LLMConfigured' $true 'yes'
+    } catch {
+        Write-Result 'RiskLLM/LLMConfigured' $true "skipped (status check failed: $($_.Exception.Message))"
+        return $false
     }
-    Write-Result 'RiskLLM/LLMConfigured' $true 'yes'
-} catch {
-    Write-Result 'RiskLLM/LLMConfigured' $true "skipped (status check failed: $($_.Exception.Message))"
-    if (-not $WriteResult) { exit 0 } else { return }
+    return $true
 }
 
 # ─── Pre-flight 2: demo data must exist ──────────────────────────
-try {
-    $users = Invoke-LocalApi -Path '/users?pageSize=1' -TimeoutSec 10
-    if ([int]$users.total -eq 0) {
-        Write-Result 'RiskLLM/DemoData' $true 'skipped (no users loaded)'
-        if (-not $WriteResult) { exit 0 } else { return }
+# Returns $true to continue, $false to stop cleanly (skipped).
+function Test-PreflightDemoData {
+    try {
+        $users = Invoke-LocalApi -Path '/users?pageSize=1' -TimeoutSec 10
+        if ([int]$users.total -eq 0) {
+            Write-Result 'RiskLLM/DemoData' $true 'skipped (no users loaded)'
+            return $false
+        }
+        Write-Result 'RiskLLM/DemoData' $true "users=$($users.total)"
+    } catch {
+        Write-Result 'RiskLLM/DemoData' $true "skipped: $($_.Exception.Message)"
+        return $false
     }
-    Write-Result 'RiskLLM/DemoData' $true "users=$($users.total)"
-} catch {
-    Write-Result 'RiskLLM/DemoData' $true "skipped: $($_.Exception.Message)"
-    if (-not $WriteResult) { exit 0 } else { return }
+    return $true
 }
 
 # ─── Determine the test domain ───────────────────────────────────
-if (-not $TestDomain) {
-    $TestDomain = $env:TEST_RISK_PROFILE_DOMAIN
+function Resolve-TestDomain {
+    param([string]$TestDomain)
+    if (-not $TestDomain) {
+        $TestDomain = $env:TEST_RISK_PROFILE_DOMAIN
+    }
+    if (-not $TestDomain) {
+        $secretsPath = Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) 'test\test.secrets.json'
+        if (Test-Path $secretsPath) {
+            try {
+                $secrets = Get-Content $secretsPath -Raw | ConvertFrom-Json
+                if ($secrets.riskProfileTestDomain) { $TestDomain = $secrets.riskProfileTestDomain }
+            } catch { }
+        }
+    }
+    if (-not $TestDomain) { $TestDomain = 'novastream-fi.net' }
+    Write-Result 'RiskLLM/TestDomain' $true $TestDomain
+    return $TestDomain
 }
-if (-not $TestDomain) {
-    $secretsPath = Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) 'test\test.secrets.json'
-    if (Test-Path $secretsPath) {
-        try {
-            $secrets = Get-Content $secretsPath -Raw | ConvertFrom-Json
-            if ($secrets.riskProfileTestDomain) { $TestDomain = $secrets.riskProfileTestDomain }
-        } catch { }
+
+# ─── Step 1: assert profile has enough regulations + roles ───────
+function Assert-ProfileCounts {
+    param($RegCount, $RoleCount)
+    if ($RegCount -lt 1) {
+        Write-Result 'RiskLLM/ProfileHasRegulations' $false "expected >=1, got $RegCount"
+    } else {
+        Write-Result 'RiskLLM/ProfileHasRegulations' $true $RegCount
+    }
+    if ($RoleCount -lt 3) {
+        Write-Result 'RiskLLM/ProfileHasCriticalRoles' $false "expected >=3, got $RoleCount"
+    } else {
+        Write-Result 'RiskLLM/ProfileHasCriticalRoles' $true $RoleCount
     }
 }
-if (-not $TestDomain) { $TestDomain = 'novastream-fi.net' }
-Write-Result 'RiskLLM/TestDomain' $true $TestDomain
 
 # ─── Step 1: Generate profile (real LLM call) ────────────────────
-$generateStart = Get-Date
-try {
-    $genResp = Invoke-LocalApi -Path '/risk-profiles/generate' -Method Post -Body @{
-        domain = $TestDomain
-        hints  = 'Nightly regression test — produce a complete valid profile.'
-    } -TimeoutSec 180
-    $elapsed = [Math]::Round(((Get-Date) - $generateStart).TotalSeconds)
-    if (-not $genResp.profile) {
-        Write-Result 'RiskLLM/GenerateProfile' $false "no profile field (${elapsed}s)"
-        if (-not $WriteResult) { exit 1 } else { return }
+# Returns the profile object on success, $null on failure.
+function Invoke-GenerateProfile {
+    param([string]$TestDomain)
+    $generateStart = Get-Date
+    try {
+        $genResp = Invoke-LocalApi -Path '/risk-profiles/generate' -Method Post -Body @{
+            domain = $TestDomain
+            hints  = 'Nightly regression test — produce a complete valid profile.'
+        } -TimeoutSec 180
+        $elapsed = [Math]::Round(((Get-Date) - $generateStart).TotalSeconds)
+        if (-not $genResp.profile) {
+            Write-Result 'RiskLLM/GenerateProfile' $false "no profile field (${elapsed}s)"
+            return $null
+        }
+        $profile = $genResp.profile
+        $regCount = if ($profile.regulations) { @($profile.regulations).Count } else { 0 }
+        $roleCount = if ($profile.critical_roles) { @($profile.critical_roles).Count } else { 0 }
+        Write-Result 'RiskLLM/GenerateProfile' $true "model=$($genResp.llmModel) ${elapsed}s regulations=$regCount roles=$roleCount"
+        Assert-ProfileCounts -RegCount $regCount -RoleCount $roleCount
+        return $profile
+    } catch {
+        Write-Result 'RiskLLM/GenerateProfile' $false $_.Exception.Message
+        return $null
     }
-    $profile = $genResp.profile
-    $regCount = if ($profile.regulations) { @($profile.regulations).Count } else { 0 }
-    $roleCount = if ($profile.critical_roles) { @($profile.critical_roles).Count } else { 0 }
-    Write-Result 'RiskLLM/GenerateProfile' $true "model=$($genResp.llmModel) ${elapsed}s regulations=$regCount roles=$roleCount"
-    if ($regCount -lt 1) {
-        Write-Result 'RiskLLM/ProfileHasRegulations' $false "expected >=1, got $regCount"
-    } else {
-        Write-Result 'RiskLLM/ProfileHasRegulations' $true $regCount
-    }
-    if ($roleCount -lt 3) {
-        Write-Result 'RiskLLM/ProfileHasCriticalRoles' $false "expected >=3, got $roleCount"
-    } else {
-        Write-Result 'RiskLLM/ProfileHasCriticalRoles' $true $roleCount
-    }
-} catch {
-    Write-Result 'RiskLLM/GenerateProfile' $false $_.Exception.Message
-    if (-not $WriteResult) { exit 1 } else { return }
 }
 
 # ─── Step 2: Save profile ────────────────────────────────────────
-try {
-    $saveResp = Invoke-LocalApi -Path '/risk-profiles' -Method Post -Body @{
-        displayName = "Nightly LLM Test $(Get-Date -Format 'yyyyMMdd-HHmm')"
-        profile     = $profile
-        makeActive  = $true
-    } -TimeoutSec 30
-    $script:profileId = $saveResp.id
-    Write-Result 'RiskLLM/SaveProfile' $true "id=$($saveResp.id)"
-} catch {
-    Write-Result 'RiskLLM/SaveProfile' $false $_.Exception.Message
-    if (-not $WriteResult) { exit 1 } else { return }
+# Returns $true on success, $false on failure. Sets $script:profileId.
+function Save-RiskProfile {
+    param($Profile)
+    try {
+        $saveResp = Invoke-LocalApi -Path '/risk-profiles' -Method Post -Body @{
+            displayName = "Nightly LLM Test $(Get-Date -Format 'yyyyMMdd-HHmm')"
+            profile     = $Profile
+            makeActive  = $true
+        } -TimeoutSec 30
+        $script:profileId = $saveResp.id
+        Write-Result 'RiskLLM/SaveProfile' $true "id=$($saveResp.id)"
+        return $true
+    } catch {
+        Write-Result 'RiskLLM/SaveProfile' $false $_.Exception.Message
+        return $false
+    }
+}
+
+# ─── Step 3: assert enough group classifiers ─────────────────────
+function Assert-ClassifierCounts {
+    param($GroupCount)
+    if ($GroupCount -lt 3) {
+        Write-Result 'RiskLLM/HasGroupClassifiers' $false "expected >=3, got $GroupCount"
+    } else {
+        Write-Result 'RiskLLM/HasGroupClassifiers' $true $GroupCount
+    }
 }
 
 # ─── Step 3: Generate classifiers (real LLM call) ────────────────
-$generateStart = Get-Date
-try {
-    $clsResp = Invoke-LocalApi -Path '/risk-classifiers/generate' -Method Post -Body @{
-        profileId = $script:profileId
-    } -TimeoutSec 240
-    $elapsed = [Math]::Round(((Get-Date) - $generateStart).TotalSeconds)
-    if (-not $clsResp.classifiers) {
-        Write-Result 'RiskLLM/GenerateClassifiers' $false "no classifiers field (${elapsed}s)"
-        if (-not $WriteResult) { exit 1 } else { return }
+# Returns the classifiers object on success, $null on failure.
+function Invoke-GenerateClassifiers {
+    $generateStart = Get-Date
+    try {
+        $clsResp = Invoke-LocalApi -Path '/risk-classifiers/generate' -Method Post -Body @{
+            profileId = $script:profileId
+        } -TimeoutSec 240
+        $elapsed = [Math]::Round(((Get-Date) - $generateStart).TotalSeconds)
+        if (-not $clsResp.classifiers) {
+            Write-Result 'RiskLLM/GenerateClassifiers' $false "no classifiers field (${elapsed}s)"
+            return $null
+        }
+        $cls = $clsResp.classifiers
+        $gc = if ($cls.groupClassifiers) { @($cls.groupClassifiers).Count } else { 0 }
+        $uc = if ($cls.userClassifiers)  { @($cls.userClassifiers).Count }  else { 0 }
+        $ac = if ($cls.agentClassifiers) { @($cls.agentClassifiers).Count } else { 0 }
+        Write-Result 'RiskLLM/GenerateClassifiers' $true "${elapsed}s groups=$gc users=$uc agents=$ac"
+        Assert-ClassifierCounts -GroupCount $gc
+        return $cls
+    } catch {
+        Write-Result 'RiskLLM/GenerateClassifiers' $false $_.Exception.Message
+        return $null
     }
-    $cls = $clsResp.classifiers
-    $gc = if ($cls.groupClassifiers) { @($cls.groupClassifiers).Count } else { 0 }
-    $uc = if ($cls.userClassifiers)  { @($cls.userClassifiers).Count }  else { 0 }
-    $ac = if ($cls.agentClassifiers) { @($cls.agentClassifiers).Count } else { 0 }
-    Write-Result 'RiskLLM/GenerateClassifiers' $true "${elapsed}s groups=$gc users=$uc agents=$ac"
-    if ($gc -lt 3) {
-        Write-Result 'RiskLLM/HasGroupClassifiers' $false "expected >=3, got $gc"
-    } else {
-        Write-Result 'RiskLLM/HasGroupClassifiers' $true $gc
-    }
-} catch {
-    Write-Result 'RiskLLM/GenerateClassifiers' $false $_.Exception.Message
-    if (-not $WriteResult) { exit 1 } else { return }
 }
 
 # ─── Step 4: Save classifiers ────────────────────────────────────
-try {
-    $saveResp = Invoke-LocalApi -Path '/risk-classifiers' -Method Post -Body @{
-        displayName = "Nightly LLM Test Classifiers $(Get-Date -Format 'yyyyMMdd-HHmm')"
-        profileId   = $script:profileId
-        classifiers = $cls
-        makeActive  = $true
-    } -TimeoutSec 30
-    $script:classifierId = $saveResp.id
-    Write-Result 'RiskLLM/SaveClassifiers' $true "id=$($saveResp.id)"
-} catch {
-    Write-Result 'RiskLLM/SaveClassifiers' $false $_.Exception.Message
-    if (-not $WriteResult) { exit 1 } else { return }
+# Returns $true on success, $false on failure. Sets $script:classifierId.
+function Save-RiskClassifiers {
+    param($Classifiers)
+    try {
+        $saveResp = Invoke-LocalApi -Path '/risk-classifiers' -Method Post -Body @{
+            displayName = "Nightly LLM Test Classifiers $(Get-Date -Format 'yyyyMMdd-HHmm')"
+            profileId   = $script:profileId
+            classifiers = $Classifiers
+            makeActive  = $true
+        } -TimeoutSec 30
+        $script:classifierId = $saveResp.id
+        Write-Result 'RiskLLM/SaveClassifiers' $true "id=$($saveResp.id)"
+        return $true
+    } catch {
+        Write-Result 'RiskLLM/SaveClassifiers' $false $_.Exception.Message
+        return $false
+    }
 }
 
 # ─── Step 5: Run scoring ─────────────────────────────────────────
-try {
-    $runResp = Invoke-LocalApi -Path '/risk-scoring/runs' -Method Post -Body @{
-        classifierId = $script:classifierId
-    } -TimeoutSec 30
-    $script:runId = $runResp.id
-    Write-Result 'RiskLLM/StartRun' $true "id=$($runResp.id)"
-} catch {
-    Write-Result 'RiskLLM/StartRun' $false $_.Exception.Message
-    if (-not $WriteResult) { exit 1 } else { return }
+# Returns $true on success, $false on failure. Sets $script:runId.
+function Start-ScoringRun {
+    try {
+        $runResp = Invoke-LocalApi -Path '/risk-scoring/runs' -Method Post -Body @{
+            classifierId = $script:classifierId
+        } -TimeoutSec 30
+        $script:runId = $runResp.id
+        Write-Result 'RiskLLM/StartRun' $true "id=$($runResp.id)"
+        return $true
+    } catch {
+        Write-Result 'RiskLLM/StartRun' $false $_.Exception.Message
+        return $false
+    }
 }
 
 # ─── Step 6: Poll until complete ─────────────────────────────────
-$finalRun = $null
-for ($i = 0; $i -lt 60; $i++) {
-    Start-Sleep -Seconds 2
-    try {
-        $runState = Invoke-LocalApi -Path "/risk-scoring/runs/$($script:runId)" -TimeoutSec 10
-        if ($runState.status -in @('completed', 'failed')) {
-            $finalRun = $runState
-            break
-        }
-    } catch { }
+# Returns the final run state, or $null if it never reached a terminal status.
+function Wait-ScoringRun {
+    $finalRun = $null
+    for ($i = 0; $i -lt 60; $i++) {
+        Start-Sleep -Seconds 2
+        try {
+            $runState = Invoke-LocalApi -Path "/risk-scoring/runs/$($script:runId)" -TimeoutSec 10
+            if ($runState.status -in @('completed', 'failed')) {
+                $finalRun = $runState
+                break
+            }
+        } catch { }
+    }
+    return $finalRun
 }
 
-if (-not $finalRun) {
-    Write-Result 'RiskLLM/RunCompletes' $false 'timed out after 120s'
-} elseif ($finalRun.status -ne 'completed') {
-    Write-Result 'RiskLLM/RunCompletes' $false "status=$($finalRun.status): $($finalRun.errorMessage)"
-} else {
-    Write-Result 'RiskLLM/RunCompletes' $true "scored=$($finalRun.scoredEntities)"
+# ─── Step 6: count entities matched across all tiers ─────────────
+function Get-MatchedEntityCount {
+    param($Scores)
+    $matched = 0
+    foreach ($tier in @('Minimal', 'Low', 'Medium', 'High', 'Critical')) {
+        if ($Scores.summary.groupsByTier.$tier) { $matched += [int]$Scores.summary.groupsByTier.$tier }
+        if ($Scores.summary.usersByTier.$tier)  { $matched += [int]$Scores.summary.usersByTier.$tier }
+    }
+    return $matched
+}
+
+# ─── Step 6: assert the completed run produced matches ───────────
+function Assert-ScoringResults {
+    param($FinalRun)
+    if (-not $FinalRun) {
+        Write-Result 'RiskLLM/RunCompletes' $false 'timed out after 120s'
+        return
+    }
+    if ($FinalRun.status -ne 'completed') {
+        Write-Result 'RiskLLM/RunCompletes' $false "status=$($FinalRun.status): $($FinalRun.errorMessage)"
+        return
+    }
+    Write-Result 'RiskLLM/RunCompletes' $true "scored=$($FinalRun.scoredEntities)"
 
     # Assert at least some classifier matches were produced. The LLM-generated
     # classifiers SHOULD match the example/demo data since they were generated for
@@ -247,11 +313,7 @@ if (-not $finalRun) {
     # regressed or (b) the LLM produced garbage patterns.
     try {
         $scores = Invoke-LocalApi -Path '/risk-scores' -TimeoutSec 15
-        $matched = 0
-        foreach ($tier in @('Minimal', 'Low', 'Medium', 'High', 'Critical')) {
-            if ($scores.summary.groupsByTier.$tier) { $matched += [int]$scores.summary.groupsByTier.$tier }
-            if ($scores.summary.usersByTier.$tier)  { $matched += [int]$scores.summary.usersByTier.$tier }
-        }
+        $matched = Get-MatchedEntityCount -Scores $scores
         if ($matched -gt 0) {
             Write-Result 'RiskLLM/EntitiesMatched' $true "$matched entities Minimal+"
         } else {
@@ -265,7 +327,40 @@ if (-not $finalRun) {
 # ─── Cleanup ─────────────────────────────────────────────────────
 # Delete the test profile + classifiers so the next run starts clean and the
 # "active" flag doesn't stay on a throwaway set.
-try { Invoke-LocalApi -Path "/risk-profiles/$($script:profileId)" -Method Delete | Out-Null } catch { }
-try { Invoke-LocalApi -Path "/risk-classifiers/$($script:classifierId)" -Method Delete | Out-Null } catch { }
+function Remove-TestData {
+    try { Invoke-LocalApi -Path "/risk-profiles/$($script:profileId)" -Method Delete | Out-Null } catch { }
+    try { Invoke-LocalApi -Path "/risk-classifiers/$($script:classifierId)" -Method Delete | Out-Null } catch { }
+}
 
-if (-not $WriteResult) { exit $standaloneFailures }
+# ─── Orchestrator: run the full flow, returning the exit code ────
+# Early stops use `return <code>`; the script body decides exit vs return.
+function Invoke-RiskScoringLLMTest {
+    Write-Host "`n=== Risk Scoring — full LLM flow ===" -ForegroundColor Cyan
+
+    if (-not (Test-PreflightLLMConfigured)) { return 0 }
+    if (-not (Test-PreflightDemoData))      { return 0 }
+
+    $domain = Resolve-TestDomain -TestDomain $TestDomain
+
+    $profile = Invoke-GenerateProfile -TestDomain $domain
+    if (-not $profile) { return 1 }
+
+    if (-not (Save-RiskProfile -Profile $profile)) { return 1 }
+
+    $cls = Invoke-GenerateClassifiers
+    if (-not $cls) { return 1 }
+
+    if (-not (Save-RiskClassifiers -Classifiers $cls)) { return 1 }
+
+    if (-not (Start-ScoringRun)) { return 1 }
+
+    $finalRun = Wait-ScoringRun
+    Assert-ScoringResults -FinalRun $finalRun
+
+    Remove-TestData
+
+    return $script:standaloneFailures
+}
+
+$exitCode = Invoke-RiskScoringLLMTest
+if (-not $WriteResult) { exit $exitCode }

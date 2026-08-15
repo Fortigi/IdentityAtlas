@@ -127,53 +127,67 @@ def update_docker_image(cells, images):
     return None
 
 
-def main():
-    api = load_versions(API_PKG)
-    ui = load_versions(UI_PKG)
-    docs = load_pip_versions(DOCS_REQ)
-    components, images = build_infra()
+def parse_data_row(line):
+    """Return trimmed cells for a data row, or None for non-rows/headers/separators."""
+    if not line.startswith("|"):
+        return None
+    cells = [c.strip() for c in line.strip().strip("|").split("|")]
+    if len(cells) < 2:
+        return None
+    # Skip header / separator rows.
+    if cells[0] in ("Package", "Component", "Image", "") or \
+            set(cells[1]) <= {"-", " "}:
+        return None
+    return cells
 
-    lines = DOC.read_text().splitlines()
+
+def dispatch_new_value(section, cells, sources, missing):
+    """Route a row to its source of truth; return the new col1 value or None."""
+    api, ui, docs, components, images = sources
+    if section and "API Backend" in section:
+        return update_npm_row(cells, api, missing)
+    if section and "Frontend" in section:
+        return update_npm_row(cells, ui, missing)
+    if section and "Documentation Toolchain" in section:
+        return update_npm_row(cells, docs, missing)
+    if section == "Infrastructure Components":
+        return update_infra_component(cells, components)
+    if section == "Docker Images":
+        return update_docker_image(cells, images)
+    return None
+
+
+def apply_updates(lines, sources, missing):
+    """Rewrite version/base cells in place; return the list of change descriptions."""
     section = None
     changed = []
-    missing = []
-
     for i, line in enumerate(lines):
         if line.startswith("## "):
             section = line.lstrip("# ").strip()
             continue
 
-        if not line.startswith("|"):
+        cells = parse_data_row(line)
+        if cells is None:
             continue
 
-        cells = [c.strip() for c in line.strip().strip("|").split("|")]
-        if len(cells) < 2:
-            continue
-
-        # Skip header / separator rows.
-        if cells[0] in ("Package", "Component", "Image", "") or \
-                set(cells[1]) <= {"-", " "}:
-            continue
-
-        # Dispatch by section to the right source of truth. Each updater returns
-        # the new value for the version/base cell (col1), or None to leave it.
-        if section and "API Backend" in section:
-            new_value = update_npm_row(cells, api, missing)
-        elif section and "Frontend" in section:
-            new_value = update_npm_row(cells, ui, missing)
-        elif section and "Documentation Toolchain" in section:
-            new_value = update_npm_row(cells, docs, missing)
-        elif section == "Infrastructure Components":
-            new_value = update_infra_component(cells, components)
-        elif section == "Docker Images":
-            new_value = update_docker_image(cells, images)
-        else:
-            new_value = None
-
+        new_value = dispatch_new_value(section, cells, sources, missing)
         if new_value and cells[1] != new_value:
             changed.append(f"{cells[0]}: {cells[1]} -> {new_value}")
             cells[1] = new_value
             lines[i] = "| " + " | ".join(cells) + " |"
+    return changed
+
+
+def main():
+    api = load_versions(API_PKG)
+    ui = load_versions(UI_PKG)
+    docs = load_pip_versions(DOCS_REQ)
+    components, images = build_infra()
+    sources = (api, ui, docs, components, images)
+
+    lines = DOC.read_text().splitlines()
+    missing = []
+    changed = apply_updates(lines, sources, missing)
 
     if changed:
         DOC.write_text("\n".join(lines) + "\n")
