@@ -9,6 +9,13 @@ import { TIER_STYLES } from '@ui/utils/tierStyles';
 const VIEW_SEARCH_NOUNS = { groups: 'resources', users: 'users', 'business-roles': 'business roles', contexts: 'contexts', identities: 'identities' };
 const viewSearchNoun = (view) => VIEW_SEARCH_NOUNS[view] || view;
 
+// Total analyst overrides across every entity class in the summary.
+function countOverrides(s) {
+  if (!s) return 0;
+  return (s.groupOverrides || 0) + (s.userOverrides || 0) + (s.businessRoleOverrides || 0)
+    + (s.contextOverrides || 0) + (s.identityOverrides || 0);
+}
+
 function TierBadge({ tier }) {
   const s = TIER_STYLES[tier] || TIER_STYLES.None;
   return (
@@ -204,6 +211,196 @@ function RunScoringButton({ canRun, running, onRun, className }) {
 
 // ─── Main Risk Scoring Page ──────────────────────────────────────────
 
+function RiskScoringHeader({ totalOverrides, scoredAt, canRun, running, onRun }) {
+  return (
+    <div className="flex items-center justify-between gap-4">
+      <div>
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Identity Risk Scores</h2>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+          Persisted risk scores computed by the risk scoring engine
+          {totalOverrides > 0 && (
+            <span className="ml-2 text-xs text-amber-600 dark:text-amber-400">
+              ({totalOverrides} analyst override{totalOverrides !== 1 ? 's' : ''})
+            </span>
+          )}
+        </p>
+      </div>
+      <div className="flex items-center gap-3 shrink-0">
+        {scoredAt && (
+          <span className="text-xs text-gray-600 dark:text-gray-500">
+            Last scored: {new Date(scoredAt).toLocaleString()}
+          </span>
+        )}
+        <RunScoringButton
+          canRun={canRun}
+          running={running}
+          onRun={onRun}
+          className="px-3 py-1.5 rounded text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50"
+        />
+      </div>
+    </div>
+  );
+}
+
+function RiskUnavailable({ canRun, running, onRun }) {
+  return (
+    <div className="max-w-4xl mx-auto">
+      <div className="bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 rounded-lg p-6 text-center">
+        <h3 className="text-amber-800 dark:text-amber-300 font-semibold text-lg">Risk Scores Not Yet Computed</h3>
+        <p className="text-amber-700 dark:text-amber-400 text-sm mt-2">
+          Run the risk scoring engine to compute a score for every identity and resource. It can also be configured and run from <span className="font-semibold">Admin&nbsp;→&nbsp;Risk&nbsp;Scoring</span>.
+        </p>
+        <RunScoringButton
+          canRun={canRun}
+          running={running}
+          onRun={onRun}
+          className="mt-4 px-4 py-2 rounded text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50"
+        />
+        <p className="text-amber-600 dark:text-amber-400 text-xs mt-3">
+          Scores are persisted as columns on Principals and Resources. The UI reads them directly.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function RiskDistributionRow({ s }) {
+  const distCharts = [];
+  if (s.totalGroups > 0) distCharts.push({ label: 'Resources', byTier: s.groupsByTier, total: s.totalGroups });
+  if (s.totalUsers > 0) distCharts.push({ label: 'Users', byTier: s.usersByTier, total: s.totalUsers });
+  if (s.totalBusinessRoles > 0) distCharts.push({ label: 'Business Roles', byTier: s.businessRolesByTier, total: s.totalBusinessRoles });
+  if (s.totalContexts > 0) distCharts.push({ label: 'Contexts', byTier: s.contextsByTier, total: s.totalContexts });
+  if (s.totalIdentities > 0) distCharts.push({ label: 'Identities', byTier: s.identitiesByTier, total: s.totalIdentities });
+  const colCount = distCharts.length;
+  const gridCols = colCount <= 2 ? 'grid-cols-2' : colCount <= 3 ? 'grid-cols-3' : colCount <= 4 ? 'grid-cols-4' : 'grid-cols-5';
+  return (
+    <div className={`grid gap-4 ${gridCols}`}>
+      {distCharts.map(c => (
+        <DistributionChart key={c.label} label={c.label} byTier={c.byTier} total={c.total} />
+      ))}
+    </div>
+  );
+}
+
+// One "Top Risk …" column — both the resources and users panels share this shape.
+function TopRiskList({ title, entities }) {
+  return (
+    <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+      <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">{title}</h3>
+      <div className="space-y-2">
+        {(entities || []).slice(0, 5).map(e => (
+          <div key={e.id} className="flex items-center justify-between">
+            <span className="text-sm text-gray-800 dark:text-gray-200 truncate max-w-[60%]">{e.displayName}</span>
+            <div className="flex items-center gap-2">
+              <ScoreBar score={e.effectiveScore ?? e.riskScore} />
+              <TierBadge tier={e.riskTier} />
+              {e.riskOverride != null && (
+                <span className={`text-[10px] font-mono ${e.riskOverride > 0 ? 'text-red-500' : 'text-green-500'}`}>
+                  {e.riskOverride > 0 ? '+' : ''}{e.riskOverride}
+                </span>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function TopRisksPanel({ s }) {
+  return (
+    <div className="grid grid-cols-2 gap-4">
+      <TopRiskList title="Top Risk Resources" entities={s.topGroups} />
+      <TopRiskList title="Top Risk Users" entities={s.topUsers} />
+    </div>
+  );
+}
+
+function RiskViewTabs({ view, setView, s }) {
+  const tabs = [
+    { view: 'groups', label: 'Resources', show: s?.totalGroups > 0 || !s },
+    { view: 'users', label: 'Users', show: s?.totalUsers > 0 || !s },
+    { view: 'business-roles', label: 'Business Roles', show: s?.totalBusinessRoles > 0 },
+    { view: 'contexts', label: 'Contexts', show: s?.totalContexts > 0 },
+    { view: 'identities', label: 'Identities', show: s?.totalIdentities > 0 },
+  ];
+  return (
+    <div className="flex items-center gap-2 flex-wrap">
+      <a
+        href="#contexts"
+        className="px-3 py-1.5 text-sm font-medium rounded-lg text-blue-600 dark:text-blue-400 hover:bg-blue-50"
+        title="Resource clusters are now a generated context tree — view them on the Contexts tab."
+      >
+        View clusters →
+      </a>
+      <span className="w-px h-5 bg-gray-200" />
+      {tabs.filter(t => t.show).map(t => (
+        <button
+          key={t.view}
+          onClick={() => setView(t.view)}
+          className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+            view === t.view ? 'bg-gray-900 text-white' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+          }`}
+        >
+          {t.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function RiskFilters({ overridesOnly, setOverridesOnly, tierFilter, setTierFilter, tiers, search, setSearch, view }) {
+  return (
+    <div className="flex items-center gap-3">
+      <label className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={overridesOnly}
+          onChange={e => setOverridesOnly(e.target.checked)}
+          className="rounded border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white w-3.5 h-3.5"
+        />
+        Overrides only
+      </label>
+
+      <select
+        aria-label="Filter by risk tier"
+        value={tierFilter}
+        onChange={e => setTierFilter(e.target.value)}
+        className="text-sm border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1.5 text-gray-700 dark:text-gray-300"
+      >
+        <option value="">All tiers</option>
+        {tiers.map(t => <option key={t} value={t}>{t}</option>)}
+      </select>
+
+      <input
+        type="text"
+        aria-label={`Search ${viewSearchNoun(view)}`}
+        placeholder={`Search ${viewSearchNoun(view)}...`}
+        value={search}
+        onChange={e => setSearch(e.target.value)}
+        className="text-sm border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1.5 w-52 placeholder-gray-400"
+      />
+    </div>
+  );
+}
+
+function RiskPagination({ page, setPage, totalPages, activeTotal, pageSize }) {
+  if (totalPages <= 1) return null;
+  return (
+    <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200 dark:border-gray-700">
+      <span className="text-xs text-gray-500 dark:text-gray-400">
+        {page * pageSize + 1}&ndash;{Math.min((page + 1) * pageSize, activeTotal)} of {activeTotal}
+      </span>
+      <div className="flex gap-1">
+        <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0}
+          className="px-2 py-1 text-xs rounded border border-gray-200 dark:border-gray-700 disabled:opacity-30 hover:bg-gray-50 dark:hover:bg-gray-700/50">Prev</button>
+        <button onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1}
+          className="px-2 py-1 text-xs rounded border border-gray-200 dark:border-gray-700 disabled:opacity-30 hover:bg-gray-50 dark:hover:bg-gray-700/50">Next</button>
+      </div>
+    </div>
+  );
+}
+
 export default function RiskScoringPage({ onOpenDetail }) {
   const { authFetch } = useAuth();
   const dialog = useDialog();
@@ -313,33 +510,14 @@ export default function RiskScoringPage({ onOpenDetail }) {
   }
 
   if (summary && !summary.available) {
-    return (
-      <div className="max-w-4xl mx-auto">
-        <div className="bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 rounded-lg p-6 text-center">
-          <h3 className="text-amber-800 dark:text-amber-300 font-semibold text-lg">Risk Scores Not Yet Computed</h3>
-          <p className="text-amber-700 dark:text-amber-400 text-sm mt-2">
-            Run the risk scoring engine to compute a score for every identity and resource. It can also be configured and run from <span className="font-semibold">Admin&nbsp;→&nbsp;Risk&nbsp;Scoring</span>.
-          </p>
-          <RunScoringButton
-            canRun={canRun}
-            running={running}
-            onRun={runScoring}
-            className="mt-4 px-4 py-2 rounded text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50"
-          />
-          <p className="text-amber-600 dark:text-amber-400 text-xs mt-3">
-            Scores are persisted as columns on Principals and Resources. The UI reads them directly.
-          </p>
-        </div>
-      </div>
-    );
+    return <RiskUnavailable canRun={canRun} running={running} onRun={runScoring} />;
   }
 
   const s = summary?.summary;
   const tiers = ['Critical', 'High', 'Medium', 'Low', 'Minimal', 'None'];
   const activeTotal = entityData.total || 0;
   const totalPages = Math.ceil(activeTotal / PAGE_SIZE);
-  const totalOverrides = (s?.groupOverrides || 0) + (s?.userOverrides || 0)
-    + (s?.businessRoleOverrides || 0) + (s?.contextOverrides || 0) + (s?.identityOverrides || 0);
+  const totalOverrides = countOverrides(s);
 
   // Map view values to entity types for EntityTable
   const viewToEntityType = {
@@ -352,191 +530,20 @@ export default function RiskScoringPage({ onOpenDetail }) {
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Identity Risk Scores</h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-            Persisted risk scores computed by the risk scoring engine
-            {totalOverrides > 0 && (
-              <span className="ml-2 text-xs text-amber-600 dark:text-amber-400">
-                ({totalOverrides} analyst override{totalOverrides !== 1 ? 's' : ''})
-              </span>
-            )}
-          </p>
-        </div>
-        <div className="flex items-center gap-3 shrink-0">
-          {summary?.scoredAt && (
-            <span className="text-xs text-gray-600 dark:text-gray-500">
-              Last scored: {new Date(summary.scoredAt).toLocaleString()}
-            </span>
-          )}
-          <RunScoringButton
-            canRun={canRun}
-            running={running}
-            onRun={runScoring}
-            className="px-3 py-1.5 rounded text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50"
-          />
-        </div>
-      </div>
+      <RiskScoringHeader totalOverrides={totalOverrides} scoredAt={summary?.scoredAt} canRun={canRun} running={running} onRun={runScoring} />
 
-      {/* Summary Cards */}
-      {s && (() => {
-        const distCharts = [];
-        if (s.totalGroups > 0) distCharts.push({ label: 'Resources', byTier: s.groupsByTier, total: s.totalGroups });
-        if (s.totalUsers > 0) distCharts.push({ label: 'Users', byTier: s.usersByTier, total: s.totalUsers });
-        if (s.totalBusinessRoles > 0) distCharts.push({ label: 'Business Roles', byTier: s.businessRolesByTier, total: s.totalBusinessRoles });
-        if (s.totalContexts > 0) distCharts.push({ label: 'Contexts', byTier: s.contextsByTier, total: s.totalContexts });
-        if (s.totalIdentities > 0) distCharts.push({ label: 'Identities', byTier: s.identitiesByTier, total: s.totalIdentities });
-        const colCount = distCharts.length;
-        const gridCols = colCount <= 2 ? 'grid-cols-2' : colCount <= 3 ? 'grid-cols-3' : colCount <= 4 ? 'grid-cols-4' : 'grid-cols-5';
-        return (
-          <div className={`grid gap-4 ${gridCols}`}>
-            {distCharts.map(c => (
-              <DistributionChart key={c.label} label={c.label} byTier={c.byTier} total={c.total} />
-            ))}
-          </div>
-        );
-      })()}
+      {s && <RiskDistributionRow s={s} />}
 
-      {/* Top Risks */}
-      {s && (
-        <div className="grid grid-cols-2 gap-4">
-          <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
-            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Top Risk Resources</h3>
-            <div className="space-y-2">
-              {(s.topGroups || []).slice(0, 5).map(g => (
-                <div key={g.id} className="flex items-center justify-between">
-                  <span className="text-sm text-gray-800 dark:text-gray-200 truncate max-w-[60%]">{g.displayName}</span>
-                  <div className="flex items-center gap-2">
-                    <ScoreBar score={g.effectiveScore ?? g.riskScore} />
-                    <TierBadge tier={g.riskTier} />
-                    {g.riskOverride != null && (
-                      <span className={`text-[10px] font-mono ${g.riskOverride > 0 ? 'text-red-500' : 'text-green-500'}`}>
-                        {g.riskOverride > 0 ? '+' : ''}{g.riskOverride}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-          <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
-            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Top Risk Users</h3>
-            <div className="space-y-2">
-              {(s.topUsers || []).slice(0, 5).map(u => (
-                <div key={u.id} className="flex items-center justify-between">
-                  <span className="text-sm text-gray-800 dark:text-gray-200 truncate max-w-[60%]">{u.displayName}</span>
-                  <div className="flex items-center gap-2">
-                    <ScoreBar score={u.effectiveScore ?? u.riskScore} />
-                    <TierBadge tier={u.riskTier} />
-                    {u.riskOverride != null && (
-                      <span className={`text-[10px] font-mono ${u.riskOverride > 0 ? 'text-red-500' : 'text-green-500'}`}>
-                        {u.riskOverride > 0 ? '+' : ''}{u.riskOverride}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
+      {s && <TopRisksPanel s={s} />}
 
-      {/* Entity Tables */}
       <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
         <div className="border-b border-gray-200 dark:border-gray-700 px-4 py-3 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-2 flex-wrap">
-            <a
-              href="#contexts"
-              className="px-3 py-1.5 text-sm font-medium rounded-lg text-blue-600 dark:text-blue-400 hover:bg-blue-50"
-              title="Resource clusters are now a generated context tree — view them on the Contexts tab."
-            >
-              View clusters →
-            </a>
-            <span className="w-px h-5 bg-gray-200" />
-            {(s?.totalGroups > 0 || !s) && (
-              <button
-                onClick={() => setView('groups')}
-                className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-                  view === 'groups' ? 'bg-gray-900 text-white' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
-                }`}
-              >
-                Resources
-              </button>
-            )}
-            {(s?.totalUsers > 0 || !s) && (
-              <button
-                onClick={() => setView('users')}
-                className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-                  view === 'users' ? 'bg-gray-900 text-white' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
-                }`}
-              >
-                Users
-              </button>
-            )}
-            {s?.totalBusinessRoles > 0 && (
-              <button
-                onClick={() => setView('business-roles')}
-                className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-                  view === 'business-roles' ? 'bg-gray-900 text-white' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
-                }`}
-              >
-                Business Roles
-              </button>
-            )}
-            {s?.totalContexts > 0 && (
-              <button
-                onClick={() => setView('contexts')}
-                className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-                  view === 'contexts' ? 'bg-gray-900 text-white' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
-                }`}
-              >
-                Contexts
-              </button>
-            )}
-            {s?.totalIdentities > 0 && (
-              <button
-                onClick={() => setView('identities')}
-                className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-                  view === 'identities' ? 'bg-gray-900 text-white' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
-                }`}
-              >
-                Identities
-              </button>
-            )}
-          </div>
-
-          <div className="flex items-center gap-3">
-            <label className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={overridesOnly}
-                onChange={e => setOverridesOnly(e.target.checked)}
-                className="rounded border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white w-3.5 h-3.5"
-              />
-              Overrides only
-            </label>
-
-            <select
-              aria-label="Filter by risk tier"
-              value={tierFilter}
-              onChange={e => setTierFilter(e.target.value)}
-              className="text-sm border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1.5 text-gray-700 dark:text-gray-300"
-            >
-              <option value="">All tiers</option>
-              {tiers.map(t => <option key={t} value={t}>{t}</option>)}
-            </select>
-
-            <input
-              type="text"
-              aria-label={`Search ${viewSearchNoun(view)}`}
-              placeholder={`Search ${viewSearchNoun(view)}...`}
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              className="text-sm border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1.5 w-52 placeholder-gray-400"
-            />
-          </div>
+          <RiskViewTabs view={view} setView={setView} s={s} />
+          <RiskFilters
+            overridesOnly={overridesOnly} setOverridesOnly={setOverridesOnly}
+            tierFilter={tierFilter} setTierFilter={setTierFilter} tiers={tiers}
+            search={search} setSearch={setSearch} view={view}
+          />
         </div>
 
         {entityLoading ? (
@@ -549,20 +556,7 @@ export default function RiskScoringPage({ onOpenDetail }) {
           />
         )}
 
-        {/* Pagination */}
-        {totalPages > 1 && (
-          <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200 dark:border-gray-700">
-            <span className="text-xs text-gray-500 dark:text-gray-400">
-              {page * PAGE_SIZE + 1}&ndash;{Math.min((page + 1) * PAGE_SIZE, activeTotal)} of {activeTotal}
-            </span>
-            <div className="flex gap-1">
-              <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0}
-                className="px-2 py-1 text-xs rounded border border-gray-200 dark:border-gray-700 disabled:opacity-30 hover:bg-gray-50 dark:hover:bg-gray-700/50">Prev</button>
-              <button onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1}
-                className="px-2 py-1 text-xs rounded border border-gray-200 dark:border-gray-700 disabled:opacity-30 hover:bg-gray-50 dark:hover:bg-gray-700/50">Next</button>
-            </div>
-          </div>
-        )}
+        <RiskPagination page={page} setPage={setPage} totalPages={totalPages} activeTotal={activeTotal} pageSize={PAGE_SIZE} />
       </div>
     </div>
   );
