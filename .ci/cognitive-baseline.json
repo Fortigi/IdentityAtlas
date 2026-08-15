@@ -39,41 +39,17 @@
     "tools/crawlers/shared/Invoke-CrawlerIngest.ps1": [
       31
     ],
-    "tools/powershell-sdk/graph/Get-FGAccessToken.ps1": [
-      18
-    ],
     "tools/powershell-sdk/graph/Get-FGAttributeMapping.ps1": [
       38
     ],
-    "tools/powershell-sdk/graph/Get-FGSecureConfigValue.ps1": [
-      27
-    ],
     "tools/powershell-sdk/graph/Get-FGServicePrincipalWithSync.ps1": [
       85
-    ],
-    "tools/powershell-sdk/graph/Get-FGUser.ps1": [
-      21
     ],
     "tools/powershell-sdk/graph/Invoke-FGGetPage.ps1": [
       35
     ],
     "tools/powershell-sdk/graph/Update-FGConfig.ps1": [
       44
-    ],
-    "tools/powershell-sdk/helpers/Add-FGEntraCalculatedAttributes.ps1": [
-      29
-    ],
-    "tools/powershell-sdk/helpers/Confirm-FGGroup.ps1": [
-      21
-    ],
-    "tools/powershell-sdk/helpers/Confirm-FGGroupMember.ps1": [
-      25
-    ],
-    "tools/powershell-sdk/helpers/Get-FGServicePrincipalType.ps1": [
-      26
-    ],
-    "tools/powershell-sdk/helpers/Resolve-FGMemberObjectIds.ps1": [
-      18
     ],
     "tools/update-sbom-doc.py": [
       30

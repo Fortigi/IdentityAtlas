@@ -25,17 +25,11 @@
     "tools/crawlers/odata/Invoke-ODataGetRequest.ps1": [
       31
     ],
-    "tools/powershell-sdk/graph/Get-FGSecureConfigValue.ps1": [
-      17
-    ],
     "tools/powershell-sdk/graph/Get-FGServicePrincipalWithSync.ps1": [
       35
     ],
     "tools/powershell-sdk/graph/Update-FGConfig.ps1": [
       28
-    ],
-    "tools/powershell-sdk/helpers/Add-FGEntraCalculatedAttributes.ps1": [
-      16
     ],
     "tools/update-sbom-doc.py": [
       21
