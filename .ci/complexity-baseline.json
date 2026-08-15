@@ -10,9 +10,6 @@
     "app/ui/src/components/RollupMatrixView.jsx": [
       28
     ],
-    "app/ui/src/hooks/useMatrix.js": [
-      36
-    ],
     "setup/docker/Invoke-CrawlerJob.ps1": [
       29
     ],
