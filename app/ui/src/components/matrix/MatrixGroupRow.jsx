@@ -1,8 +1,77 @@
-﻿import MatrixCell from './MatrixCell';
+import MatrixCell from './MatrixCell';
 import MatrixContextsCell from './MatrixContextsCell';
 import { getAccessPackageColor } from '@ui/utils/colors';
 import { getApRoleBadge } from '@ui/utils/accessPackageStyles';
 import { useIsDark } from '@ui/contexts/ThemeContext';
+
+// Sticky drag-handle column. Nested rows aren't draggable, so they drop the
+// grab cursor and receive none of the DnD attributes/listeners.
+function DragHandleCell({ group, nestedBg, sortableAttributes, sortableListeners }) {
+  return (
+    <td
+      className={`sticky left-0 z-10 ${nestedBg} border-r border-b border-gray-200 dark:border-gray-700 px-1 py-0 text-center ${!group.isNestedRow ? 'cursor-grab active:cursor-grabbing' : ''}`}
+      style={{ minWidth: '24px' }}
+      {...(group.isNestedRow ? {} : (sortableAttributes || {}))}
+      {...(group.isNestedRow ? {} : (sortableListeners || {}))}
+    >
+      {!group.isNestedRow && (
+        <span className="text-gray-500 dark:text-gray-600 text-xs select-none">&#x2630;</span>
+      )}
+    </td>
+  );
+}
+
+// Sticky resource-name column: nested-group expand toggle, the nested-row
+// connector glyph, and the click-to-open resource name.
+function ResourceNameCell({
+  group,
+  nestedBg,
+  groupsWithNested,
+  expandedGroups,
+  onToggleExpand,
+  loadingNested,
+  onOpenDetail,
+}) {
+  // Expand/collapse state for nested groups (up to 4 levels deep)
+  const realGidForExpand = group.realGroupId || group.id;
+  const canExpand = (group.nestLevel || 0) < 4 && groupsWithNested?.has(realGidForExpand);
+  const isExpanded = expandedGroups?.has(realGidForExpand);
+  const isLoadingNested = loadingNested?.has(realGidForExpand);
+
+  return (
+    <td
+      className={`sticky ${nestedBg} border-r border-b border-gray-200 dark:border-gray-700 px-2 py-0.5 text-xs text-gray-900 dark:text-gray-100 font-medium`}
+      style={{ left: '24px', minWidth: '275px', maxWidth: '275px', zIndex: 10 }}
+      title={group.displayName}
+    >
+      <div className="flex items-center gap-0.5" style={{ paddingLeft: (group.nestLevel || 0) * 16 }}>
+        {canExpand && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onToggleExpand?.(realGidForExpand); }}
+            className="flex-shrink-0 w-4 h-4 flex items-center justify-center text-gray-600 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 rounded hover:bg-gray-200 dark:hover:bg-gray-600"
+            title={isExpanded ? 'Collapse nested groups' : 'Expand nested groups'}
+          >
+            {isLoadingNested ? (
+              <svg className="animate-spin w-3 h-3" viewBox="0 0 24 24" fill="none">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+            ) : (
+              <span className="text-[10px] leading-none">{isExpanded ? '▼' : '▶'}</span>
+            )}
+          </button>
+        )}
+        {group.isNestedRow && (
+          <span className="text-gray-500 dark:text-gray-600 text-[10px] mr-0.5 flex-shrink-0">{'└'}</span>
+        )}
+        <div className="truncate cursor-pointer hover:text-blue-600 dark:hover:text-blue-400"
+          onClick={() => onOpenDetail?.('resource', group.realGroupId || group.id, group.displayName)}>
+          {group.displayName}
+        </div>
+      </div>
+    </td>
+  );
+}
 
 export default function MatrixGroupRow({
   group,
@@ -32,60 +101,26 @@ export default function MatrixGroupRow({
   const isDark = useIsDark();
   const memberCount = group.memberCount;
 
-  // Expand/collapse state for nested groups (up to 4 levels deep)
-  const realGidForExpand = group.realGroupId || group.id;
-  const canExpand = (group.nestLevel || 0) < 4 && groupsWithNested?.has(realGidForExpand);
-  const isExpanded = expandedGroups?.has(realGidForExpand);
-  const isLoadingNested = loadingNested?.has(realGidForExpand);
-
   const nestedBg = group.isNestedRow ? 'bg-gray-50/60 dark:bg-gray-700/40' : 'bg-white dark:bg-gray-800';
 
   return (
     <tr ref={sortableRef} style={sortableStyle || {}} className={`hover:bg-gray-50/30 dark:hover:bg-gray-700/30 ${group.isNestedRow ? 'bg-gray-50/40 dark:bg-gray-700/30' : ''}`}>
-      {/* Drag handle */}
-      <td
-        className={`sticky left-0 z-10 ${nestedBg} border-r border-b border-gray-200 dark:border-gray-700 px-1 py-0 text-center ${!group.isNestedRow ? 'cursor-grab active:cursor-grabbing' : ''}`}
-        style={{ minWidth: '24px' }}
-        {...(group.isNestedRow ? {} : (sortableAttributes || {}))}
-        {...(group.isNestedRow ? {} : (sortableListeners || {}))}
-      >
-        {!group.isNestedRow && (
-          <span className="text-gray-500 dark:text-gray-600 text-xs select-none">&#x2630;</span>
-        )}
-      </td>
+      <DragHandleCell
+        group={group}
+        nestedBg={nestedBg}
+        sortableAttributes={sortableAttributes}
+        sortableListeners={sortableListeners}
+      />
 
-      {/* Resource Name column - sticky left */}
-      <td
-        className={`sticky ${nestedBg} border-r border-b border-gray-200 dark:border-gray-700 px-2 py-0.5 text-xs text-gray-900 dark:text-gray-100 font-medium`}
-        style={{ left: '24px', minWidth: '275px', maxWidth: '275px', zIndex: 10 }}
-        title={group.displayName}
-      >
-        <div className="flex items-center gap-0.5" style={{ paddingLeft: (group.nestLevel || 0) * 16 }}>
-          {canExpand && (
-            <button
-              onClick={(e) => { e.stopPropagation(); onToggleExpand?.(realGidForExpand); }}
-              className="flex-shrink-0 w-4 h-4 flex items-center justify-center text-gray-600 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 rounded hover:bg-gray-200 dark:hover:bg-gray-600"
-              title={isExpanded ? 'Collapse nested groups' : 'Expand nested groups'}
-            >
-              {isLoadingNested ? (
-                <svg className="animate-spin w-3 h-3" viewBox="0 0 24 24" fill="none">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                </svg>
-              ) : (
-                <span className="text-[10px] leading-none">{isExpanded ? '\u25BC' : '\u25B6'}</span>
-              )}
-            </button>
-          )}
-          {group.isNestedRow && (
-            <span className="text-gray-500 dark:text-gray-600 text-[10px] mr-0.5 flex-shrink-0">{'\u2514'}</span>
-          )}
-          <div className="truncate cursor-pointer hover:text-blue-600 dark:hover:text-blue-400"
-            onClick={() => onOpenDetail?.('resource', group.realGroupId || group.id, group.displayName)}>
-            {group.displayName}
-          </div>
-        </div>
-      </td>
+      <ResourceNameCell
+        group={group}
+        nestedBg={nestedBg}
+        groupsWithNested={groupsWithNested}
+        expandedGroups={expandedGroups}
+        onToggleExpand={onToggleExpand}
+        loadingNested={loadingNested}
+        onOpenDetail={onOpenDetail}
+      />
 
       {/* Contexts column - sticky left */}
       <MatrixContextsCell

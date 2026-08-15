@@ -1,4 +1,4 @@
-﻿// Identity Atlas v5 — Risk Profile wizard.
+// Identity Atlas v5 — Risk Profile wizard.
 //
 // Multi-step UX for creating a risk profile + classifiers + (optionally) running
 // a scoring pass. Lives behind the "New Risk Profile" button on the Risk Scoring
@@ -15,12 +15,20 @@
 // hits "Save". The chat refinement keeps history client-side (each turn POSTs
 // the full transcript), so refreshing the page loses the draft. That's the v1
 // trade-off; persisting drafts can come later.
+//
+// Each step's markup lives in its own RiskProfile*Step child component; this
+// file owns the shared draft state, the API handlers, and the step routing.
 
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
-import JsonViewer from './JsonViewer';
-import Stepper from './Stepper';
 import { useDialog } from '@ui/components/dialogContext';
+import { useElapsedTimer } from '@ui/hooks/useElapsedTimer';
+import Stepper from './Stepper';
+import RiskProfileSourcesStep from './RiskProfileSourcesStep';
+import RiskProfileRefineStep from './RiskProfileRefineStep';
+import RiskProfileSaveStep from './RiskProfileSaveStep';
+import RiskProfileClassifiersStep from './RiskProfileClassifiersStep';
+import RiskProfileScoringStep from './RiskProfileScoringStep';
 
 const STEPS = [
   { key: 'sources',     label: 'Sources' },
@@ -52,26 +60,10 @@ export default function RiskProfileWizard({ onClose, onSaved }) {
   const [refining, setRefining] = useState(false);
   const [llmModel, setLlmModel] = useState(null);
   const [genError, setGenError] = useState(null);
-  // Elapsed-time tracker for long LLM calls. Updated every 500ms while any
-  // long-running action is in progress so the user sees "12s elapsed" instead
-  // of wondering whether the request is stuck.
-  const [elapsedMs, setElapsedMs] = useState(0);
+  // Elapsed-time trackers for the long LLM calls so the user sees "12s elapsed"
+  // instead of wondering whether the request is stuck.
   const isWorking = generating || refining;
-  // Reset the counter when work stops — during render on the transition, so the
-  // effect body holds no synchronous setState (react-hooks/set-state-in-effect).
-  const [wasWorking, setWasWorking] = useState(isWorking);
-  if (isWorking !== wasWorking) {
-    setWasWorking(isWorking);
-    if (!isWorking) setElapsedMs(0);
-  }
-  useEffect(() => {
-    if (!isWorking) return undefined;
-    const start = Date.now();
-    const interval = setInterval(() => setElapsedMs(Date.now() - start), 500);
-    return () => clearInterval(interval);
-  }, [isWorking]);
-  const elapsedSec = Math.floor(elapsedMs / 1000);
-
+  const elapsedSec = useElapsedTimer(isWorking);
 
   // ── Step 3 state: save ──
   const [profileName, setProfileName] = useState('');
@@ -87,28 +79,14 @@ export default function RiskProfileWizard({ onClose, onSaved }) {
   const [savingClassifiers, setSavingClassifiers] = useState(false);
   const [savedClassifierId, setSavedClassifierId] = useState(null);
   const [activateClassifier, setActivateClassifier] = useState(true);
+  // Separate counter from the Step 2 chat so they run independently.
+  const classifierElapsedSec = useElapsedTimer(genClassifiers);
 
   // ── Step 5 state: scoring ──
   const [scoring, setScoring] = useState(false);
   const [scoringRun, setScoringRun] = useState(null);
   const [scoringError, setScoringError] = useState(null);
   const pollRef = useRef(null);
-
-  // Elapsed-time tracker for the classifier generation step (separate from
-  // the Step 2 chat counter so they can run independently).
-  const [classifierElapsedMs, setClassifierElapsedMs] = useState(0);
-  const [wasGenClassifiers, setWasGenClassifiers] = useState(genClassifiers);
-  if (genClassifiers !== wasGenClassifiers) {
-    setWasGenClassifiers(genClassifiers);
-    if (!genClassifiers) setClassifierElapsedMs(0);
-  }
-  useEffect(() => {
-    if (!genClassifiers) return undefined;
-    const start = Date.now();
-    const interval = setInterval(() => setClassifierElapsedMs(Date.now() - start), 500);
-    return () => clearInterval(interval);
-  }, [genClassifiers]);
-  const classifierElapsedSec = Math.floor(classifierElapsedMs / 1000);
 
   // Check whether the LLM is configured at mount
   useEffect(() => {
@@ -334,248 +312,54 @@ export default function RiskProfileWizard({ onClose, onSaved }) {
       </div>
 
       <div className="p-6 max-h-[70vh] overflow-y-auto">
-        {/* ── Step 1 — sources ── */}
         {stepIdx === 0 && (
-          <div className="space-y-4">
-            <h3 className="text-base font-semibold dark:text-white">Tell us about the organisation</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-medium mb-1 dark:text-gray-300">Domain *</label>
-                <input value={domain} onChange={e => setDomain(e.target.value)} placeholder="example.com" className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-500" />
-              </div>
-              <div>
-                <label className="block text-xs font-medium mb-1 dark:text-gray-300">Organisation name (optional)</label>
-                <input value={orgName} onChange={e => setOrgName(e.target.value)} placeholder="Acme Corp" className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-500" />
-              </div>
-            </div>
-            <div>
-              <label className="block text-xs font-medium mb-1 dark:text-gray-300">Free-text hints (optional)</label>
-              <textarea value={hints} onChange={e => setHints(e.target.value)} rows={3} placeholder="e.g. We're focused on the medical-device division. Skip the consumer products business." className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-500" />
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <label className="text-xs font-medium dark:text-gray-300">Internal URLs to scrape (optional)</label>
-                <button onClick={addUrl} className="text-xs px-2 py-1 rounded border border-gray-300 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700">+ Add URL</button>
-              </div>
-              {urls.length === 0 && (
-                <div className="text-xs text-gray-500 dark:text-gray-400">Add wiki, ISMS, intranet pages here. Use credentials for auth-protected URLs (configure them on the Admin → LLM Settings page or below).</div>
-              )}
-              {urls.map((row, i) => (
-                <div key={i} className="flex gap-2 mb-2">
-                  <input value={row.url} onChange={e => updateUrl(i, 'url', e.target.value)} placeholder="https://wiki.internal/about" className="flex-1 px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded font-mono dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-500" />
-                  <select value={row.credentialId} onChange={e => updateUrl(i, 'credentialId', e.target.value)} className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded dark:bg-gray-700 dark:text-gray-200">
-                    <option value="">no auth</option>
-                    {credList.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
-                  </select>
-                  <button onClick={() => removeUrl(i)} className="px-2 text-red-600 dark:text-red-400">×</button>
-                </div>
-              ))}
-            </div>
-
-            <div className="flex justify-end gap-2 pt-2">
-              <button onClick={onClose} className="px-4 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded dark:text-gray-300 dark:hover:bg-gray-700">Cancel</button>
-              <button onClick={handleGenerate} disabled={!domain || generating} className="px-4 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-300 dark:disabled:bg-gray-600">
-                {generating ? `Generating… (${elapsedSec}s)` : 'Generate profile →'}
-              </button>
-            </div>
-            {generating && (
-              <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded text-sm">
-                <div className="flex items-center gap-2 text-blue-900 dark:text-blue-300">
-                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
-                    <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" className="opacity-25" />
-                    <path d="M4 12a8 8 0 018-8" stroke="currentColor" strokeWidth="4" className="opacity-75" />
-                  </svg>
-                  <span className="font-medium">The AI is researching the organisation…</span>
-                  <span className="text-xs text-blue-700 dark:text-blue-400 ml-auto">{elapsedSec}s elapsed</span>
-                </div>
-                <div className="text-xs text-blue-700 dark:text-blue-400 mt-2 space-y-1">
-                  <div>1. {urls.filter(u => u.url).length > 0 ? `Scraping ${urls.filter(u => u.url).length} URL${urls.filter(u => u.url).length === 1 ? '' : 's'}` : 'Skipping URL scraping'}</div>
-                  <div>2. Calling the LLM to generate the profile JSON</div>
-                  <div className="opacity-70 mt-2">This typically takes 20–60 seconds depending on the model. Opus/GPT-4 are slower but produce better industry-specific profiles.</div>
-                </div>
-              </div>
-            )}
-            {genError && <div className="text-sm text-red-700 dark:text-red-400 mt-2">{genError}</div>}
-          </div>
+          <RiskProfileSourcesStep
+            domain={domain} setDomain={setDomain}
+            orgName={orgName} setOrgName={setOrgName}
+            hints={hints} setHints={setHints}
+            urls={urls} addUrl={addUrl} updateUrl={updateUrl} removeUrl={removeUrl}
+            credList={credList} onClose={onClose}
+            handleGenerate={handleGenerate} generating={generating}
+            elapsedSec={elapsedSec} genError={genError}
+          />
         )}
 
-        {/* ── Step 2 — generate / refine ── */}
         {stepIdx === 1 && profile && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-base font-semibold dark:text-white">Refine the profile</h3>
-              <span className="text-xs text-gray-500 dark:text-gray-400">model: <code className="dark:text-gray-300">{llmModel}</code></span>
-            </div>
-            {scrapedSummary && scrapedSummary.length > 0 && (
-              <div className="text-xs bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded p-2">
-                <div className="font-medium mb-1 dark:text-gray-300">Scraped sources:</div>
-                {scrapedSummary.map((s, i) => (
-                  <div key={i} className={s.ok ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'}>
-                    {s.ok ? '✓' : '✗'} {s.url} {s.bytes ? `(${s.bytes} bytes)` : s.error || ''}
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              {/* Left: profile JSON */}
-              <div>
-                <div className="text-xs font-medium mb-1 dark:text-gray-300">Current profile</div>
-                <JsonViewer data={profile} />
-              </div>
-              {/* Right: chat */}
-              <div className="flex flex-col">
-                <div className="text-xs font-medium mb-1 dark:text-gray-300">Refinement chat</div>
-                <div className="flex-1 border border-gray-200 dark:border-gray-600 rounded p-2 bg-white dark:bg-gray-800 max-h-96 overflow-auto space-y-2">
-                  {transcript.length === 0 && (
-                    <div className="text-xs text-gray-500 dark:text-gray-400">Ask the AI to adjust anything or ask a question: "drop NIS2 — we're US-only", "what software does this org use?", "add critical role for Customs Officer"…</div>
-                  )}
-                  {transcript.map((m, i) => (
-                    <div key={i} className={`text-xs ${m.role === 'user' ? 'text-gray-900 dark:text-gray-200' : 'text-blue-700 dark:text-blue-400'}`}>
-                      <span className="font-semibold">{m.role === 'user' ? 'You' : 'AI'}:</span> {m.content}
-                    </div>
-                  ))}
-                  {refining && (
-                    <div className="text-xs text-blue-700 dark:text-blue-400 flex items-center gap-2">
-                      <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24" fill="none">
-                        <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" className="opacity-25" />
-                        <path d="M4 12a8 8 0 018-8" stroke="currentColor" strokeWidth="4" className="opacity-75" />
-                      </svg>
-                      <span className="font-semibold">AI:</span> <em>thinking… ({elapsedSec}s)</em>
-                    </div>
-                  )}
-                </div>
-                <div className="flex gap-2 mt-2">
-                  <input value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleRefine()} disabled={refining} placeholder="Ask for a change or a question…" className="flex-1 px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-500" />
-                  <button onClick={handleRefine} disabled={!chatInput.trim() || refining} className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-300 dark:disabled:bg-gray-600">
-                    {refining ? `${elapsedSec}s` : 'Send'}
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex justify-between pt-2">
-              <button onClick={() => setStepIdx(0)} className="px-4 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded dark:text-gray-300 dark:hover:bg-gray-700">← Back</button>
-              <button onClick={() => setStepIdx(2)} className="px-4 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700">Looks good — save →</button>
-            </div>
-          </div>
+          <RiskProfileRefineStep
+            llmModel={llmModel} scrapedSummary={scrapedSummary} profile={profile}
+            transcript={transcript} refining={refining} elapsedSec={elapsedSec}
+            chatInput={chatInput} setChatInput={setChatInput}
+            handleRefine={handleRefine} setStepIdx={setStepIdx}
+          />
         )}
 
-        {/* ── Step 3 — save profile ── */}
         {stepIdx === 2 && (
-          <div className="space-y-4 max-w-md">
-            <h3 className="text-base font-semibold dark:text-white">Save profile</h3>
-            <div>
-              <label className="block text-xs font-medium mb-1 dark:text-gray-300">Profile name *</label>
-              <input value={profileName} onChange={e => setProfileName(e.target.value)} className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded dark:bg-gray-700 dark:text-gray-200" />
-            </div>
-            <label className="flex items-center gap-2 text-sm dark:text-gray-300">
-              <input type="checkbox" checked={makeActive} onChange={e => setMakeActive(e.target.checked)} />
-              Make this the active profile
-            </label>
-            <div className="flex justify-between pt-2">
-              <button onClick={() => setStepIdx(1)} className="px-4 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded dark:text-gray-300 dark:hover:bg-gray-700">← Back</button>
-              <button onClick={handleSaveProfile} disabled={!profileName || savingProfile} className="px-4 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-300 dark:disabled:bg-gray-600">
-                {savingProfile ? 'Saving…' : 'Save profile →'}
-              </button>
-            </div>
-          </div>
+          <RiskProfileSaveStep
+            profileName={profileName} setProfileName={setProfileName}
+            makeActive={makeActive} setMakeActive={setMakeActive}
+            savingProfile={savingProfile} handleSaveProfile={handleSaveProfile}
+            setStepIdx={setStepIdx}
+          />
         )}
 
-        {/* ── Step 4 — classifiers ── */}
         {stepIdx === 3 && (
-          <div className="space-y-4">
-            <h3 className="text-base font-semibold dark:text-white">Generate classifiers</h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              Classifiers are regex patterns that detect high-risk principals by name.
-              They're generated from the profile you just saved and applied during scoring.
-            </p>
-            {!classifiers && (
-              <div className="flex gap-2">
-                <button onClick={handleGenerateClassifiers} disabled={genClassifiers} className="px-4 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-300 dark:disabled:bg-gray-600">
-                  {genClassifiers ? `Generating… (${classifierElapsedSec}s)` : 'Generate classifiers'}
-                </button>
-                <button onClick={() => { onSaved?.(); onClose(); }} disabled={genClassifiers} className="px-4 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded dark:text-gray-300 dark:hover:bg-gray-700 disabled:opacity-50">Skip — done for now</button>
-              </div>
-            )}
-            {genClassifiers && (
-              <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded text-sm">
-                <div className="flex items-center gap-2 text-blue-900 dark:text-blue-300">
-                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
-                    <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" className="opacity-25" />
-                    <path d="M4 12a8 8 0 018-8" stroke="currentColor" strokeWidth="4" className="opacity-75" />
-                  </svg>
-                  <span className="font-medium">Generating regex classifiers from the profile…</span>
-                  <span className="text-xs text-blue-700 dark:text-blue-400 ml-auto">{classifierElapsedSec}s elapsed</span>
-                </div>
-                <div className="text-xs text-blue-700 dark:text-blue-400 mt-2 space-y-1">
-                  <div>The LLM is translating the profile's regulations, critical roles, and known systems into regex patterns that will match high-risk principals during scoring.</div>
-                  <div className="opacity-70 mt-2">This typically takes 30–90 seconds with Opus — classifiers are larger than profiles. Switch to Sonnet or Haiku in Admin → LLM Settings for faster (but less nuanced) output.</div>
-                </div>
-              </div>
-            )}
-            {classifierError && <div className="text-sm text-red-700 dark:text-red-400 mt-2">{classifierError}</div>}
-            {classifiers && (
-              <>
-                <JsonViewer data={classifiers} />
-                <div className="flex items-end gap-3">
-                  <div className="flex-1">
-                    <label className="block text-xs font-medium mb-1 dark:text-gray-300">Classifier set name</label>
-                    <input value={classifierName} onChange={e => setClassifierName(e.target.value)} className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded dark:bg-gray-700 dark:text-gray-200" />
-                  </div>
-                  <label className="flex items-center gap-2 text-sm pb-1.5 dark:text-gray-300">
-                    <input type="checkbox" checked={activateClassifier} onChange={e => setActivateClassifier(e.target.checked)} />
-                    Activate
-                  </label>
-                </div>
-                <div className="flex justify-between pt-2">
-                  <button onClick={handleGenerateClassifiers} disabled={genClassifiers} className="px-4 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded dark:text-gray-300 dark:hover:bg-gray-700">Regenerate</button>
-                  <button onClick={handleSaveClassifiers} disabled={!classifierName || savingClassifiers} className="px-4 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-300 dark:disabled:bg-gray-600">
-                    {savingClassifiers ? 'Saving…' : 'Save classifiers →'}
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
+          <RiskProfileClassifiersStep
+            classifiers={classifiers} genClassifiers={genClassifiers}
+            classifierElapsedSec={classifierElapsedSec} classifierError={classifierError}
+            classifierName={classifierName} setClassifierName={setClassifierName}
+            activateClassifier={activateClassifier} setActivateClassifier={setActivateClassifier}
+            savingClassifiers={savingClassifiers}
+            handleGenerateClassifiers={handleGenerateClassifiers}
+            handleSaveClassifiers={handleSaveClassifiers}
+            onSaved={onSaved} onClose={onClose}
+          />
         )}
 
-        {/* ── Step 5 — score ── */}
         {stepIdx === 4 && (
-          <div className="space-y-4 max-w-lg">
-            <h3 className="text-base font-semibold dark:text-white">Run scoring</h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              This applies the saved classifiers to every Principal and Resource and writes the results to the RiskScores table.
-              You can also run it later from the Risk Scoring page.
-            </p>
-            {!scoringRun && !scoring && (
-              <div className="flex gap-2">
-                <button onClick={handleStartScoring} className="px-4 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700">
-                  Run scoring now
-                </button>
-                <button onClick={() => { onSaved?.(); onClose(); }} className="px-4 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded dark:text-gray-300 dark:hover:bg-gray-700">Done</button>
-              </div>
-            )}
-            {scoringError && <div className="text-sm text-red-700 dark:text-red-400">{scoringError}</div>}
-            {scoringRun && (
-              <div className="space-y-2">
-                <div className="text-sm dark:text-gray-300">
-                  Status: <span className={`font-semibold ${scoringRun.status === 'completed' ? 'text-green-700 dark:text-green-400' : scoringRun.status === 'failed' ? 'text-red-700 dark:text-red-400' : 'text-blue-700 dark:text-blue-400'}`}>{scoringRun.status}</span>
-                  {scoringRun.step && <span className="text-gray-500 dark:text-gray-400"> · {scoringRun.step}</span>}
-                </div>
-                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded h-2">
-                  <div className="bg-blue-600 h-2 rounded transition-all" style={{ width: `${scoringRun.pct || 0}%` }} />
-                </div>
-                <div className="text-xs text-gray-500 dark:text-gray-400">{scoringRun.scoredEntities || 0} / {scoringRun.totalEntities || '?'} entities</div>
-                {scoringRun.errorMessage && <div className="text-sm text-red-700 dark:text-red-400">{scoringRun.errorMessage}</div>}
-                {(scoringRun.status === 'completed' || scoringRun.status === 'failed') && (
-                  <button onClick={() => { onSaved?.(); onClose(); }} className="px-4 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700">
-                    Done
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
+          <RiskProfileScoringStep
+            scoring={scoring} scoringRun={scoringRun} scoringError={scoringError}
+            handleStartScoring={handleStartScoring} onSaved={onSaved} onClose={onClose}
+          />
         )}
       </div>
     </Modal>

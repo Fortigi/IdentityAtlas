@@ -1,5 +1,13 @@
 import crypto from 'crypto';
 import * as db from '../db/connection.js';
+import {
+  DENIAL,
+  parseBearerKey,
+  legacyHashDenial,
+  enabledDenial,
+  expiryDenial,
+  effectiveRateLimit,
+} from './crawlerAuth.helpers.js';
 
 const useSql = process.env.USE_SQL === 'true';
 
@@ -53,101 +61,107 @@ async function logAudit(crawlerId, action, endpoint, statusCode, ipAddress) {
   }
 }
 
-export async function crawlerAuthMiddleware(req, res, next) {
-  if (!useSql) {
-    return res.status(503).json({ error: 'SQL not configured' });
-  }
+// Look up a crawler row by API-key prefix. Returns the row or null when no
+// crawler matches. DB errors propagate to the caller.
+async function findCrawlerByPrefix(prefix) {
+  const r = await db.query(
+    `SELECT id, "displayName", "apiKeyHash", "apiKeySalt", "systemIds", "permissions",
+            "enabled", "expiresAt", "rateLimit"
+       FROM "Crawlers"
+      WHERE "apiKeyPrefix" = $1`,
+    [prefix]
+  );
+  return r.rows.length ? r.rows[0] : null;
+}
 
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer fgc_')) {
-    return res.status(401).json({ error: 'Missing or invalid API key' });
-  }
-
-  const apiKey = authHeader.slice(7);
-  const prefix = apiKey.slice(0, 8);
-
-  // Look up crawler by prefix
-  let crawler;
-  try {
-    const r = await db.query(
-      `SELECT id, "displayName", "apiKeyHash", "apiKeySalt", "systemIds", "permissions",
-              "enabled", "expiresAt", "rateLimit"
-         FROM "Crawlers"
-        WHERE "apiKeyPrefix" = $1`,
-      [prefix]
-    );
-
-    if (r.rows.length === 0) {
-      await logAudit(0, 'auth_failed', req.originalUrl, 401, req.ip);
-      return res.status(401).json({ error: 'Invalid API key' });
-    }
-
-    crawler = r.rows[0];
-  } catch (err) {
-    console.error('Crawler auth DB error:', err.message);
-    return res.status(500).json({ error: 'Authentication service error' });
-  }
-
-  // Verify hash. apiKeyHash and apiKeySalt come back as Node Buffers from pg.
-  // Detect legacy SHA-256 hashes (32 bytes) — require rotation before auth succeeds.
-  if (crawler.apiKeyHash && crawler.apiKeyHash.length === 32) {
-    await logAudit(crawler.id, 'auth_legacy_hash', req.originalUrl, 401, req.ip);
-    return res.status(401).json({ error: 'API key must be rotated (security upgrade required — use Admin → Crawlers → Reset Key)' });
-  }
-  // Check cache before running expensive scrypt
+// Verify the presented key against the stored scrypt hash, using the auth cache
+// to skip scrypt when a recent result exists. Returns a denial descriptor when
+// the key is invalid, or null when it verifies.
+function verifyKeyDenial(crawler, apiKey) {
   const cached = getCachedAuth(crawler.id, apiKey);
-  if (cached === false) {
-    await logAudit(crawler.id, 'auth_failed', req.originalUrl, 401, req.ip);
-    return res.status(401).json({ error: 'Invalid API key' });
-  }
-  if (cached !== true) {
-    const computedHash = hashKey(apiKey, crawler.apiKeySalt);
-    const valid = crypto.timingSafeEqual(computedHash, crawler.apiKeyHash);
-    setCachedAuth(crawler.id, apiKey, valid);
-    if (!valid) {
-      await logAudit(crawler.id, 'auth_failed', req.originalUrl, 401, req.ip);
-      return res.status(401).json({ error: 'Invalid API key' });
-    }
-  }
+  if (cached === false) return DENIAL.invalidKey;
+  if (cached === true) return null;
 
-  if (!crawler.enabled) {
-    await logAudit(crawler.id, 'auth_disabled', req.originalUrl, 403, req.ip);
-    return res.status(403).json({ error: 'Crawler is disabled' });
-  }
+  const computedHash = hashKey(apiKey, crawler.apiKeySalt);
+  const valid = crypto.timingSafeEqual(computedHash, crawler.apiKeyHash);
+  setCachedAuth(crawler.id, apiKey, valid);
+  return valid ? null : DENIAL.invalidKey;
+}
 
-  if (crawler.expiresAt && new Date(crawler.expiresAt) < new Date()) {
-    await logAudit(crawler.id, 'auth_expired', req.originalUrl, 401, req.ip);
-    return res.status(401).json({ error: 'API key has expired' });
-  }
+function rateLimitDenial(crawler) {
+  const limit = effectiveRateLimit(crawler.rateLimit, crawler.displayName);
+  return checkRateLimit(crawler.id, limit) ? null : DENIAL.rateLimited;
+}
 
-  // The built-in worker (created by bootstrap) needs a very high limit because
-  // the CSV crawler makes many small batches (one per system × entity type).
-  // Override the DB value for the built-in worker; external crawlers keep their
-  // configured limit (default 100) to prevent accidental DoS.
-  let effectiveLimit = crawler.rateLimit || 100;
-  if (crawler.displayName === 'Built-in Worker') effectiveLimit = Math.max(effectiveLimit, 2000);
-  if (!checkRateLimit(crawler.id, effectiveLimit)) {
-    await logAudit(crawler.id, 'rate_limited', req.originalUrl, 429, req.ip);
-    return res.status(429).json({ error: 'Rate limit exceeded' });
-  }
+// Run every post-lookup authorization check in order, short-circuiting on the
+// first failure so each check's side effects (scrypt/cache, rate-limit counter)
+// fire only when reached — matching the original sequential guard clauses.
+function authorizeCrawler(crawler, apiKey) {
+  return (
+    legacyHashDenial(crawler.apiKeyHash) ||
+    verifyKeyDenial(crawler, apiKey) ||
+    enabledDenial(crawler.enabled) ||
+    expiryDenial(crawler.expiresAt) ||
+    rateLimitDenial(crawler)
+  );
+}
 
+// Audit (when the denial carries an action) then send the rejection response.
+async function denyRequest(req, res, crawlerId, denial) {
+  if (denial.action) {
+    await logAudit(crawlerId, denial.action, req.originalUrl, denial.status, req.ip);
+  }
+  return res.status(denial.status).json({ error: denial.error });
+}
+
+function attachCrawler(req, crawler) {
   // jsonb columns come back as JS arrays/objects already
   const systemIds = Array.isArray(crawler.systemIds) ? crawler.systemIds : null;
   const permissions = Array.isArray(crawler.permissions) ? crawler.permissions : ['ingest'];
-
   req.crawler = {
     id: crawler.id,
     displayName: crawler.displayName,
     systemIds,
     permissions,
   };
+}
 
-  // Update lastUsedAt (fire-and-forget)
+// Update lastUsedAt (fire-and-forget)
+function touchLastUsed(crawlerId) {
   db.query(
     `UPDATE "Crawlers" SET "lastUsedAt" = (now() AT TIME ZONE 'utc') WHERE id = $1`,
-    [crawler.id]
+    [crawlerId]
   ).catch(() => {});
+}
 
+export async function crawlerAuthMiddleware(req, res, next) {
+  if (!useSql) {
+    return res.status(503).json({ error: 'SQL not configured' });
+  }
+
+  const parsed = parseBearerKey(req.headers.authorization);
+  if (!parsed) {
+    return res.status(401).json({ error: 'Missing or invalid API key' });
+  }
+
+  let crawler;
+  try {
+    crawler = await findCrawlerByPrefix(parsed.prefix);
+  } catch (err) {
+    console.error('Crawler auth DB error:', err.message);
+    return res.status(500).json({ error: 'Authentication service error' });
+  }
+  if (!crawler) {
+    return denyRequest(req, res, 0, DENIAL.invalidKey);
+  }
+
+  const denial = authorizeCrawler(crawler, parsed.apiKey);
+  if (denial) {
+    return denyRequest(req, res, crawler.id, denial);
+  }
+
+  attachCrawler(req, crawler);
+  touchLastUsed(crawler.id);
   next();
 }
 

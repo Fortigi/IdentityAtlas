@@ -29,6 +29,7 @@ import * as db from './db/connection.js';
 import { storeJobCredentials, OTHER_SECRET_FIELDS } from './secrets/crawlerSecrets.js';
 import { VALID_JOB_TYPES } from './routes/jobs.js';
 import { validateStoredCrawlerConfig } from './crawlerManifests.js';
+import { parseJsonbColumn } from './lib/jsonb.js';
 
 const TICK_INTERVAL_MS = 60_000;
 const FIRST_RUN_DELAY_MS = 45_000;
@@ -36,6 +37,12 @@ const FIRST_RUN_DELAY_MS = 45_000;
 // Tracks the last time each schedule fired, keyed by `${configId}:${scheduleIndex}`,
 // value = ISO string of the minute. Prevents double-firing within the same minute.
 const lastFired = new Map();
+
+// Resolve a config's schedule list, supporting both the new `schedules` array
+// and the legacy single `schedule` object.
+export function extractSchedules(cfg) {
+  return cfg.schedules?.length ? cfg.schedules : (cfg.schedule ? [cfg.schedule] : []);
+}
 
 export function scheduleMatches(schedule, now) {
   if (!schedule || schedule.enabled === false) return false;
@@ -80,7 +87,7 @@ export async function recentlyQueuedJobExists(configId, jobType) {
 }
 
 export async function queueScheduledJob(configRow, scheduleIndex) {
-  const cfg = typeof configRow.config === 'string' ? JSON.parse(configRow.config) : configRow.config;
+  const cfg = parseJsonbColumn(configRow.config);
 
   // Resolve the effective syncMode for this scheduled run.
   //   1. Explicit `syncMode` on the schedule entry itself (operator config —
@@ -89,7 +96,7 @@ export async function queueScheduledJob(configRow, scheduleIndex) {
   //      (the "Force full sync next run" toggle on the crawler card, which
   //      stays sticky until the scheduler itself resets it below).
   //   3. Otherwise default to 'delta'.
-  const schedules = cfg.schedules?.length ? cfg.schedules : (cfg.schedule ? [cfg.schedule] : []);
+  const schedules = extractSchedules(cfg);
   const thisSchedule = schedules[scheduleIndex] || {};
   const scheduleSyncMode = ['full', 'delta'].includes(thisSchedule.syncMode) ? thisSchedule.syncMode : null;
   const effectiveSyncMode = scheduleSyncMode
@@ -213,6 +220,46 @@ async function captureDashboardSnapshotIfMissing() {
   }
 }
 
+// Fire one schedule if it's due this minute and hasn't already fired. Handles
+// the in-memory and cross-restart double-fire guards and swallows queue errors
+// so one bad config can't abort the whole tick.
+async function fireScheduleIfDue(configRow, scheduleIndex, schedule, now, minuteKey) {
+  if (!scheduleMatches(schedule, now)) return;
+
+  const key = `crawler:${configRow.id}:${scheduleIndex}`;
+  if (lastFired.get(key) === minuteKey) return; // already fired this minute
+
+  // Cross-restart safety: check DB for recent job from this config
+  if (await recentlyQueuedJobExists(configRow.id, configRow.crawlerType)) {
+    lastFired.set(key, minuteKey);
+    return;
+  }
+
+  try {
+    await queueScheduledJob(configRow, scheduleIndex);
+    lastFired.set(key, minuteKey);
+  } catch (err) {
+    console.error(`Scheduler: failed to queue job for config ${configRow.id}: ${err.message}`);
+  }
+}
+
+// Walk every schedule on a single crawler config and fire the due ones.
+async function processConfigSchedules(configRow, now, minuteKey) {
+  const cfg = parseJsonbColumn(configRow.config);
+  const schedules = extractSchedules(cfg);
+  for (let i = 0; i < schedules.length; i++) {
+    await fireScheduleIfDue(configRow, i, schedules[i], now, minuteKey);
+  }
+}
+
+// Drop entries from previous minutes — they've served their double-fire
+// protection purpose and would otherwise grow unbounded.
+function pruneLastFired(minuteKey) {
+  for (const [k, v] of lastFired) {
+    if (v !== minuteKey) lastFired.delete(k);
+  }
+}
+
 async function tick() {
   try {
     // Daily snapshot for the dashboard trends. Idempotent; cheap check
@@ -236,42 +283,14 @@ async function tick() {
     const now = new Date();
     const minuteKey = `${now.getUTCFullYear()}-${now.getUTCMonth()}-${now.getUTCDate()}T${now.getUTCHours()}:${now.getUTCMinutes()}`;
 
-    // Process crawler schedules
     for (const configRow of crawlerRows.rows) {
-      const cfg = typeof configRow.config === 'string' ? JSON.parse(configRow.config) : configRow.config;
-      // Support both 'schedules' (array, new format) and 'schedule' (object, legacy)
-      const schedules = cfg.schedules?.length ? cfg.schedules : (cfg.schedule ? [cfg.schedule] : []);
-
-      for (let i = 0; i < schedules.length; i++) {
-        const s = schedules[i];
-        if (!scheduleMatches(s, now)) continue;
-
-        const key = `crawler:${configRow.id}:${i}`;
-        if (lastFired.get(key) === minuteKey) continue; // already fired this minute
-
-        // Cross-restart safety: check DB for recent job from this config
-        if (await recentlyQueuedJobExists(configRow.id, configRow.crawlerType)) {
-          lastFired.set(key, minuteKey);
-          continue;
-        }
-
-        try {
-          await queueScheduledJob(configRow, i);
-          lastFired.set(key, minuteKey);
-        } catch (err) {
-          console.error(`Scheduler: failed to queue job for config ${configRow.id}: ${err.message}`);
-        }
-      }
+      await processConfigSchedules(configRow, now, minuteKey);
     }
 
     // Account linking + risk scoring are no longer cron-scheduled — they run after
     // every crawl (see postCrawlJobs.js) or on demand. Only crawlers are scheduled here.
 
-    // Prune entries from previous minutes — they've served their double-fire
-    // protection purpose and would otherwise grow unbounded.
-    for (const [k, v] of lastFired) {
-      if (v !== minuteKey) lastFired.delete(k);
-    }
+    pruneLastFired(minuteKey);
   } catch (err) {
     console.error(`Scheduler tick failed: ${err.message}`);
   }

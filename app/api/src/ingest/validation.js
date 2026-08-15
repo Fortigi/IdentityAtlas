@@ -5,7 +5,13 @@
  * Each entity type has a schema definition with required fields, types, and enums.
  */
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+import {
+  validateSystemId,
+  validateRecordsArray,
+  validateDeletedIdsArray,
+  validateEnvelopeOptions,
+  validateRecord,
+} from './validation.helpers.js';
 
 const PRINCIPAL_TYPES = ['User', 'ServicePrincipal', 'ManagedIdentity', 'WorkloadIdentity', 'AIAgent', 'ExternalUser', 'SharedMailbox'];
 // Hard rule (assignment-model redesign): an assignment is only ever one of the
@@ -404,55 +410,16 @@ export const ENTITY_SCOPE_MAP = {
  * Returns { valid: true } or { valid: false, errors: [...] }.
  */
 export function validateEnvelope(body, entityType) {
-  const errors = [];
-
   if (!body || typeof body !== 'object') {
     return { valid: false, errors: ['Request body must be a JSON object'] };
   }
 
-  // Systems endpoint doesn't require systemId
-  if (entityType !== 'systems') {
-    if (body.systemId === undefined || body.systemId === null) {
-      errors.push('systemId is required');
-    }
-  }
-
-  // PowerShell's ConvertTo-Json serializes empty arrays as `null` rather
-  // than `[]` — so an empty `records` from a PS crawler arrives as null.
-  // Treat null/undefined the same as an empty array so delta-only-deletes
-  // envelopes work. Only reject when `records` is present AND a non-array.
-  if (body.records !== undefined && body.records !== null && !Array.isArray(body.records)) {
-    errors.push('records must be an array');
-  } else if (
-    (!body.records || body.records.length === 0)
-    && (!Array.isArray(body.deletedIds) || body.deletedIds.length === 0)
-  ) {
-    // Allow empty records when the caller is only sending delta deletes.
-    // A delta run can legitimately contain zero upserts and N removes.
-    errors.push('records array cannot be empty');
-  } else if (Array.isArray(body.records) && body.records.length > 50000) {
-    errors.push('records array cannot exceed 50,000 items');
-  }
-
-  if (body.deletedIds !== undefined) {
-    if (!Array.isArray(body.deletedIds)) {
-      errors.push('deletedIds must be an array when provided');
-    } else if (body.deletedIds.length > 50000) {
-      errors.push('deletedIds array cannot exceed 50,000 items');
-    }
-  }
-
-  if (body.syncMode && !['full', 'delta'].includes(body.syncMode)) {
-    errors.push('syncMode must be "full" or "delta"');
-  }
-
-  if (body.idGeneration && !['native', 'deterministic'].includes(body.idGeneration)) {
-    errors.push('idGeneration must be "native" or "deterministic"');
-  }
-
-  if (body.idGeneration === 'deterministic' && !body.idPrefix) {
-    errors.push('idPrefix is required when idGeneration is "deterministic"');
-  }
+  const errors = [
+    ...validateSystemId(body, entityType),
+    ...validateRecordsArray(body),
+    ...validateDeletedIdsArray(body),
+    ...validateEnvelopeOptions(body),
+  ];
 
   return { valid: errors.length === 0, errors };
 }
@@ -471,74 +438,7 @@ export function validateRecords(records, entityType, idGeneration, syncMode = 'f
   const maxErrors = 10; // Stop after 10 errors to avoid flooding
 
   for (let i = 0; i < records.length && errors.length < maxErrors; i++) {
-    const rec = records[i];
-
-    // Check required fields — skip in delta mode. Graph's /delta endpoints
-    // return partial records (only changed fields), so a required field
-    // like `displayName` may legitimately be missing on an update. The
-    // engine's COALESCE upsert preserves the existing value in that case.
-    if (syncMode !== 'delta') {
-      for (const field of schema.required) {
-        if (rec[field] === undefined || rec[field] === null || rec[field] === '') {
-          errors.push(`Record ${i}: missing required field '${field}'`);
-        }
-      }
-    }
-
-    // Check requiredOneOf — at least one of the listed fields must be present.
-    // Used by resource-assignments and resource-relationships to accept either
-    // the UUID field (resourceId) or the external-ID alias (resourceExternalId).
-    if (schema.requiredOneOf) {
-      for (const group of schema.requiredOneOf) {
-        const hasAny = group.fields.some(f => rec[f] !== undefined && rec[f] !== null && rec[f] !== '');
-        if (!hasAny) {
-          errors.push(`Record ${i}: one of [${group.fields.join(', ')}] is required`);
-        }
-      }
-    }
-
-    // XOR check: resource-assignments only accepts principalId-side fields.
-    // Catches accidental mixing before the DB constraint produces a cryptic error.
-    if (entityType === 'resource-assignments') {
-      const hasIdentitySide = (rec.identityId !== undefined && rec.identityId !== null && rec.identityId !== '')
-        || (rec.identityExternalId !== undefined && rec.identityExternalId !== null && rec.identityExternalId !== '');
-      if (hasIdentitySide) {
-        errors.push(`Record ${i}: identityId/identityExternalId not allowed here — use /ingest/resource-assignments-identity`);
-      }
-    }
-
-    // Check ID field (must be UUID unless using deterministic generation)
-    if (schema.idField && idGeneration !== 'deterministic') {
-      const idVal = rec[schema.idField];
-      if (idVal !== undefined && idVal !== null && !UUID_RE.test(String(idVal))) {
-        errors.push(`Record ${i}: '${schema.idField}' must be a valid UUID (got '${String(idVal).slice(0, 50)}')`);
-      }
-    }
-
-    // Check field types and constraints
-    for (const [field, def] of Object.entries(schema.fields)) {
-      const val = rec[field];
-      if (val === undefined || val === null) continue;
-
-      if (def.type === 'string' && typeof val !== 'string') {
-        errors.push(`Record ${i}: '${field}' must be a string`);
-      }
-      if (def.type === 'uuid' && !UUID_RE.test(String(val))) {
-        // Only error if this isn't the ID field with deterministic generation
-        if (field !== schema.idField || idGeneration !== 'deterministic') {
-          errors.push(`Record ${i}: '${field}' must be a valid UUID`);
-        }
-      }
-      if (def.type === 'number' && typeof val !== 'number') {
-        errors.push(`Record ${i}: '${field}' must be a number`);
-      }
-      if (def.maxLength && typeof val === 'string' && val.length > def.maxLength) {
-        errors.push(`Record ${i}: '${field}' exceeds max length of ${def.maxLength}`);
-      }
-      if (def.enum && !def.enum.includes(val)) {
-        errors.push(`Record ${i}: '${field}' must be one of: ${def.enum.join(', ')}`);
-      }
-    }
+    errors.push(...validateRecord(records[i], i, schema, entityType, idGeneration, syncMode));
   }
 
   if (errors.length >= maxErrors) {

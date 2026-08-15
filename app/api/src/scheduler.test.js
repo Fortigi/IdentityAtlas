@@ -11,10 +11,32 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // ─── scheduleMatches — no deps, import directly ───────────────────────────
 
-import { scheduleMatches } from './scheduler.js';
+import { scheduleMatches, extractSchedules } from './scheduler.js';
 
 // Fixed reference time: Wednesday 2026-06-17 14:30 UTC (day=3)
 const REF = new Date('2026-06-17T14:30:00Z');
+
+describe('extractSchedules', () => {
+  it('returns the schedules array when present and non-empty', () => {
+    const schedules = [{ minute: 0 }, { minute: 30 }];
+    expect(extractSchedules({ schedules })).toBe(schedules);
+  });
+  it('wraps the legacy single schedule object in an array', () => {
+    const schedule = { enabled: true, minute: 15 };
+    expect(extractSchedules({ schedule })).toEqual([schedule]);
+  });
+  it('prefers schedules over a legacy schedule when both are present', () => {
+    const schedules = [{ minute: 5 }];
+    expect(extractSchedules({ schedules, schedule: { minute: 15 } })).toBe(schedules);
+  });
+  it('falls back to the legacy schedule when schedules is empty', () => {
+    const schedule = { minute: 15 };
+    expect(extractSchedules({ schedules: [], schedule })).toEqual([schedule]);
+  });
+  it('returns an empty array when neither is present', () => {
+    expect(extractSchedules({})).toEqual([]);
+  });
+});
 
 describe('scheduleMatches', () => {
   describe('disabled or malformed schedules', () => {

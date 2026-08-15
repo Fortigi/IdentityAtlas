@@ -21,6 +21,7 @@ import * as db from '../../db/connection.js';
 import { randomUUID } from 'crypto';
 import { getPlugin } from './registry.js';
 import { wouldCreateCycle } from '../cycleGuard.js';
+import { buildNewIdMap, buildMemberInsertBatch } from './runner.helpers.js';
 
 // Second pass of reconcile: set parent pointers now that every target row exists.
 // Skips analyst-reparented nodes and unresolved parents, and — via wouldCreateCycle
@@ -236,68 +237,18 @@ async function reconcile(plugin, algorithmId, runId, params, result, instanceKey
     //    can tell insert / update / delete apart. Scoping by instance is what
     //    lets several trees from the same plugin coexist on one system — a run
     //    only ever touches its own tree.
-    const existingRows = (await client.query(`
-      SELECT id, "externalId", "userReparented" FROM "Contexts"
-       WHERE "sourceAlgorithmId" = $1 AND ($2::int IS NULL OR "scopeSystemId" = $2)
-         AND COALESCE("sourceInstanceKey", '') = $3
-    `, [algorithmId, scopeSystemId, instanceKey])).rows;
-    const existingByExternalId = new Map(existingRows.map(r => [r.externalId, r.id]));
-    // Ids the analyst has manually re-parented — the runner must not move them
-    // back. (Renames are preserved by the UPDATE's CASE on "userRenamed".)
-    const reparentedIds = new Set(existingRows.filter(r => r.userReparented).map(r => r.id));
+    const { existingRows, existingByExternalId, reparentedIds } =
+      await loadExistingContexts(client, algorithmId, scopeSystemId, instanceKey);
 
-    // 2) Build a map externalId -> new parentContextId once we know our own
-    //    generated ids. We need two passes because parents may appear after
-    //    children in the plugin's output.
-    const newByExternalId = new Map();  // externalId -> UUID (final Contexts.id)
-    for (const node of result.contexts) {
-      if (!node.externalId) continue;
-      const existingId = existingByExternalId.get(node.externalId);
-      newByExternalId.set(node.externalId, existingId || randomUUID());
-    }
+    // 2) Resolve every produced externalId to its final Contexts.id up front.
+    //    Two passes follow because parents may appear after children in output.
+    const newByExternalId = buildNewIdMap(result.contexts, existingByExternalId);
 
-    // 3) Upsert contexts — two passes to avoid FK-ordering pain.
-    //    Plugins emit contexts in arbitrary order, and manager-hierarchy in
-    //    particular iterates a Set of managerIds; a child may land before
-    //    its parent. Rather than topologically sort, we:
-    //      3a) INSERT/UPDATE every node with parentContextId = NULL.
-    //      3b) UPDATE every node with a real parent pointer in one pass.
-    //    The existing "Contexts_parentContextId_fkey" FK is not deferrable,
-    //    so this two-pass form is the simplest way to stay legal.
-
-    // 3a) First pass: all rows with parent = NULL.
-    for (const node of result.contexts) {
-      if (!node.externalId) continue;
-      const id = newByExternalId.get(node.externalId);
-      const existed  = existingByExternalId.has(node.externalId);
-
-      if (existed) {
-        // Preserve analyst curation: keep the renamed displayName when
-        // "userRenamed", and don't reset the parent to NULL when
-        // "userReparented" (the 3b pass also skips those nodes). Un-edited
-        // nodes are refreshed from the plugin output as before.
-        await client.query(`
-          UPDATE "Contexts"
-             SET "displayName"         = CASE WHEN "userRenamed"    THEN "displayName"     ELSE $2 END,
-                 description           = $3,
-                 "contextType"         = $4,
-                 "parentContextId"     = CASE WHEN "userReparented" THEN "parentContextId" ELSE NULL END,
-                 "extendedAttributes"  = $5,
-                 "sourceRunId"         = $6
-           WHERE id = $1
-        `, [id, node.displayName, node.description || null, node.contextType || plugin.name, node.extendedAttributes || null, runId]);
-        counts.contextsUpdated++;
-      } else {
-        await client.query(`
-          INSERT INTO "Contexts"
-            (id, variant, "targetType", "contextType", "displayName", description,
-             "parentContextId", "scopeSystemId", "sourceAlgorithmId", "sourceRunId", "externalId", "extendedAttributes", "sourceInstanceKey")
-          VALUES ($1, 'generated', $2, $3, $4, $5, NULL, $6, $7, $8, $9, $10, $11)
-        `, [id, plugin.targetType, node.contextType || plugin.name, node.displayName, node.description || null,
-            scopeSystemId, algorithmId, runId, node.externalId, node.extendedAttributes || null, instanceKey]);
-        counts.contextsCreated++;
-      }
-    }
+    // 3a) First pass: INSERT/UPDATE every node with parentContextId = NULL.
+    await upsertContexts(client, result.contexts, {
+      plugin, scopeSystemId, algorithmId, runId, instanceKey,
+      newByExternalId, existingByExternalId, counts,
+    });
 
     // 3b) Second pass: set parent pointers now that every target row exists.
     await linkContextParents(client, result.contexts, newByExternalId, reparentedIds, plugin.name);
@@ -309,93 +260,160 @@ async function reconcile(plugin, algorithmId, runId, params, result, instanceKey
 
     // 4) Remove contexts that previously belonged to this (algorithm, scope)
     //    but are no longer in the plugin's output.
-    const producedExternalIds = new Set(result.contexts.map(n => n.externalId));
-    const stale = existingRows.filter(r => !producedExternalIds.has(r.externalId)).map(r => r.id);
-    if (stale.length > 0) {
-      await client.query(`DELETE FROM "Contexts" WHERE id = ANY($1::uuid[])`, [stale]);
-      counts.contextsRemoved = stale.length;
-    }
+    await deleteStaleContexts(client, existingRows, result.contexts, counts);
 
-    // 5) Members — we own rows with addedBy='algorithm' for contexts in
-    //    `producedContextIds`. Wipe and re-insert.
+    // 5) Members — we own rows with addedBy='algorithm' for produced contexts.
     const producedContextIds = [...newByExternalId.values()];
-    if (producedContextIds.length > 0) {
-      const del = await client.query(`
-        DELETE FROM "ContextMembers"
-         WHERE "contextId" = ANY($1::uuid[]) AND "addedBy" = 'algorithm'
-      `, [producedContextIds]);
-      counts.membersRemoved = del.rowCount || 0;
+    await replaceOwnedMembers(client, result.members, {
+      newByExternalId, producedContextIds, targetType: plugin.targetType, counts,
+    });
 
-      // Insert in batches to avoid absurd parameter counts on huge runs.
-      let insertedNow = 0;
-      const BATCH = 500;
-      for (let i = 0; i < result.members.length; i += BATCH) {
-        const slice = result.members.slice(i, i + BATCH);
-        const values = [];
-        const params = [];
-        let placeholderIdx = 0;
-        for (const m of slice) {
-          const ctxId = newByExternalId.get(m.contextExternalId);
-          if (!ctxId) continue; // dangling reference — skip silently
-          params.push(ctxId, plugin.targetType, m.memberId);
-          values.push(`($${placeholderIdx + 1}, $${placeholderIdx + 2}, $${placeholderIdx + 3}, 'algorithm')`);
-          placeholderIdx += 3;
-        }
-        if (values.length === 0) continue;
-        const r = await client.query(`
-          INSERT INTO "ContextMembers" ("contextId", "memberType", "memberId", "addedBy")
-          VALUES ${values.join(', ')}
-          ON CONFLICT ("contextId", "memberId") DO NOTHING
-        `, params);
-        insertedNow += r.rowCount || 0;
-      }
-      counts.membersAdded = insertedNow;
-    }
-
-    // 6a) Refresh directMemberCount on every context we touched.
-    if (producedContextIds.length > 0) {
-      await client.query(`
-        UPDATE "Contexts" c
-           SET "directMemberCount" = COALESCE(m.cnt, 0),
-               "lastCalculatedAt"  = now() AT TIME ZONE 'utc'
-          FROM (
-            SELECT "contextId", COUNT(*)::int AS cnt
-              FROM "ContextMembers"
-             WHERE "contextId" = ANY($1::uuid[])
-             GROUP BY "contextId"
-          ) m
-         WHERE c.id = m."contextId"
-      `, [producedContextIds]);
-
-      // 6b) Roll up totalMemberCount = sum of directMemberCount over the
-      //     subtree rooted at each context. We count distinct members so a
-      //     person who's a direct member of two sibling leaves in the same
-      //     tree doesn't get counted twice (uncommon but possible).
-      await client.query(`
-        WITH RECURSIVE subtree AS (
-          -- Seed: the context itself.
-          SELECT id AS root_id, id AS node_id
-            FROM "Contexts"
-           WHERE id = ANY($1::uuid[])
-          UNION
-          -- Walk down.
-          SELECT s.root_id, c.id
-            FROM "Contexts" c
-            JOIN subtree s ON c."parentContextId" = s.node_id
-        ),
-        totals AS (
-          SELECT s.root_id, COUNT(DISTINCT cm."memberId")::int AS cnt
-            FROM subtree s
-            LEFT JOIN "ContextMembers" cm ON cm."contextId" = s.node_id
-           GROUP BY s.root_id
-        )
-        UPDATE "Contexts" c
-           SET "totalMemberCount" = t.cnt
-          FROM totals t
-         WHERE c.id = t.root_id
-      `, [producedContextIds]);
-    }
+    // 6) Refresh direct + rolled-up member counts on every context we touched.
+    await refreshMemberCounts(client, producedContextIds);
   });
 
   return counts;
+}
+
+// 1) Load the (algorithm, scope, instance)-scoped contexts and derive the lookup
+// structures reconcile needs: externalId -> id, and the analyst-reparented id set
+// (those nodes must not be moved back — renames are preserved by the UPDATE's CASE).
+async function loadExistingContexts(client, algorithmId, scopeSystemId, instanceKey) {
+  const existingRows = (await client.query(`
+    SELECT id, "externalId", "userReparented" FROM "Contexts"
+     WHERE "sourceAlgorithmId" = $1 AND ($2::int IS NULL OR "scopeSystemId" = $2)
+       AND COALESCE("sourceInstanceKey", '') = $3
+  `, [algorithmId, scopeSystemId, instanceKey])).rows;
+  const existingByExternalId = new Map(existingRows.map(r => [r.externalId, r.id]));
+  const reparentedIds = new Set(existingRows.filter(r => r.userReparented).map(r => r.id));
+  return { existingRows, existingByExternalId, reparentedIds };
+}
+
+// 3a) First pass of the upsert: every node written with parentContextId = NULL.
+// Plugins emit contexts in arbitrary order (a child may land before its parent),
+// and the "Contexts_parentContextId_fkey" FK is not deferrable, so the parent
+// pointer is set later by linkContextParents once every target row exists.
+async function upsertContexts(client, contexts, ctx) {
+  for (const node of contexts) {
+    if (!node.externalId) continue;
+    const id = ctx.newByExternalId.get(node.externalId);
+    if (ctx.existingByExternalId.has(node.externalId)) {
+      await updateContextRow(client, id, node, ctx);
+      ctx.counts.contextsUpdated++;
+    } else {
+      await insertContextRow(client, id, node, ctx);
+      ctx.counts.contextsCreated++;
+    }
+  }
+}
+
+// Refresh an existing generated context from plugin output, preserving analyst
+// curation: keep the renamed displayName when "userRenamed", and don't reset the
+// parent to NULL when "userReparented" (linkContextParents also skips those nodes).
+async function updateContextRow(client, id, node, { plugin, runId }) {
+  await client.query(`
+    UPDATE "Contexts"
+       SET "displayName"         = CASE WHEN "userRenamed"    THEN "displayName"     ELSE $2 END,
+           description           = $3,
+           "contextType"         = $4,
+           "parentContextId"     = CASE WHEN "userReparented" THEN "parentContextId" ELSE NULL END,
+           "extendedAttributes"  = $5,
+           "sourceRunId"         = $6
+     WHERE id = $1
+  `, [id, node.displayName, node.description || null, node.contextType || plugin.name, node.extendedAttributes || null, runId]);
+}
+
+async function insertContextRow(client, id, node, { plugin, scopeSystemId, algorithmId, runId, instanceKey }) {
+  await client.query(`
+    INSERT INTO "Contexts"
+      (id, variant, "targetType", "contextType", "displayName", description,
+       "parentContextId", "scopeSystemId", "sourceAlgorithmId", "sourceRunId", "externalId", "extendedAttributes", "sourceInstanceKey")
+    VALUES ($1, 'generated', $2, $3, $4, $5, NULL, $6, $7, $8, $9, $10, $11)
+  `, [id, plugin.targetType, node.contextType || plugin.name, node.displayName, node.description || null,
+      scopeSystemId, algorithmId, runId, node.externalId, node.extendedAttributes || null, instanceKey]);
+}
+
+// 4) Delete contexts that previously belonged to this (algorithm, scope) but are
+// no longer in the plugin's output.
+async function deleteStaleContexts(client, existingRows, contexts, counts) {
+  const producedExternalIds = new Set(contexts.map(n => n.externalId));
+  const stale = existingRows.filter(r => !producedExternalIds.has(r.externalId)).map(r => r.id);
+  if (stale.length > 0) {
+    await client.query(`DELETE FROM "Contexts" WHERE id = ANY($1::uuid[])`, [stale]);
+    counts.contextsRemoved = stale.length;
+  }
+}
+
+// 5) Replace the algorithm-owned members of the produced contexts: wipe our
+// (addedBy='algorithm') rows, then re-insert in batches to avoid absurd parameter
+// counts on huge runs. Analyst/sync-added members are left untouched.
+async function replaceOwnedMembers(client, members, { newByExternalId, producedContextIds, targetType, counts }) {
+  if (producedContextIds.length === 0) return;
+
+  const del = await client.query(`
+    DELETE FROM "ContextMembers"
+     WHERE "contextId" = ANY($1::uuid[]) AND "addedBy" = 'algorithm'
+  `, [producedContextIds]);
+  counts.membersRemoved = del.rowCount || 0;
+
+  let insertedNow = 0;
+  const BATCH = 500;
+  for (let i = 0; i < members.length; i += BATCH) {
+    const slice = members.slice(i, i + BATCH);
+    const { values, params } = buildMemberInsertBatch(slice, newByExternalId, targetType);
+    if (values.length === 0) continue;
+    const r = await client.query(`
+      INSERT INTO "ContextMembers" ("contextId", "memberType", "memberId", "addedBy")
+      VALUES ${values.join(', ')}
+      ON CONFLICT ("contextId", "memberId") DO NOTHING
+    `, params);
+    insertedNow += r.rowCount || 0;
+  }
+  counts.membersAdded = insertedNow;
+}
+
+// 6) Refresh directMemberCount on every touched context, then roll up
+// totalMemberCount over each context's subtree (distinct members, so a person who
+// is a direct member of two sibling leaves in the same tree isn't double-counted).
+async function refreshMemberCounts(client, producedContextIds) {
+  if (producedContextIds.length === 0) return;
+
+  // 6a) directMemberCount.
+  await client.query(`
+    UPDATE "Contexts" c
+       SET "directMemberCount" = COALESCE(m.cnt, 0),
+           "lastCalculatedAt"  = now() AT TIME ZONE 'utc'
+      FROM (
+        SELECT "contextId", COUNT(*)::int AS cnt
+          FROM "ContextMembers"
+         WHERE "contextId" = ANY($1::uuid[])
+         GROUP BY "contextId"
+      ) m
+     WHERE c.id = m."contextId"
+  `, [producedContextIds]);
+
+  // 6b) totalMemberCount over the subtree rooted at each context.
+  await client.query(`
+    WITH RECURSIVE subtree AS (
+      -- Seed: the context itself.
+      SELECT id AS root_id, id AS node_id
+        FROM "Contexts"
+       WHERE id = ANY($1::uuid[])
+      UNION
+      -- Walk down.
+      SELECT s.root_id, c.id
+        FROM "Contexts" c
+        JOIN subtree s ON c."parentContextId" = s.node_id
+    ),
+    totals AS (
+      SELECT s.root_id, COUNT(DISTINCT cm."memberId")::int AS cnt
+        FROM subtree s
+        LEFT JOIN "ContextMembers" cm ON cm."contextId" = s.node_id
+       GROUP BY s.root_id
+    )
+    UPDATE "Contexts" c
+       SET "totalMemberCount" = t.cnt
+      FROM totals t
+     WHERE c.id = t.root_id
+  `, [producedContextIds]);
 }

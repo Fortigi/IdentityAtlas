@@ -16,8 +16,15 @@
 // the minute Principals are synced.
 
 import * as db from '../../db/connection.js';
-import RE2 from 're2';
 import { getPrincipalColumns } from '../../db/columnCache.js';
+import {
+  compileExcludeRegexes,
+  resolveNameFields,
+  buildSelectParts,
+  buildManagerIds,
+  buildManagerContexts,
+  buildMemberRows,
+} from './manager-hierarchy.helpers.js';
 
 /** @type {import('./types.js').ContextPlugin} */
 export default {
@@ -83,21 +90,12 @@ export default {
     const separator = typeof params.nameSeparator === 'string' ? params.nameSeparator : ' · ';
     const includeManagerName = params.includeManagerName !== false;
 
-    // Compile exclude patterns up front so we fail the run — not every row —
-    // on a malformed regex. RE2 guarantees linear-time matching, so an
-    // admin-supplied pattern can't cause catastrophic backtracking.
-    const excludeRegexes = (params.excludeNamePatterns || []).map((src, i) => {
-      try { return new RE2(src, 'i'); }
-      catch (e) { throw new Error(`excludeNamePatterns[${i}] is not a valid regex: ${e.message}`); }
-    });
-    const matchesExclude = (name) => !!name && excludeRegexes.some(re => re.test(name));
+    const excludeRegexes = compileExcludeRegexes(params.excludeNamePatterns);
 
-    // Resolve each requested name field to a REAL Principal column or an
-    // extendedAttributes key. Both are validated against a whitelist — real
-    // columns from the schema, extended keys from the keys present for this
-    // system — so a field name never reaches SQL unchecked. Unknown fields are
-    // dropped; fall back to department. Skip extended keys with quote/backslash
-    // characters that can't be safely used as a SQL alias.
+    // Resolve each requested name field against a whitelist — real columns from
+    // the schema, extended keys from the keys present for this system — so a
+    // field name never reaches SQL unchecked. Extended keys with quote/backslash
+    // characters that can't be safely used as a SQL alias are dropped up front.
     const validCols = new Set((await getPrincipalColumns()).map(c => c.name));
     const validExtKeys = new Set((await db.query(
       `SELECT DISTINCT jsonb_object_keys("extendedAttributes") AS k
@@ -105,27 +103,11 @@ export default {
       [scopeSystemId]
     )).rows.map(r => r.k).filter(k => !/["\\]/.test(k)));
 
-    const requested = (Array.isArray(params.nameFields) ? params.nameFields : []).filter(f => typeof f === 'string');
-    const resolved = []; // { name, real }
-    for (const f of requested) {
-      if (validCols.has(f)) resolved.push({ name: f, real: true });
-      else if (validExtKeys.has(f)) resolved.push({ name: f, real: false });
-    }
-    if (resolved.length === 0 && validCols.has('department')) resolved.push({ name: 'department', real: true });
+    const resolved = resolveNameFields(params.nameFields, validCols, validExtKeys);
     const nameFieldLabels = resolved.map(r => r.name);
+    const naming = { resolved, separator, includeManagerName };
 
-    // Build the SELECT: real columns inline (whitelisted); extended keys via a
-    // parameterized ->> aliased to the key name so each value is read by name.
-    const selectParts = ['id', '"displayName"', '"managerId"'];
-    const queryParams = [scopeSystemId];
-    for (const r of resolved) {
-      if (r.real) {
-        selectParts.push(`"${r.name}"`);
-      } else {
-        queryParams.push(r.name);
-        selectParts.push(`"extendedAttributes" ->> $${queryParams.length} AS "${r.name}"`);
-      }
-    }
+    const { selectParts, queryParams } = buildSelectParts(resolved, scopeSystemId);
     const rows = (await db.query(`
       SELECT ${selectParts.join(', ')}
         FROM "Principals"
@@ -151,82 +133,25 @@ export default {
          WHERE p."systemId" = $1
       `, [scopeSystemId])).rows.map(r => [r.principalId, r.managerPrincipalId])
     );
-    const effMgrId = (p) => (overrides.has(p.id) ? overrides.get(p.id) : p.managerId);
 
-    // Start from "every referenced managerId", then remove anyone whose
-    // displayName matches an excludeNamePattern. After exclusion, their
-    // would-be reports fall through to the "go to root" branch below.
-    const managerIds = new Set();
-    let excludedCount = 0;
-    for (const r of rows) {
-      if (!r.managerId) continue;
-      const mgr = byId.get(r.managerId);
-      if (mgr && matchesExclude(mgr.displayName)) { excludedCount++; continue; }
-      managerIds.add(r.managerId);
-    }
+    const { managerIds, excludedCount } = buildManagerIds(rows, byId, excludeRegexes, overrides);
     if (excludedCount > 0) {
       ctx.log?.(`Excluded ${excludedCount} principal(s) from becoming manager nodes via excludeNamePatterns.`);
     }
-    // An override target must exist as a manager node even if no one reports to
-    // them in the source data, so a moved member has a team to land in.
-    for (const target of overrides.values()) {
-      if (target && byId.has(target)) managerIds.add(target);
-    }
-
-    // Build a node name from the resolved fields (+ optional manager name).
-    const nameFor = (mgr) => {
-      const mgrName = mgr?.displayName || 'Unknown';
-      const parts = resolved
-        .map(r => (mgr?.[r.name] == null ? '' : String(mgr[r.name]).trim()))
-        .filter(Boolean)
-        // Collapse consecutive duplicate segments — org levels frequently repeat
-        // the same name (e.g. "Commercie · Commercie"); keep just one.
-        .filter((p, i, arr) => i === 0 || p.toLowerCase() !== arr[i - 1].toLowerCase());
-      const label = parts.join(separator);
-      if (label && includeManagerName) return `${label} (${mgrName})`;
-      if (label) return label;
-      return mgrName; // no attribute values → fall back to the person's name
-    };
-
-    const contexts = [];
-    const members  = [];
 
     // Synthetic root. externalId = 'root'. Everything ends up under this so
     // analysts see a single tree rather than a forest of roots-with-no-manager.
     const rootExt = 'root';
-    contexts.push({
-      externalId: rootExt,
-      displayName: rootName,
-      contextType: 'ManagerHierarchy',
-      description: `Manager hierarchy for system ${scopeSystemId}, generated by manager-hierarchy plugin. Named by: ${nameFieldLabels.join(', ') || 'manager name'}.`,
-    });
-
-    // One context per manager. parentExternalId = the manager's own managerId
-    // (if that person is also a non-excluded manager); otherwise root.
-    for (const managerId of managerIds) {
-      const mgr = byId.get(managerId);
-      const parentManagerId = mgr?.managerId && managerIds.has(mgr.managerId) ? mgr.managerId : null;
-      contexts.push({
-        externalId: managerId,
-        displayName: nameFor(mgr),
+    const contexts = [
+      {
+        externalId: rootExt,
+        displayName: rootName,
         contextType: 'ManagerHierarchy',
-        parentExternalId: parentManagerId || rootExt,
-      });
-    }
-
-    // Members: every principal with a managerId becomes a member of that
-    // manager's context. If the manager was excluded or is not in the dataset,
-    // the principal goes to root instead — visible as "no real manager in this
-    // system" rather than hidden.
-    for (const p of rows) {
-      const em = effMgrId(p); // analyst override takes precedence over source managerId
-      if (em && managerIds.has(em)) {
-        members.push({ contextExternalId: em, memberId: p.id });
-      } else if (!managerIds.has(p.id)) {
-        members.push({ contextExternalId: rootExt, memberId: p.id });
-      }
-      // else: p is a top-level manager (no manager, but has reports).
-    }
+        description: `Manager hierarchy for system ${scopeSystemId}, generated by manager-hierarchy plugin. Named by: ${nameFieldLabels.join(', ') || 'manager name'}.`,
+      },
+      ...buildManagerContexts(managerIds, byId, rootExt, naming),
+    ];
+    const members = buildMemberRows(rows, managerIds, overrides, rootExt);
 
     ctx.log?.(`Built ${contexts.length} contexts, ${members.length} member rows. Named by [${nameFieldLabels.join(', ') || 'manager name'}].`);
     return { contexts, members };

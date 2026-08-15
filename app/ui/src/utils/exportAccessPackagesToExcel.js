@@ -1,5 +1,11 @@
 import ExcelJS from 'exceljs';
-import { formatDate, thinBorder, setHeaderCell, safeCell } from './excelHelpers';
+import { setHeaderCell } from './excelHelpers';
+import {
+  buildApValues,
+  writeApCells,
+  writeGroupRoleCells,
+  writeEmptyResourceCells,
+} from './exportAccessPackagesToExcel.helpers';
 
 // Fetch all APs matching current filters (up to 2000)
 async function fetchAllPackages(authFetch, { search, categoryFilter, sortCol, sortDir }) {
@@ -98,64 +104,19 @@ export async function exportAccessPackagesToExcel({ authFetch, search, categoryF
   packages.forEach((pkg, idx) => {
     const roles = resourceRoles[idx];
     const rowCount = Math.max(roles.length, 1);
-    const apValues = [
-      pkg.displayName || '',
-      pkg.catalogName || '',
-      pkg.category?.name || '',
-      pkg.assignmentType || '',
-      pkg.totalAssignments ?? '',
-      pkg.complianceStatus || (pkg.hasReviewConfigured ? 'Pending first review' : 'Not required'),
-      formatDate(pkg.lastReviewDate),
-      pkg.lastReviewedBy || '',
-      pkg.description || '',
-    ];
+    const apValues = buildApValues(pkg);
 
     for (let r = 0; r < rowCount; r++) {
-      const currentRow = ws.getRow(rowNum);
-      currentRow.height = 18;
+      ws.getRow(rowNum).height = 18;
 
       // AP detail columns — copy value into every row
-      apValues.forEach((val, c) => {
-        const cell = ws.getCell(rowNum, c + 1);
-        cell.value = safeCell(val);
-        cell.font = { size: 11 };
-        cell.border = thinBorder();
-        if (c === 4) cell.alignment = { horizontal: 'center', vertical: 'top' };
-        else cell.alignment = { vertical: 'top', wrapText: c === 8 };
-      });
+      writeApCells(ws, rowNum, apValues);
 
-      // Group & Role columns
+      // Group & Role columns — one row per resource role, or empty bordered cells
       if (roles.length > 0) {
-        const entry = roles[r] || '';
-        // entry is "GroupName (Role)" — split into separate cells
-        const parenIdx = entry.lastIndexOf(' (');
-        let groupName = entry;
-        let roleName = '';
-        if (parenIdx !== -1 && entry.endsWith(')')) {
-          groupName = entry.slice(0, parenIdx);
-          roleName = entry.slice(parenIdx + 2, -1);
-        }
-
-        const groupCell = ws.getCell(rowNum, AP_COL_COUNT + 1);
-        groupCell.value = safeCell(groupName);
-        groupCell.font = { size: 11 };
-        groupCell.border = thinBorder();
-
-        const roleCell = ws.getCell(rowNum, AP_COL_COUNT + 2);
-        roleCell.value = safeCell(roleName);
-        roleCell.font = { size: 11 };
-        roleCell.border = thinBorder();
-        if (roleName === 'Owner') {
-          roleCell.font = { size: 11, color: { argb: 'FF6B21A8' } }; // purple
-        } else if (roleName === 'Member') {
-          roleCell.font = { size: 11, color: { argb: 'FF1D4ED8' } }; // blue
-        }
+        writeGroupRoleCells(ws, rowNum, AP_COL_COUNT, roles[r] || '');
       } else {
-        // No resources — empty cells with border
-        for (let c = AP_COL_COUNT; c < columns.length; c++) {
-          const cell = ws.getCell(rowNum, c + 1);
-          cell.border = thinBorder();
-        }
+        writeEmptyResourceCells(ws, rowNum, AP_COL_COUNT, columns.length);
       }
 
       rowNum++;

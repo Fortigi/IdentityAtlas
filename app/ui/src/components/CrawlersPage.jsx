@@ -3,6 +3,7 @@ import { useAuth } from '@ui/auth/AuthGate';
 import { formatDurationSeconds as formatDurationHMS } from '@ui/utils/formatters';
 import { Modal } from './contexts/ModalPrimitives';
 import { JobPhasesModal } from './JobPhasesModal';
+import { JOB_PROGRESS_TERMINAL, deriveJobProgressDisplay } from './CrawlersPage.helpers.js';
 
 // Crawler wizard components and their display metadata are auto-discovered by naming convention:
 //   tools/crawlers/{type}/ConfigWizard.jsx  — the wizard form (lazy-loaded)
@@ -180,88 +181,65 @@ function CrawlerConfigCard({ config, onRunNow, onEdit, onRemove, onExport, onFor
 }
 
 // ─── Job Progress Card ────────────────────────────────────────────────────────
-function JobProgress({ job, configLabel, onNavigateToMatrix, onDismiss }) {
-  // Store current time in state so the "last update Xs ago" line stays accurate
-  // without calling impure Date.now() during render.
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    if (!job || ['completed','failed','cancelled'].includes(job.status)) return;
-    const id = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(id);
-  }, [job]);
 
-  if (!job) return null;
-  const progress = job.progress ? (typeof job.progress === 'string' ? JSON.parse(job.progress) : job.progress) : {};
-  const pct = progress.pct || 0;
-  const step = progress.step || 'Waiting...';
-  const detail = progress.detail || '';
-  const updatedAt = progress.updatedAt ? new Date(progress.updatedAt) : null;
-  const secondsSince = updatedAt ? Math.max(0, Math.round((now - updatedAt.getTime()) / 1000)) : null;
-
-  // Header label on every card so two running crawlers are distinguishable
-  // at a glance. Falls back to the bare job type string if the config name
-  // isn't known (manual jobs without a source config, demo jobs).
-  const header = configLabel || job.jobType;
-
-  if (job.status === 'completed') {
-    return (
-      <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg dark:bg-green-900/20 dark:border-green-700">
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="text-xs font-medium text-green-700 uppercase tracking-wide mb-0.5 dark:text-green-400">{header}</div>
-            <span className="font-semibold text-green-800 dark:text-green-300">Data loaded successfully!</span>
-            <p className="text-sm text-green-600 mt-1 dark:text-green-400">Your identity data is ready to explore.</p>
-          </div>
-          <div className="flex gap-2">
-            {onNavigateToMatrix && (
-              <button onClick={onNavigateToMatrix} className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700">Open Matrix</button>
-            )}
-            {onDismiss && <button onClick={onDismiss} className="text-green-600 hover:text-green-800 text-sm dark:text-green-400 dark:hover:text-green-200">Dismiss</button>}
-          </div>
+// Terminal-state cards: completed (green), failed (red), queued (amber). Each is
+// a small presentational shell fed the derived `view` object.
+function JobProgressCompletedCard({ view, onNavigateToMatrix, onDismiss }) {
+  return (
+    <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg dark:bg-green-900/20 dark:border-green-700">
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="text-xs font-medium text-green-700 uppercase tracking-wide mb-0.5 dark:text-green-400">{view.header}</div>
+          <span className="font-semibold text-green-800 dark:text-green-300">Data loaded successfully!</span>
+          <p className="text-sm text-green-600 mt-1 dark:text-green-400">Your identity data is ready to explore.</p>
+        </div>
+        <div className="flex gap-2">
+          {onNavigateToMatrix && (
+            <button onClick={onNavigateToMatrix} className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700">Open Matrix</button>
+          )}
+          {onDismiss && <button onClick={onDismiss} className="text-green-600 hover:text-green-800 text-sm dark:text-green-400 dark:hover:text-green-200">Dismiss</button>}
         </div>
       </div>
-    );
-  }
-  if (job.status === 'failed') {
-    return (
-      <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg dark:bg-red-900/20 dark:border-red-700">
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="text-xs font-medium text-red-700 uppercase tracking-wide mb-0.5 dark:text-red-400">{header}</div>
-            <span className="font-semibold text-red-800 dark:text-red-300">Job failed</span>
-            <p className="text-sm text-red-600 mt-1 dark:text-red-400">{job.errorMessage || 'Unknown error'}</p>
-          </div>
-          {onDismiss && <button onClick={onDismiss} className="text-red-500 hover:text-red-700 text-sm dark:text-red-400 dark:hover:text-red-200">Dismiss</button>}
-        </div>
-      </div>
-    );
-  }
-  // "Stale" once we've gone >60s without a fresh update — useful indicator that
-  // something might be hung (or that the crawler is in an unreported tight loop).
-  const staleness = secondsSince == null ? null
-    : secondsSince < 10 ? 'fresh'
-    : secondsSince < 60 ? 'normal'
-    : 'stale';
-  const stalenessColor = staleness === 'stale' ? 'text-amber-700' : 'text-blue-700';
+    </div>
+  );
+}
 
-  // Queued jobs get a softer treatment: amber card, no percent, no progress
-  // bar — the worker still has to pick this one up, and showing 0% with a
-  // flatlined bar implies "stuck" when it's just "waiting in line".
-  if (job.status === 'queued') {
-    return (
-      <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg dark:bg-amber-900/20 dark:border-amber-700">
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="text-xs font-medium text-amber-800 uppercase tracking-wide mb-0.5 dark:text-amber-300">{header}</div>
-            <span className="font-semibold text-amber-900 dark:text-amber-300">Queued</span>
-            <p className="text-sm text-amber-700 mt-1 dark:text-amber-400">Waiting for the worker — will start when the current run finishes.</p>
-          </div>
-          {onDismiss && <button onClick={onDismiss} className="text-amber-700 hover:text-amber-900 text-sm dark:text-amber-400 dark:hover:text-amber-200">Dismiss</button>}
+function JobProgressFailedCard({ view, onDismiss }) {
+  return (
+    <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg dark:bg-red-900/20 dark:border-red-700">
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="text-xs font-medium text-red-700 uppercase tracking-wide mb-0.5 dark:text-red-400">{view.header}</div>
+          <span className="font-semibold text-red-800 dark:text-red-300">Job failed</span>
+          <p className="text-sm text-red-600 mt-1 dark:text-red-400">{view.errorMessage}</p>
         </div>
+        {onDismiss && <button onClick={onDismiss} className="text-red-500 hover:text-red-700 text-sm dark:text-red-400 dark:hover:text-red-200">Dismiss</button>}
       </div>
-    );
-  }
+    </div>
+  );
+}
 
+// Queued jobs get a softer treatment: amber card, no percent, no progress bar —
+// the worker still has to pick this one up, and showing 0% with a flatlined bar
+// implies "stuck" when it's just "waiting in line".
+function JobProgressQueuedCard({ view, onDismiss }) {
+  return (
+    <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg dark:bg-amber-900/20 dark:border-amber-700">
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="text-xs font-medium text-amber-800 uppercase tracking-wide mb-0.5 dark:text-amber-300">{view.header}</div>
+          <span className="font-semibold text-amber-900 dark:text-amber-300">Queued</span>
+          <p className="text-sm text-amber-700 mt-1 dark:text-amber-400">Waiting for the worker — will start when the current run finishes.</p>
+        </div>
+        {onDismiss && <button onClick={onDismiss} className="text-amber-700 hover:text-amber-900 text-sm dark:text-amber-400 dark:hover:text-amber-200">Dismiss</button>}
+      </div>
+    </div>
+  );
+}
+
+// Live progress bar for running (and any not-yet-terminal) job.
+function JobProgressRunningCard({ view, onDismiss }) {
+  const { header, pct, step, detail, secondsSince, staleness, stalenessColor, updatedAt } = view;
   return (
     <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg dark:bg-blue-900/20 dark:border-blue-700">
       <div className="flex items-center justify-between mb-1">
@@ -288,6 +266,29 @@ function JobProgress({ job, configLabel, onNavigateToMatrix, onDismiss }) {
       )}
     </div>
   );
+}
+
+// Terminal/queued cards keyed by status; anything else renders the running card.
+const JOB_PROGRESS_CARDS = {
+  completed: JobProgressCompletedCard,
+  failed: JobProgressFailedCard,
+  queued: JobProgressQueuedCard,
+};
+
+function JobProgress({ job, configLabel, onNavigateToMatrix, onDismiss }) {
+  // Store current time in state so the "last update Xs ago" line stays accurate
+  // without calling impure Date.now() during render.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!job || JOB_PROGRESS_TERMINAL.includes(job.status)) return;
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [job]);
+
+  const view = deriveJobProgressDisplay(job, configLabel, now);
+  if (!view) return null;
+  const Card = JOB_PROGRESS_CARDS[view.status] || JobProgressRunningCard;
+  return <Card view={view} onNavigateToMatrix={onNavigateToMatrix} onDismiss={onDismiss} />;
 }
 
 // ─── Recent Jobs Table ────────────────────────────────────────────────────────
