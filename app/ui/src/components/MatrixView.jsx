@@ -6,15 +6,24 @@ import { useMemo, useState, useReducer, useCallback, useEffect, useLayoutEffect,
 const setStateReducer = (s, a) => (typeof a === 'function' ? a(s) : a);
 import { useAuth } from '@ui/auth/AuthGate';
 import { useMatrixRowOrder } from '@ui/hooks/useMatrixRowOrder';
-import { useNestedGroupExpand, MAX_NEST_LEVEL } from '@ui/hooks/useNestedGroupExpand';
+import { useNestedGroupExpand } from '@ui/hooks/useNestedGroupExpand';
 import MatrixToolbar from './matrix/MatrixToolbar';
 import MatrixLegend from './matrix/MatrixLegend';
 import MatrixFilterSummary from './matrix/MatrixFilterSummary';
 import MatrixScopePanel from './matrix/MatrixScopePanel';
 import MatrixColumnHeaders from './matrix/MatrixColumnHeaders';
-import { makeUserComparator, buildSortKeys } from './matrix/sortUsers';
 import MatrixGroupRow from './matrix/MatrixGroupRow';
-import { buildResourceContextMap, contextsFor } from '@ui/utils/resourceContexts';
+import { buildResourceContextMap } from '@ui/utils/resourceContexts';
+import { AGG_SENTINEL, collapseKey, buildColumns } from './matrix/columnModel';
+import { toggleCollapsedGroups } from './matrix/foldState';
+import { buildMatrixModel } from './matrix/matrixModel';
+import { buildAccessPackages, buildApSortedGroups } from './matrix/accessPackageModel';
+import { buildDisplayGroups } from './matrix/nestedRows';
+import InheritancePathModal from './matrix/InheritancePathModal';
+import { useHierarchyReset } from './matrix/useHierarchyReset';
+
+// Re-exported for consumers that key aggregate-column detection off this sentinel.
+export { AGG_SENTINEL };
 
 // Inline arrayMove so MatrixView doesn't depend on @dnd-kit
 function arrayMove(arr, from, to) {
@@ -54,12 +63,6 @@ function EmptyFilterState({ onAdjustFilter, hasData }) {
   );
 }
 
-// Marks an aggregate column's sort-key values BELOW its collapse level, so the
-// merged header renders a child-count there (and two aggregate columns never
-// fuse into one span). Picked from the private-use area so it can't collide
-// with real attribute values.
-export const AGG_SENTINEL = '@@AGG@@';
-
 // Above this many assignments, an 'auto' fold-on-load matrix opens folded.
 const FOLD_AUTO_THRESHOLD = 5000;
 
@@ -68,32 +71,6 @@ function orgShort(name) {
   const noMgr = String(name || '').replace(/\s*\([^)]*\)\s*$/, '').trim();
   const segs = noMgr.split('·').map(s => s.trim()).filter(Boolean);
   return segs[segs.length - 1] || noMgr;
-}
-
-// Key identifying a collapsed attribute group: the level plus the sort-key
-// prefix up to and including `level`. Each segment is length-prefixed so two
-// different value sequences can never collide.
-function collapseKey(sortKeys, level) {
-  const seg = (sortKeys || []).slice(0, level + 1).map(v => `${String(v).length}:${v}`).join('|');
-  return `${level}|${seg}`;
-}
-
-// A per-account sub-column spliced in under an expanded identity (or member),
-// inheriting the parent's sort-keys so the merged attribute headers stay contiguous.
-function makeAccountCol(parent, acc, sortKeys) {
-  return {
-    id: acc.id,
-    displayName: acc.displayName || acc.id,
-    jobTitle: parent.jobTitle || '',
-    department: parent.department || '',
-    upn: '',
-    memberType: 'Principal',
-    isAccountCol: true,
-    parentId: parent.id,
-    accountType: acc.accountType || null,
-    isPrimary: !!acc.isPrimary,
-    sortKeys: [...(sortKeys || [])],
-  };
 }
 
 export default function MatrixView({
@@ -245,11 +222,7 @@ export default function MatrixView({
   const [hierDepth, setHierDepth] = useState(0);
   // Clear the hierarchy paths when no hierarchy is selected — during render on
   // the transition, so the fetch effect body holds no synchronous setState.
-  const [seenHierId, setSeenHierId] = useState(sortHierarchyId);
-  if (sortHierarchyId !== seenHierId) {
-    setSeenHierId(sortHierarchyId);
-    if (!sortHierarchyId) { setHierPaths(null); setHierDepth(0); }
-  }
+  useHierarchyReset(sortHierarchyId, () => { setHierPaths(null); setHierDepth(0); });
   useEffect(() => {
     if (!sortHierarchyId) return undefined;
     let cancelled = false;
@@ -290,105 +263,11 @@ export default function MatrixView({
   const resourceContextMap = useMemo(
     () => buildResourceContextMap(resourceContexts), [resourceContexts]);
 
-  const { users, groups, memberships, managedMap } = useMemo(() => {
-    const userMap = new Map();
-    const groupMap = new Map();
-    const membershipMap = new Map();
-    const managed = new Map();
-
-    filteredData.forEach(d => {
-      // Users
-      if (d.memberId && !userMap.has(d.memberId)) {
-        const u = {
-          id: d.memberId,
-          displayName: d.memberDisplayName || d.memberId,
-          jobTitle: d.jobTitle || '',
-          department: d.department || '',
-          upn: d.memberUPN || '',
-          memberType: d.memberType || '',
-        };
-        // Precompute the sort values (attribute order) for multi-key sort +
-        // merged headers. Stored under a static `sortKeys` key — the user-derived
-        // attribute names are only read, never used as a write target.
-        u.sortKeys = hierActive
-          ? Array.from({ length: hierDepth }, (_, i) => (hierPaths.get(d.memberId)?.[i] ?? ''))
-          : buildSortKeys(d, sortAttrs);
-        userMap.set(d.memberId, u);
-      }
-
-      // Always create the base group/resource entry
-      const gid = d.resourceId || d.groupId;
-      if (gid && !groupMap.has(gid)) {
-        const name = d.resourceDisplayName || d.groupDisplayName || gid;
-        const tags = groupTagMap?.get(gid.toUpperCase()) || [];
-
-        groupMap.set(gid, {
-          id: gid,
-          displayName: name,
-          tags,
-          contexts: contextsFor(resourceContextMap, gid),
-          description: d.resourceDescription || d.groupDescription || '',
-          groupType: d.resourceType || d.groupTypeCalculated || '',
-          systemName: d.systemName || '',
-        });
-      }
-
-      // Group ownership is its own resource now (resourceType='GroupOwnership',
-      // shown as a normal row), so every membership lands on its real resource
-      // row — no client-side owner-row simulation. (See "Fix at the source" in
-      // the root CLAUDE.md.)
-      const key = `${gid}|${d.memberId}`;
-      if (!membershipMap.has(key)) {
-        membershipMap.set(key, new Set());
-      }
-      membershipMap.get(key).add(d.membershipType);
-
-      // Track managedByAccessPackage per cell (boolean from view, used for filtering)
-      if (d.managedByAccessPackage) {
-        managed.set(key, true);
-      }
-    });
-
-    // Sort users by the configured sort attributes (default department), with
-    // displayName as the final tiebreak.
-    const users = [...userMap.values()].sort(makeUserComparator(sortAttrs));
-
-    // Compute member counts per group (for default sort and % column)
-    // Per-type counts enable priority sorting: Direct > Eligible > Owner > Indirect
-    const userList = [...userMap.values()];
-    for (const group of groupMap.values()) {
-      let memberCount = 0, directCount = 0, eligibleCount = 0, nonIndirectCount = 0;
-      for (const u of userList) {
-        const types = membershipMap.get(`${group.id}|${u.id}`);
-        if (!types || types.size === 0) continue;
-        memberCount++;
-        if (types.has('Direct'))   directCount++;
-        if (types.has('Eligible')) eligibleCount++;
-        for (const t of types) { if (t !== 'Indirect') { nonIndirectCount++; break; } }
-      }
-      group.memberCount = memberCount;
-      group.directCount = directCount;
-      group.eligibleCount = eligibleCount;
-      group.nonIndirectCount = nonIndirectCount;
-    }
-
-    // Sort groups by member count descending; filter out groups with 0 members.
-    // Priority: Direct > Eligible > Indirect-only
-    const groups = [...groupMap.values()]
-      .filter(g => g.memberCount > 0)
-      .sort((a, b) => {
-        // Direct members first
-        const directCmp = (b.directCount || 0) - (a.directCount || 0);
-        if (directCmp !== 0) return directCmp;
-        // Then eligible
-        const eligibleCmp = (b.eligibleCount || 0) - (a.eligibleCount || 0);
-        if (eligibleCmp !== 0) return eligibleCmp;
-        // Then total member count (indirect as tiebreaker)
-        return b.memberCount - a.memberCount;
-      });
-
-    return { users, groups, memberships: membershipMap, managedMap: managed };
-  }, [filteredData, groupTagMap, resourceContextMap, sortAttrs, hierActive, hierDepth, hierPaths]);
+  const { users, groups, memberships, managedMap } = useMemo(
+    () => buildMatrixModel(filteredData, {
+      groupTagMap, resourceContextMap, sortAttrs, hierActive, hierDepth, hierPaths,
+    }),
+    [filteredData, groupTagMap, resourceContextMap, sortAttrs, hierActive, hierDepth, hierPaths]);
 
   // Seed the initial fold state from the wizard's foldOnLoad setting, once per
   // matrix (storageKey) when its subjects have loaded. 'auto' folds only for
@@ -425,62 +304,9 @@ export default function MatrixView({
 
   // Build access package data (SOLL matrix): which groups are in which access packages
   // Only include APs where at least one visible user actually has an assignment through that AP.
-  const { accessPackages, apGroupMap } = useMemo(() => {
-    if (!accessPackageGroups || accessPackageGroups.length === 0) {
-      return { accessPackages: [], apGroupMap: new Map() };
-    }
-    const visibleGroupIds = new Set(groups.map(g => (g.realGroupId || g.id).toUpperCase()));
-    const visibleUserIds = new Set(users.map(u => u.id.toLowerCase()));
-    const apMap = new Map();
-    const mapping = new Map(); // "groupId|apId" -> roleName
-
-    for (const row of accessPackageGroups) {
-      const gid = (row.resourceId || row.groupId)?.toUpperCase();
-      if (!gid || !visibleGroupIds.has(gid)) continue;
-      if (!apMap.has(row.accessPackageId)) {
-        apMap.set(row.accessPackageId, {
-          id: row.accessPackageId,
-          displayName: row.accessPackageName,
-          catalogName: row.catalogName,
-          totalAssignments: row.totalAssignments || 0,
-          categoryName: row.categoryName || null,
-          categoryColor: row.categoryColor || null,
-        });
-      }
-      mapping.set(`${gid}|${row.accessPackageId.toLowerCase()}`, row.roleName || 'Member');
-    }
-
-    // Filter to APs that have at least one visible user assignment
-    const apIdsWithAssignments = new Set();
-    for (const [cellKey, apIds] of managedApMap) {
-      const [gid, uid] = cellKey.split('|');
-      if (visibleGroupIds.has(gid.toUpperCase()) && visibleUserIds.has(uid)) {
-        for (const apId of apIds) {
-          apIdsWithAssignments.add(apId);
-        }
-      }
-    }
-    for (const apId of [...apMap.keys()]) {
-      if (!apIdsWithAssignments.has(apId.toLowerCase())) {
-        apMap.delete(apId);
-      }
-    }
-
-    // Sort access packages: by category name first, then by total assignments
-    // descending within each category. Uncategorized APs go at the end.
-    const accessPackages = [...apMap.values()].sort((a, b) => {
-      const aCat = a.categoryName;
-      const bCat = b.categoryName;
-      // Uncategorized after all categorized
-      if (aCat && !bCat) return -1;
-      if (!aCat && bCat) return 1;
-      // Both categorized: sort by category name
-      if (aCat && bCat && aCat !== bCat) return aCat.localeCompare(bCat);
-      // Same category (or both uncategorized): sort by total assignments descending
-      return b.totalAssignments - a.totalAssignments || a.displayName.localeCompare(b.displayName);
-    });
-    return { accessPackages, apGroupMap: mapping };
-  }, [accessPackageGroups, groups, users, managedApMap]);
+  const { accessPackages, apGroupMap } = useMemo(
+    () => buildAccessPackages(accessPackageGroups, groups, users, managedApMap),
+    [accessPackageGroups, groups, users, managedApMap]);
 
   // AP ID (lowercase) -> sorted index (for consistent color lookup)
   const apIdToIndex = useMemo(() => {
@@ -491,46 +317,9 @@ export default function MatrixView({
 
   // Default sort: AP staircase pattern.
   // All groups in the leftmost AP first, then next AP, etc. Unmanaged at the bottom.
-  const apSortedGroups = useMemo(() => {
-    // Non-governed view hides the AP columns, so the AP-staircase ordering is
-    // meaningless there — fall back to the member-count sort already applied to
-    // `groups` (Direct count desc, then Eligible, Owner, total).
-    if (managedFilter === 'unmanaged') return groups;
-    if (accessPackages.length === 0) return groups; // no APs, keep member count sort
-
-    // Assign each group to the AP bucket of its leftmost AP column
-    const groupApBucket = new Map();
-    for (const g of groups) {
-      let bucket = accessPackages.length; // unmanaged = after all APs
-      const gidUpper = (g.realGroupId || g.id).toUpperCase(); // use realGroupId for owner rows
-      const isOwnerRow = !!g.realGroupId;
-      for (let i = 0; i < accessPackages.length; i++) {
-        const mapKey = `${gidUpper}|${accessPackages[i].id.toLowerCase()}`;
-        if (apGroupMap.has(mapKey)) {
-          // Owner rows only match AP buckets where the role is Owner
-          const role = apGroupMap.get(mapKey);
-          const roleIsOwner = (role || '').toLowerCase().includes('owner');
-          if (isOwnerRow ? roleIsOwner : !roleIsOwner) {
-            bucket = i;
-            break;
-          }
-        }
-      }
-      groupApBucket.set(g.id, bucket);
-    }
-
-    return [...groups].sort((a, b) => {
-      const aBucket = groupApBucket.get(a.id);
-      const bBucket = groupApBucket.get(b.id);
-      if (aBucket !== bBucket) return aBucket - bBucket;
-      // Same bucket: sort by type priority (Direct > Eligible > Indirect)
-      const directCmp = (b.directCount || 0) - (a.directCount || 0);
-      if (directCmp !== 0) return directCmp;
-      const eligibleCmp = (b.eligibleCount || 0) - (a.eligibleCount || 0);
-      if (eligibleCmp !== 0) return eligibleCmp;
-      return b.memberCount - a.memberCount;
-    });
-  }, [groups, accessPackages, apGroupMap, managedFilter]);
+  const apSortedGroups = useMemo(
+    () => buildApSortedGroups(groups, accessPackages, apGroupMap, managedFilter),
+    [groups, accessPackages, apGroupMap, managedFilter]);
 
   // Apply custom drag-row order on top of the default AP staircase sort. All
   // subject/resource selection happens through the filter wizard, so there
@@ -565,54 +354,11 @@ export default function MatrixView({
     return map;
   }, [nestedDataCache, expandedGroups]);
 
-  const displayGroups = useMemo(() => {
-    if (expandedGroups.size === 0) return orderedGroups;
-    const result = [];
-
-    const addGroupWithNested = (group, level) => {
-      result.push(group);
-      if (level >= MAX_NEST_LEVEL) return;
-      const realGid = group.realGroupId || group.id;
-      if (!expandedGroups.has(realGid) || !nestedDataCache.has(realGid)) return;
-
-      for (const ng of nestedDataCache.get(realGid).groups) {
-        const syntheticId = `${realGid}__nested__${ng.groupId}`;
-        let memberCount = 0;
-        let nonIndirectCount = 0;
-        for (const u of users) {
-          const types = nestedMemberships.get(`${syntheticId}|${u.id}`);
-          if (types && types.size > 0) {
-            memberCount++;
-            for (const t of types) {
-              if (t !== 'Indirect') { nonIndirectCount++; break; }
-            }
-          }
-        }
-        const nestedGroup = {
-          id: syntheticId,
-          realGroupId: ng.resourceId || ng.groupId,
-          displayName: ng.displayName || ng.resourceId || ng.groupId,
-          groupType: ng.resourceType || ng.groupTypeCalculated || '',
-          description: ng.description || '',
-          systemName: ng.systemName || '',
-          tags: [],
-          contexts: contextsFor(resourceContextMap, ng.resourceId || ng.groupId),
-          isNestedRow: true,
-          nestLevel: level + 1,
-          parentGroupId: realGid,
-          memberCount,
-          nonIndirectCount,
-        };
-        // Recurse: nested groups can themselves be expanded
-        addGroupWithNested(nestedGroup, level + 1);
-      }
-    };
-
-    for (const group of orderedGroups) {
-      addGroupWithNested(group, 0);
-    }
-    return result;
-  }, [orderedGroups, expandedGroups, nestedDataCache, nestedMemberships, users, resourceContextMap]);
+  const displayGroups = useMemo(
+    () => buildDisplayGroups(orderedGroups, {
+      expandedGroups, nestedDataCache, nestedMemberships, users, resourceContextMap,
+    }),
+    [orderedGroups, expandedGroups, nestedDataCache, nestedMemberships, users, resourceContextMap]);
 
   const displayMemberships = useMemo(() => {
     if (nestedMemberships.size === 0) return memberships;
@@ -720,69 +466,11 @@ export default function MatrixView({
   // spliced in after any expanded identity, AND collapsed attribute groups
   // replaced by a single aggregate column. Analytics above stay keyed on the
   // identity-only `users`; only rendering uses these augmented sets.
-  const { cols: colUsers, userToAgg } = useMemo(() => {
-    const collapsed = collapsedGroups;
-    const nAttr = sortAttrs.length;
-    const out = [];
-    const userToAgg = new Map();
-    const emitted = new Set();
-    for (const u of users) {
-      // Shallowest collapsed level whose sort-key prefix covers this user.
-      let lvl = -1;
-      for (let L = 0; L < nAttr; L++) {
-        if (collapsed.has(collapseKey(u.sortKeys, L))) { lvl = L; break; }
-      }
-      if (lvl >= 0) {
-        const key = collapseKey(u.sortKeys, lvl);
-        if (!emitted.has(key)) {
-          emitted.add(key);
-          const members = users.filter(x => collapseKey(x.sortKeys, lvl) === key);
-          // Member-expanded: show the individual subjects at this level instead
-          // of one aggregate. Truncate their sort-keys to this level so they sit
-          // under the current org header and don't sprout deeper org rows.
-          const memMode = memberExpanded.get(key);
-          if (memMode) {
-            const picked = memMode === 'direct'
-              ? members.filter(m => !(m.sortKeys?.[lvl + 1])) // path ends here
-              : members;
-            for (const m of picked) {
-              const sk = [];
-              for (let i = 0; i < nAttr; i++) sk[i] = i <= lvl ? (m.sortKeys?.[i] ?? '') : '';
-              out.push({ ...m, sortKeys: sk, isMemberCol: true, aggKey: key, memberLevel: lvl });
-              if (m.memberType === 'Identity' && expandedIdentities.has(m.id)) {
-                const cache = accountMatrixCache.get(m.id);
-                for (const acc of (cache?.accounts || [])) out.push(makeAccountCol(m, acc, sk));
-              }
-            }
-            continue;
-          }
-          const aggId = `agg ${key}`;
-          // Distinct child-value count for each level below the collapse level.
-          const childCounts = {};
-          for (let i = lvl + 1; i < nAttr; i++) {
-            childCounts[i] = new Set(members.map(m => (m.sortKeys?.[i] ?? ''))).size;
-          }
-          // sortKeys: real values up to the collapse level; a unique sentinel
-          // below so the merged header spans never fuse two aggregate columns.
-          const sk = [];
-          for (let i = 0; i < nAttr; i++) sk[i] = i <= lvl ? (u.sortKeys?.[i] ?? '') : `${AGG_SENTINEL}${aggId} ${i}`;
-          out.push({
-            id: aggId, isAggregateCol: true, level: lvl,
-            value: u.sortKeys?.[lvl] ?? '', childCounts, userCount: members.length,
-            sortKeys: sk, memberType: 'Aggregate', displayName: u.sortKeys?.[lvl] || '(none)',
-          });
-          for (const m of members) userToAgg.set(m.id, aggId);
-        }
-        continue; // individual user (and its account expansion) is folded away
-      }
-      out.push(u);
-      if (u.memberType === 'Identity' && expandedIdentities.has(u.id)) {
-        const cache = accountMatrixCache.get(u.id);
-        for (const acc of (cache?.accounts || [])) out.push(makeAccountCol(u, acc, u.sortKeys));
-      }
-    }
-    return { cols: out, userToAgg };
-  }, [users, collapsedGroups, memberExpanded, sortAttrs, expandedIdentities, accountMatrixCache]);
+  const { cols: colUsers, userToAgg } = useMemo(
+    () => buildColumns(users, {
+      collapsedGroups, memberExpanded, sortAttrs, expandedIdentities, accountMatrixCache,
+    }),
+    [users, collapsedGroups, memberExpanded, sortAttrs, expandedIdentities, accountMatrixCache]);
 
   const colMemberships = useMemo(() => {
     if (expandedIdentities.size === 0) return displayMemberships;
@@ -825,26 +513,7 @@ export default function MatrixView({
   // now hides; UNfolding it drops to the next sort level (its child groups stay
   // folded) unless it's already the deepest level.
   const toggleCollapse = useCallback((sortKeys, level) => {
-    const key = collapseKey(sortKeys, level);
-    const nAttr = sortAttrs.length;
-    setCollapsedGroups(prev => {
-      const next = new Set(prev);
-      if (next.has(key)) {
-        next.delete(key);
-        if (level + 1 < nAttr) {
-          for (const u of users) {
-            if (collapseKey(u.sortKeys, level) === key) next.add(collapseKey(u.sortKeys, level + 1));
-          }
-        }
-      } else {
-        next.add(key);
-        for (const u of users) {
-          if (collapseKey(u.sortKeys, level) !== key) continue;
-          for (let L = level + 1; L < nAttr; L++) next.delete(collapseKey(u.sortKeys, L));
-        }
-      }
-      return next;
-    });
+    setCollapsedGroups(prev => toggleCollapsedGroups(prev, users, sortKeys, level, sortAttrs.length));
   }, [users, sortAttrs]);
 
   // Explode a folded aggregate column into its individual member columns at the
@@ -1043,57 +712,7 @@ export default function MatrixView({
           )}
         </div>
       )}
-      {pathExplain && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/30"
-          onClick={() => setPathExplain(null)}
-        >
-          <div
-            className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-lg w-full mx-4 p-5"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-start justify-between mb-3">
-              <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-                How this inherited access arose
-              </h3>
-              <button
-                onClick={() => setPathExplain(null)}
-                className="text-gray-500 dark:text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-lg leading-none"
-                aria-label="Close"
-              >×</button>
-            </div>
-            <p className="text-sm text-gray-600 dark:text-gray-300 mb-3">
-              <strong>{pathExplain.memberName}</strong> reaches <strong>{pathExplain.resourceName}</strong> through a
-              grant higher in the scope hierarchy:
-            </p>
-            {pathExplain.loading && <p className="text-sm text-gray-500">Computing path…</p>}
-            {pathExplain.error && <p className="text-sm text-red-600">{pathExplain.error}</p>}
-            {pathExplain.sources?.length > 0 && (
-              <div className="mb-3 text-sm rounded bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 px-3 py-2">
-                <span className="font-medium text-amber-800 dark:text-amber-300">Granted: </span>
-                {pathExplain.sources.map((s, i) => (
-                  <span key={i}>{i > 0 ? ', ' : ''}{s.role} on {s.label}:<strong> {s.name}</strong></span>
-                ))}
-              </div>
-            )}
-            {pathExplain.chain?.length > 0 && (
-              <ol className="space-y-1">
-                {pathExplain.chain.map((c, i) => (
-                  <li key={c.id} className="flex items-center gap-2 text-sm" style={{ paddingLeft: `${i * 18}px` }}>
-                    <span className="text-gray-500 dark:text-gray-500">{i === 0 ? '•' : '└'}</span>
-                    <span className="px-1.5 py-0.5 rounded text-[11px] font-medium bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">{c.label}</span>
-                    <span className={c.isSource ? 'font-semibold text-gray-900 dark:text-gray-100' : 'text-gray-700 dark:text-gray-300'}>{c.name}</span>
-                    {c.isSource && <span className="text-[10px] text-amber-600 dark:text-amber-400">← granted here</span>}
-                  </li>
-                ))}
-              </ol>
-            )}
-            {!pathExplain.loading && !pathExplain.error && !(pathExplain.sources?.length) && (
-              <p className="text-sm text-gray-500">No scope-inheritance path found — this may be a directly-declared indirect grant.</p>
-            )}
-          </div>
-        </div>
-      )}
+      <InheritancePathModal pathExplain={pathExplain} onClose={() => setPathExplain(null)} />
     </div>
   );
 }

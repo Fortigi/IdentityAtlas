@@ -13,16 +13,6 @@
     "app/api/src/routes/openapi.drift.test.js": [
       19
     ],
-    "app/ui/src/components/MatrixView.jsx": [
-      75,
-      24,
-      19,
-      19,
-      18,
-      16,
-      16,
-      16
-    ],
     "setup/docker/Invoke-CrawlerJob.ps1": [
       46
     ],

@@ -7,11 +7,6 @@
     "js": 20
   },
   "files": {
-    "app/ui/src/components/MatrixView.jsx": [
-      33,
-      33,
-      23
-    ],
     "app/ui/src/components/RollupMatrixView.jsx": [
       28
     ],
