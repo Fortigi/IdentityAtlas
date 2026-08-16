@@ -15,6 +15,8 @@ BeforeAll {
     $script:repoRoot = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
     $script:entraDir = Join-Path $script:repoRoot 'tools' 'crawlers' 'entra-id'
     . (Join-Path $script:entraDir 'EntraIDCrawler.Functions.ps1')
+    # Shared ConvertTo-EntraAppRoleApplicationResource helper lives here (extracted for the ratchets).
+    . (Join-Path $script:entraDir 'EntraIDCrawler.AppRoles.ps1')
     . (Join-Path $script:entraDir 'EntraIDCrawler.AppOwners.ps1')
 }
 
