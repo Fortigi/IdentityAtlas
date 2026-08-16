@@ -1,3 +1,123 @@
+function New-FGAttributeMappingObject {
+    # Build one flat attribute-mapping record from an attributeMapping and its context.
+    param(
+        [object]$Sp,
+        [object]$Rule,
+        [string]$JobId,
+        [object]$ObjMapping,
+        [object]$AttrMapping
+    )
+
+    # Extract source attributes from expression using regex
+    # Matches all text between square brackets [...]
+    $sourceAttributes = @()
+    if ($AttrMapping.source.expression) {
+        $regexMatches = [regex]::Matches($AttrMapping.source.expression, '\[([^\]]+)\]')
+        $sourceAttributes = $regexMatches | ForEach-Object { $_.Groups[1].Value } | Select-Object -Unique
+    }
+
+    # Build the mapping object
+    return [PSCustomObject]@{
+        # App information
+        AppDisplayName         = $Sp.DisplayName
+        AppType               = $Sp.AppType
+        ServicePrincipalId    = $Sp.ServicePrincipalId
+        AppId                 = $Sp.AppId
+        JobId                 = $JobId
+
+        # Sync direction
+        SourceDirectory       = $Rule.sourceDirectoryName
+        TargetDirectory       = $Rule.targetDirectoryName
+        SyncDirection         = "$($Rule.sourceDirectoryName) -> $($Rule.targetDirectoryName)"
+
+        # Object mapping info
+        SourceObjectName      = $ObjMapping.sourceObjectName
+        TargetObjectName      = $ObjMapping.targetObjectName
+        ObjectMappingEnabled  = $ObjMapping.enabled
+
+        # Attribute mapping details
+        TargetAttributeName   = $AttrMapping.targetAttributeName
+        SourceExpression      = $AttrMapping.source.expression
+        SourceType            = $AttrMapping.source.type
+        SourceName            = $AttrMapping.source.name
+        SourceAttributes      = $sourceAttributes
+        FlowType              = $AttrMapping.flowType
+        FlowBehavior          = $AttrMapping.flowBehavior
+        MatchingPriority      = $AttrMapping.matchingPriority
+        DefaultValue          = $AttrMapping.defaultValue
+    }
+}
+
+function Get-FGObjectMappingRecord {
+    # Emit one record per attribute mapping in an object mapping, honouring the ObjectType filter.
+    param(
+        [object]$Sp,
+        [object]$Rule,
+        [string]$JobId,
+        [object]$ObjMapping,
+        [string]$ObjectType
+    )
+
+    # Filter by object type if specified
+    if ($ObjectType -and
+        $ObjMapping.sourceObjectName -ne $ObjectType -and
+        $ObjMapping.targetObjectName -ne $ObjectType) {
+        return
+    }
+
+    if (-not $ObjMapping.attributeMappings) {
+        return
+    }
+
+    foreach ($attrMapping in $ObjMapping.attributeMappings) {
+        New-FGAttributeMappingObject -Sp $Sp -Rule $Rule -JobId $JobId -ObjMapping $ObjMapping -AttrMapping $attrMapping
+    }
+}
+
+function Get-FGSchemaMappingRecord {
+    # Emit records for every object mapping across all synchronization rules in one schema.
+    param(
+        [object]$Sp,
+        [object]$SchemaObj,
+        [string]$ObjectType
+    )
+
+    $schema = $SchemaObj.Schema
+    $jobId = $SchemaObj.JobId
+
+    if (-not $schema -or -not $schema.synchronizationRules) {
+        Write-Verbose "  No synchronization rules in schema"
+        return
+    }
+
+    foreach ($rule in $schema.synchronizationRules) {
+        Write-Verbose "  Processing rule: $($rule.name)"
+        foreach ($objMapping in $rule.objectMappings) {
+            Get-FGObjectMappingRecord -Sp $Sp -Rule $rule -JobId $jobId -ObjMapping $objMapping -ObjectType $ObjectType
+        }
+    }
+}
+
+function Get-FGServicePrincipalMappingRecord {
+    # Emit records for every schema on one service principal (skips SPs without schemas).
+    param(
+        [object]$Sp,
+        [string]$ObjectType
+    )
+
+    Write-Verbose "Processing: $($Sp.DisplayName)"
+
+    # Skip if no schemas
+    if (-not $Sp.Schemas) {
+        Write-Verbose "  No schemas found, skipping"
+        return
+    }
+
+    foreach ($schemaObj in $Sp.Schemas) {
+        Get-FGSchemaMappingRecord -Sp $Sp -SchemaObj $schemaObj -ObjectType $ObjectType
+    }
+}
+
 function Get-FGAttributeMapping {
     <#
     .SYNOPSIS
@@ -75,83 +195,7 @@ function Get-FGAttributeMapping {
 
     Process {
         foreach ($sp in $ServicePrincipalWithSync) {
-            Write-Verbose "Processing: $($sp.DisplayName)"
-
-            # Skip if no schemas
-            if (-not $sp.Schemas) {
-                Write-Verbose "  No schemas found, skipping"
-                continue
-            }
-
-            foreach ($schemaObj in $sp.Schemas) {
-                $schema = $schemaObj.Schema
-                $jobId = $schemaObj.JobId
-
-                if (-not $schema -or -not $schema.synchronizationRules) {
-                    Write-Verbose "  No synchronization rules in schema"
-                    continue
-                }
-
-                foreach ($rule in $schema.synchronizationRules) {
-                    Write-Verbose "  Processing rule: $($rule.name)"
-
-                    foreach ($objMapping in $rule.objectMappings) {
-                        # Filter by object type if specified
-                        if ($ObjectType -and
-                            $objMapping.sourceObjectName -ne $ObjectType -and
-                            $objMapping.targetObjectName -ne $ObjectType) {
-                            continue
-                        }
-
-                        if (-not $objMapping.attributeMappings) {
-                            continue
-                        }
-
-                        foreach ($attrMapping in $objMapping.attributeMappings) {
-                            # Extract source attributes from expression using regex
-                            # Matches all text between square brackets [...]
-                            $sourceAttributes = @()
-                            if ($attrMapping.source.expression) {
-                                $regexMatches = [regex]::Matches($attrMapping.source.expression, '\[([^\]]+)\]')
-                                $sourceAttributes = $regexMatches | ForEach-Object { $_.Groups[1].Value } | Select-Object -Unique
-                            }
-
-                            # Build the mapping object
-                            $mapping = [PSCustomObject]@{
-                                # App information
-                                AppDisplayName         = $sp.DisplayName
-                                AppType               = $sp.AppType
-                                ServicePrincipalId    = $sp.ServicePrincipalId
-                                AppId                 = $sp.AppId
-                                JobId                 = $jobId
-
-                                # Sync direction
-                                SourceDirectory       = $rule.sourceDirectoryName
-                                TargetDirectory       = $rule.targetDirectoryName
-                                SyncDirection         = "$($rule.sourceDirectoryName) -> $($rule.targetDirectoryName)"
-
-                                # Object mapping info
-                                SourceObjectName      = $objMapping.sourceObjectName
-                                TargetObjectName      = $objMapping.targetObjectName
-                                ObjectMappingEnabled  = $objMapping.enabled
-
-                                # Attribute mapping details
-                                TargetAttributeName   = $attrMapping.targetAttributeName
-                                SourceExpression      = $attrMapping.source.expression
-                                SourceType            = $attrMapping.source.type
-                                SourceName            = $attrMapping.source.name
-                                SourceAttributes      = $sourceAttributes
-                                FlowType              = $attrMapping.flowType
-                                FlowBehavior          = $attrMapping.flowBehavior
-                                MatchingPriority      = $attrMapping.matchingPriority
-                                DefaultValue          = $attrMapping.defaultValue
-                            }
-
-                            $allMappings += $mapping
-                        }
-                    }
-                }
-            }
+            $allMappings += Get-FGServicePrincipalMappingRecord -Sp $sp -ObjectType $ObjectType
         }
     }
 

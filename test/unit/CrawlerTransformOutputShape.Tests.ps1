@@ -34,6 +34,7 @@ BeforeAll {
     # set exactly as EntraIDCrawlerTransform.Tests.ps1 does.
     . (Join-Path $crawlers 'entra-id' 'EntraIDCrawler.Functions.ps1')
     . (Join-Path $crawlers 'entra-id' 'EntraIDCrawler.Transform.ps1')
+    . (Join-Path $crawlers 'entra-id' 'EntraIDCrawler.AppRoles.ps1')
     . (Join-Path $crawlers 'entra-id' 'EntraIDCrawler.AppOwners.ps1')
     . (Join-Path $script:repoRoot 'tools' 'powershell-sdk' 'helpers' 'Get-FGServicePrincipalType.ps1')
     . (Join-Path $crawlers 'midpoint' 'MidpointCrawler.Transform.ps1')

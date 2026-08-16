@@ -36,6 +36,8 @@ BeforeAll {
     . (Join-Path $script:entraDir 'EntraIDCrawler.Functions.ps1')
     # ConvertTo-*/New-* pure record shapers the phases call.
     . (Join-Path $script:entraDir 'EntraIDCrawler.Transform.ps1')
+    # App-role record shapers live in their own file (extracted for the ratchets).
+    . (Join-Path $script:entraDir 'EntraIDCrawler.AppRoles.ps1')
     # Get-FGServicePrincipalType (pure SDK classifier) — used by
     # ConvertTo-EntraServicePrincipalRecord inside the ServicePrincipals phase.
     . (Join-Path $script:repoRoot 'tools' 'powershell-sdk' 'helpers' 'Get-FGServicePrincipalType.ps1')

@@ -77,11 +77,16 @@ function Get-BuiltinApiKey {
     return $null
 }
 
-$Global:BuiltinApiKey = $null
-if ($env:CRAWLER_API_KEY) {
-    $Global:BuiltinApiKey = $env:CRAWLER_API_KEY
-    Write-Host "  API key: from environment variable" -ForegroundColor Green
-} else {
+# Resolve the key at startup: env var wins; otherwise poll the volume file for
+# up to 5 minutes, then warn and let the main loop keep retrying. Sets the
+# $Global:BuiltinApiKey the poller reads.
+function Initialize-BuiltinApiKey {
+    if ($env:CRAWLER_API_KEY) {
+        $Global:BuiltinApiKey = $env:CRAWLER_API_KEY
+        Write-Host "  API key: from environment variable" -ForegroundColor Green
+        return
+    }
+
     Write-Host "  Discovering API key from $WorkerKeyFile..." -ForegroundColor Gray
     for ($i = 0; $i -lt 60; $i++) {
         $key = Get-BuiltinApiKey
@@ -99,28 +104,54 @@ if ($env:CRAWLER_API_KEY) {
     }
 }
 
+$Global:BuiltinApiKey = $null
+Initialize-BuiltinApiKey
+
 # ── Crontab parsing ───────────────────────────────────────────────────────────
 $crontabPath = '/app/setup/docker/crontab'
-$cronJobs = @()
-if (Test-Path $crontabPath) {
-    $lines = Get-Content $crontabPath | Where-Object { $_ -and $_ -notmatch '^\s*#' -and $_.Trim() -ne '' }
+
+function Read-CronTab {
+    param([string]$Path)
+    $jobs = @()
+    if (-not (Test-Path $Path)) { return $jobs }
+
+    $lines = Get-Content $Path | Where-Object { $_ -and $_ -notmatch '^\s*#' -and $_.Trim() -ne '' }
     foreach ($line in $lines) {
         $parts = $line.Trim() -split '\s+', 6
         if ($parts.Count -ge 6) {
-            $cronJobs += @{
+            $jobs += @{
                 Minute = $parts[0]; Hour = $parts[1]; DayOfMonth = $parts[2]
                 Month = $parts[3]; DayOfWeek = $parts[4]; Command = $parts[5]
             }
         }
     }
-    Write-Host "  Loaded $($cronJobs.Count) scheduled job(s) from crontab" -ForegroundColor Green
+    Write-Host "  Loaded $($jobs.Count) scheduled job(s) from crontab" -ForegroundColor Green
+    return $jobs
 }
+
+$cronJobs = Read-CronTab -Path $crontabPath
 Write-Host ""
 
 function Test-CronMatch {
     param([string]$CronValue, [int]$CurrentValue)
     if ($CronValue -eq '*') { return $true }
     return [int]$CronValue -eq $CurrentValue
+}
+
+# Run every crontab entry whose five fields all match the given time.
+function Invoke-MatchingCronJobs {
+    param($CronJobs, $Now)
+    foreach ($cron in $CronJobs) {
+        if ((Test-CronMatch $cron.Minute $Now.Minute) -and
+            (Test-CronMatch $cron.Hour $Now.Hour) -and
+            (Test-CronMatch $cron.DayOfMonth $Now.Day) -and
+            (Test-CronMatch $cron.Month $Now.Month) -and
+            (Test-CronMatch $cron.DayOfWeek ([int]$Now.DayOfWeek))) {
+            Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Cron: $($cron.Command)" -ForegroundColor Cyan
+            try { Invoke-Expression $cron.Command }
+            catch { Write-Host "  Cron job failed: $($_.Exception.Message)" -ForegroundColor Red }
+        }
+    }
 }
 
 # ── Job queue poller ──────────────────────────────────────────────────────────
@@ -204,28 +235,24 @@ function Invoke-PendingJob {
 
 # ── Main loop ─────────────────────────────────────────────────────────────────
 
-$lastMinute = -1
-while ($true) {
-    $now = Get-Date
+# Cron ticks once per minute; the job queue is polled every 30s. Runs forever.
+function Start-SchedulerLoop {
+    param($CronJobs)
+    $lastMinute = -1
+    while ($true) {
+        $now = Get-Date
 
-    # Cron tick — once per minute
-    if ($now.Minute -ne $lastMinute) {
-        $lastMinute = $now.Minute
-        foreach ($cron in $cronJobs) {
-            if ((Test-CronMatch $cron.Minute $now.Minute) -and
-                (Test-CronMatch $cron.Hour $now.Hour) -and
-                (Test-CronMatch $cron.DayOfMonth $now.Day) -and
-                (Test-CronMatch $cron.Month $now.Month) -and
-                (Test-CronMatch $cron.DayOfWeek ([int]$now.DayOfWeek))) {
-                Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Cron: $($cron.Command)" -ForegroundColor Cyan
-                try { Invoke-Expression $cron.Command }
-                catch { Write-Host "  Cron job failed: $($_.Exception.Message)" -ForegroundColor Red }
-            }
+        # Cron tick — once per minute
+        if ($now.Minute -ne $lastMinute) {
+            $lastMinute = $now.Minute
+            Invoke-MatchingCronJobs -CronJobs $CronJobs -Now $now
         }
+
+        # Job queue every loop
+        Invoke-PendingJob
+
+        Start-Sleep -Seconds 30
     }
-
-    # Job queue every loop
-    Invoke-PendingJob
-
-    Start-Sleep -Seconds 30
 }
+
+Start-SchedulerLoop -CronJobs $cronJobs

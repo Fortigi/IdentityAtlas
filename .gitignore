@@ -43,3 +43,10 @@ __pycache__/
 # PowerShell mutation testing reports (PSMutant)
 reports/
 report/
+
+# PowerShell Pester coverage artifacts
+coverage.xml
+pester-coverage.xml
+
+# Test-GraphAPI / test-runner log artifacts
+test/unit/logs/

@@ -1,14 +1,15 @@
 <#
 .SYNOPSIS
-    Emit per-unit cyclomatic AND cognitive complexity for production PowerShell as JSON,
+    Emit per-unit cyclomatic AND cognitive complexity for all repository PowerShell as JSON,
     for the complexity ratchet (tools/complexity/ratchet.py).
 
 .DESCRIPTION
     Measurement is delegated to the published PSComplexity module
     (https://github.com/Fortigi/PSComplexity) -- a faithful, reference-validated
     SonarSource cognitive metric plus classic cyclomatic -- instead of a bundled measurer.
-    This script only (a) selects the production PowerShell files (same include/exclude
-    scope as before) and (b) maps PSComplexity's output to the ratchet's JSON contract:
+    This script only (a) selects the in-scope PowerShell files (all repository PowerShell
+    except generated mirrors, dependencies, build output and non-source test scaffolding)
+    and (b) maps PSComplexity's output to the ratchet's JSON contract:
 
         [ { "file": "<repo-relative>", "unit": "<name|<script-body>>", "line": <int>,
             "cc": <int>, "cog": <int> }, ... ]
@@ -33,12 +34,13 @@ if (-not (Get-Module PSComplexity -ListAvailable | Where-Object Version -ge '0.1
 }
 Import-Module PSComplexity
 
-# Production roots only. A path is measured when it matches an include root AND none of
-# the exclusion patterns (generated mirror, deps, build output, git worktrees, or
-# non-prod scripts). `.claude/` holds gitignored agent git worktrees whose full repo
+# All repository PowerShell is in scope. A path is measured unless it matches one of the
+# exclusion patterns (generated mirror, deps, build output, git worktrees, or non-source
+# test scaffolding). `.claude/` holds gitignored agent git worktrees whose full repo
 # copies would otherwise be double-measured locally (they don't exist in CI), so exclude
-# it to keep local and CI measurement in agreement.
-$includeRx = 'crawlers|powershell-sdk|riskscoring|[\\/]setup[\\/]'
+# it to keep local and CI measurement in agreement. Pester files (*.Tests.ps1), crawler
+# test harnesses (Test-*Crawler.ps1), data seeders (Seed-*) and the mock servers are
+# test-support scaffolding, not measured source.
 $excludeRx = '[\\/](node_modules|dist|dist-node-launcher|bundled-scripts|\.claude)[\\/]' +
              '|\.Tests\.ps1$|[\\/]Test-[^\\/]*Crawler\.ps1$|[\\/]Seed-|MockODataServer|MockMidpointServer'
 
@@ -47,7 +49,7 @@ if ($Path) {
 }
 else {
     $files = @(Get-ChildItem -Recurse -Include *.ps1, *.psm1 -File |
-        Where-Object { $_.FullName -match $includeRx -and $_.FullName -notmatch $excludeRx })
+        Where-Object { $_.FullName -notmatch $excludeRx })
 }
 
 $cwd = (Get-Location).Path

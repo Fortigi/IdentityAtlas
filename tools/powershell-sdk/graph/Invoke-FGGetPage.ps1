@@ -1,3 +1,52 @@
+function Get-FGResponseStatusCode {
+    # Private helper: pulls the numeric HTTP status code off a caught exception,
+    # or $null when the exception carries no HTTP response.
+    [cmdletbinding()]
+    Param([Parameter(Mandatory = $true)]$Exception)
+
+    if ($Exception.Response) { return [int]$Exception.Response.StatusCode }
+    return $null
+}
+
+function Test-FGTransientError {
+    # Private helper: decides whether a failed request should be retried, based on
+    # the HTTP status code and/or a well-known transient error message.
+    [cmdletbinding()]
+    Param(
+        $StatusCode,
+        [string]$ErrorMessage
+    )
+
+    return ($StatusCode -in @(429, 500, 502, 503, 504)) -or
+    ($ErrorMessage -match 'UnknownError|ServiceNotAvailable|GatewayTimeout')
+}
+
+function Get-FGRetryAfterWait {
+    # Private helper: returns the back-off wait in seconds, honouring a Retry-After
+    # header on 429 responses. Falls back to $DefaultWait when the header is absent
+    # or unparseable.
+    [cmdletbinding()]
+    Param(
+        [Parameter(Mandatory = $true)]$Exception,
+        $StatusCode,
+        [int]$DefaultWait
+    )
+
+    if ($StatusCode -ne 429 -or -not $Exception.Response.Headers) { return $DefaultWait }
+
+    try {
+        $retryAfter = $Exception.Response.Headers |
+            Where-Object { $_.Key -eq 'Retry-After' } |
+            Select-Object -ExpandProperty Value -First 1
+        if ($retryAfter -and [int]::TryParse($retryAfter, [ref]$null)) {
+            return [math]::Max([int]$retryAfter, $DefaultWait)
+        }
+    }
+    catch { }
+
+    return $DefaultWait
+}
+
 function Invoke-FGGetPage {
     # Private helper: fetches one Graph API page with retry/throttle logic.
     # Callers own the pagination loop; this function handles one URI and returns
@@ -17,10 +66,8 @@ function Invoke-FGGetPage {
     $AccessToken = $Global:AccessToken
 
     $retryCount = 0
-    $success = $false
-    $result = $null
 
-    while (-not $success -and $retryCount -le $MaxRetries) {
+    while ($true) {
         try {
             $rmParams = @{
                 Method  = 'Get'
@@ -28,44 +75,25 @@ function Invoke-FGGetPage {
                 Headers = @{ "Authorization" = "Bearer $AccessToken" }
             }
             if ($TimeoutSec -gt 0) { $rmParams['TimeoutSec'] = $TimeoutSec }
-            $result = Invoke-RestMethod @rmParams
-            $success = $true
+            return Invoke-RestMethod @rmParams
         }
         catch {
-            $statusCode = $null
-            if ($_.Exception.Response) {
-                $statusCode = [int]$_.Exception.Response.StatusCode
-            }
-            $errorMsg = $_.Exception.Message
-            $isTransientError = $statusCode -in @(429, 500, 502, 503, 504) -or $errorMsg -match 'UnknownError|ServiceNotAvailable|GatewayTimeout'
+            $statusCode = Get-FGResponseStatusCode -Exception $_.Exception
+            $isTransientError = Test-FGTransientError -StatusCode $statusCode -ErrorMessage $_.Exception.Message
 
-            if ($isTransientError -and $retryCount -lt $MaxRetries) {
-                $retryCount++
-                $waitTime = $RetryDelays[$retryCount - 1]
-                if ($statusCode -eq 429 -and $_.Exception.Response.Headers) {
-                    try {
-                        $retryAfter = $_.Exception.Response.Headers |
-                            Where-Object { $_.Key -eq 'Retry-After' } |
-                            Select-Object -ExpandProperty Value -First 1
-                        if ($retryAfter -and [int]::TryParse($retryAfter, [ref]$null)) {
-                            $waitTime = [math]::Max([int]$retryAfter, $waitTime)
-                        }
-                    }
-                    catch { }
-                }
-                Write-Warning "[$CallerName] Transient error (Status: $statusCode). Retry $retryCount/$MaxRetries after ${waitTime}s..."
-                Start-Sleep -Seconds $waitTime
-                Update-FGAccessTokenIfExpired -DebugFlag 'G'
-                $AccessToken = $Global:AccessToken
-            }
-            else {
+            if (-not ($isTransientError -and $retryCount -lt $MaxRetries)) {
                 if ($retryCount -gt 0) {
                     Write-Warning "[$CallerName] Failed after $retryCount retry attempt(s)"
                 }
                 throw
             }
+
+            $retryCount++
+            $waitTime = Get-FGRetryAfterWait -Exception $_.Exception -StatusCode $statusCode -DefaultWait $RetryDelays[$retryCount - 1]
+            Write-Warning "[$CallerName] Transient error (Status: $statusCode). Retry $retryCount/$MaxRetries after ${waitTime}s..."
+            Start-Sleep -Seconds $waitTime
+            Update-FGAccessTokenIfExpired -DebugFlag 'G'
+            $AccessToken = $Global:AccessToken
         }
     }
-
-    return $result
 }

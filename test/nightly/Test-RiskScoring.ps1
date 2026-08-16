@@ -44,6 +44,7 @@ Param(
 
 $ErrorActionPreference = 'Continue'
 $standaloneFailures = 0
+$script:phaseOk = $true
 
 function Write-Result {
     param([string]$Name, [bool]$Passed, [string]$Detail = '')
@@ -71,206 +72,260 @@ function Invoke-LocalApi {
     return Invoke-RestMethod @params
 }
 
-Write-Host "`n=== Risk Scoring End-to-End ===" -ForegroundColor Cyan
+# Exit the process when running standalone; in harness mode do nothing and let
+# the caller `return` from the script body.
+function Stop-Test {
+    param([int]$Code)
+    if (-not $WriteResult) { exit $Code }
+}
 
 # ─── Pre-flight: demo data must be loaded ────────────────────────
-try {
-    $users = Invoke-LocalApi -Path '/users?pageSize=1'
-    $resources = Invoke-LocalApi -Path '/resources?pageSize=1'
-    $userCount = if ($null -ne $users.total) { [int]$users.total } else { 0 }
-    $resourceCount = if ($null -ne $resources.total) { [int]$resources.total } else { 0 }
-    if ($userCount -eq 0 -or $resourceCount -eq 0) {
-        Write-Result 'Risk/DemoDataLoaded' $true "skipped (no demo data: $userCount users, $resourceCount resources)"
-        if (-not $WriteResult) { exit 0 } else { return }
+function Test-DemoDataLoaded {
+    try {
+        $users = Invoke-LocalApi -Path '/users?pageSize=1'
+        $resources = Invoke-LocalApi -Path '/resources?pageSize=1'
+        $userCount = if ($null -ne $users.total) { [int]$users.total } else { 0 }
+        $resourceCount = if ($null -ne $resources.total) { [int]$resources.total } else { 0 }
+        if ($userCount -eq 0 -or $resourceCount -eq 0) {
+            Write-Result 'Risk/DemoDataLoaded' $true "skipped (no demo data: $userCount users, $resourceCount resources)"
+            $script:phaseOk = $false
+            return
+        }
+        Write-Result 'Risk/DemoDataLoaded' $true "users=$userCount resources=$resourceCount"
+        $script:phaseOk = $true
+    } catch {
+        Write-Result 'Risk/DemoDataLoaded' $true "skipped (pre-flight failed: $($_.Exception.Message))"
+        $script:phaseOk = $false
     }
-    Write-Result 'Risk/DemoDataLoaded' $true "users=$userCount resources=$resourceCount"
-} catch {
-    Write-Result 'Risk/DemoDataLoaded' $true "skipped (pre-flight failed: $($_.Exception.Message))"
-    if (-not $WriteResult) { exit 0 } else { return }
 }
 
 # ─── Step 1: Save a hand-crafted profile (no LLM) ────────────────
 # Minimal but valid customer_profile shape. The scoring engine doesn't actually
 # read any of this — only the classifiers matter — but the save endpoint
 # validates the shape so it must be complete.
-$profilePayload = @{
-    displayName = "Nightly Test Profile $(Get-Date -Format 'yyyyMMdd-HHmm')"
-    profile = @{
-        name = 'Nightly Test Org'
-        domain = 'nightly.test'
-        industry = 'testing'
-        country = 'NL'
-        description = 'Synthetic profile for nightly risk-scoring regression'
-        regulations = @()
-        critical_business_processes = @()
-        known_systems = @()
-        critical_roles = @()
-        risk_domains = @()
+function Save-TestProfile {
+    $profilePayload = @{
+        displayName = "Nightly Test Profile $(Get-Date -Format 'yyyyMMdd-HHmm')"
+        profile = @{
+            name = 'Nightly Test Org'
+            domain = 'nightly.test'
+            industry = 'testing'
+            country = 'NL'
+            description = 'Synthetic profile for nightly risk-scoring regression'
+            regulations = @()
+            critical_business_processes = @()
+            known_systems = @()
+            critical_roles = @()
+            risk_domains = @()
+        }
+        makeActive = $true
     }
-    makeActive = $true
-}
 
-try {
-    $profileResp = Invoke-LocalApi -Path '/risk-profiles' -Method Post -Body $profilePayload
-    if ($profileResp.id) {
-        Write-Result 'Risk/SaveProfile' $true "id=$($profileResp.id)"
-        $script:profileId = $profileResp.id
-    } else {
+    try {
+        $profileResp = Invoke-LocalApi -Path '/risk-profiles' -Method Post -Body $profilePayload
+        if ($profileResp.id) {
+            Write-Result 'Risk/SaveProfile' $true "id=$($profileResp.id)"
+            $script:profileId = $profileResp.id
+            $script:phaseOk = $true
+            return
+        }
         Write-Result 'Risk/SaveProfile' $false 'no id in response'
-        if (-not $WriteResult) { exit 1 } else { return }
+        $script:phaseOk = $false
+    } catch {
+        Write-Result 'Risk/SaveProfile' $false $_.Exception.Message
+        $script:phaseOk = $false
     }
-} catch {
-    Write-Result 'Risk/SaveProfile' $false $_.Exception.Message
-    if (-not $WriteResult) { exit 1 } else { return }
 }
 
 # ─── Step 2: Save hand-crafted classifiers ───────────────────────
 # Uses Claude-style (?i) inline flags to regression-test the engine's
 # compileClassifier bug fix. If the engine regresses and silently drops
 # these patterns, step 4 will see zero matches and the test fails loudly.
-$classifierPayload = @{
-    displayName = "Nightly Test Classifiers $(Get-Date -Format 'yyyyMMdd-HHmm')"
-    profileId = $script:profileId
-    classifiers = @{
-        version = '1'
-        groupClassifiers = @(
-            @{
-                id = 'any-admin'
-                label = 'Any admin group'
-                description = 'Very broad pattern to ensure at least some matches on demo data'
-                patterns = @('(?i)admin', '(?i)\badministrator\b')
-                score = 80
-                tier = 'high'
-                domain = 'privileged-access'
-            },
-            @{
-                id = 'it-group'
-                label = 'IT group'
-                description = 'Broad IT role detection'
-                patterns = @('(?i)\b(it|ict|helpdesk|support)\b')
-                score = 40
-                tier = 'medium'
-                domain = 'operations'
-            }
-        )
-        userClassifiers = @(
-            @{
-                id = 'ceo'
-                label = 'Executive'
-                description = 'C-level detection by job title'
-                patterns = @('(?i)\b(ceo|cfo|cto|cio|ciso|director|president)\b')
-                score = 70
-                tier = 'high'
-                domain = 'executives'
-            }
-        )
-        agentClassifiers = @()
+function Save-TestClassifiers {
+    $classifierPayload = @{
+        displayName = "Nightly Test Classifiers $(Get-Date -Format 'yyyyMMdd-HHmm')"
+        profileId = $script:profileId
+        classifiers = @{
+            version = '1'
+            groupClassifiers = @(
+                @{
+                    id = 'any-admin'
+                    label = 'Any admin group'
+                    description = 'Very broad pattern to ensure at least some matches on demo data'
+                    patterns = @('(?i)admin', '(?i)\badministrator\b')
+                    score = 80
+                    tier = 'high'
+                    domain = 'privileged-access'
+                },
+                @{
+                    id = 'it-group'
+                    label = 'IT group'
+                    description = 'Broad IT role detection'
+                    patterns = @('(?i)\b(it|ict|helpdesk|support)\b')
+                    score = 40
+                    tier = 'medium'
+                    domain = 'operations'
+                }
+            )
+            userClassifiers = @(
+                @{
+                    id = 'ceo'
+                    label = 'Executive'
+                    description = 'C-level detection by job title'
+                    patterns = @('(?i)\b(ceo|cfo|cto|cio|ciso|director|president)\b')
+                    score = 70
+                    tier = 'high'
+                    domain = 'executives'
+                }
+            )
+            agentClassifiers = @()
+        }
+        makeActive = $true
     }
-    makeActive = $true
-}
 
-try {
-    $clsResp = Invoke-LocalApi -Path '/risk-classifiers' -Method Post -Body $classifierPayload
-    if ($clsResp.id) {
-        Write-Result 'Risk/SaveClassifiers' $true "id=$($clsResp.id)"
-        $script:classifierId = $clsResp.id
-    } else {
+    try {
+        $clsResp = Invoke-LocalApi -Path '/risk-classifiers' -Method Post -Body $classifierPayload
+        if ($clsResp.id) {
+            Write-Result 'Risk/SaveClassifiers' $true "id=$($clsResp.id)"
+            $script:classifierId = $clsResp.id
+            $script:phaseOk = $true
+            return
+        }
         Write-Result 'Risk/SaveClassifiers' $false 'no id in response'
-        if (-not $WriteResult) { exit 1 } else { return }
+        $script:phaseOk = $false
+    } catch {
+        Write-Result 'Risk/SaveClassifiers' $false $_.Exception.Message
+        $script:phaseOk = $false
     }
-} catch {
-    Write-Result 'Risk/SaveClassifiers' $false $_.Exception.Message
-    if (-not $WriteResult) { exit 1 } else { return }
 }
 
 # ─── Step 3: Trigger a scoring run ───────────────────────────────
-try {
-    $runResp = Invoke-LocalApi -Path '/risk-scoring/runs' -Method Post -Body @{ classifierId = $script:classifierId }
-    if ($runResp.id) {
-        Write-Result 'Risk/StartRun' $true "id=$($runResp.id) status=$($runResp.status)"
-        $script:runId = $runResp.id
-    } else {
+function Start-ScoringRun {
+    try {
+        $runResp = Invoke-LocalApi -Path '/risk-scoring/runs' -Method Post -Body @{ classifierId = $script:classifierId }
+        if ($runResp.id) {
+            Write-Result 'Risk/StartRun' $true "id=$($runResp.id) status=$($runResp.status)"
+            $script:runId = $runResp.id
+            $script:phaseOk = $true
+            return
+        }
         Write-Result 'Risk/StartRun' $false 'no id in response'
-        if (-not $WriteResult) { exit 1 } else { return }
+        $script:phaseOk = $false
+    } catch {
+        Write-Result 'Risk/StartRun' $false $_.Exception.Message
+        $script:phaseOk = $false
     }
-} catch {
-    Write-Result 'Risk/StartRun' $false $_.Exception.Message
-    if (-not $WriteResult) { exit 1 } else { return }
 }
 
 # ─── Step 4: Poll until complete (max 60s — demo data is small) ──
-$finalRun = $null
-for ($i = 0; $i -lt 30; $i++) {
-    Start-Sleep -Seconds 2
-    try {
-        $runState = Invoke-LocalApi -Path "/risk-scoring/runs/$($script:runId)"
-        if ($runState.status -in @('completed', 'failed')) {
-            $finalRun = $runState
-            break
-        }
-    } catch { }
+function Wait-ForRun {
+    for ($i = 0; $i -lt 30; $i++) {
+        Start-Sleep -Seconds 2
+        try {
+            $runState = Invoke-LocalApi -Path "/risk-scoring/runs/$($script:runId)"
+            if ($runState.status -in @('completed', 'failed')) {
+                return $runState
+            }
+        } catch { }
+    }
+    return $null
 }
 
-if (-not $finalRun) {
-    Write-Result 'Risk/RunCompletes' $false 'timed out after 60 seconds'
-    if (-not $WriteResult) { exit 1 } else { return }
+function Test-RunCompleted {
+    param($FinalRun)
+    if (-not $FinalRun) {
+        Write-Result 'Risk/RunCompletes' $false 'timed out after 60 seconds'
+        $script:phaseOk = $false
+        return
+    }
+    if ($FinalRun.status -ne 'completed') {
+        Write-Result 'Risk/RunCompletes' $false "ended in '$($FinalRun.status)': $($FinalRun.errorMessage)"
+        $script:phaseOk = $false
+        return
+    }
+    Write-Result 'Risk/RunCompletes' $true "scored=$($FinalRun.scoredEntities) total=$($FinalRun.totalEntities)"
+    $script:phaseOk = $true
 }
-if ($finalRun.status -ne 'completed') {
-    Write-Result 'Risk/RunCompletes' $false "ended in '$($finalRun.status)': $($finalRun.errorMessage)"
-    if (-not $WriteResult) { exit 1 } else { return }
+
+# ─── Step 5 helpers: tier tallying ───────────────────────────────
+# Fold a *ByTier property bag into the running $Tiers accumulator (mutated in place).
+function Add-TierCounts {
+    param([hashtable]$Tiers, $ByTier)
+    if (-not $ByTier) { return }
+    foreach ($p in $ByTier.PSObject.Properties) {
+        $v = 0; [int]::TryParse("$($p.Value)", [ref]$v) | Out-Null
+        $Tiers[$p.Name] = ($Tiers[$p.Name] ?? 0) + $v
+    }
 }
-Write-Result 'Risk/RunCompletes' $true "scored=$($finalRun.scoredEntities) total=$($finalRun.totalEntities)"
+
+# Count entities that scored at least Minimal (i.e. had a direct classifier match).
+function Get-MatchedCount {
+    param([hashtable]$Tiers)
+    $count = 0
+    foreach ($t in @('Minimal', 'Low', 'Medium', 'High', 'Critical')) {
+        if ($Tiers.ContainsKey($t)) { $count += $Tiers[$t] }
+    }
+    return $count
+}
 
 # ─── Step 5: Assert expected outcomes via /api/risk-scores ───────
-try {
-    $scores = Invoke-LocalApi -Path '/risk-scores'
-    if ($scores.available -and $scores.summary) {
-        Write-Result 'Risk/ScoresEndpoint' $true 'returned summary'
-    } else {
-        Write-Result 'Risk/ScoresEndpoint' $false 'no summary in response'
-    }
-
-    # Count entities that scored at least Minimal (direct classifier match)
-    $tiers = @{}
-    if ($scores.summary.groupsByTier) {
-        foreach ($p in $scores.summary.groupsByTier.PSObject.Properties) {
-            $v = 0; [int]::TryParse("$($p.Value)", [ref]$v) | Out-Null
-            $tiers[$p.Name] = ($tiers[$p.Name] ?? 0) + $v
+function Invoke-ScoreAssertions {
+    try {
+        $scores = Invoke-LocalApi -Path '/risk-scores'
+        if ($scores.available -and $scores.summary) {
+            Write-Result 'Risk/ScoresEndpoint' $true 'returned summary'
+        } else {
+            Write-Result 'Risk/ScoresEndpoint' $false 'no summary in response'
         }
-    }
-    if ($scores.summary.usersByTier) {
-        foreach ($p in $scores.summary.usersByTier.PSObject.Properties) {
-            $v = 0; [int]::TryParse("$($p.Value)", [ref]$v) | Out-Null
-            $tiers[$p.Name] = ($tiers[$p.Name] ?? 0) + $v
+
+        $tiers = @{}
+        Add-TierCounts $tiers $scores.summary.groupsByTier
+        Add-TierCounts $tiers $scores.summary.usersByTier
+
+        $matchedCount = Get-MatchedCount $tiers
+
+        # CRITICAL regression check: if compileClassifier silently drops Claude-style
+        # (?i) patterns (the April 2026 bug), no entity will score above None and
+        # this assertion fails.
+        if ($matchedCount -gt 0) {
+            Write-Result 'Risk/ClassifierMatchesRecorded' $true "entities with matches: $matchedCount (Minimal+)"
+        } else {
+            Write-Result 'Risk/ClassifierMatchesRecorded' $false 'ZERO matches recorded — regex compile may be broken'
         }
-    }
 
-    $matchedCount = 0
-    foreach ($t in @('Minimal', 'Low', 'Medium', 'High', 'Critical')) {
-        if ($tiers.ContainsKey($t)) { $matchedCount += $tiers[$t] }
+        # We expect at least one Medium since we have a broad `admin` pattern.
+        # The classifier has score=80, direct weight=0.6, so the final should be
+        # min(100, round(0.6 * 80)) = 48 = Medium tier.
+        $mediumPlus = ($tiers['Medium'] ?? 0) + ($tiers['High'] ?? 0) + ($tiers['Critical'] ?? 0)
+        if ($mediumPlus -gt 0) {
+            Write-Result 'Risk/HasMediumOrHigher' $true "Medium+: $mediumPlus"
+        } else {
+            Write-Result 'Risk/HasMediumOrHigher' $false "expected at least one Medium+, got $mediumPlus"
+        }
+    } catch {
+        Write-Result 'Risk/ScoresEndpoint' $false $_.Exception.Message
     }
-
-    # CRITICAL regression check: if compileClassifier silently drops Claude-style
-    # (?i) patterns (the April 2026 bug), no entity will score above None and
-    # this assertion fails.
-    if ($matchedCount -gt 0) {
-        Write-Result 'Risk/ClassifierMatchesRecorded' $true "entities with matches: $matchedCount (Minimal+)"
-    } else {
-        Write-Result 'Risk/ClassifierMatchesRecorded' $false 'ZERO matches recorded — regex compile may be broken'
-    }
-
-    # We expect at least one Medium since we have a broad `admin` pattern.
-    # The classifier has score=80, direct weight=0.6, so the final should be
-    # min(100, round(0.6 * 80)) = 48 = Medium tier.
-    $mediumPlus = ($tiers['Medium'] ?? 0) + ($tiers['High'] ?? 0) + ($tiers['Critical'] ?? 0)
-    if ($mediumPlus -gt 0) {
-        Write-Result 'Risk/HasMediumOrHigher' $true "Medium+: $mediumPlus"
-    } else {
-        Write-Result 'Risk/HasMediumOrHigher' $false "expected at least one Medium+, got $mediumPlus"
-    }
-} catch {
-    Write-Result 'Risk/ScoresEndpoint' $false $_.Exception.Message
 }
+
+Write-Host "`n=== Risk Scoring End-to-End ===" -ForegroundColor Cyan
+
+Test-DemoDataLoaded
+if (-not $script:phaseOk) { Stop-Test 0; return }
+
+Save-TestProfile
+if (-not $script:phaseOk) { Stop-Test 1; return }
+
+Save-TestClassifiers
+if (-not $script:phaseOk) { Stop-Test 1; return }
+
+Start-ScoringRun
+if (-not $script:phaseOk) { Stop-Test 1; return }
+
+$finalRun = Wait-ForRun
+Test-RunCompleted $finalRun
+if (-not $script:phaseOk) { Stop-Test 1; return }
+
+Invoke-ScoreAssertions
 
 # ─── Cleanup ─────────────────────────────────────────────────────
 # Best-effort delete of the test profile and classifier set — leave the

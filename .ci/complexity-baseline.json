@@ -9,36 +9,6 @@
   "files": {
     "app/ui/src/components/RollupMatrixView.jsx": [
       28
-    ],
-    "setup/docker/Invoke-CrawlerJob.ps1": [
-      29
-    ],
-    "setup/docker/scheduler.ps1": [
-      23
-    ],
-    "test/nightly/Test-RiskScoring.ps1": [
-      41
-    ],
-    "test/nightly/Test-RiskScoringLLM.ps1": [
-      50
-    ],
-    "tools/crawlers/odata/Invoke-ODataGetRequest.ps1": [
-      31
-    ],
-    "tools/powershell-sdk/graph/Get-FGSecureConfigValue.ps1": [
-      17
-    ],
-    "tools/powershell-sdk/graph/Get-FGServicePrincipalWithSync.ps1": [
-      35
-    ],
-    "tools/powershell-sdk/graph/Update-FGConfig.ps1": [
-      28
-    ],
-    "tools/powershell-sdk/helpers/Add-FGEntraCalculatedAttributes.ps1": [
-      16
-    ],
-    "tools/update-sbom-doc.py": [
-      21
     ]
   }
 }

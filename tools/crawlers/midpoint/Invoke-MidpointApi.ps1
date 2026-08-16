@@ -436,6 +436,34 @@ function ConvertTo-MidpointDnKey {
     return $Value.Trim().ToLowerInvariant()
 }
 
+function Get-MidpointAssociationSearchKeys {
+    <#
+    .SYNOPSIS
+        Extract the normalised DN search key(s) from one association's outbound
+        `associationTargetSearch` equal-filter(s). Returns an empty list when the
+        association has no such mapping. Split out of Get-MidpointConstructionTargets
+        so the per-association search-filter walk lives at its own nesting level.
+    .PARAMETER Association
+        A single `construction.association[]` entry.
+    #>
+    [CmdletBinding()]
+    param($Association)
+    $keys = [System.Collections.Generic.List[string]]::new()
+    # associationTargetSearch → expression on the association's outbound mapping
+    $ats = $Association.outbound.expression.associationTargetSearch
+    if (-not $ats) { return $keys }
+    foreach ($t in @($ats)) {
+        foreach ($f in @($t.filter)) {
+            $eq = $f.equal
+            if ($eq -and $null -ne $eq.value) {
+                $key = ConvertTo-MidpointDnKey ([string]$eq.value)
+                if ($key) { $keys.Add($key) }
+            }
+        }
+    }
+    return $keys
+}
+
 function Get-MidpointConstructionTargets {
     <#
     .SYNOPSIS
@@ -463,17 +491,8 @@ function Get-MidpointConstructionTargets {
     foreach ($a in @($assocs)) {
         $sref = Get-MidpointRefOid $a.shadowRef ''
         if ($sref) { $out.Add(@{ shadowOid = $sref; searchKey = '' }); continue }
-        # associationTargetSearch → expression on the association's outbound mapping
-        $ats = $a.outbound.expression.associationTargetSearch
-        if (-not $ats) { continue }
-        foreach ($t in @($ats)) {
-            foreach ($f in @($t.filter)) {
-                $eq = $f.equal
-                if ($eq -and $null -ne $eq.value) {
-                    $key = ConvertTo-MidpointDnKey ([string]$eq.value)
-                    if ($key) { $out.Add(@{ shadowOid = ''; searchKey = $key }) }
-                }
-            }
+        foreach ($key in Get-MidpointAssociationSearchKeys $a) {
+            $out.Add(@{ shadowOid = ''; searchKey = $key })
         }
     }
     return $out
@@ -618,6 +637,22 @@ function Resolve-MappedValue {
     return $Default
 }
 
+function ConvertTo-MidpointAttrScalar {
+    <#
+    .SYNOPSIS
+        Coerce one shadow-attribute property value to its trimmed scalar string, or $null.
+        Values are midPoint typed-scalars { "@value": ... }, plain strings, or arrays of
+        the same — an array takes its first element. Returns $null for empty/whitespace.
+    #>
+    [CmdletBinding()]
+    param($Value)
+    $v = $Value
+    if ($v -is [System.Array]) { $v = $v | Select-Object -First 1 }
+    $val = if ($null -ne $v.'@value') { [string]$v.'@value' } elseif ($v -is [string]) { $v } else { [string]$v }
+    if ($val -and $val.Trim()) { return $val.Trim() }
+    return $null
+}
+
 function Get-MidpointAttrValue {
     <#
     .SYNOPSIS
@@ -630,12 +665,9 @@ function Get-MidpointAttrValue {
     if (-not $attrs) { return $null }
     foreach ($k in $Keys) {
         foreach ($prop in $attrs.PSObject.Properties) {
-            if (($prop.Name -replace '^ri:', '') -ieq $k) {
-                $v = $prop.Value
-                if ($v -is [System.Array]) { $v = $v | Select-Object -First 1 }
-                $val = if ($null -ne $v.'@value') { [string]$v.'@value' } elseif ($v -is [string]) { $v } else { [string]$v }
-                if ($val -and $val.Trim()) { return $val.Trim() }
-            }
+            if (($prop.Name -replace '^ri:', '') -ine $k) { continue }
+            $val = ConvertTo-MidpointAttrScalar $prop.Value
+            if ($val) { return $val }
         }
     }
     return $null
