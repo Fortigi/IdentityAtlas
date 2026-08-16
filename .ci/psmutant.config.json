@@ -1,5 +1,5 @@
 {
-  "_comment": "PSMutant mutation-testing config for IdentityAtlas's decomposed PowerShell crawler transforms (the pure ConvertTo-* record-shapers). Enforced: the build fails when the mutation score drops below break (90% — after strengthening the transform tests the score sits at ~95.8%, with the remaining survivors being equivalent mutants that no test can kill; 90% locks in the raised bar with headroom and forces new transform logic to be mutation-tested, not just line-covered). Run: Install-Module PSMutant; Invoke-PSMutation -ConfigFile .ci/psmutant.config.json -SourceRoot .",
+  "_comment": "PSMutant mutation-testing config for IdentityAtlas's PowerShell crawler layer. Scope is the pure ConvertTo-* record-shapers PLUS the shared ingest/retry/batch library every crawler routes through. The shared layer was added deliberately: a score measured only over pure shapers reads as a suite-wide quality claim while describing the easiest code in the tree — the shapers scored ~95.8% while Invoke-CrawlerIngest.ps1 scored 39.7% the first time it was measured (weak assertions: `Should -Invoke -Times N` is an at-least check, so 'does not retry a 400' passed even when the mutant retried five times). After strengthening the retry/batch assertions it sits at 82.9%. The remaining survivors there are log-format constants and clamped arithmetic — equivalent mutants no assertion should pin. Enforced: the build fails when the blended score drops below break. Run: Install-Module PSMutant; Invoke-PSMutation -ConfigFile .ci/psmutant.config.json -SourceRoot .",
   "sandboxSubtrees": ["tools", "test", "setup"],
   "mutate": [
     "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
@@ -7,6 +7,7 @@
     "tools/crawlers/entra-id/EntraIDCrawler.AppPermissions.ps1",
     "tools/crawlers/entra-id/EntraIDCrawler.PrincipalRelationships.ps1",
     "tools/crawlers/shared/Get-CapabilityId.ps1",
+    "tools/crawlers/shared/Invoke-CrawlerIngest.ps1",
     "tools/crawlers/midpoint/MidpointCrawler.Transform.ps1",
     "tools/crawlers/omada/OmadaCrawler.Transform.ps1",
     "tools/crawlers/csv/CSVCrawler.Transform.ps1",
@@ -18,6 +19,7 @@
     "tools/crawlers/entra-id/EntraIDCrawler.AppPermissions.ps1": ["test/unit/EntraIDCrawlerAppPermissions.Tests.ps1"],
     "tools/crawlers/entra-id/EntraIDCrawler.PrincipalRelationships.ps1": ["test/unit/EntraIDCrawlerPrincipalRelationships.Tests.ps1"],
     "tools/crawlers/shared/Get-CapabilityId.ps1": ["test/unit/CapabilityId.Tests.ps1"],
+    "tools/crawlers/shared/Invoke-CrawlerIngest.ps1": ["test/unit/CrawlerIngest.Tests.ps1", "test/unit/CrawlerIngestBatch.Tests.ps1"],
     "tools/crawlers/midpoint/MidpointCrawler.Transform.ps1": ["test/unit/MidpointCrawlerTransform.Tests.ps1"],
     "tools/crawlers/omada/OmadaCrawler.Transform.ps1": ["test/unit/OmadaCrawlerTransform.Tests.ps1"],
     "tools/crawlers/csv/CSVCrawler.Transform.ps1": ["test/unit/CSVCrawlerTransform.Tests.ps1"],
@@ -27,6 +29,7 @@
   "exclusions": {},
   "coveredLinesOnly": true,
   "operators": ["BinaryOperator", "BooleanLiteral", "NumberLiteral", "NegationRemoval"],
-  "thresholds": { "high": 90, "low": 70, "break": 90 },
+  "_thresholdsComment": "break was 90 when the scope was pure shapers only (which sat at ~95.8%). With the non-pure ingest layer included the blended score is 90.7% (283/312), leaving 0.7 points of headroom — one new survivor would fail the build, and the cheapest way to make that failure go away would be to drop the ingest layer back out of `mutate`. That is precisely the behaviour this scope widening exists to stop, so break is set to 85: still far above the `low` band, and a genuine regression (a whole file's assertions weakening) moves the blended score by much more than 5 points. Raise it as survivors are killed; never raise it by narrowing `mutate`.",
+  "thresholds": { "high": 90, "low": 70, "break": 85 },
   "reportPath": "reports/ps-mutation.json"
 }

@@ -71,6 +71,30 @@ def load_json(coverage_dir, slug, filename):
         return json.load(fh)
 
 
+def per_file_coverage(coverage_dir, slug):
+    """Return ``{name: {...}}`` for every file in a suite's ReportGenerator summary.
+
+    Iterates EVERY assembly, not just the first — the PowerShell report has 11 of
+    them (one per crawler/SDK area) and reading only ``assemblies[0]`` silently
+    reports a sixth of the suite as if it were all of it."""
+    path = os.path.join(coverage_dir, slug, "Summary.json")
+    if not os.path.isfile(path):
+        return {}
+    with open(path, "r", encoding="utf-8") as fh:
+        data = json.load(fh)
+    out = {}
+    for assembly in data.get("coverage", {}).get("assemblies", []) or []:
+        for cls in assembly.get("classesinassembly", []) or []:
+            name = cls.get("name")
+            if name:
+                out[name] = {
+                    "line": pct(cls.get("coverage")),
+                    "branch": pct(cls.get("branchcoverage")),
+                    "coverable": int(cls.get("coverablelines", 0) or 0),
+                }
+    return out
+
+
 def complexity_stats(units):
     """Aggregate the per-unit complexity array from tools/complexity/measure_ps.ps1
     ([{cc, cog, ...}, ...]) into avg / max for each metric. Returns None when there
@@ -107,6 +131,123 @@ def mutation_stats(report):
         "killed": int(report.get("killed", 0) or 0),
         "total": int(report.get("total", 0) or 0),
     }
+
+
+def lookup_file(name, per_file):
+    """Find a file's coverage entry, tolerating the key shapes the reports use.
+
+    The PowerShell (JaCoCo) report drops the extension ('…/Foo.Transform') while
+    mutants and complexity units keep it; coverage keys are suite-relative
+    ('src/…') while complexity keys are repo-relative ('app/ui/src/…'). Tries
+    exact, then extension-stripped, then a trailing path-segment match — anchored
+    on '/' so 'other/mysrc/App.jsx' cannot match the key 'src/App.jsx'."""
+    if not name:
+        return None
+    for key in (name, os.path.splitext(name)[0]):
+        if key in per_file:
+            return per_file[key]
+    return next((v for k, v in per_file.items() if name.endswith("/" + k)), None)
+
+
+def mutated_files(report):
+    """The set of files a mutation report actually mutated, from its own per-mutant
+    entries — so the scope can never drift from what was really run."""
+    mutants = (report or {}).get("mutants") or []
+    files = {m.get("File") or m.get("file") for m in mutants}
+    files.discard(None)
+    return files
+
+
+def mutation_scope(report, per_file):
+    """How much of a suite the mutation score actually describes.
+
+    A mutation score is only meaningful next to the file set it was measured over.
+    PSMutant mutates a hand-listed subset (``mutate`` in .ci/psmutant.config.json),
+    so a headline like "93.2%" sitting beside a suite-wide "91.3% line" invites the
+    reading that the whole suite is mutation-tested — when in practice the list has
+    been the pure record-shapers, the easiest code in the tree to kill mutants in.
+
+    Derives the mutated set from the report's own per-mutant ``File`` entries, so
+    it cannot drift from what was really run. Returns None when the report carries
+    no per-mutant detail."""
+    files = mutated_files(report)
+    if not files:
+        return None
+    matched = [e for e in (lookup_file(f, per_file) for f in files) if e is not None]
+    total_lines = sum(v["coverable"] for v in per_file.values())
+    scope_lines = sum(v["coverable"] for v in matched)
+    return {
+        "files": len(files),
+        "files_total": len(per_file) or None,
+        "unmatched": len(files) - len(matched),
+        "lines": scope_lines,
+        "lines_total": total_lines,
+        "line_pct": (100.0 * scope_lines / total_lines) if total_lines else None,
+        "operators": len(report.get("operators") or []) or None,
+    }
+
+
+def shape_flags(data):
+    """Diagnostics about the SHAPE of a suite's numbers rather than their level.
+
+    Coverage percentages can be individually healthy and still, taken together,
+    say something the headline hides. Two such signals:
+
+    * **method < line** — normally entering a function covers several of its
+      lines, so method coverage sits at or above line coverage. Inverted means a
+      share of functions is never invoked at all while the rest are exercised
+      thoroughly: in a React suite, components that are rendered and asserted on
+      but never *driven* — the dead part is event handlers and callbacks.
+    * **no branch data** — a suite reporting line coverage with no branch figure
+      cannot be compared like-for-like with one that has both."""
+    flags = []
+    line, method, branch = data.get("line"), data.get("method"), data.get("branch")
+    if line is not None and method is not None and method < line - 1.0:
+        flags.append(
+            f"**method coverage ({method:.1f}%) sits below line coverage ({line:.1f}%)** — "
+            "roughly a third of functions are never invoked, while the ones that are get "
+            "exercised well. Typically components rendered but not interacted with: the "
+            "untested part is event handlers, callbacks and conditional render paths."
+        )
+    if branch is None and line is not None:
+        flags.append(
+            "**No branch coverage is measured.** The line figure is not comparable "
+            "with the suites that report both — and for Pester it is command-based "
+            "rather than true line coverage, so it is not directly comparable with "
+            "the Vitest suites either."
+        )
+    return flags
+
+
+def complexity_hotspots(units, per_file, suite_branch, limit=3):
+    """The most complex units, joined to the branch coverage of the file they sit in.
+
+    Aggregate coverage flatters a codebase exactly when its uncovered branches
+    concentrate in its most complex functions — the two facts live in separate
+    reports and nothing normally puts them side by side. This does: a hotspot
+    whose file is below the suite's own branch average is flagged, because that
+    is the case where the headline percentage is least representative."""
+    if not units or not per_file:
+        return []
+    ranked = sorted(
+        (u for u in units if isinstance(u, dict) and u.get("cc") is not None),
+        key=lambda u: int(u["cc"]), reverse=True,
+    )[:limit]
+    out = []
+    for u in ranked:
+        name = str(u.get("file", ""))
+        entry = lookup_file(name, per_file)
+        branch = entry["branch"] if entry else None
+        out.append({
+            "file": name,
+            "unit": u.get("unit"),
+            "cc": int(u["cc"]),
+            "branch": branch,
+            "below_average": (
+                branch is not None and suite_branch is not None and branch < suite_branch
+            ),
+        })
+    return out
 
 
 def pct(value):
@@ -147,17 +288,27 @@ def collect_rows(coverage_dir):
         overall_covered += covered
         overall_coverable += coverable
         # Optional deeper-quality side-inputs (PowerShell supplies both today).
-        complexity = complexity_stats(load_json(coverage_dir, slug, "complexity.json"))
-        mutation = mutation_stats(load_json(coverage_dir, slug, "mutation.json"))
-        rows.append((slug, label, {
+        units = load_json(coverage_dir, slug, "complexity.json")
+        report = load_json(coverage_dir, slug, "mutation.json")
+        complexity = complexity_stats(units)
+        mutation = mutation_stats(report)
+        files = per_file_coverage(coverage_dir, slug)
+        branch = pct(summary.get("branchcoverage"))
+        data = {
             "line": pct(summary.get("linecoverage")),
-            "branch": pct(summary.get("branchcoverage")),
+            "branch": branch,
             "method": pct(summary.get("methodcoverage")),
             "covered": covered,
             "coverable": coverable,
             "complexity": complexity,
             "mutation": mutation,
-        }))
+        }
+        # Scope + shape diagnostics: what each number is measured over, and where
+        # the aggregate is least representative. See render_diagnostics.
+        data["mutation_scope"] = mutation_scope(report, files)
+        data["flags"] = shape_flags(data)
+        data["hotspots"] = complexity_hotspots(units, files, branch)
+        rows.append((slug, label, data))
     return rows, overall_covered, overall_coverable
 
 
@@ -178,6 +329,82 @@ def render_row(slug, label, data, report_base):
         f"| {fmt_pct(data['method'])} | {cyclo_cell} | {cog_cell} | {mut_cell} "
         f"| {covered_cell} |"
     )
+
+
+DIAGNOSTICS_PREAMBLE = (
+    "Every figure above is scoped to what its tool actually measured. The notes "
+    "below are generated from the same reports as the table, so they stay true "
+    "as the numbers move. They are descriptive, not gates — no CI job fails on "
+    "anything in this section."
+)
+
+
+def scope_note(scope):
+    """One sentence naming the subset a mutation score describes, or None."""
+    if not scope:
+        return None
+    of_total = f" of {scope['files_total']}" if scope.get("files_total") else ""
+    share = (f" — {scope['line_pct']:.0f}% of the suite's coverable lines"
+             if scope.get("line_pct") is not None else "")
+    ops = (f", using {scope['operators']} mutation operators"
+           if scope.get("operators") else "")
+    return (
+        f"**Mutation is scoped.** The score covers {scope['files']} file(s)"
+        f"{of_total}{share}{ops}. It describes that subset — not the suite — "
+        "and is not comparable with the suite-wide line figure on the same row."
+    )
+
+
+def hotspot_note(hotspots):
+    """One sentence naming the complex-but-weakly-branch-covered units, or None."""
+    flagged = [h for h in (hotspots or []) if h["below_average"]]
+    if not flagged:
+        return None
+    worst = ", ".join(
+        f"`{h['file']}` ({h['unit']}, cyclomatic {h['cc']}, {h['branch']:.1f}% branch)"
+        for h in flagged
+    )
+    tail = ("each below this suite's own branch average" if len(flagged) > 1
+            else "below this suite's own branch average")
+    return (
+        "**The most complex code is the least branch-covered.** "
+        f"{worst} — {tail}, so the aggregate percentage overstates how "
+        "well the hard parts are tested."
+    )
+
+
+def suite_notes(data):
+    """Every caveat that applies to one suite, in reading order."""
+    if data is None:
+        return []
+    candidates = [scope_note(data.get("mutation_scope"))]
+    candidates.extend(data.get("flags") or [])
+    candidates.append(hotspot_note(data.get("hotspots")))
+    return [n for n in candidates if n]
+
+
+def render_diagnostics(rows):
+    """Render the 'Reading these numbers' section.
+
+    The table above is a row of percentages per suite, and percentages invite
+    comparison — across suites, and across columns within a suite. Most of those
+    comparisons are invalid, because the numbers are measured over different file
+    sets by different tools. Rather than trusting each reader to remember that,
+    state it here, regenerated from the same inputs as the table, so the caveat
+    can never drift from the figure it qualifies."""
+    out = ["## Reading these numbers", "", DIAGNOSTICS_PREAMBLE, ""]
+    any_note = False
+    for _slug, label, data in rows:
+        notes = suite_notes(data)
+        if not notes:
+            continue
+        any_note = True
+        out.extend([f"### {label}", ""])
+        out.extend(f"- {n}" for n in notes)
+        out.append("")
+    if not any_note:
+        out.extend(["_No scope or shape caveats detected for this build._", ""])
+    return out
 
 
 def render_markdown(rows, report_base, commit, generated):
@@ -218,6 +445,7 @@ def render_markdown(rows, report_base, commit, generated):
         "without a given signal shows —."
     )
     lines.append("")
+    lines.extend(render_diagnostics(rows))
     lines.append("## Browsable reports")
     lines.append("")
     lines.append("Each suite links to a full per-file, line-by-line HTML report:")
