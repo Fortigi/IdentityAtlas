@@ -1,5 +1,10 @@
 ## Changes in this PR
 
+- Internal maintainability: continued reducing the complexity baselines — refactored the remaining over-threshold PowerShell crawler/SDK scripts, the Python SBOM-doc generator, and two API test files by extracting focused helpers/functions. No functional change.
+- Internal maintainability: the PowerShell complexity gate now covers the whole repository — nightly integration scripts, test runners, demo-dataset/benchmark tooling and CSV transforms — instead of only production crawler/SDK code, and the ~20 previously-unmeasured over-threshold scripts (including the nightly runner) were refactored below the threshold so both complexity baselines stay clear. No functional change.
+
+## Changes in this PR
+
 - Internal maintainability: reduced cyclomatic and cognitive complexity across many API modules by extracting focused, unit-tested helpers — no functional change. A large set of previously grandfathered API files now pass the complexity gate on their own and were removed from the baselines, including ingest validation/normalization/sessions, the context-plugin runners (resource-type, principal-type, manager-hierarchy, plugin runner), risk-scoring, effective-access, account-linking, the crawler scheduler, the LLM scraper, matrix inherited-access, the performance-metrics summary, and the crawler-auth middleware.
 - Internal maintainability: reduced complexity across many UI components by extracting child components, hooks, and pure helpers — no visual or behavioural change. Areas brought under the complexity gate include the app shell, the dashboard, the matrix views / cells / column-headers / filter wizard / scope + summary panels, the access-packages / entity / department / systems / auth-settings / plugins / governance / crawlers / context-detail pages, the new-context and risk-profile wizards, the LLM settings section, the context picker / tree / manual editor, the risk-score section, the job-phases modal, the time-series chart, credential helpers, and the Excel export utilities.
 
