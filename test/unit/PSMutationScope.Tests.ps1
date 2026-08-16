@@ -5,32 +5,43 @@
 
 .DESCRIPTION
     PSMutant's `mutate` list in .ci/psmutant.config.json is hand-maintained. Nothing
-    otherwise stops a NEW pure record-shaper — a *.Transform.ps1, or one of the
-    extracted *.AppOwners/*.AppPermissions/*.PrincipalRelationships shapers — from
-    being added without being wired into mutation testing. It would be line-covered
-    but never mutation-tested, and no gate would notice (the JS side has this same
-    class of guard: assignmentTypes.guard.test.js / resourceTypes.guard.test.js).
+    otherwise stops a NEW crawler file from being added without being wired into
+    mutation testing. It would be line-covered but never mutation-tested, and no
+    gate would notice (the JS side has this same class of guard:
+    assignmentTypes.guard.test.js / resourceTypes.guard.test.js).
 
-    This guard enumerates every crawler pure-shaper file and fails when one is in
-    neither the config's `mutate` list nor its reviewed `exclusions` map. A new
-    shaper then forces a conscious decision: mutation-test it, or excuse it with a
-    reason in exclusions.
+    This guard enumerates every eligible crawler file and fails when one is in
+    neither the config's `mutate` list nor its reviewed `exclusions` map, forcing a
+    conscious decision: mutation-test it, or excuse it with a written reason.
 
-    Scope note: this covers two families.
+    ELIGIBILITY IS STRUCTURAL, NOT BY FILENAME. Every .ps1 under tools/crawlers/ is
+    eligible except:
 
-      1. The crawler pure-shaper family (the ConvertTo-* record shapers extracted
-         from the entry points for testability).
-      2. The shared crawler helper library (tools/crawlers/shared/), excluding
-         Start-* entry points and Test-* helpers — this is the ingest/retry/batch
-         layer every crawler routes through, and it is deliberately NOT pure. It
-         was added because a mutation score measured only over pure shapers reads
-         as a suite-wide quality claim while describing the easiest code in the
-         tree: the shapers scored ~95% while the retry/batch layer scored 39.7%
-         the first time it was measured.
+      * Start-*  — crawler entry points. They run live I/O the moment they are
+                   dot-sourced, so they are unreachable by Pester without a tenant.
+      * Test-*   — self-test harnesses and test scaffolding, not product code.
+      * Seed-*   — data seeders (matches the coverage job's own exclusion).
+      * dev/     — development-only tooling; the dispatcher never loads it.
 
-    Broadening further to the SDK / riskscoring / crawler Functions+Phases layers
-    needs an eligibility definition for those roots and is tracked as the
-    remainder of #684.
+    It used to be a filename pattern instead — '*.Transform/.AppOwners/
+    .AppPermissions/.PrincipalRelationships.ps1' plus everything in shared/. That
+    is exactly how EntraIDCrawler.AppRoles.ps1 stayed outside mutation scope while
+    being pure shaper code (six ConvertTo-*/New-*Record functions): it escaped on a
+    naming technicality, and the guard designed to catch that class of omission
+    could not see it. A rule keyed on what a file IS beats one keyed on what it was
+    named. The same mistake, one layer up, is what kept tools/crawlers/shared/ out
+    of the Pester coverage figure — that sweep enumerated crawler directories by
+    the presence of crawler.json, and shared/ has none.
+
+    Consequence worth understanding before adding an exclusion: `exclusions` is the
+    escape hatch, so it is only as good as its reasons. "Not yet measured" for a
+    dozen files is a dumping ground, not a decision. Each entry below names why the
+    file cannot or should not be mutated today, specifically enough to be argued
+    with.
+
+    Still out of scope entirely (different roots, needing their own eligibility
+    definition): tools/powershell-sdk/ and tools/riskscoring/ — the remainder
+    of #684.
 
 .USAGE
     Invoke-Pester -Path test/unit/PSMutationScope.Tests.ps1 -Output Detailed
@@ -46,29 +57,29 @@ BeforeAll {
         $script:exclusions = @($cfg.exclusions.PSObject.Properties.Name)
     }
 
-    # Candidate pure-shaper files, by the naming convention the crawler guide
-    # mandates for the extracted ConvertTo-* record shapers.
-    $shaperPattern = '\.(Transform|AppOwners|AppPermissions|PrincipalRelationships)\.ps1$'
     $toRelative = {
         param($file)
         $file.FullName.Substring($script:repoRoot.Length + 1).Replace('\', '/')
     }
-    $script:shapers = Get-ChildItem -Path (Join-Path $script:repoRoot 'tools' 'crawlers') -Recurse -File -Filter '*.ps1' |
-        Where-Object { $_.Name -match $shaperPattern } |
-        ForEach-Object { & $toRelative $_ } |
-        Sort-Object
 
-    # The shared helper library every crawler dot-sources. Start-* files are entry
-    # points (they run live I/O on load) and Test-* files are test scaffolding —
-    # neither is mutation-testable, so both are out of the eligible set by rule
-    # rather than by a hand-maintained exclusion.
-    $script:shared = Get-ChildItem -Path (Join-Path $script:repoRoot 'tools' 'crawlers' 'shared') -File -Filter '*.ps1' |
-        Where-Object { $_.Name -notlike 'Start-*' -and $_.Name -notlike 'Test-*' } |
+    # Structural eligibility: everything under tools/crawlers/ that is product code.
+    # The four exclusions are properties of what the file IS, not of what it was
+    # named — see the header for why a name-based rule failed.
+    $script:ineligiblePrefixes = 'Start-', 'Test-', 'Seed-'
+    $script:candidates = Get-ChildItem -Path (Join-Path $script:repoRoot 'tools' 'crawlers') -Recurse -File -Filter '*.ps1' |
+        Where-Object {
+            $name = $_.Name
+            ($_.FullName -notmatch '[\\/]dev[\\/]') -and
+            -not ($script:ineligiblePrefixes | Where-Object { $name.StartsWith($_, [System.StringComparison]::OrdinalIgnoreCase) })
+        } |
         ForEach-Object { & $toRelative $_ } |
-        Sort-Object
+        Sort-Object -Unique
 
-    $script:candidates = @($script:shapers) + @($script:shared) | Sort-Object -Unique
-    $script:shaperPattern = $shaperPattern
+    # Kept as a named subset purely so the sanity floor below still asserts the
+    # shaper family is being seen — a broken glob must not make the guard vacuous.
+    $shaperPattern = '\.(Transform|AppOwners|AppPermissions|PrincipalRelationships|AppRoles)\.ps1$'
+    $script:shapers = @($script:candidates | Where-Object { $_ -match $shaperPattern })
+    $script:shared  = @($script:candidates | Where-Object { $_ -like 'tools/crawlers/shared/*' })
 }
 
 Describe 'PSMutant scope completeness (#684)' {

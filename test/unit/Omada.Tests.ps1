@@ -14,9 +14,17 @@
 
 BeforeAll {
     $script:repoRoot   = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
-    # Load OData base functions (auth, pagination) — exclude Start-*.ps1 entry points (they have mandatory params)
+    # Load OData base functions (auth, pagination). Both filters matter:
+    #   Start-*  entry points, which have mandatory params and throw by design.
+    #   Test-*   Test-ODataCrawler.ps1 is a SCRIPT — dot-sourcing it RUNS the full
+    #            OData integration suite, starting a mock HTTP server on a real
+    #            port. Without this filter every run of this unit file paid ~50s
+    #            and bound a socket, and every PSMutant mutant mapped to this file
+    #            re-paid it (the measured baseline dropped 73s -> 10s on removing
+    #            it). The integration suite belongs to CI's crawler-test loop, not
+    #            to a unit run.
     Get-ChildItem (Join-Path $script:repoRoot 'tools\crawlers\odata') -Filter '*.ps1' |
-        Where-Object { $_.Name -notlike 'Start-*' } |
+        Where-Object { $_.Name -notlike 'Start-*' -and $_.Name -notlike 'Test-*' } |
         ForEach-Object { . $_.FullName }
     # Load Omada-specific helpers (Get-OmadaRefValue, Get-OmadaRefUid)
     . (Join-Path $script:repoRoot 'tools\crawlers\omada\Get-OmadaHelpers.ps1')
@@ -85,86 +93,17 @@ Describe 'Get-OmadaRefUid' {
     }
 }
 
-# ─── OData function availability ─────────────────────────────────────────────
-Describe 'OData — function availability' {
+# ─── Omada helper availability ────────────────────────────────────────────────
+# The OData library's own surface, auth methods and Get-ODataAuthRoot are covered
+# by test/unit/ODataLibrary.Tests.ps1. They used to live here only because Omada
+# was the first crawler to need them; odata is a shared dependsOn base and any
+# future OData consumer would have had to reach into this file for that coverage.
+Describe 'Omada — function availability' {
     It 'exports <_>' -ForEach @(
-        'Connect-ODataAPI',
-        'Invoke-ODataPagedRequest',
-        'Invoke-ODataGetRequest',
-        'Get-ODataEntitySets',
         'Get-OmadaRefValue',
         'Get-OmadaRefUid'
     ) {
         Get-Command $_ -ErrorAction SilentlyContinue | Should -Not -BeNullOrEmpty
-    }
-}
-
-# ─── Connect-ODataAPI — ApiToken (no HTTP) ───────────────────────────────────
-Describe 'Connect-ODataAPI — ApiToken auth' {
-    It 'succeeds without making any HTTP call' {
-        { Connect-ODataAPI -BaseUrl 'https://omada.example.com' -AuthMethod 'ApiToken' -ApiToken 'test-static-token' } |
-            Should -Not -Throw
-    }
-}
-
-# ─── Connect-ODataAPI — BasicAuth (no HTTP) ──────────────────────────────────
-Describe 'Connect-ODataAPI — BasicAuth auth' {
-    It 'succeeds without making any HTTP call' {
-        { Connect-ODataAPI -BaseUrl 'https://omada.example.com' -AuthMethod 'BasicAuth' -Username 'admin' -Password 'pass' } |
-            Should -Not -Throw
-    }
-    It 'throws when username is missing' {
-        { Connect-ODataAPI -BaseUrl 'https://omada.example.com' -AuthMethod 'BasicAuth' -Password 'pass' } |
-            Should -Throw
-    }
-}
-
-# ─── Connect-ODataAPI — CookieString (no HTTP) ───────────────────────────────
-Describe 'Connect-ODataAPI — CookieString auth' {
-    It 'succeeds with an explicit name=value cookie string' {
-        { Connect-ODataAPI -BaseUrl 'https://tenant.omada.cloud/odata/dataobjects' `
-            -AuthMethod 'CookieString' -CookieString 'oisauthtoken=MHXp1OG0seFfKwNYzQkZwA==' } |
-            Should -Not -Throw
-    }
-    It 'succeeds with a bare token — auto-prefix oisauthtoken= is applied' {
-        { Connect-ODataAPI -BaseUrl 'https://tenant.omada.cloud/odata/dataobjects' `
-            -AuthMethod 'CookieString' -CookieString 'MHXp1OG0seFfKwNYzQkZwA==' } |
-            Should -Not -Throw
-    }
-    It 'throws when CookieString is empty' {
-        { Connect-ODataAPI -BaseUrl 'https://tenant.omada.cloud/odata/dataobjects' `
-            -AuthMethod 'CookieString' -CookieString '' } |
-            Should -Throw
-    }
-    It 'passes an ASP.NET multi-cookie string as-is (already name=value)' {
-        { Connect-ODataAPI -BaseUrl 'https://server/odata/dataobjects' `
-            -AuthMethod 'CookieString' -CookieString 'ASP.NET_SessionId=abc123; Auth=xyz' } |
-            Should -Not -Throw
-    }
-}
-
-# ─── Get-ODataAuthRoot ────────────────────────────────────────────────────────
-Describe 'Get-ODataAuthRoot' {
-    BeforeEach {
-        # Seed the session so Get-ODataAuthRoot can read BaseUrl
-        Connect-ODataAPI -BaseUrl 'https://tenant.omada.cloud/odata/dataobjects' `
-            -AuthMethod 'ApiToken' -ApiToken 'tok'
-    }
-
-    It 'strips /odata/dataobjects from a cloud URL' {
-        Get-ODataAuthRoot | Should -Be 'https://tenant.omada.cloud'
-    }
-
-    It 'strips /odata/dataobjects from an on-prem URL' {
-        Connect-ODataAPI -BaseUrl 'http://server/odata/dataobjects' `
-            -AuthMethod 'ApiToken' -ApiToken 'tok'
-        Get-ODataAuthRoot | Should -Be 'http://server'
-    }
-
-    It 'returns the base URL unchanged when no /odata/ segment is present' {
-        Connect-ODataAPI -BaseUrl 'http://server/api' `
-            -AuthMethod 'ApiToken' -ApiToken 'tok'
-        Get-ODataAuthRoot | Should -Be 'http://server/api'
     }
 }
 
@@ -199,9 +138,6 @@ Describe 'Omada file structure' {
         $script:dispatchPath = Join-Path $script:repoRoot 'setup\docker\Invoke-CrawlerJob.ps1'
     }
 
-    It 'tools/crawlers/odata folder exists with OData protocol files' {
-        Get-ChildItem $script:odataRoot -Filter '*.ps1' | Should -Not -BeNullOrEmpty
-    }
     It 'tools/crawlers/omada/crawler.json exists and declares dependsOn odata' {
         $manifest = Get-Content (Join-Path $script:omadaRoot 'crawler.json') -Raw | ConvertFrom-Json
         $manifest.dependsOn | Should -Contain 'odata'
@@ -233,9 +169,5 @@ Describe 'Omada file structure' {
         # resourceCategoryMapping moved from the dispatcher into the crawler config section.
         $content = Get-Content $script:crawlerPath -Raw
         $content | Should -Match 'resourceCategoryMapping'
-    }
-    It 'OData base has at least 3 PS1 files' {
-        $odataFiles = Get-ChildItem $script:odataRoot -Filter '*.ps1'
-        $odataFiles.Count | Should -BeGreaterOrEqual 3
     }
 }

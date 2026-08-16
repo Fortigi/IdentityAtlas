@@ -12,6 +12,11 @@
     "tools/crawlers/entra-id/EntraIDCrawler.Functions.ps1",
     "tools/crawlers/azure-rm/AzureRMCrawler.Functions.ps1",
     "tools/crawlers/omada/OmadaCrawler.Functions.ps1",
+    "tools/crawlers/csv/CSVCrawler.Functions.ps1",
+    "tools/crawlers/midpoint/MidpointCrawler.Functions.ps1",
+    "tools/crawlers/odata/Invoke-ODataAuth.ps1",
+    "tools/crawlers/odata/Invoke-ODataGetRequest.ps1",
+    "tools/crawlers/odata/Invoke-ODataPagedRequest.ps1",
     "tools/crawlers/midpoint/MidpointCrawler.Transform.ps1",
     "tools/crawlers/omada/OmadaCrawler.Transform.ps1",
     "tools/crawlers/csv/CSVCrawler.Transform.ps1",
@@ -28,6 +33,11 @@
     "tools/crawlers/entra-id/EntraIDCrawler.Functions.ps1": ["test/unit/EntraIDCrawlerFunctions.Tests.ps1"],
     "tools/crawlers/azure-rm/AzureRMCrawler.Functions.ps1": ["test/unit/AzureRMCrawlerFunctions.Tests.ps1"],
     "tools/crawlers/omada/OmadaCrawler.Functions.ps1": ["test/unit/OmadaCrawlerFunctions.Tests.ps1"],
+    "tools/crawlers/csv/CSVCrawler.Functions.ps1": ["test/unit/CSVCrawlerFunctions.Tests.ps1"],
+    "tools/crawlers/midpoint/MidpointCrawler.Functions.ps1": ["test/unit/MidpointCrawlerFunctions.Tests.ps1"],
+    "tools/crawlers/odata/Invoke-ODataAuth.ps1": ["test/unit/ODataLibrary.Tests.ps1"],
+    "tools/crawlers/odata/Invoke-ODataGetRequest.ps1": ["test/unit/ODataLibrary.Tests.ps1"],
+    "tools/crawlers/odata/Invoke-ODataPagedRequest.ps1": ["test/unit/ODataLibrary.Tests.ps1"],
     "tools/crawlers/midpoint/MidpointCrawler.Transform.ps1": ["test/unit/MidpointCrawlerTransform.Tests.ps1"],
     "tools/crawlers/omada/OmadaCrawler.Transform.ps1": ["test/unit/OmadaCrawlerTransform.Tests.ps1"],
     "tools/crawlers/csv/CSVCrawler.Transform.ps1": ["test/unit/CSVCrawlerTransform.Tests.ps1"],
@@ -35,7 +45,18 @@
   },
   "_exclusionsComment": "Eligible files deliberately NOT mutation-tested. Each key is a repo-relative path; the value is the reason. The scope-completeness guard (test/unit/PSMutationScope.Tests.ps1, #684) fails an eligible file that is in neither `mutate` nor here, so anything listed is a written decision rather than an oversight.",
   "exclusions": {
-    "tools/crawlers/omada/Get-OmadaHelpers.ps1": "Produces ZERO mutants under the enabled operator set, so mutating it would report a vacuous 100%. It is five reference-value fallback chains (`if ($Ref.Value) { return [string]$Ref.Value }` repeated) with no arithmetic, no numeric/boolean literals and no negations for BinaryOperator/BooleanLiteral/NumberLiteral/NegationRemoval to bite on — the precedence order itself is only reachable by a statement-deletion or condition-forcing operator PSMutant does not currently offer. Revisit if such an operator is added; its behaviour is covered by OmadaCrawlerFunctions.Tests.ps1 in the meantime."
+    "tools/crawlers/omada/Get-OmadaHelpers.ps1": "Produces ZERO mutants under the enabled operator set, so mutating it would report a vacuous 100%. It is five reference-value fallback chains (`if ($Ref.Value) { return [string]$Ref.Value }` repeated) with no arithmetic, no numeric/boolean literals and no negations for BinaryOperator/BooleanLiteral/NumberLiteral/NegationRemoval to bite on — the precedence order itself is only reachable by a statement-deletion or condition-forcing operator PSMutant does not currently offer. Revisit if such an operator is added; its behaviour is covered by OmadaCrawlerFunctions.Tests.ps1 in the meantime.",
+
+    "tools/crawlers/azure-rm/Get-AzureRGHelpers.ps1": "MEASURED at 31.0% (13/42) against CrawlerHelpers.Tests.ps1 — far below the bar, and adding it would drag the blended gate down rather than raise confidence. The cause is diagnosed, not mysterious: CrawlerHelpers.Tests.ps1 carries 35 bare `Should -Invoke -Times N` assertions, the most of any file in the repo, and bare -Times is an AT-LEAST check (see test/unit/PesterAssertionQuality.Tests.ps1). Strengthen those assertions first, then move this into `mutate`.",
+    "tools/crawlers/azure-rm/Get-AzureRMHelpers.ps1": "MEASURED at 53.6% (15/28) against CrawlerHelpers.Tests.ps1. Same cause and same plan as Get-AzureRGHelpers.ps1 above.",
+    "tools/crawlers/midpoint/Invoke-MidpointApi.ps1": "MEASURED at 79.6% (86/108) against CrawlerHelpers.Tests.ps1 — the closest of the three helpers to admissible, and the first to promote once that file's bare -Times assertions are tightened.",
+
+    "tools/crawlers/entra-id/EntraIDCrawler.Phases.ps1": "The crawler Phases layer. These are the monoliths CLAUDE.md names as the cautionary example — functions trapped inside a top-level Main body, which is exactly what makes them untestable without a decomposition first. Mutation-testing them is downstream of that refactor, not a substitute for it; a score here today would measure the test harness's reach, not the code's safety.",
+    "tools/crawlers/omada/OmadaCrawler.Phases.ps1": "Crawler Phases layer — see EntraIDCrawler.Phases.ps1 above.",
+    "tools/crawlers/csv/CSVCrawler.Phases.ps1": "Crawler Phases layer — see EntraIDCrawler.Phases.ps1 above.",
+    "tools/crawlers/midpoint/MidpointCrawler.Phases.ps1": "Crawler Phases layer — see EntraIDCrawler.Phases.ps1 above.",
+    "tools/crawlers/azure-rm/AzureRMCrawler.Phases.ps1": "Crawler Phases layer — see EntraIDCrawler.Phases.ps1 above.",
+    "tools/crawlers/entra-id/EntraIDCrawler.Orchestration.ps1": "Phase sequencing for the Entra crawler: it wires phases together and owns no decision logic of its own. Its only unit exposure is via EntraIDCrawlerPhases.Tests.ps1, which is the Phases layer this list already defers. Promote alongside that layer."
   },
   "coveredLinesOnly": true,
   "operators": ["BinaryOperator", "BooleanLiteral", "NumberLiteral", "NegationRemoval"],

@@ -104,6 +104,69 @@ Describe 'Read-CsvFast' {
         $result.colIdx['ExternalId'] | Should -Be 0
     }
 
+    It 'strips a second BOM that StreamReader leaves behind' {
+        # The test above does not actually reach the BOM guard in Read-CsvFast:
+        # StreamReader(path, UTF8) has detectEncodingFromByteOrderMarks = true, so it
+        # consumes a single leading BOM before the code ever sees the line. The guard
+        # earns its keep on files carrying TWO BOMs — which some exporters emit when a
+        # BOM-prefixed string is written through a BOM-emitting encoder. StreamReader
+        # eats the first, the guard has to eat the second, or every lookup against the
+        # first column silently misses.
+        $path  = Join-Path $TestDrive 'DoubleBom.csv'
+        $bom   = [byte[]](0xEF, 0xBB, 0xBF)
+        $bytes = $bom + $bom + [System.Text.Encoding]::UTF8.GetBytes("ExternalId;DisplayName`nr1;Name`n")
+        [System.IO.File]::WriteAllBytes($path, $bytes)
+
+        $result = Read-CsvFast 'DoubleBom.csv'
+        $result.colIdx.ContainsKey('ExternalId') | Should -BeTrue
+        $result.colIdx['ExternalId'] | Should -Be 0
+        # And the key must be clean, not "<BOM>ExternalId". Compared ordinally on
+        # purpose: PowerShell's -contains / -eq use linguistic comparison, under
+        # which U+FEFF is an ignorable character — so "<BOM>ExternalId" -eq
+        # "ExternalId" is TRUE and the obvious assertion here cannot fail.
+        $bomPrefixed = @($result.colIdx.Keys | Where-Object {
+            $_.StartsWith([string][char]0xFEFF, [System.StringComparison]::Ordinal)
+        })
+        $bomPrefixed | Should -BeNullOrEmpty
+    }
+
+    # The quote-stripping guard is `Length -ge 2 -and first -eq quote -and last -eq quote`.
+    # Each conjunct matters: relax any one of them and half-quoted or one-character
+    # cells get mangled (or throw on a negative Substring length).
+    It 'leaves a cell quoted on one side only untouched' {
+        $path = Join-Path $TestDrive 'HalfQuoted.csv'
+        [System.IO.File]::WriteAllText($path, "A;B`n`"lead;trail`"`n", [System.Text.Encoding]::UTF8)
+        $result = Read-CsvFast 'HalfQuoted.csv'
+        $result.rows[0][0] | Should -Be '"lead'
+        $result.rows[0][1] | Should -Be 'trail"'
+    }
+
+    It 'leaves a lone quote character untouched rather than throwing' {
+        # Length 1: stripping would ask for Substring(1, -1).
+        $path = Join-Path $TestDrive 'LoneQuote.csv'
+        [System.IO.File]::WriteAllText($path, "A;B`n`";x`n", [System.Text.Encoding]::UTF8)
+        { Read-CsvFast 'LoneQuote.csv' } | Should -Not -Throw
+        (Read-CsvFast 'LoneQuote.csv').rows[0][0] | Should -Be '"'
+    }
+
+    It 'reduces an empty quoted cell to an empty string' {
+        # Length exactly 2 — the boundary of the -ge 2 check.
+        $path = Join-Path $TestDrive 'EmptyQuoted.csv'
+        [System.IO.File]::WriteAllText($path, "A;B`n`"`";x`n", [System.Text.Encoding]::UTF8)
+        $result = Read-CsvFast 'EmptyQuoted.csv'
+        $result.rows[0][0] | Should -Be ''
+    }
+
+    It 'applies the same one-sided and empty-quote rules to headers' {
+        $path = Join-Path $TestDrive 'HeaderQuotes.csv'
+        [System.IO.File]::WriteAllText($path, "`"lead;trail`";`"`";`"`nr1;r2;r3;r4`n", [System.Text.Encoding]::UTF8)
+        $result = Read-CsvFast 'HeaderQuotes.csv'
+        $result.colIdx.ContainsKey('"lead')  | Should -BeTrue   # leading quote kept
+        $result.colIdx.ContainsKey('trail"') | Should -BeTrue   # trailing quote kept
+        $result.colIdx.ContainsKey('')       | Should -BeTrue   # "" collapsed to empty
+        $result.colIdx.ContainsKey('"')      | Should -BeTrue   # lone quote kept as-is
+    }
+
     It 'skips blank lines in the body' {
         $path = Join-Path $TestDrive 'Blank.csv'
         # Write raw so we control the empty line exactly
