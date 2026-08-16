@@ -25,6 +25,19 @@ BeforeAll {
     $script:JobId      = 42
 
     . (Join-Path $script:repoRoot 'tools' 'crawlers' 'shared' 'Invoke-CrawlerIngest.ps1')
+
+    # Build the ETS-shaped exception Invoke-RestMethod raises for an HTTP error, so
+    # Get-FGIngestErrorDetail can read .Exception.Response.StatusCode.value__.
+    # Must live in BeforeAll, not at file scope: a function declared between
+    # Describe blocks only exists during Pester's discovery pass, and would be
+    # unresolvable inside a mock body at run time.
+    function New-HttpError {
+        param([int]$Status, [string]$Message = 'error')
+        $resp = [PSCustomObject]@{ StatusCode = [PSCustomObject]@{ value__ = $Status } }
+        $ex   = [System.Exception]::new($Message)
+        $ex | Add-Member -NotePropertyName 'Response' -NotePropertyValue $resp -Force
+        return $ex
+    }
 }
 
 Describe 'ConvertTo-JsonArray' {
@@ -134,7 +147,9 @@ Describe 'Invoke-IngestAPI — error handling and payload serialisation' {
             throw $ex
         }
         { Invoke-IngestAPI -Endpoint 'ingest/test' -Body @{ records = @() } } | Should -Throw
-        Should -Invoke Invoke-RestMethod -Times 1
+        # -Exactly matters: bare -Times is an "at least" assertion, so without it
+        # this passes even if a 400 were retried the full five times.
+        Should -Invoke Invoke-RestMethod -Exactly 1
     }
 
     It 'retries a transient 503, then re-throws after exhausting all attempts' {
@@ -148,7 +163,7 @@ Describe 'Invoke-IngestAPI — error handling and payload serialisation' {
             throw $ex
         }
         { Invoke-IngestAPI -Endpoint 'ingest/test' -Body @{ records = @() } } | Should -Throw
-        Should -Invoke Invoke-RestMethod -Times 5
+        Should -Invoke Invoke-RestMethod -Exactly 5
     }
 
     It 'serialises records with null fields cleanly (null preserved, valid JSON)' {
@@ -162,5 +177,150 @@ Describe 'Invoke-IngestAPI — error handling and payload serialisation' {
         $items  = @(@{ id = 'dup' }, @{ id = 'dup' }, @{ id = 'other' })
         $result = ConvertTo-JsonArray -Items $items
         $result.Count | Should -Be 3
+    }
+}
+
+# ── Retry policy ─────────────────────────────────────────────────────────────
+# Which HTTP statuses are retried, how many times, and how long we wait between
+# attempts is the crawler's whole resilience contract against Graph throttling.
+# Line coverage alone can't tell a correct predicate from an inverted one here —
+# every attempt count below is asserted with -Exactly for that reason.
+
+Describe 'Invoke-IngestAPI — retry policy' {
+
+    BeforeEach {
+        Mock Start-Sleep { }   # skip the real exponential backoff
+    }
+
+    It 'retries HTTP 429 (throttled) for the full attempt budget' {
+        Mock Invoke-RestMethod { throw (New-HttpError -Status 429 -Message 'Too Many Requests') }
+        { Invoke-IngestAPI -Endpoint 'ingest/test' -Body @{ records = @() } } | Should -Throw
+        Should -Invoke Invoke-RestMethod -Exactly 5
+    }
+
+    It 'retries HTTP 500 — the bottom of the transient range' {
+        Mock Invoke-RestMethod { throw (New-HttpError -Status 500 -Message 'Server Error') }
+        { Invoke-IngestAPI -Endpoint 'ingest/test' -Body @{ records = @() } } | Should -Throw
+        Should -Invoke Invoke-RestMethod -Exactly 5
+    }
+
+    It 'retries a transport failure that carries no status code at all' {
+        Mock Invoke-RestMethod { throw [System.Exception]::new('The remote name could not be resolved') }
+        { Invoke-IngestAPI -Endpoint 'ingest/test' -Body @{ records = @() } } | Should -Throw
+        Should -Invoke Invoke-RestMethod -Exactly 5
+    }
+
+    It 'does not retry HTTP 404 — a client error is not transient' {
+        Mock Invoke-RestMethod { throw (New-HttpError -Status 404 -Message 'Not Found') }
+        { Invoke-IngestAPI -Endpoint 'ingest/test' -Body @{ records = @() } } | Should -Throw
+        Should -Invoke Invoke-RestMethod -Exactly 1
+    }
+
+    It 'does not retry HTTP 401 — re-authenticating is the caller''s job' {
+        Mock Invoke-RestMethod { throw (New-HttpError -Status 401 -Message 'Unauthorized') }
+        { Invoke-IngestAPI -Endpoint 'ingest/test' -Body @{ records = @() } } | Should -Throw
+        Should -Invoke Invoke-RestMethod -Exactly 1
+    }
+
+    It 'stops retrying as soon as an attempt succeeds' {
+        $script:calls = 0
+        Mock Invoke-RestMethod {
+            $script:calls++
+            if ($script:calls -lt 3) { throw (New-HttpError -Status 503) }
+            return @{ inserted = 1 }
+        }
+        $result = Invoke-IngestAPI -Endpoint 'ingest/test' -Body @{ records = @() }
+        $result.inserted | Should -Be 1
+        Should -Invoke Invoke-RestMethod -Exactly 3
+    }
+
+    It 'backs off exponentially — 2, 4, 8, 16 seconds between the five attempts' {
+        Mock Invoke-RestMethod { throw (New-HttpError -Status 503) }
+        { Invoke-IngestAPI -Endpoint 'ingest/test' -Body @{ records = @() } } | Should -Throw
+        # Four sleeps for five attempts, doubling each time. Asserted one at a
+        # time rather than in a loop: PowerShell is case-insensitive, so a loop
+        # variable named $seconds would shadow the mock's own $Seconds parameter
+        # and the filter would compare it to itself — matching everything.
+        Should -Invoke Start-Sleep -Exactly 4
+        Should -Invoke Start-Sleep -Exactly 1 -ParameterFilter { $Seconds -eq 2 }
+        Should -Invoke Start-Sleep -Exactly 1 -ParameterFilter { $Seconds -eq 4 }
+        Should -Invoke Start-Sleep -Exactly 1 -ParameterFilter { $Seconds -eq 8 }
+        Should -Invoke Start-Sleep -Exactly 1 -ParameterFilter { $Seconds -eq 16 }
+    }
+
+    It 'gives the ingest POST a 300-second timeout' {
+        Mock Invoke-RestMethod { return @{ inserted = 0 } }
+        Invoke-IngestAPI -Endpoint 'ingest/test' -Body @{ records = @() } | Out-Null
+        Should -Invoke Invoke-RestMethod -Exactly 1 -ParameterFilter { $TimeoutSec -eq 300 }
+    }
+}
+
+Describe 'Get-FGIngestErrorDetail — response-body extraction' {
+
+    It 'prefers ErrorDetails.Message (the PS7 path, where the stream is already drained)' {
+        $err = [PSCustomObject]@{
+            Exception    = [PSCustomObject]@{ Response = $null }
+            ErrorDetails = [PSCustomObject]@{ Message = '{"error":"bad request"}' }
+        }
+        (Get-FGIngestErrorDetail -ErrorRecord $err).ResponseBody | Should -Be '{"error":"bad request"}'
+    }
+
+    It 'falls back to the response stream when ErrorDetails carries no message' {
+        # ErrorDetails exists but is empty — the guard has to check BOTH, or this
+        # returns '' instead of the body the server actually sent.
+        $bytes  = [System.Text.Encoding]::UTF8.GetBytes('stream body')
+        $resp   = [PSCustomObject]@{ StatusCode = [PSCustomObject]@{ value__ = 500 } }
+        $resp | Add-Member -MemberType ScriptMethod -Name 'GetResponseStream' -Value {
+            [System.IO.MemoryStream]::new([System.Text.Encoding]::UTF8.GetBytes('stream body'))
+        } -Force
+        $err = [PSCustomObject]@{
+            Exception    = [PSCustomObject]@{ Response = $resp }
+            ErrorDetails = [PSCustomObject]@{ Message = '' }
+        }
+        $detail = Get-FGIngestErrorDetail -ErrorRecord $err
+        $detail.ResponseBody | Should -Be 'stream body'
+        $detail.StatusCode   | Should -Be 500
+        $bytes.Length        | Should -BeGreaterThan 0
+    }
+
+    It 'returns nulls rather than throwing when the error has no response at all' {
+        $err    = [PSCustomObject]@{ Exception = [PSCustomObject]@{}; ErrorDetails = $null }
+        $detail = Get-FGIngestErrorDetail -ErrorRecord $err
+        $detail.StatusCode   | Should -BeNullOrEmpty
+        $detail.ResponseBody | Should -BeNullOrEmpty
+    }
+}
+
+Describe 'Update-CrawlerProgress — field gating' {
+
+    It 'reports progress for job id 1 (the guard is <= 0, not <= 1)' {
+        $script:JobId = 1
+        Mock Invoke-RestMethod { }
+        Update-CrawlerProgress -Step 'phase' -Pct 10
+        Should -Invoke Invoke-RestMethod -Exactly 1
+    }
+
+    It 'includes pct when it is 0 — 0% is a real value, not "unset"' {
+        $script:JobId = 42
+        $script:body  = $null
+        Mock Invoke-RestMethod { $script:body = $Body | ConvertFrom-Json }
+        Update-CrawlerProgress -Step 'phase' -Pct 0
+        $script:body.pct | Should -Be 0
+    }
+
+    It 'omits pct when it is left at the -1 sentinel' {
+        $script:JobId = 42
+        $script:body  = $null
+        Mock Invoke-RestMethod { $script:body = $Body | ConvertFrom-Json }
+        Update-CrawlerProgress -Step 'phase'
+        $script:body.PSObject.Properties.Name | Should -Not -Contain 'pct'
+        $script:body.step | Should -Be 'phase'
+    }
+
+    It 'gives the progress ping a short 10-second timeout' {
+        $script:JobId = 42
+        Mock Invoke-RestMethod { }
+        Update-CrawlerProgress -Step 'phase' -Pct 5
+        Should -Invoke Invoke-RestMethod -Exactly 1 -ParameterFilter { $TimeoutSec -eq 10 }
     }
 }
