@@ -124,11 +124,21 @@ jobs:
           # that lives inside these dirs but isn't the crawler/SDK itself —
           # self-test harnesses (Test-*Crawler.ps1), data seeders (Seed-*), and
           # dev-only scripts. Same rationale as excluding *.test.js on the JS side.
+          #
+          # tools/crawlers/shared/ is enumerated separately because it has no
+          # crawler.json — it is the library every crawler dot-sources, not a
+          # crawler. Keying the crawler sweep on crawler.json silently excluded
+          # the whole shared ingest/retry/batch layer from the reported figure,
+          # so the headline described the crawlers without the code they all run
+          # through. Its mock servers (Start-Mock*) and Test-Helpers are test
+          # scaffolding and stay excluded, same as the other harnesses above.
           $cfg.CodeCoverage.Path = @(
             Get-ChildItem 'tools/powershell-sdk','tools/riskscoring' -Recurse -Filter '*.ps1' -File
             (Get-ChildItem 'tools/crawlers' -Directory |
               Where-Object { Test-Path (Join-Path $_.FullName 'crawler.json') } |
               ForEach-Object { Get-ChildItem $_.FullName -Recurse -Filter '*.ps1' -File })
+            (Get-ChildItem 'tools/crawlers/shared' -Filter '*.ps1' -File |
+              Where-Object { $_.Name -notlike 'Start-Mock*' -and $_.Name -notlike 'Test-Helpers*' })
           ) | Where-Object {
             $_.Name -notlike '*.Tests.ps1' -and
             $_.Name -notlike 'Test-*Crawler.ps1' -and
