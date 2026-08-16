@@ -505,15 +505,7 @@ function New-OAuth2ScopeResourceId {
 function New-AppRoleResourceId {
     [CmdletBinding()]
     param([string]$SpId, [string]$AppRoleId)
-    $seed = "entraid-approle:${SpId}:${AppRoleId}"
-    $md5 = [System.Security.Cryptography.MD5]::Create()
-    try {
-        $bytes = [System.Text.Encoding]::UTF8.GetBytes($seed)
-        $hex = ([System.BitConverter]::ToString($md5.ComputeHash($bytes)) -replace '-','').ToLower()
-    } finally {
-        $md5.Dispose()
-    }
-    return "$($hex.Substring(0,8))-$($hex.Substring(8,4))-$($hex.Substring(12,4))-$($hex.Substring(16,4))-$($hex.Substring(20,12))"
+    return ConvertTo-FGDeterministicUuid -Seed "entraid-approle:${SpId}:${AppRoleId}"
 }
 
 # Map a directory-role member's @odata.type to a principalType.
