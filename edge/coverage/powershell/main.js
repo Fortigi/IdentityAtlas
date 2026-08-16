@@ -340,8 +340,8 @@ var assemblies = [
   {
     "name": "tools/crawlers/odata",
     "classes": [
-      { "name": "tools/crawlers/odata/Invoke-ODataAuth", "rp": "odata_tools_crawlers_odata_Invoke_ODataAuth.html", "cl": 77, "ucl": 17, "cal": 94, "tl": 244, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
-      { "name": "tools/crawlers/odata/Invoke-ODataGetRequest", "rp": "odata_tools_crawlers_odata_Invoke_ODataGetRequest.html", "cl": 67, "ucl": 8, "cal": 75, "tl": 272, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
+      { "name": "tools/crawlers/odata/Invoke-ODataAuth", "rp": "odata_tools_crawlers_odata_Invoke_ODataAuth.html", "cl": 38, "ucl": 56, "cal": 94, "tl": 244, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
+      { "name": "tools/crawlers/odata/Invoke-ODataGetRequest", "rp": "odata_tools_crawlers_odata_Invoke_ODataGetRequest.html", "cl": 66, "ucl": 9, "cal": 75, "tl": 272, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
       { "name": "tools/crawlers/odata/Invoke-ODataPagedRequest", "rp": "odata_tools_crawlers_odata_Invoke_ODataPagedRequest.html", "cl": 9, "ucl": 0, "cal": 9, "tl": 53, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
       { "name": "tools/crawlers/odata/Start-ODataCrawler", "rp": "odata_tools_crawlers_odata_Start_ODataCrawler.html", "cl": 0, "ucl": 3, "cal": 3, "tl": 38, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
     ]},
