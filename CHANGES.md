@@ -1,5 +1,15 @@
 ## Changes in this PR
 
+- The OData protocol library now has its own test suite instead of being tested inside the Omada crawler's. OData is a shared base that any crawler can build on, so a second consumer would previously have had to reach into Omada's tests for that coverage.
+- Fixed the Omada test suite accidentally running the full OData integration test — including starting a mock web server — every time the unit tests ran. It added about fifty seconds to every run and bound a network port for no benefit; the integration test still runs where it belongs, in CI.
+- Added real tests for the OData request layer: how a request URL is assembled and escaped, which server errors are retried and which are not, how long the client waits between attempts, whether a server's own "retry after" instruction is honoured, and that paging walks to the end of a result set without skipping or repeating records. Several of these had no test at all before — their apparent coverage came entirely from the integration test running by accident.
+- Mutation testing now covers the CSV and midPoint crawler function layers and the whole OData library.
+- Corrected CSV import tests that claimed to cover byte-order-mark handling and partially quoted values without actually reaching that code, and added the missing cases — a column header carrying a stray marker, values quoted on one side only, and empty quoted values.
+- Corrected midPoint streaming-ingest tests so the record totals reported at the end of a sync, and the session identifier used across a chunked upload, are actually verified.
+- Added an automated check for a class of test that looks strict but verifies nothing — assertions that a function was called "N times" when they in fact only require "at least N". One such test passed even while the code under it retried five times instead of failing immediately.
+
+## Changes in this PR
+
 - Fixed a duplicated copy of the deterministic-id derivation in the Entra ID crawler. The id for an app-role resource was built by a second, hand-inlined copy of the hash-to-UUID formatting instead of the shared helper, so the two could have drifted apart and started issuing different ids for the same app role. Behaviour is unchanged — the ids produced are identical — but there is now one implementation instead of two.
 - Corrected three Entra ID crawler tests that claimed to cover specific Graph error responses (throttling, not-found, service-unavailable) but never actually reached those code paths, so a change to which errors are retried would not have been caught. One of them asserted the opposite of what its name said.
 - Greatly expanded coverage of how the Entra ID crawler handles Graph failures: which HTTP statuses are retried and which are not, how long it waits between attempts, when an expired delta token triggers a full re-sync instead of an error, and that the access token is refreshed between retries.
