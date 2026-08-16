@@ -15,6 +15,33 @@
 
 #region Functions
 
+# The one transient-retry rule for every crawler. Retry when there is no HTTP
+# status at all (DNS failure, connection reset, TLS error — the request never got
+# an answer), when the server asked us to back off (429), or on the four server
+# errors that are genuinely worth another attempt.
+#
+# 501 Not Implemented, 505 HTTP Version Not Supported and 506 Variant Also
+# Negotiates are deliberately NOT retryable: a server that does not implement
+# something will not implement it four seconds later, so retrying only adds
+# backoff delay before the same failure.
+#
+# This replaced five different rules that had drifted apart — 500..504 here,
+# 500..599 there, an open-ended >=500 in two more, and a hand-picked list in the
+# fifth that had no clause for a status-less transport failure at all (so a
+# connection reset on the Graph delta path was re-thrown while every other
+# crawler retried it). None of the differences were deliberate. The closed set
+# below is safe for every endpoint this product talks to: Graph and ARM are not
+# fronted by a CDN, the Ingest API is the product's own service, and midPoint
+# sits behind proxies that emit 502/503/504. Proxy-specific ranges (Cloudflare's
+# 520-527, WebDAV's 507/508) are not emitted by any of them — and the one path
+# most likely to see them, OData, already excluded them before this change.
+function Test-TransientHttpStatus {
+    [CmdletBinding()]
+    param($Status)
+    if (-not $Status) { return $true }
+    return $Status -in @(429, 500, 502, 503, 504)
+}
+
 # Extract the HTTP status code and response body from a caught request error.
 function Get-FGIngestErrorDetail {
     [CmdletBinding()]
@@ -84,7 +111,7 @@ function Invoke-IngestAPI {
         } catch {
             $errorInfo   = Get-FGIngestErrorDetail -ErrorRecord $_
             $statusCode  = $errorInfo.StatusCode
-            $isTransient = (-not $statusCode) -or ($statusCode -ge 500) -or ($statusCode -eq 429)
+            $isTransient = Test-TransientHttpStatus $statusCode
 
             if ($isTransient -and $attempt -lt $maxAttempts) {
                 Wait-FGIngestRetry -Endpoint $Endpoint -StatusCode $statusCode -Attempt $attempt -MaxAttempts $maxAttempts -ErrorRecord $_

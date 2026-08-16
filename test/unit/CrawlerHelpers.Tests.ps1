@@ -19,6 +19,11 @@
 BeforeAll {
     $script:repoRoot = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 
+    # Shared crawler helpers: Invoke-MidpointApi's retry loop calls
+    # Test-TransientHttpStatus from here. Crawler entry points dot-source this
+    # before their dependencies, so loading it first mirrors the real composition.
+    . (Join-Path $script:repoRoot 'tools' 'crawlers' 'shared' 'Invoke-CrawlerIngest.ps1')
+
     # ── Az / Graph SDK stubs (not installed) — defined before dot-sourcing so the
     #    Azure helpers resolve them; individual tests Mock them to assert/transform.
     function Get-FGAccessToken {
