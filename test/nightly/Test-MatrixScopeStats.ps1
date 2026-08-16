@@ -77,82 +77,96 @@ $engFilter = @{
     resource = @{ include = @(); exclude = @() }
 }
 
-Write-Host "`n=== Matrix Scope Statistics ===" -ForegroundColor Cyan
-
 # ── 1. scope-stats ───────────────────────────────────────────────────
 # Assert invariants + cross-consistency rather than magic counts, so the test
 # is robust to dataset evolution and to other tests having added data first.
-$all = Invoke-ScopeApi -Path '/matrix/scope-stats' -Filter $allFilter
-Write-Result 'scope-stats: non-empty counts' `
-    (($all.subjectCount -gt 0) -and ($all.resourceCount -gt 0) -and ($all.assignmentCount -gt 0)) `
-    "P=$($all.subjectCount) R=$($all.resourceCount) A=$($all.assignmentCount)"
+function Test-ScopeStats {
+    $script:all = Invoke-ScopeApi -Path '/matrix/scope-stats' -Filter $allFilter
+    $all = $script:all
+    Write-Result 'scope-stats: non-empty counts' `
+        (($all.subjectCount -gt 0) -and ($all.resourceCount -gt 0) -and ($all.assignmentCount -gt 0)) `
+        "P=$($all.subjectCount) R=$($all.resourceCount) A=$($all.assignmentCount)"
 
-$splitOk = ($all.governedAssignmentCount + $all.ungovernedAssignmentCount) -eq $all.assignmentCount
-Write-Result 'scope-stats: governed split sums to total' $splitOk `
-    "$($all.governedAssignmentCount)+$($all.ungovernedAssignmentCount) vs $($all.assignmentCount)"
+    $splitOk = ($all.governedAssignmentCount + $all.ungovernedAssignmentCount) -eq $all.assignmentCount
+    Write-Result 'scope-stats: governed split sums to total' $splitOk `
+        "$($all.governedAssignmentCount)+$($all.ungovernedAssignmentCount) vs $($all.assignmentCount)"
 
-# Governed is determined by business-role coverage (vw_UserPermissionAssignmentViaBusinessRole),
-# NOT the per-row managedByAccessPackage flag. On the demo data (business roles that
-# Contain groups + Governed role assignments) some access IS governed and some is not.
-# These guard against the regression where governed read as 0.
-Write-Result 'scope-stats: some access is governed (BR coverage)' ($all.governedAssignmentCount -gt 0) `
-    "governed=$($all.governedAssignmentCount)"
-Write-Result 'scope-stats: some access is non-governed' ($all.ungovernedAssignmentCount -gt 0) `
-    "non-governed=$($all.ungovernedAssignmentCount)"
+    # Governed is determined by business-role coverage (vw_UserPermissionAssignmentViaBusinessRole),
+    # NOT the per-row managedByAccessPackage flag. On the demo data (business roles that
+    # Contain groups + Governed role assignments) some access IS governed and some is not.
+    # These guard against the regression where governed read as 0.
+    Write-Result 'scope-stats: some access is governed (BR coverage)' ($all.governedAssignmentCount -gt 0) `
+        "governed=$($all.governedAssignmentCount)"
+    Write-Result 'scope-stats: some access is non-governed' ($all.ungovernedAssignmentCount -gt 0) `
+        "non-governed=$($all.ungovernedAssignmentCount)"
 
-$expectPct = if ($all.assignmentCount -gt 0) { [math]::Round($all.governedAssignmentCount / $all.assignmentCount * 100, 1) } else { 0 }
-Write-Result 'scope-stats: governedPct consistent' ([math]::Abs($all.governedPct - $expectPct) -lt 0.2) `
-    "api=$($all.governedPct) expected≈$expectPct"
+    $expectPct = if ($all.assignmentCount -gt 0) { [math]::Round($all.governedAssignmentCount / $all.assignmentCount * 100, 1) } else { 0 }
+    Write-Result 'scope-stats: governedPct consistent' ([math]::Abs($all.governedPct - $expectPct) -lt 0.2) `
+        "api=$($all.governedPct) expected≈$expectPct"
 
-$eng = Invoke-ScopeApi -Path '/matrix/scope-stats' -Filter $engFilter
-Write-Result 'scope-stats: Engineering subset smaller than all' `
-    (($eng.subjectCount -lt $all.subjectCount) -and ($eng.subjectCount -gt 0)) "eng=$($eng.subjectCount)"
+    $script:eng = Invoke-ScopeApi -Path '/matrix/scope-stats' -Filter $engFilter
+    $eng = $script:eng
+    Write-Result 'scope-stats: Engineering subset smaller than all' `
+        (($eng.subjectCount -lt $all.subjectCount) -and ($eng.subjectCount -gt 0)) "eng=$($eng.subjectCount)"
+}
 
 # ── 2. scope-breakdown ───────────────────────────────────────────────
-$bd = Invoke-ScopeApi -Path '/matrix/scope-breakdown?attribute=department' -Filter $allFilter
-$groups = @($bd.groups)
-$sumPrincipals = ($groups | Measure-Object -Property principals -Sum).Sum
-Write-Result 'breakdown: principals sum to total' ($sumPrincipals -eq $all.subjectCount) `
-    "sum=$sumPrincipals total=$($all.subjectCount)"
+function Test-ScopeBreakdown {
+    $all = $script:all
+    $eng = $script:eng
+    $bd = Invoke-ScopeApi -Path '/matrix/scope-breakdown?attribute=department' -Filter $allFilter
+    $groups = @($bd.groups)
+    $sumPrincipals = ($groups | Measure-Object -Property principals -Sum).Sum
+    Write-Result 'breakdown: principals sum to total' ($sumPrincipals -eq $all.subjectCount) `
+        "sum=$sumPrincipals total=$($all.subjectCount)"
 
-# Every assignment pair belongs to exactly one department, so they must sum to
-# the total assignment count.
-$sumAssign = ($groups | Measure-Object -Property assignments -Sum).Sum
-Write-Result 'breakdown: assignments sum to total' ($sumAssign -eq $all.assignmentCount) `
-    "sum=$sumAssign total=$($all.assignmentCount)"
+    # Every assignment pair belongs to exactly one department, so they must sum to
+    # the total assignment count.
+    $sumAssign = ($groups | Measure-Object -Property assignments -Sum).Sum
+    Write-Result 'breakdown: assignments sum to total' ($sumAssign -eq $all.assignmentCount) `
+        "sum=$sumAssign total=$($all.assignmentCount)"
 
-$consistent = $true
-foreach ($g in $groups) {
-    if ($g.governed -gt $g.assignments) { $consistent = $false }
-}
-Write-Result 'breakdown: governed <= assignments per group' $consistent ''
+    $consistent = $true
+    foreach ($g in $groups) {
+        if ($g.governed -gt $g.assignments) { $consistent = $false }
+    }
+    Write-Result 'breakdown: governed <= assignments per group' $consistent ''
 
-# Cross-consistency: the Engineering breakdown row must equal a direct
-# Engineering-scoped scope-stats query (strong proof both code paths agree).
-$engGroup = $groups | Where-Object { $_.group -eq 'Engineering' } | Select-Object -First 1
-Write-Result 'breakdown: Engineering present' ($null -ne $engGroup) ''
-if ($engGroup) {
-    Write-Result 'breakdown: Engineering matches scope-stats' `
-        (($engGroup.principals -eq $eng.subjectCount) -and ($engGroup.assignments -eq $eng.assignmentCount)) `
-        "bd P=$($engGroup.principals)/A=$($engGroup.assignments) vs stats P=$($eng.subjectCount)/A=$($eng.assignmentCount)"
+    # Cross-consistency: the Engineering breakdown row must equal a direct
+    # Engineering-scoped scope-stats query (strong proof both code paths agree).
+    $engGroup = $groups | Where-Object { $_.group -eq 'Engineering' } | Select-Object -First 1
+    Write-Result 'breakdown: Engineering present' ($null -ne $engGroup) ''
+    if ($engGroup) {
+        Write-Result 'breakdown: Engineering matches scope-stats' `
+            (($engGroup.principals -eq $eng.subjectCount) -and ($engGroup.assignments -eq $eng.assignmentCount)) `
+            "bd P=$($engGroup.principals)/A=$($engGroup.assignments) vs stats P=$($eng.subjectCount)/A=$($eng.assignmentCount)"
+    }
 }
 
 # ── 3. scope-timeseries ──────────────────────────────────────────────
-$ts = Invoke-ScopeApi -Path '/matrix/scope-timeseries' -Filter $allFilter
-Write-Result 'timeseries: has historyStart' ($null -ne $ts.historyStart) "start=$($ts.historyStart)"
-Write-Result 'timeseries: scopeMode is attribute' ($ts.scopeMode -eq 'attribute') "mode=$($ts.scopeMode)"
+function Test-ScopeTimeseries {
+    $all = $script:all
+    $script:ts = Invoke-ScopeApi -Path '/matrix/scope-timeseries' -Filter $allFilter
+    $ts = $script:ts
+    Write-Result 'timeseries: has historyStart' ($null -ne $ts.historyStart) "start=$($ts.historyStart)"
+    Write-Result 'timeseries: scopeMode is attribute' ($ts.scopeMode -eq 'attribute') "mode=$($ts.scopeMode)"
 
-$livePoints = @($ts.points | Where-Object { -not $_.beforeHistory })
-Write-Result 'timeseries: has at least one in-history point' ($livePoints.Count -ge 1) "n=$($livePoints.Count)"
-if ($livePoints.Count -ge 1) {
-    $today = $livePoints[-1]
-    Write-Result 'timeseries: latest point equals live scope-stats' `
-        (($today.assignments -eq $all.assignmentCount) -and ($today.governed -eq $all.governedAssignmentCount)) `
-        "ts A=$($today.assignments)/G=$($today.governed) vs live A=$($all.assignmentCount)/G=$($all.governedAssignmentCount)"
+    $script:livePoints = @($ts.points | Where-Object { -not $_.beforeHistory })
+    $livePoints = $script:livePoints
+    Write-Result 'timeseries: has at least one in-history point' ($livePoints.Count -ge 1) "n=$($livePoints.Count)"
+    if ($livePoints.Count -ge 1) {
+        $today = $livePoints[-1]
+        Write-Result 'timeseries: latest point equals live scope-stats' `
+            (($today.assignments -eq $all.assignmentCount) -and ($today.governed -eq $all.governedAssignmentCount)) `
+            "ts A=$($today.assignments)/G=$($today.governed) vs live A=$($all.assignmentCount)/G=$($all.governedAssignmentCount)"
+    }
 }
 
 # ── 4. History depth (optional — requires a back-dated audit log) ────
-if ($ExpectHistoryDepth) {
+function Test-HistoryDepth {
+    if (-not $ExpectHistoryDepth) { return }
+    $ts = $script:ts
+    $livePoints = $script:livePoints
     $start = [datetime]$ts.historyStart
     $ageDays = ([datetime]::UtcNow - $start.ToUniversalTime()).TotalDays
     Write-Result 'depth: historyStart is well in the past' ($ageDays -gt 90) "ageDays=$([math]::Round($ageDays))"
@@ -169,6 +183,16 @@ if ($ExpectHistoryDepth) {
             "first=$($livePoints[0].governedPct) last=$($livePoints[-1].governedPct)"
     }
 }
+
+function Invoke-MatrixScopeStats {
+    Write-Host "`n=== Matrix Scope Statistics ===" -ForegroundColor Cyan
+    Test-ScopeStats
+    Test-ScopeBreakdown
+    Test-ScopeTimeseries
+    Test-HistoryDepth
+}
+
+Invoke-MatrixScopeStats
 
 if (-not $WriteResult) {
     Write-Host "`nFailures: $standaloneFailures" -ForegroundColor $(if ($standaloneFailures) { 'Red' } else { 'Green' })

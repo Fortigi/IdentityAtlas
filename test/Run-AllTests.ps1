@@ -150,137 +150,207 @@ function Show-Summary {
     }
 }
 
-# ── Start ──────────────────────────────────────────────────────────────
+function Start-SuiteTranscript {
+    param([string]$LogDir)
 
-# Start transcript
-$logDir = Join-Path $PSScriptRoot "logs"
-if (-not (Test-Path $logDir)) { New-Item -ItemType Directory -Path $logDir -Force | Out-Null }
-$transcriptFile = Join-Path $logDir "full-suite-$(Get-Date -Format 'yyyyMMdd-HHmmss').log"
-Start-Transcript -Path $transcriptFile -Force | Out-Null
-
-Write-Host ""
-Write-Host "╔══════════════════════════════════════════════════╗" -ForegroundColor Cyan
-Write-Host "║       FORTIGRAPH FULL TEST SUITE RUNNER          ║" -ForegroundColor Cyan
-Write-Host "╚══════════════════════════════════════════════════╝" -ForegroundColor Cyan
-Write-Host ""
-Write-Host "  Config:       $(if ($ConfigFile) { $ConfigFile } else { '(none — offline tests only)' })" -ForegroundColor Gray
-Write-Host "  LLM:          $(if ($LLMProvider) { $LLMProvider } else { '(skip risk scoring)' })" -ForegroundColor Gray
-Write-Host "  UI URL:       $(if ($UIBaseUrl) { $UIBaseUrl } else { '(skip backend API tests)' })" -ForegroundColor Gray
-Write-Host "  Integration:  $(if ($SkipIntegration) { 'SKIP' } elseif ($FirstRun) { 'Full (first run)' } else { 'Fast (reuse SQL)' })" -ForegroundColor Gray
-Write-Host "  Correlation:  $(if ($SkipAccountCorrelation) { 'SKIP' } elseif ($ConfigFile) { 'Account Correlation' } else { '(no config)' })" -ForegroundColor Gray
-Write-Host "  E2E:          $(if ($SkipE2E) { 'SKIP' } else { 'Playwright' })" -ForegroundColor Gray
-Write-Host "  Stop on fail: $(if ($StopOnFailure) { 'Yes' } else { 'No' })" -ForegroundColor Gray
-
-$testDir = $PSScriptRoot
-$repoRoot = Split-Path -Parent $testDir
-
-# ══════════════════════════════════════════════════════════════════════
-# PHASE 1: Unit Tests (offline, no Azure needed)
-# ══════════════════════════════════════════════════════════════════════
-
-Invoke-TestPhase -Phase "1. Unit Tests" -Script (Join-Path $testDir "Test-Unit.ps1")
-
-# ══════════════════════════════════════════════════════════════════════
-# PHASE 2: Setup Validation (requires Azure login + config)
-# ══════════════════════════════════════════════════════════════════════
-
-if ($ConfigFile) {
-    Invoke-TestPhase -Phase "2a. Simple Diagnostics" `
-        -Script (Join-Path $testDir "Test-Simple.ps1") `
-        -Arguments @("-ConfigFile", $ConfigFile)
-
-    Invoke-TestPhase -Phase "2b. Graph API" `
-        -Script (Join-Path $testDir "Test-GraphAPI.ps1") `
-        -Arguments @("-ConfigFile", $ConfigFile)
-} else {
-    Write-Host "`n  ○ Phase 2: SKIPPED (no -ConfigFile provided)" -ForegroundColor DarkYellow
+    if (-not (Test-Path $LogDir)) { New-Item -ItemType Directory -Path $LogDir -Force | Out-Null }
+    $transcriptFile = Join-Path $LogDir "full-suite-$(Get-Date -Format 'yyyyMMdd-HHmmss').log"
+    Start-Transcript -Path $transcriptFile -Force | Out-Null
+    return $transcriptFile
 }
 
-# ══════════════════════════════════════════════════════════════════════
-# PHASE 3: SQL + Sync Integration Tests
-# ══════════════════════════════════════════════════════════════════════
+function Get-SuiteHeaderLabels {
+    $labels = @{}
+    $labels.Config = if ($ConfigFile) { $ConfigFile } else { '(none — offline tests only)' }
+    $labels.LLM = if ($LLMProvider) { $LLMProvider } else { '(skip risk scoring)' }
+    $labels.UI = if ($UIBaseUrl) { $UIBaseUrl } else { '(skip backend API tests)' }
+    $labels.E2E = if ($SkipE2E) { 'SKIP' } else { 'Playwright' }
+    $labels.Stop = if ($StopOnFailure) { 'Yes' } else { 'No' }
+    return $labels
+}
 
-if ($ConfigFile -and -not $SkipIntegration) {
-    if ($FirstRun) {
-        Invoke-TestPhase -Phase "3. Integration (full)" `
-            -Script (Join-Path $testDir "Test-Integration.ps1") `
-            -Arguments @("-ConfigFile", $ConfigFile, "-SkipCleanup")
-    } else {
-        Invoke-TestPhase -Phase "3. Integration (fast)" `
-            -Script (Join-Path $testDir "Test-Integration-Fast.ps1") `
+function Get-SuitePhaseLabels {
+    $labels = @{}
+    $labels.Integration = if ($SkipIntegration) { 'SKIP' } elseif ($FirstRun) { 'Full (first run)' } else { 'Fast (reuse SQL)' }
+    $labels.Correlation = if ($SkipAccountCorrelation) { 'SKIP' } elseif ($ConfigFile) { 'Account Correlation' } else { '(no config)' }
+    return $labels
+}
+
+function Write-SuiteHeader {
+    $h = Get-SuiteHeaderLabels
+    $p = Get-SuitePhaseLabels
+
+    Write-Host ""
+    Write-Host "╔══════════════════════════════════════════════════╗" -ForegroundColor Cyan
+    Write-Host "║       FORTIGRAPH FULL TEST SUITE RUNNER          ║" -ForegroundColor Cyan
+    Write-Host "╚══════════════════════════════════════════════════╝" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "  Config:       $($h.Config)" -ForegroundColor Gray
+    Write-Host "  LLM:          $($h.LLM)" -ForegroundColor Gray
+    Write-Host "  UI URL:       $($h.UI)" -ForegroundColor Gray
+    Write-Host "  Integration:  $($p.Integration)" -ForegroundColor Gray
+    Write-Host "  Correlation:  $($p.Correlation)" -ForegroundColor Gray
+    Write-Host "  E2E:          $($h.E2E)" -ForegroundColor Gray
+    Write-Host "  Stop on fail: $($h.Stop)" -ForegroundColor Gray
+}
+
+# ── PHASE 1: Unit Tests (offline, no Azure needed) ──────────────────────
+function Invoke-Phase1UnitTests {
+    param([string]$TestDir)
+
+    Invoke-TestPhase -Phase "1. Unit Tests" -Script (Join-Path $TestDir "Test-Unit.ps1")
+}
+
+# ── PHASE 2: Setup Validation (requires Azure login + config) ───────────
+function Invoke-Phase2SetupValidation {
+    param([string]$TestDir)
+
+    if ($ConfigFile) {
+        Invoke-TestPhase -Phase "2a. Simple Diagnostics" `
+            -Script (Join-Path $TestDir "Test-Simple.ps1") `
             -Arguments @("-ConfigFile", $ConfigFile)
-    }
-} else {
-    $reason = if (-not $ConfigFile) { "no -ConfigFile" } else { "-SkipIntegration" }
-    Write-Host "`n  ○ Phase 3: SKIPPED ($reason)" -ForegroundColor DarkYellow
-}
 
-# ══════════════════════════════════════════════════════════════════════
-# PHASE 4: Risk Scoring
-# ══════════════════════════════════════════════════════════════════════
-
-if ($ConfigFile -and $LLMProvider -and $LLMApiKey -and -not $SkipRiskScoring) {
-    Invoke-TestPhase -Phase "4. Risk Scoring" `
-        -Script (Join-Path $testDir "Test-RiskScoring.ps1") `
-        -Arguments @("-ConfigFile", $ConfigFile, "-LLMProvider", $LLMProvider, "-LLMApiKey", $LLMApiKey)
-} else {
-    $reason = if ($SkipRiskScoring) { "-SkipRiskScoring" }
-              elseif (-not $LLMProvider) { "no -LLMProvider" }
-              elseif (-not $LLMApiKey) { "no -LLMApiKey" }
-              else { "no -ConfigFile" }
-    Write-Host "`n  ○ Phase 4: SKIPPED ($reason)" -ForegroundColor DarkYellow
-}
-
-# ══════════════════════════════════════════════════════════════════════
-# PHASE 5: Account Correlation Tests
-# ══════════════════════════════════════════════════════════════════════
-
-if ($ConfigFile -and -not $SkipAccountCorrelation) {
-    $corrArgs = @("-ConfigFile", $ConfigFile)
-    if ($LLMProvider -and $LLMApiKey) {
-        $corrArgs += @("-LLMProvider", $LLMProvider, "-LLMApiKey", $LLMApiKey)
+        Invoke-TestPhase -Phase "2b. Graph API" `
+            -Script (Join-Path $TestDir "Test-GraphAPI.ps1") `
+            -Arguments @("-ConfigFile", $ConfigFile)
     } else {
-        $corrArgs += @("-SkipLLM")
+        Write-Host "`n  ○ Phase 2: SKIPPED (no -ConfigFile provided)" -ForegroundColor DarkYellow
     }
-
-    Invoke-TestPhase -Phase "5. Account Correlation" `
-        -Script (Join-Path $testDir "Test-AccountCorrelation.ps1") `
-        -Arguments $corrArgs
-} else {
-    $reason = if (-not $ConfigFile) { "no -ConfigFile" } else { "-SkipAccountCorrelation" }
-    Write-Host "`n  ○ Phase 5: SKIPPED ($reason)" -ForegroundColor DarkYellow
 }
 
-# ══════════════════════════════════════════════════════════════════════
-# PHASE 6a: UI Backend API Tests (against deployed app)
-# ══════════════════════════════════════════════════════════════════════
+# ── PHASE 3: SQL + Sync Integration Tests ───────────────────────────────
+function Invoke-Phase3Integration {
+    param([string]$TestDir)
 
-if ($UIBaseUrl -and -not $SkipUIBackend) {
-    $apiArgs = @("-BaseUrl", $UIBaseUrl)
-    if ($BearerToken) {
-        $apiArgs += @("-BearerToken", $BearerToken)
+    if ($ConfigFile -and -not $SkipIntegration) {
+        if ($FirstRun) {
+            Invoke-TestPhase -Phase "3. Integration (full)" `
+                -Script (Join-Path $TestDir "Test-Integration.ps1") `
+                -Arguments @("-ConfigFile", $ConfigFile, "-SkipCleanup")
+        } else {
+            Invoke-TestPhase -Phase "3. Integration (fast)" `
+                -Script (Join-Path $TestDir "Test-Integration-Fast.ps1") `
+                -Arguments @("-ConfigFile", $ConfigFile)
+        }
+    } else {
+        $reason = if (-not $ConfigFile) { "no -ConfigFile" } else { "-SkipIntegration" }
+        Write-Host "`n  ○ Phase 3: SKIPPED ($reason)" -ForegroundColor DarkYellow
     }
-
-    Invoke-TestPhase -Phase "6a. UI Backend API" `
-        -Script (Join-Path $testDir "Test-UIBackend.ps1") `
-        -Arguments $apiArgs
-} else {
-    $reason = if ($SkipUIBackend) { "-SkipUIBackend" } else { "no -UIBaseUrl" }
-    Write-Host "`n  ○ Phase 6a: SKIPPED ($reason)" -ForegroundColor DarkYellow
 }
 
-# ══════════════════════════════════════════════════════════════════════
-# PHASE 6b: Playwright E2E Browser Tests (against mock backend)
-# ══════════════════════════════════════════════════════════════════════
+# ── PHASE 4: Risk Scoring ───────────────────────────────────────────────
+function Invoke-Phase4RiskScoring {
+    param([string]$TestDir)
 
-if (-not $SkipE2E) {
+    if ($ConfigFile -and $LLMProvider -and $LLMApiKey -and -not $SkipRiskScoring) {
+        Invoke-TestPhase -Phase "4. Risk Scoring" `
+            -Script (Join-Path $TestDir "Test-RiskScoring.ps1") `
+            -Arguments @("-ConfigFile", $ConfigFile, "-LLMProvider", $LLMProvider, "-LLMApiKey", $LLMApiKey)
+    } else {
+        $reason = if ($SkipRiskScoring) { "-SkipRiskScoring" }
+                  elseif (-not $LLMProvider) { "no -LLMProvider" }
+                  elseif (-not $LLMApiKey) { "no -LLMApiKey" }
+                  else { "no -ConfigFile" }
+        Write-Host "`n  ○ Phase 4: SKIPPED ($reason)" -ForegroundColor DarkYellow
+    }
+}
+
+# ── PHASE 5: Account Correlation Tests ──────────────────────────────────
+function Invoke-Phase5AccountCorrelation {
+    param([string]$TestDir)
+
+    if ($ConfigFile -and -not $SkipAccountCorrelation) {
+        $corrArgs = @("-ConfigFile", $ConfigFile)
+        if ($LLMProvider -and $LLMApiKey) {
+            $corrArgs += @("-LLMProvider", $LLMProvider, "-LLMApiKey", $LLMApiKey)
+        } else {
+            $corrArgs += @("-SkipLLM")
+        }
+
+        Invoke-TestPhase -Phase "5. Account Correlation" `
+            -Script (Join-Path $TestDir "Test-AccountCorrelation.ps1") `
+            -Arguments $corrArgs
+    } else {
+        $reason = if (-not $ConfigFile) { "no -ConfigFile" } else { "-SkipAccountCorrelation" }
+        Write-Host "`n  ○ Phase 5: SKIPPED ($reason)" -ForegroundColor DarkYellow
+    }
+}
+
+# ── PHASE 6a: UI Backend API Tests (against deployed app) ────────────────
+function Invoke-Phase6aUIBackend {
+    param([string]$TestDir)
+
+    if ($UIBaseUrl -and -not $SkipUIBackend) {
+        $apiArgs = @("-BaseUrl", $UIBaseUrl)
+        if ($BearerToken) {
+            $apiArgs += @("-BearerToken", $BearerToken)
+        }
+
+        Invoke-TestPhase -Phase "6a. UI Backend API" `
+            -Script (Join-Path $TestDir "Test-UIBackend.ps1") `
+            -Arguments $apiArgs
+    } else {
+        $reason = if ($SkipUIBackend) { "-SkipUIBackend" } else { "no -UIBaseUrl" }
+        Write-Host "`n  ○ Phase 6a: SKIPPED ($reason)" -ForegroundColor DarkYellow
+    }
+}
+
+# ── PHASE 6b: Playwright E2E, dependency install + test run ──────────────
+function Invoke-PlaywrightTests {
+    param(
+        [string]$FrontendDir,
+        [datetime]$E2eStart
+    )
+
+    Write-Host "  → Installing dependencies..." -ForegroundColor Cyan
+    Push-Location $FrontendDir
+    try {
+        & npm install --silent 2>&1 | Out-Null
+
+        # Check if Playwright browsers are installed
+        $playwrightCheck = & npx playwright install --dry-run 2>&1
+        if ($playwrightCheck -match "not installed") {
+            Write-Host "  → Installing Playwright browsers..." -ForegroundColor Cyan
+            & npx playwright install chromium 2>&1 | Out-Null
+        }
+
+        # Run tests
+        Write-Host "  → Running Playwright tests..." -ForegroundColor Cyan
+        & npx playwright test 2>&1 | ForEach-Object { Write-Host "    $_" }
+        $e2eExitCode = $LASTEXITCODE
+
+        $e2eDuration = ((Get-Date) - $E2eStart).TotalSeconds
+        $script:E2ePassed = Add-PhaseResult -Phase "6b. UI E2E Browser Tests" -Script "npx playwright test" -ExitCode $e2eExitCode -Duration $e2eDuration
+
+        if (-not $script:E2ePassed) {
+            Write-Host "  → Report: $FrontendDir/playwright-report/index.html" -ForegroundColor Yellow
+        }
+    } catch {
+        $e2eDuration = ((Get-Date) - $E2eStart).TotalSeconds
+        Add-PhaseResult -Phase "6b. UI E2E Browser Tests" -Script "npx playwright test" -ExitCode 1 -Duration $e2eDuration
+        Write-Host "  ✗ E2E test error: $($_.Exception.Message)" -ForegroundColor Red
+    } finally {
+        Pop-Location
+    }
+}
+
+# ── PHASE 6b: Playwright E2E Browser Tests (against mock backend) ────────
+function Invoke-Phase6bE2E {
+    param([string]$RepoRoot)
+
+    if ($SkipE2E) {
+        Write-Host "`n  ○ Phase 6b: SKIPPED (-SkipE2E)" -ForegroundColor DarkYellow
+        return
+    }
+
     Write-Host "`n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor DarkGray
     Write-Host "  Phase: 6b. UI E2E Browser Tests" -ForegroundColor Yellow
     Write-Host "  Script: npx playwright test" -ForegroundColor Gray
     Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor DarkGray
 
     $e2eStart = Get-Date
-    $frontendDir = Join-Path $repoRoot "UI" "frontend"
+    $frontendDir = Join-Path $RepoRoot "UI" "frontend"
+    $script:E2ePassed = $null
 
     # Check Node.js is available
     $nodeAvailable = $null -ne (Get-Command "node" -ErrorAction SilentlyContinue)
@@ -289,56 +359,44 @@ if (-not $SkipE2E) {
         Add-PhaseResult -Phase "6b. UI E2E Browser Tests" -Script "npx playwright test" -ExitCode 1 -Duration 0
     } else {
         # Ensure dependencies are installed
-        Write-Host "  → Installing dependencies..." -ForegroundColor Cyan
-        Push-Location $frontendDir
-        try {
-            & npm install --silent 2>&1 | Out-Null
-
-            # Check if Playwright browsers are installed
-            $playwrightCheck = & npx playwright install --dry-run 2>&1
-            if ($playwrightCheck -match "not installed") {
-                Write-Host "  → Installing Playwright browsers..." -ForegroundColor Cyan
-                & npx playwright install chromium 2>&1 | Out-Null
-            }
-
-            # Run tests
-            Write-Host "  → Running Playwright tests..." -ForegroundColor Cyan
-            & npx playwright test 2>&1 | ForEach-Object { Write-Host "    $_" }
-            $e2eExitCode = $LASTEXITCODE
-
-            $e2eDuration = ((Get-Date) - $e2eStart).TotalSeconds
-            $e2ePassed = Add-PhaseResult -Phase "6b. UI E2E Browser Tests" -Script "npx playwright test" -ExitCode $e2eExitCode -Duration $e2eDuration
-
-            if (-not $e2ePassed) {
-                Write-Host "  → Report: $frontendDir/playwright-report/index.html" -ForegroundColor Yellow
-            }
-        } catch {
-            $e2eDuration = ((Get-Date) - $e2eStart).TotalSeconds
-            Add-PhaseResult -Phase "6b. UI E2E Browser Tests" -Script "npx playwright test" -ExitCode 1 -Duration $e2eDuration
-            Write-Host "  ✗ E2E test error: $($_.Exception.Message)" -ForegroundColor Red
-        } finally {
-            Pop-Location
-        }
+        Invoke-PlaywrightTests -FrontendDir $frontendDir -E2eStart $e2eStart
     }
 
-    if (-not $e2ePassed -and $StopOnFailure) {
+    if (-not $script:E2ePassed -and $StopOnFailure) {
         Show-Summary
         Stop-Transcript | Out-Null
         exit 1
     }
-} else {
-    Write-Host "`n  ○ Phase 6b: SKIPPED (-SkipE2E)" -ForegroundColor DarkYellow
 }
 
-# ══════════════════════════════════════════════════════════════════════
-# SUMMARY
-# ══════════════════════════════════════════════════════════════════════
+function Invoke-AllTests {
+    # Start transcript
+    $logDir = Join-Path $PSScriptRoot "logs"
+    $transcriptFile = Start-SuiteTranscript -LogDir $logDir
 
-Show-Summary
+    Write-SuiteHeader
 
-Stop-Transcript | Out-Null
-Write-Host "`nFull transcript: $transcriptFile" -ForegroundColor Gray
+    $testDir = $PSScriptRoot
+    $repoRoot = Split-Path -Parent $testDir
 
-# Exit with failure code if any phase failed
-$failedCount = ($script:PhaseResults | Where-Object { -not $_.Passed }).Count
-exit $(if ($failedCount -gt 0) { 1 } else { 0 })
+    Invoke-Phase1UnitTests -TestDir $testDir
+    Invoke-Phase2SetupValidation -TestDir $testDir
+    Invoke-Phase3Integration -TestDir $testDir
+    Invoke-Phase4RiskScoring -TestDir $testDir
+    Invoke-Phase5AccountCorrelation -TestDir $testDir
+    Invoke-Phase6aUIBackend -TestDir $testDir
+    Invoke-Phase6bE2E -RepoRoot $repoRoot
+
+    # ── SUMMARY ─────────────────────────────────────────────────────────
+    Show-Summary
+
+    Stop-Transcript | Out-Null
+    Write-Host "`nFull transcript: $transcriptFile" -ForegroundColor Gray
+
+    # Exit with failure code if any phase failed
+    $failedCount = ($script:PhaseResults | Where-Object { -not $_.Passed }).Count
+    exit $(if ($failedCount -gt 0) { 1 } else { 0 })
+}
+
+# ── Start ──────────────────────────────────────────────────────────────
+Invoke-AllTests
