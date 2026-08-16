@@ -2777,6 +2777,56 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#reading-these-numbers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reading these numbers
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Reading these numbers">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#api-node-vitest-unit-contract" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        API (Node / Vitest — unit + contract)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ui-react-vitest" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        UI (React / Vitest)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#powershell-pester" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PowerShell (Pester)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#browsable-reports" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4564,6 +4614,56 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#reading-these-numbers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reading these numbers
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Reading these numbers">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#api-node-vitest-unit-contract" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        API (Node / Vitest — unit + contract)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ui-react-vitest" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        UI (React / Vitest)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#powershell-pester" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PowerShell (Pester)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#browsable-reports" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4670,37 +4770,53 @@
 <tbody>
 <tr>
 <td><a href="../../coverage/api/">API (Node / Vitest — unit + contract)</a></td>
-<td>87.9%</td>
-<td>77.1%</td>
-<td>88.9%</td>
+<td>88.0%</td>
+<td>77.2%</td>
+<td>89.1%</td>
 <td>3.8 / 20</td>
 <td>2.4 / 15</td>
 <td>—</td>
-<td>8,175 / 9,293</td>
+<td>8,185 / 9,293</td>
 </tr>
 <tr>
 <td><a href="../../coverage/ui/">UI (React / Vitest)</a></td>
-<td>79.4%</td>
-<td>68.1%</td>
-<td>67.4%</td>
+<td>80.9%</td>
+<td>70.5%</td>
+<td>69.1%</td>
 <td>2.8 / 28</td>
 <td>1.1 / 15</td>
 <td>—</td>
-<td>5,995 / 7,546</td>
+<td>6,105 / 7,546</td>
 </tr>
 <tr>
 <td><a href="../../coverage/powershell/">PowerShell (Pester)</a></td>
-<td>91.3%</td>
+<td>91.4%</td>
 <td>—</td>
-<td>97.2%</td>
+<td>97.3%</td>
 <td>3.7 / 15</td>
 <td>3.8 / 15</td>
 <td>93.2%</td>
-<td>5,475 / 5,996</td>
+<td>5,587 / 6,109</td>
 </tr>
 </tbody>
 </table>
 <p><strong>Cyclomatic</strong> / <strong>Cognitive</strong> are <em>average / max</em> per unit (each function, and for PowerShell each script/module body too): PowerShell via <a href="https://github.com/Fortigi/PSComplexity">PSComplexity</a>, JS/TS via ESLint's <code>complexity</code> rule + <a href="https://github.com/SonarSource/eslint-plugin-sonarjs">eslint-plugin-sonarjs</a>. <strong>Mutation</strong> is the share of injected faults the tests catch via <a href="https://github.com/Fortigi/PSMutant">PSMutant</a>, PowerShell-only today. A suite without a given signal shows —.</p>
+<h2 id="reading-these-numbers">Reading these numbers<a class="headerlink" href="#reading-these-numbers" title="Permanent link">&para;</a></h2>
+<p>Every figure above is scoped to what its tool actually measured. The notes below are generated from the same reports as the table, so they stay true as the numbers move. They are descriptive, not gates — no CI job fails on anything in this section.</p>
+<h3 id="api-node-vitest-unit-contract">API (Node / Vitest — unit + contract)<a class="headerlink" href="#api-node-vitest-unit-contract" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>The most complex code is the least branch-covered.</strong> <code>app/api/src/routes/updates.js</code> (Async arrow function, cyclomatic 20, 76.0% branch) — below this suite's own branch average, so the aggregate percentage overstates how well the hard parts are tested.</li>
+</ul>
+<h3 id="ui-react-vitest">UI (React / Vitest)<a class="headerlink" href="#ui-react-vitest" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>method coverage (69.1%) sits below line coverage (80.9%)</strong> — roughly a third of functions are never invoked, while the ones that are get exercised well. Typically components rendered but not interacted with: the untested part is event handlers, callbacks and conditional render paths.</li>
+<li><strong>The most complex code is the least branch-covered.</strong> <code>app/ui/src/components/MatrixView.jsx</code> (Function 'MatrixView', cyclomatic 20, 50.9% branch) — below this suite's own branch average, so the aggregate percentage overstates how well the hard parts are tested.</li>
+</ul>
+<h3 id="powershell-pester">PowerShell (Pester)<a class="headerlink" href="#powershell-pester" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Mutation is scoped.</strong> The score covers 9 file(s) of 140 — 19% of the suite's coverable lines. It describes that subset — not the suite — and is not comparable with the suite-wide line figure on the same row.</li>
+<li><strong>No branch coverage is measured.</strong> The line figure is not comparable with the suites that report both — and for Pester it is command-based rather than true line coverage, so it is not directly comparable with the Vitest suites either.</li>
+</ul>
 <h2 id="browsable-reports">Browsable reports<a class="headerlink" href="#browsable-reports" title="Permanent link">&para;</a></h2>
 <p>Each suite links to a full per-file, line-by-line HTML report:</p>
 <ul>
@@ -4708,7 +4824,7 @@
 <li><a href="../../coverage/ui/">UI (React / Vitest)</a></li>
 <li><a href="../../coverage/powershell/">PowerShell (Pester)</a></li>
 </ul>
-<p><em>Generated 2026-08-16 15:36 UTC from commit <code>d334a868</code>.</em></p>
+<p><em>Generated 2026-08-16 18:27 UTC from commit <code>6e9c395c</code>.</em></p>
 
 
 

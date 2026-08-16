@@ -355,6 +355,12 @@ var assemblies = [
       { "name": "tools/crawlers/omada/Start-OmadaCrawler", "rp": "omada_tools_crawlers_omada_Start_OmadaCrawler.html", "cl": 0, "ucl": 92, "cal": 92, "tl": 282, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
     ]},
   {
+    "name": "tools/crawlers/shared",
+    "classes": [
+      { "name": "tools/crawlers/shared/Get-CapabilityId", "rp": "shared_tools_crawlers_shared_Get_CapabilityId.html", "cl": 7, "ucl": 0, "cal": 7, "tl": 47, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
+      { "name": "tools/crawlers/shared/Invoke-CrawlerIngest", "rp": "shared_tools_crawlers_shared_Invoke_CrawlerIngest.html", "cl": 105, "ucl": 1, "cal": 106, "tl": 267, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
+    ]},
+  {
     "name": "tools/powershell-sdk/graph",
     "classes": [
       { "name": "tools/powershell-sdk/graph/Add-FGGroupMember", "rp": "graph_tools_powershell_sdk_graph_Add_FGGroupMember.html", "cl": 5, "ucl": 0, "cal": 5, "tl": 23, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
