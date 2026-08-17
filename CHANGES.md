@@ -1,5 +1,18 @@
 ## Changes in this PR
 
+- Added tests for how the Azure crawlers decide to retry, how long they wait, and when they pause ahead of a quota limit. None of these decisions were directly tested before — the suite only counted how many requests were made, never checked the reasoning that produced them.
+- Fixed the Azure crawlers retrying errors that can never succeed. "Not Implemented" and similar responses were previously retried with growing pauses before failing anyway; they now fail immediately, and the Azure Resource Graph and Azure RM crawlers use the same retry rule as every other crawler.
+- Fixed the PowerShell SDK abandoning a Graph request when the connection failed outright. It recognised only three specific error messages, so a dropped connection or DNS failure was treated as permanent — the same problem already fixed in the Entra ID crawler.
+- Verified the Azure retry back-off is capped, so a long run of failures can no longer schedule a wait of hours. Nothing had checked the cap before.
+- Verified the Azure access token refreshes on schedule rather than on every call or never; that timing had no test.
+- Mutation testing now also covers the Azure RM helper layer.
+- All crawlers now share one rule for deciding which failed requests are worth retrying, instead of five slightly different ones that had drifted apart. A request that got no response at all (a dropped connection, a DNS failure) is always retried; so is a throttling response and the four server errors that typically clear on their own.
+- Fixed the Entra ID crawler abandoning a delta page when the connection failed outright. Because it only recognised three specific error messages, a dropped connection or DNS failure was treated as permanent and the page was given up on, while every other crawler would have retried it.
+- Crawlers no longer waste time retrying errors that cannot succeed. "Not Implemented" and "HTTP Version Not Supported" were previously retried up to four times with growing pauses before failing anyway — several minutes of delay for a result that was never going to change.
+- The Test Coverage page now reports mutation-testing scope from the project's own configuration rather than from the last measurement run, so it reflects reality as soon as a change lands. When the published score is older than the current scope, the page now says so explicitly instead of quietly implying the score covers more than it measured.
+
+## Changes in this PR
+
 - The OData protocol library now has its own test suite instead of being tested inside the Omada crawler's. OData is a shared base that any crawler can build on, so a second consumer would previously have had to reach into Omada's tests for that coverage.
 - Fixed the Omada test suite accidentally running the full OData integration test — including starting a mock web server — every time the unit tests ran. It added about fifty seconds to every run and bound a network port for no benefit; the integration test still runs where it belongs, in CI.
 - Added real tests for the OData request layer: how a request URL is assembled and escaped, which server errors are retried and which are not, how long the client waits between attempts, whether a server's own "retry after" instruction is honoured, and that paging walks to the end of a result set without skipping or repeating records. Several of these had no test at all before — their apparent coverage came entirely from the integration test running by accident.
