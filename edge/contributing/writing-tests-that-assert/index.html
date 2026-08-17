@@ -10,13 +10,13 @@
       
       
       
-        <link rel="canonical" href="https://fortigi.github.io/IdentityAtlas/stable/reference/sbom/">
+        <link rel="canonical" href="https://fortigi.github.io/IdentityAtlas/stable/contributing/writing-tests-that-assert/">
       
       
-        <link rel="prev" href="../../architecture/csv-import-schema/">
+        <link rel="prev" href="../../sync/building-a-crawler/">
       
       
-        <link rel="next" href="../coverage/">
+        <link rel="next" href="../style-guide/">
       
       
         
@@ -27,7 +27,7 @@
     
     
       
-        <title>Software Bill of Materials - Identity Atlas</title>
+        <title>Writing Tests That Assert - Identity Atlas</title>
       
     
     
@@ -74,7 +74,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#software-bill-of-materials-sbom" class="md-skip">
+        <a href="#writing-tests-that-actually-assert" class="md-skip">
           Skip to content
         </a>
       
@@ -113,7 +113,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Software Bill of Materials
+              Writing Tests That Assert
             
           </span>
         </div>
@@ -337,8 +337,6 @@
   
   
   
-    
-  
   
     
     
@@ -346,12 +344,10 @@
   
   
   
-    
-  
   
     
     
-      <li class="md-tabs__item md-tabs__item--active">
+      <li class="md-tabs__item">
         <a href="../../api/" class="md-tabs__link">
           
   
@@ -371,6 +367,8 @@
   
   
   
+    
+  
   
     
     
@@ -378,11 +376,13 @@
   
   
   
+    
+  
   
     
     
-      <li class="md-tabs__item">
-        <a href="../../contributing/report-an-issue/" class="md-tabs__link">
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../report-an-issue/" class="md-tabs__link">
           
   
   
@@ -2254,7 +2254,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../troubleshooting/" class="md-nav__link">
+      <a href="../../reference/troubleshooting/" class="md-nav__link">
         
   
   
@@ -2286,31 +2286,26 @@
       
   
   
-    
   
   
-  
     
     
     
     
-      
-        
-        
       
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
         
           
-          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
             
   
   
@@ -2328,7 +2323,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_6">
             <span class="md-nav__icon md-icon"></span>
             
@@ -2352,20 +2347,17 @@
       
       
         
-          
-          
-        
       
     
     
-    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
         <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_1" >
         
           
-          <label class="md-nav__link" for="__nav_6_1" id="__nav_6_1_label" tabindex="">
+          <label class="md-nav__link" for="__nav_6_1" id="__nav_6_1_label" tabindex="0">
             
   
   
@@ -2577,7 +2569,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../config/" class="md-nav__link">
+      <a href="../../reference/config/" class="md-nav__link">
         
   
   
@@ -2605,7 +2597,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../permissions/" class="md-nav__link">
+      <a href="../../reference/permissions/" class="md-nav__link">
         
   
   
@@ -2633,7 +2625,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../sql-views/" class="md-nav__link">
+      <a href="../../reference/sql-views/" class="md-nav__link">
         
   
   
@@ -2686,37 +2678,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Software Bill of Materials
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../../reference/sbom/" class="md-nav__link">
         
   
   
@@ -2732,358 +2697,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#infrastructure-components" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Infrastructure Components
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#api-backend-nodejs" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        API Backend (Node.js)
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="API Backend (Node.js)">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#core-dependencies" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Core Dependencies
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#security-authentication" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Security &amp; Authentication
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#file-handling-documentation" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        File Handling &amp; Documentation
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#data-export" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Data Export
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#development-testing" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Development &amp; Testing
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#frontend-react" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Frontend (React)
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Frontend (React)">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#core-framework" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Core Framework
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#styling" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Styling
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#authentication-authorization" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Authentication &amp; Authorization
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#ui-interactions" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        UI Interactions
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#data-export_1" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Data Export
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#development-testing_1" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Development &amp; Testing
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#documentation-toolchain-python" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Documentation Toolchain (Python)
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#powershell-module" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        PowerShell Module
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="PowerShell Module">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#module-information" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Module Information
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#runtime-requirements" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Runtime Requirements
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#function-categories" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Function Categories
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#external-api-dependencies" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        External API Dependencies
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#docker-images" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Docker Images
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#security-considerations" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Security Considerations
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Security Considerations">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#credential-storage" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Credential Storage
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#network-exposure" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Network Exposure
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#data-privacy" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Data Privacy
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#license-summary" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        License Summary
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#version-information" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Version Information
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#updates-and-maintenance" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Updates and Maintenance
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -3096,7 +2709,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../coverage/" class="md-nav__link">
+      <a href="../../reference/coverage/" class="md-nav__link">
         
   
   
@@ -3130,20 +2743,17 @@
       
       
         
-          
-          
-        
       
     
     
-    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
         <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_8" >
         
           
-          <label class="md-nav__link" for="__nav_6_8" id="__nav_6_8_label" tabindex="">
+          <label class="md-nav__link" for="__nav_6_8" id="__nav_6_8_label" tabindex="0">
             
   
   
@@ -3499,26 +3109,31 @@
       
   
   
+    
   
   
+  
     
     
     
     
+      
+        
+        
       
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" checked>
         
           
-          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="">
             
   
   
@@ -3536,7 +3151,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_7">
             <span class="md-nav__icon md-icon"></span>
             
@@ -3551,26 +3166,31 @@
                 
   
   
+    
   
   
+  
     
     
     
     
       
       
-        
-      
-    
-    
-    <li class="md-nav__item md-nav__item--nested">
-      
-        
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7_1" >
         
           
-          <label class="md-nav__link" for="__nav_7_1" id="__nav_7_1_label" tabindex="0">
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7_1" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_7_1" id="__nav_7_1_label" tabindex="">
             
   
   
@@ -3588,7 +3208,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_7_1_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_7_1_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_7_1">
             <span class="md-nav__icon md-icon"></span>
             
@@ -3606,7 +3226,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../contributing/report-an-issue/" class="md-nav__link">
+      <a href="../report-an-issue/" class="md-nav__link">
         
   
   
@@ -3634,7 +3254,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../contributing/contribute/" class="md-nav__link">
+      <a href="../contribute/" class="md-nav__link">
         
   
   
@@ -3715,10 +3335,37 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../../contributing/writing-tests-that-assert/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Writing Tests That Assert
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -3734,6 +3381,214 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#the-three-habits-that-matter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The three habits that matter
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#assertions-that-look-strict-and-are-not" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Assertions that look strict and are not
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Assertions that look strict and are not">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#counts-that-mean-at-least" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Counts that mean "at least"
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#size-instead-of-content" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Size instead of content
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#comparisons-neutered-by-the-language" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Comparisons neutered by the language
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fixtures-that-never-reach-the-branch" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fixtures that never reach the branch
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#choosing-inputs-that-discriminate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Choosing inputs that discriminate
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#mutation-testing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Mutation testing
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Mutation testing">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#powershell-psmutant" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PowerShell — PSMutant
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#javascript-stryker" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        JavaScript — Stryker
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#a-worked-example-of-why-coverage-is-not-enough" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A worked example of why coverage is not enough
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#writing-an-exclusion-reason" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Writing an exclusion reason
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pester-traps-specific-to-this-repo" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pester traps specific to this repo
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#assumptions-worth-checking-before-you-assert" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Assumptions worth checking before you assert
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-guards" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The guards
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#where-the-work-stands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where the work stands
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -3746,7 +3601,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../contributing/style-guide/" class="md-nav__link">
+      <a href="../style-guide/" class="md-nav__link">
         
   
   
@@ -3774,7 +3629,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../contributing/ci-pipeline/" class="md-nav__link">
+      <a href="../ci-pipeline/" class="md-nav__link">
         
   
   
@@ -4012,17 +3867,20 @@
       
       
         
+          
+          
+        
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
       
         
         
         <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7_2" >
         
           
-          <label class="md-nav__link" for="__nav_7_2" id="__nav_7_2_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_7_2" id="__nav_7_2_label" tabindex="">
             
   
   
@@ -4296,17 +4154,20 @@
       
       
         
+          
+          
+        
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
       
         
         
         <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7_3" >
         
           
-          <label class="md-nav__link" for="__nav_7_3" id="__nav_7_3_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_7_3" id="__nav_7_3_label" tabindex="">
             
   
   
@@ -4524,17 +4385,20 @@
       
       
         
+          
+          
+        
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
       
         
         
         <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7_4" >
         
           
-          <label class="md-nav__link" for="__nav_7_4" id="__nav_7_4_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_7_4" id="__nav_7_4_label" tabindex="">
             
   
   
@@ -4913,10 +4777,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#infrastructure-components" class="md-nav__link">
+  <a href="#the-three-habits-that-matter" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Infrastructure Components
+        The three habits that matter
       
     </span>
   </a>
@@ -4924,22 +4788,22 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#api-backend-nodejs" class="md-nav__link">
+  <a href="#assertions-that-look-strict-and-are-not" class="md-nav__link">
     <span class="md-ellipsis">
       
-        API Backend (Node.js)
+        Assertions that look strict and are not
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="API Backend (Node.js)">
+    <nav class="md-nav" aria-label="Assertions that look strict and are not">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#core-dependencies" class="md-nav__link">
+  <a href="#counts-that-mean-at-least" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Core Dependencies
+        Counts that mean "at least"
       
     </span>
   </a>
@@ -4947,10 +4811,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#security-authentication" class="md-nav__link">
+  <a href="#size-instead-of-content" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Security &amp; Authentication
+        Size instead of content
       
     </span>
   </a>
@@ -4958,32 +4822,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#file-handling-documentation" class="md-nav__link">
+  <a href="#comparisons-neutered-by-the-language" class="md-nav__link">
     <span class="md-ellipsis">
       
-        File Handling &amp; Documentation
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#data-export" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Data Export
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#development-testing" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Development &amp; Testing
+        Comparisons neutered by the language
       
     </span>
   </a>
@@ -4996,22 +4838,44 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#frontend-react" class="md-nav__link">
+  <a href="#fixtures-that-never-reach-the-branch" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Frontend (React)
+        Fixtures that never reach the branch
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Frontend (React)">
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#choosing-inputs-that-discriminate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Choosing inputs that discriminate
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#mutation-testing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Mutation testing
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Mutation testing">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#core-framework" class="md-nav__link">
+  <a href="#powershell-psmutant" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Core Framework
+        PowerShell — PSMutant
       
     </span>
   </a>
@@ -5019,10 +4883,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#styling" class="md-nav__link">
+  <a href="#javascript-stryker" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Styling
+        JavaScript — Stryker
       
     </span>
   </a>
@@ -5030,43 +4894,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#authentication-authorization" class="md-nav__link">
+  <a href="#a-worked-example-of-why-coverage-is-not-enough" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Authentication &amp; Authorization
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#ui-interactions" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        UI Interactions
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#data-export_1" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Data Export
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#development-testing_1" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Development &amp; Testing
+        A worked example of why coverage is not enough
       
     </span>
   </a>
@@ -5079,10 +4910,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#documentation-toolchain-python" class="md-nav__link">
+  <a href="#writing-an-exclusion-reason" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Documentation Toolchain (Python)
+        Writing an exclusion reason
       
     </span>
   </a>
@@ -5090,60 +4921,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#powershell-module" class="md-nav__link">
+  <a href="#pester-traps-specific-to-this-repo" class="md-nav__link">
     <span class="md-ellipsis">
       
-        PowerShell Module
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="PowerShell Module">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#module-information" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Module Information
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#runtime-requirements" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Runtime Requirements
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#function-categories" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Function Categories
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#external-api-dependencies" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        External API Dependencies
+        Pester traps specific to this repo
       
     </span>
   </a>
@@ -5151,10 +4932,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#docker-images" class="md-nav__link">
+  <a href="#assumptions-worth-checking-before-you-assert" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Docker Images
+        Assumptions worth checking before you assert
       
     </span>
   </a>
@@ -5162,60 +4943,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#security-considerations" class="md-nav__link">
+  <a href="#the-guards" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Security Considerations
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Security Considerations">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#credential-storage" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Credential Storage
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#network-exposure" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Network Exposure
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#data-privacy" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Data Privacy
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#license-summary" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        License Summary
+        The guards
       
     </span>
   </a>
@@ -5223,21 +4954,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#version-information" class="md-nav__link">
+  <a href="#where-the-work-stands" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Version Information
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#updates-and-maintenance" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Updates and Maintenance
+        Where the work stands
       
     </span>
   </a>
@@ -5292,10 +5012,10 @@
     
     
       <li class="md-path__item">
-        <a href="../../api/" class="md-path__link">
+        <a href="../report-an-issue/" class="md-path__link">
           
   <span class="md-ellipsis">
-    Reference
+    Project
   </span>
 
         </a>
@@ -5303,6 +5023,24 @@
     
   
 
+    
+  
+
+      
+        
+  
+  
+    
+    
+      <li class="md-path__item">
+        <a href="../report-an-issue/" class="md-path__link">
+          
+  <span class="md-ellipsis">
+    Contributing
+  </span>
+
+        </a>
+      </li>
     
   
 
@@ -5320,677 +5058,338 @@
   
 
 
-<h1 id="software-bill-of-materials-sbom">Software Bill of Materials (SBOM)<a class="headerlink" href="#software-bill-of-materials-sbom" title="Permanent link">&para;</a></h1>
-<p>This document lists all major software components, dependencies, and infrastructure elements that comprise Identity Atlas.</p>
+<h1 id="writing-tests-that-actually-assert">Writing tests that actually assert<a class="headerlink" href="#writing-tests-that-actually-assert" title="Permanent link">&para;</a></h1>
+<p>Line coverage cannot tell a real assertion from an empty one. Everything on this
+page was found in this repository under green coverage, and every rule here
+exists because something got through.</p>
+<p>This is a working guide, not a history. Defects that have been fixed are not
+listed — the rules they produced are.</p>
 <hr />
-<h2 id="infrastructure-components">Infrastructure Components<a class="headerlink" href="#infrastructure-components" title="Permanent link">&para;</a></h2>
-<table>
-<thead>
-<tr>
-<th>Component</th>
-<th>Version</th>
-<th>Purpose</th>
-<th>License</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>PostgreSQL</td>
-<td>16-alpine</td>
-<td>Database server</td>
-<td>PostgreSQL License</td>
-</tr>
-<tr>
-<td>PowerShell</td>
-<td>7.5 (ubuntu-24.04)</td>
-<td>Crawler runtime and scripting engine</td>
-<td>MIT</td>
-</tr>
-<tr>
-<td>Node.js</td>
-<td>24-slim</td>
-<td>API server runtime</td>
-<td>MIT</td>
-</tr>
-<tr>
-<td>Docker</td>
-<td>20.10+ (required)</td>
-<td>Container orchestration</td>
-<td>Apache 2.0</td>
-</tr>
-</tbody>
-</table>
+<h2 id="the-three-habits-that-matter">The three habits that matter<a class="headerlink" href="#the-three-habits-that-matter" title="Permanent link">&para;</a></h2>
+<ol>
+<li><strong>Assert what was computed, not that something ran.</strong> Counts, call tallies and
+   "did not throw" are cheap and blind.</li>
+<li><strong>Choose inputs that would change the answer if the logic were subtly wrong.</strong>
+   Exercising a branch is not the same as separating it from a wrong version of
+   that branch.</li>
+<li><strong>State what a number measured over.</strong> A score covering part of a codebase,
+   printed next to a whole-codebase figure, will be read as whole-codebase.</li>
+</ol>
 <hr />
-<h2 id="api-backend-nodejs">API Backend (Node.js)<a class="headerlink" href="#api-backend-nodejs" title="Permanent link">&para;</a></h2>
-<h3 id="core-dependencies">Core Dependencies<a class="headerlink" href="#core-dependencies" title="Permanent link">&para;</a></h3>
-<table>
-<thead>
-<tr>
-<th>Package</th>
-<th>Version</th>
-<th>Purpose</th>
-<th>License</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>express</td>
-<td>^5.2.1</td>
-<td>Web application framework</td>
-<td>MIT</td>
-</tr>
-<tr>
-<td>pg</td>
-<td>^8.23.0</td>
-<td>PostgreSQL client</td>
-<td>MIT</td>
-</tr>
-<tr>
-<td>pg-copy-streams</td>
-<td>^7.0.0</td>
-<td>High-performance bulk import</td>
-<td>MIT</td>
-</tr>
-<tr>
-<td>ajv</td>
-<td>^8.20.0</td>
-<td>JSON Schema validation for crawler configs</td>
-<td>MIT</td>
-</tr>
-<tr>
-<td>re2</td>
-<td>^1.26.1</td>
-<td>Safe regex engine (ReDoS protection)</td>
-<td>BSD-3-Clause</td>
-</tr>
-</tbody>
-</table>
-<h3 id="security-authentication">Security &amp; Authentication<a class="headerlink" href="#security-authentication" title="Permanent link">&para;</a></h3>
-<table>
-<thead>
-<tr>
-<th>Package</th>
-<th>Version</th>
-<th>Purpose</th>
-<th>License</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>helmet</td>
-<td>^8.3.0</td>
-<td>Security headers middleware</td>
-<td>MIT</td>
-</tr>
-<tr>
-<td>express-rate-limit</td>
-<td>^8.6.2</td>
-<td>Rate limiting protection</td>
-<td>MIT</td>
-</tr>
-<tr>
-<td>cors</td>
-<td>^2.8.5</td>
-<td>Cross-Origin Resource Sharing</td>
-<td>MIT</td>
-</tr>
-<tr>
-<td>jsonwebtoken</td>
-<td>^9.0.2</td>
-<td>JWT token validation</td>
-<td>MIT</td>
-</tr>
-<tr>
-<td>jwks-rsa</td>
-<td>^4.1.0</td>
-<td>JWKS key retrieval for Entra ID</td>
-<td>MIT</td>
-</tr>
-</tbody>
-</table>
-<h3 id="file-handling-documentation">File Handling &amp; Documentation<a class="headerlink" href="#file-handling-documentation" title="Permanent link">&para;</a></h3>
-<table>
-<thead>
-<tr>
-<th>Package</th>
-<th>Version</th>
-<th>Purpose</th>
-<th>License</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>multer</td>
-<td>^2.1.1</td>
-<td>CSV upload handling</td>
-<td>MIT</td>
-</tr>
-<tr>
-<td>swagger-ui-express</td>
-<td>^5.0.1</td>
-<td>API documentation UI</td>
-<td>Apache 2.0</td>
-</tr>
-<tr>
-<td>yamljs</td>
-<td>^0.3.0</td>
-<td>YAML parsing for OpenAPI specs</td>
-<td>MIT</td>
-</tr>
-</tbody>
-</table>
-<h3 id="data-export">Data Export<a class="headerlink" href="#data-export" title="Permanent link">&para;</a></h3>
-<table>
-<thead>
-<tr>
-<th>Package</th>
-<th>Version</th>
-<th>Purpose</th>
-<th>License</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>exceljs</td>
-<td>^4.4.0</td>
-<td>Excel spreadsheet generation</td>
-<td>MIT</td>
-</tr>
-</tbody>
-</table>
-<h3 id="development-testing">Development &amp; Testing<a class="headerlink" href="#development-testing" title="Permanent link">&para;</a></h3>
-<table>
-<thead>
-<tr>
-<th>Package</th>
-<th>Version</th>
-<th>Purpose</th>
-<th>License</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>vitest</td>
-<td>^4.1.10</td>
-<td>Unit testing framework</td>
-<td>MIT</td>
-</tr>
-<tr>
-<td>supertest</td>
-<td>^7.2.2</td>
-<td>HTTP integration testing</td>
-<td>MIT</td>
-</tr>
-<tr>
-<td>eslint</td>
-<td>^10.8.1</td>
-<td>JavaScript linter</td>
-<td>MIT</td>
-</tr>
-<tr>
-<td>eslint-plugin-security</td>
-<td>^4.0.1</td>
-<td>Security-focused lint rules</td>
-<td>Apache 2.0</td>
-</tr>
-<tr>
-<td>esbuild</td>
-<td>^0.28.2</td>
-<td>Bundler for desktop launcher build</td>
-<td>MIT</td>
-</tr>
-<tr>
-<td>patch-package</td>
-<td>^8.0.1</td>
-<td>Patch third-party packages</td>
-<td>MIT</td>
-</tr>
-</tbody>
-</table>
-<hr />
-<h2 id="frontend-react">Frontend (React)<a class="headerlink" href="#frontend-react" title="Permanent link">&para;</a></h2>
-<h3 id="core-framework">Core Framework<a class="headerlink" href="#core-framework" title="Permanent link">&para;</a></h3>
-<table>
-<thead>
-<tr>
-<th>Package</th>
-<th>Version</th>
-<th>Purpose</th>
-<th>License</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>react</td>
-<td>^19.2.8</td>
-<td>UI framework</td>
-<td>MIT</td>
-</tr>
-<tr>
-<td>react-dom</td>
-<td>^19.2.8</td>
-<td>React DOM renderer</td>
-<td>MIT</td>
-</tr>
-<tr>
-<td>vite</td>
-<td>^8.2.1</td>
-<td>Build tool and dev server</td>
-<td>MIT</td>
-</tr>
-</tbody>
-</table>
-<h3 id="styling">Styling<a class="headerlink" href="#styling" title="Permanent link">&para;</a></h3>
-<table>
-<thead>
-<tr>
-<th>Package</th>
-<th>Version</th>
-<th>Purpose</th>
-<th>License</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>tailwindcss</td>
-<td>^4.3.0</td>
-<td>Utility-first CSS framework</td>
-<td>MIT</td>
-</tr>
-<tr>
-<td>@tailwindcss/vite</td>
-<td>^4.3.3</td>
-<td>Vite plugin for Tailwind</td>
-<td>MIT</td>
-</tr>
-</tbody>
-</table>
-<h3 id="authentication-authorization">Authentication &amp; Authorization<a class="headerlink" href="#authentication-authorization" title="Permanent link">&para;</a></h3>
-<table>
-<thead>
-<tr>
-<th>Package</th>
-<th>Version</th>
-<th>Purpose</th>
-<th>License</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>@azure/msal-browser</td>
-<td>^5.18.0</td>
-<td>Microsoft Authentication Library</td>
-<td>MIT</td>
-</tr>
-</tbody>
-</table>
-<h3 id="ui-interactions">UI Interactions<a class="headerlink" href="#ui-interactions" title="Permanent link">&para;</a></h3>
-<table>
-<thead>
-<tr>
-<th>Package</th>
-<th>Version</th>
-<th>Purpose</th>
-<th>License</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>@dnd-kit/core</td>
-<td>^6.3.1</td>
-<td>Drag-and-drop core</td>
-<td>MIT</td>
-</tr>
-<tr>
-<td>@dnd-kit/modifiers</td>
-<td>^9.0.0</td>
-<td>DnD position modifiers</td>
-<td>MIT</td>
-</tr>
-<tr>
-<td>@dnd-kit/sortable</td>
-<td>^10.0.0</td>
-<td>Sortable list implementation</td>
-<td>MIT</td>
-</tr>
-<tr>
-<td>@dnd-kit/utilities</td>
-<td>^3.2.2</td>
-<td>DnD utility functions</td>
-<td>MIT</td>
-</tr>
-<tr>
-<td>@tanstack/react-virtual</td>
-<td>^3.14.9</td>
-<td>Virtual scrolling for large tables</td>
-<td>MIT</td>
-</tr>
-</tbody>
-</table>
-<h3 id="data-export_1">Data Export<a class="headerlink" href="#data-export_1" title="Permanent link">&para;</a></h3>
-<table>
-<thead>
-<tr>
-<th>Package</th>
-<th>Version</th>
-<th>Purpose</th>
-<th>License</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>exceljs</td>
-<td>^4.4.0</td>
-<td>Excel spreadsheet generation</td>
-<td>MIT</td>
-</tr>
-</tbody>
-</table>
-<h3 id="development-testing_1">Development &amp; Testing<a class="headerlink" href="#development-testing_1" title="Permanent link">&para;</a></h3>
-<table>
-<thead>
-<tr>
-<th>Package</th>
-<th>Version</th>
-<th>Purpose</th>
-<th>License</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>@vitejs/plugin-react</td>
-<td>^6.0.5</td>
-<td>Vite React plugin</td>
-<td>MIT</td>
-</tr>
-<tr>
-<td>eslint</td>
-<td>^10.8.1</td>
-<td>JavaScript linter</td>
-<td>MIT</td>
-</tr>
-<tr>
-<td>eslint-plugin-react-hooks</td>
-<td>^7.1.1</td>
-<td>React hooks linting rules</td>
-<td>MIT</td>
-</tr>
-<tr>
-<td>eslint-plugin-react-refresh</td>
-<td>^0.5.3</td>
-<td>React refresh linting</td>
-<td>MIT</td>
-</tr>
-<tr>
-<td>globals</td>
-<td>^17.9.0</td>
-<td>Global variable definitions</td>
-<td>MIT</td>
-</tr>
-<tr>
-<td>@playwright/test</td>
-<td>^1.62.1</td>
-<td>End-to-end testing framework</td>
-<td>Apache 2.0</td>
-</tr>
-<tr>
-<td>@axe-core/playwright</td>
-<td>^4.12.1</td>
-<td>Accessibility testing</td>
-<td>MPL 2.0</td>
-</tr>
-<tr>
-<td>@eslint/js</td>
-<td>^10.0.1</td>
-<td>ESLint JavaScript rules</td>
-<td>MIT</td>
-</tr>
-<tr>
-<td>@types/react</td>
-<td>^19.2.18</td>
-<td>TypeScript type definitions for React</td>
-<td>MIT</td>
-</tr>
-<tr>
-<td>@types/react-dom</td>
-<td>^19.2.4</td>
-<td>TypeScript type definitions for React DOM</td>
-<td>MIT</td>
-</tr>
-</tbody>
-</table>
-<hr />
-<h2 id="documentation-toolchain-python">Documentation Toolchain (Python)<a class="headerlink" href="#documentation-toolchain-python" title="Permanent link">&para;</a></h2>
-<p>The documentation site is built and versioned from <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/docs/requirements.txt"><code>docs/requirements.txt</code></a>. These packages run only in CI (docs deploy and release packaging) and are never installed into the shipped containers.</p>
-<table>
-<thead>
-<tr>
-<th>Package</th>
-<th>Version</th>
-<th>Purpose</th>
-<th>License</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>mkdocs</td>
-<td>1.6.1</td>
-<td>Static documentation site generator</td>
-<td>BSD-2-Clause</td>
-</tr>
-<tr>
-<td>mkdocs-material</td>
-<td>9.7.6</td>
-<td>Material for MkDocs — docs site theme and UI</td>
-<td>MIT</td>
-</tr>
-<tr>
-<td>mike</td>
-<td>2.2.0</td>
-<td>Versioned docs deployment (edge / stable)</td>
-<td>BSD-3-Clause</td>
-</tr>
-</tbody>
-</table>
-<hr />
-<h2 id="powershell-module">PowerShell Module<a class="headerlink" href="#powershell-module" title="Permanent link">&para;</a></h2>
-<h3 id="module-information">Module Information<a class="headerlink" href="#module-information" title="Permanent link">&para;</a></h3>
-<table>
-<thead>
-<tr>
-<th>Property</th>
-<th>Value</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Module Name</td>
-<td>IdentityAtlas (formerly FortigiGraph)</td>
-</tr>
-<tr>
-<td>Author</td>
-<td>Wim van den Heijkant</td>
-</tr>
-<tr>
-<td>Company</td>
-<td>Fortigi</td>
-</tr>
-<tr>
-<td>License</td>
-<td>MIT</td>
-</tr>
-<tr>
-<td>Repository</td>
-<td><a href="https://github.com/Fortigi/IdentityAtlas">github.com/Fortigi/IdentityAtlas</a></td>
-</tr>
-<tr>
-<td>Distribution</td>
-<td><a href="https://www.powershellgallery.com">PowerShell Gallery</a></td>
-</tr>
-</tbody>
-</table>
-<h3 id="runtime-requirements">Runtime Requirements<a class="headerlink" href="#runtime-requirements" title="Permanent link">&para;</a></h3>
-<ul>
-<li>PowerShell 7.0 or later (recommended: 7.4+)</li>
-<li>No external PowerShell module dependencies (all functionality is self-contained)</li>
-</ul>
-<h3 id="function-categories">Function Categories<a class="headerlink" href="#function-categories" title="Permanent link">&para;</a></h3>
-<table>
-<thead>
-<tr>
-<th>Category</th>
-<th>Count</th>
-<th>Purpose</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Base</td>
-<td>22</td>
-<td>Authentication, HTTP operations, token management</td>
-</tr>
-<tr>
-<td>Generic</td>
-<td>49</td>
-<td>Microsoft Graph API CRUD operations</td>
-</tr>
-<tr>
-<td>Sync</td>
-<td>32</td>
-<td>High-performance data synchronization</td>
-</tr>
-<tr>
-<td>SQL</td>
-<td>31</td>
-<td>Database operations (legacy, not used in Docker)</td>
-</tr>
-<tr>
-<td>Specific</td>
-<td>9</td>
-<td>High-level idempotent helpers</td>
-</tr>
-<tr>
-<td>RiskScoring</td>
-<td>17</td>
-<td>LLM-assisted risk profiling and scoring</td>
-</tr>
-</tbody>
-</table>
-<hr />
-<h2 id="external-api-dependencies">External API Dependencies<a class="headerlink" href="#external-api-dependencies" title="Permanent link">&para;</a></h2>
-<p>Identity Atlas integrates with the following external services:</p>
-<table>
-<thead>
-<tr>
-<th>Service</th>
-<th>Purpose</th>
-<th>Authentication</th>
-<th>Optional/Required</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Microsoft Graph API</td>
-<td>Entra ID data synchronization</td>
-<td>Service Principal (OAuth 2.0)</td>
-<td>Optional (configured per crawler)</td>
-</tr>
-<tr>
-<td>Anthropic Claude API</td>
-<td>LLM-based risk profiling</td>
-<td>API key</td>
-<td>Optional (for risk scoring)</td>
-</tr>
-<tr>
-<td>OpenAI API</td>
-<td>LLM-based risk profiling</td>
-<td>API key</td>
-<td>Optional (for risk scoring)</td>
-</tr>
-<tr>
-<td>Azure OpenAI</td>
-<td>LLM-based risk profiling</td>
-<td>API key + endpoint</td>
-<td>Optional (for risk scoring)</td>
-</tr>
-</tbody>
-</table>
-<hr />
-<h2 id="docker-images">Docker Images<a class="headerlink" href="#docker-images" title="Permanent link">&para;</a></h2>
-<p>Identity Atlas distributes pre-built Docker images via GitHub Container Registry:</p>
-<table>
-<thead>
-<tr>
-<th>Image</th>
-<th>Base</th>
-<th>Size (approx)</th>
-<th>Purpose</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>ghcr.io/fortigi/identity-atlas:latest</code></td>
-<td>node:24-slim</td>
-<td>~500 MB</td>
-<td>Web server (API + frontend)</td>
-</tr>
-<tr>
-<td><code>ghcr.io/fortigi/identity-atlas-worker:latest</code></td>
-<td>mcr.microsoft.com/powershell:7.5-ubuntu-24.04</td>
-<td>~350 MB</td>
-<td>PowerShell crawler worker</td>
-</tr>
-</tbody>
-</table>
-<hr />
-<h2 id="security-considerations">Security Considerations<a class="headerlink" href="#security-considerations" title="Permanent link">&para;</a></h2>
-<h3 id="credential-storage">Credential Storage<a class="headerlink" href="#credential-storage" title="Permanent link">&para;</a></h3>
-<ul>
-<li><strong>Secrets vault</strong>: All sensitive credentials (LLM API keys, scraper credentials) are stored encrypted in the PostgreSQL <code>Secrets</code> table using AES-256-GCM with envelope encryption</li>
-<li><strong>Master key</strong>: The <code>IDENTITY_ATLAS_MASTER_KEY</code> environment variable controls the root encryption key; if unset, a key is auto-generated and persisted to the <code>job_data</code> volume</li>
-<li><strong>PostgreSQL password</strong>: Default password is for local evaluation only; production deployments must set <code>POSTGRES_PASSWORD</code> explicitly</li>
-</ul>
-<h3 id="network-exposure">Network Exposure<a class="headerlink" href="#network-exposure" title="Permanent link">&para;</a></h3>
-<ul>
-<li><strong>Default ports</strong>: PostgreSQL (5432), Web UI/API (3001)</li>
-<li><strong>Production recommendations</strong>: </li>
-<li>Use TLS termination proxy (nginx, Traefik) in front of the web container</li>
-<li>Restrict PostgreSQL port to localhost or internal network only</li>
-<li>Set <code>AUTH_ENABLED=true</code> for Entra ID authentication in multi-user environments</li>
-</ul>
-<h3 id="data-privacy">Data Privacy<a class="headerlink" href="#data-privacy" title="Permanent link">&para;</a></h3>
-<ul>
-<li><strong>LLM risk profiling</strong>: Only organizational context (public domain information) is sent to external LLM providers during profile generation; no user identities, group names, or permission data leaves the environment</li>
-<li><strong>Local scoring</strong>: After profile generation, all risk scoring runs locally against the PostgreSQL database</li>
-</ul>
-<hr />
-<h2 id="license-summary">License Summary<a class="headerlink" href="#license-summary" title="Permanent link">&para;</a></h2>
-<p>All direct dependencies use permissive open-source licenses:</p>
-<ul>
-<li><strong>MIT License</strong>: 95%+ of dependencies</li>
-<li><strong>Apache 2.0</strong>: swagger-ui-express, @playwright/test, eslint-plugin-security</li>
-<li><strong>MPL 2.0</strong>: @axe-core/playwright</li>
-<li><strong>BSD-3-Clause</strong>: re2, mike</li>
-<li><strong>BSD-2-Clause</strong>: mkdocs</li>
-<li><strong>PostgreSQL License</strong>: PostgreSQL server</li>
-</ul>
-<p>Identity Atlas itself is licensed under the <strong>MIT License</strong>. See the repository <code>LICENSE</code> file for full terms.</p>
-<hr />
-<h2 id="version-information">Version Information<a class="headerlink" href="#version-information" title="Permanent link">&para;</a></h2>
-<p>The module version is automatically bumped on every PR merge to <code>main</code>. For the most current dependency versions, see:</p>
-<ul>
-<li>API backend: <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/package.json"><code>app/api/package.json</code></a></li>
-<li>Frontend: <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/ui/package.json"><code>app/ui/package.json</code></a></li>
-<li>Documentation toolchain: <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/docs/requirements.txt"><code>docs/requirements.txt</code></a></li>
-<li>PowerShell module: <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/setup/IdentityAtlas.psd1"><code>setup/IdentityAtlas.psd1</code></a></li>
-</ul>
-<hr />
-<h2 id="updates-and-maintenance">Updates and Maintenance<a class="headerlink" href="#updates-and-maintenance" title="Permanent link">&para;</a></h2>
-<p>Identity Atlas follows semantic versioning with automated version bumping on every PR merge to <code>main</code>. The CI/CD pipeline automatically builds and publishes Docker images with updated dependency versions.</p>
-<p>To check for updates:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>docker-compose.prod.yml<span class="w"> </span>up<span class="w"> </span>-d<span class="w"> </span>--pull<span class="w"> </span>always
+<h2 id="assertions-that-look-strict-and-are-not">Assertions that look strict and are not<a class="headerlink" href="#assertions-that-look-strict-and-are-not" title="Permanent link">&para;</a></h2>
+<h3 id="counts-that-mean-at-least">Counts that mean "at least"<a class="headerlink" href="#counts-that-mean-at-least" title="Permanent link">&para;</a></h3>
+<p>In Pester, <code>Should -Invoke Foo -Times 3</code> means <strong>at least</strong> three times. Only
+<code>-Exactly</code> pins it. (<code>-Times 0</code> is special-cased as exact.)</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">Should</span> <span class="n">-Invoke</span> <span class="nb">Invoke-RestMethod</span> <span class="n">-Exactly</span> <span class="n">1</span>     <span class="c"># a count</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="n">Should</span> <span class="n">-Invoke</span> <span class="nb">Invoke-RestMethod</span>                <span class="c"># deliberately "at least once"</span>
 </code></pre></div>
-<p>For security advisories and CVE notifications, monitor the <a href="https://github.com/Fortigi/IdentityAtlas/security/advisories">GitHub Security Advisories</a> page.</p>
+<p>If you genuinely want at-least, omit <code>-Times</code> — that reads honestly.</p>
+<blockquote>
+<p>Guarded by <code>test/unit/PesterAssertionQuality.Tests.ps1</code>, which holds the count
+of bare <code>-Times</code> at <strong>0</strong>. Lower the baseline, never raise it.</p>
+</blockquote>
+<p>In Vitest the naming is honest: <code>toHaveBeenCalled()</code> says at-least-once and
+claims nothing more. <code>toHaveBeenCalledTimes(n)</code> is exact.</p>
+<h3 id="size-instead-of-content">Size instead of content<a class="headerlink" href="#size-instead-of-content" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nv">$ctx</span><span class="p">.</span><span class="n">ContainsEdges</span><span class="p">.</span><span class="n">Count</span> <span class="p">|</span> <span class="n">Should</span> <span class="n">-Be</span> <span class="n">1</span>     <span class="c"># blind to what is in the edge</span>
+</code></pre></div>
+<p>A count cannot see a flag flipped on a record or a field dropped from a
+relationship. In this codebase that matters concretely: an Azure <code>Contains</code> edge
+that loses <code>propagates</code> makes every child scope look unaffected by its parent's
+RBAC assignments, while the count stays correct.</p>
+<p>Assert the fields that carry meaning. The same applies to <code>toHaveLength</code> in the
+JS suites when it is the only assertion in a test.</p>
+<h3 id="comparisons-neutered-by-the-language">Comparisons neutered by the language<a class="headerlink" href="#comparisons-neutered-by-the-language" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Written</th>
+<th>Why it cannot fail</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>$uri \| Should -Not -BeLike '*?*'</code></td>
+<td><code>?</code> is a single-character <strong>wildcard</strong>; matches any non-empty string</td>
+</tr>
+<tr>
+<td><code>$keys \| Should -Not -Contain "$([char]0xFEFF)name"</code></td>
+<td><code>-contains</code>/<code>-eq</code> are <strong>linguistic</strong>; U+FEFF is ignorable, so it equals <code>"name"</code></td>
+</tr>
+<tr>
+<td><code>$s.Count \| Should -Be 1</code> on an unwrapped single-element list</td>
+<td>PowerShell unwraps one-element collections; a hashtable's <code>.Count</code> is its <strong>key count</strong></td>
+</tr>
+<tr>
+<td><code>-ForEach @($null, 429)</code></td>
+<td>Pester coerces a <code>$null</code> element into a <strong>hashtable binding</strong> — the null case never runs</td>
+</tr>
+<tr>
+<td><code>$PSBoundParameters</code> captured inside a <code>Mock</code> body</td>
+<td>That is the <strong>mock's</strong> binding, not the caller's. Use <code>-ParameterFilter</code></td>
+</tr>
+<tr>
+<td><code>@($x).Count \| Should -Be 0</code></td>
+<td><strong><code>@($null).Count</code> is 1, not 0.</strong> Wrapping null yields a one-element array holding null</td>
+</tr>
+<tr>
+<td><code>[regex]</code>-free <code>Should -BeLike '*[3/10]*'</code></td>
+<td><code>[...]</code> is a wildcard <strong>character class</strong>, so this matches one of <code>3 / 1 0</code>. Use <code>Should -Match ([regex]::Escape(...))</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong><code>@($null).Count == 1</code> deserves its own line</strong> — it caused three separate wrong
+results in one sitting, and each time it read as a real failure rather than a
+broken assertion:</p>
+<ul>
+<li>a guard counting an absent property failed every run that had nothing to report;</li>
+<li>a test asserting "no records were produced" reported one record, because the
+  variable had been assigned <strong>inside</strong> a <code>Should -Not -Throw</code> scriptblock (a child
+  scope), so the outer variable stayed <code>$null</code>;</li>
+<li>a test asserting on <code>$result.MissingSyncKeys</code> — a property that does not
+  exist — counted <code>@($null)</code> and got 1.</li>
+</ul>
+<p>Two habits kill all three: assign outside the scriptblock, and check the shape of
+what a function actually returns before asserting on a property name.</p>
+<hr />
+<h2 id="fixtures-that-never-reach-the-branch">Fixtures that never reach the branch<a class="headerlink" href="#fixtures-that-never-reach-the-branch" title="Permanent link">&para;</a></h2>
+<p>The scenario is set up, never materialises, and the assertion passes down a
+different path. Three shapes to watch for:</p>
+<ul>
+<li><strong>A fixture the reader cannot parse.</strong> Status codes are the usual case: a
+  helper doing <code>[int]$err.Exception.Response.StatusCode</code> gets <code>$null</code> from a
+  <code>{ value__: 429 }</code> shape, and every status-specific branch is skipped in favour
+  of the "no status at all" path. Use
+  <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/test/lib/HttpErrorFixtures.psm1"><code>test/lib/HttpErrorFixtures.psm1</code></a>
+  rather than hand-rolling one — it owns the shapes and asserts they are not
+  interchangeable.</li>
+<li><strong>A guard something else already satisfied.</strong> A single UTF-8 BOM never reaches
+  a BOM-stripping guard, because <code>StreamReader</code> consumes it first.</li>
+<li><strong>A default overridden in every test.</strong> Overriding a retry ladder to <code>@(0)</code> for
+  speed is good practice — but if <em>every</em> test does it, the shipped values have
+  no coverage at all. Add one test that uses the real default.</li>
+</ul>
+<hr />
+<h2 id="choosing-inputs-that-discriminate">Choosing inputs that discriminate<a class="headerlink" href="#choosing-inputs-that-discriminate" title="Permanent link">&para;</a></h2>
+<p>The highest-leverage habit here, and it is measurable. Two batches written
+against the same functions at comparable effort:</p>
+<table>
+<thead>
+<tr>
+<th>batch</th>
+<th>tests</th>
+<th>mutants killed</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>plausible inputs</td>
+<td>14</td>
+<td><strong>2</strong></td>
+</tr>
+<tr>
+<td>discriminating inputs</td>
+<td>13</td>
+<td><strong>9</strong></td>
+</tr>
+</tbody>
+</table>
+<p>The whole difference was the values:</p>
+<ul>
+<li>A <code>-gt 0</code> guard behaves identically at 0 and 3. Only <strong>1</strong> separates it from <code>-gt 1</code>.</li>
+<li>A <code>Count -eq 0</code> guard needs a <strong>one-element</strong> case, not an empty one.</li>
+<li>A chunk size of 1000 needs <strong>1001</strong> items to show the boundary.</li>
+<li><code>Select-Object -First 1</code> looks right on a single-valued header. Only a
+  <strong>two-valued</strong> one distinguishes it from <code>-First 2</code>.</li>
+<li>A precedence rule needs a case carrying <strong>both</strong> keys, where the lower-priority
+  one matches.</li>
+</ul>
+<p>Ask of each test: <em>if this condition were off by one or inverted, would my input
+produce a different result?</em></p>
+<p><strong>Resist calling a survivor "equivalent" before trying.</strong> A boundary that looks
+untestable often is not — an expiry comparison reachable only at the exact
+expiry instant is testable with <code>vi.useFakeTimers()</code>, and it encoded an
+undocumented policy decision (is a token valid <em>at</em> its expiry?).</p>
+<hr />
+<h2 id="mutation-testing">Mutation testing<a class="headerlink" href="#mutation-testing" title="Permanent link">&para;</a></h2>
+<p>Two suites, two tools. Both answer "would a wrong answer be caught?", which
+coverage cannot.</p>
+<h3 id="powershell-psmutant">PowerShell — PSMutant<a class="headerlink" href="#powershell-psmutant" title="Permanent link">&para;</a></h3>
+<p>Config: <code>.ci/psmutant.config.json</code>. Every eligible crawler file must be in
+<code>mutate</code> or in <code>exclusions</code> with a written reason, enforced by
+<code>test/unit/PSMutationScope.Tests.ps1</code>.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>Install-Module<span class="w"> </span>PSMutant<span class="w"> </span>-RequiredVersion<span class="w"> </span><span class="m">0</span>.2.0
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>Invoke-PSMutation<span class="w"> </span>-ConfigFile<span class="w"> </span>.ci/psmutant.config.json<span class="w"> </span>-SourceRoot<span class="w"> </span>.
+</code></pre></div>
+<p><strong>Map a file to the cheapest suite that exercises it.</strong> The mapped tests run once
+per mutant — one mapping to a suite that starts a mock HTTP server took a
+baseline from 10s to 73s and made the run look hung.</p>
+<p><strong>Re-check survivors instead of re-running everything.</strong> Killing survivors is an
+edit-run-edit loop, and re-running the mutants you already killed is most of the
+wait:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>Invoke-PSMutation<span class="w"> </span>-ConfigFile<span class="w"> </span>.ci/psmutant.config.json<span class="w"> </span>-SourceRoot<span class="w"> </span>.<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">    </span>-RecheckFrom<span class="w"> </span>reports/ps-mutation.json
+</code></pre></div>
+<p>It reports counts, never a score — the set is filtered, so no percentage over it
+means anything — and writes to <code>*.recheck.json</code> so it cannot overwrite the
+baseline. It refuses outright if the mutated source or the operator set changed,
+because mutants are matched by AST-walk position. <strong>Finish with a full run before
+trusting a number</strong>: a recheck is sound only for <em>added</em> assertions, since editing
+an existing test can revive a mutant it never evaluates.</p>
+<p><strong>A mutant that provably cannot change behaviour can be declared</strong>, with a reason,
+in the config's <code>equivalents</code> map. The declaration is checked, not merely
+recorded: the run fails if a declared mutant is ever killed, or if it stops
+existing. Nothing in this repo is declared yet — the remaining survivors here are
+progress percentages and log constants, and leaving them visible is honest.</p>
+<h3 id="javascript-stryker">JavaScript — Stryker<a class="headerlink" href="#javascript-stryker" title="Permanent link">&para;</a></h3>
+<p>Config: <code>app/api/stryker.auth.config.json</code>. Run it via the npm script:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nb">cd</span><span class="w"> </span>app/api<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>npm<span class="w"> </span>run<span class="w"> </span>test:mutation
+</code></pre></div>
+<p>Use the script, not <code>npx stryker</code> — npx can resolve the <strong>deprecated standalone
+<code>stryker</code> package</strong> from its cache instead of the installed
+<code>@stryker-mutator/core</code>, failing with <code>Cannot find module 'rx'</code>.</p>
+<p>Two constraints worth knowing before you widen the scope:</p>
+<ul>
+<li><strong>Stryker sandboxes <code>app/api</code> alone.</strong> Any test reading the real filesystem —
+  an upload path, or the crawler manifests at <code>../../tools/crawlers</code> — resolves
+  nothing in the sandbox, fails the dry run, and aborts the whole run before a
+  single mutant is evaluated. <code>vitest.stryker.config.js</code> narrows the include for
+  this reason. Prefer a narrow include over a growing exclude list: an excluded
+  test that happened to be a mutant's only killer becomes a <strong>false survivor</strong>,
+  and a wrong number is worse than a smaller true one.</li>
+<li><strong><code>StringLiteral</code> and <code>ObjectLiteral</code> are disabled.</strong> On a module that is
+  largely a catalog of labels and descriptions, mutating that text produced 68 of
+  72 survivors and pulled the score to 32.7% while saying nothing about
+  behaviour. With them off the same file scores 100%, and the number means "did a
+  wrong <em>decision</em> get caught". The cost: SQL strings are not mutated either, so
+  this cannot tell you a query is correct — that stays the contract tests' job
+  (the unit mocks are SQL-blind by design; see <code>app/api/CLAUDE.md</code>).</li>
+</ul>
+<h3 id="a-worked-example-of-why-coverage-is-not-enough">A worked example of why coverage is not enough<a class="headerlink" href="#a-worked-example-of-why-coverage-is-not-enough" title="Permanent link">&para;</a></h3>
+<p><code>src/auth/permissions.js</code> sat at <strong>100% line, branch and function coverage</strong> and
+scored <strong>32.7%</strong> under mutation. Four of its survivors were real, two of them
+authorization behaviour:</p>
+<ul>
+<li><code>Admin: ['*']</code> — the wildcard is what lets a newly added permission reach the
+  admin role. Nothing asserted it, so replacing it with <code>[]</code> survived.</li>
+<li><code>mapping?.[role]</code> — the optional chain is load-bearing. Without it a tenant
+  whose role mapping is not yet configured gets a <strong>throw instead of an empty
+  permission set</strong>, turning "no permissions" into a 500 on every authenticated
+  request.</li>
+</ul>
+<p>Both are now tested. The credential path is at <strong>100%</strong> mutation score.</p>
+<hr />
+<h2 id="writing-an-exclusion-reason">Writing an exclusion reason<a class="headerlink" href="#writing-an-exclusion-reason" title="Permanent link">&para;</a></h2>
+<p><code>exclusions</code> demands a reason, which is right, and has one sharp edge:</p>
+<blockquote>
+<p><strong>A reason that sounds authoritative is harder to dislodge than a blank one.</strong></p>
+</blockquote>
+<p>Reasons in this repo have been wrong because they were reasoned rather than
+measured — a cause blamed on assertion style that turned out to move a score by
+<strong>0.0 points</strong>, a count of "five" cases where there were eight, a claim that a
+layer was structurally untestable when it held 158 named functions and 263
+existing tests.</p>
+<p><strong>Measure first.</strong> If you have not measured, write exactly that — "not yet
+measured" is honest and invites the check. Every exclusion in the config today
+carries a measured number.</p>
+<hr />
+<h2 id="pester-traps-specific-to-this-repo">Pester traps specific to this repo<a class="headerlink" href="#pester-traps-specific-to-this-repo" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Functions declared in a <code>Describe</code> body only exist during discovery.</strong> Put
+  helpers in <code>BeforeAll</code> or they are <code>CommandNotFound</code> at run time.</li>
+<li><strong><code>Should -Invoke</code> counts accumulate across a whole <code>It</code> block.</strong> A <code>foreach</code>
+  loop comparing a running total per case fails on the second iteration. Use
+  <code>It … -ForEach</code>.</li>
+<li><strong>Loop variables are case-insensitive against mock parameters.</strong> <code>$seconds</code>
+  shadows a mock's <code>$Seconds</code>, so <code>-ParameterFilter { $Seconds -eq $seconds }</code>
+  compares the value to itself and matches everything.</li>
+<li><strong><code>[System.Net.HttpStatusCode]</code> has no member for 499 or 599.</strong> Casting throws;
+  boundary tests for a 5xx range need a plain <code>[int]</code>.</li>
+<li><strong>A blanket regex over a test file edits comments too.</strong> A bulk <code>-Times</code> →
+  <code>-Exactly</code> rewrite silently mangled a doc comment explaining the rule. Use the
+  same predicate in the fixer as in the counter, and read the diff.</li>
+<li><strong>Angle brackets in an <code>It</code> name are a data placeholder.</strong> Pester expands
+  <code>&lt;...&gt;</code> for <code>-ForEach</code>, so <code>It 'attributes it to &lt;script-body&gt;'</code> is parsed as
+  the expression <code>$script-body</code> and the test dies with a token error <em>before it
+  runs</em>. It reads exactly like a broken fixture.</li>
+<li><strong>Only one <code>BeforeEach</code> per block takes effect.</strong> A second one in the same
+  <code>Describe</code> replaces the first, silently dropping its mocks — which surfaces as
+  the real function running and failing on something unrelated.</li>
+</ul>
+<hr />
+<h2 id="assumptions-worth-checking-before-you-assert">Assumptions worth checking before you assert<a class="headerlink" href="#assumptions-worth-checking-before-you-assert" title="Permanent link">&para;</a></h2>
+<p>Every item here was written confidently, run, and turned out to be wrong. The
+pattern is the same each time: an assertion built on a guess about <em>shape</em> or
+<em>mechanism</em> rather than on something observed.</p>
+<ul>
+<li><strong>Does the test file you edited actually cover the mutant?</strong> Mutation maps each
+  source file to named suites. A ternary case added to the wrong suite left the
+  mutant alive while the behaviour was genuinely covered — the test was right and
+  the mapping was not.</li>
+<li><strong>Is the thing you asserted the observable difference?</strong> "The file is unchanged"
+  passed against a mutant that <em>did</em> rewrite the file, because the rewrite
+  reserialised the same object byte-for-byte. The observable difference was
+  whether the write <strong>happened</strong>, so the assertion had to be on the call.</li>
+<li><strong>Is the mutant reachable at all?</strong> Two guards here look like gaps and are
+  equivalent: <code>foreach ($x in $null)</code> is a no-op in PowerShell, so a bail-out
+  before an empty loop changes nothing; and <code>$r -and $r.Count -gt 0</code> differs from
+  <code>-or</code> only when <code>$r</code> is the scalar <code>0</code>. Check before writing the test, and say
+  so in the comment when the answer is "equivalent".</li>
+<li><strong>Does the API behave the way its name suggests?</strong> <code>-Force</code> on one SDK function
+  was declared <code>[string]</code>, so the natural <code>-Force</code> call <em>failed</em> and only
+  <code>-Force 'True'</code> worked. The test found the defect; assuming the signature would
+  have hidden it.</li>
+</ul>
+<hr />
+<h2 id="the-guards">The guards<a class="headerlink" href="#the-guards" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Guard</th>
+<th>Protects</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>test/unit/PesterAssertionQuality.Tests.ps1</code></td>
+<td>Bare <code>-Times</code> ratchet (at 0); the HTTP-fixture contract</td>
+</tr>
+<tr>
+<td><code>test/unit/PSMutationScope.Tests.ps1</code></td>
+<td>Every eligible crawler file mutated or excluded with a reason; every mutated file names a suite that exercises it</td>
+</tr>
+<tr>
+<td><code>test/lib/HttpErrorFixtures.psm1</code></td>
+<td>One owner for HTTP-error shapes</td>
+</tr>
+<tr>
+<td><code>tools/generate-coverage-doc.py</code></td>
+<td>Generates the scope and shape caveats on the coverage page</td>
+</tr>
+<tr>
+<td><code>.ci/psmutant.config.json</code> / <code>app/api/stryker.auth.config.json</code></td>
+<td>The mutation scope declarations</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="where-the-work-stands">Where the work stands<a class="headerlink" href="#where-the-work-stands" title="Permanent link">&para;</a></h2>
+<p><strong>In mutation scope:</strong> the crawler shapers, the shared ingest library, the
+<code>*.Functions.ps1</code> layer, the OData library, the SDK's Graph pager, the
+Azure/midPoint helper clients (23 PowerShell files), and the API credential path
+(100%).</p>
+<p><strong>Open:</strong></p>
+<ul>
+<li><strong>The crawler Phases layer</strong> — five files at <strong>50.1%</strong>, 337 surviving mutants
+  across 158 functions. No single cause; it is sustained test-writing. The
+  technique that moves it is asserting payload content rather than collection
+  counts.</li>
+<li><strong><code>tools/powershell-sdk/</code> and <code>tools/riskscoring/</code></strong> have no eligibility
+  definition, so the scope guard cannot see them.</li>
+<li><strong>The UI suite</strong> has no mutation evidence, and its method coverage (69.2%) sits
+  below its line coverage (80.9%) — the signature of components rendered but
+  never driven.</li>
+</ul>
 
 
 
