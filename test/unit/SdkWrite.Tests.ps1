@@ -36,7 +36,7 @@ Describe 'Add-FGGroupMember' {
         Mock -ModuleName IdentityAtlas Invoke-FGPostRequest { 'ok' }
         $r = Add-FGGroupMember -Id 'g1' -MemberId 'u1'
         $r | Should -Be 'ok'
-        Should -Invoke -ModuleName IdentityAtlas Invoke-FGPostRequest -Times 1 -ParameterFilter {
+        Should -Invoke -ModuleName IdentityAtlas Invoke-FGPostRequest -Exactly 1 -ParameterFilter {
             $URI -like '*groups/g1/members/$ref' -and
             $Body['@odata.id'] -like '*directoryObjects/u1'
         }
@@ -52,8 +52,8 @@ Describe 'Add-FGGroupToAccessPackage' {
         Mock -ModuleName IdentityAtlas Start-Sleep {}
         $r = Add-FGGroupToAccessPackage -AccessPackageID 'ap1' -GroupID 'grp1' -CatalogGroupID 'cat1'
         $r | Should -Be 'rrs'
-        Should -Invoke -ModuleName IdentityAtlas Start-Sleep -Times 1
-        Should -Invoke -ModuleName IdentityAtlas Invoke-FGPostRequest -Times 1 -ParameterFilter {
+        Should -Invoke -ModuleName IdentityAtlas Start-Sleep -Exactly 1
+        Should -Invoke -ModuleName IdentityAtlas Invoke-FGPostRequest -Exactly 1 -ParameterFilter {
             $URI -like "*accessPackages/ap1/accessPackageResourceRoleScopes" -and
             $Body.accessPackageResourceRole.originId -eq 'Member_grp1' -and
             $Body.accessPackageResourceRole.accessPackageResource.id -eq 'cat1' -and
@@ -73,8 +73,8 @@ Describe 'Add-FGGroupToCatalog' {
         Mock -ModuleName IdentityAtlas Get-Group { [pscustomobject]@{ id = 'gid-99' } }
         $r = Add-FGGroupToCatalog -CatalogId 'c1' -GroupName 'My Group'
         $r | Should -Be 'req'
-        Should -Invoke -ModuleName IdentityAtlas Get-Group -Times 1
-        Should -Invoke -ModuleName IdentityAtlas Invoke-FGPostRequest -Times 1 -ParameterFilter {
+        Should -Invoke -ModuleName IdentityAtlas Get-Group -Exactly 1
+        Should -Invoke -ModuleName IdentityAtlas Invoke-FGPostRequest -Exactly 1 -ParameterFilter {
             $URI -like '*accessPackageResourceRequests' -and
             $Body.catalogId -eq 'c1' -and
             $Body.requestType -eq 'AdminAdd' -and
@@ -91,7 +91,7 @@ Describe 'New-FGAccessPackage' {
         Mock -ModuleName IdentityAtlas Invoke-FGPostRequest { 'ap' }
         $r = New-FGAccessPackage -CatalogId 'c1' -DisplayName 'AP' -Description 'desc'
         $r | Should -Be 'ap'
-        Should -Invoke -ModuleName IdentityAtlas Invoke-FGPostRequest -Times 1 -ParameterFilter {
+        Should -Invoke -ModuleName IdentityAtlas Invoke-FGPostRequest -Exactly 1 -ParameterFilter {
             $URI -like '*entitlementManagement/accessPackages' -and
             $Body.catalogId -eq 'c1' -and $Body.displayName -eq 'AP' -and $Body.description -eq 'desc'
         }
@@ -107,7 +107,7 @@ Describe 'New-FGAccessPackagePolicy' {
         $policy = @{ displayName = 'P'; foo = 'bar' }
         $r = New-FGAccessPackagePolicy -Policy $policy
         $r | Should -Be 'pol'
-        Should -Invoke -ModuleName IdentityAtlas Invoke-FGPostRequest -Times 1 -ParameterFilter {
+        Should -Invoke -ModuleName IdentityAtlas Invoke-FGPostRequest -Exactly 1 -ParameterFilter {
             $URI -like '*accessPackageAssignmentPolicies' -and $Body.foo -eq 'bar'
         }
     }
@@ -121,7 +121,7 @@ Describe 'New-FGCatalog' {
         Mock -ModuleName IdentityAtlas Invoke-FGPostRequest { 'cat' }
         $r = New-FGCatalog -CatalogName 'Cat' -Description 'd' -IsExternallyVisible 'false'
         $r | Should -Be 'cat'
-        Should -Invoke -ModuleName IdentityAtlas Invoke-FGPostRequest -Times 1 -ParameterFilter {
+        Should -Invoke -ModuleName IdentityAtlas Invoke-FGPostRequest -Exactly 1 -ParameterFilter {
             $URI -like '*accessPackageCatalogs' -and
             $Body.displayName -eq 'Cat' -and $Body.isExternallyVisible -eq 'false'
         }
@@ -136,7 +136,7 @@ Describe 'New-FGConnectedOrganization' {
         Mock -ModuleName IdentityAtlas Invoke-FGPostRequest { 'org' }
         $r = New-FGConnectedOrganization -DisplayName 'Org' -Description 'd' -DomainName 'contoso.com'
         $r | Should -Be 'org'
-        Should -Invoke -ModuleName IdentityAtlas Invoke-FGPostRequest -Times 1 -ParameterFilter {
+        Should -Invoke -ModuleName IdentityAtlas Invoke-FGPostRequest -Exactly 1 -ParameterFilter {
             $URI -like '*connectedOrganizations/' -and
             $Body.displayName -eq 'Org' -and
             $Body.state -eq 'configured' -and
@@ -154,7 +154,7 @@ Describe 'New-FGGroup' {
         Mock -ModuleName IdentityAtlas Invoke-FGPostRequest { 'grp' }
         $r = New-FGGroup -DisplayName 'My Group'
         $r | Should -Be 'grp'
-        Should -Invoke -ModuleName IdentityAtlas Invoke-FGPostRequest -Times 1 -ParameterFilter {
+        Should -Invoke -ModuleName IdentityAtlas Invoke-FGPostRequest -Exactly 1 -ParameterFilter {
             $URI -like '*beta/groups' -and
             $Body.displayName -eq 'My Group' -and
             $Body.mailNickname -eq 'mygroup' -and
@@ -166,7 +166,7 @@ Describe 'New-FGGroup' {
     It 'honours explicit optional parameters' {
         Mock -ModuleName IdentityAtlas Invoke-FGPostRequest { 'grp2' }
         New-FGGroup -DisplayName 'X' -Description 'hello' -mailEnabled $true -mailNickname 'nick' -SecurityEnabled $false
-        Should -Invoke -ModuleName IdentityAtlas Invoke-FGPostRequest -Times 1 -ParameterFilter {
+        Should -Invoke -ModuleName IdentityAtlas Invoke-FGPostRequest -Exactly 1 -ParameterFilter {
             $Body.description -eq 'hello' -and $Body.mailNickname -eq 'nick' -and
             $Body.mailEnabled -eq $true -and $Body.securityEnabled -eq $false
         }
@@ -181,7 +181,7 @@ Describe 'New-FGServicePrincipalSecret' {
         Mock -ModuleName IdentityAtlas Invoke-FGPostRequest { 'secret' }
         $r = New-FGServicePrincipalSecret -ServicePrincipalObjectID 'sp1'
         $r | Should -Be 'secret'
-        Should -Invoke -ModuleName IdentityAtlas Invoke-FGPostRequest -Times 1 -ParameterFilter {
+        Should -Invoke -ModuleName IdentityAtlas Invoke-FGPostRequest -Exactly 1 -ParameterFilter {
             $URI -like '*servicePrincipals/sp1/addPassword' -and
             $Body.passwordCredential.displayName -like 'Created by*'
         }
@@ -190,7 +190,7 @@ Describe 'New-FGServicePrincipalSecret' {
     It 'uses a supplied secret description' {
         Mock -ModuleName IdentityAtlas Invoke-FGPostRequest { 'secret2' }
         New-FGServicePrincipalSecret -ServicePrincipalObjectID 'sp1' -SecretDescription 'mine'
-        Should -Invoke -ModuleName IdentityAtlas Invoke-FGPostRequest -Times 1 -ParameterFilter {
+        Should -Invoke -ModuleName IdentityAtlas Invoke-FGPostRequest -Exactly 1 -ParameterFilter {
             $Body.passwordCredential.displayName -eq 'mine'
         }
     }
@@ -208,7 +208,7 @@ Describe 'Set-FGAccessPackage' {
         Mock -ModuleName IdentityAtlas Invoke-FGPatchRequest { 'patched' }
         $r = Set-FGAccessPackage -ObjectId 'ap1' -Updates @{ displayName = 'new' }
         $r | Should -Be 'patched'
-        Should -Invoke -ModuleName IdentityAtlas Invoke-FGPatchRequest -Times 1 -ParameterFilter {
+        Should -Invoke -ModuleName IdentityAtlas Invoke-FGPatchRequest -Exactly 1 -ParameterFilter {
             $URI -like '*accessPackages/ap1' -and $Body.displayName -eq 'new'
         }
     }
@@ -222,7 +222,7 @@ Describe 'Set-FGAccessPackagePolicy' {
         Mock -ModuleName IdentityAtlas Invoke-FGPutRequest { 'put' }
         $r = Set-FGAccessPackagePolicy -Policy @{ a = 1 } -PolicyID 'pol1'
         $r | Should -Be 'put'
-        Should -Invoke -ModuleName IdentityAtlas Invoke-FGPutRequest -Times 1 -ParameterFilter {
+        Should -Invoke -ModuleName IdentityAtlas Invoke-FGPutRequest -Exactly 1 -ParameterFilter {
             $URI -like '*accessPackageAssignmentPolicies/pol1' -and $Body.a -eq 1
         }
     }
@@ -236,7 +236,7 @@ Describe 'Set-FGDevice' {
         Mock -ModuleName IdentityAtlas Invoke-FGPatchRequest { 'dev' }
         $r = Set-FGDevice -DeviceId 'd1' -Updates @{ accountEnabled = $false }
         $r | Should -Be 'dev'
-        Should -Invoke -ModuleName IdentityAtlas Invoke-FGPatchRequest -Times 1 -ParameterFilter {
+        Should -Invoke -ModuleName IdentityAtlas Invoke-FGPatchRequest -Exactly 1 -ParameterFilter {
             $URI -like '*beta/devices/d1' -and $Body.accountEnabled -eq $false
         }
     }
@@ -250,7 +250,7 @@ Describe 'Set-FGUser' {
         Mock -ModuleName IdentityAtlas Invoke-FGPatchRequest { 'usr' }
         $r = Set-FGUser -ObjectId 'u1' -Updates @{ jobTitle = 'CEO' }
         $r | Should -Be 'usr'
-        Should -Invoke -ModuleName IdentityAtlas Invoke-FGPatchRequest -Times 1 -ParameterFilter {
+        Should -Invoke -ModuleName IdentityAtlas Invoke-FGPatchRequest -Exactly 1 -ParameterFilter {
             $URI -like '*beta/users/u1' -and $Body.jobTitle -eq 'CEO'
         }
     }
@@ -291,11 +291,11 @@ Describe 'Remove-FGAccessPackage' {
         Mock -ModuleName IdentityAtlas Invoke-FGPostRequest { 'should-not-run' }
         $r = Remove-FGAccessPackage -AccessPackageID 'ap1'
         $r | Should -Be 'deleted'
-        Should -Invoke -ModuleName IdentityAtlas Invoke-FGDeleteRequest -Times 1 -ParameterFilter {
+        Should -Invoke -ModuleName IdentityAtlas Invoke-FGDeleteRequest -Exactly 1 -ParameterFilter {
             $URI -like '*accessPackages/ap1'
         }
-        Should -Invoke -ModuleName IdentityAtlas Invoke-FGGetRequest -Times 0
-        Should -Invoke -ModuleName IdentityAtlas Invoke-FGPostRequest -Times 0
+        Should -Invoke -ModuleName IdentityAtlas Invoke-FGGetRequest -Exactly 0
+        Should -Invoke -ModuleName IdentityAtlas Invoke-FGPostRequest -Exactly 0
     }
 
     It 'with -Force True removes active assignments then DELETEs the package' {
@@ -313,12 +313,12 @@ Describe 'Remove-FGAccessPackage' {
         # final delete result, so the delete result is the last item in $r.
         @($r)[-1] | Should -Be 'deleted'
         # only a1 is active AND belongs to ap1 -> exactly one AdminRemove POST
-        Should -Invoke -ModuleName IdentityAtlas Invoke-FGPostRequest -Times 1 -ParameterFilter {
+        Should -Invoke -ModuleName IdentityAtlas Invoke-FGPostRequest -Exactly 1 -ParameterFilter {
             $URI -like '*assignmentRequests' -and
             $Body.requestType -eq 'AdminRemove' -and
             $Body.assignment.id -eq 'a1'
         }
-        Should -Invoke -ModuleName IdentityAtlas Invoke-FGDeleteRequest -Times 1
+        Should -Invoke -ModuleName IdentityAtlas Invoke-FGDeleteRequest -Exactly 1
     }
 }
 
@@ -330,7 +330,7 @@ Describe 'Remove-FGDevice' {
         Mock -ModuleName IdentityAtlas Invoke-FGDeleteRequest { 'gone' }
         $r = Remove-FGDevice -Id 'd1'
         $r | Should -Be 'gone'
-        Should -Invoke -ModuleName IdentityAtlas Invoke-FGDeleteRequest -Times 1 -ParameterFilter {
+        Should -Invoke -ModuleName IdentityAtlas Invoke-FGDeleteRequest -Exactly 1 -ParameterFilter {
             $URI -like '*beta/devices/d1'
         }
     }
@@ -344,7 +344,7 @@ Describe 'Remove-FGGroupMember' {
         Mock -ModuleName IdentityAtlas Invoke-FGDeleteRequest { 'removed' }
         $r = Remove-FGGroupMember -Id 'g1' -MemberId 'm1'
         $r | Should -Be 'removed'
-        Should -Invoke -ModuleName IdentityAtlas Invoke-FGDeleteRequest -Times 1 -ParameterFilter {
+        Should -Invoke -ModuleName IdentityAtlas Invoke-FGDeleteRequest -Exactly 1 -ParameterFilter {
             $URI -like '*groups/g1/members/m1/$ref'
         }
     }
@@ -472,7 +472,7 @@ Describe 'Update-FGConfig' {
         Mock -ModuleName IdentityAtlas Read-Host { 'N' }
 
         Update-FGConfig -ConfigFile $cfgPath | Out-Null
-        Should -Invoke -ModuleName IdentityAtlas Read-Host -Times 1
+        Should -Invoke -ModuleName IdentityAtlas Read-Host -Exactly 1
     }
 
     It 'truncates a long default preview for a missing Sync sub-key' {
@@ -496,7 +496,7 @@ Describe 'Update-FGConfig' {
         Mock -ModuleName IdentityAtlas Read-Host { 'N' }
 
         Update-FGConfig -ConfigFile $cfgPath | Out-Null
-        Should -Invoke -ModuleName IdentityAtlas Read-Host -Times 1
+        Should -Invoke -ModuleName IdentityAtlas Read-Host -Exactly 1
     }
 
     It 'warns but does not throw when saving the updated config fails' {
@@ -684,7 +684,7 @@ Describe 'Get-FGSecureConfigValue' {
         }
         $val = Get-FGSecureConfigValue -ConfigPath $p -PropertyPath 'Graph.ClientSecret'
         $val | Should -Be 'secondTry'
-        Should -Invoke -ModuleName IdentityAtlas Read-Host -Times 2
+        Should -Invoke -ModuleName IdentityAtlas Read-Host -Exactly 2
     }
 
     It 'removes a pre-existing empty plaintext key when prompting for a new value' {
