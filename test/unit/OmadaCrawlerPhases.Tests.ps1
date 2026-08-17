@@ -32,7 +32,11 @@ BeforeAll {
     $script:JobId      = 0   # Update-CrawlerProgress no-ops when JobId <= 0
     $script:TypeMappings = @{
         contextTypeToIdentityAtlas  = @{ 'OrgUnit' = 'OrgUnit' }
-        identityTypeToIdentityAtlas = @{ Employee = 'User' }
+        # 'Technical' is here to exercise the branch that handles principal types
+        # outside the three built-in ones. Operators can map an Omada identity
+        # type to anything via the crawler's typeMappings override (see
+        # Merge-TypeMappings), so this is a real configuration, not a synthetic one.
+        identityTypeToIdentityAtlas = @{ Employee = 'User'; Technical = 'TechnicalAccount' }
     }
     $script:ResourceCategoryMapping = @(
         @{ category = 'Business Role'; resourceType = 'BusinessRole' }
@@ -275,6 +279,34 @@ Describe 'Sync-OmadaAccounts' {
         @($r.allAccounts).Count | Should -Be 1
         $r.userNameToUid['alice'] | Should -Be 'acc-1'
         @($r.identityUidToUserUids['id-1']) | Should -Be @('acc-1')
+        $script:phaseErrors.Count | Should -Be 0
+    }
+
+    It 'uploads a principal whose type is none of the three built-in ones' {
+        # Accounts are ingested in three fixed buckets (User / ExternalUser /
+        # ServicePrincipal) plus a catch-all for anything an operator's typeMappings
+        # override produces. Every fixture here maps to 'User', so the catch-all
+        # never ran -- and its guard, read as "more than one", would drop a tenant
+        # with a single such account silently: no bucket, no error, no record.
+        Mock Invoke-ODataPagedRequest -ParameterFilter { $Path -eq '/User' } -MockWith {
+            @(
+                [pscustomobject]@{ UId = 'acc-1'; UserName = 'alice'; FIRSTNAME = 'Alice'; LASTNAME = 'Smith'; IDENTITYREF = [pscustomobject]@{ IDENTITYID = 'ID-1' } }
+                [pscustomobject]@{ UId = 'acc-2'; UserName = 'svc';   FIRSTNAME = 'Batch'; LASTNAME = 'Runner'; IDENTITYREF = [pscustomobject]@{ IDENTITYID = 'ID-2' } }
+            )
+        }
+        $lookup = @{
+            'ID-1' = @{ uid = 'id-1'; identityType = 'Employee' }
+            'ID-2' = @{ uid = 'id-2'; identityType = 'Technical' }
+        }
+
+        $r = Sync-OmadaAccounts -SystemId 4 -IdentityLookup $lookup
+
+        (Get-Sent { $_.Scope.principalType -eq 'User' })[0].Records.Count | Should -Be 1
+        $other = Get-Sent { $_.Scope.principalType -eq 'TechnicalAccount' }
+        $other | Should -HaveCount 1
+        $other[0].Records.Count | Should -Be 1
+        $other[0].Records[0].externalId | Should -Be 'acc-2'
+        @($r.allAccounts).Count | Should -Be 2
         $script:phaseErrors.Count | Should -Be 0
     }
 
@@ -626,6 +658,32 @@ Describe 'Omada setup helpers' {
     It 'Get-OmadaAvailableEntitySets returns the discovered sets' {
         Mock Get-ODataEntitySets -MockWith { @('Identity','User','Resource') }
         @(Get-OmadaAvailableEntitySets) | Should -Contain 'User'
+    }
+
+    It 'reports a single discovered entity set as discovered, not as missing metadata' {
+        # The guard chooses between listing the sets and announcing that metadata
+        # was unavailable. Read as "more than one", a tenant exposing exactly one
+        # set gets told its metadata could not be read -- which is the message that
+        # explains why every phase then runs blind.
+        $script:said = [System.Collections.Generic.List[string]]::new()
+        Mock Write-Host { $script:said.Add([string]$Object) }
+        Mock Get-ODataEntitySets -MockWith { @('User') }
+
+        @(Get-OmadaAvailableEntitySets) | Should -Be @('User')
+
+        $out = $script:said -join "`n"
+        $out | Should -Match 'Entity sets: User'
+        $out | Should -Not -Match 'metadata unavailable'
+    }
+
+    It 'says metadata was unavailable when nothing came back' {
+        $script:said = [System.Collections.Generic.List[string]]::new()
+        Mock Write-Host { $script:said.Add([string]$Object) }
+        Mock Get-ODataEntitySets -MockWith { @() }
+
+        @(Get-OmadaAvailableEntitySets) | Should -HaveCount 0
+
+        ($script:said -join "`n") | Should -Match 'metadata unavailable'
     }
 
     It 'Register-OmadaSystems resolves the main IGA system id from the atlas map' {
