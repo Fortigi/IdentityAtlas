@@ -16,6 +16,15 @@ Describe 'Invoke-CrawlerIngestBatch' {
             $script:sent.Add($Body)
             return @{ inserted = $Body.records.Count; updated = 0; deleted = 0; syncId = 'sync-1' }
         } -ModuleName $null
+
+        # A DEFAULT Write-Host mock, declared before the filtered ones the progress
+        # tests add. A mock that only has a -ParameterFilter has nothing to fall back
+        # to when a call does not match it, and this function writes several lines per
+        # call — so the three tests below failed with "no mock matched the call"
+        # whenever they ran without another container happening to have Write-Host
+        # mocked. They passed in the full suite and failed when this file ran alone,
+        # which also made the mutation baseline depend on how many files were mapped.
+        Mock Write-Host { }
     }
 
     Context 'single batch' {

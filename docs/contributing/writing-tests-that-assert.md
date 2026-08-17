@@ -129,13 +129,35 @@ Config: `.ci/psmutant.config.json`. Every eligible crawler file must be in
 `test/unit/PSMutationScope.Tests.ps1`.
 
 ```bash
-Install-Module PSMutant
+Install-Module PSMutant -RequiredVersion 0.2.0
 Invoke-PSMutation -ConfigFile .ci/psmutant.config.json -SourceRoot .
 ```
 
 **Map a file to the cheapest suite that exercises it.** The mapped tests run once
 per mutant — one mapping to a suite that starts a mock HTTP server took a
 baseline from 10s to 73s and made the run look hung.
+
+**Re-check survivors instead of re-running everything.** Killing survivors is an
+edit-run-edit loop, and re-running the mutants you already killed is most of the
+wait:
+
+```bash
+Invoke-PSMutation -ConfigFile .ci/psmutant.config.json -SourceRoot . \
+    -RecheckFrom reports/ps-mutation.json
+```
+
+It reports counts, never a score — the set is filtered, so no percentage over it
+means anything — and writes to `*.recheck.json` so it cannot overwrite the
+baseline. It refuses outright if the mutated source or the operator set changed,
+because mutants are matched by AST-walk position. **Finish with a full run before
+trusting a number**: a recheck is sound only for *added* assertions, since editing
+an existing test can revive a mutant it never evaluates.
+
+**A mutant that provably cannot change behaviour can be declared**, with a reason,
+in the config's `equivalents` map. The declaration is checked, not merely
+recorded: the run fails if a declared mutant is ever killed, or if it stops
+existing. Nothing in this repo is declared yet — the remaining survivors here are
+progress percentages and log constants, and leaving them visible is honest.
 
 ### JavaScript — Stryker
 

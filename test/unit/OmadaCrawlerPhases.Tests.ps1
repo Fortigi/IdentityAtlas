@@ -377,6 +377,11 @@ Describe 'Sync-OmadaContextMembers' {
         Mock Invoke-ODataPagedRequest -ParameterFilter { $Path -eq '/Contextassignment' } -MockWith {
             @([pscustomobject]@{ CA_IDENTITY = @{ UId = 'id1' }; CA_CONTEXT = @{ UId = 'ctx1' } })
         }
+        # Default FIRST, then the specific override. The phase probes several entity
+        # sets; with only the filtered mock, the Contextassignment probe matches no
+        # filter and has nothing to fall back to, so the whole phase errors out
+        # instead of exercising the dedup this test is about.
+        Mock Test-EntitySetAvailable -MockWith { $true }
         Mock Test-EntitySetAvailable -ParameterFilter { $Name -eq 'Employment' } -MockWith { $false }
         # Identity fields produce the SAME (ctx1,id1) pair — must dedup to one.
         $identities = @([pscustomobject]@{ UId = 'id1'; OUREF = [pscustomobject]@{ UId = 'ctx1' } })
@@ -389,6 +394,7 @@ Describe 'Sync-OmadaContextMembers' {
     }
 
     It 'records a phase failure when Contextassignment is unavailable' {
+        Mock Test-EntitySetAvailable -MockWith { $true }
         Mock Test-EntitySetAvailable -ParameterFilter { $Name -eq 'Contextassignment' } -MockWith { $false }
         Sync-OmadaContextMembers -SystemId 1 -SyncedContextIds (New-StrSet 'x') `
             -IdentityUidInIdentitiesTable (New-StrSet 'y') -AllIdentities @() -ContextObjectTypes @() -WellKnownIdentityContextFields @{}
