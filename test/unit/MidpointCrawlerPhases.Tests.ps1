@@ -84,7 +84,7 @@ Describe 'Sync-MidpointSystems' {
         $r.resourceSystemId['res-1'] | Should -Be 11
         $r.resourceOidToName['res-1'] | Should -Be 'AD'
         # res-2 held no shadows → registered set has only midPoint + res-1.
-        Should -Invoke Invoke-IngestAPI -Times 1 -ParameterFilter { $Endpoint -eq 'ingest/systems' }
+        Should -Invoke Invoke-IngestAPI -Exactly 1 -ParameterFilter { $Endpoint -eq 'ingest/systems' }
         $script:phaseErrors.Count | Should -Be 0
     }
 
@@ -133,7 +133,7 @@ Describe 'Sync-MidpointRefreshViews' {
     It 'posts to the refresh-views endpoint' {
         Mock Invoke-RestMethod -MockWith { @{} }
         Sync-MidpointRefreshViews -ApiBaseUrl 'https://x/api' -ApiKey 'k'
-        Should -Invoke Invoke-RestMethod -Times 1 -ParameterFilter { $Uri -match '/ingest/refresh-views' }
+        Should -Invoke Invoke-RestMethod -Exactly 1 -ParameterFilter { $Uri -match '/ingest/refresh-views' }
     }
 
     It 'soft-fails (no throw) when refresh-views errors' {
@@ -294,7 +294,7 @@ Describe 'Sync-MidpointShadows' {
         (Get-Sent { $_.Endpoint -eq 'ingest/identity-members' }).Count | Should -BeGreaterThan 0
         ($r.entitlementByDn.Values) | Should -Contain 'ent-sh'
         # Pass B emitted an entitlement assignment via the stream.
-        Should -Invoke Add-IngestStreamRecord -Times 1
+        Should -Invoke Add-IngestStreamRecord -Exactly 1
         $script:phaseErrors.Count | Should -Be 0
     }
 
@@ -468,7 +468,7 @@ Describe 'Connect-MidpointSession' {
         Mock Connect-MidpointAPI -MockWith { }
         $cfg = [pscustomobject]@{ baseUrl = 'https://mp'; authMethod = 'BasicAuth'; username = 'admin'; password = 'pw' }
         Connect-MidpointSession -Cfg $cfg
-        Should -Invoke Connect-MidpointAPI -Times 1 -ParameterFilter {
+        Should -Invoke Connect-MidpointAPI -Exactly 1 -ParameterFilter {
             $BaseUrl -eq 'https://mp' -and $AuthMethod -eq 'BasicAuth' -and $Username -eq 'admin' -and $Password -eq 'pw'
         }
     }
@@ -477,7 +477,7 @@ Describe 'Connect-MidpointSession' {
         Mock Connect-MidpointAPI -MockWith { }
         $cfg = [pscustomobject]@{ baseUrl = 'https://mp'; authMethod = 'OAuth2CC'; clientId = 'cid'; clientSecret = 'sec'; tokenEndpoint = 'https://t' }
         Connect-MidpointSession -Cfg $cfg
-        Should -Invoke Connect-MidpointAPI -Times 1 -ParameterFilter {
+        Should -Invoke Connect-MidpointAPI -Exactly 1 -ParameterFilter {
             $ClientId -eq 'cid' -and $ClientSecret -eq 'sec' -and $TokenEndpoint -eq 'https://t'
         }
     }
@@ -500,7 +500,7 @@ Describe 'Complete-MidpointRun' {
 
     It 'marks progress complete and does not throw when there are no phase errors' {
         { Complete-MidpointRun } | Should -Not -Throw
-        Should -Invoke Update-CrawlerProgress -Times 1 -ParameterFilter { $Step -eq 'Complete' -and $Pct -eq 100 }
+        Should -Invoke Update-CrawlerProgress -Exactly 1 -ParameterFilter { $Step -eq 'Complete' -and $Pct -eq 100 }
     }
 
     It 'throws a summary error when phases recorded failures' {

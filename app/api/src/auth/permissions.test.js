@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolvePermissions, isKnownPermission, SEED_ROLE_PERMISSIONS, PERMISSIONS } from './permissions.js';
+import { resolvePermissions, isKnownPermission, SEED_ROLE_PERMISSIONS, PERMISSIONS, PERMISSION_GROUPS } from './permissions.js';
 
 describe('permissions catalog', () => {
   it('seeds Admin / RoleMiner / Servicedesk', () => {
@@ -70,5 +70,64 @@ describe('resolvePermissions', () => {
     const perms = resolvePermissions(['Weird'], badMapping);
     expect(perms.has('data.read')).toBe(true);
     expect(perms.has('made.up.permission')).toBe(false);
+  });
+});
+
+// ── Gaps found by mutation testing ───────────────────────────────────────────
+// This file sat at 100% line, branch and function coverage while these four
+// mutations survived. Coverage proved the lines ran; nothing proved they were
+// right. (Most of this module's other survivors are label/description strings
+// in the catalog, which no test should assert — see stryker.auth.config.json.)
+
+describe('seed mapping — the exact grants shipped on a fresh install', () => {
+  it('gives Admin the wildcard, not a fixed list', () => {
+    // '*' is what makes a newly added permission flow to Admin automatically.
+    // Replacing it with any explicit list silently demotes the admin role the
+    // next time someone adds a permission to the catalog.
+    expect(SEED_ROLE_PERMISSIONS.Admin).toEqual(['*']);
+  });
+
+  it('gives RoleMiner read plus both export permissions and nothing more', () => {
+    // Widening this on a fresh install hands out access nobody asked for;
+    // emptying it locks the role out. Neither is visible from a count.
+    expect(SEED_ROLE_PERMISSIONS.RoleMiner)
+      .toEqual(['data.read', 'data.export.ui', 'data.export.apikey']);
+  });
+
+  it('gives Servicedesk read only', () => {
+    expect(SEED_ROLE_PERMISSIONS.Servicedesk).toEqual(['data.read']);
+  });
+
+  it('never seeds a role with admin.auth, which would let it re-grant itself', () => {
+    for (const [role, granted] of Object.entries(SEED_ROLE_PERMISSIONS)) {
+      if (role === 'Admin') continue;
+      expect(granted).not.toContain('admin.auth');
+      expect(granted).not.toContain('*');
+    }
+  });
+});
+
+describe('PERMISSION_GROUPS', () => {
+  it('lists the four groups in display order', () => {
+    expect(PERMISSION_GROUPS).toEqual(['Read', 'Export', 'Write', 'Admin']);
+  });
+
+  it('covers every group actually used in the catalog', () => {
+    const used = new Set(Object.values(PERMISSIONS).map((p) => p.group));
+    expect([...used].sort()).toEqual([...PERMISSION_GROUPS].sort());
+  });
+});
+
+describe('resolvePermissions — absent mapping', () => {
+  it('returns an empty Set when the mapping is null', () => {
+    // The optional chain in `mapping?.[role]` is load-bearing: without it this
+    // throws on a tenant whose role mapping has not been configured yet, which
+    // turns a "no permissions" state into a 500 on every authenticated request.
+    expect(() => resolvePermissions(['Admin'], null)).not.toThrow();
+    expect(resolvePermissions(['Admin'], null).size).toBe(0);
+  });
+
+  it('returns an empty Set when the mapping is undefined', () => {
+    expect(resolvePermissions(['Admin'], undefined).size).toBe(0);
   });
 });

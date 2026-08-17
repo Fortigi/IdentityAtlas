@@ -173,7 +173,7 @@ Describe 'Sync-OmadaRefreshViews' {
     It 'calls the refresh-views ingest endpoint' {
         Mock Invoke-IngestAPI -MockWith { @{} }
         Sync-OmadaRefreshViews
-        Should -Invoke Invoke-IngestAPI -Times 1 -ParameterFilter { $Endpoint -eq 'ingest/refresh-views' }
+        Should -Invoke Invoke-IngestAPI -Exactly 1 -ParameterFilter { $Endpoint -eq 'ingest/refresh-views' }
     }
 
     It 'soft-fails when the refresh endpoint throws' {
@@ -607,14 +607,14 @@ Describe 'Omada setup helpers' {
     It 'Connect-OmadaSession passes only the provided auth fields to Connect-ODataAPI' {
         Mock Connect-ODataAPI -MockWith { }
         Connect-OmadaSession -Cfg ([pscustomobject]@{ authMethod = 'ApiToken'; apiToken = 'tok' }) -BaseUrl 'http://x' -ApiVersion 'v14' -SessionTimeoutMinutes 30
-        Should -Invoke Connect-ODataAPI -Times 1
+        Should -Invoke Connect-ODataAPI -Exactly 1
     }
 
     It 'Connect-OmadaSession forwards username/password + OAuth client + cookie fields' {
         Mock Connect-ODataAPI -MockWith { }
         Connect-OmadaSession -Cfg ([pscustomobject]@{ authMethod = 'OAuth2'; username = 'u'; password = 'p'; clientId = 'cid'; clientSecret = 'sec'; tokenEndpoint = 'https://t'; cookieString = 'ck' }) `
             -BaseUrl 'http://x' -ApiVersion 'v14' -SessionTimeoutMinutes 30
-        Should -Invoke Connect-ODataAPI -Times 1
+        Should -Invoke Connect-ODataAPI -Exactly 1
     }
 
     It 'Get-OmadaAvailableEntitySets returns the discovered sets' {
@@ -668,14 +668,14 @@ Describe 'Write-OmadaSummary' {
         Mock Invoke-RestMethod -MockWith { @{} }
         $script:phases.Add(@{ name = 'Contexts'; status = 'ok'; durationMs = 5 })
         { Write-OmadaSummary -StartTime ([datetime]::UtcNow) -JobId 7 -ApiKey 'k' -ApiBaseUrl 'http://x/api' } | Should -Not -Throw
-        Should -Invoke Invoke-RestMethod -Times 1 -ParameterFilter { $Uri -match '/jobs/7/phases' }
+        Should -Invoke Invoke-RestMethod -Exactly 1 -ParameterFilter { $Uri -match '/jobs/7/phases' }
     }
 
     It 'renders a FAILED row (with error + records in the payload) and swallows a POST failure' {
         Mock Invoke-RestMethod -MockWith { throw 'jobs api 500' }
         $script:phases.Add(@{ name = 'Accounts'; status = 'error'; durationMs = 3; error = 'boom'; records = @{ accounts = 0 } })
         { Write-OmadaSummary -StartTime ([datetime]::UtcNow) -JobId 7 -ApiKey 'k' -ApiBaseUrl 'http://x/api' } | Should -Not -Throw
-        Should -Invoke Invoke-RestMethod -Times 1
+        Should -Invoke Invoke-RestMethod -Exactly 1
     }
 }
 

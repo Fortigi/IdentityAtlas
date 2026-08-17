@@ -141,21 +141,21 @@ Describe 'tools/riskscoring representative functions' {
             $out = Invoke-FGLLMRequest -WarningVariable w -WarningAction SilentlyContinue
             $out | Should -BeNullOrEmpty
             ($w | Out-String) | Should -Match 'not yet implemented'
-            Should -Invoke Invoke-RestMethod -Times 0
+            Should -Invoke Invoke-RestMethod -Exactly 0
         }
 
         It 'Invoke-FGRiskScoring is a no-op stub that makes no HTTP call' {
             Mock Invoke-RestMethod { throw 'unexpected HTTP call' }
             Invoke-FGRiskScoring -WarningVariable w -WarningAction SilentlyContinue | Should -BeNullOrEmpty
             ($w | Out-String) | Should -Match 'not yet implemented'
-            Should -Invoke Invoke-RestMethod -Times 0
+            Should -Invoke Invoke-RestMethod -Exactly 0
         }
 
         It 'Invoke-FGAccountCorrelation is a no-op stub that makes no HTTP call' {
             Mock Invoke-RestMethod { throw 'unexpected HTTP call' }
             Invoke-FGAccountCorrelation -WarningVariable w -WarningAction SilentlyContinue | Should -BeNullOrEmpty
             ($w | Out-String) | Should -Match 'not yet implemented'
-            Should -Invoke Invoke-RestMethod -Times 0
+            Should -Invoke Invoke-RestMethod -Exactly 0
         }
     }
 }

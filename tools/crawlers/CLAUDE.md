@@ -40,6 +40,8 @@ A `Start-<Type>Crawler.ps1` body runs live I/O the moment it is dot-sourced, so 
 - **`<Type>Crawler.Transform.ps1`** — **pure** record-shapers: one Graph/source object → one ingest record hashtable. Take everything as **explicit parameters** (no `$script:`/scope capture), do no I/O, and `return` the record (or `$null` to signal "skip"). These unit-test directly against in-memory fixtures with zero mocks — the cheapest coverage you can get. Name them `ConvertTo-<Entity>Record` / `ConvertTo-<Entity><Thing>`.
 - **`<Type>Crawler.Functions.ps1`** — reusable helpers whose boundary is a mockable named command (e.g. `Send-IngestBatch` → `Invoke-IngestAPI`). Unit-test by mocking that boundary.
 
+> **Mocking the boundary is not the same as testing the decision.** A test that mocks `Invoke-IngestAPI` and asserts how many times it was called cannot catch a change to *what the helper computed* — the retry predicate, the page offset, the flags on the record. Those need direct tests against the decision function itself. Measured: the Azure/midPoint helper layer sat at 31%–79% mutation score with a full suite of call-count assertions around it; adding direct tests took the same files to 90%–97%. Read **[Writing tests that actually assert](../../docs/contributing/writing-tests-that-assert.md)** before adding crawler tests — it lists the five ways a suite here looked thorough while asserting nothing, and the Pester traps specific to this repo (helpers declared outside `BeforeAll`, `Should -Invoke` counts accumulating across an `It`, `-Times` meaning *at least*).
+
 The entry point dot-sources both right after the shared ingest helpers:
 
 ```powershell

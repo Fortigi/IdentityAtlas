@@ -50,3 +50,6 @@ pester-coverage.xml
 
 # Test-GraphAPI / test-runner log artifacts
 test/unit/logs/
+
+# Stryker mutation-testing sandbox (it copies the package into here to run mutants)
+.stryker-tmp/

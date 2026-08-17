@@ -144,7 +144,7 @@ Describe 'Get-FGDeltaToken' {
         $script:capturedUri = $null
         Mock Invoke-RestMethod { $script:capturedUri = $Uri; @{ token = 't' } }
         Get-FGDeltaToken -SystemId 9 -Endpoint 'service/principals' | Out-Null
-        Should -Invoke Invoke-RestMethod -Times 1
+        Should -Invoke Invoke-RestMethod -Exactly 1
         # The endpoint is run through [uri]::EscapeDataString — its '/' becomes %2F.
         $script:capturedUri | Should -BeLike '*service%2Fprincipals*'
         $script:capturedUri | Should -BeLike '*systemId=9*'
@@ -157,13 +157,13 @@ Describe 'Set-FGDeltaToken' {
     It 'does nothing (no API call) when the token is empty' {
         Mock Invoke-RestMethod {}
         Set-FGDeltaToken -SystemId 1 -Endpoint 'users/delta' -Token ''
-        Should -Invoke Invoke-RestMethod -Times 0
+        Should -Invoke Invoke-RestMethod -Exactly 0
     }
 
     It 'PUTs the token to the API' {
         Mock Invoke-RestMethod {}
         Set-FGDeltaToken -SystemId 3 -Endpoint 'users/delta' -Token 'newtok' -RecordsLastSeen 42
-        Should -Invoke Invoke-RestMethod -Times 1 -ParameterFilter {
+        Should -Invoke Invoke-RestMethod -Exactly 1 -ParameterFilter {
             $Method -eq 'Put' -and $Body -match 'newtok' -and $Body -match '42'
         }
     }
@@ -180,7 +180,7 @@ Describe 'Remove-FGDeltaToken' {
     It 'issues a DELETE for the endpoint + systemId' {
         Mock Invoke-RestMethod {}
         Remove-FGDeltaToken -SystemId 7 -Endpoint 'users/delta'
-        Should -Invoke Invoke-RestMethod -Times 1 -ParameterFilter {
+        Should -Invoke Invoke-RestMethod -Exactly 1 -ParameterFilter {
             $Method -eq 'Delete' -and $Uri -like '*systemId=7*'
         }
     }
@@ -200,7 +200,7 @@ Describe 'Send-IngestBatch' {
         $r.inserted | Should -Be 0
         $r.updated  | Should -Be 0
         $r.deleted  | Should -Be 0
-        Should -Invoke Invoke-IngestAPI -Times 0
+        Should -Invoke Invoke-IngestAPI -Exactly 0
     }
 
     It 'sends a single batch when records fit under BatchSize' {
@@ -208,14 +208,14 @@ Describe 'Send-IngestBatch' {
         $records = @([pscustomobject]@{ id = 'a' }, [pscustomobject]@{ id = 'b' })
         $r = Send-IngestBatch -Endpoint 'ingest/resources' -SystemId 1 -Records $records
         $r.inserted | Should -Be 2
-        Should -Invoke Invoke-IngestAPI -Times 1
+        Should -Invoke Invoke-IngestAPI -Exactly 1
     }
 
     It 'includes deletedIds in the body when supplied' {
         Mock Invoke-IngestAPI { @{ inserted = 0; updated = 0; deleted = 3 } }
         $r = Send-IngestBatch -Endpoint 'ingest/resources' -SystemId 1 -Records @() -DeletedIds @('x','y','z')
         $r.deleted | Should -Be 3
-        Should -Invoke Invoke-IngestAPI -Times 1 -ParameterFilter { $Body.ContainsKey('deletedIds') }
+        Should -Invoke Invoke-IngestAPI -Exactly 1 -ParameterFilter { $Body.ContainsKey('deletedIds') }
     }
 
     It 'chunks records that exceed BatchSize into start/continue/end sessions' {
@@ -227,7 +227,7 @@ Describe 'Send-IngestBatch' {
         $records = 1..7 | ForEach-Object { [pscustomobject]@{ id = "r$_" } }
         $r = Send-IngestBatch -Endpoint 'ingest/resources' -SystemId 1 -Records $records -BatchSize 3
         # 7 records / 3 per batch = 3 calls
-        Should -Invoke Invoke-IngestAPI -Times 3
+        Should -Invoke Invoke-IngestAPI -Exactly 3
         $script:sessions[0]  | Should -Be 'start'
         $script:sessions[-1] | Should -Be 'end'
         $r.inserted | Should -Be 3
@@ -236,7 +236,7 @@ Describe 'Send-IngestBatch' {
     It 'sends records and deletes together in one body when both fit under BatchSize' {
         Mock Invoke-IngestAPI { @{ inserted = 1; updated = 0; deleted = 1 } }
         $r = Send-IngestBatch -Endpoint 'ingest/resources' -SystemId 1 -Records @([pscustomobject]@{ id = 'a' }) -DeletedIds @('d1')
-        Should -Invoke Invoke-IngestAPI -Times 1 -ParameterFilter { $Body.ContainsKey('deletedIds') -and $Body.records }
+        Should -Invoke Invoke-IngestAPI -Exactly 1 -ParameterFilter { $Body.ContainsKey('deletedIds') -and $Body.records }
         $r.inserted | Should -Be 1
         $r.deleted  | Should -Be 1
     }
@@ -251,7 +251,7 @@ Describe 'Send-IngestBatch' {
         $r = Send-IngestBatch -Endpoint 'ingest/resources' -SystemId 1 -Records $records -DeletedIds @('d1', 'd2') -BatchSize 3
         $script:sawDeleteOnly | Should -BeTrue     # deletes went as their own call
         $r.deleted            | Should -Be 2        # folded into the total
-        Should -Invoke Invoke-IngestAPI -Times 4    # 1 delete call + 3 record chunks
+        Should -Invoke Invoke-IngestAPI -Exactly 4    # 1 delete call + 3 record chunks
     }
 }
 
@@ -281,7 +281,7 @@ Describe 'Invoke-FGGetDeltaRequest' {
         $res = Invoke-FGGetDeltaRequest -URI 'https://graph/users/delta'
         $res.value.Count | Should -Be 2
         $res.deltaToken  | Should -Be 'TOKEN9'
-        Should -Invoke Invoke-RestMethod -Times 1
+        Should -Invoke Invoke-RestMethod -Exactly 1
     }
 
     It 'follows @odata.nextLink across pages' {
@@ -323,8 +323,8 @@ Describe 'Invoke-FGGetDeltaRequest' {
         $res = Invoke-FGGetDeltaRequest -URI 'https://graph/users/delta' -MaxRetries 2
         $res.deltaToken | Should -Be 'OK'
         $res.value.Count | Should -Be 1
-        Should -Invoke Invoke-RestMethod -Times 2
-        Should -Invoke Start-Sleep -Times 1
+        Should -Invoke Invoke-RestMethod -Exactly 2
+        Should -Invoke Start-Sleep -Exactly 1
     }
 }
 
@@ -521,7 +521,7 @@ Describe 'Invoke-FGGroupChildFetch' {
         }
         $out = @(Invoke-FGGroupChildFetch -Group ([pscustomobject]@{ id = 'g1' }) -Token 'tok' -ChildPath 'members')
         $out.principalId | Should -Be @('a', 'b')
-        Should -Invoke Invoke-RestMethod -Times 2
+        Should -Invoke Invoke-RestMethod -Exactly 2
     }
 
     It 'retries a transient 429 then succeeds' {
@@ -732,8 +732,8 @@ Describe 'Get-FGGroupChildrenParallel' {
             -ProgressStep 'Sync' -ProgressStartPct 10 -ProgressEndPct 20 `
             -RecordBuilder { param($o) $o }
         $result.errorCount | Should -Be 1
-        Should -Invoke Update-FGAccessTokenIfExpired -Times 1
-        Should -Invoke Update-CrawlerProgress -Times 1 -ParameterFilter { $Detail -like '*1 errors*' }
+        Should -Invoke Update-FGAccessTokenIfExpired -Exactly 1
+        Should -Invoke Update-CrawlerProgress -Exactly 1 -ParameterFilter { $Detail -like '*1 errors*' }
     }
 }
 

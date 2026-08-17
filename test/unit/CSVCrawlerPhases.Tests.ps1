@@ -63,14 +63,14 @@ Describe 'Sync-CsvSystems' {
         Remove-Csv 'Systems.csv'
         Mock Invoke-IngestAPI { }
         Sync-CsvSystems
-        Should -Invoke Invoke-IngestAPI -Times 0
+        Should -Invoke Invoke-IngestAPI -Exactly 0
     }
 
     It 'registers de-duplicated systems and extends $systemLookup from the returned ids' {
         Set-Csv 'Systems.csv' @('ExternalId;DisplayName', 'e1;HR', 'e2;Finance', 'e3;HR')
         Mock Invoke-IngestAPI { @{ systemIds = @(10, 11) } }
         Sync-CsvSystems
-        Should -Invoke Invoke-IngestAPI -Times 1 -ParameterFilter { $Body.records.Count -eq 2 -and $Body.syncMode -eq 'delta' }
+        Should -Invoke Invoke-IngestAPI -Exactly 1 -ParameterFilter { $Body.records.Count -eq 2 -and $Body.syncMode -eq 'delta' }
         $script:systemLookup['HR']      | Should -Be 10
         $script:systemLookup['Finance'] | Should -Be 11
     }
@@ -79,7 +79,7 @@ Describe 'Sync-CsvSystems' {
         Set-Csv 'Systems.csv' @('ExternalId;DisplayName', 'e1;')
         Mock Invoke-IngestAPI { @{ systemIds = @() } }
         Sync-CsvSystems
-        Should -Invoke Invoke-IngestAPI -Times 0
+        Should -Invoke Invoke-IngestAPI -Exactly 0
     }
 }
 
@@ -389,7 +389,7 @@ Describe 'Register-CsvFallbackSystem' {
     It 'verifies the key via whoami and returns the id from systemIds' {
         Mock Invoke-IngestAPI { @{ systemIds = @(42) } }
         Register-CsvFallbackSystem | Should -Be 42
-        Should -Invoke Invoke-RestMethod -Times 1 -ParameterFilter { $Uri -match '/crawlers/whoami' }
+        Should -Invoke Invoke-RestMethod -Exactly 1 -ParameterFilter { $Uri -match '/crawlers/whoami' }
     }
 
     It 'falls back to a single systemId field' {

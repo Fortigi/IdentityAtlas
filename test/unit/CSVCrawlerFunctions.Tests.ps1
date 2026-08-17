@@ -231,19 +231,19 @@ Describe 'Send-IngestBatch' {
 
     It 'sends nothing for an empty record set' {
         Send-IngestBatch -Endpoint 'ingest/resources' -SystemId 2 -Records @()
-        Should -Invoke Invoke-IngestAPI -Times 0
+        Should -Invoke Invoke-IngestAPI -Exactly 0
     }
 
     It 'sends a single batch when count <= BatchSize' {
         $records = 1..5 | ForEach-Object { @{ externalId = "r$_" } }
         Send-IngestBatch -Endpoint 'ingest/resources' -SystemId 2 -Records $records -BatchSize 10
-        Should -Invoke Invoke-IngestAPI -Times 1
+        Should -Invoke Invoke-IngestAPI -Exactly 1
     }
 
     It 'includes systemId, syncMode and a deterministic idPrefix in the body' {
         $records = @(@{ externalId = 'r1' })
         Send-IngestBatch -Endpoint 'ingest/resources' -SystemId 5 -SyncMode 'full' -Records $records -BatchSize 100
-        Should -Invoke Invoke-IngestAPI -Times 1 -ParameterFilter {
+        Should -Invoke Invoke-IngestAPI -Exactly 1 -ParameterFilter {
             $Body.systemId -eq 5 -and
             $Body.syncMode -eq 'full' -and
             $Body.idPrefix -eq 'CSV-resources'
@@ -254,15 +254,15 @@ Describe 'Send-IngestBatch' {
         $records = 1..25 | ForEach-Object { @{ externalId = "r$_" } }
         Send-IngestBatch -Endpoint 'ingest/resources' -SystemId 2 -Records $records -BatchSize 10
         # 25 records / batch of 10 => 3 calls
-        Should -Invoke Invoke-IngestAPI -Times 3
+        Should -Invoke Invoke-IngestAPI -Exactly 3
     }
 
     It 'marks the first chunk with syncSession=start and the last with end' {
         $records = 1..25 | ForEach-Object { @{ externalId = "r$_" } }
         Send-IngestBatch -Endpoint 'ingest/resources' -SystemId 2 -Records $records -BatchSize 10
-        Should -Invoke Invoke-IngestAPI -Times 1 -ParameterFilter { $Body.syncSession -eq 'start' }
-        Should -Invoke Invoke-IngestAPI -Times 1 -ParameterFilter { $Body.syncSession -eq 'continue' }
-        Should -Invoke Invoke-IngestAPI -Times 1 -ParameterFilter { $Body.syncSession -eq 'end' }
+        Should -Invoke Invoke-IngestAPI -Exactly 1 -ParameterFilter { $Body.syncSession -eq 'start' }
+        Should -Invoke Invoke-IngestAPI -Exactly 1 -ParameterFilter { $Body.syncSession -eq 'continue' }
+        Should -Invoke Invoke-IngestAPI -Exactly 1 -ParameterFilter { $Body.syncSession -eq 'end' }
     }
 }
 
@@ -280,14 +280,14 @@ Describe 'Send-GroupedBySystem' {
         )
         Send-GroupedBySystem -Endpoint 'ingest/resources' -Records $records
         # Two distinct systems => two API calls (each system's batch fits one chunk)
-        Should -Invoke Invoke-IngestAPI -Times 1 -ParameterFilter { $Body.systemId -eq 2 }
-        Should -Invoke Invoke-IngestAPI -Times 1 -ParameterFilter { $Body.systemId -eq 3 }
+        Should -Invoke Invoke-IngestAPI -Exactly 1 -ParameterFilter { $Body.systemId -eq 2 }
+        Should -Invoke Invoke-IngestAPI -Exactly 1 -ParameterFilter { $Body.systemId -eq 3 }
     }
 
     It 'strips the _systemId key from records before sending' {
         $records = @(@{ _systemId = 2; externalId = 'a' })
         Send-GroupedBySystem -Endpoint 'ingest/resources' -Records $records
-        Should -Invoke Invoke-IngestAPI -Times 1 -ParameterFilter {
+        Should -Invoke Invoke-IngestAPI -Exactly 1 -ParameterFilter {
             -not $Body.records[0].ContainsKey('_systemId')
         }
     }
@@ -295,7 +295,7 @@ Describe 'Send-GroupedBySystem' {
     It 'falls back to $fallbackSystemId when _systemId is missing/zero' {
         $records = @(@{ externalId = 'a' })
         Send-GroupedBySystem -Endpoint 'ingest/resources' -Records $records
-        Should -Invoke Invoke-IngestAPI -Times 1 -ParameterFilter { $Body.systemId -eq 2 }
+        Should -Invoke Invoke-IngestAPI -Exactly 1 -ParameterFilter { $Body.systemId -eq 2 }
     }
 
     It 'dedups records with the same externalId before sending' {
@@ -305,7 +305,7 @@ Describe 'Send-GroupedBySystem' {
             @{ _systemId = 2; externalId = 'unique' }
         )
         Send-GroupedBySystem -Endpoint 'ingest/resources' -Records $records
-        Should -Invoke Invoke-IngestAPI -Times 1 -ParameterFilter { $Body.records.Count -eq 2 }
+        Should -Invoke Invoke-IngestAPI -Exactly 1 -ParameterFilter { $Body.records.Count -eq 2 }
     }
 
     It 'dedups assignment rows on the composite key when externalId is absent' {
@@ -315,7 +315,7 @@ Describe 'Send-GroupedBySystem' {
             @{ _systemId = 2; resourceExternalId = 'r1'; principalExternalId = 'u2' }
         )
         Send-GroupedBySystem -Endpoint 'ingest/resource-assignments' -Records $records
-        Should -Invoke Invoke-IngestAPI -Times 1 -ParameterFilter { $Body.records.Count -eq 2 }
+        Should -Invoke Invoke-IngestAPI -Exactly 1 -ParameterFilter { $Body.records.Count -eq 2 }
     }
 
     It 'keeps all rows when -SkipDedup is set' {
@@ -324,7 +324,7 @@ Describe 'Send-GroupedBySystem' {
             @{ _systemId = 2; externalId = 'dup' }
         )
         Send-GroupedBySystem -Endpoint 'ingest/resources' -Records $records -SkipDedup
-        Should -Invoke Invoke-IngestAPI -Times 1 -ParameterFilter { $Body.records.Count -eq 2 }
+        Should -Invoke Invoke-IngestAPI -Exactly 1 -ParameterFilter { $Body.records.Count -eq 2 }
     }
 }
 

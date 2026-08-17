@@ -16,10 +16,13 @@
     "lint": "eslint src/",
     "postinstall": "patch-package || true",
     "build:node-launcher": "node ../desktop/scripts/build-node-launcher.mjs",
-    "build:node-launcher:skip-ui": "node ../desktop/scripts/build-node-launcher.mjs --skip-ui-build"
+    "build:node-launcher:skip-ui": "node ../desktop/scripts/build-node-launcher.mjs --skip-ui-build",
+    "test:mutation": "stryker run stryker.auth.config.json"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@stryker-mutator/core": "^10.0.0",
+    "@stryker-mutator/vitest-runner": "^10.0.0",
     "@testcontainers/postgresql": "^12.1.0",
     "@vitest/coverage-v8": "^4.1.10",
     "esbuild": "^0.28.2",

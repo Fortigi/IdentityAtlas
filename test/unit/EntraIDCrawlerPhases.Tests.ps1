@@ -306,28 +306,28 @@ Describe 'Invoke-EntraApplicationPhases' {
         Invoke-EntraApplicationPhases -SystemId 7 -AINamePatterns @('*copilot*') -Timings ([ordered]@{}) `
             -SyncOAuth2Grants $true -SyncAppRoles $true -SyncAppOwners $true -SyncAppPermissions $true -SyncPrincipalRelationships $true
 
-        Should -Invoke Sync-EntraOAuth2Grants   -Times 1 -ParameterFilter { $SystemId -eq 7 }
-        Should -Invoke Sync-EntraAppRoles       -Times 1 -ParameterFilter { $SystemId -eq 7 }
-        Should -Invoke Sync-EntraAppOwners      -Times 1 -ParameterFilter { $SystemId -eq 7 }
-        Should -Invoke Sync-EntraAppPermissions -Times 1 -ParameterFilter { $SystemId -eq 7 -and @($AINamePatterns) -contains '*copilot*' }
-        Should -Invoke Sync-EntraPrincipalRelationships -Times 1 -ParameterFilter { $SystemId -eq 7 -and @($AINamePatterns) -contains '*copilot*' }
+        Should -Invoke Sync-EntraOAuth2Grants   -Exactly 1 -ParameterFilter { $SystemId -eq 7 }
+        Should -Invoke Sync-EntraAppRoles       -Exactly 1 -ParameterFilter { $SystemId -eq 7 }
+        Should -Invoke Sync-EntraAppOwners      -Exactly 1 -ParameterFilter { $SystemId -eq 7 }
+        Should -Invoke Sync-EntraAppPermissions -Exactly 1 -ParameterFilter { $SystemId -eq 7 -and @($AINamePatterns) -contains '*copilot*' }
+        Should -Invoke Sync-EntraPrincipalRelationships -Exactly 1 -ParameterFilter { $SystemId -eq 7 -and @($AINamePatterns) -contains '*copilot*' }
     }
 
     It 'runs nothing when every toggle is off (all default to false)' {
         Invoke-EntraApplicationPhases -SystemId 1 -Timings ([ordered]@{})
-        Should -Invoke Sync-EntraOAuth2Grants   -Times 0
-        Should -Invoke Sync-EntraAppRoles       -Times 0
-        Should -Invoke Sync-EntraAppOwners      -Times 0
-        Should -Invoke Sync-EntraAppPermissions -Times 0
-        Should -Invoke Sync-EntraPrincipalRelationships -Times 0
+        Should -Invoke Sync-EntraOAuth2Grants   -Exactly 0
+        Should -Invoke Sync-EntraAppRoles       -Exactly 0
+        Should -Invoke Sync-EntraAppOwners      -Exactly 0
+        Should -Invoke Sync-EntraAppPermissions -Exactly 0
+        Should -Invoke Sync-EntraPrincipalRelationships -Exactly 0
     }
 
     It 'runs only the phases whose toggle is on' {
         Invoke-EntraApplicationPhases -SystemId 2 -Timings ([ordered]@{}) -SyncAppPermissions $true
-        Should -Invoke Sync-EntraAppPermissions -Times 1
-        Should -Invoke Sync-EntraOAuth2Grants   -Times 0
-        Should -Invoke Sync-EntraAppRoles       -Times 0
-        Should -Invoke Sync-EntraAppOwners      -Times 0
+        Should -Invoke Sync-EntraAppPermissions -Exactly 1
+        Should -Invoke Sync-EntraOAuth2Grants   -Exactly 0
+        Should -Invoke Sync-EntraAppRoles       -Exactly 0
+        Should -Invoke Sync-EntraAppOwners      -Exactly 0
     }
 
     It 'treats an empty-string toggle (the shape the resolved config yields for an unset object) as OFF, not a binding error' {
@@ -337,19 +337,19 @@ Describe 'Invoke-EntraApplicationPhases' {
         # exactly what the resolved config passes for an object the user did not select.
         { Invoke-EntraApplicationPhases -SystemId 1 -Timings ([ordered]@{}) `
             -SyncOAuth2Grants '' -SyncAppRoles '' -SyncAppOwners '' -SyncAppPermissions '' } | Should -Not -Throw
-        Should -Invoke Sync-EntraOAuth2Grants   -Times 0
-        Should -Invoke Sync-EntraAppRoles       -Times 0
-        Should -Invoke Sync-EntraAppOwners      -Times 0
-        Should -Invoke Sync-EntraAppPermissions -Times 0
+        Should -Invoke Sync-EntraOAuth2Grants   -Exactly 0
+        Should -Invoke Sync-EntraAppRoles       -Exactly 0
+        Should -Invoke Sync-EntraAppOwners      -Exactly 0
+        Should -Invoke Sync-EntraAppPermissions -Exactly 0
     }
 
     It 'preserves the inline guards'' truthiness for every config shape ('''' / $null skip; "true" / $true run)' {
         Invoke-EntraApplicationPhases -SystemId 1 -Timings ([ordered]@{}) `
             -SyncOAuth2Grants '' -SyncAppRoles $null -SyncAppOwners 'true' -SyncAppPermissions $true
-        Should -Invoke Sync-EntraOAuth2Grants   -Times 0   # '' → skip
-        Should -Invoke Sync-EntraAppRoles       -Times 0   # $null → skip
-        Should -Invoke Sync-EntraAppOwners      -Times 1   # 'true' → run
-        Should -Invoke Sync-EntraAppPermissions -Times 1   # $true → run
+        Should -Invoke Sync-EntraOAuth2Grants   -Exactly 0   # '' → skip
+        Should -Invoke Sync-EntraAppRoles       -Exactly 0   # $null → skip
+        Should -Invoke Sync-EntraAppOwners      -Exactly 1   # 'true' → run
+        Should -Invoke Sync-EntraAppPermissions -Exactly 1   # $true → run
     }
 }
 
@@ -850,7 +850,7 @@ Describe 'Sync-EntraPim' {
         $sent[0].Records.Count | Should -Be 2   # (g1,u1) deduped + (g2,u2)
         $sent[0].Records[0].resourceType | Should -Be 'Group'
         # The dynamic group must be filtered out before the parallel fetch.
-        Should -Invoke Invoke-FGGroupPimBatchParallel -Times 1 -ParameterFilter { @($Batch).id -notcontains 'gDyn' }
+        Should -Invoke Invoke-FGGroupPimBatchParallel -Exactly 1 -ParameterFilter { @($Batch).id -notcontains 'gDyn' }
         $timings.Contains('PIM') | Should -BeTrue
         $script:phaseErrors.Count | Should -Be 0
     }
@@ -893,7 +893,7 @@ Describe 'Send-EntraServicePrincipalBatches' {
         $spCall[0].SyncMode | Should -Be 'delta'
         # Only ONE bucket carries the deleted ids (id-scoped delete runs once).
         @($script:sent | Where-Object { $_.Records }).Count | Should -BeGreaterThan 0
-        Should -Invoke Send-IngestBatch -Times 1 -ParameterFilter { @($DeletedIds).Count -gt 0 }
+        Should -Invoke Send-IngestBatch -Exactly 1 -ParameterFilter { @($DeletedIds).Count -gt 0 }
     }
 
     It 'uses full syncMode and sends no deletes on a non-delta run' {
@@ -901,7 +901,7 @@ Describe 'Send-EntraServicePrincipalBatches' {
         Send-EntraServicePrincipalBatches -SystemId 1 -Sps $sps -RemovedSpIds @() -SpDeltaHit $false
 
         (Get-Sent { $_.Scope.principalType -eq 'ServicePrincipal' })[0].SyncMode | Should -Be 'full'
-        Should -Invoke Send-IngestBatch -Times 0 -ParameterFilter { @($DeletedIds).Count -gt 0 }
+        Should -Invoke Send-IngestBatch -Exactly 0 -ParameterFilter { @($DeletedIds).Count -gt 0 }
     }
 }
 
@@ -934,7 +934,7 @@ Describe 'Sync-EntraServicePrincipals' {
         # Returns ONLY the SPs (not the ingest results).
         @($returned).Count | Should -Be 2
         @($returned).id | Should -Contain 'sp1'
-        Should -Invoke Set-FGDeltaToken -Times 1 -ParameterFilter { $Token -eq 'primed-tok' }
+        Should -Invoke Set-FGDeltaToken -Exactly 1 -ParameterFilter { $Token -eq 'primed-tok' }
         $timings.Contains('ServicePrincipals') | Should -BeTrue
         $script:phaseErrors.Count | Should -Be 0
     }
@@ -1007,7 +1007,7 @@ Describe 'Get-EntraServicePrincipalData' {
         $r = Get-EntraServicePrincipalData -SystemId 5 -SyncMode 'delta'
         $r.spDeltaHit   | Should -BeFalse
         @($r.sps).Count | Should -Be 1
-        Should -Invoke Remove-FGDeltaToken -Times 1
+        Should -Invoke Remove-FGDeltaToken -Exactly 1
     }
 
     It 'falls back to a full fetch on a generic delta failure' {
@@ -1048,7 +1048,7 @@ Describe 'Get-EntraSpAppIdIndex' {
         }
         $idx = Get-EntraSpAppIdIndex -Sps @()
         $idx['aX'] | Should -Be 'spX'
-        Should -Invoke Invoke-FGGetRequest -Times 1
+        Should -Invoke Invoke-FGGetRequest -Exactly 1
     }
 }
 
@@ -1405,7 +1405,7 @@ Describe 'Get-EntraUserData' {
         $data = Get-EntraUserData -SystemId 1 -SyncMode 'delta' -UserSelect 'id'
         $data.deltaHit | Should -BeFalse
         @($data.users).Count | Should -Be 1
-        Should -Invoke Remove-FGDeltaToken -Times 1
+        Should -Invoke Remove-FGDeltaToken -Exactly 1
     }
 }
 
@@ -1433,7 +1433,7 @@ Describe 'Sync-EntraPrincipals' {
         $p = Get-Sent { $_.Scope.principalType -eq 'User' }
         $p[0].Records.Count | Should -Be 2
         $p[0].SyncMode | Should -Be 'full'
-        Should -Invoke Set-FGDeltaToken -Times 1 -ParameterFilter { $Token -eq 'primed' }
+        Should -Invoke Set-FGDeltaToken -Exactly 1 -ParameterFilter { $Token -eq 'primed' }
         $timings.Contains('Principals') | Should -BeTrue
         $script:phaseErrors.Count | Should -Be 0
     }
@@ -1555,7 +1555,7 @@ Describe 'Sync-EntraRefreshViews' {
         Mock Invoke-IngestAPI -MockWith { @{} }
         $timings = [ordered]@{}
         Sync-EntraRefreshViews -Timings $timings
-        Should -Invoke Invoke-IngestAPI -Times 1 -ParameterFilter { $Endpoint -eq 'ingest/refresh-views' }
+        Should -Invoke Invoke-IngestAPI -Exactly 1 -ParameterFilter { $Endpoint -eq 'ingest/refresh-views' }
         $timings.Contains('RefreshViews') | Should -BeTrue
     }
 
@@ -1589,8 +1589,8 @@ Describe 'Write-EntraSyncLog' {
 
         Write-EntraSyncLog -SyncStart (Get-Date) -JobId 7 -ApiKey 'k' -ApiBaseUrl 'http://x/api'
 
-        Should -Invoke Invoke-IngestAPI -Times 1 -ParameterFilter { $Endpoint -eq 'ingest/sync-log' }
-        Should -Invoke Invoke-RestMethod -Times 1 -ParameterFilter { $Uri -match '/jobs/7/phases' }
+        Should -Invoke Invoke-IngestAPI -Exactly 1 -ParameterFilter { $Endpoint -eq 'ingest/sync-log' }
+        Should -Invoke Invoke-RestMethod -Exactly 1 -ParameterFilter { $Uri -match '/jobs/7/phases' }
     }
 
     It 'skips the phases post when there is no job id' {
@@ -1599,14 +1599,14 @@ Describe 'Write-EntraSyncLog' {
 
         Write-EntraSyncLog -SyncStart (Get-Date) -JobId 0 -ApiKey 'k' -ApiBaseUrl 'http://x/api'
 
-        Should -Invoke Invoke-RestMethod -Times 0
+        Should -Invoke Invoke-RestMethod -Exactly 0
     }
 
     It 'records status=Warning with the joined errors when phases failed' {
         Mock Invoke-IngestAPI -MockWith { @{} }
         $script:phaseErrors.Add('Principals: boom')
         Write-EntraSyncLog -SyncStart (Get-Date) -JobId 0 -ApiKey 'k' -ApiBaseUrl 'http://x/api'
-        Should -Invoke Invoke-IngestAPI -Times 1 -ParameterFilter { $Body.status -eq 'Warning' -and $Body.errorMessage -match 'boom' }
+        Should -Invoke Invoke-IngestAPI -Exactly 1 -ParameterFilter { $Body.status -eq 'Warning' -and $Body.errorMessage -match 'boom' }
     }
 
     It 'soft-fails when the phases POST throws' {
@@ -1628,19 +1628,19 @@ Describe 'Complete-EntraDeltaModeFlip' {
     It 'flips to delta after a full run scheduled by a config' {
         Mock Invoke-RestMethod -MockWith { @{} }
         Complete-EntraDeltaModeFlip -SyncMode 'full' -RawConfig @{ _scheduledByConfigId = 9 } -ApiBaseUrl 'http://x/api' -ApiKey 'k'
-        Should -Invoke Invoke-RestMethod -Times 1 -ParameterFilter { $Uri -match '/configs/9/mark-delta-mode' }
+        Should -Invoke Invoke-RestMethod -Exactly 1 -ParameterFilter { $Uri -match '/configs/9/mark-delta-mode' }
     }
 
     It 'does nothing on a delta run' {
         Mock Invoke-RestMethod -MockWith { @{} }
         Complete-EntraDeltaModeFlip -SyncMode 'delta' -RawConfig @{ _scheduledByConfigId = 9 } -ApiBaseUrl 'http://x/api' -ApiKey 'k'
-        Should -Invoke Invoke-RestMethod -Times 0
+        Should -Invoke Invoke-RestMethod -Exactly 0
     }
 
     It 'does nothing on a full run that was not scheduled by a config' {
         Mock Invoke-RestMethod -MockWith { @{} }
         Complete-EntraDeltaModeFlip -SyncMode 'full' -RawConfig @{} -ApiBaseUrl 'http://x/api' -ApiKey 'k'
-        Should -Invoke Invoke-RestMethod -Times 0
+        Should -Invoke Invoke-RestMethod -Exactly 0
     }
 
     It 'soft-fails when the mark-delta-mode call throws' {

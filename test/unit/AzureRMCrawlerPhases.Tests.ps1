@@ -80,7 +80,7 @@ Describe 'Connect-AzureRMSession' {
     It 'authenticates with the tenant/client/secret from config' {
         Mock Connect-AzureRM { }
         Connect-AzureRMSession -Config (New-TestConfig -Over @{ tenantId = 't9'; clientId = 'c9'; clientSecret = 's9' })
-        Should -Invoke Connect-AzureRM -Times 1 -ParameterFilter { $TenantId -eq 't9' -and $ClientId -eq 'c9' -and $ClientSecret -eq 's9' }
+        Should -Invoke Connect-AzureRM -Exactly 1 -ParameterFilter { $TenantId -eq 't9' -and $ClientId -eq 'c9' -and $ClientSecret -eq 's9' }
     }
 }
 
@@ -184,7 +184,7 @@ Describe 'Sync-AzureRMRoleDefinitions' {
         $ctx = New-TestCtx -ConfigOver @{ managementGroupId = 'mg1' }
         Sync-AzureRMRoleDefinitions -Ctx $ctx
         $ctx.RoleDefs['g1'].name | Should -Be 'Reader'
-        Should -Invoke Get-ARGRoleDefinitions -Times 1 -ParameterFilter { $ManagementGroups -contains 'mg1' }
+        Should -Invoke Get-ARGRoleDefinitions -Exactly 1 -ParameterFilter { $ManagementGroups -contains 'mg1' }
     }
 }
 
@@ -194,7 +194,7 @@ Describe 'Get-AzureMgDisplayName' {
         $ctx = New-TestCtx
         (Get-AzureMgDisplayName -Ctx $ctx -MgId 'mg1') | Should -Be 'Platform'
         (Get-AzureMgDisplayName -Ctx $ctx -MgId 'mg1') | Should -Be 'Platform'   # served from cache
-        Should -Invoke Invoke-ARMGet -Times 1
+        Should -Invoke Invoke-ARMGet -Exactly 1
     }
     It 'falls back to the raw id when the ARM lookup throws' {
         Mock Invoke-ARMGet { throw 'nope' }
