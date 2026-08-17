@@ -308,7 +308,7 @@ Describe 'Remove-FGAccessPackage' {
             )
         }
         Mock -ModuleName IdentityAtlas Invoke-FGPostRequest { 'removed' }
-        $r = Remove-FGAccessPackage -AccessPackageID 'ap1' -Force $true
+        $r = Remove-FGAccessPackage -AccessPackageID 'ap1' -Force
         # The function emits the (uncaptured) AdminRemove POST result(s) plus the
         # final delete result, so the delete result is the last item in $r.
         @($r)[-1] | Should -Be 'deleted'
@@ -826,5 +826,206 @@ Describe 'Remove-FGTrailingCommaFromJsonFile' {
         $parsed = Get-Content -Path $f -Raw | ConvertFrom-Json
         @($parsed).Count | Should -Be 1
         $parsed[0].a | Should -Be 1
+    }
+}
+
+# ---------------------------------------------------------------------------
+# Guards whose two halves were never separated. Each fixture below satisfies
+# exactly one half of an -and/-eq pair, which the existing fixtures never do:
+# they supply inputs where both halves agree, so the conjunction and its
+# mutation behave identically and the test cannot fail.
+# ---------------------------------------------------------------------------
+
+Describe 'Remove-FGAccessPackage - which assignments -Force removes' {
+    BeforeAll { $Global:AccessToken = 'fake-token' }
+    AfterAll  { $Global:AccessToken = $null }
+
+    It 'only cancels assignments belonging to the package being removed' {
+        # The filter is `state -ne expired -AND accessPackage.id -eq <this one>`.
+        # Read as -or it cancels every non-expired assignment in the TENANT,
+        # including other packages' -- a destructive action against data the
+        # caller never named. Existing fixtures return assignments for one
+        # package only, so both readings agree and the mutant is invisible.
+        Mock -ModuleName IdentityAtlas Invoke-FGDeleteRequest { 'deleted' }
+        Mock -ModuleName IdentityAtlas Invoke-FGGetRequest {
+            @(
+                [pscustomobject]@{ id = 'mine';    state = 'delivered'; accessPackage = [pscustomobject]@{ id = 'ap1' } }
+                [pscustomobject]@{ id = 'theirs';  state = 'delivered'; accessPackage = [pscustomobject]@{ id = 'ap2' } }
+                [pscustomobject]@{ id = 'expired'; state = 'expired';   accessPackage = [pscustomobject]@{ id = 'ap1' } }
+            )
+        }
+        $script:cancelled = [System.Collections.Generic.List[string]]::new()
+        Mock -ModuleName IdentityAtlas Invoke-FGPostRequest { $script:cancelled.Add([string]$Body.assignment.id) ; 'ok' }
+
+        Remove-FGAccessPackage -AccessPackageID 'ap1' -Force | Out-Null
+
+        $script:cancelled | Should -Contain 'mine'
+        $script:cancelled | Should -Not -Contain 'theirs'    # another package's assignment
+        $script:cancelled | Should -Not -Contain 'expired'   # already expired
+    }
+}
+
+Describe 'Merge-FGJsonArrayFile - lines that are only half of the join' {
+
+    It 'does not join on an opening bracket that follows something other than a close' {
+        # The join fires on `]` FOLLOWED BY `[` -- both halves. Every existing
+        # fixture supplies the pair, so -and and -or agree on all of them. A lone
+        # `[` whose predecessor is NOT `]` separates them: as -or it triggers the
+        # join anyway, replacing the preceding line with a comma and swallowing
+        # the line after it. This is a line-oriented text transform, so a
+        # line-level fixture is the right level to pin it at.
+        $f = Join-Path $TestDrive 'merge-lonebracket.json'
+        @('[', '{"a":1}', '[', '{"b":2}', ']') | Set-Content -Path $f
+        Merge-FGJsonArrayFile -File $f
+        $raw = Get-Content -Path $f -Raw
+        $raw | Should -BeLike '*{"a":1}*'   # not replaced by a comma
+        $raw | Should -BeLike '*{"b":2}*'   # not swallowed
+    }
+
+    It 'writes the final line of the file' {
+        # The tail write is guarded by `Length -gt 0`. Inverted, it writes only
+        # when the buffered line is EMPTY -- so the last real line is dropped and
+        # every merged file loses its closing bracket.
+        $f = Join-Path $TestDrive 'merge-tail.json'
+        @('[', '{"a":1}', ']', '[', '{"b":2}', ']') | Set-Content -Path $f
+        Merge-FGJsonArrayFile -File $f
+        (Get-Content -Path $f -Raw).TrimEnd() | Should -BeLike '*]'
+    }
+}
+
+Describe 'Remove-FGTrailingCommaFromJsonFile - the comma half of the pair' {
+
+    It 'leaves a bracket alone when the line before it is not a comma' {
+        # Separates the FIRST half: previous line is not a comma.
+        $f = Join-Path $TestDrive 'trailing-nocomma.json'
+        @('[', '{"a":1}', '{"b":2}', ']') | Set-Content -Path $f
+        Remove-FGTrailingCommaFromJsonFile -File $f
+        $raw = Get-Content -Path $f -Raw
+        $raw | Should -BeLike '*{"a":1}*'
+        $raw | Should -BeLike '*{"b":2}*'
+    }
+
+    It 'keeps a comma that is not immediately before the closing bracket' {
+        # Separates the SECOND half. The rewrite fires on `,` FOLLOWED BY `]`;
+        # read as `CurrentLine -ne ']'` it fires on a comma followed by anything
+        # else -- so a separator between two elements is turned into a closing
+        # bracket and the rest of the array is dropped.
+        $f = Join-Path $TestDrive 'trailing-midcomma.json'
+        @('[', '{"a":1}', ',', '{"b":2}', ']') | Set-Content -Path $f
+        Remove-FGTrailingCommaFromJsonFile -File $f
+        $raw = Get-Content -Path $f -Raw
+        $raw | Should -BeLike '*{"a":1}*'
+        $raw | Should -BeLike '*{"b":2}*'   # still there, not truncated
+    }
+}
+
+Describe 'Get-FGSecureConfigValue - an encrypted key that holds nothing' {
+
+    It 'treats an empty encrypted value as absent, not as corrupt' {
+        # Guard: `propertyExists -and -not IsNullOrWhiteSpace(value)`. As -or, the
+        # key merely EXISTING sends an empty string into ConvertTo-SecureString,
+        # which throws -- so the catch warns the user their credential "may have
+        # been encrypted by a different user" and DELETES the key. A blank
+        # left-over entry would produce an alarming, wrong message and a silent
+        # config edit.
+        $p = Join-Path $TestDrive 'get-encempty.json'
+        @{ Graph = @{ ClientSecret_Encrypted = ''; ClientSecret = 'plain-value' } } |
+            ConvertTo-Json | Set-Content -Path $p
+
+        # Asserted on the CALL, not on the warning: whether the failure surfaces
+        # as a warning depends on how an empty string binds to
+        # ConvertTo-SecureString, which is incidental. The invariant is that an
+        # empty encrypted value is never handed to the DECRYPTOR.
+        #
+        # The filter matters. This function calls ConvertTo-SecureString twice for
+        # two opposite purposes: decrypting (`$cipher | ConvertTo-SecureString`)
+        # and encrypting the migrated plaintext (`... -AsPlainText -Force`). The
+        # migration here is legitimate, so a blanket "never called" assertion
+        # fails against correct code -- only the decrypt-shaped call is forbidden.
+        Mock -ModuleName IdentityAtlas ConvertTo-SecureString {
+            ConvertTo-SecureString -String 'stub' -AsPlainText -Force
+        }
+        Get-FGSecureConfigValue -ConfigPath $p -PropertyPath 'Graph.ClientSecret' `
+            -WarningAction SilentlyContinue | Out-Null
+
+        Should -Invoke -ModuleName IdentityAtlas ConvertTo-SecureString -Exactly 0 `
+            -ParameterFilter { -not $AsPlainText }
+    }
+
+    It 'prompts with the caller-supplied message rather than the default' {
+        # `if (-not $PromptMessage) { $PromptMessage = "Enter value for ..." }`.
+        # Drop the negation and the branch runs when a message WAS supplied,
+        # overwriting it -- so every caller's wording is replaced by the generic
+        # default and the operator loses the context for what is being asked.
+        $p = Join-Path $TestDrive 'get-prompt.json'
+        @{ Graph = @{} } | ConvertTo-Json | Set-Content -Path $p
+
+        Mock -ModuleName IdentityAtlas Read-Host { ConvertTo-SecureString 'typed' -AsPlainText -Force }
+        Get-FGSecureConfigValue -ConfigPath $p -PropertyPath 'Graph.ClientSecret' `
+            -PromptMessage 'Paste the Contoso client secret' -WarningAction SilentlyContinue | Out-Null
+
+        Should -Invoke -ModuleName IdentityAtlas Read-Host -Exactly 1 -ParameterFilter {
+            $Prompt -eq 'Paste the Contoso client secret'
+        }
+    }
+}
+
+Describe 'Update-FGConfig - halves of the Sync comparison' {
+
+    It 'reports no missing Sync ENTRIES when the config has no Sync section at all' {
+        # The guard is `template has Sync -AND config has Sync`. As -or, a config
+        # with no Sync section is still walked key by key against the template and
+        # every sub-key is reported missing -- noise for a section the report
+        # deliberately does not chase (Sync is in $skipTopLevel).
+        $cfgPath = Join-Path $TestDrive 'cfg-nosync.json'
+        $tplPath = Join-Path $TestDrive 'template-nosync.json'
+        @{ LLM = @{} } | ConvertTo-Json -Depth 5 | Set-Content -Path $cfgPath
+        @{ LLM = @{}; Sync = @{ EntraGroups = @{}; Principals = @{} } } |
+            ConvertTo-Json -Depth 5 | Set-Content -Path $tplPath
+        Mock -ModuleName IdentityAtlas Join-Path { $tplPath } -ParameterFilter { $ChildPath -like '*tenantname.json.template' }
+
+        $result = Update-FGConfig -ConfigFile $cfgPath -Silent
+        # Everything the template offers at top level is already present, and the
+        # Sync comparison must not run at all -> nothing missing.
+        @($result.Missing).Count | Should -Be 0
+    }
+
+    It 'lists the missing sections it just announced a count for' {
+        # `if ($MissingSections.Count -gt 0)` gates the list. Inverted, the header
+        # says "N missing section(s)" and then never names them -- the report
+        # becomes a number with no way to act on it.
+        $cfgPath = Join-Path $TestDrive 'cfg-listsections.json'
+        $tplPath = Join-Path $TestDrive 'template-listsections.json'
+        @{ Sync = @{ EntraGroups = @{} } } | ConvertTo-Json -Depth 5 | Set-Content -Path $cfgPath
+        @{ LLM = @{}; Sync = @{ EntraGroups = @{} } } | ConvertTo-Json -Depth 5 | Set-Content -Path $tplPath
+        Mock -ModuleName IdentityAtlas Join-Path { $tplPath } -ParameterFilter { $ChildPath -like '*tenantname.json.template' }
+
+        $script:said = [System.Collections.Generic.List[string]]::new()
+        Mock -ModuleName IdentityAtlas Write-Host { $script:said.Add([string]$Object) }
+        Update-FGConfig -ConfigFile $cfgPath -Silent | Out-Null
+
+        $joined = $script:said -join "`n"
+        $joined | Should -BeLike '*Missing top-level sections:*'
+        $joined | Should -BeLike '*- LLM*'
+        # Sync matches exactly, so that header must stay away.
+        $joined | Should -Not -BeLike '*Missing Sync entries:*'
+    }
+
+    It 'lists the missing Sync entries it just announced a count for' {
+        $cfgPath = Join-Path $TestDrive 'cfg-listsync.json'
+        $tplPath = Join-Path $TestDrive 'template-listsync.json'
+        @{ Sync = @{ EntraGroups = @{} } } | ConvertTo-Json -Depth 5 | Set-Content -Path $cfgPath
+        @{ Sync = @{ EntraGroups = @{}; Principals = @{} } } | ConvertTo-Json -Depth 5 | Set-Content -Path $tplPath
+        Mock -ModuleName IdentityAtlas Join-Path { $tplPath } -ParameterFilter { $ChildPath -like '*tenantname.json.template' }
+
+        $script:said = [System.Collections.Generic.List[string]]::new()
+        Mock -ModuleName IdentityAtlas Write-Host { $script:said.Add([string]$Object) }
+        Update-FGConfig -ConfigFile $cfgPath -Silent | Out-Null
+
+        $joined = $script:said -join "`n"
+        $joined | Should -BeLike '*Missing Sync entries:*'
+        $joined | Should -BeLike '*- Sync.Principals*'   # printed with the Sync. prefix
+        # Nothing is missing at the top level, so that header must stay away.
+        $joined | Should -Not -BeLike '*Missing top-level sections:*'
     }
 }

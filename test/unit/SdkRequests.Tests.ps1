@@ -1036,3 +1036,52 @@ Describe 'Invoke-FGGetPage — default backoff ladder' {
     }
 }
 
+
+Describe 'Invoke-FGGetRequestStream - a page whose value is present but null' {
+    BeforeAll { $Global:AccessToken = 'fake-token' }
+    AfterAll  { $Global:AccessToken = $null }
+
+    It 'falls back to emitting the response when value is null' {
+        # The guard is `has a value property -AND that value is not null`. Every
+        # existing fixture supplies both (a real collection) or neither (a bare
+        # object), so the conjunction and `-or` agree. A page that HAS the
+        # property but holds null separates them: as -or it takes the collection
+        # branch, iterates $null, and emits NOTHING -- the page is silently lost
+        # rather than passed through for the caller to deal with.
+        Mock -ModuleName IdentityAtlas Invoke-FGGetPage {
+            [pscustomobject]@{ value = $null; '@odata.nextLink' = $null; id = 'only-page' }
+        }
+        $out = @(Invoke-FGGetRequestStream -URI 'https://graph.microsoft.com/v1.0/x')
+        $out.Count | Should -Be 1
+        $out[0].id | Should -Be 'only-page'
+    }
+}
+
+Describe 'Update-FGAccessTokenIfExpired - the debug gate' {
+    BeforeAll { $Global:AccessToken = 'fake-token' }
+    AfterAll  {
+        $Global:AccessToken = $null
+        Remove-Variable -Name DebugMode -Scope Global -ErrorAction SilentlyContinue
+    }
+
+    It 'does not blow up when a DebugFlag is passed but DebugMode is unset' {
+        # The gate is `$Global:DebugMode -AND $DebugFlag`, and the line inside it
+        # calls $Global:DebugMode.Contains(...). As -or, supplying just a flag
+        # enters the block with DebugMode still $null and the whole token refresh
+        # dies on a null method call -- taking down the caller's request for the
+        # sake of a debug message.
+        #
+        # The token must be reported EXPIRED, or none of this runs: the debug
+        # block sits inside `if (!($TokenIsStillValid))`. A first version of this
+        # test mocked validity to $true and therefore proved nothing.
+        Remove-Variable -Name DebugMode -Scope Global -ErrorAction SilentlyContinue
+        Mock -ModuleName IdentityAtlas Confirm-FGAccessTokenValidity { $false }
+        Mock -ModuleName IdentityAtlas Get-FGAccessToken { }
+        $Global:ClientSecret = 'secret'   # so the refresh path has somewhere to go
+        try {
+            { Update-FGAccessTokenIfExpired -DebugFlag 'Token' } | Should -Not -Throw
+            Should -Invoke -ModuleName IdentityAtlas Get-FGAccessToken -Exactly 1
+        }
+        finally { $Global:ClientSecret = $null }
+    }
+}

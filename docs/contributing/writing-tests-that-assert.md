@@ -64,6 +64,22 @@ JS suites when it is the only assertion in a test.
 | `$s.Count \| Should -Be 1` on an unwrapped single-element list | PowerShell unwraps one-element collections; a hashtable's `.Count` is its **key count** |
 | `-ForEach @($null, 429)` | Pester coerces a `$null` element into a **hashtable binding** — the null case never runs |
 | `$PSBoundParameters` captured inside a `Mock` body | That is the **mock's** binding, not the caller's. Use `-ParameterFilter` |
+| `@($x).Count \| Should -Be 0` | **`@($null).Count` is 1, not 0.** Wrapping null yields a one-element array holding null |
+| `[regex]`-free `Should -BeLike '*[3/10]*'` | `[...]` is a wildcard **character class**, so this matches one of `3 / 1 0`. Use `Should -Match ([regex]::Escape(...))` |
+
+**`@($null).Count == 1` deserves its own line** — it caused three separate wrong
+results in one sitting, and each time it read as a real failure rather than a
+broken assertion:
+
+- a guard counting an absent property failed every run that had nothing to report;
+- a test asserting "no records were produced" reported one record, because the
+  variable had been assigned **inside** a `Should -Not -Throw` scriptblock (a child
+  scope), so the outer variable stayed `$null`;
+- a test asserting on `$result.MissingSyncKeys` — a property that does not
+  exist — counted `@($null)` and got 1.
+
+Two habits kill all three: assign outside the scriptblock, and check the shape of
+what a function actually returns before asserting on a property name.
 
 ---
 
@@ -238,6 +254,39 @@ carries a measured number.
 - **A blanket regex over a test file edits comments too.** A bulk `-Times` →
   `-Exactly` rewrite silently mangled a doc comment explaining the rule. Use the
   same predicate in the fixer as in the counter, and read the diff.
+- **Angle brackets in an `It` name are a data placeholder.** Pester expands
+  `<...>` for `-ForEach`, so `It 'attributes it to <script-body>'` is parsed as
+  the expression `$script-body` and the test dies with a token error *before it
+  runs*. It reads exactly like a broken fixture.
+- **Only one `BeforeEach` per block takes effect.** A second one in the same
+  `Describe` replaces the first, silently dropping its mocks — which surfaces as
+  the real function running and failing on something unrelated.
+
+---
+
+## Assumptions worth checking before you assert
+
+Every item here was written confidently, run, and turned out to be wrong. The
+pattern is the same each time: an assertion built on a guess about *shape* or
+*mechanism* rather than on something observed.
+
+- **Does the test file you edited actually cover the mutant?** Mutation maps each
+  source file to named suites. A ternary case added to the wrong suite left the
+  mutant alive while the behaviour was genuinely covered — the test was right and
+  the mapping was not.
+- **Is the thing you asserted the observable difference?** "The file is unchanged"
+  passed against a mutant that *did* rewrite the file, because the rewrite
+  reserialised the same object byte-for-byte. The observable difference was
+  whether the write **happened**, so the assertion had to be on the call.
+- **Is the mutant reachable at all?** Two guards here look like gaps and are
+  equivalent: `foreach ($x in $null)` is a no-op in PowerShell, so a bail-out
+  before an empty loop changes nothing; and `$r -and $r.Count -gt 0` differs from
+  `-or` only when `$r` is the scalar `0`. Check before writing the test, and say
+  so in the comment when the answer is "equivalent".
+- **Does the API behave the way its name suggests?** `-Force` on one SDK function
+  was declared `[string]`, so the natural `-Force` call *failed* and only
+  `-Force 'True'` worked. The test found the defect; assuming the signature would
+  have hidden it.
 
 ---
 
