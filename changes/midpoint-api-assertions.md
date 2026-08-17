@@ -1,5 +1,0 @@
-- Added tests for how the midPoint crawler pages through large result sets: the offset it requests, when it decides a page is the last one, and how it applies a maximum-items limit. A fault in any of these returns fewer objects than the source actually holds, silently, with no error.
-- Verified that midPoint search options such as the raw-shadow flag are actually appended to the request URL. A single option was the untested case, and it is the one the crawler uses in normal operation.
-- Added tests for reference and attribute handling: a single-valued reference array now resolves rather than being treated as empty, a multi-valued attribute takes its first value, and blank values are rejected instead of being stored as empty text.
-- Verified that a midPoint object carrying both an archetype and a subtype is classified by its archetype, so a subtype rule can no longer claim an object it does not own and give it the wrong resource type.
-- Mutation testing now covers the midPoint REST client.
