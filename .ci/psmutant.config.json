@@ -25,7 +25,8 @@
     "tools/crawlers/omada/OmadaCrawler.Transform.ps1",
     "tools/crawlers/csv/CSVCrawler.Transform.ps1",
     "tools/crawlers/azure-rm/AzureRMCrawler.Transform.ps1",
-    "tools/crawlers/azure-rm/AzureRMCrawler.Phases.ps1"
+    "tools/crawlers/azure-rm/AzureRMCrawler.Phases.ps1",
+    "tools/crawlers/csv/CSVCrawler.Phases.ps1"
   ],
   "tests": {
     "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1": ["test/unit/EntraIDCrawlerTransform.Tests.ps1"],
@@ -51,16 +52,16 @@
     "tools/crawlers/omada/OmadaCrawler.Transform.ps1": ["test/unit/OmadaCrawlerTransform.Tests.ps1"],
     "tools/crawlers/csv/CSVCrawler.Transform.ps1": ["test/unit/CSVCrawlerTransform.Tests.ps1"],
     "tools/crawlers/azure-rm/AzureRMCrawler.Transform.ps1": ["test/unit/AzureRMCrawlerTransform.Tests.ps1"],
-    "tools/crawlers/azure-rm/AzureRMCrawler.Phases.ps1": ["test/unit/AzureRMCrawlerPhases.Tests.ps1"]
+    "tools/crawlers/azure-rm/AzureRMCrawler.Phases.ps1": ["test/unit/AzureRMCrawlerPhases.Tests.ps1"],
+    "tools/crawlers/csv/CSVCrawler.Phases.ps1": ["test/unit/CSVCrawlerPhases.Tests.ps1"]
   },
   "_exclusionsComment": "Eligible files deliberately NOT mutation-tested. Each key is a repo-relative path; the value is the reason. The scope-completeness guard (test/unit/PSMutationScope.Tests.ps1, #684) fails an eligible file that is in neither `mutate` nor here, so anything listed is a written decision rather than an oversight.",
   "exclusions": {
     "tools/crawlers/omada/Get-OmadaHelpers.ps1": "Produces ZERO mutants under the enabled operator set, so mutating it would report a vacuous 100%. It is five reference-value fallback chains (`if ($Ref.Value) { return [string]$Ref.Value }` repeated) with no arithmetic, no numeric/boolean literals and no negations for BinaryOperator/BooleanLiteral/NumberLiteral/NegationRemoval to bite on — the precedence order itself is only reachable by a statement-deletion or condition-forcing operator PSMutant does not currently offer. Revisit if such an operator is added; its behaviour is covered by OmadaCrawlerFunctions.Tests.ps1 in the meantime.",
 
 
-    "tools/crawlers/entra-id/EntraIDCrawler.Phases.ps1": "MEASURED at 39.6% (101/255) against EntraIDCrawlerPhases.Tests.ps1. CORRECTION: this entry previously claimed the Phases files are monoliths with functions trapped in a top-level Main body and therefore untestable without a decomposition first. That is false, and it was written without checking. It describes the Start-*Crawler.ps1 entry points, not these — the extraction already happened, and the layer is 158 named functions across five files with 263 existing tests. It is measurable today; it is simply weak. Being worked file by file: AzureRMCrawler.Phases.ps1 went 71.2% -> 84.8% and is now in `mutate` above. The shared gap across the layer is that the existing tests count what a phase produced (`.Count | Should -Be n`, `-BeGreaterThan 0`) instead of asserting what is IN it, so an inverted guard that changes an edge's direction or duplicates a record leaves the counts intact. The fix is per-file test-writing, not a config change.",
+    "tools/crawlers/entra-id/EntraIDCrawler.Phases.ps1": "MEASURED at 39.6% (101/255) against EntraIDCrawlerPhases.Tests.ps1. CORRECTION: this entry previously claimed the Phases files are monoliths with functions trapped in a top-level Main body and therefore untestable without a decomposition first. That is false, and it was written without checking. It describes the Start-*Crawler.ps1 entry points, not these — the extraction already happened, and the layer is 158 named functions across five files with 263 existing tests. It is measurable today; it is simply weak. Being worked file by file: AzureRMCrawler.Phases.ps1 went 71.2% -> 84.8% and CSVCrawler.Phases.ps1 went 47.8% -> 82.1%; both are now in `mutate` above. The shared gap across the layer is that the existing tests count what a phase produced (`.Count | Should -Be n`, `-BeGreaterThan 0`) instead of asserting what is IN it, so an inverted guard that changes an edge's direction or duplicates a record leaves the counts intact. The fix is per-file test-writing, not a config change.",
     "tools/crawlers/omada/OmadaCrawler.Phases.ps1": "MEASURED at 57.8% (93/161) against OmadaCrawlerPhases.Tests.ps1 — see EntraIDCrawler.Phases.ps1 above for why the layer is deferred.",
-    "tools/crawlers/csv/CSVCrawler.Phases.ps1": "MEASURED at 47.8% (32/67) against CSVCrawlerPhases.Tests.ps1 — see EntraIDCrawler.Phases.ps1 above.",
     "tools/crawlers/midpoint/MidpointCrawler.Phases.ps1": "MEASURED at 55.9% (71/127) against MidpointCrawlerPhases.Tests.ps1 — see EntraIDCrawler.Phases.ps1 above.",
     "tools/crawlers/entra-id/EntraIDCrawler.Orchestration.ps1": "MEASURED: produces ZERO mutants under the enabled operator set, so mutating it would report a vacuous 100% \u2014 same category as Get-OmadaHelpers.ps1. It is 61 lines: one function whose body is five `if ($SyncX) { ... }` phase guards. Those guards ARE decisions, but they are bare boolean variable checks with no comparison operators, numeric/boolean literals or negations for BinaryOperator/BooleanLiteral/NumberLiteral/NegationRemoval to act on. (An earlier version of this entry said it 'owns no decision logic of its own' and deferred it alongside the Phases layer. That was reasoned, not measured, and it overstated: the guards are decisions, they are simply not mutatable by these operators. Which phases run on a given config is worth a behavioural test in EntraIDCrawlerPhases.Tests.ps1 regardless of what mutation testing can see.)"
   },
