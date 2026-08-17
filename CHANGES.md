@@ -1,5 +1,12 @@
 ## Changes in this PR
 
+- Fixed the PowerShell SDK giving up on a Microsoft Graph request when the connection failed outright. It recognised only three specific error messages, so a dropped connection, DNS failure or TLS error was treated as permanent and the request abandoned rather than retried. Every SDK caller's paging goes through this code.
+- Added tests for how the SDK decides to retry a Graph request and how long it waits — including the shipped back-off schedule, which had never been exercised because every existing test replaced it with zero-second waits to keep the suite fast. All six of its values could have been changed without a test noticing.
+- Verified the SDK refreshes its access token between retry attempts rather than only before the first, so a long series of retries can no longer keep re-sending an expired token.
+- Mutation testing now covers the SDK's Graph paging layer.
+
+## Changes in this PR
+
 - Added tests for how the Azure crawlers decide to retry, how long they wait, and when they pause ahead of a quota limit. None of these decisions were directly tested before — the suite only counted how many requests were made, never checked the reasoning that produced them.
 - Fixed the Azure crawlers retrying errors that can never succeed. "Not Implemented" and similar responses were previously retried with growing pauses before failing anyway; they now fail immediately, and the Azure Resource Graph and Azure RM crawlers use the same retry rule as every other crawler.
 - Fixed the PowerShell SDK abandoning a Graph request when the connection failed outright. It recognised only three specific error messages, so a dropped connection or DNS failure was treated as permanent — the same problem already fixed in the Entra ID crawler.
