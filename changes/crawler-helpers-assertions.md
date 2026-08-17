@@ -1,0 +1,6 @@
+- Added tests for how the Azure crawlers decide to retry, how long they wait, and when they pause ahead of a quota limit. None of these decisions were directly tested before — the suite only counted how many requests were made, never checked the reasoning that produced them.
+- Fixed the Azure crawlers retrying errors that can never succeed. "Not Implemented" and similar responses were previously retried with growing pauses before failing anyway; they now fail immediately, and the Azure Resource Graph and Azure RM crawlers use the same retry rule as every other crawler.
+- Fixed the PowerShell SDK abandoning a Graph request when the connection failed outright. It recognised only three specific error messages, so a dropped connection or DNS failure was treated as permanent — the same problem already fixed in the Entra ID crawler.
+- Verified the Azure retry back-off is capped, so a long run of failures can no longer schedule a wait of hours. Nothing had checked the cap before.
+- Verified the Azure access token refreshes on schedule rather than on every call or never; that timing had no test.
+- Mutation testing now also covers the Azure RM helper layer.
