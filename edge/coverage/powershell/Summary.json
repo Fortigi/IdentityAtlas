@@ -1,22 +1,22 @@
 {
   "summary": {
-    "generatedon": "2026-08-17T06:29:54Z",
+    "generatedon": "2026-08-17T07:04:58Z",
     "parser": "JaCoCo",
     "assemblies": 12,
     "classes": 140,
     "files": 140,
-    "coveredlines": 5544,
-    "uncoveredlines": 561,
+    "coveredlines": 5545,
+    "uncoveredlines": 560,
     "coverablelines": 6105,
     "totallines": 16500,
     "linecoverage": 90.8,
     "coveredbranches": 0,
     "totalbranches": 0,
     "coveredmethods": 543,
-    "fullcoveredmethods": 493,
+    "fullcoveredmethods": 494,
     "totalmethods": 561,
     "methodcoverage": 96.7,
-    "fullmethodcoverage": 87.8
+    "fullmethodcoverage": 88
  },
   "coverage": {
     "assemblies": [
@@ -66,7 +66,7 @@
       { "name": "tools/crawlers/shared", "classes": 2, "coverage": 99.1, "coveredlines": 114, "coverablelines": 115, "totallines": 341, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 92.3, "coveredmethods": 13, "fullcoveredmethods": 12, "totalmethods": 13, "classesinassembly": [
         { "name": "tools/crawlers/shared/Get-CapabilityId", "coverage": 100, "coveredlines": 7, "coverablelines": 7, "totallines": 47, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 1, "fullcoveredmethods": 1, "totalmethods": 1 },
         { "name": "tools/crawlers/shared/Invoke-CrawlerIngest", "coverage": 99, "coveredlines": 107, "coverablelines": 108, "totallines": 294, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 91.6, "coveredmethods": 12, "fullcoveredmethods": 11, "totalmethods": 12 } ] },
-      { "name": "tools/powershell-sdk/graph", "classes": 71, "coverage": 94.5, "coveredlines": 980, "coverablelines": 1036, "totallines": 3405, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 99, "fullmethodcoverage": 90.1, "coveredmethods": 101, "fullcoveredmethods": 92, "totalmethods": 102, "classesinassembly": [
+      { "name": "tools/powershell-sdk/graph", "classes": 71, "coverage": 94.6, "coveredlines": 981, "coverablelines": 1036, "totallines": 3405, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 99, "fullmethodcoverage": 91.1, "coveredmethods": 101, "fullcoveredmethods": 93, "totalmethods": 102, "classesinassembly": [
         { "name": "tools/powershell-sdk/graph/Add-FGGroupMember", "coverage": 100, "coveredlines": 5, "coverablelines": 5, "totallines": 23, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 1, "fullcoveredmethods": 1, "totalmethods": 1 },
         { "name": "tools/powershell-sdk/graph/Add-FGGroupToAccessPackage", "coverage": 100, "coveredlines": 17, "coverablelines": 17, "totallines": 39, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 1, "fullcoveredmethods": 1, "totalmethods": 1 },
         { "name": "tools/powershell-sdk/graph/Add-FGGroupToCatalog", "coverage": 100, "coveredlines": 11, "coverablelines": 11, "totallines": 30, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 1, "fullcoveredmethods": 1, "totalmethods": 1 },
@@ -106,7 +106,7 @@
         { "name": "tools/powershell-sdk/graph/Get-FGUserManager", "coverage": 100, "coveredlines": 3, "coverablelines": 3, "totallines": 16, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 1, "fullcoveredmethods": 1, "totalmethods": 1 },
         { "name": "tools/powershell-sdk/graph/Get-FGUserMemberOf", "coverage": 100, "coveredlines": 3, "coverablelines": 3, "totallines": 19, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 1, "fullcoveredmethods": 1, "totalmethods": 1 },
         { "name": "tools/powershell-sdk/graph/Invoke-FGDeleteRequest", "coverage": 66.6, "coveredlines": 10, "coverablelines": 15, "totallines": 46, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 0, "coveredmethods": 1, "fullcoveredmethods": 0, "totalmethods": 1 },
-        { "name": "tools/powershell-sdk/graph/Invoke-FGGetPage", "coverage": 97, "coveredlines": 33, "coverablelines": 34, "totallines": 110, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 75, "coveredmethods": 4, "fullcoveredmethods": 3, "totalmethods": 4 },
+        { "name": "tools/powershell-sdk/graph/Invoke-FGGetPage", "coverage": 100, "coveredlines": 34, "coverablelines": 34, "totallines": 110, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 4, "fullcoveredmethods": 4, "totalmethods": 4 },
         { "name": "tools/powershell-sdk/graph/Invoke-FGGetRequest", "coverage": 100, "coveredlines": 32, "coverablelines": 32, "totallines": 74, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 1, "fullcoveredmethods": 1, "totalmethods": 1 },
         { "name": "tools/powershell-sdk/graph/Invoke-FGGetRequestStream", "coverage": 100, "coveredlines": 12, "coverablelines": 12, "totallines": 76, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 1, "fullcoveredmethods": 1, "totalmethods": 1 },
         { "name": "tools/powershell-sdk/graph/Invoke-FGGetRequestToFile", "coverage": 71.4, "coveredlines": 15, "coverablelines": 21, "totallines": 50, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 0, "coveredmethods": 1, "fullcoveredmethods": 0, "totalmethods": 1 },
