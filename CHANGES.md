@@ -1,5 +1,10 @@
 ## Changes in this PR
 
+- Added tests that check what the Azure RM crawler actually writes, not just how much of it. The existing tests counted the scope nodes and relationships a sync produced but never inspected them, so a change that registered the system as disabled, or that stopped marking a permission relationship as inherited by child scopes, would have left every count correct and shipped a tenant that looked synced but was not.
+- Recorded measured mutation-testing figures for all five crawler phase files, replacing an inaccurate note that claimed the layer could not be tested in its current form. It can; it is simply under-tested, and the real numbers are now written down so the gap is visible rather than assumed.
+
+## Changes in this PR
+
 - Fixed the PowerShell SDK giving up on a Microsoft Graph request when the connection failed outright. It recognised only three specific error messages, so a dropped connection, DNS failure or TLS error was treated as permanent and the request abandoned rather than retried. Every SDK caller's paging goes through this code.
 - Added tests for how the SDK decides to retry a Graph request and how long it waits — including the shipped back-off schedule, which had never been exercised because every existing test replaced it with zero-second waits to keep the suite fast. All six of its values could have been changed without a test noticing.
 - Verified the SDK refreshes its access token between retry attempts rather than only before the first, so a long series of retries can no longer keep re-sending an expired token.
