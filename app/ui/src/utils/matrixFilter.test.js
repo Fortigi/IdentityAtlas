@@ -96,6 +96,33 @@ describe('normalizeMatrixFilter', () => {
     expect(b.sortAttributes).toEqual(DEFAULT_SORT);
     expect(DEFAULT_SORT[0].attribute).toBe('department');
   });
+
+  it('defaults to department ASCENDING, stated as a literal', () => {
+    // `toEqual(DEFAULT_SORT)` above compares the constant to itself: change the
+    // direction and both sides change together, so it cannot pin one. The
+    // attribute is pinned on the line above; the direction was not, and a
+    // matrix that opens sorted the wrong way round is a visible difference.
+    expect(DEFAULT_SORT).toEqual([{ attribute: 'department', dir: 'asc' }]);
+    expect(normalizeMatrixFilter(null).sortAttributes).toEqual([{ attribute: 'department', dir: 'asc' }]);
+  });
+
+  it('accepts every documented rollupContent value', () => {
+    // The allowed-value list IS the contract — a value dropped from it doesn't
+    // error, it silently reverts the roll-up to 'resources-and-roles'. Only
+    // 'roles-only' was covered, so removing either of the other two showed up
+    // nowhere.
+    for (const value of ['resources-and-roles', 'resources-only', 'roles-only']) {
+      expect(normalizeMatrixFilter({ rollupContent: value }).rollupContent).toBe(value);
+    }
+  });
+
+  it('keeps foldOnLoad: false — "never fold" is not the same as "auto"', () => {
+    // 'auto' folds a large matrix; false is the analyst forcing it not to.
+    // Collapsing false into the default silently re-folds their view on load.
+    expect(normalizeMatrixFilter({ foldOnLoad: false }).foldOnLoad).toBe(false);
+    expect(normalizeMatrixFilter({ foldOnLoad: true }).foldOnLoad).toBe(true);
+    expect(normalizeMatrixFilter({ foldOnLoad: 'auto' }).foldOnLoad).toBe('auto');
+  });
 });
 
 describe('matrixFilterFingerprint', () => {
@@ -154,6 +181,23 @@ describe('matrixFilterFingerprint', () => {
     expect(matrixFilterFingerprint({
       ...seeded, subject: { include: [{ kind: 'attribute', field: 'department', values: ['HR'] }], exclude: [] },
     })).not.toBe(base);
+  });
+
+  it('ignores key order INSIDE a condition, not just at the top level', () => {
+    // The normaliser rebuilds the TOP-level keys in a fixed order, so the
+    // existing key-order test passes even without the sort in `canonical`.
+    // Conditions are different: they are deep-copied exactly as they arrive,
+    // and a filter that went to Postgres as JSONB and came back can return
+    // them with the keys in another order. Unsorted, that is a different
+    // fingerprint — the matrix stops matching the saved row it came from, and
+    // the summary bar relabels it "Not saved", which is the bug this function
+    // was written to fix.
+    const a = { ...seeded, subject: { include: [{ kind: 'attribute', field: 'department', values: ['HR'] }], exclude: [] } };
+    const b = { ...seeded, subject: { include: [{ values: ['HR'], field: 'department', kind: 'attribute' }], exclude: [] } };
+    expect(matrixFilterFingerprint(a)).toBe(matrixFilterFingerprint(b));
+    // ...and it is still a different matrix from the unfiltered one, so the
+    // assertion above can't be satisfied by fingerprinting everything alike.
+    expect(matrixFilterFingerprint(a)).not.toBe(matrixFilterFingerprint(seeded));
   });
 
   it('keeps condition order significant', () => {

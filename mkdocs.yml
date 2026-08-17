@@ -179,6 +179,7 @@ nav:
           - Contribute a Change: contributing/contribute.md
           - Local Development: ui/local-dev.md
           - Building a Crawler: sync/building-a-crawler.md
+          - Writing Tests That Assert: contributing/writing-tests-that-assert.md
           - UI Style Guide: contributing/style-guide.md
           - CI Pipeline: contributing/ci-pipeline.md
           - CI Scope Testing: architecture/ci-scope-testing.md

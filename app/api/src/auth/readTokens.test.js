@@ -242,6 +242,37 @@ describe('findActiveByPlaintext', () => {
     expect(params).toEqual([42]);
   });
 
+  it('treats a token expiring at exactly this instant as still valid', async () => {
+    // The comparison is `expiresAt < now`, so the expiry instant itself is
+    // inclusive — a token is valid up to and including it. Pinned with fake
+    // timers because the boundary is otherwise unreachable: without this, the
+    // only surviving mutant in this file was `<` -> `<=`, which flips a token
+    // from valid to rejected on its exact expiry millisecond.
+    vi.useFakeTimers();
+    try {
+      const now = new Date('2030-06-01T12:00:00.000Z');
+      vi.setSystemTime(now);
+      const row = { id: 1, name: 't', revoked: false, expiresAt: now.toISOString() };
+      query.mockResolvedValueOnce({ rows: [row] }).mockResolvedValueOnce({ rows: [] });
+      expect(await findActiveByPlaintext(PLAINTEXT)).toEqual(row);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('rejects a token that expired one millisecond ago', async () => {
+    vi.useFakeTimers();
+    try {
+      const now = new Date('2030-06-01T12:00:00.000Z');
+      vi.setSystemTime(now);
+      const expired = new Date(now.getTime() - 1).toISOString();
+      query.mockResolvedValueOnce({ rows: [{ id: 1, name: 't', revoked: false, expiresAt: expired }] });
+      expect(await findActiveByPlaintext(PLAINTEXT)).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('still authenticates when the lastUsedAt write fails', async () => {
     const row = { id: 42, name: 't', revoked: false, expiresAt: null };
     stageLookup([row], { touch: Promise.reject(new Error('write failed')) });

@@ -84,7 +84,7 @@ Describe 'Sync-MidpointSystems' {
         $r.resourceSystemId['res-1'] | Should -Be 11
         $r.resourceOidToName['res-1'] | Should -Be 'AD'
         # res-2 held no shadows → registered set has only midPoint + res-1.
-        Should -Invoke Invoke-IngestAPI -Times 1 -ParameterFilter { $Endpoint -eq 'ingest/systems' }
+        Should -Invoke Invoke-IngestAPI -Exactly 1 -ParameterFilter { $Endpoint -eq 'ingest/systems' }
         $script:phaseErrors.Count | Should -Be 0
     }
 
@@ -133,7 +133,7 @@ Describe 'Sync-MidpointRefreshViews' {
     It 'posts to the refresh-views endpoint' {
         Mock Invoke-RestMethod -MockWith { @{} }
         Sync-MidpointRefreshViews -ApiBaseUrl 'https://x/api' -ApiKey 'k'
-        Should -Invoke Invoke-RestMethod -Times 1 -ParameterFilter { $Uri -match '/ingest/refresh-views' }
+        Should -Invoke Invoke-RestMethod -Exactly 1 -ParameterFilter { $Uri -match '/ingest/refresh-views' }
     }
 
     It 'soft-fails (no throw) when refresh-views errors' {
@@ -294,7 +294,7 @@ Describe 'Sync-MidpointShadows' {
         (Get-Sent { $_.Endpoint -eq 'ingest/identity-members' }).Count | Should -BeGreaterThan 0
         ($r.entitlementByDn.Values) | Should -Contain 'ent-sh'
         # Pass B emitted an entitlement assignment via the stream.
-        Should -Invoke Add-IngestStreamRecord -Times 1
+        Should -Invoke Add-IngestStreamRecord -Exactly 1
         $script:phaseErrors.Count | Should -Be 0
     }
 
@@ -468,7 +468,7 @@ Describe 'Connect-MidpointSession' {
         Mock Connect-MidpointAPI -MockWith { }
         $cfg = [pscustomobject]@{ baseUrl = 'https://mp'; authMethod = 'BasicAuth'; username = 'admin'; password = 'pw' }
         Connect-MidpointSession -Cfg $cfg
-        Should -Invoke Connect-MidpointAPI -Times 1 -ParameterFilter {
+        Should -Invoke Connect-MidpointAPI -Exactly 1 -ParameterFilter {
             $BaseUrl -eq 'https://mp' -and $AuthMethod -eq 'BasicAuth' -and $Username -eq 'admin' -and $Password -eq 'pw'
         }
     }
@@ -477,7 +477,7 @@ Describe 'Connect-MidpointSession' {
         Mock Connect-MidpointAPI -MockWith { }
         $cfg = [pscustomobject]@{ baseUrl = 'https://mp'; authMethod = 'OAuth2CC'; clientId = 'cid'; clientSecret = 'sec'; tokenEndpoint = 'https://t' }
         Connect-MidpointSession -Cfg $cfg
-        Should -Invoke Connect-MidpointAPI -Times 1 -ParameterFilter {
+        Should -Invoke Connect-MidpointAPI -Exactly 1 -ParameterFilter {
             $ClientId -eq 'cid' -and $ClientSecret -eq 'sec' -and $TokenEndpoint -eq 'https://t'
         }
     }
@@ -485,12 +485,54 @@ Describe 'Connect-MidpointSession' {
 
 # ─── Write-MidpointPerfSummary ──────────────────────────────────────────────────
 Describe 'Write-MidpointPerfSummary' {
-    It 'stops the master stopwatch and prints read + ingest timings without error' {
-        $script:swMaster    = [System.Diagnostics.Stopwatch]::StartNew()
+    # This is the operator's only view of where a midPoint run spent its time, and
+    # it was asserted only for "does not throw" -- so every figure in it, and both
+    # section guards, could have been wrong. The numbers ARE the behaviour here.
+    # Decimal separators are culture-dependent ({N1} formatting), hence [.,].
+    BeforeEach {
+        $script:said = [System.Collections.Generic.List[string]]::new()
+        Mock Write-Host { $script:said.Add([string]$Object) }
+        $script:swMaster = [System.Diagnostics.Stopwatch]::StartNew()
+    }
+
+    It 'stops the master stopwatch and prints both sections with their figures' {
         $script:fetchStats  = [ordered]@{ users = @{ seconds = 1.2; count = 3 } }
         $script:ingestStats = [ordered]@{ 'ingest/users' = @{ seconds = 0.5; calls = 2; records = 10 } }
-        { Write-MidpointPerfSummary } | Should -Not -Throw
+
+        Write-MidpointPerfSummary
+
         $script:swMaster.IsRunning | Should -BeFalse
+        $out = $script:said -join "`n"
+        $out | Should -Match 'midPoint reads:'
+        $out | Should -Match 'users\s+1[.,]2s\s+\(3 objects\)'
+        # 10 records in 0.5s is 20/s -- the one figure here that is computed rather
+        # than echoed, so it is the one that can silently be nonsense.
+        $out | Should -Match 'ingest/users\s+0[.,]5s /\s*2 /\s*10 .+ 20 rec/s'
+        $out | Should -Match 'ingest TOTAL\s+0[.,]5s total'
+    }
+
+    It 'reports 0 rec/s for an endpoint that took no measurable time' {
+        # The -gt 0 guard is what stops a divide-by-zero. Every existing fixture had
+        # a non-zero duration, so the guard could be removed without complaint; a
+        # zero-second entry is what makes it divide.
+        $script:fetchStats  = [ordered]@{}
+        $script:ingestStats = [ordered]@{ 'ingest/fast' = @{ seconds = 0; calls = 1; records = 5 } }
+
+        { Write-MidpointPerfSummary } | Should -Not -Throw
+
+        ($script:said -join "`n") | Should -Match 'ingest/fast\s+0[.,]0s / \s*1 /\s*5 .+ 0 rec/s'
+    }
+
+    It 'prints neither section when nothing was recorded' {
+        $script:fetchStats  = [ordered]@{}
+        $script:ingestStats = [ordered]@{}
+
+        Write-MidpointPerfSummary
+
+        $out = $script:said -join "`n"
+        $out | Should -Match 'Total wall-clock'
+        $out | Should -Not -Match 'midPoint reads:'
+        $out | Should -Not -Match 'Ingest API'
     }
 }
 
@@ -500,7 +542,16 @@ Describe 'Complete-MidpointRun' {
 
     It 'marks progress complete and does not throw when there are no phase errors' {
         { Complete-MidpointRun } | Should -Not -Throw
-        Should -Invoke Update-CrawlerProgress -Times 1 -ParameterFilter { $Step -eq 'Complete' -and $Pct -eq 100 }
+        Should -Invoke Update-CrawlerProgress -Exactly 1 -ParameterFilter { $Step -eq 'Complete' -and $Pct -eq 100 }
+    }
+
+    It 'fails the run on a SINGLE phase error' {
+        # The other failure test records two errors, so it cannot tell `Count -gt 0`
+        # from `-gt 1`. Read as -gt 1, a run in which exactly one phase failed
+        # finishes silently and the worker marks the job successful -- the one
+        # failure mode this function exists to prevent.
+        $script:phaseErrors.Add('Users: boom')
+        { Complete-MidpointRun } | Should -Throw '*completed with errors: Users: boom*'
     }
 
     It 'throws a summary error when phases recorded failures' {

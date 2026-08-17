@@ -32,7 +32,11 @@ BeforeAll {
     $script:JobId      = 0   # Update-CrawlerProgress no-ops when JobId <= 0
     $script:TypeMappings = @{
         contextTypeToIdentityAtlas  = @{ 'OrgUnit' = 'OrgUnit' }
-        identityTypeToIdentityAtlas = @{ Employee = 'User' }
+        # 'Technical' is here to exercise the branch that handles principal types
+        # outside the three built-in ones. Operators can map an Omada identity
+        # type to anything via the crawler's typeMappings override (see
+        # Merge-TypeMappings), so this is a real configuration, not a synthetic one.
+        identityTypeToIdentityAtlas = @{ Employee = 'User'; Technical = 'TechnicalAccount' }
     }
     $script:ResourceCategoryMapping = @(
         @{ category = 'Business Role'; resourceType = 'BusinessRole' }
@@ -173,7 +177,7 @@ Describe 'Sync-OmadaRefreshViews' {
     It 'calls the refresh-views ingest endpoint' {
         Mock Invoke-IngestAPI -MockWith { @{} }
         Sync-OmadaRefreshViews
-        Should -Invoke Invoke-IngestAPI -Times 1 -ParameterFilter { $Endpoint -eq 'ingest/refresh-views' }
+        Should -Invoke Invoke-IngestAPI -Exactly 1 -ParameterFilter { $Endpoint -eq 'ingest/refresh-views' }
     }
 
     It 'soft-fails when the refresh endpoint throws' {
@@ -278,6 +282,34 @@ Describe 'Sync-OmadaAccounts' {
         $script:phaseErrors.Count | Should -Be 0
     }
 
+    It 'uploads a principal whose type is none of the three built-in ones' {
+        # Accounts are ingested in three fixed buckets (User / ExternalUser /
+        # ServicePrincipal) plus a catch-all for anything an operator's typeMappings
+        # override produces. Every fixture here maps to 'User', so the catch-all
+        # never ran -- and its guard, read as "more than one", would drop a tenant
+        # with a single such account silently: no bucket, no error, no record.
+        Mock Invoke-ODataPagedRequest -ParameterFilter { $Path -eq '/User' } -MockWith {
+            @(
+                [pscustomobject]@{ UId = 'acc-1'; UserName = 'alice'; FIRSTNAME = 'Alice'; LASTNAME = 'Smith'; IDENTITYREF = [pscustomobject]@{ IDENTITYID = 'ID-1' } }
+                [pscustomobject]@{ UId = 'acc-2'; UserName = 'svc';   FIRSTNAME = 'Batch'; LASTNAME = 'Runner'; IDENTITYREF = [pscustomobject]@{ IDENTITYID = 'ID-2' } }
+            )
+        }
+        $lookup = @{
+            'ID-1' = @{ uid = 'id-1'; identityType = 'Employee' }
+            'ID-2' = @{ uid = 'id-2'; identityType = 'Technical' }
+        }
+
+        $r = Sync-OmadaAccounts -SystemId 4 -IdentityLookup $lookup
+
+        (Get-Sent { $_.Scope.principalType -eq 'User' })[0].Records.Count | Should -Be 1
+        $other = Get-Sent { $_.Scope.principalType -eq 'TechnicalAccount' }
+        $other | Should -HaveCount 1
+        $other[0].Records.Count | Should -Be 1
+        $other[0].Records[0].externalId | Should -Be 'acc-2'
+        @($r.allAccounts).Count | Should -Be 2
+        $script:phaseErrors.Count | Should -Be 0
+    }
+
     It 'records a phase failure when the account fetch throws' {
         Mock Invoke-ODataPagedRequest -ParameterFilter { $Path -eq '/User' } -MockWith { throw 'OData 500' }
         Sync-OmadaAccounts -SystemId 1 -IdentityLookup @{}
@@ -377,6 +409,11 @@ Describe 'Sync-OmadaContextMembers' {
         Mock Invoke-ODataPagedRequest -ParameterFilter { $Path -eq '/Contextassignment' } -MockWith {
             @([pscustomobject]@{ CA_IDENTITY = @{ UId = 'id1' }; CA_CONTEXT = @{ UId = 'ctx1' } })
         }
+        # Default FIRST, then the specific override. The phase probes several entity
+        # sets; with only the filtered mock, the Contextassignment probe matches no
+        # filter and has nothing to fall back to, so the whole phase errors out
+        # instead of exercising the dedup this test is about.
+        Mock Test-EntitySetAvailable -MockWith { $true }
         Mock Test-EntitySetAvailable -ParameterFilter { $Name -eq 'Employment' } -MockWith { $false }
         # Identity fields produce the SAME (ctx1,id1) pair — must dedup to one.
         $identities = @([pscustomobject]@{ UId = 'id1'; OUREF = [pscustomobject]@{ UId = 'ctx1' } })
@@ -389,6 +426,7 @@ Describe 'Sync-OmadaContextMembers' {
     }
 
     It 'records a phase failure when Contextassignment is unavailable' {
+        Mock Test-EntitySetAvailable -MockWith { $true }
         Mock Test-EntitySetAvailable -ParameterFilter { $Name -eq 'Contextassignment' } -MockWith { $false }
         Sync-OmadaContextMembers -SystemId 1 -SyncedContextIds (New-StrSet 'x') `
             -IdentityUidInIdentitiesTable (New-StrSet 'y') -AllIdentities @() -ContextObjectTypes @() -WellKnownIdentityContextFields @{}
@@ -447,6 +485,23 @@ Describe 'ConvertFrom-OmadaCraItem' {
 
         $r.principal | Should -BeNullOrEmpty
         $r.assignment.principalId | Should -Be 'user-uid-1'
+    }
+
+    It 'skips a half-populated row that would otherwise resolve all the way through' {
+        # The existing guard test uses a row that goes on to fail for a second
+        # reason (no account name), so the pair check could be relaxed to "both
+        # missing" and the row would still come back null. These two rows resolve
+        # completely apart from the one missing half -- so if the check no longer
+        # rejects them, a governance assignment is built pointing at a null
+        # resource, or held by nobody.
+        $identities = New-StrSet 'id1'
+        $names = @{ alice = 'user-uid-1' }
+
+        $noRes = [pscustomobject]@{ System = @{ UId = 'omada-sys' }; Identity = @{ UId = 'id1' }; AccountName = 'alice' }
+        ConvertFrom-OmadaCraItem -Item $noRes -OmadaIdentitySystemUId 'omada-sys' -UserNameToUid $names -IdentityUidInIdentitiesTable $identities | Should -BeNullOrEmpty
+
+        $noIdent = [pscustomobject]@{ System = @{ UId = 'omada-sys' }; Resource = @{ UId = 'r1' }; AccountName = 'alice' }
+        ConvertFrom-OmadaCraItem -Item $noIdent -OmadaIdentitySystemUId 'omada-sys' -UserNameToUid $names -IdentityUidInIdentitiesTable $identities | Should -BeNullOrEmpty
     }
 
     It 'skips a row with no resource/identity, or an unresolvable Omada account' {
@@ -550,6 +605,28 @@ Describe 'Omada config resolution' {
         $c.SyncMode | Should -Be 'full'
     }
 
+    It 'Resolve-OmadaSyncToggles turns every phase ON when nothing is configured' {
+        # The test above pins three of the nine toggles, two of which it overrides
+        # to false -- so six defaults were unasserted. Every one of them defaults
+        # ON here (unlike the Entra crawler, where the expensive phases default
+        # off), which makes a flipped default especially quiet: the crawler runs,
+        # reports success, and simply never syncs that object type. On a FULL sync
+        # the ingest side then reconciles the records it did not receive as
+        # deletions.
+        $c = Resolve-OmadaSyncToggles -RawConfig @{}
+
+        $c.SyncContexts       | Should -BeTrue
+        $c.SyncIdentities     | Should -BeTrue
+        $c.SyncAccounts       | Should -BeTrue
+        $c.SyncContextMembers | Should -BeTrue
+        $c.SyncResources      | Should -BeTrue
+        $c.SyncEntitlements   | Should -BeTrue
+        $c.SyncAssignments    | Should -BeTrue
+        $c.SyncCRAs           | Should -BeTrue
+        $c.RefreshViews       | Should -BeTrue
+        $c.SyncMode           | Should -Be 'full'
+    }
+
     It 'Resolve-OmadaContextObjectTypes defaults to Orgunit and builds the identityField map' {
         $r = Resolve-OmadaContextObjectTypes -Cfg ([pscustomobject]@{})
         @($r.contextObjectTypes)[0].entitySet | Should -Be 'Orgunit'
@@ -607,19 +684,45 @@ Describe 'Omada setup helpers' {
     It 'Connect-OmadaSession passes only the provided auth fields to Connect-ODataAPI' {
         Mock Connect-ODataAPI -MockWith { }
         Connect-OmadaSession -Cfg ([pscustomobject]@{ authMethod = 'ApiToken'; apiToken = 'tok' }) -BaseUrl 'http://x' -ApiVersion 'v14' -SessionTimeoutMinutes 30
-        Should -Invoke Connect-ODataAPI -Times 1
+        Should -Invoke Connect-ODataAPI -Exactly 1
     }
 
     It 'Connect-OmadaSession forwards username/password + OAuth client + cookie fields' {
         Mock Connect-ODataAPI -MockWith { }
         Connect-OmadaSession -Cfg ([pscustomobject]@{ authMethod = 'OAuth2'; username = 'u'; password = 'p'; clientId = 'cid'; clientSecret = 'sec'; tokenEndpoint = 'https://t'; cookieString = 'ck' }) `
             -BaseUrl 'http://x' -ApiVersion 'v14' -SessionTimeoutMinutes 30
-        Should -Invoke Connect-ODataAPI -Times 1
+        Should -Invoke Connect-ODataAPI -Exactly 1
     }
 
     It 'Get-OmadaAvailableEntitySets returns the discovered sets' {
         Mock Get-ODataEntitySets -MockWith { @('Identity','User','Resource') }
         @(Get-OmadaAvailableEntitySets) | Should -Contain 'User'
+    }
+
+    It 'reports a single discovered entity set as discovered, not as missing metadata' {
+        # The guard chooses between listing the sets and announcing that metadata
+        # was unavailable. Read as "more than one", a tenant exposing exactly one
+        # set gets told its metadata could not be read -- which is the message that
+        # explains why every phase then runs blind.
+        $script:said = [System.Collections.Generic.List[string]]::new()
+        Mock Write-Host { $script:said.Add([string]$Object) }
+        Mock Get-ODataEntitySets -MockWith { @('User') }
+
+        @(Get-OmadaAvailableEntitySets) | Should -Be @('User')
+
+        $out = $script:said -join "`n"
+        $out | Should -Match 'Entity sets: User'
+        $out | Should -Not -Match 'metadata unavailable'
+    }
+
+    It 'says metadata was unavailable when nothing came back' {
+        $script:said = [System.Collections.Generic.List[string]]::new()
+        Mock Write-Host { $script:said.Add([string]$Object) }
+        Mock Get-ODataEntitySets -MockWith { @() }
+
+        @(Get-OmadaAvailableEntitySets) | Should -HaveCount 0
+
+        ($script:said -join "`n") | Should -Match 'metadata unavailable'
     }
 
     It 'Register-OmadaSystems resolves the main IGA system id from the atlas map' {
@@ -668,14 +771,14 @@ Describe 'Write-OmadaSummary' {
         Mock Invoke-RestMethod -MockWith { @{} }
         $script:phases.Add(@{ name = 'Contexts'; status = 'ok'; durationMs = 5 })
         { Write-OmadaSummary -StartTime ([datetime]::UtcNow) -JobId 7 -ApiKey 'k' -ApiBaseUrl 'http://x/api' } | Should -Not -Throw
-        Should -Invoke Invoke-RestMethod -Times 1 -ParameterFilter { $Uri -match '/jobs/7/phases' }
+        Should -Invoke Invoke-RestMethod -Exactly 1 -ParameterFilter { $Uri -match '/jobs/7/phases' }
     }
 
     It 'renders a FAILED row (with error + records in the payload) and swallows a POST failure' {
         Mock Invoke-RestMethod -MockWith { throw 'jobs api 500' }
         $script:phases.Add(@{ name = 'Accounts'; status = 'error'; durationMs = 3; error = 'boom'; records = @{ accounts = 0 } })
         { Write-OmadaSummary -StartTime ([datetime]::UtcNow) -JobId 7 -ApiKey 'k' -ApiBaseUrl 'http://x/api' } | Should -Not -Throw
-        Should -Invoke Invoke-RestMethod -Times 1
+        Should -Invoke Invoke-RestMethod -Exactly 1
     }
 }
 

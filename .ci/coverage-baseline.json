@@ -166,7 +166,7 @@
     "app/ui/src/App.jsx": 42,
     "app/ui/src/auth/AuthGate.js": 65,
     "app/ui/src/auth/AuthGateProvider.jsx": 0,
-    "app/ui/src/auth/usePermissions.js": 39,
+    "app/ui/src/auth/usePermissions.js": 99,
     "app/ui/src/components/AboutPage.jsx": 0,
     "app/ui/src/components/AccessPackageDetailPage.jsx": 96,
     "app/ui/src/components/AccessPackageGovernance.jsx": 37,

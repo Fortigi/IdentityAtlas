@@ -82,7 +82,7 @@ Describe 'Send-IngestBatch' {
         $r.inserted | Should -Be 0
         $r.updated  | Should -Be 0
         $r.deleted  | Should -Be 0
-        Should -Invoke Invoke-IngestAPI -Times 0
+        Should -Invoke Invoke-IngestAPI -Exactly 0
     }
 
     It 'sends a single batch (records ≤ BatchSize) with the resolved sync mode and scope' {
@@ -90,7 +90,7 @@ Describe 'Send-IngestBatch' {
         Mock Invoke-IngestAPI { $script:captured = $Body; return @{ inserted = 2; updated = 1; deleted = 0 } }
         $recs = @([pscustomobject]@{ id = 'a' }, [pscustomobject]@{ id = 'b' })
         $r = Send-IngestBatch -Endpoint 'ingest/resources' -SystemId 7 -Scope @{ resourceType = 'Service' } -Records $recs
-        Should -Invoke Invoke-IngestAPI -Times 1
+        Should -Invoke Invoke-IngestAPI -Exactly 1
         $r.inserted | Should -Be 2
         $r.updated  | Should -Be 1
         $script:captured.systemId          | Should -Be 7
@@ -125,7 +125,7 @@ Describe 'Send-IngestBatch' {
         # 12 records, BatchSize 5 → chunks of 5, 5, 2 → start, continue, end.
         $recs = 1..12 | ForEach-Object { [pscustomobject]@{ id = "r$_" } }
         $r = Send-IngestBatch -Endpoint 'ingest/resources' -SystemId 9 -Records @($recs) -BatchSize 5
-        Should -Invoke Invoke-IngestAPI -Times 3
+        Should -Invoke Invoke-IngestAPI -Exactly 3
         @($script:bodies).Count | Should -Be 3
         $script:bodies[0].syncSession | Should -Be 'start'
         $script:bodies[1].syncSession | Should -Be 'continue'
@@ -184,7 +184,7 @@ Describe 'Streaming ingest (Add-IngestStreamRecord + Complete-IngestStream)' {
         $s = New-IngestStream -Endpoint 'ingest/resource-assignments' -SystemId 1 -BatchSize 3
         1..3 | ForEach-Object { Add-IngestStreamRecord -Stream $s -Record ([pscustomobject]@{ id = "a$_" }) }
         # Exactly BatchSize records → no flush yet (a non-empty remainder must remain for 'end').
-        Should -Invoke Invoke-IngestAPI -Times 0
+        Should -Invoke Invoke-IngestAPI -Exactly 0
         $s.Buffer.Count | Should -Be 3
         $s.Started      | Should -BeFalse
         $s.Records      | Should -Be 3
@@ -242,7 +242,7 @@ Describe 'Streaming ingest (Add-IngestStreamRecord + Complete-IngestStream)' {
         $s = New-IngestStream -Endpoint 'ingest/resource-assignments' -SystemId 1 -BatchSize 3
         1..4 | ForEach-Object { Add-IngestStreamRecord -Stream $s -Record ([pscustomobject]@{ id = "a$_" }) }
         # 4 > 3 → flush a 'start' chunk of 3, keep 1 in the buffer.
-        Should -Invoke Invoke-IngestAPI -Times 1
+        Should -Invoke Invoke-IngestAPI -Exactly 1
         $script:bodies[0].syncSession | Should -Be 'start'
         $s.Started      | Should -BeTrue
         $s.SyncId       | Should -Be 'SS'
@@ -255,7 +255,7 @@ Describe 'Streaming ingest (Add-IngestStreamRecord + Complete-IngestStream)' {
         $s = New-IngestStream -Endpoint 'ingest/resource-assignments' -SystemId 1 -BatchSize 10
         1..2 | ForEach-Object { Add-IngestStreamRecord -Stream $s -Record ([pscustomobject]@{ id = "a$_" }) }
         Complete-IngestStream -Stream $s
-        Should -Invoke Invoke-IngestAPI -Times 1
+        Should -Invoke Invoke-IngestAPI -Exactly 1
         # 'single' → no syncSession key on the body.
         $script:bodies[0].ContainsKey('syncSession') | Should -BeFalse
         $s.Inserted | Should -Be 2
@@ -267,7 +267,7 @@ Describe 'Streaming ingest (Add-IngestStreamRecord + Complete-IngestStream)' {
         $s = New-IngestStream -Endpoint 'ingest/resource-assignments' -SystemId 1 -BatchSize 3
         1..4 | ForEach-Object { Add-IngestStreamRecord -Stream $s -Record ([pscustomobject]@{ id = "a$_" }) }  # 1 start flush
         Complete-IngestStream -Stream $s                                                                        # end flush
-        Should -Invoke Invoke-IngestAPI -Times 2
+        Should -Invoke Invoke-IngestAPI -Exactly 2
         $script:bodies[0].syncSession | Should -Be 'start'
         $script:bodies[1].syncSession | Should -Be 'end'
         $script:bodies[1].syncId      | Should -Be 'SS'   # threaded from the start response
@@ -277,7 +277,7 @@ Describe 'Streaming ingest (Add-IngestStreamRecord + Complete-IngestStream)' {
         Mock Invoke-IngestAPI { throw 'should not be called for an empty stream' }
         $s = New-IngestStream -Endpoint 'ingest/resource-assignments' -SystemId 1 -BatchSize 5
         Complete-IngestStream -Stream $s
-        Should -Invoke Invoke-IngestAPI -Times 0
+        Should -Invoke Invoke-IngestAPI -Exactly 0
     }
 
     It 'streams the full record set across chunk boundaries (totals add up)' {

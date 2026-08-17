@@ -14,30 +14,27 @@
     `Should -Invoke Foo -Times 1`. Only `-Exactly` pins the count. (`-Times 0` is
     special-cased by Pester as exact, so it is safe and is not counted here.)
 
-    The consequence is not theoretical. `CrawlerIngest.Tests.ps1` carried a test
-    named "throws on HTTP 400, without retrying" whose only count assertion was
-    `-Times 1`; when a mutant made a 400 retry the full five times, the test still
-    passed. Its sibling asserting five attempts passed at six. Both are now
-    -Exactly, and killing those mutants moved Invoke-CrawlerIngest.ps1 from 39.7%
-    to 82.9%.
+    So a test named "throws on HTTP 400, without retrying" whose only count
+    assertion is `-Times 1` still passes when the code retries five times. That
+    reads as a guard against retry storms and is not one.
 
     This is a RATCHET, not a ban. "At least N" is occasionally what you mean — a
-    retry happened at least once, a logger fired at least once. The count may only
-    go down. When you tighten a file, lower BARE_TIMES_BASELINE to match.
+    retry happened at least once, a logger fired at least once. Express that by
+    OMITTING -Times, which reads honestly, rather than by naming a count you do
+    not mean. The tally is at 0 and may only go down.
 
     ── 2. Hand-rolled HTTP-error fixtures drift from their reader ───────────────
 
-    Three helpers in this repo read a caught error's status differently:
+    Helpers in this repo read a caught error's status two different ways:
 
         Get-FGHttpStatus        [int]$err.Exception.Response.StatusCode
         Get-FGIngestErrorDetail $err.Exception.Response.StatusCode.value__
         Get-ODataResponseStatus $err.Exception.Response.StatusCode.value__
 
     A fixture built for one returns $null under another — the [int] cast on a
-    PSCustomObject throws, and the helper's own try/catch swallows it. Three tests
-    in EntraIDCrawlerFunctions.Tests.ps1 did exactly that: named for HTTP 429, 404
-    and 503, all three silently exercised the "no status code at all" branch, and
-    the 404 one asserted the opposite of its name while passing.
+    PSCustomObject throws, and the helper's own try/catch swallows it. The test
+    then passes down the "no status code at all" branch, no matter which status
+    its name claims to be about.
 
     test/lib/HttpErrorFixtures.psm1 owns these shapes so they cannot drift again.
     The tests below pin its contract, including the part that bites: the two
@@ -53,8 +50,8 @@ BeforeAll {
 
     Import-Module (Join-Path $script:repoRoot 'test' 'lib' 'HttpErrorFixtures.psm1') -Force
 
-    # Committed floor. Lower it as files are tightened; never raise it.
-    $script:BARE_TIMES_BASELINE = 72
+    # Committed floor. The suite is clean; this may only ever stay at 0.
+    $script:BARE_TIMES_BASELINE = 0
 
     function Measure-BareTimes {
         param([string]$Path)
@@ -98,14 +95,19 @@ satisfies -Times 1. Use -Exactly when you mean a count. Current: $detail
 "@
     }
 
-    It 'files cleaned up in this work stay clean' {
-        # These were tightened while chasing mutation survivors; a regression here
-        # would quietly restore the defect the ratchet exists to prevent.
-        foreach ($f in 'CrawlerIngestBatch.Tests.ps1', 'ODataLibrary.Tests.ps1', 'CrawlerHelpers.Tests.ps1',
-                      'SdkRequests.Tests.ps1', 'SdkWrite.Tests.ps1', 'SdkHelpers.Tests.ps1',
-                      'SdkGovernance.Tests.ps1', 'SdkUserGroup.Tests.ps1') {
-            $script:bareByFile.ContainsKey($f) | Should -BeFalse -Because "$f should use -Exactly throughout"
-        }
+    It 'the suite still counts invocations at all' {
+        # The cheapest way to satisfy the ratchet is to DELETE the count rather
+        # than convert it to -Exactly, which trades a weak assertion for none.
+        # A per-file "these stay clean" list cannot catch that — at a baseline of
+        # 0 it can never fail independently of the tally above, so this guards
+        # the other direction instead.
+        $exactly = Get-ChildItem $script:unitDir -Filter '*.Tests.ps1' -File |
+            ForEach-Object { ([regex]'Should\s+-Invoke\b[^\r\n]*-Exactly').Matches((Get-Content $_.FullName -Raw)).Count } |
+            Measure-Object -Sum
+        $exactly.Sum | Should -BeGreaterThan 250 -Because @"
+the bare -Times tally is 0 because those assertions were converted to -Exactly,
+not removed. A sharp drop here means counts were dropped instead of tightened.
+"@
     }
 }
 

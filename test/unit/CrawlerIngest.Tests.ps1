@@ -90,7 +90,7 @@ Describe 'Update-CrawlerProgress — scope and no-op' {
         $script:JobId = 0
         Mock Invoke-RestMethod { throw 'should not be called' }
         { Update-CrawlerProgress -Step 'test' -Pct 10 } | Should -Not -Throw
-        Should -Invoke Invoke-RestMethod -Times 0
+        Should -Invoke Invoke-RestMethod -Exactly 0
         $script:JobId = 42
     }
 
@@ -98,7 +98,7 @@ Describe 'Update-CrawlerProgress — scope and no-op' {
         $script:JobId = -1
         Mock Invoke-RestMethod { throw 'should not be called' }
         { Update-CrawlerProgress -Step 'test' } | Should -Not -Throw
-        Should -Invoke Invoke-RestMethod -Times 0
+        Should -Invoke Invoke-RestMethod -Exactly 0
         $script:JobId = 42
     }
 
@@ -106,7 +106,7 @@ Describe 'Update-CrawlerProgress — scope and no-op' {
         $script:JobId = 99
         Mock Invoke-RestMethod { return @{} } -Verifiable
         Update-CrawlerProgress -Step 'scoped' -Pct 5
-        Should -Invoke Invoke-RestMethod -Times 1
+        Should -Invoke Invoke-RestMethod -Exactly 1
         $script:JobId = 42
     }
 }

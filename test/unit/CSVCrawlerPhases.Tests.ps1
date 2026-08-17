@@ -31,8 +31,12 @@ BeforeAll {
     $script:fallbackSystemId = 2
     $script:JobId            = 0
 
+    # BatchSize is captured because one phase overrides it, and a mock that drops
+    # a parameter makes every assertion about that parameter impossible to write —
+    # which is how a test named "with a 3000 batch size" ended up asserting
+    # everything except the batch size.
     $script:SendMock = {
-        $script:sent.Add([pscustomobject]@{ Endpoint = $Endpoint; Scope = $Scope; SyncMode = $SyncMode; Records = @($Records) })
+        $script:sent.Add([pscustomobject]@{ Endpoint = $Endpoint; Scope = $Scope; SyncMode = $SyncMode; Records = @($Records); BatchSize = $BatchSize })
     }
     function Get-Sent {
         param([string]$Endpoint)
@@ -63,14 +67,14 @@ Describe 'Sync-CsvSystems' {
         Remove-Csv 'Systems.csv'
         Mock Invoke-IngestAPI { }
         Sync-CsvSystems
-        Should -Invoke Invoke-IngestAPI -Times 0
+        Should -Invoke Invoke-IngestAPI -Exactly 0
     }
 
     It 'registers de-duplicated systems and extends $systemLookup from the returned ids' {
         Set-Csv 'Systems.csv' @('ExternalId;DisplayName', 'e1;HR', 'e2;Finance', 'e3;HR')
         Mock Invoke-IngestAPI { @{ systemIds = @(10, 11) } }
         Sync-CsvSystems
-        Should -Invoke Invoke-IngestAPI -Times 1 -ParameterFilter { $Body.records.Count -eq 2 -and $Body.syncMode -eq 'delta' }
+        Should -Invoke Invoke-IngestAPI -Exactly 1 -ParameterFilter { $Body.records.Count -eq 2 -and $Body.syncMode -eq 'delta' }
         $script:systemLookup['HR']      | Should -Be 10
         $script:systemLookup['Finance'] | Should -Be 11
     }
@@ -79,7 +83,7 @@ Describe 'Sync-CsvSystems' {
         Set-Csv 'Systems.csv' @('ExternalId;DisplayName', 'e1;')
         Mock Invoke-IngestAPI { @{ systemIds = @() } }
         Sync-CsvSystems
-        Should -Invoke Invoke-IngestAPI -Times 0
+        Should -Invoke Invoke-IngestAPI -Exactly 0
     }
 }
 
@@ -352,6 +356,11 @@ Describe 'Sync-CsvCertifications' {
         $sent.Count | Should -Be 1
         $sent[0].Records.Count | Should -Be 1
         $sent[0].Records[0].decision | Should -Be 'Approve'
+        # The name of this test promised the batch size and never checked it.
+        # Certifications is the one phase that overrides the default, because the
+        # records are small and the volume is high; losing the override silently
+        # multiplies the request count on the largest table this crawler sends.
+        $sent[0].BatchSize | Should -Be 3000
     }
 }
 
@@ -389,7 +398,7 @@ Describe 'Register-CsvFallbackSystem' {
     It 'verifies the key via whoami and returns the id from systemIds' {
         Mock Invoke-IngestAPI { @{ systemIds = @(42) } }
         Register-CsvFallbackSystem | Should -Be 42
-        Should -Invoke Invoke-RestMethod -Times 1 -ParameterFilter { $Uri -match '/crawlers/whoami' }
+        Should -Invoke Invoke-RestMethod -Exactly 1 -ParameterFilter { $Uri -match '/crawlers/whoami' }
     }
 
     It 'falls back to a single systemId field' {
@@ -430,5 +439,258 @@ Describe 'Complete-CsvRun' {
             @{}
         }
         { Complete-CsvRun -SyncStart (Get-Date) -RefreshViews $false } | Should -Not -Throw
+    }
+}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# The SystemName → systemId resolution is repeated across eight phases, and
+# every guard in it survived mutation. The existing fixtures name a system that
+# IS in the lookup, or leave the column blank — and neither separates
+# `hasColumn -and named -and known` from the same expression with `-or`. The row
+# that does is one naming a system the lookup has never heard of: as `-or` the
+# phase indexes a missing key and stamps a NULL systemId onto the record instead
+# of falling back, so those rows land unattached to any system.
+#
+# The other repeated survivor is `$rows[0].PSObject.Properties.Name`, which is
+# how each phase learns whether a SystemName column exists at all. Reading row 1
+# instead of row 0 is indistinguishable on a multi-row file — Import-Csv gives
+# every row identical properties — so only a single-data-row file separates
+# them. A one-row import is an ordinary case, and under the mutant its
+# SystemName is ignored entirely.
+# ─────────────────────────────────────────────────────────────────────────────
+
+Describe 'CSV phases — a SystemName the lookup does not know' {
+    BeforeEach {
+        Reset-CsvTestState
+        Mock Update-CrawlerProgress { }
+        Mock Send-GroupedBySystem $script:SendMock
+        $script:systemLookup = @{ 'Omada' = 9 }
+    }
+
+    It 'Sync-CsvContexts falls back for an unknown system' {
+        Set-Csv 'Contexts.csv' @('ExternalId;DisplayName;SystemName', 'c1;Sales;Omada', 'c2;Ops;NoSuchSystem', 'c3;Fin;')
+        Sync-CsvContexts
+        $recs = (Get-Sent 'ingest/contexts')[0].Records
+        ($recs | Where-Object { $_.externalId -eq 'c1' })._systemId | Should -Be 9
+        ($recs | Where-Object { $_.externalId -eq 'c2' })._systemId | Should -Be 2
+        ($recs | Where-Object { $_.externalId -eq 'c3' })._systemId | Should -Be 2
+    }
+
+    It 'Sync-CsvRelationships falls back for an unknown system' {
+        Set-Csv 'ResourceRelationships.csv' @('ParentExternalId;ChildExternalId;SystemName', 'p1;c1;Omada', 'p2;c2;NoSuchSystem')
+        Sync-CsvRelationships
+        $recs = (Get-Sent 'ingest/resource-relationships')[0].Records
+        ($recs | Where-Object { $_.parentExternalId -eq 'p1' })._systemId | Should -Be 9
+        ($recs | Where-Object { $_.parentExternalId -eq 'p2' })._systemId | Should -Be 2
+    }
+
+    It 'Sync-CsvUsers falls back for an unknown system' {
+        Set-Csv 'Users.csv' @('ExternalId;DisplayName;SystemName', 'u1;Alice;Omada', 'u2;Bob;NoSuchSystem')
+        Sync-CsvUsers
+        $recs = (Get-Sent 'ingest/principals')[0].Records
+        ($recs | Where-Object { $_.externalId -eq 'u1' })._systemId | Should -Be 9
+        ($recs | Where-Object { $_.externalId -eq 'u2' })._systemId | Should -Be 2
+    }
+
+    It 'Sync-CsvIdentities falls back for an unknown system' {
+        Set-Csv 'Identities.csv' @('ExternalId;DisplayName;SystemName', 'i1;Alice;Omada', 'i2;Bob;NoSuchSystem')
+        Sync-CsvIdentities
+        $recs = (Get-Sent 'ingest/identities')[0].Records
+        ($recs | Where-Object { $_.externalId -eq 'i1' })._systemId | Should -Be 9
+        ($recs | Where-Object { $_.externalId -eq 'i2' })._systemId | Should -Be 2
+    }
+
+    It 'Sync-CsvIdentityMembers falls back for an unknown system' {
+        Set-Csv 'IdentityMembers.csv' @('IdentityExternalId;UserExternalId;SystemName', 'i1;u1;Omada', 'i2;u2;NoSuchSystem')
+        Sync-CsvIdentityMembers
+        $recs = (Get-Sent 'ingest/identity-members')[0].Records
+        ($recs | Where-Object { $_.identityExternalId -eq 'i1' })._systemId | Should -Be 9
+        ($recs | Where-Object { $_.identityExternalId -eq 'i2' })._systemId | Should -Be 2
+    }
+
+    It 'Sync-CsvResources falls back for an unknown system' {
+        Set-Csv 'Resources.csv' @('ExternalId;DisplayName;SystemName', 'r1;A;Omada', 'r2;B;NoSuchSystem', 'r3;C;')
+        Sync-CsvResources
+        $recs = (Get-Sent 'ingest/resources')[0].Records
+        ($recs | Where-Object { $_.externalId -eq 'r1' })._systemId | Should -Be 9
+        ($recs | Where-Object { $_.externalId -eq 'r2' })._systemId | Should -Be 2
+        ($recs | Where-Object { $_.externalId -eq 'r3' })._systemId | Should -Be 2
+    }
+
+    It 'Sync-CsvAssignments resolves a known system and falls back for an unknown one' {
+        # The existing assignment fixture has no SystemName column at all, so the
+        # `$idxSys -ge 0` guard is only ever evaluated on the absent case (-1).
+        # Inverted to `-lt 0` that reads the LAST column of every row as if it
+        # were the system name; with the column genuinely present it silently
+        # drops the mapping instead.
+        Set-Csv 'Assignments.csv' @('ResourceExternalId;UserExternalId;SystemName', 'r1;u1;Omada', 'r2;u2;NoSuchSystem')
+        Sync-CsvAssignments
+        $recs = (Get-Sent 'ingest/resource-assignments')[0].Records
+        ($recs | Where-Object { $_.resourceExternalId -eq 'r1' })._systemId | Should -Be 9
+        ($recs | Where-Object { $_.resourceExternalId -eq 'r2' })._systemId | Should -Be 2
+    }
+
+    It 'Sync-CsvCertifications resolves a known system and falls back for an unknown one' {
+        Set-Csv 'Certifications.csv' @('ExternalId;SystemName', 'cert1;Omada', 'cert2;NoSuchSystem')
+        Sync-CsvCertifications
+        $recs = (Get-Sent 'ingest/governance/certifications')[0].Records
+        ($recs | Where-Object { $_.externalId -eq 'cert1' })._systemId | Should -Be 9
+        ($recs | Where-Object { $_.externalId -eq 'cert2' })._systemId | Should -Be 2
+    }
+}
+
+Describe 'CSV phases — SystemName is honoured on a single-row file' {
+    BeforeEach {
+        Reset-CsvTestState
+        Mock Update-CrawlerProgress { }
+        Mock Send-GroupedBySystem $script:SendMock
+        $script:systemLookup = @{ 'Omada' = 9 }
+    }
+
+    It 'Sync-CsvContexts reads the column list from the first row' {
+        Set-Csv 'Contexts.csv' @('ExternalId;DisplayName;SystemName', 'c1;Sales;Omada')
+        Sync-CsvContexts
+        (Get-Sent 'ingest/contexts')[0].Records[0]._systemId | Should -Be 9
+    }
+
+    It 'Sync-CsvRelationships reads the column list from the first row' {
+        Set-Csv 'ResourceRelationships.csv' @('ParentExternalId;ChildExternalId;SystemName', 'p1;c1;Omada')
+        Sync-CsvRelationships
+        (Get-Sent 'ingest/resource-relationships')[0].Records[0]._systemId | Should -Be 9
+    }
+
+    It 'Sync-CsvUsers reads the column list from the first row' {
+        Set-Csv 'Users.csv' @('ExternalId;DisplayName;SystemName', 'u1;Alice;Omada')
+        Sync-CsvUsers
+        (Get-Sent 'ingest/principals')[0].Records[0]._systemId | Should -Be 9
+    }
+
+    It 'Sync-CsvIdentities reads the column list from the first row' {
+        Set-Csv 'Identities.csv' @('ExternalId;DisplayName;SystemName', 'i1;Alice;Omada')
+        Sync-CsvIdentities
+        (Get-Sent 'ingest/identities')[0].Records[0]._systemId | Should -Be 9
+    }
+
+    It 'Sync-CsvIdentityMembers reads the column list from the first row' {
+        Set-Csv 'IdentityMembers.csv' @('IdentityExternalId;UserExternalId;SystemName', 'i1;u1;Omada')
+        Sync-CsvIdentityMembers
+        (Get-Sent 'ingest/identity-members')[0].Records[0]._systemId | Should -Be 9
+    }
+}
+
+Describe 'CSV fast-path phases — SystemName as the first column' {
+    # `Get-CsvColIndex` returns the column's position, and the guard is `-ge 0`.
+    # Read as `-ge 1` it works everywhere except when SystemName happens to be
+    # column zero — the mapping is then dropped for the whole file, with no
+    # error, which is the shape of bug a header reorder introduces.
+    BeforeEach {
+        Reset-CsvTestState
+        Mock Update-CrawlerProgress { }
+        Mock Send-GroupedBySystem $script:SendMock
+        $script:systemLookup = @{ 'Omada' = 9 }
+    }
+
+    It 'Sync-CsvResources honours SystemName in column zero' {
+        Set-Csv 'Resources.csv' @('SystemName;ExternalId;DisplayName', 'Omada;r1;A')
+        Sync-CsvResources
+        (Get-Sent 'ingest/resources')[0].Records[0]._systemId | Should -Be 9
+    }
+
+    It 'Sync-CsvAssignments honours SystemName in column zero' {
+        Set-Csv 'Assignments.csv' @('SystemName;ResourceExternalId;UserExternalId', 'Omada;r1;u1')
+        Sync-CsvAssignments
+        (Get-Sent 'ingest/resource-assignments')[0].Records[0]._systemId | Should -Be 9
+    }
+
+    It 'Sync-CsvCertifications honours SystemName in column zero' {
+        Set-Csv 'Certifications.csv' @('SystemName;ExternalId', 'Omada;cert1')
+        Sync-CsvCertifications
+        (Get-Sent 'ingest/governance/certifications')[0].Records[0]._systemId | Should -Be 9
+    }
+}
+
+Describe 'Sync-CsvSystems / Register-CsvFallbackSystem — the records they register' {
+    BeforeEach {
+        Reset-CsvTestState
+        Mock Update-CrawlerProgress { }
+    }
+
+    It 'registers a single system (the guard is "any", not "more than one")' {
+        # `$sysRecords.Count -gt 0` behaves identically at 0 and at 2, which is
+        # all the existing fixtures supply. Exactly ONE row is what separates it
+        # from `-gt 1` — under which a CSV declaring one system registers none
+        # and every row silently falls back to the default system.
+        Set-Csv 'Systems.csv' @('ExternalId;DisplayName', 'e1;HR')
+        Mock Invoke-IngestAPI { @{ systemIds = @(10) } }
+        Sync-CsvSystems
+        Should -Invoke Invoke-IngestAPI -Exactly 1
+        $script:systemLookup['HR'] | Should -Be 10
+    }
+
+    It 'registers the fallback system enabled and sync-enabled' {
+        # Registered disabled, the fallback system exists but nothing attached to
+        # it is ever synced again — a silent no-op crawl rather than an error.
+        Mock Invoke-RestMethod { @{ displayName = 'tester' } }
+        Mock Invoke-IngestAPI { @{ systemIds = @(5) } }
+        $script:ApiBaseUrl = 'http://api'
+        $script:ApiKey     = 'fgc_test'
+        $script:SystemName = 'CSV Import'
+        Register-CsvFallbackSystem | Should -Be 5
+        Should -Invoke Invoke-IngestAPI -Exactly 1 -ParameterFilter {
+            $Body.records[0].enabled -eq $true -and $Body.records[0].syncEnabled -eq $true
+        }
+    }
+}
+
+Describe 'CSV phases — a row with fewer fields than the header' {
+    # Exporters routinely omit trailing empty columns, so a row can be SHORTER
+    # than its header. Import-Csv fills the missing tail with $null — not '' —
+    # and `$hashtable.ContainsKey($null)` throws. The `$hSys -and $r.SystemName`
+    # conjunct is what stops that call being made at all.
+    #
+    # This case was nearly written off as an equivalent mutant on the grounds
+    # that the column-present flag is redundant. It is not: without the
+    # short-circuit the whole import dies on a row that today just falls back to
+    # the default system.
+    BeforeEach {
+        Reset-CsvTestState
+        Mock Update-CrawlerProgress { }
+        Mock Send-GroupedBySystem $script:SendMock
+        $script:systemLookup = @{ 'Omada' = 9 }
+    }
+
+    It 'Sync-CsvContexts falls back instead of failing' {
+        Set-Csv 'Contexts.csv' @('ExternalId;DisplayName;SystemName', 'c1;Sales;Omada', 'c2;Ops')
+        { Sync-CsvContexts } | Should -Not -Throw
+        $recs = (Get-Sent 'ingest/contexts')[0].Records
+        ($recs | Where-Object { $_.externalId -eq 'c2' })._systemId | Should -Be 2
+    }
+
+    It 'Sync-CsvRelationships falls back instead of failing' {
+        Set-Csv 'ResourceRelationships.csv' @('ParentExternalId;ChildExternalId;SystemName', 'p1;c1;Omada', 'p2;c2')
+        { Sync-CsvRelationships } | Should -Not -Throw
+        $recs = (Get-Sent 'ingest/resource-relationships')[0].Records
+        ($recs | Where-Object { $_.parentExternalId -eq 'p2' })._systemId | Should -Be 2
+    }
+
+    It 'Sync-CsvUsers falls back instead of failing' {
+        Set-Csv 'Users.csv' @('ExternalId;DisplayName;SystemName', 'u1;Alice;Omada', 'u2;Bob')
+        { Sync-CsvUsers } | Should -Not -Throw
+        $recs = (Get-Sent 'ingest/principals')[0].Records
+        ($recs | Where-Object { $_.externalId -eq 'u2' })._systemId | Should -Be 2
+    }
+
+    It 'Sync-CsvIdentities falls back instead of failing' {
+        Set-Csv 'Identities.csv' @('ExternalId;DisplayName;SystemName', 'i1;Alice;Omada', 'i2;Bob')
+        { Sync-CsvIdentities } | Should -Not -Throw
+        $recs = (Get-Sent 'ingest/identities')[0].Records
+        ($recs | Where-Object { $_.externalId -eq 'i2' })._systemId | Should -Be 2
+    }
+
+    It 'Sync-CsvIdentityMembers falls back instead of failing' {
+        Set-Csv 'IdentityMembers.csv' @('IdentityExternalId;UserExternalId;SystemName', 'i1;u1;Omada', 'i2;u2')
+        { Sync-CsvIdentityMembers } | Should -Not -Throw
+        $recs = (Get-Sent 'ingest/identity-members')[0].Records
+        ($recs | Where-Object { $_.identityExternalId -eq 'i2' })._systemId | Should -Be 2
     }
 }

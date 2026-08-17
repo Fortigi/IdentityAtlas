@@ -472,6 +472,36 @@ Describe 'Test-FGDistinguishedName — additional cases' {
     It 'rejects a value with a comma but only one RDN prefix' {
         Test-FGDistinguishedName 'CN=admin, the boss' | Should -BeFalse
     }
+
+    # Every REJECT path below was previously unreachable by the suite: each early
+    # `return $false` could be flipped to `return $true` and nothing failed. This is
+    # the predicate that decides whether a value gets treated as a Distinguished
+    # Name at all, so a guard that says yes to anything is the failure that matters —
+    # and the accept cases above cannot detect it.
+    It 'rejects an input that is null, empty, or whitespace' -ForEach @(
+        @{ Value = $null }, @{ Value = '' }, @{ Value = '   ' }
+    ) {
+        Test-FGDistinguishedName $Value | Should -BeFalse
+    }
+
+    It 'rejects a value that carries no RDN prefix at all' {
+        # Reaches the -notmatch guard, which the "one prefix" case above skips
+        # past because it does start with CN=.
+        Test-FGDistinguishedName 'jdoe,example,com' | Should -BeFalse
+    }
+
+    It 'rejects a well-formed RDN with no comma' {
+        # Prefix present, so it clears the first two guards and stops at the
+        # Contains(',') check — the only input shape that reaches it.
+        Test-FGDistinguishedName 'CN=jdoe' | Should -BeFalse
+    }
+
+    It 'accepts a DN with exactly two prefixed parts' {
+        # The rule is `-ge 2`. A four-part DN satisfies -ge 2 and -ge 3 alike, so
+        # only a TWO-part one pins the boundary: raise it to 3 and a short but
+        # perfectly valid DN starts being rejected.
+        Test-FGDistinguishedName 'CN=jdoe,DC=com' | Should -BeTrue
+    }
 }
 
 # ─── Convert-FGDistinguishedNameToOUPath (additional cases) ───────
@@ -524,5 +554,61 @@ Describe 'Get-FGEntraPortalLink — Application type' {
         $link = Get-FGEntraPortalLink -Id $script:objId -Type 'ServicePrincipal'
         $link | Should -Match 'ManagedAppMenuBlade'
         $link | Should -Not -Match '/appId/'
+    }
+}
+
+# ---------------------------------------------------------------------------
+# Moved here from IdentityAtlas.Tests.ps1. These are helper-layer tests and
+# belong with the other helper tests -- but the move is also what makes the file
+# measurable: mutation runs its mapped suite inside a sandbox containing only
+# tools/, test/ and setup/, and IdentityAtlas.Tests.ps1 asserts on
+# app/api/src/db/migrations, which is not copied there. Mapped to that suite the
+# baseline goes red and the file cannot be mutation-tested at all.
+# ---------------------------------------------------------------------------
+
+Describe 'Add-FGEntraCalculatedAttributes' {
+    It 'adds Link and an _OuPath for onPremisesDistinguishedName on a user' {
+        $user = [pscustomobject]@{
+            id                           = '11111111-1111-1111-1111-111111111111'
+            displayName                  = 'Wim van den Heijkant'
+            onPremisesDistinguishedName  = 'CN=100001,OU=Users,OU=Accounts,OU=Clients,DC=krypton,DC=ad,DC=novastream,DC=com'
+        }
+        $ext = @{ userType = 'Member' }
+        $out = Add-FGEntraCalculatedAttributes -Object $user -Ext $ext -Type 'User'
+        $out['Link']                                 | Should -Match 'UserProfileMenuBlade'
+        $out['onPremisesDistinguishedName_OuPath']   | Should -Be 'Clients\Accounts\Users'
+        $out['userType']                             | Should -Be 'Member'  # not mangled
+    }
+    It 'translates DN-shaped values that live inside extendedAttributes (custom extension attrs)' {
+        $sp = [pscustomobject]@{ id = '22222222-2222-2222-2222-222222222222'; appId = '33333333-3333-3333-3333-333333333333' }
+        $ext = @{
+            fgGroupDN = 'CN=svc-app,OU=Services,OU=Shared,DC=contoso,DC=com'
+        }
+        Add-FGEntraCalculatedAttributes -Object $sp -Ext $ext -Type 'ServicePrincipal' | Out-Null
+        $ext['fgGroupDN_OuPath'] | Should -Be 'Shared\Services'
+    }
+    It 'never overwrites an existing Link key that a caller already set' {
+        $user = [pscustomobject]@{ id = '11111111-1111-1111-1111-111111111111' }
+        $ext = @{ Link = 'https://existing.example' }
+        Add-FGEntraCalculatedAttributes -Object $user -Ext $ext -Type 'User' | Out-Null
+        $ext['Link'] | Should -Be 'https://existing.example'
+    }
+    It 'does nothing on objects that have no DN-shaped values and no id' {
+        $obj = [pscustomobject]@{ displayName = 'no id yet' }
+        $ext = @{}
+        Add-FGEntraCalculatedAttributes -Object $obj -Ext $ext -Type 'User' | Out-Null
+        $ext.Count | Should -Be 0
+    }
+    It 'emits multiple *_OuPath fields when several attributes look like DNs' {
+        # The motivating "if there are multiple fields that have similarly
+        # looking DNs, translate all of them" clause of the feature request.
+        $group = [pscustomobject]@{ id = '44444444-4444-4444-4444-444444444444' }
+        $ext = @{
+            fgGroupDN    = 'CN=x,OU=A,OU=B,DC=c'
+            ownerGroupDN = 'CN=y,OU=P,OU=Q,DC=d'
+        }
+        Add-FGEntraCalculatedAttributes -Object $group -Ext $ext -Type 'Group' | Out-Null
+        $ext['fgGroupDN_OuPath']    | Should -Be 'B\A'
+        $ext['ownerGroupDN_OuPath'] | Should -Be 'Q\P'
     }
 }
