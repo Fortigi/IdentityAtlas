@@ -378,6 +378,47 @@ Describe 'Resolve-AzureRMOrphans' {
         @($ctx.Grants).Count | Should -Be 1
         $ctx.PrincipalStubs['User'][0].extendedAttributes.directoryStatus | Should -Be 'orphaned'
     }
+
+    # The counts in these two lines are the ONLY report an operator gets of what
+    # orphan handling did to their data — how many assignments vanished, and how
+    # many principals were behind it. The state assertions above cannot see them:
+    # every counter here feeds a Write-Host and nothing else, so each could be
+    # seeded wrong, incremented on the wrong branch, or reported with the wrong
+    # arithmetic while the resulting Ctx stayed perfect.
+    It 'reports how many assignments it dropped and for how many principals' {
+        Mock Invoke-IngestAPI { @{ crawlerDataAvailable = $true; present = @('p1') } }
+        $script:said = [System.Collections.Generic.List[string]]::new()
+        Mock Write-Host { $script:said.Add([string]$Object) }
+
+        $ctx = New-TestCtx
+        $ctx.Grants.Add(@{ resourceId = 'cap1'; principalId = 'p1'; assignmentType = 'Direct' })
+        $ctx.Grants.Add(@{ resourceId = 'cap2'; principalId = 'p2'; assignmentType = 'Direct' })
+        $ctx.Grants.Add(@{ resourceId = 'cap3'; principalId = 'p3'; assignmentType = 'Direct' })
+        Resolve-AzureRMOrphans -Ctx $ctx
+
+        # 3 grants in, 1 kept -> 2 dropped, belonging to 2 absent principals.
+        # Distinct numbers on purpose: with "dropped 2 for 2" a swapped or
+        # miscomputed pair still reads correctly.
+        ($script:said -join "`n") | Should -BeLike '*dropped 2 assignment(s) for 2 principal(s)*'
+    }
+
+    It 'reports how many principals it tagged when the filter is OFF' {
+        Mock Invoke-IngestAPI { @{ crawlerDataAvailable = $true; present = @('p1') } }
+        $script:said = [System.Collections.Generic.List[string]]::new()
+        Mock Write-Host { $script:said.Add([string]$Object) }
+
+        $ctx = New-TestCtx -ConfigOver @{ onlyEntraPrincipals = $false }
+        $ctx.Grants.Add(@{ resourceId = 'c1'; principalId = 'p1'; assignmentType = 'Direct' })
+        $ctx.Grants.Add(@{ resourceId = 'c2'; principalId = 'p2'; assignmentType = 'Direct' })
+        $ctx.PrincipalStubs['User'].Add(@{ id = 'p1' })          # present in Entra
+        $ctx.PrincipalStubs['User'].Add(@{ id = 'p2' })          # absent
+        $ctx.PrincipalStubs['ServicePrincipal'].Add(@{ id = 'p3' })  # absent
+        Resolve-AzureRMOrphans -Ctx $ctx
+
+        # Two absent of three stubs, spread across both buckets: a counter that
+        # only walked one bucket, or counted the PRESENT ones, would report 1.
+        ($script:said -join "`n") | Should -BeLike '*tagged 2 principal(s)*'
+    }
 }
 
 Describe 'Send-AzurePrincipalsAndGrants' {
@@ -398,6 +439,17 @@ Describe 'Complete-AzureRMRun' {
         Mock Update-CrawlerProgress { }
         Mock Invoke-RestMethod { throw 'boom' }
         { Complete-AzureRMRun -ApiBaseUrl 'https://x/api' -ApiKey 'k' } | Should -Not -Throw
+    }
+
+    It 'gives the view refresh a long timeout, not the default' {
+        # Refreshing the materialized views is the slowest call the crawler
+        # makes — minutes on a large tenant. On PowerShell's default timeout it
+        # would abort mid-refresh on every real dataset and report a non-fatal
+        # failure, leaving the views stale with nothing obviously broken.
+        Mock Update-CrawlerProgress { }
+        Mock Invoke-RestMethod { }
+        Complete-AzureRMRun -ApiBaseUrl 'https://x/api' -ApiKey 'k'
+        Should -Invoke Invoke-RestMethod -Exactly 1 -ParameterFilter { $TimeoutSec -eq 300 }
     }
 }
 

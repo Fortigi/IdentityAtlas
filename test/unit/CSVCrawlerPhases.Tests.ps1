@@ -31,8 +31,12 @@ BeforeAll {
     $script:fallbackSystemId = 2
     $script:JobId            = 0
 
+    # BatchSize is captured because one phase overrides it, and a mock that drops
+    # a parameter makes every assertion about that parameter impossible to write —
+    # which is how a test named "with a 3000 batch size" ended up asserting
+    # everything except the batch size.
     $script:SendMock = {
-        $script:sent.Add([pscustomobject]@{ Endpoint = $Endpoint; Scope = $Scope; SyncMode = $SyncMode; Records = @($Records) })
+        $script:sent.Add([pscustomobject]@{ Endpoint = $Endpoint; Scope = $Scope; SyncMode = $SyncMode; Records = @($Records); BatchSize = $BatchSize })
     }
     function Get-Sent {
         param([string]$Endpoint)
@@ -352,6 +356,11 @@ Describe 'Sync-CsvCertifications' {
         $sent.Count | Should -Be 1
         $sent[0].Records.Count | Should -Be 1
         $sent[0].Records[0].decision | Should -Be 'Approve'
+        # The name of this test promised the batch size and never checked it.
+        # Certifications is the one phase that overrides the default, because the
+        # records are small and the volume is high; losing the override silently
+        # multiplies the request count on the largest table this crawler sends.
+        $sent[0].BatchSize | Should -Be 3000
     }
 }
 
