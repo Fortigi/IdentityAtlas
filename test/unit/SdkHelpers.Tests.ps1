@@ -472,6 +472,36 @@ Describe 'Test-FGDistinguishedName — additional cases' {
     It 'rejects a value with a comma but only one RDN prefix' {
         Test-FGDistinguishedName 'CN=admin, the boss' | Should -BeFalse
     }
+
+    # Every REJECT path below was previously unreachable by the suite: each early
+    # `return $false` could be flipped to `return $true` and nothing failed. This is
+    # the predicate that decides whether a value gets treated as a Distinguished
+    # Name at all, so a guard that says yes to anything is the failure that matters —
+    # and the accept cases above cannot detect it.
+    It 'rejects an input that is null, empty, or whitespace' -ForEach @(
+        @{ Value = $null }, @{ Value = '' }, @{ Value = '   ' }
+    ) {
+        Test-FGDistinguishedName $Value | Should -BeFalse
+    }
+
+    It 'rejects a value that carries no RDN prefix at all' {
+        # Reaches the -notmatch guard, which the "one prefix" case above skips
+        # past because it does start with CN=.
+        Test-FGDistinguishedName 'jdoe,example,com' | Should -BeFalse
+    }
+
+    It 'rejects a well-formed RDN with no comma' {
+        # Prefix present, so it clears the first two guards and stops at the
+        # Contains(',') check — the only input shape that reaches it.
+        Test-FGDistinguishedName 'CN=jdoe' | Should -BeFalse
+    }
+
+    It 'accepts a DN with exactly two prefixed parts' {
+        # The rule is `-ge 2`. A four-part DN satisfies -ge 2 and -ge 3 alike, so
+        # only a TWO-part one pins the boundary: raise it to 3 and a short but
+        # perfectly valid DN starts being rejected.
+        Test-FGDistinguishedName 'CN=jdoe,DC=com' | Should -BeTrue
+    }
 }
 
 # ─── Convert-FGDistinguishedNameToOUPath (additional cases) ───────

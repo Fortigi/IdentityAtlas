@@ -26,7 +26,21 @@
     "tools/crawlers/csv/CSVCrawler.Transform.ps1",
     "tools/crawlers/azure-rm/AzureRMCrawler.Transform.ps1",
     "tools/crawlers/azure-rm/AzureRMCrawler.Phases.ps1",
-    "tools/crawlers/csv/CSVCrawler.Phases.ps1"
+    "tools/crawlers/csv/CSVCrawler.Phases.ps1",
+    "tools/powershell-sdk/helpers/Confirm-FGAccessPackage.ps1",
+    "tools/powershell-sdk/helpers/Confirm-FGAccessPackagePolicy.ps1",
+    "tools/powershell-sdk/helpers/Confirm-FGAccessPackageResource.ps1",
+    "tools/powershell-sdk/helpers/Confirm-FGCatalog.ps1",
+    "tools/powershell-sdk/helpers/Confirm-FGGroup.ps1",
+    "tools/powershell-sdk/helpers/Confirm-FGGroupInCatalog.ps1",
+    "tools/powershell-sdk/helpers/Confirm-FGGroupMember.ps1",
+    "tools/powershell-sdk/helpers/Confirm-FGNotGroupMember.ps1",
+    "tools/powershell-sdk/helpers/Confirm-FGUser.ps1",
+    "tools/powershell-sdk/helpers/Convert-FGDistinguishedNameToOUPath.ps1",
+    "tools/powershell-sdk/helpers/Get-FGEntraPortalLink.ps1",
+    "tools/powershell-sdk/helpers/Get-FGServicePrincipalType.ps1",
+    "tools/powershell-sdk/helpers/Resolve-FGMemberObjectIds.ps1",
+    "tools/powershell-sdk/helpers/Test-FGDistinguishedName.ps1"
   ],
   "tests": {
     "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1": ["test/unit/EntraIDCrawlerTransform.Tests.ps1"],
@@ -53,9 +67,23 @@
     "tools/crawlers/csv/CSVCrawler.Transform.ps1": ["test/unit/CSVCrawlerTransform.Tests.ps1"],
     "tools/crawlers/azure-rm/AzureRMCrawler.Transform.ps1": ["test/unit/AzureRMCrawlerTransform.Tests.ps1"],
     "tools/crawlers/azure-rm/AzureRMCrawler.Phases.ps1": ["test/unit/AzureRMCrawlerPhases.Tests.ps1"],
-    "tools/crawlers/csv/CSVCrawler.Phases.ps1": ["test/unit/CSVCrawlerPhases.Tests.ps1"]
+    "tools/crawlers/csv/CSVCrawler.Phases.ps1": ["test/unit/CSVCrawlerPhases.Tests.ps1"],
+    "tools/powershell-sdk/helpers/Confirm-FGAccessPackage.ps1": ["test/unit/SdkHelpers.Tests.ps1"],
+    "tools/powershell-sdk/helpers/Confirm-FGAccessPackagePolicy.ps1": ["test/unit/SdkHelpers.Tests.ps1"],
+    "tools/powershell-sdk/helpers/Confirm-FGAccessPackageResource.ps1": ["test/unit/SdkHelpers.Tests.ps1"],
+    "tools/powershell-sdk/helpers/Confirm-FGCatalog.ps1": ["test/unit/SdkHelpers.Tests.ps1"],
+    "tools/powershell-sdk/helpers/Confirm-FGGroup.ps1": ["test/unit/SdkHelpers.Tests.ps1"],
+    "tools/powershell-sdk/helpers/Confirm-FGGroupInCatalog.ps1": ["test/unit/SdkHelpers.Tests.ps1"],
+    "tools/powershell-sdk/helpers/Confirm-FGGroupMember.ps1": ["test/unit/SdkHelpers.Tests.ps1"],
+    "tools/powershell-sdk/helpers/Confirm-FGNotGroupMember.ps1": ["test/unit/SdkHelpers.Tests.ps1"],
+    "tools/powershell-sdk/helpers/Confirm-FGUser.ps1": ["test/unit/SdkHelpers.Tests.ps1"],
+    "tools/powershell-sdk/helpers/Convert-FGDistinguishedNameToOUPath.ps1": ["test/unit/SdkHelpers.Tests.ps1"],
+    "tools/powershell-sdk/helpers/Get-FGEntraPortalLink.ps1": ["test/unit/SdkHelpers.Tests.ps1"],
+    "tools/powershell-sdk/helpers/Get-FGServicePrincipalType.ps1": ["test/unit/SdkHelpers.Tests.ps1"],
+    "tools/powershell-sdk/helpers/Resolve-FGMemberObjectIds.ps1": ["test/unit/SdkHelpers.Tests.ps1"],
+    "tools/powershell-sdk/helpers/Test-FGDistinguishedName.ps1": ["test/unit/SdkHelpers.Tests.ps1"]
   },
-  "_exclusionsComment": "Eligible files deliberately NOT mutation-tested. Each key is a repo-relative path; the value is the reason. The scope-completeness guard (test/unit/PSMutationScope.Tests.ps1, #684) fails an eligible file that is in neither `mutate` nor here, so anything listed is a written decision rather than an oversight. NOTE: this map covers tools/crawlers/. The other two PowerShell roots — tools/powershell-sdk/ and tools/riskscoring/ — are eligible too, and the 102 of them not yet triaged are grandfathered in .ci/psmutant-scope-baseline.json, a list that may only shrink. A new file in those roots still has to land in `mutate` or `exclusions` here; it cannot join the backlog silently.",
+  "_exclusionsComment": "Eligible files deliberately NOT mutation-tested. Each key is a repo-relative path; the value is the reason. The scope-completeness guard (test/unit/PSMutationScope.Tests.ps1, #684) fails an eligible file that is in neither `mutate` nor here, so anything listed is a written decision rather than an oversight. NOTE: this map covers tools/crawlers/. The other two PowerShell roots — tools/powershell-sdk/ and tools/riskscoring/ — are eligible too, and the ones not yet triaged are grandfathered in .ci/psmutant-scope-baseline.json, a list that may only shrink (102 at introduction, 88 after the helpers layer was measured). A new file in those roots still has to land in `mutate` or `exclusions` here; it cannot join the backlog silently. First finding out of that backlog: the SDK is NOT untested code — tools/powershell-sdk/ + tools/riskscoring/ sit at 95.7% line coverage — it was code with no mutation evidence at all, and the helpers layer scored 85.5% (94/110) the first time it was measured.",
   "exclusions": {
     "tools/crawlers/omada/Get-OmadaHelpers.ps1": "Produces ZERO mutants under the enabled operator set, so mutating it would report a vacuous 100%. It is five reference-value fallback chains (`if ($Ref.Value) { return [string]$Ref.Value }` repeated) with no arithmetic, no numeric/boolean literals and no negations for BinaryOperator/BooleanLiteral/NumberLiteral/NegationRemoval to bite on — the precedence order itself is only reachable by a statement-deletion or condition-forcing operator PSMutant does not currently offer. Revisit if such an operator is added; its behaviour is covered by OmadaCrawlerFunctions.Tests.ps1 in the meantime.",
 
