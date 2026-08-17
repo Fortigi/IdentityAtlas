@@ -71,23 +71,6 @@
     "tools/powershell-sdk/graph/Update-FGConfig.ps1",
     "tools/powershell-sdk/graph/Use-FGExistingAccessTokenString.ps1",
     "tools/powershell-sdk/graph/Use-FGExistingMSALToken.ps1",
-    "tools/powershell-sdk/helpers/Add-FGEntraCalculatedAttributes.ps1",
-    "tools/riskscoring/Export-FGRiskClassifiers.ps1",
-    "tools/riskscoring/Export-FGRiskProfile.ps1",
-    "tools/riskscoring/Get-FGCorrelationRuleset.ps1",
-    "tools/riskscoring/Get-FGRiskClassifiers.ps1",
-    "tools/riskscoring/Get-FGRiskProfile.ps1",
-    "tools/riskscoring/Import-FGRiskClassifiers.ps1",
-    "tools/riskscoring/Import-FGRiskProfile.ps1",
-    "tools/riskscoring/Invoke-FGAccountCorrelation.ps1",
-    "tools/riskscoring/Invoke-FGLLMRequest.ps1",
-    "tools/riskscoring/Invoke-FGRiskScoring.ps1",
-    "tools/riskscoring/New-FGCorrelationRuleset.ps1",
-    "tools/riskscoring/New-FGRiskClassifiers.ps1",
-    "tools/riskscoring/New-FGRiskProfile.ps1",
-    "tools/riskscoring/Save-FGCorrelationRuleset.ps1",
-    "tools/riskscoring/Save-FGResourceClusters.ps1",
-    "tools/riskscoring/Save-FGRiskClassifiers.ps1",
-    "tools/riskscoring/Save-FGRiskProfile.ps1"
+    "tools/powershell-sdk/helpers/Add-FGEntraCalculatedAttributes.ps1"
   ]
 }
