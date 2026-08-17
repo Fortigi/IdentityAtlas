@@ -20,6 +20,7 @@
     "tools/crawlers/azure-rm/Get-AzureRMHelpers.ps1",
     "tools/powershell-sdk/graph/Invoke-FGGetPage.ps1",
     "tools/crawlers/midpoint/Invoke-MidpointApi.ps1",
+    "tools/crawlers/azure-rm/Get-AzureRGHelpers.ps1",
     "tools/crawlers/midpoint/MidpointCrawler.Transform.ps1",
     "tools/crawlers/omada/OmadaCrawler.Transform.ps1",
     "tools/crawlers/csv/CSVCrawler.Transform.ps1",
@@ -44,6 +45,7 @@
     "tools/crawlers/azure-rm/Get-AzureRMHelpers.ps1": ["test/unit/CrawlerHelpers.Tests.ps1"],
     "tools/powershell-sdk/graph/Invoke-FGGetPage.ps1": ["test/unit/SdkRequests.Tests.ps1"],
     "tools/crawlers/midpoint/Invoke-MidpointApi.ps1": ["test/unit/CrawlerHelpers.Tests.ps1"],
+    "tools/crawlers/azure-rm/Get-AzureRGHelpers.ps1": ["test/unit/CrawlerHelpers.Tests.ps1"],
     "tools/crawlers/midpoint/MidpointCrawler.Transform.ps1": ["test/unit/MidpointCrawlerTransform.Tests.ps1"],
     "tools/crawlers/omada/OmadaCrawler.Transform.ps1": ["test/unit/OmadaCrawlerTransform.Tests.ps1"],
     "tools/crawlers/csv/CSVCrawler.Transform.ps1": ["test/unit/CSVCrawlerTransform.Tests.ps1"],
@@ -53,7 +55,6 @@
   "exclusions": {
     "tools/crawlers/omada/Get-OmadaHelpers.ps1": "Produces ZERO mutants under the enabled operator set, so mutating it would report a vacuous 100%. It is five reference-value fallback chains (`if ($Ref.Value) { return [string]$Ref.Value }` repeated) with no arithmetic, no numeric/boolean literals and no negations for BinaryOperator/BooleanLiteral/NumberLiteral/NegationRemoval to bite on — the precedence order itself is only reachable by a statement-deletion or condition-forcing operator PSMutant does not currently offer. Revisit if such an operator is added; its behaviour is covered by OmadaCrawlerFunctions.Tests.ps1 in the meantime.",
 
-    "tools/crawlers/azure-rm/Get-AzureRGHelpers.ps1": "MEASURED at 78.1% (25/32) against CrawlerHelpers.Tests.ps1, up from 31.0%. Still short of the bar. Two corrections live here. (1) An earlier entry blamed this file's 35 bare `Should -Invoke -Times N` assertions; all 35 were tightened to -Exactly and the score moved 31.0% -> 31.0%. Bare -Times is a real weakness but was not the cause — the retry/quota/scoping decision functions simply had no direct tests, and a call-count assertion cannot catch a mutant that changes what is computed. (2) Adding tests is necessary but not sufficient: they must use DISCRIMINATING inputs. On the sibling Invoke-MidpointApi.ps1, a batch of 14 plausible-value tests killed 2 mutants while a batch of 13 chosen to separate each branch from its mutation killed 9 (a `-gt 0` guard behaves identically at 0 and 3; only 1 tells them apart). The 7 survivors here are constants — ConvertTo-Json -Depth, the 1000-row page size, two `Select-Object -First 1`, and a `$remaining = 0` initialiser the next line overwrites (equivalent).",
 
     "tools/crawlers/entra-id/EntraIDCrawler.Phases.ps1": "MEASURED at 39.6% (101/255) against EntraIDCrawlerPhases.Tests.ps1. CORRECTION: this entry previously claimed the Phases files are monoliths with functions trapped in a top-level Main body and therefore untestable without a decomposition first. That is false, and it was written without checking. It describes the Start-*Crawler.ps1 entry points, not these — the extraction already happened, and the layer is 158 named functions across five files with 263 existing tests. It is measurable today; it is simply weak. The whole layer sits at 50.1% (339/676), so adding it now would pull the blended gate from ~89% to ~68%. This is a test-writing job of several sessions, not a config change.",
     "tools/crawlers/omada/OmadaCrawler.Phases.ps1": "MEASURED at 57.8% (93/161) against OmadaCrawlerPhases.Tests.ps1 — see EntraIDCrawler.Phases.ps1 above for why the layer is deferred.",

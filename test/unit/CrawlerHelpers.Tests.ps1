@@ -1469,3 +1469,101 @@ Describe 'ConvertTo-MidpointAttrScalar' {
     }
 }
 
+
+# ── Azure Resource Graph: request sizing and header parsing ──────────────────
+# Each case below is chosen to SEPARATE the branch from its mutation rather than
+# merely to exercise it. A `Count -gt 0` guard behaves the same at 0 and at 5;
+# only 1 tells it apart from `-gt 1`. A `Select-Object -First 1` looks identical
+# on a single-valued header; only a two-valued one distinguishes it.
+
+Describe 'Invoke-ARGQuery — request sizing' {
+    BeforeEach {
+        Connect-AzureRM -ClientId 'c' -ClientSecret 's' -TenantId 't'
+        $script:bodies = [System.Collections.Generic.List[object]]::new()
+    }
+
+    It 'asks Resource Graph for 1000 rows a page' {
+        # ARG's per-request ceiling. A smaller value multiplies round-trips
+        # against a quota the crawler is already backing off from; a larger one
+        # is rejected outright.
+        Mock Invoke-ARGRequestRaw { $script:bodies.Add(($Body | ConvertFrom-Json)); @{ data = @() } }
+        Invoke-ARGQuery -Query 'Resources' -SubscriptionIds @('s1') | Out-Null
+        $script:bodies[0].options.'$top' | Should -Be 1000
+    }
+
+    It 'chunks subscriptions at 1000 per request' {
+        # 1001 is the discriminating count: at a 1000 chunk size it splits into
+        # two requests, at 1001 it would still be one.
+        Mock Invoke-ARGRequestRaw { $script:bodies.Add(($Body | ConvertFrom-Json)); @{ data = @() } }
+        $subs = 1..1001 | ForEach-Object { "sub-$_" }
+        Invoke-ARGQuery -Query 'Resources' -SubscriptionIds $subs | Out-Null
+
+        $script:bodies.Count | Should -Be 2
+        @($script:bodies[0].subscriptions).Count | Should -Be 1000
+        @($script:bodies[1].subscriptions).Count | Should -Be 1
+    }
+}
+
+Describe 'Invoke-ARGQuotaBackoff — header parsing edges' {
+    BeforeEach { Mock Start-Sleep { } }
+
+    It 'treats an unparseable remaining-quota header as exhausted' {
+        # The `$remaining = 0` initialiser is not dead: the [int] cast throws on a
+        # non-numeric header, the catch swallows it, and the initial value is what
+        # survives. Seeded to 1 instead, an unreadable header would look like
+        # "quota available" and the crawl would run straight into a 429.
+        Invoke-ARGQuotaBackoff -ResponseHeaders @{ 'x-ms-user-quota-remaining' = 'unknown' }
+        Should -Invoke Start-Sleep -Exactly 1 -ParameterFilter { $Seconds -eq 5 }
+    }
+
+    It 'reads the first value of a multi-valued remaining-quota header' {
+        # Azure may repeat a header. Taking two values casts an array to [int],
+        # which throws, and the crawler would pause on every response despite
+        # having quota left.
+        Invoke-ARGQuotaBackoff -ResponseHeaders @{ 'x-ms-user-quota-remaining' = @('5', '0') }
+        Should -Invoke Start-Sleep -Exactly 0
+    }
+
+    It 'reads the first value of a multi-valued reset-after header' {
+        Invoke-ARGQuotaBackoff -ResponseHeaders @{
+            'x-ms-user-quota-remaining'    = '0'
+            'x-ms-user-quota-resets-after' = @('00:00:12', '00:09:99')
+        }
+        Should -Invoke Start-Sleep -Exactly 1 -ParameterFilter { $Seconds -eq 12 }
+    }
+}
+
+Describe 'Get-ARGRoleDefinitions — scope selection' {
+    # Asserted with -ParameterFilter rather than by capturing $PSBoundParameters
+    # inside the mock: within a Pester mock body that variable is the mock's own
+    # binding, not the caller's, so it reports nothing about how the function was
+    # actually invoked.
+
+    It 'queries by management group when exactly one is configured' {
+        # The guard is `ManagementGroups.Count -gt 0`. Read as `-gt 1`, a tenant
+        # with a single management group silently falls back to the
+        # subscription-scoped query, which does not surface the tenant-wide
+        # built-in role catalog at all.
+        Mock Invoke-ARGQuery { @() }
+        Get-ARGRoleDefinitions -ManagementGroups @('mg-root') -SubscriptionIds @('s1') | Out-Null
+        Should -Invoke Invoke-ARGQuery -Exactly 1 -ParameterFilter {
+            $ManagementGroups -contains 'mg-root' -and -not $SubscriptionIds
+        }
+    }
+
+    It 'falls back to subscription scope when no management group is configured' {
+        Mock Invoke-ARGQuery { @() }
+        Get-ARGRoleDefinitions -ManagementGroups @() -SubscriptionIds @('s1') | Out-Null
+        Should -Invoke Invoke-ARGQuery -Exactly 1 -ParameterFilter {
+            $SubscriptionIds -contains 's1' -and -not $ManagementGroups
+        }
+    }
+
+    It 'reaches above the scope so tenant built-in roles are included' {
+        Mock Invoke-ARGQuery { @() }
+        Get-ARGRoleDefinitions -ManagementGroups @('mg-root') -SubscriptionIds @() | Out-Null
+        Should -Invoke Invoke-ARGQuery -Exactly 1 -ParameterFilter {
+            $ScopeFilter -eq 'AtScopeAndAbove'
+        }
+    }
+}

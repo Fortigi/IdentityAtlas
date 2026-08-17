@@ -1,0 +1,3 @@
+- Added tests for how the Azure crawler sizes its Resource Graph requests and reads Azure's quota headers. A repeated or unreadable quota header previously had no test at all — and misreading one either stalls the crawl on every response or removes the back-off that exists to stop it hitting a rate limit.
+- Verified that a tenant with a single management group is queried at management-group scope. Getting that wrong falls back to a per-subscription query, which does not return the tenant-wide catalog of built-in roles at all, so those roles would silently go missing from the sync.
+- Mutation testing now covers the Azure Resource Graph helper layer.
