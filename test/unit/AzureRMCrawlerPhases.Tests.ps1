@@ -382,3 +382,104 @@ Describe 'Complete-AzureRMRun' {
         { Complete-AzureRMRun -ApiBaseUrl 'https://x/api' -ApiKey 'k' } | Should -Not -Throw
     }
 }
+
+# ---------------------------------------------------------------------------
+# Payload shape and branch conditions in the Azure RM phases.
+#
+# The tests above assert how MANY nodes and edges a phase produces. What they
+# do not assert is what is IN them — the flags the API stores, and the branch
+# that decides a node's type. A mutant that flips `enabled = $true` to $false,
+# or drops the propagates flag off a Contains edge, leaves every count correct
+# and ships a tenant that looks synced but is not.
+# ---------------------------------------------------------------------------
+Describe 'Register-AzureRMSystem — the record it registers' {
+    It 'registers the system enabled and sync-enabled, keyed on the tenant' {
+        $script:body = $null
+        Mock Invoke-IngestAPI { $script:body = $Body; @{ systemIds = @(7) } }
+        Register-AzureRMSystem -Config (New-TestConfig) | Out-Null
+
+        $rec = $script:body.records[0]
+        $rec.systemType  | Should -Be 'AzureRM'
+        $rec.enabled     | Should -BeTrue
+        $rec.syncEnabled | Should -BeTrue
+        $rec.tenantId    | Should -Not -BeNullOrEmpty
+        $rec.displayName | Should -Match 'Azure RM'
+        # Registering the system must never wipe it: delta, not full.
+        $script:body.syncMode | Should -Be 'delta'
+    }
+
+    It 'falls back to 1 only when the response carries no usable id' {
+        # The guard is `systemIds -and systemIds.Count -gt 0`; relaxing it to -or
+        # would index an empty array on a response that has the key but no values.
+        Mock Invoke-IngestAPI { @{ systemIds = @() } }
+        Register-AzureRMSystem -Config (New-TestConfig) | Should -Be 1
+    }
+}
+
+Describe 'Add-AzureScope / Add-AzureContainsEdge — edge and node shape' {
+    It 'marks a Contains edge as propagating' {
+        # Azure RBAC inherits down the scope tree; an edge that does not say so
+        # leaves every child scope looking unaffected by its parent's assignments.
+        $ctx = New-TestCtx
+        Add-AzureContainsEdge -Ctx $ctx -ParentPath '/subscriptions/s' -ChildPath '/subscriptions/s/resourceGroups/rg'
+        $edge = $ctx.ContainsEdges[0]
+        $edge.relationshipType            | Should -Be 'Contains'
+        $edge.extendedAttributes.propagates | Should -BeTrue
+    }
+
+    It 'marks the parent edge it creates as propagating too' {
+        $ctx = New-TestCtx
+        Add-AzureScope -Ctx $ctx -ArmPath '/subscriptions/s/resourceGroups/rg' -DisplayName 'rg' `
+            -ResourceType 'AzureResourceGroup' -ParentArmPath '/subscriptions/s' -ScopeKind 'resourcegroup' | Out-Null
+        $ctx.ContainsEdges[0].extendedAttributes.propagates | Should -BeTrue
+    }
+
+    It 'adds an azureResourceType only for AzureResource nodes' {
+        # The branch is `-eq 'AzureResource'`; inverting it stamps the attribute on
+        # subscriptions and resource groups and omits it where it matters.
+        $ctx = New-TestCtx
+        Add-AzureScope -Ctx $ctx -ArmPath '/subscriptions/s/resourceGroups/rg/providers/Microsoft.Storage/storageAccounts/sa' `
+            -DisplayName 'sa' -ResourceType 'AzureResource' -ScopeKind 'resource' | Out-Null
+        Add-AzureScope -Ctx $ctx -ArmPath '/subscriptions/s' -DisplayName 'Sub' `
+            -ResourceType 'AzureSubscription' -ScopeKind 'subscription' | Out-Null
+
+        $res = $ctx.ScopeResources | Where-Object { $_.resourceType -eq 'AzureResource' }
+        $sub = $ctx.ScopeResources | Where-Object { $_.resourceType -eq 'AzureSubscription' }
+        $res.extendedAttributes.ContainsKey('azureResourceType') | Should -BeTrue
+        $sub.extendedAttributes.ContainsKey('azureResourceType') | Should -BeFalse
+    }
+
+    It 'records the arm path and scope kind on every node' {
+        $ctx = New-TestCtx
+        Add-AzureScope -Ctx $ctx -ArmPath '/subscriptions/s' -DisplayName 'Sub' `
+            -ResourceType 'AzureSubscription' -ScopeKind 'subscription' | Out-Null
+        $n = $ctx.ScopeResources[0]
+        $n.externalId                        | Should -Be '/subscriptions/s'
+        $n.extendedAttributes.armPath        | Should -Be '/subscriptions/s'
+        $n.extendedAttributes.scopeKind      | Should -Be 'subscription'
+        $n.extendedAttributes.scopeTypeLabel | Should -Not -BeNullOrEmpty
+        $ctx.ScopePaths                      | Should -Contain '/subscriptions/s'
+    }
+
+    It 'merges caller-supplied extra attributes without dropping the built-in ones' {
+        $ctx = New-TestCtx
+        Add-AzureScope -Ctx $ctx -ArmPath '/subscriptions/s' -DisplayName 'Sub' `
+            -ResourceType 'AzureSubscription' -ScopeKind 'subscription' `
+            -ExtraExt @{ tagOwner = 'team-a'; tagEnv = 'prod' } | Out-Null
+        $ext = $ctx.ScopeResources[0].extendedAttributes
+        $ext.tagOwner  | Should -Be 'team-a'
+        $ext.tagEnv    | Should -Be 'prod'
+        $ext.armPath   | Should -Be '/subscriptions/s'
+        $ext.scopeKind | Should -Be 'subscription'
+    }
+
+    It 'creates no parent edge when there is no parent path' {
+        # A tenant-root node has no ancestor; inventing an edge to '' would attach
+        # every root scope to a phantom parent.
+        $ctx = New-TestCtx
+        Add-AzureScope -Ctx $ctx -ArmPath '/' -DisplayName 'Tenant Root' `
+            -ResourceType 'AzureScope' -ScopeKind 'tenant' | Out-Null
+        $ctx.ContainsEdges.Count | Should -Be 0
+    }
+}
+
