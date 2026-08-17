@@ -245,6 +245,85 @@ def test_mutation_scope_none_without_per_mutant_detail():
     assert gcd.mutation_scope({"mutants": [{}]}, {}) is None
 
 
+# ── declared_mutation_files / scope-vs-score staleness ────────────────────────
+
+def test_declared_mutation_files_reads_the_committed_scope(tmp_path):
+    cfg = tmp_path / "psmutant.config.json"
+    _write(str(cfg), {"mutate": ["a.ps1", "b.ps1"], "operators": ["X", "Y", "Z"]})
+    d = gcd.declared_mutation_files(str(cfg))
+    assert d["files"] == {"a.ps1", "b.ps1"}
+    assert d["operators"] == 3
+
+
+def test_declared_mutation_files_none_when_unusable(tmp_path):
+    assert gcd.declared_mutation_files(None) is None
+    assert gcd.declared_mutation_files(str(tmp_path / "missing.json")) is None
+    bad = tmp_path / "bad.json"
+    bad.write_text("{ not json", encoding="utf-8")
+    assert gcd.declared_mutation_files(str(bad)) is None
+    empty = tmp_path / "empty.json"
+    _write(str(empty), {"mutate": []})
+    assert gcd.declared_mutation_files(str(empty)) is None
+
+
+def test_resolve_declared_scope_prefers_the_declaration_then_the_report():
+    report = {"operators": ["X", "Y"]}
+    declared = {"files": {"a.ps1"}, "operators": 4}
+    assert gcd.resolve_declared_scope(report, declared, {"z.ps1"}) == ({"a.ps1"}, 4)
+    # No declaration → whatever the report actually ran.
+    assert gcd.resolve_declared_scope(report, None, {"z.ps1"}) == ({"z.ps1"}, 2)
+    # Declaration with no operator list → None rather than the report's count,
+    # so the sentence omits the clause instead of quoting a mismatched number.
+    assert gcd.resolve_declared_scope(report, {"files": {"a.ps1"}}, {"z.ps1"}) == ({"a.ps1"}, None)
+
+
+def test_mutation_scope_prefers_the_declared_scope_over_the_report():
+    # The committed config is current as of the merge; the report is regenerated
+    # on its own cadence and can describe a narrower set.
+    report = {"mutants": [{"File": "tools/a.ps1"}]}
+    per_file = {
+        "tools/a": {"coverable": 100, "branch": None, "line": None},
+        "tools/b": {"coverable": 100, "branch": None, "line": None},
+        "tools/c": {"coverable": 800, "branch": None, "line": None},
+    }
+    declared = {"files": {"tools/a.ps1", "tools/b.ps1"}, "operators": 4}
+    s = gcd.mutation_scope(report, per_file, declared)
+    assert s["files"] == 2            # declared, not the 1 the report measured
+    assert s["measured_files"] == 1
+    assert s["stale"] is True
+    assert s["lines"] == 200 and s["line_pct"] == 20.0
+    assert s["operators"] == 4
+
+
+def test_mutation_scope_not_stale_when_report_matches_declaration():
+    report = {"mutants": [{"File": "tools/a.ps1"}, {"File": "tools/b.ps1"}]}
+    per_file = {"tools/a": {"coverable": 10, "branch": None, "line": None},
+                "tools/b": {"coverable": 10, "branch": None, "line": None}}
+    declared = {"files": {"tools/a.ps1", "tools/b.ps1"}, "operators": 4}
+    assert gcd.mutation_scope(report, per_file, declared)["stale"] is False
+
+
+def test_mutation_scope_falls_back_to_the_report_without_a_declaration():
+    report = {"mutants": [{"File": "tools/a.ps1"}], "operators": ["X"]}
+    per_file = {"tools/a": {"coverable": 10, "branch": None, "line": None}}
+    s = gcd.mutation_scope(report, per_file, None)
+    assert s["files"] == 1 and s["stale"] is False and s["operators"] == 1
+
+
+def test_scope_note_flags_a_score_older_than_its_scope():
+    note = gcd.scope_note({"files": 19, "files_total": 140, "line_pct": 31.0,
+                           "operators": 4, "measured_files": 9, "stale": True})
+    assert "covers 19 file(s) of 140" in note
+    assert "score itself is older than that scope" in note
+    assert "measured over 9 file(s)" in note
+
+
+def test_scope_note_stays_quiet_when_score_and_scope_agree():
+    note = gcd.scope_note({"files": 19, "files_total": 140, "line_pct": 31.0,
+                           "operators": 4, "measured_files": 19, "stale": False})
+    assert "older than that scope" not in note
+
+
 # ── shape_flags ───────────────────────────────────────────────────────────────
 
 def test_shape_flags_reports_method_below_line_inversion():

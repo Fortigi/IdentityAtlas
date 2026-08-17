@@ -192,7 +192,9 @@ function Invoke-FGGraphDeltaPage {
         }
         catch {
             $statusCode = Get-FGHttpStatus $_
-            $isTransient = ($statusCode -in @(429, 500, 502, 503, 504)) -or
+            # Shared rule, plus a Graph-specific term: Graph sometimes reports a
+            # transient fault in the message body rather than the status line.
+            $isTransient = (Test-TransientHttpStatus $statusCode) -or
                            ($_.Exception.Message -match 'UnknownError|ServiceNotAvailable|GatewayTimeout')
             if (-not ($isTransient -and $retryCount -lt $MaxRetries)) {
                 if ($statusCode -in @(400, 410)) {
@@ -265,7 +267,7 @@ function Invoke-FGGroupChildFetch {
         catch {
             $status = Get-FGHttpStatus $_
             # Retry transient errors with backoff; skip the group after maxAttempts.
-            $isTransient = ($status -eq 429) -or ($status -ge 500 -and $status -lt 600) -or (-not $status)
+            $isTransient = Test-TransientHttpStatus $status
             if ($isTransient -and $attempt -lt $maxAttempts) {
                 Start-Sleep -Seconds ([Math]::Pow(2, $attempt))
                 continue

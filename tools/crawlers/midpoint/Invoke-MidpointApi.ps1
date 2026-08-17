@@ -321,7 +321,7 @@ function Invoke-MidpointRequest {
         } catch {
             $status = $null
             try { $status = $_.Exception.Response.StatusCode.value__ } catch {}
-            $isTransient = (-not $status) -or ($status -ge 500) -or ($status -eq 429)
+            $isTransient = Test-TransientHttpStatus $status
             if ($isTransient -and $attempt -le $MaxRetries) {
                 $delay = [Math]::Pow(2, $attempt)
                 Write-Host "  midPoint transient failure ($([string]::Format('{0}', $status))) on $Method $Uri — retry $attempt/$MaxRetries in ${delay}s" -ForegroundColor Yellow

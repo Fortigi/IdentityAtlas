@@ -51,6 +51,12 @@ BeforeAll {
     #            all. Omitting this filter makes a 19-test unit file take ~52s and
     #            bind a TCP port. Omada.Tests.ps1 globbed this folder without the
     #            filter and paid exactly that cost on every unit run.
+    # The shared crawler helpers first: Test-ODataTransientStatus delegates to
+    # Test-TransientHttpStatus, which lives there. Every crawler entry point
+    # dot-sources this before its dependencies, so loading it here mirrors the
+    # real composition rather than inventing one for the test.
+    . (Join-Path $script:repoRoot 'tools' 'crawlers' 'shared' 'Invoke-CrawlerIngest.ps1')
+
     Get-ChildItem $script:odataRoot -Filter '*.ps1' |
         Where-Object { $_.Name -notlike 'Start-*' -and $_.Name -notlike 'Test-*' } |
         ForEach-Object { . $_.FullName }
@@ -211,12 +217,23 @@ Describe 'Test-ODataTransientStatus' {
         Test-ODataTransientStatus -Status $null | Should -BeTrue
     }
 
-    It 'treats <_> as transient' -ForEach @(429, 500, 501, 502, 503, 504) {
+    It 'treats <_> as transient' -ForEach @(429, 500, 502, 503, 504) {
         Test-ODataTransientStatus -Status $_ | Should -BeTrue
     }
 
-    It 'treats <_> as permanent' -ForEach @(400, 401, 403, 404, 428, 430, 499, 505, 599) {
+    It 'treats <_> as permanent' -ForEach @(400, 401, 403, 404, 428, 430, 499, 501, 505, 506, 599) {
+        # 501 Not Implemented and 505/506 are permanent by definition — a server
+        # that does not implement something will not implement it four seconds
+        # later. This library previously retried 501 (its rule was 500..504);
+        # the shared rule drops it.
         Test-ODataTransientStatus -Status $_ | Should -BeFalse
+    }
+
+    It 'delegates to the one shared rule rather than keeping its own copy' {
+        foreach ($code in 429, 500, 501, 503, 505, 599) {
+            Test-ODataTransientStatus -Status $code |
+                Should -Be (Test-TransientHttpStatus $code) -Because "HTTP $code must agree"
+        }
     }
 }
 

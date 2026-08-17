@@ -62,13 +62,14 @@ function Get-ARMErrorStatus {
     try { return [int]$ErrorRecord.Exception.Response.StatusCode } catch { return $null }
 }
 
-# Internal: is this an HTTP status worth retrying (throttling, 5xx, or no status at all)?
+# Internal: is this an HTTP status worth retrying? Delegates to the one
+# crawler-wide rule in shared/Invoke-CrawlerIngest.ps1, dot-sourced by
+# Start-AzureRMCrawler.ps1 before this file. Previously its own copy
+# (429, any 5xx, no status).
 function Test-ARMTransientStatus {
     [CmdletBinding()]
     param($Status)
-    if ($Status -eq 429) { return $true }
-    if ($Status -ge 500 -and $Status -lt 600) { return $true }
-    return (-not $Status)
+    return Test-TransientHttpStatus $Status
 }
 
 # Internal: seconds to wait before the next retry — honour Retry-After, else exponential backoff.

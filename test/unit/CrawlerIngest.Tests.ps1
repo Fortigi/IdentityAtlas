@@ -186,6 +186,41 @@ Describe 'Invoke-IngestAPI — error handling and payload serialisation' {
 # Line coverage alone can't tell a correct predicate from an inverted one here —
 # every attempt count below is asserted with -Exactly for that reason.
 
+# ── The one shared transient rule ────────────────────────────────────────────
+# Five crawlers used to carry five different versions of this predicate. They
+# disagreed on 501/505 (retried by four of them, always futilely), on the upper
+# 5xx range, and — on the Graph delta path — on whether a transport failure with
+# no HTTP status was retryable at all. Test-TransientHttpStatus is now the single
+# definition; these cases are the contract every caller inherits.
+Describe 'Test-TransientHttpStatus' {
+
+    It 'retries a transport failure that produced no status at all' {
+        # DNS failure, connection reset, TLS error — the request never got an
+        # answer, so it is always worth another attempt.
+        Test-TransientHttpStatus $null | Should -BeTrue
+        Test-TransientHttpStatus 0     | Should -BeTrue
+        Test-TransientHttpStatus ''    | Should -BeTrue
+    }
+
+    It 'retries HTTP <_>' -ForEach @(429, 500, 502, 503, 504) {
+        Test-TransientHttpStatus $_ | Should -BeTrue
+    }
+
+    It 'does not retry HTTP <_>' -ForEach @(400, 401, 403, 404, 409, 410, 428, 430, 499) {
+        Test-TransientHttpStatus $_ | Should -BeFalse
+    }
+
+    It 'does not retry HTTP <_> — permanent by definition, retrying only adds delay' -ForEach @(501, 505, 506) {
+        Test-TransientHttpStatus $_ | Should -BeFalse
+    }
+
+    It 'does not blanket-retry the rest of the 5xx range' -ForEach @(507, 508, 520, 599) {
+        # Deliberate: no endpoint this product talks to emits these. Revisit if a
+        # crawler is ever pointed at something behind a CDN that does.
+        Test-TransientHttpStatus $_ | Should -BeFalse
+    }
+}
+
 Describe 'Invoke-IngestAPI — retry policy' {
 
     BeforeEach {

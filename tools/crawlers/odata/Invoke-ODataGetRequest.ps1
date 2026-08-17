@@ -99,12 +99,21 @@ function Get-ODataRetryAfter {
 function Test-ODataTransientStatus {
     <#
     .SYNOPSIS
-        True when the status is retryable (network error, 429, or 5xx).
+        True when the status is retryable (no response, 429, or a retryable 5xx).
+    .DESCRIPTION
+        Delegates to the one crawler-wide rule in shared/Invoke-CrawlerIngest.ps1,
+        which every crawler entry point dot-sources before its dependencies — the
+        same caller-scope convention the crawler files use for $ApiBaseUrl and
+        Invoke-IngestAPI. Kept as a named OData function so callers of this library
+        have a stable entry point rather than reaching across folders.
+
+        This used to carry its own copy of the rule (500..504), one of five that
+        had drifted apart across the crawlers.
     #>
     [CmdletBinding()]
     param($Status)
 
-    return ($null -eq $Status) -or ($Status -eq 429) -or ($Status -ge 500 -and $Status -le 504)
+    return Test-TransientHttpStatus $Status
 }
 
 function Get-ODataRetryWait {

@@ -388,10 +388,29 @@ Describe 'Invoke-FGGraphDeltaPage' {
         Should -Invoke Invoke-RestMethod -Exactly 2
     }
 
-    It 're-throws a status-less error whose message is not a known Graph fault' {
+    It 'retries a status-less error regardless of its message' {
+        # This used to re-throw after a single attempt: the transient test here was
+        # a hand-picked status list plus a three-substring message match, with no
+        # clause for "no HTTP status at all". A DNS failure or connection reset
+        # whose message did not happen to contain UnknownError / ServiceNotAvailable
+        # / GatewayTimeout was treated as permanent, while every other crawler in
+        # the repo retried it. Test-TransientHttpStatus closes that gap.
         Mock Invoke-RestMethod { throw [System.Exception]::new('DNS resolution failed') }
         { Invoke-FGGraphDeltaPage -Uri 'https://graph/delta' -MaxRetries 3 -TimeoutSec 0 -PageCount 1 } | Should -Throw
-        Should -Invoke Invoke-RestMethod -Exactly 1
+        Should -Invoke Invoke-RestMethod -Exactly 4
+    }
+
+    It 'still honours the Graph message-match for faults that DO carry a status' {
+        # The message term is additive, not replaced: Graph reports some transient
+        # faults in the body alongside a non-retryable-looking status.
+        $script:calls = 0
+        Mock Invoke-RestMethod {
+            $script:calls++
+            if ($script:calls -eq 1) { throw (New-GraphHttpError -Status 403 -Message 'ServiceNotAvailable') }
+            @{ value = @() }
+        }
+        Invoke-FGGraphDeltaPage -Uri 'https://graph/delta' -MaxRetries 3 -TimeoutSec 0 -PageCount 1 | Out-Null
+        Should -Invoke Invoke-RestMethod -Exactly 2
     }
 
     It 'converts HTTP <Status> into an InvalidOperationException so the caller can full-sync' -ForEach @(
@@ -563,14 +582,18 @@ Describe 'Invoke-FGGroupChildFetch' {
         Should -Invoke Start-Sleep -Exactly 1 -ParameterFilter { $Seconds -eq 8 }
     }
 
-    # 500..599 retry; 499 does not. Pins both comparisons in
-    # ($status -ge 500 -and $status -lt 600). One case per It, because
-    # Should -Invoke counts accumulate for the whole It block — a foreach loop
-    # here would compare the running total against each case's expectation.
+    # Retryable set is {429, 500, 502, 503, 504} plus transport failures — the one
+    # shared rule in Test-TransientHttpStatus. This path used to retry the whole
+    # 500..599 range on its own, so 501/505/599 changed from 4 attempts to 1.
+    # One case per It, because Should -Invoke counts accumulate for the whole It
+    # block — a foreach loop would compare the running total against each case.
     It 'attempts HTTP <Status> exactly <Calls> time(s)' -ForEach @(
-        @{ Status = 500; Calls = 4 }   # bottom of the transient range
-        @{ Status = 599; Calls = 4 }   # top of it
-        @{ Status = 499; Calls = 1 }   # just below — permanent
+        @{ Status = 500; Calls = 4 }   # retryable server error
+        @{ Status = 504; Calls = 4 }   # gateway timeout, top of the retryable set
+        @{ Status = 501; Calls = 1 }   # Not Implemented — never worth retrying
+        @{ Status = 505; Calls = 1 }   # Version Not Supported — likewise
+        @{ Status = 599; Calls = 1 }   # unassigned 5xx, no longer blanket-retried
+        @{ Status = 499; Calls = 1 }   # just below the 5xx range
         @{ Status = 428; Calls = 1 }   # near 429 but not throttling
     ) {
         Mock Start-Sleep { }
