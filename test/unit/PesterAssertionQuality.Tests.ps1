@@ -54,7 +54,7 @@ BeforeAll {
     Import-Module (Join-Path $script:repoRoot 'test' 'lib' 'HttpErrorFixtures.psm1') -Force
 
     # Committed floor. Lower it as files are tightened; never raise it.
-    $script:BARE_TIMES_BASELINE = 144
+    $script:BARE_TIMES_BASELINE = 72
 
     function Measure-BareTimes {
         param([string]$Path)
@@ -101,7 +101,9 @@ satisfies -Times 1. Use -Exactly when you mean a count. Current: $detail
     It 'files cleaned up in this work stay clean' {
         # These were tightened while chasing mutation survivors; a regression here
         # would quietly restore the defect the ratchet exists to prevent.
-        foreach ($f in 'CrawlerIngestBatch.Tests.ps1', 'ODataLibrary.Tests.ps1', 'CrawlerHelpers.Tests.ps1') {
+        foreach ($f in 'CrawlerIngestBatch.Tests.ps1', 'ODataLibrary.Tests.ps1', 'CrawlerHelpers.Tests.ps1',
+                      'SdkRequests.Tests.ps1', 'SdkWrite.Tests.ps1', 'SdkHelpers.Tests.ps1',
+                      'SdkGovernance.Tests.ps1', 'SdkUserGroup.Tests.ps1') {
             $script:bareByFile.ContainsKey($f) | Should -BeFalse -Because "$f should use -Exactly throughout"
         }
     }

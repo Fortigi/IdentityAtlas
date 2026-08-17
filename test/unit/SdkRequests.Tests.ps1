@@ -48,7 +48,7 @@ Describe 'Invoke-FGGetPage' {
         $r = Invoke-FGGetPage -URI 'https://graph.microsoft.com/v1.0/users'
 
         $r.value | Should -Be @('x')
-        Should -Invoke -ModuleName IdentityAtlas Invoke-RestMethod -Times 1 -ParameterFilter {
+        Should -Invoke -ModuleName IdentityAtlas Invoke-RestMethod -Exactly 1 -ParameterFilter {
             $Method -eq 'Get' -and
             $Uri -eq 'https://graph.microsoft.com/v1.0/users' -and
             $Headers.Authorization -eq 'Bearer fake-token'
@@ -61,7 +61,7 @@ Describe 'Invoke-FGGetPage' {
 
         Invoke-FGGetPage -URI 'https://graph.microsoft.com/v1.0/groups' | Out-Null
 
-        Should -Invoke -ModuleName IdentityAtlas Update-FGAccessTokenIfExpired -Times 1
+        Should -Invoke -ModuleName IdentityAtlas Update-FGAccessTokenIfExpired -Exactly 1
     }
 
     It 'passes TimeoutSec through when greater than zero' {
@@ -70,7 +70,7 @@ Describe 'Invoke-FGGetPage' {
 
         Invoke-FGGetPage -URI 'https://graph.microsoft.com/v1.0/users' -TimeoutSec 30 | Out-Null
 
-        Should -Invoke -ModuleName IdentityAtlas Invoke-RestMethod -Times 1 -ParameterFilter {
+        Should -Invoke -ModuleName IdentityAtlas Invoke-RestMethod -Exactly 1 -ParameterFilter {
             $TimeoutSec -eq 30
         }
     }
@@ -92,8 +92,8 @@ Describe 'Invoke-FGGetPage' {
 
         $r = Invoke-FGGetPage -URI 'https://graph.microsoft.com/v1.0/users' -RetryDelays @(0, 0, 0)
         $r.value | Should -Be @('ok')
-        Should -Invoke -ModuleName IdentityAtlas Invoke-RestMethod -Times 2
-        Should -Invoke -ModuleName IdentityAtlas Start-Sleep -Times 1
+        Should -Invoke -ModuleName IdentityAtlas Invoke-RestMethod -Exactly 2
+        Should -Invoke -ModuleName IdentityAtlas Start-Sleep -Exactly 1
     }
 
     It 'classifies an UnknownError message as transient and retries' {
@@ -108,7 +108,7 @@ Describe 'Invoke-FGGetPage' {
 
         $r = Invoke-FGGetPage -URI 'https://graph.microsoft.com/v1.0/users' -RetryDelays @(0, 0, 0)
         $r.value | Should -Be @('done')
-        Should -Invoke -ModuleName IdentityAtlas Invoke-RestMethod -Times 2
+        Should -Invoke -ModuleName IdentityAtlas Invoke-RestMethod -Exactly 2
     }
 
     It 'honours the Retry-After header on a 429' {
@@ -129,7 +129,7 @@ Describe 'Invoke-FGGetPage' {
 
         $r = Invoke-FGGetPage -URI 'https://graph.microsoft.com/v1.0/users' -RetryDelays @(1, 1, 1)
         $r.value | Should -Be @('throttled-ok')
-        Should -Invoke -ModuleName IdentityAtlas Start-Sleep -Times 1 -ParameterFilter { $Seconds -eq 7 }
+        Should -Invoke -ModuleName IdentityAtlas Start-Sleep -Exactly 1 -ParameterFilter { $Seconds -eq 7 }
     }
 
     It 'rethrows a non-transient error without retrying' {
@@ -142,7 +142,7 @@ Describe 'Invoke-FGGetPage' {
         }
 
         { Invoke-FGGetPage -URI 'https://graph.microsoft.com/v1.0/missing' } | Should -Throw
-        Should -Invoke -ModuleName IdentityAtlas Invoke-RestMethod -Times 1
+        Should -Invoke -ModuleName IdentityAtlas Invoke-RestMethod -Exactly 1
     }
 
     It 'throws after exhausting retries on persistent transient errors' {
@@ -158,7 +158,7 @@ Describe 'Invoke-FGGetPage' {
         { Invoke-FGGetPage -URI 'https://graph.microsoft.com/v1.0/users' -MaxRetries 2 -RetryDelays @(0, 0, 0) } |
             Should -Throw
         # initial attempt + 2 retries = 3 calls
-        Should -Invoke -ModuleName IdentityAtlas Invoke-RestMethod -Times 3
+        Should -Invoke -ModuleName IdentityAtlas Invoke-RestMethod -Exactly 3
     }
 }
 
@@ -179,7 +179,7 @@ Describe 'Invoke-FGGetRequest' {
     It 'returns the value array from a single page' {
         Mock -ModuleName IdentityAtlas Invoke-FGGetPage { [pscustomobject]@{ value = @('a', 'b') } }
         Invoke-FGGetRequest -URI 'https://graph.microsoft.com/v1.0/users' | Should -Be @('a', 'b')
-        Should -Invoke -ModuleName IdentityAtlas Invoke-FGGetPage -Times 1 -ParameterFilter {
+        Should -Invoke -ModuleName IdentityAtlas Invoke-FGGetPage -Exactly 1 -ParameterFilter {
             $URI -eq 'https://graph.microsoft.com/v1.0/users'
         }
     }
@@ -204,8 +204,8 @@ Describe 'Invoke-FGGetRequest' {
 
         $r = Invoke-FGGetRequest -URI 'https://graph.microsoft.com/v1.0/users'
         $r | Should -Be @('a', 'b')
-        Should -Invoke -ModuleName IdentityAtlas Invoke-FGGetPage -Times 2
-        Should -Invoke -ModuleName IdentityAtlas Invoke-FGGetPage -Times 1 -ParameterFilter {
+        Should -Invoke -ModuleName IdentityAtlas Invoke-FGGetPage -Exactly 2
+        Should -Invoke -ModuleName IdentityAtlas Invoke-FGGetPage -Exactly 1 -ParameterFilter {
             $URI -eq 'https://graph.microsoft.com/next'
         }
     }
@@ -213,7 +213,7 @@ Describe 'Invoke-FGGetRequest' {
     It 'forwards MaxRetries and TimeoutSec overrides to the page helper' {
         Mock -ModuleName IdentityAtlas Invoke-FGGetPage { [pscustomobject]@{ value = @() } }
         Invoke-FGGetRequest -URI 'https://graph.microsoft.com/v1.0/x' -MaxRetries 1 -TimeoutSec 30 | Out-Null
-        Should -Invoke -ModuleName IdentityAtlas Invoke-FGGetPage -Times 1 -ParameterFilter {
+        Should -Invoke -ModuleName IdentityAtlas Invoke-FGGetPage -Exactly 1 -ParameterFilter {
             $MaxRetries -eq 1 -and $TimeoutSec -eq 30
         }
     }
@@ -223,7 +223,7 @@ Describe 'Invoke-FGGetRequest' {
         Mock -ModuleName IdentityAtlas Invoke-FGGetPage { [pscustomobject]@{ value = @('a') } }
         Mock -ModuleName IdentityAtlas Write-Host { }
         Invoke-FGGetRequest -URI 'https://graph.microsoft.com/v1.0/users' | Out-Null
-        Should -Invoke -ModuleName IdentityAtlas Write-Host -Times 1 -ParameterFilter { $Object -eq 'Invoke-FGGetRequest' }
+        Should -Invoke -ModuleName IdentityAtlas Write-Host -Exactly 1 -ParameterFilter { $Object -eq 'Invoke-FGGetRequest' }
         $Global:DebugMode = $null
     }
 }
@@ -256,7 +256,7 @@ Describe 'Invoke-FGGetRequestStream' {
 
         $items = Invoke-FGGetRequestStream -URI 'https://graph.microsoft.com/v1.0/users'
         $items | Should -Be @('a', 'b', 'c')
-        Should -Invoke -ModuleName IdentityAtlas Invoke-FGGetPage -Times 2
+        Should -Invoke -ModuleName IdentityAtlas Invoke-FGGetPage -Exactly 2
     }
 
     It 'emits the raw result when there is no value property' {
@@ -288,7 +288,7 @@ Describe 'Invoke-FGGetRequestToFile' {
         Invoke-FGGetRequestToFile -URI 'https://graph.microsoft.com/v1.0/users' -File $tmp
 
         Test-Path $tmp | Should -BeTrue
-        Should -Invoke -ModuleName IdentityAtlas Merge-FGJsonArrayFile -Times 1 -ParameterFilter {
+        Should -Invoke -ModuleName IdentityAtlas Merge-FGJsonArrayFile -Exactly 1 -ParameterFilter {
             $File -eq $tmp
         }
     }
@@ -309,8 +309,8 @@ Describe 'Invoke-FGGetRequestToFile' {
 
         Invoke-FGGetRequestToFile -URI 'https://graph.microsoft.com/v1.0/users' -File $tmp
 
-        Should -Invoke -ModuleName IdentityAtlas Invoke-FGGetPage -Times 2
-        Should -Invoke -ModuleName IdentityAtlas Merge-FGJsonArrayFile -Times 1
+        Should -Invoke -ModuleName IdentityAtlas Invoke-FGGetPage -Exactly 2
+        Should -Invoke -ModuleName IdentityAtlas Merge-FGJsonArrayFile -Exactly 1
     }
 }
 
@@ -335,7 +335,7 @@ Describe 'Invoke-FGWriteRequest' {
         $r = Invoke-FGWriteRequest -Method Post -URI 'https://graph.microsoft.com/v1.0/groups' -Body @{ displayName = 'G' }
 
         $r.id | Should -Be 'created'
-        Should -Invoke -ModuleName IdentityAtlas Invoke-RestMethod -Times 1 -ParameterFilter {
+        Should -Invoke -ModuleName IdentityAtlas Invoke-RestMethod -Exactly 1 -ParameterFilter {
             $Method -eq 'Post' -and
             $Uri -eq 'https://graph.microsoft.com/v1.0/groups' -and
             $Headers.Authorization -eq 'Bearer fake-token' -and
@@ -360,7 +360,7 @@ Describe 'Invoke-FGWriteRequest' {
     It 'Invoke-FGPostRequest delegates with Method Post' {
         Mock -ModuleName IdentityAtlas Invoke-FGWriteRequest { }
         Invoke-FGPostRequest -URI 'https://graph.microsoft.com/v1.0/groups' -Body @{ a = 1 }
-        Should -Invoke -ModuleName IdentityAtlas Invoke-FGWriteRequest -Times 1 -ParameterFilter {
+        Should -Invoke -ModuleName IdentityAtlas Invoke-FGWriteRequest -Exactly 1 -ParameterFilter {
             $Method -eq 'Post' -and $URI -eq 'https://graph.microsoft.com/v1.0/groups'
         }
     }
@@ -368,7 +368,7 @@ Describe 'Invoke-FGWriteRequest' {
     It 'Invoke-FGPutRequest delegates with Method Put' {
         Mock -ModuleName IdentityAtlas Invoke-FGWriteRequest { }
         Invoke-FGPutRequest -URI 'https://graph.microsoft.com/v1.0/groups/1' -Body @{ a = 1 }
-        Should -Invoke -ModuleName IdentityAtlas Invoke-FGWriteRequest -Times 1 -ParameterFilter {
+        Should -Invoke -ModuleName IdentityAtlas Invoke-FGWriteRequest -Exactly 1 -ParameterFilter {
             $Method -eq 'Put' -and $URI -eq 'https://graph.microsoft.com/v1.0/groups/1'
         }
     }
@@ -379,7 +379,7 @@ Describe 'Invoke-FGWriteRequest' {
         Mock -ModuleName IdentityAtlas Invoke-RestMethod { [pscustomobject]@{ id = 'ok' } }
         Mock -ModuleName IdentityAtlas Write-Host { }
         Invoke-FGWriteRequest -Method Post -URI 'https://graph.microsoft.com/v1.0/x' -Body @{ a = 1 } | Out-Null
-        Should -Invoke -ModuleName IdentityAtlas Write-Host -Times 1 -ParameterFilter { $Object -eq 'Invoke-FGPostRequest' }
+        Should -Invoke -ModuleName IdentityAtlas Write-Host -Exactly 1 -ParameterFilter { $Object -eq 'Invoke-FGPostRequest' }
         $Global:DebugMode = $null
     }
 }
@@ -405,7 +405,7 @@ Describe 'Invoke-FGPatchRequest' {
         $r = Invoke-FGPatchRequest -URI 'https://graph.microsoft.com/v1.0/users/1' -Body @{ displayName = 'New' }
 
         $r.id | Should -Be 'patched'
-        Should -Invoke -ModuleName IdentityAtlas Invoke-RestMethod -Times 1 -ParameterFilter {
+        Should -Invoke -ModuleName IdentityAtlas Invoke-RestMethod -Exactly 1 -ParameterFilter {
             $Method -eq 'PATCH' -and
             $Uri -eq 'https://graph.microsoft.com/v1.0/users/1' -and
             $Headers.Authorization -eq 'Bearer fake-token' -and
@@ -446,7 +446,7 @@ Describe 'Invoke-FGDeleteRequest' {
 
         Invoke-FGDeleteRequest -URI 'https://graph.microsoft.com/v1.0/users/1'
 
-        Should -Invoke -ModuleName IdentityAtlas Invoke-RestMethod -Times 1 -ParameterFilter {
+        Should -Invoke -ModuleName IdentityAtlas Invoke-RestMethod -Exactly 1 -ParameterFilter {
             $Method -eq 'DELETE' -and
             $Uri -eq 'https://graph.microsoft.com/v1.0/users/1' -and
             $Headers.Authorization -eq 'Bearer fake-token'
@@ -479,7 +479,7 @@ Describe 'Get-FGAccessToken' {
         $Global:AccessToken | Should -Be 'NEW-TOKEN'
         $Global:ClientId | Should -Be 'cid'
         $Global:TenantId | Should -Be 'tid'
-        Should -Invoke -ModuleName IdentityAtlas Invoke-RestMethod -Times 1 -ParameterFilter {
+        Should -Invoke -ModuleName IdentityAtlas Invoke-RestMethod -Exactly 1 -ParameterFilter {
             $Method -eq 'Post' -and
             $Uri -eq 'https://login.microsoftonline.com/tid/oauth2/token' -and
             $Body.grant_type -eq 'client_credentials' -and
@@ -524,7 +524,7 @@ Describe 'Get-FGAccessToken' {
         Get-FGAccessToken -ConfigFile $cfg
 
         $Global:AccessToken | Should -Be 'CFG-TOKEN'
-        Should -Invoke -ModuleName IdentityAtlas Invoke-RestMethod -Times 1 -ParameterFilter {
+        Should -Invoke -ModuleName IdentityAtlas Invoke-RestMethod -Exactly 1 -ParameterFilter {
             $Uri -eq 'https://login.microsoftonline.com/ctid/oauth2/token'
         }
     }
@@ -569,7 +569,7 @@ Describe 'Get-FGAccessTokenWithRefreshToken' {
 
         $Global:AccessToken | Should -Be 'RT-ACCESS'
         $Global:RefreshToken | Should -Be 'RT-NEW'
-        Should -Invoke -ModuleName IdentityAtlas Invoke-RestMethod -Times 1 -ParameterFilter {
+        Should -Invoke -ModuleName IdentityAtlas Invoke-RestMethod -Exactly 1 -ParameterFilter {
             $Uri -eq 'https://login.microsoftonline.com/tid/oauth2/token' -and
             $Body.grant_type -eq 'refresh_token' -and
             $Body.refresh_token -eq 'oldrt'
@@ -670,8 +670,8 @@ Describe 'Update-FGAccessTokenIfExpired' {
 
         Update-FGAccessTokenIfExpired -DebugFlag 'G'
 
-        Should -Invoke -ModuleName IdentityAtlas Get-FGAccessToken -Times 0
-        Should -Invoke -ModuleName IdentityAtlas Get-FGAccessTokenWithRefreshToken -Times 0
+        Should -Invoke -ModuleName IdentityAtlas Get-FGAccessToken -Exactly 0
+        Should -Invoke -ModuleName IdentityAtlas Get-FGAccessTokenWithRefreshToken -Exactly 0
     }
 
     It 'refreshes via client secret when expired and a secret is present' {
@@ -683,7 +683,7 @@ Describe 'Update-FGAccessTokenIfExpired' {
 
         Update-FGAccessTokenIfExpired
 
-        Should -Invoke -ModuleName IdentityAtlas Get-FGAccessToken -Times 1
+        Should -Invoke -ModuleName IdentityAtlas Get-FGAccessToken -Exactly 1
     }
 
     It 'refreshes via refresh token when expired and no secret is present' {
@@ -695,7 +695,7 @@ Describe 'Update-FGAccessTokenIfExpired' {
 
         Update-FGAccessTokenIfExpired
 
-        Should -Invoke -ModuleName IdentityAtlas Get-FGAccessTokenWithRefreshToken -Times 1
+        Should -Invoke -ModuleName IdentityAtlas Get-FGAccessTokenWithRefreshToken -Exactly 1
     }
 
     It 'throws when expired with neither secret nor refresh token' {
@@ -771,7 +771,7 @@ Describe 'Read-FGToken' {
         Read-FGToken -TokenFile $f
 
         $Global:RefreshToken | Should -Be 'rt'
-        Should -Invoke -ModuleName IdentityAtlas Get-FGAccessTokenWithRefreshToken -Times 1
+        Should -Invoke -ModuleName IdentityAtlas Get-FGAccessTokenWithRefreshToken -Exactly 1
     }
 }
 
@@ -819,7 +819,206 @@ Describe 'Test-FGConnection' {
         $Global:AccessToken = 'fake-token'
         Mock -ModuleName IdentityAtlas Confirm-FGAccessTokenValidity { $true }
         Test-FGConnection | Should -BeTrue
-        Should -Invoke -ModuleName IdentityAtlas Confirm-FGAccessTokenValidity -Times 1
+        Should -Invoke -ModuleName IdentityAtlas Confirm-FGAccessTokenValidity -Exactly 1
         $Global:AccessToken = $null
     }
 }
+
+# ---------------------------------------------------------------------------
+# Test-FGTransientError / Get-FGRetryAfterWait — the retry decisions behind
+# Invoke-FGGetPage. Both are module-internal, so they are reached via
+# InModuleScope rather than through the pager, whose assertions can only count
+# calls. Neither had a direct test: the no-status branch below was a defect
+# nothing could have caught from the outside.
+# ---------------------------------------------------------------------------
+Describe 'Test-FGTransientError' {
+
+    It 'retries a request that never got an HTTP response' {
+        # DNS failure, connection reset, TLS error. This clause did not exist:
+        # such a failure was retried only if its message happened to contain one
+        # of the three Graph fault strings, and was otherwise treated as
+        # permanent — while every crawler in the repo retried it. Every SDK
+        # consumer's paging goes through this predicate.
+        InModuleScope IdentityAtlas {
+            Test-FGTransientError -StatusCode $null -ErrorMessage 'The remote name could not be resolved' |
+                Should -BeTrue
+        }
+    }
+
+    It 'retries HTTP <_>' -ForEach @(429, 500, 502, 503, 504) {
+        $code = $_
+        InModuleScope IdentityAtlas -Parameters @{ code = $code } {
+            Test-FGTransientError -StatusCode $code -ErrorMessage 'boom' | Should -BeTrue
+        }
+    }
+
+    It 'does not retry HTTP <_>' -ForEach @(400, 401, 403, 404, 409, 501, 505, 599) {
+        $code = $_
+        InModuleScope IdentityAtlas -Parameters @{ code = $code } {
+            Test-FGTransientError -StatusCode $code -ErrorMessage 'boom' | Should -BeFalse
+        }
+    }
+
+    It 'retries on a Graph fault named in the message even when the status is not retryable' {
+        # Graph sometimes reports a transient condition in the body while the
+        # status line says something else.
+        InModuleScope IdentityAtlas {
+            foreach ($msg in 'UnknownError', 'ServiceNotAvailable', 'GatewayTimeout') {
+                Test-FGTransientError -StatusCode 403 -ErrorMessage $msg |
+                    Should -BeTrue -Because "'$msg' is a known transient Graph fault"
+            }
+        }
+    }
+
+    It 'does not retry an unrelated message on a permanent status' {
+        InModuleScope IdentityAtlas {
+            Test-FGTransientError -StatusCode 403 -ErrorMessage 'Insufficient privileges' | Should -BeFalse
+        }
+    }
+}
+
+Describe 'Get-FGRetryAfterWait' {
+
+    BeforeAll {
+        # The helper reads $Exception.Response.Headers as a collection of
+        # key/value pairs, filtering on .Key and expanding .Value.
+        function New-HeaderException {
+            param([string]$Name = 'Retry-After', $Value)
+            $headers = @([pscustomobject]@{ Key = $Name; Value = $Value })
+            $resp = [pscustomobject]@{ Headers = $headers }
+            $ex = [System.Exception]::new('throttled')
+            $ex | Add-Member -NotePropertyName Response -NotePropertyValue $resp -Force
+            return $ex
+        }
+    }
+
+    It 'uses the default wait for any status other than 429' {
+        $ex = New-HeaderException -Value '90'
+        InModuleScope IdentityAtlas -Parameters @{ ex = $ex } {
+            # Retry-After is a throttling header; a 503 carrying one still walks
+            # the caller's backoff ladder.
+            Get-FGRetryAfterWait -Exception $ex -StatusCode 503 -DefaultWait 7 | Should -Be 7
+        }
+    }
+
+    It 'uses the default wait when the response carries no headers' {
+        $ex = [System.Exception]::new('no headers')
+        $ex | Add-Member -NotePropertyName Response -NotePropertyValue ([pscustomobject]@{ Headers = $null }) -Force
+        InModuleScope IdentityAtlas -Parameters @{ ex = $ex } {
+            Get-FGRetryAfterWait -Exception $ex -StatusCode 429 -DefaultWait 5 | Should -Be 5
+        }
+    }
+
+    It 'honours a Retry-After longer than the default' {
+        $ex = New-HeaderException -Value '30'
+        InModuleScope IdentityAtlas -Parameters @{ ex = $ex } {
+            Get-FGRetryAfterWait -Exception $ex -StatusCode 429 -DefaultWait 3 | Should -Be 30
+        }
+    }
+
+    It 'keeps the default when Retry-After asks for LESS than the ladder step' {
+        # Deliberately Max(), not "honour the header": the ladder is the floor, so
+        # a server asking for 1s cannot pull the client into a tight retry loop.
+        # This differs from the crawler-side helpers, which honour Retry-After
+        # outright — worth knowing before the two are ever merged.
+        $ex = New-HeaderException -Value '1'
+        InModuleScope IdentityAtlas -Parameters @{ ex = $ex } {
+            Get-FGRetryAfterWait -Exception $ex -StatusCode 429 -DefaultWait 10 | Should -Be 10
+        }
+    }
+
+    It 'falls back to the default when Retry-After is unparseable' {
+        $ex = New-HeaderException -Value 'in-a-bit'
+        InModuleScope IdentityAtlas -Parameters @{ ex = $ex } {
+            Get-FGRetryAfterWait -Exception $ex -StatusCode 429 -DefaultWait 4 | Should -Be 4
+        }
+    }
+
+    It 'ignores headers other than Retry-After' {
+        $ex = New-HeaderException -Name 'X-Rate-Limit' -Value '99'
+        InModuleScope IdentityAtlas -Parameters @{ ex = $ex } {
+            Get-FGRetryAfterWait -Exception $ex -StatusCode 429 -DefaultWait 6 | Should -Be 6
+        }
+    }
+}
+
+
+# ---------------------------------------------------------------------------
+# Invoke-FGGetPage — the DEFAULT backoff ladder. The retry tests above all pass
+# -RetryDelays @(0) to keep the suite fast, which means the shipped ladder
+# @(3,10,30,60,120,180) and its [$retryCount - 1] indexing had no coverage at
+# all: every one of those constants could be changed without a test noticing.
+# ---------------------------------------------------------------------------
+Describe 'Invoke-FGGetPage — default backoff ladder' {
+    BeforeAll {
+        $Global:AccessToken = 'fake-token'
+    }
+    AfterAll {
+        $Global:AccessToken = $null
+    }
+
+    It 'walks 3, 10, 30, 60, 120, 180 seconds in order' {
+        Mock -ModuleName IdentityAtlas Update-FGAccessTokenIfExpired { }
+        Mock -ModuleName IdentityAtlas Start-Sleep { }
+        Mock -ModuleName IdentityAtlas Invoke-RestMethod { throw [System.Exception]::new('ServiceNotAvailable') }
+
+        { Invoke-FGGetPage -URI 'https://graph/x' -MaxRetries 6 } | Should -Throw
+
+        Should -Invoke -ModuleName IdentityAtlas Start-Sleep -Exactly 6
+        foreach ($sec in 3, 10, 30, 60, 120, 180) {
+            Should -Invoke -ModuleName IdentityAtlas Start-Sleep -Exactly 1 `
+                -ParameterFilter { $Seconds -eq $sec } -Because "the ladder includes ${sec}s exactly once"
+        }
+    }
+
+    It 'waits the first ladder step on the first retry, not a later one' {
+        # Indexed as $RetryDelays[$retryCount - 1]; an off-by-one sends the first
+        # retry to 10s and walks off the end of the array on the last.
+        Mock -ModuleName IdentityAtlas Update-FGAccessTokenIfExpired { }
+        Mock -ModuleName IdentityAtlas Start-Sleep { }
+        $script:calls = 0
+        Mock -ModuleName IdentityAtlas Invoke-RestMethod {
+            $script:calls++
+            if ($script:calls -eq 1) { throw [System.Exception]::new('ServiceNotAvailable') }
+            [pscustomobject]@{ value = @() }
+        }
+
+        Invoke-FGGetPage -URI 'https://graph/x' -MaxRetries 4 | Out-Null
+
+        Should -Invoke -ModuleName IdentityAtlas Start-Sleep -Exactly 1 -ParameterFilter { $Seconds -eq 3 }
+    }
+
+    It 'passes a TimeoutSec of 1 through — the guard is greater-than 0, not 1' {
+        Mock -ModuleName IdentityAtlas Update-FGAccessTokenIfExpired { }
+        Mock -ModuleName IdentityAtlas Invoke-RestMethod { [pscustomobject]@{ value = @() } }
+
+        Invoke-FGGetPage -URI 'https://graph/x' -TimeoutSec 1 | Out-Null
+
+        Should -Invoke -ModuleName IdentityAtlas Invoke-RestMethod -Exactly 1 `
+            -ParameterFilter { $TimeoutSec -eq 1 }
+    }
+
+    It 'omits TimeoutSec entirely when it is left at 0' {
+        Mock -ModuleName IdentityAtlas Update-FGAccessTokenIfExpired { }
+        Mock -ModuleName IdentityAtlas Invoke-RestMethod { [pscustomobject]@{ value = @() } }
+
+        Invoke-FGGetPage -URI 'https://graph/x' -TimeoutSec 0 | Out-Null
+
+        Should -Invoke -ModuleName IdentityAtlas Invoke-RestMethod -Exactly 1 `
+            -ParameterFilter { -not $PSBoundParameters.ContainsKey('TimeoutSec') }
+    }
+
+    It 'refreshes the access token between attempts, not just before the first' {
+        # A long ladder can outlive the token; without the refresh a retry storm
+        # would re-send an expired bearer every time.
+        Mock -ModuleName IdentityAtlas Start-Sleep { }
+        Mock -ModuleName IdentityAtlas Update-FGAccessTokenIfExpired { }
+        Mock -ModuleName IdentityAtlas Invoke-RestMethod { throw [System.Exception]::new('ServiceNotAvailable') }
+
+        { Invoke-FGGetPage -URI 'https://graph/x' -MaxRetries 2 -RetryDelays @(0, 0) } | Should -Throw
+
+        # Once up front, then once after each of the two retries.
+        Should -Invoke -ModuleName IdentityAtlas Update-FGAccessTokenIfExpired -Exactly 3
+    }
+}
+

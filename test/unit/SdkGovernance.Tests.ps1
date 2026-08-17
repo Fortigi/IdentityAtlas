@@ -396,7 +396,7 @@ Describe 'Get-FGServicePrincipalWithSync' {
         @($r).Count | Should -Be 1
         $r.DisplayName | Should -Be 'Workday'
         # 3 known appIds + 6 HR name patterns + gallery tag + SCIM tag = 11 discovery queries
-        Should -Invoke -ModuleName IdentityAtlas Invoke-FGGetRequest -Times 11
+        Should -Invoke -ModuleName IdentityAtlas Invoke-FGGetRequest -Exactly 11
     }
 
     It 'continues silently when checking a service principal for sync jobs throws' {
