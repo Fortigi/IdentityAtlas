@@ -5214,10 +5214,10 @@ Users who have direct membership to a group that is also granted by a business r
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1">-- All access assignments outside business role governance</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="k">SELECT</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">vw_UnmanagedPermissions</span><span class="p">;</span>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="c1">-- A principal&#39;s full access picture: every assignment and how it was granted</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="c1">-- A principal's full access picture: every assignment and how it was granted</span>
 <a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="k">SELECT</span><span class="w"> </span><span class="o">*</span>
 <a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="k">FROM</span><span class="w"> </span><span class="n">vw_ResourceUserPermissionAssignments</span>
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">principalId</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;your-user-guid-here&#39;</span><span class="p">;</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">principalId</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">'your-user-guid-here'</span><span class="p">;</span>
 </code></pre></div>
 <div class="admonition tip">
 <p class="admonition-title">Matrix view IST/SOLL toggle</p>

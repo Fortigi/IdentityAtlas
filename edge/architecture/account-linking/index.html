@@ -4944,22 +4944,22 @@ Companion to <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/api
 <h3 id="the-dictionary">The dictionary<a class="headerlink" href="#the-dictionary" title="Permanent link">&para;</a></h3>
 <p>The dictionary is shipped with sensible defaults (<code>DEFAULT_RULES</code>) and is editable per-tenant via <code>AccountLinkingConfig.rules</code>. It has four parts:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>{
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>  &quot;signals&quot;: [
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    { &quot;name&quot;: &quot;employeeId&quot;,  &quot;type&quot;: &quot;exact&quot;,  &quot;field&quot;: &quot;employeeId&quot;, &quot;weight&quot;: 95 },
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    { &quot;name&quot;: &quot;email&quot;,       &quot;type&quot;: &quot;exact&quot;,  &quot;field&quot;: &quot;email&quot;,      &quot;weight&quot;: 90 },
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    { &quot;name&quot;: &quot;emailPrefix&quot;, &quot;type&quot;: &quot;prefix&quot;, &quot;field&quot;: &quot;email&quot;,      &quot;weight&quot;: 80,
-<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>      &quot;stripPrefixes&quot;: [&quot;adm-&quot;, &quot;adm_&quot;, &quot;a-&quot;, &quot;a_&quot;, &quot;admin-&quot;, &quot;admin_&quot;, &quot;ext-&quot;, &quot;ext_&quot;, &quot;svc-&quot;, &quot;s-&quot;] },
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    { &quot;name&quot;: &quot;fullName&quot;,       &quot;type&quot;: &quot;name&quot;, &quot;level&quot;: &quot;full&quot;,           &quot;weight&quot;: 60 },
-<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    { &quot;name&quot;: &quot;surnameInitial&quot;, &quot;type&quot;: &quot;name&quot;, &quot;level&quot;: &quot;surnameInitial&quot;, &quot;weight&quot;: 45 }
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>  "signals": [
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    { "name": "employeeId",  "type": "exact",  "field": "employeeId", "weight": 95 },
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    { "name": "email",       "type": "exact",  "field": "email",      "weight": 90 },
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    { "name": "emailPrefix", "type": "prefix", "field": "email",      "weight": 80,
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>      "stripPrefixes": ["adm-", "adm_", "a-", "a_", "admin-", "admin_", "ext-", "ext_", "svc-", "s-"] },
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    { "name": "fullName",       "type": "name", "level": "full",           "weight": 60 },
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    { "name": "surnameInitial", "type": "name", "level": "surnameInitial", "weight": 45 }
 <a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>  ],
-<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>  &quot;accountTypeRules&quot;: [
-<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    { &quot;accountType&quot;: &quot;Admin&quot;,   &quot;priority&quot;: 1, &quot;patterns&quot;: [&quot;^adm[-_]&quot;, &quot;^a[-_]&quot;, &quot;[-_]admin@&quot;, &quot;\\badmin\\b&quot;, &quot;\\(adm&quot;] },
-<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>    { &quot;accountType&quot;: &quot;Guest&quot;,   &quot;priority&quot;: 1, &quot;patterns&quot;: [&quot;#ext#&quot;] },
-<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>    { &quot;accountType&quot;: &quot;Service&quot;, &quot;priority&quot;: 2, &quot;patterns&quot;: [&quot;^svc[-_]&quot;, &quot;^s[-_]&quot;, &quot;\\bservice account\\b&quot;] },
-<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>    { &quot;accountType&quot;: &quot;Shared&quot;,  &quot;priority&quot;: 3, &quot;patterns&quot;: [&quot;\\broom\\b&quot;, &quot;\\bequipment\\b&quot;, &quot;\\bshared\\b&quot;, &quot;\\bmailbox\\b&quot;] }
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>  "accountTypeRules": [
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    { "accountType": "Admin",   "priority": 1, "patterns": ["^adm[-_]", "^a[-_]", "[-_]admin@", "\\badmin\\b", "\\(adm"] },
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>    { "accountType": "Guest",   "priority": 1, "patterns": ["#ext#"] },
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>    { "accountType": "Service", "priority": 2, "patterns": ["^svc[-_]", "^s[-_]", "\\bservice account\\b"] },
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>    { "accountType": "Shared",  "priority": 3, "patterns": ["\\broom\\b", "\\bequipment\\b", "\\bshared\\b", "\\bmailbox\\b"] }
 <a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>  ],
-<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>  &quot;linkThreshold&quot;: 50,
-<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>  &quot;onlyLinkTypes&quot;: [&quot;Admin&quot;, &quot;Guest&quot;, &quot;Secondary&quot;]
+<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>  "linkThreshold": 50,
+<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>  "onlyLinkTypes": ["Admin", "Guest", "Secondary"]
 <a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>}
 </code></pre></div>
 <ul>

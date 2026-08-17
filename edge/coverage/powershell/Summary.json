@@ -1,22 +1,22 @@
 {
   "summary": {
-    "generatedon": "2026-08-17T07:31:55Z",
+    "generatedon": "2026-08-17T11:20:41Z",
     "parser": "JaCoCo",
     "assemblies": 12,
     "classes": 140,
     "files": 140,
-    "coveredlines": 5545,
-    "uncoveredlines": 560,
+    "coveredlines": 5546,
+    "uncoveredlines": 559,
     "coverablelines": 6105,
     "totallines": 16500,
     "linecoverage": 90.8,
     "coveredbranches": 0,
     "totalbranches": 0,
     "coveredmethods": 543,
-    "fullcoveredmethods": 494,
+    "fullcoveredmethods": 495,
     "totalmethods": 561,
     "methodcoverage": 96.7,
-    "fullmethodcoverage": 88
+    "fullmethodcoverage": 88.2
  },
   "coverage": {
     "assemblies": [
@@ -46,8 +46,8 @@
         { "name": "tools/crawlers/entra-id/EntraIDCrawler.PrincipalRelationships", "coverage": 44.4, "coveredlines": 24, "coverablelines": 54, "totallines": 154, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 60, "fullmethodcoverage": 20, "coveredmethods": 3, "fullcoveredmethods": 1, "totalmethods": 5 },
         { "name": "tools/crawlers/entra-id/EntraIDCrawler.Transform", "coverage": 100, "coveredlines": 422, "coverablelines": 422, "totallines": 878, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 29, "fullcoveredmethods": 29, "totalmethods": 29 },
         { "name": "tools/crawlers/entra-id/Start-EntraIDCrawler", "coverage": 0, "coveredlines": 0, "coverablelines": 76, "totallines": 368, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 0, "fullmethodcoverage": 0, "coveredmethods": 0, "fullcoveredmethods": 0, "totalmethods": 1 } ] },
-      { "name": "tools/crawlers/midpoint", "classes": 5, "coverage": 90.3, "coveredlines": 852, "coverablelines": 943, "totallines": 2325, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 98.9, "fullmethodcoverage": 88.4, "coveredmethods": 94, "fullcoveredmethods": 84, "totalmethods": 95, "classesinassembly": [
-        { "name": "tools/crawlers/midpoint/Invoke-MidpointApi", "coverage": 96.4, "coveredlines": 245, "coverablelines": 254, "totallines": 721, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 80.6, "coveredmethods": 31, "fullcoveredmethods": 25, "totalmethods": 31 },
+      { "name": "tools/crawlers/midpoint", "classes": 5, "coverage": 90.4, "coveredlines": 853, "coverablelines": 943, "totallines": 2325, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 98.9, "fullmethodcoverage": 89.4, "coveredmethods": 94, "fullcoveredmethods": 85, "totalmethods": 95, "classesinassembly": [
+        { "name": "tools/crawlers/midpoint/Invoke-MidpointApi", "coverage": 96.8, "coveredlines": 246, "coverablelines": 254, "totallines": 721, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 83.8, "coveredmethods": 31, "fullcoveredmethods": 26, "totalmethods": 31 },
         { "name": "tools/crawlers/midpoint/MidpointCrawler.Functions", "coverage": 100, "coveredlines": 64, "coverablelines": 64, "totallines": 159, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 11, "fullcoveredmethods": 11, "totalmethods": 11 },
         { "name": "tools/crawlers/midpoint/MidpointCrawler.Phases", "coverage": 98.3, "coveredlines": 408, "coverablelines": 415, "totallines": 923, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 89.7, "coveredmethods": 39, "fullcoveredmethods": 35, "totalmethods": 39 },
         { "name": "tools/crawlers/midpoint/MidpointCrawler.Transform", "coverage": 100, "coveredlines": 135, "coverablelines": 135, "totallines": 321, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 13, "fullcoveredmethods": 13, "totalmethods": 13 },

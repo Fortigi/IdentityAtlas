@@ -5412,7 +5412,7 @@
 </tbody>
 </table>
 <p><strong>Default:</strong>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="p">[{</span><span class="w"> </span><span class="nt">&quot;entitySet&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Orgunit&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;contextType&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;OrgUnit&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;identityField&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;OUREF&quot;</span><span class="w"> </span><span class="p">}]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="p">[{</span><span class="w"> </span><span class="nt">"entitySet"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Orgunit"</span><span class="p">,</span><span class="w"> </span><span class="nt">"contextType"</span><span class="p">:</span><span class="w"> </span><span class="s2">"OrgUnit"</span><span class="p">,</span><span class="w"> </span><span class="nt">"identityField"</span><span class="p">:</span><span class="w"> </span><span class="s2">"OUREF"</span><span class="w"> </span><span class="p">}]</span>
 </code></pre></div></p>
 <p><strong>Well-known identity→context field mappings</strong> (implicit fallback):</p>
 <table>
@@ -6151,7 +6151,7 @@
 <a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>  AccountName      → externalId
 <a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>  FIRSTNAME/LASTNAME → displayName
 <a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>  EMAIL            → email
-<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>  (constant)       → principalType = &#39;User&#39;
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>  (constant)       → principalType = 'User'
 <a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>  Status           → accountEnabled
 <a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>
 <a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a>New IdentityMember:
@@ -6162,8 +6162,8 @@
 <a id="__codelineno-6-14" name="__codelineno-6-14" href="#__codelineno-6-14"></a>ResourceAssignment:
 <a id="__codelineno-6-15" name="__codelineno-6-15" href="#__codelineno-6-15"></a>  Resource.UId     → resourceId
 <a id="__codelineno-6-16" name="__codelineno-6-16" href="#__codelineno-6-16"></a>  AccountKey       → principalId
-<a id="__codelineno-6-17" name="__codelineno-6-17" href="#__codelineno-6-17"></a>  IsManaged=true   → assignmentType = &#39;Governed&#39;
-<a id="__codelineno-6-18" name="__codelineno-6-18" href="#__codelineno-6-18"></a>  IsManaged=false  → assignmentType = &#39;Direct&#39;
+<a id="__codelineno-6-17" name="__codelineno-6-17" href="#__codelineno-6-17"></a>  IsManaged=true   → assignmentType = 'Governed'
+<a id="__codelineno-6-18" name="__codelineno-6-18" href="#__codelineno-6-18"></a>  IsManaged=false  → assignmentType = 'Direct'
 </code></pre></div></p>
 <p><strong><code>extendedAttributes</code> on CRA assignments:</strong></p>
 <table>
@@ -6206,7 +6206,7 @@
 <a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>Identities (person-type identities only: Employee, Primary, Person)
 <a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a>  └─ IdentityMembers → Principals (Omada User accounts)
 <a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a>  └─ IdentityMembers → Principals (connected-system accounts, from CRA)
-<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a>  └─ ContextMembers  → Contexts (memberType=&#39;Identity&#39;)
+<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a>  └─ ContextMembers  → Contexts (memberType='Identity')
 <a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a>
 <a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a>Contexts (OrgUnit hierarchy + configured flat types e.g. JOB_TITLES)
 <a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a>  └─ ContextMembers  (from Contextassignment + direct refs + Employment)

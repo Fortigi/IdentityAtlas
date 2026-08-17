@@ -4782,7 +4782,7 @@
 <td><a href="../../coverage/ui/">UI (React / Vitest)</a></td>
 <td>80.9%</td>
 <td>70.5%</td>
-<td>69.2%</td>
+<td>69.1%</td>
 <td>2.8 / 28</td>
 <td>1.1 / 15</td>
 <td>—</td>
@@ -4796,7 +4796,7 @@
 <td>3.6 / 15</td>
 <td>3.8 / 15</td>
 <td>93.2%</td>
-<td>5,545 / 6,105</td>
+<td>5,546 / 6,105</td>
 </tr>
 </tbody>
 </table>
@@ -4809,12 +4809,12 @@
 </ul>
 <h3 id="ui-react-vitest">UI (React / Vitest)<a class="headerlink" href="#ui-react-vitest" title="Permanent link">&para;</a></h3>
 <ul>
-<li><strong>method coverage (69.2%) sits below line coverage (80.9%)</strong> — roughly a third of functions are never invoked, while the ones that are get exercised well. Typically components rendered but not interacted with: the untested part is event handlers, callbacks and conditional render paths.</li>
+<li><strong>method coverage (69.1%) sits below line coverage (80.9%)</strong> — roughly a third of functions are never invoked, while the ones that are get exercised well. Typically components rendered but not interacted with: the untested part is event handlers, callbacks and conditional render paths.</li>
 <li><strong>The most complex code is the least branch-covered.</strong> <code>app/ui/src/components/MatrixView.jsx</code> (Function 'MatrixView', cyclomatic 20, 50.9% branch) — below this suite's own branch average, so the aggregate percentage overstates how well the hard parts are tested.</li>
 </ul>
 <h3 id="powershell-pester">PowerShell (Pester)<a class="headerlink" href="#powershell-pester" title="Permanent link">&para;</a></h3>
 <ul>
-<li><strong>Mutation is scoped.</strong> Mutation testing covers 21 file(s) of 140 — 32% of the suite's coverable lines, using 4 mutation operators. It describes that subset — not the suite — and is not comparable with the suite-wide line figure on the same row. <strong>The score itself is older than that scope:</strong> it was measured over 9 file(s), before the current list was committed. Mutation runs are regenerated on their own schedule, so the percentage catches up on the next run.</li>
+<li><strong>Mutation is scoped.</strong> Mutation testing covers 22 file(s) of 140 — 36% of the suite's coverable lines, using 4 mutation operators. It describes that subset — not the suite — and is not comparable with the suite-wide line figure on the same row. <strong>The score itself is older than that scope:</strong> it was measured over 9 file(s), before the current list was committed. Mutation runs are regenerated on their own schedule, so the percentage catches up on the next run.</li>
 <li><strong>No branch coverage is measured.</strong> The line figure is not comparable with the suites that report both — and for Pester it is command-based rather than true line coverage, so it is not directly comparable with the Vitest suites either.</li>
 </ul>
 <h2 id="browsable-reports">Browsable reports<a class="headerlink" href="#browsable-reports" title="Permanent link">&para;</a></h2>
@@ -4824,7 +4824,7 @@
 <li><a href="../../coverage/ui/">UI (React / Vitest)</a></li>
 <li><a href="../../coverage/powershell/">PowerShell (Pester)</a></li>
 </ul>
-<p><em>Generated 2026-08-17 07:32 UTC from commit <code>5de5c7c6</code>.</em></p>
+<p><em>Generated 2026-08-17 11:21 UTC from commit <code>8170cfb8</code>.</em></p>
 
 
 

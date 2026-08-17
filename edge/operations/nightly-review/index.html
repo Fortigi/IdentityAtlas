@@ -5035,7 +5035,7 @@ classifier is active.</p>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="n">pwsh</span> <span class="o">-File</span> <span class="n">test</span><span class="p">\</span><span class="n">nightly</span><span class="p">\</span><span class="nb">Register-ReviewSchedule</span><span class="p">.</span><span class="n">ps1</span>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
 <a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="c"># Pick a different time</span>
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="n">pwsh</span> <span class="o">-File</span> <span class="n">test</span><span class="p">\</span><span class="n">nightly</span><span class="p">\</span><span class="nb">Register-ReviewSchedule</span><span class="p">.</span><span class="n">ps1</span> <span class="n">-Time</span> <span class="s1">&#39;03:30&#39;</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="n">pwsh</span> <span class="o">-File</span> <span class="n">test</span><span class="p">\</span><span class="n">nightly</span><span class="p">\</span><span class="nb">Register-ReviewSchedule</span><span class="p">.</span><span class="n">ps1</span> <span class="n">-Time</span> <span class="s1">'03:30'</span>
 <a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>
 <a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="c"># Also remove the old standalone test task — recommended, since the wrapper</span>
 <a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="c"># already runs the nightly tests.</span>
@@ -5067,7 +5067,7 @@ This is the design: pay only when there's something to fix.</p>
 <p>Then it picks one of three execution paths in priority order:</p>
 <h3 id="path-a-claude-code-in-headless-fix-it-mode-preferred">Path A — Claude Code in headless fix-it mode (preferred)<a class="headerlink" href="#path-a-claude-code-in-headless-fix-it-mode-preferred" title="Permanent link">&para;</a></h3>
 <p>If the <code>claude</code> CLI is on <code>PATH</code> (or at <code>$ClaudeCli</code>), the wrapper invokes:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>claude -p &quot;&lt;prompt&gt;&quot; --dangerously-skip-permissions --add-dir &lt;repo&gt;
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>claude -p "&lt;prompt&gt;" --dangerously-skip-permissions --add-dir &lt;repo&gt;
 </code></pre></div>
 <p>Claude has read/edit/run permission on the repo, can rebuild containers,
 re-run individual tests, and commit fixes on a fresh <code>nightly-review/&lt;date&gt;</code>
@@ -5080,7 +5080,7 @@ branch. <strong>It cannot push.</strong> The morning operator reviews and decide
 <a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>04:35  Claude commits to nightly-review/2026-04-09 and exits
 <a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>04:35  Wrapper re-runs the nightly suite
 <a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>05:05  Re-run completes with 0 failures
-<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>05:05  Wrapper writes &quot;FIXED&quot; to the rolling log and exits 0
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>05:05  Wrapper writes "FIXED" to the rolling log and exits 0
 </code></pre></div>
 <h3 id="path-b-anthropic-api-analysis-only">Path B — Anthropic API analysis only<a class="headerlink" href="#path-b-anthropic-api-analysis-only" title="Permanent link">&para;</a></h3>
 <p>If <code>claude</code> isn't installed but <code>ANTHROPIC_API_KEY</code> is set (or
@@ -5140,7 +5140,7 @@ stop. The morning operator decides whether to merge.</p>
 <a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="n">pwsh</span> <span class="o">-File</span> <span class="n">test</span><span class="p">\</span><span class="n">nightly</span><span class="p">\</span><span class="n">Run-NightlyAndReview</span><span class="p">.</span><span class="n">ps1</span>
 <a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
 <a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="c"># Skip the fix-it Claude invocation. Useful before you trust the system.</span>
-<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="c"># Will still run the nightly tests + (if there&#39;s an API key) produce a</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="c"># Will still run the nightly tests + (if there's an API key) produce a</span>
 <a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="c"># read-only analysis markdown.</span>
 <a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="n">pwsh</span> <span class="o">-File</span> <span class="n">test</span><span class="p">\</span><span class="n">nightly</span><span class="p">\</span><span class="n">Run-NightlyAndReview</span><span class="p">.</span><span class="n">ps1</span> <span class="n">-NoFix</span>
 <a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>
@@ -5152,16 +5152,16 @@ stop. The morning operator decides whether to merge.</p>
 <code>Test-EntraIdCrawler.ps1</code> and runs them against whatever data is currently in
 the local stack. It needs the demo dataset (or a real crawler) loaded first;
 queue a demo job from the UI or via:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>-H<span class="w"> </span><span class="s2">&quot;Content-Type: application/json&quot;</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">  </span>-d<span class="w"> </span><span class="s1">&#39;{&quot;jobType&quot;:&quot;demo&quot;}&#39;</span><span class="w"> </span>http://localhost:3001/api/admin/crawler-jobs
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>-H<span class="w"> </span><span class="s2">"Content-Type: application/json"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">  </span>-d<span class="w"> </span><span class="s1">'{"jobType":"demo"}'</span><span class="w"> </span>http://localhost:3001/api/admin/crawler-jobs
 </code></pre></div>
 <h2 id="where-to-look-in-the-morning">Where to look in the morning<a class="headerlink" href="#where-to-look-in-the-morning" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>test/nightly/results/_rolling-summary.log    ← one line per nightly run
 <a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>test/nightly/results/&lt;date&gt;/
 <a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>  ├── results.json                            ← machine-readable test results
 <a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>  ├── nightly-output.log                      ← full nightly stdout
-<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>  ├── review.log                              ← wrapper&#39;s own log
-<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>  ├── review-analysis.md                      ← Claude&#39;s analysis (Path A or B)
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>  ├── review.log                              ← wrapper's own log
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>  ├── review-analysis.md                      ← Claude's analysis (Path A or B)
 <a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>  └── claude-prompt.txt                       ← the prompt that was sent (Path C)
 </code></pre></div>
 <p>If the rolling log says <code>FIXED</code>, look at the <code>nightly-review/&lt;date&gt;</code> git

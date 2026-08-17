@@ -5021,8 +5021,8 @@ One-click install: see the <a href="https://github.com/Fortigi/IdentityAtlas/blo
 <a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>   ┌──────────────────┐     ┌────────────────────┐        ┌──────────────────┐
 <a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>   │ Postgres Flex    │     │ Azure Files share  │        │ Key Vault         │
 <a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a>   │ Public endpoint, │     │ (Storage Account)  │        │ Public endpoint,  │
-<a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a>   │ &quot;Allow Azure     │     │ /data/uploads      │        │ RBAC-only.        │
-<a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a>   │  services&quot;       │     │ shared with worker │        │ master key +      │
+<a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a>   │ "Allow Azure     │     │ /data/uploads      │        │ RBAC-only.        │
+<a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a>   │  services"       │     │ shared with worker │        │ master key +      │
 <a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a>   │ firewall rule    │     └────────────────────┘        │ DB password.      │
 <a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a>   └──────────────────┘                                   └──────────────────┘
 <a id="__codelineno-0-26" name="__codelineno-0-26" href="#__codelineno-0-26"></a>
@@ -5114,7 +5114,7 @@ One-click install: see the <a href="https://github.com/Fortigi/IdentityAtlas/blo
 </code></pre></div>
 The template uses an <code>existing</code> resource lookup to derive the workspace customer ID + shared key. <strong>The deployer needs <code>Log Analytics Reader</code> on the workspace.</strong></p>
 <p><strong>Option 2 — customer ID + key (fallback when you can't read the workspace, 2 fields):</strong>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>existingLogAnalyticsCustomerId: &lt;GUID&gt;     (shown in the LA &quot;Overview&quot; blade as &quot;Workspace ID&quot;)
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>existingLogAnalyticsCustomerId: &lt;GUID&gt;     (shown in the LA "Overview" blade as "Workspace ID")
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>existingLogAnalyticsSharedKey:  &lt;primary or secondary key&gt;
 </code></pre></div>
 Use this when the deployer can't be granted Reader. The template plumbs the values through directly; no read access needed.</p>
@@ -5175,8 +5175,8 @@ channel by redeploying with <code>webImage=ghcr.io/fortigi/identity-atlas:latest
 <a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>az<span class="w"> </span>containerapp<span class="w"> </span>logs<span class="w"> </span>show<span class="w"> </span>--name<span class="w"> </span>&lt;namePrefix&gt;-worker<span class="w"> </span>--resource-group<span class="w"> </span>&lt;rg&gt;<span class="w"> </span>--follow
 </code></pre></div>
 <p>Or query Log Analytics (whether created here or BYO):
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="n">AppServiceConsoleLogs</span><span class="w"> </span><span class="p">|</span><span class="w"> </span><span class="k">where</span><span class="w"> </span><span class="n">_ResourceId</span><span class="w"> </span><span class="n">endswith</span><span class="w"> </span><span class="s">&quot;&lt;namePrefix&gt;-web&quot;</span>
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="n">ContainerAppConsoleLogs_CL</span><span class="w"> </span><span class="p">|</span><span class="w"> </span><span class="k">where</span><span class="w"> </span><span class="n">ContainerAppName_s</span><span class="w"> </span><span class="p">==</span><span class="w"> </span><span class="s">&quot;&lt;namePrefix&gt;-worker&quot;</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="n">AppServiceConsoleLogs</span><span class="w"> </span><span class="p">|</span><span class="w"> </span><span class="k">where</span><span class="w"> </span><span class="n">_ResourceId</span><span class="w"> </span><span class="n">endswith</span><span class="w"> </span><span class="s">"&lt;namePrefix&gt;-web"</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="n">ContainerAppConsoleLogs_CL</span><span class="w"> </span><span class="p">|</span><span class="w"> </span><span class="k">where</span><span class="w"> </span><span class="n">ContainerAppName_s</span><span class="w"> </span><span class="p">==</span><span class="w"> </span><span class="s">"&lt;namePrefix&gt;-worker"</span>
 </code></pre></div></p>
 <h3 id="postgres-access">Postgres access<a class="headerlink" href="#postgres-access" title="Permanent link">&para;</a></h3>
 <p>Postgres has a public endpoint with a firewall rule allowing Azure services. To run psql from a workstation:

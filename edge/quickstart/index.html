@@ -4820,7 +4820,7 @@ See <a href="../architecture/docker-setup/">Docker Setup</a> for the full list o
 <div class="tabbed-block">
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># Health endpoint</span>
 <a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>curl<span class="w"> </span>http://localhost:3001/api/health
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="c1"># {&quot;status&quot;:&quot;ok&quot;}</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="c1"># {"status":"ok"}</span>
 <a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>
 <a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="c1"># System status (hasData=false on a fresh install, hasCrawlers=true after auto-bootstrap)</span>
 <a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>curl<span class="w"> </span>http://localhost:3001/api/admin/status
@@ -4890,11 +4890,11 @@ See <a href="../architecture/docker-setup/">Docker Setup</a> for the full list o
 <a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="n">docker</span> <span class="n">compose</span> <span class="o">-f</span> <span class="n">docker-compose</span><span class="p">.</span><span class="n">prod</span><span class="p">.</span><span class="n">yml</span> <span class="n">up</span> <span class="n">-d</span> <span class="p">-</span><span class="n">-pull</span> <span class="n">always</span>
 <a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>
 <a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="c"># Beta: latest pre-release build</span>
-<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="nv">$env:IMAGE_TAG</span> <span class="p">=</span> <span class="s2">&quot;beta&quot;</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="nv">$env:IMAGE_TAG</span> <span class="p">=</span> <span class="s2">"beta"</span>
 <a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="n">docker</span> <span class="n">compose</span> <span class="o">-f</span> <span class="n">docker-compose</span><span class="p">.</span><span class="n">prod</span><span class="p">.</span><span class="n">yml</span> <span class="n">up</span> <span class="n">-d</span> <span class="p">-</span><span class="n">-pull</span> <span class="n">always</span>
 <a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>
 <a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="c"># Edge: latest commit on main (may include unreleased features)</span>
-<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="nv">$env:IMAGE_TAG</span> <span class="p">=</span> <span class="s2">&quot;edge&quot;</span>
+<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="nv">$env:IMAGE_TAG</span> <span class="p">=</span> <span class="s2">"edge"</span>
 <a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="n">docker</span> <span class="n">compose</span> <span class="o">-f</span> <span class="n">docker-compose</span><span class="p">.</span><span class="n">prod</span><span class="p">.</span><span class="n">yml</span> <span class="n">up</span> <span class="n">-d</span> <span class="p">-</span><span class="n">-pull</span> <span class="n">always</span>
 </code></pre></div>
 </div>

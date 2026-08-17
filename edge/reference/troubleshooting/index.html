@@ -4758,12 +4758,12 @@
 <hr />
 <h2 id="debug-mode">Debug Mode<a class="headerlink" href="#debug-mode" title="Permanent link">&para;</a></h2>
 <p>Identity Atlas's PowerShell SDK functions emit detailed request/response output when <code>$Global:DebugMode</code> is set. Set it to any combination of the letters below before running any command.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nv">$Global:DebugMode</span> <span class="p">=</span> <span class="s1">&#39;G&#39;</span>   <span class="c"># GET requests — show URIs, page counts, item counts</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="nv">$Global:DebugMode</span> <span class="p">=</span> <span class="s1">&#39;P&#39;</span>   <span class="c"># POST and PATCH requests — show URIs and request bodies</span>
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="nv">$Global:DebugMode</span> <span class="p">=</span> <span class="s1">&#39;D&#39;</span>   <span class="c"># DELETE requests</span>
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="nv">$Global:DebugMode</span> <span class="p">=</span> <span class="s1">&#39;T&#39;</span>   <span class="c"># Token operations — show token acquisition and refresh events</span>
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="nv">$Global:DebugMode</span> <span class="p">=</span> <span class="s1">&#39;GP&#39;</span>  <span class="c"># Multiple categories — combine any letters</span>
-<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="nv">$Global:DebugMode</span> <span class="p">=</span> <span class="s1">&#39;GPT&#39;</span> <span class="c"># All HTTP + token operations</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nv">$Global:DebugMode</span> <span class="p">=</span> <span class="s1">'G'</span>   <span class="c"># GET requests — show URIs, page counts, item counts</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="nv">$Global:DebugMode</span> <span class="p">=</span> <span class="s1">'P'</span>   <span class="c"># POST and PATCH requests — show URIs and request bodies</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="nv">$Global:DebugMode</span> <span class="p">=</span> <span class="s1">'D'</span>   <span class="c"># DELETE requests</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="nv">$Global:DebugMode</span> <span class="p">=</span> <span class="s1">'T'</span>   <span class="c"># Token operations — show token acquisition and refresh events</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="nv">$Global:DebugMode</span> <span class="p">=</span> <span class="s1">'GP'</span>  <span class="c"># Multiple categories — combine any letters</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="nv">$Global:DebugMode</span> <span class="p">=</span> <span class="s1">'GPT'</span> <span class="c"># All HTTP + token operations</span>
 <a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>
 <a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="c"># Clear debug mode</span>
 <a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="nv">$Global:DebugMode</span> <span class="p">=</span> <span class="nv">$null</span>
@@ -4876,9 +4876,9 @@
 <h3 id="config-file-not-found">Config file not found<a class="headerlink" href="#config-file-not-found" title="Permanent link">&para;</a></h3>
 <p>Crawler scripts require a <code>-ConfigFile</code> parameter pointing to a JSON config with Graph API credentials. The template is at <code>setup/config/tenantname.json.template</code>:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="p">.\</span><span class="n">tools</span><span class="p">\</span><span class="n">crawlers</span><span class="p">\</span><span class="n">entra-id</span><span class="p">\</span><span class="nb">Start-EntraIDCrawler</span><span class="p">.</span><span class="n">ps1</span> <span class="p">`</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>    <span class="n">-ApiBaseUrl</span> <span class="s2">&quot;http://localhost:3001/api&quot;</span> <span class="p">`</span>
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>    <span class="n">-ApiKey</span> <span class="s2">&quot;fgc_abc...&quot;</span> <span class="p">`</span>
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>    <span class="n">-ConfigFile</span> <span class="s1">&#39;C:\Config\mycompany.json&#39;</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>    <span class="n">-ApiBaseUrl</span> <span class="s2">"http://localhost:3001/api"</span> <span class="p">`</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>    <span class="n">-ApiKey</span> <span class="s2">"fgc_abc..."</span> <span class="p">`</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>    <span class="n">-ConfigFile</span> <span class="s1">'C:\Config\mycompany.json'</span>
 </code></pre></div>
 
 
