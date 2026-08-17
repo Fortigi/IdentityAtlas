@@ -543,6 +543,21 @@ Describe 'Test-FGSecureConfigValue' {
         Test-FGSecureConfigValue -ConfigPath $p -PropertyPath 'Graph.ClientSecret' | Should -Be $false
     }
 
+    It 'returns $false when the ENCRYPTED key exists but holds nothing' -ForEach @(
+        @{ Case = 'empty';      Value = '' }
+        @{ Case = 'whitespace'; Value = '   ' }
+    ) {
+        # The guard is `propertyExists -and -not IsNullOrWhiteSpace(value)`. The
+        # empty case above uses the PLAINTEXT key, so the encrypted branch is only
+        # ever seen holding a real value and cannot be told apart from `-or` —
+        # under which the key merely EXISTING counts as a stored credential. A
+        # left-behind or half-written key would then have this report that a
+        # secret is stored when none is, and callers skip prompting for it.
+        $p = Join-Path $TestDrive "sc-encempty-$Case.json"
+        @{ Graph = @{ ClientSecret_Encrypted = $Value } } | ConvertTo-Json | Set-Content -Path $p
+        Test-FGSecureConfigValue -ConfigPath $p -PropertyPath 'Graph.ClientSecret' | Should -Be $false
+    }
+
     It 'returns $false when an intermediate path segment is missing' {
         $p = Join-Path $TestDrive 'sc-nopath.json'
         @{ Other = @{} } | ConvertTo-Json | Set-Content -Path $p
@@ -586,6 +601,49 @@ Describe 'Clear-FGSecureConfigValue' {
         $p = Join-Path $TestDrive 'clear-nothing.json'
         @{ Graph = @{ Other = 'y' } } | ConvertTo-Json | Set-Content -Path $p
         { Clear-FGSecureConfigValue -ConfigPath $p -PropertyPath 'Graph.ClientSecret' } | Should -Not -Throw
+    }
+
+    # The "removes both" case above cannot tell the two removal branches apart:
+    # each sets the same $removed flag, so with plaintext AND encrypted present,
+    # losing either one still leaves the other to trigger the save and the
+    # assertions still pass. A config holding only ONE of them isolates that
+    # branch — and this is the function whose entire job is getting a secret off
+    # disk, so "reports success but never writes the file" is the failure that
+    # matters.
+    It 'persists the removal when only a plaintext value is stored' {
+        $p = Join-Path $TestDrive 'clear-plainonly.json'
+        @{ Graph = @{ ClientSecret = 'super-secret'; KeepMe = 'x' } } | ConvertTo-Json | Set-Content -Path $p
+        Clear-FGSecureConfigValue -ConfigPath $p -PropertyPath 'Graph.ClientSecret'
+
+        $raw = Get-Content -Path $p -Raw
+        $raw | Should -Not -Match 'super-secret'      # gone from DISK, not just from memory
+        ($raw | ConvertFrom-Json).Graph.KeepMe | Should -Be 'x'
+    }
+
+    It 'persists the removal when only an encrypted value is stored' {
+        $p = Join-Path $TestDrive 'clear-enconly.json'
+        @{ Graph = @{ ClientSecret_Encrypted = 'cipher-blob'; KeepMe = 'x' } } | ConvertTo-Json | Set-Content -Path $p
+        Clear-FGSecureConfigValue -ConfigPath $p -PropertyPath 'Graph.ClientSecret'
+
+        $raw = Get-Content -Path $p -Raw
+        $raw | Should -Not -Match 'cipher-blob'
+        ($raw | ConvertFrom-Json).Graph.KeepMe | Should -Be 'x'
+    }
+
+    It 'does not write the file at all when there was nothing to remove' {
+        # `$removed` starts $false so a no-op skips the save entirely. Seeded
+        # $true instead, every miss rewrites and reserialises the user's config.
+        #
+        # Comparing file CONTENT before/after does not catch that: the rewrite
+        # reserialises the same object and lands byte-identical, so the mutant
+        # passes such a check. The observable difference is whether the save
+        # RAN, so that is what this asserts.
+        $p = Join-Path $TestDrive 'clear-untouched.json'
+        @{ Graph = @{ Other = 'y' } } | ConvertTo-Json | Set-Content -Path $p
+
+        Mock -ModuleName IdentityAtlas Set-Content { }
+        Clear-FGSecureConfigValue -ConfigPath $p -PropertyPath 'Graph.ClientSecret'
+        Should -Invoke -ModuleName IdentityAtlas Set-Content -Exactly 0
     }
 }
 

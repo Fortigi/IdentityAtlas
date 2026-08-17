@@ -474,6 +474,33 @@ Describe 'Get-FGAttributeMapping' {
         @($m).Count | Should -Be 2
     }
 
+    # Behavioural documentation, NOT a mutation kill — and worth saying so, since
+    # the obvious guess is wrong. The bail-out is
+    # `-not $schema -or -not $schema.synchronizationRules`, and reading that `-or`
+    # as `-and` turns out to be an EQUIVALENT mutant: when the rules are absent,
+    # skipping the guard just falls into `foreach ($rule in $null)`, which is a
+    # no-op in PowerShell. Nothing observable changes except a Write-Verbose line.
+    # Measured, after adding these cases failed to kill it.
+    #
+    # The cases still earn their place: they pin that an unusable schema yields no
+    # mappings and does not throw, which is what callers depend on.
+    It 'skips a sync job whose schema is unusable' -ForEach @(
+        @{ Case = 'schema present but carrying no rules'; Schema = [pscustomobject]@{ synchronizationRules = $null } }
+        @{ Case = 'no schema at all';                     Schema = $null }
+    ) {
+        $sp = [pscustomobject]@{
+            DisplayName = 'Workday'; AppType = 'HR Provisioning (Workday)'
+            ServicePrincipalId = 'sp-1'; AppId = 'w-app'
+            Schemas = @([pscustomobject]@{ JobId = 'job.1'; Schema = $Schema })
+        }
+        # Assigned OUTSIDE any scriptblock: a `$m = ...` inside the one handed to
+        # Should -Not -Throw runs in a child scope, so $m would stay $null out
+        # here — and @($null).Count is 1, not 0, which reads as "one mapping was
+        # emitted" and fails for a reason that has nothing to do with the code.
+        $m = Get-FGAttributeMapping -ServicePrincipalWithSync $sp
+        @($m).Count | Should -Be 0
+    }
+
     It 'extracts source attributes from expressions via regex' {
         $m = Get-FGAttributeMapping -ServicePrincipalWithSync $script:spWithSchema
         $mail = $m | Where-Object { $_.TargetAttributeName -eq 'mail' }

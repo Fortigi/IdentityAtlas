@@ -615,6 +615,20 @@ Describe 'Get-FGAccessTokenDetail' {
         $Global:AccessToken = $null
     }
 
+    # The guard is `-not Contains('.') -or -not StartsWith('eyJ')`: reject if
+    # EITHER check fails. 'not-a-jwt' above fails BOTH, so it cannot tell that
+    # apart from `-and`, under which a value only gets rejected when it fails
+    # both — and anything satisfying one half sails through into the base64
+    # decode. Each case below satisfies exactly one half.
+    It 'rejects a value that has the dots but not the JWT prefix' -ForEach @(
+        @{ Case = 'dotted but wrong prefix'; Token = 'abc.def.ghi' }
+        @{ Case = 'right prefix but no dots'; Token = 'eyJhbGciOiJSUzI1NiJ9' }
+    ) {
+        $Global:AccessToken = $Token
+        { Get-FGAccessTokenDetail } | Should -Throw '*Invalid token*'
+        $Global:AccessToken = $null
+    }
+
     It 'decodes the header and payload into a single hashtable' {
         $Global:AccessToken = $script:jwt
         $detail = Get-FGAccessTokenDetail
