@@ -1,5 +1,13 @@
 ## Changes in this PR
 
+- Added tests for how the midPoint crawler pages through large result sets: the offset it requests, when it decides a page is the last one, and how it applies a maximum-items limit. A fault in any of these returns fewer objects than the source actually holds, silently, with no error.
+- Verified that midPoint search options such as the raw-shadow flag are actually appended to the request URL. A single option was the untested case, and it is the one the crawler uses in normal operation.
+- Added tests for reference and attribute handling: a single-valued reference array now resolves rather than being treated as empty, a multi-valued attribute takes its first value, and blank values are rejected instead of being stored as empty text.
+- Verified that a midPoint object carrying both an archetype and a subtype is classified by its archetype, so a subtype rule can no longer claim an object it does not own and give it the wrong resource type.
+- Mutation testing now covers the midPoint REST client.
+
+## Changes in this PR
+
 - Added tests that check what the Azure RM crawler actually writes, not just how much of it. The existing tests counted the scope nodes and relationships a sync produced but never inspected them, so a change that registered the system as disabled, or that stopped marking a permission relationship as inherited by child scopes, would have left every count correct and shipped a tenant that looked synced but was not.
 - Recorded measured mutation-testing figures for all five crawler phase files, replacing an inaccurate note that claimed the layer could not be tested in its current form. It can; it is simply under-tested, and the real numbers are now written down so the gap is visible rather than assumed.
 
