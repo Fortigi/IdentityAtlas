@@ -487,6 +487,23 @@ Describe 'ConvertFrom-OmadaCraItem' {
         $r.assignment.principalId | Should -Be 'user-uid-1'
     }
 
+    It 'skips a half-populated row that would otherwise resolve all the way through' {
+        # The existing guard test uses a row that goes on to fail for a second
+        # reason (no account name), so the pair check could be relaxed to "both
+        # missing" and the row would still come back null. These two rows resolve
+        # completely apart from the one missing half -- so if the check no longer
+        # rejects them, a governance assignment is built pointing at a null
+        # resource, or held by nobody.
+        $identities = New-StrSet 'id1'
+        $names = @{ alice = 'user-uid-1' }
+
+        $noRes = [pscustomobject]@{ System = @{ UId = 'omada-sys' }; Identity = @{ UId = 'id1' }; AccountName = 'alice' }
+        ConvertFrom-OmadaCraItem -Item $noRes -OmadaIdentitySystemUId 'omada-sys' -UserNameToUid $names -IdentityUidInIdentitiesTable $identities | Should -BeNullOrEmpty
+
+        $noIdent = [pscustomobject]@{ System = @{ UId = 'omada-sys' }; Resource = @{ UId = 'r1' }; AccountName = 'alice' }
+        ConvertFrom-OmadaCraItem -Item $noIdent -OmadaIdentitySystemUId 'omada-sys' -UserNameToUid $names -IdentityUidInIdentitiesTable $identities | Should -BeNullOrEmpty
+    }
+
     It 'skips a row with no resource/identity, or an unresolvable Omada account' {
         $noRes = [pscustomobject]@{ System = @{ UId = 'omada-sys' }; Identity = @{ UId = 'id1' } }
         ConvertFrom-OmadaCraItem -Item $noRes -OmadaIdentitySystemUId 'omada-sys' -IdentityUidInIdentitiesTable (New-StrSet 'id1') | Should -BeNullOrEmpty
@@ -586,6 +603,28 @@ Describe 'Omada config resolution' {
         $c.SyncAssignments | Should -BeFalse
         $c.SyncResources | Should -BeFalse
         $c.SyncMode | Should -Be 'full'
+    }
+
+    It 'Resolve-OmadaSyncToggles turns every phase ON when nothing is configured' {
+        # The test above pins three of the nine toggles, two of which it overrides
+        # to false -- so six defaults were unasserted. Every one of them defaults
+        # ON here (unlike the Entra crawler, where the expensive phases default
+        # off), which makes a flipped default especially quiet: the crawler runs,
+        # reports success, and simply never syncs that object type. On a FULL sync
+        # the ingest side then reconciles the records it did not receive as
+        # deletions.
+        $c = Resolve-OmadaSyncToggles -RawConfig @{}
+
+        $c.SyncContexts       | Should -BeTrue
+        $c.SyncIdentities     | Should -BeTrue
+        $c.SyncAccounts       | Should -BeTrue
+        $c.SyncContextMembers | Should -BeTrue
+        $c.SyncResources      | Should -BeTrue
+        $c.SyncEntitlements   | Should -BeTrue
+        $c.SyncAssignments    | Should -BeTrue
+        $c.SyncCRAs           | Should -BeTrue
+        $c.RefreshViews       | Should -BeTrue
+        $c.SyncMode           | Should -Be 'full'
     }
 
     It 'Resolve-OmadaContextObjectTypes defaults to Orgunit and builds the identityField map' {

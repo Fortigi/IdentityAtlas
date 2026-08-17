@@ -661,6 +661,39 @@ Describe 'Sync-EntraAppRoles' {
     BeforeEach { Reset-PhaseTestState; Mock Send-IngestBatch -MockWith $script:SendMock }
 
 
+    It 'picks up an app that has roles OR requires assignment, and skips one with neither' {
+        # The candidate filter is "has at least one app role OR requires assignment".
+        # The other test's SP satisfies BOTH, so it cannot tell that from AND -- and
+        # read as AND, every app that only requires assignment, and every app that
+        # merely publishes roles, silently drops out of the whole phase. Three SPs,
+        # one per case, and the role-bearing one has exactly ONE role so the
+        # "at least one" boundary is exercised too.
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'servicePrincipals\?' } -MockWith {
+            @(
+                [pscustomobject]@{ id = 'sp-roles';    displayName = 'Has Roles';  appId = 'a1'; appRoleAssignmentRequired = $false
+                                   appRoles = @([pscustomobject]@{ id = 'role-a'; displayName = 'Admin'; value = 'admin' }) }
+                [pscustomobject]@{ id = 'sp-required'; displayName = 'Needs Assn'; appId = 'a2'; appRoleAssignmentRequired = $true
+                                   appRoles = @() }
+                [pscustomobject]@{ id = 'sp-neither';  displayName = 'Plain';      appId = 'a3'; appRoleAssignmentRequired = $false
+                                   appRoles = @() }
+            )
+        }
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'appRoleAssignedTo' } -MockWith { @() }
+
+        Sync-EntraAppRoles -SystemId 5 -Timings ([ordered]@{})
+
+        # Being a candidate means the phase goes and fetches that app's role
+        # assignments. Two of the three qualify; as AND neither does, and with the
+        # "at least one role" boundary read as "more than one" only sp-required is
+        # left. Asserting on the resources uploaded would not work here: an app
+        # that merely REQUIRES assignment publishes no roles, so it contributes no
+        # Application record even though it was correctly inspected.
+        Should -Invoke Invoke-FGGetRequest -Exactly 2 -ParameterFilter { $URI -match 'appRoleAssignedTo' }
+        Should -Invoke Invoke-FGGetRequest -Exactly 1 -ParameterFilter { $URI -match 'sp-roles/appRoleAssignedTo' }
+        Should -Invoke Invoke-FGGetRequest -Exactly 1 -ParameterFilter { $URI -match 'sp-required/appRoleAssignedTo' }
+        Should -Invoke Invoke-FGGetRequest -Exactly 0 -ParameterFilter { $URI -match 'sp-neither/appRoleAssignedTo' }
+    }
+
     It 'discovers an enterprise app and uploads its app, role, relationship and direct assignment' {
         Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'servicePrincipals\?' } -MockWith {
             @([pscustomobject]@{
@@ -757,22 +790,43 @@ Describe 'Sync-EntraAssignments' {
         # FULL sync, so anything missed is reconciled away as deleted. The warning
         # is the only signal that the run was incomplete, and the counts have to
         # come from the right fetch -- one failure on members, two on owners.
+        # One failure on each fetch, in SEPARATE runs. A single test using 1 and 2
+        # proves the counts come from the right fetch but leaves "more than one"
+        # alive on whichever side got the 2 -- so each side needs its own run where
+        # its count is exactly one, and the other side is clean.
         $script:said = [System.Collections.Generic.List[string]]::new()
         Mock Write-Host { $script:said.Add([string]$Object) }
         Mock Get-FGGroupChildrenParallel -ParameterFilter { $ChildPath -eq 'members' } -MockWith {
             @{ records = @(@{ resourceId = 'g1'; principalId = 'u1'; assignmentType = 'Direct'; resourceType = 'Group'; principalType = 'User' }); errorCount = 1 }
         }
         Mock Get-FGGroupChildrenParallel -ParameterFilter { $ChildPath -eq 'owners' } -MockWith {
-            @{ records = @(@{ groupId = 'g1'; principalId = 'o1' }); errorCount = 2 }
+            @{ records = @(@{ groupId = 'g1'; principalId = 'o1' }); errorCount = 0 }
         }
 
         Sync-EntraAssignments -SystemId 1 -Groups @([pscustomobject]@{ id = 'g1'; displayName = 'Group One' }) -Timings ([ordered]@{})
 
         $out = $script:said -join "`n"
         $out | Should -Match 'WARNING: 1 groups failed after retries'
-        $out | Should -Match 'WARNING: 2 groups failed during owner fetch'
+        $out | Should -Not -Match 'owner fetch'          # the clean fetch stays quiet
         # ...and the records that did come back are still uploaded.
         (Get-Sent { $_.Scope.assignmentType -eq 'Direct' -and $_.Scope.resourceType -eq 'Group' })[0].Records.Count | Should -Be 1
+    }
+
+    It 'warns about a single group that failed during the OWNER fetch' {
+        $script:said = [System.Collections.Generic.List[string]]::new()
+        Mock Write-Host { $script:said.Add([string]$Object) }
+        Mock Get-FGGroupChildrenParallel -ParameterFilter { $ChildPath -eq 'members' } -MockWith {
+            @{ records = @(@{ resourceId = 'g1'; principalId = 'u1'; assignmentType = 'Direct'; resourceType = 'Group'; principalType = 'User' }); errorCount = 0 }
+        }
+        Mock Get-FGGroupChildrenParallel -ParameterFilter { $ChildPath -eq 'owners' } -MockWith {
+            @{ records = @(@{ groupId = 'g1'; principalId = 'o1' }); errorCount = 1 }
+        }
+
+        Sync-EntraAssignments -SystemId 1 -Groups @([pscustomobject]@{ id = 'g1'; displayName = 'Group One' }) -Timings ([ordered]@{})
+
+        $out = $script:said -join "`n"
+        $out | Should -Match 'WARNING: 1 groups failed during owner fetch'
+        $out | Should -Not -Match 'failed after retries'
     }
 
     It 'uploads memberships plus ownership resources, relationships and owner assignments' {
