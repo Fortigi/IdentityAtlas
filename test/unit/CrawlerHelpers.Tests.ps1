@@ -1198,3 +1198,274 @@ Describe 'Get-ARMRetryWait — Retry-After boundary' {
     }
 }
 
+
+# ════════════════════════════════════════════════════════════════════════════════
+#  midPoint API — paging boundaries and guard conditions
+# ════════════════════════════════════════════════════════════════════════════════
+# The Describes above cover these functions' happy paths. What survived mutation
+# were their edges: the offset the first request asks for, the condition that
+# ends paging, the item cap, and the two-part guards that decide whether a
+# reference resolves. Each is a case where the crawler silently returns fewer
+# objects — or the wrong org — rather than failing.
+
+Describe 'Invoke-MidpointSearch — paging boundaries' {
+    BeforeEach {
+        Connect-MidpointAPI -BaseUrl 'https://h' -AuthMethod 'ApiToken' -ApiToken 'tok'
+        $script:bodies = [System.Collections.Generic.List[object]]::new()
+    }
+
+    It 'asks for offset 0 on the first request' {
+        # A non-zero seed silently drops the first record of every single search.
+        Mock Invoke-MidpointRequest {
+            $script:bodies.Add(($Body | ConvertFrom-Json))
+            @{ object = @{ object = @() } }
+        }
+        Invoke-MidpointSearch -Type 'users' -PageSize 10 | Out-Null
+        $script:bodies[0].query.paging.offset  | Should -Be 0
+        $script:bodies[0].query.paging.maxSize | Should -Be 10
+    }
+
+    It 'advances the offset by exactly one page each time' {
+        Mock Invoke-MidpointRequest {
+            $script:bodies.Add(($Body | ConvertFrom-Json))
+            $n = $script:bodies.Count
+            # Two full pages then a short one, so paging runs and then stops.
+            $count = if ($n -le 2) { 2 } else { 1 }
+            @{ object = @{ object = @(1..$count | ForEach-Object { @{ oid = "o$n-$_" } }) } }
+        }
+        $all = Invoke-MidpointSearch -Type 'users' -PageSize 2
+        @($script:bodies | ForEach-Object { $_.query.paging.offset }) | Should -Be @(0, 2, 4)
+        @($all).Count | Should -Be 5
+    }
+
+    It 'stops on a short page and does not request another' {
+        Mock Invoke-MidpointRequest {
+            $script:bodies.Add(($Body | ConvertFrom-Json))
+            @{ object = @{ object = @(@{ oid = 'a' }) } }   # 1 < PageSize 5
+        }
+        Invoke-MidpointSearch -Type 'users' -PageSize 5 | Out-Null
+        Should -Invoke Invoke-MidpointRequest -Exactly 1
+    }
+
+    It 'keeps paging while a page comes back exactly full' {
+        # PageSize records is NOT proof of the end — the boundary is `-lt`.
+        Mock Invoke-MidpointRequest {
+            $script:bodies.Add(($Body | ConvertFrom-Json))
+            $count = if ($script:bodies.Count -eq 1) { 2 } else { 0 }
+            @{ object = @{ object = @(1..2 | Select-Object -First $count | ForEach-Object { @{ oid = "o$_" } }) } }
+        }
+        Invoke-MidpointSearch -Type 'users' -PageSize 2 | Out-Null
+        Should -Invoke Invoke-MidpointRequest -Exactly 2
+    }
+
+    It 'stops at MaxItems mid-page rather than returning the whole page' {
+        Mock Invoke-MidpointRequest {
+            @{ object = @{ object = @(1..10 | ForEach-Object { @{ oid = "o$_" } }) } }
+        }
+        @(Invoke-MidpointSearch -Type 'users' -PageSize 10 -MaxItems 3).Count | Should -Be 3
+    }
+
+    It 'treats MaxItems 0 as no cap' {
+        # The guard is `MaxItems -gt 0`; reading it as -ge would cap every search
+        # at zero results.
+        Mock Invoke-MidpointRequest {
+            @{ object = @{ object = @(1..4 | ForEach-Object { @{ oid = "o$_" } }) } }
+        }
+        @(Invoke-MidpointSearch -Type 'users' -PageSize 10 -MaxItems 0).Count | Should -Be 4
+    }
+}
+
+Describe 'Invoke-MidpointSearchStream — page callback and total' {
+    BeforeEach {
+        Connect-MidpointAPI -BaseUrl 'https://h' -AuthMethod 'ApiToken' -ApiToken 'tok'
+    }
+
+    It 'returns the running total across pages, not the last page size' {
+        $script:n = 0
+        Mock Invoke-MidpointRequest {
+            $script:n++
+            $count = if ($script:n -eq 1) { 2 } else { 1 }
+            @{ object = @{ object = @(1..$count | ForEach-Object { @{ oid = "o$_" } }) } }
+        }
+        $seen = [System.Collections.Generic.List[object]]::new()
+        $total = Invoke-MidpointSearchStream -Type 'users' -PageSize 2 -OnPage { param($p) $seen.AddRange([object[]]@($p)) }
+        $total      | Should -Be 3
+        $seen.Count | Should -Be 3
+    }
+
+    It 'does not invoke the callback for an empty page' {
+        Mock Invoke-MidpointRequest { @{ object = @{ object = @() } } }
+        $script:calls = 0
+        Invoke-MidpointSearchStream -Type 'users' -PageSize 5 -OnPage { param($p) $script:calls++ } | Out-Null
+        $script:calls | Should -Be 0
+    }
+}
+
+Describe 'Invoke-MidpointRequest — backoff curve' {
+    BeforeEach {
+        Connect-MidpointAPI -BaseUrl 'https://h' -AuthMethod 'ApiToken' -ApiToken 'tok'
+        Mock Start-Sleep { }
+    }
+
+    It 'doubles the wait on each retry — 2 then 4 seconds' {
+        Mock Invoke-RestMethod { throw (New-ValueDunderHttpError -Status 503) }
+        { Invoke-MidpointRequest -Method Get -Uri 'https://h/x' -MaxRetries 2 } | Should -Throw
+        Should -Invoke Start-Sleep -Exactly 1 -ParameterFilter { $Seconds -eq 2 }
+        Should -Invoke Start-Sleep -Exactly 1 -ParameterFilter { $Seconds -eq 4 }
+    }
+}
+
+Describe 'Get-MidpointRefOid — empty and multi-value references' {
+    It 'returns the fallback for an empty array rather than indexing it' {
+        Get-MidpointRefOid @() 'none' | Should -Be 'none'
+    }
+
+    It 'takes the first element of a multi-value reference' {
+        Get-MidpointRefOid @(@{ oid = 'first' }, @{ oid = 'second' }) $null | Should -Be 'first'
+    }
+}
+
+Describe 'Get-MidpointConstructionTargets — both halves of the filter guard' {
+    # The guard is `$eq -and $null -ne $eq.value`. Relaxing it to -or turns a
+    # valueless filter into a target keyed on nothing, which then matches the
+    # wrong entitlement shadow when the crawler resolves it later.
+    BeforeAll {
+        # Must live in BeforeAll: a function declared in a Describe body only
+        # exists during Pester's discovery pass, not when the It blocks run.
+        function New-AtsConstruction {
+            param($Filter)
+            [pscustomobject]@{ association = @([pscustomobject]@{
+                outbound = [pscustomobject]@{ expression = [pscustomobject]@{
+                    associationTargetSearch = @([pscustomobject]@{ filter = @($Filter) }) } } }) }
+        }
+    }
+
+    It 'ignores an equal-filter carrying no value' {
+        $c = New-AtsConstruction -Filter ([pscustomobject]@{ equal = [pscustomobject]@{ } })
+        @(Get-MidpointConstructionTargets $c).Count | Should -Be 0
+    }
+
+    It 'ignores a filter with no equal clause at all' {
+        $c = New-AtsConstruction -Filter ([pscustomobject]@{ })
+        @(Get-MidpointConstructionTargets $c).Count | Should -Be 0
+    }
+
+    It 'ignores an equal-filter whose value is only whitespace' {
+        $c = New-AtsConstruction -Filter ([pscustomobject]@{ equal = [pscustomobject]@{ value = '   ' } })
+        @(Get-MidpointConstructionTargets $c).Count | Should -Be 0
+    }
+}
+
+
+# ── Discriminating values ────────────────────────────────────────────────────
+# The batch above targeted the right functions with the wrong inputs: a guard
+# read as `-gt 0` versus `-gt 1` behaves identically at 0 and at 3, so only the
+# value 1 separates them. Same for a `Count -eq 0` guard, which needs a
+# one-element case, not an empty one. These pick the values that actually
+# distinguish the branch from its mutation.
+
+Describe 'midPoint search — query-string and cap boundaries' {
+    BeforeEach {
+        Connect-MidpointAPI -BaseUrl 'https://h' -AuthMethod 'ApiToken' -ApiToken 'tok'
+        $script:uris = [System.Collections.Generic.List[string]]::new()
+    }
+
+    It 'appends a single query option to the search URI' {
+        # The guard is `$qs.Count -gt 0`. Read as `-gt 1` it silently drops the
+        # options string whenever there is exactly one — which is the normal case
+        # (shadows are fetched with ?options=raw).
+        Mock Invoke-MidpointRequest { $script:uris.Add($Uri); @{ object = @{ object = @() } } }
+        Invoke-MidpointSearch -Type 'shadows' -PageSize 5 -Options 'raw' | Out-Null
+        $script:uris[0] | Should -BeLike '*?options=raw'
+    }
+
+    It 'joins two query options with an ampersand' {
+        Mock Invoke-MidpointRequest { $script:uris.Add($Uri); @{ object = @{ object = @() } } }
+        Invoke-MidpointSearch -Type 'campaigns' -PageSize 5 -Options 'raw' -Include 'case' | Out-Null
+        $script:uris[0] | Should -BeLike '*?options=raw&include=case'
+    }
+
+    It 'appends nothing when no options are supplied' {
+        Mock Invoke-MidpointRequest { $script:uris.Add($Uri); @{ object = @{ object = @() } } }
+        Invoke-MidpointSearch -Type 'users' -PageSize 5 | Out-Null
+        # Literal check, not -BeLike: '?' is a single-character WILDCARD there, so
+        # '*?*' matches any non-empty string and the assertion could never fail.
+        $script:uris[0].Contains('?') | Should -BeFalse
+    }
+
+    It 'caps at MaxItems 1 — the value that separates a > 0 guard from a > 1 one' {
+        Mock Invoke-MidpointRequest {
+            @{ object = @{ object = @(1..5 | ForEach-Object { @{ oid = "o$_" } }) } }
+        }
+        @(Invoke-MidpointSearch -Type 'users' -PageSize 10 -MaxItems 1).Count | Should -Be 1
+    }
+}
+
+Describe 'Invoke-MidpointSearchStream — query string and first offset' {
+    BeforeEach {
+        Connect-MidpointAPI -BaseUrl 'https://h' -AuthMethod 'ApiToken' -ApiToken 'tok'
+    }
+
+    It 'appends a single query option to the streamed search URI' {
+        $script:uris = [System.Collections.Generic.List[string]]::new()
+        Mock Invoke-MidpointRequest { $script:uris.Add($Uri); @{ object = @{ object = @() } } }
+        Invoke-MidpointSearchStream -Type 'shadows' -PageSize 5 -Options 'raw' -OnPage { } | Out-Null
+        $script:uris[0] | Should -BeLike '*?options=raw'
+    }
+
+    It 'asks for offset 0 on the first streamed page' {
+        $script:bodies = [System.Collections.Generic.List[object]]::new()
+        Mock Invoke-MidpointRequest {
+            $script:bodies.Add(($Body | ConvertFrom-Json))
+            @{ object = @{ object = @() } }
+        }
+        Invoke-MidpointSearchStream -Type 'users' -PageSize 5 -OnPage { } | Out-Null
+        $script:bodies[0].query.paging.offset | Should -Be 0
+    }
+}
+
+Describe 'Get-MidpointRefOid — single-element array' {
+    It 'resolves a one-element array rather than treating it as empty' {
+        # The guard is `$Ref.Count -eq 0`. Read as `-eq 1` it discards exactly the
+        # shape midPoint returns most often — a single-valued reference array.
+        Get-MidpointRefOid @(@{ oid = 'only' }) 'fallback' | Should -Be 'only'
+    }
+}
+
+Describe 'Resolve-MappedResourceType — archetype takes precedence over subtype' {
+    It 'does not fall through to a subtype rule on a row that has an archetype' {
+        # The rule is `-not archetype -and subtype -and (subtype matches)`. Relaxed
+        # to -or, a row carrying BOTH an unmatched archetype and a matched subtype
+        # would claim the mapping and mis-type the resource.
+        $rows = @([pscustomobject]@{ archetype = 'SomeArchetype'; subtype = 'S'; resourceType = 'WRONG' })
+        Resolve-MappedResourceType -Rows $rows -ArchetypeNames @() -Subtypes @('S') -Default 'DEF' |
+            Should -Be 'DEF'
+    }
+
+    It 'still applies a subtype rule to a row with no archetype' {
+        $rows = @([pscustomobject]@{ archetype = $null; subtype = 'S'; resourceType = 'RIGHT' })
+        Resolve-MappedResourceType -Rows $rows -ArchetypeNames @() -Subtypes @('S') -Default 'DEF' |
+            Should -Be 'RIGHT'
+    }
+}
+
+Describe 'ConvertTo-MidpointAttrScalar' {
+    It 'takes the first element of a multi-valued attribute, not the first two' {
+        # `Select-Object -First 1`; taking 2 leaves an array where a scalar is
+        # expected and the value stringifies to the wrong thing.
+        ConvertTo-MidpointAttrScalar @('alpha', 'beta') | Should -Be 'alpha'
+    }
+
+    It 'returns null for a whitespace-only value' {
+        ConvertTo-MidpointAttrScalar '   ' | Should -BeNullOrEmpty
+    }
+
+    It 'trims a padded value' {
+        ConvertTo-MidpointAttrScalar '  padded  ' | Should -Be 'padded'
+    }
+
+    It 'reads the @value form midPoint uses for typed attributes' {
+        ConvertTo-MidpointAttrScalar ([pscustomobject]@{ '@value' = ' typed ' }) | Should -Be 'typed'
+    }
+}
+
