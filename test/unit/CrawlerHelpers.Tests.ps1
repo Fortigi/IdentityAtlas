@@ -19,6 +19,10 @@
 BeforeAll {
     $script:repoRoot = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 
+    # Shared HTTP-error fixtures (test/lib/HttpErrorFixtures.psm1) — Get-ARGErrorStatus
+    # and Get-ARMErrorStatus both read the status via an [int] cast, so these tests use
+    # the New-IntStatusHttpError shape rather than hand-rolling one per file.
+    Import-Module (Join-Path $script:repoRoot 'test' 'lib' 'HttpErrorFixtures.psm1') -Force
     # Shared crawler helpers: Invoke-MidpointApi's retry loop calls
     # Test-TransientHttpStatus from here. Crawler entry points dot-source this
     # before their dependencies, so loading it first mirrors the real composition.
@@ -91,14 +95,14 @@ Describe 'Connect-MidpointAPI — auth header construction' {
         $script:MidpointSession.AuthHeader     | Should -Be 'Bearer oauth-tok'
         $script:MidpointSession.AccessToken    | Should -Be 'oauth-tok'
         $script:MidpointSession.TokenExpiresAt | Should -BeOfType ([datetime])
-        Should -Invoke Invoke-RestMethod -Times 1 -ParameterFilter { $Uri -eq 'https://h/token' }
+        Should -Invoke Invoke-RestMethod -Exactly 1 -ParameterFilter { $Uri -eq 'https://h/token' }
     }
     It 'OAuth2ROPC sends username/password in the form body' {
         Mock Invoke-RestMethod { [pscustomobject]@{ access_token = 'ropc-tok' } }
         Connect-MidpointAPI -BaseUrl 'https://h' -AuthMethod 'OAuth2ROPC' `
             -ClientId 'cid' -ClientSecret 'sec' -TokenEndpoint 'https://h/token' `
             -Username 'u' -Password 'p'
-        Should -Invoke Invoke-RestMethod -Times 1 -ParameterFilter {
+        Should -Invoke Invoke-RestMethod -Exactly 1 -ParameterFilter {
             $Body.grant_type -eq 'password' -and $Body.username -eq 'u' -and $Body.password -eq 'p'
         }
     }
@@ -141,14 +145,14 @@ Describe 'Get-MidpointHeaders / session guards' {
         $script:MidpointSession.TokenExpiresAt = [datetime]::UtcNow.AddMinutes(-10)
         Update-MidpointSessionIfExpired
         $script:MidpointSession.AccessToken | Should -Be 'fresh'
-        Should -Invoke Invoke-RestMethod -Times 2   # initial connect + refresh
+        Should -Invoke Invoke-RestMethod -Exactly 2   # initial connect + refresh
     }
     It 'Update-MidpointSessionIfExpired does nothing for a still-valid token' {
         Mock Invoke-RestMethod { [pscustomobject]@{ access_token = 'tok1'; expires_in = 3600 } }
         Connect-MidpointAPI -BaseUrl 'https://h' -AuthMethod 'OAuth2CC' `
             -ClientId 'c' -ClientSecret 's' -TokenEndpoint 'https://h/token'
         Update-MidpointSessionIfExpired
-        Should -Invoke Invoke-RestMethod -Times 1   # only the initial connect
+        Should -Invoke Invoke-RestMethod -Exactly 1   # only the initial connect
     }
 }
 
@@ -164,14 +168,14 @@ Describe 'Invoke-MidpointGet' {
         $obj = Invoke-MidpointGet -Type 'users' -Oid '1'
         $obj.oid  | Should -Be '1'
         $obj.name | Should -Be 'alice'
-        Should -Invoke Invoke-RestMethod -Times 1 -ParameterFilter {
+        Should -Invoke Invoke-RestMethod -Exactly 1 -ParameterFilter {
             $Uri -eq 'https://h/midpoint/ws/rest/users/1' -and $Method -eq 'Get'
         }
     }
     It 'sends the Bearer auth header' {
         Mock Invoke-RestMethod { [pscustomobject]@{ user = [pscustomobject]@{ oid = '1' } } }
         Invoke-MidpointGet -Type 'users' -Oid '1' | Out-Null
-        Should -Invoke Invoke-RestMethod -Times 1 -ParameterFilter {
+        Should -Invoke Invoke-RestMethod -Exactly 1 -ParameterFilter {
             $Headers.Authorization -eq 'Bearer tok'
         }
     }
@@ -203,7 +207,7 @@ Describe 'Invoke-MidpointRequest — retry/backoff' {
     It 'returns the parsed body on first success' {
         Mock Invoke-RestMethod { [pscustomobject]@{ ok = $true } }
         (Invoke-MidpointRequest -Method Get -Uri 'https://h/x').ok | Should -BeTrue
-        Should -Invoke Invoke-RestMethod -Times 1
+        Should -Invoke Invoke-RestMethod -Exactly 1
     }
     It 'retries a transient 500 then succeeds' {
         $script:calls = 0
@@ -218,8 +222,8 @@ Describe 'Invoke-MidpointRequest — retry/backoff' {
             [pscustomobject]@{ ok = $true }
         }
         (Invoke-MidpointRequest -Method Get -Uri 'https://h/x' -MaxRetries 4).ok | Should -BeTrue
-        Should -Invoke Invoke-RestMethod -Times 2
-        Should -Invoke Start-Sleep -Times 1
+        Should -Invoke Invoke-RestMethod -Exactly 2
+        Should -Invoke Start-Sleep -Exactly 1
     }
     It 'retries on 429' {
         $script:calls429 = 0
@@ -234,7 +238,7 @@ Describe 'Invoke-MidpointRequest — retry/backoff' {
             [pscustomobject]@{ ok = $true }
         }
         Invoke-MidpointRequest -Method Get -Uri 'https://h/x' -MaxRetries 4 | Out-Null
-        Should -Invoke Invoke-RestMethod -Times 2
+        Should -Invoke Invoke-RestMethod -Exactly 2
     }
     It 'does not retry a non-transient 400 — throws immediately' {
         Mock Invoke-RestMethod {
@@ -244,7 +248,7 @@ Describe 'Invoke-MidpointRequest — retry/backoff' {
             throw $ex
         }
         { Invoke-MidpointRequest -Method Get -Uri 'https://h/x' -MaxRetries 4 } | Should -Throw
-        Should -Invoke Invoke-RestMethod -Times 1
+        Should -Invoke Invoke-RestMethod -Exactly 1
     }
     It 'gives up after MaxRetries on persistent 500' {
         Mock Invoke-RestMethod {
@@ -254,7 +258,7 @@ Describe 'Invoke-MidpointRequest — retry/backoff' {
             throw $ex
         }
         { Invoke-MidpointRequest -Method Get -Uri 'https://h/x' -MaxRetries 2 } | Should -Throw
-        Should -Invoke Invoke-RestMethod -Times 3   # initial + 2 retries
+        Should -Invoke Invoke-RestMethod -Exactly 3   # initial + 2 retries
     }
 }
 
@@ -269,7 +273,7 @@ Describe 'Invoke-MidpointSearch — paging' {
         }
         $r = Invoke-MidpointSearch -Type 'users' -PageSize 100
         @($r).Count | Should -Be 2
-        Should -Invoke Invoke-RestMethod -Times 1 -ParameterFilter {
+        Should -Invoke Invoke-RestMethod -Exactly 1 -ParameterFilter {
             $Uri -eq 'https://h/midpoint/ws/rest/users/search' -and $Method -eq 'Post'
         }
     }
@@ -286,7 +290,7 @@ Describe 'Invoke-MidpointSearch — paging' {
         }
         $r = Invoke-MidpointSearch -Type 'users' -PageSize 2
         @($r).Count | Should -Be 3
-        Should -Invoke Invoke-RestMethod -Times 2
+        Should -Invoke Invoke-RestMethod -Exactly 2
     }
     It 'honours MaxItems as a hard cap' {
         Mock Invoke-RestMethod {
@@ -300,7 +304,7 @@ Describe 'Invoke-MidpointSearch — paging' {
     It 'appends options and include as query string' {
         Mock Invoke-RestMethod { [pscustomobject]@{ object = [pscustomobject]@{ object = @() } } }
         Invoke-MidpointSearch -Type 'shadows' -Options 'raw' -Include 'association' | Out-Null
-        Should -Invoke Invoke-RestMethod -Times 1 -ParameterFilter {
+        Should -Invoke Invoke-RestMethod -Exactly 1 -ParameterFilter {
             $Uri -eq 'https://h/midpoint/ws/rest/shadows/search?options=raw&include=association'
         }
     }
@@ -636,7 +640,7 @@ Describe 'Connect-AzureRM / Update-ARMTokenIfNeeded' {
         Mock Get-FGAccessToken { $Global:AccessToken = 'arm-tok' }
         Connect-AzureRM -TenantId 't' -ClientId 'c' -ClientSecret 's'
         $script:ARMSession.TenantId | Should -Be 't'
-        Should -Invoke Get-FGAccessToken -Times 1 -ParameterFilter { $Resource -eq 'https://management.azure.com/' }
+        Should -Invoke Get-FGAccessToken -Exactly 1 -ParameterFilter { $Resource -eq 'https://management.azure.com/' }
     }
     It 'throws when no token is acquired' {
         Mock Get-FGAccessToken { $Global:AccessToken = $null }
@@ -650,13 +654,13 @@ Describe 'Connect-AzureRM / Update-ARMTokenIfNeeded' {
         Connect-AzureRM -TenantId 't' -ClientId 'c' -ClientSecret 's'
         $script:ARMSession.AcquiredAt = [datetime]::UtcNow.AddMinutes(-50)
         Update-ARMTokenIfNeeded
-        Should -Invoke Get-FGAccessToken -Times 2   # connect + refresh
+        Should -Invoke Get-FGAccessToken -Exactly 2   # connect + refresh
     }
     It 'does not refresh a fresh token' {
         Mock Get-FGAccessToken { $Global:AccessToken = 'tok' }
         Connect-AzureRM -TenantId 't' -ClientId 'c' -ClientSecret 's'
         Update-ARMTokenIfNeeded
-        Should -Invoke Get-FGAccessToken -Times 1
+        Should -Invoke Get-FGAccessToken -Exactly 1
     }
 }
 
@@ -680,7 +684,7 @@ Describe 'Invoke-ARMRequestRaw / Invoke-ARMList / Invoke-ARMGet' {
         Mock Invoke-RestMethod { [pscustomobject]@{ value = @(1, 2) } }
         Invoke-ARMGet -Path '/x' | Out-Null
         $Global:AzCallCount | Should -Be 1
-        Should -Invoke Invoke-RestMethod -Times 1 -ParameterFilter {
+        Should -Invoke Invoke-RestMethod -Exactly 1 -ParameterFilter {
             $Headers.Authorization -eq 'Bearer arm-tok' -and $Method -eq 'Get'
         }
     }
@@ -696,7 +700,7 @@ Describe 'Invoke-ARMRequestRaw / Invoke-ARMList / Invoke-ARMGet' {
         }
         $items = Invoke-ARMList -Path '/resources'
         @($items).Count | Should -Be 2
-        Should -Invoke Invoke-RestMethod -Times 2
+        Should -Invoke Invoke-RestMethod -Exactly 2
     }
     It 'retries a transient 503 then succeeds' {
         $script:c = 0
@@ -711,8 +715,8 @@ Describe 'Invoke-ARMRequestRaw / Invoke-ARMList / Invoke-ARMGet' {
             [pscustomobject]@{ value = @() }
         }
         Invoke-ARMList -Path '/x' | Out-Null
-        Should -Invoke Invoke-RestMethod -Times 2
-        Should -Invoke Start-Sleep -Times 1
+        Should -Invoke Invoke-RestMethod -Exactly 2
+        Should -Invoke Start-Sleep -Exactly 1
     }
     It 'gives up after MaxRetries on a persistent 500' {
         Mock Invoke-RestMethod {
@@ -722,7 +726,7 @@ Describe 'Invoke-ARMRequestRaw / Invoke-ARMList / Invoke-ARMGet' {
             throw $ex
         }
         { Invoke-ARMGet -Path '/x' -MaxRetries 1 } | Should -Throw
-        Should -Invoke Invoke-RestMethod -Times 2   # initial + 1 retry
+        Should -Invoke Invoke-RestMethod -Exactly 2   # initial + 1 retry
     }
 }
 
@@ -742,7 +746,7 @@ Describe 'Invoke-ARGQuery / Invoke-ARGRequestRaw' {
         }
         $rows = Invoke-ARGQuery -Query 'resources' -SubscriptionIds @('sub-1')
         @($rows).Count | Should -Be 2
-        Should -Invoke Invoke-RestMethod -Times 1 -ParameterFilter {
+        Should -Invoke Invoke-RestMethod -Exactly 1 -ParameterFilter {
             $Uri -like '*Microsoft.ResourceGraph/resources*' -and $Method -eq 'Post'
         }
     }
@@ -758,12 +762,12 @@ Describe 'Invoke-ARGQuery / Invoke-ARGRequestRaw' {
         }
         $rows = Invoke-ARGQuery -Query 'resources' -SubscriptionIds @('sub-1')
         @($rows).Count | Should -Be 2
-        Should -Invoke Invoke-RestMethod -Times 2
+        Should -Invoke Invoke-RestMethod -Exactly 2
     }
     It 'scopes by management group when supplied (single query)' {
         Mock Invoke-RestMethod { [pscustomobject]@{ data = @() } }
         Invoke-ARGQuery -Query 'authorizationresources' -ManagementGroups @('mg-root') -ScopeFilter 'AtScopeAndAbove' | Out-Null
-        Should -Invoke Invoke-RestMethod -Times 1 -ParameterFilter {
+        Should -Invoke Invoke-RestMethod -Exactly 1 -ParameterFilter {
             $Body -like '*managementGroups*' -and $Body -like '*AtScopeAndAbove*'
         }
     }
@@ -780,7 +784,7 @@ Describe 'Invoke-ARGQuery / Invoke-ARGRequestRaw' {
             [pscustomobject]@{ data = @() }
         }
         Invoke-ARGQuery -Query 'resources' -SubscriptionIds @('sub-1') | Out-Null
-        Should -Invoke Invoke-RestMethod -Times 2
+        Should -Invoke Invoke-RestMethod -Exactly 2
     }
 }
 
@@ -842,7 +846,7 @@ Describe 'Invoke-ODataGetRequest — fetch + paging' {
         Mock Invoke-RestMethod { [pscustomobject]@{ value = @([pscustomobject]@{ id = 1 }, [pscustomobject]@{ id = 2 }) } }
         $r = Invoke-ODataGetRequest -Path '/Users'
         @($r).Count | Should -Be 2
-        Should -Invoke Invoke-RestMethod -Times 1 -ParameterFilter {
+        Should -Invoke Invoke-RestMethod -Exactly 1 -ParameterFilter {
             $Uri -eq 'https://omada.example.com/odata/dataobjects/Users' -and
             $Headers.Authorization -eq 'Bearer tok'
         }
@@ -850,7 +854,7 @@ Describe 'Invoke-ODataGetRequest — fetch + paging' {
     It 'builds a query string from QueryParams (escaped)' {
         Mock Invoke-RestMethod { [pscustomobject]@{ value = @() } }
         Invoke-ODataGetRequest -Path '/Users' -QueryParams @{ filter = 'a b' } | Out-Null
-        Should -Invoke Invoke-RestMethod -Times 1 -ParameterFilter {
+        Should -Invoke Invoke-RestMethod -Exactly 1 -ParameterFilter {
             $Uri -eq 'https://omada.example.com/odata/dataobjects/Users?filter=a%20b'
         }
     }
@@ -866,7 +870,7 @@ Describe 'Invoke-ODataGetRequest — fetch + paging' {
         }
         $r = Invoke-ODataGetRequest -Path '/Users'
         @($r).Count | Should -Be 2
-        Should -Invoke Invoke-RestMethod -Times 2
+        Should -Invoke Invoke-RestMethod -Exactly 2
     }
     It 'wraps a bare (non-value) single response into a one-element array' {
         Mock Invoke-RestMethod { [pscustomobject]@{ id = 99; name = 'single' } }
@@ -887,8 +891,8 @@ Describe 'Invoke-ODataGetRequest — fetch + paging' {
             [pscustomobject]@{ value = @() }
         }
         Invoke-ODataGetRequest -Path '/Users' | Out-Null
-        Should -Invoke Invoke-RestMethod -Times 2
-        Should -Invoke Start-Sleep -Times 1
+        Should -Invoke Invoke-RestMethod -Exactly 2
+        Should -Invoke Start-Sleep -Exactly 1
     }
     It 'throws on a non-transient 400' {
         Mock Invoke-RestMethod {
@@ -898,7 +902,7 @@ Describe 'Invoke-ODataGetRequest — fetch + paging' {
             throw $ex
         }
         { Invoke-ODataGetRequest -Path '/Users' } | Should -Throw '*HTTP 400*'
-        Should -Invoke Invoke-RestMethod -Times 1
+        Should -Invoke Invoke-RestMethod -Exactly 1
     }
     It 'CookieString auth raises a helpful message on 401' {
         Connect-ODataAPI -BaseUrl 'https://tenant.omada.cloud/odata/dataobjects' `
@@ -934,13 +938,263 @@ Describe 'Invoke-ODataPagedRequest — $skip paging' {
         }
         $r = Invoke-ODataPagedRequest -Path '/Users' -PageSize 1
         @($r).Count | Should -Be 2
-        Should -Invoke Invoke-RestMethod -Times 3   # two data pages + one empty terminator
+        Should -Invoke Invoke-RestMethod -Exactly 3   # two data pages + one empty terminator
     }
     It 'passes $top and $skip in the request URI' {
         Mock Invoke-RestMethod { [pscustomobject]@{ value = @() } }
         Invoke-ODataPagedRequest -Path '/Users' -PageSize 50 | Out-Null
-        Should -Invoke Invoke-RestMethod -Times 1 -ParameterFilter {
+        Should -Invoke Invoke-RestMethod -Exactly 1 -ParameterFilter {
             $Uri -like '*$top=50*' -and $Uri -like '*$skip=0*'
         }
     }
 }
+
+# ════════════════════════════════════════════════════════════════════════════════
+#  Azure retry / quota decision functions
+# ════════════════════════════════════════════════════════════════════════════════
+# These small predicates decide whether an Azure call is retried, how long the
+# crawler waits, and when it pauses ahead of a quota cutoff. They had no direct
+# tests: the suite exercised them only through Invoke-ARGRequestRaw, which asserts
+# how many HTTP calls happened but never which decision produced them. That is why
+# tightening this file's 35 `-Times` assertions to `-Exactly` moved the mutation
+# score for these files by ~0 — the surviving mutants change what is computed, not
+# how often something is called, and no call-count assertion can reach them.
+
+Describe 'Test-ARGTransient / Test-ARMTransientStatus' {
+    It 'ARG retries HTTP <_>' -ForEach @(429, 500, 502, 503, 504) {
+        Test-ARGTransient -Status $_ | Should -BeTrue
+    }
+
+    It 'ARG does not retry HTTP <_>' -ForEach @(400, 403, 404, 409, 428, 501, 505, 599) {
+        # 501/505 and the upper 5xx range used to be retried here (the rule was
+        # "any 5xx"), costing four backoff waits before the same failure.
+        Test-ARGTransient -Status $_ | Should -BeFalse
+    }
+
+    It 'ARG retries a request that got no response at all' {
+        Test-ARGTransient -Status $null | Should -BeTrue
+    }
+
+    It 'ARM and ARG give the same answer — one rule, two entry points' {
+        foreach ($code in 429, 500, 501, 502, 503, 504, 505, 599, 404) {
+            Test-ARMTransientStatus -Status $code |
+                Should -Be (Test-ARGTransient -Status $code) -Because "HTTP $code must agree"
+            Test-ARMTransientStatus -Status $code |
+                Should -Be (Test-TransientHttpStatus $code) -Because "HTTP $code must match the shared rule"
+        }
+    }
+}
+
+Describe 'Get-ARGRetryAfter / Get-ARMRetryWait' {
+    BeforeAll {
+        function New-RetryAfterError {
+            param([string]$Value)
+            $resp = [pscustomobject]@{ Headers = @{ 'Retry-After' = $Value } }
+            $ex = [System.Exception]::new('throttled')
+            $ex | Add-Member -NotePropertyName Response -NotePropertyValue $resp -Force
+            return [PSCustomObject]@{ Exception = $ex }
+        }
+        function New-BareError { return [PSCustomObject]@{ Exception = [PSCustomObject]@{} } }
+    }
+
+    It 'honours a Retry-After header over the backoff curve' {
+        Get-ARGRetryAfter -ErrorRecord (New-RetryAfterError -Value '37') -Attempt 1 | Should -Be 37
+        Get-ARMRetryWait  -ErrorRecord (New-RetryAfterError -Value '37') -Attempt 1 | Should -Be 37
+    }
+
+    It 'honours a Retry-After of 1 second — the guard is greater-than 0, not 1' {
+        Get-ARGRetryAfter -ErrorRecord (New-RetryAfterError -Value '1') -Attempt 4 | Should -Be 1
+    }
+
+    It 'falls back to 2^attempt when the header is absent' {
+        Get-ARGRetryAfter -ErrorRecord (New-BareError) -Attempt 1 | Should -Be 2
+        Get-ARGRetryAfter -ErrorRecord (New-BareError) -Attempt 3 | Should -Be 8
+        Get-ARMRetryWait  -ErrorRecord (New-BareError) -Attempt 3 | Should -Be 8
+    }
+
+    It 'caps the backoff at 60 seconds however many attempts have failed' {
+        # 2^6 = 64 is already over the cap; without it, attempt 20 would wait 12 days.
+        Get-ARGRetryAfter -ErrorRecord (New-BareError) -Attempt 6  | Should -Be 60
+        Get-ARGRetryAfter -ErrorRecord (New-BareError) -Attempt 20 | Should -Be 60
+        Get-ARMRetryWait  -ErrorRecord (New-BareError) -Attempt 20 | Should -Be 60
+    }
+
+    It 'ignores an unparseable Retry-After rather than throwing' {
+        Get-ARGRetryAfter -ErrorRecord (New-RetryAfterError -Value 'soon') -Attempt 2 | Should -Be 4
+    }
+}
+
+Describe 'Invoke-ARGQuotaBackoff' {
+    BeforeEach { Mock Start-Sleep { } }
+
+    It 'does not pause while quota remains' {
+        Invoke-ARGQuotaBackoff -ResponseHeaders @{ 'x-ms-user-quota-remaining' = '5' }
+        Should -Invoke Start-Sleep -Exactly 0
+    }
+
+    It 'pauses for the advertised reset span once quota is exhausted' {
+        Invoke-ARGQuotaBackoff -ResponseHeaders @{
+            'x-ms-user-quota-remaining'    = '0'
+            'x-ms-user-quota-resets-after' = '00:00:12'
+        }
+        Should -Invoke Start-Sleep -Exactly 1 -ParameterFilter { $Seconds -eq 12 }
+    }
+
+    It 'rounds a fractional reset span up, never down to zero' {
+        Invoke-ARGQuotaBackoff -ResponseHeaders @{
+            'x-ms-user-quota-remaining'    = '0'
+            'x-ms-user-quota-resets-after' = '00:00:00.4'
+        }
+        Should -Invoke Start-Sleep -Exactly 1 -ParameterFilter { $Seconds -eq 1 }
+    }
+
+    It 'treats a missing remaining-header as exhausted and uses the 5s default' {
+        # Deliberately conservative: an unreadable quota header means we do not
+        # know how much is left, so pause rather than charge into a 429.
+        Invoke-ARGQuotaBackoff -ResponseHeaders @{}
+        Should -Invoke Start-Sleep -Exactly 1 -ParameterFilter { $Seconds -eq 5 }
+    }
+
+    It 'falls back to the 5s default when the reset span is unparseable' {
+        Invoke-ARGQuotaBackoff -ResponseHeaders @{
+            'x-ms-user-quota-remaining'    = '0'
+            'x-ms-user-quota-resets-after' = 'later'
+        }
+        Should -Invoke Start-Sleep -Exactly 1 -ParameterFilter { $Seconds -eq 5 }
+    }
+}
+
+Describe 'Get-ARGQueryScopes' {
+    It 'uses a single management-group scope when management groups are supplied' {
+        # @() forces an array: PowerShell unwraps a single-element List[object]
+        # on return, so $s would otherwise BE the hashtable and $s[0] be $null —
+        # while $s.Count still reads 1 (a hashtable's key count), passing spuriously.
+        $s = @(Get-ARGQueryScopes -SubscriptionIds @('a', 'b') -ManagementGroups @('mg1') -ChunkSize 1)
+        $s.Count | Should -Be 1
+        $s[0].managementGroups | Should -Be @('mg1')
+        $s[0].ContainsKey('subscriptions') | Should -BeFalse
+    }
+
+    It 'chunks subscriptions to ChunkSize, covering every id exactly once' {
+        $ids = 1..5 | ForEach-Object { "sub$_" }
+        $s = @(Get-ARGQueryScopes -SubscriptionIds $ids -ManagementGroups @() -ChunkSize 2)
+        $s.Count | Should -Be 3
+        $s[0].subscriptions | Should -Be @('sub1', 'sub2')
+        $s[1].subscriptions | Should -Be @('sub3', 'sub4')
+        $s[2].subscriptions | Should -Be @('sub5')
+        @($s | ForEach-Object { $_.subscriptions }) | Should -Be $ids
+    }
+
+    It 'returns a single chunk when the count equals ChunkSize' {
+        $s = @(Get-ARGQueryScopes -SubscriptionIds @('a', 'b') -ManagementGroups @() -ChunkSize 2)
+        $s.Count | Should -Be 1
+        $s[0].subscriptions | Should -Be @('a', 'b')
+    }
+
+    It 'returns no scopes when there is nothing to query' {
+        @(Get-ARGQueryScopes -SubscriptionIds @() -ManagementGroups @() -ChunkSize 10).Count | Should -Be 0
+    }
+}
+
+Describe 'New-ARGRequestBody' {
+    It 'always sets the page size and objectArray result format' {
+        $b = New-ARGRequestBody -Scope @{ subscriptions = @('s') } -Query 'Resources' -PageSize 500 | ConvertFrom-Json
+        $b.options.'$top'        | Should -Be 500
+        $b.options.resultFormat  | Should -Be 'objectArray'
+        $b.query                 | Should -Be 'Resources'
+        $b.subscriptions         | Should -Be @('s')
+    }
+
+    It 'omits the optional keys when they are not supplied' {
+        $b = New-ARGRequestBody -Scope @{ subscriptions = @('s') } -Query 'Q' -PageSize 10 | ConvertFrom-Json
+        $b.options.PSObject.Properties.Name | Should -Not -Contain 'authorizationScopeFilter'
+        $b.options.PSObject.Properties.Name | Should -Not -Contain '$skipToken'
+    }
+
+    It 'threads the skip token and scope filter when supplied' {
+        $b = New-ARGRequestBody -Scope @{ subscriptions = @('s') } -Query 'Q' -PageSize 10 `
+            -ScopeFilter 'AtScopeAndBelow' -SkipToken 'TOK' | ConvertFrom-Json
+        $b.options.authorizationScopeFilter | Should -Be 'AtScopeAndBelow'
+        $b.options.'$skipToken'             | Should -Be 'TOK'
+    }
+}
+
+
+Describe 'Azure retry loop — request-level behaviour' {
+    BeforeEach {
+        Connect-AzureRM -ClientId 'c' -ClientSecret 's' -TenantId 't'
+        Mock Start-Sleep { }
+        $Global:AzCallCount = 0
+    }
+
+    It 'counts every ARG round-trip, including the retries' {
+        # AzCallCount is what the crawler reports as Azure round-trips; if it only
+        # counted successes the figure would understate a throttled crawl.
+        $script:n = 0
+        Mock Invoke-RestMethod {
+            $script:n++
+            if ($script:n -lt 3) { throw (New-IntStatusHttpError -Status 503) }
+            [pscustomobject]@{ data = @() }
+        }
+        Invoke-ARGRequestRaw -Body '{}' -MaxRetries 5 | Out-Null
+        $Global:AzCallCount | Should -Be 3
+    }
+
+    It 'gives the ARG POST a 120-second timeout' {
+        Mock Invoke-RestMethod { [pscustomobject]@{ data = @() } }
+        Invoke-ARGRequestRaw -Body '{}' | Out-Null
+        Should -Invoke Invoke-RestMethod -Exactly 1 -ParameterFilter { $TimeoutSec -eq 120 }
+    }
+
+    It 'stops retrying a transient failure once MaxRetries is exceeded' {
+        Mock Invoke-RestMethod { throw (New-IntStatusHttpError -Status 503) }
+        { Invoke-ARGRequestRaw -Body '{}' -MaxRetries 2 } | Should -Throw
+        # Initial attempt + 2 retries, then the guard trips on attempt 3 > 2.
+        Should -Invoke Invoke-RestMethod -Exactly 3
+    }
+
+    It 'does not retry a permanent failure at all' {
+        Mock Invoke-RestMethod { throw (New-IntStatusHttpError -Status 403) }
+        { Invoke-ARGRequestRaw -Body '{}' -MaxRetries 5 } | Should -Throw
+        Should -Invoke Invoke-RestMethod -Exactly 1
+    }
+}
+
+Describe 'Invoke-ARGQuotaBackoff — the remaining-quota boundary' {
+    BeforeEach { Mock Start-Sleep { } }
+
+    It 'does not pause when exactly one call of quota is left' {
+        # The guard is "remaining greater than 0". Reading it as "greater than 1"
+        # would stall the crawl for 5s on every response once quota hit 1.
+        Invoke-ARGQuotaBackoff -ResponseHeaders @{ 'x-ms-user-quota-remaining' = '1' }
+        Should -Invoke Start-Sleep -Exactly 0
+    }
+}
+
+Describe 'Update-ARMTokenIfNeeded — refresh margin' {
+    It 'refreshes once the token is 45 minutes old' {
+        Connect-AzureRM -ClientId 'c' -ClientSecret 's' -TenantId 't'
+        Mock Get-FGAccessToken { $Global:AccessToken = 'refreshed' }
+        $script:ARMSession.AcquiredAt = [datetime]::UtcNow.AddMinutes(-45)
+        Update-ARMTokenIfNeeded
+        Should -Invoke Get-FGAccessToken -Exactly 1
+    }
+
+    It 'leaves a token that is still inside the window alone' {
+        Connect-AzureRM -ClientId 'c' -ClientSecret 's' -TenantId 't'
+        Mock Get-FGAccessToken { $Global:AccessToken = 'refreshed' }
+        $script:ARMSession.AcquiredAt = [datetime]::UtcNow.AddMinutes(-44)
+        Update-ARMTokenIfNeeded
+        Should -Invoke Get-FGAccessToken -Exactly 0
+    }
+}
+
+Describe 'Get-ARMRetryWait — Retry-After boundary' {
+    It 'honours a Retry-After of exactly 1 second' {
+        $resp = [pscustomobject]@{ Headers = @{ 'Retry-After' = '1' } }
+        $ex = [System.Exception]::new('throttled')
+        $ex | Add-Member -NotePropertyName Response -NotePropertyValue $resp -Force
+        Get-ARMRetryWait -ErrorRecord ([PSCustomObject]@{ Exception = $ex }) -Attempt 5 | Should -Be 1
+    }
+}
+

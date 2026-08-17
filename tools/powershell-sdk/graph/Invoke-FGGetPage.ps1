@@ -11,12 +11,25 @@ function Get-FGResponseStatusCode {
 function Test-FGTransientError {
     # Private helper: decides whether a failed request should be retried, based on
     # the HTTP status code and/or a well-known transient error message.
+    #
+    # The first clause used to be the whole rule, which meant a request that never
+    # got an answer at all — DNS failure, connection reset, TLS error — was retried
+    # only if its message happened to contain one of the three Graph fault strings
+    # below. Otherwise it was treated as permanent. The crawler layer carried the
+    # identical defect on its Graph delta path.
+    #
+    # This mirrors Test-TransientHttpStatus in tools/crawlers/shared/, but does not
+    # call it: the SDK is a separate root loaded by setup/IdentityAtlas.psm1 and its
+    # unit tests load SDK files alone, so a cross-root dependency would resolve at
+    # runtime and fail under test. Keep the two in step by hand — the shared one is
+    # the reference.
     [cmdletbinding()]
     Param(
         $StatusCode,
         [string]$ErrorMessage
     )
 
+    if (-not $StatusCode) { return $true }
     return ($StatusCode -in @(429, 500, 502, 503, 504)) -or
     ($ErrorMessage -match 'UnknownError|ServiceNotAvailable|GatewayTimeout')
 }

@@ -133,11 +133,15 @@ function Get-ARGErrorStatus {
     return $status
 }
 
-# A transient ARG failure worth retrying: throttling (429), any 5xx, or no status at all.
+# A transient ARG failure worth retrying. Delegates to the one crawler-wide rule
+# in shared/Invoke-CrawlerIngest.ps1, which Start-AzureRMCrawler.ps1 dot-sources
+# before this file. Kept as a named ARG function so callers have a stable entry
+# point. This used to carry its own copy (429, any 5xx, no status) — one of eight
+# transient predicates that had drifted apart across the crawlers and the SDK.
 function Test-ARGTransient {
     [CmdletBinding()]
     param($Status)
-    return ($Status -eq 429) -or ($Status -ge 500 -and $Status -lt 600) -or (-not $Status)
+    return Test-TransientHttpStatus $Status
 }
 
 # Seconds to wait before the next ARG retry: honour Retry-After when present, else exponential
