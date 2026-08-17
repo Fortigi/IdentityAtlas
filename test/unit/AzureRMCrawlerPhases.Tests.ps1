@@ -168,13 +168,22 @@ Describe 'Sync-AzureRMRoleDefinitions' {
         $ctx.RoleDefs['g2'].plane | Should -Be 'data'
     }
 
-    It 'excludes custom roles when includeCustomRoles is false' {
+    It 'excludes custom roles but keeps built-in ones when includeCustomRoles is false' {
+        # Both role types in ONE fixture. A custom-role-only fixture cannot tell
+        # `$isCustom -and -not $includeCustomRoles` apart from `-or`: with only a
+        # custom role present both forms skip it. The built-in role is what
+        # separates them — under `-or`, turning custom roles off would drop the
+        # entire built-in catalog too, and the crawler would emit no roles at all.
         Mock Get-ARGRoleDefinitions { @(
             [pscustomobject]@{ name = 'g1'; properties = [pscustomobject]@{ roleName = 'Custom'; type = 'CustomRole'; permissions = @() } }
+            [pscustomobject]@{ name = 'g2'; properties = [pscustomobject]@{ roleName = 'Reader'; type = 'BuiltInRole'; permissions = @() } }
         ) }
         $ctx = New-TestCtx -ConfigOver @{ includeCustomRoles = $false }
         Sync-AzureRMRoleDefinitions -Ctx $ctx
         $ctx.RoleDefs.ContainsKey('g1') | Should -BeFalse
+        $ctx.RoleDefs.ContainsKey('g2') | Should -BeTrue
+        $ctx.RoleDefs['g2'].name        | Should -Be 'Reader'
+        $ctx.RoleDefs['g2'].isCustom    | Should -BeFalse
     }
 
     It 'queries by management group when one is configured' {
@@ -212,7 +221,16 @@ Describe 'Confirm-AzureAssignmentScope' {
         $id | Should -Be (Get-ScopeNodeId -ArmScopePath $rg)
         $ctx.KnownPaths.Contains($rg) | Should -BeTrue
         @($ctx.ScopeResources | Where-Object { $_.resourceType -eq 'AzureResourceGroup' }).Count | Should -Be 1
-        @($ctx.ContainsEdges).Count | Should -BeGreaterThan 0
+
+        # Assert the DIRECTION, not just that an edge exists. "at least one edge"
+        # passes just as happily on an inverted edge, and the inverted edge is the
+        # failure that matters: the down-link to the owning subscription is guarded
+        # by `$aboveSub -and $OwningSubPath`, so a resource group must never be
+        # recorded as the PARENT of the subscription it lives in.
+        $subId = Get-ScopeNodeId -ArmScopePath '/subscriptions/sub-1'
+        $rgId  = Get-ScopeNodeId -ArmScopePath $rg
+        @($ctx.ContainsEdges | Where-Object { $_.parentResourceId -eq $subId -and $_.childResourceId -eq $rgId }).Count | Should -Be 1
+        @($ctx.ContainsEdges | Where-Object { $_.parentResourceId -eq $rgId -and $_.childResourceId -eq $subId }).Count | Should -Be 0
     }
 
     It 'links a management group down to the owning subscription' {
@@ -480,6 +498,157 @@ Describe 'Add-AzureScope / Add-AzureContainsEdge — edge and node shape' {
         Add-AzureScope -Ctx $ctx -ArmPath '/' -DisplayName 'Tenant Root' `
             -ResourceType 'AzureScope' -ScopeKind 'tenant' | Out-Null
         $ctx.ContainsEdges.Count | Should -Be 0
+    }
+}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Cases chosen to SEPARATE a branch from its mutation rather than merely reach
+# it. Each one below covers a decision that the existing tests executed on every
+# run without ever being able to fail if the decision were written wrong.
+# ─────────────────────────────────────────────────────────────────────────────
+
+Describe 'Register-AzureRMSystem — the system id it trusts' {
+    It 'falls back to 1 when systemIds is present but not a usable collection' {
+        # The guard is `$systemIds -and $systemIds.Count -gt 0`, and an empty array
+        # cannot tell it apart from `-or` (both operands are false). A scalar 0 can:
+        # it is falsy, but PowerShell reports .Count = 1 on a scalar, so `-or` would
+        # accept it and hand back systemId 0 — which is then stamped on every ingest
+        # batch for the rest of the run.
+        Mock Invoke-IngestAPI { @{ systemIds = 0 } }
+        Register-AzureRMSystem -Config (New-TestConfig) | Should -Be 1
+    }
+}
+
+Describe 'Add-AzureManagementGroupNode — subscriptions outside the crawl' {
+    It 'does not link a management group to a subscription it never discovered' {
+        # The MG tree lists every subscription under it, including ones excluded by
+        # subscriptionFilter. The guard is `discovered -and hasParent`; as `-or` a
+        # parent alone is enough, and the crawler emits a Contains edge pointing at
+        # a scope node that was never created — a dangling relationship on ingest.
+        Mock Update-CrawlerProgress { }
+        Mock Invoke-ARMList { @([pscustomobject]@{ subscriptionId = 'sub-1'; displayName = 'One' }) }
+        Mock Get-ARGResourceGroups { @() }
+        Mock Get-ARGResources { @() }
+        Mock Invoke-ARMGet {
+            @{ id = '/providers/Microsoft.Management/managementGroups/mg1'; name = 'mg1'; type = 'Microsoft.Management/managementGroups'
+               properties = @{ displayName = 'Root MG'; children = @(
+                   @{ id = '/subscriptions/sub-1';  name = 'sub-1';  type = '/subscriptions'; properties = @{} }
+                   @{ id = '/subscriptions/sub-99'; name = 'sub-99'; type = '/subscriptions'; properties = @{} }
+               ) } }
+        }
+        # Only sub-1 comes back from discovery, so sub-99 is in the MG tree but not
+        # in ScopePaths — exactly the shape the guard exists for.
+        $ctx = New-TestCtx -ConfigOver @{ managementGroupId = 'mg1'; subscriptionFilter = @('sub-1') }
+        Sync-AzureRMScopes -Ctx $ctx
+
+        $mgId = Get-ScopeNodeId -ArmScopePath '/providers/Microsoft.Management/managementGroups/mg1'
+        @($ctx.ContainsEdges | Where-Object { $_.parentResourceId -eq $mgId -and $_.childResourceId -eq (Get-ScopeNodeId -ArmScopePath '/subscriptions/sub-1') }).Count  | Should -Be 1
+        @($ctx.ContainsEdges | Where-Object { $_.childResourceId -eq (Get-ScopeNodeId -ArmScopePath '/subscriptions/sub-99') }).Count | Should -Be 0
+    }
+}
+
+Describe 'Confirm-AzureAssignmentScope — resolving the management group name' {
+    It 'looks the management group up by the LAST path segment' {
+        # `($ScopePath -split '/')[-1]` is the mg id. Read as [0] it yields the empty
+        # string before the leading slash, every MG lookup 404s, and each management
+        # group falls back to being displayed by its raw path. A mock that answers
+        # any path cannot see that, so this one answers only the correct id.
+        Mock Invoke-ARMGet -ParameterFilter { $Path -like '*/managementGroups/mg1?*' } -MockWith {
+            @{ properties = @{ displayName = 'Platform MG' } }
+        }
+        Mock Invoke-ARMGet { throw 'looked up the wrong management group id' }
+
+        $ctx = New-TestCtx
+        Confirm-AzureAssignmentScope -Ctx $ctx -ScopePath '/providers/Microsoft.Management/managementGroups/mg1' -OwningSubPath '/subscriptions/sub-1' | Out-Null
+        $mg = $ctx.ScopeResources | Where-Object { $_.resourceType -eq 'AzureManagementGroup' }
+        $mg.displayName | Should -Be 'Platform MG'
+    }
+}
+
+Describe 'Add-AzureAssignment — dedup keys and stub emission' {
+    # Two DISTINCT assignment names carrying the SAME principal. The existing dedup
+    # test reuses one name, which means the second assignment is rejected by
+    # AssignSeen before it ever reaches the stub logic — so that test can say
+    # nothing about stub dedup, and it also passes when the AssignSeen guard is
+    # inverted (the first assignment is dropped and the second is kept, leaving the
+    # count unchanged). Distinct names separate all three decisions.
+    BeforeEach {
+        Mock Update-CrawlerProgress { }
+        Mock Get-ARGSubscriptionMgChains { @{ 'sub-1' = @() } }
+        Mock Get-ARGRoleAssignments { @(
+            [pscustomobject]@{ name = 'ra1'; properties = [pscustomobject]@{ scope = '/subscriptions/sub-1'; roleDefinitionId = '/x/g1'; principalId = 'u1'; principalType = 'User' } }
+            [pscustomobject]@{ name = 'ra2'; properties = [pscustomobject]@{ scope = '/subscriptions/sub-1'; roleDefinitionId = '/x/g1'; principalId = 'u1'; principalType = 'User' } }
+        ) }
+        $script:ctx = New-TestCtx
+        $script:ctx.Subs   = @([pscustomobject]@{ subscriptionId = 'sub-1' })
+        $script:ctx.SubIds = @('sub-1')
+        $script:ctx.ScopePaths.Add('/subscriptions/sub-1')
+        [void]$script:ctx.KnownPaths.Add('/subscriptions/sub-1')
+        $script:ctx.ScopeResources.Add(@{ id = (Get-ScopeNodeId -ArmScopePath '/subscriptions/sub-1'); displayName = 'Sub One'; extendedAttributes = @{ scopeTypeLabel = 'Sub' } })
+        $script:ctx.RoleDefs['g1'] = @{ name = 'Owner'; isCustom = $false; plane = 'control' }
+    }
+
+    It 'keeps both assignments when their Azure assignment names differ' {
+        Sync-AzureRMAssignments -Ctx $script:ctx
+        $script:ctx.Grants.Count | Should -Be 2
+    }
+
+    It 'emits one principal stub per principal, not one per assignment' {
+        # The stub guard relies on `-and` short-circuiting to REACH StubSeen.Add.
+        # Written as `-or`, a User matches the type test first, the Add is never
+        # evaluated, and the same person is sent as a stub once per assignment.
+        Sync-AzureRMAssignments -Ctx $script:ctx
+        $script:ctx.PrincipalStubs['User'].Count | Should -Be 1
+        $script:ctx.PrincipalStubs['User'][0].id | Should -Be 'u1'
+    }
+
+    It 'emits one role-at-scope resource for the same role at the same scope' {
+        Sync-AzureRMAssignments -Ctx $script:ctx
+        $script:ctx.RoleResources.Count | Should -Be 1
+    }
+
+    It 'creates no stub for a principal type that has no stub bucket' {
+        # Groups get grants but no stub — PrincipalStubs has only User and
+        # ServicePrincipal buckets, so a type test that lets anything else through
+        # indexes a null bucket and the phase dies mid-run.
+        Mock Get-ARGRoleAssignments { @(
+            [pscustomobject]@{ name = 'ra-g'; properties = [pscustomobject]@{ scope = '/subscriptions/sub-1'; roleDefinitionId = '/x/g1'; principalId = 'grp-1'; principalType = 'Group' } }
+        ) }
+        { Sync-AzureRMAssignments -Ctx $script:ctx } | Should -Not -Throw
+        $script:ctx.Grants.Count                          | Should -Be 1
+        $script:ctx.PrincipalStubs['User'].Count          | Should -Be 0
+        $script:ctx.PrincipalStubs['ServicePrincipal'].Count | Should -Be 0
+    }
+
+    It 'names the capability from a single scope node when the node was added twice' {
+        # Scope nodes legitimately duplicate before Optimize-AzureRecords runs: the
+        # assignment phase adds nodes on demand that discovery may already have
+        # added. `Select-Object -First 1` is what keeps the lookup single-valued —
+        # taking two collapses displayName into an array and the capability ends up
+        # named after both copies at once.
+        $script:ctx.ScopeResources.Add(@{ id = (Get-ScopeNodeId -ArmScopePath '/subscriptions/sub-1'); displayName = 'Sub One (duplicate)'; extendedAttributes = @{ scopeTypeLabel = 'Sub' } })
+        Sync-AzureRMAssignments -Ctx $script:ctx
+        $script:ctx.RoleResources[0].displayName | Should -Be 'Owner @ Sub: Sub One'
+    }
+}
+
+Describe 'Complete-AzureRMRun — progress reporting' {
+    It 'reports progress as a percentage and finishes at exactly 100' {
+        # Progress drives the job UI. The intermediate checkpoints are tuning values
+        # and are deliberately not pinned here, but "is a percentage" and "ends at
+        # 100" are contracts: a final value above 100 overfills the bar and a run
+        # that never reaches 100 reads as stuck.
+        $script:pcts = [System.Collections.Generic.List[int]]::new()
+        Mock Update-CrawlerProgress { $script:pcts.Add($Pct) }
+        Mock Invoke-RestMethod { }
+        Complete-AzureRMRun -ApiBaseUrl 'http://api' -ApiKey $script:ApiKey
+
+        $script:pcts.Count | Should -BeGreaterThan 0
+        foreach ($p in $script:pcts) {
+            $p | Should -BeGreaterOrEqual 0
+            $p | Should -BeLessOrEqual 100
+        }
+        $script:pcts[-1] | Should -Be 100
     }
 }
 
