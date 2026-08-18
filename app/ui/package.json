@@ -17,8 +17,9 @@
     "test:e2e:sql": "bash scripts/e2e-sql.sh",
     "test:e2e:headed": "npx playwright test --headed",
     "test:e2e:ui": "npx playwright test --ui",
-    "test:mutation": "npm run test:mutation:pilot",
-    "test:mutation:pilot": "stryker run stryker.pilot.config.json"
+    "test:mutation": "npm run test:mutation:pilot && npm run test:mutation:hooks",
+    "test:mutation:pilot": "stryker run stryker.pilot.config.json",
+    "test:mutation:hooks": "stryker run stryker.hooks.config.json"
   },
   "dependencies": {
     "@azure/msal-browser": "^5.18.0",
