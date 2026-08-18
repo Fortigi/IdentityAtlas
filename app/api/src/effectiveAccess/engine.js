@@ -19,6 +19,7 @@ import {
   groupForNodeGrants,
   emitNodeRows,
 } from './engine.helpers.js';
+import { createLru } from './lru.js';
 
 export const DEFAULTS = {
   maxDepth: 50,
@@ -35,33 +36,6 @@ export const DEFAULTS = {
 export const GROUP_RESOURCE_TYPES = ['Group'];
 
 // ── Minimal count-bounded LRU ────────────────────────────────────────────────
-// P1 placeholder for the `lru-cache` package (spec D3/D8 prescribe a byte-bounded cache); the
-// correctness-relevant behavior — keying on dataVersion so a completed sync invalidates every
-// entry — is identical. Swap the implementation when the dependency is wired; callers don't change.
-function createLru(max) {
-  const map = new Map(); // insertion-ordered → front = oldest
-  return {
-    get(key) {
-      if (!map.has(key)) return undefined;
-      const v = map.get(key);
-      map.delete(key);
-      map.set(key, v); // move to most-recent
-      return v;
-    },
-    set(key, v) {
-      if (map.has(key)) map.delete(key);
-      map.set(key, v);
-      while (map.size > max) map.delete(map.keys().next().value);
-    },
-    get size() {
-      return map.size;
-    },
-    clear() {
-      map.clear();
-    },
-  };
-}
-
 const cache = createLru(DEFAULTS.cacheMaxEntries);
 
 // Exposed for tests / admin — drop all cached results (e.g. after a manual data change).

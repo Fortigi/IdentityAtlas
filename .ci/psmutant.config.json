@@ -1,6 +1,10 @@
 {
-  "_comment": "PSMutant mutation-testing config for IdentityAtlas's PowerShell crawler layer. Scope is the pure ConvertTo-* record-shapers PLUS the shared ingest/retry/batch library every crawler routes through. The shared layer was added deliberately: a score measured only over pure shapers reads as a suite-wide quality claim while describing the easiest code in the tree — the shapers scored ~95.8% while Invoke-CrawlerIngest.ps1 scored 39.7% the first time it was measured (weak assertions: `Should -Invoke -Times N` is an at-least check, so 'does not retry a 400' passed even when the mutant retried five times). After strengthening the retry/batch assertions it sits at 82.9%. The remaining survivors there are log-format constants and clamped arithmetic — equivalent mutants no assertion should pin. Enforced: the build fails when the blended score drops below break. Run: Install-Module PSMutant; Invoke-PSMutation -ConfigFile .ci/psmutant.config.json -SourceRoot .",
-  "sandboxSubtrees": ["tools", "test", "setup"],
+  "_comment": "PSMutant mutation-testing config for IdentityAtlas's PowerShell crawler layer. Scope is the pure ConvertTo-* record-shapers PLUS the shared ingest/retry/batch library every crawler routes through. The shared layer was added deliberately: a score measured only over pure shapers reads as a suite-wide quality claim while describing the easiest code in the tree \u2014 the shapers scored ~95.8% while Invoke-CrawlerIngest.ps1 scored 39.7% the first time it was measured (weak assertions: `Should -Invoke -Times N` is an at-least check, so 'does not retry a 400' passed even when the mutant retried five times). After strengthening the retry/batch assertions it sits at 82.9%. The remaining survivors there are log-format constants and clamped arithmetic \u2014 equivalent mutants no assertion should pin. Enforced: the build fails when the blended score drops below break. Run: Install-Module PSMutant; Invoke-PSMutation -ConfigFile .ci/psmutant.config.json -SourceRoot .",
+  "sandboxSubtrees": [
+    "tools",
+    "test",
+    "setup"
+  ],
   "mutate": [
     "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
     "tools/crawlers/entra-id/EntraIDCrawler.AppOwners.ps1",
@@ -110,163 +114,374 @@
     "tools/powershell-sdk/graph/Update-FGAccessTokenIfExpired.ps1",
     "tools/powershell-sdk/graph/Update-FGConfig.ps1",
     "tools/powershell-sdk/graph/Use-FGExistingAccessTokenString.ps1",
-    "tools/powershell-sdk/graph/Use-FGExistingMSALToken.ps1"
+    "tools/powershell-sdk/graph/Use-FGExistingMSALToken.ps1",
+    "tools/crawlers/entra-id/EntraIDCrawler.Phases.ps1",
+    "tools/crawlers/omada/OmadaCrawler.Phases.ps1",
+    "tools/crawlers/midpoint/MidpointCrawler.Phases.ps1"
   ],
   "tests": {
-    "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1": ["test/unit/EntraIDCrawlerTransform.Tests.ps1"],
-    "tools/crawlers/entra-id/EntraIDCrawler.AppOwners.ps1": ["test/unit/EntraIDCrawlerAppOwners.Tests.ps1", "test/unit/EntraIDCrawlerTransform.Tests.ps1"],
-    "tools/crawlers/entra-id/EntraIDCrawler.AppPermissions.ps1": ["test/unit/EntraIDCrawlerAppPermissions.Tests.ps1"],
-    "tools/crawlers/entra-id/EntraIDCrawler.PrincipalRelationships.ps1": ["test/unit/EntraIDCrawlerPrincipalRelationships.Tests.ps1"],
-    "tools/crawlers/shared/Get-CapabilityId.ps1": ["test/unit/CapabilityId.Tests.ps1"],
-    "tools/crawlers/shared/Invoke-CrawlerIngest.ps1": ["test/unit/CrawlerIngest.Tests.ps1", "test/unit/CrawlerIngestBatch.Tests.ps1"],
-    "tools/crawlers/entra-id/EntraIDCrawler.AppRoles.ps1": ["test/unit/EntraIDCrawlerTransform.Tests.ps1", "test/unit/EntraIDCrawlerAppOwners.Tests.ps1", "test/unit/EntraIDCrawlerAppPermissions.Tests.ps1"],
-    "tools/crawlers/entra-id/EntraIDCrawler.Functions.ps1": ["test/unit/EntraIDCrawlerFunctions.Tests.ps1"],
-    "tools/crawlers/azure-rm/AzureRMCrawler.Functions.ps1": ["test/unit/AzureRMCrawlerFunctions.Tests.ps1"],
-    "tools/crawlers/omada/OmadaCrawler.Functions.ps1": ["test/unit/OmadaCrawlerFunctions.Tests.ps1"],
-    "tools/crawlers/csv/CSVCrawler.Functions.ps1": ["test/unit/CSVCrawlerFunctions.Tests.ps1"],
-    "tools/crawlers/midpoint/MidpointCrawler.Functions.ps1": ["test/unit/MidpointCrawlerFunctions.Tests.ps1"],
-    "tools/crawlers/odata/Invoke-ODataAuth.ps1": ["test/unit/ODataLibrary.Tests.ps1"],
-    "tools/crawlers/odata/Invoke-ODataGetRequest.ps1": ["test/unit/ODataLibrary.Tests.ps1"],
-    "tools/crawlers/odata/Invoke-ODataPagedRequest.ps1": ["test/unit/ODataLibrary.Tests.ps1"],
-    "tools/crawlers/azure-rm/Get-AzureRMHelpers.ps1": ["test/unit/CrawlerHelpers.Tests.ps1"],
-    "tools/powershell-sdk/graph/Invoke-FGGetPage.ps1": ["test/unit/SdkRequests.Tests.ps1"],
-    "tools/crawlers/midpoint/Invoke-MidpointApi.ps1": ["test/unit/CrawlerHelpers.Tests.ps1"],
-    "tools/crawlers/azure-rm/Get-AzureRGHelpers.ps1": ["test/unit/CrawlerHelpers.Tests.ps1"],
-    "tools/crawlers/midpoint/MidpointCrawler.Transform.ps1": ["test/unit/MidpointCrawlerTransform.Tests.ps1"],
-    "tools/crawlers/omada/OmadaCrawler.Transform.ps1": ["test/unit/OmadaCrawlerTransform.Tests.ps1"],
-    "tools/crawlers/csv/CSVCrawler.Transform.ps1": ["test/unit/CSVCrawlerTransform.Tests.ps1"],
-    "tools/crawlers/azure-rm/AzureRMCrawler.Transform.ps1": ["test/unit/AzureRMCrawlerTransform.Tests.ps1"],
-    "tools/crawlers/azure-rm/AzureRMCrawler.Phases.ps1": ["test/unit/AzureRMCrawlerPhases.Tests.ps1"],
-    "tools/crawlers/csv/CSVCrawler.Phases.ps1": ["test/unit/CSVCrawlerPhases.Tests.ps1"],
-    "tools/powershell-sdk/helpers/Confirm-FGAccessPackage.ps1": ["test/unit/SdkHelpers.Tests.ps1"],
-    "tools/powershell-sdk/helpers/Confirm-FGAccessPackagePolicy.ps1": ["test/unit/SdkHelpers.Tests.ps1"],
-    "tools/powershell-sdk/helpers/Confirm-FGAccessPackageResource.ps1": ["test/unit/SdkHelpers.Tests.ps1"],
-    "tools/powershell-sdk/helpers/Confirm-FGCatalog.ps1": ["test/unit/SdkHelpers.Tests.ps1"],
-    "tools/powershell-sdk/helpers/Confirm-FGGroup.ps1": ["test/unit/SdkHelpers.Tests.ps1"],
-    "tools/powershell-sdk/helpers/Confirm-FGGroupInCatalog.ps1": ["test/unit/SdkHelpers.Tests.ps1"],
-    "tools/powershell-sdk/helpers/Confirm-FGGroupMember.ps1": ["test/unit/SdkHelpers.Tests.ps1"],
-    "tools/powershell-sdk/helpers/Confirm-FGNotGroupMember.ps1": ["test/unit/SdkHelpers.Tests.ps1"],
-    "tools/powershell-sdk/helpers/Confirm-FGUser.ps1": ["test/unit/SdkHelpers.Tests.ps1"],
-    "tools/powershell-sdk/helpers/Convert-FGDistinguishedNameToOUPath.ps1": ["test/unit/SdkHelpers.Tests.ps1"],
-    "tools/powershell-sdk/helpers/Get-FGEntraPortalLink.ps1": ["test/unit/SdkHelpers.Tests.ps1"],
-    "tools/powershell-sdk/helpers/Get-FGServicePrincipalType.ps1": ["test/unit/SdkHelpers.Tests.ps1"],
-    "tools/powershell-sdk/helpers/Resolve-FGMemberObjectIds.ps1": ["test/unit/SdkHelpers.Tests.ps1"],
-    "tools/powershell-sdk/helpers/Test-FGDistinguishedName.ps1": ["test/unit/SdkHelpers.Tests.ps1"],
-    "tools/powershell-sdk/helpers/Add-FGEntraCalculatedAttributes.ps1": ["test/unit/SdkHelpers.Tests.ps1"],
-    "tools/powershell-sdk/graph/Add-FGGroupMember.ps1": ["test/unit/SdkWrite.Tests.ps1"],
-    "tools/powershell-sdk/graph/Add-FGGroupToAccessPackage.ps1": ["test/unit/SdkWrite.Tests.ps1"],
-    "tools/powershell-sdk/graph/Add-FGGroupToCatalog.ps1": ["test/unit/SdkWrite.Tests.ps1"],
-    "tools/powershell-sdk/graph/Clear-FGSecureConfigValue.ps1": ["test/unit/SdkWrite.Tests.ps1"],
-    "tools/powershell-sdk/graph/Confirm-FGAccessTokenValidity.ps1": ["test/unit/SdkRequests.Tests.ps1"],
-    "tools/powershell-sdk/graph/Get-FGAccessPackage.ps1": ["test/unit/SdkGovernance.Tests.ps1"],
-    "tools/powershell-sdk/graph/Get-FGAccessPackagesAssignments.ps1": ["test/unit/SdkGovernance.Tests.ps1"],
-    "tools/powershell-sdk/graph/Get-FGAccessPackagesPolicy.ps1": ["test/unit/SdkGovernance.Tests.ps1"],
-    "tools/powershell-sdk/graph/Get-FGAccessPackagesResource.ps1": ["test/unit/SdkGovernance.Tests.ps1"],
-    "tools/powershell-sdk/graph/Get-FGAccessToken.ps1": ["test/unit/SdkRequests.Tests.ps1"],
-    "tools/powershell-sdk/graph/Get-FGAccessTokenDetail.ps1": ["test/unit/SdkRequests.Tests.ps1"],
-    "tools/powershell-sdk/graph/Get-FGAccessTokenWithRefreshToken.ps1": ["test/unit/SdkRequests.Tests.ps1"],
-    "tools/powershell-sdk/graph/Get-FGApplication.ps1": ["test/unit/SdkGovernance.Tests.ps1"],
-    "tools/powershell-sdk/graph/Get-FGApplicationExtensionProperty.ps1": ["test/unit/SdkGovernance.Tests.ps1"],
-    "tools/powershell-sdk/graph/Get-FGAttributeMapping.ps1": ["test/unit/SdkGovernance.Tests.ps1"],
-    "tools/powershell-sdk/graph/Get-FGCatalog.ps1": ["test/unit/SdkGovernance.Tests.ps1"],
-    "tools/powershell-sdk/graph/Get-FGCatalogGroup.ps1": ["test/unit/SdkGovernance.Tests.ps1"],
-    "tools/powershell-sdk/graph/Get-FGDevice.ps1": ["test/unit/SdkUserGroup.Tests.ps1"],
-    "tools/powershell-sdk/graph/Get-FGGroup.ps1": ["test/unit/SdkUserGroup.Tests.ps1"],
-    "tools/powershell-sdk/graph/Get-FGGroupEligibleMemberAll.ps1": ["test/unit/SdkUserGroup.Tests.ps1"],
-    "tools/powershell-sdk/graph/Get-FGGroupMember.ps1": ["test/unit/SdkUserGroup.Tests.ps1"],
-    "tools/powershell-sdk/graph/Get-FGGroupMemberAll.ps1": ["test/unit/SdkUserGroup.Tests.ps1"],
-    "tools/powershell-sdk/graph/Get-FGGroupMemberAllToFile.ps1": ["test/unit/SdkUserGroup.Tests.ps1"],
-    "tools/powershell-sdk/graph/Get-FGGroupTransitiveMemberAll.ps1": ["test/unit/SdkUserGroup.Tests.ps1"],
-    "tools/powershell-sdk/graph/Get-FGGroupTransitiveMemberAllToFile.ps1": ["test/unit/SdkUserGroup.Tests.ps1"],
-    "tools/powershell-sdk/graph/Get-FGObject.ps1": ["test/unit/SdkUserGroup.Tests.ps1"],
-    "tools/powershell-sdk/graph/Get-FGSecureConfigValue.ps1": ["test/unit/SdkWrite.Tests.ps1"],
-    "tools/powershell-sdk/graph/Get-FGServicePrincipal.ps1": ["test/unit/SdkGovernance.Tests.ps1"],
-    "tools/powershell-sdk/graph/Get-FGServicePrincipalWithSync.ps1": ["test/unit/SdkGovernance.Tests.ps1"],
-    "tools/powershell-sdk/graph/Get-FGSynchronizationJob.ps1": ["test/unit/SdkGovernance.Tests.ps1"],
-    "tools/powershell-sdk/graph/Get-FGSynchronizationSchema.ps1": ["test/unit/SdkGovernance.Tests.ps1"],
-    "tools/powershell-sdk/graph/Get-FGUser.ps1": ["test/unit/SdkUserGroup.Tests.ps1"],
-    "tools/powershell-sdk/graph/Get-FGUserAccessPackagesAssignments.ps1": ["test/unit/SdkUserGroup.Tests.ps1"],
-    "tools/powershell-sdk/graph/Get-FGUserMail.ps1": ["test/unit/SdkUserGroup.Tests.ps1"],
-    "tools/powershell-sdk/graph/Get-FGUserMailFolder.ps1": ["test/unit/SdkUserGroup.Tests.ps1"],
-    "tools/powershell-sdk/graph/Get-FGUserManager.ps1": ["test/unit/SdkUserGroup.Tests.ps1"],
-    "tools/powershell-sdk/graph/Get-FGUserMemberOf.ps1": ["test/unit/SdkUserGroup.Tests.ps1"],
-    "tools/powershell-sdk/graph/Invoke-FGDeleteRequest.ps1": ["test/unit/SdkRequests.Tests.ps1"],
-    "tools/powershell-sdk/graph/Invoke-FGGetRequest.ps1": ["test/unit/SdkRequests.Tests.ps1"],
-    "tools/powershell-sdk/graph/Invoke-FGGetRequestStream.ps1": ["test/unit/SdkRequests.Tests.ps1"],
-    "tools/powershell-sdk/graph/Invoke-FGGetRequestToFile.ps1": ["test/unit/SdkRequests.Tests.ps1"],
-    "tools/powershell-sdk/graph/Invoke-FGPatchRequest.ps1": ["test/unit/SdkRequests.Tests.ps1"],
-    "tools/powershell-sdk/graph/Invoke-FGPostRequest.ps1": ["test/unit/SdkRequests.Tests.ps1"],
-    "tools/powershell-sdk/graph/Invoke-FGPutRequest.ps1": ["test/unit/SdkRequests.Tests.ps1"],
-    "tools/powershell-sdk/graph/Invoke-FGWriteRequest.ps1": ["test/unit/SdkRequests.Tests.ps1"],
-    "tools/powershell-sdk/graph/Merge-FGJsonArrayFile.ps1": ["test/unit/SdkWrite.Tests.ps1"],
-    "tools/powershell-sdk/graph/New-FGAccessPackage.ps1": ["test/unit/SdkWrite.Tests.ps1"],
-    "tools/powershell-sdk/graph/New-FGAccessPackagePolicy.ps1": ["test/unit/SdkWrite.Tests.ps1"],
-    "tools/powershell-sdk/graph/New-FGCatalog.ps1": ["test/unit/SdkWrite.Tests.ps1"],
-    "tools/powershell-sdk/graph/New-FGConnectedOrganization.ps1": ["test/unit/SdkWrite.Tests.ps1"],
-    "tools/powershell-sdk/graph/New-FGGroup.ps1": ["test/unit/SdkWrite.Tests.ps1"],
-    "tools/powershell-sdk/graph/New-FGServicePrincipalSecret.ps1": ["test/unit/SdkWrite.Tests.ps1"],
-    "tools/powershell-sdk/graph/Read-FGToken.ps1": ["test/unit/SdkRequests.Tests.ps1"],
-    "tools/powershell-sdk/graph/Remove-FGAccessPackage.ps1": ["test/unit/SdkWrite.Tests.ps1"],
-    "tools/powershell-sdk/graph/Remove-FGDevice.ps1": ["test/unit/SdkWrite.Tests.ps1"],
-    "tools/powershell-sdk/graph/Remove-FGGroupMember.ps1": ["test/unit/SdkWrite.Tests.ps1"],
-    "tools/powershell-sdk/graph/Remove-FGTrailingCommaFromJsonFile.ps1": ["test/unit/SdkWrite.Tests.ps1"],
-    "tools/powershell-sdk/graph/Save-FGToken.ps1": ["test/unit/SdkRequests.Tests.ps1"],
-    "tools/powershell-sdk/graph/Set-FGAccessPackage.ps1": ["test/unit/SdkWrite.Tests.ps1"],
-    "tools/powershell-sdk/graph/Set-FGAccessPackagePolicy.ps1": ["test/unit/SdkWrite.Tests.ps1"],
-    "tools/powershell-sdk/graph/Set-FGDevice.ps1": ["test/unit/SdkWrite.Tests.ps1"],
-    "tools/powershell-sdk/graph/Set-FGGroup.ps1": ["test/unit/SdkWrite.Tests.ps1"],
-    "tools/powershell-sdk/graph/Set-FGUser.ps1": ["test/unit/SdkWrite.Tests.ps1"],
-    "tools/powershell-sdk/graph/Test-FGConnection.ps1": ["test/unit/SdkRequests.Tests.ps1"],
-    "tools/powershell-sdk/graph/Test-FGSecureConfigValue.ps1": ["test/unit/SdkWrite.Tests.ps1"],
-    "tools/powershell-sdk/graph/Update-FGAccessTokenIfExpired.ps1": ["test/unit/SdkRequests.Tests.ps1"],
-    "tools/powershell-sdk/graph/Update-FGConfig.ps1": ["test/unit/SdkWrite.Tests.ps1"],
-    "tools/powershell-sdk/graph/Use-FGExistingAccessTokenString.ps1": ["test/unit/SdkRequests.Tests.ps1"],
-    "tools/powershell-sdk/graph/Use-FGExistingMSALToken.ps1": ["test/unit/SdkRequests.Tests.ps1"]
+    "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1": [
+      "test/unit/EntraIDCrawlerTransform.Tests.ps1"
+    ],
+    "tools/crawlers/entra-id/EntraIDCrawler.AppOwners.ps1": [
+      "test/unit/EntraIDCrawlerAppOwners.Tests.ps1",
+      "test/unit/EntraIDCrawlerTransform.Tests.ps1"
+    ],
+    "tools/crawlers/entra-id/EntraIDCrawler.AppPermissions.ps1": [
+      "test/unit/EntraIDCrawlerAppPermissions.Tests.ps1"
+    ],
+    "tools/crawlers/entra-id/EntraIDCrawler.PrincipalRelationships.ps1": [
+      "test/unit/EntraIDCrawlerPrincipalRelationships.Tests.ps1"
+    ],
+    "tools/crawlers/shared/Get-CapabilityId.ps1": [
+      "test/unit/CapabilityId.Tests.ps1"
+    ],
+    "tools/crawlers/shared/Invoke-CrawlerIngest.ps1": [
+      "test/unit/CrawlerIngest.Tests.ps1",
+      "test/unit/CrawlerIngestBatch.Tests.ps1"
+    ],
+    "tools/crawlers/entra-id/EntraIDCrawler.AppRoles.ps1": [
+      "test/unit/EntraIDCrawlerTransform.Tests.ps1",
+      "test/unit/EntraIDCrawlerAppOwners.Tests.ps1",
+      "test/unit/EntraIDCrawlerAppPermissions.Tests.ps1"
+    ],
+    "tools/crawlers/entra-id/EntraIDCrawler.Functions.ps1": [
+      "test/unit/EntraIDCrawlerFunctions.Tests.ps1"
+    ],
+    "tools/crawlers/azure-rm/AzureRMCrawler.Functions.ps1": [
+      "test/unit/AzureRMCrawlerFunctions.Tests.ps1"
+    ],
+    "tools/crawlers/omada/OmadaCrawler.Functions.ps1": [
+      "test/unit/OmadaCrawlerFunctions.Tests.ps1"
+    ],
+    "tools/crawlers/csv/CSVCrawler.Functions.ps1": [
+      "test/unit/CSVCrawlerFunctions.Tests.ps1"
+    ],
+    "tools/crawlers/midpoint/MidpointCrawler.Functions.ps1": [
+      "test/unit/MidpointCrawlerFunctions.Tests.ps1"
+    ],
+    "tools/crawlers/odata/Invoke-ODataAuth.ps1": [
+      "test/unit/ODataLibrary.Tests.ps1"
+    ],
+    "tools/crawlers/odata/Invoke-ODataGetRequest.ps1": [
+      "test/unit/ODataLibrary.Tests.ps1"
+    ],
+    "tools/crawlers/odata/Invoke-ODataPagedRequest.ps1": [
+      "test/unit/ODataLibrary.Tests.ps1"
+    ],
+    "tools/crawlers/azure-rm/Get-AzureRMHelpers.ps1": [
+      "test/unit/CrawlerHelpers.Tests.ps1"
+    ],
+    "tools/powershell-sdk/graph/Invoke-FGGetPage.ps1": [
+      "test/unit/SdkRequests.Tests.ps1"
+    ],
+    "tools/crawlers/midpoint/Invoke-MidpointApi.ps1": [
+      "test/unit/CrawlerHelpers.Tests.ps1"
+    ],
+    "tools/crawlers/azure-rm/Get-AzureRGHelpers.ps1": [
+      "test/unit/CrawlerHelpers.Tests.ps1"
+    ],
+    "tools/crawlers/midpoint/MidpointCrawler.Transform.ps1": [
+      "test/unit/MidpointCrawlerTransform.Tests.ps1"
+    ],
+    "tools/crawlers/omada/OmadaCrawler.Transform.ps1": [
+      "test/unit/OmadaCrawlerTransform.Tests.ps1"
+    ],
+    "tools/crawlers/csv/CSVCrawler.Transform.ps1": [
+      "test/unit/CSVCrawlerTransform.Tests.ps1"
+    ],
+    "tools/crawlers/azure-rm/AzureRMCrawler.Transform.ps1": [
+      "test/unit/AzureRMCrawlerTransform.Tests.ps1"
+    ],
+    "tools/crawlers/azure-rm/AzureRMCrawler.Phases.ps1": [
+      "test/unit/AzureRMCrawlerPhases.Tests.ps1"
+    ],
+    "tools/crawlers/csv/CSVCrawler.Phases.ps1": [
+      "test/unit/CSVCrawlerPhases.Tests.ps1"
+    ],
+    "tools/powershell-sdk/helpers/Confirm-FGAccessPackage.ps1": [
+      "test/unit/SdkHelpers.Tests.ps1"
+    ],
+    "tools/powershell-sdk/helpers/Confirm-FGAccessPackagePolicy.ps1": [
+      "test/unit/SdkHelpers.Tests.ps1"
+    ],
+    "tools/powershell-sdk/helpers/Confirm-FGAccessPackageResource.ps1": [
+      "test/unit/SdkHelpers.Tests.ps1"
+    ],
+    "tools/powershell-sdk/helpers/Confirm-FGCatalog.ps1": [
+      "test/unit/SdkHelpers.Tests.ps1"
+    ],
+    "tools/powershell-sdk/helpers/Confirm-FGGroup.ps1": [
+      "test/unit/SdkHelpers.Tests.ps1"
+    ],
+    "tools/powershell-sdk/helpers/Confirm-FGGroupInCatalog.ps1": [
+      "test/unit/SdkHelpers.Tests.ps1"
+    ],
+    "tools/powershell-sdk/helpers/Confirm-FGGroupMember.ps1": [
+      "test/unit/SdkHelpers.Tests.ps1"
+    ],
+    "tools/powershell-sdk/helpers/Confirm-FGNotGroupMember.ps1": [
+      "test/unit/SdkHelpers.Tests.ps1"
+    ],
+    "tools/powershell-sdk/helpers/Confirm-FGUser.ps1": [
+      "test/unit/SdkHelpers.Tests.ps1"
+    ],
+    "tools/powershell-sdk/helpers/Convert-FGDistinguishedNameToOUPath.ps1": [
+      "test/unit/SdkHelpers.Tests.ps1"
+    ],
+    "tools/powershell-sdk/helpers/Get-FGEntraPortalLink.ps1": [
+      "test/unit/SdkHelpers.Tests.ps1"
+    ],
+    "tools/powershell-sdk/helpers/Get-FGServicePrincipalType.ps1": [
+      "test/unit/SdkHelpers.Tests.ps1"
+    ],
+    "tools/powershell-sdk/helpers/Resolve-FGMemberObjectIds.ps1": [
+      "test/unit/SdkHelpers.Tests.ps1"
+    ],
+    "tools/powershell-sdk/helpers/Test-FGDistinguishedName.ps1": [
+      "test/unit/SdkHelpers.Tests.ps1"
+    ],
+    "tools/powershell-sdk/helpers/Add-FGEntraCalculatedAttributes.ps1": [
+      "test/unit/SdkHelpers.Tests.ps1"
+    ],
+    "tools/powershell-sdk/graph/Add-FGGroupMember.ps1": [
+      "test/unit/SdkWrite.Tests.ps1"
+    ],
+    "tools/powershell-sdk/graph/Add-FGGroupToAccessPackage.ps1": [
+      "test/unit/SdkWrite.Tests.ps1"
+    ],
+    "tools/powershell-sdk/graph/Add-FGGroupToCatalog.ps1": [
+      "test/unit/SdkWrite.Tests.ps1"
+    ],
+    "tools/powershell-sdk/graph/Clear-FGSecureConfigValue.ps1": [
+      "test/unit/SdkWrite.Tests.ps1"
+    ],
+    "tools/powershell-sdk/graph/Confirm-FGAccessTokenValidity.ps1": [
+      "test/unit/SdkRequests.Tests.ps1"
+    ],
+    "tools/powershell-sdk/graph/Get-FGAccessPackage.ps1": [
+      "test/unit/SdkGovernance.Tests.ps1"
+    ],
+    "tools/powershell-sdk/graph/Get-FGAccessPackagesAssignments.ps1": [
+      "test/unit/SdkGovernance.Tests.ps1"
+    ],
+    "tools/powershell-sdk/graph/Get-FGAccessPackagesPolicy.ps1": [
+      "test/unit/SdkGovernance.Tests.ps1"
+    ],
+    "tools/powershell-sdk/graph/Get-FGAccessPackagesResource.ps1": [
+      "test/unit/SdkGovernance.Tests.ps1"
+    ],
+    "tools/powershell-sdk/graph/Get-FGAccessToken.ps1": [
+      "test/unit/SdkRequests.Tests.ps1"
+    ],
+    "tools/powershell-sdk/graph/Get-FGAccessTokenDetail.ps1": [
+      "test/unit/SdkRequests.Tests.ps1"
+    ],
+    "tools/powershell-sdk/graph/Get-FGAccessTokenWithRefreshToken.ps1": [
+      "test/unit/SdkRequests.Tests.ps1"
+    ],
+    "tools/powershell-sdk/graph/Get-FGApplication.ps1": [
+      "test/unit/SdkGovernance.Tests.ps1"
+    ],
+    "tools/powershell-sdk/graph/Get-FGApplicationExtensionProperty.ps1": [
+      "test/unit/SdkGovernance.Tests.ps1"
+    ],
+    "tools/powershell-sdk/graph/Get-FGAttributeMapping.ps1": [
+      "test/unit/SdkGovernance.Tests.ps1"
+    ],
+    "tools/powershell-sdk/graph/Get-FGCatalog.ps1": [
+      "test/unit/SdkGovernance.Tests.ps1"
+    ],
+    "tools/powershell-sdk/graph/Get-FGCatalogGroup.ps1": [
+      "test/unit/SdkGovernance.Tests.ps1"
+    ],
+    "tools/powershell-sdk/graph/Get-FGDevice.ps1": [
+      "test/unit/SdkUserGroup.Tests.ps1"
+    ],
+    "tools/powershell-sdk/graph/Get-FGGroup.ps1": [
+      "test/unit/SdkUserGroup.Tests.ps1"
+    ],
+    "tools/powershell-sdk/graph/Get-FGGroupEligibleMemberAll.ps1": [
+      "test/unit/SdkUserGroup.Tests.ps1"
+    ],
+    "tools/powershell-sdk/graph/Get-FGGroupMember.ps1": [
+      "test/unit/SdkUserGroup.Tests.ps1"
+    ],
+    "tools/powershell-sdk/graph/Get-FGGroupMemberAll.ps1": [
+      "test/unit/SdkUserGroup.Tests.ps1"
+    ],
+    "tools/powershell-sdk/graph/Get-FGGroupMemberAllToFile.ps1": [
+      "test/unit/SdkUserGroup.Tests.ps1"
+    ],
+    "tools/powershell-sdk/graph/Get-FGGroupTransitiveMemberAll.ps1": [
+      "test/unit/SdkUserGroup.Tests.ps1"
+    ],
+    "tools/powershell-sdk/graph/Get-FGGroupTransitiveMemberAllToFile.ps1": [
+      "test/unit/SdkUserGroup.Tests.ps1"
+    ],
+    "tools/powershell-sdk/graph/Get-FGObject.ps1": [
+      "test/unit/SdkUserGroup.Tests.ps1"
+    ],
+    "tools/powershell-sdk/graph/Get-FGSecureConfigValue.ps1": [
+      "test/unit/SdkWrite.Tests.ps1"
+    ],
+    "tools/powershell-sdk/graph/Get-FGServicePrincipal.ps1": [
+      "test/unit/SdkGovernance.Tests.ps1"
+    ],
+    "tools/powershell-sdk/graph/Get-FGServicePrincipalWithSync.ps1": [
+      "test/unit/SdkGovernance.Tests.ps1"
+    ],
+    "tools/powershell-sdk/graph/Get-FGSynchronizationJob.ps1": [
+      "test/unit/SdkGovernance.Tests.ps1"
+    ],
+    "tools/powershell-sdk/graph/Get-FGSynchronizationSchema.ps1": [
+      "test/unit/SdkGovernance.Tests.ps1"
+    ],
+    "tools/powershell-sdk/graph/Get-FGUser.ps1": [
+      "test/unit/SdkUserGroup.Tests.ps1"
+    ],
+    "tools/powershell-sdk/graph/Get-FGUserAccessPackagesAssignments.ps1": [
+      "test/unit/SdkUserGroup.Tests.ps1"
+    ],
+    "tools/powershell-sdk/graph/Get-FGUserMail.ps1": [
+      "test/unit/SdkUserGroup.Tests.ps1"
+    ],
+    "tools/powershell-sdk/graph/Get-FGUserMailFolder.ps1": [
+      "test/unit/SdkUserGroup.Tests.ps1"
+    ],
+    "tools/powershell-sdk/graph/Get-FGUserManager.ps1": [
+      "test/unit/SdkUserGroup.Tests.ps1"
+    ],
+    "tools/powershell-sdk/graph/Get-FGUserMemberOf.ps1": [
+      "test/unit/SdkUserGroup.Tests.ps1"
+    ],
+    "tools/powershell-sdk/graph/Invoke-FGDeleteRequest.ps1": [
+      "test/unit/SdkRequests.Tests.ps1"
+    ],
+    "tools/powershell-sdk/graph/Invoke-FGGetRequest.ps1": [
+      "test/unit/SdkRequests.Tests.ps1"
+    ],
+    "tools/powershell-sdk/graph/Invoke-FGGetRequestStream.ps1": [
+      "test/unit/SdkRequests.Tests.ps1"
+    ],
+    "tools/powershell-sdk/graph/Invoke-FGGetRequestToFile.ps1": [
+      "test/unit/SdkRequests.Tests.ps1"
+    ],
+    "tools/powershell-sdk/graph/Invoke-FGPatchRequest.ps1": [
+      "test/unit/SdkRequests.Tests.ps1"
+    ],
+    "tools/powershell-sdk/graph/Invoke-FGPostRequest.ps1": [
+      "test/unit/SdkRequests.Tests.ps1"
+    ],
+    "tools/powershell-sdk/graph/Invoke-FGPutRequest.ps1": [
+      "test/unit/SdkRequests.Tests.ps1"
+    ],
+    "tools/powershell-sdk/graph/Invoke-FGWriteRequest.ps1": [
+      "test/unit/SdkRequests.Tests.ps1"
+    ],
+    "tools/powershell-sdk/graph/Merge-FGJsonArrayFile.ps1": [
+      "test/unit/SdkWrite.Tests.ps1"
+    ],
+    "tools/powershell-sdk/graph/New-FGAccessPackage.ps1": [
+      "test/unit/SdkWrite.Tests.ps1"
+    ],
+    "tools/powershell-sdk/graph/New-FGAccessPackagePolicy.ps1": [
+      "test/unit/SdkWrite.Tests.ps1"
+    ],
+    "tools/powershell-sdk/graph/New-FGCatalog.ps1": [
+      "test/unit/SdkWrite.Tests.ps1"
+    ],
+    "tools/powershell-sdk/graph/New-FGConnectedOrganization.ps1": [
+      "test/unit/SdkWrite.Tests.ps1"
+    ],
+    "tools/powershell-sdk/graph/New-FGGroup.ps1": [
+      "test/unit/SdkWrite.Tests.ps1"
+    ],
+    "tools/powershell-sdk/graph/New-FGServicePrincipalSecret.ps1": [
+      "test/unit/SdkWrite.Tests.ps1"
+    ],
+    "tools/powershell-sdk/graph/Read-FGToken.ps1": [
+      "test/unit/SdkRequests.Tests.ps1"
+    ],
+    "tools/powershell-sdk/graph/Remove-FGAccessPackage.ps1": [
+      "test/unit/SdkWrite.Tests.ps1"
+    ],
+    "tools/powershell-sdk/graph/Remove-FGDevice.ps1": [
+      "test/unit/SdkWrite.Tests.ps1"
+    ],
+    "tools/powershell-sdk/graph/Remove-FGGroupMember.ps1": [
+      "test/unit/SdkWrite.Tests.ps1"
+    ],
+    "tools/powershell-sdk/graph/Remove-FGTrailingCommaFromJsonFile.ps1": [
+      "test/unit/SdkWrite.Tests.ps1"
+    ],
+    "tools/powershell-sdk/graph/Save-FGToken.ps1": [
+      "test/unit/SdkRequests.Tests.ps1"
+    ],
+    "tools/powershell-sdk/graph/Set-FGAccessPackage.ps1": [
+      "test/unit/SdkWrite.Tests.ps1"
+    ],
+    "tools/powershell-sdk/graph/Set-FGAccessPackagePolicy.ps1": [
+      "test/unit/SdkWrite.Tests.ps1"
+    ],
+    "tools/powershell-sdk/graph/Set-FGDevice.ps1": [
+      "test/unit/SdkWrite.Tests.ps1"
+    ],
+    "tools/powershell-sdk/graph/Set-FGGroup.ps1": [
+      "test/unit/SdkWrite.Tests.ps1"
+    ],
+    "tools/powershell-sdk/graph/Set-FGUser.ps1": [
+      "test/unit/SdkWrite.Tests.ps1"
+    ],
+    "tools/powershell-sdk/graph/Test-FGConnection.ps1": [
+      "test/unit/SdkRequests.Tests.ps1"
+    ],
+    "tools/powershell-sdk/graph/Test-FGSecureConfigValue.ps1": [
+      "test/unit/SdkWrite.Tests.ps1"
+    ],
+    "tools/powershell-sdk/graph/Update-FGAccessTokenIfExpired.ps1": [
+      "test/unit/SdkRequests.Tests.ps1"
+    ],
+    "tools/powershell-sdk/graph/Update-FGConfig.ps1": [
+      "test/unit/SdkWrite.Tests.ps1"
+    ],
+    "tools/powershell-sdk/graph/Use-FGExistingAccessTokenString.ps1": [
+      "test/unit/SdkRequests.Tests.ps1"
+    ],
+    "tools/powershell-sdk/graph/Use-FGExistingMSALToken.ps1": [
+      "test/unit/SdkRequests.Tests.ps1"
+    ],
+    "tools/crawlers/entra-id/EntraIDCrawler.Phases.ps1": [
+      "test/unit/EntraIDCrawlerPhases.Tests.ps1"
+    ],
+    "tools/crawlers/omada/OmadaCrawler.Phases.ps1": [
+      "test/unit/OmadaCrawlerPhases.Tests.ps1"
+    ],
+    "tools/crawlers/midpoint/MidpointCrawler.Phases.ps1": [
+      "test/unit/MidpointCrawlerPhases.Tests.ps1"
+    ]
   },
-  "_exclusionsComment": "Eligible files deliberately NOT mutation-tested. Each key is a repo-relative path; the value is the reason. The scope-completeness guard (test/unit/PSMutationScope.Tests.ps1, #684) fails an eligible file that is in neither `mutate` nor here, so anything listed is a written decision rather than an oversight. NOTE: this map covers tools/crawlers/. The other two PowerShell roots — tools/powershell-sdk/ and tools/riskscoring/ — are eligible too, and the ones not yet triaged are grandfathered in .ci/psmutant-scope-baseline.json, a list that may only shrink (102 at introduction, 88 after the helpers layer was measured). A new file in those roots still has to land in `mutate` or `exclusions` here; it cannot join the backlog silently. First finding out of that backlog: the SDK is NOT untested code — tools/powershell-sdk/ + tools/riskscoring/ sit at 95.7% line coverage — it was code with no mutation evidence at all, and the helpers layer scored 85.5% (94/110) the first time it was measured.",
+  "_exclusionsComment": "Eligible files deliberately NOT mutation-tested. Each key is a repo-relative path; the value is the reason. The scope-completeness guard (test/unit/PSMutationScope.Tests.ps1, #684) fails an eligible file that is in neither `mutate` nor here, so anything listed is a written decision rather than an oversight. NOTE: this map covers tools/crawlers/. The other two PowerShell roots \u2014 tools/powershell-sdk/ and tools/riskscoring/ \u2014 are eligible too, and the ones not yet triaged are grandfathered in .ci/psmutant-scope-baseline.json, a list that may only shrink (102 at introduction, 88 after the helpers layer was measured). A new file in those roots still has to land in `mutate` or `exclusions` here; it cannot join the backlog silently. First finding out of that backlog: the SDK is NOT untested code \u2014 tools/powershell-sdk/ + tools/riskscoring/ sit at 95.7% line coverage \u2014 it was code with no mutation evidence at all, and the helpers layer scored 85.5% (94/110) the first time it was measured.",
   "exclusions": {
     "tools/powershell-sdk/graph/Get-FGAccessTokenInteractive.ps1": "MEASURED: produces ZERO mutants, because no suite reaches it -- it is the only file in tools/powershell-sdk/ with no test coverage at all, so coveredLinesOnly filters every candidate out and mutating it would report a vacuous 100%. That is not an oversight to fix with a mock: it is the OAuth device-code flow. It prints a code for a human to type into a browser and then polls Microsoft in a `while (IsNullOrEmpty($TokenRequest.access_token))` loop until they finish. There is no headless path through it, and a test that mocked the poll would assert only that the mock was called. Revisit if the flow is ever split so the response-shaping half can be exercised without the wait.",
-
-    "tools/crawlers/omada/Get-OmadaHelpers.ps1": "Produces ZERO mutants under the enabled operator set, so mutating it would report a vacuous 100%. It is five reference-value fallback chains (`if ($Ref.Value) { return [string]$Ref.Value }` repeated) with no arithmetic, no numeric/boolean literals and no negations for BinaryOperator/BooleanLiteral/NumberLiteral/NegationRemoval to bite on — the precedence order itself is only reachable by a statement-deletion or condition-forcing operator PSMutant does not currently offer. Revisit if such an operator is added; its behaviour is covered by OmadaCrawlerFunctions.Tests.ps1 in the meantime.",
-
-
-    "tools/crawlers/entra-id/EntraIDCrawler.Phases.ps1": "MEASURED at 39.6% (101/255) against EntraIDCrawlerPhases.Tests.ps1. CORRECTION: this entry previously claimed the Phases files are monoliths with functions trapped in a top-level Main body and therefore untestable without a decomposition first. That is false, and it was written without checking. It describes the Start-*Crawler.ps1 entry points, not these — the extraction already happened, and the layer is 158 named functions across five files with 263 existing tests. It is measurable today; it is simply weak. Being worked file by file: AzureRMCrawler.Phases.ps1 went 71.2% -> 84.8% and CSVCrawler.Phases.ps1 went 47.8% -> 82.1%; both are now in `mutate` above. The shared gap across the layer is that the existing tests count what a phase produced (`.Count | Should -Be n`, `-BeGreaterThan 0`) instead of asserting what is IN it, so an inverted guard that changes an edge's direction or duplicates a record leaves the counts intact. The fix is per-file test-writing, not a config change.",
-    "tools/crawlers/omada/OmadaCrawler.Phases.ps1": "MEASURED at 57.8% (93/161) against OmadaCrawlerPhases.Tests.ps1 — see EntraIDCrawler.Phases.ps1 above for why the layer is deferred.",
-    "tools/crawlers/midpoint/MidpointCrawler.Phases.ps1": "MEASURED at 55.9% (71/127) against MidpointCrawlerPhases.Tests.ps1 — see EntraIDCrawler.Phases.ps1 above.",
+    "tools/crawlers/omada/Get-OmadaHelpers.ps1": "Produces ZERO mutants under the enabled operator set, so mutating it would report a vacuous 100%. It is five reference-value fallback chains (`if ($Ref.Value) { return [string]$Ref.Value }` repeated) with no arithmetic, no numeric/boolean literals and no negations for BinaryOperator/BooleanLiteral/NumberLiteral/NegationRemoval to bite on \u2014 the precedence order itself is only reachable by a statement-deletion or condition-forcing operator PSMutant does not currently offer. Revisit if such an operator is added; its behaviour is covered by OmadaCrawlerFunctions.Tests.ps1 in the meantime.",
     "tools/crawlers/entra-id/EntraIDCrawler.Orchestration.ps1": "MEASURED: produces ZERO mutants under the enabled operator set, so mutating it would report a vacuous 100% \u2014 same category as Get-OmadaHelpers.ps1. It is 61 lines: one function whose body is five `if ($SyncX) { ... }` phase guards. Those guards ARE decisions, but they are bare boolean variable checks with no comparison operators, numeric/boolean literals or negations for BinaryOperator/BooleanLiteral/NumberLiteral/NegationRemoval to act on. (An earlier version of this entry said it 'owns no decision logic of its own' and deferred it alongside the Phases layer. That was reasoned, not measured, and it overstated: the guards are decisions, they are simply not mutatable by these operators. Which phases run on a given config is worth a behavioural test in EntraIDCrawlerPhases.Tests.ps1 regardless of what mutation testing can see.)",
-
     "tools/riskscoring/Export-FGRiskClassifiers.ps1": "MEASURED: produces ZERO mutants (0 raw candidates before any coverage filtering), because it is a v5 STUB, not an implementation. Risk scoring and account correlation were disabled during the postgres migration -- the v4 code talked straight to SQL Server and the v5 replacement needs API endpoints that do not exist yet -- so all 17 files in tools/riskscoring/ are placeholders whose whole body is a Write-Warning naming themselves. Across the 17 there is not one if/else, comparison, boolean literal, negation or loop: 272 lines, most of them comment headers. Mutating them would report a vacuous 100% over code that does nothing. RiskScoring.Tests.ps1 tests exactly the right thing for what these are -- that each is a parameterless function emitting one warning and returning nothing -- which also catches a stub silently gaining behaviour. Revisit as a batch when the v5 implementation lands; that is the moment these need real tests and real mutation coverage.",
-
     "tools/riskscoring/Export-FGRiskProfile.ps1": "MEASURED: produces ZERO mutants (0 raw candidates before any coverage filtering), because it is a v5 STUB, not an implementation. Risk scoring and account correlation were disabled during the postgres migration -- the v4 code talked straight to SQL Server and the v5 replacement needs API endpoints that do not exist yet -- so all 17 files in tools/riskscoring/ are placeholders whose whole body is a Write-Warning naming themselves. Across the 17 there is not one if/else, comparison, boolean literal, negation or loop: 272 lines, most of them comment headers. Mutating them would report a vacuous 100% over code that does nothing. RiskScoring.Tests.ps1 tests exactly the right thing for what these are -- that each is a parameterless function emitting one warning and returning nothing -- which also catches a stub silently gaining behaviour. Revisit as a batch when the v5 implementation lands; that is the moment these need real tests and real mutation coverage.",
-
     "tools/riskscoring/Get-FGCorrelationRuleset.ps1": "MEASURED: produces ZERO mutants (0 raw candidates before any coverage filtering), because it is a v5 STUB, not an implementation. Risk scoring and account correlation were disabled during the postgres migration -- the v4 code talked straight to SQL Server and the v5 replacement needs API endpoints that do not exist yet -- so all 17 files in tools/riskscoring/ are placeholders whose whole body is a Write-Warning naming themselves. Across the 17 there is not one if/else, comparison, boolean literal, negation or loop: 272 lines, most of them comment headers. Mutating them would report a vacuous 100% over code that does nothing. RiskScoring.Tests.ps1 tests exactly the right thing for what these are -- that each is a parameterless function emitting one warning and returning nothing -- which also catches a stub silently gaining behaviour. Revisit as a batch when the v5 implementation lands; that is the moment these need real tests and real mutation coverage.",
-
     "tools/riskscoring/Get-FGRiskClassifiers.ps1": "MEASURED: produces ZERO mutants (0 raw candidates before any coverage filtering), because it is a v5 STUB, not an implementation. Risk scoring and account correlation were disabled during the postgres migration -- the v4 code talked straight to SQL Server and the v5 replacement needs API endpoints that do not exist yet -- so all 17 files in tools/riskscoring/ are placeholders whose whole body is a Write-Warning naming themselves. Across the 17 there is not one if/else, comparison, boolean literal, negation or loop: 272 lines, most of them comment headers. Mutating them would report a vacuous 100% over code that does nothing. RiskScoring.Tests.ps1 tests exactly the right thing for what these are -- that each is a parameterless function emitting one warning and returning nothing -- which also catches a stub silently gaining behaviour. Revisit as a batch when the v5 implementation lands; that is the moment these need real tests and real mutation coverage.",
-
     "tools/riskscoring/Get-FGRiskProfile.ps1": "MEASURED: produces ZERO mutants (0 raw candidates before any coverage filtering), because it is a v5 STUB, not an implementation. Risk scoring and account correlation were disabled during the postgres migration -- the v4 code talked straight to SQL Server and the v5 replacement needs API endpoints that do not exist yet -- so all 17 files in tools/riskscoring/ are placeholders whose whole body is a Write-Warning naming themselves. Across the 17 there is not one if/else, comparison, boolean literal, negation or loop: 272 lines, most of them comment headers. Mutating them would report a vacuous 100% over code that does nothing. RiskScoring.Tests.ps1 tests exactly the right thing for what these are -- that each is a parameterless function emitting one warning and returning nothing -- which also catches a stub silently gaining behaviour. Revisit as a batch when the v5 implementation lands; that is the moment these need real tests and real mutation coverage.",
-
     "tools/riskscoring/Import-FGRiskClassifiers.ps1": "MEASURED: produces ZERO mutants (0 raw candidates before any coverage filtering), because it is a v5 STUB, not an implementation. Risk scoring and account correlation were disabled during the postgres migration -- the v4 code talked straight to SQL Server and the v5 replacement needs API endpoints that do not exist yet -- so all 17 files in tools/riskscoring/ are placeholders whose whole body is a Write-Warning naming themselves. Across the 17 there is not one if/else, comparison, boolean literal, negation or loop: 272 lines, most of them comment headers. Mutating them would report a vacuous 100% over code that does nothing. RiskScoring.Tests.ps1 tests exactly the right thing for what these are -- that each is a parameterless function emitting one warning and returning nothing -- which also catches a stub silently gaining behaviour. Revisit as a batch when the v5 implementation lands; that is the moment these need real tests and real mutation coverage.",
-
     "tools/riskscoring/Import-FGRiskProfile.ps1": "MEASURED: produces ZERO mutants (0 raw candidates before any coverage filtering), because it is a v5 STUB, not an implementation. Risk scoring and account correlation were disabled during the postgres migration -- the v4 code talked straight to SQL Server and the v5 replacement needs API endpoints that do not exist yet -- so all 17 files in tools/riskscoring/ are placeholders whose whole body is a Write-Warning naming themselves. Across the 17 there is not one if/else, comparison, boolean literal, negation or loop: 272 lines, most of them comment headers. Mutating them would report a vacuous 100% over code that does nothing. RiskScoring.Tests.ps1 tests exactly the right thing for what these are -- that each is a parameterless function emitting one warning and returning nothing -- which also catches a stub silently gaining behaviour. Revisit as a batch when the v5 implementation lands; that is the moment these need real tests and real mutation coverage.",
-
     "tools/riskscoring/Invoke-FGAccountCorrelation.ps1": "MEASURED: produces ZERO mutants (0 raw candidates before any coverage filtering), because it is a v5 STUB, not an implementation. Risk scoring and account correlation were disabled during the postgres migration -- the v4 code talked straight to SQL Server and the v5 replacement needs API endpoints that do not exist yet -- so all 17 files in tools/riskscoring/ are placeholders whose whole body is a Write-Warning naming themselves. Across the 17 there is not one if/else, comparison, boolean literal, negation or loop: 272 lines, most of them comment headers. Mutating them would report a vacuous 100% over code that does nothing. RiskScoring.Tests.ps1 tests exactly the right thing for what these are -- that each is a parameterless function emitting one warning and returning nothing -- which also catches a stub silently gaining behaviour. Revisit as a batch when the v5 implementation lands; that is the moment these need real tests and real mutation coverage.",
-
     "tools/riskscoring/Invoke-FGLLMRequest.ps1": "MEASURED: produces ZERO mutants (0 raw candidates before any coverage filtering), because it is a v5 STUB, not an implementation. Risk scoring and account correlation were disabled during the postgres migration -- the v4 code talked straight to SQL Server and the v5 replacement needs API endpoints that do not exist yet -- so all 17 files in tools/riskscoring/ are placeholders whose whole body is a Write-Warning naming themselves. Across the 17 there is not one if/else, comparison, boolean literal, negation or loop: 272 lines, most of them comment headers. Mutating them would report a vacuous 100% over code that does nothing. RiskScoring.Tests.ps1 tests exactly the right thing for what these are -- that each is a parameterless function emitting one warning and returning nothing -- which also catches a stub silently gaining behaviour. Revisit as a batch when the v5 implementation lands; that is the moment these need real tests and real mutation coverage.",
-
     "tools/riskscoring/Invoke-FGRiskScoring.ps1": "MEASURED: produces ZERO mutants (0 raw candidates before any coverage filtering), because it is a v5 STUB, not an implementation. Risk scoring and account correlation were disabled during the postgres migration -- the v4 code talked straight to SQL Server and the v5 replacement needs API endpoints that do not exist yet -- so all 17 files in tools/riskscoring/ are placeholders whose whole body is a Write-Warning naming themselves. Across the 17 there is not one if/else, comparison, boolean literal, negation or loop: 272 lines, most of them comment headers. Mutating them would report a vacuous 100% over code that does nothing. RiskScoring.Tests.ps1 tests exactly the right thing for what these are -- that each is a parameterless function emitting one warning and returning nothing -- which also catches a stub silently gaining behaviour. Revisit as a batch when the v5 implementation lands; that is the moment these need real tests and real mutation coverage.",
-
     "tools/riskscoring/New-FGCorrelationRuleset.ps1": "MEASURED: produces ZERO mutants (0 raw candidates before any coverage filtering), because it is a v5 STUB, not an implementation. Risk scoring and account correlation were disabled during the postgres migration -- the v4 code talked straight to SQL Server and the v5 replacement needs API endpoints that do not exist yet -- so all 17 files in tools/riskscoring/ are placeholders whose whole body is a Write-Warning naming themselves. Across the 17 there is not one if/else, comparison, boolean literal, negation or loop: 272 lines, most of them comment headers. Mutating them would report a vacuous 100% over code that does nothing. RiskScoring.Tests.ps1 tests exactly the right thing for what these are -- that each is a parameterless function emitting one warning and returning nothing -- which also catches a stub silently gaining behaviour. Revisit as a batch when the v5 implementation lands; that is the moment these need real tests and real mutation coverage.",
-
     "tools/riskscoring/New-FGRiskClassifiers.ps1": "MEASURED: produces ZERO mutants (0 raw candidates before any coverage filtering), because it is a v5 STUB, not an implementation. Risk scoring and account correlation were disabled during the postgres migration -- the v4 code talked straight to SQL Server and the v5 replacement needs API endpoints that do not exist yet -- so all 17 files in tools/riskscoring/ are placeholders whose whole body is a Write-Warning naming themselves. Across the 17 there is not one if/else, comparison, boolean literal, negation or loop: 272 lines, most of them comment headers. Mutating them would report a vacuous 100% over code that does nothing. RiskScoring.Tests.ps1 tests exactly the right thing for what these are -- that each is a parameterless function emitting one warning and returning nothing -- which also catches a stub silently gaining behaviour. Revisit as a batch when the v5 implementation lands; that is the moment these need real tests and real mutation coverage.",
-
     "tools/riskscoring/New-FGRiskProfile.ps1": "MEASURED: produces ZERO mutants (0 raw candidates before any coverage filtering), because it is a v5 STUB, not an implementation. Risk scoring and account correlation were disabled during the postgres migration -- the v4 code talked straight to SQL Server and the v5 replacement needs API endpoints that do not exist yet -- so all 17 files in tools/riskscoring/ are placeholders whose whole body is a Write-Warning naming themselves. Across the 17 there is not one if/else, comparison, boolean literal, negation or loop: 272 lines, most of them comment headers. Mutating them would report a vacuous 100% over code that does nothing. RiskScoring.Tests.ps1 tests exactly the right thing for what these are -- that each is a parameterless function emitting one warning and returning nothing -- which also catches a stub silently gaining behaviour. Revisit as a batch when the v5 implementation lands; that is the moment these need real tests and real mutation coverage.",
-
     "tools/riskscoring/Save-FGCorrelationRuleset.ps1": "MEASURED: produces ZERO mutants (0 raw candidates before any coverage filtering), because it is a v5 STUB, not an implementation. Risk scoring and account correlation were disabled during the postgres migration -- the v4 code talked straight to SQL Server and the v5 replacement needs API endpoints that do not exist yet -- so all 17 files in tools/riskscoring/ are placeholders whose whole body is a Write-Warning naming themselves. Across the 17 there is not one if/else, comparison, boolean literal, negation or loop: 272 lines, most of them comment headers. Mutating them would report a vacuous 100% over code that does nothing. RiskScoring.Tests.ps1 tests exactly the right thing for what these are -- that each is a parameterless function emitting one warning and returning nothing -- which also catches a stub silently gaining behaviour. Revisit as a batch when the v5 implementation lands; that is the moment these need real tests and real mutation coverage.",
-
     "tools/riskscoring/Save-FGResourceClusters.ps1": "MEASURED: produces ZERO mutants (0 raw candidates before any coverage filtering), because it is a v5 STUB, not an implementation. Risk scoring and account correlation were disabled during the postgres migration -- the v4 code talked straight to SQL Server and the v5 replacement needs API endpoints that do not exist yet -- so all 17 files in tools/riskscoring/ are placeholders whose whole body is a Write-Warning naming themselves. Across the 17 there is not one if/else, comparison, boolean literal, negation or loop: 272 lines, most of them comment headers. Mutating them would report a vacuous 100% over code that does nothing. RiskScoring.Tests.ps1 tests exactly the right thing for what these are -- that each is a parameterless function emitting one warning and returning nothing -- which also catches a stub silently gaining behaviour. Revisit as a batch when the v5 implementation lands; that is the moment these need real tests and real mutation coverage.",
-
     "tools/riskscoring/Save-FGRiskClassifiers.ps1": "MEASURED: produces ZERO mutants (0 raw candidates before any coverage filtering), because it is a v5 STUB, not an implementation. Risk scoring and account correlation were disabled during the postgres migration -- the v4 code talked straight to SQL Server and the v5 replacement needs API endpoints that do not exist yet -- so all 17 files in tools/riskscoring/ are placeholders whose whole body is a Write-Warning naming themselves. Across the 17 there is not one if/else, comparison, boolean literal, negation or loop: 272 lines, most of them comment headers. Mutating them would report a vacuous 100% over code that does nothing. RiskScoring.Tests.ps1 tests exactly the right thing for what these are -- that each is a parameterless function emitting one warning and returning nothing -- which also catches a stub silently gaining behaviour. Revisit as a batch when the v5 implementation lands; that is the moment these need real tests and real mutation coverage.",
-
     "tools/riskscoring/Save-FGRiskProfile.ps1": "MEASURED: produces ZERO mutants (0 raw candidates before any coverage filtering), because it is a v5 STUB, not an implementation. Risk scoring and account correlation were disabled during the postgres migration -- the v4 code talked straight to SQL Server and the v5 replacement needs API endpoints that do not exist yet -- so all 17 files in tools/riskscoring/ are placeholders whose whole body is a Write-Warning naming themselves. Across the 17 there is not one if/else, comparison, boolean literal, negation or loop: 272 lines, most of them comment headers. Mutating them would report a vacuous 100% over code that does nothing. RiskScoring.Tests.ps1 tests exactly the right thing for what these are -- that each is a parameterless function emitting one warning and returning nothing -- which also catches a stub silently gaining behaviour. Revisit as a batch when the v5 implementation lands; that is the moment these need real tests and real mutation coverage."
   },
   "_equivalentsComment": "Mutants excluded from the mutation DENOMINATOR, each with a reason. PSMutant fails the build if a declared mutant is ever killed, or stops existing -- so a declaration is a claim that gets checked, not a mute button. Everything here is a progress-bar percentage; nothing with functional effect is listed. Read the individual reasons before adding to this map.",
@@ -286,8 +501,7 @@
     "tools/crawlers/csv/CSVCrawler.Phases.ps1:236:72 -> 73": "Progress-bar checkpoint for the IdentityMembers.csv phase, nudged by one point. NOT the usual 'cannot change behaviour' case, and the distinction matters: this IS observable -- it is written to the job progress the Crawlers UI renders -- so a test COULD pin it. The claim being made is narrower and is a judgement, not a proof: the exact number carries no meaning on its own. What the UI needs is that progress rises through the run and ends at 100, and both of those ARE tested (Complete-*Run asserts every value is a percentage and that the last is exactly 100). Pinning the intermediate values would add a change-detector that fails whenever anyone retunes the bar, while catching no defect a user could notice. Reviewers: this reason is the only thing standing behind these entries. Unlike a stale declaration, a WRONG one of this kind cannot be caught automatically -- no test will ever kill these to prove the claim false -- so weigh it, do not rubber-stamp it, and do not extend this pattern to a constant with functional effect. Two that looked like this were NOT declared and were tested instead: the 3000-record certification batch size, and the 300s refresh-views timeout.",
     "tools/crawlers/csv/CSVCrawler.Phases.ps1:257:78 -> 79": "Progress-bar checkpoint for the Certifications.csv phase, nudged by one point. NOT the usual 'cannot change behaviour' case, and the distinction matters: this IS observable -- it is written to the job progress the Crawlers UI renders -- so a test COULD pin it. The claim being made is narrower and is a judgement, not a proof: the exact number carries no meaning on its own. What the UI needs is that progress rises through the run and ends at 100, and both of those ARE tested (Complete-*Run asserts every value is a percentage and that the last is exactly 100). Pinning the intermediate values would add a change-detector that fails whenever anyone retunes the bar, while catching no defect a user could notice. Reviewers: this reason is the only thing standing behind these entries. Unlike a stale declaration, a WRONG one of this kind cannot be caught automatically -- no test will ever kill these to prove the claim false -- so weigh it, do not rubber-stamp it, and do not extend this pattern to a constant with functional effect. Two that looked like this were NOT declared and were tested instead: the 3000-record certification batch size, and the 300s refresh-views timeout.",
     "tools/crawlers/csv/CSVCrawler.Phases.ps1:325:85 -> 86": "Progress-bar checkpoint for the BusinessRole classification phase, nudged by one point. NOT the usual 'cannot change behaviour' case, and the distinction matters: this IS observable -- it is written to the job progress the Crawlers UI renders -- so a test COULD pin it. The claim being made is narrower and is a judgement, not a proof: the exact number carries no meaning on its own. What the UI needs is that progress rises through the run and ends at 100, and both of those ARE tested (Complete-*Run asserts every value is a percentage and that the last is exactly 100). Pinning the intermediate values would add a change-detector that fails whenever anyone retunes the bar, while catching no defect a user could notice. Reviewers: this reason is the only thing standing behind these entries. Unlike a stale declaration, a WRONG one of this kind cannot be caught automatically -- no test will ever kill these to prove the claim false -- so weigh it, do not rubber-stamp it, and do not extend this pattern to a constant with functional effect. Two that looked like this were NOT declared and were tested instead: the 3000-record certification batch size, and the 300s refresh-views timeout.",
-    "tools/crawlers/csv/CSVCrawler.Phases.ps1:331:88 -> 89": "Progress-bar checkpoint for the view refresh phase, nudged by one point. NOT the usual 'cannot change behaviour' case, and the distinction matters: this IS observable -- it is written to the job progress the Crawlers UI renders -- so a test COULD pin it. The claim being made is narrower and is a judgement, not a proof: the exact number carries no meaning on its own. What the UI needs is that progress rises through the run and ends at 100, and both of those ARE tested (Complete-*Run asserts every value is a percentage and that the last is exactly 100). Pinning the intermediate values would add a change-detector that fails whenever anyone retunes the bar, while catching no defect a user could notice. Reviewers: this reason is the only thing standing behind these entries. Unlike a stale declaration, a WRONG one of this kind cannot be caught automatically -- no test will ever kill these to prove the claim false -- so weigh it, do not rubber-stamp it, and do not extend this pattern to a constant with functional effect. Two that looked like this were NOT declared and were tested instead: the 3000-record certification batch size, and the 300s refresh-views timeout."
-,
+    "tools/crawlers/csv/CSVCrawler.Phases.ps1:331:88 -> 89": "Progress-bar checkpoint for the view refresh phase, nudged by one point. NOT the usual 'cannot change behaviour' case, and the distinction matters: this IS observable -- it is written to the job progress the Crawlers UI renders -- so a test COULD pin it. The claim being made is narrower and is a judgement, not a proof: the exact number carries no meaning on its own. What the UI needs is that progress rises through the run and ends at 100, and both of those ARE tested (Complete-*Run asserts every value is a percentage and that the last is exactly 100). Pinning the intermediate values would add a change-detector that fails whenever anyone retunes the bar, while catching no defect a user could notice. Reviewers: this reason is the only thing standing behind these entries. Unlike a stale declaration, a WRONG one of this kind cannot be caught automatically -- no test will ever kill these to prove the claim false -- so weigh it, do not rubber-stamp it, and do not extend this pattern to a constant with functional effect. Two that looked like this were NOT declared and were tested instead: the 3000-record certification batch size, and the 300s refresh-views timeout.",
     "tools/powershell-sdk/graph/Add-FGGroupToAccessPackage.ps1:33:45 -> 46": "Start-Sleep -s 45 -> 46. A fixed pause waiting for Microsoft Graph to become eventually consistent before the next call. Observable in principle -- a test could pin the argument -- but the exact number is a guess about someone else's service, not a contract: one second either way changes nothing anyone can detect. What matters is THAT it waits, and that IS asserted (Should -Invoke Start-Sleep) in the Add-FGGroupTo* tests.",
     "tools/powershell-sdk/graph/Add-FGGroupToCatalog.ps1:24:45 -> 46": "Start-Sleep -s 45 -> 46. A fixed pause waiting for Microsoft Graph to become eventually consistent before the next call. Observable in principle -- a test could pin the argument -- but the exact number is a guess about someone else's service, not a contract: one second either way changes nothing anyone can detect. What matters is THAT it waits, and that IS asserted (Should -Invoke Start-Sleep) in the Add-FGGroupTo* tests.",
     "tools/powershell-sdk/graph/Clear-FGSecureConfigValue.ps1:84:10 -> 11": "ConvertTo-Json -Depth 10 -> 11. The payloads this serialises are far shallower than 10, so the two depths emit byte-identical JSON. This is the classic equivalent mutant: no test can separate N from N+1 without a fixture built for no purpose except to out-nest the serializer, which would assert nothing about the request being sent.",
@@ -322,8 +536,17 @@
     "tools/powershell-sdk/graph/Update-FGConfig.ps1:8:120 -> 121": "Progress/rate display arithmetic (120 -> 121). Feeds a Write-Progress or Write-Host counter and nothing else -- no caller, no file, no request. Same class as the crawler progress percentages declared above, and the same caveat applies: this IS observable, so the claim is a judgement about worth, not a proof of equivalence."
   },
   "coveredLinesOnly": true,
-  "operators": ["BinaryOperator", "BooleanLiteral", "NumberLiteral", "NegationRemoval"],
-  "_thresholdsComment": "break was 90 when the scope was pure shapers only (which sat at ~95.8%). With the non-pure ingest layer included the blended score is 90.7% (283/312), leaving 0.7 points of headroom — one new survivor would fail the build, and the cheapest way to make that failure go away would be to drop the ingest layer back out of `mutate`. That is precisely the behaviour this scope widening exists to stop, so break is set to 85: still far above the `low` band, and a genuine regression (a whole file's assertions weakening) moves the blended score by much more than 5 points. Raise it as survivors are killed; never raise it by narrowing `mutate`.",
-  "thresholds": { "high": 90, "low": 70, "break": 85 },
+  "operators": [
+    "BinaryOperator",
+    "BooleanLiteral",
+    "NumberLiteral",
+    "NegationRemoval"
+  ],
+  "_thresholdsComment": "break was 90 when the scope was pure shapers only (which sat at ~95.8%). With the non-pure ingest layer included the blended score is 90.7% (283/312), leaving 0.7 points of headroom \u2014 one new survivor would fail the build, and the cheapest way to make that failure go away would be to drop the ingest layer back out of `mutate`. That is precisely the behaviour this scope widening exists to stop, so break is set to 85: still far above the `low` band, and a genuine regression (a whole file's assertions weakening) moves the blended score by much more than 5 points. Raise it as survivors are killed; never raise it by narrowing `mutate`.",
+  "thresholds": {
+    "high": 90,
+    "low": 70,
+    "break": 85
+  },
   "reportPath": "reports/ps-mutation.json"
 }
