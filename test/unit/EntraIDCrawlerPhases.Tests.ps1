@@ -631,6 +631,28 @@ Describe 'Add-EntraAppRoleAssignment' {
 Describe 'Expand-EntraAppRoleGroupAssignments' {
     BeforeEach { Reset-PhaseTestState }
 
+    It 'announces the expansion when there is at least one group, and stays quiet otherwise' {
+        # `groupCount -gt 0` guards the only line telling an operator that a /transitiveMembers
+        # fan-out is starting -- the slowest part of the phase. Read as -gt 1, a run expanding
+        # exactly ONE group looks like it stalled with no explanation; read as always, an
+        # empty run claims to be expanding nothing.
+        $script:said = [System.Collections.Generic.List[string]]::new()
+        Mock Write-Host { $script:said.Add([string]$Object) }
+        Mock Update-CrawlerProgress -MockWith { }
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'transitiveMembers' } -MockWith {
+            @([pscustomobject]@{ id = 'u1'; '@odata.type' = '#microsoft.graph.user' })
+        }
+
+        $one = @{ 'grp1' = [System.Collections.Generic.List[object]]::new() }
+        $one['grp1'].Add(@{ roleResId = 'rr1'; roleId = 'role-a'; sourceAssignmentId = 'aa1'; appName = 'App One' })
+        Expand-EntraAppRoleGroupAssignments -GroupAssns $one | Out-Null
+        ($script:said -join "`n") | Should -Match 'Expanding 1 group'
+
+        $script:said.Clear()
+        Expand-EntraAppRoleGroupAssignments -GroupAssns @{} | Out-Null
+        ($script:said -join "`n") | Should -Not -Match 'Expanding'
+    }
+
     It 'fans a group role assignment out to one row per transitive user member' {
         Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'transitiveMembers' } -MockWith {
             @(
@@ -1165,12 +1187,18 @@ Describe 'Get-EntraServicePrincipalData' {
         Mock Invoke-FGGetDeltaRequest -MockWith {
             @{ value = @(
                 [pscustomobject]@{ id = 'sp1'; displayName = 'Changed' }
+                [pscustomobject]@{ id = 'sp3'; displayName = 'Also changed' }
                 [pscustomobject]@{ id = 'sp2'; '@removed' = [pscustomobject]@{ reason = 'deleted' } }
             ); deltaToken = 'next-tok' }
         }
         $r = Get-EntraServicePrincipalData -SystemId 5 -SyncMode 'delta'
         $r.spDeltaHit       | Should -BeTrue
-        @($r.sps).Count     | Should -Be 1
+        # Assert WHICH service principals came back, not just how many. With one live and
+        # one removed the counts are symmetric, so dropping the negation swaps the two
+        # lists and every assertion still reads 1 -- the crawler would then upsert the
+        # deleted SP and tombstone the live ones.
+        @($r.sps).Count     | Should -Be 2
+        @($r.sps.id)        | Should -Be @('sp1', 'sp3')
         @($r.removedSpIds)  | Should -Be @('sp2')
         $r.newSpsToken      | Should -Be 'next-tok'
     }
@@ -1289,17 +1317,21 @@ Describe 'Sync-EntraSignInLogs' {
         Mock Get-Date -MockWith { [datetime]::SpecifyKind([datetime]'2026-01-10T00:00:00', 'Utc') }
         $script:said = [System.Collections.Generic.List[string]]::new()
         Mock Write-Host { $script:said.Add([string]$Object) }
+        # ASYMMETRIC on purpose: TWO events that aggregate against ONE that cannot. With
+        # one of each, inverting the negation swaps two 1s and the message reads the same.
         Mock Invoke-FGGetRequestStream -MockWith {
             @(
                 [pscustomobject]@{ userId = 'u1'; appId = 'a1';      createdDateTime = '2026-01-09T10:00:00Z'; status = [pscustomobject]@{ errorCode = 0 } }
-                [pscustomobject]@{ userId = 'u2'; appId = 'unknown'; createdDateTime = '2026-01-09T11:00:00Z'; status = [pscustomobject]@{ errorCode = 0 } }
+                [pscustomobject]@{ userId = 'u2'; appId = 'a1';      createdDateTime = '2026-01-09T10:30:00Z'; status = [pscustomobject]@{ errorCode = 0 } }
+                [pscustomobject]@{ userId = 'u3'; appId = 'unknown'; createdDateTime = '2026-01-09T11:00:00Z'; status = [pscustomobject]@{ errorCode = 0 } }
             )
         }
 
         Sync-EntraSignInLogs -SystemId 5 -Sps @([pscustomobject]@{ id = 'sp1'; appId = 'a1' }) -SignInLogsDays 1 -Timings ([ordered]@{})
 
         ($script:said -join "`n") | Should -Match 'Skipped 1 events'
-        (Get-Sent { $_.Endpoint -eq 'ingest/principal-activity' })[0].Records.Count | Should -Be 1
+        # ...and the two that DID aggregate are uploaded, as two distinct (user, app) pairs.
+        (Get-Sent { $_.Endpoint -eq 'ingest/principal-activity' })[0].Records.Count | Should -Be 2
     }
 
     It 'records a PARTIAL slice failure and still uploads the slice that worked' {

@@ -185,3 +185,98 @@ describe('classifyAccount - guest detection', () => {
     expect(classifyAccount({ email: 'a@x.com', extendedAttributes: { usertype: 'guest' } }).accountType).toBe('Guest');
   });
 });
+
+describe('parseName - forms and fallbacks', () => {
+  it('parses "Surname, Given" and takes only the FIRST given token', () => {
+    // "Doe, John Michael" -> given "john", not "john michael": middle names appear
+    // inconsistently across systems, so including them would split one person in two.
+    expect(parseName('Doe, John Michael')).toMatchObject({ given: 'john', surname: 'doe' });
+  });
+
+  it('parses "Given Surname" using the FIRST and LAST tokens', () => {
+    // Middle names again: the surname is the last token, not the second.
+    expect(parseName('John Michael Doe')).toMatchObject({ given: 'john', surname: 'doe' });
+  });
+
+  it('treats a lone token as a SURNAME, not a given name', () => {
+    // A mononym or a display name that is just "Doe". Surname is the field
+    // nameMatchLevel requires, so guessing wrong here means the name never matches
+    // anything at all.
+    expect(parseName('Doe')).toMatchObject({ given: '', surname: 'doe' });
+  });
+
+  it('collapses runs of whitespace rather than producing empty tokens', () => {
+    expect(parseName('John    Doe')).toMatchObject({ given: 'john', surname: 'doe' });
+    expect(parseName('  John   Michael   Doe  ')).toMatchObject({ given: 'john', surname: 'doe' });
+  });
+
+  it('falls back to the explicit fields ONLY when the display name yields nothing', () => {
+    // `!sur && surname`. As OR, the explicit field overrides what the display name
+    // already gave -- so "Doe, John" plus a stale surname column parses as the stale one.
+    expect(parseName('Doe, John', 'IGNORED', 'IGNORED')).toMatchObject({ given: 'john', surname: 'doe' });
+    expect(parseName('', 'John', 'Doe')).toMatchObject({ given: 'john', surname: 'doe' });
+    // A lone token fills surname, so only the GIVEN falls back.
+    expect(parseName('Doe', 'John', 'IGNORED')).toMatchObject({ given: 'john', surname: 'doe' });
+  });
+
+  it('strips bracketed qualifiers before parsing', () => {
+    expect(parseName('John Doe (Admin)')).toMatchObject({ given: 'john', surname: 'doe' });
+    expect(parseName('Doe, John [Contractor]')).toMatchObject({ given: 'john', surname: 'doe' });
+  });
+
+  it('builds an order-independent key, and none at all without a surname', () => {
+    // The key indexes candidates, so it must be the same whichever way round the name
+    // arrived. Without a surname there is nothing to index on and the key must be empty
+    // rather than a given-name-only key that would collide across unrelated people.
+    expect(parseName('Doe, John').key).toBe(parseName('John Doe').key);
+    expect(parseName('Doe, John').key).toBe('doe|john');
+    expect(parseName('', 'John', '').key).toBe('');
+  });
+
+  it('exposes the given-name initial', () => {
+    expect(parseName('John Doe').initial).toBe('j');
+    expect(parseName('Doe').initial).toBe('');
+  });
+});
+
+describe('nameMatchLevel - levels', () => {
+  const n = (dn, g, s) => parseName(dn, g, s);
+
+  it('is full only when surname AND given name agree', () => {
+    expect(nameMatchLevel(n('John Doe'), n('John Doe'))).toBe('full');
+  });
+
+  it('is surnameInitial when the given names share only their first letter', () => {
+    expect(nameMatchLevel(n('J Doe'), n('John Doe'))).toBe('surnameInitial');
+  });
+
+  it('is none when the surnames differ, whatever the given names do', () => {
+    expect(nameMatchLevel(n('John Doe'), n('John Smith'))).toBe('none');
+  });
+
+  it('is none when EITHER side has no surname', () => {
+    // `!a.surname || !b.surname`. As AND, only a pair where BOTH lack a surname is
+    // rejected -- so a nameless account matches any single name it is compared against,
+    // which is the widest possible false link.
+    expect(nameMatchLevel(n('', 'John', ''), n('John Doe'))).toBe('none');
+    expect(nameMatchLevel(n('John Doe'), n('', 'John', ''))).toBe('none');
+    expect(nameMatchLevel(n('', '', ''), n('', '', ''))).toBe('none');
+  });
+
+  it('is none for a surname match with no given name on either side', () => {
+    // Surname-only is deliberately NOT a match: "Doe" and "Doe" are not evidence of one
+    // person. Both the given and the initial comparison must decline.
+    expect(nameMatchLevel(n('Doe'), n('Doe'))).toBe('none');
+  });
+
+  it('does not treat a one-sided given name as an initial match', () => {
+    // `a.initial && b.initial`. As OR, one side having an initial is enough and the
+    // comparison runs against an empty string on the other.
+    expect(nameMatchLevel(n('John Doe'), n('Doe'))).toBe('none');
+    expect(nameMatchLevel(n('Doe'), n('John Doe'))).toBe('none');
+  });
+
+  it('does not treat different initials as a match', () => {
+    expect(nameMatchLevel(n('Alice Doe'), n('John Doe'))).toBe('none');
+  });
+});

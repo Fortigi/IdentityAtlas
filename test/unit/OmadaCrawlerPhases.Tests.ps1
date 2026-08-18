@@ -218,6 +218,23 @@ Describe 'Sync-OmadaContexts' {
 Describe 'Sync-OmadaIdentities' {
     BeforeEach { Reset-PhaseTestState; Mock Send-IngestBatch -MockWith $script:SendMock }
 
+    It 'drops an identity that has an id but no display name' {
+        # Same `externalId -and displayName` guard as the accounts phase. As -or, a person
+        # row with no name is written to the Identities table, and an identity nobody can
+        # recognise is worse than one that is missing: it looks like a real person.
+        Mock Invoke-ODataPagedRequest -ParameterFilter { $Path -eq '/Identity' } -MockWith {
+            @(
+                [pscustomobject]@{ UId = 'id-1'; IDENTITYID = 'ID-1'; FIRSTNAME = 'Alice'; LASTNAME = 'Smith'; IDENTITYTYPE = [pscustomobject]@{ Value = 'Employee' } }
+                [pscustomobject]@{ UId = 'id-2'; IDENTITYID = 'ID-2'; IDENTITYTYPE = [pscustomobject]@{ Value = 'Employee' } }   # no names
+            )
+        }
+
+        $r = Sync-OmadaIdentities -SystemId 1 -IdentityTypesForIdentityTable @('Employee')
+
+        (Get-Sent { $_.Endpoint -eq 'ingest/identities' })[0].Records.Count | Should -Be 1
+        (Get-Sent { $_.Endpoint -eq 'ingest/identities' })[0].Records[0].externalId | Should -Be 'id-1'
+    }
+
     It 'ingests person-type identities and returns the lookup + in-table set' {
         Mock Invoke-ODataPagedRequest -ParameterFilter { $Path -eq '/Identity' } -MockWith {
             @(
@@ -280,6 +297,28 @@ Describe 'Sync-OmadaAccounts' {
         $r.userNameToUid['alice'] | Should -Be 'acc-1'
         @($r.identityUidToUserUids['id-1']) | Should -Be @('acc-1')
         $script:phaseErrors.Count | Should -Be 0
+    }
+
+    It 'drops an account that has an id but no display name' {
+        # `externalId -and displayName`. Read as -or, a record with one half missing is
+        # ingested anyway: a principal row with a blank name, which is what a reviewer then
+        # sees in the matrix and cannot identify. The same filter guards contexts and
+        # identities; this is the account one.
+        Mock Invoke-ODataPagedRequest -ParameterFilter { $Path -eq '/User' } -MockWith {
+            @(
+                [pscustomobject]@{ UId = 'acc-1'; UserName = 'alice'; FIRSTNAME = 'Alice'; LASTNAME = 'Smith'; IDENTITYREF = [pscustomobject]@{ IDENTITYID = 'ID-1' } }
+                # No names at all -> displayName resolves empty. Real: service accounts
+                # created by an integration routinely carry no person name.
+                [pscustomobject]@{ UId = 'acc-2'; UserName = 'svc'; IDENTITYREF = [pscustomobject]@{ IDENTITYID = 'ID-1' } }
+            )
+        }
+        $lookup = @{ 'ID-1' = @{ uid = 'id-1'; identityType = 'Employee' } }
+
+        $r = Sync-OmadaAccounts -SystemId 4 -IdentityLookup $lookup
+
+        (Get-Sent { $_.Scope.principalType -eq 'User' })[0].Records.Count | Should -Be 1
+        (Get-Sent { $_.Scope.principalType -eq 'User' })[0].Records[0].externalId | Should -Be 'acc-1'
+        @($r.allAccounts).Count | Should -Be 2   # both fetched; only one ingestable
     }
 
     It 'uploads a principal whose type is none of the three built-in ones' {
@@ -605,6 +644,70 @@ Describe 'Omada config resolution' {
         $c.SyncMode | Should -Be 'full'
     }
 
+    It 'Send-OmadaResourceBatch attributes the MAIN key to the Omada system itself' {
+        # The '__main__' key means "Omada Identity", everything else is a connected system
+        # looked up in the map. Read as -ne, the two swap: Omada's own resources are filed
+        # under a connected system's id (or none at all) and every connected system's
+        # resources are filed under Omada.
+        $script:said = [System.Collections.Generic.List[string]]::new()
+        Mock Write-Host { $script:said.Add([string]$Object) }
+        Mock Send-IngestBatch -MockWith { @{ inserted = 1; updated = 0; deleted = 0 } }
+
+        Send-OmadaResourceBatch -Key '__main__' -Records @(@{ id = 'r1' }) -SystemId 7 `
+            -OmadaSystemMap @{ 'conn-uid' = 9 } -AllOmadaSystems @([pscustomobject]@{ UId = 'conn-uid'; DisplayName = 'AD' }) | Out-Null
+
+        Should -Invoke Send-IngestBatch -Exactly 1 -ParameterFilter { $SystemId -eq 7 }
+        ($script:said -join "`n") | Should -Match 'Resources \(Omada,'
+    }
+
+    It 'Send-OmadaResourceBatch attributes a connected-system key to that system' {
+        # The paired case, so "always take the main branch" cannot pass both.
+        $script:said = [System.Collections.Generic.List[string]]::new()
+        Mock Write-Host { $script:said.Add([string]$Object) }
+        Mock Send-IngestBatch -MockWith { @{ inserted = 1; updated = 0; deleted = 0 } }
+
+        Send-OmadaResourceBatch -Key 'conn-uid' -Records @(@{ id = 'r1' }) -SystemId 7 `
+            -OmadaSystemMap @{ 'conn-uid' = 9 } -AllOmadaSystems @([pscustomobject]@{ UId = 'conn-uid'; DisplayName = 'AD' }) | Out-Null
+
+        Should -Invoke Send-IngestBatch -Exactly 1 -ParameterFilter { $SystemId -eq 9 }
+        ($script:said -join "`n") | Should -Match 'Resources \(AD,'
+    }
+
+    It 'Get-OmadaContextMembersFromIdentityFields drops a reference to an unsynced context' {
+        # `-not ContextUid -or -not SyncedContextIds.Contains(ContextUid)`. An identity can
+        # reference an org unit that was filtered out of this run -- the reference exists,
+        # the context does not. Read as -and, that produces a membership row pointing at a
+        # context id Identity Atlas never received, which is a dangling row nothing cleans up.
+        $synced = [System.Collections.Generic.HashSet[string]]::new()
+        [void]$synced.Add('ctx-known')
+        $inTable = [System.Collections.Generic.HashSet[string]]::new()
+        [void]$inTable.Add('id-1')
+
+        $rows = Get-OmadaContextMembersFromIdentityFields `
+            -AllIdentities @([pscustomobject]@{ UId = 'id-1'; OUREF = [pscustomobject]@{ UId = 'ctx-gone' } }) `
+            -ContextObjectTypes @([pscustomobject]@{ identityField = 'OUREF' }) `
+            -SyncedContextIds $synced -IdentityUidInIdentitiesTable $inTable
+
+        @($rows) | Should -HaveCount 0
+    }
+
+    It 'Get-OmadaContextMembersFromIdentityFields keeps a reference to a synced context' {
+        # The paired case, so "never emit anything" cannot pass the test above.
+        $synced = [System.Collections.Generic.HashSet[string]]::new()
+        [void]$synced.Add('ctx-known')
+        $inTable = [System.Collections.Generic.HashSet[string]]::new()
+        [void]$inTable.Add('id-1')
+
+        $rows = Get-OmadaContextMembersFromIdentityFields `
+            -AllIdentities @([pscustomobject]@{ UId = 'id-1'; OUREF = [pscustomobject]@{ UId = 'ctx-known' } }) `
+            -ContextObjectTypes @([pscustomobject]@{ identityField = 'OUREF' }) `
+            -SyncedContextIds $synced -IdentityUidInIdentitiesTable $inTable
+
+        @($rows) | Should -HaveCount 1
+        $rows[0].contextId | Should -Be 'ctx-known'
+        $rows[0].memberId  | Should -Be 'id-1'
+    }
+
     It 'Resolve-OmadaSyncToggles turns every phase ON when nothing is configured' {
         # The test above pins three of the nine toggles, two of which it overrides
         # to false -- so six defaults were unasserted. Every one of them defaults
@@ -718,6 +821,33 @@ Describe 'Omada setup helpers' {
         Connect-OmadaSession -Cfg ([pscustomobject]@{ authMethod = 'OAuth2'; username = 'u'; password = 'p'; clientId = 'cid'; clientSecret = 'sec'; tokenEndpoint = 'https://t'; cookieString = 'ck' }) `
             -BaseUrl 'http://x' -ApiVersion 'v14' -SessionTimeoutMinutes 30
         Should -Invoke Connect-ODataAPI -Exactly 1
+    }
+
+    It 'Write-OmadaPhaseLine marks a failed phase FAILED, in red' {
+        # Status and colour are two separate `-eq 'ok'` reads on the same value. Flip
+        # either and the end-of-run summary lies about the run: a failed phase printed as
+        # "ok" in green is the one line an operator scans to decide whether to look further.
+        $script:said = [System.Collections.Generic.List[string]]::new()
+        $script:colours = [System.Collections.Generic.List[string]]::new()
+        Mock Write-Host { $script:said.Add([string]$Object); $script:colours.Add([string]$ForegroundColor) }
+
+        Write-OmadaPhaseLine -Phase ([pscustomobject]@{ name = 'Resources'; status = 'error'; durationMs = 12 })
+
+        ($script:said -join '') | Should -Match 'FAILED'
+        $script:colours | Should -Contain 'Red'
+    }
+
+    It 'Write-OmadaPhaseLine marks a successful phase ok, in green' {
+        # The paired case: without it, hard-coding either read to the failure branch passes.
+        $script:said = [System.Collections.Generic.List[string]]::new()
+        $script:colours = [System.Collections.Generic.List[string]]::new()
+        Mock Write-Host { $script:said.Add([string]$Object); $script:colours.Add([string]$ForegroundColor) }
+
+        Write-OmadaPhaseLine -Phase ([pscustomobject]@{ name = 'Resources'; status = 'ok'; durationMs = 12 })
+
+        ($script:said -join '') | Should -Match 'ok'
+        ($script:said -join '') | Should -Not -Match 'FAILED'
+        $script:colours | Should -Contain 'Green'
     }
 
     It 'Send-OmadaPhaseResults posts nothing without a real job id' {

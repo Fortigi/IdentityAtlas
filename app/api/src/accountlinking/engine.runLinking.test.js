@@ -106,3 +106,76 @@ describe('runLinking — analyst-decision preservation', () => {
     expect(writes.some(sql => /UPDATE\s+"IdentityMembers"/.test(sql))).toBe(false);
   });
 });
+
+// ── loadRules / countOrphans ─────────────────────────────────────────────────
+//
+// The two DB helpers around the run. Both fail silently rather than loudly, which is why
+// mutation found them: a tenant's edited rules being ignored looks exactly like rules that
+// had no effect, and an orphan count that throws takes the whole run down on a fresh
+// database where the answer is simply zero.
+
+describe('loadRules', () => {
+  it('merges a tenant config OVER the defaults', () => {
+    // `(row && row.rules) ? {...DEFAULT_RULES, ...row.rules} : DEFAULT_RULES`. Read as
+    // always-false, every tenant silently runs on the shipped defaults: an admin raises
+    // the threshold in the UI, the slider moves, and linking behaves exactly as before.
+    return (async () => {
+      const db = makeDb();
+      db.queryOne = vi.fn(async (sql) => {
+        // A realistic tenant edit: stop attaching ADMIN accounts to people. The fixture
+        // orphan is "(ADM-azure) Doe, John" with an adm- email, so it classifies as Admin
+        // and must now be left alone. (A raised threshold would not discriminate here --
+        // this pair scores 100, the cap, so no threshold below 101 changes the outcome.)
+        if (/AccountLinkingConfig/.test(sql)) return { rules: { onlyLinkTypes: ['Secondary'] } };
+        if (/COUNT\(\*\)/.test(sql)) return { n: 0 };
+        return null;
+      });
+      const { runLinking } = await loadEngine(db);
+      await runLinking(RUN_ID);
+
+      // Threshold 99 is above anything this fixture can score, so the strong
+      // admin-prefix + name match that normally links must NOT be written.
+      expect(memberWrites(db)).toHaveLength(0);
+      expect(reachedCompleted(db)).toBe(true);
+    })();
+  });
+
+  it('falls back to the defaults when there is no config row', async () => {
+    // The paired case: with the same fixture and the shipped threshold, the link IS made.
+    const db = makeDb();
+    const { runLinking } = await loadEngine(db);
+    await runLinking(RUN_ID);
+    expect(memberWrites(db).length).toBeGreaterThan(0);
+  });
+
+  it('falls back to the defaults when the config table is missing entirely', async () => {
+    // A partially-migrated database throws on the SELECT; linking must still run rather
+    // than fail the whole job for an optional table.
+    const db = makeDb();
+    db.queryOne = vi.fn(async (sql) => {
+      if (/AccountLinkingConfig/.test(sql)) throw new Error('relation "AccountLinkingConfig" does not exist');
+      if (/COUNT\(\*\)/.test(sql)) return { n: 0 };
+      return null;
+    });
+    const { runLinking } = await loadEngine(db);
+    await expect(runLinking(RUN_ID)).resolves.not.toThrow();
+    expect(memberWrites(db).length).toBeGreaterThan(0);
+  });
+});
+
+describe('countOrphans', () => {
+  it('reports zero rather than throwing when the count query returns nothing', async () => {
+    // `r?.n ?? 0`. Drop the optional chaining and a database that returns no row -- a
+    // fresh install, or a driver that yields undefined for an empty result -- throws on
+    // property access and takes the entire run down, where the correct answer is 0.
+    const db = makeDb();
+    db.queryOne = vi.fn(async (sql) => {
+      if (/AccountLinkingConfig/.test(sql)) return null;
+      if (/COUNT\(\*\)/.test(sql)) return undefined;   // no row at all
+      return null;
+    });
+    const { runLinking } = await loadEngine(db);
+    await expect(runLinking(RUN_ID)).resolves.not.toThrow();
+    expect(reachedCompleted(db)).toBe(true);
+  });
+});
