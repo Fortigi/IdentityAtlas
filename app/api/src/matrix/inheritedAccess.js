@@ -18,6 +18,7 @@ import { createHash } from 'crypto';
 import { createParams } from '../db/sqlParams.js';
 import * as db from '../db/connection.js';
 import { effectiveAccessForNodes } from '../effectiveAccess/engine.js';
+import { createLru } from '../effectiveAccess/lru.js';
 import { getSyncVersion } from '../lib/syncVersion.js';
 import { resolveAttrExpr } from './attrExpr.js';
 import { visibleKeyExpr } from './attributeCut.js';
@@ -28,9 +29,12 @@ import { GROUP_PRINCIPAL_TYPE } from '../lib/principalTypes.js';
 // rows for a scope keyed by (sync-version, scope-hash). A crawl bumps the
 // sync-version → old keys become unreachable and age out. The subject filter is
 // applied per-request *after* the cache, so different subject scopes over the
-// same resource scope share one entry. Bounded FIFO so memory can't grow.
-const EFF_CACHE = new Map();
-const EFF_CACHE_MAX = 256;
+// same resource scope share one entry. Bounded LRU so memory can't grow.
+// createLru rather than a second hand-rolled Map+eviction: the identical cache
+// already exists next door, with tests covering the recency and capacity
+// behaviour this file's version had none of (its eviction branch needed 256
+// distinct scopes to reach, so nothing ever ran it).
+const EFF_CACHE = createLru(256);
 
 async function cachedEffectiveAccess(nodeIds) {
   const hash = createHash('sha1').update([...nodeIds].sort().join(',')).digest('hex');
@@ -40,7 +44,6 @@ async function cachedEffectiveAccess(nodeIds) {
   const hit = EFF_CACHE.get(key);
   if (hit) return hit;
   const { rows } = await effectiveAccessForNodes(nodeIds);
-  if (EFF_CACHE.size >= EFF_CACHE_MAX) EFF_CACHE.delete(EFF_CACHE.keys().next().value);
   EFF_CACHE.set(key, rows);
   return rows;
 }
