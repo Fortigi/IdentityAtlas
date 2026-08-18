@@ -671,6 +671,32 @@ Describe 'Omada config resolution' {
         $cfg.SyncContexts | Should -BeTrue
     }
 
+    It 'Resolve-OmadaConfig applies its documented defaults' {
+        # Two of these have functional effect and are NOT display constants: maxRetries
+        # decides how hard the crawler tries before giving up on a transient Omada error,
+        # and the session timeout decides when it re-authenticates mid-run. Nothing pinned
+        # either, so both could drift silently.
+        $c = Resolve-OmadaConfig -RawConfig @{} -Cfg ([pscustomobject]@{ baseUrl = 'https://t.omada.cloud/' }) -DefaultTypeMappings @{}
+        $c.apiVersion            | Should -Be 'v14'
+        $c.pageSize              | Should -Be 100
+        $c.maxRetries            | Should -Be 5
+        $c.sessionTimeoutMinutes | Should -Be 30
+    }
+
+    It 'Resolve-OmadaConfig honours an explicit maxRetries of ZERO' {
+        # The guard is `$null -ne $Cfg.maxRetries`, not a truthiness test, precisely so that
+        # 0 -- "do not retry at all" -- survives. Read as a truthiness check, 0 is replaced
+        # by the default 5 and an operator who asked for no retries gets five.
+        $c = Resolve-OmadaConfig -RawConfig @{} -Cfg ([pscustomobject]@{ baseUrl = 'https://t/'; maxRetries = 0 }) -DefaultTypeMappings @{}
+        $c.maxRetries | Should -Be 0
+    }
+
+    It 'Resolve-OmadaConfig takes a configured maxRetries over the default' {
+        $c = Resolve-OmadaConfig -RawConfig @{} -Cfg ([pscustomobject]@{ baseUrl = 'https://t/'; maxRetries = 9; sessionTimeoutMinutes = 45 }) -DefaultTypeMappings @{}
+        $c.maxRetries            | Should -Be 9
+        $c.sessionTimeoutMinutes | Should -Be 45
+    }
+
     It 'Resolve-OmadaConfig preserves an explicit /odata/dataobjects path' {
         (Resolve-OmadaConfig -RawConfig @{} -Cfg ([pscustomobject]@{ baseUrl = 'http://srv:8080/odata/dataobjects' }) -DefaultTypeMappings @{}).baseUrl |
             Should -Be 'http://srv:8080/odata/dataobjects'
@@ -692,6 +718,27 @@ Describe 'Omada setup helpers' {
         Connect-OmadaSession -Cfg ([pscustomobject]@{ authMethod = 'OAuth2'; username = 'u'; password = 'p'; clientId = 'cid'; clientSecret = 'sec'; tokenEndpoint = 'https://t'; cookieString = 'ck' }) `
             -BaseUrl 'http://x' -ApiVersion 'v14' -SessionTimeoutMinutes 30
         Should -Invoke Connect-ODataAPI -Exactly 1
+    }
+
+    It 'Send-OmadaPhaseResults posts nothing without a real job id' {
+        # Guard is `JobId -le 0`. Read as `-lt 0`, a run with no job (id 0) POSTs to
+        # /crawlers/jobs/0/phases -- an endpoint for a job that does not exist.
+        Mock Invoke-RestMethod -MockWith { @{} }
+        Send-OmadaPhaseResults -Phases @(@{ name = 'Resources'; status = 'ok'; durationMs = 5 }) -JobId 0 -ApiKey 'k' -ApiBaseUrl 'http://x/api'
+        Should -Invoke Invoke-RestMethod -Exactly 0
+    }
+
+    It 'Send-OmadaPhaseResults posts the phases for a real job id' {
+        Mock Invoke-RestMethod -MockWith { @{} }
+        Send-OmadaPhaseResults -Phases @(@{ name = 'Resources'; status = 'ok'; durationMs = 5 }) -JobId 7 -ApiKey 'k' -ApiBaseUrl 'http://x/api'
+        Should -Invoke Invoke-RestMethod -Exactly 1 -ParameterFilter { $Uri -match '/jobs/7/phases' }
+    }
+
+    It 'Send-OmadaPhaseResults soft-fails when the post throws' {
+        # Phase reporting is best-effort: losing it must not fail a completed crawl.
+        Mock Invoke-RestMethod -MockWith { throw 'jobs api 500' }
+        { Send-OmadaPhaseResults -Phases @(@{ name = 'X'; status = 'ok'; durationMs = 1 }) -JobId 7 -ApiKey 'k' -ApiBaseUrl 'http://x/api' } |
+            Should -Not -Throw
     }
 
     It 'Get-OmadaAvailableEntitySets returns the discovered sets' {
@@ -736,6 +783,91 @@ Describe 'Omada setup helpers' {
         $reg.systemId | Should -Be 7
         $reg.omadaIdentitySystemUId | Should -Be 'main-uid'
         $reg.omadaSystemMap['main-uid'] | Should -Be 7
+    }
+
+    It 'Register-OmadaSystems maps ONLY Omada systems that carry a tenant id' {
+        # The existing fixture returns a single row that satisfies both halves of the
+        # filter, so `systemType -eq Omada AND tenantId` reads identically to OR. These
+        # three rows disagree: as OR, the SQL-Server row lands in the Omada system map and
+        # its records would be attributed to an Omada system, and the tenant-less row adds
+        # a null key.
+        Mock Invoke-ODataPagedRequest -ParameterFilter { $Path -eq '/System' } -MockWith {
+            @([pscustomobject]@{ DisplayName = 'Omada Identity'; UId = 'main-uid' })
+        }
+        Mock Invoke-IngestAPI -MockWith { @{ systemIds = @(1) } }
+        Mock Invoke-RestMethod -MockWith {
+            @(
+                [pscustomobject]@{ systemType = 'Omada';      tenantId = 'main-uid'; id = 7 }
+                [pscustomobject]@{ systemType = 'SqlServer';  tenantId = 'other';    id = 8 }  # not Omada
+                [pscustomobject]@{ systemType = 'Omada';      tenantId = $null;      id = 9 }  # no tenant id
+            )
+        }
+
+        $reg = Register-OmadaSystems -ApiBaseUrl 'http://x/api' -ApiKey 'k' -BaseUrl 'http://omada' -MaxRetries 5
+
+        $reg.omadaSystemMap.Count | Should -Be 1
+        $reg.omadaSystemMap['main-uid'] | Should -Be 7
+        $reg.systemId | Should -Be 7
+    }
+
+    It 'Register-OmadaSystems registers every Omada system as enabled and sync-enabled' {
+        # These two flags decide whether Identity Atlas shows the system and whether it is
+        # crawled again. Registered as $false, a freshly connected tenant is silently inert.
+        Mock Invoke-ODataPagedRequest -ParameterFilter { $Path -eq '/System' } -MockWith {
+            @([pscustomobject]@{ DisplayName = 'Omada Identity'; UId = 'main-uid' })
+        }
+        Mock Invoke-RestMethod -MockWith { @([pscustomobject]@{ systemType = 'Omada'; tenantId = 'main-uid'; id = 7 }) }
+        # Collect into a pre-existing list: assigning a new $script: variable inside a mock
+        # body does not propagate back out (same reason SendMock in this file uses a List).
+        # records is a List[object] from ConvertTo-JsonArray, NOT a JSON string, so the
+        # records are inspected as objects.
+        $script:systemsSent = [System.Collections.Generic.List[object]]::new()
+        Mock Invoke-IngestAPI -MockWith { foreach ($r in @($Body.records)) { $script:systemsSent.Add($r) }; @{ systemIds = @(1) } }
+
+        Register-OmadaSystems -ApiBaseUrl 'http://x/api' -ApiKey 'k' -BaseUrl 'http://omada' -MaxRetries 5 | Out-Null
+
+        # records is already a JSON string (ConvertTo-JsonArray), so match on it directly
+        # rather than round-tripping it inside the filter.
+        Should -Invoke Invoke-IngestAPI -Exactly 1 -ParameterFilter { $Endpoint -eq 'ingest/systems' }
+        $script:systemsSent | Should -HaveCount 1
+        $script:systemsSent[0].enabled     | Should -BeTrue
+        $script:systemsSent[0].syncEnabled | Should -BeTrue
+        $script:systemsSent[0].systemType  | Should -Be 'Omada'
+    }
+
+    It 'Register-OmadaSystems falls back to the first mapped system when the main one is absent' {
+        # Omada Identity is not in the atlas map (renamed, or not yet registered), but other
+        # Omada systems are -- the crawler still needs a system id to attribute records to.
+        # Two mapped systems, so taking "the first" cannot be confused with taking them all.
+        Mock Invoke-ODataPagedRequest -ParameterFilter { $Path -eq '/System' } -MockWith {
+            @([pscustomobject]@{ DisplayName = 'Something Else'; UId = 'other-uid' })
+        }
+        Mock Invoke-IngestAPI -MockWith { @{ systemIds = @(1) } }
+        Mock Invoke-RestMethod -MockWith {
+            @(
+                [pscustomobject]@{ systemType = 'Omada'; tenantId = 'a-uid'; id = 11 }
+                [pscustomobject]@{ systemType = 'Omada'; tenantId = 'b-uid'; id = 12 }
+            )
+        }
+
+        $reg = Register-OmadaSystems -ApiBaseUrl 'http://x/api' -ApiKey 'k' -BaseUrl 'http://omada' -MaxRetries 5
+
+        $reg.omadaIdentitySystemUId | Should -BeNullOrEmpty
+        @($reg.systemId).Count | Should -Be 1     # one id, not the whole set
+        $reg.systemId | Should -BeIn @(11, 12)
+    }
+
+    It 'Register-OmadaSystems reports system id 0 when nothing could be mapped' {
+        # Neither branch fires: no main system and an empty map. 0 is the sentinel the
+        # caller checks; starting it anywhere else would name a real system that was never
+        # registered.
+        Mock Invoke-ODataPagedRequest -ParameterFilter { $Path -eq '/System' } -MockWith { @() }
+        Mock Invoke-IngestAPI -MockWith { @{ systemIds = @(1) } }
+        Mock Invoke-RestMethod -MockWith { @() }
+
+        $reg = Register-OmadaSystems -ApiBaseUrl 'http://x/api' -ApiKey 'k' -BaseUrl 'http://omada' -MaxRetries 5
+
+        $reg.systemId | Should -Be 0
     }
 
     It 'Register-OmadaSystems falls back to single-system registration on error' {

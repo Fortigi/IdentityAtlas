@@ -131,3 +131,97 @@ describe('aggregateByIdentity', () => {
     expect(aggregateByIdentity([]).size).toBe(0);
   });
 });
+
+// ── Candidate gathering and signal lookup ────────────────────────────────────
+//
+// collectCandidates decides which identities an orphan is even COMPARED against. A lookup
+// that silently returns nothing is the quietest possible failure: the orphan is scored
+// against fewer candidates, finds no match, and stays unlinked -- the person's accounts
+// remain split with no error anywhere. Everything below survived mutation.
+
+describe('collectCandidates - every index is actually consulted', () => {
+  const idy = (id) => ({ id, displayName: `Identity ${id}` });
+  const emptyIndexes = () => ({
+    byEmployeeId: new Map(), byEmailLocal: new Map(), byName: new Map(), byNameKey: new Map(),
+  });
+
+  it('finds a candidate through the EMAIL LOCAL PART index', () => {
+    const ix = emptyIndexes();
+    ix.byEmailLocal.set('jsmith', [idy('i-email')]);
+    const got = collectCandidates({ email: 'JSmith@corp.com' }, ix, { prefixes: [], suffixes: [] });
+    expect([...got.keys()]).toEqual(['i-email']);
+  });
+
+  it('finds a candidate through the STRIPPED email local part', () => {
+    // adm-jsmith@corp -> jsmith once the admin prefix is stripped. This is the whole point
+    // of prefix rules: an admin account and its human owner share no literal address.
+    const ix = emptyIndexes();
+    ix.byEmailLocal.set('jsmith', [idy('i-stripped')]);
+    const got = collectCandidates({ email: 'adm-jsmith@corp.com' }, ix, { prefixes: ['adm-'], suffixes: [] });
+    expect([...got.keys()]).toEqual(['i-stripped']);
+  });
+
+  it('finds a candidate through the NAME index', () => {
+    const ix = emptyIndexes();
+    ix.byName.set('alicesmith', [idy('i-name')]);
+    const got = collectCandidates({ displayName: 'Alice Smith' }, ix, { prefixes: [], suffixes: [] });
+    expect([...got.keys()]).toEqual(['i-name']);
+  });
+
+  it('falls back to givenName + surname when there is no displayName', () => {
+    // normalizeName(displayName) || fullName(o) -- the second half only ever runs for a
+    // principal with no display name, which is ordinary for service-created accounts.
+    const ix = emptyIndexes();
+    ix.byName.set('alicesmith', [idy('i-parts')]);
+    const got = collectCandidates({ givenName: 'Alice', surname: 'Smith' }, ix, { prefixes: [], suffixes: [] });
+    expect([...got.keys()]).toEqual(['i-parts']);
+  });
+
+  it('collects from every index at once, de-duplicated by identity id', () => {
+    const ix = emptyIndexes();
+    const shared = idy('i-shared');
+    ix.byEmployeeId.set('e1', [shared]);
+    ix.byEmailLocal.set('jsmith', [shared, idy('i-other')]);
+    const got = collectCandidates({ employeeId: 'E1', email: 'jsmith@corp.com' }, ix, { prefixes: [], suffixes: [] });
+    expect([...got.keys()].sort()).toEqual(['i-other', 'i-shared']);
+  });
+
+  it('returns empty rather than throwing when nothing matches', () => {
+    const got = collectCandidates({ email: 'nobody@corp.com' }, emptyIndexes(), { prefixes: [], suffixes: [] });
+    expect(got.size).toBe(0);
+  });
+});
+
+describe('signal lookup by type', () => {
+  const rules = {
+    signals: [
+      { type: 'prefix', name: 'p', stripPrefixes: ['adm-'] },
+      { type: 'fuzzy',  name: 'f', stripSuffixes: ['(admin)'] },
+      { type: 'name',   name: 'displayName' },
+      { type: 'name',   name: 'fullName' },
+    ],
+  };
+
+  it('picks the prefix and fuzzy signals by their own type, not each others', () => {
+    // Each finder matches on a different type string. Hard-coded true, `find` returns the
+    // FIRST signal whatever it is -- so suffixesFrom would hand back the prefix rule's
+    // (absent) stripSuffixes and quietly stop stripping suffixes at all.
+    expect(prefixesFrom(rules)).toEqual(['adm-']);
+    expect(suffixesFrom(rules)).toEqual(['(admin)']);
+  });
+
+  it('returns empty lists when the rule set has no such signal', () => {
+    expect(prefixesFrom({ signals: [{ type: 'fuzzy', stripSuffixes: ['x'] }] })).toEqual([]);
+    expect(suffixesFrom({ signals: [{ type: 'prefix', stripPrefixes: ['y'] }] })).toEqual([]);
+  });
+
+  it('returns empty lists for a rule set with no signals at all', () => {
+    expect(prefixesFrom({})).toEqual([]);
+    expect(suffixesFrom({})).toEqual([]);
+    expect(nameSignalNames({}).size).toBe(0);
+  });
+
+  it('collects every name signal, and only name signals', () => {
+    expect([...nameSignalNames(rules)].sort()).toEqual(['displayName', 'fullName']);
+  });
+});

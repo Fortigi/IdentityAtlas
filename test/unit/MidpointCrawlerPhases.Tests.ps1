@@ -100,6 +100,92 @@ Describe 'Sync-MidpointSystems' {
 }
 
 # ─── Sync-MidpointOrgs ──────────────────────────────────────────────────────────
+Describe 'Resolve-MidpointSystemIds' {
+    # Folds the Atlas /systems response into "which id is midPoint itself" and "which id
+    # does each connected resource map to". Everything ingested afterwards is attributed
+    # through this map.
+    It 'skips rows that are not midPoint, or that carry no tenant id' {
+        # As -and, a row only gets skipped when BOTH are wrong -- so a non-midPoint system
+        # with a tenant id lands in the resource map and midPoint records are attributed to
+        # somebody else's system.
+        $map = @{}
+        $id = Resolve-MidpointSystemIds -RestRoot 'https://mp/rest' -ResourceSystemId $map -AtlasSystems @(
+            [pscustomobject]@{ systemType = 'Midpoint'; tenantId = 'https://mp/rest'; id = 10 }
+            [pscustomobject]@{ systemType = 'Midpoint'; tenantId = 'res-1';           id = 11 }
+            [pscustomobject]@{ systemType = 'EntraID';  tenantId = 'tenant-x';        id = 12 }  # not midPoint
+            [pscustomobject]@{ systemType = 'Midpoint'; tenantId = $null;             id = 13 }  # no tenant id
+        )
+        $id | Should -Be 10
+        $map.Count | Should -Be 1
+        $map['res-1'] | Should -Be 11
+    }
+
+    It 'returns 0 when the response holds no midPoint system' {
+        $map = @{}
+        Resolve-MidpointSystemIds -RestRoot 'https://mp/rest' -ResourceSystemId $map -AtlasSystems @() | Should -Be 0
+    }
+}
+
+Describe 'Add-MidpointResourceSystem' {
+    It 'registers a resource that holds shadows, enabled but NOT sync-enabled' {
+        # A connected resource is registered so its accounts can be attributed to it, but
+        # midPoint is the thing being crawled -- the resource itself must not be marked as
+        # independently syncable, or Identity Atlas would try to crawl it directly.
+        $recs = [System.Collections.Generic.List[object]]::new()
+        $names = @{}
+        $withData = [System.Collections.Generic.HashSet[string]]::new()
+        [void]$withData.Add('res-1')
+
+        Add-MidpointResourceSystem -Resource ([pscustomobject]@{ oid = 'res-1'; name = 'AD' }) `
+            -ResWithData $withData -ResourceOidToName $names -SysRecords $recs
+
+        $recs | Should -HaveCount 1
+        $recs[0].systemType  | Should -Be 'Midpoint'
+        $recs[0].tenantId    | Should -Be 'res-1'
+        $recs[0].enabled     | Should -BeTrue
+        $recs[0].syncEnabled | Should -BeFalse
+        $names['res-1']      | Should -Be 'AD'
+    }
+
+    It 'skips a resource with no account or entitlement shadows' {
+        # The negation is what makes this a skip rather than a register: dropped, every
+        # resource in the tenant is registered as a system, including empty connectors.
+        $recs = [System.Collections.Generic.List[object]]::new()
+        $names = @{}
+        Add-MidpointResourceSystem -Resource ([pscustomobject]@{ oid = 'res-2'; name = 'EmptyConn' }) `
+            -ResWithData ([System.Collections.Generic.HashSet[string]]::new()) -ResourceOidToName $names -SysRecords $recs
+
+        $recs | Should -HaveCount 0
+        $names['res-2'] | Should -Be 'EmptyConn'   # still named, just not registered
+    }
+}
+
+Describe 'Add-MidpointSystemScanPage' {
+    # Decides which resources count as "holding data" and therefore get registered as
+    # systems at all. The existing fixture only ever supplies an 'account' shadow, so the
+    # two halves of the filter agree on it and neither can be told from the other.
+    It 'counts account and entitlement shadows, and ignores every other kind' {
+        $found = [System.Collections.Generic.HashSet[string]]::new()
+        Add-MidpointSystemScanPage -ResWithData $found -Page @(
+            [pscustomobject]@{ kind = 'account';     resourceRef = @{ oid = 'r-acct' } }
+            [pscustomobject]@{ kind = 'entitlement'; resourceRef = @{ oid = 'r-ent'  } }
+            [pscustomobject]@{ kind = 'generic';     resourceRef = @{ oid = 'r-gen'  } }
+        )
+        # As -or, EVERY shadow qualifies and r-gen is registered as a system holding data.
+        # With either -ne flipped, one of the two real kinds is dropped instead.
+        @($found) | Should -HaveCount 2
+        $found.Contains('r-acct') | Should -BeTrue
+        $found.Contains('r-ent')  | Should -BeTrue
+        $found.Contains('r-gen')  | Should -BeFalse
+    }
+
+    It 'ignores a shadow with no resource reference' {
+        $found = [System.Collections.Generic.HashSet[string]]::new()
+        Add-MidpointSystemScanPage -ResWithData $found -Page @([pscustomobject]@{ kind = 'account'; resourceRef = $null })
+        @($found) | Should -HaveCount 0
+    }
+}
+
 Describe 'Sync-MidpointOrgs' {
     BeforeEach { Reset-PhaseTestState; Mock Send-IngestBatch -MockWith $script:SendMock }
 
