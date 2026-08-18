@@ -1,6 +1,6 @@
 {
   "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
-  "_comment": "Mutation testing for account linking: the code that decides which accounts belong to the same PERSON. Scoped like the auth and effective-access configs -- these files plus their own unit tests, which are self-contained (no filesystem, no crawler manifests) so they run clean inside Stryker's sandbox. WHY THESE FILES: they sit at 83-99% line coverage and both failure directions are silent and serious. Link too eagerly and two people become one identity, so one of them inherits the other's access in every view Identity Atlas presents. Link too shyly and one person stays fragmented, so their true combined access is never visible to a reviewer. Neither throws, and coverage cannot tell either apart from correct behaviour -- which is the same combination that made readTokens.js and the effective-access engine worth measuring. MUTATOR SET: StringLiteral and ObjectLiteral disabled, matching the sibling configs. Same cost, restated: SQL strings stop being mutated too, so this cannot tell you a query is correct; that stays the contract tests' job. Measurement, not a gate -- `break` is null. Run: cd app/api && npx stryker run stryker.accountlinking.config.json",
+  "_comment": "Mutation testing for account linking: the code that decides which accounts belong to the same PERSON. Scoped like the auth and effective-access configs -- these files plus their own unit tests, which are self-contained (no filesystem, no crawler manifests) so they run clean inside Stryker's sandbox. WHY THESE FILES: they sit at 83-99% line coverage and both failure directions are silent and serious. Link too eagerly and two people become one identity, so one of them inherits the other's access in every view Identity Atlas presents. Link too shyly and one person stays fragmented, so their true combined access is never visible to a reviewer. Neither throws, and coverage cannot tell either apart from correct behaviour -- which is the same combination that made readTokens.js and the effective-access engine worth measuring. MUTATOR SET: StringLiteral and ObjectLiteral disabled, matching the sibling configs. Same cost, restated: SQL strings stop being mutated too, so this cannot tell you a query is correct; that stays the contract tests' job. Enforced: see MUTATION FLOOR below. Run: cd app/api && npm run test:mutation:accountlinking MUTATION FLOOR: `break` is set a few points under the measured score, and is a RATCHET — it only ever goes up. It is enforced by the weekly .github/workflows/js-mutation.yml (never on a PR: mutation is far heavier than the unit suite). The margin is not slack to spend, it absorbs the two things that legitimately move a score without anyone editing a test: a Stryker/vitest upgrade that changes which mutants are generated, and timeouts, which count as killed and can flip under CI load. Raise the floor when the score rises; never lower it to make a red run green — a drop means a test stopped discriminating. Measured 81.9% when the floor was set to 80.",
   "packageManager": "npm",
   "testRunner": "vitest",
   "vitest": {
@@ -22,7 +22,7 @@
   "thresholds": {
     "high": 90,
     "low": 70,
-    "break": null
+    "break": 80
   },
   "concurrency": 2,
   "timeoutMS": 60000,

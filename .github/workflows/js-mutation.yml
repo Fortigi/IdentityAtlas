@@ -1,0 +1,190 @@
+# ─── JavaScript mutation testing ─────────────────────────────────────────────
+# The JS counterpart to ps-mutation.yml. Runs the committed Stryker scopes against
+# their Vitest suites -- the metric that proves the tests would CATCH a bug, not
+# just execute the line. Line coverage cannot tell a real assertion from an empty
+# one, and this repo has repeatedly measured the gap: classifier.js sat at 97% line
+# / 68% mutation, effectiveAccess/engine.js at 93% / 69%, matrixFilter.js at 99% /
+# 85%. Those files were "covered" the whole time.
+#
+# ENFORCED. Each stryker.*.config.json carries a `thresholds.break` a few points
+# under its measured score; Stryker exits non-zero below it and the step fails.
+# The floors are a RATCHET -- raise them as scores rise, never lower one to make a
+# red run green. A drop means a test stopped discriminating.
+#
+# WEEKLY AND ON DEMAND, NEVER ON A PULL REQUEST. Mutation testing re-runs the test
+# suite once per mutant; it is orders of magnitude heavier than the unit run. A
+# path-filtered PR workflow also can never be a required check -- GitHub leaves a
+# required check that never reports permanently pending -- so on PRs it would only
+# ever LOOK like a gate. A regression is caught by the Monday run, not at review
+# time; that is the deliberate trade for the runtime, same as ps-mutation.yml.
+# test/ci-scripts/test-gate-wiring.sh enforces this for every *-mutation.yml.
+#
+# SCOPE IS SMALL AND THAT IS THE POINT OF PUBLISHING IT. Ten API/UI files are
+# mutation-tested out of ~410 eligible; the remaining backlog is counted in
+# .ci/js-mutation-scope-baseline.json and guarded by app/api/src/mutationScope.
+# guard.test.js, which fails when new code is added without a decision. Publishing
+# the score to the coverage docs page carries the scope note with it ("covers 10
+# file(s) of 189 -- 5% of the suite's coverable lines"), so the number can never be
+# mistaken for a suite-wide one. A quiet 88% would have been the more flattering
+# option and the dishonest one.
+#
+# Like ps-mutation.yml, this owns the Mutation column for its suites on the Test
+# Coverage docs page: the publish job merges each package's per-scope reports into
+# docs/coverage/{api,ui}/mutation.json, re-renders docs/reference/coverage.md from
+# the already-committed coverage summaries, and commits both back to main.
+# coverage.yml (every merge) just reads those files back -- it never runs mutation.
+# ─────────────────────────────────────────────────────────────────────────────
+name: JavaScript mutation testing
+
+on:
+  schedule:
+    - cron: '0 5 * * 1' # Weekly, Monday 05:00 UTC (after ps-mutation.yml at 03:00,
+                        # so the two never contend for the same docs commit)
+  workflow_dispatch:
+  # Deliberately NOT on pull_request -- see the header.
+
+concurrency:
+  group: js-mutation-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # ── Measure each scope, in parallel ─────────────────────────────────────────
+  # One job per Stryker config rather than one job running all four: the check
+  # names then say WHICH scope regressed without opening a log, and wall-clock is
+  # the slowest scope instead of their sum.
+  mutation:
+    name: 'Mutation: ${{ matrix.scope.label }}'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      # A scope that lands below its floor must not cancel the other three. The
+      # point of the weekly run is a complete picture; losing three numbers to one
+      # regression would also leave the publish job with nothing to merge.
+      fail-fast: false
+      matrix:
+        scope:
+          - { pkg: api, name: auth,            label: 'API auth' }
+          - { pkg: api, name: effectiveaccess, label: 'API effective access' }
+          - { pkg: api, name: accountlinking,  label: 'API account linking' }
+          - { pkg: ui,  name: pilot,           label: 'UI' }
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: app/${{ matrix.scope.pkg }}/package-lock.json
+
+      - name: Install dependencies
+        working-directory: app/${{ matrix.scope.pkg }}
+        run: npm ci
+
+      - name: Run mutation testing (enforced — fails below the config's break floor)
+        working-directory: app/${{ matrix.scope.pkg }}
+        run: npm run test:mutation:${{ matrix.scope.name }}
+
+      # if: always() so a scope that fell below its floor still hands its report to
+      # the publish job. The failing number is the one most worth reading, and the
+      # docs page has to be able to state it.
+      - name: Upload mutation report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: stryker-${{ matrix.scope.pkg }}-${{ matrix.scope.name }}
+          path: app/${{ matrix.scope.pkg }}/reports/stryker-*.json
+          if-no-files-found: error
+
+  # ── Publish the scores to the coverage docs ─────────────────────────────────
+  publish:
+    name: Publish mutation scores
+    needs: [mutation]
+    # always(): a scope below its floor still publishes its real number. Freezing
+    # the page at the last good score would leave it asserting something false for
+    # as long as the regression lasted -- the measure jobs above carry the red.
+    # A scope that produced NO report (a runner or install failure) is different:
+    # the merge below refuses to publish a partial picture and fails here too.
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write # commits the refreshed scores to main
+    steps:
+      # GITHUB_TOKEN cannot push to protected main, so the bot token is required.
+      - name: Generate bot token
+        id: bot-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ secrets.BOT_APP_ID }}
+          private-key: ${{ secrets.BOT_PRIVATE_KEY }}
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          token: ${{ steps.bot-token.outputs.token || github.token }}
+
+      - name: Download API mutation reports
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
+        with:
+          pattern: stryker-api-*
+          merge-multiple: true
+          path: app/api/reports
+
+      - name: Download UI mutation reports
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
+        with:
+          pattern: stryker-ui-*
+          merge-multiple: true
+          path: app/ui/reports
+
+      # Which reports must be present is derived from the Stryker configs
+      # themselves, so adding a fifth scope requires its report with no edit here.
+      # A missing one is a hard error: a merge that silently dropped a scope would
+      # publish a score measured over less code than the page's scope note claims.
+      - name: Merge per-scope reports into the docs inputs
+        run: |
+          python3 tools/mutation/stryker_to_mutation_json.py \
+            --package-dir app/api --out docs/coverage/api/mutation.json
+          python3 tools/mutation/stryker_to_mutation_json.py \
+            --package-dir app/ui --out docs/coverage/ui/mutation.json
+
+      # Re-renders the page from the ALREADY-COMMITTED per-suite coverage summaries
+      # plus the fresh mutation.json files, so line/complexity numbers stay as-of
+      # the last coverage.yml run and only the mutation columns move.
+      - name: Re-render the coverage docs page
+        env:
+          GITHUB_SHA: ${{ github.sha }}
+        run: |
+          python3 tools/generate-coverage-doc.py \
+            --coverage-dir docs/coverage \
+            --out docs/reference/coverage.md \
+            --commit "$GITHUB_SHA"
+
+      - name: Commit mutation scores
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/coverage/api/mutation.json docs/coverage/ui/mutation.json docs/reference/coverage.md
+          if git diff --cached --quiet; then
+            echo "Mutation scores unchanged — nothing to commit"
+            exit 0
+          fi
+          git commit -m "docs: refresh JavaScript mutation scores"
+          # coverage.yml / bump-version.yml / ps-mutation.yml may push to main
+          # concurrently — rebase & retry rather than lose the update.
+          for attempt in 1 2 3 4 5; do
+            if git push; then
+              echo "Pushed on attempt $attempt"
+              exit 0
+            fi
+            echo "Push failed (attempt $attempt) — rebasing onto latest main"
+            git pull --rebase origin main
+          done
+          echo "::error::Could not push mutation update after 5 attempts"
+          exit 1
