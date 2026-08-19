@@ -209,7 +209,8 @@ def test_main_writes_a_report_generate_coverage_doc_can_read(tmp_path, capsys):
 
     assert conv.main(["--package-dir", pkg, "--out", out]) == 0
 
-    written = json.load(open(out, encoding="utf-8"))
+    with open(out, encoding="utf-8") as f:
+        written = json.load(f)
     # The four keys generate-coverage-doc.py actually consumes.
     assert written["mutationScore"] == 66.67   # 2 detected of 3, NoCoverage counting as missed
     assert written["killed"] == 2 and written["total"] == 3
