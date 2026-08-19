@@ -59,17 +59,17 @@ jobs:
   mutation:
     name: 'Mutation: ${{ matrix.scope.label }}'
     runs-on: ubuntu-latest
-    # 120, because the UI scopes are an order of magnitude more expensive per
-    # mutant than the API ones: every mutant re-renders React under jsdom.
-    # Measured locally -- the 891-mutant UI hooks scope took 24 minutes when first
-    # opened and 58 after six tests were added, against ~4 minutes for 1,122 API
-    # mutants. A mutant costs one run of every test covering it, so the better the
-    # tests get the slower the run: the budget has to hold the scope's FUTURE cost,
-    # not today's, and CI hardware is slower than the machine that measured this.
-    # A generous ceiling here is not licence to grow a scope into it -- see the
-    # note in stryker.hooks.config.json, which is already at its practical limit
-    # and wants splitting rather than more files.
-    timeout-minutes: 120
+    # 60. The UI scopes are an order of magnitude more expensive per mutant than
+    # the API ones -- every mutant re-renders React under jsdom -- but no scope is
+    # near this now: measured locally, the slowest is 14 minutes (UI list hook,
+    # 402 mutants) against ~5 for the 1,122-mutant API matrix scope. This was
+    # briefly 120, when the UI hooks lived in one config and took 58 minutes; the
+    # fix was splitting that config rather than buying it more time, because a
+    # mutant costs one run of EVERY test in its include set. Keep the margin for
+    # slower CI hardware and for tests yet to be written -- better-covered code is
+    # slower to mutate -- but treat a scope approaching this as a signal to split
+    # it, not to raise the number.
+    timeout-minutes: 60
     strategy:
       # A scope that lands below its floor must not cancel the other three. The
       # point of the weekly run is a complete picture; losing three numbers to one
@@ -82,7 +82,8 @@ jobs:
           - { pkg: api, name: accountlinking,  label: 'API account linking' }
           - { pkg: api, name: matrix,          label: 'API matrix' }
           - { pkg: ui,  name: pilot,           label: 'UI permissions + filter' }
-          - { pkg: ui,  name: hooks,           label: 'UI matrix + list hooks' }
+          - { pkg: ui,  name: hooks,           label: 'UI matrix hooks' }
+          - { pkg: ui,  name: listhooks,       label: 'UI list-page hook' }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

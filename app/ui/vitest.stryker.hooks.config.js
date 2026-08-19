@@ -10,16 +10,14 @@ import path from 'path';
 // run before a mutant is evaluated, and the tailwind plugin plus the '@crawlers'
 // alias are build concerns that buy the mutation run nothing.
 //
-// WIDER THAN THE FOUR HOOKS' OWN TESTS, AND MEASURED RATHER THAN GUESSED. The
-// obvious include — the four *.test.jsx files next to the hooks — leaves branches
+// WIDER THAN THE THREE HOOKS' OWN TESTS, AND MEASURED RATHER THAN GUESSED. The
+// obvious include — just the *.test.jsx files next to the hooks — leaves branches
 // unexercised that the component mount tests do reach, and every one of those
 // would have come back a SURVIVOR that no test could ever kill. Measured before
-// choosing: coverage of the four hooks under the hooks' own tests alone is
-// 70.63% branch, under the full UI suite 75.46%, and under the list below 75.46%
-// — identical to the full suite, with the same uncovered lines. So the narrowing
-// costs nothing.
+// choosing: coverage of the three hooks under the list below is 94.33% stmts /
+// 82.94% branch / 87.83% funcs / 99.52% lines — identical to the full UI suite,
+// with the same uncovered lines. So the narrowing costs nothing.
 //
-//   EntityListPage.mount.test.jsx   drives useEntityPage through the real list page
 //   MatrixView.mount.test.jsx       drives useMatrixRowOrder + useNestedGroupExpand
 //   App.mount.test.jsx              the only test that mounts the useMatrix caller
 //   nestedRows.helpers.test.js      the row builder that consumes the expand cache
@@ -28,7 +26,9 @@ import path from 'path';
 // of these numbers, so it cannot be any mutant's only killer here.
 //
 // Re-measure this comparison when adding a hook to the `mutate` list — the answer
-// is per-file, not a property of the directory.
+// is per-file, not a property of the directory. And prefer a new config over a
+// longer include: every mutant pays for every test listed here, which is why
+// useEntityPage moved out to vitest.stryker.listhooks.config.js.
 
 export default defineConfig({
   plugins: [react()],
@@ -39,9 +39,7 @@ export default defineConfig({
     include: [
       'src/hooks/useMatrix.test.jsx',
       'src/hooks/useNestedGroupExpand.test.jsx',
-      'src/hooks/useEntityPage.test.jsx',
       'src/hooks/useMatrixRowOrder.test.js',
-      'src/components/EntityListPage.mount.test.jsx',
       'src/components/MatrixView.mount.test.jsx',
       'src/App.mount.test.jsx',
       'src/components/matrix/nestedRows.helpers.test.js',

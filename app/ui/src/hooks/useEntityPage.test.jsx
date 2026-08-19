@@ -407,3 +407,77 @@ describe('useEntityPage', () => {
     expect(groups.result.current.search).toBe('');
   });
 });
+
+// ── When the sidecar fetches fail ───────────────────────────────────────────
+// Columns and tags are loaded alongside the list, and each has the same two-step
+// guard: `res.ok ? res.json() : null`, then `if (data) setX(data)`. Neither
+// failure arm was reachable from this file -- only a mount test elsewhere in the
+// suite happened to drive them, which is a poor place for the contract to live
+// and left these mutants unkilled here.
+//
+// What must NOT happen is the interesting part: a failed columns fetch must leave
+// the previous columns alone rather than blanking them, because the filter bar is
+// built from that list. Overwriting it with null or [] silently removes every
+// filter the user could apply, and an empty filter bar looks like a page with
+// nothing to filter on rather than a page whose request failed.
+describe('useEntityPage sidecar failures', () => {
+  // KEY ORDER MATTERS: makeAuthFetch matches by substring, and the columns URL
+  // ('/api/users/columns') contains the list URL ('/api/users'). List-first would
+  // answer the columns request with the list payload -- an object where an array
+  // is expected, which fails deep inside getFilterFields rather than at the mock.
+  const listOnly = (extra = {}) => ({
+    ...extra,
+    [LIST]: { data: [{ id: '1', displayName: 'Bob' }], total: 1 },
+  });
+
+  it('keeps the list usable when the columns request fails', async () => {
+    const { result } = setup({
+      handler: listOnly({
+        [COLUMNS]: jsonResponse({ error: 'nope' }, { ok: false, status: 500 }),
+        '/api/tags': [{ id: 't1', name: 'VIP' }],
+      }),
+    });
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    // The rows still arrive — one failed sidecar does not take the page down.
+    expect(result.current.items).toEqual([{ id: '1', displayName: 'Bob' }]);
+    // ...and the loading flag still settles, or the filter bar spins forever.
+    await waitFor(() => expect(result.current.columnsLoading).toBe(false));
+    // Tags are unaffected: the two fetches fail independently.
+    expect(result.current.tags).toEqual([{ id: 't1', name: 'VIP' }]);
+  });
+
+  it('keeps the list usable when the tags request fails', async () => {
+    const { result } = setup({
+      handler: listOnly({
+        [COLUMNS]: [{ column: 'department', values: ['Sales'] }],
+        '/api/tags': jsonResponse({ error: 'nope' }, { ok: false, status: 503 }),
+      }),
+    });
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.items).toEqual([{ id: '1', displayName: 'Bob' }]);
+    // Columns are unaffected — again, independent failures. Asserted through
+    // getOptionsForField rather than getFilterFields: the latter dereferences the
+    // `fieldLabels` prop with no default, so it throws for any caller that omits
+    // one. Worth knowing, but not this test's subject.
+    await waitFor(() => expect(result.current.columnsLoading).toBe(false));
+    expect(result.current.getOptionsForField('department')).toEqual(['Sales']);
+  });
+
+  it('leaves both sidecars at their defaults when both fail', async () => {
+    const { result } = setup({
+      handler: listOnly({
+        [COLUMNS]: jsonResponse({ error: 'nope' }, { ok: false, status: 500 }),
+        '/api/tags': jsonResponse({ error: 'nope' }, { ok: false, status: 500 }),
+      }),
+    });
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    await waitFor(() => expect(result.current.columnsLoading).toBe(false));
+    // Both stay empty rather than becoming null: every consumer maps over them.
+    expect(result.current.tags).toEqual([]);
+    expect(result.current.getOptionsForField('department')).toEqual([]);
+    expect(result.current.items).toEqual([{ id: '1', displayName: 'Bob' }]);
+  });
+});
