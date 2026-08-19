@@ -70,6 +70,44 @@ describe('getAncestorNodes', () => {
   });
 });
 
+describe('getAncestorNodes - the caps that stop the walk', () => {
+  // Truncation is how an access answer comes back INCOMPLETE, and nothing exercised either
+  // cap. Both are off-by-one sensitive and both fail quietly: a walk that stops one level
+  // early simply reports less access than the principal has, with no error anywhere. The
+  // fixture chain is vm -> rg -> sub, so depth 1 and a node budget of 2 both land exactly on
+  // the boundary -- which is the only place `>=` and `>` disagree.
+  it('stops at maxDepth, admitting exactly that many levels', async () => {
+    const { depthByNode, truncated } = await getAncestorNodes('vm', { maxDepth: 1 });
+    expect(depthByNode.get('vm')).toBe(0);
+    expect(depthByNode.get('rg')).toBe(1);
+    expect(depthByNode.has('sub')).toBe(false); // one level further would need depth 2
+    expect(truncated).toBeTruthy();
+  });
+
+  it('does not truncate when the tree fits inside maxDepth', async () => {
+    // The paired case: without it, "always truncate" passes the test above.
+    const { depthByNode, truncated } = await getAncestorNodes('vm', { maxDepth: 9 });
+    expect(depthByNode.get('sub')).toBe(2);
+    expect(truncated).toBeFalsy();
+  });
+
+  it('stops at maxNodesPerExpansion, counting the start node', async () => {
+    // The budget counts nodes already admitted, and vm is admitted before the walk begins --
+    // so a budget of 2 leaves room for exactly one more.
+    const { depthByNode, truncated } = await getAncestorNodes('vm', { maxNodesPerExpansion: 2 });
+    expect(depthByNode.has('rg')).toBe(true);
+    expect(depthByNode.has('sub')).toBe(false);
+    expect(depthByNode.size).toBe(2);
+    expect(truncated).toBeTruthy();
+  });
+
+  it('does not truncate when the tree fits inside the node budget', async () => {
+    const { depthByNode, truncated } = await getAncestorNodes('vm', { maxNodesPerExpansion: 50 });
+    expect(depthByNode.size).toBe(3);
+    expect(truncated).toBeFalsy();
+  });
+});
+
 describe('effectiveAccessAtNode', () => {
   it('inherits ancestor grants as Indirect, keeps focus-node grants Direct, drops self-scope-at-ancestor', async () => {
     const r = await effectiveAccessAtNode('vm', 'u1');

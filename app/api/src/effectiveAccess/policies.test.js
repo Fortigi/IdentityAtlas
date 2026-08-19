@@ -61,6 +61,65 @@ describe('AdditiveAllow.resolve', () => {
   });
 });
 
+describe('AdditiveAllow.resolve - decisive pick, with the winner listed FIRST', () => {
+  // The tests above all list the expected winner LAST, so "always keep the ace we just
+  // looked at" produces the same answer as "pick the best one" -- the reduce could ignore
+  // its accumulator entirely and still pass. These put the winner first, which is the only
+  // ordering that tells the two apart. The decisive ACE drives the badge, so getting it
+  // wrong shows a user Direct access that is really inherited through a group.
+  it('keeps the direct allow even when weaker ones come after it', () => {
+    const direct = allow({ explicit: true, viaGroupId: null });
+    const viaGroup = allow({ explicit: true, viaGroupId: 'g1', distance: 1 });
+    const inherited = allow({ explicit: false, distance: 2 });
+    const r = AdditiveAllow.resolve([direct, viaGroup, inherited]);
+    expect(r.decisiveAce).toBe(direct);
+    expect(badgeForAce(r.decisiveAce)).toBe('Direct');
+  });
+
+  it('keeps the nearest inherited allow even when a farther one comes after it', () => {
+    const near = allow({ explicit: false, distance: 2 });
+    const far = allow({ explicit: false, distance: 9 });
+    const r = AdditiveAllow.resolve([near, far]);
+    expect(r.decisiveAce).toBe(near);
+  });
+
+  it('prefers an explicit group grant over a CLOSER inherited one', () => {
+    // Rank beats distance: explicit-via-group (rank 1) wins over inherited (rank 2) even
+    // from further away. Both badge as Indirect, which is why the existing badge-only
+    // assertions cannot see this distinction at all -- but the decisive ACE is what the
+    // UI reports as the reason for the access.
+    const viaGroup = allow({ explicit: true, viaGroupId: 'g1', distance: 7 });
+    const inherited = allow({ explicit: false, distance: 0 });
+    const r = AdditiveAllow.resolve([viaGroup, inherited]);
+    expect(r.decisiveAce).toBe(viaGroup);
+    const reversed = AdditiveAllow.resolve([inherited, viaGroup]);
+    expect(reversed.decisiveAce).toBe(viaGroup);
+  });
+
+  it('keeps the first of two equally-ranked, equally-distant allows', () => {
+    // A stable tie-break. Read as <=, the later ACE displaces an equally good earlier one,
+    // so the reported reason for someone's access changes with input order alone.
+    const first = allow({ explicit: false, distance: 3, aceId: 'a' });
+    const second = allow({ explicit: false, distance: 3, aceId: 'b' });
+    expect(AdditiveAllow.resolve([first, second]).decisiveAce.aceId).toBe('a');
+  });
+});
+
+describe('AdditiveAllow.resolve / badgeForAce - absent input', () => {
+  it('treats a missing ACE as Indirect rather than throwing', () => {
+    // badgeForAce(decisiveAce) is called on results that can carry a null decisive ACE,
+    // so the guard is load-bearing: without it the caller dies on a null dereference.
+    expect(badgeForAce(null)).toBe('Indirect');
+    expect(badgeForAce(undefined)).toBe('Indirect');
+  });
+
+  it('treats a missing ACE list as no access', () => {
+    // The `aces || []` fallback had no coverage at all.
+    expect(AdditiveAllow.resolve(null).effective).toBe('none');
+    expect(AdditiveAllow.resolve(undefined).effective).toBe('none');
+  });
+});
+
 describe('getPolicy', () => {
   it('resolves the default policy', () => {
     expect(getPolicy(DEFAULT_POLICY).name).toBe('AdditiveAllow');

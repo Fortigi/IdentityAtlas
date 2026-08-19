@@ -88,6 +88,24 @@ Describe 'Sync-MidpointSystems' {
         $script:phaseErrors.Count | Should -Be 0
     }
 
+    It 'registers midPoint itself as enabled and sync-enabled' {
+        # midPoint is the system being crawled, so unlike its connected resources it MUST be
+        # syncable -- registered $false, the tenant is onboarded once and never refreshed.
+        Mock Invoke-MidpointSearch -ParameterFilter { $Type -eq 'resources' } -MockWith { @() }
+        Mock Invoke-MidpointSearchStream -MockWith { 0 }
+        $script:mpSysRecs = [System.Collections.Generic.List[object]]::new()
+        Mock Invoke-IngestAPI -MockWith { foreach ($r in @($Body.records)) { $script:mpSysRecs.Add($r) }; @{} }
+        Mock Invoke-RestMethod -MockWith { @([pscustomobject]@{ systemType = 'Midpoint'; tenantId = 'https://mp.example.com'; id = 10 }) }
+
+        Sync-MidpointSystems -RestRoot 'https://mp.example.com' -ApiBaseUrl 'https://x/api' -ApiKey 'k' | Out-Null
+
+        $mp = @($script:mpSysRecs | Where-Object { $_.tenantId -eq 'https://mp.example.com' })
+        $mp | Should -HaveCount 1
+        $mp[0].systemType  | Should -Be 'Midpoint'
+        $mp[0].enabled     | Should -BeTrue
+        $mp[0].syncEnabled | Should -BeTrue
+    }
+
     It 'throws (critical phase) when the system id cannot be resolved' {
         Mock Invoke-MidpointSearch -MockWith { @() }
         Mock Invoke-MidpointSearchStream -MockWith { 0 }
@@ -100,6 +118,92 @@ Describe 'Sync-MidpointSystems' {
 }
 
 # ─── Sync-MidpointOrgs ──────────────────────────────────────────────────────────
+Describe 'Resolve-MidpointSystemIds' {
+    # Folds the Atlas /systems response into "which id is midPoint itself" and "which id
+    # does each connected resource map to". Everything ingested afterwards is attributed
+    # through this map.
+    It 'skips rows that are not midPoint, or that carry no tenant id' {
+        # As -and, a row only gets skipped when BOTH are wrong -- so a non-midPoint system
+        # with a tenant id lands in the resource map and midPoint records are attributed to
+        # somebody else's system.
+        $map = @{}
+        $id = Resolve-MidpointSystemIds -RestRoot 'https://mp/rest' -ResourceSystemId $map -AtlasSystems @(
+            [pscustomobject]@{ systemType = 'Midpoint'; tenantId = 'https://mp/rest'; id = 10 }
+            [pscustomobject]@{ systemType = 'Midpoint'; tenantId = 'res-1';           id = 11 }
+            [pscustomobject]@{ systemType = 'EntraID';  tenantId = 'tenant-x';        id = 12 }  # not midPoint
+            [pscustomobject]@{ systemType = 'Midpoint'; tenantId = $null;             id = 13 }  # no tenant id
+        )
+        $id | Should -Be 10
+        $map.Count | Should -Be 1
+        $map['res-1'] | Should -Be 11
+    }
+
+    It 'returns 0 when the response holds no midPoint system' {
+        $map = @{}
+        Resolve-MidpointSystemIds -RestRoot 'https://mp/rest' -ResourceSystemId $map -AtlasSystems @() | Should -Be 0
+    }
+}
+
+Describe 'Add-MidpointResourceSystem' {
+    It 'registers a resource that holds shadows, enabled but NOT sync-enabled' {
+        # A connected resource is registered so its accounts can be attributed to it, but
+        # midPoint is the thing being crawled -- the resource itself must not be marked as
+        # independently syncable, or Identity Atlas would try to crawl it directly.
+        $recs = [System.Collections.Generic.List[object]]::new()
+        $names = @{}
+        $withData = [System.Collections.Generic.HashSet[string]]::new()
+        [void]$withData.Add('res-1')
+
+        Add-MidpointResourceSystem -Resource ([pscustomobject]@{ oid = 'res-1'; name = 'AD' }) `
+            -ResWithData $withData -ResourceOidToName $names -SysRecords $recs
+
+        $recs | Should -HaveCount 1
+        $recs[0].systemType  | Should -Be 'Midpoint'
+        $recs[0].tenantId    | Should -Be 'res-1'
+        $recs[0].enabled     | Should -BeTrue
+        $recs[0].syncEnabled | Should -BeFalse
+        $names['res-1']      | Should -Be 'AD'
+    }
+
+    It 'skips a resource with no account or entitlement shadows' {
+        # The negation is what makes this a skip rather than a register: dropped, every
+        # resource in the tenant is registered as a system, including empty connectors.
+        $recs = [System.Collections.Generic.List[object]]::new()
+        $names = @{}
+        Add-MidpointResourceSystem -Resource ([pscustomobject]@{ oid = 'res-2'; name = 'EmptyConn' }) `
+            -ResWithData ([System.Collections.Generic.HashSet[string]]::new()) -ResourceOidToName $names -SysRecords $recs
+
+        $recs | Should -HaveCount 0
+        $names['res-2'] | Should -Be 'EmptyConn'   # still named, just not registered
+    }
+}
+
+Describe 'Add-MidpointSystemScanPage' {
+    # Decides which resources count as "holding data" and therefore get registered as
+    # systems at all. The existing fixture only ever supplies an 'account' shadow, so the
+    # two halves of the filter agree on it and neither can be told from the other.
+    It 'counts account and entitlement shadows, and ignores every other kind' {
+        $found = [System.Collections.Generic.HashSet[string]]::new()
+        Add-MidpointSystemScanPage -ResWithData $found -Page @(
+            [pscustomobject]@{ kind = 'account';     resourceRef = @{ oid = 'r-acct' } }
+            [pscustomobject]@{ kind = 'entitlement'; resourceRef = @{ oid = 'r-ent'  } }
+            [pscustomobject]@{ kind = 'generic';     resourceRef = @{ oid = 'r-gen'  } }
+        )
+        # As -or, EVERY shadow qualifies and r-gen is registered as a system holding data.
+        # With either -ne flipped, one of the two real kinds is dropped instead.
+        @($found) | Should -HaveCount 2
+        $found.Contains('r-acct') | Should -BeTrue
+        $found.Contains('r-ent')  | Should -BeTrue
+        $found.Contains('r-gen')  | Should -BeFalse
+    }
+
+    It 'ignores a shadow with no resource reference' {
+        $found = [System.Collections.Generic.HashSet[string]]::new()
+        Add-MidpointSystemScanPage -ResWithData $found -Page @([pscustomobject]@{ kind = 'account'; resourceRef = $null })
+        @($found) | Should -HaveCount 0
+    }
+}
+
 Describe 'Sync-MidpointOrgs' {
     BeforeEach { Reset-PhaseTestState; Mock Send-IngestBatch -MockWith $script:SendMock }
 
@@ -184,6 +288,60 @@ Describe 'Sync-MidpointResources' {
         $script:phaseErrors.Count | Should -Be 0
     }
 
+    It 'falls back to roleType when a role carries no subtype' {
+        # `if ($subs.Count -eq 0) { $subs = ... roleType }`. midPoint tenants classify roles
+        # either way round; without the fallback every role that uses roleType instead of
+        # subtype silently lands on the default resourceType, so a whole tenant's roles are
+        # mis-typed with nothing to indicate it.
+        Mock Invoke-MidpointSearch -ParameterFilter { $Type -eq 'roles' } -MockWith {
+            @([pscustomobject]@{ oid = 'role-1'; name = 'app-owner'; displayName = 'App Owner'; roleType = 'application' })
+        }
+        Mock Invoke-MidpointSearch -ParameterFilter { $Type -eq 'services' } -MockWith { @() }
+        $mapping = @([pscustomobject]@{ archetype = ''; subtype = 'application'; resourceType = 'Application' })
+
+        $r = Sync-MidpointResources -MidpointSystemId 10 -ArchetypeMapping $mapping
+
+        $r.resourceOidToType['role-1'] | Should -Be 'Application'
+    }
+
+    It 'prefers subtype over roleType when both are present' {
+        # The paired case, so "always use roleType" cannot pass the test above.
+        Mock Invoke-MidpointSearch -ParameterFilter { $Type -eq 'roles' } -MockWith {
+            @([pscustomobject]@{ oid = 'role-1'; name = 'app-owner'; displayName = 'App Owner'
+               subtype = 'business'; roleType = 'application' })
+        }
+        Mock Invoke-MidpointSearch -ParameterFilter { $Type -eq 'services' } -MockWith { @() }
+        $mapping = @(
+            [pscustomobject]@{ archetype = ''; subtype = 'business';    resourceType = 'BusinessRole' }
+            [pscustomobject]@{ archetype = ''; subtype = 'application'; resourceType = 'Application' }
+        )
+
+        $r = Sync-MidpointResources -MidpointSystemId 10 -ArchetypeMapping $mapping
+
+        $r.resourceOidToType['role-1'] | Should -Be 'BusinessRole'
+    }
+
+    It 'fetches the archetype catalog only when a mapping row keys on an archetype' {
+        # `@(mapping | where archetype).Count -gt 0` decides whether an extra midPoint round
+        # trip happens at all. Read as "always", every tenant pays for a catalog fetch it
+        # does not use; read as "never", archetype-keyed mappings silently stop resolving
+        # and every role falls back to the default resourceType.
+        Mock Invoke-MidpointSearch -ParameterFilter { $Type -eq 'roles' } -MockWith {
+            @([pscustomobject]@{ oid = 'role-1'; name = 'admin'; displayName = 'Administrator' })
+        }
+        Mock Invoke-MidpointSearch -ParameterFilter { $Type -eq 'services' } -MockWith { @() }
+        Mock Get-MidpointArchetypeLabels -MockWith { @{} }
+
+        # No archetype key anywhere in the mapping -> no catalog fetch.
+        Sync-MidpointResources -MidpointSystemId 10 -ArchetypeMapping (ConvertTo-MapRows $null @('archetype','subtype','resourceType')) | Out-Null
+        Should -Invoke Get-MidpointArchetypeLabels -Exactly 0
+
+        # One row that DOES key on an archetype -> exactly one fetch.
+        $withArch = @([pscustomobject]@{ archetype = 'Business Role'; subtype = ''; resourceType = 'BusinessRole' })
+        Sync-MidpointResources -MidpointSystemId 10 -ArchetypeMapping $withArch | Out-Null
+        Should -Invoke Get-MidpointArchetypeLabels -Exactly 1
+    }
+
     It 'records a Roles phase error when the roles fetch throws (services still run)' {
         Mock Invoke-MidpointSearch -ParameterFilter { $Type -eq 'roles' } -MockWith { throw 'roles 500' }
         Mock Invoke-MidpointSearch -ParameterFilter { $Type -eq 'services' } -MockWith { @() }
@@ -260,6 +418,12 @@ Describe 'Add-MidpointShadowPage' {
         $syncedRes.Contains('ent-sh') | Should -BeTrue
         $skipped.generic | Should -Be 1
         ($byDn.Values) | Should -Contain 'ent-sh'
+        # The res-unsynced shadow must produce NO bucket at all. Asserting only on
+        # $acct[11] cannot see it: the stray record lands under a different key (the
+        # missing system id) and the count that was checked stays 1 either way. What
+        # that costs in production is a shadow filed against a system Identity Atlas
+        # never registered.
+        @($acct.Keys) | Should -Be @(11)
     }
 }
 
@@ -405,6 +569,28 @@ Describe 'Sync-MidpointReviews' {
         Sync-MidpointReviews -MidpointSystemId 10 -SyncedResourceIds (New-StrSet 'role-1') -UserOidToName @{ 'u-1' = 'Alice' }
 
         (Get-Sent { $_.Endpoint -eq 'ingest/governance/certifications' })[0].Records.Count | Should -Be 1
+        $script:phaseErrors.Count | Should -Be 0
+    }
+
+    It 'skips a review case that names only one side of the pair' {
+        # `-not principalOid -or -not targetOid`. A case missing either side cannot become a
+        # certification decision: as -and, only a case missing BOTH is dropped, so a review
+        # of "somebody, on role-1" or "u-1, on nothing" is recorded as a real decision with
+        # half of it blank -- and certification records are what an auditor reads.
+        Mock Invoke-MidpointSearch -ParameterFilter { $Type -eq 'accessCertificationCampaigns' } -MockWith {
+            @([pscustomobject]@{ oid = 'camp-1'; name = 'Q1 review'; state = 'closed'
+                case = @(
+                    [pscustomobject]@{ '@id' = '1'; objectRef = $null; targetRef = [pscustomobject]@{ oid = 'role-1'; type = 'c:RoleType' }; outcome = 'accept' }
+                    [pscustomobject]@{ '@id' = '2'; objectRef = @{ oid = 'u-1' }; targetRef = $null; outcome = 'accept' }
+                    [pscustomobject]@{ '@id' = '3'; objectRef = @{ oid = 'u-1' }; targetRef = [pscustomobject]@{ oid = 'role-1'; type = 'c:RoleType' }; outcome = 'accept' }
+                ) })
+        }
+
+        Sync-MidpointReviews -MidpointSystemId 10 -SyncedResourceIds (New-StrSet 'role-1') -UserOidToName @{ 'u-1' = 'Alice' }
+
+        # Only the complete case survives.
+        $sent = Get-Sent { $_.Endpoint -eq 'ingest/governance/certifications' }
+        $sent[0].Records.Count | Should -Be 1
         $script:phaseErrors.Count | Should -Be 0
     }
 

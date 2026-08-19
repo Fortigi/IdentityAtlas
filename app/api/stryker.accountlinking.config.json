@@ -1,0 +1,36 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "_comment": "Mutation testing for account linking: the code that decides which accounts belong to the same PERSON. Scoped like the auth and effective-access configs -- these files plus their own unit tests, which are self-contained (no filesystem, no crawler manifests) so they run clean inside Stryker's sandbox. WHY THESE FILES: they sit at 83-99% line coverage and both failure directions are silent and serious. Link too eagerly and two people become one identity, so one of them inherits the other's access in every view Identity Atlas presents. Link too shyly and one person stays fragmented, so their true combined access is never visible to a reviewer. Neither throws, and coverage cannot tell either apart from correct behaviour -- which is the same combination that made readTokens.js and the effective-access engine worth measuring. MUTATOR SET: StringLiteral and ObjectLiteral disabled, matching the sibling configs. Same cost, restated: SQL strings stop being mutated too, so this cannot tell you a query is correct; that stays the contract tests' job. Measurement, not a gate -- `break` is null. Run: cd app/api && npx stryker run stryker.accountlinking.config.json",
+  "packageManager": "npm",
+  "testRunner": "vitest",
+  "vitest": {
+    "configFile": "vitest.stryker.accountlinking.config.js"
+  },
+  "reporters": [
+    "clear-text",
+    "json"
+  ],
+  "jsonReporter": {
+    "fileName": "reports/stryker-accountlinking.json"
+  },
+  "mutate": [
+    "src/accountlinking/classifier.js",
+    "src/accountlinking/defaultRules.js",
+    "src/accountlinking/engine.js",
+    "src/accountlinking/engine.helpers.js"
+  ],
+  "thresholds": {
+    "high": 90,
+    "low": 70,
+    "break": null
+  },
+  "concurrency": 2,
+  "timeoutMS": 60000,
+  "disableTypeChecks": false,
+  "mutator": {
+    "excludedMutations": [
+      "StringLiteral",
+      "ObjectLiteral"
+    ]
+  }
+}

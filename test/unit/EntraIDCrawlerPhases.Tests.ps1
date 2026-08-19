@@ -465,6 +465,32 @@ Describe 'Sync-EntraOAuth2Grants' {
     BeforeEach { Reset-PhaseTestState; Mock Send-IngestBatch -MockWith $script:SendMock }
 
 
+    It 'keeps only consents that are per-user AND name the user' {
+        # The existing fixture pairs Principal+principalId against AllPrincipals+null, so
+        # both halves of the filter agree on every row and -and reads exactly like -or.
+        # These two rows disagree: a tenant-wide consent that happens to carry a principal
+        # id, and a per-user consent with none. As -or, the first is ingested as though a
+        # user had personally authorised it -- which is the distinction this phase exists
+        # to make -- and the second produces an assignment held by nobody.
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'oauth2PermissionGrants' } -MockWith {
+            @(
+                [pscustomobject]@{ id = 'g1'; consentType = 'AllPrincipals'; principalId = 'u9'
+                    clientId = 'cli'; resourceId = 'api'; scope = 'Directory.Read.All' }
+                [pscustomobject]@{ id = 'g2'; consentType = 'Principal'; principalId = $null
+                    clientId = 'cli'; resourceId = 'api'; scope = 'Mail.Read' }
+            )
+        }
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'servicePrincipals/' } -MockWith {
+            [pscustomobject]@{ id = 'cli'; displayName = 'Client App'; appId = 'app-cli' }
+        }
+
+        Sync-EntraOAuth2Grants -SystemId 3 -Timings ([ordered]@{})
+
+        # Neither row qualifies, so nothing is ingested at all.
+        (Get-Sent { $_.Scope.resourceType -eq 'DelegatedPermission' }) | Should -HaveCount 0
+        $script:phaseErrors.Count | Should -Be 0
+    }
+
     It 'ingests per-user consents as apps, scope resources, relationships and assignments' {
         Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'oauth2PermissionGrants' } -MockWith {
             @(
@@ -604,6 +630,28 @@ Describe 'Add-EntraAppRoleAssignment' {
 # ─── Expand-EntraAppRoleGroupAssignments ────────────────────────────────────────
 Describe 'Expand-EntraAppRoleGroupAssignments' {
     BeforeEach { Reset-PhaseTestState }
+
+    It 'announces the expansion when there is at least one group, and stays quiet otherwise' {
+        # `groupCount -gt 0` guards the only line telling an operator that a /transitiveMembers
+        # fan-out is starting -- the slowest part of the phase. Read as -gt 1, a run expanding
+        # exactly ONE group looks like it stalled with no explanation; read as always, an
+        # empty run claims to be expanding nothing.
+        $script:said = [System.Collections.Generic.List[string]]::new()
+        Mock Write-Host { $script:said.Add([string]$Object) }
+        Mock Update-CrawlerProgress -MockWith { }
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'transitiveMembers' } -MockWith {
+            @([pscustomobject]@{ id = 'u1'; '@odata.type' = '#microsoft.graph.user' })
+        }
+
+        $one = @{ 'grp1' = [System.Collections.Generic.List[object]]::new() }
+        $one['grp1'].Add(@{ roleResId = 'rr1'; roleId = 'role-a'; sourceAssignmentId = 'aa1'; appName = 'App One' })
+        Expand-EntraAppRoleGroupAssignments -GroupAssns $one | Out-Null
+        ($script:said -join "`n") | Should -Match 'Expanding 1 group'
+
+        $script:said.Clear()
+        Expand-EntraAppRoleGroupAssignments -GroupAssns @{} | Out-Null
+        ($script:said -join "`n") | Should -Not -Match 'Expanding'
+    }
 
     It 'fans a group role assignment out to one row per transitive user member' {
         Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'transitiveMembers' } -MockWith {
@@ -1139,12 +1187,18 @@ Describe 'Get-EntraServicePrincipalData' {
         Mock Invoke-FGGetDeltaRequest -MockWith {
             @{ value = @(
                 [pscustomobject]@{ id = 'sp1'; displayName = 'Changed' }
+                [pscustomobject]@{ id = 'sp3'; displayName = 'Also changed' }
                 [pscustomobject]@{ id = 'sp2'; '@removed' = [pscustomobject]@{ reason = 'deleted' } }
             ); deltaToken = 'next-tok' }
         }
         $r = Get-EntraServicePrincipalData -SystemId 5 -SyncMode 'delta'
         $r.spDeltaHit       | Should -BeTrue
-        @($r.sps).Count     | Should -Be 1
+        # Assert WHICH service principals came back, not just how many. With one live and
+        # one removed the counts are symmetric, so dropping the negation swaps the two
+        # lists and every assertion still reads 1 -- the crawler would then upsert the
+        # deleted SP and tombstone the live ones.
+        @($r.sps).Count     | Should -Be 2
+        @($r.sps.id)        | Should -Be @('sp1', 'sp3')
         @($r.removedSpIds)  | Should -Be @('sp2')
         $r.newSpsToken      | Should -Be 'next-tok'
     }
@@ -1263,17 +1317,21 @@ Describe 'Sync-EntraSignInLogs' {
         Mock Get-Date -MockWith { [datetime]::SpecifyKind([datetime]'2026-01-10T00:00:00', 'Utc') }
         $script:said = [System.Collections.Generic.List[string]]::new()
         Mock Write-Host { $script:said.Add([string]$Object) }
+        # ASYMMETRIC on purpose: TWO events that aggregate against ONE that cannot. With
+        # one of each, inverting the negation swaps two 1s and the message reads the same.
         Mock Invoke-FGGetRequestStream -MockWith {
             @(
                 [pscustomobject]@{ userId = 'u1'; appId = 'a1';      createdDateTime = '2026-01-09T10:00:00Z'; status = [pscustomobject]@{ errorCode = 0 } }
-                [pscustomobject]@{ userId = 'u2'; appId = 'unknown'; createdDateTime = '2026-01-09T11:00:00Z'; status = [pscustomobject]@{ errorCode = 0 } }
+                [pscustomobject]@{ userId = 'u2'; appId = 'a1';      createdDateTime = '2026-01-09T10:30:00Z'; status = [pscustomobject]@{ errorCode = 0 } }
+                [pscustomobject]@{ userId = 'u3'; appId = 'unknown'; createdDateTime = '2026-01-09T11:00:00Z'; status = [pscustomobject]@{ errorCode = 0 } }
             )
         }
 
         Sync-EntraSignInLogs -SystemId 5 -Sps @([pscustomobject]@{ id = 'sp1'; appId = 'a1' }) -SignInLogsDays 1 -Timings ([ordered]@{})
 
         ($script:said -join "`n") | Should -Match 'Skipped 1 events'
-        (Get-Sent { $_.Endpoint -eq 'ingest/principal-activity' })[0].Records.Count | Should -Be 1
+        # ...and the two that DID aggregate are uploaded, as two distinct (user, app) pairs.
+        (Get-Sent { $_.Endpoint -eq 'ingest/principal-activity' })[0].Records.Count | Should -Be 2
     }
 
     It 'records a PARTIAL slice failure and still uploads the slice that worked' {
@@ -1516,13 +1574,18 @@ Describe 'Sync-EntraGovernanceReviews' {
             @(
                 [pscustomobject]@{ id = 'rd1' }   # kept
                 [pscustomobject]@{ id = 'rd2' }   # skipped: no scope
+                [pscustomobject]@{ id = 'rd4' }   # skipped: no scope (TWO of them, deliberately)
                 [pscustomobject]@{ id = 'rd3' }   # skipped: scope, but no AP id in it
             )
         }
+        # Deliberately ASYMMETRIC: two no-scope against one no-match. With one of each the
+        # tally reads "1 (no scope) + 1 (no access-package id)" either way round, so the
+        # branch that decides WHICH counter to bump cannot be told from its opposite.
         Mock Resolve-EntraAccessReviewApId -MockWith {
             switch ($Definition.id) {
                 'rd1'   { @{ apId = 'ap-1' } }
                 'rd2'   { @{ apId = $null; reason = 'noscope' } }
+                'rd4'   { @{ apId = $null; reason = 'noscope' } }
                 default { @{ apId = $null; reason = 'nomatch'; queryStrings = @('someQuery') } }
             }
         }
@@ -1534,9 +1597,11 @@ Describe 'Sync-EntraGovernanceReviews' {
         Sync-EntraGovernanceReviews -SystemId 3
 
         $out = $script:said -join "`n"
-        $out | Should -Match ([regex]::Escape('3 total; skipped 1 (no scope) + 1 (no access-package id) = 2 skipped; kept 1'))
-        # Both skips are sampled: the sample budget is two, and starting the
-        # counter anywhere but zero spends one before the first skip happens.
+        $out | Should -Match ([regex]::Escape('4 total; skipped 2 (no scope) + 1 (no access-package id) = 3 skipped; kept 1'))
+        # THREE skips but only TWO sample lines: the sample budget is two, and it is a
+        # budget rather than a per-skip log. Starting the counter anywhere but zero spends
+        # one before the first skip happens; raising the ceiling logs every skip, which on
+        # a tenant with hundreds of unmatched definitions is what the budget exists to stop.
         @($script:said | Where-Object { $_ -match 'sample skip' }) | Should -HaveCount 2
     }
 
@@ -1677,6 +1742,55 @@ Describe 'Sync-EntraPrincipals' {
         Mock Invoke-FGGetDeltaRequest -MockWith { @{ value = @(); deltaToken = 'primed' } }
     }
 
+    It 'uploads sign-in activity for a SINGLE user with activity' {
+        # `activityRecords.Count -gt 0`. Every other fixture here has users with no
+        # signInActivity at all, so the guard is only ever seen with an empty list -- and
+        # exactly one record is what separates "at least one" from "more than one". Read as
+        # `-gt 1`, a tenant where only one person has ever signed in reports no activity.
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match '/users\?\$select' } -MockWith {
+            @(
+                [pscustomobject]@{ id = 'u1'; displayName = 'Alice'; userPrincipalName = 'a@x'; accountEnabled = $true
+                                   signInActivity = [pscustomobject]@{ lastSignInDateTime = '2026-06-01T10:00:00Z' } }
+                [pscustomobject]@{ id = 'u2'; displayName = 'Bob';   userPrincipalName = 'b@x'; accountEnabled = $true }
+            )
+        }
+
+        Sync-EntraPrincipals -SystemId 5 -SyncMode 'full' -Timings ([ordered]@{})
+
+        $act = Get-Sent { $_.Endpoint -eq 'ingest/principal-activity' }
+        $act | Should -HaveCount 1
+        $act[0].Records.Count | Should -Be 1
+        $act[0].Records[0].principalId | Should -Be 'u1'
+    }
+
+    It 'sends no activity batch when nobody has signed in' {
+        # The paired case: without it, "always upload" passes the test above.
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match '/users\?\$select' } -MockWith {
+            @([pscustomobject]@{ id = 'u1'; displayName = 'Alice'; userPrincipalName = 'a@x'; accountEnabled = $true })
+        }
+
+        Sync-EntraPrincipals -SystemId 5 -SyncMode 'full' -Timings ([ordered]@{})
+
+        (Get-Sent { $_.Endpoint -eq 'ingest/principal-activity' }) | Should -HaveCount 0
+    }
+
+    It 'derives identities only when the filter names an attribute' {
+        # `IdentityFilter.Count -gt 0 -and IdentityFilter['attribute']`. A non-empty filter
+        # that names no attribute is a real configuration -- the wizard writes the key
+        # before the value is chosen. Read as -or, identity correlation runs against a
+        # filter with nothing to correlate on.
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match '/users\?\$select' } -MockWith {
+            @([pscustomobject]@{ id = 'u1'; displayName = 'Alice'; userPrincipalName = 'a@x'; accountEnabled = $true })
+        }
+        Mock Sync-EntraIdentities -MockWith { }
+
+        Sync-EntraPrincipals -SystemId 5 -SyncMode 'full' -Timings ([ordered]@{}) -IdentityFilter @{ mode = 'all' }
+        Should -Invoke Sync-EntraIdentities -Exactly 0
+
+        Sync-EntraPrincipals -SystemId 5 -SyncMode 'full' -Timings ([ordered]@{}) -IdentityFilter @{ attribute = 'employeeId' }
+        Should -Invoke Sync-EntraIdentities -Exactly 1
+    }
+
     It 'full mode uploads User principals with tombstones and primes the token' {
         Mock Invoke-FGGetRequest -ParameterFilter { $URI -match '/users\?\$select' } -MockWith {
             @(
@@ -1804,6 +1918,38 @@ Describe 'Initialize-EntraCrawlerRun' {
         Mock Invoke-IngestAPI -ParameterFilter { $Endpoint -eq 'ingest/systems' } -MockWith { @{ systemIds = @(42) } }
 
         Initialize-EntraCrawlerRun -ApiBaseUrl 'http://x/api' -ApiKey 'k' -ConfigFile 'c.json' | Should -Be 42
+    }
+
+    It 'registers the tenant as enabled and sync-enabled' {
+        # These two flags decide whether the tenant shows up in Identity Atlas and whether
+        # it is ever crawled again. Registered as $false, a freshly connected tenant is
+        # silently inert -- the run reports success and nothing follows it.
+        Mock Invoke-RestMethod -ParameterFilter { $Uri -match 'whoami' } -MockWith { @{ displayName = 'Worker' } }
+        Mock Get-FGAccessToken -MockWith { }
+        $script:sysRecs = [System.Collections.Generic.List[object]]::new()
+        Mock Invoke-IngestAPI -ParameterFilter { $Endpoint -eq 'ingest/systems' } -MockWith {
+            foreach ($r in @($Body.records)) { $script:sysRecs.Add($r) }
+            @{ systemIds = @(42) }
+        }
+
+        Initialize-EntraCrawlerRun -ApiBaseUrl 'http://x/api' -ApiKey 'k' -ConfigFile 'c.json' | Out-Null
+
+        $script:sysRecs | Should -HaveCount 1
+        $script:sysRecs[0].enabled     | Should -BeTrue
+        $script:sysRecs[0].syncEnabled | Should -BeTrue
+        $script:sysRecs[0].systemType  | Should -Be 'EntraID'
+    }
+
+    It 'falls back to systemId 1 when systemIds comes back EMPTY rather than absent' {
+        # The paired test below returns @() -- an empty array is falsy in PowerShell, so
+        # the first half of `systemIds -and systemIds.Count -gt 0` already short-circuits
+        # and the second half is never reached. A response with the key MISSING entirely
+        # is the other shape a caller can send, and both must land on the same fallback.
+        Mock Invoke-RestMethod -ParameterFilter { $Uri -match 'whoami' } -MockWith { @{ displayName = 'Worker' } }
+        Mock Get-FGAccessToken -MockWith { }
+        Mock Invoke-IngestAPI -ParameterFilter { $Endpoint -eq 'ingest/systems' } -MockWith { @{} }
+
+        Initialize-EntraCrawlerRun -ApiBaseUrl 'http://x/api' -ApiKey 'k' -ConfigFile 'c.json' | Should -Be 1
     }
 
     It 'falls back to systemId 1 when none is returned' {
