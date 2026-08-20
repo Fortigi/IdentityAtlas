@@ -20,9 +20,15 @@ signals that the project already measures elsewhere, when a suite supplies them:
   the Node suites emit it via ``tools/complexity/ratchet.py --emit-complexity-json``
   (ESLint's ``complexity`` rule + eslint-plugin-sonarjs). We aggregate it to avg / max
   cyclomatic and cognitive complexity per suite.
-* **Mutation** — ``<coverage-dir>/<slug>/mutation.json``, the PSMutant report
-  (``{mutationScore, killed, total, …}``): the share of injected faults the tests
-  actually catch. PowerShell-only today; suites without the file show —.
+* **Mutation** — ``<coverage-dir>/<slug>/mutation.json``, in the shape PSMutant
+  emits (``{mutationScore, killed, total, …}``): the share of injected faults the
+  tests actually catch. PowerShell publishes it straight from PSMutant via the
+  weekly ps-mutation.yml; the API and UI suites publish it from Stryker via the
+  weekly js-mutation.yml, which merges each package's per-scope Stryker reports
+  into that same shape (tools/mutation/stryker_to_mutation_json.py). Both are
+  weekly, so a suite's mutation figure can be up to a week older than its line
+  coverage — the scope note says so when the two disagree. Suites without the
+  file show —.
 
 Usage:
     python3 tools/generate-coverage-doc.py \
@@ -37,6 +43,7 @@ complexity/mutation inputs are likewise optional per suite.
 """
 import argparse
 import datetime
+import glob
 import json
 import os
 import sys
@@ -48,6 +55,17 @@ SUITES = [
     ("ui", "UI (React / Vitest)"),
     ("powershell", "PowerShell (Pester)"),
 ]
+
+# Package root whose stryker*.config.json files DECLARE a JS suite's mutation
+# scope. PowerShell declares its scope in one PSMutant config (--psmutant-config);
+# the JS suites spread theirs over several Stryker configs in the package root, so
+# the declaration is the union of their `mutate` lists. Both are read from the
+# committed config rather than from the report for the same reason: the config is
+# current as of the merge, the report only as of the last weekly mutation run.
+STRYKER_PACKAGES = {
+    "api": "app/api",
+    "ui": "app/ui",
+}
 
 
 def load_summary(coverage_dir, slug):
@@ -182,6 +200,48 @@ def declared_mutation_files(config_path):
     return {"files": set(declared), "operators": len(cfg.get("operators") or []) or None}
 
 
+def declared_stryker_files(package_dir):
+    """The scope a JS package DECLARES it mutates: the union of the `mutate` lists
+    in every stryker*.config.json in its root.
+
+    Same derivation as app/api/src/mutationScope.guard.test.js — discovering the
+    configs by glob rather than naming them means adding a fourth Stryker scope
+    widens the declared scope here with no edit, which is what stops this page
+    understating itself the way it once did for PowerShell (see
+    declared_mutation_files). Paths in `mutate` are package-relative, matching the
+    coverage keys ('src/…'), so they need no rewriting. Operators are None: Stryker
+    declares which mutators to EXCLUDE, not a fixed operator list, so there is no
+    honest count to report and scope_note simply omits the clause.
+
+    Returns None when the directory holds no readable config with a `mutate` list,
+    so the caller falls back to what the report actually ran."""
+    if not package_dir or not os.path.isdir(package_dir):
+        return None
+    files = set()
+    for path in sorted(glob.glob(os.path.join(package_dir, "stryker*.config.json"))):
+        try:
+            with open(path, "r", encoding="utf-8") as fh:
+                cfg = json.load(fh)
+        except (OSError, ValueError):
+            continue
+        files.update(cfg.get("mutate") or [])
+    if not files:
+        return None
+    return {"files": files, "operators": None}
+
+
+def declared_scope_for(slug, psmutant_config, repo_root="."):
+    """The committed mutation-scope declaration for one suite, or None.
+
+    PowerShell's lives in a single PSMutant config; the JS suites' in their
+    package's Stryker configs. Suites with neither (a suite that runs no mutation
+    testing) get None and fall back to the report."""
+    if slug == "powershell":
+        return declared_mutation_files(psmutant_config)
+    package = STRYKER_PACKAGES.get(slug)
+    return declared_stryker_files(os.path.join(repo_root, package)) if package else None
+
+
 def resolve_declared_scope(report, declared, measured):
     """Pick the authoritative file set and operator count for the scope note.
 
@@ -311,14 +371,18 @@ def fmt_avg_max(avg, mx):
     return f"{avg:.1f} / {mx}"
 
 
-def collect_rows(coverage_dir, psmutant_config=None):
+def collect_rows(coverage_dir, psmutant_config=None, repo_root="."):
     """Load each suite's ReportGenerator summary plus its optional complexity /
     mutation side-inputs into ``(slug, label, data|None)`` rows. Returns the rows
-    along with the running overall covered / coverable line totals."""
+    along with the running overall covered / coverable line totals.
+
+    The mutation-scope declaration is read PER SUITE (see declared_scope_for), not
+    once for the whole page: PowerShell declares its scope in a PSMutant config and
+    the JS suites in their Stryker configs. Applying one suite's declaration to
+    another would report every row as measuring the wrong file set."""
     rows = []
     overall_covered = 0
     overall_coverable = 0
-    declared_scope = declared_mutation_files(psmutant_config)
     for slug, label in SUITES:
         summary = load_summary(coverage_dir, slug)
         if summary is None:
@@ -346,7 +410,8 @@ def collect_rows(coverage_dir, psmutant_config=None):
         }
         # Scope + shape diagnostics: what each number is measured over, and where
         # the aggregate is least representative. See render_diagnostics.
-        data["mutation_scope"] = mutation_scope(report, files, declared_scope)
+        data["mutation_scope"] = mutation_scope(
+            report, files, declared_scope_for(slug, psmutant_config, repo_root))
         data["flags"] = shape_flags(data)
         data["hotspots"] = complexity_hotspots(units, files, branch)
         rows.append((slug, label, data))
@@ -526,11 +591,15 @@ def main():
                     help="Committed mutation-scope declaration. Scope is read from here "
                          "(current as of the merge) rather than from the report, which the "
                          "weekly ps-mutation.yml regenerates on its own cadence.")
+    ap.add_argument("--repo-root", default=".",
+                    help="Repo root, used to find each JS package's stryker*.config.json "
+                         "(the committed declaration of that suite's mutation scope).")
     ap.add_argument("--report-base", default="../coverage",
                     help="Relative path from the page to the coverage report root.")
     args = ap.parse_args()
 
-    rows, _covered, overall_coverable = collect_rows(args.coverage_dir, args.psmutant_config)
+    rows, _covered, overall_coverable = collect_rows(
+        args.coverage_dir, args.psmutant_config, args.repo_root)
     generated = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     text = render_markdown(rows, args.report_base, args.commit, generated)
 

@@ -12,8 +12,9 @@
 #      tools/complexity/ratchet.py --emit-complexity-json (ESLint + sonarjs) for
 #      the API/UI suites. The page surfaces it as avg/max cyclomatic + cognitive
 #      columns. (Mutation is the heavier signal, so it is NOT run here: the weekly
-#      ps-mutation.yml refreshes docs/coverage/powershell/mutation.json, which
-#      this page just reads back — see that workflow.)
+#      ps-mutation.yml refreshes docs/coverage/powershell/mutation.json and the
+#      weekly js-mutation.yml refreshes the api/ui ones, which this page just reads
+#      back — see those workflows.)
 #   4. Renders the curated docs page (docs/reference/coverage.md) from those
 #      summaries (tools/generate-coverage-doc.py).
 #   5. Commits docs/reference/coverage.md + docs/coverage/** back to main.
@@ -187,8 +188,9 @@ jobs:
       # complexity.yml. Emits the per-unit {file,unit,line,cc,cog} array;
       # generate-coverage-doc.py aggregates it to avg/max per suite. Cheap (a few
       # seconds), so it refreshes every merge. Mutation is deliberately NOT run
-      # here — the weekly ps-mutation.yml owns docs/coverage/powershell/mutation.json,
-      # which the render step below reads back. continue-on-error keeps a
+      # here — the weekly ps-mutation.yml owns docs/coverage/powershell/mutation.json
+      # and js-mutation.yml owns docs/coverage/{api,ui}/mutation.json, all of which
+      # the render step below reads back. continue-on-error keeps a
       # measurement hiccup from blocking the docs commit, matching the suites above.
       - name: PowerShell complexity
         shell: pwsh

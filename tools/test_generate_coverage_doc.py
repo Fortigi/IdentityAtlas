@@ -266,6 +266,100 @@ def test_declared_mutation_files_none_when_unusable(tmp_path):
     assert gcd.declared_mutation_files(str(empty)) is None
 
 
+# ── declared_stryker_files / declared_scope_for ───────────────────────────────
+# The JS suites declare their mutation scope across SEVERAL Stryker configs in a
+# package root, where PowerShell declares its in one PSMutant config. These cover
+# the union, and the routing that keeps one suite's declaration out of another's
+# row — the page previously applied the PowerShell `mutate` list to every suite.
+
+def _stryker(dirpath, name, mutate):
+    _write(os.path.join(dirpath, name), {"mutate": mutate,
+                                         "jsonReporter": {"fileName": "reports/r.json"}})
+
+
+def test_declared_stryker_files_unions_every_config_in_the_package(tmp_path):
+    pkg = str(tmp_path / "app")
+    _stryker(pkg, "stryker.auth.config.json", ["src/a.js", "src/shared.js"])
+    _stryker(pkg, "stryker.other.config.json", ["src/b.js", "src/shared.js"])
+    d = gcd.declared_stryker_files(pkg)
+    # Union, de-duplicated — three distinct files across two configs, not four.
+    assert d["files"] == {"src/a.js", "src/b.js", "src/shared.js"}
+    # Stryker declares which mutators to EXCLUDE, not a fixed operator list, so
+    # there is no honest count and scope_note must omit the clause.
+    assert d["operators"] is None
+
+
+def test_declared_stryker_files_ignores_a_broken_config_but_keeps_the_rest(tmp_path):
+    pkg = str(tmp_path / "app")
+    _stryker(pkg, "stryker.good.config.json", ["src/a.js"])
+    with open(os.path.join(pkg, "stryker.bad.config.json"), "w", encoding="utf-8") as fh:
+        fh.write("{ not json")
+    # One unparseable config must not blank out the whole declaration — that would
+    # silently fall back to the report and hide the real scope.
+    assert gcd.declared_stryker_files(pkg)["files"] == {"src/a.js"}
+
+
+def test_declared_stryker_files_none_when_there_is_nothing_to_read(tmp_path):
+    assert gcd.declared_stryker_files(None) is None
+    assert gcd.declared_stryker_files(str(tmp_path / "missing")) is None
+    empty = str(tmp_path / "empty")
+    os.makedirs(empty)
+    assert gcd.declared_stryker_files(empty) is None          # no configs at all
+    _stryker(empty, "stryker.a.config.json", [])
+    assert gcd.declared_stryker_files(empty) is None          # configs, empty mutate
+    # A non-Stryker JSON file in the package root is not a declaration.
+    _write(os.path.join(empty, "package.json"), {"mutate": ["src/nope.js"]})
+    assert gcd.declared_stryker_files(empty) is None
+
+
+def test_declared_scope_for_routes_each_suite_to_its_own_declaration(tmp_path):
+    root = str(tmp_path)
+    _stryker(os.path.join(root, "app", "api"), "stryker.a.config.json", ["src/api.js"])
+    _stryker(os.path.join(root, "app", "ui"), "stryker.b.config.json", ["src/ui.js"])
+    ps_cfg = str(tmp_path / "psmutant.config.json")
+    _write(ps_cfg, {"mutate": ["crawler.ps1"], "operators": ["X"]})
+
+    # Each suite gets ITS OWN file list. The bug this guards: the PowerShell
+    # declaration was read once and handed to every row, so the API and UI rows
+    # reported PowerShell's 112 files as the scope of a JS score.
+    assert gcd.declared_scope_for("api", ps_cfg, root)["files"] == {"src/api.js"}
+    assert gcd.declared_scope_for("ui", ps_cfg, root)["files"] == {"src/ui.js"}
+    assert gcd.declared_scope_for("powershell", ps_cfg, root)["files"] == {"crawler.ps1"}
+    # A suite with neither kind of declaration falls back to the report.
+    assert gcd.declared_scope_for("unknown-suite", ps_cfg, root) is None
+
+
+def test_collect_rows_scopes_a_js_suite_by_its_own_stryker_configs(tmp_path):
+    root = tmp_path / "repo"
+    cov = root / "coverage"
+    _write(str(cov / "api" / "Summary.json"), {
+        "summary": {"linecoverage": 90.0, "coveredlines": 90, "coverablelines": 100},
+        "coverage": {"assemblies": [{"classesinassembly": [
+            {"name": "src/a.js", "coverage": 90.0, "coverablelines": 40},
+            {"name": "src/b.js", "coverage": 80.0, "coverablelines": 60},
+        ]}]},
+    })
+    # The report measured ONE file; the configs declare TWO. Different numbers on
+    # purpose: a row that reported 1 file would mean the declaration was ignored.
+    _write(str(cov / "api" / "mutation.json"), {
+        "mutationScore": 75.0, "killed": 3, "total": 4,
+        "mutants": [{"File": "src/a.js"}],
+    })
+    _stryker(str(root / "app" / "api"), "stryker.one.config.json", ["src/a.js"])
+    _stryker(str(root / "app" / "api"), "stryker.two.config.json", ["src/b.js"])
+    ps_cfg = str(root / "psmutant.config.json")
+    _write(ps_cfg, {"mutate": ["crawler-1.ps1", "crawler-2.ps1", "crawler-3.ps1"]})
+
+    rows, _covered, _coverable = gcd.collect_rows(str(cov), ps_cfg, str(root))
+    scope = {slug: data for slug, _, data in rows}["api"]["mutation_scope"]
+
+    assert scope["files"] == 2                # the Stryker declaration, not the 3 PS files
+    assert scope["measured_files"] == 1       # ...and the report is behind it
+    assert scope["stale"] is True             # so the page says the score lags the scope
+    assert scope["lines"] == 100              # both declared files matched a coverage entry
+    assert scope["unmatched"] == 0
+
+
 def test_resolve_declared_scope_prefers_the_declaration_then_the_report():
     report = {"operators": ["X", "Y"]}
     declared = {"files": {"a.ps1"}, "operators": 4}

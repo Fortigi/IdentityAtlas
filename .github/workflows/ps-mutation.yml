@@ -3,14 +3,15 @@
 # transforms (the pure ConvertTo-* record-shapers) against their Pester suites --
 # the metric that proves the tests would CATCH a bug, not just execute the line.
 #
-# ENFORCED (.ci/psmutant.config.json has thresholds.break = 80): the run FAILS when
+# ENFORCED (.ci/psmutant.config.json has thresholds.break = 85): the run FAILS when
 # the mutation score drops below the floor — PSMutant returns a non-zero exit code,
 # which the step below rethrows. Mutation is far heavier than the unit suite, so it
 # runs WEEKLY and on demand only — never on a pull request. A regression is caught by
 # the Monday run, not at review time; that is the deliberate trade for the runtime.
 #
-# Because it's the ONLY place mutation runs, the weekly/on-demand run also owns the
-# mutation figure on the Test Coverage docs page: it writes the score to
+# Because it's the only place PowerShell mutation runs, the weekly/on-demand run also
+# owns the PowerShell mutation figure on the Test Coverage docs page (js-mutation.yml
+# owns the API and UI ones, the same way): it writes the score to
 # docs/coverage/powershell/mutation.json, re-renders docs/reference/coverage.md from
 # the already-committed coverage summaries (tools/generate-coverage-doc.py), and
 # commits both back to main. coverage.yml (every merge) just reads that file back —
@@ -74,7 +75,7 @@ jobs:
 
       - name: Upload mutation report
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: ps-mutation-report
           path: reports/ps-mutation.json

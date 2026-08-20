@@ -912,6 +912,18 @@ jobs:
           bash test/ci-scripts/test-dor-push-lease.sh
           bash test/ci-scripts/test-gate-wiring.sh
 
+      # The two Python tools that render and feed the Test Coverage docs page.
+      # Both are run only by post-merge workflows (coverage.yml, js-mutation.yml),
+      # so without this step a PR could break the page and nothing would say so
+      # until it had already landed on main — which is how these tests came to
+      # exist and never run. The ratchet gates test their own logic in their own
+      # jobs; these have no gate job to live in, so they live here.
+      - name: Test the coverage-docs tooling
+        run: |
+          python3 -m pip install --quiet pytest
+          python3 -m pytest tools/test_generate_coverage_doc.py \
+                            tools/mutation/test_stryker_to_mutation_json.py -q
+
   # ── Stage 15: Docs site build (strict) ────────────────────────────────────
   # `docs.yml` publishes the site, but it only runs on push to main — so until
   # now a PR could break the nav, an internal cross-link or a link to a source
