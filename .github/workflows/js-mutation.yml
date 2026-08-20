@@ -19,7 +19,7 @@
 # time; that is the deliberate trade for the runtime, same as ps-mutation.yml.
 # test/ci-scripts/test-gate-wiring.sh enforces this for every *-mutation.yml.
 #
-# SCOPE IS SMALL AND THAT IS THE POINT OF PUBLISHING IT. Twenty API/UI files are
+# SCOPE IS SMALL AND THAT IS THE POINT OF PUBLISHING IT. 24 API/UI files are
 # mutation-tested out of ~410 eligible; the remaining backlog is counted in
 # .ci/js-mutation-scope-baseline.json and guarded by app/api/src/mutationScope.
 # guard.test.js, which fails when new code is added without a decision. Publishing
@@ -59,7 +59,17 @@ jobs:
   mutation:
     name: 'Mutation: ${{ matrix.scope.label }}'
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    # 60. The UI scopes are an order of magnitude more expensive per mutant than
+    # the API ones -- every mutant re-renders React under jsdom -- but no scope is
+    # near this now: measured locally, the slowest is 14 minutes (UI list hook,
+    # 402 mutants) against ~5 for the 1,122-mutant API matrix scope. This was
+    # briefly 120, when the UI hooks lived in one config and took 58 minutes; the
+    # fix was splitting that config rather than buying it more time, because a
+    # mutant costs one run of EVERY test in its include set. Keep the margin for
+    # slower CI hardware and for tests yet to be written -- better-covered code is
+    # slower to mutate -- but treat a scope approaching this as a signal to split
+    # it, not to raise the number.
+    timeout-minutes: 60
     strategy:
       # A scope that lands below its floor must not cancel the other three. The
       # point of the weekly run is a complete picture; losing three numbers to one
@@ -71,7 +81,9 @@ jobs:
           - { pkg: api, name: effectiveaccess, label: 'API effective access' }
           - { pkg: api, name: accountlinking,  label: 'API account linking' }
           - { pkg: api, name: matrix,          label: 'API matrix' }
-          - { pkg: ui,  name: pilot,           label: 'UI' }
+          - { pkg: ui,  name: pilot,           label: 'UI permissions + filter' }
+          - { pkg: ui,  name: hooks,           label: 'UI matrix hooks' }
+          - { pkg: ui,  name: listhooks,       label: 'UI list-page hook' }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
