@@ -306,7 +306,7 @@ jobs:
           echo "_Set repository variable \`ENFORCE_TEST_SECRETS=true\` to make this a hard failure once secrets are configured._" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4
         with:
           # Current BuildKit → type=gha uses the Actions Cache Service v2 (the
           # legacy v1 service was retired). See docker-publish.yml.
@@ -809,7 +809,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4
         with:
           # Current BuildKit → type=gha uses the Actions Cache Service v2 (the
           # legacy v1 service was retired). See docker-publish.yml.
@@ -921,7 +921,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4
         with:
           # Current BuildKit → type=gha uses the Actions Cache Service v2 (the
           # legacy v1 service was retired). See docker-publish.yml.
