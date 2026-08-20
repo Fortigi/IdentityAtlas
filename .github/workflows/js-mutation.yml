@@ -19,14 +19,15 @@
 # time; that is the deliberate trade for the runtime, same as ps-mutation.yml.
 # test/ci-scripts/test-gate-wiring.sh enforces this for every *-mutation.yml.
 #
-# SCOPE IS SMALL AND THAT IS THE POINT OF PUBLISHING IT. Ten API/UI files are
+# SCOPE IS SMALL AND THAT IS THE POINT OF PUBLISHING IT. Twenty API/UI files are
 # mutation-tested out of ~410 eligible; the remaining backlog is counted in
 # .ci/js-mutation-scope-baseline.json and guarded by app/api/src/mutationScope.
 # guard.test.js, which fails when new code is added without a decision. Publishing
-# the score to the coverage docs page carries the scope note with it ("covers 10
-# file(s) of 189 -- 5% of the suite's coverable lines"), so the number can never be
+# the score to the coverage docs page carries the scope note with it ("covers N
+# file(s) of 189 -- X% of the suite's coverable lines"), so the number can never be
 # mistaken for a suite-wide one. A quiet 88% would have been the more flattering
-# option and the dishonest one.
+# option and the dishonest one. Do not hand-edit that sentence's numbers here --
+# generate-coverage-doc.py derives them from the configs on every run.
 #
 # Like ps-mutation.yml, this owns the Mutation column for its suites on the Test
 # Coverage docs page: the publish job merges each package's per-scope reports into
@@ -69,6 +70,7 @@ jobs:
           - { pkg: api, name: auth,            label: 'API auth' }
           - { pkg: api, name: effectiveaccess, label: 'API effective access' }
           - { pkg: api, name: accountlinking,  label: 'API account linking' }
+          - { pkg: api, name: matrix,          label: 'API matrix' }
           - { pkg: ui,  name: pilot,           label: 'UI' }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
