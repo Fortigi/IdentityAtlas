@@ -1,0 +1,6341 @@
+{
+  "tool": "stryker",
+  "mutationScore": 69.41,
+  "killed": 640,
+  "survived": 282,
+  "total": 922,
+  "scopes": [
+    {
+      "config": "stryker.hooks.config.json",
+      "score": 69.61,
+      "killed": 307,
+      "survived": 134
+    },
+    {
+      "config": "stryker.listhooks.config.json",
+      "score": 56.88,
+      "killed": 182,
+      "survived": 138
+    },
+    {
+      "config": "stryker.pilot.config.json",
+      "score": 93.79,
+      "killed": 151,
+      "survived": 10
+    }
+  ],
+  "mutants": [
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 94,
+      "Status": "NoCoverage",
+      "Operator": "ArrowFunction"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 94,
+      "Status": "NoCoverage",
+      "Operator": "ArithmeticOperator"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 102,
+      "Status": "NoCoverage",
+      "Operator": "ArrowFunction"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 102,
+      "Status": "NoCoverage",
+      "Operator": "ArithmeticOperator"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 109,
+      "Status": "NoCoverage",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 159,
+      "Status": "NoCoverage",
+      "Operator": "CallExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 222,
+      "Status": "NoCoverage",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 23,
+      "Status": "Ignored",
+      "Operator": "ObjectLiteral"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 24,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 25,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 26,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 27,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 33,
+      "Status": "Ignored",
+      "Operator": "ObjectLiteral"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 35,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 40,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 56,
+      "Status": "Ignored",
+      "Operator": "ObjectLiteral"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 70,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 71,
+      "Status": "Ignored",
+      "Operator": "ObjectLiteral"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 107,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 111,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 112,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 121,
+      "Status": "Ignored",
+      "Operator": "ObjectLiteral"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 126,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 140,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 144,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 171,
+      "Status": "Ignored",
+      "Operator": "ObjectLiteral"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 185,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 185,
+      "Status": "Ignored",
+      "Operator": "ObjectLiteral"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 186,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 187,
+      "Status": "Ignored",
+      "Operator": "ObjectLiteral"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 187,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 189,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 194,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 204,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 208,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 209,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 224,
+      "Status": "Ignored",
+      "Operator": "ObjectLiteral"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 232,
+      "Status": "Ignored",
+      "Operator": "ObjectLiteral"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 35,
+      "Status": "Killed",
+      "Operator": "LogicalOperator"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 35,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 35,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 32,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 36,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 36,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 36,
+      "Status": "Killed",
+      "Operator": "LogicalOperator"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 37,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 37,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 37,
+      "Status": "Killed",
+      "Operator": "LogicalOperator"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 38,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 38,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 38,
+      "Status": "Killed",
+      "Operator": "LogicalOperator"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 38,
+      "Status": "Killed",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 39,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 39,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 39,
+      "Status": "Killed",
+      "Operator": "LogicalOperator"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 39,
+      "Status": "Killed",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 40,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 40,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 40,
+      "Status": "Killed",
+      "Operator": "LogicalOperator"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 41,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 41,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 41,
+      "Status": "Killed",
+      "Operator": "LogicalOperator"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 41,
+      "Status": "Killed",
+      "Operator": "BooleanLiteral"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 42,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 42,
+      "Status": "Killed",
+      "Operator": "LogicalOperator"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 42,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 42,
+      "Status": "Killed",
+      "Operator": "BooleanLiteral"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 43,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 43,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 43,
+      "Status": "Killed",
+      "Operator": "LogicalOperator"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 44,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 44,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 44,
+      "Status": "Killed",
+      "Operator": "LogicalOperator"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 44,
+      "Status": "Killed",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 45,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 45,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 45,
+      "Status": "Killed",
+      "Operator": "LogicalOperator"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 45,
+      "Status": "Killed",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 46,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 46,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 46,
+      "Status": "Killed",
+      "Operator": "LogicalOperator"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 46,
+      "Status": "Killed",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 47,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 47,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 47,
+      "Status": "Killed",
+      "Operator": "LogicalOperator"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 47,
+      "Status": "Killed",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 48,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 48,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 48,
+      "Status": "Killed",
+      "Operator": "LogicalOperator"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 48,
+      "Status": "Killed",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 49,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 49,
+      "Status": "Killed",
+      "Operator": "LogicalOperator"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 49,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 49,
+      "Status": "Killed",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 50,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 50,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 50,
+      "Status": "Killed",
+      "Operator": "LogicalOperator"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 50,
+      "Status": "Killed",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 51,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 51,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 51,
+      "Status": "Killed",
+      "Operator": "LogicalOperator"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 51,
+      "Status": "Killed",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 55,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 57,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 57,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 57,
+      "Status": "Killed",
+      "Operator": "LogicalOperator"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 58,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 58,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 58,
+      "Status": "Killed",
+      "Operator": "LogicalOperator"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 59,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 59,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 59,
+      "Status": "Killed",
+      "Operator": "LogicalOperator"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 60,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 60,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 60,
+      "Status": "Killed",
+      "Operator": "LogicalOperator"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 61,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 61,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 61,
+      "Status": "Killed",
+      "Operator": "LogicalOperator"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 65,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 82,
+      "Status": "Survived",
+      "Operator": "BooleanLiteral"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 69,
+      "Status": "Survived",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 76,
+      "Status": "Survived",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 78,
+      "Status": "Survived",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 83,
+      "Status": "Survived",
+      "Operator": "BooleanLiteral"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 87,
+      "Status": "Survived",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 94,
+      "Status": "Survived",
+      "Operator": "ArrowFunction"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 94,
+      "Status": "Survived",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 102,
+      "Status": "Survived",
+      "Operator": "ArrowFunction"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 102,
+      "Status": "Survived",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 105,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 106,
+      "Status": "Killed",
+      "Operator": "BooleanLiteral"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 108,
+      "Status": "Survived",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 109,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 109,
+      "Status": "Killed",
+      "Operator": "BooleanLiteral"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 108,
+      "Status": "Killed",
+      "Operator": "ArrowFunction"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 112,
+      "Status": "Killed",
+      "Operator": "ArrowFunction"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 113,
+      "Status": "Killed",
+      "Operator": "ArrowFunction"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 109,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 109,
+      "Status": "Survived",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 113,
+      "Status": "Survived",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 114,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 115,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 117,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 118,
+      "Status": "Killed",
+      "Operator": "MethodExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 118,
+      "Status": "Survived",
+      "Operator": "OptionalChaining"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 119,
+      "Status": "Killed",
+      "Operator": "BooleanLiteral"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 115,
+      "Status": "Survived",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 119,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 119,
+      "Status": "Survived",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 120,
+      "Status": "Killed",
+      "Operator": "BooleanLiteral"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 120,
+      "Status": "Survived",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 120,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 120,
+      "Status": "Killed",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 121,
+      "Status": "Killed",
+      "Operator": "CallExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 125,
+      "Status": "Survived",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 125,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 125,
+      "Status": "Killed",
+      "Operator": "BooleanLiteral"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 123,
+      "Status": "Killed",
+      "Operator": "CallExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 125,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 125,
+      "Status": "Killed",
+      "Operator": "CallExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 127,
+      "Status": "Survived",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 127,
+      "Status": "Survived",
+      "Operator": "ArrowFunction"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 128,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 128,
+      "Status": "Killed",
+      "Operator": "BooleanLiteral"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 128,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 128,
+      "Status": "Survived",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 128,
+      "Status": "Killed",
+      "Operator": "CallExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 130,
+      "Status": "Survived",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 136,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 130,
+      "Status": "Survived",
+      "Operator": "BooleanLiteral"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 131,
+      "Status": "Survived",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 137,
+      "Status": "Killed",
+      "Operator": "BooleanLiteral"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 138,
+      "Status": "Survived",
+      "Operator": "CallExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 142,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 139,
+      "Status": "Survived",
+      "Operator": "CallExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 141,
+      "Status": "Killed",
+      "Operator": "ArrowFunction"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 142,
+      "Status": "Survived",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 142,
+      "Status": "Killed",
+      "Operator": "BooleanLiteral"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 142,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 142,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 142,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 142,
+      "Status": "Killed",
+      "Operator": "EqualityOperator"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 142,
+      "Status": "Killed",
+      "Operator": "BooleanLiteral"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 142,
+      "Status": "Survived",
+      "Operator": "BooleanLiteral"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 143,
+      "Status": "Survived",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 143,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 143,
+      "Status": "Killed",
+      "Operator": "BooleanLiteral"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 143,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 145,
+      "Status": "Killed",
+      "Operator": "ArrowFunction"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 143,
+      "Status": "Killed",
+      "Operator": "BooleanLiteral"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 146,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 146,
+      "Status": "Killed",
+      "Operator": "BooleanLiteral"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 146,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 146,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 146,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 146,
+      "Status": "Survived",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 146,
+      "Status": "Killed",
+      "Operator": "LogicalOperator"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 147,
+      "Status": "Survived",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 147,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 147,
+      "Status": "Killed",
+      "Operator": "BooleanLiteral"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 147,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 147,
+      "Status": "Killed",
+      "Operator": "CallExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 148,
+      "Status": "Survived",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 148,
+      "Status": "Survived",
+      "Operator": "BooleanLiteral"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 152,
+      "Status": "Killed",
+      "Operator": "ArrowFunction"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 149,
+      "Status": "Survived",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 153,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 152,
+      "Status": "Survived",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 153,
+      "Status": "Survived",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 153,
+      "Status": "Survived",
+      "Operator": "LogicalOperator"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 153,
+      "Status": "Survived",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 153,
+      "Status": "Survived",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 153,
+      "Status": "Killed",
+      "Operator": "EqualityOperator"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 153,
+      "Status": "Killed",
+      "Operator": "EqualityOperator"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 158,
+      "Status": "Survived",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 159,
+      "Status": "Survived",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 159,
+      "Status": "Survived",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 160,
+      "Status": "Survived",
+      "Operator": "ArrowFunction"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 161,
+      "Status": "Survived",
+      "Operator": "ArrowFunction"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 162,
+      "Status": "Survived",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 165,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 166,
+      "Status": "Killed",
+      "Operator": "BooleanLiteral"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 166,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 167,
+      "Status": "Killed",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 166,
+      "Status": "Survived",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 166,
+      "Status": "Survived",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 168,
+      "Status": "Survived",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 169,
+      "Status": "Survived",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 170,
+      "Status": "Survived",
+      "Operator": "CallExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 171,
+      "Status": "Survived",
+      "Operator": "CallExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 172,
+      "Status": "Killed",
+      "Operator": "BooleanLiteral"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 173,
+      "Status": "Survived",
+      "Operator": "BooleanLiteral"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 174,
+      "Status": "Survived",
+      "Operator": "CallExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 178,
+      "Status": "Killed",
+      "Operator": "BooleanLiteral"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 178,
+      "Status": "Survived",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 178,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 180,
+      "Status": "Killed",
+      "Operator": "BooleanLiteral"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 183,
+      "Status": "Survived",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 181,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 182,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 183,
+      "Status": "Survived",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 183,
+      "Status": "Survived",
+      "Operator": "EqualityOperator"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 183,
+      "Status": "Survived",
+      "Operator": "BooleanLiteral"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 184,
+      "Status": "Survived",
+      "Operator": "BooleanLiteral"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 192,
+      "Status": "Killed",
+      "Operator": "BooleanLiteral"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 192,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 192,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 193,
+      "Status": "Survived",
+      "Operator": "ArrowFunction"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 192,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 194,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 194,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 194,
+      "Status": "Killed",
+      "Operator": "LogicalOperator"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 197,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 197,
+      "Status": "Survived",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 201,
+      "Status": "Killed",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 200,
+      "Status": "Killed",
+      "Operator": "CallExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 201,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 201,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 201,
+      "Status": "Killed",
+      "Operator": "LogicalOperator"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 201,
+      "Status": "Survived",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 202,
+      "Status": "Survived",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 202,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 202,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 202,
+      "Status": "Killed",
+      "Operator": "LogicalOperator"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 202,
+      "Status": "Survived",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 203,
+      "Status": "Killed",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 203,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 203,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 203,
+      "Status": "Killed",
+      "Operator": "LogicalOperator"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 203,
+      "Status": "Survived",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 204,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 204,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 204,
+      "Status": "Survived",
+      "Operator": "LogicalOperator"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 205,
+      "Status": "Killed",
+      "Operator": "CallExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 206,
+      "Status": "Survived",
+      "Operator": "CallExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 208,
+      "Status": "Survived",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 207,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 208,
+      "Status": "Survived",
+      "Operator": "LogicalOperator"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 208,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 208,
+      "Status": "Survived",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 208,
+      "Status": "Killed",
+      "Operator": "EqualityOperator"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 209,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 209,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 209,
+      "Status": "Killed",
+      "Operator": "LogicalOperator"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 210,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 211,
+      "Status": "Killed",
+      "Operator": "BooleanLiteral"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 211,
+      "Status": "Survived",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 211,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 211,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 212,
+      "Status": "Killed",
+      "Operator": "BooleanLiteral"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 213,
+      "Status": "Survived",
+      "Operator": "BooleanLiteral"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 217,
+      "Status": "Survived",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 217,
+      "Status": "Survived",
+      "Operator": "BooleanLiteral"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 217,
+      "Status": "Survived",
+      "Operator": "CallExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 218,
+      "Status": "Survived",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 222,
+      "Status": "Killed",
+      "Operator": "BooleanLiteral"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 221,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 222,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 223,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 225,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 226,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 226,
+      "Status": "Survived",
+      "Operator": "LogicalOperator"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 226,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 222,
+      "Status": "Survived",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 226,
+      "Status": "Survived",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 226,
+      "Status": "Survived",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 226,
+      "Status": "Killed",
+      "Operator": "EqualityOperator"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 226,
+      "Status": "Killed",
+      "Operator": "EqualityOperator"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 230,
+      "Status": "Killed",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/hooks/useMatrix.js",
+      "Line": 20,
+      "Status": "Killed",
+      "Operator": "ArrowFunction"
+    },
+    {
+      "File": "src/hooks/useMatrixRowOrder.js",
+      "Line": 8,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useMatrixRowOrder.js",
+      "Line": 8,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useMatrixRowOrder.js",
+      "Line": 42,
+      "Status": "Ignored",
+      "Operator": "ObjectLiteral"
+    },
+    {
+      "File": "src/hooks/useMatrixRowOrder.js",
+      "Line": 85,
+      "Status": "Ignored",
+      "Operator": "ObjectLiteral"
+    },
+    {
+      "File": "src/hooks/useMatrixRowOrder.js",
+      "Line": 8,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrixRowOrder.js",
+      "Line": 7,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useMatrixRowOrder.js",
+      "Line": 8,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrixRowOrder.js",
+      "Line": 13,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useMatrixRowOrder.js",
+      "Line": 14,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useMatrixRowOrder.js",
+      "Line": 16,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrixRowOrder.js",
+      "Line": 16,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useMatrixRowOrder.js",
+      "Line": 8,
+      "Status": "Killed",
+      "Operator": "LogicalOperator"
+    },
+    {
+      "File": "src/hooks/useMatrixRowOrder.js",
+      "Line": 16,
+      "Status": "Survived",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrixRowOrder.js",
+      "Line": 18,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrixRowOrder.js",
+      "Line": 18,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrixRowOrder.js",
+      "Line": 18,
+      "Status": "Killed",
+      "Operator": "LogicalOperator"
+    },
+    {
+      "File": "src/hooks/useMatrixRowOrder.js",
+      "Line": 18,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrixRowOrder.js",
+      "Line": 18,
+      "Status": "Killed",
+      "Operator": "EqualityOperator"
+    },
+    {
+      "File": "src/hooks/useMatrixRowOrder.js",
+      "Line": 20,
+      "Status": "Killed",
+      "Operator": "CallExpression"
+    },
+    {
+      "File": "src/hooks/useMatrixRowOrder.js",
+      "Line": 26,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useMatrixRowOrder.js",
+      "Line": 27,
+      "Status": "Killed",
+      "Operator": "ArrowFunction"
+    },
+    {
+      "File": "src/hooks/useMatrixRowOrder.js",
+      "Line": 33,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrixRowOrder.js",
+      "Line": 33,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrixRowOrder.js",
+      "Line": 33,
+      "Status": "Killed",
+      "Operator": "EqualityOperator"
+    },
+    {
+      "File": "src/hooks/useMatrixRowOrder.js",
+      "Line": 33,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useMatrixRowOrder.js",
+      "Line": 35,
+      "Status": "Killed",
+      "Operator": "CallExpression"
+    },
+    {
+      "File": "src/hooks/useMatrixRowOrder.js",
+      "Line": 34,
+      "Status": "Killed",
+      "Operator": "CallExpression"
+    },
+    {
+      "File": "src/hooks/useMatrixRowOrder.js",
+      "Line": 39,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useMatrixRowOrder.js",
+      "Line": 40,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrixRowOrder.js",
+      "Line": 40,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrixRowOrder.js",
+      "Line": 40,
+      "Status": "Killed",
+      "Operator": "EqualityOperator"
+    },
+    {
+      "File": "src/hooks/useMatrixRowOrder.js",
+      "Line": 41,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useMatrixRowOrder.js",
+      "Line": 42,
+      "Status": "Killed",
+      "Operator": "CallExpression"
+    },
+    {
+      "File": "src/hooks/useMatrixRowOrder.js",
+      "Line": 49,
+      "Status": "Killed",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/hooks/useMatrixRowOrder.js",
+      "Line": 52,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useMatrixRowOrder.js",
+      "Line": 53,
+      "Status": "Killed",
+      "Operator": "BooleanLiteral"
+    },
+    {
+      "File": "src/hooks/useMatrixRowOrder.js",
+      "Line": 53,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrixRowOrder.js",
+      "Line": 53,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrixRowOrder.js",
+      "Line": 55,
+      "Status": "Killed",
+      "Operator": "ArrowFunction"
+    },
+    {
+      "File": "src/hooks/useMatrixRowOrder.js",
+      "Line": 55,
+      "Status": "Killed",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/hooks/useMatrixRowOrder.js",
+      "Line": 56,
+      "Status": "Killed",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/hooks/useMatrixRowOrder.js",
+      "Line": 59,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useMatrixRowOrder.js",
+      "Line": 60,
+      "Status": "Survived",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrixRowOrder.js",
+      "Line": 60,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrixRowOrder.js",
+      "Line": 61,
+      "Status": "Killed",
+      "Operator": "CallExpression"
+    },
+    {
+      "File": "src/hooks/useMatrixRowOrder.js",
+      "Line": 60,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useMatrixRowOrder.js",
+      "Line": 62,
+      "Status": "Killed",
+      "Operator": "CallExpression"
+    },
+    {
+      "File": "src/hooks/useMatrixRowOrder.js",
+      "Line": 67,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useMatrixRowOrder.js",
+      "Line": 68,
+      "Status": "Killed",
+      "Operator": "CallExpression"
+    },
+    {
+      "File": "src/hooks/useMatrixRowOrder.js",
+      "Line": 74,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useMatrixRowOrder.js",
+      "Line": 75,
+      "Status": "Killed",
+      "Operator": "CallExpression"
+    },
+    {
+      "File": "src/hooks/useMatrixRowOrder.js",
+      "Line": 78,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useMatrixRowOrder.js",
+      "Line": 79,
+      "Status": "Killed",
+      "Operator": "CallExpression"
+    },
+    {
+      "File": "src/hooks/useMatrixRowOrder.js",
+      "Line": 72,
+      "Status": "Survived",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/hooks/useMatrixRowOrder.js",
+      "Line": 80,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useMatrixRowOrder.js",
+      "Line": 81,
+      "Status": "Killed",
+      "Operator": "CallExpression"
+    },
+    {
+      "File": "src/hooks/useMatrixRowOrder.js",
+      "Line": 76,
+      "Status": "Survived",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/hooks/useMatrixRowOrder.js",
+      "Line": 89,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrixRowOrder.js",
+      "Line": 89,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useMatrixRowOrder.js",
+      "Line": 83,
+      "Status": "Survived",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/hooks/useMatrixRowOrder.js",
+      "Line": 89,
+      "Status": "Killed",
+      "Operator": "EqualityOperator"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 16,
+      "Status": "NoCoverage",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 16,
+      "Status": "NoCoverage",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 27,
+      "Status": "NoCoverage",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 28,
+      "Status": "NoCoverage",
+      "Operator": "BooleanLiteral"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 28,
+      "Status": "NoCoverage",
+      "Operator": "CallExpression"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 66,
+      "Status": "NoCoverage",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 67,
+      "Status": "NoCoverage",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 15,
+      "Status": "Ignored",
+      "Operator": "ObjectLiteral"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 16,
+      "Status": "Ignored",
+      "Operator": "ObjectLiteral"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 16,
+      "Status": "Ignored",
+      "Operator": "ObjectLiteral"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 65,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 66,
+      "Status": "Ignored",
+      "Operator": "ObjectLiteral"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 75,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 75,
+      "Status": "Ignored",
+      "Operator": "ObjectLiteral"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 76,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 77,
+      "Status": "Ignored",
+      "Operator": "ObjectLiteral"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 77,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 78,
+      "Status": "Ignored",
+      "Operator": "ObjectLiteral"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 93,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 136,
+      "Status": "Ignored",
+      "Operator": "ObjectLiteral"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 10,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 12,
+      "Status": "Killed",
+      "Operator": "ArrowFunction"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 14,
+      "Status": "Killed",
+      "Operator": "ArrowFunction"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 15,
+      "Status": "Killed",
+      "Operator": "ArrowFunction"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 16,
+      "Status": "Survived",
+      "Operator": "ArrowFunction"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 19,
+      "Status": "Survived",
+      "Operator": "CallExpression"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 24,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 25,
+      "Status": "Survived",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 27,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 26,
+      "Status": "Survived",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 27,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 27,
+      "Status": "Survived",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 27,
+      "Status": "Survived",
+      "Operator": "LogicalOperator"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 28,
+      "Status": "Survived",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 28,
+      "Status": "Survived",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 27,
+      "Status": "Survived",
+      "Operator": "OptionalChaining"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 28,
+      "Status": "Survived",
+      "Operator": "LogicalOperator"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 39,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 39,
+      "Status": "Killed",
+      "Operator": "EqualityOperator"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 37,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 39,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 39,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 40,
+      "Status": "Killed",
+      "Operator": "CallExpression"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 56,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 41,
+      "Status": "Killed",
+      "Operator": "CallExpression"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 63,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 64,
+      "Status": "Killed",
+      "Operator": "BooleanLiteral"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 66,
+      "Status": "Killed",
+      "Operator": "ArrowFunction"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 67,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 67,
+      "Status": "Killed",
+      "Operator": "BooleanLiteral"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 67,
+      "Status": "Survived",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 67,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 67,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 67,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 67,
+      "Status": "Killed",
+      "Operator": "LogicalOperator"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 69,
+      "Status": "Survived",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 69,
+      "Status": "Survived",
+      "Operator": "BooleanLiteral"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 70,
+      "Status": "Survived",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 81,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 74,
+      "Status": "Killed",
+      "Operator": "ArrowFunction"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 82,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 79,
+      "Status": "Survived",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 82,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 82,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 83,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 83,
+      "Status": "Killed",
+      "Operator": "CallExpression"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 86,
+      "Status": "Killed",
+      "Operator": "BooleanLiteral"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 86,
+      "Status": "Survived",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 86,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 87,
+      "Status": "Survived",
+      "Operator": "ArrowFunction"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 86,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 88,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 91,
+      "Status": "Killed",
+      "Operator": "ArrowFunction"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 92,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 93,
+      "Status": "Survived",
+      "Operator": "CallExpression"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 94,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 94,
+      "Status": "Killed",
+      "Operator": "CallExpression"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 97,
+      "Status": "Survived",
+      "Operator": "CallExpression"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 97,
+      "Status": "Survived",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 99,
+      "Status": "Killed",
+      "Operator": "ArrowFunction"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 100,
+      "Status": "Killed",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 108,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 102,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 108,
+      "Status": "Killed",
+      "Operator": "ArrowFunction"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 107,
+      "Status": "Killed",
+      "Operator": "MethodExpression"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 108,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 111,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 108,
+      "Status": "Killed",
+      "Operator": "LogicalOperator"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 109,
+      "Status": "Killed",
+      "Operator": "ArrowFunction"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 111,
+      "Status": "Survived",
+      "Operator": "LogicalOperator"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 111,
+      "Status": "Survived",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 111,
+      "Status": "Killed",
+      "Operator": "EqualityOperator"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 111,
+      "Status": "Survived",
+      "Operator": "EqualityOperator"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 111,
+      "Status": "Survived",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 111,
+      "Status": "Survived",
+      "Operator": "EqualityOperator"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 111,
+      "Status": "Killed",
+      "Operator": "EqualityOperator"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 111,
+      "Status": "Survived",
+      "Operator": "UpdateOperator"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 111,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 112,
+      "Status": "Survived",
+      "Operator": "MethodExpression"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 112,
+      "Status": "Killed",
+      "Operator": "ArrowFunction"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 112,
+      "Status": "Killed",
+      "Operator": "BooleanLiteral"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 113,
+      "Status": "Survived",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 113,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 113,
+      "Status": "Survived",
+      "Operator": "EqualityOperator"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 113,
+      "Status": "Killed",
+      "Operator": "EqualityOperator"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 113,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 117,
+      "Status": "Killed",
+      "Operator": "CallExpression"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 114,
+      "Status": "Survived",
+      "Operator": "CallExpression"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 121,
+      "Status": "Survived",
+      "Operator": "CallExpression"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 122,
+      "Status": "Killed",
+      "Operator": "CallExpression"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 126,
+      "Status": "Survived",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 127,
+      "Status": "Survived",
+      "Operator": "CallExpression"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 123,
+      "Status": "Survived",
+      "Operator": "CallExpression"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 124,
+      "Status": "Killed",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 131,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 133,
+      "Status": "Killed",
+      "Operator": "CallExpression"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 132,
+      "Status": "Killed",
+      "Operator": "CallExpression"
+    },
+    {
+      "File": "src/hooks/useNestedGroupExpand.js",
+      "Line": 128,
+      "Status": "Survived",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 204,
+      "Status": "NoCoverage",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 204,
+      "Status": "NoCoverage",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 204,
+      "Status": "NoCoverage",
+      "Operator": "EqualityOperator"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 233,
+      "Status": "NoCoverage",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 234,
+      "Status": "NoCoverage",
+      "Operator": "ArrowFunction"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 235,
+      "Status": "NoCoverage",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 235,
+      "Status": "NoCoverage",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 235,
+      "Status": "NoCoverage",
+      "Operator": "LogicalOperator"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 254,
+      "Status": "NoCoverage",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 255,
+      "Status": "NoCoverage",
+      "Operator": "BooleanLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 255,
+      "Status": "NoCoverage",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 255,
+      "Status": "NoCoverage",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 256,
+      "Status": "NoCoverage",
+      "Operator": "BooleanLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 257,
+      "Status": "NoCoverage",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 263,
+      "Status": "NoCoverage",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 263,
+      "Status": "NoCoverage",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 263,
+      "Status": "NoCoverage",
+      "Operator": "LogicalOperator"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 264,
+      "Status": "NoCoverage",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 264,
+      "Status": "NoCoverage",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 264,
+      "Status": "NoCoverage",
+      "Operator": "LogicalOperator"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 267,
+      "Status": "NoCoverage",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 267,
+      "Status": "NoCoverage",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 267,
+      "Status": "NoCoverage",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 269,
+      "Status": "NoCoverage",
+      "Operator": "CallExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 271,
+      "Status": "NoCoverage",
+      "Operator": "CallExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 272,
+      "Status": "NoCoverage",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 273,
+      "Status": "NoCoverage",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 273,
+      "Status": "NoCoverage",
+      "Operator": "BooleanLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 276,
+      "Status": "NoCoverage",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 277,
+      "Status": "NoCoverage",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 277,
+      "Status": "NoCoverage",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 277,
+      "Status": "NoCoverage",
+      "Operator": "LogicalOperator"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 277,
+      "Status": "NoCoverage",
+      "Operator": "BooleanLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 277,
+      "Status": "NoCoverage",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 277,
+      "Status": "NoCoverage",
+      "Operator": "EqualityOperator"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 278,
+      "Status": "NoCoverage",
+      "Operator": "BooleanLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 279,
+      "Status": "NoCoverage",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 283,
+      "Status": "NoCoverage",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 285,
+      "Status": "NoCoverage",
+      "Operator": "CallExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 286,
+      "Status": "NoCoverage",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 287,
+      "Status": "NoCoverage",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 287,
+      "Status": "NoCoverage",
+      "Operator": "BooleanLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 290,
+      "Status": "NoCoverage",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 291,
+      "Status": "NoCoverage",
+      "Operator": "BooleanLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 291,
+      "Status": "NoCoverage",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 291,
+      "Status": "NoCoverage",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 291,
+      "Status": "NoCoverage",
+      "Operator": "BooleanLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 292,
+      "Status": "NoCoverage",
+      "Operator": "BooleanLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 293,
+      "Status": "NoCoverage",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 295,
+      "Status": "NoCoverage",
+      "Operator": "ArrowFunction"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 295,
+      "Status": "NoCoverage",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 295,
+      "Status": "NoCoverage",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 295,
+      "Status": "NoCoverage",
+      "Operator": "EqualityOperator"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 296,
+      "Status": "NoCoverage",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 296,
+      "Status": "NoCoverage",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 296,
+      "Status": "NoCoverage",
+      "Operator": "LogicalOperator"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 296,
+      "Status": "NoCoverage",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 296,
+      "Status": "NoCoverage",
+      "Operator": "EqualityOperator"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 296,
+      "Status": "NoCoverage",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 297,
+      "Status": "NoCoverage",
+      "Operator": "CallExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 299,
+      "Status": "NoCoverage",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 300,
+      "Status": "NoCoverage",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 300,
+      "Status": "NoCoverage",
+      "Operator": "BooleanLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 318,
+      "Status": "NoCoverage",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 29,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 46,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 49,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 49,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 55,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 61,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 62,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 62,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 66,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 67,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 70,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 77,
+      "Status": "Ignored",
+      "Operator": "ObjectLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 97,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 99,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 103,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 111,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 114,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 125,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 128,
+      "Status": "Ignored",
+      "Operator": "ObjectLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 136,
+      "Status": "Ignored",
+      "Operator": "ObjectLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 137,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 138,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 139,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 139,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 142,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 142,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 143,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 145,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 162,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 190,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 190,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 190,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 193,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 204,
+      "Status": "Ignored",
+      "Operator": "ObjectLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 213,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 217,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 224,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 224,
+      "Status": "Ignored",
+      "Operator": "ObjectLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 225,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 226,
+      "Status": "Ignored",
+      "Operator": "ObjectLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 226,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 227,
+      "Status": "Ignored",
+      "Operator": "ObjectLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 230,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 235,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 244,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 244,
+      "Status": "Ignored",
+      "Operator": "ObjectLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 245,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 246,
+      "Status": "Ignored",
+      "Operator": "ObjectLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 246,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 247,
+      "Status": "Ignored",
+      "Operator": "ObjectLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 249,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 258,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 258,
+      "Status": "Ignored",
+      "Operator": "ObjectLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 259,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 260,
+      "Status": "Ignored",
+      "Operator": "ObjectLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 260,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 261,
+      "Status": "Ignored",
+      "Operator": "ObjectLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 269,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 269,
+      "Status": "Ignored",
+      "Operator": "ObjectLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 269,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 271,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 280,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 280,
+      "Status": "Ignored",
+      "Operator": "ObjectLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 281,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 282,
+      "Status": "Ignored",
+      "Operator": "ObjectLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 282,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 283,
+      "Status": "Ignored",
+      "Operator": "ObjectLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 285,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 291,
+      "Status": "Ignored",
+      "Operator": "ObjectLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 291,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 291,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 294,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 294,
+      "Status": "Ignored",
+      "Operator": "ObjectLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 294,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 314,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 319,
+      "Status": "Ignored",
+      "Operator": "ObjectLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 322,
+      "Status": "Ignored",
+      "Operator": "ObjectLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 324,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 325,
+      "Status": "Ignored",
+      "Operator": "ObjectLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 325,
+      "Status": "Ignored",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 327,
+      "Status": "Ignored",
+      "Operator": "ObjectLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 336,
+      "Status": "Ignored",
+      "Operator": "ObjectLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 23,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 29,
+      "Status": "Killed",
+      "Operator": "ArrowFunction"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 33,
+      "Status": "Killed",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 36,
+      "Status": "Killed",
+      "Operator": "ArrowFunction"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 31,
+      "Status": "Survived",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 46,
+      "Status": "Killed",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 36,
+      "Status": "Survived",
+      "Operator": "BooleanLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 44,
+      "Status": "Survived",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 45,
+      "Status": "Survived",
+      "Operator": "BooleanLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 79,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 55,
+      "Status": "Survived",
+      "Operator": "BooleanLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 79,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 79,
+      "Status": "Killed",
+      "Operator": "EqualityOperator"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 65,
+      "Status": "Survived",
+      "Operator": "BooleanLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 71,
+      "Status": "Survived",
+      "Operator": "BooleanLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 80,
+      "Status": "Killed",
+      "Operator": "CallExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 79,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 81,
+      "Status": "Killed",
+      "Operator": "CallExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 94,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 96,
+      "Status": "Killed",
+      "Operator": "LogicalOperator"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 82,
+      "Status": "Survived",
+      "Operator": "CallExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 96,
+      "Status": "Survived",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 97,
+      "Status": "Survived",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 97,
+      "Status": "Survived",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 97,
+      "Status": "Survived",
+      "Operator": "LogicalOperator"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 97,
+      "Status": "Survived",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 96,
+      "Status": "Survived",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 97,
+      "Status": "Survived",
+      "Operator": "EqualityOperator"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 97,
+      "Status": "Survived",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 97,
+      "Status": "Survived",
+      "Operator": "EqualityOperator"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 96,
+      "Status": "Survived",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 97,
+      "Status": "Survived",
+      "Operator": "CallExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 102,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 101,
+      "Status": "Killed",
+      "Operator": "ArrowFunction"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 102,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 102,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 104,
+      "Status": "Killed",
+      "Operator": "ArrowFunction"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 102,
+      "Status": "Killed",
+      "Operator": "CallExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 104,
+      "Status": "Killed",
+      "Operator": "BooleanLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 107,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 107,
+      "Status": "Killed",
+      "Operator": "CallExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 110,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 103,
+      "Status": "Survived",
+      "Operator": "ArrowFunction"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 112,
+      "Status": "Killed",
+      "Operator": "ArrowFunction"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 113,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 113,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 105,
+      "Status": "Survived",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 113,
+      "Status": "Killed",
+      "Operator": "CallExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 107,
+      "Status": "Survived",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 113,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 117,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 117,
+      "Status": "Killed",
+      "Operator": "CallExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 114,
+      "Status": "Survived",
+      "Operator": "ArrowFunction"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 123,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 115,
+      "Status": "Survived",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 125,
+      "Status": "Killed",
+      "Operator": "MethodExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 125,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 117,
+      "Status": "Survived",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 125,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 125,
+      "Status": "Killed",
+      "Operator": "LogicalOperator"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 125,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 125,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 125,
+      "Status": "Killed",
+      "Operator": "LogicalOperator"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 125,
+      "Status": "Killed",
+      "Operator": "ArrowFunction"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 125,
+      "Status": "Survived",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 125,
+      "Status": "Killed",
+      "Operator": "EqualityOperator"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 125,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 125,
+      "Status": "Killed",
+      "Operator": "EqualityOperator"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 127,
+      "Status": "Killed",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 133,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 130,
+      "Status": "Killed",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 135,
+      "Status": "Killed",
+      "Operator": "BooleanLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 127,
+      "Status": "Killed",
+      "Operator": "ArrowFunction"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 136,
+      "Status": "Killed",
+      "Operator": "ArithmeticOperator"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 137,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 137,
+      "Status": "Killed",
+      "Operator": "CallExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 134,
+      "Status": "Survived",
+      "Operator": "UpdateOperator"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 137,
+      "Status": "Survived",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 138,
+      "Status": "Killed",
+      "Operator": "CallExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 138,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 138,
+      "Status": "Survived",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 139,
+      "Status": "Killed",
+      "Operator": "CallExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 139,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 142,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 142,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 139,
+      "Status": "Survived",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 142,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 144,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 142,
+      "Status": "Killed",
+      "Operator": "CallExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 142,
+      "Status": "Killed",
+      "Operator": "CallExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 145,
+      "Status": "Killed",
+      "Operator": "BooleanLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 145,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 148,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 145,
+      "Status": "Killed",
+      "Operator": "CallExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 149,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 145,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 149,
+      "Status": "Survived",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 149,
+      "Status": "Killed",
+      "Operator": "EqualityOperator"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 149,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 149,
+      "Status": "Survived",
+      "Operator": "LogicalOperator"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 149,
+      "Status": "Survived",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 151,
+      "Status": "Killed",
+      "Operator": "CallExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 150,
+      "Status": "Killed",
+      "Operator": "CallExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 158,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 158,
+      "Status": "Killed",
+      "Operator": "EqualityOperator"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 158,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 162,
+      "Status": "Survived",
+      "Operator": "CallExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 163,
+      "Status": "Survived",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 158,
+      "Status": "Killed",
+      "Operator": "CallExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 161,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 163,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 165,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 163,
+      "Status": "Killed",
+      "Operator": "EqualityOperator"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 163,
+      "Status": "Killed",
+      "Operator": "CallExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 165,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 165,
+      "Status": "Killed",
+      "Operator": "EqualityOperator"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 165,
+      "Status": "Killed",
+      "Operator": "BooleanLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 166,
+      "Status": "Killed",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 168,
+      "Status": "Killed",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 168,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 168,
+      "Status": "Killed",
+      "Operator": "CallExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 171,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 172,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 179,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 165,
+      "Status": "Survived",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 180,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 180,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 180,
+      "Status": "Killed",
+      "Operator": "EqualityOperator"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 181,
+      "Status": "Killed",
+      "Operator": "CallExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 180,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 182,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 183,
+      "Status": "Killed",
+      "Operator": "ArrowFunction"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 188,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 189,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 189,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 189,
+      "Status": "Killed",
+      "Operator": "EqualityOperator"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 189,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 190,
+      "Status": "Killed",
+      "Operator": "ArrowFunction"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 190,
+      "Status": "Survived",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 190,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 190,
+      "Status": "Killed",
+      "Operator": "EqualityOperator"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 191,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 192,
+      "Status": "Killed",
+      "Operator": "CallExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 193,
+      "Status": "Survived",
+      "Operator": "CallExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 204,
+      "Status": "Killed",
+      "Operator": "ArrowFunction"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 203,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 204,
+      "Status": "Killed",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 204,
+      "Status": "Survived",
+      "Operator": "MethodExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 204,
+      "Status": "Survived",
+      "Operator": "ArrowFunction"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 208,
+      "Status": "Killed",
+      "Operator": "ArrowFunction"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 207,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 208,
+      "Status": "Killed",
+      "Operator": "MethodExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 208,
+      "Status": "Survived",
+      "Operator": "ArrowFunction"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 208,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 208,
+      "Status": "Survived",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 208,
+      "Status": "Killed",
+      "Operator": "EqualityOperator"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 205,
+      "Status": "Survived",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 212,
+      "Status": "Killed",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 211,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 213,
+      "Status": "Killed",
+      "Operator": "CallExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 209,
+      "Status": "Survived",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 217,
+      "Status": "Killed",
+      "Operator": "OptionalChaining"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 217,
+      "Status": "Killed",
+      "Operator": "LogicalOperator"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 217,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 217,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 217,
+      "Status": "Survived",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 217,
+      "Status": "Killed",
+      "Operator": "ArrowFunction"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 220,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 217,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 217,
+      "Status": "Killed",
+      "Operator": "EqualityOperator"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 221,
+      "Status": "Killed",
+      "Operator": "BooleanLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 221,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 221,
+      "Status": "Survived",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 221,
+      "Status": "Survived",
+      "Operator": "MethodExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 222,
+      "Status": "Survived",
+      "Operator": "BooleanLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 223,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 227,
+      "Status": "Survived",
+      "Operator": "MethodExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 229,
+      "Status": "Survived",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 229,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 229,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 230,
+      "Status": "Killed",
+      "Operator": "CallExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 231,
+      "Status": "Killed",
+      "Operator": "BooleanLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 237,
+      "Status": "Survived",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 237,
+      "Status": "Survived",
+      "Operator": "BooleanLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 240,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 241,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 241,
+      "Status": "Survived",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 241,
+      "Status": "Killed",
+      "Operator": "BooleanLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 241,
+      "Status": "Survived",
+      "Operator": "LogicalOperator"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 241,
+      "Status": "Survived",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 241,
+      "Status": "Killed",
+      "Operator": "EqualityOperator"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 242,
+      "Status": "Survived",
+      "Operator": "BooleanLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 243,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 247,
+      "Status": "Killed",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 249,
+      "Status": "Killed",
+      "Operator": "CallExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 251,
+      "Status": "Survived",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 251,
+      "Status": "Survived",
+      "Operator": "BooleanLiteral"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 303,
+      "Status": "Killed",
+      "Operator": "ArithmeticOperator"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 250,
+      "Status": "Killed",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 304,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 304,
+      "Status": "Survived",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 304,
+      "Status": "Survived",
+      "Operator": "LogicalOperator"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 304,
+      "Status": "Survived",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 304,
+      "Status": "Killed",
+      "Operator": "EqualityOperator"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 304,
+      "Status": "Killed",
+      "Operator": "EqualityOperator"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 305,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 304,
+      "Status": "Survived",
+      "Operator": "EqualityOperator"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 304,
+      "Status": "Survived",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 305,
+      "Status": "Killed",
+      "Operator": "LogicalOperator"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 305,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 313,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 305,
+      "Status": "Survived",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 314,
+      "Status": "Survived",
+      "Operator": "MethodExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 305,
+      "Status": "Killed",
+      "Operator": "EqualityOperator"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 314,
+      "Status": "Survived",
+      "Operator": "ArrowFunction"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 305,
+      "Status": "Killed",
+      "Operator": "EqualityOperator"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 314,
+      "Status": "Survived",
+      "Operator": "Regex"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 314,
+      "Status": "Survived",
+      "Operator": "Regex"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 314,
+      "Status": "Survived",
+      "Operator": "ArrowFunction"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 314,
+      "Status": "Survived",
+      "Operator": "MethodExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 316,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 316,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 316,
+      "Status": "Killed",
+      "Operator": "LogicalOperator"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 316,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 315,
+      "Status": "Killed",
+      "Operator": "MethodExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 316,
+      "Status": "Killed",
+      "Operator": "LogicalOperator"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 316,
+      "Status": "Killed",
+      "Operator": "ArrowFunction"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 316,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 316,
+      "Status": "Killed",
+      "Operator": "EqualityOperator"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 316,
+      "Status": "Killed",
+      "Operator": "EqualityOperator"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 316,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 316,
+      "Status": "Survived",
+      "Operator": "EqualityOperator"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 316,
+      "Status": "Killed",
+      "Operator": "EqualityOperator"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 317,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 318,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 318,
+      "Status": "Survived",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 321,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 321,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 321,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 324,
+      "Status": "Survived",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 324,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 324,
+      "Status": "Killed",
+      "Operator": "MethodExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 324,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 325,
+      "Status": "Survived",
+      "Operator": "MethodExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 331,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 332,
+      "Status": "Killed",
+      "Operator": "ArrowFunction"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 332,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 332,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 329,
+      "Status": "Killed",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 332,
+      "Status": "Killed",
+      "Operator": "EqualityOperator"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 333,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 333,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 333,
+      "Status": "Killed",
+      "Operator": "LogicalOperator"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 333,
+      "Status": "Killed",
+      "Operator": "OptionalChaining"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 333,
+      "Status": "Killed",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/hooks/useEntityPage.js",
+      "Line": 334,
+      "Status": "Killed",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/auth/usePermissions.js",
+      "Line": 18,
+      "Status": "Killed",
+      "Operator": "BooleanLiteral"
+    },
+    {
+      "File": "src/auth/usePermissions.js",
+      "Line": 17,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/auth/usePermissions.js",
+      "Line": 18,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/auth/usePermissions.js",
+      "Line": 18,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/auth/usePermissions.js",
+      "Line": 19,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/auth/usePermissions.js",
+      "Line": 19,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/auth/usePermissions.js",
+      "Line": 19,
+      "Status": "Killed",
+      "Operator": "LogicalOperator"
+    },
+    {
+      "File": "src/auth/usePermissions.js",
+      "Line": 19,
+      "Status": "Killed",
+      "Operator": "BooleanLiteral"
+    },
+    {
+      "File": "src/auth/usePermissions.js",
+      "Line": 19,
+      "Status": "Killed",
+      "Operator": "EqualityOperator"
+    },
+    {
+      "File": "src/auth/usePermissions.js",
+      "Line": 19,
+      "Status": "Survived",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/auth/usePermissions.js",
+      "Line": 19,
+      "Status": "Killed",
+      "Operator": "BooleanLiteral"
+    },
+    {
+      "File": "src/auth/usePermissions.js",
+      "Line": 20,
+      "Status": "Killed",
+      "Operator": "MethodExpression"
+    },
+    {
+      "File": "src/auth/usePermissions.js",
+      "Line": 20,
+      "Status": "Killed",
+      "Operator": "ArrowFunction"
+    },
+    {
+      "File": "src/auth/usePermissions.js",
+      "Line": 27,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/auth/usePermissions.js",
+      "Line": 34,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/auth/usePermissions.js",
+      "Line": 34,
+      "Status": "Killed",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/auth/usePermissions.js",
+      "Line": 35,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/auth/usePermissions.js",
+      "Line": 35,
+      "Status": "Killed",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/auth/usePermissions.js",
+      "Line": 36,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/auth/usePermissions.js",
+      "Line": 36,
+      "Status": "Killed",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/auth/usePermissions.js",
+      "Line": 37,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/auth/usePermissions.js",
+      "Line": 37,
+      "Status": "Killed",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/auth/usePermissions.js",
+      "Line": 38,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/auth/usePermissions.js",
+      "Line": 38,
+      "Status": "Killed",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/auth/usePermissions.js",
+      "Line": 39,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/auth/usePermissions.js",
+      "Line": 39,
+      "Status": "Killed",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/auth/usePermissions.js",
+      "Line": 40,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/auth/usePermissions.js",
+      "Line": 40,
+      "Status": "Killed",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/auth/usePermissions.js",
+      "Line": 41,
+      "Status": "Killed",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/auth/usePermissions.js",
+      "Line": 41,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/auth/usePermissions.js",
+      "Line": 42,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/auth/usePermissions.js",
+      "Line": 42,
+      "Status": "Killed",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/auth/usePermissions.js",
+      "Line": 43,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/auth/usePermissions.js",
+      "Line": 43,
+      "Status": "Killed",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/auth/usePermissions.js",
+      "Line": 44,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/auth/usePermissions.js",
+      "Line": 44,
+      "Status": "Killed",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/auth/usePermissions.js",
+      "Line": 45,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/auth/usePermissions.js",
+      "Line": 45,
+      "Status": "Killed",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/auth/usePermissions.js",
+      "Line": 46,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/auth/usePermissions.js",
+      "Line": 46,
+      "Status": "Killed",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/auth/usePermissions.js",
+      "Line": 47,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/auth/usePermissions.js",
+      "Line": 47,
+      "Status": "Killed",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/auth/usePermissions.js",
+      "Line": 53,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/auth/usePermissions.js",
+      "Line": 55,
+      "Status": "Killed",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/auth/usePermissions.js",
+      "Line": 56,
+      "Status": "Killed",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/auth/usePermissions.js",
+      "Line": 57,
+      "Status": "Killed",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/auth/usePermissions.js",
+      "Line": 58,
+      "Status": "Killed",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/auth/usePermissions.js",
+      "Line": 59,
+      "Status": "Killed",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/auth/usePermissions.js",
+      "Line": 60,
+      "Status": "Killed",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/auth/usePermissions.js",
+      "Line": 61,
+      "Status": "Killed",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/auth/usePermissions.js",
+      "Line": 62,
+      "Status": "Killed",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 73,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 73,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 73,
+      "Status": "Killed",
+      "Operator": "LogicalOperator"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 73,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 73,
+      "Status": "Killed",
+      "Operator": "EqualityOperator"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 73,
+      "Status": "Killed",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 75,
+      "Status": "Killed",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 79,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 80,
+      "Status": "Killed",
+      "Operator": "ObjectLiteral"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 80,
+      "Status": "Killed",
+      "Operator": "OptionalChaining"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 80,
+      "Status": "Killed",
+      "Operator": "OptionalChaining"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 84,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 85,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 85,
+      "Status": "Killed",
+      "Operator": "LogicalOperator"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 85,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 85,
+      "Status": "Killed",
+      "Operator": "MethodExpression"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 90,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 91,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 91,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 91,
+      "Status": "Killed",
+      "Operator": "EqualityOperator"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 91,
+      "Status": "Killed",
+      "Operator": "OptionalChaining"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 91,
+      "Status": "Killed",
+      "Operator": "ObjectLiteral"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 91,
+      "Status": "Killed",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 97,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 98,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 98,
+      "Status": "Killed",
+      "Operator": "LogicalOperator"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 98,
+      "Status": "Survived",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 98,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 98,
+      "Status": "Killed",
+      "Operator": "EqualityOperator"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 98,
+      "Status": "Killed",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 99,
+      "Status": "Killed",
+      "Operator": "ObjectLiteral"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 100,
+      "Status": "Killed",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 100,
+      "Status": "Killed",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 101,
+      "Status": "Killed",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 100,
+      "Status": "Killed",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 101,
+      "Status": "Killed",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 101,
+      "Status": "Killed",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 105,
+      "Status": "Killed",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 105,
+      "Status": "Killed",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 105,
+      "Status": "Killed",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 105,
+      "Status": "Killed",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 106,
+      "Status": "Killed",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 106,
+      "Status": "Killed",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 106,
+      "Status": "Killed",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 107,
+      "Status": "Killed",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 107,
+      "Status": "Killed",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 107,
+      "Status": "Killed",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 114,
+      "Status": "Killed",
+      "Operator": "BooleanLiteral"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 114,
+      "Status": "Killed",
+      "Operator": "BooleanLiteral"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 117,
+      "Status": "Killed",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 117,
+      "Status": "Killed",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 117,
+      "Status": "Killed",
+      "Operator": "BooleanLiteral"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 117,
+      "Status": "Killed",
+      "Operator": "BooleanLiteral"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 140,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 141,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 141,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 141,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 141,
+      "Status": "Killed",
+      "Operator": "LogicalOperator"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 141,
+      "Status": "Killed",
+      "Operator": "EqualityOperator"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 141,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 141,
+      "Status": "Killed",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 141,
+      "Status": "Killed",
+      "Operator": "EqualityOperator"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 142,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 142,
+      "Status": "Survived",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 142,
+      "Status": "Survived",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 142,
+      "Status": "Survived",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 142,
+      "Status": "Survived",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 143,
+      "Status": "Survived",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 144,
+      "Status": "Killed",
+      "Operator": "ArrowFunction"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 143,
+      "Status": "Killed",
+      "Operator": "MethodExpression"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 144,
+      "Status": "Survived",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 144,
+      "Status": "Survived",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 144,
+      "Status": "Survived",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 148,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 149,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 149,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 149,
+      "Status": "Killed",
+      "Operator": "LogicalOperator"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 149,
+      "Status": "Killed",
+      "Operator": "BooleanLiteral"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 149,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 149,
+      "Status": "Killed",
+      "Operator": "EqualityOperator"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 18,
+      "Status": "Killed",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 149,
+      "Status": "Killed",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 18,
+      "Status": "Killed",
+      "Operator": "ObjectLiteral"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 18,
+      "Status": "Killed",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 20,
+      "Status": "Killed",
+      "Operator": "ObjectLiteral"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 18,
+      "Status": "Killed",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 21,
+      "Status": "Killed",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 28,
+      "Status": "Killed",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 29,
+      "Status": "Killed",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 29,
+      "Status": "Killed",
+      "Operator": "ObjectLiteral"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 29,
+      "Status": "Killed",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 30,
+      "Status": "Killed",
+      "Operator": "ObjectLiteral"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 30,
+      "Status": "Killed",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 30,
+      "Status": "Killed",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 37,
+      "Status": "Killed",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 40,
+      "Status": "Killed",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 44,
+      "Status": "Killed",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 46,
+      "Status": "Killed",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 48,
+      "Status": "Killed",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 51,
+      "Status": "Killed",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 54,
+      "Status": "Killed",
+      "Operator": "BooleanLiteral"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 64,
+      "Status": "Killed",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 71,
+      "Status": "Killed",
+      "Operator": "ArrowFunction"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 73,
+      "Status": "Killed",
+      "Operator": "ArrowFunction"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 75,
+      "Status": "Killed",
+      "Operator": "ArrowFunction"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 135,
+      "Status": "Killed",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 135,
+      "Status": "Killed",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 135,
+      "Status": "Killed",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 135,
+      "Status": "Killed",
+      "Operator": "StringLiteral"
+    },
+    {
+      "File": "src/utils/matrixFilter.js",
+      "Line": 135,
+      "Status": "Killed",
+      "Operator": "StringLiteral"
+    }
+  ]
+}
