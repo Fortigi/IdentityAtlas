@@ -110,8 +110,8 @@ This document lists all major software components, dependencies, and infrastruct
 | @vitejs/plugin-react | ^6.0.5 | Vite React plugin | MIT |
 | eslint | ^10.8.1 | JavaScript linter | MIT |
 | eslint-plugin-react-hooks | ^7.1.1 | React hooks linting rules | MIT |
-| eslint-plugin-react-refresh | ^0.5.3 | React refresh linting | MIT |
-| globals | ^17.9.0 | Global variable definitions | MIT |
+| eslint-plugin-react-refresh | ^0.5.4 | React refresh linting | MIT |
+| globals | ^17.11.0 | Global variable definitions | MIT |
 | @playwright/test | ^1.62.1 | End-to-end testing framework | Apache 2.0 |
 | @axe-core/playwright | ^4.12.1 | Accessibility testing | MPL 2.0 |
 | @eslint/js | ^10.0.1 | ESLint JavaScript rules | MIT |
