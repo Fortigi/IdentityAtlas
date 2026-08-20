@@ -4803,7 +4803,7 @@
 <td>89.2%</td>
 <td>3.8 / 20</td>
 <td>2.4 / 15</td>
-<td>—</td>
+<td>86.0%</td>
 <td>8,207 / 9,291</td>
 </tr>
 <tr>
@@ -4813,7 +4813,7 @@
 <td>69.7%</td>
 <td>2.8 / 28</td>
 <td>1.1 / 15</td>
-<td>—</td>
+<td>69.4%</td>
 <td>6,120 / 7,546</td>
 </tr>
 <tr>
@@ -4833,10 +4833,12 @@
 <p>Every figure above is scoped to what its tool actually measured. The notes below are generated from the same reports as the table, so they stay true as the numbers move. They are descriptive, not gates — no CI job fails on anything in this section.</p>
 <h3 id="api-node-vitest-unit-contract">API (Node / Vitest — unit + contract)<a class="headerlink" href="#api-node-vitest-unit-contract" title="Permanent link">&para;</a></h3>
 <ul>
+<li><strong>Mutation is scoped.</strong> Mutation testing covers 18 file(s) of 190 — 9% of the suite's coverable lines. It describes that subset — not the suite — and is not comparable with the suite-wide line figure on the same row.</li>
 <li><strong>The most complex code is the least branch-covered.</strong> <code>app/api/src/routes/updates.js</code> (Async arrow function, cyclomatic 20, 76.0% branch) — below this suite's own branch average, so the aggregate percentage overstates how well the hard parts are tested.</li>
 </ul>
 <h3 id="ui-react-vitest">UI (React / Vitest)<a class="headerlink" href="#ui-react-vitest" title="Permanent link">&para;</a></h3>
 <ul>
+<li><strong>Mutation is scoped.</strong> Mutation testing covers 6 file(s) of 219 — 5% of the suite's coverable lines. It describes that subset — not the suite — and is not comparable with the suite-wide line figure on the same row.</li>
 <li><strong>method coverage (69.7%) sits below line coverage (81.1%)</strong> — roughly a third of functions are never invoked, while the ones that are get exercised well. Typically components rendered but not interacted with: the untested part is event handlers, callbacks and conditional render paths.</li>
 <li><strong>The most complex code is the least branch-covered.</strong> <code>app/ui/src/components/MatrixView.jsx</code> (Function 'MatrixView', cyclomatic 20, 50.9% branch) — below this suite's own branch average, so the aggregate percentage overstates how well the hard parts are tested.</li>
 </ul>
@@ -4852,7 +4854,7 @@
 <li><a href="../../coverage/ui/">UI (React / Vitest)</a></li>
 <li><a href="../../coverage/powershell/">PowerShell (Pester)</a></li>
 </ul>
-<p><em>Generated 2026-08-20 11:42 UTC from commit <code>33a10429</code>.</em></p>
+<p><em>Generated 2026-08-20 12:05 UTC from commit <code>3a83297f</code>.</em></p>
 
 
 
