@@ -5239,15 +5239,62 @@ an existing test can revive a mutant it never evaluates.</p>
 <p><strong>A mutant that provably cannot change behaviour can be declared</strong>, with a reason,
 in the config's <code>equivalents</code> map. The declaration is checked, not merely
 recorded: the run fails if a declared mutant is ever killed, or if it stops
-existing. Nothing in this repo is declared yet — the remaining survivors here are
-progress percentages and log constants, and leaving them visible is honest.</p>
+existing. There are 127 declarations today, and the reason on each says which
+kind it is — most are provable (a hashtable used as a set, a <code>-Depth</code> larger than
+the payload nests, a <code>Select-Object -Last 1</code> over a list that can hold at most one
+row), a minority are judgements that a visible-but-arbitrary constant is not worth
+a test (a progress counter's starting value, a column width in a format string).
+Write which one you are claiming. Two declarations were withdrawn on review after
+turning out to be system identifiers rather than display counters, and the giveaway
+was that their reasons asserted <em>provable</em> for something only argued.</p>
 <h3 id="javascript-stryker">JavaScript — Stryker<a class="headerlink" href="#javascript-stryker" title="Permanent link">&para;</a></h3>
-<p>Config: <code>app/api/stryker.auth.config.json</code>. Run it via the npm script:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nb">cd</span><span class="w"> </span>app/api<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>npm<span class="w"> </span>run<span class="w"> </span>test:mutation
+<p>Four scopes today, each its own config plus a narrow <code>vitest.stryker.*.config.js</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Config</th>
+<th>Covers</th>
+<th>Score</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>app/api/stryker.auth.config.json</code></td>
+<td>credential + permission path</td>
+<td>100%</td>
+</tr>
+<tr>
+<td><code>app/api/stryker.effectiveaccess.config.json</code></td>
+<td>the effective-access engine, its policies and LRU</td>
+<td>94.7%</td>
+</tr>
+<tr>
+<td><code>app/api/stryker.accountlinking.config.json</code></td>
+<td>account correlation and its rules</td>
+<td>81.9%</td>
+</tr>
+<tr>
+<td><code>app/ui/stryker.pilot.config.json</code></td>
+<td><code>usePermissions</code>, <code>matrixFilter</code></td>
+<td>93.8%</td>
+</tr>
+</tbody>
+</table>
+<p>Run one, or all of a package's:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nb">cd</span><span class="w"> </span>app/api<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>npm<span class="w"> </span>run<span class="w"> </span>test:mutation:accountlinking<span class="w">   </span><span class="c1"># one scope</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="nb">cd</span><span class="w"> </span>app/api<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>npm<span class="w"> </span>run<span class="w"> </span>test:mutation<span class="w">                  </span><span class="c1"># all three, in sequence</span>
 </code></pre></div>
 <p>Use the script, not <code>npx stryker</code> — npx can resolve the <strong>deprecated standalone
 <code>stryker</code> package</strong> from its cache instead of the installed
 <code>@stryker-mutator/core</code>, failing with <code>Cannot find module 'rx'</code>.</p>
+<p>Every config carries a <code>thresholds.break</code> a few points under its measured score,
+enforced weekly by <code>.github/workflows/js-mutation.yml</code> (Monday 05:00 UTC, and on
+demand — never on a PR, where a run this heavy could not be a required check
+anyway). The floors are a ratchet: raise them as scores rise, and never lower one
+to make a red run green, because a drop means a test stopped discriminating. That
+workflow also publishes the merged per-suite score to the coverage docs page,
+carrying its scope note with it — ten files of ~410 eligible, which is why the
+number must never be read as suite-wide.</p>
 <p>Two constraints worth knowing before you widen the scope:</p>
 <ul>
 <li><strong>Stryker sandboxes <code>app/api</code> alone.</strong> Any test reading the real filesystem —
@@ -5367,28 +5414,42 @@ pattern is the same each time: an assertion built on a guess about <em>shape</em
 <td>Generates the scope and shape caveats on the coverage page</td>
 </tr>
 <tr>
-<td><code>.ci/psmutant.config.json</code> / <code>app/api/stryker.auth.config.json</code></td>
-<td>The mutation scope declarations</td>
+<td><code>app/api/src/mutationScope.guard.test.js</code></td>
+<td>Every eligible JS file mutated, backlogged, or excluded with a reason; the backlog free of stale and already-covered entries</td>
+</tr>
+<tr>
+<td><code>.ci/psmutant.config.json</code> / <code>app/*/stryker.*.config.json</code></td>
+<td>The mutation scope declarations, and the enforced score floors</td>
+</tr>
+<tr>
+<td><code>.github/workflows/ps-mutation.yml</code> / <code>js-mutation.yml</code></td>
+<td>Run both tools weekly against those floors, and publish the scores to the coverage page</td>
 </tr>
 </tbody>
 </table>
 <hr />
 <h2 id="where-the-work-stands">Where the work stands<a class="headerlink" href="#where-the-work-stands" title="Permanent link">&para;</a></h2>
-<p><strong>In mutation scope:</strong> the crawler shapers, the shared ingest library, the
-<code>*.Functions.ps1</code> layer, the OData library, the SDK's Graph pager, the
-Azure/midPoint helper clients (23 PowerShell files), and the API credential path
-(100%).</p>
+<p>This section goes stale fast — check the numbers against the coverage page
+(<code>docs/reference/coverage.md</code>, refreshed by the weekly runs) before quoting them.</p>
+<p><strong>PowerShell — 112 files in <code>mutate</code>, 20 excluded with reasons, floor at 85%.</strong>
+The crawler Phases layer used to be the open item here, described as monolithic
+and untestable long after it had been decomposed; it is now in scope with the
+rest. Watch for that failure mode when you edit this section: the description
+outlived the thing it described, and was then cited as a reason not to measure.</p>
+<p><strong>JavaScript — 10 files of ~410 eligible.</strong> That is the honest headline: the
+scores above are high <em>and</em> they describe 5% of the API's coverable lines and 1%
+of the UI's. The rest is a counted backlog in
+<code>.ci/js-mutation-scope-baseline.json</code>, guarded so new code cannot join it
+silently. A file leaves the backlog by entering a Stryker config's <code>mutate</code>, not
+by being deleted from the list.</p>
 <p><strong>Open:</strong></p>
 <ul>
-<li><strong>The crawler Phases layer</strong> — five files at <strong>50.1%</strong>, 337 surviving mutants
-  across 158 functions. No single cause; it is sustained test-writing. The
-  technique that moves it is asserting payload content rather than collection
-  counts.</li>
+<li><strong>The JS backlog itself</strong> — ~398 files with no fault-detection evidence. Line
+  coverage is not a proxy: measured pairs here include 97% line / 68% mutation,
+  93% / 69%, and 99% / 85%, and <code>usePermissions.js</code> sat at 39% line with no test
+  file importing it at all.</li>
 <li><strong><code>tools/powershell-sdk/</code> and <code>tools/riskscoring/</code></strong> have no eligibility
-  definition, so the scope guard cannot see them.</li>
-<li><strong>The UI suite</strong> has no mutation evidence, and its method coverage (69.2%) sits
-  below its line coverage (80.9%) — the signature of components rendered but
-  never driven.</li>
+  definition, so the PowerShell scope guard cannot see them.</li>
 </ul>
 
 
