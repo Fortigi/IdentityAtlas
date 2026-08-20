@@ -160,85 +160,67 @@ describe('useMatrix response mapping', () => {
     }).wrapper,
   });
 
-  it('passes every roll-up field through untouched', async () => {
-    // Each field carries a DIFFERENT value, so a mapper that reads the wrong
-    // source key produces a different object rather than coincidentally the same
-    // one. Booleans are true and maxDepth is 4 precisely because those are not
-    // the defaults — a surviving `|| false` would be invisible against false.
-    const body = {
-      rollup: 'department',
-      rollupKind: 'context',
-      rollupContextId: 'ctx-9',
-      focusId: 'node-7',
-      breadcrumb: [{ id: 'b1' }],
-      nodes: [{ id: 'n1' }],
-      rollupContent: 'roles-only',
-      layered: true,
-      layeredAttributes: true,
-      maxDepth: 4,
-      resources: [{ resourceId: 'r1' }],
-      groupValues: ['IT'],
-      groupTotals: [{ groupValue: 'IT', total: 3 }],
-      counts: [{ resourceId: 'r1', groupValue: 'IT', directCount: 4 }],
-      businessRoles: [{ roleId: 'br1' }],
-      roleCounts: [{ roleId: 'br1', count: 2 }],
-      roleRows: [{ roleId: 'br1', groupValue: 'IT' }],
-      cells: [{ resourceId: 'r1', groupValue: 'IT' }],
-    };
-    const { result } = runWith(body);
+  // Each roll-up field paired with (what the server sent, what it defaults to when
+  // the server omits it). One table drives both tests below: previously they were
+  // two 18-line object literals differing only in values, which is a clone by any
+  // measure and drifts the moment a field is added to one and not the other.
+  //
+  // Every populated value is DIFFERENT from its default, and deliberately so --
+  // booleans are true, maxDepth is 4 -- because a surviving `|| false` is invisible
+  // against a fixture that also says false. The test below asserts that property of
+  // the table itself, so the fixture cannot quietly stop discriminating.
+  const ROLLUP_FIELDS = {
+    rollupKind:        ['context', 'attribute'],
+    rollupContextId:   ['ctx-9', null],
+    focusId:           ['node-7', null],
+    breadcrumb:        [[{ id: 'b1' }], []],
+    nodes:             [[{ id: 'n1' }], []],
+    rollupContent:     ['roles-only', 'resources-and-roles'],
+    layered:           [true, false],
+    layeredAttributes: [true, false],
+    maxDepth:          [4, 1],
+    resources:         [[{ resourceId: 'r1' }], []],
+    groupValues:       [['IT'], []],
+    groupTotals:       [[{ groupValue: 'IT', total: 3 }], []],
+    counts:            [[{ resourceId: 'r1', groupValue: 'IT', directCount: 4 }], []],
+    businessRoles:     [[{ roleId: 'br1' }], []],
+    roleCounts:        [[{ roleId: 'br1', count: 2 }], []],
+    roleRows:          [[{ roleId: 'br1', groupValue: 'IT' }], []],
+    cells:             [[{ resourceId: 'r1', groupValue: 'IT' }], []],
+  };
+  const pick = (i) => Object.fromEntries(
+    Object.entries(ROLLUP_FIELDS).map(([k, pair]) => [k, pair[i]]));
+  const SENT = pick(0);
+  const DEFAULTS = pick(1);
 
-    await waitFor(() => expect(result.current.rollup).not.toBe(null));
-    // The whole object at once: any field defaulted over, or read from the wrong
-    // key, fails here rather than needing its own assertion.
-    expect(result.current.rollup).toEqual({
-      attribute: 'department',
-      rollupKind: 'context',
-      rollupContextId: 'ctx-9',
-      focusId: 'node-7',
-      breadcrumb: [{ id: 'b1' }],
-      nodes: [{ id: 'n1' }],
-      rollupContent: 'roles-only',
-      layered: true,
-      layeredAttributes: true,
-      maxDepth: 4,
-      resources: [{ resourceId: 'r1' }],
-      groupValues: ['IT'],
-      groupTotals: [{ groupValue: 'IT', total: 3 }],
-      counts: [{ resourceId: 'r1', groupValue: 'IT', directCount: 4 }],
-      businessRoles: [{ roleId: 'br1' }],
-      roleCounts: [{ roleId: 'br1', count: 2 }],
-      roleRows: [{ roleId: 'br1', groupValue: 'IT' }],
-      cells: [{ resourceId: 'r1', groupValue: 'IT' }],
+  it('uses a fixture where no field can pass by coincidence', () => {
+    // Guards the table, not the hook. If a populated value ever equals its own
+    // default, the passthrough test below still passes while proving nothing about
+    // that field -- the mutant that swaps them would be undetectable.
+    const indistinguishable = Object.entries(ROLLUP_FIELDS)
+      .filter(([, [sent, dflt]]) => JSON.stringify(sent) === JSON.stringify(dflt))
+      .map(([k]) => k);
+    expect(indistinguishable).toEqual([]);
+  });
+
+  it('passes every roll-up field through untouched', () => {
+    // `attribute` is the one field read from a differently-named key (body.rollup),
+    // so it sits outside the table.
+    const { result } = runWith({ rollup: 'department', ...SENT });
+
+    return waitFor(() => expect(result.current.rollup).not.toBe(null)).then(() => {
+      expect(result.current.rollup).toEqual({ attribute: 'department', ...SENT });
     });
   });
 
   it('fills in a documented default for every roll-up field the server omits', async () => {
     // A minimal payload — only the field that selects the roll-up branch at all.
-    // Collections must become empty arrays rather than undefined: the renderer
-    // maps over them, so undefined is a crash or a blank grid, not a default.
+    // Collections must become empty arrays rather than undefined: the renderer maps
+    // over them, so undefined is a crash or a blank grid, not a default.
     const { result } = runWith({ rollup: 'department' });
 
     await waitFor(() => expect(result.current.rollup).not.toBe(null));
-    expect(result.current.rollup).toEqual({
-      attribute: 'department',
-      rollupKind: 'attribute',
-      rollupContextId: null,
-      focusId: null,
-      breadcrumb: [],
-      nodes: [],
-      rollupContent: 'resources-and-roles',
-      layered: false,
-      layeredAttributes: false,
-      maxDepth: 1,
-      resources: [],
-      groupValues: [],
-      groupTotals: [],
-      counts: [],
-      businessRoles: [],
-      roleCounts: [],
-      roleRows: [],
-      cells: [],
-    });
+    expect(result.current.rollup).toEqual({ attribute: 'department', ...DEFAULTS });
   });
 
   it('passes the five headline counts through, and zeroes the ones omitted', async () => {
