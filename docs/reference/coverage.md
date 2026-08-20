@@ -7,7 +7,7 @@ Test quality across the project's automated suites — line/branch/method covera
 | Suite | Line | Branch | Method | Cyclomatic | Cognitive | Mutation | Lines covered |
 |-------|------|--------|--------|------------|-----------|----------|---------------|
 | [API (Node / Vitest — unit + contract)](../coverage/api/index.html) | 88.3% | 78.3% | 89.2% | 3.8 / 20 | 2.4 / 15 | — | 8,207 / 9,291 |
-| [UI (React / Vitest)](../coverage/ui/index.html) | 81.0% | 70.5% | 69.6% | 2.8 / 28 | 1.1 / 15 | — | 6,117 / 7,546 |
+| [UI (React / Vitest)](../coverage/ui/index.html) | 81.1% | 70.7% | 69.7% | 2.8 / 28 | 1.1 / 15 | — | 6,120 / 7,546 |
 | [PowerShell (Pester)](../coverage/powershell/index.html) | 91.0% | — | 96.7% | 3.6 / 15 | 3.8 / 15 | 93.2% | 5,559 / 6,105 |
 
 **Cyclomatic** / **Cognitive** are _average / max_ per unit (each function, and for PowerShell each script/module body too): PowerShell via [PSComplexity](https://github.com/Fortigi/PSComplexity), JS/TS via ESLint's `complexity` rule + [eslint-plugin-sonarjs](https://github.com/SonarSource/eslint-plugin-sonarjs). **Mutation** is the share of injected faults the tests catch via [PSMutant](https://github.com/Fortigi/PSMutant), PowerShell-only today. A suite without a given signal shows —.
@@ -22,7 +22,7 @@ Every figure above is scoped to what its tool actually measured. The notes below
 
 ### UI (React / Vitest)
 
-- **method coverage (69.6%) sits below line coverage (81.0%)** — roughly a third of functions are never invoked, while the ones that are get exercised well. Typically components rendered but not interacted with: the untested part is event handlers, callbacks and conditional render paths.
+- **method coverage (69.7%) sits below line coverage (81.1%)** — roughly a third of functions are never invoked, while the ones that are get exercised well. Typically components rendered but not interacted with: the untested part is event handlers, callbacks and conditional render paths.
 - **The most complex code is the least branch-covered.** `app/ui/src/components/MatrixView.jsx` (Function 'MatrixView', cyclomatic 20, 50.9% branch) — below this suite's own branch average, so the aggregate percentage overstates how well the hard parts are tested.
 
 ### PowerShell (Pester)
@@ -38,4 +38,4 @@ Each suite links to a full per-file, line-by-line HTML report:
 - [UI (React / Vitest)](../coverage/ui/index.html)
 - [PowerShell (Pester)](../coverage/powershell/index.html)
 
-_Generated 2026-08-20 10:24 UTC from commit `65d349a7`._
+_Generated 2026-08-20 11:42 UTC from commit `33a10429`._
