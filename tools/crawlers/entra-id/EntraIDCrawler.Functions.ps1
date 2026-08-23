@@ -536,3 +536,49 @@ function Format-FGDelegatedPermissionName {
     if ($ClientName) { "$Scope on $TargetName (via $ClientName)" }
     else { "$Scope on $TargetName" }
 }
+
+# Split a Graph /delta response into the live records and the @removed tombstone
+# ids. Shared by the users and service-principal delta fetches, which did this
+# identical split inline. Returns @{ items; removedIds }.
+function Split-FGDeltaResponse {
+    [CmdletBinding()]
+    param($Response)
+    $items   = @($Response.value | Where-Object { -not $_.'@removed' })
+    $removed = @($Response.value | Where-Object { $_.'@removed' } | ForEach-Object { $_.id })
+    return @{ items = $items; removedIds = $removed }
+}
+
+# Fold one PIM eligibility batch into $RecordsList (by reference) and return the
+# count of distinct source groups the batch touched. Extracted from Sync-EntraPim's
+# per-batch loop so the phase stays under the complexity ceiling.
+function Add-EntraPimBatchRecords {
+    [CmdletBinding()]
+    param($BatchOutput, $RecordsList)
+    $groupSet = @{}
+    foreach ($r in $BatchOutput) {
+        $RecordsList.Add((ConvertTo-EntraPimRecord -EligibilityRow $r))
+        $groupSet[$r.resourceId] = $true
+    }
+    return $groupSet.Count
+}
+
+# Stream one sign-in-log day slice into $Aggregate (by reference), folding each
+# event via Add-EntraSignInEventToAggregate. Returns @{ count; skipped }. The
+# counters live in a hashtable so the increments survive the streaming pipeline
+# block (a plain local wouldn't propagate out of ForEach-Object).
+function Invoke-EntraSignInSlice {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] [string]$SliceUri,
+        [Parameter(Mandatory)] [hashtable]$Aggregate,
+        [Parameter(Mandatory)] [hashtable]$AppIdToSpId
+    )
+    $counters = @{ count = 0; skipped = 0 }
+    Invoke-FGGetRequestStream -URI $SliceUri | ForEach-Object {
+        if (-not (Add-EntraSignInEventToAggregate -SignInEvent $_ -Aggregate $Aggregate -AppIdToSpId $AppIdToSpId)) {
+            $counters.skipped++
+        }
+        $counters.count++
+    }
+    return $counters
+}

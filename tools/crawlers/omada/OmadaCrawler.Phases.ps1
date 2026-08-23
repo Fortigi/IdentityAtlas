@@ -207,17 +207,7 @@ function Sync-OmadaContexts {
                 -QueryParams @{ '$filter' = 'Deleted eq false' } -PageSize $PageSize -MaxRetries $MaxRetries
             Write-Host "  $($Items.Count) $EntitySet records from Omada" -ForegroundColor Gray
 
-            if ($EntitySet -eq 'Orgunit') {
-                # Orgunit has a parent hierarchy — topological sort required.
-                $RawRecords = @($Items | ForEach-Object {
-                    ConvertTo-OmadaOrgUnitContextRecord -OrgUnit $_ -DefaultContextType $ContextType
-                } | Where-Object { $_.externalId -and $_.displayName })
-                $Records = Get-OmadaContextsInTopologicalOrder -Records $RawRecords
-            } else {
-                $Records = @($Items | ForEach-Object {
-                    ConvertTo-OmadaFlatContextRecord -Item $_ -ContextType $ContextType
-                } | Where-Object { $_.externalId -and $_.displayName })
-            }
+            $Records = @(Build-OmadaContextRecords -Items $Items -EntitySet $EntitySet -ContextType $ContextType)
 
             Write-Step "Ingesting $($Records.Count) $ContextType contexts..."
             $R = Send-IngestBatch -Endpoint 'ingest/contexts' -SystemId $SystemId -SyncMode 'full' `
@@ -759,20 +749,10 @@ function Send-OmadaGovernanceAssignments {
     [CmdletBinding()]
     param([hashtable]$RaBySys = @{}, [hashtable]$AssignmentsBySys = @{}, [hashtable]$OmadaSystemMap = @{}, [int]$SystemId)
     $TotalGovIns = 0
-    $AllSysKeys = [System.Collections.Generic.HashSet[string]]::new()
-    foreach ($k in $RaBySys.Keys)           { [void]$AllSysKeys.Add($k) }
-    foreach ($k in $AssignmentsBySys.Keys)  { [void]$AllSysKeys.Add($k) }
+    $AllSysKeys = [System.Collections.Generic.HashSet[string]]::new([string[]](@($RaBySys.Keys) + @($AssignmentsBySys.Keys)))
     foreach ($Key in $AllSysKeys) {
-        $SysId = if ($Key -eq '__main__') { $SystemId } else { $OmadaSystemMap[$Key] }
-        $Combined = [System.Collections.Generic.List[object]]::new()
-        if ($RaBySys.ContainsKey($Key))          { $Combined.AddRange($RaBySys[$Key]) }
-        if ($AssignmentsBySys.ContainsKey($Key)) { $Combined.AddRange($AssignmentsBySys[$Key]) }
-        $Seen  = [System.Collections.Generic.HashSet[string]]::new()
-        $Dedup = @($Combined | Where-Object { $Seen.Add("$($_.principalId)|$($_.resourceId)") })
-        if ($Dedup.Count -eq 0) { continue }
-        $R = Send-IngestBatch -Endpoint 'ingest/resource-assignments' -SystemId $SysId `
-            -SyncMode 'full' -Scope @{ assignmentType = 'Direct'; governed = $true } -Records $Dedup
-        $TotalGovIns += ($R.inserted ?? 0)
+        $TotalGovIns += Send-OmadaGovernanceAssignmentForSystem -Key $Key -RaBySys $RaBySys `
+            -AssignmentsBySys $AssignmentsBySys -OmadaSystemMap $OmadaSystemMap -SystemId $SystemId
     }
     Write-Host "  Governance assignments (Direct, governed): +$TotalGovIns" -ForegroundColor Green
 }

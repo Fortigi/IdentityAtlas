@@ -128,8 +128,7 @@ function Show-Summary {
     Write-Host "╠══════════════════════════════════════════════════╣" -ForegroundColor Cyan
 
     foreach ($r in $script:PhaseResults) {
-        $icon = if ($r.Passed) { "✓" } else { "✗" }
-        $color = if ($r.Passed) { "Green" } else { "Red" }
+        $icon, $color = if ($r.Passed) { "✓", "Green" } else { "✗", "Red" }
         $line = "  $icon $($r.Phase)".PadRight(42) + "$($r.Duration)s"
         Write-Host "║ $line ║" -ForegroundColor $color
     }
