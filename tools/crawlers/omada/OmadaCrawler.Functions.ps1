@@ -116,4 +116,47 @@ function Send-IngestBatch {
         -Records $Records -DeletedIds $DeletedIds -BatchSize $BatchSize
 }
 
+# Shape the raw OData items for one context entity set into ingest-ready context
+# records, dropping any without an externalId/displayName. Orgunit carries a parent
+# hierarchy, so its records are topologically sorted (parent before child).
+# Extracted from Sync-OmadaContexts to keep that phase under the complexity ceiling.
+function Build-OmadaContextRecords {
+    [CmdletBinding()]
+    param($Items, [string]$EntitySet, [string]$ContextType)
+    if ($EntitySet -eq 'Orgunit') {
+        $RawRecords = @($Items | ForEach-Object {
+            ConvertTo-OmadaOrgUnitContextRecord -OrgUnit $_ -DefaultContextType $ContextType
+        } | Where-Object { $_.externalId -and $_.displayName })
+        return @(Get-OmadaContextsInTopologicalOrder -Records $RawRecords)
+    }
+    return @($Items | ForEach-Object {
+        ConvertTo-OmadaFlatContextRecord -Item $_ -ContextType $ContextType
+    } | Where-Object { $_.externalId -and $_.displayName })
+}
+
+# Combine the role and CRA assignments for one Omada system, dedup by
+# (principalId, resourceId), and ingest them as governed Direct assignments.
+# Returns the inserted count. Extracted from Send-OmadaGovernanceAssignments's
+# per-system loop so that phase stays under the complexity ceiling.
+function Send-OmadaGovernanceAssignmentForSystem {
+    [CmdletBinding()]
+    param(
+        [string]$Key,
+        [hashtable]$RaBySys = @{},
+        [hashtable]$AssignmentsBySys = @{},
+        [hashtable]$OmadaSystemMap = @{},
+        [int]$SystemId
+    )
+    $SysId = if ($Key -eq '__main__') { $SystemId } else { $OmadaSystemMap[$Key] }
+    $Combined = [System.Collections.Generic.List[object]]::new()
+    if ($RaBySys.ContainsKey($Key))          { $Combined.AddRange($RaBySys[$Key]) }
+    if ($AssignmentsBySys.ContainsKey($Key)) { $Combined.AddRange($AssignmentsBySys[$Key]) }
+    $Seen  = [System.Collections.Generic.HashSet[string]]::new()
+    $Dedup = @($Combined | Where-Object { $Seen.Add("$($_.principalId)|$($_.resourceId)") })
+    if ($Dedup.Count -eq 0) { return 0 }
+    $R = Send-IngestBatch -Endpoint 'ingest/resource-assignments' -SystemId $SysId `
+        -SyncMode 'full' -Scope @{ assignmentType = 'Direct'; governed = $true } -Records $Dedup
+    return ($R.inserted ?? 0)
+}
+
 #endregion Functions

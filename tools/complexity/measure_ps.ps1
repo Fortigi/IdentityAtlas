@@ -14,9 +14,11 @@
         [ { "file": "<repo-relative>", "unit": "<name|<script-body>>", "line": <int>,
             "cc": <int>, "cog": <int> }, ... ]
 
-    Cyclomatic numbers are identical to the previous bundled measurer; cognitive matches
-    except where PSComplexity is more faithful (it also counts recursion and labelled
-    break/continue). The baselines under .ci/ are generated from this output.
+    As of PSComplexity 0.3.0 both metrics also score the branching PowerShell expresses
+    through its own flow constructs -- ForEach-Object / Where-Object (and aliases), the
+    && / || pipeline chains, and the ?? / ??= operators -- which earlier versions read as
+    straight-line code. A pipeline body now costs exactly what the equivalent keyword form
+    costs. The baselines under .ci/ are generated from this output.
 
 .OUTPUTS
     JSON array to stdout.
@@ -29,8 +31,8 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-if (-not (Get-Module PSComplexity -ListAvailable | Where-Object Version -ge '0.1.0')) {
-    Install-Module PSComplexity -RequiredVersion 0.1.0 -Force -Scope CurrentUser
+if (-not (Get-Module PSComplexity -ListAvailable | Where-Object Version -ge '0.3.0')) {
+    Install-Module PSComplexity -RequiredVersion 0.3.0 -Force -Scope CurrentUser
 }
 Import-Module PSComplexity
 

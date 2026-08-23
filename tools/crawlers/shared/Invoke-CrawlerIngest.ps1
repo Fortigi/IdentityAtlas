@@ -213,6 +213,16 @@ function Send-FGSingleIngestBatch {
     return $result
 }
 
+# The syncSession marker for a chunked batch: 'start' for the first, 'end' for the
+# last, 'continue' in between. Pulled out of the chunk loop to keep it simple.
+function Get-FGSyncSessionMarker {
+    [CmdletBinding()]
+    param([bool]$IsFirst, [bool]$IsLast)
+    if ($IsFirst) { return 'start' }
+    if ($IsLast) { return 'end' }
+    return 'continue'
+}
+
 function Send-FGChunkedIngestBatches {
     [CmdletBinding()]
     param($Endpoint, [int]$SystemId, [string]$SyncMode, [hashtable]$Scope, [array]$Records, [string[]]$DeletedIds, [bool]$HaveDeletes, [int]$BatchSize, [string]$IdGeneration, [string]$IdPrefix)
@@ -227,7 +237,7 @@ function Send-FGChunkedIngestBatches {
         $batch   = $Records[$i..([Math]::Min($i + $BatchSize - 1, $Records.Count - 1))]
         $isFirst = ($i -eq 0)
         $body = Get-FGIngestBodyBase -SystemId $SystemId -SyncMode $SyncMode -Scope $Scope -Records $batch -IdGeneration $IdGeneration -IdPrefix $IdPrefix
-        $body['syncSession'] = if ($isFirst) { 'start' } elseif ($i + $BatchSize -ge $Records.Count) { 'end' } else { 'continue' }
+        $body['syncSession'] = Get-FGSyncSessionMarker -IsFirst $isFirst -IsLast ($i + $BatchSize -ge $Records.Count)
         if ($syncId) { $body['syncId'] = $syncId }
         $result = Invoke-IngestAPI -Endpoint $Endpoint -Body $body
         if ($isFirst) { $syncId = $result.syncId }

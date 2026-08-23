@@ -874,7 +874,7 @@ jobs:
       # The PowerShell measurer is the published PSComplexity module.
       - name: Install PSComplexity (PowerShell complexity measurer)
         shell: pwsh
-        run: Install-Module PSComplexity -RequiredVersion 0.1.0 -Force -Scope CurrentUser
+        run: Install-Module PSComplexity -RequiredVersion 0.3.0 -Force -Scope CurrentUser
 
       # Validate the ratchet gate logic (Python) before it gates anything.
       - name: Test the ratchet gate logic

@@ -353,15 +353,23 @@ function Invoke-TokenManagementTest {
 }
 
 # Per-category pass/skip breakdown for the summary.
+function Get-TestCategoryCounts {
+    param($Group)
+    return @{
+        Passed  = ($Group | Where-Object { $_.Passed -and -not $_.Skipped }).Count
+        Skipped = ($Group | Where-Object Skipped).Count
+        Failed  = ($Group | Where-Object { -not $_.Passed -and -not $_.Skipped }).Count
+        Total   = $Group.Count
+    }
+}
+
 function Write-CategoryBreakdown {
     $categories = $script:TestResults | Group-Object Category
     foreach ($cat in $categories) {
-        $passed = ($cat.Group | Where-Object { $_.Passed -and -not $_.Skipped }).Count
-        $skipped = ($cat.Group | Where-Object Skipped).Count
-        $total = $cat.Group.Count
-        $color = if (($cat.Group | Where-Object { -not $_.Passed -and -not $_.Skipped }).Count -eq 0) { "Green" } else { "Yellow" }
-        $skipText = if ($skipped -gt 0) { " ($skipped skipped)" } else { "" }
-        Write-Host "    $($cat.Name): $passed/$total$skipText" -ForegroundColor $color
+        $c = Get-TestCategoryCounts -Group $cat.Group
+        $color = if ($c.Failed -eq 0) { "Green" } else { "Yellow" }
+        $skipText = if ($c.Skipped -gt 0) { " ($($c.Skipped) skipped)" } else { "" }
+        Write-Host "    $($cat.Name): $($c.Passed)/$($c.Total)$skipText" -ForegroundColor $color
     }
 }
 
