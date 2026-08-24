@@ -765,6 +765,12 @@
     },
     {
       "File": "src/accountlinking/classifier.js",
+      "Line": 126,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/accountlinking/classifier.js",
       "Line": 125,
       "Status": "Killed",
       "Operator": "BlockStatement"
@@ -773,12 +779,6 @@
       "File": "src/accountlinking/classifier.js",
       "Line": 126,
       "Status": "Killed",
-      "Operator": "ConditionalExpression"
-    },
-    {
-      "File": "src/accountlinking/classifier.js",
-      "Line": 126,
-      "Status": "Killed",
       "Operator": "LogicalOperator"
     },
     {
@@ -861,6 +861,12 @@
     },
     {
       "File": "src/accountlinking/classifier.js",
+      "Line": 128,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/accountlinking/classifier.js",
       "Line": 127,
       "Status": "Killed",
       "Operator": "EqualityOperator"
@@ -869,19 +875,13 @@
       "File": "src/accountlinking/classifier.js",
       "Line": 128,
       "Status": "Killed",
-      "Operator": "ConditionalExpression"
-    },
-    {
-      "File": "src/accountlinking/classifier.js",
-      "Line": 128,
-      "Status": "Killed",
-      "Operator": "ConditionalExpression"
-    },
-    {
-      "File": "src/accountlinking/classifier.js",
-      "Line": 128,
-      "Status": "Killed",
       "Operator": "LogicalOperator"
+    },
+    {
+      "File": "src/accountlinking/classifier.js",
+      "Line": 128,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
     },
     {
       "File": "src/accountlinking/classifier.js",
@@ -921,12 +921,6 @@
     },
     {
       "File": "src/accountlinking/classifier.js",
-      "Line": 13,
-      "Status": "Killed",
-      "Operator": "ConditionalExpression"
-    },
-    {
-      "File": "src/accountlinking/classifier.js",
       "Line": 14,
       "Status": "Killed",
       "Operator": "MethodExpression"
@@ -940,6 +934,12 @@
     {
       "File": "src/accountlinking/classifier.js",
       "Line": 16,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/accountlinking/classifier.js",
+      "Line": 13,
       "Status": "Killed",
       "Operator": "ConditionalExpression"
     },
@@ -987,18 +987,18 @@
     },
     {
       "File": "src/accountlinking/classifier.js",
-      "Line": 31,
-      "Status": "Killed",
-      "Operator": "ConditionalExpression"
-    },
-    {
-      "File": "src/accountlinking/classifier.js",
       "Line": 30,
       "Status": "Survived",
       "Operator": "ArrayDeclaration"
     },
     {
       "File": "src/accountlinking/classifier.js",
+      "Line": 31,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/accountlinking/classifier.js",
       "Line": 32,
       "Status": "Killed",
       "Operator": "MethodExpression"
@@ -1012,13 +1012,13 @@
     {
       "File": "src/accountlinking/classifier.js",
       "Line": 37,
-      "Status": "Killed",
+      "Status": "Survived",
       "Operator": "Regex"
     },
     {
       "File": "src/accountlinking/classifier.js",
       "Line": 37,
-      "Status": "Survived",
+      "Status": "Killed",
       "Operator": "Regex"
     },
     {
@@ -1127,13 +1127,13 @@
       "File": "src/accountlinking/classifier.js",
       "Line": 98,
       "Status": "Killed",
-      "Operator": "ConditionalExpression"
+      "Operator": "BlockStatement"
     },
     {
       "File": "src/accountlinking/classifier.js",
       "Line": 98,
       "Status": "Killed",
-      "Operator": "BlockStatement"
+      "Operator": "ConditionalExpression"
     },
     {
       "File": "src/accountlinking/classifier.js",
@@ -1169,13 +1169,13 @@
       "File": "src/accountlinking/classifier.js",
       "Line": 101,
       "Status": "Killed",
-      "Operator": "LogicalOperator"
+      "Operator": "ConditionalExpression"
     },
     {
       "File": "src/accountlinking/classifier.js",
       "Line": 101,
       "Status": "Killed",
-      "Operator": "ConditionalExpression"
+      "Operator": "LogicalOperator"
     },
     {
       "File": "src/accountlinking/classifier.js",
@@ -1224,12 +1224,6 @@
       "Line": 103,
       "Status": "Killed",
       "Operator": "Regex"
-    },
-    {
-      "File": "src/accountlinking/classifier.js",
-      "Line": 104,
-      "Status": "Killed",
-      "Operator": "ConditionalExpression"
     },
     {
       "File": "src/accountlinking/classifier.js",
@@ -1242,6 +1236,12 @@
       "Line": 104,
       "Status": "Killed",
       "Operator": "EqualityOperator"
+    },
+    {
+      "File": "src/accountlinking/classifier.js",
+      "Line": 104,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
     },
     {
       "File": "src/accountlinking/classifier.js",
@@ -1277,6 +1277,12 @@
       "File": "src/accountlinking/classifier.js",
       "Line": 107,
       "Status": "Killed",
+      "Operator": "LogicalOperator"
+    },
+    {
+      "File": "src/accountlinking/classifier.js",
+      "Line": 107,
+      "Status": "Killed",
       "Operator": "BooleanLiteral"
     },
     {
@@ -1294,12 +1300,6 @@
     {
       "File": "src/accountlinking/classifier.js",
       "Line": 108,
-      "Status": "Killed",
-      "Operator": "LogicalOperator"
-    },
-    {
-      "File": "src/accountlinking/classifier.js",
-      "Line": 107,
       "Status": "Killed",
       "Operator": "LogicalOperator"
     },
@@ -1671,13 +1671,13 @@
     },
     {
       "File": "src/accountlinking/defaultRules.js",
-      "Line": 27,
+      "Line": 36,
       "Status": "Killed",
       "Operator": "ArrayDeclaration"
     },
     {
       "File": "src/accountlinking/defaultRules.js",
-      "Line": 36,
+      "Line": 27,
       "Status": "Killed",
       "Operator": "ArrayDeclaration"
     },
@@ -1689,25 +1689,25 @@
     },
     {
       "File": "src/accountlinking/defaultRules.js",
-      "Line": 38,
-      "Status": "Survived",
-      "Operator": "ArrayDeclaration"
-    },
-    {
-      "File": "src/accountlinking/defaultRules.js",
       "Line": 39,
       "Status": "Killed",
       "Operator": "ArrayDeclaration"
     },
     {
       "File": "src/accountlinking/defaultRules.js",
-      "Line": 46,
+      "Line": 40,
       "Status": "Killed",
       "Operator": "ArrayDeclaration"
     },
     {
       "File": "src/accountlinking/defaultRules.js",
-      "Line": 40,
+      "Line": 38,
+      "Status": "Survived",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/accountlinking/defaultRules.js",
+      "Line": 46,
       "Status": "Killed",
       "Operator": "ArrayDeclaration"
     },
@@ -1977,13 +1977,13 @@
     },
     {
       "File": "src/accountlinking/engine.helpers.js",
-      "Line": 79,
+      "Line": 78,
       "Status": "Killed",
       "Operator": "CallExpression"
     },
     {
       "File": "src/accountlinking/engine.helpers.js",
-      "Line": 78,
+      "Line": 79,
       "Status": "Killed",
       "Operator": "CallExpression"
     },
@@ -2057,6 +2057,12 @@
       "File": "src/accountlinking/engine.helpers.js",
       "Line": 25,
       "Status": "Killed",
+      "Operator": "LogicalOperator"
+    },
+    {
+      "File": "src/accountlinking/engine.helpers.js",
+      "Line": 25,
+      "Status": "Killed",
       "Operator": "OptionalChaining"
     },
     {
@@ -2064,24 +2070,6 @@
       "Line": 25,
       "Status": "Killed",
       "Operator": "ConditionalExpression"
-    },
-    {
-      "File": "src/accountlinking/engine.helpers.js",
-      "Line": 25,
-      "Status": "Killed",
-      "Operator": "LogicalOperator"
-    },
-    {
-      "File": "src/accountlinking/engine.helpers.js",
-      "Line": 25,
-      "Status": "Killed",
-      "Operator": "ConditionalExpression"
-    },
-    {
-      "File": "src/accountlinking/engine.helpers.js",
-      "Line": 25,
-      "Status": "Killed",
-      "Operator": "LogicalOperator"
     },
     {
       "File": "src/accountlinking/engine.helpers.js",
@@ -2100,6 +2088,18 @@
       "Line": 25,
       "Status": "Killed",
       "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/accountlinking/engine.helpers.js",
+      "Line": 25,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/accountlinking/engine.helpers.js",
+      "Line": 25,
+      "Status": "Killed",
+      "Operator": "LogicalOperator"
     },
     {
       "File": "src/accountlinking/engine.helpers.js",
@@ -2177,23 +2177,23 @@
       "File": "src/accountlinking/engine.helpers.js",
       "Line": 28,
       "Status": "Killed",
-      "Operator": "EqualityOperator"
+      "Operator": "ArrayDeclaration"
     },
     {
       "File": "src/accountlinking/engine.helpers.js",
       "Line": 28,
       "Status": "Killed",
-      "Operator": "ArrayDeclaration"
+      "Operator": "EqualityOperator"
     },
     {
       "File": "src/accountlinking/engine.helpers.js",
-      "Line": 38,
+      "Line": 43,
       "Status": "Killed",
       "Operator": "BlockStatement"
     },
     {
       "File": "src/accountlinking/engine.helpers.js",
-      "Line": 43,
+      "Line": 38,
       "Status": "Killed",
       "Operator": "BlockStatement"
     },
@@ -2271,15 +2271,15 @@
     },
     {
       "File": "src/accountlinking/engine.helpers.js",
-      "Line": 47,
-      "Status": "Killed",
-      "Operator": "LogicalOperator"
-    },
-    {
-      "File": "src/accountlinking/engine.helpers.js",
       "Line": 48,
       "Status": "Killed",
       "Operator": "CallExpression"
+    },
+    {
+      "File": "src/accountlinking/engine.helpers.js",
+      "Line": 47,
+      "Status": "Killed",
+      "Operator": "LogicalOperator"
     },
     {
       "File": "src/accountlinking/engine.js",
@@ -2782,13 +2782,13 @@
     {
       "File": "src/accountlinking/engine.js",
       "Line": 60,
-      "Status": "Killed",
+      "Status": "Survived",
       "Operator": "ConditionalExpression"
     },
     {
       "File": "src/accountlinking/engine.js",
       "Line": 60,
-      "Status": "Survived",
+      "Status": "Killed",
       "Operator": "ConditionalExpression"
     },
     {
@@ -2807,13 +2807,13 @@
       "File": "src/accountlinking/engine.js",
       "Line": 63,
       "Status": "Killed",
-      "Operator": "ConditionalExpression"
+      "Operator": "LogicalOperator"
     },
     {
       "File": "src/accountlinking/engine.js",
       "Line": 63,
       "Status": "Killed",
-      "Operator": "LogicalOperator"
+      "Operator": "ConditionalExpression"
     },
     {
       "File": "src/accountlinking/engine.js",
@@ -2843,18 +2843,18 @@
       "File": "src/accountlinking/engine.js",
       "Line": 65,
       "Status": "Killed",
-      "Operator": "EqualityOperator"
-    },
-    {
-      "File": "src/accountlinking/engine.js",
-      "Line": 65,
-      "Status": "Killed",
       "Operator": "ConditionalExpression"
     },
     {
       "File": "src/accountlinking/engine.js",
       "Line": 65,
       "Status": "Killed",
+      "Operator": "EqualityOperator"
+    },
+    {
+      "File": "src/accountlinking/engine.js",
+      "Line": 65,
+      "Status": "Killed",
       "Operator": "BlockStatement"
     },
     {
@@ -2957,13 +2957,13 @@
       "File": "src/accountlinking/engine.js",
       "Line": 72,
       "Status": "Killed",
-      "Operator": "LogicalOperator"
+      "Operator": "BooleanLiteral"
     },
     {
       "File": "src/accountlinking/engine.js",
       "Line": 72,
       "Status": "Killed",
-      "Operator": "BooleanLiteral"
+      "Operator": "LogicalOperator"
     },
     {
       "File": "src/accountlinking/engine.js",
@@ -3059,13 +3059,13 @@
       "File": "src/accountlinking/engine.js",
       "Line": 76,
       "Status": "Killed",
-      "Operator": "LogicalOperator"
+      "Operator": "ConditionalExpression"
     },
     {
       "File": "src/accountlinking/engine.js",
       "Line": 76,
       "Status": "Killed",
-      "Operator": "ConditionalExpression"
+      "Operator": "LogicalOperator"
     },
     {
       "File": "src/accountlinking/engine.js",
@@ -3112,14 +3112,14 @@
     {
       "File": "src/accountlinking/engine.js",
       "Line": 79,
-      "Status": "Killed",
-      "Operator": "ConditionalExpression"
+      "Status": "Survived",
+      "Operator": "LogicalOperator"
     },
     {
       "File": "src/accountlinking/engine.js",
       "Line": 79,
-      "Status": "Survived",
-      "Operator": "LogicalOperator"
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
     },
     {
       "File": "src/accountlinking/engine.js",
@@ -3195,27 +3195,27 @@
     },
     {
       "File": "src/accountlinking/engine.js",
-      "Line": 90,
-      "Status": "Killed",
-      "Operator": "BlockStatement"
-    },
-    {
-      "File": "src/accountlinking/engine.js",
       "Line": 83,
       "Status": "Killed",
       "Operator": "MethodExpression"
     },
     {
       "File": "src/accountlinking/engine.js",
-      "Line": 94,
+      "Line": 90,
       "Status": "Killed",
-      "Operator": "ConditionalExpression"
+      "Operator": "BlockStatement"
     },
     {
       "File": "src/accountlinking/engine.js",
       "Line": 93,
       "Status": "Killed",
       "Operator": "LogicalOperator"
+    },
+    {
+      "File": "src/accountlinking/engine.js",
+      "Line": 94,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
     },
     {
       "File": "src/accountlinking/engine.js",
@@ -3281,13 +3281,13 @@
       "File": "src/accountlinking/engine.js",
       "Line": 121,
       "Status": "Killed",
-      "Operator": "EqualityOperator"
+      "Operator": "ConditionalExpression"
     },
     {
       "File": "src/accountlinking/engine.js",
       "Line": 121,
       "Status": "Killed",
-      "Operator": "ConditionalExpression"
+      "Operator": "EqualityOperator"
     },
     {
       "File": "src/accountlinking/engine.js",
@@ -3316,30 +3316,12 @@
     {
       "File": "src/accountlinking/engine.js",
       "Line": 122,
-      "Status": "Survived",
-      "Operator": "ConditionalExpression"
-    },
-    {
-      "File": "src/accountlinking/engine.js",
-      "Line": 122,
       "Status": "Killed",
       "Operator": "BooleanLiteral"
     },
     {
       "File": "src/accountlinking/engine.js",
       "Line": 122,
-      "Status": "Killed",
-      "Operator": "EqualityOperator"
-    },
-    {
-      "File": "src/accountlinking/engine.js",
-      "Line": 122,
-      "Status": "Killed",
-      "Operator": "EqualityOperator"
-    },
-    {
-      "File": "src/accountlinking/engine.js",
-      "Line": 125,
       "Status": "Survived",
       "Operator": "ConditionalExpression"
     },
@@ -3347,7 +3329,25 @@
       "File": "src/accountlinking/engine.js",
       "Line": 122,
       "Status": "Killed",
+      "Operator": "EqualityOperator"
+    },
+    {
+      "File": "src/accountlinking/engine.js",
+      "Line": 122,
+      "Status": "Killed",
+      "Operator": "EqualityOperator"
+    },
+    {
+      "File": "src/accountlinking/engine.js",
+      "Line": 122,
+      "Status": "Killed",
       "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/accountlinking/engine.js",
+      "Line": 125,
+      "Status": "Survived",
+      "Operator": "ConditionalExpression"
     },
     {
       "File": "src/accountlinking/engine.js",
@@ -3393,19 +3393,13 @@
     },
     {
       "File": "src/accountlinking/engine.js",
-      "Line": 139,
-      "Status": "Killed",
-      "Operator": "ConditionalExpression"
-    },
-    {
-      "File": "src/accountlinking/engine.js",
       "Line": 143,
       "Status": "Killed",
       "Operator": "BooleanLiteral"
     },
     {
       "File": "src/accountlinking/engine.js",
-      "Line": 143,
+      "Line": 139,
       "Status": "Killed",
       "Operator": "ConditionalExpression"
     },
@@ -3418,6 +3412,12 @@
     {
       "File": "src/accountlinking/engine.js",
       "Line": 148,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/accountlinking/engine.js",
+      "Line": 143,
       "Status": "Killed",
       "Operator": "ConditionalExpression"
     },
@@ -3519,15 +3519,15 @@
     },
     {
       "File": "src/accountlinking/engine.js",
-      "Line": 167,
-      "Status": "Survived",
-      "Operator": "ArrayDeclaration"
-    },
-    {
-      "File": "src/accountlinking/engine.js",
       "Line": 165,
       "Status": "Killed",
       "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/accountlinking/engine.js",
+      "Line": 167,
+      "Status": "Survived",
+      "Operator": "ArrayDeclaration"
     },
     {
       "File": "src/accountlinking/engine.js",
@@ -3646,13 +3646,13 @@
     {
       "File": "src/accountlinking/engine.js",
       "Line": 234,
-      "Status": "Killed",
+      "Status": "Survived",
       "Operator": "BooleanLiteral"
     },
     {
       "File": "src/accountlinking/engine.js",
       "Line": 234,
-      "Status": "Survived",
+      "Status": "Killed",
       "Operator": "BooleanLiteral"
     },
     {
@@ -3729,13 +3729,13 @@
     },
     {
       "File": "src/accountlinking/engine.js",
-      "Line": 252,
+      "Line": 253,
       "Status": "Killed",
       "Operator": "BlockStatement"
     },
     {
       "File": "src/accountlinking/engine.js",
-      "Line": 253,
+      "Line": 252,
       "Status": "Killed",
       "Operator": "BlockStatement"
     },
@@ -3747,15 +3747,15 @@
     },
     {
       "File": "src/accountlinking/engine.js",
-      "Line": 255,
-      "Status": "Killed",
-      "Operator": "ArrayDeclaration"
-    },
-    {
-      "File": "src/accountlinking/engine.js",
       "Line": 254,
       "Status": "Survived",
       "Operator": "ArithmeticOperator"
+    },
+    {
+      "File": "src/accountlinking/engine.js",
+      "Line": 255,
+      "Status": "Killed",
+      "Operator": "ArrayDeclaration"
     },
     {
       "File": "src/accountlinking/engine.js",
@@ -4299,13 +4299,13 @@
     },
     {
       "File": "src/auth/permissions.js",
-      "Line": 63,
+      "Line": 71,
       "Status": "Killed",
       "Operator": "ConditionalExpression"
     },
     {
       "File": "src/auth/permissions.js",
-      "Line": 71,
+      "Line": 63,
       "Status": "Killed",
       "Operator": "ConditionalExpression"
     },
@@ -4329,12 +4329,6 @@
     },
     {
       "File": "src/auth/permissions.js",
-      "Line": 74,
-      "Status": "Killed",
-      "Operator": "BooleanLiteral"
-    },
-    {
-      "File": "src/auth/permissions.js",
       "Line": 71,
       "Status": "Killed",
       "Operator": "BooleanLiteral"
@@ -4343,13 +4337,19 @@
       "File": "src/auth/permissions.js",
       "Line": 74,
       "Status": "Killed",
-      "Operator": "ConditionalExpression"
+      "Operator": "BooleanLiteral"
     },
     {
       "File": "src/auth/permissions.js",
       "Line": 74,
       "Status": "Killed",
       "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/auth/permissions.js",
+      "Line": 75,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
     },
     {
       "File": "src/auth/permissions.js",
@@ -4413,9 +4413,9 @@
     },
     {
       "File": "src/auth/permissions.js",
-      "Line": 75,
+      "Line": 74,
       "Status": "Killed",
-      "Operator": "BlockStatement"
+      "Operator": "ConditionalExpression"
     },
     {
       "File": "src/auth/permissions.js",
@@ -4425,7 +4425,7 @@
     },
     {
       "File": "src/auth/permissions.js",
-      "Line": 47,
+      "Line": 56,
       "Status": "Killed",
       "Operator": "ArrayDeclaration"
     },
@@ -4443,7 +4443,7 @@
     },
     {
       "File": "src/auth/permissions.js",
-      "Line": 56,
+      "Line": 47,
       "Status": "Killed",
       "Operator": "ArrayDeclaration"
     },
@@ -4533,13 +4533,13 @@
     },
     {
       "File": "src/auth/readTokens.js",
-      "Line": 34,
+      "Line": 21,
       "Status": "Killed",
       "Operator": "BlockStatement"
     },
     {
       "File": "src/auth/readTokens.js",
-      "Line": 27,
+      "Line": 34,
       "Status": "Killed",
       "Operator": "BlockStatement"
     },
@@ -4553,7 +4553,7 @@
       "File": "src/auth/readTokens.js",
       "Line": 35,
       "Status": "Killed",
-      "Operator": "LogicalOperator"
+      "Operator": "ConditionalExpression"
     },
     {
       "File": "src/auth/readTokens.js",
@@ -4593,7 +4593,7 @@
     },
     {
       "File": "src/auth/readTokens.js",
-      "Line": 21,
+      "Line": 27,
       "Status": "Killed",
       "Operator": "BlockStatement"
     },
@@ -4605,27 +4605,9 @@
     },
     {
       "File": "src/auth/readTokens.js",
-      "Line": 47,
-      "Status": "Killed",
-      "Operator": "ConditionalExpression"
-    },
-    {
-      "File": "src/auth/readTokens.js",
-      "Line": 47,
-      "Status": "Killed",
-      "Operator": "LogicalOperator"
-    },
-    {
-      "File": "src/auth/readTokens.js",
-      "Line": 47,
-      "Status": "Killed",
-      "Operator": "ConditionalExpression"
-    },
-    {
-      "File": "src/auth/readTokens.js",
       "Line": 35,
       "Status": "Killed",
-      "Operator": "ConditionalExpression"
+      "Operator": "LogicalOperator"
     },
     {
       "File": "src/auth/readTokens.js",
@@ -4638,6 +4620,24 @@
       "Line": 47,
       "Status": "Killed",
       "Operator": "LogicalOperator"
+    },
+    {
+      "File": "src/auth/readTokens.js",
+      "Line": 47,
+      "Status": "Killed",
+      "Operator": "LogicalOperator"
+    },
+    {
+      "File": "src/auth/readTokens.js",
+      "Line": 47,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/auth/readTokens.js",
+      "Line": 52,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
     },
     {
       "File": "src/auth/readTokens.js",
@@ -4653,18 +4653,6 @@
     },
     {
       "File": "src/auth/readTokens.js",
-      "Line": 52,
-      "Status": "Killed",
-      "Operator": "BlockStatement"
-    },
-    {
-      "File": "src/auth/readTokens.js",
-      "Line": 66,
-      "Status": "Killed",
-      "Operator": "ConditionalExpression"
-    },
-    {
-      "File": "src/auth/readTokens.js",
       "Line": 66,
       "Status": "Killed",
       "Operator": "ConditionalExpression"
@@ -4674,6 +4662,12 @@
       "Line": 66,
       "Status": "Killed",
       "Operator": "EqualityOperator"
+    },
+    {
+      "File": "src/auth/readTokens.js",
+      "Line": 66,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
     },
     {
       "File": "src/auth/readTokens.js",
@@ -4710,6 +4704,12 @@
       "Line": 78,
       "Status": "Killed",
       "Operator": "BooleanLiteral"
+    },
+    {
+      "File": "src/auth/readTokens.js",
+      "Line": 47,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
     },
     {
       "File": "src/auth/readTokens.js",
@@ -4991,12 +4991,6 @@
       "File": "src/effectiveAccess/engine.helpers.js",
       "Line": 21,
       "Status": "Killed",
-      "Operator": "ConditionalExpression"
-    },
-    {
-      "File": "src/effectiveAccess/engine.helpers.js",
-      "Line": 21,
-      "Status": "Killed",
       "Operator": "LogicalOperator"
     },
     {
@@ -5009,6 +5003,12 @@
       "File": "src/effectiveAccess/engine.helpers.js",
       "Line": 21,
       "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/effectiveAccess/engine.helpers.js",
+      "Line": 21,
+      "Status": "Killed",
       "Operator": "EqualityOperator"
     },
     {
@@ -5051,13 +5051,13 @@
       "File": "src/effectiveAccess/engine.helpers.js",
       "Line": 22,
       "Status": "Killed",
-      "Operator": "EqualityOperator"
+      "Operator": "ConditionalExpression"
     },
     {
       "File": "src/effectiveAccess/engine.helpers.js",
       "Line": 22,
       "Status": "Killed",
-      "Operator": "ConditionalExpression"
+      "Operator": "EqualityOperator"
     },
     {
       "File": "src/effectiveAccess/engine.helpers.js",
@@ -5073,15 +5073,15 @@
     },
     {
       "File": "src/effectiveAccess/engine.helpers.js",
-      "Line": 32,
-      "Status": "Killed",
-      "Operator": "BlockStatement"
-    },
-    {
-      "File": "src/effectiveAccess/engine.helpers.js",
       "Line": 28,
       "Status": "Killed",
       "Operator": "LogicalOperator"
+    },
+    {
+      "File": "src/effectiveAccess/engine.helpers.js",
+      "Line": 32,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
     },
     {
       "File": "src/effectiveAccess/engine.helpers.js",
@@ -5169,6 +5169,12 @@
     },
     {
       "File": "src/effectiveAccess/engine.helpers.js",
+      "Line": 51,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/effectiveAccess/engine.helpers.js",
       "Line": 49,
       "Status": "Killed",
       "Operator": "BlockStatement"
@@ -5177,19 +5183,13 @@
       "File": "src/effectiveAccess/engine.helpers.js",
       "Line": 51,
       "Status": "Killed",
-      "Operator": "ConditionalExpression"
-    },
-    {
-      "File": "src/effectiveAccess/engine.helpers.js",
-      "Line": 51,
-      "Status": "Killed",
-      "Operator": "ConditionalExpression"
-    },
-    {
-      "File": "src/effectiveAccess/engine.helpers.js",
-      "Line": 51,
-      "Status": "Killed",
       "Operator": "EqualityOperator"
+    },
+    {
+      "File": "src/effectiveAccess/engine.helpers.js",
+      "Line": 51,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
     },
     {
       "File": "src/effectiveAccess/engine.helpers.js",
@@ -5231,13 +5231,13 @@
       "File": "src/effectiveAccess/engine.helpers.js",
       "Line": 65,
       "Status": "Killed",
-      "Operator": "LogicalOperator"
+      "Operator": "BooleanLiteral"
     },
     {
       "File": "src/effectiveAccess/engine.helpers.js",
       "Line": 65,
       "Status": "Killed",
-      "Operator": "BooleanLiteral"
+      "Operator": "LogicalOperator"
     },
     {
       "File": "src/effectiveAccess/engine.helpers.js",
@@ -5313,6 +5313,12 @@
     },
     {
       "File": "src/effectiveAccess/engine.helpers.js",
+      "Line": 91,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/effectiveAccess/engine.helpers.js",
       "Line": 90,
       "Status": "Killed",
       "Operator": "BlockStatement"
@@ -5321,19 +5327,13 @@
       "File": "src/effectiveAccess/engine.helpers.js",
       "Line": 91,
       "Status": "Killed",
-      "Operator": "ConditionalExpression"
-    },
-    {
-      "File": "src/effectiveAccess/engine.helpers.js",
-      "Line": 91,
-      "Status": "Killed",
-      "Operator": "ConditionalExpression"
-    },
-    {
-      "File": "src/effectiveAccess/engine.helpers.js",
-      "Line": 91,
-      "Status": "Killed",
       "Operator": "LogicalOperator"
+    },
+    {
+      "File": "src/effectiveAccess/engine.helpers.js",
+      "Line": 91,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
     },
     {
       "File": "src/effectiveAccess/engine.helpers.js",
@@ -5385,15 +5385,15 @@
     },
     {
       "File": "src/effectiveAccess/engine.helpers.js",
-      "Line": 96,
-      "Status": "Killed",
-      "Operator": "LogicalOperator"
-    },
-    {
-      "File": "src/effectiveAccess/engine.helpers.js",
       "Line": 102,
       "Status": "Killed",
       "Operator": "OptionalChaining"
+    },
+    {
+      "File": "src/effectiveAccess/engine.helpers.js",
+      "Line": 96,
+      "Status": "Killed",
+      "Operator": "LogicalOperator"
     },
     {
       "File": "src/effectiveAccess/engine.js",
@@ -5697,15 +5697,15 @@
     },
     {
       "File": "src/effectiveAccess/engine.js",
-      "Line": 58,
-      "Status": "Killed",
-      "Operator": "ArrayDeclaration"
-    },
-    {
-      "File": "src/effectiveAccess/engine.js",
       "Line": 56,
       "Status": "Killed",
       "Operator": "LogicalOperator"
+    },
+    {
+      "File": "src/effectiveAccess/engine.js",
+      "Line": 58,
+      "Status": "Killed",
+      "Operator": "ArrayDeclaration"
     },
     {
       "File": "src/effectiveAccess/engine.js",
@@ -5734,13 +5734,13 @@
     {
       "File": "src/effectiveAccess/engine.js",
       "Line": 61,
-      "Status": "Killed",
+      "Status": "Timeout",
       "Operator": "EqualityOperator"
     },
     {
       "File": "src/effectiveAccess/engine.js",
       "Line": 61,
-      "Status": "Timeout",
+      "Status": "Killed",
       "Operator": "EqualityOperator"
     },
     {
@@ -5781,6 +5781,12 @@
     },
     {
       "File": "src/effectiveAccess/engine.js",
+      "Line": 73,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/effectiveAccess/engine.js",
       "Line": 72,
       "Status": "Timeout",
       "Operator": "ConditionalExpression"
@@ -5789,7 +5795,7 @@
       "File": "src/effectiveAccess/engine.js",
       "Line": 73,
       "Status": "Killed",
-      "Operator": "ConditionalExpression"
+      "Operator": "EqualityOperator"
     },
     {
       "File": "src/effectiveAccess/engine.js",
@@ -5802,18 +5808,6 @@
       "Line": 73,
       "Status": "Killed",
       "Operator": "EqualityOperator"
-    },
-    {
-      "File": "src/effectiveAccess/engine.js",
-      "Line": 73,
-      "Status": "Killed",
-      "Operator": "EqualityOperator"
-    },
-    {
-      "File": "src/effectiveAccess/engine.js",
-      "Line": 74,
-      "Status": "Killed",
-      "Operator": "BooleanLiteral"
     },
     {
       "File": "src/effectiveAccess/engine.js",
@@ -5823,14 +5817,20 @@
     },
     {
       "File": "src/effectiveAccess/engine.js",
-      "Line": 78,
+      "Line": 74,
       "Status": "Killed",
-      "Operator": "CallExpression"
+      "Operator": "BooleanLiteral"
     },
     {
       "File": "src/effectiveAccess/engine.js",
       "Line": 77,
       "Status": "Timeout",
+      "Operator": "CallExpression"
+    },
+    {
+      "File": "src/effectiveAccess/engine.js",
+      "Line": 78,
+      "Status": "Killed",
       "Operator": "CallExpression"
     },
     {
@@ -6287,6 +6287,12 @@
       "File": "src/effectiveAccess/engine.js",
       "Line": 295,
       "Status": "Killed",
+      "Operator": "LogicalOperator"
+    },
+    {
+      "File": "src/effectiveAccess/engine.js",
+      "Line": 295,
+      "Status": "Killed",
       "Operator": "ConditionalExpression"
     },
     {
@@ -6299,12 +6305,6 @@
       "File": "src/effectiveAccess/engine.js",
       "Line": 295,
       "Status": "Killed",
-      "Operator": "LogicalOperator"
-    },
-    {
-      "File": "src/effectiveAccess/engine.js",
-      "Line": 295,
-      "Status": "Killed",
       "Operator": "BooleanLiteral"
     },
     {
@@ -6318,18 +6318,18 @@
       "Line": 295,
       "Status": "Killed",
       "Operator": "BooleanLiteral"
-    },
-    {
-      "File": "src/effectiveAccess/engine.js",
-      "Line": 298,
-      "Status": "Killed",
-      "Operator": "ArrayDeclaration"
     },
     {
       "File": "src/effectiveAccess/engine.js",
       "Line": 298,
       "Status": "Killed",
       "Operator": "MethodExpression"
+    },
+    {
+      "File": "src/effectiveAccess/engine.js",
+      "Line": 298,
+      "Status": "Killed",
+      "Operator": "ArrayDeclaration"
     },
     {
       "File": "src/effectiveAccess/engine.js",
@@ -6358,26 +6358,26 @@
     {
       "File": "src/effectiveAccess/engine.js",
       "Line": 300,
-      "Status": "Survived",
-      "Operator": "ConditionalExpression"
-    },
-    {
-      "File": "src/effectiveAccess/engine.js",
-      "Line": 300,
       "Status": "Killed",
       "Operator": "ConditionalExpression"
     },
     {
       "File": "src/effectiveAccess/engine.js",
-      "Line": 309,
+      "Line": 300,
       "Status": "Survived",
-      "Operator": "ArrayDeclaration"
+      "Operator": "ConditionalExpression"
     },
     {
       "File": "src/effectiveAccess/engine.js",
       "Line": 300,
       "Status": "Killed",
       "Operator": "EqualityOperator"
+    },
+    {
+      "File": "src/effectiveAccess/engine.js",
+      "Line": 309,
+      "Status": "Survived",
+      "Operator": "ArrayDeclaration"
     },
     {
       "File": "src/effectiveAccess/engine.js",
@@ -6453,15 +6453,15 @@
     },
     {
       "File": "src/effectiveAccess/engine.js",
-      "Line": 337,
-      "Status": "Killed",
-      "Operator": "ConditionalExpression"
-    },
-    {
-      "File": "src/effectiveAccess/engine.js",
       "Line": 334,
       "Status": "Killed",
       "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/effectiveAccess/engine.js",
+      "Line": 337,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
     },
     {
       "File": "src/effectiveAccess/engine.js",
@@ -6477,13 +6477,13 @@
     },
     {
       "File": "src/effectiveAccess/engine.js",
-      "Line": 338,
+      "Line": 337,
       "Status": "Survived",
       "Operator": "OptionalChaining"
     },
     {
       "File": "src/effectiveAccess/engine.js",
-      "Line": 337,
+      "Line": 338,
       "Status": "Survived",
       "Operator": "OptionalChaining"
     },
@@ -6513,13 +6513,13 @@
     },
     {
       "File": "src/effectiveAccess/engine.js",
-      "Line": 378,
+      "Line": 366,
       "Status": "Killed",
       "Operator": "ArrayDeclaration"
     },
     {
       "File": "src/effectiveAccess/engine.js",
-      "Line": 366,
+      "Line": 378,
       "Status": "Killed",
       "Operator": "ArrayDeclaration"
     },
@@ -6556,14 +6556,14 @@
     {
       "File": "src/effectiveAccess/engine.js",
       "Line": 385,
-      "Status": "Survived",
-      "Operator": "ArrayDeclaration"
+      "Status": "Killed",
+      "Operator": "LogicalOperator"
     },
     {
       "File": "src/effectiveAccess/engine.js",
       "Line": 385,
-      "Status": "Killed",
-      "Operator": "LogicalOperator"
+      "Status": "Survived",
+      "Operator": "ArrayDeclaration"
     },
     {
       "File": "src/effectiveAccess/engine.js",
@@ -6599,13 +6599,13 @@
       "File": "src/effectiveAccess/engine.js",
       "Line": 394,
       "Status": "Killed",
-      "Operator": "ArrowFunction"
+      "Operator": "ArrayDeclaration"
     },
     {
       "File": "src/effectiveAccess/engine.js",
       "Line": 394,
       "Status": "Killed",
-      "Operator": "ArrayDeclaration"
+      "Operator": "ArrowFunction"
     },
     {
       "File": "src/effectiveAccess/engine.js",
@@ -6669,15 +6669,15 @@
     },
     {
       "File": "src/effectiveAccess/lru.js",
-      "Line": 16,
-      "Status": "Killed",
-      "Operator": "BlockStatement"
-    },
-    {
-      "File": "src/effectiveAccess/lru.js",
       "Line": 17,
       "Status": "Killed",
       "Operator": "BooleanLiteral"
+    },
+    {
+      "File": "src/effectiveAccess/lru.js",
+      "Line": 16,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
     },
     {
       "File": "src/effectiveAccess/lru.js",
@@ -6748,14 +6748,14 @@
     {
       "File": "src/effectiveAccess/lru.js",
       "Line": 26,
-      "Status": "Killed",
-      "Operator": "ConditionalExpression"
+      "Status": "Timeout",
+      "Operator": "CallExpression"
     },
     {
       "File": "src/effectiveAccess/lru.js",
       "Line": 26,
-      "Status": "Timeout",
-      "Operator": "CallExpression"
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
     },
     {
       "File": "src/effectiveAccess/lru.js",
@@ -6915,13 +6915,13 @@
     },
     {
       "File": "src/effectiveAccess/policies.js",
-      "Line": 30,
+      "Line": 32,
       "Status": "Killed",
       "Operator": "ConditionalExpression"
     },
     {
       "File": "src/effectiveAccess/policies.js",
-      "Line": 32,
+      "Line": 30,
       "Status": "Killed",
       "Operator": "ConditionalExpression"
     },
@@ -7108,14 +7108,20 @@
     {
       "File": "src/effectiveAccess/policies.js",
       "Line": 62,
+      "Status": "Survived",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/effectiveAccess/policies.js",
+      "Line": 62,
       "Status": "Killed",
       "Operator": "LogicalOperator"
     },
     {
       "File": "src/effectiveAccess/policies.js",
       "Line": 62,
-      "Status": "Survived",
-      "Operator": "ArrayDeclaration"
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
     },
     {
       "File": "src/effectiveAccess/policies.js",
@@ -7137,18 +7143,6 @@
     },
     {
       "File": "src/effectiveAccess/policies.js",
-      "Line": 62,
-      "Status": "Killed",
-      "Operator": "ConditionalExpression"
-    },
-    {
-      "File": "src/effectiveAccess/policies.js",
-      "Line": 63,
-      "Status": "Killed",
-      "Operator": "ConditionalExpression"
-    },
-    {
-      "File": "src/effectiveAccess/policies.js",
       "Line": 63,
       "Status": "Killed",
       "Operator": "ConditionalExpression"
@@ -7163,6 +7157,18 @@
       "File": "src/effectiveAccess/policies.js",
       "Line": 63,
       "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/effectiveAccess/policies.js",
+      "Line": 63,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/effectiveAccess/policies.js",
+      "Line": 79,
+      "Status": "Killed",
       "Operator": "BlockStatement"
     },
     {
@@ -7170,12 +7176,6 @@
       "Line": 64,
       "Status": "Killed",
       "Operator": "ArrayDeclaration"
-    },
-    {
-      "File": "src/effectiveAccess/policies.js",
-      "Line": 79,
-      "Status": "Killed",
-      "Operator": "BlockStatement"
     },
     {
       "File": "src/effectiveAccess/policies.js",
@@ -7197,15 +7197,15 @@
     },
     {
       "File": "src/effectiveAccess/policies.js",
-      "Line": 82,
-      "Status": "Killed",
-      "Operator": "CallExpression"
-    },
-    {
-      "File": "src/effectiveAccess/policies.js",
       "Line": 81,
       "Status": "Killed",
       "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/effectiveAccess/policies.js",
+      "Line": 82,
+      "Status": "Killed",
+      "Operator": "CallExpression"
     },
     {
       "File": "src/matrix/attrExpr.js",
@@ -7341,21 +7341,21 @@
     },
     {
       "File": "src/matrix/attrExpr.js",
-      "Line": 21,
-      "Status": "Survived",
-      "Operator": "ConditionalExpression"
-    },
-    {
-      "File": "src/matrix/attrExpr.js",
       "Line": 23,
       "Status": "Killed",
       "Operator": "BlockStatement"
     },
     {
       "File": "src/matrix/attrExpr.js",
+      "Line": 21,
+      "Status": "Survived",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/matrix/attrExpr.js",
       "Line": 25,
       "Status": "Killed",
-      "Operator": "ConditionalExpression"
+      "Operator": "BooleanLiteral"
     },
     {
       "File": "src/matrix/attrExpr.js",
@@ -7373,7 +7373,7 @@
       "File": "src/matrix/attrExpr.js",
       "Line": 25,
       "Status": "Killed",
-      "Operator": "BooleanLiteral"
+      "Operator": "ConditionalExpression"
     },
     {
       "File": "src/matrix/attrExpr.js",
@@ -7389,12 +7389,6 @@
     },
     {
       "File": "src/matrix/attrExpr.js",
-      "Line": 30,
-      "Status": "Killed",
-      "Operator": "ConditionalExpression"
-    },
-    {
-      "File": "src/matrix/attrExpr.js",
       "Line": 29,
       "Status": "Killed",
       "Operator": "BooleanLiteral"
@@ -7403,13 +7397,19 @@
       "File": "src/matrix/attrExpr.js",
       "Line": 30,
       "Status": "Killed",
-      "Operator": "LogicalOperator"
+      "Operator": "ConditionalExpression"
     },
     {
       "File": "src/matrix/attrExpr.js",
       "Line": 30,
       "Status": "Killed",
       "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/matrix/attrExpr.js",
+      "Line": 30,
+      "Status": "Killed",
+      "Operator": "BooleanLiteral"
     },
     {
       "File": "src/matrix/attrExpr.js",
@@ -7421,7 +7421,13 @@
       "File": "src/matrix/attrExpr.js",
       "Line": 30,
       "Status": "Killed",
-      "Operator": "BooleanLiteral"
+      "Operator": "LogicalOperator"
+    },
+    {
+      "File": "src/matrix/attrExpr.js",
+      "Line": 30,
+      "Status": "Killed",
+      "Operator": "MethodExpression"
     },
     {
       "File": "src/matrix/attrExpr.js",
@@ -7445,19 +7451,13 @@
       "File": "src/matrix/attrExpr.js",
       "Line": 30,
       "Status": "Killed",
-      "Operator": "EqualityOperator"
-    },
-    {
-      "File": "src/matrix/attrExpr.js",
-      "Line": 30,
-      "Status": "Killed",
-      "Operator": "MethodExpression"
-    },
-    {
-      "File": "src/matrix/attrExpr.js",
-      "Line": 30,
-      "Status": "Killed",
       "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/matrix/attrExpr.js",
+      "Line": 30,
+      "Status": "Killed",
+      "Operator": "EqualityOperator"
     },
     {
       "File": "src/matrix/attrExpr.js",
@@ -7672,14 +7672,14 @@
     {
       "File": "src/matrix/attributeCut.js",
       "Line": 31,
-      "Status": "Killed",
-      "Operator": "ConditionalExpression"
+      "Status": "Timeout",
+      "Operator": "UpdateOperator"
     },
     {
       "File": "src/matrix/attributeCut.js",
       "Line": 31,
-      "Status": "Timeout",
-      "Operator": "UpdateOperator"
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
     },
     {
       "File": "src/matrix/attributeCut.js",
@@ -7745,13 +7745,13 @@
       "File": "src/matrix/attributeCut.js",
       "Line": 45,
       "Status": "Killed",
-      "Operator": "LogicalOperator"
+      "Operator": "BooleanLiteral"
     },
     {
       "File": "src/matrix/attributeCut.js",
       "Line": 45,
       "Status": "Killed",
-      "Operator": "BooleanLiteral"
+      "Operator": "LogicalOperator"
     },
     {
       "File": "src/matrix/attributeCut.js",
@@ -7761,15 +7761,15 @@
     },
     {
       "File": "src/matrix/attributeCut.js",
-      "Line": 47,
-      "Status": "Survived",
-      "Operator": "ArrayDeclaration"
-    },
-    {
-      "File": "src/matrix/attributeCut.js",
       "Line": 45,
       "Status": "Killed",
       "Operator": "EqualityOperator"
+    },
+    {
+      "File": "src/matrix/attributeCut.js",
+      "Line": 47,
+      "Status": "Survived",
+      "Operator": "ArrayDeclaration"
     },
     {
       "File": "src/matrix/attributeCut.js",
@@ -7827,15 +7827,15 @@
     },
     {
       "File": "src/matrix/attributeCut.js",
-      "Line": 58,
-      "Status": "Killed",
-      "Operator": "EqualityOperator"
-    },
-    {
-      "File": "src/matrix/attributeCut.js",
       "Line": 60,
       "Status": "Survived",
       "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/matrix/attributeCut.js",
+      "Line": 58,
+      "Status": "Killed",
+      "Operator": "EqualityOperator"
     },
     {
       "File": "src/matrix/attributeCut.js",
@@ -7893,15 +7893,15 @@
     },
     {
       "File": "src/matrix/attributeCut.js",
-      "Line": 69,
-      "Status": "Killed",
-      "Operator": "ArrayDeclaration"
-    },
-    {
-      "File": "src/matrix/attributeCut.js",
       "Line": 73,
       "Status": "Survived",
       "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/matrix/attributeCut.js",
+      "Line": 69,
+      "Status": "Killed",
+      "Operator": "ArrayDeclaration"
     },
     {
       "File": "src/matrix/attributeCut.js",
@@ -7914,6 +7914,18 @@
       "Line": 73,
       "Status": "Killed",
       "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/matrix/attributeCut.js",
+      "Line": 74,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/matrix/attributeCut.js",
+      "Line": 74,
+      "Status": "Killed",
+      "Operator": "CallExpression"
     },
     {
       "File": "src/matrix/attributeCut.js",
@@ -7923,19 +7935,13 @@
     },
     {
       "File": "src/matrix/attributeCut.js",
-      "Line": 74,
+      "Line": 114,
       "Status": "Killed",
-      "Operator": "CallExpression"
+      "Operator": "BlockStatement"
     },
     {
       "File": "src/matrix/attributeCut.js",
-      "Line": 74,
-      "Status": "Survived",
-      "Operator": "ConditionalExpression"
-    },
-    {
-      "File": "src/matrix/attributeCut.js",
-      "Line": 74,
+      "Line": 118,
       "Status": "Killed",
       "Operator": "ConditionalExpression"
     },
@@ -7943,6 +7949,12 @@
       "File": "src/matrix/attributeCut.js",
       "Line": 118,
       "Status": "Killed",
+      "Operator": "CallExpression"
+    },
+    {
+      "File": "src/matrix/attributeCut.js",
+      "Line": 74,
+      "Status": "Survived",
       "Operator": "ConditionalExpression"
     },
     {
@@ -7953,27 +7965,15 @@
     },
     {
       "File": "src/matrix/attributeCut.js",
-      "Line": 114,
-      "Status": "Killed",
-      "Operator": "BlockStatement"
-    },
-    {
-      "File": "src/matrix/attributeCut.js",
       "Line": 118,
-      "Status": "Killed",
-      "Operator": "CallExpression"
-    },
-    {
-      "File": "src/matrix/attributeCut.js",
-      "Line": 119,
-      "Status": "Killed",
+      "Status": "Survived",
       "Operator": "ConditionalExpression"
     },
     {
       "File": "src/matrix/attributeCut.js",
       "Line": 119,
-      "Status": "Killed",
-      "Operator": "CallExpression"
+      "Status": "Survived",
+      "Operator": "ConditionalExpression"
     },
     {
       "File": "src/matrix/attributeCut.js",
@@ -7983,26 +7983,20 @@
     },
     {
       "File": "src/matrix/attributeCut.js",
-      "Line": 142,
+      "Line": 119,
       "Status": "Killed",
-      "Operator": "ArithmeticOperator"
+      "Operator": "CallExpression"
     },
     {
       "File": "src/matrix/attributeCut.js",
-      "Line": 143,
-      "Status": "Killed",
-      "Operator": "ConditionalExpression"
-    },
-    {
-      "File": "src/matrix/attributeCut.js",
-      "Line": 143,
+      "Line": 119,
       "Status": "Killed",
       "Operator": "ConditionalExpression"
     },
     {
       "File": "src/matrix/attributeCut.js",
-      "Line": 118,
-      "Status": "Survived",
+      "Line": 143,
+      "Status": "Killed",
       "Operator": "ConditionalExpression"
     },
     {
@@ -8013,14 +8007,20 @@
     },
     {
       "File": "src/matrix/attributeCut.js",
+      "Line": 142,
+      "Status": "Killed",
+      "Operator": "ArithmeticOperator"
+    },
+    {
+      "File": "src/matrix/attributeCut.js",
       "Line": 145,
       "Status": "Killed",
       "Operator": "ConditionalExpression"
     },
     {
       "File": "src/matrix/attributeCut.js",
-      "Line": 119,
-      "Status": "Survived",
+      "Line": 143,
+      "Status": "Killed",
       "Operator": "ConditionalExpression"
     },
     {
@@ -8361,19 +8361,25 @@
     },
     {
       "File": "src/matrix/contextRollup.js",
-      "Line": 32,
-      "Status": "Killed",
-      "Operator": "BlockStatement"
-    },
-    {
-      "File": "src/matrix/contextRollup.js",
       "Line": 33,
       "Status": "Killed",
       "Operator": "ArrowFunction"
     },
     {
       "File": "src/matrix/contextRollup.js",
+      "Line": 39,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/matrix/contextRollup.js",
       "Line": 65,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/matrix/contextRollup.js",
+      "Line": 32,
       "Status": "Killed",
       "Operator": "BlockStatement"
     },
@@ -8403,18 +8409,6 @@
     },
     {
       "File": "src/matrix/contextRollup.js",
-      "Line": 39,
-      "Status": "Killed",
-      "Operator": "BlockStatement"
-    },
-    {
-      "File": "src/matrix/contextRollup.js",
-      "Line": 70,
-      "Status": "Survived",
-      "Operator": "ConditionalExpression"
-    },
-    {
-      "File": "src/matrix/contextRollup.js",
       "Line": 71,
       "Status": "Killed",
       "Operator": "CallExpression"
@@ -8427,8 +8421,8 @@
     },
     {
       "File": "src/matrix/contextRollup.js",
-      "Line": 97,
-      "Status": "Killed",
+      "Line": 70,
+      "Status": "Survived",
       "Operator": "ConditionalExpression"
     },
     {
@@ -8439,12 +8433,6 @@
     },
     {
       "File": "src/matrix/contextRollup.js",
-      "Line": 97,
-      "Status": "Killed",
-      "Operator": "CallExpression"
-    },
-    {
-      "File": "src/matrix/contextRollup.js",
       "Line": 96,
       "Status": "Survived",
       "Operator": "ArrayDeclaration"
@@ -8452,7 +8440,25 @@
     {
       "File": "src/matrix/contextRollup.js",
       "Line": 97,
+      "Status": "Killed",
+      "Operator": "CallExpression"
+    },
+    {
+      "File": "src/matrix/contextRollup.js",
+      "Line": 97,
       "Status": "Survived",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/matrix/contextRollup.js",
+      "Line": 97,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/matrix/contextRollup.js",
+      "Line": 112,
+      "Status": "Killed",
       "Operator": "ConditionalExpression"
     },
     {
@@ -8463,6 +8469,12 @@
     },
     {
       "File": "src/matrix/contextRollup.js",
+      "Line": 112,
+      "Status": "Killed",
+      "Operator": "CallExpression"
+    },
+    {
+      "File": "src/matrix/contextRollup.js",
       "Line": 111,
       "Status": "Survived",
       "Operator": "ArrayDeclaration"
@@ -8470,8 +8482,8 @@
     {
       "File": "src/matrix/contextRollup.js",
       "Line": 112,
-      "Status": "Killed",
-      "Operator": "CallExpression"
+      "Status": "Survived",
+      "Operator": "ConditionalExpression"
     },
     {
       "File": "src/matrix/contextRollup.js",
@@ -8481,14 +8493,8 @@
     },
     {
       "File": "src/matrix/contextRollup.js",
-      "Line": 112,
+      "Line": 113,
       "Status": "Survived",
-      "Operator": "ConditionalExpression"
-    },
-    {
-      "File": "src/matrix/contextRollup.js",
-      "Line": 112,
-      "Status": "Killed",
       "Operator": "ConditionalExpression"
     },
     {
@@ -8496,12 +8502,6 @@
       "Line": 113,
       "Status": "Killed",
       "Operator": "CallExpression"
-    },
-    {
-      "File": "src/matrix/contextRollup.js",
-      "Line": 113,
-      "Status": "Survived",
-      "Operator": "ConditionalExpression"
     },
     {
       "File": "src/matrix/contextRollup.js",
@@ -8518,7 +8518,7 @@
     {
       "File": "src/matrix/contextRollup.js",
       "Line": 131,
-      "Status": "Survived",
+      "Status": "Killed",
       "Operator": "ConditionalExpression"
     },
     {
@@ -8530,14 +8530,14 @@
     {
       "File": "src/matrix/contextRollup.js",
       "Line": 131,
-      "Status": "Killed",
+      "Status": "Survived",
       "Operator": "ConditionalExpression"
     },
     {
       "File": "src/matrix/contextRollup.js",
-      "Line": 156,
+      "Line": 152,
       "Status": "Killed",
-      "Operator": "ConditionalExpression"
+      "Operator": "ArrayDeclaration"
     },
     {
       "File": "src/matrix/contextRollup.js",
@@ -8553,12 +8553,6 @@
     },
     {
       "File": "src/matrix/contextRollup.js",
-      "Line": 152,
-      "Status": "Killed",
-      "Operator": "ArrayDeclaration"
-    },
-    {
-      "File": "src/matrix/contextRollup.js",
       "Line": 156,
       "Status": "Survived",
       "Operator": "ConditionalExpression"
@@ -8571,21 +8565,21 @@
     },
     {
       "File": "src/matrix/contextRollup.js",
-      "Line": 157,
+      "Line": 156,
       "Status": "Killed",
-      "Operator": "CallExpression"
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/matrix/contextRollup.js",
+      "Line": 188,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
     },
     {
       "File": "src/matrix/contextRollup.js",
       "Line": 206,
       "Status": "Killed",
       "Operator": "BlockStatement"
-    },
-    {
-      "File": "src/matrix/contextRollup.js",
-      "Line": 207,
-      "Status": "Killed",
-      "Operator": "BooleanLiteral"
     },
     {
       "File": "src/matrix/contextRollup.js",
@@ -8597,6 +8591,12 @@
       "File": "src/matrix/contextRollup.js",
       "Line": 207,
       "Status": "Killed",
+      "Operator": "BooleanLiteral"
+    },
+    {
+      "File": "src/matrix/contextRollup.js",
+      "Line": 207,
+      "Status": "Killed",
       "Operator": "ConditionalExpression"
     },
     {
@@ -8607,9 +8607,9 @@
     },
     {
       "File": "src/matrix/contextRollup.js",
-      "Line": 207,
+      "Line": 157,
       "Status": "Killed",
-      "Operator": "ConditionalExpression"
+      "Operator": "CallExpression"
     },
     {
       "File": "src/matrix/contextRollup.js",
@@ -8634,12 +8634,6 @@
       "Line": 208,
       "Status": "Killed",
       "Operator": "CallExpression"
-    },
-    {
-      "File": "src/matrix/contextRollup.js",
-      "Line": 188,
-      "Status": "Killed",
-      "Operator": "BlockStatement"
     },
     {
       "File": "src/matrix/contextRollup.js",
@@ -8663,13 +8657,13 @@
       "File": "src/matrix/contextRollup.js",
       "Line": 261,
       "Status": "Killed",
-      "Operator": "ConditionalExpression"
+      "Operator": "BooleanLiteral"
     },
     {
       "File": "src/matrix/contextRollup.js",
       "Line": 261,
       "Status": "Killed",
-      "Operator": "BooleanLiteral"
+      "Operator": "ConditionalExpression"
     },
     {
       "File": "src/matrix/contextRollup.js",
@@ -8685,20 +8679,14 @@
     },
     {
       "File": "src/matrix/contextRollup.js",
-      "Line": 15,
+      "Line": 207,
       "Status": "Killed",
-      "Operator": "Regex"
+      "Operator": "ConditionalExpression"
     },
     {
       "File": "src/matrix/contextRollup.js",
       "Line": 15,
-      "Status": "Killed",
-      "Operator": "Regex"
-    },
-    {
-      "File": "src/matrix/contextRollup.js",
-      "Line": 15,
-      "Status": "Killed",
+      "Status": "Survived",
       "Operator": "Regex"
     },
     {
@@ -8734,7 +8722,7 @@
     {
       "File": "src/matrix/contextRollup.js",
       "Line": 15,
-      "Status": "Survived",
+      "Status": "Killed",
       "Operator": "Regex"
     },
     {
@@ -8742,6 +8730,24 @@
       "Line": 15,
       "Status": "Killed",
       "Operator": "Regex"
+    },
+    {
+      "File": "src/matrix/contextRollup.js",
+      "Line": 15,
+      "Status": "Killed",
+      "Operator": "Regex"
+    },
+    {
+      "File": "src/matrix/contextRollup.js",
+      "Line": 15,
+      "Status": "Killed",
+      "Operator": "Regex"
+    },
+    {
+      "File": "src/matrix/contextRollup.js",
+      "Line": 17,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
     },
     {
       "File": "src/matrix/contextRollup.js",
@@ -8763,9 +8769,9 @@
     },
     {
       "File": "src/matrix/contextRollup.js",
-      "Line": 17,
+      "Line": 18,
       "Status": "Killed",
-      "Operator": "BlockStatement"
+      "Operator": "EqualityOperator"
     },
     {
       "File": "src/matrix/contextRollup.js",
@@ -8778,18 +8784,6 @@
       "Line": 18,
       "Status": "Killed",
       "Operator": "LogicalOperator"
-    },
-    {
-      "File": "src/matrix/contextRollup.js",
-      "Line": 18,
-      "Status": "Killed",
-      "Operator": "EqualityOperator"
-    },
-    {
-      "File": "src/matrix/contextRollup.js",
-      "Line": 24,
-      "Status": "Killed",
-      "Operator": "ConditionalExpression"
     },
     {
       "File": "src/matrix/contextRollup.js",
@@ -8801,6 +8795,18 @@
       "File": "src/matrix/contextRollup.js",
       "Line": 24,
       "Status": "Killed",
+      "Operator": "LogicalOperator"
+    },
+    {
+      "File": "src/matrix/contextRollup.js",
+      "Line": 24,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/matrix/contextRollup.js",
+      "Line": 24,
+      "Status": "Killed",
       "Operator": "BooleanLiteral"
     },
     {
@@ -8811,21 +8817,9 @@
     },
     {
       "File": "src/matrix/contextRollup.js",
-      "Line": 18,
-      "Status": "Survived",
-      "Operator": "ConditionalExpression"
-    },
-    {
-      "File": "src/matrix/contextRollup.js",
-      "Line": 24,
+      "Line": 25,
       "Status": "Killed",
-      "Operator": "LogicalOperator"
-    },
-    {
-      "File": "src/matrix/contextRollup.js",
-      "Line": 24,
-      "Status": "Killed",
-      "Operator": "ConditionalExpression"
+      "Operator": "BlockStatement"
     },
     {
       "File": "src/matrix/contextRollup.js",
@@ -8847,8 +8841,14 @@
     },
     {
       "File": "src/matrix/contextRollup.js",
-      "Line": 26,
+      "Line": 24,
       "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/matrix/contextRollup.js",
+      "Line": 18,
+      "Status": "Survived",
       "Operator": "ConditionalExpression"
     },
     {
@@ -8859,9 +8859,9 @@
     },
     {
       "File": "src/matrix/contextRollup.js",
-      "Line": 25,
+      "Line": 26,
       "Status": "Killed",
-      "Operator": "BlockStatement"
+      "Operator": "ConditionalExpression"
     },
     {
       "File": "src/matrix/filterSql.js",
@@ -9263,13 +9263,13 @@
       "File": "src/matrix/filterSql.js",
       "Line": 43,
       "Status": "Killed",
-      "Operator": "BooleanLiteral"
+      "Operator": "ConditionalExpression"
     },
     {
       "File": "src/matrix/filterSql.js",
       "Line": 43,
       "Status": "Killed",
-      "Operator": "ConditionalExpression"
+      "Operator": "BooleanLiteral"
     },
     {
       "File": "src/matrix/filterSql.js",
@@ -9323,12 +9323,6 @@
       "File": "src/matrix/filterSql.js",
       "Line": 45,
       "Status": "Killed",
-      "Operator": "ConditionalExpression"
-    },
-    {
-      "File": "src/matrix/filterSql.js",
-      "Line": 45,
-      "Status": "Killed",
       "Operator": "LogicalOperator"
     },
     {
@@ -9336,6 +9330,12 @@
       "Line": 45,
       "Status": "Killed",
       "Operator": "EqualityOperator"
+    },
+    {
+      "File": "src/matrix/filterSql.js",
+      "Line": 45,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
     },
     {
       "File": "src/matrix/filterSql.js",
@@ -9375,15 +9375,15 @@
     },
     {
       "File": "src/matrix/filterSql.js",
-      "Line": 53,
-      "Status": "Killed",
-      "Operator": "ArrayDeclaration"
-    },
-    {
-      "File": "src/matrix/filterSql.js",
       "Line": 76,
       "Status": "Killed",
       "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/matrix/filterSql.js",
+      "Line": 53,
+      "Status": "Killed",
+      "Operator": "ArrayDeclaration"
     },
     {
       "File": "src/matrix/filterSql.js",
@@ -9394,20 +9394,14 @@
     {
       "File": "src/matrix/filterSql.js",
       "Line": 78,
-      "Status": "Survived",
+      "Status": "Killed",
       "Operator": "ConditionalExpression"
     },
     {
       "File": "src/matrix/filterSql.js",
       "Line": 78,
-      "Status": "Killed",
+      "Status": "Survived",
       "Operator": "ConditionalExpression"
-    },
-    {
-      "File": "src/matrix/filterSql.js",
-      "Line": 80,
-      "Status": "Killed",
-      "Operator": "ArrayDeclaration"
     },
     {
       "File": "src/matrix/filterSql.js",
@@ -9417,9 +9411,21 @@
     },
     {
       "File": "src/matrix/filterSql.js",
+      "Line": 80,
+      "Status": "Killed",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/matrix/filterSql.js",
       "Line": 82,
       "Status": "Killed",
       "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/matrix/filterSql.js",
+      "Line": 85,
+      "Status": "Killed",
+      "Operator": "BooleanLiteral"
     },
     {
       "File": "src/matrix/filterSql.js",
@@ -9436,8 +9442,8 @@
     {
       "File": "src/matrix/filterSql.js",
       "Line": 85,
-      "Status": "Killed",
-      "Operator": "BooleanLiteral"
+      "Status": "Survived",
+      "Operator": "ConditionalExpression"
     },
     {
       "File": "src/matrix/filterSql.js",
@@ -9447,7 +9453,7 @@
     },
     {
       "File": "src/matrix/filterSql.js",
-      "Line": 85,
+      "Line": 87,
       "Status": "Survived",
       "Operator": "ConditionalExpression"
     },
@@ -9455,12 +9461,6 @@
       "File": "src/matrix/filterSql.js",
       "Line": 87,
       "Status": "Killed",
-      "Operator": "ConditionalExpression"
-    },
-    {
-      "File": "src/matrix/filterSql.js",
-      "Line": 87,
-      "Status": "Survived",
       "Operator": "ConditionalExpression"
     },
     {
@@ -9478,17 +9478,17 @@
     {
       "File": "src/matrix/filterSql.js",
       "Line": 87,
-      "Status": "Survived",
-      "Operator": "ConditionalExpression"
-    },
-    {
-      "File": "src/matrix/filterSql.js",
-      "Line": 87,
       "Status": "Killed",
       "Operator": "EqualityOperator"
     },
     {
       "File": "src/matrix/filterSql.js",
+      "Line": 87,
+      "Status": "Survived",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/matrix/filterSql.js",
       "Line": 90,
       "Status": "Killed",
       "Operator": "ConditionalExpression"
@@ -9498,6 +9498,12 @@
       "Line": 90,
       "Status": "Killed",
       "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/matrix/filterSql.js",
+      "Line": 90,
+      "Status": "Killed",
+      "Operator": "EqualityOperator"
     },
     {
       "File": "src/matrix/filterSql.js",
@@ -9507,27 +9513,15 @@
     },
     {
       "File": "src/matrix/filterSql.js",
-      "Line": 90,
+      "Line": 91,
       "Status": "Killed",
-      "Operator": "EqualityOperator"
+      "Operator": "ConditionalExpression"
     },
     {
       "File": "src/matrix/filterSql.js",
       "Line": 91,
       "Status": "Killed",
       "Operator": "BooleanLiteral"
-    },
-    {
-      "File": "src/matrix/filterSql.js",
-      "Line": 91,
-      "Status": "Killed",
-      "Operator": "ConditionalExpression"
-    },
-    {
-      "File": "src/matrix/filterSql.js",
-      "Line": 91,
-      "Status": "Killed",
-      "Operator": "ConditionalExpression"
     },
     {
       "File": "src/matrix/filterSql.js",
@@ -9549,6 +9543,12 @@
     },
     {
       "File": "src/matrix/filterSql.js",
+      "Line": 91,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/matrix/filterSql.js",
       "Line": 96,
       "Status": "Killed",
       "Operator": "BooleanLiteral"
@@ -9563,13 +9563,13 @@
       "File": "src/matrix/filterSql.js",
       "Line": 96,
       "Status": "Survived",
-      "Operator": "ConditionalExpression"
+      "Operator": "BlockStatement"
     },
     {
       "File": "src/matrix/filterSql.js",
       "Line": 96,
       "Status": "Survived",
-      "Operator": "BlockStatement"
+      "Operator": "ConditionalExpression"
     },
     {
       "File": "src/matrix/filterSql.js",
@@ -9585,13 +9585,13 @@
     },
     {
       "File": "src/matrix/filterSql.js",
-      "Line": 107,
+      "Line": 103,
       "Status": "Killed",
       "Operator": "BooleanLiteral"
     },
     {
       "File": "src/matrix/filterSql.js",
-      "Line": 103,
+      "Line": 107,
       "Status": "Killed",
       "Operator": "BooleanLiteral"
     },
@@ -9647,25 +9647,25 @@
       "File": "src/matrix/filterSql.js",
       "Line": 116,
       "Status": "Killed",
-      "Operator": "EqualityOperator"
-    },
-    {
-      "File": "src/matrix/filterSql.js",
-      "Line": 116,
-      "Status": "Killed",
       "Operator": "ConditionalExpression"
     },
     {
       "File": "src/matrix/filterSql.js",
       "Line": 116,
       "Status": "Killed",
-      "Operator": "BlockStatement"
+      "Operator": "EqualityOperator"
     },
     {
       "File": "src/matrix/filterSql.js",
       "Line": 123,
       "Status": "Killed",
       "Operator": "BooleanLiteral"
+    },
+    {
+      "File": "src/matrix/filterSql.js",
+      "Line": 116,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
     },
     {
       "File": "src/matrix/filterSql.js",
@@ -9778,13 +9778,13 @@
     {
       "File": "src/matrix/filterSql.js",
       "Line": 143,
-      "Status": "Killed",
+      "Status": "Survived",
       "Operator": "ConditionalExpression"
     },
     {
       "File": "src/matrix/filterSql.js",
       "Line": 143,
-      "Status": "Survived",
+      "Status": "Killed",
       "Operator": "ConditionalExpression"
     },
     {
@@ -9803,13 +9803,13 @@
       "File": "src/matrix/filterSql.js",
       "Line": 148,
       "Status": "Killed",
-      "Operator": "ArrowFunction"
+      "Operator": "ConditionalExpression"
     },
     {
       "File": "src/matrix/filterSql.js",
       "Line": 148,
       "Status": "Killed",
-      "Operator": "ConditionalExpression"
+      "Operator": "ArrowFunction"
     },
     {
       "File": "src/matrix/filterSql.js",
@@ -9820,13 +9820,13 @@
     {
       "File": "src/matrix/filterSql.js",
       "Line": 157,
-      "Status": "Survived",
+      "Status": "Killed",
       "Operator": "ConditionalExpression"
     },
     {
       "File": "src/matrix/filterSql.js",
       "Line": 157,
-      "Status": "Killed",
+      "Status": "Survived",
       "Operator": "ConditionalExpression"
     },
     {
@@ -9856,26 +9856,26 @@
     {
       "File": "src/matrix/filterSql.js",
       "Line": 158,
+      "Status": "Survived",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/matrix/filterSql.js",
+      "Line": 158,
       "Status": "Killed",
       "Operator": "BooleanLiteral"
     },
     {
       "File": "src/matrix/filterSql.js",
       "Line": 158,
-      "Status": "Survived",
-      "Operator": "ConditionalExpression"
+      "Status": "Killed",
+      "Operator": "EqualityOperator"
     },
     {
       "File": "src/matrix/filterSql.js",
       "Line": 160,
       "Status": "Survived",
       "Operator": "MethodExpression"
-    },
-    {
-      "File": "src/matrix/filterSql.js",
-      "Line": 158,
-      "Status": "Killed",
-      "Operator": "EqualityOperator"
     },
     {
       "File": "src/matrix/filterSql.js",
@@ -9958,13 +9958,13 @@
     {
       "File": "src/matrix/filterSql.js",
       "Line": 167,
-      "Status": "Killed",
+      "Status": "Survived",
       "Operator": "ConditionalExpression"
     },
     {
       "File": "src/matrix/filterSql.js",
       "Line": 167,
-      "Status": "Survived",
+      "Status": "Killed",
       "Operator": "ConditionalExpression"
     },
     {
@@ -9995,12 +9995,6 @@
       "File": "src/matrix/filterSql.js",
       "Line": 176,
       "Status": "Killed",
-      "Operator": "ConditionalExpression"
-    },
-    {
-      "File": "src/matrix/filterSql.js",
-      "Line": 176,
-      "Status": "Killed",
       "Operator": "BooleanLiteral"
     },
     {
@@ -10017,7 +10011,7 @@
     },
     {
       "File": "src/matrix/filterSql.js",
-      "Line": 204,
+      "Line": 176,
       "Status": "Killed",
       "Operator": "ConditionalExpression"
     },
@@ -10037,13 +10031,13 @@
       "File": "src/matrix/filterSql.js",
       "Line": 204,
       "Status": "Killed",
-      "Operator": "EqualityOperator"
+      "Operator": "ConditionalExpression"
     },
     {
       "File": "src/matrix/filterSql.js",
-      "Line": 211,
+      "Line": 204,
       "Status": "Killed",
-      "Operator": "ConditionalExpression"
+      "Operator": "EqualityOperator"
     },
     {
       "File": "src/matrix/filterSql.js",
@@ -10061,24 +10055,18 @@
       "File": "src/matrix/filterSql.js",
       "Line": 211,
       "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/matrix/filterSql.js",
+      "Line": 211,
+      "Status": "Killed",
       "Operator": "LogicalOperator"
     },
     {
       "File": "src/matrix/filterSql.js",
       "Line": 211,
       "Status": "Killed",
-      "Operator": "EqualityOperator"
-    },
-    {
-      "File": "src/matrix/filterSql.js",
-      "Line": 211,
-      "Status": "Killed",
-      "Operator": "ConditionalExpression"
-    },
-    {
-      "File": "src/matrix/filterSql.js",
-      "Line": 211,
-      "Status": "Killed",
       "Operator": "ConditionalExpression"
     },
     {
@@ -10089,9 +10077,15 @@
     },
     {
       "File": "src/matrix/filterSql.js",
-      "Line": 215,
+      "Line": 211,
       "Status": "Killed",
       "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/matrix/filterSql.js",
+      "Line": 211,
+      "Status": "Killed",
+      "Operator": "EqualityOperator"
     },
     {
       "File": "src/matrix/filterSql.js",
@@ -10109,6 +10103,12 @@
       "File": "src/matrix/filterSql.js",
       "Line": 215,
       "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/matrix/filterSql.js",
+      "Line": 215,
+      "Status": "Killed",
       "Operator": "LogicalOperator"
     },
     {
@@ -10133,13 +10133,13 @@
       "File": "src/matrix/filterSql.js",
       "Line": 215,
       "Status": "Killed",
-      "Operator": "BlockStatement"
+      "Operator": "EqualityOperator"
     },
     {
       "File": "src/matrix/filterSql.js",
       "Line": 215,
       "Status": "Killed",
-      "Operator": "EqualityOperator"
+      "Operator": "BlockStatement"
     },
     {
       "File": "src/matrix/filterSql.js",
@@ -10665,12 +10665,6 @@
     },
     {
       "File": "src/matrix/inheritedAccess.js",
-      "Line": 42,
-      "Status": "Killed",
-      "Operator": "BlockStatement"
-    },
-    {
-      "File": "src/matrix/inheritedAccess.js",
       "Line": 40,
       "Status": "Killed",
       "Operator": "MethodExpression"
@@ -10680,6 +10674,12 @@
       "Line": 45,
       "Status": "Killed",
       "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/matrix/inheritedAccess.js",
+      "Line": 42,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
     },
     {
       "File": "src/matrix/inheritedAccess.js",
@@ -10707,6 +10707,12 @@
     },
     {
       "File": "src/matrix/inheritedAccess.js",
+      "Line": 68,
+      "Status": "Survived",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/matrix/inheritedAccess.js",
       "Line": 69,
       "Status": "Killed",
       "Operator": "BooleanLiteral"
@@ -10719,27 +10725,9 @@
     },
     {
       "File": "src/matrix/inheritedAccess.js",
-      "Line": 68,
-      "Status": "Survived",
-      "Operator": "BlockStatement"
-    },
-    {
-      "File": "src/matrix/inheritedAccess.js",
       "Line": 69,
       "Status": "Killed",
       "Operator": "ConditionalExpression"
-    },
-    {
-      "File": "src/matrix/inheritedAccess.js",
-      "Line": 87,
-      "Status": "Killed",
-      "Operator": "ConditionalExpression"
-    },
-    {
-      "File": "src/matrix/inheritedAccess.js",
-      "Line": 85,
-      "Status": "Killed",
-      "Operator": "BlockStatement"
     },
     {
       "File": "src/matrix/inheritedAccess.js",
@@ -10749,6 +10737,12 @@
     },
     {
       "File": "src/matrix/inheritedAccess.js",
+      "Line": 85,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/matrix/inheritedAccess.js",
       "Line": 87,
       "Status": "Killed",
       "Operator": "ConditionalExpression"
@@ -10757,13 +10751,19 @@
       "File": "src/matrix/inheritedAccess.js",
       "Line": 87,
       "Status": "Killed",
-      "Operator": "BlockStatement"
+      "Operator": "ConditionalExpression"
     },
     {
       "File": "src/matrix/inheritedAccess.js",
       "Line": 87,
       "Status": "Killed",
       "Operator": "EqualityOperator"
+    },
+    {
+      "File": "src/matrix/inheritedAccess.js",
+      "Line": 87,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
     },
     {
       "File": "src/matrix/inheritedAccess.js",
@@ -10780,14 +10780,14 @@
     {
       "File": "src/matrix/inheritedAccess.js",
       "Line": 93,
-      "Status": "Survived",
-      "Operator": "ConditionalExpression"
+      "Status": "Killed",
+      "Operator": "BooleanLiteral"
     },
     {
       "File": "src/matrix/inheritedAccess.js",
       "Line": 93,
-      "Status": "Killed",
-      "Operator": "BooleanLiteral"
+      "Status": "Survived",
+      "Operator": "ConditionalExpression"
     },
     {
       "File": "src/matrix/inheritedAccess.js",
@@ -10827,15 +10827,15 @@
     },
     {
       "File": "src/matrix/inheritedAccess.js",
-      "Line": 110,
-      "Status": "Killed",
-      "Operator": "BooleanLiteral"
-    },
-    {
-      "File": "src/matrix/inheritedAccess.js",
       "Line": 108,
       "Status": "Killed",
       "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/matrix/inheritedAccess.js",
+      "Line": 110,
+      "Status": "Killed",
+      "Operator": "BooleanLiteral"
     },
     {
       "File": "src/matrix/inheritedAccess.js",
@@ -10917,21 +10917,15 @@
     },
     {
       "File": "src/matrix/inheritedAccess.js",
-      "Line": 131,
-      "Status": "Killed",
-      "Operator": "BlockStatement"
-    },
-    {
-      "File": "src/matrix/inheritedAccess.js",
       "Line": 130,
       "Status": "Killed",
       "Operator": "ArrayDeclaration"
     },
     {
       "File": "src/matrix/inheritedAccess.js",
-      "Line": 133,
+      "Line": 131,
       "Status": "Killed",
-      "Operator": "ConditionalExpression"
+      "Operator": "BlockStatement"
     },
     {
       "File": "src/matrix/inheritedAccess.js",
@@ -10944,6 +10938,12 @@
       "Line": 133,
       "Status": "Killed",
       "Operator": "LogicalOperator"
+    },
+    {
+      "File": "src/matrix/inheritedAccess.js",
+      "Line": 133,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
     },
     {
       "File": "src/matrix/inheritedAccess.js",
@@ -10991,13 +10991,13 @@
       "File": "src/matrix/inheritedAccess.js",
       "Line": 145,
       "Status": "Killed",
-      "Operator": "ArrowFunction"
+      "Operator": "BooleanLiteral"
     },
     {
       "File": "src/matrix/inheritedAccess.js",
       "Line": 145,
       "Status": "Killed",
-      "Operator": "BooleanLiteral"
+      "Operator": "ArrowFunction"
     },
     {
       "File": "src/matrix/inheritedAccess.js",
@@ -11013,6 +11013,12 @@
     },
     {
       "File": "src/matrix/inheritedAccess.js",
+      "Line": 152,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/matrix/inheritedAccess.js",
       "Line": 147,
       "Status": "Killed",
       "Operator": "ArrowFunction"
@@ -11025,27 +11031,21 @@
     },
     {
       "File": "src/matrix/inheritedAccess.js",
-      "Line": 152,
-      "Status": "Killed",
-      "Operator": "BlockStatement"
-    },
-    {
-      "File": "src/matrix/inheritedAccess.js",
       "Line": 158,
       "Status": "Killed",
       "Operator": "CallExpression"
     },
     {
       "File": "src/matrix/inheritedAccess.js",
-      "Line": 164,
-      "Status": "Killed",
-      "Operator": "BlockStatement"
-    },
-    {
-      "File": "src/matrix/inheritedAccess.js",
       "Line": 165,
       "Status": "Killed",
       "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/matrix/inheritedAccess.js",
+      "Line": 164,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
     },
     {
       "File": "src/matrix/inheritedAccess.js",
@@ -11115,13 +11115,13 @@
     },
     {
       "File": "src/matrix/inheritedAccess.js",
-      "Line": 175,
+      "Line": 181,
       "Status": "Killed",
       "Operator": "LogicalOperator"
     },
     {
       "File": "src/matrix/inheritedAccess.js",
-      "Line": 181,
+      "Line": 175,
       "Status": "Killed",
       "Operator": "LogicalOperator"
     },
@@ -11139,15 +11139,15 @@
     },
     {
       "File": "src/matrix/inheritedAccess.js",
-      "Line": 185,
-      "Status": "Killed",
-      "Operator": "BooleanLiteral"
-    },
-    {
-      "File": "src/matrix/inheritedAccess.js",
       "Line": 190,
       "Status": "Killed",
       "Operator": "LogicalOperator"
+    },
+    {
+      "File": "src/matrix/inheritedAccess.js",
+      "Line": 185,
+      "Status": "Killed",
+      "Operator": "BooleanLiteral"
     },
     {
       "File": "src/matrix/inheritedAccess.js",
@@ -11231,13 +11231,13 @@
       "File": "src/matrix/inheritedAccess.js",
       "Line": 206,
       "Status": "Survived",
-      "Operator": "ArrowFunction"
+      "Operator": "ArrayDeclaration"
     },
     {
       "File": "src/matrix/inheritedAccess.js",
       "Line": 206,
       "Status": "Survived",
-      "Operator": "ArrayDeclaration"
+      "Operator": "ArrowFunction"
     },
     {
       "File": "src/matrix/inheritedAccess.js",
@@ -11254,26 +11254,26 @@
     {
       "File": "src/matrix/inheritedAccess.js",
       "Line": 214,
-      "Status": "Killed",
-      "Operator": "ArrowFunction"
+      "Status": "Survived",
+      "Operator": "ArrayDeclaration"
     },
     {
       "File": "src/matrix/inheritedAccess.js",
       "Line": 214,
-      "Status": "Survived",
-      "Operator": "ArrayDeclaration"
-    },
-    {
-      "File": "src/matrix/inheritedAccess.js",
-      "Line": 219,
-      "Status": "Survived",
-      "Operator": "ArrayDeclaration"
+      "Status": "Killed",
+      "Operator": "ArrowFunction"
     },
     {
       "File": "src/matrix/inheritedAccess.js",
       "Line": 218,
       "Status": "Killed",
       "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/matrix/inheritedAccess.js",
+      "Line": 219,
+      "Status": "Survived",
+      "Operator": "ArrayDeclaration"
     },
     {
       "File": "src/matrix/inheritedAccess.js",
@@ -11285,13 +11285,13 @@
       "File": "src/matrix/inheritedAccess.js",
       "Line": 220,
       "Status": "Killed",
-      "Operator": "ArrowFunction"
+      "Operator": "ConditionalExpression"
     },
     {
       "File": "src/matrix/inheritedAccess.js",
       "Line": 220,
       "Status": "Killed",
-      "Operator": "ConditionalExpression"
+      "Operator": "ArrowFunction"
     },
     {
       "File": "src/matrix/inheritedAccess.js",
@@ -11313,15 +11313,15 @@
     },
     {
       "File": "src/matrix/inheritedAccess.js",
-      "Line": 225,
-      "Status": "Survived",
-      "Operator": "ConditionalExpression"
-    },
-    {
-      "File": "src/matrix/inheritedAccess.js",
       "Line": 224,
       "Status": "Killed",
       "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/matrix/inheritedAccess.js",
+      "Line": 225,
+      "Status": "Survived",
+      "Operator": "ConditionalExpression"
     },
     {
       "File": "src/matrix/inheritedAccess.js",
@@ -11355,6 +11355,12 @@
     },
     {
       "File": "src/matrix/inheritedAccess.js",
+      "Line": 235,
+      "Status": "Killed",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/matrix/inheritedAccess.js",
       "Line": 236,
       "Status": "Killed",
       "Operator": "CallExpression"
@@ -11367,21 +11373,9 @@
     },
     {
       "File": "src/matrix/inheritedAccess.js",
-      "Line": 235,
-      "Status": "Killed",
-      "Operator": "ArrayDeclaration"
-    },
-    {
-      "File": "src/matrix/inheritedAccess.js",
       "Line": 243,
       "Status": "Killed",
       "Operator": "ArrayDeclaration"
-    },
-    {
-      "File": "src/matrix/inheritedAccess.js",
-      "Line": 246,
-      "Status": "Killed",
-      "Operator": "ArrowFunction"
     },
     {
       "File": "src/matrix/inheritedAccess.js",
@@ -11394,6 +11388,12 @@
       "Line": 246,
       "Status": "Killed",
       "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/matrix/inheritedAccess.js",
+      "Line": 246,
+      "Status": "Killed",
+      "Operator": "ArrowFunction"
     },
     {
       "File": "src/matrix/inheritedAccess.js",
@@ -11429,6 +11429,12 @@
       "File": "src/matrix/inheritedAccess.js",
       "Line": 265,
       "Status": "Killed",
+      "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/matrix/inheritedAccess.js",
+      "Line": 265,
+      "Status": "Killed",
       "Operator": "ArrowFunction"
     },
     {
@@ -11436,18 +11442,6 @@
       "Line": 272,
       "Status": "Killed",
       "Operator": "BlockStatement"
-    },
-    {
-      "File": "src/matrix/inheritedAccess.js",
-      "Line": 265,
-      "Status": "Killed",
-      "Operator": "ArrayDeclaration"
-    },
-    {
-      "File": "src/matrix/inheritedAccess.js",
-      "Line": 274,
-      "Status": "Killed",
-      "Operator": "ConditionalExpression"
     },
     {
       "File": "src/matrix/inheritedAccess.js",
@@ -11465,19 +11459,25 @@
       "File": "src/matrix/inheritedAccess.js",
       "Line": 274,
       "Status": "Killed",
-      "Operator": "BooleanLiteral"
-    },
-    {
-      "File": "src/matrix/inheritedAccess.js",
-      "Line": 274,
-      "Status": "Killed",
       "Operator": "ConditionalExpression"
     },
     {
       "File": "src/matrix/inheritedAccess.js",
       "Line": 274,
       "Status": "Killed",
+      "Operator": "BooleanLiteral"
+    },
+    {
+      "File": "src/matrix/inheritedAccess.js",
+      "Line": 274,
+      "Status": "Killed",
       "Operator": "EqualityOperator"
+    },
+    {
+      "File": "src/matrix/inheritedAccess.js",
+      "Line": 274,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
     },
     {
       "File": "src/matrix/inheritedAccess.js",
@@ -11519,13 +11519,13 @@
       "File": "src/matrix/inheritedAccess.js",
       "Line": 280,
       "Status": "Killed",
-      "Operator": "BooleanLiteral"
+      "Operator": "ConditionalExpression"
     },
     {
       "File": "src/matrix/inheritedAccess.js",
       "Line": 280,
       "Status": "Killed",
-      "Operator": "ConditionalExpression"
+      "Operator": "BooleanLiteral"
     },
     {
       "File": "src/matrix/inheritedAccess.js",
@@ -11549,13 +11549,13 @@
       "File": "src/matrix/inheritedAccess.js",
       "Line": 289,
       "Status": "Killed",
-      "Operator": "ConditionalExpression"
+      "Operator": "LogicalOperator"
     },
     {
       "File": "src/matrix/inheritedAccess.js",
       "Line": 289,
       "Status": "Killed",
-      "Operator": "LogicalOperator"
+      "Operator": "ConditionalExpression"
     },
     {
       "File": "src/matrix/inheritedAccess.js",
@@ -11661,15 +11661,15 @@
     },
     {
       "File": "src/matrix/inheritedAccess.js",
-      "Line": 309,
-      "Status": "Survived",
-      "Operator": "ConditionalExpression"
-    },
-    {
-      "File": "src/matrix/inheritedAccess.js",
       "Line": 315,
       "Status": "Killed",
       "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/matrix/inheritedAccess.js",
+      "Line": 309,
+      "Status": "Survived",
+      "Operator": "ConditionalExpression"
     },
     {
       "File": "src/matrix/inheritedAccess.js",
@@ -11685,15 +11685,15 @@
     },
     {
       "File": "src/matrix/inheritedAccess.js",
-      "Line": 338,
-      "Status": "Killed",
-      "Operator": "BlockStatement"
-    },
-    {
-      "File": "src/matrix/inheritedAccess.js",
       "Line": 339,
       "Status": "Killed",
       "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/matrix/inheritedAccess.js",
+      "Line": 338,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
     },
     {
       "File": "src/matrix/inheritedAccess.js",
@@ -11722,32 +11722,26 @@
     {
       "File": "src/matrix/inheritedAccess.js",
       "Line": 340,
+      "Status": "Killed",
+      "Operator": "BooleanLiteral"
+    },
+    {
+      "File": "src/matrix/inheritedAccess.js",
+      "Line": 340,
       "Status": "Survived",
       "Operator": "LogicalOperator"
     },
     {
       "File": "src/matrix/inheritedAccess.js",
-      "Line": 340,
-      "Status": "Killed",
-      "Operator": "BooleanLiteral"
-    },
-    {
-      "File": "src/matrix/inheritedAccess.js",
-      "Line": 340,
-      "Status": "Killed",
-      "Operator": "BooleanLiteral"
-    },
-    {
-      "File": "src/matrix/inheritedAccess.js",
       "Line": 342,
       "Status": "Killed",
       "Operator": "BooleanLiteral"
     },
     {
       "File": "src/matrix/inheritedAccess.js",
-      "Line": 342,
+      "Line": 340,
       "Status": "Killed",
-      "Operator": "ConditionalExpression"
+      "Operator": "BooleanLiteral"
     },
     {
       "File": "src/matrix/inheritedAccess.js",
@@ -11757,15 +11751,21 @@
     },
     {
       "File": "src/matrix/inheritedAccess.js",
-      "Line": 346,
+      "Line": 342,
       "Status": "Killed",
-      "Operator": "BooleanLiteral"
+      "Operator": "ConditionalExpression"
     },
     {
       "File": "src/matrix/inheritedAccess.js",
       "Line": 346,
       "Status": "Killed",
       "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/matrix/inheritedAccess.js",
+      "Line": 346,
+      "Status": "Killed",
+      "Operator": "BooleanLiteral"
     },
     {
       "File": "src/matrix/inheritedAccess.js",
@@ -11817,15 +11817,21 @@
     },
     {
       "File": "src/matrix/inheritedAccess.js",
+      "Line": 359,
+      "Status": "Killed",
+      "Operator": "CallExpression"
+    },
+    {
+      "File": "src/matrix/inheritedAccess.js",
       "Line": 358,
       "Status": "Killed",
       "Operator": "CallExpression"
     },
     {
       "File": "src/matrix/inheritedAccess.js",
-      "Line": 359,
+      "Line": 361,
       "Status": "Killed",
-      "Operator": "CallExpression"
+      "Operator": "ConditionalExpression"
     },
     {
       "File": "src/matrix/inheritedAccess.js",
@@ -11836,12 +11842,6 @@
     {
       "File": "src/matrix/inheritedAccess.js",
       "Line": 361,
-      "Status": "Killed",
-      "Operator": "ConditionalExpression"
-    },
-    {
-      "File": "src/matrix/inheritedAccess.js",
-      "Line": 361,
       "Status": "Survived",
       "Operator": "ConditionalExpression"
     },
@@ -11849,12 +11849,6 @@
       "File": "src/matrix/inheritedAccess.js",
       "Line": 362,
       "Status": "Survived",
-      "Operator": "ArrayDeclaration"
-    },
-    {
-      "File": "src/matrix/inheritedAccess.js",
-      "Line": 362,
-      "Status": "Killed",
       "Operator": "ArrayDeclaration"
     },
     {
@@ -11865,8 +11859,8 @@
     },
     {
       "File": "src/matrix/inheritedAccess.js",
-      "Line": 367,
-      "Status": "Survived",
+      "Line": 362,
+      "Status": "Killed",
       "Operator": "ArrayDeclaration"
     },
     {
@@ -11877,14 +11871,20 @@
     },
     {
       "File": "src/matrix/inheritedAccess.js",
-      "Line": 370,
-      "Status": "Killed",
-      "Operator": "ConditionalExpression"
+      "Line": 367,
+      "Status": "Survived",
+      "Operator": "ArrayDeclaration"
     },
     {
       "File": "src/matrix/inheritedAccess.js",
       "Line": 370,
       "Status": "Survived",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/matrix/inheritedAccess.js",
+      "Line": 370,
+      "Status": "Killed",
       "Operator": "ConditionalExpression"
     },
     {
@@ -11939,18 +11939,18 @@
       "File": "src/matrix/inheritedAccess.js",
       "Line": 420,
       "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/matrix/inheritedAccess.js",
+      "Line": 420,
+      "Status": "Killed",
       "Operator": "ArrowFunction"
     },
     {
       "File": "src/matrix/inheritedAccess.js",
       "Line": 420,
       "Status": "Killed",
-      "Operator": "ConditionalExpression"
-    },
-    {
-      "File": "src/matrix/inheritedAccess.js",
-      "Line": 420,
-      "Status": "Killed",
       "Operator": "EqualityOperator"
     },
     {
@@ -11975,19 +11975,13 @@
       "File": "src/matrix/inheritedAccess.js",
       "Line": 421,
       "Status": "Killed",
+      "Operator": "LogicalOperator"
+    },
+    {
+      "File": "src/matrix/inheritedAccess.js",
+      "Line": 421,
+      "Status": "Killed",
       "Operator": "ConditionalExpression"
-    },
-    {
-      "File": "src/matrix/inheritedAccess.js",
-      "Line": 421,
-      "Status": "Killed",
-      "Operator": "LogicalOperator"
-    },
-    {
-      "File": "src/matrix/inheritedAccess.js",
-      "Line": 421,
-      "Status": "Killed",
-      "Operator": "LogicalOperator"
     },
     {
       "File": "src/matrix/inheritedAccess.js",
@@ -11999,13 +11993,19 @@
       "File": "src/matrix/inheritedAccess.js",
       "Line": 421,
       "Status": "Killed",
-      "Operator": "EqualityOperator"
+      "Operator": "LogicalOperator"
     },
     {
       "File": "src/matrix/inheritedAccess.js",
       "Line": 421,
       "Status": "Killed",
       "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/matrix/inheritedAccess.js",
+      "Line": 421,
+      "Status": "Killed",
+      "Operator": "EqualityOperator"
     },
     {
       "File": "src/matrix/inheritedAccess.js",
@@ -12030,6 +12030,12 @@
       "Line": 422,
       "Status": "Killed",
       "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/matrix/inheritedAccess.js",
+      "Line": 422,
+      "Status": "Killed",
+      "Operator": "LogicalOperator"
     },
     {
       "File": "src/matrix/inheritedAccess.js",
@@ -12053,7 +12059,13 @@
       "File": "src/matrix/inheritedAccess.js",
       "Line": 422,
       "Status": "Killed",
-      "Operator": "LogicalOperator"
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/matrix/inheritedAccess.js",
+      "Line": 422,
+      "Status": "Killed",
+      "Operator": "EqualityOperator"
     },
     {
       "File": "src/matrix/inheritedAccess.js",
@@ -12069,27 +12081,15 @@
     },
     {
       "File": "src/matrix/inheritedAccess.js",
-      "Line": 422,
+      "Line": 423,
       "Status": "Killed",
-      "Operator": "EqualityOperator"
-    },
-    {
-      "File": "src/matrix/inheritedAccess.js",
-      "Line": 422,
-      "Status": "Killed",
-      "Operator": "ConditionalExpression"
+      "Operator": "ArrowFunction"
     },
     {
       "File": "src/matrix/inheritedAccess.js",
       "Line": 423,
       "Status": "Killed",
       "Operator": "MethodExpression"
-    },
-    {
-      "File": "src/matrix/inheritedAccess.js",
-      "Line": 423,
-      "Status": "Killed",
-      "Operator": "ArrowFunction"
     },
     {
       "File": "src/matrix/inheritedAccess.js",
@@ -12117,15 +12117,15 @@
     },
     {
       "File": "src/matrix/inheritedAccess.js",
-      "Line": 425,
-      "Status": "Killed",
-      "Operator": "MethodExpression"
-    },
-    {
-      "File": "src/matrix/inheritedAccess.js",
       "Line": 424,
       "Status": "Killed",
       "Operator": "ArrowFunction"
+    },
+    {
+      "File": "src/matrix/inheritedAccess.js",
+      "Line": 425,
+      "Status": "Killed",
+      "Operator": "MethodExpression"
     },
     {
       "File": "src/matrix/inheritedAccess.js",
@@ -12186,18 +12186,18 @@
       "Line": 427,
       "Status": "Killed",
       "Operator": "LogicalOperator"
-    },
-    {
-      "File": "src/matrix/inheritedAccess.js",
-      "Line": 428,
-      "Status": "Killed",
-      "Operator": "ArrowFunction"
     },
     {
       "File": "src/matrix/inheritedAccess.js",
       "Line": 428,
       "Status": "Killed",
       "Operator": "ArithmeticOperator"
+    },
+    {
+      "File": "src/matrix/inheritedAccess.js",
+      "Line": 428,
+      "Status": "Killed",
+      "Operator": "ArrowFunction"
     },
     {
       "File": "src/matrix/inheritedAccess.js",
@@ -12285,9 +12285,9 @@
     },
     {
       "File": "src/matrix/resourceContexts.js",
-      "Line": 18,
+      "Line": 29,
       "Status": "Killed",
-      "Operator": "BlockStatement"
+      "Operator": "ConditionalExpression"
     },
     {
       "File": "src/matrix/resourceContexts.js",
@@ -12311,12 +12311,6 @@
       "File": "src/matrix/resourceContexts.js",
       "Line": 29,
       "Status": "Killed",
-      "Operator": "ConditionalExpression"
-    },
-    {
-      "File": "src/matrix/resourceContexts.js",
-      "Line": 29,
-      "Status": "Killed",
       "Operator": "LogicalOperator"
     },
     {
@@ -12327,9 +12321,9 @@
     },
     {
       "File": "src/matrix/resourceContexts.js",
-      "Line": 31,
+      "Line": 18,
       "Status": "Killed",
-      "Operator": "BooleanLiteral"
+      "Operator": "BlockStatement"
     },
     {
       "File": "src/matrix/resourceContexts.js",
@@ -12341,13 +12335,7 @@
       "File": "src/matrix/resourceContexts.js",
       "Line": 31,
       "Status": "Killed",
-      "Operator": "ConditionalExpression"
-    },
-    {
-      "File": "src/matrix/resourceContexts.js",
-      "Line": 32,
-      "Status": "Killed",
-      "Operator": "ConditionalExpression"
+      "Operator": "BooleanLiteral"
     },
     {
       "File": "src/matrix/resourceContexts.js",
@@ -12366,6 +12354,18 @@
       "Line": 32,
       "Status": "Killed",
       "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/matrix/resourceContexts.js",
+      "Line": 31,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/matrix/resourceContexts.js",
+      "Line": 32,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
     },
     {
       "File": "src/matrix/resourceContexts.js",
@@ -12383,12 +12383,6 @@
       "File": "src/matrix/resourceContexts.js",
       "Line": 39,
       "Status": "Killed",
-      "Operator": "ArrowFunction"
-    },
-    {
-      "File": "src/matrix/resourceContexts.js",
-      "Line": 39,
-      "Status": "Killed",
       "Operator": "ArrayDeclaration"
     },
     {
@@ -12396,18 +12390,24 @@
       "Line": 51,
       "Status": "Killed",
       "Operator": "ArrayDeclaration"
-    },
-    {
-      "File": "src/matrix/resourceContexts.js",
-      "Line": 51,
-      "Status": "Killed",
-      "Operator": "ConditionalExpression"
     },
     {
       "File": "src/matrix/resourceContexts.js",
       "Line": 51,
       "Status": "Killed",
       "Operator": "MethodExpression"
+    },
+    {
+      "File": "src/matrix/resourceContexts.js",
+      "Line": 39,
+      "Status": "Killed",
+      "Operator": "ArrowFunction"
+    },
+    {
+      "File": "src/matrix/resourceContexts.js",
+      "Line": 51,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
     },
     {
       "File": "src/matrix/resourceContexts.js",
@@ -12418,8 +12418,20 @@
     {
       "File": "src/matrix/resourceContexts.js",
       "Line": 51,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/matrix/resourceContexts.js",
+      "Line": 51,
       "Status": "Survived",
       "Operator": "ArrayDeclaration"
+    },
+    {
+      "File": "src/matrix/resourceContexts.js",
+      "Line": 52,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
     },
     {
       "File": "src/matrix/resourceContexts.js",
@@ -12429,27 +12441,9 @@
     },
     {
       "File": "src/matrix/resourceContexts.js",
-      "Line": 51,
-      "Status": "Killed",
-      "Operator": "ConditionalExpression"
-    },
-    {
-      "File": "src/matrix/resourceContexts.js",
-      "Line": 52,
-      "Status": "Killed",
-      "Operator": "EqualityOperator"
-    },
-    {
-      "File": "src/matrix/resourceContexts.js",
       "Line": 52,
       "Status": "Killed",
       "Operator": "ConditionalExpression"
-    },
-    {
-      "File": "src/matrix/resourceContexts.js",
-      "Line": 57,
-      "Status": "Killed",
-      "Operator": "BlockStatement"
     },
     {
       "File": "src/matrix/resourceContexts.js",
@@ -12465,13 +12459,13 @@
     },
     {
       "File": "src/matrix/resourceContexts.js",
-      "Line": 61,
+      "Line": 57,
       "Status": "Killed",
-      "Operator": "ArrayDeclaration"
+      "Operator": "BlockStatement"
     },
     {
       "File": "src/matrix/resourceContexts.js",
-      "Line": 58,
+      "Line": 61,
       "Status": "Killed",
       "Operator": "ArrayDeclaration"
     },
@@ -12479,7 +12473,13 @@
       "File": "src/matrix/resourceContexts.js",
       "Line": 52,
       "Status": "Killed",
-      "Operator": "ConditionalExpression"
+      "Operator": "EqualityOperator"
+    },
+    {
+      "File": "src/matrix/resourceContexts.js",
+      "Line": 58,
+      "Status": "Killed",
+      "Operator": "ArrayDeclaration"
     },
     {
       "File": "src/matrix/rollupBuilders.js",
@@ -12675,12 +12675,6 @@
     },
     {
       "File": "src/matrix/rollupBuilders.js",
-      "Line": 14,
-      "Status": "Killed",
-      "Operator": "BlockStatement"
-    },
-    {
-      "File": "src/matrix/rollupBuilders.js",
       "Line": 15,
       "Status": "Killed",
       "Operator": "ArrayDeclaration"
@@ -12689,18 +12683,6 @@
       "File": "src/matrix/rollupBuilders.js",
       "Line": 19,
       "Status": "Killed",
-      "Operator": "CallExpression"
-    },
-    {
-      "File": "src/matrix/rollupBuilders.js",
-      "Line": 20,
-      "Status": "Killed",
-      "Operator": "ConditionalExpression"
-    },
-    {
-      "File": "src/matrix/rollupBuilders.js",
-      "Line": 20,
-      "Status": "Killed",
       "Operator": "ConditionalExpression"
     },
     {
@@ -12713,6 +12695,18 @@
       "File": "src/matrix/rollupBuilders.js",
       "Line": 19,
       "Status": "Killed",
+      "Operator": "CallExpression"
+    },
+    {
+      "File": "src/matrix/rollupBuilders.js",
+      "Line": 14,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/matrix/rollupBuilders.js",
+      "Line": 20,
+      "Status": "Killed",
       "Operator": "ConditionalExpression"
     },
     {
@@ -12720,6 +12714,12 @@
       "Line": 20,
       "Status": "Killed",
       "Operator": "CallExpression"
+    },
+    {
+      "File": "src/matrix/rollupBuilders.js",
+      "Line": 20,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
     },
     {
       "File": "src/matrix/rollupBuilders.js",
@@ -12761,13 +12761,13 @@
       "File": "src/matrix/rollupBuilders.js",
       "Line": 66,
       "Status": "Killed",
-      "Operator": "ConditionalExpression"
+      "Operator": "CallExpression"
     },
     {
       "File": "src/matrix/rollupBuilders.js",
       "Line": 66,
       "Status": "Killed",
-      "Operator": "CallExpression"
+      "Operator": "ConditionalExpression"
     },
     {
       "File": "src/matrix/rollupBuilders.js",
@@ -12837,12 +12837,6 @@
     },
     {
       "File": "src/matrix/rollupBuilders.js",
-      "Line": 111,
-      "Status": "Killed",
-      "Operator": "ConditionalExpression"
-    },
-    {
-      "File": "src/matrix/rollupBuilders.js",
       "Line": 109,
       "Status": "Killed",
       "Operator": "CallExpression"
@@ -12855,15 +12849,21 @@
     },
     {
       "File": "src/matrix/rollupBuilders.js",
-      "Line": 126,
+      "Line": 111,
       "Status": "Killed",
-      "Operator": "BlockStatement"
+      "Operator": "ConditionalExpression"
     },
     {
       "File": "src/matrix/rollupBuilders.js",
       "Line": 111,
       "Status": "Killed",
       "Operator": "CallExpression"
+    },
+    {
+      "File": "src/matrix/rollupBuilders.js",
+      "Line": 126,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
     },
     {
       "File": "src/matrix/rollupBuilders.js",
@@ -12881,13 +12881,13 @@
       "File": "src/matrix/rollupBuilders.js",
       "Line": 128,
       "Status": "Killed",
-      "Operator": "CallExpression"
+      "Operator": "ConditionalExpression"
     },
     {
       "File": "src/matrix/rollupBuilders.js",
       "Line": 128,
       "Status": "Killed",
-      "Operator": "ConditionalExpression"
+      "Operator": "CallExpression"
     },
     {
       "File": "src/matrix/scopeHistory.js",
@@ -13301,12 +13301,6 @@
       "File": "src/matrix/scopeHistory.js",
       "Line": 42,
       "Status": "Killed",
-      "Operator": "ConditionalExpression"
-    },
-    {
-      "File": "src/matrix/scopeHistory.js",
-      "Line": 42,
-      "Status": "Killed",
       "Operator": "MethodExpression"
     },
     {
@@ -13317,15 +13311,21 @@
     },
     {
       "File": "src/matrix/scopeHistory.js",
-      "Line": 46,
+      "Line": 42,
       "Status": "Killed",
-      "Operator": "ArrayDeclaration"
+      "Operator": "ConditionalExpression"
     },
     {
       "File": "src/matrix/scopeHistory.js",
       "Line": 42,
       "Status": "Survived",
       "Operator": "LogicalOperator"
+    },
+    {
+      "File": "src/matrix/scopeHistory.js",
+      "Line": 46,
+      "Status": "Killed",
+      "Operator": "ArrayDeclaration"
     },
     {
       "File": "src/matrix/scopeHistory.js",
@@ -13338,12 +13338,6 @@
       "Line": 47,
       "Status": "Killed",
       "Operator": "EqualityOperator"
-    },
-    {
-      "File": "src/matrix/scopeHistory.js",
-      "Line": 47,
-      "Status": "Killed",
-      "Operator": "BlockStatement"
     },
     {
       "File": "src/matrix/scopeHistory.js",
@@ -13356,6 +13350,12 @@
       "Line": 47,
       "Status": "Timeout",
       "Operator": "UpdateOperator"
+    },
+    {
+      "File": "src/matrix/scopeHistory.js",
+      "Line": 47,
+      "Status": "Killed",
+      "Operator": "BlockStatement"
     },
     {
       "File": "src/matrix/scopeHistory.js",
@@ -13445,13 +13445,13 @@
       "File": "src/matrix/scopeHistory.js",
       "Line": 133,
       "Status": "Killed",
-      "Operator": "ConditionalExpression"
+      "Operator": "EqualityOperator"
     },
     {
       "File": "src/matrix/scopeHistory.js",
       "Line": 133,
       "Status": "Killed",
-      "Operator": "EqualityOperator"
+      "Operator": "ConditionalExpression"
     },
     {
       "File": "src/matrix/scopeHistory.js",
@@ -13517,13 +13517,13 @@
       "File": "src/matrix/scopeHistory.js",
       "Line": 135,
       "Status": "Killed",
-      "Operator": "EqualityOperator"
+      "Operator": "ConditionalExpression"
     },
     {
       "File": "src/matrix/scopeHistory.js",
       "Line": 135,
       "Status": "Killed",
-      "Operator": "ConditionalExpression"
+      "Operator": "EqualityOperator"
     },
     {
       "File": "src/matrix/scopeHistory.js",
@@ -13571,6 +13571,12 @@
       "File": "src/matrix/scopeHistory.js",
       "Line": 140,
       "Status": "Killed",
+      "Operator": "BlockStatement"
+    },
+    {
+      "File": "src/matrix/scopeHistory.js",
+      "Line": 140,
+      "Status": "Killed",
       "Operator": "MethodExpression"
     },
     {
@@ -13581,15 +13587,15 @@
     },
     {
       "File": "src/matrix/scopeHistory.js",
-      "Line": 140,
+      "Line": 142,
       "Status": "Killed",
-      "Operator": "BlockStatement"
+      "Operator": "BooleanLiteral"
     },
     {
       "File": "src/matrix/scopeHistory.js",
       "Line": 142,
       "Status": "Killed",
-      "Operator": "BooleanLiteral"
+      "Operator": "ConditionalExpression"
     },
     {
       "File": "src/matrix/scopeHistory.js",
@@ -13602,12 +13608,6 @@
       "Line": 145,
       "Status": "Killed",
       "Operator": "BooleanLiteral"
-    },
-    {
-      "File": "src/matrix/scopeHistory.js",
-      "Line": 142,
-      "Status": "Killed",
-      "Operator": "ConditionalExpression"
     },
     {
       "File": "src/matrix/scopeHistory.js",
@@ -13683,15 +13683,15 @@
     },
     {
       "File": "src/matrix/scopeHistory.js",
-      "Line": 153,
-      "Status": "Killed",
-      "Operator": "LogicalOperator"
-    },
-    {
-      "File": "src/matrix/scopeHistory.js",
       "Line": 154,
       "Status": "Killed",
       "Operator": "BooleanLiteral"
+    },
+    {
+      "File": "src/matrix/scopeHistory.js",
+      "Line": 153,
+      "Status": "Killed",
+      "Operator": "LogicalOperator"
     },
     {
       "File": "src/matrix/scopeHistory.js",
@@ -13733,13 +13733,13 @@
       "File": "src/matrix/scopeHistory.js",
       "Line": 170,
       "Status": "Killed",
-      "Operator": "ConditionalExpression"
+      "Operator": "LogicalOperator"
     },
     {
       "File": "src/matrix/scopeHistory.js",
       "Line": 170,
       "Status": "Killed",
-      "Operator": "LogicalOperator"
+      "Operator": "ConditionalExpression"
     },
     {
       "File": "src/matrix/scopeHistory.js",
@@ -13841,12 +13841,6 @@
       "File": "src/matrix/scopeHistory.js",
       "Line": 185,
       "Status": "Killed",
-      "Operator": "ConditionalExpression"
-    },
-    {
-      "File": "src/matrix/scopeHistory.js",
-      "Line": 185,
-      "Status": "Killed",
       "Operator": "BooleanLiteral"
     },
     {
@@ -13863,6 +13857,12 @@
     },
     {
       "File": "src/matrix/scopeHistory.js",
+      "Line": 185,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/matrix/scopeHistory.js",
       "Line": 187,
       "Status": "Killed",
       "Operator": "ConditionalExpression"
@@ -13872,6 +13872,12 @@
       "Line": 187,
       "Status": "Killed",
       "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/matrix/scopeHistory.js",
+      "Line": 187,
+      "Status": "Killed",
+      "Operator": "BooleanLiteral"
     },
     {
       "File": "src/matrix/scopeHistory.js",
@@ -13883,7 +13889,7 @@
       "File": "src/matrix/scopeHistory.js",
       "Line": 187,
       "Status": "Killed",
-      "Operator": "BooleanLiteral"
+      "Operator": "ConditionalExpression"
     },
     {
       "File": "src/matrix/scopeHistory.js",
@@ -13893,12 +13899,6 @@
     },
     {
       "File": "src/matrix/scopeHistory.js",
-      "Line": 187,
-      "Status": "Killed",
-      "Operator": "ConditionalExpression"
-    },
-    {
-      "File": "src/matrix/scopeHistory.js",
       "Line": 189,
       "Status": "Killed",
       "Operator": "ConditionalExpression"
@@ -13908,18 +13908,18 @@
       "Line": 189,
       "Status": "Killed",
       "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/matrix/scopeHistory.js",
+      "Line": 189,
+      "Status": "Killed",
+      "Operator": "EqualityOperator"
     },
     {
       "File": "src/matrix/scopeHistory.js",
       "Line": 190,
       "Status": "Killed",
       "Operator": "BooleanLiteral"
-    },
-    {
-      "File": "src/matrix/scopeHistory.js",
-      "Line": 189,
-      "Status": "Killed",
-      "Operator": "EqualityOperator"
     },
     {
       "File": "src/matrix/scopeHistory.js",
@@ -13943,13 +13943,13 @@
       "File": "src/matrix/scopeHistory.js",
       "Line": 197,
       "Status": "Killed",
-      "Operator": "BooleanLiteral"
+      "Operator": "ConditionalExpression"
     },
     {
       "File": "src/matrix/scopeHistory.js",
       "Line": 197,
       "Status": "Killed",
-      "Operator": "ConditionalExpression"
+      "Operator": "BooleanLiteral"
     },
     {
       "File": "src/matrix/scopeHistory.js",
@@ -14009,13 +14009,13 @@
       "File": "src/matrix/scopeHistory.js",
       "Line": 200,
       "Status": "Killed",
-      "Operator": "BlockStatement"
+      "Operator": "ConditionalExpression"
     },
     {
       "File": "src/matrix/scopeHistory.js",
       "Line": 200,
       "Status": "Killed",
-      "Operator": "ConditionalExpression"
+      "Operator": "BlockStatement"
     },
     {
       "File": "src/matrix/scopeHistory.js",
@@ -14045,19 +14045,13 @@
       "File": "src/matrix/scopeHistory.js",
       "Line": 205,
       "Status": "Killed",
-      "Operator": "EqualityOperator"
+      "Operator": "ConditionalExpression"
     },
     {
       "File": "src/matrix/scopeHistory.js",
       "Line": 205,
       "Status": "Killed",
-      "Operator": "ConditionalExpression"
-    },
-    {
-      "File": "src/matrix/scopeHistory.js",
-      "Line": 211,
-      "Status": "Killed",
-      "Operator": "ArrayDeclaration"
+      "Operator": "EqualityOperator"
     },
     {
       "File": "src/matrix/scopeHistory.js",
@@ -14075,7 +14069,7 @@
       "File": "src/matrix/scopeHistory.js",
       "Line": 211,
       "Status": "Killed",
-      "Operator": "ArrowFunction"
+      "Operator": "ArrayDeclaration"
     },
     {
       "File": "src/matrix/scopeHistory.js",
@@ -14085,9 +14079,9 @@
     },
     {
       "File": "src/matrix/scopeHistory.js",
-      "Line": 223,
+      "Line": 211,
       "Status": "Killed",
-      "Operator": "ConditionalExpression"
+      "Operator": "ArrowFunction"
     },
     {
       "File": "src/matrix/scopeHistory.js",
@@ -14109,6 +14103,12 @@
     },
     {
       "File": "src/matrix/scopeHistory.js",
+      "Line": 223,
+      "Status": "Killed",
+      "Operator": "ConditionalExpression"
+    },
+    {
+      "File": "src/matrix/scopeHistory.js",
       "Line": 235,
       "Status": "Killed",
       "Operator": "ArrayDeclaration"
@@ -14116,13 +14116,13 @@
     {
       "File": "src/matrix/scopeHistory.js",
       "Line": 238,
-      "Status": "Killed",
+      "Status": "Survived",
       "Operator": "ConditionalExpression"
     },
     {
       "File": "src/matrix/scopeHistory.js",
       "Line": 238,
-      "Status": "Survived",
+      "Status": "Killed",
       "Operator": "ConditionalExpression"
     },
     {
