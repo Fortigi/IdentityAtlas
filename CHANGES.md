@@ -1,5 +1,13 @@
 ## Changes in this PR
 
+- Upgraded the PowerShell complexity measurer to PSComplexity 0.5.1. Both metrics score the branching PowerShell expresses through its own flow constructs — `ForEach-Object`/`Where-Object` (and aliases), the `&&`/`||` pipeline chains, and the `??`/`??=` operators — and the gate now refuses a path it could not read instead of reporting a pass over code it never measured. Complexity numbers are unchanged: every unit still sits under its ceiling.
+- Upgraded the PowerShell mutation-testing tool to PSMutant 0.4.0, which refuses a per-mutant timeout too small to run the real suite, refuses a config path that escapes the source root, and reports *why* a run failed rather than leaving the caller to guess.
+- Fixed the PowerShell mutation gate, which had been failing since mid-August on an `exclusions` key in its config that no PSMutant since 0.3.0 accepts. The key was never read by the tool — it documents which eligible files are deliberately left unmutated — so it is now `_exclusions`, which the validator ignores by design. All twenty entries and their reasons are unchanged.
+- Corrected the published PowerShell mutation score. The last successful run predates a large expansion of the tested surface, so the figure on the coverage page described 249 mutants when the suite now generates 1777. Re-measured: **1777 of 1777 caught, 100%**, up from a reported 93.2% over a seventh of the code.
+- Removed 127 equivalence declarations from the mutation config, all of which had stopped describing reality: 93 named mutants the suite now catches, 39 named mutants that no longer exist, and 3 had become ambiguous enough to exclude mutants nobody argued about. No mutant survives today, so no declaration is needed to explain one.
+
+## Changes in this PR
+
 - Upgraded the PowerShell complexity measurer to PSComplexity 0.3.0, which now scores the branching PowerShell expresses through its own flow constructs — `ForEach-Object`/`Where-Object` (and aliases), the `&&`/`||` pipeline chains, and the `??`/`??=` operators — that earlier versions read as straight-line code, and no longer reports a passing gate when it silently measured nothing.
 - Upgraded the PowerShell mutation-testing tool to PSMutant 0.3.2, which refuses a per-mutant timeout too small to run the real suite (instead of reporting a flattering perfect score) and refuses a config path that escapes the source root.
 
