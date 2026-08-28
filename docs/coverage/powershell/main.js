@@ -321,9 +321,9 @@ var assemblies = [
       { "name": "tools/crawlers/entra-id/EntraIDCrawler.AppOwners", "rp": "entra_id_AppOwners.html", "cl": 92, "ucl": 7, "cal": 99, "tl": 235, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
       { "name": "tools/crawlers/entra-id/EntraIDCrawler.AppPermissions", "rp": "entra_id_AppPermissions.html", "cl": 96, "ucl": 1, "cal": 97, "tl": 238, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
       { "name": "tools/crawlers/entra-id/EntraIDCrawler.AppRoles", "rp": "entra_id_AppRoles.html", "cl": 65, "ucl": 0, "cal": 65, "tl": 155, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
-      { "name": "tools/crawlers/entra-id/EntraIDCrawler.Functions", "rp": "entra_id_Functions.html", "cl": 151, "ucl": 19, "cal": 170, "tl": 538, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
+      { "name": "tools/crawlers/entra-id/EntraIDCrawler.Functions", "rp": "entra_id_Functions.html", "cl": 165, "ucl": 19, "cal": 184, "tl": 584, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
       { "name": "tools/crawlers/entra-id/EntraIDCrawler.Orchestration", "rp": "entra_id_Orchestration.html", "cl": 10, "ucl": 0, "cal": 10, "tl": 60, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
-      { "name": "tools/crawlers/entra-id/EntraIDCrawler.Phases", "rp": "entra_id_Phases.html", "cl": 788, "ucl": 17, "cal": 805, "tl": 1871, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
+      { "name": "tools/crawlers/entra-id/EntraIDCrawler.Phases", "rp": "entra_id_Phases.html", "cl": 781, "ucl": 17, "cal": 798, "tl": 1855, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
       { "name": "tools/crawlers/entra-id/EntraIDCrawler.PrincipalRelationships", "rp": "entra_id_PrincipalRelationships.html", "cl": 24, "ucl": 30, "cal": 54, "tl": 154, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
       { "name": "tools/crawlers/entra-id/EntraIDCrawler.Transform", "rp": "entra_id_Transform.html", "cl": 422, "ucl": 0, "cal": 422, "tl": 878, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
       { "name": "tools/crawlers/entra-id/Start-EntraIDCrawler", "rp": "entra_id_tools_crawlers_entra_id_Start_EntraIDCrawler.html", "cl": 0, "ucl": 76, "cal": 76, "tl": 368, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
@@ -334,7 +334,7 @@ var assemblies = [
       { "name": "tools/crawlers/midpoint/Invoke-MidpointApi", "rp": "midpoint_tools_crawlers_midpoint_Invoke_MidpointApi.html", "cl": 246, "ucl": 8, "cal": 254, "tl": 721, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
       { "name": "tools/crawlers/midpoint/MidpointCrawler.Functions", "rp": "midpoint_Functions.html", "cl": 64, "ucl": 0, "cal": 64, "tl": 159, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
       { "name": "tools/crawlers/midpoint/MidpointCrawler.Phases", "rp": "midpoint_Phases.html", "cl": 409, "ucl": 6, "cal": 415, "tl": 923, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
-      { "name": "tools/crawlers/midpoint/MidpointCrawler.Transform", "rp": "midpoint_Transform.html", "cl": 135, "ucl": 0, "cal": 135, "tl": 321, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
+      { "name": "tools/crawlers/midpoint/MidpointCrawler.Transform", "rp": "midpoint_Transform.html", "cl": 138, "ucl": 0, "cal": 138, "tl": 334, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
       { "name": "tools/crawlers/midpoint/Start-MidpointCrawler", "rp": "midpoint_tools_crawlers_midpoint_Start_MidpointCrawler.html", "cl": 0, "ucl": 75, "cal": 75, "tl": 201, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
     ]},
   {
@@ -349,8 +349,8 @@ var assemblies = [
     "name": "tools/crawlers/omada",
     "classes": [
       { "name": "tools/crawlers/omada/Get-OmadaHelpers", "rp": "omada_tools_crawlers_omada_Get_OmadaHelpers.html", "cl": 18, "ucl": 0, "cal": 18, "tl": 70, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
-      { "name": "tools/crawlers/omada/OmadaCrawler.Functions", "rp": "omada_Functions.html", "cl": 35, "ucl": 0, "cal": 35, "tl": 116, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
-      { "name": "tools/crawlers/omada/OmadaCrawler.Phases", "rp": "omada_Phases.html", "cl": 514, "ucl": 7, "cal": 521, "tl": 1081, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
+      { "name": "tools/crawlers/omada/OmadaCrawler.Functions", "rp": "omada_Functions.html", "cl": 50, "ucl": 3, "cal": 53, "tl": 160, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
+      { "name": "tools/crawlers/omada/OmadaCrawler.Phases", "rp": "omada_Phases.html", "cl": 499, "ucl": 4, "cal": 503, "tl": 1061, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
       { "name": "tools/crawlers/omada/OmadaCrawler.Transform", "rp": "omada_Transform.html", "cl": 188, "ucl": 0, "cal": 188, "tl": 372, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
       { "name": "tools/crawlers/omada/Start-OmadaCrawler", "rp": "omada_tools_crawlers_omada_Start_OmadaCrawler.html", "cl": 0, "ucl": 92, "cal": 92, "tl": 282, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
     ]},
@@ -358,7 +358,7 @@ var assemblies = [
     "name": "tools/crawlers/shared",
     "classes": [
       { "name": "tools/crawlers/shared/Get-CapabilityId", "rp": "shared_tools_crawlers_shared_Get_CapabilityId.html", "cl": 7, "ucl": 0, "cal": 7, "tl": 47, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
-      { "name": "tools/crawlers/shared/Invoke-CrawlerIngest", "rp": "shared_tools_crawlers_shared_Invoke_CrawlerIngest.html", "cl": 107, "ucl": 1, "cal": 108, "tl": 294, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
+      { "name": "tools/crawlers/shared/Invoke-CrawlerIngest", "rp": "shared_tools_crawlers_shared_Invoke_CrawlerIngest.html", "cl": 110, "ucl": 1, "cal": 111, "tl": 304, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
     ]},
   {
     "name": "tools/powershell-sdk/graph",

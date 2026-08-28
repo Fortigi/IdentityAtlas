@@ -57,7 +57,7 @@ This document lists all major software components, dependencies, and infrastruct
 |---------|---------|---------|---------|
 | vitest | ^4.1.10 | Unit testing framework | MIT |
 | supertest | ^7.2.2 | HTTP integration testing | MIT |
-| eslint | ^10.8.1 | JavaScript linter | MIT |
+| eslint | ^10.9.0 | JavaScript linter | MIT |
 | eslint-plugin-security | ^4.0.1 | Security-focused lint rules | Apache 2.0 |
 | esbuild | ^0.28.2 | Bundler for desktop launcher build | MIT |
 | patch-package | ^8.0.1 | Patch third-party packages | MIT |
@@ -85,7 +85,7 @@ This document lists all major software components, dependencies, and infrastruct
 
 | Package | Version | Purpose | License |
 |---------|---------|---------|---------|
-| @azure/msal-browser | ^5.18.0 | Microsoft Authentication Library | MIT |
+| @azure/msal-browser | ^5.19.0 | Microsoft Authentication Library | MIT |
 
 ### UI Interactions
 
@@ -108,7 +108,7 @@ This document lists all major software components, dependencies, and infrastruct
 | Package | Version | Purpose | License |
 |---------|---------|---------|---------|
 | @vitejs/plugin-react | ^6.0.5 | Vite React plugin | MIT |
-| eslint | ^10.8.1 | JavaScript linter | MIT |
+| eslint | ^10.9.0 | JavaScript linter | MIT |
 | eslint-plugin-react-hooks | ^7.1.1 | React hooks linting rules | MIT |
 | eslint-plugin-react-refresh | ^0.5.4 | React refresh linting | MIT |
 | globals | ^17.11.0 | Global variable definitions | MIT |
@@ -116,7 +116,7 @@ This document lists all major software components, dependencies, and infrastruct
 | @axe-core/playwright | ^4.13.0 | Accessibility testing | MPL 2.0 |
 | @eslint/js | ^10.0.1 | ESLint JavaScript rules | MIT |
 | @types/react | ^19.2.18 | TypeScript type definitions for React | MIT |
-| @types/react-dom | ^19.2.4 | TypeScript type definitions for React DOM | MIT |
+| @types/react-dom | ^19.2.5 | TypeScript type definitions for React DOM | MIT |
 
 ---
 
