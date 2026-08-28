@@ -31,8 +31,8 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-if (-not (Get-Module PSComplexity -ListAvailable | Where-Object Version -ge '0.3.0')) {
-    Install-Module PSComplexity -RequiredVersion 0.3.0 -Force -Scope CurrentUser
+if (-not (Get-Module PSComplexity -ListAvailable | Where-Object Version -ge '0.5.1')) {
+    Install-Module PSComplexity -RequiredVersion 0.5.1 -Force -Scope CurrentUser
 }
 Import-Module PSComplexity
 
