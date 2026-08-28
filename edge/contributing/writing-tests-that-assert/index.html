@@ -5218,7 +5218,7 @@ coverage cannot.</p>
 <p>Config: <code>.ci/psmutant.config.json</code>. Every eligible crawler file must be in
 <code>mutate</code> or in <code>exclusions</code> with a written reason, enforced by
 <code>test/unit/PSMutationScope.Tests.ps1</code>.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>Install-Module<span class="w"> </span>PSMutant<span class="w"> </span>-RequiredVersion<span class="w"> </span><span class="m">0</span>.3.2
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>Install-Module<span class="w"> </span>PSMutant<span class="w"> </span>-RequiredVersion<span class="w"> </span><span class="m">0</span>.4.0
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>Invoke-PSMutation<span class="w"> </span>-ConfigFile<span class="w"> </span>.ci/psmutant.config.json<span class="w"> </span>-SourceRoot<span class="w"> </span>.
 </code></pre></div>
 <p><strong>Map a file to the cheapest suite that exercises it.</strong> The mapped tests run once
