@@ -116,7 +116,7 @@ This document lists all major software components, dependencies, and infrastruct
 | @axe-core/playwright | ^4.13.0 | Accessibility testing | MPL 2.0 |
 | @eslint/js | ^10.0.1 | ESLint JavaScript rules | MIT |
 | @types/react | ^19.2.18 | TypeScript type definitions for React | MIT |
-| @types/react-dom | ^19.2.4 | TypeScript type definitions for React DOM | MIT |
+| @types/react-dom | ^19.2.5 | TypeScript type definitions for React DOM | MIT |
 
 ---
 
