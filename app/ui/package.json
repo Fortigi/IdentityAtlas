@@ -47,7 +47,7 @@
     "@testing-library/user-event": "^14.6.6",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.5",
-    "@vitejs/plugin-react": "^6.0.5",
+    "@vitejs/plugin-react": "^6.1.0",
     "@vitest/coverage-v8": "^4.1.10",
     "eslint": "^10.9.0",
     "eslint-plugin-react-hooks": "^7.1.1",
@@ -55,8 +55,8 @@
     "eslint-plugin-sonarjs": "4.2.0",
     "globals": "^17.11.0",
     "jsdom": "^30.0.1",
-    "vite": "^8.2.1",
-    "vitest": "^4.1.10"
+    "vite": "^8.2.2",
+    "vitest": "^4.1.11"
   },
   "overrides": {
     "brace-expansion": "^5.0.8"
