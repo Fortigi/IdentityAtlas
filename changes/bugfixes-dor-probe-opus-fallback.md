@@ -1,0 +1,2 @@
+- Fixed the DoR interview/probe pipeline silently stalling issues at "Ready for AI probe" when the primary AI model (Fable 5, which requires an active Max subscription) rejects the request outright — the automation now automatically retries with Opus 5 in that case, instead of leaving the issue untouched with no comment and no board status change.
+- The DoR feature-request and bug-report pipelines now fail visibly (a red CI run with a clear error) if both the primary and retry model calls fail, instead of quietly doing nothing.
