@@ -1,5 +1,13 @@
 ## Changes in this PR
 
+- Fixed the PowerShell test job reporting a failing test as a coverage problem. Pester's JUnit export crashes on the control characters its own failure formatting embeds, and the crash took the result object with it — so the check for "did any test fail?" read a missing value, passed, and the run died on the coverage floor at 0% instead, blaming coverage for a test failure it never showed. The export is off (nothing consumed it; the job log already prints every test's outcome), and the job now stops with a clear message if the test run returns nothing at all.
+- Fixed the PowerShell unit-test job failing on the mutation-scope check since the mutation config's `exclusions` map was renamed to `_exclusions`. The check still read the old name, so all twenty reviewed exclusions — each one a written decision about a file that cannot usefully be mutation-tested — looked like files nobody had triaged. It now reads the map under either name, so the decisions are visible again and no file has to be re-declared as untriaged.
+- Added a check that the mutation-scope guard can actually see the exclusions map, so a future rename empties it loudly instead of silently reporting twenty already-decided files as new work.
+- The Pester job now also runs when its own configuration changes, so an edit to the mutation-scope files is checked by the job it configures instead of being skipped.
+- Upgraded the PowerShell mutation-testing tool to PSMutant 0.5.0 and switched the weekly mutation run to evaluate mutants in parallel, which cuts its runtime several-fold. The score is unaffected: results are recorded in a fixed order, so the report does not depend on which worker finished first.
+
+## Changes in this PR
+
 - Fixed the DoR interview/probe pipeline silently stalling issues at "Ready for AI probe" when the primary AI model (Fable 5, which requires an active Max subscription) rejects the request outright — the automation now automatically retries with Opus 5 in that case, instead of leaving the issue untouched with no comment and no board status change.
 - The DoR feature-request and bug-report pipelines now fail visibly (a red CI run with a clear error) if both the primary and retry model calls fail, instead of quietly doing nothing.
 - Extended the same hardening to every other automated workflow that calls an AI model: the nightly docs review and nightly test-coverage review now fail visibly instead of a rejected/unentitled model looking identical to "nothing needed doing"; the Cut Release / Cut Beta / Cut Hotfix workflows no longer let a release-notes polishing failure block the release — they ship the already-valid raw changelog bullets instead and just warn.
