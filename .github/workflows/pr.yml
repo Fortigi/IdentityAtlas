@@ -146,6 +146,7 @@ jobs:
               - 'setup/docker/Invoke-CrawlerJob.ps1'
               - 'setup/IdentityAtlas.psm1'
               - 'test/unit/**'
+              - 'azure/**'
               # Self-referencing, as coverage.yml does: editing the scope config or this job's
               # own definition must run the job it configures, not silently skip it (#1088).
               - '.ci/psmutant.config.json'
