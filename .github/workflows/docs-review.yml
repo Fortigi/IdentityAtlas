@@ -68,6 +68,13 @@ jobs:
       - name: Review docs with Claude Code
         if: steps.changes.outputs.has_changes == 'true'
         id: claude
+        continue-on-error: true
+        # continue-on-error, not a same-task retry: this step can Write/Edit and commit, so blindly
+        # rerunning it on ANY failure risks a duplicate/conflicting commit if the failure happened
+        # AFTER partial work rather than at session start (unlike the read-only DoR spec agents, which
+        # only ever emit files to .dor/out/** and are safe to redo from scratch). A rejected/unentitled
+        # model (e.g. TRIAGE_LLM_MODEL pointing at a Max-gated model whose subscription lapsed — see
+        # dor-agent.yml) still fails loudly below instead of silently producing "no PR needed" forever.
         uses: anthropics/claude-code-action@e5ad3c7725bc2459721893f88879fef9dbcf97b0 # v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
@@ -131,6 +138,14 @@ jobs:
 
             Important: quality over quantity. One accurate sentence is better than a
             paragraph of filler. Do not update docs just to prove you did something.
+
+      # Without this, a rejected/unentitled model call looks identical to "docs are already fine" —
+      # both end in no PR — and the failure goes unnoticed indefinitely.
+      - name: Fail loudly if the review couldn't run
+        if: steps.changes.outputs.has_changes == 'true' && steps.claude.outcome == 'failure'
+        run: |
+          echo "::error::The docs review model call failed — check CLAUDE_CODE_OAUTH_TOKEN / TRIAGE_LLM_MODEL entitlements/subscription status. No docs were reviewed this run."
+          exit 1
 
       - name: Check for changes
         if: steps.changes.outputs.has_changes == 'true'
