@@ -21,7 +21,7 @@ import ContextPicker from '@ui/components/contexts/ContextPicker';
 import AttributePicker from './AttributePicker';
 import { variantMeta, targetTypeMeta } from '@ui/utils/contextStyles';
 import { useDialog } from '@ui/components/dialogContext';
-import { friendlyLabel } from '@ui/utils/formatters';
+import { attributeLabel, friendlyLabel } from '@ui/utils/formatters';
 import { DEFAULT_SORT, normalizeMatrixFilter } from '@ui/utils/matrixFilter';
 import { deriveSteps } from './MatrixFilterWizard.helpers';
 
@@ -536,7 +536,7 @@ export function Step2Content({ rollupContent, rollupMetric, rollup, onChange, on
         <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-gray-400 mb-2">Roll-up content</h4>
         <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
           {rollup
-            ? <>You rolled up by <span className="font-semibold">{friendlyLabel(String(rollup).replace(/^ext\./, ''))}</span>. Choose what to put in the matrix.</>
+            ? <>You rolled up by <span className="font-semibold">{attributeLabel(rollup) || friendlyLabel(String(rollup).replace(/^ext\./, ''))}</span>. Choose what to put in the matrix.</>
             : <>You rolled up by <span className="font-semibold">Manager Hierarchy</span>. Choose what to put in the matrix.</>}
         </p>
         <div className="space-y-2">
@@ -667,8 +667,11 @@ function Step5Sort({ sortAttributes, columns, disabled, onChange, foldOnLoad = '
                 onChange={e => update(i, { attribute: e.target.value })}
                 className="flex-1 max-w-xs border rounded px-2 py-1 text-sm bg-white dark:bg-gray-800 dark:text-gray-200 dark:border-gray-600"
               >
-                {!options.includes(r.attribute) && <option value={r.attribute}>{r.attribute}</option>}
-                {options.map(o => <option key={o} value={o}>{o}</option>)}
+                {/* Option TEXT is the display name; option VALUE stays the stored
+                    key (`ext.extension_<appId>_sfTeamID`) so the sort still
+                    addresses the real attribute — labels only, never keys (#872). */}
+                {!options.includes(r.attribute) && <option value={r.attribute}>{attributeLabel(r.attribute) || r.attribute}</option>}
+                {options.map(o => <option key={o} value={o}>{attributeLabel(o) || o}</option>)}
               </select>
               <button
                 type="button"

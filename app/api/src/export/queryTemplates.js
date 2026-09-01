@@ -16,6 +16,42 @@
 
 const PAGE_SIZE = 1000;
 
+// Titles for the expanded `extendedAttributes` columns.
+//
+// The rule that turns `extension_<32-hex appId>_sAMAccountName` into
+// `sAMAccountName` lives server-side (`lib/attributeLabels.js`) and is LOOKED UP
+// here rather than re-implemented in M. Two languages implementing one regex is
+// exactly how the workbook and the browser would drift apart, and the requirement
+// is that a header is character-identical to the on-screen label.
+//
+// `ext_<key>` stays the title for every key the API does not relabel (so
+// `userType` still exports as `ext_userType`, unchanged for workbooks already in
+// the field) AND is the fallback when a label would collide with a real column or
+// with another expanded key on the same sheet — a JSON key literally named
+// `displayName` must not produce a duplicate column name, which Power Query
+// rejects outright.
+//
+// Emitted only for the sheets whose entity has a label target; the rest keep the
+// plain `ext_` naming with no extra request.
+function extColumnNames(labelTarget) {
+  const lookup = labelTarget
+    ? `if not HasExt then [] else
+      try Json.Document(Web.Contents(BaseUrl, [
+          RelativePath = "attribute-labels",
+          Query = [target = "${labelTarget}"],
+          Headers = Headers
+      ]))[labels] otherwise []`
+    : '[]';
+  return `  Labels = ${lookup},
+  Taken = if not HasExt then {} else List.RemoveItems(Table.ColumnNames(Expanded), {"extendedAttributes"}),
+  ExtNames = List.Accumulate(ExtKeys, {}, (names, k) =>
+      let
+          label = Record.FieldOrDefault(Labels, k, null),
+          usable = label <> null and not List.Contains(Taken, label) and not List.Contains(names, label)
+      in
+          names & { if usable then label else "ext_" & k }),`;
+}
+
 // Shared paginated fetch template. Two responsibilities:
 //
 //   1. Walk the entire dataset across N pages of PAGE_SIZE records. We use
@@ -32,6 +68,10 @@ const PAGE_SIZE = 1000;
 //      sparsely-populated keys (only some users have employeeId) still
 //      appear. Expanded columns are prefixed `ext_` to avoid collisions
 //      with real columns of the same name.
+//
+//      A key the API has a display name for (see EXT_COLUMN_NAMES below) is
+//      titled with that name instead — so the workbook header reads exactly
+//      what the browser shows.
 //
 // The user never edits this; they edit BaseUrl / AuthToken on the Settings
 // sheet and the queries pick up the new values on the next refresh.
@@ -90,9 +130,9 @@ let
   ExtKeys = if not HasExt then {} else List.Distinct(
       List.Combine(List.Transform(Expanded[extendedAttributes],
           (r) => if r = null then {} else Record.FieldNames(r)))),
+EXT_COLUMN_NAMES
   ExtExpanded = if not HasExt or List.IsEmpty(ExtKeys) then Expanded
-                else Table.ExpandRecordColumn(Expanded, "extendedAttributes",
-                    ExtKeys, List.Transform(ExtKeys, (k) => "ext_" & k))
+                else Table.ExpandRecordColumn(Expanded, "extendedAttributes", ExtKeys, ExtNames)
 in
   ExtExpanded
 `.trim();
@@ -101,7 +141,7 @@ in
 // fetch (e.g. Resources passes includeBusinessRoles=true so the governance
 // resources the UI hides are included in the export). Keys are emitted as M
 // record fields alongside limit/offset; values are sent as strings.
-function paginatedQuery(endpointPath, extraQuery) {
+function paginatedQuery(endpointPath, extraQuery, labelTarget) {
   const extra = extraQuery
     ? Object.entries(extraQuery)
         .map(([k, v]) => `, ${k} = "${v}"`)
@@ -109,7 +149,8 @@ function paginatedQuery(endpointPath, extraQuery) {
     : '';
   return PAGINATED_FETCH
     .replace('ENDPOINT_PATH', endpointPath)
-    .replace('EXTRA_QUERY', extra);
+    .replace('EXTRA_QUERY', extra)
+    .replace('EXT_COLUMN_NAMES', extColumnNames(labelTarget));
 }
 
 // `/api/systems` predates the {data,total} convention used by every other
@@ -134,26 +175,28 @@ let
   ExtKeys = if not HasExt then {} else List.Distinct(
       List.Combine(List.Transform(Expanded[extendedAttributes],
           (r) => if r = null then {} else Record.FieldNames(r)))),
+EXT_COLUMN_NAMES
   ExtExpanded = if not HasExt or List.IsEmpty(ExtKeys) then Expanded
-                else Table.ExpandRecordColumn(Expanded, "extendedAttributes",
-                    ExtKeys, List.Transform(ExtKeys, (k) => "ext_" & k))
+                else Table.ExpandRecordColumn(Expanded, "extendedAttributes", ExtKeys, ExtNames)
 in
   ExtExpanded
 `.trim();
 
-function arrayQuery(endpointPath) {
-  return ARRAY_FETCH.replace('ENDPOINT_PATH', endpointPath);
+function arrayQuery(endpointPath, labelTarget) {
+  return ARRAY_FETCH
+    .replace('ENDPOINT_PATH', endpointPath)
+    .replace('EXT_COLUMN_NAMES', extColumnNames(labelTarget));
 }
 
 // Each tab description follows the {sheet, endpoint, m} shape. The `sheet`
 // becomes the Excel tab label and the named query name; `endpoint` is the
 // API path inside `RelativePath` (so the workbook works against any host).
 export const QUERIES = [
-  { sheet: 'Systems',                endpoint: 'systems',                m: arrayQuery('systems') },
-  { sheet: 'Principals',             endpoint: 'users',                  m: paginatedQuery('users') },
-  { sheet: 'Resources',              endpoint: 'resources',              m: paginatedQuery('resources', { includeBusinessRoles: 'true' }) },
+  { sheet: 'Systems',                endpoint: 'systems',                m: arrayQuery('systems', 'system') },
+  { sheet: 'Principals',             endpoint: 'users',                  m: paginatedQuery('users', null, 'principal') },
+  { sheet: 'Resources',              endpoint: 'resources',              m: paginatedQuery('resources', { includeBusinessRoles: 'true' }, 'resource') },
   { sheet: 'Assignments',            endpoint: 'assignments',            m: paginatedQuery('assignments') },
-  { sheet: 'Identities',             endpoint: 'identities',             m: paginatedQuery('identities') },
+  { sheet: 'Identities',             endpoint: 'identities',             m: paginatedQuery('identities', null, 'identity') },
   { sheet: 'IdentityMembers',        endpoint: 'identity-members',       m: paginatedQuery('identity-members') },
   { sheet: 'ResourceRelationships',  endpoint: 'resource-relationships', m: paginatedQuery('resource-relationships') },
   { sheet: 'Contexts',               endpoint: 'context-list',           m: paginatedQuery('context-list') },

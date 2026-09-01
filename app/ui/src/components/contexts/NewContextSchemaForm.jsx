@@ -1,6 +1,7 @@
 import { useEffect, useReducer, useState } from 'react';
 import { Field } from './ModalPrimitives';
 import { prettifyName } from './NewContextWizard.helpers';
+import { attributeLabel } from '@ui/utils/formatters';
 
 // useState-equivalent backed by useReducer (value + functional updates):
 // dispatch isn't flagged by react-hooks/set-state-in-effect, so the JSON
@@ -131,7 +132,9 @@ function AttributeListField({ value, options, onChange }) {
               )}
               {extended.length > 0 && (
                 <optgroup label="Extended attributes">
-                  {extended.map(o => <option key={o} value={o}>{o}</option>)}
+                  {/* Label shown, stored key sent — the plugin still reads the
+                      real extendedAttributes key (#872). */}
+                  {extended.map(o => <option key={o} value={o}>{attributeLabel(o) || o}</option>)}
                 </optgroup>
               )}
               <option value={OTHER}>(other — type a name)</option>

@@ -14,6 +14,7 @@ import { buildOrderBy } from '../../lib/listSort.js';
 import { parseListParams } from '../../lib/listParams.js';
 import { useSql, db, ensureTagTables, buildFilterWhere, UUID_RE, parseTags } from './shared.js';
 import { extractRelFilters, buildRelationshipWhere, discoverReferenceFields } from '../../lib/referenceFilters.js';
+import { withAttributeLabels } from '../../lib/attributeLabels.js';
 
 const router = Router();
 
@@ -59,7 +60,7 @@ router.get('/user-columns-page', async (req, res) => {
       columns.push(...relFields);
     } catch (e) { console.error('user reference-field discovery failed:', e.message); }
 
-    return res.json(columns);
+    return res.json(await withAttributeLabels(columns, 'principal'));
   } catch (err) {
     console.error('user-columns-page query failed:', err.message);
     return res.json([]);
@@ -106,7 +107,8 @@ async function groupColumnsHandler(req, res) {
       grouped['__groupTag'] = schemaOnly ? [] : groupTags;
     } catch { /* tag tables may not exist yet */ }
 
-    return res.json(Object.entries(grouped).map(([column, values]) => ({ column, values })));
+    return res.json(await withAttributeLabels(
+      Object.entries(grouped).map(([column, values]) => ({ column, values })), 'resource'));
   } catch (err) {
     console.error('group-columns query failed:', err.message);
     return res.json([]);
