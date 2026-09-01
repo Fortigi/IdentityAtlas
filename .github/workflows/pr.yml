@@ -146,10 +146,8 @@ jobs:
               - 'setup/docker/Invoke-CrawlerJob.ps1'
               - 'setup/IdentityAtlas.psm1'
               - 'test/unit/**'
-              # Self-referencing, same reasoning as coverage.yml's path trigger: a change to the
-              # scope config or this job's own definition should run the job it configures, not
-              # silently skip — that silence is exactly how the psmutant scope gaps this filter
-              # doesn't cover went unnoticed for weeks (see #1088).
+              # Self-referencing, as coverage.yml does: editing the scope config or this job's
+              # own definition must run the job it configures, not silently skip it (#1088).
               - '.ci/psmutant.config.json'
               - '.ci/psmutant-scope-baseline.json'
               - '.github/workflows/pr.yml'
@@ -341,23 +339,12 @@ jobs:
           $cfg.Run.Path = 'test/unit'
           $cfg.Run.PassThru = $true
           $cfg.Output.Verbosity = 'Detailed'
-          # TestResult (JUnit/NUnit) export is deliberately OFF, not just unconfigured: Pester's XML
-          # writers call WriteAttributeString/WriteCData directly on a failing test's FailureMessage
-          # with no sanitization, and the ESC control character (0x1B) that Pester's own assertion-diff
-          # formatting embeds when a collection comparison fails (e.g. `Should -BeNullOrEmpty` on a
-          # non-empty array) is invalid in XML — the writer throws out of Invoke-Pester's End step, so
-          # $result is never assigned at all. That is worse than a lost report: $null.FailedCount is
-          # $null, `$null -gt 0` is False, and the failure gate below waves the run through — the job
-          # then dies on the coverage floor instead, at 0%, blaming coverage for a test failure it
-          # never reported. Any genuinely failing test was enough to do it. This is a real, still-open
-          # gap in Pester 5.x's exporters: pester/Pester#2511 fixed it for captured TEST OUTPUT
-          # (Write-Host/Write-Output during a test) but never extended the same sanitization to
-          # FailureMessage/StackTrace. Confirmed non-version-specific (reproduces identically on 5.7.1
-          # and 5.9.0) and format-agnostic (JUnitXml and NUnit3 both crash the same way, just in a
-          # different writer function) — the only thing that actually avoids it is not calling the
-          # exporter at all. Nothing in this repo consumes pester-results.xml (it was upload-artifact
-          # only, for humans); losing it costs nothing, since Output.Verbosity above already prints
-          # every test's pass/fail detail to the job log.
+          # TestResult (JUnit/NUnit) export is deliberately OFF. Pester's XML writers don't sanitize
+          # FailureMessage, so the ESC byte its own assertion diff embeds throws out of Invoke-Pester
+          # and $result never gets assigned — the failure gate below then reads $null and passes, and
+          # the job dies on the coverage floor at 0% instead. pester/Pester#2511 fixed this for
+          # captured test output only; both formats and both 5.7.1/5.9.0 crash the same way. Nothing
+          # consumed pester-results.xml, and Output.Verbosity already logs every test's outcome.
           $cfg.CodeCoverage.Enabled = $true
           # Measure PRODUCT code only. Enumerate the .ps1 files and drop tooling
           # that lives inside these dirs but isn't the crawler/SDK itself —
@@ -377,11 +364,10 @@ jobs:
           $cfg.CodeCoverage.OutputPath = 'pester-coverage.xml'
           $cfg.CodeCoverage.OutputFormat = 'JaCoCo'
           $result = Invoke-Pester -Configuration $cfg
-          # Disabling the XML export removes today's way of losing $result, but not the only one:
-          # anything Invoke-Pester throws leaves it unassigned, and every check below then reads
-          # properties off $null and passes. Fail on the missing object itself, before interpreting it.
+          # Anything Invoke-Pester throws leaves $result unassigned, and every check below then reads
+          # properties off $null and passes. Fail on the missing object before interpreting it.
           if (-not $result) {
-            Write-Host '::error::Invoke-Pester returned no result object — it threw before returning. Read the step log above for the underlying error; the test outcome for this run is UNKNOWN, not a pass.'
+            Write-Host '::error::Invoke-Pester returned no result object — it threw before returning (see the error above). The test outcome is UNKNOWN, not a pass.'
             exit 1
           }
           $pct = [Math]::Round($result.CodeCoverage.CoveragePercent, 1)
