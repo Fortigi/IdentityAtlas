@@ -63,7 +63,15 @@ jobs:
         shell: pwsh
         run: |
           Install-Module Pester -RequiredVersion 5.8.0 -Force -Scope CurrentUser
-          Install-Module PSMutant -RequiredVersion 0.4.0 -Force -Scope CurrentUser
+          # 0.5.0 adds parallel evaluation ("workers" in the config), -ResumeFrom for
+          # an interrupted run, and -ChangedFile for scoping a run to a diff. None of
+          # them are switched on here yet: workers runs the suite N times at once, and
+          # anything process-wide a test writes (an env var, a $PID-named temp file)
+          # flips into a false KILL, which moves the score UP. Turning it on is worth
+          # doing — 3 workers cut PSMutant's own gate from 778s to 306s — but it needs
+          # one dispatch run at "workers": 3 diffed against a serial report first.
+          # Reports are written in candidate order precisely so that diff is exact.
+          Install-Module PSMutant -RequiredVersion 0.5.0 -Force -Scope CurrentUser
 
       - name: Run mutation testing (enforced — fails below the break floor)
         shell: pwsh
