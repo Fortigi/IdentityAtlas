@@ -1,5 +1,11 @@
 ## Changes in this PR
 
+- Fixed the `azure/deploy.ps1` CLI deployment failing immediately with `ERROR: unrecognized template parameter 'namePrefix'` — the script and the example parameters file still passed parameters (`namePrefix`, `location`, `webImage`, `workerImage`, and others) that the deployment template no longer declares.
+- The CLI deploy can now select the `stable` / `edge` image channel via `-ImageChannel`, matching the Deploy-to-Azure portal form, and prints the generated resource-name prefix after a successful deploy.
+- Added a regression test (`test/unit/AzureDeployParameters.Tests.ps1`) that fails if the CLI deploy path ever passes a parameter the template doesn't declare, and wired `azure/**` into the CI test/coverage path filters so it actually runs when the template or deploy script changes.
+
+## Changes in this PR
+
 - Fixed the PowerShell test job reporting a failing test as a coverage problem. Pester's JUnit export crashes on the control characters its own failure formatting embeds, and the crash took the result object with it — so the check for "did any test fail?" read a missing value, passed, and the run died on the coverage floor at 0% instead, blaming coverage for a test failure it never showed. The export is off (nothing consumed it; the job log already prints every test's outcome), and the job now stops with a clear message if the test run returns nothing at all.
 - Fixed the PowerShell unit-test job failing on the mutation-scope check since the mutation config's `exclusions` map was renamed to `_exclusions`. The check still read the old name, so all twenty reviewed exclusions — each one a written decision about a file that cannot usefully be mutation-tested — looked like files nobody had triaged. It now reads the map under either name, so the decisions are visible again and no file has to be re-declared as untriaged.
 - Added a check that the mutation-scope guard can actually see the exclusions map, so a future rename empties it loudly instead of silently reporting twenty already-decided files as new work.
