@@ -5185,8 +5185,8 @@ crash-loop the container into an "Application Error" page.</p>
 <p><strong>Track <code>:latest</code>, not <code>:edge</code>, in production.</strong> <code>:latest</code> is the stable
 customer release; <code>:edge</code> is the latest merged commit on <code>main</code> and may carry
 unvetted migrations that reach your production the moment they merge. Pin the
-channel by redeploying with <code>webImage=ghcr.io/fortigi/identity-atlas:latest</code>
-(and the matching <code>workerImage</code>), or a specific version tag.</p>
+channel by redeploying with <code>imageChannel=stable</code> (the default) — pass
+<code>imageChannel=edge</code> instead to opt into the latest <code>main</code> build.</p>
 <h3 id="updating-the-container-images">Updating the container images<a class="headerlink" href="#updating-the-container-images" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c"># Restart the App Service — re-pulls the :latest tag from ghcr.io</span>
 <a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="n">az</span> <span class="n">webapp</span> <span class="n">restart</span> <span class="p">-</span><span class="n">-name</span> <span class="p">&lt;</span><span class="n">namePrefix</span><span class="p">&gt;</span><span class="n">-web</span> <span class="p">-</span><span class="n">-resource-group</span> <span class="p">&lt;</span><span class="n">rg</span><span class="p">&gt;</span>
@@ -5194,7 +5194,7 @@ channel by redeploying with <code>webImage=ghcr.io/fortigi/identity-atlas:latest
 <a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="c"># Restart the worker — same</span>
 <a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="n">az</span> <span class="n">containerapp</span> <span class="n">revision</span> <span class="n">restart</span> <span class="p">-</span><span class="n">-name</span> <span class="p">&lt;</span><span class="n">namePrefix</span><span class="p">&gt;</span><span class="n">-worker</span> <span class="p">-</span><span class="n">-resource-group</span> <span class="p">&lt;</span><span class="n">rg</span><span class="p">&gt;</span> <span class="p">-</span><span class="n">-revision</span> <span class="p">&lt;</span><span class="n">latestRevisionName</span><span class="p">&gt;</span>
 </code></pre></div>
-<p>To pin to a specific version instead of <code>:latest</code>, redeploy with <code>webImage=ghcr.io/fortigi/identity-atlas:&lt;tag&gt;</code> and the matching <code>workerImage</code>.</p>
+<p>To pin to an exact version tag rather than a channel, edit <code>_imageTag</code> in <code>main.bicep</code> directly and redeploy — the CLI/portal <code>imageChannel</code> parameter only offers the <code>stable</code> / <code>edge</code> channels above.</p>
 <h3 id="logs">Logs<a class="headerlink" href="#logs" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># App Service stdout, live</span>
 <a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>az<span class="w"> </span>webapp<span class="w"> </span>log<span class="w"> </span>tail<span class="w"> </span>--name<span class="w"> </span>&lt;namePrefix&gt;-web<span class="w"> </span>--resource-group<span class="w"> </span>&lt;rg&gt;
@@ -5215,7 +5215,7 @@ channel by redeploying with <code>webImage=ghcr.io/fortigi/identity-atlas:latest
 <h3 id="tearing-down">Tearing down<a class="headerlink" href="#tearing-down" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>az<span class="w"> </span>group<span class="w"> </span>delete<span class="w"> </span>--name<span class="w"> </span>&lt;rg&gt;<span class="w"> </span>--yes
 </code></pre></div>
-<p>Key Vault has soft delete + purge protection (7-day retention). To redeploy with the same KV name within those 7 days, either wait or use a different <code>namePrefix</code>.</p>
+<p>Key Vault has soft delete + purge protection (7-day retention). To redeploy with the same KV name within those 7 days, either wait or deploy into a different resource group — the name prefix is derived from the resource group ID, so it can no longer be chosen directly.</p>
 <h2 id="decisions-taken-and-why">Decisions taken (and why)<a class="headerlink" href="#decisions-taken-and-why" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
