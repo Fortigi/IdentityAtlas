@@ -1,23 +1,4 @@
 {
   "_comment": "Grandfathered PowerShell files outside tools/crawlers/ that are eligible for mutation testing but have not been triaged yet. This list exists so the scope guard can SEE these roots at all: before it, tools/powershell-sdk/ and tools/riskscoring/ were invisible to it, so the guard reported 'every eligible file is measured or excluded with a reason' while describing a single directory. Zero unknown files and zero files looked identical. The list may only SHRINK. A file leaves it by being added to psmutant.config.json's `mutate` (with a tests mapping) or to its `exclusions` (with a written reason). A NEW file in these roots cannot join this list silently -- the guard fails it, forcing the same conscious decision every crawler file already requires. Adding an entry here shows up in review as what it is: deferring a decision, not making one.",
-  "grandfathered": [
-    "tools/powershell-sdk/graph/Get-FGAccessTokenInteractive.ps1",
-    "tools/riskscoring/Export-FGRiskClassifiers.ps1",
-    "tools/riskscoring/Export-FGRiskProfile.ps1",
-    "tools/riskscoring/Get-FGCorrelationRuleset.ps1",
-    "tools/riskscoring/Get-FGRiskClassifiers.ps1",
-    "tools/riskscoring/Get-FGRiskProfile.ps1",
-    "tools/riskscoring/Import-FGRiskClassifiers.ps1",
-    "tools/riskscoring/Import-FGRiskProfile.ps1",
-    "tools/riskscoring/Invoke-FGAccountCorrelation.ps1",
-    "tools/riskscoring/Invoke-FGLLMRequest.ps1",
-    "tools/riskscoring/Invoke-FGRiskScoring.ps1",
-    "tools/riskscoring/New-FGCorrelationRuleset.ps1",
-    "tools/riskscoring/New-FGRiskClassifiers.ps1",
-    "tools/riskscoring/New-FGRiskProfile.ps1",
-    "tools/riskscoring/Save-FGCorrelationRuleset.ps1",
-    "tools/riskscoring/Save-FGResourceClusters.ps1",
-    "tools/riskscoring/Save-FGRiskClassifiers.ps1",
-    "tools/riskscoring/Save-FGRiskProfile.ps1"
-  ]
+  "grandfathered": []
 }

@@ -345,10 +345,11 @@ jobs:
           # writers call WriteAttributeString/WriteCData directly on a failing test's FailureMessage
           # with no sanitization, and the ESC control character (0x1B) that Pester's own assertion-diff
           # formatting embeds when a collection comparison fails (e.g. `Should -BeNullOrEmpty` on a
-          # non-empty array) is invalid in XML — the writer throws and takes the whole step down with
-          # it, which also corrupts $result.CodeCoverage.CoveragePercent to 0 (silently passing the
-          # coverage floor's `-lt` check below as if nothing were covered — any genuinely failing test
-          # was enough to zero out the coverage signal for the whole run). This is a real, still-open
+          # non-empty array) is invalid in XML — the writer throws out of Invoke-Pester's End step, so
+          # $result is never assigned at all. That is worse than a lost report: $null.FailedCount is
+          # $null, `$null -gt 0` is False, and the failure gate below waves the run through — the job
+          # then dies on the coverage floor instead, at 0%, blaming coverage for a test failure it
+          # never reported. Any genuinely failing test was enough to do it. This is a real, still-open
           # gap in Pester 5.x's exporters: pester/Pester#2511 fixed it for captured TEST OUTPUT
           # (Write-Host/Write-Output during a test) but never extended the same sanitization to
           # FailureMessage/StackTrace. Confirmed non-version-specific (reproduces identically on 5.7.1
@@ -376,6 +377,13 @@ jobs:
           $cfg.CodeCoverage.OutputPath = 'pester-coverage.xml'
           $cfg.CodeCoverage.OutputFormat = 'JaCoCo'
           $result = Invoke-Pester -Configuration $cfg
+          # Disabling the XML export removes today's way of losing $result, but not the only one:
+          # anything Invoke-Pester throws leaves it unassigned, and every check below then reads
+          # properties off $null and passes. Fail on the missing object itself, before interpreting it.
+          if (-not $result) {
+            Write-Host '::error::Invoke-Pester returned no result object — it threw before returning. Read the step log above for the underlying error; the test outcome for this run is UNKNOWN, not a pass.'
+            exit 1
+          }
           $pct = [Math]::Round($result.CodeCoverage.CoveragePercent, 1)
           Write-Host "Coverage: $pct%"
           if ($result.FailedCount -gt 0) { exit 1 }
