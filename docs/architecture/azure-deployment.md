@@ -137,8 +137,8 @@ crash-loop the container into an "Application Error" page.
 **Track `:latest`, not `:edge`, in production.** `:latest` is the stable
 customer release; `:edge` is the latest merged commit on `main` and may carry
 unvetted migrations that reach your production the moment they merge. Pin the
-channel by redeploying with `webImage=ghcr.io/fortigi/identity-atlas:latest`
-(and the matching `workerImage`), or a specific version tag.
+channel by redeploying with `imageChannel=stable` (the default) — pass
+`imageChannel=edge` instead to opt into the latest `main` build.
 
 ### Updating the container images
 
@@ -150,7 +150,7 @@ az webapp restart --name <namePrefix>-web --resource-group <rg>
 az containerapp revision restart --name <namePrefix>-worker --resource-group <rg> --revision <latestRevisionName>
 ```
 
-To pin to a specific version instead of `:latest`, redeploy with `webImage=ghcr.io/fortigi/identity-atlas:<tag>` and the matching `workerImage`.
+To pin to an exact version tag rather than a channel, edit `_imageTag` in `main.bicep` directly and redeploy — the CLI/portal `imageChannel` parameter only offers the `stable` / `edge` channels above.
 
 ### Logs
 
@@ -182,7 +182,7 @@ Postgres has a public endpoint with a firewall rule allowing Azure services. To 
 az group delete --name <rg> --yes
 ```
 
-Key Vault has soft delete + purge protection (7-day retention). To redeploy with the same KV name within those 7 days, either wait or use a different `namePrefix`.
+Key Vault has soft delete + purge protection (7-day retention). To redeploy with the same KV name within those 7 days, either wait or deploy into a different resource group — the name prefix is derived from the resource group ID, so it can no longer be chosen directly.
 
 ## Decisions taken (and why)
 

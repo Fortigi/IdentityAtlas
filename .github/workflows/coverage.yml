@@ -42,6 +42,7 @@ on:
       - 'tools/powershell-sdk/**'
       - 'tools/riskscoring/**'
       - 'test/unit/**'
+      - 'azure/**'
       - 'tools/complexity/**'
       - '.ci/psmutant.config.json'
       - 'tools/generate-coverage-doc.py'

@@ -146,6 +146,7 @@ jobs:
               - 'setup/docker/Invoke-CrawlerJob.ps1'
               - 'setup/IdentityAtlas.psm1'
               - 'test/unit/**'
+              - 'azure/**'
             api:
               - 'app/api/src/**'
               - 'app/api/contract-tests/**'
