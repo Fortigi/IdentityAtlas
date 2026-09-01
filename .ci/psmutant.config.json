@@ -31,6 +31,8 @@
     "tools/crawlers/azure-rm/AzureRMCrawler.Transform.ps1",
     "tools/crawlers/azure-rm/AzureRMCrawler.Phases.ps1",
     "tools/crawlers/csv/CSVCrawler.Phases.ps1",
+    "tools/crawlers/entra-id/EntraIDCrawler.Orchestration.ps1",
+    "tools/crawlers/omada/Get-OmadaHelpers.ps1",
     "tools/powershell-sdk/helpers/Confirm-FGAccessPackage.ps1",
     "tools/powershell-sdk/helpers/Confirm-FGAccessPackagePolicy.ps1",
     "tools/powershell-sdk/helpers/Confirm-FGAccessPackageResource.ps1",
@@ -198,6 +200,12 @@
     ],
     "tools/crawlers/csv/CSVCrawler.Phases.ps1": [
       "test/unit/CSVCrawlerPhases.Tests.ps1"
+    ],
+    "tools/crawlers/entra-id/EntraIDCrawler.Orchestration.ps1": [
+      "test/unit/EntraIDCrawlerPhases.Tests.ps1"
+    ],
+    "tools/crawlers/omada/Get-OmadaHelpers.ps1": [
+      "test/unit/OmadaCrawlerFunctions.Tests.ps1"
     ],
     "tools/powershell-sdk/helpers/Confirm-FGAccessPackage.ps1": [
       "test/unit/SdkHelpers.Tests.ps1"

@@ -334,9 +334,22 @@ jobs:
           $cfg.Run.Path = 'test/unit'
           $cfg.Run.PassThru = $true
           $cfg.Output.Verbosity = 'Detailed'
-          $cfg.TestResult.Enabled = $true
-          $cfg.TestResult.OutputPath = 'pester-results.xml'
-          $cfg.TestResult.OutputFormat = 'JUnitXml'
+          # TestResult (JUnit/NUnit) export is deliberately OFF, not just unconfigured: Pester's XML
+          # writers call WriteAttributeString/WriteCData directly on a failing test's FailureMessage
+          # with no sanitization, and the ESC control character (0x1B) that Pester's own assertion-diff
+          # formatting embeds when a collection comparison fails (e.g. `Should -BeNullOrEmpty` on a
+          # non-empty array) is invalid in XML — the writer throws and takes the whole step down with
+          # it, which also corrupts $result.CodeCoverage.CoveragePercent to 0 (silently passing the
+          # coverage floor's `-lt` check below as if nothing were covered — any genuinely failing test
+          # was enough to zero out the coverage signal for the whole run). This is a real, still-open
+          # gap in Pester 5.x's exporters: pester/Pester#2511 fixed it for captured TEST OUTPUT
+          # (Write-Host/Write-Output during a test) but never extended the same sanitization to
+          # FailureMessage/StackTrace. Confirmed non-version-specific (reproduces identically on 5.7.1
+          # and 5.9.0) and format-agnostic (JUnitXml and NUnit3 both crash the same way, just in a
+          # different writer function) — the only thing that actually avoids it is not calling the
+          # exporter at all. Nothing in this repo consumes pester-results.xml (it was upload-artifact
+          # only, for humans); losing it costs nothing, since Output.Verbosity above already prints
+          # every test's pass/fail detail to the job log.
           $cfg.CodeCoverage.Enabled = $true
           # Measure PRODUCT code only. Enumerate the .ps1 files and drop tooling
           # that lives inside these dirs but isn't the crawler/SDK itself —
@@ -374,9 +387,7 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: pester-results
-          path: |
-            pester-results.xml
-            pester-coverage.xml
+          path: pester-coverage.xml
           retention-days: 14
 
   # ── Stage 4: API unit tests (Vitest) ────────────────────────────────────
