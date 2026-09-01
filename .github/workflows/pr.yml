@@ -321,30 +321,16 @@ jobs:
       - name: Install Pester
         shell: pwsh
         run: |
-          # Pin an EXACT version rather than "whatever the runner bundles, if >= 5.0.0" — that
-          # policy silently picked up Pester 5.9.0 when ubuntu-latest's image bumped its pre-loaded
-          # module sometime after 2026-08-23, and 5.9.0's JaCoCo exporter is broken: Export-XmlReport
-          # throws on WriteAttributeString and silently zeros CodeCoverage.CoveragePercent, which
-          # then trips the floor below and fails every PR touching Pester-tested code. Nobody had
-          # noticed for over a week because this job's path filter rarely triggers — found while
-          # fixing #1085 (unrelated to that fix's own diff; the coverage-measured path set wasn't
-          # touched). 5.7.1 is the last version confirmed clean (matches the last genuine pre-regression
-          # CI run's 91.2%, and reproduces the same 91.2% locally with zero exporter errors).
-          $pesterVersion = '5.7.1'
-          if (-not (Get-Module Pester -ListAvailable | Where-Object Version -eq $pesterVersion)) {
-            Install-Module Pester -RequiredVersion $pesterVersion -Force -Scope CurrentUser
+          # ubuntu-latest ships Pester pre-loaded, so a plain Install-Module -Force
+          # always warns that it can't overwrite the in-use version. Skip the install
+          # when the runner already satisfies the minimum version.
+          if (-not (Get-Module Pester -ListAvailable | Where-Object Version -ge '5.0.0')) {
+            Install-Module Pester -MinimumVersion 5.0.0 -Force -Scope CurrentUser
           }
 
       - name: Run Pester tests with coverage
         shell: pwsh
         run: |
-          # Explicit -RequiredVersion: PowerShell's module auto-loading prefers the HIGHEST available
-          # version, so without this, Invoke-Pester below would silently reach past the pinned 5.7.1
-          # and back onto the runner's broken pre-loaded 5.9.0 — exactly what the pin above exists to
-          # prevent. Re-stated here (not read from the previous step) because each `run:` block is a
-          # separate process — a PowerShell variable set in "Install Pester" doesn't survive into this
-          # step.
-          Import-Module Pester -RequiredVersion '5.7.1' -Force
           $cfg = New-PesterConfiguration
           $cfg.Run.Path = 'test/unit'
           $cfg.Run.PassThru = $true
