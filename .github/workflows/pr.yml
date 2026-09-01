@@ -146,6 +146,13 @@ jobs:
               - 'setup/docker/Invoke-CrawlerJob.ps1'
               - 'setup/IdentityAtlas.psm1'
               - 'test/unit/**'
+              # Self-referencing, same reasoning as coverage.yml's path trigger: a change to the
+              # scope config or this job's own definition should run the job it configures, not
+              # silently skip — that silence is exactly how the psmutant scope gaps this filter
+              # doesn't cover went unnoticed for weeks (see #1088).
+              - '.ci/psmutant.config.json'
+              - '.ci/psmutant-scope-baseline.json'
+              - '.github/workflows/pr.yml'
             api:
               - 'app/api/src/**'
               - 'app/api/contract-tests/**'
