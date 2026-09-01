@@ -147,6 +147,11 @@ jobs:
               - 'setup/IdentityAtlas.psm1'
               - 'test/unit/**'
               - 'azure/**'
+              # Self-referencing, as coverage.yml does: editing the scope config or this job's
+              # own definition must run the job it configures, not silently skip it (#1088).
+              - '.ci/psmutant.config.json'
+              - '.ci/psmutant-scope-baseline.json'
+              - '.github/workflows/pr.yml'
             api:
               - 'app/api/src/**'
               - 'app/api/contract-tests/**'
@@ -335,9 +340,12 @@ jobs:
           $cfg.Run.Path = 'test/unit'
           $cfg.Run.PassThru = $true
           $cfg.Output.Verbosity = 'Detailed'
-          $cfg.TestResult.Enabled = $true
-          $cfg.TestResult.OutputPath = 'pester-results.xml'
-          $cfg.TestResult.OutputFormat = 'JUnitXml'
+          # TestResult (JUnit/NUnit) export is deliberately OFF. Pester's XML writers don't sanitize
+          # FailureMessage, so the ESC byte its own assertion diff embeds throws out of Invoke-Pester
+          # and $result never gets assigned — the failure gate below then reads $null and passes, and
+          # the job dies on the coverage floor at 0% instead. pester/Pester#2511 fixed this for
+          # captured test output only; both formats and both 5.7.1/5.9.0 crash the same way. Nothing
+          # consumed pester-results.xml, and Output.Verbosity already logs every test's outcome.
           $cfg.CodeCoverage.Enabled = $true
           # Measure PRODUCT code only. Enumerate the .ps1 files and drop tooling
           # that lives inside these dirs but isn't the crawler/SDK itself —
@@ -357,6 +365,12 @@ jobs:
           $cfg.CodeCoverage.OutputPath = 'pester-coverage.xml'
           $cfg.CodeCoverage.OutputFormat = 'JaCoCo'
           $result = Invoke-Pester -Configuration $cfg
+          # Anything Invoke-Pester throws leaves $result unassigned, and every check below then reads
+          # properties off $null and passes. Fail on the missing object before interpreting it.
+          if (-not $result) {
+            Write-Host '::error::Invoke-Pester returned no result object — it threw before returning (see the error above). The test outcome is UNKNOWN, not a pass.'
+            exit 1
+          }
           $pct = [Math]::Round($result.CodeCoverage.CoveragePercent, 1)
           Write-Host "Coverage: $pct%"
           if ($result.FailedCount -gt 0) { exit 1 }
@@ -375,9 +389,7 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: pester-results
-          path: |
-            pester-results.xml
-            pester-coverage.xml
+          path: pester-coverage.xml
           retention-days: 14
 
   # ── Stage 4: API unit tests (Vitest) ────────────────────────────────────

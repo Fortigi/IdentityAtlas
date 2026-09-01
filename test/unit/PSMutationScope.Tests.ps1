@@ -33,11 +33,14 @@
     of the Pester coverage figure — that sweep enumerated crawler directories by
     the presence of crawler.json, and shared/ has none.
 
-    Consequence worth understanding before adding an exclusion: `exclusions` is the
-    escape hatch, so it is only as good as its reasons. "Not yet measured" for a
-    dozen files is a dumping ground, not a decision. Each entry below names why the
-    file cannot or should not be mutated today, specifically enough to be argued
-    with.
+    Consequence worth understanding before adding an exclusion: the exclusions map
+    is the escape hatch, so it is only as good as its reasons. "Not yet measured"
+    for a dozen files is a dumping ground, not a decision. Each entry below names
+    why the file cannot or should not be mutated today, specifically enough to be
+    argued with.
+
+    The map is spelled `_exclusions` in the config: PSMutant rejects unknown keys and
+    exempts underscore-prefixed ones, so docs the tool never reads live under one.
 
     THE OTHER ROOTS. tools/powershell-sdk/ (86 files) and tools/riskscoring/ (17)
     used to be invisible here, and that is a subtler version of the same bug: the
@@ -75,10 +78,16 @@ BeforeAll {
     $cfg = Get-Content (Join-Path $script:repoRoot '.ci' 'psmutant.config.json') -Raw | ConvertFrom-Json
     $script:mutate = @($cfg.mutate)
     $script:testMap = $cfg.tests
+    # Both spellings: #1084 renamed the map to `_exclusions`, and this guard kept
+    # reading `exclusions` — which doesn't fail, it just reports twenty reviewed
+    # exclusions as untriaged files. The tool ignores either name.
     $script:exclusions = @()
-    if ($cfg.PSObject.Properties.Name -contains 'exclusions' -and $cfg.exclusions) {
-        $script:exclusions = @($cfg.exclusions.PSObject.Properties.Name)
+    foreach ($key in '_exclusions', 'exclusions') {
+        if ($cfg.PSObject.Properties.Name -contains $key -and $cfg.$key) {
+            $script:exclusions += @($cfg.$key.PSObject.Properties.Name)
+        }
     }
+    $script:exclusions = @($script:exclusions | Sort-Object -Unique)
 
     $toRelative = {
         param($file)
@@ -133,6 +142,15 @@ Describe 'PSMutant scope completeness (#684)' {
     It 'finds the shared crawler helper library (guard covers the non-pure layer too)' {
         $script:shared.Count | Should -BeGreaterOrEqual 2
         $script:shared | Should -Contain 'tools/crawlers/shared/Invoke-CrawlerIngest.ps1'
+    }
+
+    It 'reads the exclusions map at all (a renamed key must not empty it silently)' {
+        # Same class of floor as the two above, on the config side. A wrong key
+        # yields an empty list, not an error, and every reviewed exclusion then
+        # reads as an untriaged file — 20 of them, and the cheap way out is to
+        # re-declare them as backlog. Check the guard's own inputs.
+        $script:exclusions.Count | Should -BeGreaterThan 10 -Because 'psmutant.config.json documents ~20 reviewed exclusions; an empty list here means the guard is reading the wrong key, not that the exclusions were resolved'
+        $script:exclusions | Should -Contain 'tools/crawlers/omada/Get-OmadaHelpers.ps1'
     }
 
     It 'every eligible crawler file is either mutation-tested or explicitly excluded' {

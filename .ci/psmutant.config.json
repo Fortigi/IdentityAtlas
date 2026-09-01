@@ -5,6 +5,8 @@
     "test",
     "setup"
   ],
+  "_workersComment": "Parallel evaluation (PSMutant 0.5.0+); 0 = ProcessorCount - 1, so the runner scales without an edit here. Reports stay in candidate order, so the score does not depend on which worker finished first.",
+  "workers": 0,
   "mutate": [
     "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
     "tools/crawlers/entra-id/EntraIDCrawler.AppOwners.ps1",
