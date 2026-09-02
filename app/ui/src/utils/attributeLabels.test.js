@@ -36,6 +36,10 @@ describe('attributeLabel', () => {
   });
 
   it('returns null for null/undefined instead of throwing mid-render', () => {
+    // The map deliberately holds entries named "null" and "undefined": those are
+    // legal JSON keys, so a guard that stringified the argument instead of
+    // rejecting it would answer `attributeLabel(null)` with someone else's label.
+    setAttributeLabels({ null: 'NotThis', undefined: 'NorThis' });
     expect(attributeLabel(null)).toBeNull();
     expect(attributeLabel(undefined)).toBeNull();
   });
@@ -44,9 +48,22 @@ describe('attributeLabel', () => {
     expect(attributeLabel(KEY)).toBeNull();
   });
 
+  it('strips the ext. namespace only from the front of a key', () => {
+    // `ext.` is a prefix the matrix adds, not a substring to hunt for. A stored
+    // attribute whose own name contains it must still resolve as itself —
+    // an unanchored strip would look up `sfTeamID` and answer null.
+    setAttributeLabels({ 'sfext.TeamID': 'sfext.TeamID' });
+    expect(attributeLabel('sfext.TeamID')).toBe('sfext.TeamID');
+  });
+
   it('ignores a non-object payload rather than reading properties off it', () => {
+    // A string is the realistic bad payload — a proxy or error page answering the
+    // endpoint with text. Object.assign would spread it into index-keyed entries,
+    // so "0" reading back as "n" is the observable form of that bug.
     setAttributeLabels('nope');
     expect(attributeLabel(KEY)).toBeNull();
+    expect(attributeLabel('0')).toBeNull();
+    expect(attributeLabel('length')).toBeNull();
   });
 
   it('does not resolve inherited Object.prototype keys as labels', () => {
@@ -99,6 +116,21 @@ describe('loadAttributeLabels', () => {
     await loadAttributeLabels(authFetch);
 
     expect(attributeLabel(KEY)).toBeNull();
+  });
+
+  it('fetches on a freshly loaded module, without a reset priming it first', async () => {
+    // Every other case here runs after `resetAttributeLabels()`, which would hide a
+    // module that started life believing it had already loaded — the app never calls
+    // reset, so a wrong initial state means the map is never fetched at all and every
+    // surface keeps the raw key for the whole session.
+    vi.resetModules();
+    const fresh = await import('./attributeLabels');
+    const authFetch = ok({ [KEY]: 'sAMAccountName' });
+
+    await fresh.loadAttributeLabels(authFetch);
+
+    expect(authFetch).toHaveBeenCalledTimes(1);
+    expect(fresh.attributeLabel(KEY)).toBe('sAMAccountName');
   });
 
   it('does not re-fetch after a failure that already resolved the load', async () => {

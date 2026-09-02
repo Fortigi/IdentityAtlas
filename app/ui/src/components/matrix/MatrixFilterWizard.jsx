@@ -155,26 +155,40 @@ export default function MatrixFilterWizard({
     return () => { cancelled = true; };
   }, [open, authFetch]);
 
+  // Schema-only first for a fast paint, then full values in the background.
+  //
+  // Both requests are in flight at once and either can answer first, so the fast
+  // one must never be allowed to land on top of the full one. It carries no
+  // values and none of the ext.* extension attributes derived from them, and
+  // nothing on screen distinguishes that placeholder list from a deployment that
+  // genuinely has neither — the wizard just settles into offering every field
+  // with a "(0)" count and no extension attributes at all, permanently. That
+  // last-write-wins race made three matrix e2e specs intermittent (~30-40% of
+  // runs) before the guard below.
+  const loadColumns = useCallback((entity, setColumns) => {
+    let cancelled = false;
+    let full = false;
+    const get = url => authFetch(url).then(r => r.ok ? r.json() : []);
+    get(`/api/matrix/columns?entity=${entity}&schema=true`)
+      .then(cols => { if (!cancelled && !full) setColumns(cols); });
+    get(`/api/matrix/columns?entity=${entity}`)
+      .then(cols => { if (!cancelled) { full = true; setColumns(cols); } });
+    return () => { cancelled = true; };
+  }, [authFetch]);
+
   useEffect(() => {
     if (!open) return;
-    let cancelled = false;
-    // Schema-only first for a fast paint, then full values in the background.
-    authFetch('/api/matrix/columns?entity=Principal&schema=true').then(r => r.ok ? r.json() : []).then(cols => { if (!cancelled) setPrincipalColumns(cols); });
-    authFetch('/api/matrix/columns?entity=Resource&schema=true').then(r => r.ok ? r.json() : []).then(cols => { if (!cancelled) setResourceColumns(cols);  });
-    authFetch('/api/matrix/columns?entity=Principal').then(r => r.ok ? r.json() : []).then(cols => { if (!cancelled) setPrincipalColumns(cols); });
-    authFetch('/api/matrix/columns?entity=Resource').then(r => r.ok ? r.json() : []).then(cols => { if (!cancelled) setResourceColumns(cols);  });
-    return () => { cancelled = true; };
-  }, [open, authFetch]);
+    const cancelPrincipal = loadColumns('Principal', setPrincipalColumns);
+    const cancelResource = loadColumns('Resource', setResourceColumns);
+    return () => { cancelPrincipal(); cancelResource(); };
+  }, [open, loadColumns]);
 
   // Lazy-load Identity columns when the user switches rowType=identity.
   useEffect(() => {
     if (!open) return;
     if (filter.rowType !== 'identity' || identityColumns) return;
-    let cancelled = false;
-    authFetch('/api/matrix/columns?entity=Identity&schema=true').then(r => r.ok ? r.json() : []).then(cols => { if (!cancelled) setIdentityColumns(cols); });
-    authFetch('/api/matrix/columns?entity=Identity').then(r => r.ok ? r.json() : []).then(cols => { if (!cancelled) setIdentityColumns(cols); });
-    return () => { cancelled = true; };
-  }, [open, filter.rowType, identityColumns, authFetch]);
+    return loadColumns('Identity', setIdentityColumns);
+  }, [open, filter.rowType, identityColumns, loadColumns]);
 
   // Resolve context metadata for any context-id referenced by the filter so
   // chips render names instead of UUIDs. Cached across edits.

@@ -199,6 +199,39 @@ describe('getAttributeLabels', () => {
     expect(query.mock.calls.length).toBe(callsAfterFirst);
   });
 
+  it('reads the stamped maps once and reuses them across targets', async () => {
+    // The stamped-map read is cached separately from the per-target key scan, and
+    // nothing else in this file reaches that: a repeat call for the SAME target is
+    // answered by the label cache before the overrides are consulted at all. Two
+    // different targets is the only shape that exercises it, and it is the shape the
+    // app actually produces — the filter menus ask for `principal` and `resource`
+    // within the same page load.
+    const pKey = `extension_${APP_A}_sfTeamID`;
+    const rKey = `extension_${APP_B}_sfCostCenterID`;
+    stage([{ [pKey]: 'Team' }], [pKey]);
+    await expect(getAttributeLabels('principal')).resolves.toEqual({ [pKey]: 'Team' });
+
+    // Only the Resources key scan is staged now — no second overrides recordset.
+    // A re-read would consume this one and label the resource key 'Team'.
+    query.mockResolvedValueOnce({ rows: [{ k: rKey }] });
+    await expect(getAttributeLabels('resource')).resolves.toEqual({ [rKey]: 'sfCostCenterID' });
+
+    const systemsReads = query.mock.calls.filter(c => c[0].includes('"Systems"')).length;
+    expect(systemsReads).toBe(1);
+  });
+
+  it('caches each target under its own key rather than one shared slot', async () => {
+    // Otherwise the second target is served the first one's map — the failure mode
+    // is a resource filter menu quietly offering principal attribute names.
+    const pKey = `extension_${APP_A}_sfTeamID`;
+    const rKey = `extension_${APP_B}_sfCostCenterID`;
+    stage([], [pKey]);
+    await getAttributeLabels('principal');
+
+    query.mockResolvedValueOnce({ rows: [{ k: rKey }] });
+    await expect(getAttributeLabels('resource')).resolves.toEqual({ [rKey]: 'sfCostCenterID' });
+  });
+
   it('re-queries after the cache is cleared', async () => {
     stage([], [`extension_${APP_A}_sfTeamID`]);
     await getAttributeLabels('principal');
