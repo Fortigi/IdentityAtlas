@@ -20,6 +20,10 @@
 BeforeAll {
     $script:repoRoot = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
     $script:entraDir = Join-Path $script:repoRoot 'tools' 'crawlers' 'entra-id'
+
+    # Pull in Invoke-IngestAPI so Mock has a command to intercept — Sync-EntraAttributeDisplayNames
+    # calls it, and Pester can only mock a command that already exists in scope.
+    . (Join-Path $script:repoRoot 'tools' 'crawlers' 'shared' 'Invoke-CrawlerIngest.ps1')
     . (Join-Path $script:entraDir 'EntraIDCrawler.AttributeLabels.ps1')
 
     $script:AppA = '8ce8d3db3b314def88d829e15494e83f'

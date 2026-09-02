@@ -49,6 +49,38 @@ export function stripExtensionPrefix(key) {
   return m ? m[2] : raw;
 }
 
+// The crawler-stamped override for one key, or '' when there isn't a usable one.
+// A non-string or whitespace-only entry is treated as absent so a half-written
+// map can't pin an empty label over the rule's answer.
+function overrideFor(overrides, key) {
+  const value = overrides ? overrides[key] : undefined;
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+// key -> { label, pinned } for every usable key. `pinned` marks a label that came
+// from the stamped map, which wins outright and is never suffixed below.
+function proposeLabels(keys, overrides) {
+  const proposed = new Map();
+  for (const key of keys || []) {
+    if (typeof key !== 'string' || key === '') continue;
+    const override = overrideFor(overrides, key);
+    proposed.set(key, { label: override || stripExtensionPrefix(key), pinned: !!override });
+  }
+  return proposed;
+}
+
+// The set of labels that more than one key proposed — the ones needing an appId
+// suffix to stay distinguishable.
+function collidingLabels(proposed) {
+  const seen = new Set();
+  const collisions = new Set();
+  for (const { label } of proposed.values()) {
+    if (seen.has(label)) collisions.add(label);
+    seen.add(label);
+  }
+  return collisions;
+}
+
 // Build rawKey -> label over a whole key set.
 //
 // `overrides` is the crawler-stamped map; an entry there wins outright. For
@@ -60,30 +92,17 @@ export function stripExtensionPrefix(key) {
 // Only keys whose label actually differs from the key are returned — a caller can
 // then treat "no entry" as "nothing to relabel" and keep its existing rendering.
 export function buildAttributeLabels(keys, overrides = {}) {
-  const proposed = new Map();
-  for (const key of keys || []) {
-    if (typeof key !== 'string' || key === '') continue;
-    const override = overrides && typeof overrides[key] === 'string' ? overrides[key].trim() : '';
-    proposed.set(key, { label: override || stripExtensionPrefix(key), pinned: !!override });
-  }
-
-  const byLabel = new Map();
-  for (const [key, entry] of proposed) {
-    if (!byLabel.has(entry.label)) byLabel.set(entry.label, []);
-    byLabel.get(entry.label).push(key);
-  }
+  const proposed = proposeLabels(keys, overrides);
+  const collisions = collidingLabels(proposed);
 
   // Null-prototype: callers do `labels[key]` over keys that come from the data,
   // and `constructor` / `toString` are perfectly legal JSON keys — an inherited
   // Object.prototype member must not read back as somebody's display name.
   const labels = Object.create(null);
-  for (const [key, entry] of proposed) {
-    let label = entry.label;
-    if (!entry.pinned && byLabel.get(label).length > 1) {
-      const appId = extensionAppId(key);
-      if (appId) label = `${label} (${appId.slice(0, 8)})`;
-    }
-    if (label !== key) labels[key] = label;
+  for (const [key, { label, pinned }] of proposed) {
+    const appId = !pinned && collisions.has(label) ? extensionAppId(key) : null;
+    const resolved = appId ? `${label} (${appId.slice(0, 8)})` : label;
+    if (resolved !== key) labels[key] = resolved;
   }
   return labels;
 }
