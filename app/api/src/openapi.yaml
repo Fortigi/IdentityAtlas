@@ -33,6 +33,8 @@ tags:
     description: Crawler management (requires Entra ID auth)
   - name: Effective Access
     description: On-demand effective-access resolution — computed per request, never stored
+  - name: Attribute Labels
+    description: Display names for extendedAttributes keys — shared by the web UI and the Power Query workbook
 
 paths:
   # ─── Ingest Endpoints ──────────────────────────────────────────
@@ -473,6 +475,45 @@ paths:
           description: Per-capability effective access at the node
         '400':
           description: Missing node, or unknown resolution policy
+
+  /attribute-labels:
+    get:
+      tags: [Attribute Labels]
+      summary: Display names for extendedAttributes keys
+      operationId: getAttributeLabels
+      description: >
+        Maps each stored `extendedAttributes` key to the name it should be shown under, so
+        every reader renders the same string. Entra directory-extension keys
+        (`extension_<32-hex appId>_<name>`) resolve to their tail verbatim
+        (`sAMAccountName`); a crawler-stamped `attributeDisplayNames` map on the source
+        System wins over that rule and is what disambiguates two extension apps defining
+        the same attribute name. Storage keys are never changed — filters and sorts keep
+        addressing the raw key. Only keys that are actually relabelled are returned, so an
+        absent key means "show it the way you always did". Documented because the Power
+        Query export workbook calls it directly to title its columns.
+      security:
+        - EntraIdBearer: []
+      parameters:
+        - name: target
+          in: query
+          description: Which table's keys to label. Omit for the union of all four.
+          schema:
+            type: string
+            enum: [principal, resource, identity, system]
+      responses:
+        '200':
+          description: Label map (empty when nothing needs relabelling, or on lookup failure)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  labels:
+                    type: object
+                    additionalProperties:
+                      type: string
+        '400':
+          description: Unknown target
 
 components:
   securitySchemes:

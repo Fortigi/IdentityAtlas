@@ -8,6 +8,7 @@ import { useMatrix } from './hooks/useMatrix';
 import { useAuth } from './auth/AuthGate';
 import { useCanSeeAdminTab } from './auth/usePermissions';
 import { useTheme } from './hooks/useTheme';
+import { useAttributeLabels } from './hooks/useAttributeLabels';
 import { ThemeContext } from './contexts/ThemeContext';
 import { computeNavTabs, availableOptionalTabs } from './utils/navTabs';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -105,6 +106,11 @@ export default function App() {
   const settingsRef = useRef(null);
   const [riskScoresRefreshKey, setRiskScoresRefreshKey] = useState(0);
   const { isDark, mode, setTheme } = useTheme();
+
+  // Warm the shared extendedAttributes display-name cache once for the whole app,
+  // so every attribute name — detail tables, filter menus, matrix headers and
+  // pickers, the xlsx export — reads the same server-resolved string (#872).
+  useAttributeLabels();
 
   // Hide the Admin tab from users with no admin.* permission. Clicking it
   // would 403 on every sub-page anyway — better not to advertise the door

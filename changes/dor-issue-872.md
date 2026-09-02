@@ -1,0 +1,5 @@
+- Entra directory-extension attributes are now shown by their readable name (e.g. `sAMAccountName`) instead of the tenant-specific wire name (`extension_<appId>_sAMAccountName`) everywhere a name is rendered — principal, resource and identity detail pages, filter menus, the matrix attribute picker, grouping headers and roll-up captions, context schema forms, and both the matrix Excel export and the Power Query workbook.
+- Where two applications define an attribute with the same name, the label keeps a short application suffix (e.g. `employeeID (8ce8d3db)`) so the two stay distinguishable.
+- The original Entra attribute name is still available as a tooltip on detail pages, so nothing is hidden — only moved out of the way.
+- Filtering, sorting, grouping and API requests continue to use the full stored attribute key, so saved views, saved filters and shared links keep working unchanged.
+- The Entra ID crawler now records the friendly names it discovers for a tenant's extension attributes, so labels stay correct even when the same attribute name is defined by more than one application.

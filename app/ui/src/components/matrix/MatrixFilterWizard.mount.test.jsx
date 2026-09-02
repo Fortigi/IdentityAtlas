@@ -109,6 +109,46 @@ describe('MatrixFilterWizard (mounted)', () => {
     });
   });
 
+  it('keeps the full column values when the schema-only fast paint answers last', async () => {
+    // The wizard asks for each entity's columns twice at once — `?schema=true`
+    // for an instant field list, and the full request that carries the values
+    // (and, from them, the ext.* extension attributes). Neither ordering is
+    // guaranteed. If the fast answer is allowed to land second it wipes the real
+    // one out, and the wizard settles into offering every field with a "(0)"
+    // count and no extension attributes — indistinguishable on screen from a
+    // deployment that genuinely has no values to filter on.
+    let releaseSchema;
+    const schemaLanded = new Promise(resolve => { releaseSchema = resolve; });
+    const schemaOnly = cols => cols.map(({ column }) => ({ column, values: [] }));
+
+    const authFetch = makeAuthFetch(async (url, opts = {}) => {
+      const u = String(url);
+      if (u.includes('/api/matrix/columns') && u.includes('schema=true')) {
+        await schemaLanded;
+        return schemaOnly(u.includes('entity=Resource') ? resourceCols : principalCols);
+      }
+      return makeFetch()(u, opts);
+    });
+
+    renderWizard({}, authFetch);
+    const user = userEvent.setup();
+
+    // Subjects step → open the attribute picker. The full response has landed,
+    // so `department` offers its two values.
+    await user.click(screen.getByText('Next'));
+    await user.click(await screen.findByText('+ Attribute'));
+    expect(await screen.findByRole('option', { name: 'department (2)' })).toBeInTheDocument();
+
+    // Now let the slow fast-paint arrive. It must not be able to take those
+    // values away again.
+    releaseSchema();
+    await waitFor(() => expect(authFetch).toHaveBeenCalledWith(
+      expect.stringContaining('schema=true'),
+    ));
+    await expect(screen.findByRole('option', { name: 'department (0)' })).rejects.toThrow();
+    expect(screen.getByRole('option', { name: 'department (2)' })).toBeInTheDocument();
+  });
+
   it('steps through Setup → Subjects → Resources → Sort and back', async () => {
     renderWizard();
     const user = userEvent.setup();

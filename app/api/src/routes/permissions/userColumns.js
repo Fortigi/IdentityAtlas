@@ -8,6 +8,7 @@ import { ensureTagTables } from '../tags.js';
 import { getPrincipalOrUserColumns, getPrincipalOrUserColumnValues } from '../../db/columnCache.js';
 import { timedQuery } from '../../perf/sqlTimer.js';
 import { isMissingSchema } from '../../db/schemaErrors.js';
+import { withAttributeLabels } from '../../lib/attributeLabels.js';
 
 // Assignment keys that are group/member identity columns, not filterable user
 // attributes — excluded from the derived dropdown list.
@@ -70,5 +71,6 @@ export async function fetchUserColumnValues(p, schemaOnly, res) {
     grouped['__userTag'] = userTags; // always include values — tag query is fast
   } catch (e) { if (!isMissingSchema(e)) throw e; /* tag tables may not exist yet — skip silently */ }
 
-  return Object.entries(grouped).map(([column, values]) => ({ column, values }));
+  return withAttributeLabels(
+    Object.entries(grouped).map(([column, values]) => ({ column, values })), 'principal');
 }

@@ -1,6 +1,6 @@
 import { useMemo, useState, useCallback, useRef, useLayoutEffect } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
-import { friendlyLabel } from '@ui/utils/formatters';
+import { attributeLabel, friendlyLabel } from '@ui/utils/formatters';
 import { getAccessPackageColor } from '@ui/utils/colors';
 import { exportRollupToExcel } from '@ui/utils/exportRollupToExcel';
 import { useIsDark } from '@ui/contexts/ThemeContext';
@@ -76,6 +76,13 @@ function parseDrillMembers(body, rolesOnly) {
   return { users, memberships };
 }
 
+// The attribute a roll-up is grouped by, named the way every other surface names
+// it: the server-resolved display name when there is one (#872), otherwise the
+// humanised column name.
+function attributeCaption(attribute) {
+  return attributeLabel(attribute) || friendlyLabel(String(attribute).replace(/^ext\./, ''));
+}
+
 // The "how to read this matrix" description, which varies by mode.
 function ModeDescription({ percentMode, subjectWord, contextMode, layered, layeredAttributes, rolesOnly, attribute, mode }) {
   const valueWord = percentMode
@@ -91,9 +98,9 @@ function ModeDescription({ percentMode, subjectWord, contextMode, layered, layer
     <>Aggregated by the <span className="font-semibold">Manager Hierarchy</span> — columns are the teams under the highlighted node, and each cell is {valueWord} anywhere under that team who {rolesOnly ? 'hold the business role on that row' : <>have a <span className="font-medium">Direct</span> assignment</>}. Click <span className="font-medium">⊕</span> to zoom into a team's sub-teams, <span className="font-medium">▸</span> to expand its direct people. Use the breadcrumb above to go back up.</>
   );
   return rolesOnly ? (
-    <>Business roles on the rows, grouped by <span className="font-semibold">{friendlyLabel(String(attribute).replace(/^ext\./, ''))}</span> — each cell is {valueWord} who hold the role.</>
+    <>Business roles on the rows, grouped by <span className="font-semibold">{attributeCaption(attribute)}</span> — each cell is {valueWord} who hold the role.</>
   ) : (
-    <>Roll-up by <span className="font-semibold">{friendlyLabel(String(attribute).replace(/^ext\./, ''))}</span> — each cell is {valueWord}
+    <>Roll-up by <span className="font-semibold">{attributeCaption(attribute)}</span> — each cell is {valueWord}
     {mode === 'managed' ? ' governed' : mode === 'unmanaged' ? ' non-governed' : ''} with a
     <span className="font-medium"> Direct</span> assignment. Click a column to expand it into the individual {subjectWord}.</>
   );
