@@ -107,7 +107,7 @@ jobs:
         # same way and no route was ever chosen). The retry step immediately below detects that exact
         # failure via `steps.reason.outcome` and redoes the SAME reasoning with claude-opus-5, which
         # needs no Max plan.
-        uses: anthropics/claude-code-action@e5ad3c7725bc2459721893f88879fef9dbcf97b0 # v1
+        uses: anthropics/claude-code-action@833fb0f8c9f6686b33d963a8bae0a94f4936ab2a # v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           # Model: Fable 5 by default (Max-only); set repo var DOR_PROBE_MODEL to claude-opus-5 off Max.
@@ -222,7 +222,7 @@ jobs:
       - name: DoR bug reproduce + probe (opus-5 retry — primary model unavailable)
         id: reason_fallback
         if: steps.reason.outcome == 'failure'
-        uses: anthropics/claude-code-action@e5ad3c7725bc2459721893f88879fef9dbcf97b0 # v1
+        uses: anthropics/claude-code-action@833fb0f8c9f6686b33d963a8bae0a94f4936ab2a # v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           claude_args: "--model claude-opus-5 --allowedTools Read,Grep,Glob,Edit(.dor/out/**)"
