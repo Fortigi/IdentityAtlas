@@ -205,6 +205,8 @@ nav:
           - User Experience Assessment: ux/assessment.md
           - Security Assessment: security/assessment.md
           - Maintenance Audit (June 2026): security/maintenance-audit-2026-06.md
+          - Architecture Guidance Review (Sept 2026, proposal): architecture/architecture-guidance-review-2026-09.md
+          - Architecture Decision Principles (proposal): architecture/decision-principles.md
       - Marketing & Press Kit:
           - Overview: marketing/index.md
           - Product Brief: marketing/product-brief.md

@@ -55,7 +55,7 @@ One human may wear several hats. The point is not headcount; it's that **each qu
 | Role | Owns | Answers questions about |
 |------|------|-------------------------|
 | **Requestor** | Intent + functional decisions; scope; the time-travel success/failure criteria | what it should do, for whom, how *complete/general* it should be, "just another attribute vs. a new surface" |
-| **Architect / tech lead** | Technical approach; coherence of the codebase | registry vs engine, additive vs mutate-shared-contract, matview vs query-time, migrations |
+| **Architect / tech lead** | Technical approach; coherence of the codebase | registry vs engine, additive vs mutate-shared-contract, matview vs query-time, migrations, closed-enum vs free-form type axis, deterministic vs LLM for persisted output — see [`decision-principles.md`](../architecture/decision-principles.md) for the full testable checklist and its confidence ratings |
 | **Designer** | Form: interaction model, information architecture | how it looks/feels, integrate with an existing control or stand alone |
 | **Product Owner** | Desirability / product coherence — the GO | does this move the product forward or just add complexity/bloat |
 | **Builder (AI)** | Runs Phases A/B, then builds/tests/documents autonomously | — |

@@ -19,14 +19,17 @@
 >
 > Be careful not to carry the old description forward: "the crawlers are monoliths with functions trapped in `Main`" was still being repeated after it stopped being true, and it was used to justify skipping mutation testing on files that turned out to hold 158 named functions and 263 existing tests. Check the file before citing this paragraph about it.
 
+> **Architecture fit is a checklist, not a vibe.** When a feature request raises "does this fit the existing architecture" — a new resourceType, a new plugin, a materialize-vs-query-time choice, whether an issue needs decomposing — check it against [`docs/architecture/decision-principles.md`](docs/architecture/decision-principles.md) before treating it as an open question for a human. Each entry is a testable question with a confidence rating and cited example issues; 🟢 entries are safe to apply directly, 🟡 entries should still go to the architect the first few times.
+
 ### Enforcement
 
-The four principles above are framed identically ("MUST"), but they are **not** enforced identically. Some are hard CI gates that fail your PR; others rely on reviewer judgement. Know which is which:
+The five principles above are framed identically ("MUST"), but they are **not** enforced identically. Some are hard CI gates that fail your PR; others rely on reviewer judgement. Know which is which:
 
 | Principle | How it's actually enforced |
 |-----------|----------------------------|
 | **Reuse before creating** | Reviewer judgement, backed by the `jscpd` duplication gate — `Lint: Code duplication (jscpd)` in `.github/workflows/pr.yml`, threshold in `.jscpd.json`. It catches copy-paste, not all missed-reuse. |
 | **Fix at the source, not the surface** | Reviewer only — no automated gate. Call out in the PR when you took a surface fix and why. |
+| **Architecture fit** | Reviewer/architect judgement per `docs/architecture/decision-principles.md` — no automated gate. The 🟢/🟡 confidence labels are the only signal of how settled an answer is. |
 | **Coverage never down** | Hard gate — two committed ratchets, both enforced by the `Unit Tests: Vitest (API)` / `Unit Tests: Vitest (UI)` PR Checks jobs (`npm run test:coverage`): the **aggregate** floor (Vitest thresholds in `app/api/vitest.config.js` + `app/ui/vite.config.js`) and a **per-file** floor (`tools/coverage/ratchet.py` + `.ci/coverage-baseline.json`, only ratchets up) so one file can't quietly shed coverage while another rises. A drop below either floor fails the PR. Changed-line coverage (80% of a PR's changed lines) is reported by the separate `Diff coverage` workflow, which is **advisory, not blocking** — it is not aggregated into `CI Passed` and no ruleset requires it, because pure-JSX page shells still produce expected reds ([#725](https://github.com/Fortigi/IdentityAtlas/issues/725)). Treat a red there as a question to answer, not a gate to pass. |
 | **Keep files small (>1000 must split)** | Hard gate — the file-length ratchet: `.github/workflows/filesize.yml` + `tools/filesize/ratchet.py` + `.ci/filesize-baseline.json`. Grandfathered files may only shrink; a new/crossing-the-ceiling oversized file fails. |
 
