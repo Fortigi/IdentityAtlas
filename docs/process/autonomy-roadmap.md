@@ -60,7 +60,7 @@ letting it decide on an incomplete picture.
 | Layer | Here |
 |---|---|
 | **Producten** — sprint products against acceptance criteria | ✅ features with fixture ACs from the probe |
-| **Resultaten** — measurable Key Results at agreed moments | ❌ a KR per epic, written; **none measured yet** |
+| **Resultaten** — measurable Key Results at agreed moments | 🟡 a KR per epic, written; the moment is agreed (monthly); **none measured yet** |
 | **Effect** — what we steer on | 🟡 true for 13 of 22 — *see below* |
 
 **Decision (2026-09-08): the epics *are* the objectives.** No separate layer above them. Each epic
@@ -91,10 +91,12 @@ what phase 3.2 and 3.3 are for.
 | | Here |
 |---|---|
 | **Niveau 1** Sprint Review — products | 🟡 functional acceptance per feature (D2), not per sprint |
-| **Niveau 2** Key Result Review — results | ❌ no moment agreed yet — *decision taken, see below* |
+| **Niveau 2** Key Result Review — results | 🟡 cadence agreed (monthly); owner and first date still to set |
 | **Niveau 3** Doelstellingen Review — effect | merged into niveau 2 |
 
-**Decision (2026-09-08): one fixed review moment, all Key Results at once.** Not a date per KR.
+**Decision (2026-09-08): one fixed review moment, all Key Results at once — monthly.** Not a date
+per KR. Still open is only *who owns it* and *when the first one runs*; the shape and the cadence
+are settled.
 
 ### Agile ontwikkelen, beheerst implementeren
 
@@ -196,9 +198,10 @@ or you get *"As a developer I want a migration so that…"*, which helps nobody.
 
 ### What remains after the naming fix
 
-The Effect layer becomes genuinely covered. **The Resultaten layer does not.** No Key Result has
-ever been measured; niveau 2 — the review that, in the approach, sets the priorities for the coming
-period — has no date, no owner and no measurement. That is worth more than the taxonomy.
+The Effect layer becomes genuinely covered. **The Resultaten layer does not — yet.** The cadence is
+agreed (monthly, all Key Results at once), but no Key Result has ever actually been measured, and
+niveau 2 has no owner and no first date in the calendar. An agreed rhythm that nobody has run is
+still not a measurement. That is worth more than the taxonomy.
 
 ---
 
@@ -210,7 +213,7 @@ Steps A–E come out of the review above; phases 0–3 were set earlier in the s
 |---|---|---|---|
 | **A** | Add Issue Types `Epic` + `Slice`; set the type on ~110 issues | org setting + script, ~1h | Must land **before phase 1.2** — the intake check will teach the agent whatever level structure it finds |
 | **B** | Split Status into `Besluit` | ~30 min | Clearly right, small |
-| **C** | Key Result Review: a date, an owner, a first round | an agreement, no building | The real gap in the approach |
+| **C** | Key Result Review: cadence is agreed (monthly) — name an owner, put the first one in the calendar, run it | no building | The real gap in the approach: agreed, never run |
 | **D** | Risks as a DoR gate | S | Closes the sixth element of the quality framework |
 | **E** | Give the 9 features an Epic parent | half a day, incremental | Can run alongside; no need to do it at once |
 
@@ -269,8 +272,12 @@ Then 0.1 → 1.1, in that order.
 
 - **A risk gate in the DoR.** The approach's quality framework has six elements; the DoR has five.
   Risks are captured at epic level and nowhere at feature level. Small addition, closes the gap.
-- **Who owns the Key Result Review.** The decision is "one fixed moment, all KRs" — it still needs a
-  cadence, a date and an owner, or it will not happen.
+- **Who owns the Key Result Review.** The decision is "one fixed moment, all KRs, monthly" — it
+  still needs an owner and a first date, or it will not happen. Tracked as step C.
+- **What a Key Result Review actually looks like.** Nobody has run one, so the format is unwritten:
+  which KRs get a status, what "not on track" triggers, and whether the outcome re-orders the
+  backlog the way the approach's niveau 2 intends. Worth drafting before the first round rather
+  than improvising it.
 - **Integration health under flow.** With no sprint review, nothing asks *"does the product still
   hang together after N merges?"* Per-feature acceptance does not answer that.
 - **The route to production.** #673 is the missing half of "beheerst implementeren", and its blocker

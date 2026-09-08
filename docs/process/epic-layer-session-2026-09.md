@@ -97,7 +97,7 @@ Four deviations from the Fortigi approach, now deliberate rather than accidental
 |---|---|
 | **Flow, no sprints** | Product development is not a customer implementation |
 | **Epics *are* the objectives** | No separate layer above them; niveau 2 and 3 merge; Driver becomes the portfolio view |
-| **One fixed review moment, all Key Results at once** | Not a date per KR |
+| **One fixed review moment, all Key Results at once — monthly** | Not a date per KR. Owner and first date still to set |
 | **The autonomy ladder is vocabulary, not mechanism** | Voordoen → Loslaten maps onto 🟡/🟢/autobuild, but no field is built for it |
 
 Features flow; the review layer has a cadence. The approach's "fixed rhythm without breaking
@@ -126,7 +126,8 @@ Grouping and conflict detection are level-agnostic — they work because things 
 together sit together — so nothing built this session is lost. Steps A and B in
 [`autonomy-roadmap.md`](autonomy-roadmap.md#the-plan).
 
-**And the part the naming does not fix:** no Key Result has ever been measured. Of the two
+**And the part the naming does not fix:** the review cadence is agreed (monthly) but no Key Result
+has ever actually been measured, and nobody owns the review. Of the two
 objections and the gap they exposed, that is the one worth the most.
 
 ## State on close
