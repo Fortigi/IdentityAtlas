@@ -67,7 +67,8 @@ client-side "owner as its own row" simulation, fixed in PR #446 by giving owners
 defect shape recurred**: issue #937 shows `BusinessRole` rows leaking into the matrix's resource axis
 for the identical reason — a resource-listing query with no `resourceType` exclusion. The DoR bot's
 own certification comment on #937 draws the parallel explicitly, citing `resources.js:82-88`'s
-existing `BusinessRole` exclusion as "an exact precedent for the fix."
+existing `BusinessRole` exclusion as "an exact precedent for the fix." (That code has since moved
+to `app/api/src/routes/resources/list.js` in #1042; the citation was correct on the day.)
 
 The principle exists in prose (CLAUDE.md) but nothing turns it into a repeatable check — there's no
 "every new resource-axis query must state which resourceTypes it excludes" item on any checklist.

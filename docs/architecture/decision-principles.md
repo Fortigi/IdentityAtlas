@@ -5,9 +5,10 @@ type: reference
 # Architecture decision principles
 
 !!! warning "Proposal for review — not yet adopted"
-    This page is a draft, written to sharpen the DoR spec-agent's **A5 "Architecture fit"** gate
-    (today just four words in [`definition-of-ready.md`](../process/definition-of-ready.md#phase-a--intent-interview-generative-one-sitting):
-    *"registry vs engine, additive vs mutate-shared-contract, matview vs query-time, migrations"*).
+    This page is a draft, written to sharpen the DoR spec-agent's **A5 "Architecture fit"** gate.
+    Before this proposal, the only stated criteria were the Architect row of the
+    [DoR role table](../process/definition-of-ready.md#roles-lanes) — *"registry vs engine, additive
+    vs mutate-shared-contract, matview vs query-time, migrations"* — and that row now points here.
     Nothing here is enforced until an architect (Wim / Taeke) ratifies it. See
     [`architecture-guidance-review-2026-09.md`](architecture-guidance-review-2026-09.md) for the
     analysis this page came from — the contradictions found, the issues cited as evidence, and the
@@ -33,7 +34,8 @@ evidence instead of re-litigating from scratch.
 **Q:** Does this feature add or touch a query that lists "all resources" / "all resource rows"
 without a `resourceType` filter? If so, does it need to exclude synthetic/governance resourceTypes
 (`GroupOwnership`, `BusinessRole`, `AppRole`, `ServicePrincipalOwnership`, …) the way
-`resources.js:82-88` already does for `BusinessRole`?
+`app/api/src/routes/resources/list.js` already does for `BusinessRole` (hidden unless
+`?includeBusinessRoles=true`)?
 
 **Why:** A relationship or governance construct (ownership, a business-role bundle) must be modeled
 as a real `Resource` + `ResourceAssignment`, never faked as a UI-only row — that's the origin of
@@ -73,8 +75,8 @@ type)? → `resourceType` (free text) or `extendedAttributes`.
 **Why:** `assignment-model-redesign.md` is the origin story: `assignmentType` was deliberately
 narrowed to a closed, statically-guarded enum *because* it carries a universal cross-source
 semantic, while `resourceType` stayed free-form because it carries source-specific detail. This
-reasoning has never been extracted for the next author to find — it currently requires reading a
-~300-line redesign doc and inferring it.
+reasoning has never been extracted for the next author to find — it currently lives in a test-file
+header and a ~300-line redesign doc.
 
 **Applies to:** #939 (BloodHound crawler needs new `PRINCIPAL_RELATIONSHIP_TYPES` values — this is a
 safe, well-defined operation following the `assignmentType` precedent, not a blocked question); #921
@@ -82,7 +84,10 @@ safe, well-defined operation following the `assignmentType` precedent, not a blo
 this works in the AzureRM crawler" is exactly this rule, just not written down before the issue hit
 `awaiting-design`).
 
-**Evidence:** `docs/architecture/assignment-model-redesign.md`, `docs/architecture/ingest-api.md:328-330`.
+**Evidence:** `docs/architecture/assignment-model-redesign.md`, `docs/architecture/ingest-api.md:328-330`,
+`app/api/src/ingest/assignmentTypes.guard.test.js` (the closed side) and
+`app/api/src/ingest/resourceTypes.guard.test.js`, whose header pins `resourceType` as an **open**
+vocabulary because an allow-list would break CSV / Omada / midPoint / Azure imports (the open side).
 
 ### A4. Reuse the `synced` / `generated` / `manual` variant + reconciliation pattern 🟡
 **Q:** Does this feature need to track whether a row came from a crawler, an algorithm, or a human
@@ -112,10 +117,10 @@ grants), **or** would reconstructing from `_history` be misleading because of co
 materialize (a matview, or a dedicated snapshot table).
 
 **Why not 🟢:** every individual instance is well-justified, but no doc states the rule connecting
-them — this is my synthesis across four precedents that point the same direction, not a rule anyone
-has ratified. Treat it as a strong default, not a certified answer, until an architect has applied it
-a few times without objection: `matrix.md` (migration 013 removed matview-side recursive expansion —
-too costly, replaced by lazy click-time expansion), `effective-access-engine.md §2` (same choice,
+them — this is a synthesis (made in the September 2026 review) across four precedents that point the
+same direction, not a rule anyone has ratified. Treat it as a strong default, not a certified
+answer, until an architect has applied it a few times without objection: `matrix.md` (migration
+013 removed matview-side recursive expansion — too costly, replaced by lazy click-time expansion), `effective-access-engine.md §2` (same choice,
 generalized: "materialize vs. compute on demand," compute-on-demand wins), `matrix-scope-statistics.md`
 (reconstructs from the audit log at query time — no dedicated snapshot table) all chose
 compute-on-demand; `dashboard-trends.md` chose the **opposite** — a dedicated `DashboardSnapshots`
@@ -257,26 +262,29 @@ exists yet, and nothing in the request says it needs to sync across devices).
 ## E. Sizing & decomposition (highest-leverage gap — see impact estimate)
 
 **No existing rule addresses this at all** beyond the file-size/complexity ratchets, which govern
-code, not issues. Every `state:decompose` issue currently improvises its own splitting logic. The
-checklist below is synthesized from the 12 decompose issues surveyed, offered as a starting rubric —
-**all 🟡**, expect an architect to adjust it after a few uses.
+code, not issues, so each `state:decompose` issue has improvised its own splitting logic. The
+checklist below is synthesized from the 14 `state:decompose` issues that were open when the
+September 2026 review was done (most have since been re-routed or converted to epics), offered as a
+starting rubric — **all 🟡**, expect an architect to adjust it after a few uses.
 
 - **Split by capability, not by phase.** If the request names 2+ independently-shippable
   capabilities (each individually useful without the other), split along that line — not into
   "phase 1 / phase 2" of one capability. *Model: #843's own definitional litmus test
   ("a Business Role is a bundle you give out; a Logical Application is a boundary you're responsible
   for") is exactly the kind of self-resolving decomposition question a decompose issue should answer
-  in its own body before slicing — promote it into `docs/architecture/` as the concept doc it already
-  functions as.*
+  in its own body before slicing. #843 became an epic on 2026-09-07; promoting its concept section
+  into `docs/architecture/` as the concept doc it already functions as is still open.*
 - **Schema-touching work ships before its first UI consumer.** If part of the request needs a
   migration and another part is UI-only, the schema slice ships first (framework-before-consumer),
   matching how `effective-access-engine.md`'s own phasing and #672's probe-generated slice plan both
   sequence.
-- **A slice with no size problem shouldn't be forced through `decompose`.** #839 and #837 have no
-  scope-size issue at all — they're blocked purely on a *dependency* chain (#837 → #838 → #839).
-  `decompose` is the wrong route for a purely-sequencing block; it should route to
-  `Blocked (external)` or stay in `awaiting-requestor` against the blocking issue instead, so the
-  distinction is visible on the board.
+- **A slice with no size problem shouldn't be forced through `decompose`.** `decompose` is the
+  wrong route for a purely-sequencing block; it should route to `Blocked (external)` or stay in
+  `awaiting-requestor` against the blocking issue instead, so the distinction is visible on the
+  board. *Worked example, since applied:* #837 and #839 had no scope-size issue at all — they were
+  blocked purely on a *dependency* chain (#837 → #838 → #839) and sat in `decompose` for six weeks
+  anyway. On 2026-09-07/08 they were re-routed (#837 → epic, #839 → `state:blocked-external`),
+  which is exactly the shape this bullet asks for.
 - **Right-sized already?** If the request is already scoped to one schema change + one consumer +
   fixture ACs describable in under ~5 Given/When/Then cases, do not decompose further —
   over-splitting adds coordination overhead without reducing risk.
@@ -286,11 +294,13 @@ checklist below is synthesized from the 12 decompose issues surveyed, offered as
 ## F. Explicitly out of scope for this document
 
 **Security/operational hardening defaults** for an auth-off, self-hosted deployment (#779 PowerShell
-worker hardening, #780 Azure IaC hardening, #782 Postgres TLS, #783 vault master-key policy, #784
-rate limiting, #785 container hardening) are **policy decisions** (a rotation cadence, which layer
-owns rate limiting, a credential-handling posture), not "does this fit the existing architecture"
-questions. Routing them through the Architect hat under `state:awaiting-design` is a category error —
-no architecture principle resolves "what's our default token-rotation cadence." These need either a
-dedicated `docs/security/deployment-defaults.md` policy page with an explicit owner, or a
-Product-Board policy call. See the review doc's impact estimate for why this reclassification matters
-more than any content fix here.
+worker hardening, #783 vault master-key policy, #784 rate limiting — all `state:awaiting-design`; and
+#780 Azure IaC hardening, #782 Postgres TLS, #785 container hardening — `state:blocked-external`
+since 2026-07-28) are **policy decisions** (a rotation cadence, which layer owns rate limiting, a
+credential-handling posture), not "does this fit the existing architecture" questions. Routing the
+first three through the Architect hat under `state:awaiting-design` is a category error — no
+architecture principle resolves "what's our default token-rotation cadence." The other three are
+correctly parked, but will hit the same category error the moment their external blocker clears.
+These need either a dedicated `docs/security/deployment-defaults.md` policy page with an explicit
+owner, or a Product-Board policy call. See the review doc's impact estimate for why this
+reclassification matters more than any content fix here.
