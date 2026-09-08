@@ -1,0 +1,3 @@
+- Documented the new epic layer above the feature backlog: how epics, sub-epics and decision issues are wired, which board and fields carry them, and the conventions that keep them out of the Definition-of-Ready pipeline.
+- Added an autonomy roadmap that measures the current process against the Fortigi implementation approach, records four deliberate deviations, and sets out the phased plan towards more autonomous feature delivery.
+- Added a session log recording what changed when the epic layer was introduced, including the corrections made along the way and the process lessons worth keeping.
