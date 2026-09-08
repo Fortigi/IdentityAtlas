@@ -227,6 +227,11 @@ jobs:
       - name: DoR interview + probe (opus-5 retry — primary model unavailable)
         id: reason_fallback
         if: steps.reason.outcome == 'failure'
+        # Same try/catch contract as the primary attempt above. Without this the job DIES here when
+        # the retry also fails, so every later step is skipped — including the "fail loudly" step at
+        # the bottom, which exists for precisely this case and therefore never once printed the one
+        # message naming the likely cause. Seen on #1123 (7 sibling slices the same minute) and #1164.
+        continue-on-error: true
         uses: anthropics/claude-code-action@e5ad3c7725bc2459721893f88879fef9dbcf97b0 # v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
@@ -336,6 +341,10 @@ jobs:
         run: git restore --source=HEAD --staged --worktree -- .github
 
       - name: Post the agent's decision
+        # Only when a reasoning step actually produced output. With both models failed there is no
+        # route.txt, and running this step anyway would fail it on the missing file — which would
+        # again skip the diagnostic below, and would report a token outage under the wrong headline.
+        if: steps.reason.outcome == 'success' || steps.reason_fallback.outcome == 'success'
         env:
           GH_TOKEN: ${{ github.token }}
           BOARD_TOKEN: ${{ steps.board-token.outputs.token }}
@@ -348,10 +357,10 @@ jobs:
         # Route allow-list + egress token-scan + comment/label/board-sync, shared with the bug agent.
         run: bash .github/scripts/dor_post_decision.sh
 
-      # Both attempts failing means .dor/out/route.txt never got written, so the post step above just
-      # no-ops ("Agent chose no action this run") — silently, from the outside. Turn that into a loud,
-      # searchable red run instead of a stalled issue nobody notices until the health-check sweep flags
-      # it a day later.
+      # Both attempts failing means .dor/out/route.txt never got written. The post step above skips
+      # itself in that case, so without this the job would end GREEN having done nothing at all. Turn
+      # it into a loud, searchable red run that names the likely cause, instead of a stalled issue
+      # nobody notices until the hourly health sweep flags it.
       - name: Fail loudly if neither model produced a decision
         if: steps.reason.outcome == 'failure' && steps.reason_fallback.outcome == 'failure'
         run: |

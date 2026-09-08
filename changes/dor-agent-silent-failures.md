@@ -1,0 +1,3 @@
+- Fixed the AI issue-review silently doing nothing when it could not reach a model: a review that fails on every model now ends in a visibly failed run naming the likely cause, instead of a green run that leaves the issue parked in its entry column as if someone had been asked a question.
+- Fixed an AI review that finishes without choosing a route being reported as success — it now fails, so the issue is not left looking as though it is waiting on a person.
+- AI review comments now carry an invisible marker, so the pipeline health sweep can tell an agent comment from a human reply regardless of which account posted it.
