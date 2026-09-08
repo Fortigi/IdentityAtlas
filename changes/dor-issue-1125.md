@@ -1,0 +1,3 @@
+- Linked Accounts on the identity detail page is now a table with System | Account | Enabled | Type columns, so you can see at a glance which source system each account came from and whether it is still enabled — without opening every account.
+- The Enabled column reflects the account's current state from the last crawl, falling back to the state recorded when the account was linked only when the account itself is no longer present.
+- Confirm / Remove / Undo, the correlation confidence bar, override badges and the "Linked from source" note are unchanged and stay on every row.

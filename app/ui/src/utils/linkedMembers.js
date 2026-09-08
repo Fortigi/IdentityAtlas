@@ -14,3 +14,17 @@
 export function isSourceLinkedMember(member) {
   return member == null || member.linkConfidence == null;
 }
+
+/**
+ * Whether a linked account is enabled in its source system. The live value on
+ * the Principal (`userAccountEnabled`) wins; the IdentityMembers snapshot
+ * (`accountEnabled`, stamped when the link was made) is only a fallback for
+ * members whose Principal row is gone — it goes stale between linking runs, and
+ * a stale-access review must see current state. Null when neither is known.
+ *
+ * @param {{userAccountEnabled?: boolean|null, accountEnabled?: boolean|null}} member
+ * @returns {boolean|null}
+ */
+export function memberAccountEnabled(member) {
+  return member?.userAccountEnabled ?? member?.accountEnabled ?? null;
+}
