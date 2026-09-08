@@ -103,6 +103,32 @@ Four deviations from the Fortigi approach, now deliberate rather than accidental
 Features flow; the review layer has a cadence. The approach's "fixed rhythm without breaking
 governance" applies here at the epic layer rather than the feature layer.
 
+## Review outcome (2026-09-08)
+
+Two objections came back from review, and they turned out to be the same problem.
+
+**On the levels.** *"An epic is a goal with features under it that contribute to reaching it. What
+you call Epics are Features, and what hangs under them are stories."* Counted: **13 of 22 are
+goal-shaped, 9 are features with implementation slices** — the split runs exactly along bottom-up
+versus top-down. One word had been used for two operations without the difference ever being named.
+
+**On the status field.** *"An epic cannot be ready to build; a feature can."* Correct, and the cause
+was putting two kinds of value in one field — one intrinsic to the parent (`Conflict`,
+`Ontwerp open`), one a roll-up of the children that GitHub already displays natively.
+
+**Why they are one problem.** The evaluation above answered *"is the Effect layer covered?"* with
+*"yes — the epics are the objectives"*. That premise holds for 13 and not for 9, which is why the
+answer felt right and read wrong. All three of the approach's tiers already exist here; only the top
+two shared a name.
+
+**Resolution: type it, do not move it.** Add Issue Types `Epic` and `Slice`; re-parent nothing.
+Grouping and conflict detection are level-agnostic — they work because things that must be judged
+together sit together — so nothing built this session is lost. Steps A and B in
+[`autonomy-roadmap.md`](autonomy-roadmap.md#the-plan).
+
+**And the part the naming does not fix:** no Key Result has ever been measured. Of the two
+objections and the gap they exposed, that is the one worth the most.
+
 ## State on close
 
 22 epics · 67 features with a parent · `no:parent-issue` = 0 · 14 decision issues · 30 `blocked by`

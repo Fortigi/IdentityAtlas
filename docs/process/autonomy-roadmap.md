@@ -60,14 +60,22 @@ letting it decide on an incomplete picture.
 | Layer | Here |
 |---|---|
 | **Producten** — sprint products against acceptance criteria | ✅ features with fixture ACs from the probe |
-| **Resultaten** — measurable Key Results at agreed moments | 🟡 a KR per epic, written; none measured yet |
-| **Effect** — what we steer on | ✅ *see decision below* |
+| **Resultaten** — measurable Key Results at agreed moments | ❌ a KR per epic, written; **none measured yet** |
+| **Effect** — what we steer on | 🟡 true for 13 of 22 — *see below* |
 
 **Decision (2026-09-08): the epics *are* the objectives.** No separate layer above them. Each epic
 body already carries both a *doelstelling* and a *Key Result*, so the approach's three tiers collapse
 into two for a team this size. Consequence: **niveau 2 and niveau 3 merge** — the Key Result Review
 *is* the Doelstellingen Review. The **Driver** field takes over the portfolio view that a separate
 objectives layer would otherwise have provided.
+
+**Correction (2026-09-08, after review):** that decision rests on a premise that holds for only
+part of the set. Counted: **13 of the 22 are goal-shaped; 9 are features with implementation
+slices** — and the split runs exactly along how they were created (bottom-up grouping produced
+goals, top-down conversion of a `state:decompose` item produced features). So the Effect layer is
+covered for 13 and not for 9. See [Naming the layer honestly](#naming-the-layer-honestly) — that
+section is the answer to both this and the reviewer's naming objection, which turn out to be the
+same problem.
 
 ### De gesloten cirkel
 
@@ -124,7 +132,89 @@ rule. Useful for talking about where a decision type sits; not something to buil
 
 ---
 
+## Naming the layer honestly
+
+Two objections arrived from review, and they turn out to be one problem.
+
+**"How much of the approach have we actually realised?"** The evaluation above answered *the Effect
+layer is covered, because the epics are the objectives*.
+
+**"An epic is a goal with features under it that contribute to reaching it. What you call Epics are
+Features, and what hangs under them are stories. And an epic can't be *ready to build* — that is a
+feature status."**
+
+The second shows the first was half true. Counted:
+
+| Origin | Count | What it actually is |
+|---|---|---|
+| Bottom-up — existing features grouped | 13 | **goal** (#1103 *Analist begrijpt wat hij ziet*, #1141 *Engineering-kwaliteit*) |
+| Top-down — a `state:decompose` item *became* the epic | 9 | **feature with slices** (#843 *Logical Applications*, #672 *Risk scoring tier*) |
+
+One word was used for two operations and the difference was never named. All three of the approach's
+tiers already exist here — Effect → Resultaat → Product as Doel → Feature → Slice, and three places
+are already correctly nested (#1107→#939, #1139→#837, #1140→#673). What is missing is a *name* for
+the top two, which is exactly why the Effect question could not be answered cleanly.
+
+**What does not change.** Grouping and conflict detection are level-agnostic — they work because
+things that must be judged together sit together, not because the container is called an epic. The
+22 groupings, 14 decision issues, 30 `blocked by` links, Driver, Effort and the conflict round all
+stand.
+
+### The fix: type it, do not move it
+
+**Add GitHub Issue Types.** The org has `Task` / `Bug` / `Feature`; add **`Epic`** and **`Slice`**.
+Nothing is re-parented — a feature currently sitting at top level stays there and simply reads
+`Feature`. `type:Epic` becomes the filter for what is genuinely a goal.
+
+| Type | Carries | Roughly |
+|---|---|---|
+| **Epic** | doelstelling + Key Result + meetmoment | 13 |
+| **Feature** | acceptance criteria, independently valuable | ~85 |
+| **Slice** | implementation step, no standalone user value | ~30 |
+
+**Split the Status field.** The reviewer is right that an epic cannot be *ready to build*. Two
+different things were in one field: `Conflict` / `Ontwerp open` are intrinsic to the parent — a
+contradiction *between* children is a property of the level above — while `Klaar om te bouwen` /
+`Loopt` / `Geblokkeerd` / `Klaar` are a roll-up the native sub-issue progress bar already shows.
+The field becomes **`Besluit`**: `Conflict` · `Ontwerp open` · `Geen open besluit`.
+
+**Later and incrementally:** the 9 top-level features can take an Epic parent as it becomes obvious
+(#699 and #875 under #1141, #207 under #1103, #676 under #1105). Two need a real choice — #672 would
+require widening #1107 from *attack paths* to *risk made visible*, and #843 does not fit #1139 as
+named. A feature without an epic is not wrong, only not yet placed.
+
+### One caution on vocabulary
+
+"The features underneath are user stories" holds for some and not others. #931 (*a matrix showing
+which access packages a group of users hold*) is a user story; #788 (*cursor/keyset pagination for
+the flat grid*) is not, and does not become one by relabelling. Under the feature-shaped epics the
+children are **slices** — steps with no standalone user value (#1108: *framework + schema, no UI*).
+
+User story is a *format*; INVEST is the *criterion*, and the DoR already enforces the substance —
+independently valuable, testable ACs, one buildable cut. Keep the criterion; do not force the label,
+or you get *"As a developer I want a migration so that…"*, which helps nobody.
+
+### What remains after the naming fix
+
+The Effect layer becomes genuinely covered. **The Resultaten layer does not.** No Key Result has
+ever been measured; niveau 2 — the review that, in the approach, sets the priorities for the coming
+period — has no date, no owner and no measurement. That is worth more than the taxonomy.
+
+---
+
 ## The plan
+
+Steps A–E come out of the review above; phases 0–3 were set earlier in the session and still stand.
+
+| | | Cost | Why there |
+|---|---|---|---|
+| **A** | Add Issue Types `Epic` + `Slice`; set the type on ~110 issues | org setting + script, ~1h | Must land **before phase 1.2** — the intake check will teach the agent whatever level structure it finds |
+| **B** | Split Status into `Besluit` | ~30 min | Clearly right, small |
+| **C** | Key Result Review: a date, an owner, a first round | an agreement, no building | The real gap in the approach |
+| **D** | Risks as a DoR gate | S | Closes the sixth element of the quality framework |
+| **E** | Give the 9 features an Epic parent | half a day, incremental | Can run alongside; no need to do it at once |
+
+A and B are this week. C is an agenda item. D and E run with phase 1 below.
 
 ### Phase 0 — Decisions, no building *(days)*
 

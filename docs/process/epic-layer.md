@@ -60,6 +60,18 @@ under #1140).
 The second is what `state:decompose` was always asking for. An epic with one child is not an epic —
 it is an item whose slices do not exist yet, which is exactly the signal that route should give.
 
+!!! warning "One word, two things — being fixed"
+    Those two directions did not produce the same kind of object, and calling both "epic" hides it.
+    Counted on 2026-09-08: **13 of the 22 are goal-shaped** (a *doelstelling* with features
+    contributing to it) and **9 are features with implementation slices** — and the split runs
+    exactly along bottom-up versus top-down.
+
+    The agreed fix is to **type them, not move them**: add GitHub Issue Types `Epic` and `Slice`
+    alongside the existing `Feature`, so each issue says what it is without anything being
+    re-parented. Grouping and conflict detection do not depend on the level, so nothing here stops
+    working in the meantime. See
+    [`autonomy-roadmap.md`](autonomy-roadmap.md#naming-the-layer-honestly) — steps A and B.
+
 ## Boards
 
 | Board | Holds | Driven by |
@@ -92,6 +104,16 @@ the shortlist of things that can jump the queue whatever their driver.
 **Status** (board #4) — `Conflict` · `Ontwerp open` · `Klaar om te bouwen` · `Loopt` ·
 `Geblokkeerd` · `Geparkeerd` · `Klaar`. `Conflict` and `Ontwerp open` are deliberately separate:
 children contradicting each other is a different problem from one unanswered question.
+
+!!! warning "This field holds two different things — being split"
+    An epic cannot be *ready to build*; only a feature can. Review on 2026-09-08 established that
+    two kinds of value were put in one field: `Conflict` and `Ontwerp open` are **intrinsic to the
+    parent** — a contradiction *between* children is a property of the level above — while
+    `Klaar om te bouwen`, `Loopt`, `Geblokkeerd` and `Klaar` are a **roll-up of the children** that
+    the native sub-issue progress bar already shows.
+
+    The field becomes **`Besluit`**: `Conflict` · `Ontwerp open` · `Geen open besluit`. Progress
+    comes from the sub-issues themselves.
 
 **Conflict** (text, board #4) — the clashing pair plus the decision issue, so the board row says
 what is wrong without opening anything: `#937 ↔ #370 (+migr 061) · rotated view ×4 → #1147 #1148`.
