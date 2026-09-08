@@ -42,6 +42,10 @@ const SCHEMAS = {
       tenantId: { type: 'string', maxLength: 255 },
       enabled: { type: 'boolean' },
       syncEnabled: { type: 'boolean' },
+      // Connector-level metadata — notably `attributeDisplayNames`, the crawler's
+      // rawKey -> friendly-name map for the attributes it stamps on this system's
+      // principals/resources (see lib/attributeLabels.js).
+      extendedAttributes: { type: 'json' },
     },
   },
   principals: {

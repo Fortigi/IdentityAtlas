@@ -134,6 +134,7 @@ $ApiBaseUrl = $ApiBaseUrl.TrimEnd('/')
 . (Join-Path $PSScriptRoot 'EntraIDCrawler.AppPermissions.ps1')
 . (Join-Path $PSScriptRoot 'EntraIDCrawler.PrincipalRelationships.ps1')
 . (Join-Path $PSScriptRoot 'EntraIDCrawler.Orchestration.ps1')
+. (Join-Path $PSScriptRoot 'EntraIDCrawler.AttributeLabels.ps1')
 
 # Resolve all sync toggles + attribute lists from the job config.
 $cfg = Resolve-EntraSyncConfig -RawConfig $RawConfig
@@ -178,6 +179,15 @@ $script:phases = [System.Collections.Generic.List[object]]::new()
 $systemId = Initialize-EntraCrawlerRun -ApiBaseUrl $ApiBaseUrl -ApiKey $ApiKey -ConfigFile $ConfigFile
 
 $syncStart = Get-Date
+
+# ─── Attribute display names ─────────────────────────────────────
+# Stamp the friendly name for every configured directory-extension attribute onto
+# the System, so a name like `extension_<appId>_sfTeamID` reads `sfTeamID` in the
+# UI and the Excel export while the stored key stays exactly what Entra calls it.
+# Runs before the data phases (it depends only on config) and no-ops when no
+# configured attribute is extension-shaped.
+Sync-EntraAttributeDisplayNames -TenantId $Global:TenantId `
+    -CustomUserAttributes $CustomUserAttributes -CustomGroupAttributes $CustomGroupAttributes | Out-Null
 
 # Sentinel resourceId for aggregate per-principal activity rows (the DEFAULT on
 # the PrincipalActivity.resourceId column). Shared by the Principals and Service

@@ -147,7 +147,10 @@ function Add-DemoOrg {
             companyName        = 'Fortigi Demo Corp'
             managerId          = $mgrGuid
             systemId           = $State.SystemIds['entra']
-            extendedAttributes = @{ passwordNeverExpires = (Test-DemoNeverExpires $emp.id) }
+            extendedAttributes = @{
+                passwordNeverExpires        = (Test-DemoNeverExpires $emp.id)
+                $script:DemoSamAccountKey   = (Get-DemoSamAccountName $emp.name)
+            }
         }
 
         $null = Add-DemoIdentity $State -Record @{
@@ -171,6 +174,27 @@ function Add-DemoOrg {
     }
 
     Add-DemoOrgEdgeCases $State
+}
+
+# ─── The Entra directory-extension attribute ──────────────────────────────────
+# Every tenant that syncs from on-prem AD ends up with attributes like this one:
+# Entra writes them under their wire name, `extension_<32-hex appId>_<name>`,
+# where the middle segment is the appId of the application the extension was
+# defined for. The demo carries one so the dataset exercises the display-name
+# rule (issue #872) — the GUI shows `sAMAccountName`, while the stored key stays
+# the full wire name so filters and sorts keep addressing the real attribute.
+#
+# The appId is a well-formed 32-hex value that belongs to no real tenant. It has
+# to be exactly 32 hex characters: `extension_notahexguid_foo` is deliberately
+# NOT treated as an extension key and would be left alone.
+$script:DemoExtensionAppId = '8ce8d3db3b314def88d829e15494e83f'
+$script:DemoSamAccountKey  = "extension_$($script:DemoExtensionAppId)_sAMAccountName"
+
+# The on-prem logon name for a demo employee: "anna.bakker" from "Anna Bakker".
+# Single-word display names (the non-human accounts) simply lower-case whole.
+function Get-DemoSamAccountName {
+    param([Parameter(Mandatory)][string]$DisplayName)
+    return ($DisplayName -replace '\s+', '.').ToLower() -replace '[^a-z0-9.@_-]', ''
 }
 
 # The accounts whose password never expires (flag 9): two non-human (a service

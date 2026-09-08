@@ -14,6 +14,7 @@ import { useAuth } from '@ui/auth/AuthGate';
 import { PrimaryButton, SecondaryButton } from '@ui/components/contexts/ModalPrimitives';
 import { useDebouncedValue } from '@ui/hooks/useDebouncedValue';
 import { useFetch } from '@ui/hooks/useFetch';
+import { attributeLabel } from '@ui/utils/formatters';
 
 // Columns that are never useful as a filter field: opaque identifiers nobody
 // filters by hand. `displayName` deliberately stays available — picking the
@@ -100,7 +101,9 @@ export default function AttributePicker({ entity, columns, onPick, onClose }) {
           <option value="">— select a field —</option>
           {filterable.map(c => (
             <option key={c.column} value={c.column}>
-              {c.column} ({c.values.length}{c.truncated ? '+' : ''})
+              {/* Name shown, key sent: the option value stays the stored column so
+                  the filter still addresses the real attribute (#872). */}
+              {c.label || attributeLabel(c.column) || c.column} ({c.values.length}{c.truncated ? '+' : ''})
             </option>
           ))}
         </select>

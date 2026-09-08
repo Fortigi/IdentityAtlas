@@ -25,6 +25,7 @@ import {
   searchColumnValues, VALUE_SEARCH_LIMIT,
 } from '../db/columnCache.js';
 import { explainInheritance } from '../matrix/inheritedAccess.js';
+import { withAttributeLabels } from '../lib/attributeLabels.js';
 import savedFiltersRouter from './matrix/savedFilters.js';
 import scopeRouter from './matrix/scope.js';
 import dataRouter from './matrix/data.js';
@@ -219,7 +220,7 @@ router.get('/matrix/columns', async (req, res) => {
     // subset — and the rest is reachable via /matrix/column-values (#928).
     const { values, truncated } = await entityColumnValues(entity);
     // Preserve column order from the schema, fold in values when present.
-    return res.json(
+    return res.json(await withAttributeLabels(
       cols.map(c => ({
         column:    c.name,
         type:      c.type,
@@ -230,8 +231,9 @@ router.get('/matrix/columns', async (req, res) => {
         Object.entries(values)
           .filter(([k]) => k.startsWith('ext.'))
           .map(([k, vals]) => ({ column: k, type: 'text', values: vals, truncated: !!truncated[k] }))
-      )
-    );
+      ),
+      entity.toLowerCase()
+    ));
   } catch (err) {
     console.error('matrix/columns failed:', err.message);
     return res.json([]);

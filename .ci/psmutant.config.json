@@ -16,6 +16,7 @@
     "tools/crawlers/shared/Invoke-CrawlerIngest.ps1",
     "tools/crawlers/entra-id/EntraIDCrawler.AppRoles.ps1",
     "tools/crawlers/entra-id/EntraIDCrawler.Functions.ps1",
+    "tools/crawlers/entra-id/EntraIDCrawler.AttributeLabels.ps1",
     "tools/crawlers/azure-rm/AzureRMCrawler.Functions.ps1",
     "tools/crawlers/omada/OmadaCrawler.Functions.ps1",
     "tools/crawlers/csv/CSVCrawler.Functions.ps1",
@@ -149,6 +150,9 @@
     ],
     "tools/crawlers/entra-id/EntraIDCrawler.Functions.ps1": [
       "test/unit/EntraIDCrawlerFunctions.Tests.ps1"
+    ],
+    "tools/crawlers/entra-id/EntraIDCrawler.AttributeLabels.ps1": [
+      "test/unit/EntraIDCrawlerAttributeLabels.Tests.ps1"
     ],
     "tools/crawlers/azure-rm/AzureRMCrawler.Functions.ps1": [
       "test/unit/AzureRMCrawlerFunctions.Tests.ps1"
