@@ -70,6 +70,13 @@ describe('pageRegistry', () => {
     expect(admin.props.onRiskScoresRefresh).toBe(ctx.onRiskScoresRefresh);
   });
 
+  it('registers the Shared matrices page, which needs no context (#1166)', () => {
+    // The management page reads everything it needs from the API and the
+    // permission hooks — calling its entry with no ctx must not throw.
+    expect(isValidElement(resolvePageRoute('shared-matrices')())).toBe(true);
+    expect(resolvePageRoute('shared-matrices')).not.toBe(resolvePageRoute('admin'));
+  });
+
   it('remounts the risk-scores page when the refresh key changes', () => {
     expect(resolvePageRoute('risk-scores')(ctx).key).toBe(String(ctx.riskScoresRefreshKey));
     expect(resolvePageRoute('risk-scores')(ctx).props.onOpenDetail).toBe(ctx.openDetailTab);

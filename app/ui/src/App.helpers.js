@@ -21,6 +21,26 @@ export function parseDetailRoute(page) {
   return { type: page.substring(0, sepIdx), id: page.substring(sepIdx + 1) };
 }
 
+// Hash prefix that opens a shared matrix (#1166). The token rides in the URL
+// FRAGMENT, which browsers never send to a server, so it can't land in a proxy
+// or access log the way a query parameter would.
+export const SHARED_PREFIX = 'shared:';
+
+// The URL a share recipient opens. Built from the prefix above so the writer
+// and the reader of a share link can never drift apart.
+export function buildShareUrl(token) {
+  return `${window.location.origin}${window.location.pathname}#${SHARED_PREFIX}${token}`;
+}
+
+// The share token in a "#shared:<token>" hash, or null for any other route.
+// Whitespace-only or empty tokens are treated as "not a share route" so the
+// normal app shell still renders rather than a broken shared view.
+export function parseSharedRoute(page) {
+  if (typeof page !== 'string' || !page.startsWith(SHARED_PREFIX)) return null;
+  const token = page.slice(SHARED_PREFIX.length).trim();
+  return token || null;
+}
+
 // The display name embedded in a detail page's cached payload, across the
 // several shapes the detail pages emit. Used to relabel a tab that was opened
 // by direct URL (which only had the UUID as a placeholder).

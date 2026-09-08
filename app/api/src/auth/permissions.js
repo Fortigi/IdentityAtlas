@@ -15,6 +15,9 @@ export const PERMISSIONS = Object.freeze({
   'data.export.apikey':        { label: 'Generate read-only API keys', group: 'Export',
     description: 'Mint fgr_ tokens for PowerQuery / BI tools to pull data on a schedule.' },
 
+  'data.share':                { label: 'Create matrix share links', group: 'Export',
+    description: 'Share a configured matrix with any signed-in colleague via a link, and manage/revoke existing shares.' },
+
   'data.write.tags':           { label: 'Manage tags',             group: 'Write',
     description: 'Create, edit, delete tags and apply them to entities.' },
   'data.write.categories':     { label: 'Manage categories',       group: 'Write',
@@ -53,7 +56,7 @@ export const PERMISSION_GROUPS = Object.freeze(['Read', 'Export', 'Write', 'Admi
 // silently demote the admin role.
 export const SEED_ROLE_PERMISSIONS = Object.freeze({
   Admin:       ['*'],
-  RoleMiner:   ['data.read', 'data.export.ui', 'data.export.apikey'],
+  RoleMiner:   ['data.read', 'data.export.ui', 'data.export.apikey', 'data.share'],
   Servicedesk: ['data.read'],
 });
 

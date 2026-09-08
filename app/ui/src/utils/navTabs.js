@@ -26,6 +26,7 @@ export const ALL_NAV_TABS = [
   { key: 'risk-scores',      label: 'Risk Scores',  feature: 'riskScoring' },
   { key: 'identities',       label: 'Identities',   feature: 'accountLinking' },
   { key: 'contexts',         label: 'Contexts' },
+  { key: 'shared-matrices',  label: 'Shared matrices' },
   { key: 'sync-log',         label: 'Logs',         optional: true },
   { key: 'admin',            label: 'Admin' },
 ];
@@ -36,11 +37,14 @@ export const ALL_NAV_TABS = [
 //     have loaded; while `visibleTabs` is null we don't hide them, to avoid a
 //     flash of removal before prefs arrive)
 //   - Admin drops out for users without admin permission
-export function computeNavTabs({ features = {}, visibleTabs = null, canSeeAdmin = true } = {}) {
+//   - Shared matrices drops out for users without `data.share` (#1166) — the
+//     page would only tell them they can't use it
+export function computeNavTabs({ features = {}, visibleTabs = null, canSeeAdmin = true, canShare = true } = {}) {
   return ALL_NAV_TABS.filter(tab => {
     if (tab.feature && !features[tab.feature]) return false;
     if (tab.optional && visibleTabs && !visibleTabs.includes(tab.key)) return false;
     if (tab.key === 'admin' && !canSeeAdmin) return false;
+    if (tab.key === 'shared-matrices' && !canShare) return false;
     return true;
   });
 }

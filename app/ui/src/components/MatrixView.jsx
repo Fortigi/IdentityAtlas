@@ -623,6 +623,7 @@ export default function MatrixView({
       <MatrixToolbar
         managedFilter={managedFilter}
         setManagedFilter={setManagedFilter}
+        filter={filter}
         onExportExcel={handleExportExcel}
         onShare={handleShare}
         onResetRowOrder={rowOrderHook.resetOrder}

@@ -65,6 +65,16 @@ describe('navTabs', () => {
     expect(shown).toContain('sync-log');
   });
 
+  it('gates the Shared matrices tab on the data.share permission (#1166)', () => {
+    const sharer = keys(computeNavTabs({ features: ENABLE_ALL_FEATURES, visibleTabs: [], canSeeAdmin: false, canShare: true }));
+    expect(sharer).toContain('shared-matrices');
+    // A Servicedesk user without data.share sees no door to a page that would
+    // only tell them they can't use it — while the rest of the nav is intact.
+    const nonSharer = keys(computeNavTabs({ features: ENABLE_ALL_FEATURES, visibleTabs: [], canSeeAdmin: false, canShare: false }));
+    expect(nonSharer).not.toContain('shared-matrices');
+    expect(nonSharer).toContain('matrix');
+  });
+
   it('still gates the Admin tab on permission and feature flags', () => {
     const noAdmin = keys(computeNavTabs({ features: ENABLE_ALL_FEATURES, visibleTabs: [], canSeeAdmin: false }));
     expect(noAdmin).not.toContain('admin');

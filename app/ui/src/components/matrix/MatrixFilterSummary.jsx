@@ -7,11 +7,16 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
+import { useIsSharedView } from '@ui/contexts/SharedViewContext';
 import { matrixFilterFingerprint } from '@ui/utils/matrixFilter';
 import { collectChips, collectContextIds } from './MatrixFilterSummary.helpers';
 
 export default function MatrixFilterSummary({ filter, preview, onAdjust }) {
   const { authFetch } = useAuth();
+  // In a shared view the scope chips still tell the recipient what they are
+  // looking at, but the analyst affordances go: no saved-filter badge (and no
+  // fetch behind it) and no way to change the matrix they were sent (#1166).
+  const isSharedView = useIsSharedView();
   const [contextNames, setContextNames] = useState(new Map());
   const [savedFilters, setSavedFilters] = useState(null);  // null = still loading
 
@@ -20,13 +25,14 @@ export default function MatrixFilterSummary({ filter, preview, onAdjust }) {
   // re-applied — that's when a save-from-wizard might have just happened.
   const filterKey = filter ? JSON.stringify(filter) : '';
   useEffect(() => {
+    if (isSharedView) return;
     let cancelled = false;
     authFetch('/api/matrix/saved-filters')
       .then(r => r.ok ? r.json() : [])
       .then(rows => { if (!cancelled) setSavedFilters(Array.isArray(rows) ? rows : []); })
       .catch(() => { if (!cancelled) setSavedFilters([]); });
     return () => { cancelled = true; };
-  }, [authFetch, filterKey]);
+  }, [authFetch, filterKey, isSharedView]);
 
   // Match the current filter against the saved ones. Compared by fingerprint,
   // not raw JSON, so a saved matrix keeps its badge after being adjusted (or
@@ -67,7 +73,7 @@ export default function MatrixFilterSummary({ filter, preview, onAdjust }) {
 
   return (
     <div className="bg-blue-50/30 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800 rounded-lg px-3 py-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
-      <SavedBadge savedMatch={savedMatch} loading={savedFilters === null} />
+      {!isSharedView && <SavedBadge savedMatch={savedMatch} loading={savedFilters === null} />}
 
       <span className="inline-flex items-center gap-1">
         <span className="text-[10px] uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">Rows</span>
@@ -84,12 +90,14 @@ export default function MatrixFilterSummary({ filter, preview, onAdjust }) {
         </span>
       )}
 
-      <button
-        onClick={onAdjust}
-        className="ml-auto px-2 py-1 rounded text-xs font-medium bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-600"
-      >
-        Adjust matrix
-      </button>
+      {!isSharedView && (
+        <button
+          onClick={onAdjust}
+          className="ml-auto px-2 py-1 rounded text-xs font-medium bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-600"
+        >
+          Adjust matrix
+        </button>
+      )}
     </div>
   );
 }

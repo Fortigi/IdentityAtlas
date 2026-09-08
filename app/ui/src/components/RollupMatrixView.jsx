@@ -593,6 +593,7 @@ export default function RollupMatrixView({
       <MatrixToolbar
         managedFilter={managedFilter}
         setManagedFilter={setManagedFilter}
+        filter={filter}
         onExportExcel={onExportExcel}
         onShare={onShare}
         hideGaps

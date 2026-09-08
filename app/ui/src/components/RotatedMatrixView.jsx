@@ -132,6 +132,7 @@ export default function RotatedMatrixView({
       <MatrixToolbar
         managedFilter={managedFilter === 'gaps' ? 'all' : managedFilter}
         setManagedFilter={setManagedFilter}
+        filter={filter}
         onExportExcel={handleExportExcel}
         onShare={handleShare}
         onResetRowOrder={() => {}}
