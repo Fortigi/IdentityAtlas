@@ -1,4 +1,5 @@
 import globals from 'globals';
+import jsxA11y from 'eslint-plugin-jsx-a11y';
 import reactHooks from 'eslint-plugin-react-hooks';
 import reactRefresh from 'eslint-plugin-react-refresh';
 import sonarjs from 'eslint-plugin-sonarjs';
@@ -45,6 +46,7 @@ export default [
       },
     },
     plugins: {
+      'jsx-a11y': jsxA11y,
       'react-hooks': reactHooks,
       'react-refresh': reactRefresh,
       'local': {
@@ -68,6 +70,16 @@ export default [
       'local/no-native-dialogs': 'error',
       'local/no-legacy-jargon': 'error',
       'local/no-hardcoded-crawler-meta': 'error',
+      // Keyboard reachability (#751). A clickable <div>/<span>/<tr>/<th> is
+      // invisible to keyboard and screen-reader users. Use a real <button>/<a>,
+      // or role + tabIndex + the shared `keyActivate` helper (utils/keyActivate.js).
+      // The sweep left the codebase clean, so these start with no allowlist —
+      // the only accepted disables are modal backdrops (keyboard path is
+      // Escape/focus-trap, owned by #752) and stopPropagation-only guards that
+      // exist to protect a nested real control. Both must carry a `--` reason.
+      'jsx-a11y/click-events-have-key-events': 'error',
+      'jsx-a11y/no-static-element-interactions': 'error',
+      'jsx-a11y/no-noninteractive-element-interactions': 'error',
       // React Compiler strict rule — enforced as an error now that every UI
       // data-fetching/effect site is set-state-in-effect-clean (see #417). New
       // violations must be fixed (e.g. a .then() chain, a reducer-backed state,

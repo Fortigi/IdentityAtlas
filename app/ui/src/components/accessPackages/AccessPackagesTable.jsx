@@ -1,4 +1,5 @@
 import AccessPackageRow from './AccessPackageRow';
+import SortableTh from '@ui/components/SortableTh';
 
 const SORT_COLUMNS = [
   { key: 'displayName',      label: 'Name' },
@@ -6,27 +7,8 @@ const SORT_COLUMNS = [
   { key: 'complianceStatus', label: 'Review Status' },
   { key: 'lastReviewDate',   label: 'Review Date' },
   { key: 'lastReviewedBy',   label: 'Reviewed By' },
+  { key: 'category',         label: 'Category' },
 ];
-
-// A clickable, sort-indicating column header.
-function SortableHeader({ label, colKey, sortCol, sortDir, onToggleSort }) {
-  const active = sortCol === colKey;
-  return (
-    <th
-      onClick={() => onToggleSort(colKey)}
-      className="text-left px-3 py-2 font-medium text-gray-700 dark:text-gray-300 cursor-pointer select-none hover:bg-gray-100 dark:hover:bg-gray-700"
-    >
-      <span className="inline-flex items-center gap-1">
-        {label}
-        {active ? (
-          <span className="text-blue-600 text-[10px]">{sortDir === 'asc' ? '▲' : '▼'}</span>
-        ) : (
-          <span className="text-gray-500 dark:text-gray-500 text-[10px]">{'▴'}</span>
-        )}
-      </span>
-    </th>
-  );
-}
 
 // The Business Roles table (header + rows), wrapped in a horizontal scroller.
 export default function AccessPackagesTable({
@@ -48,22 +30,14 @@ export default function AccessPackagesTable({
               />
             </th>
             {SORT_COLUMNS.map(col => (
-              <SortableHeader
+              <SortableTh
                 key={col.key}
                 label={col.label}
-                colKey={col.key}
-                sortCol={sortCol}
-                sortDir={sortDir}
-                onToggleSort={onToggleSort}
+                active={sortCol === col.key}
+                dir={sortDir}
+                onSort={() => onToggleSort(col.key)}
               />
             ))}
-            <SortableHeader
-              label="Category"
-              colKey="category"
-              sortCol={sortCol}
-              sortDir={sortDir}
-              onToggleSort={onToggleSort}
-            />
           </tr>
         </thead>
         <tbody>

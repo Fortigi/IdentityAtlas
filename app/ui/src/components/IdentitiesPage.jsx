@@ -1,4 +1,5 @@
 import EntityListPage from './EntityListPage';
+import EntityLinkCell from './EntityLinkCell';
 
 // Identities list — intentionally a stripped-down Resources-style table.
 // Account-correlation controls (verify / confirm / reject, correlation
@@ -37,10 +38,9 @@ export default function IdentitiesPage({ onOpenDetail }) {
       tableColumns={TABLE_COLUMNS}
       fieldLabels={FIELD_LABELS}
       renderEntityCell={(i, openDetail) => (
-        <td className="px-3 py-2 font-medium text-blue-600 hover:text-blue-800 cursor-pointer"
-          onClick={() => openDetail?.('identity', i.id, i.displayName)}>
+        <EntityLinkCell onOpen={() => openDetail?.('identity', i.id, i.displayName)}>
           {i.displayName}
-        </td>
+        </EntityLinkCell>
       )}
       renderDataCells={(i) => (
         <>

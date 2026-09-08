@@ -1,6 +1,7 @@
 import MatrixAggregateNameCell from './MatrixAggregateNameCell';
 import MatrixSubjectNameCell from './MatrixSubjectNameCell';
 import MatrixApLabelCell from './MatrixApLabelCell';
+import HeaderCellButton from './HeaderCellButton';
 
 // The final header row: user names. It is the only row that stays pinned on
 // vertical scroll — the attribute grouping rows above it scroll away.
@@ -43,10 +44,10 @@ export default function MatrixNamesRow({
       ))}
 
       {/* Right metadata column headers row 2 — # | Type | Description */}
-      <th className="sticky top-0 z-20 border-b border-l-2 border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800 px-1 py-1 text-[10px] text-gray-600 dark:text-gray-400 font-medium cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 select-none"
-          onClick={onSortByCount}
-          title="Sort by member count (descending)">
-        <div style={{ writingMode: 'vertical-lr', transform: 'rotate(180deg)' }}># &#x25BC;</div>
+      <th className="sticky top-0 z-20 border-b border-l-2 border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800 px-1 py-1 text-[10px] text-gray-600 dark:text-gray-400 font-medium cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 select-none">
+        <HeaderCellButton onClick={onSortByCount} title="Sort by member count (descending)" label="Sort by member count, descending">
+          <div style={{ writingMode: 'vertical-lr', transform: 'rotate(180deg)' }}># &#x25BC;</div>
+        </HeaderCellButton>
       </th>
       <th className="sticky top-0 z-20 border-b border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800 px-2 py-1 text-xs text-gray-600 dark:text-gray-400 font-medium text-left"
           style={{ minWidth: '180px' }}>

@@ -1,4 +1,5 @@
 import { subjectTitle, subjectLabel, identityGlyph } from './MatrixColumnHeaders.helpers';
+import RotatedLabelButton from './RotatedLabelButton';
 
 // Names-row cell for a single subject. Identity columns get an expand control
 // (into their linked accounts); account columns get a blue-tinted style.
@@ -27,23 +28,15 @@ export default function MatrixSubjectNameCell({
             {identityGlyph(isLoadingCol, isExpanded)}
           </button>
         )}
-        <div
-          className={`text-[10px] font-medium cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 ${
+        <RotatedLabelButton
+          className={`text-[10px] font-medium hover:text-blue-600 dark:hover:text-blue-400 ${
             isAcct ? 'text-blue-700 dark:text-blue-300' : 'text-gray-700 dark:text-gray-300'
           }`}
-          style={{
-            writingMode: 'vertical-lr',
-            textOrientation: 'mixed',
-            transform: 'rotate(180deg)',
-            maxHeight: isIdentity ? '78px' : '95px',
-            overflow: 'hidden',
-            whiteSpace: 'nowrap',
-            margin: '0 auto',
-          }}
+          style={{ maxHeight: isIdentity ? '78px' : '95px' }}
           onClick={() => onOpenDetail?.(isIdentity ? 'identity' : 'user', user.id, user.displayName)}
         >
           {subjectLabel(user)}
-        </div>
+        </RotatedLabelButton>
       </div>
     </th>
   );

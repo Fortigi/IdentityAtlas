@@ -9,6 +9,8 @@ import MatrixScopePanel from './matrix/MatrixScopePanel';
 import MatrixLegend from './matrix/MatrixLegend';
 import MatrixFilterSummary from './matrix/MatrixFilterSummary';
 import MatrixToolbar from './matrix/MatrixToolbar';
+import HeaderCellButton from './matrix/HeaderCellButton';
+import RotatedLabelButton from './matrix/RotatedLabelButton';
 
 // Roll-up matrix: the subject (column) axis is aggregated by an attribute (e.g.
 // department). Rows are resources; each cell is the count of distinct subjects
@@ -393,38 +395,53 @@ export default function RollupMatrixView({
   // Attribute fold cell (collapse model): every attribute is a header row.
   // Ancestor/leaf cells fold their group; a folded group's cell unfolds it.
   // Folded attribute group at its own level — click to unfold into its values.
-  const attrFoldedCell = (n, col, span, baseTh, L) => (
-    <th key={`${col.key}-${L}`} colSpan={span} onClick={() => unfoldKey(n.id)}
-        className={`${baseTh} align-bottom bg-indigo-50 dark:bg-indigo-900/20 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/30`}
-        style={{ minWidth: '40px', height: '120px' }}
-        title={`Folded — click to unfold ${orgShort(n.displayName)} into its ${n.childCount} values (${n.total} ${subjectWord})`}>
-      <div className="flex flex-col items-center justify-end h-full gap-1">
-        <span className="text-[9px] leading-none text-gray-500 dark:text-gray-400 shrink-0">{n.total}</span>
-        {vLabel('▸ ' + orgShort(n.displayName), 'text-indigo-800 dark:text-indigo-200')}
-      </div>
-    </th>
-  );
+  const attrFoldedCell = (n, col, span, baseTh, L) => {
+    const title = `Folded — click to unfold ${orgShort(n.displayName)} into its ${n.childCount} values (${n.total} ${subjectWord})`;
+    return (
+      <th key={`${col.key}-${L}`} colSpan={span}
+          className={`${baseTh} align-bottom bg-indigo-50 dark:bg-indigo-900/20 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/30`}
+          style={{ minWidth: '40px', height: '120px' }}
+          title={title}>
+        <HeaderCellButton onClick={() => unfoldKey(n.id)} label={title}>
+          <div className="flex flex-col items-center justify-end h-full gap-1">
+            <span className="text-[9px] leading-none text-gray-500 dark:text-gray-400 shrink-0">{n.total}</span>
+            {vLabel('▸ ' + orgShort(n.displayName), 'text-indigo-800 dark:text-indigo-200')}
+          </div>
+        </HeaderCellButton>
+      </th>
+    );
+  };
   // Deepest visible attribute value — click folds its parent group.
-  const attrLeafCell = (n, col, span, baseTh, L, parent) => (
-    <th key={`${col.key}-${L}`} colSpan={span} onClick={parent ? () => foldToKey(parent) : undefined}
-        className={`${baseTh} align-bottom bg-gray-100 dark:bg-gray-800 ${parent ? 'cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/30' : ''}`}
-        style={{ minWidth: '40px', height: '120px' }}
-        title={`${n.displayName} — ${n.total} ${subjectWord}${parent ? ' · click to fold this group' : ''}`}>
-      <div className="flex flex-col items-center justify-end h-full gap-1">
-        <span className="text-[9px] leading-none text-gray-500 dark:text-gray-400 shrink-0">{n.total}</span>
-        {vLabel(orgShort(n.displayName), 'text-gray-700 dark:text-gray-300')}
-      </div>
-    </th>
-  );
-  const attrBelowCell = (n, col, span, baseTh, L, isLast) => (
-    <th key={`${col.key}-${L}`} colSpan={span} onClick={() => unfoldKey(n.id)}
-        className={`${baseTh} align-bottom bg-indigo-50/40 dark:bg-indigo-900/10 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/30`}
-        title={`Folded — click to unfold ${orgShort(n.displayName)}`}>
-      {isLast
-        ? vLabel('▸ ' + orgShort(n.displayName), 'text-gray-600 dark:text-gray-400')
-        : (L === (n.depth || 1) && n.childCount > 0 ? <span className="text-[9px] text-indigo-700 dark:text-indigo-300">{n.childCount}</span> : null)}
-    </th>
-  );
+  const attrLeafCell = (n, col, span, baseTh, L, parent) => {
+    const title = `${n.displayName} — ${n.total} ${subjectWord}${parent ? ' · click to fold this group' : ''}`;
+    return (
+      <th key={`${col.key}-${L}`} colSpan={span}
+          className={`${baseTh} align-bottom bg-gray-100 dark:bg-gray-800 ${parent ? 'cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/30' : ''}`}
+          style={{ minWidth: '40px', height: '120px' }}
+          title={title}>
+        <HeaderCellButton onClick={parent ? () => foldToKey(parent) : undefined} label={title}>
+          <div className="flex flex-col items-center justify-end h-full gap-1">
+            <span className="text-[9px] leading-none text-gray-500 dark:text-gray-400 shrink-0">{n.total}</span>
+            {vLabel(orgShort(n.displayName), 'text-gray-700 dark:text-gray-300')}
+          </div>
+        </HeaderCellButton>
+      </th>
+    );
+  };
+  const attrBelowCell = (n, col, span, baseTh, L, isLast) => {
+    const title = `Folded — click to unfold ${orgShort(n.displayName)}`;
+    return (
+      <th key={`${col.key}-${L}`} colSpan={span}
+          className={`${baseTh} align-bottom bg-indigo-50/40 dark:bg-indigo-900/10 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/30`}
+          title={title}>
+        <HeaderCellButton onClick={() => unfoldKey(n.id)} label={title}>
+          {isLast
+            ? vLabel('▸ ' + orgShort(n.displayName), 'text-gray-600 dark:text-gray-400')
+            : (L === (n.depth || 1) && n.childCount > 0 ? <span className="text-[9px] text-indigo-700 dark:text-indigo-300">{n.childCount}</span> : null)}
+        </HeaderCellButton>
+      </th>
+    );
+  };
   const layeredAttrCell = (col, L, isLast) => {
     const n = nodeMap.get(col.group);
     const span = spanAt(col, L);
@@ -437,10 +454,12 @@ export default function RollupMatrixView({
     if (L < ownLevel) {
       // ancestor value — click to fold this group to this level
       return { span, th: (
-        <th key={`${col.key}-${L}`} colSpan={span} onClick={() => foldToKey(key(L + 1))}
+        <th key={`${col.key}-${L}`} colSpan={span}
             className={`${baseTh} align-middle bg-gray-100 dark:bg-gray-800 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/30`}
             title={`Click to fold ${orgShort(n.pathNames?.[L] || '')}`}>
-          <span className="text-[10px] font-semibold text-gray-700 dark:text-gray-300">{orgShort(n.pathNames?.[L] || '')}</span>
+          <HeaderCellButton onClick={() => foldToKey(key(L + 1))} label={`Fold ${orgShort(n.pathNames?.[L] || '')}`}>
+            <span className="text-[10px] font-semibold text-gray-700 dark:text-gray-300">{orgShort(n.pathNames?.[L] || '')}</span>
+          </HeaderCellButton>
         </th>
       ) };
     }
@@ -466,31 +485,52 @@ export default function RollupMatrixView({
     const canExpand = (n.childCount || 0) > 0;
     const hasMembers = (n.directMembers || 0) > 0;
     const btn = 'w-4 h-4 flex items-center justify-center text-[10px] leading-none shrink-0';
+    const title = canExpand
+      ? `Click to split ${orgShort(n.displayName)} into its ${n.childCount} sub-teams — ${n.total} ${subjectWord}`
+      : `${n.displayName} — ${n.total} ${subjectWord}`;
+    // This cell already contains the members toggle, so the split action can't
+    // wrap the whole cell in a button (buttons can't nest). The rotated team
+    // name becomes the keyboard-reachable control; the <th> keeps its click as a
+    // redundant pointer shortcut over the rest of the cell.
     return (
       <th key={`${col.key}-${L}`} colSpan={span}
           onClick={canExpand ? () => expandOrg(col.group) : undefined}
           className={`${baseTh} align-bottom ${canExpand ? 'bg-indigo-50 dark:bg-indigo-900/20 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/30' : 'bg-gray-100 dark:bg-gray-800'}`}
           style={{ minWidth: '40px', height: '120px' }}
-          title={canExpand ? `Click to split ${orgShort(n.displayName)} into its ${n.childCount} sub-teams — ${n.total} ${subjectWord}` : `${n.displayName} — ${n.total} ${subjectWord}`}>
+          title={title}>
         <div className="flex flex-col items-center justify-end h-full gap-1">
           <span className="text-[9px] leading-none shrink-0 whitespace-nowrap" title={`${n.directMembers} ${subjectWord} directly in this team · ${n.total} in the whole subtree — counting only those with a Direct assignment to a shown resource`}>
             <span className="font-semibold text-sky-600 dark:text-sky-400">{n.directMembers}</span>
             <span className="text-gray-500 dark:text-gray-400">/{n.total}</span>
           </span>
           {hasMembers && <TeamMembersButton n={n} col={col} btn={btn} isMembersExp={isMembersExp} loadingM={loadingM} />}
-          {vLabel((canExpand ? '▸ ' : '') + orgShort(n.displayName), canExpand ? 'text-indigo-800 dark:text-indigo-200' : 'text-gray-700 dark:text-gray-300')}
+          {canExpand ? (
+            <RotatedLabelButton
+              className="text-[10px] font-semibold text-indigo-800 dark:text-indigo-200"
+              style={{ maxHeight: '90px' }}
+              title={title}
+              onClick={(e) => { e.stopPropagation(); expandOrg(col.group); }}
+            >
+              {'▸ ' + orgShort(n.displayName)}
+            </RotatedLabelButton>
+          ) : vLabel(orgShort(n.displayName), 'text-gray-700 dark:text-gray-300')}
         </div>
       </th>
     );
   };
   // The collapsed column extending below the node's own level.
   const groupBelowCell = (n, col, span, baseTh, L, isLast) => (
-    <th key={`${col.key}-${L}`} colSpan={span} onClick={n.childCount ? () => expandOrg(col.group) : undefined}
+    <th key={`${col.key}-${L}`} colSpan={span}
         className={`${baseTh} align-bottom ${n.childCount ? 'bg-indigo-50/40 dark:bg-indigo-900/10 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/30' : 'bg-gray-50 dark:bg-gray-800/40'}`}
         title={n.childCount ? `Click to split into ${n.childCount} sub-teams` : undefined}>
-      {isLast
-        ? vLabel(orgShort(n.displayName), 'text-gray-600 dark:text-gray-400')
-        : (L === (n.depth || 1) && n.childCount > 0 ? <span className="text-[9px] text-indigo-700 dark:text-indigo-300">{n.childCount}</span> : null)}
+      <HeaderCellButton
+        onClick={n.childCount ? () => expandOrg(col.group) : undefined}
+        label={`Split ${orgShort(n.displayName)} into ${n.childCount} sub-teams`}
+      >
+        {isLast
+          ? vLabel(orgShort(n.displayName), 'text-gray-600 dark:text-gray-400')
+          : (L === (n.depth || 1) && n.childCount > 0 ? <span className="text-[9px] text-indigo-700 dark:text-indigo-300">{n.childCount}</span> : null)}
+      </HeaderCellButton>
     </th>
   );
   const layeredGroupCell = (col, L, isLast) => {
@@ -504,10 +544,15 @@ export default function RollupMatrixView({
     if (L < ownLevel) {
       // expanded ancestor — click to collapse this branch back into one column
       return { span, th: (
-        <th key={`${col.key}-${L}`} colSpan={span} onClick={() => collapseOrg(n.pathIds[L])}
+        <th key={`${col.key}-${L}`} colSpan={span}
             className={`${baseTh} align-middle bg-indigo-50 dark:bg-indigo-900/20 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/30`}
             title={`Collapse ${n.pathNames?.[L] || ''} back into one column`}>
-          <span className="text-[10px] font-semibold text-indigo-800 dark:text-indigo-200">▾ {orgShort(n.pathNames?.[L] || '')}</span>
+          <HeaderCellButton
+            onClick={() => collapseOrg(n.pathIds[L])}
+            label={`Collapse ${orgShort(n.pathNames?.[L] || '')} back into one column`}
+          >
+            <span className="text-[10px] font-semibold text-indigo-800 dark:text-indigo-200">▾ {orgShort(n.pathNames?.[L] || '')}</span>
+          </HeaderCellButton>
         </th>
       ) };
     }
@@ -517,7 +562,7 @@ export default function RollupMatrixView({
   // A person column in the header — the name (vertical) shows on the pinned row.
   const userHeaderCell = (col, L, isLast, stick) => (
     <th key={`${col.key}-${L}`} className={`border-r border-gray-200 dark:border-gray-600 px-0 py-0 text-center align-bottom bg-blue-50 dark:bg-blue-900/20${stick}${isLast ? ' z-20 border-b' : ''}`} style={{ width: '24px', minWidth: '24px', height: isLast ? '120px' : undefined }} title={col.user.displayName}>
-      {isLast ? <div className="text-[10px] font-medium text-blue-700 dark:text-blue-300 cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 mx-auto" style={{ writingMode: 'vertical-lr', textOrientation: 'mixed', transform: 'rotate(180deg)', maxHeight: '110px', overflow: 'hidden', whiteSpace: 'nowrap' }} onClick={() => onOpenDetail?.(col.user.memberType === 'Identity' ? 'identity' : 'user', col.user.id, col.user.displayName)}>{col.user.displayName}</div> : null}
+      {isLast ? <RotatedLabelButton className="text-[10px] font-medium text-blue-700 dark:text-blue-300 hover:text-blue-600 dark:hover:text-blue-400" style={{ maxHeight: '110px' }} onClick={() => onOpenDetail?.(col.user.memberType === 'Identity' ? 'identity' : 'user', col.user.id, col.user.displayName)}>{col.user.displayName}</RotatedLabelButton> : null}
     </th>
   );
   // Build one header row's cells: corner, the per-column group/user headers, then
@@ -639,13 +684,13 @@ export default function RollupMatrixView({
                 // user sub-column
                 return (
                   <th key={col.key} className="border-b border-r border-gray-200 dark:border-gray-600 px-0 py-0 text-center bg-blue-50 dark:bg-blue-900/20 align-bottom" style={{ width: '24px', minWidth: '24px', height: '130px' }} title={col.user.displayName}>
-                    <div
-                      className="text-[10px] font-medium text-blue-700 dark:text-blue-300 cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 mx-auto"
-                      style={{ writingMode: 'vertical-lr', textOrientation: 'mixed', transform: 'rotate(180deg)', maxHeight: '120px', overflow: 'hidden', whiteSpace: 'nowrap' }}
+                    <RotatedLabelButton
+                      className="text-[10px] font-medium text-blue-700 dark:text-blue-300 hover:text-blue-600 dark:hover:text-blue-400"
+                      style={{ maxHeight: '120px' }}
                       onClick={() => onOpenDetail?.(col.user.memberType === 'Identity' ? 'identity' : 'user', col.user.id, col.user.displayName)}
                     >
                       {col.user.displayName}
-                    </div>
+                    </RotatedLabelButton>
                   </th>
                 );
               })}
@@ -658,13 +703,13 @@ export default function RollupMatrixView({
                   style={{ backgroundColor: getAccessPackageColor(idx, isDark), width: '40px', minWidth: '40px', height: '130px' }}
                   title={`Business role: ${role.displayName}`}
                 >
-                  <div
-                    className="text-[10px] font-medium text-gray-700 dark:text-gray-200 cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 mx-auto"
-                    style={{ writingMode: 'vertical-lr', textOrientation: 'mixed', transform: 'rotate(180deg)', maxHeight: '120px', overflow: 'hidden', whiteSpace: 'nowrap' }}
+                  <RotatedLabelButton
+                    className="text-[10px] font-medium text-gray-700 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400"
+                    style={{ maxHeight: '120px' }}
                     onClick={() => onOpenDetail?.('access-package', role.id, role.displayName)}
                   >
                     {role.displayName}
-                  </div>
+                  </RotatedLabelButton>
                 </th>
               ))}
 

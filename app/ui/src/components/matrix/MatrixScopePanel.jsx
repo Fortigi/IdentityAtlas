@@ -13,6 +13,7 @@
 import { Fragment, useEffect, useMemo, useState, useReducer, useCallback } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
 import { useDebouncedValue } from '@ui/hooks/useDebouncedValue';
+import { clickableRowProps, FOCUS_RING } from '@ui/utils/keyActivate';
 import TimeSeriesChart from '@ui/components/TimeSeriesChart';
 
 // Aligned with the Dashboard Trends palette (TimeSeriesChart colours):
@@ -310,8 +311,11 @@ function DepartmentBreakdown({ breakdown, drill, onDrill }) {
               return (
                 <Fragment key={g.group}>
                   <tr
-                    className={`${drillable ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/40' : ''}`}
-                    onClick={() => drillable && onDrill(g.group)}
+                    className={`${drillable ? `cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/40 ${FOCUS_RING}` : ''}`}
+                    {...clickableRowProps(drillable ? () => onDrill(g.group) : undefined, {
+                      label: `${isOpen ? 'Hide' : 'Show'} the assignments behind ${g.group}`,
+                      expanded: isOpen,
+                    })}
                   >
                     <td className="py-2 pr-4 text-gray-900 dark:text-gray-100">
                       {drillable && <span className="inline-block w-3 text-gray-500 dark:text-gray-400">{isOpen ? '▾' : '▸'}</span>}

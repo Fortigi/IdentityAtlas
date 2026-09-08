@@ -1,6 +1,7 @@
 import { useMemo, useState, useEffect } from 'react';
 import EntityListPage from './EntityListPage';
 import DeletedBadge from './DeletedBadge';
+import EntityLinkCell from './EntityLinkCell';
 
 const FIELD_LABELS = {
   department: 'Department',
@@ -108,10 +109,9 @@ export default function UsersPage({ onOpenDetail }) {
       tableColumns={TABLE_COLUMNS}
       fieldLabels={FIELD_LABELS}
       renderEntityCell={(u, openDetail) => (
-        <td className="px-3 py-2 font-medium text-blue-600 hover:text-blue-800 cursor-pointer"
-          onClick={() => openDetail?.('user', u.id, u.displayName)}>
+        <EntityLinkCell onOpen={() => openDetail?.('user', u.id, u.displayName)}>
           {u.displayName}{u.deletedAt && <> <DeletedBadge at={u.deletedAt} /></>}
-        </td>
+        </EntityLinkCell>
       )}
       renderDataCells={(u) => (
         <>

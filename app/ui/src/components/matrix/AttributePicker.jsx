@@ -14,6 +14,7 @@ import { useAuth } from '@ui/auth/AuthGate';
 import { PrimaryButton, SecondaryButton } from '@ui/components/contexts/ModalPrimitives';
 import { useDebouncedValue } from '@ui/hooks/useDebouncedValue';
 import { useFetch } from '@ui/hooks/useFetch';
+import ModalBackdrop from '@ui/components/ModalBackdrop';
 
 // Columns that are never useful as a filter field: opaque identifiers nobody
 // filters by hand. `displayName` deliberately stays available — picking the
@@ -83,11 +84,11 @@ export default function AttributePicker({ entity, columns, onPick, onClose }) {
   };
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 dark:bg-black/70" onClick={onClose}>
-      <div
-        className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl p-4 w-[480px] max-w-full max-h-[80vh] overflow-auto"
-        onClick={e => e.stopPropagation()}
-      >
+    <ModalBackdrop
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 dark:bg-black/70"
+      onDismiss={onClose}
+      panelClassName="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl p-4 w-[480px] max-w-full max-h-[80vh] overflow-auto"
+    >
         <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">Add attribute filter</h3>
 
         <label htmlFor="attr-picker-field" className="block text-[11px] font-medium text-gray-700 dark:text-gray-300 mb-1">Field</label>
@@ -156,7 +157,6 @@ export default function AttributePicker({ entity, columns, onPick, onClose }) {
             Add
           </PrimaryButton>
         </div>
-      </div>
-    </div>
+    </ModalBackdrop>
   );
 }

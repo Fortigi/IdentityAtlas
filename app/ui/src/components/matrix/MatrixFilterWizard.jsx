@@ -24,6 +24,7 @@ import { useDialog } from '@ui/components/dialogContext';
 import { friendlyLabel } from '@ui/utils/formatters';
 import { DEFAULT_SORT, normalizeMatrixFilter } from '@ui/utils/matrixFilter';
 import { deriveSteps } from './MatrixFilterWizard.helpers';
+import ModalBackdrop from '@ui/components/ModalBackdrop';
 
 // ─── Constants ──────────────────────────────────────────────────────
 
@@ -1070,11 +1071,11 @@ function ConditionRow({ cond, contextMeta, onRemove, onUpdate }) {
 
 function SaveFilterDialog({ name, onNameChange, onSave, onClose, saving, error }) {
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 dark:bg-black/70" onClick={onClose}>
-      <div
-        className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl p-4 w-[420px] max-w-full"
-        onClick={e => e.stopPropagation()}
-      >
+    <ModalBackdrop
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 dark:bg-black/70"
+      onDismiss={onClose}
+      panelClassName="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl p-4 w-[420px] max-w-full"
+    >
         <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">Save matrix</h3>
         <p className="text-[11px] text-gray-500 dark:text-gray-400 mb-3">
           Saved matrices are visible to everyone in the org. Name must be unique.
@@ -1095,7 +1096,6 @@ function SaveFilterDialog({ name, onNameChange, onSave, onClose, saving, error }
             {saving ? 'Saving…' : 'Save'}
           </PrimaryButton>
         </div>
-      </div>
-    </div>
+    </ModalBackdrop>
   );
 }

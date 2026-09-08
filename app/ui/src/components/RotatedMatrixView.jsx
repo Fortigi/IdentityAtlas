@@ -17,6 +17,8 @@ import { useMemo, useCallback, useState, useLayoutEffect, useRef } from 'react';
 import MatrixToolbar from './matrix/MatrixToolbar';
 import MatrixFilterSummary from './matrix/MatrixFilterSummary';
 import MatrixCell from './matrix/MatrixCell';
+import RotatedLabelButton from './matrix/RotatedLabelButton';
+import { FOCUS_RING } from '@ui/utils/keyActivate';
 import { buildMatrixIndexes, buildTypeSpans } from './RotatedMatrixView.helpers';
 
 function EmptyState({ onAdjustFilter, hasData }) {
@@ -222,21 +224,13 @@ export default function RotatedMatrixView({
                     style={{ height: '100px', width: '24px', minWidth: '24px', verticalAlign: 'bottom' }}
                     title={`${r.displayName}\n${r.resourceType || ''}\n${r.systemName || ''}`}
                   >
-                    <div
-                      className="text-[10px] text-gray-700 dark:text-gray-300 font-medium cursor-pointer hover:text-blue-600 dark:hover:text-blue-400"
-                      style={{
-                        writingMode: 'vertical-lr',
-                        textOrientation: 'mixed',
-                        transform: 'rotate(180deg)',
-                        maxHeight: '95px',
-                        overflow: 'hidden',
-                        whiteSpace: 'nowrap',
-                        margin: '0 auto',
-                      }}
+                    <RotatedLabelButton
+                      className="text-[10px] text-gray-700 dark:text-gray-300 font-medium hover:text-blue-600 dark:hover:text-blue-400"
+                      style={{ maxHeight: '95px' }}
                       onClick={() => onOpenDetail?.('resource', r.id, r.displayName)}
                     >
                       {r.displayName}
-                    </div>
+                    </RotatedLabelButton>
                   </th>
                 ))}
               </tr>
@@ -245,15 +239,20 @@ export default function RotatedMatrixView({
               {users.map(u => (
                 <tr key={u.id}>
                   <td
-                    className="sticky left-0 z-10 bg-white dark:bg-gray-900 border-b border-r border-gray-200 dark:border-gray-700 px-2 py-1 text-xs text-gray-800 dark:text-gray-200 truncate cursor-pointer hover:text-blue-600 dark:hover:text-blue-400"
+                    className="sticky left-0 z-10 bg-white dark:bg-gray-900 border-b border-r border-gray-200 dark:border-gray-700 px-2 py-1 text-xs text-gray-800 dark:text-gray-200 truncate"
                     style={{ minWidth: '220px', maxWidth: '220px' }}
                     title={u.displayName}
-                    onClick={() => {
-                      const kind = filter?.rowType === 'identity' ? 'identity' : 'user';
-                      onOpenDetail?.(kind, u.id, u.displayName);
-                    }}
                   >
-                    {u.displayName}
+                    <button
+                      type="button"
+                      className={`block w-full truncate text-left cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 rounded ${FOCUS_RING}`}
+                      onClick={() => {
+                        const kind = filter?.rowType === 'identity' ? 'identity' : 'user';
+                        onOpenDetail?.(kind, u.id, u.displayName);
+                      }}
+                    >
+                      {u.displayName}
+                    </button>
                   </td>
                   <td
                     className="sticky z-10 bg-white dark:bg-gray-900 border-b border-r border-gray-200 dark:border-gray-700 px-2 py-1 text-xs text-gray-600 dark:text-gray-400 truncate"

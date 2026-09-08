@@ -1,5 +1,6 @@
 import EntityListPage from './EntityListPage';
 import DeletedBadge from './DeletedBadge';
+import EntityLinkCell from './EntityLinkCell';
 
 const FIELD_LABELS = {
   displayName: 'Name',
@@ -36,10 +37,9 @@ export default function ResourcesPage({ onOpenDetail }) {
       tableColumns={TABLE_COLUMNS}
       fieldLabels={FIELD_LABELS}
       renderEntityCell={(g, openDetail) => (
-        <td className="px-3 py-2 font-medium text-blue-600 hover:text-blue-800 cursor-pointer"
-          onClick={() => openDetail?.('resource', g.id, g.displayName)}>
+        <EntityLinkCell onOpen={() => openDetail?.('resource', g.id, g.displayName)}>
           {g.displayName}{g.deletedAt && <> <DeletedBadge at={g.deletedAt} /></>}
-        </td>
+        </EntityLinkCell>
       )}
       renderDataCells={(g) => (
         <>
