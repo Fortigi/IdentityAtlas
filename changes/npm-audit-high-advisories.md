@@ -1,0 +1,1 @@
+- Updated bundled third-party dependencies to pick up security fixes for newly published high-severity advisories in `browserslist` (unbounded memory growth, untrusted-stats crash) and `fast-uri` (host confusion and server-side request forgery), plus moderate fixes in `qs` and `@humanfs/node`.
