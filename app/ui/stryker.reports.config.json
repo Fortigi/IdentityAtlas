@@ -1,0 +1,34 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "_comment": "Mutation testing for the reports UI: the page that lists and runs reports, the generic list renderer, and the form-renderer map. Standalone config rather than an addition to an existing one, for the reason stryker.listhooks.config.json was split out: every mutant pays for every test in the run's include list, so unrelated files do not belong in the same run. WHY THESE FILES: the reporting epic's Key Result is that adding a report costs only a template, and on this side that rests on the UI drawing whatever columns, rows and form the API sends. The failure is silent -- a renderer that quietly ignores a column, or a page that keeps showing the previous report's rows after you pick a different one, renders perfectly and shows the wrong answer. Line coverage cannot see either. MUTATOR SET: StringLiteral disabled, which is DELIBERATELY different from stryker.pilot.config.json -- read the reasoning there before copying either way. In the pilot the string literals ARE the behaviour ('admin.auth' is the permission a hook checks). Here they are Tailwind class lists and user-facing prose; the one string that is behavioural, the 'list' key of FORM_RENDERERS, is asserted directly by formRenderers.test.js. ObjectLiteral stays ENABLED: the renderer map is an object literal and emptying it must be caught. THE THREE REMAINING SURVIVORS ARE ANALYSED, NOT UNEXAMINED, and are left visible rather than declared away (the floor sits below the measured score, so they cost nothing): all three are the React `key` expression at ListReportRenderer.jsx:35 (`row._entity?.id || i` -> true / false / &&). A key is never rendered into the DOM, so no assertion any test can make distinguishes them; they would only matter as reconciliation bugs across a re-render with reordered rows, which this list does not do (a refresh replaces the whole table). Revisit if the list ever gains sorting or in-place row updates. Everything else in the run is killed: ReportsPage.jsx is at 100%. Enforced: see MUTATION FLOOR below. Run: cd app/ui && npm run test:mutation:reports MUTATION FLOOR: `break` is set a few points under the measured score, and is a RATCHET -- it only ever goes up. It is enforced by the weekly .github/workflows/js-mutation.yml (never on a PR: mutation is far heavier than the unit suite). The margin is not slack to spend, it absorbs the two things that legitimately move a score without anyone editing a test: a Stryker/vitest upgrade that changes which mutants are generated, and timeouts, which count as killed and can flip under CI load. Raise the floor when the score rises; never lower it to make a red run green -- a drop means a test stopped discriminating. Measured 96.9% when the floor was set to 94. NOT YET IN THE WEEKLY MATRIX: .github/workflows/js-mutation.yml lists its scopes explicitly, and this one is not in that list yet -- add `{ pkg: ui, name: reports, label: 'UI reports' }` to the matrix so the floor above is actually enforced weekly. Until then the score here is measured and committed but not gated.",
+  "packageManager": "npm",
+  "testRunner": "vitest",
+  "vitest": {
+    "configFile": "vitest.stryker.reports.config.js"
+  },
+  "reporters": [
+    "clear-text",
+    "json"
+  ],
+  "jsonReporter": {
+    "fileName": "reports/stryker-ui-reports.json"
+  },
+  "mutate": [
+    "src/components/ReportsPage.jsx",
+    "src/components/reports/ListReportRenderer.jsx",
+    "src/components/reports/formRenderers.js"
+  ],
+  "thresholds": {
+    "high": 90,
+    "low": 70,
+    "break": 94
+  },
+  "concurrency": 4,
+  "timeoutMS": 60000,
+  "disableTypeChecks": false,
+  "mutator": {
+    "excludedMutations": [
+      "StringLiteral"
+    ]
+  }
+}

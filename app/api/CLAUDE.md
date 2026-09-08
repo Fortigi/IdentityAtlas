@@ -13,6 +13,7 @@ Before writing any helper, utility, middleware, or route logic — search first.
 - `middleware/perfMetrics.js` — request timing + Server-Timing headers
 - `secrets/vault.js` — encrypted secret storage/retrieval for crawler credentials
 - `crawlerManifests.js` — the crawler manifest registry (`CRAWLER_MANIFESTS_DIR`, `VALID_JOB_TYPES`, `validateCrawlerConfig`), scanned once at startup from `tools/crawlers/*/crawler.json`; shared by `routes/jobs.js` and `routes/crawlerFiles.js` to avoid a circular import between them
+- `accountlinking/orphanQuery.js` — `fetchOrphanPrincipals()` / `loadActiveLinkingRules()` / `NON_HUMAN_PRINCIPAL_TYPES`. The single definition of "an account linked to no identity", shared by the orphaned-accounts context plugin and the orphaned-accounts report. Don't re-inline the `Principals LEFT JOIN IdentityMembers … IS NULL` anti-join anywhere else
 - `lib/principalTypes.js` — `GROUP_PRINCIPAL_TYPE` (`'#microsoft.graph.group'`), the Graph `@odata.type` for a group principal (a container excluded from "who has access" rollups). Import the constant — SQL sites interpolate `'${GROUP_PRINCIPAL_TYPE}'`, JS sites use it directly — never re-hardcode the magic string
 
 ## Always Test Locally Before Committing
@@ -85,6 +86,7 @@ Migration files are numbered sequentially (`001_core_schema.sql`, `002_governanc
 | `routes/accountLinking.js` | Account-linking config + run endpoints |
 | `routes/riskScores.js` | Risk score reading + analyst override endpoints |
 | `routes/contexts.js` | Contexts CRUD, member management, plugin runner |
+| `routes/reports.js` | Report listing + running. Generic: `:name` is a registry lookup into `src/reports/` and the response carries whatever `form`/`columns` the template declared — **never branch on a report name here** (a guard test fails the PR if you do). Adding a report is a template file plus one line in `src/reports/templates/index.js`; see [`docs/architecture/reports.md`](../../docs/architecture/reports.md) |
 | `routes/jobs.js` | Crawler config CRUD, job queuing, manifest-driven job type discovery |
 | `routes/perf.js` | Performance metrics API |
 | `middleware/auth.js` | Entra ID JWT validation (v1+v2 tokens) |

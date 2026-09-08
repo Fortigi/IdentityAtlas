@@ -26,6 +26,7 @@ export const ALL_NAV_TABS = [
   { key: 'risk-scores',      label: 'Risk Scores',  feature: 'riskScoring' },
   { key: 'identities',       label: 'Identities',   feature: 'accountLinking' },
   { key: 'contexts',         label: 'Contexts' },
+  { key: 'reports',          label: 'Reports' },
   { key: 'sync-log',         label: 'Logs',         optional: true },
   { key: 'admin',            label: 'Admin' },
 ];

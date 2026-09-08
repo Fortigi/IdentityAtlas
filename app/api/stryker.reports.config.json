@@ -1,0 +1,40 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "_comment": "Mutation testing for the reports engine: the registry that decides which report templates exist, the routes that serve them, the shared orphan-account definition, and the one built-in template. Scoped like the auth, effective-access and account-linking configs -- these files plus their own unit tests, which are self-contained (no filesystem outside the sandbox, no PostgreSQL) so they run clean inside Stryker's sandbox. WHY THESE FILES: the epic's Key Result is that adding a third report costs only a template, and that claim rests entirely on this code being generic. Both failure directions are silent: a registry that accepts a malformed template, or a route that quietly serves the wrong metadata, produces a page that renders -- just not the report anyone asked for. The orphan anti-join is the same shape of risk: too wide and every linked account is reported as orphaned, too narrow and a genuinely unattached account is invisible. Neither throws. MUTATOR SET: StringLiteral and ObjectLiteral disabled, matching the sibling API configs. Same cost, restated: the SQL in orphanQuery.js stops being mutated, so this cannot tell you the query is correct -- that stays contract-tests/reports.contract.test.js's job. THE ONE SURVIVOR IS AN ARTIFACT, NOT AN UNTESTED BRANCH: registry.js:15 builds its Map from BUILT_IN_REPORTS at module load, and Stryker's switch is not active during that first import, so `BUILT_IN_REPORTS.map(() => undefined)` can never be observed by a test in this runner. (The same artifact previously hid three real mutants behind a module-level seeding loop; the loop was removed and its validation moved into registry.test.js, which is what took this run from 94.8% to 98.3%.) Enforced: see MUTATION FLOOR below. Run: cd app/api && npm run test:mutation:reports MUTATION FLOOR: `break` is set a few points under the measured score, and is a RATCHET -- it only ever goes up. It is enforced by the weekly .github/workflows/js-mutation.yml (never on a PR: mutation is far heavier than the unit suite). The margin is not slack to spend, it absorbs the two things that legitimately move a score without anyone editing a test: a Stryker/vitest upgrade that changes which mutants are generated, and timeouts, which count as killed and can flip under CI load. Raise the floor when the score rises; never lower it to make a red run green -- a drop means a test stopped discriminating. Measured 98.3% when the floor was set to 95. NOT YET IN THE WEEKLY MATRIX: .github/workflows/js-mutation.yml lists its scopes explicitly, and this one is not in that list yet -- add `{ pkg: api, name: reports, label: 'API reports' }` to the matrix so the floor above is actually enforced weekly. Until then the score here is measured and committed but not gated.",
+  "packageManager": "npm",
+  "testRunner": "vitest",
+  "vitest": {
+    "configFile": "vitest.stryker.reports.config.js"
+  },
+  "reporters": [
+    "clear-text",
+    "json"
+  ],
+  "jsonReporter": {
+    "fileName": "reports/stryker-reports.json"
+  },
+  "mutate": [
+    "src/accountlinking/orphanQuery.js",
+    "src/reports/registry.js",
+    "src/reports/templates/orphaned-accounts.js",
+    "src/routes/reports.js"
+  ],
+  "mutationExclusions": {
+    "src/reports/types.js": "Contains no executable code at all: the file is the JSDoc ReportTemplate contract plus a bare `export {}`, so Stryker has nothing behavioural to mutate. Its correctness is enforced by the code that implements the contract (registry.js validates the required fields, the route projects the metadata), not by anything in this file.",
+    "src/reports/templates/index.js": "Declaration only: one import per built-in template and the array that holds them \u2014 this IS the single registration line the reports seam is built around. The one mutant Stryker can make (empty the array) is killed by every registry and route test, so a run here measures the registration list rather than any logic. Behaviour lives in registry.js, which is mutated."
+  },
+  "thresholds": {
+    "high": 90,
+    "low": 70,
+    "break": 95
+  },
+  "concurrency": 2,
+  "timeoutMS": 60000,
+  "disableTypeChecks": false,
+  "mutator": {
+    "excludedMutations": [
+      "StringLiteral",
+      "ObjectLiteral"
+    ]
+  }
+}

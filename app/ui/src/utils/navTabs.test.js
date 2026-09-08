@@ -54,7 +54,7 @@ describe('navTabs', () => {
 
   it('keeps non-optional tabs visible regardless of preferences', () => {
     const shown = keys(computeNavTabs({ features: ENABLE_ALL_FEATURES, visibleTabs: [], canSeeAdmin: true }));
-    expect(shown).toEqual(expect.arrayContaining(['dashboard', 'matrix', 'principals', 'resources', 'access-packages', 'contexts']));
+    expect(shown).toEqual(expect.arrayContaining(['dashboard', 'matrix', 'principals', 'resources', 'access-packages', 'contexts', 'reports']));
   });
 
   it('does not hide optional tabs while preferences are still loading (visibleTabs null)', () => {
