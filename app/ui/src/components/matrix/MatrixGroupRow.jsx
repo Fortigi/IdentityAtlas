@@ -3,6 +3,7 @@ import MatrixContextsCell from './MatrixContextsCell';
 import { getAccessPackageColor } from '@ui/utils/colors';
 import { getApRoleBadge } from '@ui/utils/accessPackageStyles';
 import { useIsDark } from '@ui/contexts/ThemeContext';
+import { FOCUS_RING } from '@ui/utils/keyActivate';
 
 // Sticky drag-handle column. Nested rows aren't draggable, so they drop the
 // grab cursor and receive none of the DnD attributes/listeners.
@@ -64,10 +65,13 @@ function ResourceNameCell({
         {group.isNestedRow && (
           <span className="text-gray-500 dark:text-gray-600 text-[10px] mr-0.5 flex-shrink-0">{'└'}</span>
         )}
-        <div className="truncate cursor-pointer hover:text-blue-600 dark:hover:text-blue-400"
-          onClick={() => onOpenDetail?.('resource', group.realGroupId || group.id, group.displayName)}>
+        <button
+          type="button"
+          className={`truncate text-left cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 rounded ${FOCUS_RING}`}
+          onClick={() => onOpenDetail?.('resource', group.realGroupId || group.id, group.displayName)}
+        >
           {group.displayName}
-        </div>
+        </button>
       </div>
     </td>
   );

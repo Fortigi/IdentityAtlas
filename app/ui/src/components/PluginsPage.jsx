@@ -2,6 +2,7 @@ import { useState, useCallback, useMemo } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
 import { useFetch } from '@ui/hooks/useFetch';
 import { formatRelativeTime as formatTimeAgo } from '@ui/utils/formatters';
+import { FOCUS_RING } from '@ui/utils/keyActivate';
 
 const statusColors = {
   succeeded: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
@@ -189,10 +190,21 @@ function PluginDetail({ selected, meta, draft, onDraftChange, saving, removing, 
 // One row of the configured-trees table.
 function PluginRow({ tree, isBusy, onOpen, onRun }) {
   const summary = paramsSummary(tree.params);
+  // The row already carries a Run button, so the open action can't wrap the
+  // whole row (buttons can't nest). The algorithm name is the keyboard-reachable
+  // control; the row click stays a pointer shortcut.
   return (
     <tr onClick={() => onOpen(tree)}
         className="border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 align-top cursor-pointer">
-      <td className="px-3 py-2 font-medium text-gray-900 dark:text-white whitespace-nowrap">{tree.algoDisplayName}</td>
+      <td className="px-3 py-2 font-medium whitespace-nowrap">
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onOpen(tree); }}
+          className={`text-left text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 hover:underline rounded ${FOCUS_RING}`}
+        >
+          {tree.algoDisplayName}
+        </button>
+      </td>
       <td className="px-3 py-2">
         <span className="font-medium text-gray-800 dark:text-gray-200">{tree.rootName}</span>
         {summary && (

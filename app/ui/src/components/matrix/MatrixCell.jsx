@@ -1,5 +1,6 @@
 import { memo } from 'react';
 import { TYPE_COLORS } from '@ui/utils/colors';
+import { clickableRowProps, FOCUS_RING } from '@ui/utils/keyActivate';
 import { describeCell } from './MatrixCell.helpers';
 
 // One membership-type swatch (D / I / E). Indirect badges become clickable when
@@ -12,13 +13,18 @@ function MembershipBadge({ type, single, cellKey, onExplainInherited }) {
   const sizeClass = single ? 'w-4 h-4 text-[9px] leading-4' : 'w-[9px] h-[14px] text-[7px] leading-[14px]';
   const clickClass = clickable ? 'cursor-pointer ring-1 ring-white/50 hover:ring-2 hover:ring-white' : '';
 
+  // A badge with no explainer handler stays a plain swatch — no role, no tab
+  // stop. Only the clickable Indirect badge becomes a control, and it gets the
+  // keyboard handler with it: it used to be focusable but not operable.
+  const activate = clickable
+    ? (e) => { e.stopPropagation(); onExplainInherited(cellKey); }
+    : undefined;
+
   return (
     <span
-      role={clickable ? 'button' : undefined}
-      tabIndex={clickable ? 0 : undefined}
-      onClick={clickable ? (e) => { e.stopPropagation(); onExplainInherited(cellKey); } : undefined}
+      {...clickableRowProps(activate, { label: 'Explain inherited access for this cell' })}
       title={clickable ? 'Show how this inherited access was derived' : undefined}
-      className={`inline-block rounded-sm text-center font-bold ${sizeClass} ${clickClass}`}
+      className={`inline-block rounded-sm text-center font-bold ${sizeClass} ${clickClass} ${clickable ? FOCUS_RING : ''}`}
       style={{ backgroundColor: ind.bg, color: ind.text }}
     >
       {ind.letter}

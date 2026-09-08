@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { variantMeta, targetTypeMeta } from '@ui/utils/contextStyles';
 import { flattenTree } from '@ui/hooks/useContextTrees';
+import SortableTh from '@ui/components/SortableTh';
 
 // Flat list rendering of the same subtree — useful for large trees (AD OUs
 // with thousands of nodes) where the tree view is too dense. Columns are
@@ -62,9 +63,15 @@ export default function ContextListView({ nodes, onOpenDetail }) {
         <thead>
           <tr className="text-left border-b border-gray-200 bg-gray-50">
             {SORT_FIELDS.map(f => (
-              <th key={f.key} className="px-2 py-1 font-medium text-gray-600 cursor-pointer select-none" onClick={() => toggleSort(f.key)}>
-                {f.label}{sort.key === f.key ? (sort.dir === 'asc' ? ' ▲' : ' ▼') : ''}
-              </th>
+              <SortableTh
+                key={f.key}
+                label={f.label}
+                active={sort.key === f.key}
+                dir={sort.dir}
+                onSort={() => toggleSort(f.key)}
+                className="px-2 py-1 font-medium text-gray-600"
+                inactiveIndicator={null}
+              />
             ))}
           </tr>
         </thead>

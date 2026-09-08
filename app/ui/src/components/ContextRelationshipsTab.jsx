@@ -1,4 +1,5 @@
 import ContextMemberPicker from './contexts/ContextMemberPicker';
+import { FOCUS_RING } from '@ui/utils/keyActivate';
 
 // ─── Relationships tab ─────────────────────────────────────────────────────────
 // Sub-contexts list + the paginated, searchable members panel (with analyst
@@ -165,7 +166,17 @@ function MembersTable({ members, canEditMembers, isGenerated, includeDescendants
               className="border-b border-gray-50 hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer"
               onClick={() => onOpenDetail(memberDetailKind(targetType), m.id, m.displayName)}
             >
-              <td className="py-1.5 text-blue-600 dark:text-blue-400 hover:underline">{m.displayName}</td>
+              {/* The name is the keyboard-reachable control — the row can carry
+                  a Remove button, so it can't become one itself. */}
+              <td className="py-1.5">
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); onOpenDetail(memberDetailKind(targetType), m.id, m.displayName); }}
+                  className={`text-left text-blue-600 dark:text-blue-400 hover:underline rounded ${FOCUS_RING}`}
+                >
+                  {m.displayName}
+                </button>
+              </td>
               <td className="py-1.5 text-gray-600 dark:text-gray-400">{m.email || '-'}</td>
               <td className="py-1.5 text-gray-600 dark:text-gray-400">{m.jobTitle || '-'}</td>
               <td className="py-1.5">

@@ -14,6 +14,9 @@
 
 import { useMemo, useState } from 'react';
 import { rowType, sortItems, itemsToCsv } from './ExpandedItemsList.helpers';
+import SortableTh from './SortableTh';
+
+const SORT_TH_CLASS = 'px-4 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200';
 
 const DETAIL_TARGET = {
   user:             'user',
@@ -33,21 +36,6 @@ function downloadCsv(filename, csv) {
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
-}
-
-function SortHeader({ label, active, dir, onClick, align = 'left' }) {
-  return (
-    <th
-      scope="col"
-      className={`px-4 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 select-none cursor-pointer hover:text-gray-700 dark:hover:text-gray-200 text-${align}`}
-      onClick={onClick}
-      aria-sort={active ? (dir === 'asc' ? 'ascending' : 'descending') : 'none'}
-    >
-      {label}
-      {/* Arrow inherits the header's compliant colour (no bare light-mode -400). */}
-      <span className="ml-1 inline-block w-2">{active ? (dir === 'asc' ? '▲' : '▼') : ''}</span>
-    </th>
-  );
 }
 
 export default function ExpandedItemsList({ label, items, loading, onOpenDetail }) {
@@ -97,8 +85,8 @@ export default function ExpandedItemsList({ label, items, loading, onOpenDetail 
         <table className="w-full text-sm">
           <thead className="sticky top-0 bg-gray-50 dark:bg-gray-900/40 border-b border-gray-200 dark:border-gray-700">
             <tr>
-              <SortHeader label="Name" active={sort.key === 'name'} dir={sort.dir} onClick={() => toggleSort('name')} />
-              <SortHeader label="Type" active={sort.key === 'type'} dir={sort.dir} onClick={() => toggleSort('type')} align="right" />
+              <SortableTh label="Name" active={sort.key === 'name'} dir={sort.dir} onSort={() => toggleSort('name')} className={SORT_TH_CLASS} inactiveIndicator={null} />
+              <SortableTh label="Type" active={sort.key === 'type'} dir={sort.dir} onSort={() => toggleSort('type')} className={SORT_TH_CLASS} inactiveIndicator={null} align="right" />
             </tr>
           </thead>
           <tbody>

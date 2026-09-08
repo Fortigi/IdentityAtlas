@@ -2,6 +2,7 @@
 import { useFetch } from '@ui/hooks/useFetch';
 import { useAuth } from '@ui/auth/AuthGate';
 import { formatDate } from '@ui/utils/formatters';
+import { clickableRowProps, FOCUS_RING } from '@ui/utils/keyActivate';
 
 function formatNum(n) {
   if (n == null) return '0';
@@ -29,11 +30,8 @@ function StatCard({ label, value, sub, color = 'gray', onClick }) {
   const clickable = !!onClick;
   return (
     <div
-      className={`rounded-lg border p-4 ${colorMap[color] || colorMap.gray} ${clickable ? 'cursor-pointer hover:ring-2 hover:ring-offset-1 hover:ring-blue-300 transition-shadow' : ''}`}
-      onClick={onClick}
-      role={clickable ? 'button' : undefined}
-      tabIndex={clickable ? 0 : undefined}
-      onKeyDown={clickable ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } } : undefined}
+      className={`rounded-lg border p-4 ${colorMap[color] || colorMap.gray} ${clickable ? `cursor-pointer hover:ring-2 hover:ring-offset-1 hover:ring-blue-300 transition-shadow ${FOCUS_RING}` : ''}`}
+      {...clickableRowProps(onClick)}
     >
       <div className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">{label}</div>
       <div className={`text-2xl font-bold mt-1 ${textMap[color] || textMap.gray}`}>{value}</div>
