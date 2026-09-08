@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Updated bundled third-party dependencies to pick up security fixes for newly published high-severity advisories in `browserslist` (unbounded memory growth, untrusted-stats crash) and `fast-uri` (host confusion and server-side request forgery), plus moderate fixes in `qs` and `@humanfs/node`.
+
+## Changes in this PR
+
 - Fixed the `azure/deploy.ps1` CLI deployment failing immediately with `ERROR: unrecognized template parameter 'namePrefix'` — the script and the example parameters file still passed parameters (`namePrefix`, `location`, `webImage`, `workerImage`, and others) that the deployment template no longer declares.
 - The CLI deploy can now select the `stable` / `edge` image channel via `-ImageChannel`, matching the Deploy-to-Azure portal form, and prints the generated resource-name prefix after a successful deploy.
 - Added a regression test (`test/unit/AzureDeployParameters.Tests.ps1`) that fails if the CLI deploy path ever passes a parameter the template doesn't declare, and wired `azure/**` into the CI test/coverage path filters so it actually runs when the template or deploy script changes.
