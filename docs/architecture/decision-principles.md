@@ -4,15 +4,17 @@ type: reference
 
 # Architecture decision principles
 
-!!! warning "Proposal for review — not yet adopted"
-    This page is a draft, written to sharpen the DoR spec-agent's **A5 "Architecture fit"** gate.
-    Before this proposal, the only stated criteria were the Architect row of the
-    [DoR role table](../process/definition-of-ready.md#roles-lanes) — *"registry vs engine, additive
-    vs mutate-shared-contract, matview vs query-time, migrations"* — and that row now points here.
-    Nothing here is enforced until an architect (Wim / Taeke) ratifies it. See
+!!! note "Status: ratified September 2026"
+    Adopted by the architects (Wim / Taeke) through the review of PR #1146. This page sharpens the
+    DoR spec-agent's **A5 "Architecture fit"** gate; before it, the only stated criteria were the
+    Architect row of the [DoR role table](../process/definition-of-ready.md#roles-lanes) — *"registry
+    vs engine, additive vs mutate-shared-contract, matview vs query-time, migrations"* — and that row
+    now points here. 🟢 entries apply directly; 🟡 entries still go to the architect the first few
+    times, as the labels below explain. See
     [`architecture-guidance-review-2026-09.md`](architecture-guidance-review-2026-09.md) for the
     analysis this page came from — the contradictions found, the issues cited as evidence, and the
-    confidence rating behind each entry below.
+    confidence rating behind each entry — and take corrections back to that evidence rather than
+    re-litigating from scratch.
 
 **Purpose.** Every principle below is phrased as a **testable question** the DoR spec-agent (or a
 human) can run against a specific feature request, with a **confidence label**:

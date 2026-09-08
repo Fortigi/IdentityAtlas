@@ -4,13 +4,14 @@ type: reference
 
 # Architecture Guidance Review — September 2026
 
-!!! warning "Proposal for review — @Wim / @Taeke please comment"
-    This is a draft analysis, following the pattern of
+!!! note "Status: guidance ratified — sections 3–4 still open for comment"
+    A read-only audit, following the pattern of
     [`docs-gap-audit.md`](../docs-gap-audit.md) and the
     [UX](../ux/assessment.md) / [security](../security/maintenance-audit-2026-06.md) assessments:
-    a read-only audit first, remediation second. Nothing here is adopted until an architect ratifies
-    it. The proposed guidance itself lives in
-    [`decision-principles.md`](decision-principles.md), kept separate so it can be read on its own.
+    audit first, remediation second. The guidance it produced,
+    [`decision-principles.md`](decision-principles.md), was ratified through PR #1146 (September
+    2026) and is kept separate so it can be read on its own. The impact estimate (§3) and the backlog
+    restructuring proposals (§4) are still proposals — @Wim / @Taeke please comment there.
 
 **Method.** Read every file under `docs/architecture/`, the subdirectory `CLAUDE.md` files, the
 `docs/process/` DoR pipeline docs, and `docs/risk-scoring/`. Read the full body + comment trail of
