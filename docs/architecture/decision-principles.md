@@ -120,7 +120,8 @@ materialize (a matview, or a dedicated snapshot table).
 them — this is a synthesis (made in the September 2026 review) across four precedents that point the
 same direction, not a rule anyone has ratified. Treat it as a strong default, not a certified
 answer, until an architect has applied it a few times without objection: `matrix.md` (migration
-013 removed matview-side recursive expansion — too costly, replaced by lazy click-time expansion), `effective-access-engine.md §2` (same choice,
+013 removed matview-side recursive expansion — too costly, replaced by lazy click-time expansion),
+`effective-access-engine.md §2` (same choice,
 generalized: "materialize vs. compute on demand," compute-on-demand wins), `matrix-scope-statistics.md`
 (reconstructs from the audit log at query time — no dedicated snapshot table) all chose
 compute-on-demand; `dashboard-trends.md` chose the **opposite** — a dedicated `DashboardSnapshots`
