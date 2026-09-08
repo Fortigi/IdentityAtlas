@@ -67,9 +67,10 @@ test.describe('Reports', () => {
       return;
     }
 
-    // Every declared column is a real table heading …
+    // Every declared column is a real table heading … (exact, so a label that is
+    // a prefix of another — "Account" vs "Account type" — still matches one `th`)
     for (const column of body.columns) {
-      await expect(page.getByRole('columnheader', { name: column.label })).toBeVisible();
+      await expect(page.getByRole('columnheader', { name: column.label, exact: true })).toBeVisible();
     }
     // … and the table holds exactly the rows the API returned.
     await expect(page.locator('table tbody tr')).toHaveCount(body.total);
