@@ -85,7 +85,7 @@ This document lists all major software components, dependencies, and infrastruct
 
 | Package | Version | Purpose | License |
 |---------|---------|---------|---------|
-| @azure/msal-browser | ^5.19.0 | Microsoft Authentication Library | MIT |
+| @azure/msal-browser | ^5.21.0 | Microsoft Authentication Library | MIT |
 
 ### UI Interactions
 
@@ -95,7 +95,7 @@ This document lists all major software components, dependencies, and infrastruct
 | @dnd-kit/modifiers | ^9.0.0 | DnD position modifiers | MIT |
 | @dnd-kit/sortable | ^10.0.0 | Sortable list implementation | MIT |
 | @dnd-kit/utilities | ^3.2.2 | DnD utility functions | MIT |
-| @tanstack/react-virtual | ^3.14.9 | Virtual scrolling for large tables | MIT |
+| @tanstack/react-virtual | ^3.14.10 | Virtual scrolling for large tables | MIT |
 
 ### Data Export
 
