@@ -133,6 +133,7 @@ nav:
           - Omada Data Model Reference: architecture/omada-crawler-datamodel.md
           - midPoint: sync/midpoint.md
           - midPoint Configuration Reference: sync/midpoint-crawler-configuration.md
+          - SCIM 2.0: sync/scim.md
           - CSV Import: sync/csv-import.md
           - Custom Connector (Push API): sync/custom-connector.md
       - Administer:

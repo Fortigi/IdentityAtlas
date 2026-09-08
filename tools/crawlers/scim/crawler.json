@@ -1,0 +1,60 @@
+{
+  "type": "scim",
+  "displayName": "SCIM 2.0",
+  "entryPoint": "Start-ScimCrawler.ps1",
+  "dependsOn": [],
+  "configSchema": {
+    "type": "object",
+    "required": ["baseUrl", "authMethod"],
+    "properties": {
+      "baseUrl":      { "type": "string", "minLength": 1, "description": "SCIM 2.0 service provider base URL (e.g. https://api.example.com/scim/v2)" },
+      "authMethod":   { "enum": ["BasicAuth", "ApiToken", "OAuth2CC"], "description": "REST authentication method" },
+      "username":     { "type": "string", "description": "Username for BasicAuth" },
+      "password":     { "type": "string", "description": "Password for BasicAuth" },
+      "apiToken":     { "type": "string", "description": "Static bearer token for ApiToken auth" },
+      "clientId":     { "type": "string", "description": "OAuth2 client id" },
+      "clientSecret": { "type": "string", "description": "OAuth2 client secret" },
+      "tokenEndpoint":{ "type": "string", "description": "OAuth2 token endpoint URL" },
+      "scope":        { "type": "string", "description": "Optional OAuth2 scope requested with the client-credentials grant" },
+      "systemName":   { "type": "string", "description": "Display name of the Identity Atlas system this endpoint is registered as" },
+      "pageSize":     { "type": "number", "default": 100, "description": "SCIM page size (the `count` query parameter)" },
+      "selectedObjects": {
+        "type": "object",
+        "description": "Toggle individual sync phases",
+        "properties": {
+          "users":        { "type": "boolean", "default": true },
+          "groups":       { "type": "boolean", "default": true },
+          "groupMembers": { "type": "boolean", "default": true }
+        }
+      },
+      "selectedAttributes": {
+        "type": "object",
+        "description": "Opt-in extra attributes per object type. Discovered from /Schemas; empty by default. Selected attributes land in extendedAttributes; the core mapping is always synced.",
+        "properties": {
+          "user":  { "type": "array", "items": { "type": "string" }, "default": [] },
+          "group": { "type": "array", "items": { "type": "string" }, "default": [] }
+        }
+      },
+      "userTypeMapping": {
+        "type": "array",
+        "description": "Map a SCIM userType to an Identity Atlas principal type. A row with a blank userType is the catch-all. Defaults to every user → User.",
+        "default": [ { "userType": "", "principalType": "User" } ],
+        "items": {
+          "type": "object",
+          "properties": {
+            "userType":      { "type": "string" },
+            "principalType": { "type": "string", "enum": ["User", "ServicePrincipal", "ManagedIdentity", "WorkloadIdentity", "AIAgent", "ExternalUser", "SharedMailbox"] }
+          }
+        }
+      }
+    },
+    "allOf": [
+      { "if": { "properties": { "authMethod": { "const": "BasicAuth" } } },
+        "then": { "required": ["username", "password"] } },
+      { "if": { "properties": { "authMethod": { "const": "ApiToken" } } },
+        "then": { "required": ["apiToken"] } },
+      { "if": { "properties": { "authMethod": { "const": "OAuth2CC" } } },
+        "then": { "required": ["tokenEndpoint", "clientId", "clientSecret"] } }
+    ]
+  }
+}

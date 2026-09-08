@@ -1,0 +1,9 @@
+- Added a generic **SCIM 2.0 crawler**: point Identity Atlas at any SCIM 2.0 endpoint and sync its users, groups and group memberships — no system-specific connector needed.
+- The crawler asks the endpoint what it serves (`/ServiceProviderConfig`, `/ResourceTypes`, `/Schemas`) and shows it in the wizard, so you pick the objects and attributes you want instead of guessing at field names.
+- Extra attributes are opt-in: the core mapping (user name, display name, active, e-mail, user type; group display name) is always synced, and anything else you tick is stored alongside it. A **Select all** action per object type is there when you want everything.
+- Group memberships are imported as direct assignments, and nested groups become both a containment link and inherited memberships, so the matrix shows people who get access through a nested group.
+- Map a SCIM `userType` onto an Identity Atlas principal type (for example, `technical` → Service Principal), with a catch-all row for everything else.
+- Supports HTTP Basic, a static API token, and OAuth2 client credentials. Secrets are stored in the vault, never in the crawler's saved configuration.
+- Schedules work as they do for any pull crawler. SCIM has no standard change feed, so every run is a full sync — a delta-mode run executes as a full sync and says so in the job log.
+- A full sync removes accounts and groups the endpoint no longer serves, scoped so it can never touch another connector's data.
+- Added documentation for the SCIM crawler covering what gets imported, configuration, limitations and troubleshooting.
