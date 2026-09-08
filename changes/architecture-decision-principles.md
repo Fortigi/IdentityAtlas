@@ -2,3 +2,4 @@
 - Added `docs/architecture/architecture-guidance-review-2026-09.md`, a read-only audit of the current architecture documentation and backlog: contradictions found between docs (and between docs and precedent), an impact estimate, and backlog restructuring proposals (merges, epics, cross-item contradictions).
 - Flagged `docs/risk-scoring/plugin-architecture.md` as a speculative, unreconciled alternative to the in-tree risk-scoring plugin proposal, with a status banner pointing to the real one.
 - Sharpened the Definition of Ready's "Architect / tech lead" gate criteria and added a pointer from `CLAUDE.md`'s Coding Principles to the new decision-principles checklist.
+- Fixed the documentation link checker reporting false broken cross-links for markdown that only appears inside a fenced code block — a design doc quoting a snippet of another file no longer fails CI.

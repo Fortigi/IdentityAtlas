@@ -19,6 +19,7 @@ import {
   navEntries,
   orphanPages,
   prereqCycles,
+  prose,
 } from './docsStructure.js';
 
 const list = rows => '\n  - ' + rows.join('\n  - ');
@@ -146,5 +147,48 @@ describe('learning path contract', () => {
       cycles,
       `A prerequisite chain loops, so there is no way into it:${list(cycles)}`
     ).toEqual([]);
+  });
+});
+
+// `prose` is what stops the two link scanners above from reading sample markdown
+// as if it were a real link. Each case below picks an input that DISCRIMINATES:
+// a body whose only link sits inside a fence must yield no link at all, which a
+// pass-through implementation cannot satisfy.
+describe('prose', () => {
+  const linksIn = body => [...prose(body).matchAll(/\[[^\]]*\]\(([^)\s]+)\)/g)].map(m => m[1]);
+
+  it('drops a link that only exists inside a fenced block', () => {
+    const body = [
+      'Real: [a](a.md)',
+      '```diff',
+      '+ quoted: [b](docs/architecture/b.md)',
+      '```',
+      'Also real: [c](c.md)',
+    ].join('\n');
+    expect(linksIn(body)).toEqual(['a.md', 'c.md']);
+  });
+
+  it('closes the fence again, so a link after it is still seen', () => {
+    // A stripper that never flips `inFence` back would swallow everything after
+    // the first fence — this asserts the closing delimiter is honoured.
+    expect(linksIn('```\n[x](x.md)\n```\n[y](y.md)')).toEqual(['y.md']);
+  });
+
+  it('handles a tilde fence and an indented fence delimiter', () => {
+    expect(linksIn('  ~~~\n[x](x.md)\n  ~~~\n[y](y.md)')).toEqual(['y.md']);
+  });
+
+  it('treats a language-tagged fence as a fence', () => {
+    expect(linksIn('```js\n// [x](x.md)\n```')).toEqual([]);
+  });
+
+  it('leaves a page with no fences byte-identical', () => {
+    const body = 'One [a](a.md)\n\nTwo [b](../b.md)\n';
+    expect(prose(body)).toBe(body);
+  });
+
+  it('keeps line numbers aligned by blanking fenced lines rather than deleting them', () => {
+    const body = 'a\n```\nb\nc\n```\nd';
+    expect(prose(body).split('\n')).toEqual(['a', '', '', '', '', 'd']);
   });
 });
