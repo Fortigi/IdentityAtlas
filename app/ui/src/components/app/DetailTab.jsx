@@ -28,7 +28,9 @@ export default function DetailTab({ tab, active, onSelect, onClose }) {
       aria-current={active ? 'page' : undefined}
       {...clickableRowProps(onSelect)}
     >
-      <span className={`inline-flex items-center justify-center w-4 h-4 rounded-sm text-[9px] font-bold ${iconBg}`}>{icon}</span>
+      {/* Decorative type badge — hidden from assistive tech so the tab's
+          accessible name is the entity name, not "UAlice Smith". */}
+      <span aria-hidden="true" className={`inline-flex items-center justify-center w-4 h-4 rounded-sm text-[9px] font-bold ${iconBg}`}>{icon}</span>
       <span className="truncate max-w-[140px]">{tab.displayName}</span>
       <button
         type="button"
