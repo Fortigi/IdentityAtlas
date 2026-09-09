@@ -58,6 +58,7 @@ export default function RotatedMatrixView({
   onOpenDetail,
   onAdjustFilter,
   hasData,
+  onShareView,
 }) {
   const filterIsApplied = filter !== null && filter !== undefined;
 
@@ -135,6 +136,7 @@ export default function RotatedMatrixView({
         filter={filter}
         onExportExcel={handleExportExcel}
         onShare={handleShare}
+        onShareView={onShareView}
         onResetRowOrder={() => {}}
         hasCustomRowOrder={false}
         hasExpandableGroups={false}

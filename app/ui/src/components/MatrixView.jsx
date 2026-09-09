@@ -84,6 +84,7 @@ export default function MatrixView({
   onOpenDetail,
   onAdjustFilter,
   hasData,
+  onShareView,
 }) {
   // ─── Nested group expansion ─────────────────────────────────────
   const { authFetch } = useAuth();
@@ -626,6 +627,7 @@ export default function MatrixView({
         filter={filter}
         onExportExcel={handleExportExcel}
         onShare={handleShare}
+        onShareView={onShareView}
         onResetRowOrder={rowOrderHook.resetOrder}
         hasCustomRowOrder={rowOrderHook.hasCustomOrder}
         hasExpandableGroups={groupsWithNested.size > 0}

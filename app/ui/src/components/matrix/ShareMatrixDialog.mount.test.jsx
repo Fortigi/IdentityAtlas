@@ -42,24 +42,32 @@ async function pickPerson(user, name) {
 
 describe('ShareMatrixButton', () => {
   it('offers sharing to a user with data.share', () => {
-    renderWithProviders(<ShareMatrixButton filter={FILTER} managed="all" />, { auth: sharer });
+    renderWithProviders(<ShareMatrixButton filter={FILTER} onShareView={() => {}} />, { auth: sharer });
     expect(screen.getByRole('button', { name: /Share view/i })).toBeInTheDocument();
   });
 
   it('renders nothing without the permission — no door that would 403', () => {
-    renderWithProviders(<ShareMatrixButton filter={FILTER} managed="all" />, { auth: reader });
+    renderWithProviders(<ShareMatrixButton filter={FILTER} onShareView={() => {}} />, { auth: reader });
     expect(screen.queryByRole('button', { name: /Share view/i })).not.toBeInTheDocument();
   });
 
   it('renders nothing when there is no matrix to share yet', () => {
-    renderWithProviders(<ShareMatrixButton filter={null} managed="all" />, { auth: sharer });
+    renderWithProviders(<ShareMatrixButton filter={null} onShareView={() => {}} />, { auth: sharer });
     expect(screen.queryByRole('button', { name: /Share view/i })).not.toBeInTheDocument();
   });
 
-  it('opens the dialog on click', async () => {
-    renderWithProviders(<ShareMatrixButton filter={FILTER} managed="all" />, { auth: sharer });
+  // The dialog lives in MatrixArea, above the view swap that would otherwise
+  // destroy it (see MatrixArea.mount.test.jsx) — so the button only asks.
+  it('renders nothing where nothing can host the dialog', () => {
+    renderWithProviders(<ShareMatrixButton filter={FILTER} />, { auth: sharer });
+    expect(screen.queryByRole('button', { name: /Share view/i })).not.toBeInTheDocument();
+  });
+
+  it('asks its host to open the dialog on click', async () => {
+    const onShareView = vi.fn();
+    renderWithProviders(<ShareMatrixButton filter={FILTER} onShareView={onShareView} />, { auth: sharer });
     await userEvent.setup().click(screen.getByRole('button', { name: /Share view/i }));
-    expect(screen.getByText('Share this matrix')).toBeInTheDocument();
+    expect(onShareView).toHaveBeenCalledTimes(1);
   });
 });
 

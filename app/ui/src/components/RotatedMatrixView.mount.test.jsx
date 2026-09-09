@@ -130,13 +130,13 @@ describe('RotatedMatrixView (mounted)', () => {
     expect(await screen.findByText(/Excel export is not yet supported/i)).toBeInTheDocument();
   });
 
-  it('copies the share URL to the clipboard when Share Link is clicked', async () => {
+  it('copies the share URL to the clipboard when Copy link is clicked', async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     // Define our own clipboard stub and drive the click with fireEvent so
     // userEvent's own clipboard shim doesn't intercept the write.
     Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
     renderView();
-    fireEventClick(screen.getByText('Share Link'));
+    fireEventClick(screen.getByText('Copy link'));
     expect(await screen.findByText('Copied!')).toBeInTheDocument();
     expect(writeText).toHaveBeenCalledWith('https://example.test/matrix');
   });

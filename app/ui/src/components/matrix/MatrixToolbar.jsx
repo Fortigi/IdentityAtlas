@@ -17,6 +17,7 @@ export default function MatrixToolbar({
   filter,
   onExportExcel,
   onShare,
+  onShareView,
   onResetRowOrder,
   hasCustomRowOrder,
   hasExpandableGroups,
@@ -71,6 +72,9 @@ export default function MatrixToolbar({
         </button>
       )}
 
+      {/* Two different "share" actions, deliberately named apart: "Copy link" hands
+          the current URL to another analyst, "Share view…" mints a read-only link
+          for a colleague who has no Identity Atlas role at all (#1166). */}
       {!isSharedView && (
         <button
           onClick={async () => {
@@ -85,13 +89,13 @@ export default function MatrixToolbar({
               ? 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 border-green-300 dark:border-green-700'
               : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 border-gray-200 dark:border-gray-600'
           }`}
-          title="Copy shareable link to clipboard"
+          title="Copy this matrix's URL — it only opens for colleagues who already have Identity Atlas access"
         >
-          {copied ? 'Copied!' : 'Share Link'}
+          {copied ? 'Copied!' : 'Copy link'}
         </button>
       )}
 
-      {!isSharedView && <ShareMatrixButton filter={filter} managed={managedFilter} />}
+      {!isSharedView && <ShareMatrixButton filter={filter} onShareView={onShareView} />}
 
       {hasCustomRowOrder && (
         <>

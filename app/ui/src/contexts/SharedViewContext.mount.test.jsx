@@ -23,20 +23,30 @@ function renderShared(ui, { shared, auth = analyst } = {}) {
 describe('MatrixToolbar under a shared view', () => {
   const toolbar = (
     <MatrixToolbar managedFilter="all" setManagedFilter={() => {}} filter={FILTER}
-      onExportExcel={() => {}} onShare={() => {}} />
+      onExportExcel={() => {}} onShare={() => {}} onShareView={() => {}} />
   );
 
   it('gives an analyst the export and share controls', () => {
     renderShared(toolbar, { shared: false });
     expect(screen.getByRole('button', { name: /Export Excel/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Share Link/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Copy link/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Share view/i })).toBeInTheDocument();
+  });
+
+  // Two share-ish buttons sit side by side; they must not read as the same
+  // control. "Copy link" hands the URL to another analyst, "Share view…" mints
+  // a read-only link for someone with no role at all (#1166).
+  it('names the two sharing controls apart', () => {
+    renderShared(toolbar, { shared: false });
+    expect(screen.getAllByRole('button', { name: /share/i }).map(b => b.textContent))
+      .toEqual(['Share view…']);
+    expect(screen.getByRole('button', { name: 'Copy link' })).toBeInTheDocument();
   });
 
   it('drops all three for a share recipient, keeping the governed toggle', () => {
     renderShared(toolbar, { shared: true });
     expect(screen.queryByRole('button', { name: /Export Excel/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Share Link/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Copy link/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Share view/i })).not.toBeInTheDocument();
     // Reading controls stay — the recipient can still switch governed/gaps.
     expect(screen.getByRole('button', { name: 'Governed' })).toBeInTheDocument();

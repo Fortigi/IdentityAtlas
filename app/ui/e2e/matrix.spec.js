@@ -72,11 +72,15 @@ test.describe('Matrix View', () => {
     }
   });
 
-  test('share button exists', async ({ page }) => {
-    const shareButton = page.getByRole('button', { name: /Share/i });
-    if (await shareButton.count() > 0) {
-      await expect(shareButton).toBeVisible();
-    }
+  // Two different sharing controls live here and must stay distinguishable:
+  // "Copy link" copies the current URL for another analyst, "Share view…" mints
+  // a read-only link for a colleague with no Identity Atlas role (#1166). A
+  // loose /Share/i once matched both and the ambiguity was real, not just a
+  // locator problem.
+  test('the two sharing buttons are named apart', async ({ page }) => {
+    await expect(page.getByRole('button', { name: 'Copy link' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Share view…' })).toBeVisible();
+    await expect(page.getByRole('button', { name: /share/i })).toHaveCount(1);
   });
 
   test('export button exists', async ({ page }) => {
@@ -237,6 +241,8 @@ const STEP_MARKERS = {
   Subjects:  /Narrow down the (users|identities) that appear as rows/,
   Resources: 'Narrow down the resources that appear as columns',
   Sort:      'Sort columns',
+  // The wizard's optional last step, offered to anyone with `data.share` (#1166).
+  Share:     'Share this matrix (optional)',
 };
 
 // Records the counts of every matrix payload the page loads, newest last, so a

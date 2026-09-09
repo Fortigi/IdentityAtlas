@@ -3,3 +3,5 @@
 - Added a **Shared matrices** page listing every share in the organisation, who created it, who has opened it and how often, so links that were never used are easy to spot. Any share can be revoked; the person opening a revoked link is told plainly that it is no longer shared, and the usage history is kept.
 - Added a **Create matrix share links** permission (`data.share`) that gates the Share view button, the Shared matrices page and the share APIs.
 - The people search in the share dialog now says **Searching…** while it looks somebody up, instead of briefly claiming nobody matched.
+- Renamed the matrix toolbar's existing **Share Link** button to **Copy link**, so it no longer reads as the same action as the new **Share view…** — one copies the current URL for a colleague who already uses Identity Atlas, the other creates a read-only link for someone who does not.
+- Fixed the share dialog closing itself, and throwing away what had been typed into it, when the matrix behind it finished loading or switched to a roll-up view.

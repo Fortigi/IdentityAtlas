@@ -18,9 +18,9 @@ The **data** behind a shared view stays live. The **view** does not: the filter 
 ## 1. Create the link
 
 1. Open **Matrix** and build the view you want to share (or load a saved one).
-2. Click **Share view…** in the matrix toolbar.
+2. Click **Share view…** in the matrix toolbar. (Not to be confused with **Copy link** next to it: that copies the current URL, which only opens for colleagues who already have Identity Atlas access.)
 3. Give the view a name — the recipient sees it, and so does everyone on the Shared matrices page.
-4. Click **Create link**, then **Copy link**.
+4. Click **Create link**, then use the dialog's **Copy link** button to put the share link on your clipboard.
 
 The link is shown **once**. Only a hash of its token is stored, so it cannot be recovered later; if you lose it, create a new share and revoke the old one.
 
