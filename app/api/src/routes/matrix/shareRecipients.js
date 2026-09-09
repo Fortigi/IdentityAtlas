@@ -50,8 +50,11 @@ export function normalizeRecipients(input) {
   for (const raw of input) {
     if (byKey.size >= MAX_RECIPIENTS) break;
     const isString = typeof raw === 'string';
-    if (!isString && (!raw || typeof raw !== 'object')) continue;
-    const userKey = normalizeUserKey(isString ? raw : raw.userKey);
+    // No type guard on `raw`: normalizeUserKey already rejects anything that is
+    // not a usable string, so an entry of any other shape falls out on the key
+    // below. A `typeof raw === 'object'` pre-check in front of this only added
+    // a branch no input could ever distinguish.
+    const userKey = normalizeUserKey(isString ? raw : raw?.userKey);
     if (!userKey || byKey.has(userKey)) continue;
     byKey.set(userKey, {
       userKey,

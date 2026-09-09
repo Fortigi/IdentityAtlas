@@ -63,6 +63,11 @@ describe('normalizeRecipients', () => {
     expect(row.principalId).toBeNull();
   });
 
+  it('keeps a padded principalId — the uuid pattern is anchored, so it must be trimmed first', () => {
+    const [row] = normalizeRecipients([{ principalId: `  ${OID}  `, userKey: 'a@b.com' }]);
+    expect(row.principalId).toBe(OID);
+  });
+
   it('returns nothing for a payload that is not an array', () => {
     for (const bad of [undefined, null, 'ann@contoso.com', { userKey: 'a@b.com' }]) {
       expect(normalizeRecipients(bad)).toEqual([]);

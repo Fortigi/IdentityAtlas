@@ -16,8 +16,8 @@ const BOB = { id: '5c9e2a11-1111-2222-3333-444455556666', displayName: 'Bob Owne
 // A service principal / mail-less account: visible, but cannot be a recipient.
 const SVC = { id: '99999999-9999-9999-9999-999999999999', displayName: 'Backup Service', userPrincipalName: null };
 
-function mount({ value = [], rows = [ANN, BOB, SVC], response } = {}) {
-  const authFetch = makeAuthFetch({ '/api/users': response ?? { data: rows } });
+function mount({ value = [], rows = [ANN, BOB, SVC], response, handler } = {}) {
+  const authFetch = makeAuthFetch(handler ?? { '/api/users': response ?? { data: rows } });
   const onChange = vi.fn();
   renderWithProviders(<PeoplePicker value={value} onChange={onChange} />, {
     auth: { permissions: new Set(['data.share']), hasWildcard: false, permissionsLoaded: true, authFetch },
@@ -28,8 +28,12 @@ function mount({ value = [], rows = [ANN, BOB, SVC], response } = {}) {
 const searchBox = () => screen.getByRole('textbox', { name: /Search people/i });
 // Scoped to the dropdown: an already-selected person also appears as a chip
 // whose Remove button carries their name, so an unscoped query is ambiguous.
+// Both queries are awaited — the dropdown opens as soon as the debounce settles
+// and shows "Searching…" until the request resolves, so a synchronous get on
+// the row inside it would race the fetch.
 const option = async (name) =>
-  within(await screen.findByRole('group', { name: 'Search results' })).getByRole('button', { name: new RegExp(name, 'i') });
+  within(await screen.findByRole('group', { name: 'Search results' }))
+    .findByRole('button', { name: new RegExp(name, 'i') });
 
 describe('toPerson', () => {
   it('keys a person on their sign-in name and keeps the directory id', () => {
@@ -99,6 +103,24 @@ describe('PeoplePicker', () => {
     const { user } = mount({ rows: [] });
     await user.type(searchBox(), 'nobody');
     expect(await screen.findByText(/No people match “nobody”/)).toBeInTheDocument();
+  });
+
+  it('says it is still searching rather than claiming nobody matched', async () => {
+    // The window between the debounce settling and the response arriving. With
+    // the result list and a loading flag held as two independent states, this
+    // render has an empty list and loading not yet true — so the dropdown
+    // flashes "No people match" for a term it has not looked up. Asserting the
+    // absence of that text is what discriminates.
+    let release = () => {};
+    const { user } = mount({ handler: () => new Promise(resolve => { release = () => resolve({ data: [ANN] }); }) });
+    await user.type(searchBox(), 'ann');
+
+    const box = await screen.findByRole('group', { name: 'Search results' });
+    expect(box).toHaveTextContent('Searching…');
+    expect(box).not.toHaveTextContent('No people match');
+
+    release();
+    expect(await option('Ann Manager')).toBeEnabled();
   });
 
   it('survives a failing search without breaking the form', async () => {

@@ -24,15 +24,27 @@ async function defaultFilter() {
   return (rows.find(r => r.isDefault) || rows[0]).filter;
 }
 
+// Somebody from the deployment's own directory to address a share to. A share
+// is always for NAMED people — there is no "anyone with the link" share — so
+// every spec here needs a real recipient rather than a made-up address.
+async function someRecipient() {
+  const res = await fetch(`${API}/users?limit=25`);
+  if (!res.ok) return null;
+  const body = await res.json();
+  const row = (body?.data || []).find(r => r.userPrincipalName || r.email);
+  if (!row) return null;
+  return { principalId: row.id, userKey: row.userPrincipalName || row.email, displayName: row.displayName };
+}
+
 // Mint a share straight through the API — the recipient-side tests care about
 // what a link opens, not about how it was created (that has its own test).
 async function createShare(name) {
-  const filter = await defaultFilter();
-  if (!filter) return null;
+  const [filter, recipient] = await Promise.all([defaultFilter(), someRecipient()]);
+  if (!filter || !recipient) return null;
   const res = await fetch(`${API}/matrix/shares`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, filter, managed: 'all', displayMode: 'grid' }),
+    body: JSON.stringify({ name, filter, managed: 'all', displayMode: 'grid', recipients: [recipient] }),
   });
   if (!res.ok) return null;
   return res.json();
@@ -49,6 +61,9 @@ test.describe('Share a matrix (#1166)', () => {
 
   test('analyst mints a share link from the matrix toolbar', async ({ page }) => {
     test.slow();
+    const recipient = await someRecipient();
+    test.skip(!recipient, 'deployment has no directory user to share with');
+
     await page.goto(`${BASE}/#matrix`);
 
     const shareView = page.getByRole('button', { name: 'Share view…' });
@@ -56,7 +71,19 @@ test.describe('Share a matrix (#1166)', () => {
     await shareView.click();
 
     await page.getByLabel('Name this view').fill('E2E — analyst share');
-    await page.getByRole('button', { name: 'Create link' }).click();
+
+    // Naming the people is not optional: the button stays disabled until the
+    // share has somebody to open it, so assert that before picking one.
+    const createLink = page.getByRole('button', { name: 'Create link' });
+    await expect(createLink).toBeDisabled();
+
+    await page.getByLabel('Share with').fill(recipient.userKey);
+    const results = page.getByRole('group', { name: 'Search results' });
+    await results.getByRole('button').first().click();
+    await expect(page.getByRole('list', { name: 'Selected people' })).toContainText(recipient.displayName);
+
+    await expect(createLink).toBeEnabled();
+    await createLink.click();
 
     // The link is shown exactly once, in full, so the sharer can copy it.
     await expect(page.getByRole('heading', { name: 'Share link created' })).toBeVisible({ timeout: 30000 });

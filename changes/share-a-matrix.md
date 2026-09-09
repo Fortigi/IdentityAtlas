@@ -2,3 +2,4 @@
 - Recipients open the link, sign in with their normal Microsoft account (no Identity Atlas role needed) and land on a stripped-back, read-only view: the matrix and nothing else — no navigation, no dashboard, no export and no way to change the matrix. They can still click through to a resource, group or person for details and come straight back.
 - Added a **Shared matrices** page listing every share in the organisation, who created it, who has opened it and how often, so links that were never used are easy to spot. Any share can be revoked; the person opening a revoked link is told plainly that it is no longer shared, and the usage history is kept.
 - Added a **Create matrix share links** permission (`data.share`) that gates the Share view button, the Shared matrices page and the share APIs.
+- The people search in the share dialog now says **Searching…** while it looks somebody up, instead of briefly claiming nobody matched.

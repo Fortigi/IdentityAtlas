@@ -27,6 +27,8 @@ export default defineConfig({
     include: [
       'src/auth/usePermissions.test.jsx',
       'src/utils/matrixFilter.test.js',
+      'src/components/shared/sharedSnapshot.test.js',
+      'src/hooks/useHashPage.test.jsx',
     ],
     exclude: ['**/node_modules/**'],
   },

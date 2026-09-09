@@ -32,26 +32,31 @@ export default function PeoplePicker({ value = [], onChange, label = 'Search peo
   const { authFetch } = useAuth();
   const [query, setQuery] = useState('');
   const debounced = useDebouncedValue(query, 250);
+  const term = debounced.trim();
+  // Results are TAGGED with the term they were fetched for, rather than kept in
+  // a separate `results` + `loading` pair. A term the picker has not searched
+  // yet is "still searching", not "no matches": with two independent states the
+  // render between the debounce settling and the request starting has an empty
+  // result list and a not-yet-true loading flag, and the dropdown flashes
+  // "No people match" for a term it never looked up.
   // Value-set only; a reducer dispatch keeps the search effect clear of
   // react-hooks/set-state-in-effect.
-  const [results, setResults] = useReducer((_, v) => v, []);
-  const [loading, setLoading] = useReducer((_, v) => v, false);
+  const [found, setFound] = useReducer((_, v) => v, { term: '', rows: [] });
   const [open, setOpen] = useState(false);
   const boxRef = useRef(null);
 
+  const settled = found.term === term;
   const selectedKeys = useMemo(() => new Set(value.map(p => p.userKey)), [value]);
 
   useEffect(() => {
-    if (!debounced.trim()) { setResults([]); return; }
+    if (!term) { setFound({ term: '', rows: [] }); return; }
     let cancelled = false;
-    setLoading(true);
-    authFetch(`/api/users?search=${encodeURIComponent(debounced.trim())}&limit=${RESULT_LIMIT}`)
+    authFetch(`/api/users?search=${encodeURIComponent(term)}&limit=${RESULT_LIMIT}`)
       .then(r => (r.ok ? r.json() : { data: [] }))
-      .then(body => { if (!cancelled) setResults(Array.isArray(body?.data) ? body.data : []); })
-      .catch(() => { if (!cancelled) setResults([]); })
-      .finally(() => { if (!cancelled) setLoading(false); });
+      .then(body => { if (!cancelled) setFound({ term, rows: Array.isArray(body?.data) ? body.data : [] }); })
+      .catch(() => { if (!cancelled) setFound({ term, rows: [] }); });
     return () => { cancelled = true; };
-  }, [authFetch, debounced]);
+  }, [authFetch, term]);
 
   // Clicking outside closes the result list without clearing the selection.
   useEffect(() => {
@@ -65,7 +70,7 @@ export default function PeoplePicker({ value = [], onChange, label = 'Search peo
     if (!person.userKey || selectedKeys.has(person.userKey)) return;
     onChange([...value, person]);
     setQuery('');
-    setResults([]);
+    setFound({ term: '', rows: [] });
     setOpen(false);
   }
 
@@ -87,17 +92,17 @@ export default function PeoplePicker({ value = [], onChange, label = 'Search peo
       />
       {help && <p className="mt-0.5 text-[11px] text-gray-500 dark:text-gray-400">{help}</p>}
 
-      {open && (loading || results.length > 0 || debounced.trim()) && (
+      {open && term && (
         <div
           role="group"
           aria-label="Search results"
           className="absolute left-0 right-0 z-20 mt-1 max-h-56 overflow-auto rounded border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800"
         >
-          {loading && <p className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400">Searching…</p>}
-          {!loading && results.length === 0 && (
-            <p className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400">No people match “{debounced.trim()}”.</p>
+          {!settled && <p className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400">Searching…</p>}
+          {settled && found.rows.length === 0 && (
+            <p className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400">No people match “{term}”.</p>
           )}
-          {!loading && results.map(row => {
+          {settled && found.rows.map(row => {
             const person = toPerson(row);
             const already = selectedKeys.has(person.userKey);
             const unusable = !person.userKey;
