@@ -922,6 +922,7 @@ jobs:
           bash test/ci-scripts/test-commit-range.sh
           bash test/ci-scripts/test-dor-gate-notice.sh
           bash test/ci-scripts/test-dor-reconcile-liveness.sh
+          bash test/ci-scripts/test-dor-reconcile-selfheal.sh
           bash test/ci-scripts/test-dor-push-lease.sh
           bash test/ci-scripts/test-gate-wiring.sh
 

@@ -53,9 +53,10 @@ jobs:
     # and be smoke-tested before anything runs.
     if: >-
       vars.DOR_ENABLED == 'true' &&
-      github.event.sender.type != 'Bot' &&
+      (github.event.sender.type != 'Bot' || github.event.label.name == 'dor-retry') &&
       !github.event.issue.pull_request &&
-      (github.event.action != 'labeled' || github.event.label.name == 'dor-vouched') &&
+      (github.event.action != 'labeled' || github.event.label.name == 'dor-vouched' ||
+       github.event.label.name == 'dor-retry') &&
       (!contains(github.event.issue.labels.*.name, 'needs-vouch') ||
        contains(github.event.issue.labels.*.name, 'dor-vouched')) &&
       contains(github.event.issue.labels.*.name, 'enhancement') &&

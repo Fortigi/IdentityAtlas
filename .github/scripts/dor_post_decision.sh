@@ -125,6 +125,12 @@ else
   gh issue edit "$ISSUE" --repo "$REPO" --add-label "$route" --remove-label "$remove"
 fi
 
+# Consume the reconcile re-dispatch marker — the agent has produced a decision, so this retry is
+# over. Left in place when the run FAILS, on purpose: it is then both the visible record that the
+# issue is being re-driven and, through its timeline events, the budget that stops it being
+# re-driven for ever. Removing a label that is not there is a no-op.
+gh issue edit "$ISSUE" --repo "$REPO" --remove-label dor-retry >/dev/null 2>&1 || true
+
 # Sync the board Status to the chosen route (board-scoped BOT token, NOT the model's). The target
 # board is whichever PROJECT_ID / STATUS_FIELD_ID are in env (Feature board by default).
 GH_TOKEN="$BOARD_TOKEN" bash "$here/dor_set_status.sh" "$ISSUE" "$route"
