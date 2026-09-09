@@ -1,5 +1,0 @@
-- Documented the new epic layer above the feature backlog: how epics, sub-epics and decision issues are wired, which board and fields carry them, and the conventions that keep them out of the Definition-of-Ready pipeline.
-- Added an autonomy roadmap that measures the current process against the Fortigi implementation approach, records four deliberate deviations, and sets out the phased plan towards more autonomous feature delivery.
-- Added a session log recording what changed when the epic layer was introduced, including the corrections made along the way and the process lessons worth keeping.
-- Recorded the review finding that the 22 groupings are not one kind of thing (13 goals, 9 features with slices) and that the epic status field mixed a parent-level property with a roll-up of its children, together with the agreed fix: add issue types rather than re-parent anything.
-- Corrected the Key Result Review record: the cadence was agreed (monthly, all Key Results at once) but the roadmap still described it as undecided in four places.
