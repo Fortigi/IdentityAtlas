@@ -188,6 +188,9 @@ nav:
           - DoR state machine & operating procedure: process/dor-state-machine.md
           - Operationalising the DoR: process/operationalization.md
           - DoR sidekick setup: process/dor-sidekick-setup.md
+          - The epic layer: process/epic-layer.md
+          - Autonomy roadmap: process/autonomy-roadmap.md
+          - Session log — epic layer (Sept 2026): process/epic-layer-session-2026-09.md
           - Autonomous bug pipeline (partly built): process/autonomous-bug-pipeline.md
       - Design archive:
           - About the archive: architecture/design-archive.md
