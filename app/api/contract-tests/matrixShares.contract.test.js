@@ -23,6 +23,30 @@ async function insertShare({ name, token, displayMode = null, managed = null, cr
   return r.rows[0];
 }
 
+async function addRecipients(shareId, recipients) {
+  const values = recipients.map((_, i) => `($1, $${i * 3 + 2}, $${i * 3 + 3}, $${i * 3 + 4})`).join(', ');
+  await pool.query(
+    `INSERT INTO "MatrixShareRecipients" ("shareId", "principalId", "userKey", "displayName")
+     VALUES ${values}
+     ON CONFLICT ("shareId", "userKey") DO NOTHING`,
+    [shareId, ...recipients.flatMap(r => [r.principalId ?? null, r.userKey, r.displayName ?? null])],
+  );
+}
+
+// The exact gate the resolve route runs: is this caller one of the people the
+// share was addressed to?
+async function addressedTo(shareId, { keys = [], oid = null } = {}) {
+  const r = await pool.query(
+    `SELECT 1 FROM "MatrixShareRecipients"
+      WHERE "shareId" = $1
+        AND (lower("userKey") = ANY($2::text[])
+             OR ($3::uuid IS NOT NULL AND "principalId" = $3::uuid))
+      LIMIT 1`,
+    [shareId, keys, oid],
+  );
+  return r.rowCount === 1;
+}
+
 async function stampUsage(shareId, userKey) {
   await pool.query(
     `INSERT INTO "MatrixShareAccesses" ("shareId", "userKey", "accessCount")
@@ -137,14 +161,79 @@ describe('MatrixShareAccesses usage tracking', () => {
   });
 });
 
+describe('MatrixShareRecipients — who a share is addressed to', () => {
+  const ANN_OID = '3fa85f64-5717-4562-b3fc-2c963f66afa6';
+
+  it('opens for a named recipient and refuses everyone else', async () => {
+    const share = await insertShare({ name: 'Sales team', token: generateShareToken() });
+    await addRecipients(share.id, [{ principalId: ANN_OID, userKey: 'ann@example.com', displayName: 'Ann Manager' }]);
+
+    expect(await addressedTo(share.id, { keys: ['ann@example.com'] })).toBe(true);
+    // A forwarded link in somebody else's hands opens nothing.
+    expect(await addressedTo(share.id, { keys: ['stranger@example.com'] })).toBe(false);
+    // No claims at all is a miss, not a match-everything.
+    expect(await addressedTo(share.id, {})).toBe(false);
+  });
+
+  it('matches the sign-in name case-insensitively and the oid exactly', async () => {
+    const share = await insertShare({ name: 'Sales team', token: generateShareToken() });
+    await addRecipients(share.id, [{ principalId: ANN_OID, userKey: 'ann@example.com' }]);
+
+    // A tenant may hand back a differently-cased UPN than the one picked.
+    expect(await addressedTo(share.id, { keys: ['ANN@EXAMPLE.COM'.toLowerCase()] })).toBe(true);
+    // A renamed recipient still resolves on their directory id alone.
+    expect(await addressedTo(share.id, { keys: ['ann.married@example.com'], oid: ANN_OID })).toBe(true);
+    expect(await addressedTo(share.id, { keys: [], oid: '11111111-2222-3333-4444-555555555555' })).toBe(false);
+  });
+
+  it('scopes recipients to their own share', async () => {
+    const mine = await insertShare({ name: 'Mine', token: generateShareToken() });
+    const theirs = await insertShare({ name: 'Theirs', token: generateShareToken() });
+    await addRecipients(mine.id, [{ userKey: 'ann@example.com' }]);
+
+    expect(await addressedTo(mine.id, { keys: ['ann@example.com'] })).toBe(true);
+    // Being on one share's list must not open another share.
+    expect(await addressedTo(theirs.id, { keys: ['ann@example.com'] })).toBe(false);
+  });
+
+  it('rejects the same person twice on one share, and cascades on delete', async () => {
+    const share = await insertShare({ name: 'Sales team', token: generateShareToken() });
+    await addRecipients(share.id, [{ userKey: 'ann@example.com', displayName: 'Ann' }]);
+    // The ON CONFLICT clause the route uses makes a re-add a no-op, not a 23505.
+    await addRecipients(share.id, [{ userKey: 'ann@example.com', displayName: 'Ann again' }]);
+    const rows = (await pool.query(`SELECT "displayName" FROM "MatrixShareRecipients" WHERE "shareId" = $1`, [share.id])).rows;
+    expect(rows).toEqual([{ displayName: 'Ann' }]);
+
+    await pool.query(`DELETE FROM "MatrixShares" WHERE id = $1`, [share.id]);
+    expect((await pool.query(`SELECT 1 FROM "MatrixShareRecipients" WHERE "shareId" = $1`, [share.id])).rowCount).toBe(0);
+  });
+
+  it('keeps the recipient list intact when the share is revoked', async () => {
+    const share = await insertShare({ name: 'Sales team', token: generateShareToken() });
+    await addRecipients(share.id, [{ userKey: 'ann@example.com' }]);
+    await pool.query(`UPDATE "MatrixShares" SET "revokedAt" = now() WHERE id = $1`, [share.id]);
+    expect((await pool.query(`SELECT 1 FROM "MatrixShareRecipients" WHERE "shareId" = $1`, [share.id])).rowCount).toBe(1);
+  });
+});
+
 describe('the shares list query', () => {
   const LIST_SQL = `
     SELECT s.id, s."name", s."revokedAt",
            COALESCE(u."accessCount", 0)::int AS "accessCount",
            COALESCE(u."userCount", 0)::int   AS "userCount",
            u."lastAccessAt",
-           COALESCE(u."usage", '[]'::json)   AS "usage"
+           COALESCE(u."usage", '[]'::json)   AS "usage",
+           COALESCE(rc."recipients", '[]'::json) AS "recipients"
       FROM "MatrixShares" s
+      LEFT JOIN LATERAL (
+        SELECT json_agg(json_build_object(
+                 'principalId', r."principalId",
+                 'userKey',     r."userKey",
+                 'displayName', r."displayName"
+               ) ORDER BY r."displayName" NULLS LAST, r."userKey") AS "recipients"
+          FROM "MatrixShareRecipients" r
+         WHERE r."shareId" = s.id
+      ) rc ON TRUE
       LEFT JOIN LATERAL (
         SELECT SUM(a."accessCount")   AS "accessCount",
                COUNT(*)               AS "userCount",
@@ -165,6 +254,14 @@ describe('the shares list query', () => {
     await pool.query(`SELECT pg_sleep(0.01)`);   // distinct createdAt ordering
     const unused = await insertShare({ name: 'Never opened', token: generateShareToken() });
 
+    // Both shares are addressed to somebody; only one of them was opened, which
+    // is exactly the "shared with two people, used by one" case the page shows.
+    await addRecipients(used.id, [
+      { userKey: 'owner@example.com', displayName: 'Owen Owner' },
+      { userKey: 'manager@example.com', displayName: 'Ann Manager' },
+    ]);
+    await addRecipients(unused.id, [{ userKey: 'nobody@example.com' }]);
+
     await stampUsage(used.id, 'manager@example.com');
     await stampUsage(used.id, 'manager@example.com');
     await stampUsage(used.id, 'owner@example.com');
@@ -176,12 +273,17 @@ describe('the shares list query', () => {
     expect(byName['Never opened'].userCount).toBe(0);
     expect(byName['Never opened'].usage).toEqual([]);
     expect(byName['Never opened'].lastAccessAt).toBeNull();
+    // …but it is still addressed to somebody — "never opened" is about usage,
+    // not about an empty guest list.
+    expect(byName['Never opened'].recipients.map(r => r.userKey)).toEqual(['nobody@example.com']);
 
     expect(byName['Used'].accessCount).toBe(3);   // 2 + 1 across two people
     expect(byName['Used'].userCount).toBe(2);
     expect(byName['Used'].usage.map(u => u.userKey).sort())
       .toEqual(['manager@example.com', 'owner@example.com']);
     expect(byName['Used'].lastAccessAt).not.toBeNull();
+    // Recipients come back ordered by display name, not by insertion order.
+    expect(byName['Used'].recipients.map(r => r.displayName)).toEqual(['Ann Manager', 'Owen Owner']);
 
     // Newest share first.
     const names = (await pool.query(LIST_SQL)).rows.map(r => r.name);

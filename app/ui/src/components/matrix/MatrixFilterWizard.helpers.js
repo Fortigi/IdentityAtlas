@@ -6,12 +6,18 @@
 // context-tree roll-up has no Content step of its own (it's always
 // resources-as-rows). The Content step (resources / +roles / roles-only)
 // applies to BOTH attribute and context roll-ups.
+//
+// A final "Share" step is appended for a user who may share (#1166) — building
+// a matrix for somebody else is the same sitting as building it, so the option
+// belongs at the end of the wizard rather than only on a toolbar the analyst
+// has to remember afterwards. It is purely optional: Apply is available on it
+// exactly as it was on the previous last step.
 
 // Which keyed steps this filter shows, plus the derived navigation position.
 // `step` is the currently-selected key; when it has become hidden (the user
-// toggled roll-up / content), `activeStep` falls back to the nearest visible
-// one so the body never goes blank.
-export function deriveSteps(filter, step) {
+// toggled roll-up / content, or lost the share permission), `activeStep` falls
+// back to the nearest visible one so the body never goes blank.
+export function deriveSteps(filter, step, { canShare = false } = {}) {
   const contextRollup = filter.rollupKind === 'context' && !!filter.rollupContextId;
   const attrRollup = !!filter.rollup;
   const rollupOn = attrRollup || contextRollup;
@@ -22,6 +28,7 @@ export function deriveSteps(filter, step) {
     { key: 'subjects', label: 'Subjects' },
     rolesOnly ? null : { key: 'resources', label: 'Resources' },
     rollupOn ? null : { key: 'sort', label: 'Sort' },
+    canShare ? { key: 'share', label: 'Share' } : null,
   ].filter(Boolean);
   const stepKeys = steps.map(s => s.key);
   const curPos = Math.max(0, stepKeys.indexOf(step));

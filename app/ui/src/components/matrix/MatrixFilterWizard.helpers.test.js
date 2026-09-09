@@ -54,4 +54,37 @@ describe('deriveSteps', () => {
   it('keeps the selected step active when it is still visible', () => {
     expect(deriveSteps({}, 'resources').activeStep).toBe('resources');
   });
+
+  describe('the Share step (#1166)', () => {
+    it('is appended last for a user who may share', () => {
+      const { stepKeys, steps } = deriveSteps({}, 'setup', { canShare: true });
+      expect(stepKeys).toEqual(['setup', 'subjects', 'resources', 'sort', 'share']);
+      expect(steps.at(-1).label).toBe('Share');
+    });
+
+    it('stays last when a roll-up removes the Sort step', () => {
+      const { stepKeys } = deriveSteps({ rollup: 'department' }, 'setup', { canShare: true });
+      expect(stepKeys).toEqual(['setup', 'content', 'subjects', 'resources', 'share']);
+    });
+
+    it('is absent without the permission — the default', () => {
+      expect(deriveSteps({}, 'setup').stepKeys).not.toContain('share');
+      expect(deriveSteps({}, 'setup', { canShare: false }).stepKeys).not.toContain('share');
+    });
+
+    it('moves the Apply button onto itself, so Sort is no longer the end', () => {
+      // Apply renders on `isLast`; with sharing on, Sort must NOT be last or a
+      // sharer would never reach the step.
+      expect(deriveSteps({}, 'sort', { canShare: true }).isLast).toBe(false);
+      expect(deriveSteps({}, 'share', { canShare: true }).isLast).toBe(true);
+      // …and without the permission Sort keeps Apply exactly as before.
+      expect(deriveSteps({}, 'sort').isLast).toBe(true);
+    });
+
+    it('falls back to a visible step when sharing is revoked mid-wizard', () => {
+      const { activeStep, stepKeys } = deriveSteps({}, 'share', { canShare: false });
+      expect(stepKeys).not.toContain('share');
+      expect(stepKeys).toContain(activeStep);
+    });
+  });
 });

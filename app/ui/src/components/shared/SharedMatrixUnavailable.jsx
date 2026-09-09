@@ -14,6 +14,10 @@ const MESSAGES = {
     title: 'This link doesn’t open a shared view',
     hint: 'The link may be incomplete or may have been replaced. Check that you copied all of it, or ask the sender for a fresh link.',
   },
+  forbidden: {
+    title: 'This view wasn’t shared with you',
+    hint: 'A shared matrix opens only for the people it was sent to. If it was forwarded to you, ask the sender to share it with your account as well.',
+  },
   error: {
     title: 'This view couldn’t be opened',
     hint: 'Something went wrong loading the shared matrix. Try again in a moment, or let the sender know if it keeps happening.',

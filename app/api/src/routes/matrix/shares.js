@@ -11,6 +11,12 @@
 // can't reach it because they are GET-only. Creating, listing and revoking
 // shares is gated on `data.share`.
 //
+// A share is addressed to NAMED PEOPLE, not to whoever holds the link. The
+// sharer picks recipients from the directory and only those accounts (plus the
+// sharer themselves) can resolve the token — a forwarded link is useless to
+// anyone else. That is why creating a share without a recipient is a 400
+// rather than a "public" share: there is no such thing here.
+//
 // A share stores a SNAPSHOT of the view-state (filter + managed toggle +
 // display mode) so later edits to the originating saved filter never change
 // what a recipient sees; the underlying data stays live.
@@ -19,8 +25,10 @@ import { Router } from 'express';
 import { randomUUID } from 'crypto';
 import * as db from '../../db/connection.js';
 import { requirePermission } from '../../middleware/auth.js';
+import { isAuthEnabled } from '../../config/authConfig.js';
 import { UUID_RE } from '../../matrix/filterSql.js';
 import { generateShareToken, hashToken, isShareTokenFormat } from '../../auth/shareTokens.js';
+import { normalizeRecipients, identityKeysOf, objectIdOf } from './shareRecipients.js';
 
 const router = Router();
 const useSql = process.env.USE_SQL === 'true';
@@ -58,21 +66,42 @@ router.post('/matrix/shares', canShare, async (req, res) => {
     return res.status(400).json({ error: 'filter is required' });
   }
 
+  // Validated before the share row is written, so a request that names nobody
+  // can never leave an unreachable share behind.
+  const recipients = normalizeRecipients(body.recipients);
+  if (recipients.length === 0) {
+    return res.status(400).json({ error: 'Select at least one person to share this matrix with' });
+  }
+
   const token = generateShareToken();
+  const shareId = randomUUID();
   try {
-    const row = await db.queryOne(
-      `INSERT INTO "MatrixShares" (id, "shareType", "name", "filter", "displayMode", "managed", "tokenHash", "createdBy")
-       VALUES ($1, 'matrix', $2, $3, $4, $5, $6, $7)
-       RETURNING id, "shareType", "name", "filter", "displayMode", "managed", "createdBy", "createdAt", "revokedAt", "revokedBy"`,
-      [
-        randomUUID(), name, body.filter,
-        pickEnum(body.displayMode, DISPLAY_MODES),
-        pickEnum(body.managed, MANAGED_STATES),
-        hashToken(token), actorOf(req),
-      ],
-    );
+    // One transaction: the share and the people it is addressed to are a
+    // single fact. Half of it would be either an unopenable share or an
+    // orphaned recipient list.
+    const row = await db.tx(async (client) => {
+      const inserted = await client.query(
+        `INSERT INTO "MatrixShares" (id, "shareType", "name", "filter", "displayMode", "managed", "tokenHash", "createdBy")
+         VALUES ($1, 'matrix', $2, $3, $4, $5, $6, $7)
+         RETURNING id, "shareType", "name", "filter", "displayMode", "managed", "createdBy", "createdAt", "revokedAt", "revokedBy"`,
+        [
+          shareId, name, body.filter,
+          pickEnum(body.displayMode, DISPLAY_MODES),
+          pickEnum(body.managed, MANAGED_STATES),
+          hashToken(token), actorOf(req),
+        ],
+      );
+      const values = recipients.map((_, i) => `($1, $${i * 3 + 2}, $${i * 3 + 3}, $${i * 3 + 4})`).join(', ');
+      await client.query(
+        `INSERT INTO "MatrixShareRecipients" ("shareId", "principalId", "userKey", "displayName")
+         VALUES ${values}
+         ON CONFLICT ("shareId", "userKey") DO NOTHING`,
+        [shareId, ...recipients.flatMap(r => [r.principalId, r.userKey, r.displayName])],
+      );
+      return inserted.rows[0];
+    });
     // The plaintext is shown exactly once — only its hash was stored.
-    res.status(201).json({ ...row, token });
+    res.status(201).json({ ...row, recipients, token });
   } catch (err) {
     console.error('POST matrix/shares failed:', err.message);
     res.status(500).json({ error: 'Failed to create share' });
@@ -89,8 +118,18 @@ router.get('/matrix/shares', canShare, async (req, res) => {
              COALESCE(u."accessCount", 0)::int AS "accessCount",
              COALESCE(u."userCount", 0)::int   AS "userCount",
              u."lastAccessAt",
-             COALESCE(u."usage", '[]'::json)   AS "usage"
+             COALESCE(u."usage", '[]'::json)   AS "usage",
+             COALESCE(rc."recipients", '[]'::json) AS "recipients"
         FROM "MatrixShares" s
+        LEFT JOIN LATERAL (
+          SELECT json_agg(json_build_object(
+                   'principalId', r."principalId",
+                   'userKey',     r."userKey",
+                   'displayName', r."displayName"
+                 ) ORDER BY r."displayName" NULLS LAST, r."userKey") AS "recipients"
+            FROM "MatrixShareRecipients" r
+           WHERE r."shareId" = s.id
+        ) rc ON TRUE
         LEFT JOIN LATERAL (
           SELECT SUM(a."accessCount")   AS "accessCount",
                  COUNT(*)               AS "userCount",
@@ -142,6 +181,26 @@ router.post('/matrix/shares/:id/revoke', canShare, async (req, res) => {
 // POST (not GET with the token in the path) so the token never lands in a URL,
 // a proxy log, or an `fgr_` read key's reach.
 
+// Is this caller one of the people the share was addressed to?
+//
+// Fails CLOSED: anything other than a positive match on the recipient list (or
+// being the sharer) is a no. On an auth-disabled install there is no identity
+// to match — the whole deployment is open, so the check is skipped rather than
+// locking every recipient out of a link that install can't authenticate.
+async function isAddressedTo(share, req) {
+  if (!isAuthEnabled()) return true;
+  if (share.createdBy && share.createdBy === actorOf(req)) return true;
+  const row = await db.queryOne(
+    `SELECT 1 AS ok FROM "MatrixShareRecipients"
+      WHERE "shareId" = $1
+        AND (lower("userKey") = ANY($2::text[])
+             OR ($3::uuid IS NOT NULL AND "principalId" = $3::uuid))
+      LIMIT 1`,
+    [share.id, identityKeysOf(req.user), objectIdOf(req.user)],
+  );
+  return !!row;
+}
+
 router.post('/matrix/shares/resolve', async (req, res) => {
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
   const token = req.body?.token;
@@ -156,6 +215,11 @@ router.post('/matrix/shares/resolve', async (req, res) => {
     );
     if (!share) return res.status(404).json({ error: 'Share not found' });
     if (share.revokedAt) return res.status(410).json({ error: 'This view is no longer shared' });
+    // Not on the guest list: say so plainly, and stamp nothing. The usage log
+    // records who OPENED a share, and this caller didn't.
+    if (!(await isAddressedTo(share, req))) {
+      return res.status(403).json({ error: 'This view was shared with specific people, and you are not one of them' });
+    }
 
     await db.query(
       `INSERT INTO "MatrixShareAccesses" ("shareId", "userKey", "accessCount")

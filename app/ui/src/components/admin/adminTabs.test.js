@@ -29,6 +29,17 @@ describe('adminTabs', () => {
     expect(tabs.map(t => t.key)).not.toContain('auth');
   });
 
+  it('hosts Shared Matrices as a data.share-gated sub-tab, not a top-level tab (#1166)', () => {
+    const shares = ADMIN_TABS.find(t => t.key === 'shares');
+    expect(shares).toBeTruthy();
+    expect(shares.label).toBe('Shared Matrices');
+    expect(shares.requires).toEqual(['data.share']);
+    // A RoleMiner has data.share but no admin.* — they must still reach it.
+    expect(visibleAdminTabs(new Set(['data.share']), false).map(t => t.key)).toContain('shares');
+    // …and an admin without it does not see a tab they cannot use.
+    expect(visibleAdminTabs(new Set(['admin.crawlers']), false).map(t => t.key)).not.toContain('shares');
+  });
+
   it('a wildcard user sees every tab', () => {
     const tabs = visibleAdminTabs(new Set(), true);
     expect(tabs).toHaveLength(ADMIN_TABS.length);

@@ -70,11 +70,12 @@ describe('pageRegistry', () => {
     expect(admin.props.onRiskScoresRefresh).toBe(ctx.onRiskScoresRefresh);
   });
 
-  it('registers the Shared matrices page, which needs no context (#1166)', () => {
-    // The management page reads everything it needs from the API and the
-    // permission hooks — calling its entry with no ctx must not throw.
-    expect(isValidElement(resolvePageRoute('shared-matrices')())).toBe(true);
-    expect(resolvePageRoute('shared-matrices')).not.toBe(resolvePageRoute('admin'));
+  it('routes the legacy #shared-matrices hash into Admin (#1166)', () => {
+    // The page moved from the top nav to an Admin sub-tab; links already sent
+    // must still land on it, so the old hash renders AdminPage (which selects
+    // the Shared Matrices sub-tab) rather than 404-ing.
+    expect(resolvePageRoute('shared-matrices')).toBe(resolvePageRoute('admin'));
+    expect(isValidElement(resolvePageRoute('shared-matrices')(ctx))).toBe(true);
   });
 
   it('remounts the risk-scores page when the refresh key changes', () => {

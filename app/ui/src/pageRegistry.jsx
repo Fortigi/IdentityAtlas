@@ -31,14 +31,14 @@ const RiskScoringPage = lazy(() => import('./components/RiskScoringPage'));
 const ContextsPage = lazy(() => import('./components/ContextsPage'));
 const IdentitiesPage = lazy(() => import('./components/IdentitiesPage'));
 const AdminPage = lazy(() => import('./components/AdminPage'));
-const SharedMatricesPage = lazy(() => import('./components/SharedMatricesPage'));
 
 // Each entry is a small component that takes the shared render context as PROPS
 // and renders its page; multi-key routes (resources/groups; performance/crawlers/
 // admin) share one component so the markup isn't duplicated.
 const GroupsRoute = ({ openDetailTab }) => <GroupsPage onOpenDetail={openDetailTab} />;
-// Crawlers and Performance live under Admin as sub-tabs; the legacy #crawlers /
-// #performance hashes render AdminPage, which routes to the matching sub-tab.
+// Crawlers, Performance and Shared matrices live under Admin as sub-tabs; the
+// legacy #crawlers / #performance / #shared-matrices hashes render AdminPage,
+// which routes to the matching sub-tab.
 const AdminRoute = ({ navigate, forceRefresh, onRiskScoresRefresh }) => (
   <AdminPage onNavigate={navigate} onRefresh={forceRefresh} onRiskScoresRefresh={onRiskScoresRefresh} />
 );
@@ -63,7 +63,7 @@ export const PAGE_ROUTES = new Map([
   ['risk-scores',     ({ openDetailTab, riskScoresRefreshKey }) => <RiskScoringPage key={riskScoresRefreshKey} onOpenDetail={openDetailTab} />],
   ['identities',      ({ openDetailTab }) => <IdentitiesPage onOpenDetail={openDetailTab} />],
   ['contexts',        ({ navigate, openDetailTab }) => <ContextsPage onOpenDetail={openDetailTab} onNavigate={navigate} />],
-  ['shared-matrices', () => <SharedMatricesPage />],
+  ['shared-matrices', AdminRoute],
   ['performance',     AdminRoute],
   ['crawlers',        AdminRoute],
   ['admin',           AdminRoute],

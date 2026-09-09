@@ -158,6 +158,9 @@ describe('MatrixFilterWizard (mounted)', () => {
     // Falls back to the default sort attribute rather than rendering empty.
     expect(screen.getByText('Sort by')).toBeInTheDocument();
 
+    // Sharing is the last step for a user who may share (#1166), so Apply now
+    // lives one step further on.
+    await user.click(screen.getByText('Next')); // → Share
     await user.click(screen.getByText('Apply'));
     expect(onApply).toHaveBeenCalledWith(
       expect.objectContaining({ sortAttributes: [{ attribute: 'department', dir: 'asc' }] }),
@@ -277,6 +280,7 @@ describe('MatrixFilterWizard (mounted)', () => {
     await user.click(screen.getByText('Next')); // subjects
     await user.click(screen.getByText('Next')); // resources
     await user.click(screen.getByText('Next')); // sort
+    await user.click(screen.getByText('Next')); // share (#1166)
 
     await user.click(await screen.findByText('Apply'));
     expect(onApply).toHaveBeenCalledTimes(1);
@@ -361,9 +365,11 @@ describe('MatrixFilterWizard (mounted)', () => {
     await user.click(screen.getByText('Next')); // subjects
     await user.click(screen.getByText('Next')); // resources
 
-    // No Sort step when sortAttributes is empty? Sort step still shows; advance.
-    const next = screen.queryByText('Next');
-    if (next) await user.click(next);
+    // Advance through the remaining steps (Sort, then Share) to reach Apply.
+    for (let i = 0; i < 2; i++) {
+      const next = screen.queryByText('Next');
+      if (next) await user.click(next);
+    }
 
     // Wait for the oversized preview to land, then Apply should be disabled.
     // Locale-agnostic: the count is rendered via toLocaleString() (en-US "99,999"
@@ -373,5 +379,48 @@ describe('MatrixFilterWizard (mounted)', () => {
     const applyBtn = await screen.findByText('Apply');
     expect(applyBtn).toBeDisabled();
     expect(onApply).not.toHaveBeenCalled();
+  });
+});
+
+describe('MatrixFilterWizard — the Share step (#1166)', () => {
+  const reader = { permissions: new Set(['data.read']), hasWildcard: false, permissionsLoaded: true };
+
+  it('ends on Share for a sharer, with Apply still available there', async () => {
+    const { onApply } = renderWizard();
+    const user = userEvent.setup();
+    await user.click(screen.getByText('Next')); // subjects
+    await user.click(screen.getByText('Next')); // resources
+    await user.click(screen.getByText('Next')); // sort
+    await user.click(screen.getByText('Next')); // share
+
+    // The step offers the share form…
+    expect(await screen.findByText(/Share this matrix \(optional\)/i)).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: /Name this view/i })).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: /Share with/i })).toBeInTheDocument();
+    // …and it is the end of the wizard: Apply, no further Next.
+    expect(screen.queryByText('Next')).not.toBeInTheDocument();
+
+    // Skipping the share and applying is the ordinary path.
+    await user.click(screen.getByText('Apply'));
+    expect(onApply).toHaveBeenCalledTimes(1);
+  });
+
+  it('is absent for a user who cannot share — Sort stays the last step', async () => {
+    const onApply = vi.fn();
+    renderWithProviders(
+      h(MatrixFilterWizard, { open: true, onApply, onClose: vi.fn() }),
+      { auth: { ...reader, authFetch: makeFetch() } },
+    );
+    const user = userEvent.setup();
+    await user.click(screen.getByText('Next')); // subjects
+    await user.click(screen.getByText('Next')); // resources
+    await user.click(screen.getByText('Next')); // sort
+
+    expect(await screen.findByText('Sort columns')).toBeInTheDocument();
+    expect(screen.queryByText('Next')).not.toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: /Share with/i })).not.toBeInTheDocument();
+
+    await user.click(screen.getByText('Apply'));
+    expect(onApply).toHaveBeenCalledTimes(1);
   });
 });

@@ -1,10 +1,15 @@
 // Shared matrices — the central overview of who shared what, with whom, and
 // whether the link was ever opened (#1166).
 //
+// Lives as an Admin sub-tab: revoking somebody else's share link is an
+// administrative act, not day-to-day analysis, so it sits with the other
+// org-wide controls rather than in the top navigation.
+//
 // Org-wide by design, like saved filters: anyone with `data.share` (and so
-// every Admin) sees and can revoke every share. Because every recipient signs
-// in, usage is precise — per person, with a count and a last-opened time — so
-// "shared but never used" is answerable at a glance and easy to clean up.
+// every Admin) sees and can revoke every share. Because a share names its
+// recipients and every recipient signs in, both halves are precise — who it
+// was FOR and who actually OPENED it — so "shared but never used" is
+// answerable at a glance and easy to clean up.
 
 import { useCallback, useState } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
@@ -58,14 +63,11 @@ export default function SharedMatricesPage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto space-y-4">
-      <div>
-        <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Shared matrices</h1>
-        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-          Every matrix shared by a link, who shared it, and who has opened it. Revoke a link
-          to close it off — the usage history stays.
-        </p>
-      </div>
+    <div className="space-y-4">
+      <p className="text-sm text-gray-600 dark:text-gray-400">
+        Every matrix shared by a link, who shared it, who it was shared with, and who has
+        opened it. Revoke a link to close it off — the usage history stays.
+      </p>
 
       {loading && <p className="text-sm text-gray-500 dark:text-gray-400">Loading shared matrices…</p>}
 
@@ -78,7 +80,7 @@ export default function SharedMatricesPage() {
       {!loading && !error && shares.length === 0 && (
         <EmptyState
           title="Nothing shared yet"
-          hint="Open the Matrix tab, build the view you want a colleague to see, then use “Share view…” to create a link."
+          hint="Open the Matrix tab and build the view you want a colleague to see. The wizard’s last step — or “Share view…” in the toolbar — turns it into a link for the people you name."
         />
       )}
 
@@ -89,6 +91,7 @@ export default function SharedMatricesPage() {
               <tr className="text-left text-xs uppercase tracking-wider text-gray-600 dark:text-gray-400">
                 <th scope="col" className="px-4 py-2 font-semibold">Matrix</th>
                 <th scope="col" className="px-4 py-2 font-semibold">Shared by</th>
+                <th scope="col" className="px-4 py-2 font-semibold">Shared with</th>
                 <th scope="col" className="px-4 py-2 font-semibold">Opened by</th>
                 <th scope="col" className="px-4 py-2 font-semibold">Status</th>
                 <th scope="col" className="px-4 py-2 font-semibold"><span className="sr-only">Actions</span></th>

@@ -118,6 +118,16 @@ describe('SharedMatrixPage — terminal states (AC5)', () => {
     expect(screen.queryByText(/404/)).not.toBeInTheDocument();
   });
 
+  it('tells somebody the link was forwarded to that it is not for them (#1166)', async () => {
+    mount(jsonResponse({ error: 'This view was shared with specific people, and you are not one of them' }, { ok: false, status: 403 }));
+    expect(await screen.findByText(/wasn.t shared with you/i)).toBeInTheDocument();
+    // Distinct from the unknown-token page: the link is fine, the reader isn't
+    // on the list, and telling them so is what lets them ask for access.
+    expect(screen.queryByText(/doesn.t open a shared view/i)).not.toBeInTheDocument();
+    expect(screen.queryByTestId('matrix-region')).not.toBeInTheDocument();
+    expect(screen.queryByText(/403/)).not.toBeInTheDocument();
+  });
+
   it('falls back to a generic message on a server error', async () => {
     mount(jsonResponse({ error: 'boom' }, { ok: false, status: 500 }));
     expect(await screen.findByText(/couldn.t be opened/i)).toBeInTheDocument();

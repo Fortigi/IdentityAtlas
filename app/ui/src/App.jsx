@@ -7,7 +7,7 @@ const setStateReducer = (s, a) => (typeof a === 'function' ? a(s) : a);
 import { useMatrix } from './hooks/useMatrix';
 import { useHashPage } from './hooks/useHashPage';
 import { useAuth } from './auth/AuthGate';
-import { useCanSeeAdminTab, useHasPermission } from './auth/usePermissions';
+import { useCanSeeAdminTab } from './auth/usePermissions';
 import { useTheme } from './hooks/useTheme';
 import { ThemeContext } from './contexts/ThemeContext';
 import { computeNavTabs, availableOptionalTabs } from './utils/navTabs';
@@ -94,13 +94,10 @@ export default function App() {
   // than to let them find a locked one. The Auth → Roles & Permissions
   // page inside Admin further self-gates by admin.auth.
   const canSeeAdmin = useCanSeeAdminTab();
-  // Same reasoning for Shared matrices: without data.share the page has
-  // nothing to offer, so it isn't advertised (#1166).
-  const canShare = useHasPermission('data.share');
 
   const navTabs = useMemo(
-    () => computeNavTabs({ features, visibleTabs, canSeeAdmin, canShare }),
-    [features, visibleTabs, canSeeAdmin, canShare]
+    () => computeNavTabs({ features, visibleTabs, canSeeAdmin }),
+    [features, visibleTabs, canSeeAdmin]
   );
 
   // Available optional tabs (respecting feature flags)

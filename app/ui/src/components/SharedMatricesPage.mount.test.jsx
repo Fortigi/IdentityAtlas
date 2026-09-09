@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 //
-// Mount tests for the Shared matrices management page (#1166, AC12).
+// Mount tests for the Shared matrices management page (#1166, AC12) — now an
+// Admin sub-tab, and now showing WHO each share was addressed to alongside who
+// actually opened it.
 
 import { describe, it, expect, vi } from 'vitest';
 import SharedMatricesPage from './SharedMatricesPage';
@@ -16,6 +18,11 @@ const SHARES = [
     revokedBy: null,
     accessCount: 3,
     userCount: 2,
+    recipients: [
+      { userKey: 'manager@example.com', displayName: 'Ann Manager' },
+      { userKey: 'owner@example.com', displayName: 'Owen Owner' },
+      { userKey: 'never@example.com', displayName: 'Nev Never' },
+    ],
     usage: [
       { userKey: 'manager@example.com', accessCount: 2, firstAccessAt: '2026-09-02T09:00:00Z', lastAccessAt: '2026-09-05T09:00:00Z' },
       { userKey: 'owner@example.com', accessCount: 1, firstAccessAt: '2026-09-03T09:00:00Z', lastAccessAt: '2026-09-03T09:00:00Z' },
@@ -29,6 +36,7 @@ const SHARES = [
     revokedAt: null,
     accessCount: 0,
     userCount: 0,
+    recipients: [{ userKey: 'payroll.owner@example.com', displayName: 'Pat Payroll' }],
     usage: [],
   },
   {
@@ -40,6 +48,8 @@ const SHARES = [
     revokedBy: 'admin@example.com',
     accessCount: 1,
     userCount: 1,
+    // A share created before named recipients existed.
+    recipients: [],
     usage: [{ userKey: 'temp@example.com', accessCount: 1, firstAccessAt: '2026-08-02T09:00:00Z', lastAccessAt: '2026-08-02T09:00:00Z' }],
   },
 ];
@@ -65,6 +75,24 @@ describe('SharedMatricesPage', () => {
 
     // Shares from other analysts are listed too — visibility is org-wide.
     expect(within(rowFor('Old contractor view')).getByText('other@example.com')).toBeInTheDocument();
+  });
+
+  it('separates who a share was FOR from who actually opened it (#1166)', async () => {
+    const authFetch = makeAuthFetch({ '/api/matrix/shares': SHARES });
+    renderWithProviders(<SharedMatricesPage />, { auth: { ...sharer, authFetch } });
+    await screen.findByText('Sales team access');
+
+    const used = rowFor('Sales team access');
+    // Three people were named; only two of them ever opened it. That gap is
+    // the reason both columns exist — an "opened by" list alone can't show it.
+    expect(within(used).getByText('Nev Never')).toBeInTheDocument();
+    expect(within(used).getByText('Ann Manager')).toBeInTheDocument();
+    expect(within(used).queryByText('never@example.com')).not.toBeInTheDocument();
+    expect(within(used).getByText('manager@example.com')).toBeInTheDocument();
+
+    // A share from before named recipients existed says what it is, rather
+    // than rendering a blank that reads as "shared with nobody".
+    expect(within(rowFor('Old contractor view')).getByText('Anyone with the link')).toBeInTheDocument();
   });
 
   it('makes a never-opened share obvious and offers no revoke on a revoked one', async () => {

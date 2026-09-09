@@ -24,8 +24,12 @@ import SharedMatrixHeader from './shared/SharedMatrixHeader';
 import SharedMatrixUnavailable from './shared/SharedMatrixUnavailable';
 import { applyDisplayMode } from './shared/sharedSnapshot';
 
-// Resolve state: 'loading' | 'ready' | 'revoked' | 'missing' | 'error'
-const STATUS_BY_HTTP = { 404: 'missing', 410: 'revoked' };
+// Resolve state: 'loading' | 'ready' | 'revoked' | 'missing' | 'forbidden' | 'error'
+//
+// 403 is its own state, distinct from 404: a share is addressed to named
+// people (#1166), so somebody a link was forwarded to needs to be told that
+// rather than left thinking the link is broken.
+const STATUS_BY_HTTP = { 403: 'forbidden', 404: 'missing', 410: 'revoked' };
 
 export default function SharedMatrixPage({ token }) {
   const { authFetch } = useAuth();

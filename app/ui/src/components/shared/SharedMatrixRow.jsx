@@ -1,10 +1,29 @@
 // One row of the Shared matrices table (#1166).
 //
-// The "opened by" cell is the point of the page: a share nobody ever opened
-// reads as "Never opened" rather than a blank or a zero buried in a column, so
-// unused links are easy to spot and clean up.
+// Two cells carry the page: "shared with" names the people the link was
+// addressed to (nobody else can open it), and "opened by" shows which of them
+// actually did. A share nobody ever opened reads as "Never opened" rather than
+// a blank or a zero buried in a column, so unused links are easy to spot and
+// clean up.
 
 import { formatDate, formatRelativeTime } from '@ui/utils/formatters';
+
+function RecipientsCell({ recipients }) {
+  if (!recipients || recipients.length === 0) {
+    // Pre-#1166 shares predate named recipients; say so rather than showing a
+    // blank cell that reads like "shared with nobody".
+    return <span className="text-gray-600 dark:text-gray-400">Anyone with the link</span>;
+  }
+  return (
+    <div className="space-y-0.5">
+      {recipients.map(r => (
+        <div key={r.userKey} className="whitespace-nowrap text-gray-700 dark:text-gray-300" title={r.userKey}>
+          {r.displayName || r.userKey}
+        </div>
+      ))}
+    </div>
+  );
+}
 
 function UsageCell({ usage, accessCount }) {
   if (!usage || usage.length === 0) {
@@ -54,6 +73,9 @@ export default function SharedMatrixRow({ share, busy, onRevoke }) {
       <td className="whitespace-nowrap px-4 py-3 text-gray-700 dark:text-gray-300">
         {share.createdBy || 'unknown'}
         <div className="text-xs text-gray-600 dark:text-gray-400">{formatDate(share.createdAt)}</div>
+      </td>
+      <td className="px-4 py-3 text-xs">
+        <RecipientsCell recipients={share.recipients} />
       </td>
       <td className="px-4 py-3 text-xs">
         <UsageCell usage={share.usage} accessCount={share.accessCount} />
