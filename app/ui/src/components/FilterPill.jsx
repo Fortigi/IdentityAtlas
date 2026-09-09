@@ -8,6 +8,11 @@ import { FOCUS_RING } from '@ui/utils/keyActivate';
 // this tag" ✕ have to be siblings. Between them they cover the whole chip, so
 // the pointer target is unchanged while both actions become keyboard-reachable.
 // `aria-pressed` is what tells a screen reader the filter is currently on.
+//
+// The chip's own tooltip and its data-driven colour both belong on the wrapper,
+// which is the element that spans the whole chip: the ✕ carries its own tooltip,
+// and duplicating the wrapper's onto the toggle would give one chip two
+// identically-titled elements.
 export default function FilterPill({
   active,
   onToggle,
@@ -24,11 +29,11 @@ export default function FilterPill({
         active ? 'ring-2 ring-offset-1 ring-blue-400' : 'hover:opacity-80'
       } ${className}`}
       style={style}
+      title={title}
     >
       <button
         type="button"
         onClick={onToggle}
-        title={title}
         aria-pressed={!!active}
         className={`inline-flex items-center gap-1 py-0.5 pl-2 cursor-pointer rounded-full ${onDelete ? 'pr-1' : 'pr-2'} ${FOCUS_RING}`}
       >

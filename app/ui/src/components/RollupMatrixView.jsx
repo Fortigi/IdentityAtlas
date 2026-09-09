@@ -399,6 +399,7 @@ export default function RollupMatrixView({
     const title = `Folded — click to unfold ${orgShort(n.displayName)} into its ${n.childCount} values (${n.total} ${subjectWord})`;
     return (
       <th key={`${col.key}-${L}`} colSpan={span}
+          onClick={() => unfoldKey(n.id)}
           className={`${baseTh} align-bottom bg-indigo-50 dark:bg-indigo-900/20 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/30`}
           style={{ minWidth: '40px', height: '120px' }}
           title={title}>
@@ -416,6 +417,7 @@ export default function RollupMatrixView({
     const title = `${n.displayName} — ${n.total} ${subjectWord}${parent ? ' · click to fold this group' : ''}`;
     return (
       <th key={`${col.key}-${L}`} colSpan={span}
+          onClick={parent ? () => foldToKey(parent) : undefined}
           className={`${baseTh} align-bottom bg-gray-100 dark:bg-gray-800 ${parent ? 'cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/30' : ''}`}
           style={{ minWidth: '40px', height: '120px' }}
           title={title}>
@@ -432,6 +434,7 @@ export default function RollupMatrixView({
     const title = `Folded — click to unfold ${orgShort(n.displayName)}`;
     return (
       <th key={`${col.key}-${L}`} colSpan={span}
+          onClick={() => unfoldKey(n.id)}
           className={`${baseTh} align-bottom bg-indigo-50/40 dark:bg-indigo-900/10 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/30`}
           title={title}>
         <HeaderCellButton onClick={() => unfoldKey(n.id)} label={title}>
@@ -455,6 +458,7 @@ export default function RollupMatrixView({
       // ancestor value — click to fold this group to this level
       return { span, th: (
         <th key={`${col.key}-${L}`} colSpan={span}
+            onClick={() => foldToKey(key(L + 1))}
             className={`${baseTh} align-middle bg-gray-100 dark:bg-gray-800 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/30`}
             title={`Click to fold ${orgShort(n.pathNames?.[L] || '')}`}>
           <HeaderCellButton onClick={() => foldToKey(key(L + 1))} label={`Fold ${orgShort(n.pathNames?.[L] || '')}`}>
@@ -491,7 +495,8 @@ export default function RollupMatrixView({
     // This cell already contains the members toggle, so the split action can't
     // wrap the whole cell in a button (buttons can't nest). The rotated team
     // name becomes the keyboard-reachable control; the <th> keeps its click as a
-    // redundant pointer shortcut over the rest of the cell.
+    // redundant pointer shortcut over the rest of the cell, and the tooltip
+    // stays on the <th> so the cell has one title rather than two.
     return (
       <th key={`${col.key}-${L}`} colSpan={span}
           onClick={canExpand ? () => expandOrg(col.group) : undefined}
@@ -508,7 +513,6 @@ export default function RollupMatrixView({
             <RotatedLabelButton
               className="text-[10px] font-semibold text-indigo-800 dark:text-indigo-200"
               style={{ maxHeight: '90px' }}
-              title={title}
               onClick={(e) => { e.stopPropagation(); expandOrg(col.group); }}
             >
               {'▸ ' + orgShort(n.displayName)}
@@ -521,6 +525,7 @@ export default function RollupMatrixView({
   // The collapsed column extending below the node's own level.
   const groupBelowCell = (n, col, span, baseTh, L, isLast) => (
     <th key={`${col.key}-${L}`} colSpan={span}
+        onClick={n.childCount ? () => expandOrg(col.group) : undefined}
         className={`${baseTh} align-bottom ${n.childCount ? 'bg-indigo-50/40 dark:bg-indigo-900/10 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/30' : 'bg-gray-50 dark:bg-gray-800/40'}`}
         title={n.childCount ? `Click to split into ${n.childCount} sub-teams` : undefined}>
       <HeaderCellButton
@@ -545,6 +550,7 @@ export default function RollupMatrixView({
       // expanded ancestor — click to collapse this branch back into one column
       return { span, th: (
         <th key={`${col.key}-${L}`} colSpan={span}
+            onClick={() => collapseOrg(n.pathIds[L])}
             className={`${baseTh} align-middle bg-indigo-50 dark:bg-indigo-900/20 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/30`}
             title={`Collapse ${n.pathNames?.[L] || ''} back into one column`}>
           <HeaderCellButton

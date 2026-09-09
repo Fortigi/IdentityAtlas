@@ -4,7 +4,9 @@ import HeaderCellButton from './HeaderCellButton';
 // One merged grouping <th> on an attribute row. Depending on its column it is a
 // plain merged group, a collapsed aggregate (click to expand), a member-explode
 // header (click to collapse), or a child-count cell. The interactive variants
-// wrap their content in a real button; the plain merged group stays inert.
+// wrap their content in a real button for the keyboard; the cell keeps the
+// tooltip and the cell-wide pointer shortcut (see HeaderCellButton). The plain
+// merged group stays inert.
 export default function MatrixGroupingCell({ span, col, rowIdx, onToggleCollapse, onToggleMembers }) {
   const { onClick, title, highlight, showChildCount, childCount, label } = computeGroupingCell({
     col, rowIdx, span, onToggleCollapse, onToggleMembers,
@@ -12,6 +14,7 @@ export default function MatrixGroupingCell({ span, col, rowIdx, onToggleCollapse
   return (
     <th
       colSpan={span.span}
+      onClick={onClick}
       title={title}
       className={`border-b border-r border-gray-300 dark:border-gray-600 px-0 py-0 text-center ${
         highlight ? 'bg-indigo-50 dark:bg-indigo-900/20' : 'bg-gray-100 dark:bg-gray-800'

@@ -166,8 +166,8 @@ describe('AccessPackagesPage (mounted)', () => {
     const user = userEvent.setup();
 
     await screen.findByText('Payroll Access');
-    // The category chip is a clickable span (has the assignment-count title).
-    await user.click(screen.getByTitle(/3 business roles/i));
+    // The chip's filter toggle is a real button named after the category.
+    await user.click(screen.getByRole('button', { name: /^Finance/ }));
 
     await waitFor(() => {
       expect(authFetch).toHaveBeenCalledWith(expect.stringContaining('categoryId=1'));
@@ -262,9 +262,9 @@ describe('AccessPackagesPage (mounted)', () => {
     const user = userEvent.setup();
 
     await screen.findByText('Payroll Access');
-    // Each chip has a "Delete category" titled button.
-    const deleteBtns = screen.getAllByTitle('Delete category');
-    await user.click(deleteBtns[0]);
+    // Each chip's ✕ names the category it deletes — "Delete category" alone
+    // would read identically on every chip for a screen-reader user.
+    await user.click(screen.getByRole('button', { name: 'Delete category Finance' }));
 
     // Confirm via the in-app dialog (replaces the native confirm()).
     await user.click(await screen.findByRole('button', { name: 'Delete' }));
