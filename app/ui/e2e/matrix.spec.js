@@ -351,7 +351,10 @@ test.describe('Matrix — adjust without changing anything', () => {
     expect(rowsBefore.length, 'the grid rendered no resource rows').toBeGreaterThan(0);
 
     const steps = await adjustWithoutChanges(page);
-    expect(steps).toEqual(['Setup', 'Subjects', 'Resources', 'Sort']);
+    // 'Share' is the wizard's optional last step, offered to anyone holding
+    // `data.share` (#1166) — which, on an auth-off deployment like the one under
+    // test, is everyone.
+    expect(steps).toEqual(['Setup', 'Subjects', 'Resources', 'Sort', 'Share']);
 
     // The page is still the matrix, not the error boundary.
     await expect(page.getByText('Something went wrong')).toBeHidden();
