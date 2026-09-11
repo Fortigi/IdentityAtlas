@@ -83,7 +83,7 @@ router.post('/matrix/preview', async (req, res) => {
         `SELECT COUNT(*)::int AS c FROM "Resources"${rcResourceSql ? ` WHERE id IN ${rcResourceSql}` : ''}`,
         rcp.params),
       runCount(p, 'matrix-preview-resource-total', res,
-        `SELECT COUNT(*)::int AS c FROM "Resources"`,
+        `SELECT COUNT(*)::int AS c FROM "Resources"${built.resourceTotalWhere || ''}`,
         []),
       runCount(p, 'matrix-preview-assignments', res,
         `SELECT COUNT(*)::int AS c FROM (

@@ -28,6 +28,7 @@
 
 import { UUID_RE, collectContextIds } from './filterSql.js';
 import { GROUP_PRINCIPAL_TYPE } from '../lib/principalTypes.js';
+import { shouldHideDefaultResourceTypes, visibleResourceTypesSql } from '../lib/resourceVisibility.js';
 
 const SAFE_IDENT_RE = /^[a-zA-Z0-9_]+$/;
 const EXT_PREFIX = 'ext.';
@@ -237,6 +238,14 @@ export function buildScopeAsofSql({ filter, principalColSet, resourceColSet, con
   ];
   if (subj.where) principalWhere.push(subj.where);
 
+  // Resource axis — same default row visibility the live queries apply, so the
+  // timeline's resource/assignment counts track the rendered matrix over time.
+  const resourceWhere = [];
+  if (res.where) resourceWhere.push(res.where);
+  if (shouldHideDefaultResourceTypes(filter)) {
+    resourceWhere.push(visibleResourceTypesSql(`sr.state->>'resourceType'`));
+  }
+
   // For identity rowType we count distinct identities the in-scope principals
   // map to (via IdentityMembers, which IS audited but we use current links for
   // the id→identity mapping — attribute reconstruction of Identities isn't
@@ -277,7 +286,7 @@ export function buildScopeAsofSql({ filter, principalColSet, resourceColSet, con
     sr AS (
       SELECT (sr.state->>'id')::uuid AS id
         FROM asof_resources sr
-       ${res.where ? `WHERE ${res.where}` : ''}
+       ${resourceWhere.length ? `WHERE ${resourceWhere.join(' AND ')}` : ''}
     ),
     pairs AS (
       SELECT a.rid, a.pid, bool_or(c."userId" IS NOT NULL) AS governed

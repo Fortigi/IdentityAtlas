@@ -21,11 +21,28 @@ Rows are **resources**. Columns are **principals** (users / service principals /
                    alice    bob    carol    ...
 Sales Team           D                       <- group membership
 Reader on CRM        D       I              <- app role (direct vs. via group)
-HR-Manager BR        D                       <- BusinessRole assignment
+Owner @ Sales Team   D                       <- ownership is its own resource
 DelegatedPerm: …             D               <- OAuth2 user consent
 ```
 
 (That last cell is an `OAuth2Grant` row — it renders as **D**, since the badge only carries *how* the user holds it; the `DelegatedPermission` resource type carries the *what*. See "Badge collapse" below.)
+
+## Default row visibility
+
+Not every `resourceType` belongs on the row axis. A **business role** (Entra access package, Omada business role, SailPoint access profile) is governance *intent* — the SOLL side — and the grid already renders it as an access-package column. Its members also hold a real `Direct` assignment on the role itself (migration 049), so without a rule the same role appears twice in one matrix: once per axis. It is therefore **hidden from the resource axis by default**.
+
+The rule is one deny-list, `HIDDEN_BY_DEFAULT_RESOURCE_TYPES` in [`app/api/src/lib/resourceVisibility.js`](../../app/api/src/lib/resourceVisibility.js), applied at a single choke point: the resource fragment `buildSubqueries` (`routes/matrix/shared.js`) hands to every matrix mode. That one call site covers the flat grid, all roll-ups, the context zoom, the attribute fold, the scope stats / breakdown / timeline, the wizard preview, the inherited-access fold and the nested-group expansion — plus the unscoped "X of **Y** resources" totals, so the counts always match the rows that render. The Resources list (`routes/resources/list.js`) is the second caller of the same helper.
+
+It is a **deny-list, not an allow-list**: `resourceType` is an open vocabulary (CSV / Omada / midPoint / Azure crawlers emit arbitrary types), so anything unknown stays visible. `NULL` counts as visible too.
+
+Two ways to see the rows anyway:
+
+| Override | Where |
+|----------|-------|
+| `filter.includeBusinessRoles: true` | The wizard's Resources step — **"Show business roles as rows"**. A property of the matrix, not of the viewer, so it is stored in `SavedMatrixFilters` (no schema change — the filter is jsonb) and a shared matrix renders identically for everyone. |
+| A resource-scope include condition on `resourceType` naming the type | The wizard's "+ Attribute" picker. Explicit scope wins, so a deliberate "which access packages do people hold" matrix stays buildable. |
+
+The **"Business roles only"** roll-up is unaffected: its rows come from `vw_UserPermissionAssignmentViaBusinessRole` keyed by business role, not from the resource axis. Ownership types are deliberately *not* on the deny-list — see "Owner rows are their own resource" below.
 
 ## Data source
 
@@ -122,6 +139,8 @@ This is why we can store *both*:
 ## Owner rows are their own resource
 
 A user who is both a member and an owner of a group holds two separate resources: the group itself (a `Direct` membership) and a synthetic `GroupOwnership` resource named `Owner @ <group>` (also a `Direct` membership). Migration 046 rewrote the old `assignmentType='Owner'` rows into Direct assignments on this ownership resource, linked back to the group by a `HasOwnership` relationship — mirroring how an `AppRole` hangs off its `Application`. The matrix therefore shows ownership as its own row, with a normal **D** badge, rather than a separate `O`-type cell on the group row. No client-side row-splitting is involved.
+
+Ownership types stay **visible** under "Default row visibility" above, and the distinction is the point of that section: a business-role row duplicates something the matrix already shows as a column, while an ownership row is the *only* place the matrix shows who controls a group. Hiding it would remove information, not a duplicate.
 
 ## Access-package columns — role scopes badge like memberships
 

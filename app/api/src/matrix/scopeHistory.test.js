@@ -315,18 +315,36 @@ describe('as-of query skeleton', () => {
       `(sp.state->>'department') IN ($1) AND (sp.state->>'jobTitle') IN ($2)`);
   });
 
-  it('emits no resource WHERE at all when the resource block is unfiltered', () => {
+  it('carries only the default row-visibility clause when the resource block is unfiltered', () => {
     const out = build(EMPTY);
     // The resource scope selects from asof_resources with nothing between the
-    // alias and the closing paren — pinning the span catches anything injected
-    // into that slot, which asserting "no WHERE" would not.
+    // alias and the closing paren but the standing visibility clause — pinning
+    // the whole span catches anything else injected into that slot, which
+    // asserting "contains the clause" would not.
+    expect(norm(out.sql)).toContain(
+      `FROM asof_resources sr WHERE (sr.state->>'resourceType' IS NULL`
+      + ` OR sr.state->>'resourceType' NOT IN ('BusinessRole')) )`);
+  });
+
+  it('emits no resource WHERE at all once the matrix opts business roles back in', () => {
+    const out = build({ ...EMPTY, includeBusinessRoles: true });
     expect(norm(out.sql)).toContain('FROM asof_resources sr )');
   });
 
-  it('emits the resource WHERE when the resource block is filtered', () => {
+  it('ANDs the resource conditions onto the default row-visibility clause', () => {
     const out = build({ ...EMPTY, resource: {
       include: [{ kind: 'attribute', field: 'resourceType', values: ['vault'] }], exclude: [] } });
-    expect(norm(out.sql)).toContain(`FROM asof_resources sr WHERE (sr.state->>'resourceType') IN`);
+    // Both parts, in one span: the timeline must reconstruct the same resource
+    // set the live queries render, not the filter without the policy.
+    expect(norm(out.sql)).toContain(
+      `FROM asof_resources sr WHERE (sr.state->>'resourceType') IN ($1)`
+      + ` AND (sr.state->>'resourceType' IS NULL`);
+  });
+
+  it('drops the visibility clause when the resource scope asks for business roles by name', () => {
+    const out = build({ ...EMPTY, resource: {
+      include: [{ kind: 'attribute', field: 'resourceType', values: ['BusinessRole'] }], exclude: [] } });
+    expect(norm(out.sql)).toContain(`FROM asof_resources sr WHERE (sr.state->>'resourceType') IN ($1) )`);
   });
 
   it('treats a missing subject or resource block as no conditions', () => {
@@ -334,7 +352,8 @@ describe('as-of query skeleton', () => {
     // empty one, and dropping the optional chaining throws on the whole request.
     const out = build({ rowType: 'principal' });
     expect(out.warnings).toEqual([]);
-    expect(norm(out.sql)).toContain('FROM asof_resources sr )');
+    expect(norm(out.sql)).toContain(
+      `FROM asof_resources sr WHERE (sr.state->>'resourceType' IS NULL`);
   });
 });
 
