@@ -10,6 +10,7 @@
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { bootContractApp } from '../test-utils/contractApp.js';
+import { deleteSystemScopedRows } from '../test-utils/systemScopedCleanup.js';
 
 let agent;
 let pool;
@@ -67,11 +68,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await pool.query(`DELETE FROM "ResourceAssignments" WHERE "systemId" = $1`, [systemId]);
-  await pool.query(`DELETE FROM "ResourceRelationships" WHERE "systemId" = $1`, [systemId]);
-  await pool.query(`DELETE FROM "Resources" WHERE "systemId" = $1`, [systemId]);
-  await pool.query(`DELETE FROM "Principals" WHERE "systemId" = $1`, [systemId]);
-  await pool.query(`DELETE FROM "Systems" WHERE "id" = $1`, [systemId]);
+  await deleteSystemScopedRows(pool, systemId);
   await pool.end();
   delete process.env.USE_SQL; // singleFork — env mutations leak across files
 });
