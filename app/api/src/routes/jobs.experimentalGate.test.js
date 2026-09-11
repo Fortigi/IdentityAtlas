@@ -21,13 +21,13 @@ vi.mock('../secrets/crawlerSecrets.js', () => ({
   deleteConfigSecret: vi.fn(async () => {}), getConfigSecret: vi.fn(async () => null),
   storeJobSecret: vi.fn(async () => {}), storeJobCredentials: vi.fn(async () => {}), OTHER_SECRET_FIELDS: [],
 }));
-// 'scim' is the experimental type here, 'csv' an ordinary one — what the real
-// manifest registry reports for a crawler.json carrying "experimental": true.
+// Fictional types on purpose: the gate is generic, so naming a real crawler here
+// would only tie this test to whichever one happens to be experimental today.
 vi.mock('../crawlerManifests.js', () => ({
-  CRAWLER_MANIFESTS_DIR: '', _crawlerManifests: {}, VALID_JOB_TYPES: ['csv', 'scim'],
+  CRAWLER_MANIFESTS_DIR: '', _crawlerManifests: {}, VALID_JOB_TYPES: ['settled-type', 'preview-type'],
   validateCrawlerConfig: vi.fn(() => null), validateStoredCrawlerConfig: vi.fn(async () => null),
   isSingletonJob: vi.fn(() => false), isPushModeType: vi.fn(() => false),
-  isExperimentalType: vi.fn(t => t === 'scim'),
+  isExperimentalType: vi.fn(t => t === 'preview-type'),
 }));
 const isFeatureEnabled = vi.fn(async () => false);
 vi.mock('../featureFlags.js', () => ({ isFeatureEnabled: (...a) => isFeatureEnabled(...a) }));
@@ -40,14 +40,14 @@ const post = (crawlerType) =>
 
 beforeEach(() => {
   query.mockReset();
-  query.mockResolvedValue({ rows: [{ id: 1, crawlerType: 'scim', config: {} }], rowCount: 1 });
+  query.mockResolvedValue({ rows: [{ id: 1, crawlerType: 'preview-type', config: {} }], rowCount: 1 });
   isFeatureEnabled.mockReset();
   isFeatureEnabled.mockResolvedValue(false);
 });
 
 describe('POST /admin/crawler-configs — experimental gate', () => {
   it('refuses an experimental type while the flag is off, and never writes a row', async () => {
-    const res = await post('scim');
+    const res = await post('preview-type');
     expect(res.status).toBe(403);
     expect(res.body.error).toMatch(/experimental crawler/i);
     expect(isFeatureEnabled).toHaveBeenCalledWith('experimentalCrawlers');
@@ -55,20 +55,20 @@ describe('POST /admin/crawler-configs — experimental gate', () => {
   });
 
   it('names the type and points at the toggle, so the message is actionable', async () => {
-    const res = await post('scim');
-    expect(res.body.error).toContain("'scim'");
+    const res = await post('preview-type');
+    expect(res.body.error).toContain("'preview-type'");
     expect(res.body.error).toMatch(/Admin → Experimental/);
   });
 
   it('creates the same experimental type once the flag is on', async () => {
     isFeatureEnabled.mockResolvedValue(true);
-    const res = await post('scim');
+    const res = await post('preview-type');
     expect(res.status).toBe(201);
     expect(query.mock.calls.some(([sql]) => /INSERT INTO "CrawlerConfigs"/.test(sql))).toBe(true);
   });
 
   it('leaves a non-experimental type alone — the flag is never even consulted', async () => {
-    const res = await post('csv');
+    const res = await post('settled-type');
     expect(res.status).toBe(201);
     expect(isFeatureEnabled).not.toHaveBeenCalled();
   });

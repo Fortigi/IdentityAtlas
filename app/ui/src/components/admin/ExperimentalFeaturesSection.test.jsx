@@ -8,6 +8,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createElement as h } from 'react';
 import ExperimentalFeaturesSection from './ExperimentalFeaturesSection';
+import { experimentalCrawlerTypes } from '@ui/utils/crawlerMetaRegistry';
 import {
   renderWithProviders,
   makeAuthFetch,
@@ -61,10 +62,17 @@ describe('ExperimentalFeaturesSection', () => {
     expect(screen.getByText('Enabled')).toBeInTheDocument();
   });
 
-  it('lists the experimental crawlers this build ships, by name', async () => {
+  it('lists the experimental crawlers this build ships, by name — so the switch says what it covers', async () => {
+    // Read from the registry rather than naming a crawler: which types are
+    // experimental changes over time, and app/ui/ must carry no type literals.
+    const types = experimentalCrawlerTypes();
+    expect(types.length).toBeGreaterThan(0);
     stubPublicApi({ experimentalCrawlers: false });
     render();
-    expect(await screen.findByText('SCIM 2.0')).toBeInTheDocument();
+    for (const t of types) {
+      expect(await screen.findByText(t.name), t.id).toBeInTheDocument();
+      expect(screen.getByText(t.description), t.id).toBeInTheDocument();
+    }
   });
 
   it('explains that turning the flag off leaves an already-configured crawler running', async () => {
