@@ -2,6 +2,7 @@
   "type": "scim",
   "displayName": "SCIM 2.0",
   "entryPoint": "Start-ScimCrawler.ps1",
+  "experimental": true,
   "dependsOn": [],
   "configSchema": {
     "type": "object",

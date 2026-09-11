@@ -27,6 +27,7 @@ export default defineConfig({
     include: [
       'src/auth/usePermissions.test.jsx',
       'src/utils/matrixFilter.test.js',
+      'src/hooks/useFeatureToggle.test.jsx',
     ],
     exclude: ['**/node_modules/**'],
   },

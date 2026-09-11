@@ -4,10 +4,14 @@ import { formatDurationSeconds as formatDurationHMS } from '@ui/utils/formatters
 import { Modal } from './contexts/ModalPrimitives';
 import { JobPhasesModal } from './JobPhasesModal';
 import { JOB_PROGRESS_TERMINAL, deriveJobProgressDisplay } from './CrawlersPage.helpers.js';
+import useFeatures from '@ui/hooks/useFeatures';
+import { crawlerMetaFor } from '@ui/utils/crawlerMetaRegistry';
+import SelectType, { ExperimentalBadge } from './CrawlersPage.SelectType.jsx';
 
 // Crawler wizard components and their display metadata are auto-discovered by naming convention:
 //   tools/crawlers/{type}/ConfigWizard.jsx  — the wizard form (lazy-loaded)
 //   tools/crawlers/{type}/CrawlerMeta.js    — { id, name, description } for the type picker
+//                                             (discovered in utils/crawlerMetaRegistry.js)
 // Adding a new crawler type never requires editing this file.
 const _wizardModules = import.meta.glob('../../../../tools/crawlers/*/ConfigWizard.jsx');
 function getCrawlerWizard(crawlerType) {
@@ -15,8 +19,6 @@ function getCrawlerWizard(crawlerType) {
   return loader ? lazy(loader) : null;
 }
 
-const _crawlerMetaModules = import.meta.glob('../../../../tools/crawlers/*/CrawlerMeta.js', { eager: true });
-const _discoveredCrawlerTypes = Object.values(_crawlerMetaModules).map(m => ({ ...m.default, available: true }));
 
 // Optional per-crawler summary panel shown on the configured-crawlers card.
 // Eager (not lazy like the wizard) — every visible card needs it immediately,
@@ -25,38 +27,6 @@ const _discoveredCrawlerTypes = Object.values(_crawlerMetaModules).map(m => ({ .
 const _summaryModules = import.meta.glob('../../../../tools/crawlers/*/Summary.jsx', { eager: true });
 function getCrawlerSummary(crawlerType) {
   return _summaryModules[`../../../../tools/crawlers/${crawlerType}/Summary.jsx`]?.default || null;
-}
-
-// ─── Step 1: Select Type ──────────────────────────────────────────────────────
-function SelectType({ onSelect, onCancel }) {
-  return (
-    <div className="mb-6 p-5 bg-white border border-gray-200 rounded-lg dark:bg-gray-800 dark:border-gray-700">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold dark:text-white">Add Crawler — Select Type</h3>
-        <button onClick={onCancel} className="text-gray-500 hover:text-gray-700 text-sm dark:text-gray-400 dark:hover:text-gray-200">Cancel</button>
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        {_discoveredCrawlerTypes.map(t => (
-          <button
-            key={t.id}
-            onClick={() => t.available && onSelect(t.id)}
-            disabled={!t.available}
-            className={`flex flex-col items-start p-4 rounded-lg border-2 text-left transition-all ${
-              t.available
-                ? 'border-gray-200 hover:border-blue-400 hover:shadow-md cursor-pointer dark:border-gray-700 dark:hover:border-blue-500'
-                : 'border-gray-100 opacity-50 cursor-not-allowed dark:border-gray-700'
-            }`}
-          >
-            <span className="font-semibold text-gray-900 dark:text-white">{t.name}</span>
-            <span className="text-sm text-gray-500 mt-1 dark:text-gray-400">{t.description}</span>
-            {t.comingSoon && (
-              <span className="mt-2 px-2 py-0.5 bg-gray-100 text-gray-500 text-xs rounded-full dark:bg-gray-700 dark:text-gray-400">Coming soon</span>
-            )}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
 }
 
 // ─── Configured Crawler Card (display-only — Configure opens wizard in edit mode) ──
@@ -74,7 +44,7 @@ function CrawlerConfigCard({ config, onRunNow, onEdit, onRemove, onExport, onFor
   // there's no scheduled job, no editable config, nothing meaningful to
   // export) opt out of these generic actions via CrawlerMeta.js. Defaults to
   // true so existing types need no changes.
-  const meta = _discoveredCrawlerTypes.find(t => t.id === config.crawlerType);
+  const meta = crawlerMetaFor(config.crawlerType);
   const supportsRun = meta?.supportsRun !== false;
   const supportsConfigure = meta?.supportsConfigure !== false;
   const supportsExport = meta?.supportsExport !== false;
@@ -101,6 +71,9 @@ function CrawlerConfigCard({ config, onRunNow, onEdit, onRemove, onExport, onFor
         <div className="mb-2">
           <h4 className="font-semibold text-gray-900 dark:text-white">{config.displayName}</h4>
           <span className="text-xs text-gray-500 dark:text-gray-400">{config.crawlerType}</span>
+          {/* An experimental crawler that is already configured keeps running when
+              the flag is turned off — the badge stays so its status is visible. */}
+          {meta?.experimental && <span className="ml-2 align-middle"><ExperimentalBadge /></span>}
         </div>
         <div className="flex flex-wrap gap-1">
           {supportsRun && (isRunning ? (
@@ -388,6 +361,10 @@ function GettingStarted({ onAddCrawler }) {
 
 export default function CrawlersPage({ onNavigate }) {
   const { authFetch } = useAuth();
+  // Experimental crawler types are offered only while the flag is on. useFeatures
+  // starts with the flag absent (falsy), so the picker fails closed until
+  // /api/features answers — never the other way round.
+  const { experimentalCrawlers } = useFeatures();
   const [, startTransition] = useTransition();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -686,7 +663,7 @@ export default function CrawlersPage({ onNavigate }) {
 
       {/* Wizard steps */}
       {wizardStep === 'select' && (
-        <SelectType onSelect={handleSelectType} onCancel={() => setWizardStep(null)} />
+        <SelectType onSelect={handleSelectType} onCancel={() => setWizardStep(null)} experimentalEnabled={!!experimentalCrawlers} />
       )}
       {wizardStep === 'crawler-wizard' && (() => {
         const CrawlerWizard = getCrawlerWizard(wizardCrawlerType);

@@ -59,6 +59,17 @@ export function isPushModeType(type) {
   return !!_crawlerManifests[type]?.pushMode;
 }
 
+// An "experimental" crawler type is built and tested (unit + CI, against a mock
+// endpoint) but has had only limited exposure to real-world service providers.
+// It stays hidden from the Add-Crawler picker, and creating a config for it is
+// refused, unless the `experimentalCrawlers` feature flag is on. An already
+// configured experimental crawler keeps running either way — turning the flag
+// off stops new ones being added, it does not disable what exists. Manifest:
+// `"experimental": true`. See docs/reference/experimental-features.md.
+export function isExperimentalType(type) {
+  return !!_crawlerManifests[type]?.experimental;
+}
+
 // The crawler type that backs API-key registrations (POST /admin/crawlers).
 // Resolved from the manifest flag so the endpoint carries no hardcoded type.
 // Returns null if no push-mode crawler is installed.

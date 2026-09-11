@@ -7,3 +7,8 @@
 - Schedules work as they do for any pull crawler. SCIM has no standard change feed, so every run is a full sync — a delta-mode run executes as a full sync and says so in the job log.
 - A full sync removes accounts and groups the endpoint no longer serves, scoped so it can never touch another connector's data.
 - Added documentation for the SCIM crawler covering what gets imported, configuration, limitations and troubleshooting.
+- Added **Admin → Experimental**: a place to see and switch on capabilities that are built and tested but have not yet had much exposure to real-world systems. Everything there is off by default, including after an upgrade, and your choice survives restarts.
+- The first experimental feature is **Experimental crawlers**. With it off, an experimental connector is not offered in Add Crawler and cannot be created; with it on, it appears in the picker with an "Experimental" badge.
+- Turning the switch off never disables an experimental crawler you already configured — it keeps its schedule, keeps syncing and can still be edited, run and removed. Only adding a *new* one is blocked.
+- The SCIM 2.0 crawler ships as the first experimental crawler, so it must be switched on in Admin → Experimental before it can be added.
+- Added a documentation page explaining what the experimental label means, what the switch does and does not do, and how a feature either graduates to a regular connector or is withdrawn.

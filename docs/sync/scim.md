@@ -7,6 +7,14 @@ no vendor-specific code: the crawler asks the endpoint what it serves
 (`/ServiceProviderConfig`, `/ResourceTypes`, `/Schemas`) and reads the standard
 `/Users` and `/Groups` collections.
 
+!!! warning "This crawler is experimental"
+    It is built and covered by automated tests, but it has had only limited
+    opportunity to prove itself against real SCIM providers. It therefore does not
+    appear in **Add Crawler** until you switch on **Admin → Experimental →
+    Experimental crawlers**. Turning that switch back off later leaves a SCIM
+    crawler you already configured running — it only stops new ones being added.
+    See [Experimental features](../reference/experimental-features.md).
+
 ---
 
 ## What Gets Imported

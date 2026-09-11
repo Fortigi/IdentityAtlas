@@ -37,10 +37,23 @@ const DISCOVERY = {
 };
 
 export function register(test, expect) {
+  // SCIM ships as an EXPERIMENTAL crawler, so it is absent from the Add Crawler
+  // picker until Admin → Experimental → Experimental crawlers is on. Every test
+  // below drives the picker, so each one switches the flag on first (the endpoint
+  // is idempotent). The last test in the file turns it off on purpose to prove the
+  // picker hides SCIM, and restores it in a finally.
+  async function setExperimentalCrawlers(page, enabled) {
+    const res = await page.request.post(`${BASE}/api/admin/features/toggle`, {
+      data: { feature: 'experimentalCrawlers', enabled },
+    });
+    return res.ok();
+  }
+
   async function openScimWizard(page) {
     await page.route('**/api/admin/crawlers/scim/discover', route =>
       route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(DISCOVERY) }));
 
+    await setExperimentalCrawlers(page, true);
     await page.goto(`${BASE}/#admin`);
     await page.waitForLoadState('networkidle');
     // .first() — an empty-data install shows a second "Add Crawler" CTA in the
@@ -60,7 +73,8 @@ export function register(test, expect) {
 
   test.describe('SCIM 2.0 crawler wizard', () => {
 
-    test('SCIM 2.0 is offered as a crawler type', async ({ page }) => {
+    test('SCIM 2.0 is offered as a crawler type once experimental crawlers are on', async ({ page }) => {
+      await setExperimentalCrawlers(page, true);
       await page.goto(`${BASE}/#admin`);
       await page.waitForLoadState('networkidle');
       const addBtn = page.locator('button:has-text("Add Crawler")').first();
@@ -141,6 +155,42 @@ export function register(test, expect) {
       await expect(card).toBeVisible({ timeout: 15000 });
       await expect(page.locator('text=https://scim.example.com/scim/v2').first()).toBeVisible();
       await expect(page.locator('text=+3 user attrs').first()).toBeVisible();
+    });
+  });
+
+  // Turning the flag off must remove SCIM from the picker WITHOUT touching a SCIM
+  // crawler that is already configured. Serial, and the flag is restored in a
+  // finally, so a failure here cannot leave the feature off for a later run.
+  test.describe.serial('experimental crawlers switched off', () => {
+    test('hides SCIM from the Add Crawler picker but leaves a configured one in place', async ({ page }) => {
+      await setExperimentalCrawlers(page, true);
+      await page.goto(`${BASE}/#admin`);
+      await page.waitForLoadState('networkidle');
+      const addBtn = page.locator('button:has-text("Add Crawler")').first();
+      if (!await addBtn.isVisible({ timeout: 5000 }).catch(() => false)) { test.skip(); return; }
+
+      // Whatever SCIM crawlers this install already has must survive the switch.
+      const configured = await page.request.get(`${BASE}/api/admin/crawler-configs`);
+      const before = configured.ok()
+        ? (await configured.json()).filter(c => c.crawlerType === 'scim').length
+        : 0;
+
+      try {
+        await setExperimentalCrawlers(page, false);
+        await page.goto(`${BASE}/#admin`);
+        await page.waitForLoadState('networkidle');
+        await page.locator('button:has-text("Add Crawler")').first().click();
+        await expect(page.locator('h3:has-text("Add Crawler — Select Type")')).toBeVisible();
+        // A stable type is still offered — the picker is filtered, not emptied.
+        await expect(page.locator('button:has-text("Microsoft Graph")').first()).toBeVisible();
+        await expect(page.locator('button:has-text("SCIM 2.0")')).toHaveCount(0);
+
+        const after = await page.request.get(`${BASE}/api/admin/crawler-configs`);
+        const stillThere = (await after.json()).filter(c => c.crawlerType === 'scim').length;
+        expect(stillThere).toBe(before);
+      } finally {
+        await setExperimentalCrawlers(page, true);
+      }
     });
   });
 }

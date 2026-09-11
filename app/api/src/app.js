@@ -17,6 +17,7 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { authMiddleware } from './middleware/auth.js';
 import { resolveModuleVersion } from './version.js';
+import { readFeatures } from './featureFlags.js';
 import { perfMetrics } from './middleware/perfMetrics.js';
 import permissionsRouter from './routes/permissions.js';
 import matrixRouter from './routes/matrix.js';
@@ -96,24 +97,6 @@ const MIN_COMPOSE_FILE_VERSION = 2;
 // the .psd1 manifest (source / dev / local builds). Shared with the auto-update
 // channel logic via version.js so both always agree.
 const moduleVersion = resolveModuleVersion();
-
-// Helper: read a feature flag override from WorkerConfig (overrides the env var)
-async function getFeatureOverride(key) {
-  if (process.env.USE_SQL !== 'true') return null;
-  try {
-    const db = await import('./db/connection.js');
-    const r = await db.queryOne(
-      `SELECT "configValue" FROM "WorkerConfig" WHERE "configKey" = $1`,
-      [`FEATURE_${key}`]
-    );
-    if (!r) return null;
-    const v = r.configValue;
-    return v === 'true' ? true : v === 'false' ? false : null;
-  } catch (err) {
-    console.warn(`getFeatureOverride(${key}) failed: ${err.message}`);
-    return null;
-  }
-}
 
 // Build and return the fully-wired Express app. No port binding, no startup
 // side-effects — the caller (index.js) owns those.
@@ -240,21 +223,10 @@ export function createApp() {
   });
 
   app.get('/api/features', publicLimiter, async (req, res) => {
-    // WorkerConfig overrides win over env vars; env vars are the fallback default.
-    // Risk Scoring defaults to OFF on a fresh install — opt-in via the toggle
-    // in Admin → Risk Scoring or via FEATURE_RISK_SCORING=true.
-    const riskOverride = await getFeatureOverride('RISK_SCORING');
-    // Account linking (formerly "account correlation"). Honour the new override
-    // key, falling back to the legacy one + legacy env var so upgrades keep their setting.
-    const linkOverride = (await getFeatureOverride('ACCOUNT_LINKING')) ?? (await getFeatureOverride('ACCOUNT_CORRELATION'));
-    res.json({
-      riskScoring: riskOverride !== null
-        ? riskOverride
-        : process.env.FEATURE_RISK_SCORING === 'true',
-      accountLinking: linkOverride !== null
-        ? linkOverride
-        : (process.env.FEATURE_ACCOUNT_LINKING ?? process.env.FEATURE_ACCOUNT_CORRELATION) !== 'false',
-    });
+    // Every flag, its storage key and its env-var default live in
+    // featureFlags.js so this endpoint, the admin toggle and the server-side
+    // guards can never drift apart. WorkerConfig overrides win over env vars.
+    res.json(await readFeatures());
   });
 
   app.get('/api/auth-config', publicLimiter, (req, res) => {

@@ -14,6 +14,8 @@ const PerfPage = lazy(() => import('./PerfPage'));
 const AboutPage = lazy(() => import('./AboutPage'));
 const AccountLinkingSettings = lazy(() => import('./AccountLinkingSettings'));
 const UpdatesSettings = lazy(() => import('./UpdatesSettings'));
+// Lazy because it pulls the crawler-metadata glob that no other admin tab needs.
+const ExperimentalFeaturesSection = lazy(() => import('./admin/ExperimentalFeaturesSection'));
 
 import PowerQueryExportSection from './admin/PowerQueryExportSection';
 import CuratedDataSection from './admin/CuratedDataSection';
@@ -123,6 +125,7 @@ export default function AdminPage({ onNavigate, onRefresh, onRiskScoresRefresh }
     auth: AuthSettingsPage,
     roles: RolesPermissionsSection,
     updates: UpdatesSettings,
+    experimental: ExperimentalFeaturesSection,
     about: AboutPage,
   };
   const lazyTabProps = { crawlers: { onNavigate }, plugins: { onNavigate } };

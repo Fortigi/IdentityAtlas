@@ -7,6 +7,7 @@
     dispatch pipeline, and verifies that the right data landed in the database.
 
     Covers the fixture-backed acceptance criteria:
+      0  feature gate    — creating a SCIM config is refused while experimental crawlers are off
       1  happy path      — users, groups, Direct memberships, Contains nesting, Indirect rows
       2  opt-in picker   — only the selected extra attribute is stored
       3  active:false    — the account lands disabled
@@ -116,6 +117,12 @@ function New-ScimConfig {
     return $cfg.id
 }
 
+function Set-ExperimentalCrawlers {
+    param([bool]$Enabled)
+    Invoke-AtlasApi -Method POST -Path '/admin/features/toggle' `
+        -Body @{ feature = 'experimentalCrawlers'; enabled = $Enabled } | Out-Null
+}
+
 #endregion Helpers
 
 Write-Host "`n=== SCIM Crawler Integration Test ===" -ForegroundColor Cyan
@@ -149,6 +156,22 @@ $groups = @(
     ) }
     @{ id = $gInner; displayName = "Inner $runTag"; members = @( @{ value = $uBob }, @{ value = $uSvc } ) }
 )
+
+# ── AC0: the experimental-crawler gate ───────────────────────────────────────
+# SCIM ships as an experimental crawler, so with the flag OFF the API must refuse
+# to create a config for it. Asserted first, and it also leaves the flag in the
+# state the rest of this file needs. Restored to OFF in the finally block so a
+# stack this test ran against is not left with the feature silently switched on.
+Set-ExperimentalCrawlers -Enabled $false
+try {
+    Invoke-AtlasApi -Method POST -Path '/admin/crawler-configs' `
+        -Body @{ crawlerType = 'scim'; displayName = "scim-gate-$runTag"; config = @{ baseUrl = 'http://localhost:1'; authMethod = 'ApiToken'; apiToken = 'x' } } | Out-Null
+    Write-Result 'Scim/Gate — refused while experimental crawlers are off' $false '(the config was created anyway)'
+} catch {
+    $status = $_.Exception.Response.StatusCode.value__
+    Write-Result 'Scim/Gate — refused while experimental crawlers are off' ($status -eq 403) "(HTTP $status; expected 403)"
+}
+Set-ExperimentalCrawlers -Enabled $true
 
 $mock = $null; $configId = $null; $otherConfigId = $null; $pagingMock = $null; $pagingConfigId = $null; $authMock = $null; $authConfigId = $null
 try {
@@ -319,6 +342,7 @@ try {
     $script:standaloneFailures++
 } finally {
     if ($configId)  { try { Invoke-AtlasApi -Method DELETE -Path "/admin/crawler-configs/$configId" | Out-Null } catch {} }
+    try { Set-ExperimentalCrawlers -Enabled $false } catch {}
     if ($mock)       { Stop-MockScimServer -Mock $mock }
     if ($pagingMock) { Stop-MockScimServer -Mock $pagingMock }
     if ($authMock)   { Stop-MockScimServer -Mock $authMock }
