@@ -55,7 +55,7 @@ This document lists all major software components, dependencies, and infrastruct
 
 | Package | Version | Purpose | License |
 |---------|---------|---------|---------|
-| vitest | ^4.1.10 | Unit testing framework | MIT |
+| vitest | ^5.0.0 | Unit testing framework | MIT |
 | supertest | ^7.2.2 | HTTP integration testing | MIT |
 | eslint | ^10.10.0 | JavaScript linter | MIT |
 | eslint-plugin-security | ^4.0.1 | Security-focused lint rules | Apache 2.0 |
@@ -95,7 +95,7 @@ This document lists all major software components, dependencies, and infrastruct
 | @dnd-kit/modifiers | ^9.0.0 | DnD position modifiers | MIT |
 | @dnd-kit/sortable | ^10.0.0 | Sortable list implementation | MIT |
 | @dnd-kit/utilities | ^3.2.2 | DnD utility functions | MIT |
-| @tanstack/react-virtual | ^3.14.10 | Virtual scrolling for large tables | MIT |
+| @tanstack/react-virtual | ^3.14.11 | Virtual scrolling for large tables | MIT |
 
 ### Data Export
 
@@ -107,16 +107,16 @@ This document lists all major software components, dependencies, and infrastruct
 
 | Package | Version | Purpose | License |
 |---------|---------|---------|---------|
-| @vitejs/plugin-react | ^6.1.0 | Vite React plugin | MIT |
+| @vitejs/plugin-react | ^6.1.1 | Vite React plugin | MIT |
 | eslint | ^10.10.0 | JavaScript linter | MIT |
 | eslint-plugin-react-hooks | ^7.1.1 | React hooks linting rules | MIT |
 | eslint-plugin-react-refresh | ^0.5.6 | React refresh linting | MIT |
 | globals | ^17.12.0 | Global variable definitions | MIT |
-| @playwright/test | ^1.62.1 | End-to-end testing framework | Apache 2.0 |
+| @playwright/test | ^1.63.0 | End-to-end testing framework | Apache 2.0 |
 | @axe-core/playwright | ^4.13.0 | Accessibility testing | MPL 2.0 |
 | @eslint/js | ^10.0.1 | ESLint JavaScript rules | MIT |
 | @types/react | ^19.2.18 | TypeScript type definitions for React | MIT |
-| @types/react-dom | ^19.2.5 | TypeScript type definitions for React DOM | MIT |
+| @types/react-dom | ^19.2.7 | TypeScript type definitions for React DOM | MIT |
 
 ---
 

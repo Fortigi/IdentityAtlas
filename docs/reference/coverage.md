@@ -6,8 +6,8 @@ Test quality across the project's automated suites — line/branch/method covera
 
 | Suite | Line | Branch | Method | Cyclomatic | Cognitive | Mutation | Lines covered |
 |-------|------|--------|--------|------------|-----------|----------|---------------|
-| [API (Node / Vitest — unit + contract)](../coverage/api/index.html) | 88.3% | 78.4% | 89.2% | 3.8 / 20 | 2.4 / 15 | 86.0% | 8,211 / 9,295 |
-| [UI (React / Vitest)](../coverage/ui/index.html) | 81.1% | 70.6% | 69.7% | 2.8 / 28 | 1.1 / 15 | 69.5% | 6,120 / 7,546 |
+| [API (Node / Vitest — unit + contract)](../coverage/api/index.html) | 88.3% | 78.4% | 89.2% | 3.8 / 20 | 2.4 / 15 | 86.0% | 8,208 / 9,292 |
+| [UI (React / Vitest)](../coverage/ui/index.html) | 81.2% | 70.9% | 69.9% | 2.8 / 28 | 1.1 / 15 | 69.5% | 6,130 / 7,546 |
 | [PowerShell (Pester)](../coverage/powershell/index.html) | 91.0% | — | 96.8% | 3.8 / 15 | 4.0 / 15 | 100.0% | 5,572 / 6,118 |
 
 **Cyclomatic** / **Cognitive** are _average / max_ per unit (each function, and for PowerShell each script/module body too): PowerShell via [PSComplexity](https://github.com/Fortigi/PSComplexity), JS/TS via ESLint's `complexity` rule + [eslint-plugin-sonarjs](https://github.com/SonarSource/eslint-plugin-sonarjs). **Mutation** is the share of injected faults the tests catch via [PSMutant](https://github.com/Fortigi/PSMutant), PowerShell-only today. A suite without a given signal shows —.
@@ -24,7 +24,7 @@ Every figure above is scoped to what its tool actually measured. The notes below
 ### UI (React / Vitest)
 
 - **Mutation is scoped.** Mutation testing covers 6 file(s) of 219 — 5% of the suite's coverable lines. It describes that subset — not the suite — and is not comparable with the suite-wide line figure on the same row.
-- **method coverage (69.7%) sits below line coverage (81.1%)** — roughly a third of functions are never invoked, while the ones that are get exercised well. Typically components rendered but not interacted with: the untested part is event handlers, callbacks and conditional render paths.
+- **method coverage (69.9%) sits below line coverage (81.2%)** — roughly a third of functions are never invoked, while the ones that are get exercised well. Typically components rendered but not interacted with: the untested part is event handlers, callbacks and conditional render paths.
 - **The most complex code is the least branch-covered.** `app/ui/src/components/MatrixView.jsx` (Function 'MatrixView', cyclomatic 20, 50.9% branch) — below this suite's own branch average, so the aggregate percentage overstates how well the hard parts are tested.
 
 ### PowerShell (Pester)
@@ -40,4 +40,4 @@ Each suite links to a full per-file, line-by-line HTML report:
 - [UI (React / Vitest)](../coverage/ui/index.html)
 - [PowerShell (Pester)](../coverage/powershell/index.html)
 
-_Generated 2026-09-08 11:57 UTC from commit `de5893b1`._
+_Generated 2026-09-12 12:32 UTC from commit `225ef88b`._

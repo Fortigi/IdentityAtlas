@@ -1,5 +1,40 @@
 ## Changes in this PR
 
+- Linked Accounts on the identity detail page is now a table with System | Account | Enabled | Type columns, so you can see at a glance which source system each account came from and whether it is still enabled — without opening every account.
+- The Enabled column reflects the account's current state from the last crawl, falling back to the state recorded when the account was linked only when the account itself is no longer present.
+- Confirm / Remove / Undo, the correlation confidence bar, override badges and the "Linked from source" note are unchanged and stay on every row.
+
+## Changes in this PR
+
+- Fixed the AI issue-review silently doing nothing when it could not reach a model: a review that fails on every model now ends in a visibly failed run naming the likely cause, instead of a green run that leaves the issue parked in its entry column as if someone had been asked a question.
+- Fixed an AI review that finishes without choosing a route being reported as success — it now fails, so the issue is not left looking as though it is waiting on a person.
+- AI review comments now carry an invisible marker, so the pipeline health sweep can tell an agent comment from a human reply regardless of which account posted it.
+- The hourly pipeline health sweep now re-starts the AI review on issues it finds stranded, instead of only reporting them. An issue that was never reviewed, or whose review died partway, is picked up again automatically rather than waiting for someone to notice the health report.
+- The sweep now also re-starts the review when the requestor has already answered and nothing came back, so an answer can no longer go unread indefinitely.
+- Re-starts are budgeted: at most three attempts per issue and three issues per sweep. An issue that burns its budget is reported as needing a person, and the cap stops a large backlog from being re-driven all at once.
+- "Awaiting requestor" and "Awaiting design" no longer imply that somebody was actually asked something — the sweep now reads the thread before treating an issue as waiting on a human, and stays quiet when it cannot tell.
+
+## Changes in this PR
+
+- Upgraded the test runner (Vitest) and its coverage reporter to 5.0 across both the API and the UI, keeping the matched pair in lockstep.
+- Fixed the automated dependency updater so the test runner and its coverage reporter are always proposed together — previously they were offered as separate updates that could never be installed side by side, leaving their update requests permanently stuck.
+- Added tests for the matrix legend's "How to read this matrix" panel, covering the collapse/expand toggle and that the open/closed choice is remembered between visits — including browsers that block local storage, where the legend now stays readable instead of failing.
+
+## Changes in this PR
+
+- Added `docs/architecture/decision-principles.md` — a ratified, testable checklist for the "does this fit the existing architecture" judgment call, with confidence ratings and cited example issues, to help the Definition-of-Ready pipeline resolve more `awaiting-design`/`decompose` issues without a human round-trip.
+- Added `docs/architecture/architecture-guidance-review-2026-09.md`, a read-only audit of the current architecture documentation and backlog: contradictions found between docs (and between docs and precedent), an impact estimate, and backlog restructuring proposals (merges, epics, cross-item contradictions).
+- Flagged `docs/risk-scoring/plugin-architecture.md` as a speculative, unreconciled alternative to the in-tree risk-scoring plugin proposal, with a status banner pointing to the real one.
+- Sharpened the Definition of Ready's "Architect / tech lead" gate criteria and added a pointer from `CLAUDE.md`'s Coding Principles to the new decision-principles checklist.
+- Fixed the documentation link checker reporting false broken cross-links for markdown that only appears inside a fenced code block — a design doc quoting a snippet of another file no longer fails CI.
+- Documented the new epic layer above the feature backlog: how epics, sub-epics and decision issues are wired, which board and fields carry them, and the conventions that keep them out of the Definition-of-Ready pipeline.
+- Added an autonomy roadmap that measures the current process against the Fortigi implementation approach, records four deliberate deviations, and sets out the phased plan towards more autonomous feature delivery.
+- Added a session log recording what changed when the epic layer was introduced, including the corrections made along the way and the process lessons worth keeping.
+- Recorded the review finding that the 22 groupings are not one kind of thing (13 goals, 9 features with slices) and that the epic status field mixed a parent-level property with a roll-up of its children, together with the agreed fix: add issue types rather than re-parent anything.
+- Corrected the Key Result Review record: the cadence was agreed (monthly, all Key Results at once) but the roadmap still described it as undecided in four places.
+
+## Changes in this PR
+
 - Added `docs/architecture/decision-principles.md` — a ratified, testable checklist for the "does this fit the existing architecture" judgment call, with confidence ratings and cited example issues, to help the Definition-of-Ready pipeline resolve more `awaiting-design`/`decompose` issues without a human round-trip.
 - Added `docs/architecture/architecture-guidance-review-2026-09.md`, a read-only audit of the current architecture documentation and backlog: contradictions found between docs (and between docs and precedent), an impact estimate, and backlog restructuring proposals (merges, epics, cross-item contradictions).
 - Flagged `docs/risk-scoring/plugin-architecture.md` as a speculative, unreconciled alternative to the in-tree risk-scoring plugin proposal, with a status banner pointing to the real one.
