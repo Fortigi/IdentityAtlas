@@ -224,9 +224,13 @@ try {
         $direct   = @($outerAssign | Where-Object { $_.assignmentType -eq 'Direct' })
         $indirect = @($outerAssign | Where-Object { $_.assignmentType -eq 'Indirect' })
         # Outer: Alice Direct; Bob + Service Indirect (reached through Inner).
-        $ok = ($direct.Count -eq 1) -and ($indirect.Count -eq 2) -and (@($innerAssign | Where-Object { $_.assignmentType -eq 'Direct' }).Count -eq 2)
+        $innerDirect = @($innerAssign | Where-Object { $_.assignmentType -eq 'Direct' })
+        $ok = ($direct.Count -eq 1) -and ($indirect.Count -eq 2) -and ($innerDirect.Count -eq 2)
+        # Name WHO landed, not just how many: when this is short it is always one
+        # specific member missing, and the count alone never said which.
+        $who = { param($rows) if (@($rows).Count) { (@($rows) | ForEach-Object { "$($_.principalDisplayName ?? $_.displayName ?? $_.principalId)[$($_.principalType)]" }) -join ',' } else { 'none' } }
         Write-Result 'Scim/Data — Direct memberships + Indirect rows from nesting' $ok `
-            "(outer: $($direct.Count) Direct / $($indirect.Count) Indirect, inner: $(@($innerAssign).Count) — expected 1/2/2)"
+            "(outer Direct: $(& $who $direct); outer Indirect: $(& $who $indirect); inner Direct: $(& $who $innerDirect) — expected 1/2/2)"
     } catch { Write-Result 'Scim/Data — Direct memberships + Indirect rows from nesting' $false $_.Exception.Message }
 
     try {
