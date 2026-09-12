@@ -45,6 +45,16 @@ describe('adminTabs', () => {
     expect(tabs).toHaveLength(ADMIN_TABS.length);
   });
 
+  it('gates the Experimental tab on admin.feature-flags — the permission that owns the toggle', () => {
+    const experimental = ADMIN_TABS.find(t => t.key === 'experimental');
+    expect(experimental).toBeTruthy();
+    expect(experimental.label).toBe('Experimental');
+    expect(experimental.requires).toEqual(['admin.feature-flags']);
+    expect(visibleAdminTabs(new Set(['admin.feature-flags']), false).map(t => t.key)).toContain('experimental');
+    // An admin who can run crawlers but not flip flags must not see it.
+    expect(visibleAdminTabs(new Set(['admin.crawlers']), false).map(t => t.key)).not.toContain('experimental');
+  });
+
   it('always shows tabs with no `requires` (Performance, About)', () => {
     const tabs = visibleAdminTabs(new Set(), false);
     expect(tabs.map(t => t.key)).toEqual(expect.arrayContaining(['performance', 'about']));

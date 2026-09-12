@@ -133,7 +133,11 @@ describe('GET /identities/:id', () => {
   it('returns identity + members + aggregate + contextCount', async () => {
     mockReq.query
       .mockResolvedValueOnce({ recordset: [{ id: VALID_ID, displayName: 'Bob' }] })          // identity
-      .mockResolvedValueOnce({ recordset: [{ principalId: VALID_ID2, displayName: 'acc' }] }) // members
+      .mockResolvedValueOnce({ recordset: [{
+        principalId: VALID_ID2, displayName: 'acc',
+        systemId: 7, systemDisplayName: 'Entra ID',
+        userAccountEnabled: false, accountEnabled: true,
+      }] })                                                                                   // members
       .mockResolvedValueOnce({ recordset: [{ principalId: VALID_ID2, riskScore: 10, riskTier: 'Low' }] }) // risks
       .mockResolvedValueOnce({ recordset: [{ principalId: VALID_ID2, groupCount: 4 }] })      // group counts
       .mockResolvedValueOnce({ recordset: [{ assignmentType: 'Direct', cnt: 4 }] })           // aggregate
@@ -144,6 +148,12 @@ describe('GET /identities/:id', () => {
     expect(res.body.identity.displayName).toBe('Bob');
     expect(res.body.members[0].groupCount).toBe(4);
     expect(res.body.members[0].riskScore).toBe(10);
+    // Source system + both enabled values reach the client (Linked Accounts
+    // System / Enabled columns); enrichMembers must not clobber them.
+    expect(res.body.members[0].systemId).toBe(7);
+    expect(res.body.members[0].systemDisplayName).toBe('Entra ID');
+    expect(res.body.members[0].userAccountEnabled).toBe(false);
+    expect(res.body.members[0].accountEnabled).toBe(true);
     expect(res.body.aggregateAssignments.Direct).toBe(4);
     expect(res.body.contextCount).toBe(2);
   });

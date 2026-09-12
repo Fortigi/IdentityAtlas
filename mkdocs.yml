@@ -134,6 +134,7 @@ nav:
           - Omada Data Model Reference: architecture/omada-crawler-datamodel.md
           - midPoint: sync/midpoint.md
           - midPoint Configuration Reference: sync/midpoint-crawler-configuration.md
+          - SCIM 2.0: sync/scim.md
           - CSV Import: sync/csv-import.md
           - Custom Connector (Push API): sync/custom-connector.md
       - Administer:
@@ -155,6 +156,7 @@ nav:
           - Risk Scores: api/risk-scores.md
           - Ingest API: architecture/ingest-api.md
       - Configuration: reference/config.md
+      - Experimental Features: reference/experimental-features.md
       - Permissions & Roles: reference/permissions.md
       - Database Views: reference/sql-views.md
       - CSV Schema Reference: architecture/csv-import-schema.md
@@ -189,6 +191,9 @@ nav:
           - DoR state machine & operating procedure: process/dor-state-machine.md
           - Operationalising the DoR: process/operationalization.md
           - DoR sidekick setup: process/dor-sidekick-setup.md
+          - The epic layer: process/epic-layer.md
+          - Autonomy roadmap: process/autonomy-roadmap.md
+          - Session log — epic layer (Sept 2026): process/epic-layer-session-2026-09.md
           - Autonomous bug pipeline (partly built): process/autonomous-bug-pipeline.md
       - Design archive:
           - About the archive: architecture/design-archive.md

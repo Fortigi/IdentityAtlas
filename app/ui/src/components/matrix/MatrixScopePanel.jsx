@@ -29,10 +29,11 @@ const UNGOV_TEXT = 'text-amber-700 dark:text-amber-400';
 function pct(n) { return `${Math.round((n + Number.EPSILON) * 10) / 10}%`; }
 function num(n) { return (n ?? 0).toLocaleString(); }
 
-// One headline number.
+// One headline number. The tile is a named group so the number is announced
+// with the metric it belongs to ("Resources, 39") instead of as a bare figure.
 function Stat({ label, value, sub }) {
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col" role="group" aria-label={label}>
       <span className="text-2xl font-semibold text-gray-900 dark:text-white tabular-nums">{value}</span>
       <span className="text-xs text-gray-500 dark:text-gray-400">{label}</span>
       {sub && <span className="text-xs text-gray-500 dark:text-gray-400">{sub}</span>}

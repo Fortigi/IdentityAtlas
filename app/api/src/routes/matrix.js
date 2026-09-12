@@ -19,6 +19,7 @@ import { timedQuery } from '../perf/sqlTimer.js';
 import { createParams } from '../db/sqlParams.js';
 import { buildAssignmentExprs } from '../db/matrixHelpers.js';
 import { UUID_RE } from '../matrix/filterSql.js';
+import { isUuid } from '../matrix/contextRollup.js';
 import {
   getPrincipalColumns, getResourceColumns,
   getPrincipalColumnValuesMeta, getResourceColumnValuesMeta,
@@ -87,7 +88,7 @@ router.post('/matrix/preview', async (req, res) => {
         `SELECT COUNT(*)::int AS c FROM "Resources"${rcResourceSql ? ` WHERE id IN ${rcResourceSql}` : ''}`,
         rcp.params),
       runCount(p, 'matrix-preview-resource-total', res,
-        `SELECT COUNT(*)::int AS c FROM "Resources"`,
+        `SELECT COUNT(*)::int AS c FROM "Resources"${built.resourceTotalWhere || ''}`,
         []),
       runCount(p, 'matrix-preview-assignments', res,
         `SELECT COUNT(*)::int AS c FROM (

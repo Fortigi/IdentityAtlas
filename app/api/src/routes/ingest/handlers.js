@@ -13,6 +13,7 @@ import { normalizeRecords } from '../../ingest/normalization.js';
 import { validateEnvelope, validateRecords, ENTITY_TABLE_MAP, ENTITY_KEY_MAP, ENTITY_SCOPE_MAP } from '../../ingest/validation.js';
 import { crawlerHasSystemAccess, crawlerHasPermission } from '../../middleware/crawlerAuth.js';
 import { normalizePresenceQuery, lookupCrawlerPresence } from '../../ingest/crawlerPresence.js';
+import { refreshMatrixViews } from './matrixViews.js';
 import {
   applyIngestDefaults, recoverSystemPrefix, buildScope, conflictFilterFor, discoverCoreColumns,
   handleSessionPath, applyDeleteByIds, lookupSystemIds, writeAuditLog, ingestErrorResponse,
@@ -67,11 +68,14 @@ function createIngestHandler(entityType) {
       if (sessionRes) return res.status(sessionRes.status).json(sessionRes.body);
 
       // ── Single-batch path ─────────────────────────────────────────
-      const result = body.records.length > 0
-        ? await ingest(null, tableName, keyColumns, normalized, {
-            syncMode: body.syncMode || 'delta', systemId: body.systemId, scope, scopeDeleteFilter, conflictFilter,
-          })
-        : { inserted: 0, updated: 0, deleted: 0 };
+      // Called even for an empty batch: ingest() owns what "no records" means,
+      // and the answer differs by sync mode. An empty DELTA does nothing; an
+      // empty FULL says "this scope is empty now" and reconciles its rows away,
+      // which is how a crawler clears a source that no longer serves anything.
+      // Short-circuiting here meant that batch was accepted and silently ignored.
+      const result = await ingest(null, tableName, keyColumns, normalized, {
+        syncMode: body.syncMode || 'delta', systemId: body.systemId, scope, scopeDeleteFilter, conflictFilter,
+      });
 
       const delErr = await applyDeleteByIds(body, tableName, result);
       if (delErr) return res.status(delErr.status).json(delErr.body);

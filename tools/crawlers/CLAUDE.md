@@ -203,6 +203,8 @@ Core API code must never branch on a crawler-type string (`if (jobType === 'demo
 | `"singletonJob": true` | `isSingletonJob(type)` | Only one queued/running job of this type at a time — a second concurrent run is rejected with 409. Used by the demo dataset. |
 | `"pushMode": true` | `isPushModeType(type)`, `getPushModeType()` | Data arrives via the Ingest API, not a pull job. Registered via `POST /admin/crawlers` (API-key `Crawlers` row paired with a `CrawlerConfigs` card); see "Push-mode crawler types" above. Used by the Custom Connector. |
 
+| `"experimental": true` | `isExperimentalType(type)` | The type is built and tested but has had little real-world exposure. It is hidden from the Add Crawler picker and `POST /admin/crawler-configs` refuses it with 403, unless the `experimentalCrawlers` feature flag is on (Admin → Experimental). Nothing else is gated: an already-configured instance keeps its schedule, keeps running, and can still be edited and deleted with the flag off. Set the SAME flag in `CrawlerMeta.js` (`experimental: true`) — `crawler.json` is the server-side gate, `CrawlerMeta.js` drives the picker filter and the badge. Used by SCIM 2.0. |
+
 To add a new type-specific behaviour, add a flag + a helper here — never a `=== '<type>'` check in a route.
 
 ## Rules

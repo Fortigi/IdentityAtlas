@@ -299,6 +299,14 @@ export default function App() {
     forceRefresh,
     riskScoresRefreshKey,
     onRiskScoresRefresh: () => setRiskScoresRefreshKey(k => k + 1),
+    // Fetched once here (and re-fetched on every navigation, so a runtime toggle
+    // is picked up) and handed down, rather than re-fetched per page. /api/features
+    // and /api/version sit behind the 30-req/min public rate limiter, so a page
+    // that fetched them on its own mount could get a 429 and silently render as
+    // though a feature were off — which is exactly how the Add-Crawler picker
+    // started dropping experimental types under load.
+    features,
+    version: moduleVersion,
   };
 
   const detailRouteProps = { page, detailCacheRef, onCacheData, openDetailTab, closeDetailTab };

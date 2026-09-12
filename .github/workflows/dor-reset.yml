@@ -198,7 +198,7 @@ jobs:
           # #927 and #928 both shipped carrying it.
           drop_workflow_labels() {
             gh issue edit "$1" --repo "$REPO" --remove-label \
-              "build-done,needs-triage,ready-to-build,dor-stuck,state:awaiting-approval,state:awaiting-requestor,state:awaiting-design,state:ready-to-probe,state:decompose,state:blocked-external" \
+              "build-done,needs-triage,ready-to-build,dor-stuck,dor-retry,state:awaiting-approval,state:awaiting-requestor,state:awaiting-design,state:ready-to-probe,state:decompose,state:blocked-external" \
               >/dev/null 2>&1 || true
           }
           if [ "$MERGED" = "true" ]; then

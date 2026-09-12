@@ -15,6 +15,8 @@ const AboutPage = lazy(() => import('./AboutPage'));
 const AccountLinkingSettings = lazy(() => import('./AccountLinkingSettings'));
 const UpdatesSettings = lazy(() => import('./UpdatesSettings'));
 const SharedMatricesPage = lazy(() => import('./SharedMatricesPage'));
+// Lazy because it pulls the crawler-metadata glob that no other admin tab needs.
+const ExperimentalFeaturesSection = lazy(() => import('./admin/ExperimentalFeaturesSection'));
 
 import PowerQueryExportSection from './admin/PowerQueryExportSection';
 import CuratedDataSection from './admin/CuratedDataSection';
@@ -45,7 +47,7 @@ function AdminSubTabs({ activeTab, onTabChange, tabs }) {
   );
 }
 
-export default function AdminPage({ onNavigate, onRefresh, onRiskScoresRefresh }) {
+export default function AdminPage({ onNavigate, onRefresh, onRiskScoresRefresh, features, version }) {
   // Persist active sub-tab in URL hash like #admin?sub=crawlers so deep links work.
   // Also handles the legacy #crawlers / #performance / #shared-matrices hashes by
   // mapping them to the corresponding sub-tab (Shared matrices moved in here from
@@ -127,9 +129,18 @@ export default function AdminPage({ onNavigate, onRefresh, onRiskScoresRefresh }
     roles: RolesPermissionsSection,
     updates: UpdatesSettings,
     shares: SharedMatricesPage,
+    experimental: ExperimentalFeaturesSection,
     about: AboutPage,
   };
-  const lazyTabProps = { crawlers: { onNavigate }, plugins: { onNavigate } };
+  // features/version come from App.jsx, which already fetches them once and
+  // re-fetches on navigation. Sub-tabs must not fetch them again: both endpoints
+  // are behind the public 30-req/min rate limiter, and a 429 would read as
+  // "feature off" — silently hiding an experimental crawler type from an admin.
+  const lazyTabProps = {
+    crawlers: { onNavigate, features },
+    plugins: { onNavigate },
+    experimental: { features, version },
+  };
   const LazyTab = lazyTabComponent[activeTab];
 
   return (

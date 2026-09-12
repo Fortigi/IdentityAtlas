@@ -12,6 +12,7 @@
     "tools/crawlers/entra-id/EntraIDCrawler.AppOwners.ps1",
     "tools/crawlers/entra-id/EntraIDCrawler.AppPermissions.ps1",
     "tools/crawlers/entra-id/EntraIDCrawler.PrincipalRelationships.ps1",
+    "tools/crawlers/shared/Get-NestedGroupUserSet.ps1",
     "tools/crawlers/shared/Get-CapabilityId.ps1",
     "tools/crawlers/shared/Invoke-CrawlerIngest.ps1",
     "tools/crawlers/entra-id/EntraIDCrawler.AppRoles.ps1",
@@ -119,7 +120,10 @@
     "tools/powershell-sdk/graph/Use-FGExistingMSALToken.ps1",
     "tools/crawlers/entra-id/EntraIDCrawler.Phases.ps1",
     "tools/crawlers/omada/OmadaCrawler.Phases.ps1",
-    "tools/crawlers/midpoint/MidpointCrawler.Phases.ps1"
+    "tools/crawlers/midpoint/MidpointCrawler.Phases.ps1",
+    "tools/crawlers/scim/ScimCrawler.Transform.ps1",
+    "tools/crawlers/scim/ScimCrawler.Functions.ps1",
+    "tools/crawlers/scim/ScimCrawler.Phases.ps1"
   ],
   "tests": {
     "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1": [
@@ -461,6 +465,18 @@
     ],
     "tools/crawlers/midpoint/MidpointCrawler.Phases.ps1": [
       "test/unit/MidpointCrawlerPhases.Tests.ps1"
+    ],
+    "tools/crawlers/scim/ScimCrawler.Transform.ps1": [
+      "test/unit/ScimCrawlerTransform.Tests.ps1"
+    ],
+    "tools/crawlers/scim/ScimCrawler.Functions.ps1": [
+      "test/unit/ScimCrawlerFunctions.Tests.ps1"
+    ],
+    "tools/crawlers/scim/ScimCrawler.Phases.ps1": [
+      "test/unit/ScimCrawlerPhases.Tests.ps1"
+    ],
+    "tools/crawlers/shared/Get-NestedGroupUserSet.ps1": [
+      "test/unit/GetNestedGroupUserSet.Tests.ps1"
     ]
   },
   "_exclusionsComment": "Eligible files deliberately NOT mutation-tested. Each key is a repo-relative path; the value is the reason. The scope-completeness guard (test/unit/PSMutationScope.Tests.ps1, #684) fails an eligible file that is in neither `mutate` nor here, so anything listed is a written decision rather than an oversight. NOTE: this map covers tools/crawlers/. The other two PowerShell roots — tools/powershell-sdk/ and tools/riskscoring/ — are eligible too, and the ones not yet triaged are grandfathered in .ci/psmutant-scope-baseline.json, a list that may only shrink (102 at introduction, 88 after the helpers layer was measured). A new file in those roots still has to land in `mutate` or `exclusions` here; it cannot join the backlog silently. First finding out of that backlog: the SDK is NOT untested code — tools/powershell-sdk/ + tools/riskscoring/ sit at 95.7% line coverage — it was code with no mutation evidence at all, and the helpers layer scored 85.5% (94/110) the first time it was measured.",

@@ -18,6 +18,10 @@
     helper) — dot-source those alongside this file.
 #>
 
+# The nested-group closure walk is shared with every other crawler that
+# materialises Indirect assignments — see tools/crawlers/shared/.
+. (Join-Path $PSScriptRoot '..' 'shared' 'Get-NestedGroupUserSet.ps1')
+
 # Maps one Graph user object → an ingest/principals record hashtable.
 # Verbatim from the inline `$records = @($users | ForEach-Object { ... })` block.
 function ConvertTo-EntraPrincipalRecord {
@@ -801,37 +805,6 @@ function Get-EntraGroupAdjacency {
 # group-nesting graph downward. Cycle-safe ($visited) so a membership cycle
 # (A∈B, B∈A) or a diamond can't loop or double-count. Pure; no I/O. Extracted
 # from ConvertTo-EntraNestedGroupIndirectAssignments to keep each unit small.
-function Get-EntraNestedGroupUserSet {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)] $SeedGroups,   # child group ids directly under the root
-        [Parameter(Mandatory)] $ChildGroups,  # groupId -> List[string] (nested group ids)
-        [Parameter(Mandatory)] $DirectUsers   # groupId -> HashSet[string] (direct user ids)
-    )
-    $users   = [System.Collections.Generic.HashSet[string]]::new()
-    $visited = [System.Collections.Generic.HashSet[string]]::new()
-    $stack   = [System.Collections.Generic.Stack[string]]::new()
-    foreach ($cg in $SeedGroups) {
-        [void]$stack.Push($cg)
-    }
-    while ($stack.Count -gt 0) {
-        $g = $stack.Pop()
-        if (-not $visited.Add($g)) {
-            continue
-        }
-        if ($DirectUsers.ContainsKey($g)) {
-            foreach ($u in $DirectUsers[$g]) {
-                [void]$users.Add($u)
-            }
-        }
-        if ($ChildGroups.ContainsKey($g)) {
-            foreach ($cg in $ChildGroups[$g]) {
-                [void]$stack.Push($cg)
-            }
-        }
-    }
-    return $users
-}
 
 # Expands group-in-group nesting into per-user Indirect Group assignments so
 # the matrix shows inherited members. Derived entirely from the direct-membership
@@ -857,7 +830,7 @@ function ConvertTo-EntraNestedGroupIndirectAssignments {
     $out         = [System.Collections.Generic.List[object]]::new()
 
     foreach ($rootId in $childGroups.Keys) {
-        $transitiveUsers = Get-EntraNestedGroupUserSet -SeedGroups $childGroups[$rootId] `
+        $transitiveUsers = Get-NestedGroupUserSet -SeedGroups $childGroups[$rootId] `
             -ChildGroups $childGroups -DirectUsers $directUsers
         $rootDirect = if ($directUsers.ContainsKey($rootId)) { $directUsers[$rootId] } else { $null }
         foreach ($u in $transitiveUsers) {

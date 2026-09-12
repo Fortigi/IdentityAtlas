@@ -39,8 +39,9 @@ const GroupsRoute = ({ openDetailTab }) => <GroupsPage onOpenDetail={openDetailT
 // Crawlers, Performance and Shared matrices live under Admin as sub-tabs; the
 // legacy #crawlers / #performance / #shared-matrices hashes render AdminPage,
 // which routes to the matching sub-tab.
-const AdminRoute = ({ navigate, forceRefresh, onRiskScoresRefresh }) => (
-  <AdminPage onNavigate={navigate} onRefresh={forceRefresh} onRiskScoresRefresh={onRiskScoresRefresh} />
+const AdminRoute = ({ navigate, forceRefresh, onRiskScoresRefresh, features, version }) => (
+  <AdminPage onNavigate={navigate} onRefresh={forceRefresh} onRiskScoresRefresh={onRiskScoresRefresh}
+             features={features} version={version} />
 );
 
 // pageKey → component. Two things make dispatch on the user-controlled hash key
@@ -51,7 +52,7 @@ const AdminRoute = ({ navigate, forceRefresh, onRiskScoresRefresh }) => (
 //      rather than calling it (`route(ctx)`), so the user-controlled key never
 //      lands in callee position of an invocation.
 // The context props: { navigate, openDetailTab, forceRefresh, riskScoresRefreshKey,
-// onRiskScoresRefresh }.
+// onRiskScoresRefresh, features, version }.
 export const PAGE_ROUTES = new Map([
   ['dashboard',       ({ navigate }) => <DashboardPage onNavigate={navigate} />],
   ['sync-log',        ({ navigate, openDetailTab }) => <SyncLogPage navigate={navigate} onOpenDetail={openDetailTab} />],
