@@ -9,7 +9,7 @@ import saveCrawlerConfig from './saveCrawlerConfig';
 // payload, POST or PATCH, unwrap the error, call onComplete, clear saving in a
 // finally. Only the payload differs, so that is all the caller passes.
 //
-//   const { save, saving, error } = useCrawlerSave({ authFetch, crawlerType: 'scim', configId, onComplete });
+//   const { save, saving, error } = useCrawlerSave({ authFetch, crawlerType: '<type>', configId, onComplete });
 //   <button onClick={() => save(displayName, buildConfig())} disabled={saving}>
 export default function useCrawlerSave({ authFetch, crawlerType, configId, onComplete }) {
   const [saving, setSaving] = useState(false);

@@ -57,3 +57,29 @@ describe('SelectType', () => {
     expect(onSelect).not.toHaveBeenCalled();
   });
 });
+
+// The not-yet-available tiles: no shipped crawler produces them today, so these
+// inject a type list rather than leaving the rendering untested until one does.
+describe('SelectType — a type that cannot be chosen yet', () => {
+  const COMING = [
+    { id: 'ready', name: 'Ready One', description: 'usable today', available: true },
+    { id: 'later', name: 'Later One', description: 'not yet', available: false, comingSoon: true },
+  ];
+
+  it('badges it Coming soon and disables its tile', () => {
+    renderWithProviders(h(SelectType, { onSelect: vi.fn(), onCancel: vi.fn(), types: COMING }));
+    expect(screen.getByText('Coming soon')).toBeInTheDocument();
+    expect(screen.getByText('Later One').closest('button')).toBeDisabled();
+    expect(screen.getByText('Ready One').closest('button')).toBeEnabled();
+  });
+
+  it('does not select it when clicked', async () => {
+    const onSelect = vi.fn();
+    renderWithProviders(h(SelectType, { onSelect, onCancel: vi.fn(), types: COMING }));
+    await userEvent.click(screen.getByText('Later One'));
+    expect(onSelect).not.toHaveBeenCalled();
+
+    await userEvent.click(screen.getByText('Ready One'));
+    expect(onSelect).toHaveBeenCalledWith('ready');
+  });
+});

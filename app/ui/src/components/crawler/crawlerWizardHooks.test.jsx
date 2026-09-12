@@ -51,7 +51,7 @@ describe('useCredentialFields', () => {
 describe('useCrawlerSave', () => {
   const setup = (authFetch, onComplete = vi.fn()) => {
     const { result } = renderHook(
-      () => useCrawlerSave({ authFetch, crawlerType: 'scim', configId: undefined, onComplete }),
+      () => useCrawlerSave({ authFetch, crawlerType: 'preview-type', configId: undefined, onComplete }),
       { wrapper });
     return { result, onComplete };
   };
@@ -93,7 +93,7 @@ describe('useCrawlerDiscovery', () => {
   const EMPTY = { things: [] };
   const setup = (authFetch, configId) => renderHook(
     () => useCrawlerDiscovery({
-      authFetch, crawlerType: 'scim', configId,
+      authFetch, crawlerType: 'preview-type', configId,
       buildConfig: () => ({ baseUrl: 'https://x' }),
       emptyResult: EMPTY, errorHint: 'could not reach it',
     }), { wrapper });
@@ -103,7 +103,7 @@ describe('useCrawlerDiscovery', () => {
     const { result } = setup(authFetch);
     await act(() => result.current.fetchDiscovery());
     const [url, opts] = authFetch.mock.calls[0];
-    expect(url).toBe('/api/admin/crawlers/scim/discover');
+    expect(url).toBe('/api/admin/crawlers/preview-type/discover');
     expect(opts.method).toBe('POST');
     expect(opts.headers).toEqual({ 'Content-Type': 'application/json' });
     expect(JSON.parse(opts.body)).toEqual({ config: { baseUrl: 'https://x' } });

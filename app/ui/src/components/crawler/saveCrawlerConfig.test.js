@@ -12,7 +12,7 @@ const okResponse = (body = { id: 7 }) => ({ ok: true, status: 200, json: async (
 describe('saveCrawlerConfig — create', () => {
   it('POSTs to the collection with the crawler type', async () => {
     const authFetch = vi.fn(async () => okResponse());
-    await saveCrawlerConfig({ authFetch, crawlerType: 'scim', displayName: 'My SCIM', config: { baseUrl: 'x' } });
+    await saveCrawlerConfig({ authFetch, crawlerType: 'preview-type', displayName: 'My SCIM', config: { baseUrl: 'x' } });
 
     const [url, opts] = authFetch.mock.calls[0];
     expect(url).toBe('/api/admin/crawler-configs');
@@ -20,19 +20,19 @@ describe('saveCrawlerConfig — create', () => {
     // The API only parses a JSON body when it is announced as one.
     expect(opts.headers).toEqual({ 'Content-Type': 'application/json' });
     expect(JSON.parse(opts.body)).toEqual({
-      crawlerType: 'scim', displayName: 'My SCIM', config: { baseUrl: 'x' },
+      crawlerType: 'preview-type', displayName: 'My SCIM', config: { baseUrl: 'x' },
     });
   });
 
   it('trims the display name', async () => {
     const authFetch = vi.fn(async () => okResponse());
-    await saveCrawlerConfig({ authFetch, crawlerType: 'scim', displayName: '  padded  ', config: {} });
+    await saveCrawlerConfig({ authFetch, crawlerType: 'preview-type', displayName: '  padded  ', config: {} });
     expect(JSON.parse(authFetch.mock.calls[0][1].body).displayName).toBe('padded');
   });
 
   it('tolerates a missing display name rather than throwing on .trim()', async () => {
     const authFetch = vi.fn(async () => okResponse());
-    await saveCrawlerConfig({ authFetch, crawlerType: 'scim', config: {} });
+    await saveCrawlerConfig({ authFetch, crawlerType: 'preview-type', config: {} });
     expect(JSON.parse(authFetch.mock.calls[0][1].body).displayName).toBe('');
   });
 });
@@ -40,7 +40,7 @@ describe('saveCrawlerConfig — create', () => {
 describe('saveCrawlerConfig — update', () => {
   it('PATCHes the existing config by id, and does NOT resend crawlerType', async () => {
     const authFetch = vi.fn(async () => okResponse());
-    await saveCrawlerConfig({ authFetch, crawlerType: 'scim', configId: 42, displayName: 'Edited', config: { a: 1 } });
+    await saveCrawlerConfig({ authFetch, crawlerType: 'preview-type', configId: 42, displayName: 'Edited', config: { a: 1 } });
 
     const [url, opts] = authFetch.mock.calls[0];
     expect(url).toBe('/api/admin/crawler-configs/42');
@@ -53,7 +53,7 @@ describe('saveCrawlerConfig — update', () => {
 
   it('treats configId 0 as "no id" — it is not a real row id', async () => {
     const authFetch = vi.fn(async () => okResponse());
-    await saveCrawlerConfig({ authFetch, crawlerType: 'scim', configId: 0, displayName: 'New', config: {} });
+    await saveCrawlerConfig({ authFetch, crawlerType: 'preview-type', configId: 0, displayName: 'New', config: {} });
     expect(authFetch.mock.calls[0][0]).toBe('/api/admin/crawler-configs');
   });
 });
@@ -61,15 +61,15 @@ describe('saveCrawlerConfig — update', () => {
 describe('saveCrawlerConfig — failure', () => {
   it('throws the API error message so the wizard can show it', async () => {
     const authFetch = vi.fn(async () => ({
-      ok: false, status: 403, json: async () => ({ error: "'scim' is an experimental crawler." }),
+      ok: false, status: 403, json: async () => ({ error: "that type is experimental." }),
     }));
-    await expect(saveCrawlerConfig({ authFetch, crawlerType: 'scim', displayName: 'x', config: {} }))
-      .rejects.toThrow("'scim' is an experimental crawler.");
+    await expect(saveCrawlerConfig({ authFetch, crawlerType: 'preview-type', displayName: 'x', config: {} }))
+      .rejects.toThrow("that type is experimental.");
   });
 
   it('falls back to the status code when the body carries no message', async () => {
     const authFetch = vi.fn(async () => ({ ok: false, status: 503, json: async () => ({}) }));
-    await expect(saveCrawlerConfig({ authFetch, crawlerType: 'scim', displayName: 'x', config: {} }))
+    await expect(saveCrawlerConfig({ authFetch, crawlerType: 'preview-type', displayName: 'x', config: {} }))
       .rejects.toThrow('HTTP 503');
   });
 
@@ -77,7 +77,7 @@ describe('saveCrawlerConfig — failure', () => {
     const authFetch = vi.fn(async () => ({
       ok: false, status: 502, json: async () => { throw new SyntaxError('not json'); },
     }));
-    await expect(saveCrawlerConfig({ authFetch, crawlerType: 'scim', displayName: 'x', config: {} }))
+    await expect(saveCrawlerConfig({ authFetch, crawlerType: 'preview-type', displayName: 'x', config: {} }))
       .rejects.toThrow('HTTP 502');
   });
 
@@ -85,7 +85,7 @@ describe('saveCrawlerConfig — failure', () => {
     const authFetch = vi.fn(async () => ({
       ok: true, status: 204, json: async () => { throw new SyntaxError('no content'); },
     }));
-    await expect(saveCrawlerConfig({ authFetch, crawlerType: 'scim', displayName: 'x', config: {} }))
+    await expect(saveCrawlerConfig({ authFetch, crawlerType: 'preview-type', displayName: 'x', config: {} }))
       .resolves.toEqual({});
   });
 });

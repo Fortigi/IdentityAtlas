@@ -25,8 +25,10 @@ export function ExperimentalBadge() {
 // is off, crawler types marked experimental are not offered here at all. The same
 // rule is enforced server-side in routes/jobs/configs.js — this is not the gate,
 // it's the part the operator sees.
-export default function SelectType({ onSelect, onCancel, experimentalEnabled }) {
-  const types = selectableCrawlerTypes(experimentalEnabled);
+// `types` defaults to the live registry; it is injectable so a test can cover the
+// not-yet-available tiles, which no shipped crawler currently produces.
+export default function SelectType({ onSelect, onCancel, experimentalEnabled, types }) {
+  const offered = types ?? selectableCrawlerTypes(experimentalEnabled);
   return (
     <div className="mb-6 p-5 bg-white border border-gray-200 rounded-lg dark:bg-gray-800 dark:border-gray-700">
       <div className="flex items-center justify-between mb-4">
@@ -34,7 +36,7 @@ export default function SelectType({ onSelect, onCancel, experimentalEnabled }) 
         <button onClick={onCancel} className="text-gray-500 hover:text-gray-700 text-sm dark:text-gray-400 dark:hover:text-gray-200">Cancel</button>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        {types.map(t => (
+        {offered.map(t => (
           <button
             key={t.id}
             onClick={() => t.available && onSelect(t.id)}
