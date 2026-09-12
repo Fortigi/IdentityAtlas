@@ -6,7 +6,7 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import {
-  renderWithProviders, makeAuthFetch, jsonResponse, screen, fireEvent,
+  renderWithProviders, makeAuthFetch, jsonResponse, screen,
 } from '@ui/test-utils/renderWithProviders';
 import ReportsPage from '@ui/components/ReportsPage';
 
