@@ -1,5 +1,15 @@
 ## Changes in this PR
 
+- Fixed the AI issue-review silently doing nothing when it could not reach a model: a review that fails on every model now ends in a visibly failed run naming the likely cause, instead of a green run that leaves the issue parked in its entry column as if someone had been asked a question.
+- Fixed an AI review that finishes without choosing a route being reported as success — it now fails, so the issue is not left looking as though it is waiting on a person.
+- AI review comments now carry an invisible marker, so the pipeline health sweep can tell an agent comment from a human reply regardless of which account posted it.
+- The hourly pipeline health sweep now re-starts the AI review on issues it finds stranded, instead of only reporting them. An issue that was never reviewed, or whose review died partway, is picked up again automatically rather than waiting for someone to notice the health report.
+- The sweep now also re-starts the review when the requestor has already answered and nothing came back, so an answer can no longer go unread indefinitely.
+- Re-starts are budgeted: at most three attempts per issue and three issues per sweep. An issue that burns its budget is reported as needing a person, and the cap stops a large backlog from being re-driven all at once.
+- "Awaiting requestor" and "Awaiting design" no longer imply that somebody was actually asked something — the sweep now reads the thread before treating an issue as waiting on a human, and stays quiet when it cannot tell.
+
+## Changes in this PR
+
 - Upgraded the test runner (Vitest) and its coverage reporter to 5.0 across both the API and the UI, keeping the matched pair in lockstep.
 - Fixed the automated dependency updater so the test runner and its coverage reporter are always proposed together — previously they were offered as separate updates that could never be installed side by side, leaving their update requests permanently stuck.
 - Added tests for the matrix legend's "How to read this matrix" panel, covering the collapse/expand toggle and that the open/closed choice is remembered between visits — including browsers that block local storage, where the legend now stays readable instead of failing.

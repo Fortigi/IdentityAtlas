@@ -1,4 +1,0 @@
-- The hourly pipeline health sweep now re-starts the AI review on issues it finds stranded, instead of only reporting them. An issue that was never reviewed, or whose review died partway, is picked up again automatically rather than waiting for someone to notice the health report.
-- The sweep now also re-starts the review when the requestor has already answered and nothing came back, so an answer can no longer go unread indefinitely.
-- Re-starts are budgeted: at most three attempts per issue and three issues per sweep. An issue that burns its budget is reported as needing a person, and the cap stops a large backlog from being re-driven all at once.
-- "Awaiting requestor" and "Awaiting design" no longer imply that somebody was actually asked something — the sweep now reads the thread before treating an issue as waiting on a human, and stays quiet when it cannot tell.
