@@ -614,9 +614,25 @@ test.describe('Matrix — resizing the grid height', () => {
     await expect.poll(() => gridHeight(page)).toBe(shrunk);
 
     // "Fit to window" hands the decision back to the measured fit.
+    //
+    // Asserted as "the chosen height is gone", not as a pixel match with
+    // `before`: the fit is MEASURED from the chrome above the grid, and the
+    // chrome is not the same after a reload with a custom height in place — the
+    // two runs of this test that pinned `before` read 403 and 445 for the very
+    // same click. What the button promises is that the drag is undone and the
+    // grid is measured again, and that is what is checked here; a reset that
+    // failed to clear the stored height would leave the grid at `shrunk` with
+    // the button still on screen, and fails all three.
     await page.getByRole('button', { name: 'Fit to window' }).click();
-    await expect.poll(() => gridHeight(page)).toBe(before);
     await expect(page.getByRole('button', { name: 'Fit to window' })).toHaveCount(0);
+    await expect.poll(() => gridHeight(page)).toBeGreaterThan(shrunk);
+    expect(await page.evaluate(() => localStorage.getItem('fgraph-matrix-height'))).toBeNull();
+
+    // And the measured fit is still a fit: one scroller, not two.
+    expect(await page.evaluate(() => {
+      const de = document.documentElement;
+      return de.scrollHeight - de.clientHeight > 4;
+    })).toBe(false);
   });
 
   test('the arrow keys resize it too, so the grip is not mouse-only', async ({ page }) => {
