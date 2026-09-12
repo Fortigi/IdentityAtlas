@@ -20,5 +20,16 @@ COPY tools/ ./tools/
 COPY setup/ ./setup/
 COPY test/demo-dataset/ ./test/demo-dataset/
 
+# Bake the release version into the image so the scheduler reports the same
+# version the web container does (Get-WorkerVersion prefers $env:MODULE_VERSION).
+# Passed as a build arg by docker-publish.yml and docker-compose.yml, mirroring
+# app/api/Dockerfile. Without it the worker falls back to the ModuleVersion in
+# the .psd1 — which on a release tag still holds the main dev version, so a
+# stable deploy reported a dev-build worker.
+# Declared last, after the COPY layers, so a version bump does not invalidate
+# their build cache.
+ARG MODULE_VERSION=""
+ENV MODULE_VERSION=$MODULE_VERSION
+
 # Default: run the scheduler loop (also accepts ad-hoc commands via docker exec)
 CMD ["pwsh", "-File", "/app/setup/docker/scheduler.ps1"]

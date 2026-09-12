@@ -63,6 +63,8 @@ services:
     build:
       context: .
       dockerfile: setup/docker/Dockerfile.powershell
+      args:
+        MODULE_VERSION: "${MODULE_VERSION:-}"
     environment:
       # API URL for the worker scheduler. The web container is reachable via
       # the docker network DNS name `web` on its internal port.
