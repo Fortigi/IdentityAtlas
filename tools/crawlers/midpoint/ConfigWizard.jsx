@@ -6,7 +6,7 @@ import Select from '@ui/components/inputs/Select';
 import { canSubmitCredentials, buildCredentialFields } from '@ui/utils/crawlerCredentials';
 import CredentialFields from '@ui/components/crawler/CredentialFields';
 import { CrawlerField, OptionList, ScheduleList, WizardNav } from '@ui/components/crawler/wizardFields';
-import saveCrawlerConfig from '@ui/components/crawler/saveCrawlerConfig';
+import useCrawlerSave from '@ui/components/crawler/useCrawlerSave';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -121,41 +121,31 @@ export default function MidpointConfigWizard({ onComplete, onCancel, initialConf
   };
 
   const [schedules, setSchedules] = useState(initialConfig?.schedules || []);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState(null);
+  const { save, saving, error } = useCrawlerSave({
+    authFetch, crawlerType: CRAWLER_TYPE, configId: initialConfig?.id, onComplete,
+  });
 
   const canStep1 = displayName.trim() && baseUrl.trim();
   const credentialFields = creds;
   const canStep2 = canSubmitCredentials(authMethod, credentialFields, isEdit);
 
   const handleSave = async () => {
-    setSaving(true); setError(null);
-    try {
-      const configPayload = {
-        baseUrl: baseUrl.trim(),
-        authMethod,
-        pageSize: parseInt(pageSize, 10) || 100,
-        selectedObjects,
-        archetypeMapping: archetypeMapping.map(m => ({ archetype: m.archetype.trim(), subtype: m.subtype.trim(), resourceType: m.resourceType || 'BusinessRole' })),
-        typeMappings: {
-          orgContextTypeMapping: orgMapping.map(m => ({ orgSubtype: m.orgSubtype.trim(), contextType: (m.contextType || '').trim() || 'OrgUnit' })),
-          identityTypeMapping:   idMapping.map(m => ({ userType: m.userType.trim(), principalType: m.principalType || 'User' })),
-        },
-      };
-      if (schedules.length) configPayload.schedules = schedules;
+    const configPayload = {
+      baseUrl: baseUrl.trim(),
+      authMethod,
+      pageSize: parseInt(pageSize, 10) || 100,
+      selectedObjects,
+      archetypeMapping: archetypeMapping.map(m => ({ archetype: m.archetype.trim(), subtype: m.subtype.trim(), resourceType: m.resourceType || 'BusinessRole' })),
+      typeMappings: {
+        orgContextTypeMapping: orgMapping.map(m => ({ orgSubtype: m.orgSubtype.trim(), contextType: (m.contextType || '').trim() || 'OrgUnit' })),
+        identityTypeMapping:   idMapping.map(m => ({ userType: m.userType.trim(), principalType: m.principalType || 'User' })),
+      },
+    };
+    if (schedules.length) configPayload.schedules = schedules;
 
-      Object.assign(configPayload, buildCredentialFields(authMethod, credentialFields));
+    Object.assign(configPayload, buildCredentialFields(authMethod, credentialFields));
 
-      await saveCrawlerConfig({
-        authFetch, crawlerType: CRAWLER_TYPE, configId: initialConfig?.id,
-        displayName, config: configPayload,
-      });
-      onComplete();
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setSaving(false);
-    }
+    await save(displayName, configPayload);
   };
 
   const inputCls = 'w-full border border-gray-200 rounded px-3 py-2 text-sm bg-white dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200';

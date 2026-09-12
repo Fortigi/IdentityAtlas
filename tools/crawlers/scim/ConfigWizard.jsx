@@ -6,7 +6,7 @@ import Select from '@ui/components/inputs/Select';
 import { canSubmitCredentials, buildCredentialFields } from '@ui/utils/crawlerCredentials';
 import CredentialFields from '@ui/components/crawler/CredentialFields';
 import { CrawlerField, OptionList, WizardNav, ScheduleList } from '@ui/components/crawler/wizardFields';
-import saveCrawlerConfig from '@ui/components/crawler/saveCrawlerConfig';
+import useCrawlerSave from '@ui/components/crawler/useCrawlerSave';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -151,8 +151,9 @@ export default function ScimConfigWizard({ onComplete, onCancel, initialConfig, 
   };
 
   const [schedules, setSchedules] = useState(initialConfig?.schedules || []);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState(null);
+  const { save, saving, error } = useCrawlerSave({
+    authFetch, crawlerType: CRAWLER_TYPE, configId: initialConfig?.id, onComplete,
+  });
 
   const canStep1 = !!(displayName.trim() && baseUrl.trim());
   const credentialFields = creds;
@@ -160,26 +161,14 @@ export default function ScimConfigWizard({ onComplete, onCancel, initialConfig, 
   const canStep3 = canSubmitObjects(selectedObjects);
 
   const handleSave = async () => {
-    setSaving(true); setError(null);
-    try {
-      const configPayload = buildScimConfig({
-        baseUrl, authMethod, systemName, pageSize, selectedObjects,
-        userAttributes, groupAttributes, userTypeMapping: typeMapping, scope, schedules,
-      });
-      Object.assign(configPayload, buildCredentialFields(authMethod, credentialFields));
+    const configPayload = buildScimConfig({
+      baseUrl, authMethod, systemName, pageSize, selectedObjects,
+      userAttributes, groupAttributes, userTypeMapping: typeMapping, scope, schedules,
+    });
+    Object.assign(configPayload, buildCredentialFields(authMethod, credentialFields));
 
-      await saveCrawlerConfig({
-        authFetch, crawlerType: CRAWLER_TYPE, configId: initialConfig?.id,
-        displayName, config: configPayload,
-      });
-      onComplete();
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setSaving(false);
-    }
+    await save(displayName, configPayload);
   };
-
 
   const steps = [
     { n: 1, label: 'Connection' },

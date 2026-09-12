@@ -4,7 +4,7 @@ import WizardShell from '@ui/components/WizardShell';
 import { canSubmitCredentials, buildCredentialFields } from '@ui/utils/crawlerCredentials';
 import CredentialFields from '@ui/components/crawler/CredentialFields';
 import { ScheduleList, WizardNav } from '@ui/components/crawler/wizardFields';
-import saveCrawlerConfig from '@ui/components/crawler/saveCrawlerConfig';
+import useCrawlerSave from '@ui/components/crawler/useCrawlerSave';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -164,49 +164,38 @@ export default function OmadaConfigWizard({ onComplete, onCancel, initialConfig,
   // Schedule
   const [schedules, setSchedules] = useState(initialConfig?.schedules || []);
 
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState(null);
+  const { save, saving, error } = useCrawlerSave({
+    authFetch, crawlerType: CRAWLER_TYPE, configId: initialConfig?.id, onComplete,
+  });
 
   const canStep1 = displayName.trim() && baseUrl.trim();
   const credentialFields = creds;
   const canStep2 = canSubmitCredentials(authMethod, credentialFields, isEdit);
 
   const handleSave = async () => {
-    setSaving(true);
-    setError(null);
-    try {
-      const configPayload = {
-        baseUrl: baseUrl.trim(),
-        apiVersion,
-        authMethod,
-        selectedObjects,
-        contextObjectTypes: contextObjectTypes
-          .filter(c => c.entitySet.trim())
-          .map(c => ({
-            entitySet:    c.entitySet.trim(),
-            contextType:  c.contextType.trim()  || c.entitySet.trim(),
-            identityField: c.identityField.trim() || undefined,
-          })),
-        resourceCategoryMapping: resCategoryMapping
-          .map(m => ({
-            category:    m.category.trim(),
-            resourceType: m.resourceType || 'Resource',
-          })),
-      };
-      if (schedules.length) configPayload.schedules = schedules;
+    const configPayload = {
+      baseUrl: baseUrl.trim(),
+      apiVersion,
+      authMethod,
+      selectedObjects,
+      contextObjectTypes: contextObjectTypes
+        .filter(c => c.entitySet.trim())
+        .map(c => ({
+          entitySet:    c.entitySet.trim(),
+          contextType:  c.contextType.trim()  || c.entitySet.trim(),
+          identityField: c.identityField.trim() || undefined,
+        })),
+      resourceCategoryMapping: resCategoryMapping
+        .map(m => ({
+          category:    m.category.trim(),
+          resourceType: m.resourceType || 'Resource',
+        })),
+    };
+    if (schedules.length) configPayload.schedules = schedules;
 
-      Object.assign(configPayload, buildCredentialFields(authMethod, credentialFields));
+    Object.assign(configPayload, buildCredentialFields(authMethod, credentialFields));
 
-      await saveCrawlerConfig({
-        authFetch, crawlerType: CRAWLER_TYPE, configId: initialConfig?.id,
-        displayName, config: configPayload,
-      });
-      onComplete();
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setSaving(false);
-    }
+    await save(displayName, configPayload);
   };
 
   const steps = [
