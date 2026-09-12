@@ -40,6 +40,8 @@ function Get-FreeScimPort {
     return $port
 }
 
+. (Join-Path $PSScriptRoot 'Start-MockServerJob.ps1')
+
 function Start-MockScimServer {
     <#
     .PARAMETER Users
@@ -194,20 +196,8 @@ function Start-MockScimServer {
         } finally { try { $listener.Stop() } catch {}; Write-Output "MOCK_STOPPED" }
     }
 
-    $job = Start-Job -ScriptBlock $serverScript -ArgumentList $port, $payload
-    $started = $false
-    for ($i = 0; $i -lt 20; $i++) {
-        Start-Sleep -Milliseconds 200
-        $out = Receive-Job -Job $job -Keep 2>&1
-        if ($out -match 'MOCK_STARTED') { $started = $true; break }
-        if ($out -match 'MOCK_ERROR')   { break }
-    }
-    if (-not $started) {
-        $out = Receive-Job -Job $job -Keep 2>&1
-        Stop-Job $job -ErrorAction SilentlyContinue; Remove-Job $job -Force -ErrorAction SilentlyContinue
-        throw "Mock SCIM server failed to start on port $port. Output: $($out -join '; ')"
-    }
-    return [PSCustomObject]@{ Job = $job; Port = $port }
+    return Start-MockServerJob -ScriptBlock $serverScript -ArgumentList $port, $payload `
+        -Name 'SCIM' -Port $port
 }
 
 # Replace what the running mock serves, without restarting it (and therefore
