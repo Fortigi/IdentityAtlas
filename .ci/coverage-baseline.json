@@ -261,7 +261,7 @@
     "app/ui/src/components/matrix/MatrixFilterSummary.jsx": 95,
     "app/ui/src/components/matrix/MatrixFilterWizard.jsx": 74,
     "app/ui/src/components/matrix/MatrixGroupRow.jsx": 89,
-    "app/ui/src/components/matrix/MatrixLegend.jsx": 70,
+    "app/ui/src/components/matrix/MatrixLegend.jsx": 99,
     "app/ui/src/components/matrix/MatrixScopePanel.jsx": 79,
     "app/ui/src/components/matrix/MatrixToolbar.jsx": 54,
     "app/ui/src/components/matrix/SortableMatrixBody.jsx": 0,
