@@ -87,13 +87,22 @@ export async function ingest(_pool, tableName, keyColumns, records, options = {}
   } = options;
 
   if (!records || records.length === 0) {
-    // An empty DELTA batch says nothing, so there is nothing to do. An empty
-    // FULL batch says something specific: "this scope is empty now". That is how
-    // a crawler reconciles a source down to zero — a SCIM endpoint that no longer
-    // serves any groups, say — and tools/crawlers/shared/Invoke-CrawlerIngest.ps1
-    // sends exactly that body for the purpose. Returning early here meant the
-    // rows were never tombstoned and the emptied source kept its old data.
-    if (syncMode !== 'full') return { inserted: 0, updated: 0, deleted: 0 };
+    // An empty DELTA batch says nothing, so there is nothing to do.
+    //
+    // An empty FULL batch with a SCOPE says something specific: "the partition I
+    // own is empty now". That is how a crawler reconciles a collection down to
+    // zero — a SCIM endpoint that no longer serves any groups, say — and
+    // tools/crawlers/shared/Invoke-CrawlerIngest.ps1 sends exactly that body.
+    //
+    // The scope is REQUIRED, and that is a safety rule rather than a detail. An
+    // unscoped empty full batch would read as "this system has nothing at all",
+    // and acting on it deletes every row the system owns in that table —
+    // including, for ingest/systems, the system row itself, which then fails the
+    // foreign key on everything ingested afterwards. Crawlers do post unscoped
+    // empty batches (they were harmless while the API rejected them), so an
+    // absent scope means "nothing to say", not "delete everything".
+    const scoped = scope && Object.keys(scope).length > 0;
+    if (syncMode !== 'full' || !scoped) return { inserted: 0, updated: 0, deleted: 0 };
     const deleted = await db.tx(client =>
       deleteEntireScope(client, tableName, keyColumns, systemId, scope, systemIdColumn, scopeDeleteFilter));
     return { inserted: 0, updated: 0, deleted };
