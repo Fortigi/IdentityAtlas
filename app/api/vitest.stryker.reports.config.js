@@ -12,13 +12,14 @@ import base from './vitest.config.js';
 //
 // Listed instead of excluded: an excluded test that happened to be some mutant's only
 // killer would surface as a false survivor, which is worse than measuring less. Every test
-// here is a real killer for the four mutated files.
+// here is a real killer for the five mutated files.
 
 export default defineConfig({
   ...base,
   test: {
     ...base.test,
     include: [
+      'src/reports/export.test.js',
       'src/reports/registry.test.js',
       'src/reports/templates/orphaned-accounts.test.js',
       'src/routes/reports.test.js',

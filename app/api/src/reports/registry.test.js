@@ -1,6 +1,7 @@
 // Unit tests for the report-template registry.
 
 import { describe, it, expect } from 'vitest';
+import { EXPORT_FORMAT_NAMES } from './export.js';
 import { getReport, listReports, registerReport, reportMetadata } from './registry.js';
 import { BUILT_IN_REPORTS } from './templates/index.js';
 
@@ -85,8 +86,21 @@ describe('report registry', () => {
       name: 'zz-dummy', displayName: 'ZZ Dummy', description: 'A dummy.', form: 'list',
       parametersSchema: { type: 'object', required: [], properties: {} },
       columns: [{ key: 'a', label: 'A' }],
+      exportFormats: EXPORT_FORMAT_NAMES,
     });
     expect(meta.run).toBeUndefined();
+  });
+
+  it('advertises the download formats the server serves, as a copy', () => {
+    // Every template is downloadable in every format — the formats belong to the
+    // engine, not to a template. Handing out the live array would let a client
+    // response mutate the server's own list.
+    const meta = reportMetadata(dummy());
+    expect(meta.exportFormats).toContain('csv');
+    expect(meta.exportFormats).not.toBe(EXPORT_FORMAT_NAMES);
+
+    meta.exportFormats.push('tampered');
+    expect(reportMetadata(dummy()).exportFormats).toEqual(EXPORT_FORMAT_NAMES);
   });
 
   it('defaults description and parametersSchema when a template omits them', () => {

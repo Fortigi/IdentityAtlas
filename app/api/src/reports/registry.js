@@ -6,6 +6,7 @@
 // a test (or a future in-tree module) can add a template without touching the
 // engine — which is exactly the property the seam test asserts.
 
+import { EXPORT_FORMAT_NAMES } from './export.js';
 import { BUILT_IN_REPORTS } from './templates/index.js';
 
 // Seeded straight from the built-ins — importing the registry must not be able
@@ -39,8 +40,10 @@ export function getReport(name) {
 }
 
 /**
- * The client-facing metadata of a template — everything the UI needs to list it
- * and to render whatever form it declares, and nothing executable.
+ * The client-facing metadata of a template — everything the UI needs to list it,
+ * to render whatever form it declares and to offer it for download, and nothing
+ * executable. `exportFormats` is advertised here rather than assumed by the
+ * client, so the download buttons follow the formats the server actually serves.
  */
 export function reportMetadata(template) {
   return {
@@ -50,5 +53,6 @@ export function reportMetadata(template) {
     form: template.form,
     parametersSchema: template.parametersSchema || { type: 'object', required: [], properties: {} },
     columns: template.columns,
+    exportFormats: [...EXPORT_FORMAT_NAMES],
   };
 }

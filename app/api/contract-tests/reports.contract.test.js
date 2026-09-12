@@ -136,3 +136,48 @@ describe('GET /reports/orphaned-accounts/rows', () => {
     expect(res.body).toEqual({ error: 'Report not found' });
   });
 });
+
+describe('GET /reports/orphaned-accounts/export', () => {
+  it('downloads the same rows as a CSV attachment, computed from the live data', async () => {
+    await insertPrincipal(ids.orphan, 'Orphan User', 'User', 'orphan@example.com');
+
+    const res = await agent.get('/api/reports/orphaned-accounts/export');
+
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toMatch(/^text\/csv/);
+    expect(res.headers['content-disposition']).toMatch(
+      /^attachment; filename="identity-atlas-orphaned-accounts-\d{4}-\d{2}-\d{2}\.csv"$/);
+
+    const lines = res.text.split('\r\n');
+    const { body } = await ownRows();
+    expect(lines[0]).toBe(body.columns.map(c => `"${c.label}"`).join(','));
+    // One header line plus one line per row the rows endpoint returned.
+    expect(lines).toHaveLength(body.total + 1);
+    expect(lines.some(l => l.startsWith('"Orphan User","orphan@example.com"'))).toBe(true);
+  });
+
+  it('drops a row from the download as soon as the account is linked', async () => {
+    await insertPrincipal(ids.orphan, 'Orphan User', 'User');
+    expect((await agent.get('/api/reports/orphaned-accounts/export')).text).toContain('Orphan User');
+
+    await linkToIdentity(ids.orphan);
+    expect((await agent.get('/api/reports/orphaned-accounts/export')).text).not.toContain('Orphan User');
+  });
+
+  it('serves the whole payload as JSON when that format is asked for', async () => {
+    await insertPrincipal(ids.orphan, 'Orphan User', 'User');
+
+    const res = await agent.get('/api/reports/orphaned-accounts/export?format=json');
+
+    expect(res.status).toBe(200);
+    const body = JSON.parse(res.text);
+    expect(body.name).toBe('orphaned-accounts');
+    expect(body.rows.filter(r => r.systemName === SYSTEM_NAME)).toHaveLength(1);
+  });
+
+  it('400s on a format it does not serve', async () => {
+    const res = await agent.get('/api/reports/orphaned-accounts/export?format=pdf');
+    expect(res.status).toBe(400);
+    expect(res.body.error).toContain('Unsupported export format');
+  });
+});

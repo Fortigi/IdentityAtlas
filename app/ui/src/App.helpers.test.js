@@ -20,6 +20,10 @@ describe('isDetailPage', () => {
     expect(isDetailPage('principals')).toBe(false);
     expect(isDetailPage('matrix')).toBe(false);
     expect(isDetailPage('user')).toBe(false); // no colon
+    // The Reports list page and a report's own tab are different routes — the
+    // prefix must not swallow the page it was opened from.
+    expect(isDetailPage('reports')).toBe(false);
+    expect(isDetailPage('report:orphaned-accounts')).toBe(true);
   });
 });
 
@@ -27,6 +31,10 @@ describe('parseDetailRoute', () => {
   it('splits type/id on the first colon', () => {
     expect(parseDetailRoute('user:123')).toEqual({ type: 'user', id: '123' });
     expect(parseDetailRoute('access-package:ap-9')).toEqual({ type: 'access-package', id: 'ap-9' });
+  });
+
+  it('reads a report tab as its report name', () => {
+    expect(parseDetailRoute('report:orphaned-accounts')).toEqual({ type: 'report', id: 'orphaned-accounts' });
   });
 
   it('keeps colons inside the id', () => {
@@ -62,6 +70,8 @@ describe('closeFallbackPage', () => {
     expect(closeFallbackPage('context')).toBe('contexts');
     expect(closeFallbackPage('identity')).toBe('identities');
     expect(closeFallbackPage('resource')).toBe('resources');
+    // Closing a report lands back on the list it was opened from.
+    expect(closeFallbackPage('report')).toBe('reports');
   });
 
   it('falls back to the matrix for everything else', () => {
@@ -78,6 +88,7 @@ describe('detailTabIconBg', () => {
     expect(detailTabIconBg('group')).toContain('purple');
     expect(detailTabIconBg('department')).toContain('green');
     expect(detailTabIconBg('context')).toContain('sky');
+    expect(detailTabIconBg('report')).toContain('amber');
   });
 
   it('falls back to indigo for identity / run / unknown types', () => {

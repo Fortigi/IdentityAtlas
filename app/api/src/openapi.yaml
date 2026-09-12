@@ -548,6 +548,65 @@ paths:
         '500':
           description: The report template failed to run
 
+  /reports/{name}/export:
+    get:
+      tags: [Reports]
+      summary: Download a report as a file
+      operationId: exportReport
+      description: >
+        Runs the named report template and returns the result as a downloadable file, with a
+        `Content-Disposition: attachment` filename of `identity-atlas-<report>-<date>.<ext>`.
+        The content is computed for this request, exactly as `/reports/{name}/rows` computes it,
+        so a download always matches what the page shows. Any query parameter other than
+        `format` is passed to the template as its parameters.
+      security:
+        - EntraIdBearer: []
+      parameters:
+        - name: name
+          in: path
+          required: true
+          description: Report template name, as returned by `GET /reports`.
+          schema: { type: string }
+        - name: format
+          in: query
+          required: false
+          description: >
+            One of the report's advertised `exportFormats`. `csv` holds the declared columns as
+            an RFC-4180 table; `json` holds the whole payload (metadata, rows, `generatedAt`).
+          schema:
+            type: string
+            enum: [csv, json]
+            default: csv
+      responses:
+        '200':
+          description: The report as a file
+          content:
+            text/csv:
+              schema:
+                type: string
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ReportMetadata'
+                  - type: object
+                    properties:
+                      rows:
+                        type: array
+                        items:
+                          type: object
+                          additionalProperties: true
+                      total:
+                        type: integer
+                      generatedAt:
+                        type: string
+                        format: date-time
+        '400':
+          description: The requested format is not one this deployment serves
+        '404':
+          description: No report template with that name is registered
+        '500':
+          description: The report template failed to run
+
 components:
   securitySchemes:
     CrawlerApiKey:
@@ -589,6 +648,15 @@ components:
                 type: string
               label:
                 type: string
+        exportFormats:
+          type: array
+          description: >
+            Formats this deployment can serve the report as a download in, for use as the
+            `format` parameter of the export endpoint. Advertised rather than assumed, so a
+            client only offers downloads the server can actually produce.
+          items:
+            type: string
+          example: [csv, json]
 
     IngestEnvelope:
       type: object
