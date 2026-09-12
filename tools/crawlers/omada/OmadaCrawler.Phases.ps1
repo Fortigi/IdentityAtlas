@@ -952,22 +952,6 @@ function Get-OmadaAvailableEntitySets {
 # Registers every Omada connected system as its own Identity Atlas System and
 # resolves the main IGA system id. Falls back to a single-system registration on
 # failure. Returns @{ systemId; omadaSystemMap; allOmadaSystems; omadaIdentitySystemUId }.
-# Register the Omada endpoint itself as a single Identity Atlas system, and return
-# its id. Used when Omada reports no connected systems, and when the systems
-# fetch/registration fails outright — in both cases the later phases still need
-# somewhere to put accounts.
-function Register-OmadaEndpointSystem {
-    [CmdletBinding()]
-    param([Parameter(Mandatory)][string]$BaseUrl)
-    $result = Invoke-IngestAPI -Endpoint 'ingest/systems' -Body @{
-        syncMode = 'full'
-        records  = @(@{ systemType = 'Omada'; displayName = "Omada ($BaseUrl)"; tenantId = $BaseUrl; enabled = $True; syncEnabled = $True })
-    }
-    $id = [int]($result.systemIds[0])
-    Write-Host "  Endpoint system ID: $id" -ForegroundColor Gray
-    return $id
-}
-
 function Register-OmadaSystems {
     [CmdletBinding()]
     param([string]$ApiBaseUrl, [string]$ApiKey, [string]$BaseUrl, [int]$MaxRetries = 5)

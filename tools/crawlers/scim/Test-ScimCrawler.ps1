@@ -62,15 +62,22 @@ function Get-Atlas {
 # assertion only said "status: failed" and the run gave no way to find out why.
 function Get-JobFailureDetail {
     param($Job)
-    if (-not $Job) { return '(no job)' }
+    if (-not $Job) { return ' — timed out waiting for the job to finish' }
     if ($Job.status -eq 'completed') { return '' }
     $msg = @($Job.errorMessage, $Job.error, $Job.statusMessage) | Where-Object { $_ } | Select-Object -First 1
     if (-not $msg) { $msg = '(no error message on the job row)' }
     return " — $msg"
 }
 
+# Queue a job and wait for it to finish.
+#
+# The timeout covers QUEUEING as well as running. Crawler integration tests run
+# in parallel but the worker takes jobs one at a time, so a SCIM job can sit
+# behind an Entra full sync that takes ~3 minutes on its own. This file queues
+# eight jobs; at 180s the later ones reported "(no job)" — a timeout, not a
+# failure — while the data they wrote was in fact correct.
 function Invoke-ScimJob {
-    param([int]$ConfigId, [string]$SyncMode = 'full', [int]$TimeoutSec = 180)
+    param([int]$ConfigId, [string]$SyncMode = 'full', [int]$TimeoutSec = 420)
     $body = @{ jobType = 'scim'; configId = $ConfigId }
     if ($SyncMode -ne 'full') { $body['syncMode'] = $SyncMode }
     $job = Invoke-AtlasApi -Method POST -Path '/admin/crawler-jobs' -Body $body
