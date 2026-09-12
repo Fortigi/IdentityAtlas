@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Fixed the Worker showing a development version (and an amber "Mismatch" warning on Admin → Updates) after a fresh stable or beta install. The published worker image was never stamped with the release version, so it reported the in-development version instead of the one Web and Database showed. All three components now report the same version on a released deployment.
+
+## Changes in this PR
+
 - Added a generic **SCIM 2.0 crawler**: point Identity Atlas at any SCIM 2.0 endpoint and sync its users, groups and group memberships — no system-specific connector needed.
 - The crawler asks the endpoint what it serves (`/ServiceProviderConfig`, `/ResourceTypes`, `/Schemas`) and shows it in the wizard, so you pick the objects and attributes you want instead of guessing at field names.
 - Extra attributes are opt-in: the core mapping (user name, display name, active, e-mail, user type; group display name) is always synced, and anything else you tick is stored alongside it. A **Select all** action per object type is there when you want everything.
