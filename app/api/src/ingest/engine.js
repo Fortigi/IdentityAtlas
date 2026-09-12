@@ -94,7 +94,8 @@ export async function ingest(_pool, tableName, keyColumns, records, options = {}
     // sends exactly that body for the purpose. Returning early here meant the
     // rows were never tombstoned and the emptied source kept its old data.
     if (syncMode !== 'full') return { inserted: 0, updated: 0, deleted: 0 };
-    const deleted = await deleteEntireScope(tableName, keyColumns, systemId, scope, systemIdColumn, scopeDeleteFilter);
+    const deleted = await db.tx(client =>
+      deleteEntireScope(client, tableName, keyColumns, systemId, scope, systemIdColumn, scopeDeleteFilter));
     return { inserted: 0, updated: 0, deleted };
   }
 
@@ -202,18 +203,27 @@ export async function ingest(_pool, tableName, keyColumns, records, options = {}
 // "keep nothing" is simply that table with no rows in it. Built with SELECT ...
 // WHERE false so the key columns get their real types from the target table
 // rather than being guessed from records that do not exist.
-export async function deleteEntireScope(tableName, keyColumns, systemId, scope, systemIdColumn, scopeDeleteFilter) {
-  return await db.tx(async (client) => {
-    const tempName = `_tmp_wipe_${crypto.randomBytes(6).toString('hex')}`;
-    const keyCols = keyColumns.map(k => `"${k}"`).join(', ');
-    await client.query(
-      `CREATE TEMP TABLE "${tempName}" ON COMMIT DROP AS SELECT ${keyCols} FROM "${tableName}" WHERE false`);
+// Takes a client rather than opening its own transaction: the wipe belongs in
+// the SAME transaction as the rest of the ingest that asked for it, and it makes
+// the function testable against a contract-test pool the way scopedDelete is.
+export async function deleteEntireScope(
+  client, tableName, keyColumns, systemId, scope, systemIdColumn, scopeDeleteFilter, tableColumnNames = null,
+) {
+  const tempName = `_tmp_wipe_${crypto.randomBytes(6).toString('hex')}`;
+  const keyCols = keyColumns.map(k => `"${k}"`).join(', ');
+  await client.query(
+    `CREATE TEMP TABLE "${tempName}" ON COMMIT DROP AS SELECT ${keyCols} FROM "${tableName}" WHERE false`);
 
+  // Discovered through the module-level db unless the caller supplies them —
+  // scopedDelete takes them as a parameter for the same reason, so a test can
+  // drive this against its own pool.
+  let columnNames = tableColumnNames;
+  if (!columnNames) {
     const allColumns = await discoverColumns(null, tableName);
-    const tableColumnNames = new Set(allColumns.map(c => c.name));
-    return await scopedDelete(
-      client, tableName, keyColumns, tempName, systemId, scope, systemIdColumn, tableColumnNames, scopeDeleteFilter);
-  });
+    columnNames = new Set(allColumns.map(c => c.name));
+  }
+  return await scopedDelete(
+    client, tableName, keyColumns, tempName, systemId, scope, systemIdColumn, columnNames, scopeDeleteFilter);
 }
 
 export async function scopedDelete(client, tableName, keyColumns, tempName, systemId, scope, systemIdColumn, tableColumnNames, scopeDeleteFilter = null) {

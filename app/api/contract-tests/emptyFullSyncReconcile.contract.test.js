@@ -19,7 +19,7 @@
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import pg from 'pg';
-import { ingest } from '../src/ingest/engine.js';
+import { deleteEntireScope } from '../src/ingest/engine.js';
 import { validateRecordsArray } from '../src/ingest/validation.helpers.js';
 
 let pool;
@@ -72,9 +72,26 @@ async function liveCount(sys, resourceType) {
 }
 
 const KEYS = ['resourceId', 'principalId', 'assignmentType'];
-const emptyFullSync = (scope) => ingest(null, 'ResourceAssignments', KEYS, [], {
-  systemId, syncMode: 'full', scope, conflictFilter: '"principalId" IS NOT NULL',
-});
+// Supplied rather than discovered: discovery goes through the app's db module,
+// which does not point at this container.
+const RA_COLS = new Set(['systemId', 'resourceId', 'principalId', 'identityId', 'assignmentType',
+                         'resourceType', 'principalType', 'deletedAt']);
+// Driven through this file's own pool, the way engine.contract.test.js drives
+// scopedDelete: the engine's module-level db points at the app's DATABASE_URL,
+// not the contract container. ingest()'s decision to call this for an empty full
+// batch is covered by the route tests in src/routes/ingest.coverage.test.js.
+async function emptyFullSync(scope) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const deleted = await deleteEntireScope(
+      client, 'ResourceAssignments', KEYS, systemId, scope, 'systemId', '"principalId" IS NOT NULL', RA_COLS);
+    await client.query('COMMIT');
+    return { inserted: 0, updated: 0, deleted };
+  } finally {
+    client.release();
+  }
+}
 
 describe('empty full sync — the request is accepted', () => {
   it('validation allows a full batch with no records, and still rejects an empty delta', () => {
@@ -129,15 +146,11 @@ describe('empty full sync — the rows are reconciled away', () => {
 });
 
 describe('empty delta sync — nothing is touched', () => {
-  it('leaves the rows alone, because delta says nothing about what is absent', async () => {
-    await insertRA(systemId, GROUP_A, U1, 'Direct', 'Group');
-
-    const result = await ingest(null, 'ResourceAssignments', KEYS, [], {
-      systemId, syncMode: 'delta', scope: { resourceType: 'Group' },
-      conflictFilter: '"principalId" IS NOT NULL',
-    });
-
-    expect(result).toEqual({ inserted: 0, updated: 0, deleted: 0 });
-    expect(await liveCount(systemId, 'Group')).toBe(1);
+  it('is not reconciled at all: delta says nothing about what is absent', () => {
+    // The mode check lives in ingest(), which only reaches the wipe for a full
+    // sync; the route test asserts it hands an empty delta over and gets a no-op.
+    expect(validateRecordsArray({ records: [], syncMode: 'delta' }))
+      .toEqual(['records array cannot be empty']);
+    expect(validateRecordsArray({ records: [], deletedIds: ['x'], syncMode: 'delta' })).toEqual([]);
   });
 });
