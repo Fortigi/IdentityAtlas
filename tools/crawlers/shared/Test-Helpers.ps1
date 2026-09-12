@@ -22,3 +22,21 @@ function Write-Result {
     if ($WriteResult) { & $WriteResult $Name $Passed $Detail }
     elseif (-not $Passed) { $script:standaloneFailures++ }
 }
+
+# Poll one crawler job until it reaches a terminal state, or give up.
+#
+# Reads $ApiBaseUrl / $ApiKey from the calling test script — this file is
+# dot-sourced, so those resolve from the caller at call time, the same way
+# Write-Result above is used. Returns the finished job object, or $null on
+# timeout so the caller can report a timeout distinctly from a failure.
+function Wait-JobComplete {
+    param([int]$JobId, [int]$TimeoutSec = 120)
+    $deadline = [datetime]::UtcNow.AddSeconds($TimeoutSec)
+    while ([datetime]::UtcNow -lt $deadline) {
+        Start-Sleep -Seconds 3
+        $j = Invoke-RestMethod -Uri "$ApiBaseUrl/admin/crawler-jobs/$JobId" `
+            -Headers @{ Authorization = "Bearer $ApiKey" } -ErrorAction SilentlyContinue
+        if ($j.status -in @('completed', 'failed')) { return $j }
+    }
+    return $null
+}

@@ -57,18 +57,6 @@ function Get-Atlas {
     return Invoke-RestMethod -Uri "$ApiBaseUrl$Path" -Headers @{ Authorization = "Bearer $ApiKey" } -ErrorAction Stop
 }
 
-function Wait-JobComplete {
-    param([int]$JobId, [int]$TimeoutSec = 120)
-    $deadline = [datetime]::UtcNow.AddSeconds($TimeoutSec)
-    while ([datetime]::UtcNow -lt $deadline) {
-        Start-Sleep -Seconds 3
-        $j = Invoke-RestMethod -Uri "$ApiBaseUrl/admin/crawler-jobs/$JobId" `
-            -Headers @{ Authorization = "Bearer $ApiKey" } -ErrorAction SilentlyContinue
-        if ($j.status -in @('completed', 'failed')) { return $j }
-    }
-    return $null
-}
-
 # Queue a job for $configId and wait for it. Returns the finished job object (or $null).
 # A one-line reason for a job that did not complete — without this a failed
 # assertion only said "status: failed" and the run gave no way to find out why.
