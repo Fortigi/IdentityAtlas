@@ -1,5 +1,31 @@
 ## Changes in this PR
 
+- Matrix: **"Show business roles as foldable rows"** in the wizard's Resources step turns the whole business-role row view on for a matrix. It is off by default, and it is saved with the matrix, so a shared or saved matrix looks the same for everyone who opens it. Without it the matrix is unchanged from before.
+- Matrix: with the option on, each business role gets a row of its own and the resources it grants are drawn underneath it — indented, with the same triangle and elbow that expanding a nested group already used — and the role sits directly above them in the row order.
+- Matrix: a business role row can be folded to hide the resources it grants, leaving just the role plus an "N resources folded" chip — click the chevron again to bring them back. New "Fold roles" / "Unfold roles" toolbar buttons do it for every role at once, reducing the grid to business roles plus the resources no role grants.
+- Matrix: business roles arrive expanded, and your fold choices are remembered per matrix so they are still there when you come back to the same slice.
+- Matrix: a resource that more than one business role grants is shown under every one of those roles, and each of its rows carries a short "BR" / "BR+3" chip that counts and names the others — hover it for the names, click it to open the role. Folding a role takes away only its own rows.
+- Matrix: a business role's own row shows the "D" badge in its own column and its cells are coloured as governed, like any other access a business role hands out. Business-role memberships count as governed in the scope statistics, and the governed trend line counts them too — historical points read higher than before because they were understating governance, not because anything changed in your data.
+- Matrix: a folded business role shows, per subject, a red count of the folded resources that subject holds outside the role and an amber count of the resources the role assigns that the subject does not have — so folding shows both when someone has more than the role hands out and when they have less, and a subject can carry both at once.
+- Matrix: on the row of a resource a business role hands out, someone who holds it without that role is marked with a red count on their cell — the same finding the folded role shows, so unfolding a role never makes it disappear. The marker is not shown when a business role outside the current matrix slice already accounts for the access, and its tooltip says whether the subject holds a granting role. Hover it for the roles that grant the resource; the "How to read this matrix" legend explains every marker.
+- Matrix: a cell is marked when someone holds a permanent membership on a resource their business role only makes them eligible for — more access than the role assigns.
+- Matrix: cell markers now sit in a strip along the top of their own cell, so they no longer overlap each other, the D/I/E badge, or the labels of the cells around them.
+- Matrix Excel export: with business-role rows on, the exported file matches the grid — a resource appears under each business role that grants it. Folding only tidies the screen: the export always contains every resource, so a folded role can never leave access out of an export used for review.
+- Matrix: the "How to read this matrix" legend now lists only the markers the matrix you are looking at can actually draw.
+- Matrix: the grid can now be resized — drag the grip under it (or use the arrow keys) to give it more or less of the window, and it stays that height until you pick "Fit to window". Works in every matrix orientation.
+- Matrix scope statistics: each headline number is now announced together with the metric it belongs to (e.g. "Resources, 39") by screen readers.
+- Demo data: added a service desk business role whose holders show the full picture — one person short of what the role assigns, one both short on one group and over-provisioned on another, one holding a group of the role without holding the role, and two holding exactly what the role assigns. An IT operations role shares a group and an application role with it, so the "same resource in two roles" case is visible too.
+- Demo data: the engineering business role now actually hands its holders the VPN group it grants, so they no longer show up as provisioning gaps on a group their role does give them. The two system administrators keep that group directly, without the role — the example of access no business role accounts for.
+- Business roles and access packages no longer appear as rows in the matrix. They are governance intent and are already shown as the business-role columns, so the same role no longer shows up on both axes at once.
+- Added a **Show business roles as foldable rows** option to the matrix wizard's resource step for the cases where you do want them on the rows. It is off by default and is saved with the matrix, so everyone opening a shared or saved matrix sees the same rows.
+- Scoping a matrix to `resourceType = BusinessRole` still puts business roles on the rows without needing the option — a matrix of which access packages people hold remains buildable.
+- The wizard's resource and assignment counts, the scope panel and the scope timeline now count exactly the rows the matrix renders, instead of counting business roles that never appear.
+- Expanding a group row into its nested resources no longer reveals business roles either.
+- Owner rows are unchanged: ownership is still shown as its own row, because it is the only place the matrix shows who controls a group.
+- The "Business roles only" roll-up is unchanged — business roles are the rows there by design.
+
+## Changes in this PR
+
 - Linked Accounts on the identity detail page is now a table with System | Account | Enabled | Type columns, so you can see at a glance which source system each account came from and whether it is still enabled — without opening every account.
 - The Enabled column reflects the account's current state from the last crawl, falling back to the state recorded when the account was linked only when the account itself is no longer present.
 - Confirm / Remove / Undo, the correlation confidence bar, override badges and the "Linked from source" note are unchanged and stay on every row.
