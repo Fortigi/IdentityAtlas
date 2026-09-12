@@ -6,6 +6,7 @@ import Select from '@ui/components/inputs/Select';
 import { canSubmitCredentials, buildCredentialFields } from '@ui/utils/crawlerCredentials';
 import CredentialFields from '@ui/components/crawler/CredentialFields';
 import useCredentialFields from '@ui/components/crawler/useCredentialFields';
+import useCrawlerDiscovery from '@ui/components/crawler/useCrawlerDiscovery';
 import { CrawlerField, OptionList, ScheduleList, WizardNav } from '@ui/components/crawler/wizardFields';
 import useCrawlerSave from '@ui/components/crawler/useCrawlerSave';
 
@@ -82,34 +83,15 @@ export default function MidpointConfigWizard({ onComplete, onCancel, initialConf
 
   const [showAdvanced, setShowAdvanced] = useState(false);
 
-  const [disco, setDisco] = useState(null);
-  const [discoLoading, setDiscoLoading] = useState(false);
-  const [discoError, setDiscoError] = useState(null);
-
-  const fetchDiscovery = async () => {
-    if (disco !== null || discoLoading) return;
-    setDiscoLoading(true); setDiscoError(null);
-    try {
-      const body = initialConfig?.id
-        ? { configId: initialConfig.id }
-        : { config: { baseUrl: baseUrl.trim(), authMethod, username: username.trim(), password: password.trim(),
-                      apiToken: apiToken.trim(), clientId: clientId.trim(), clientSecret: clientSecret.trim(),
-                      tokenEndpoint: tokenEndpoint.trim() } };
-      const r = await authFetch('/api/admin/crawlers/midpoint/discover', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
-      });
-      if (r.ok) {
-        setDisco(await r.json());
-      } else {
-        const e = await r.json().catch(() => ({}));
-        setDisco({ archetypes: [], roleSubtypes: [], orgSubtypes: [], userTypes: [] });
-        setDiscoError(e.error || 'Could not reach midPoint — enter values manually');
-      }
-    } catch {
-      setDisco({ archetypes: [], roleSubtypes: [], orgSubtypes: [], userTypes: [] });
-      setDiscoError('Discovery failed — enter values manually');
-    } finally { setDiscoLoading(false); }
-  };
+  const { disco, discoLoading, discoError, fetchDiscovery } = useCrawlerDiscovery({
+    authFetch, crawlerType: CRAWLER_TYPE, configId: initialConfig?.id,
+    buildConfig: () => ({
+      baseUrl: baseUrl.trim(), authMethod,
+      ...Object.fromEntries(Object.entries(creds).map(([k, v]) => [k, v.trim()])),
+    }),
+    emptyResult: { archetypes: [], roleSubtypes: [], orgSubtypes: [], userTypes: [] },
+    errorHint: 'Could not reach midPoint — enter values manually',
+  });
 
   const [schedules, setSchedules] = useState(initialConfig?.schedules || []);
   const { save, saving, error } = useCrawlerSave({

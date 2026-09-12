@@ -6,6 +6,7 @@ import Select from '@ui/components/inputs/Select';
 import { canSubmitCredentials, buildCredentialFields } from '@ui/utils/crawlerCredentials';
 import CredentialFields from '@ui/components/crawler/CredentialFields';
 import useCredentialFields from '@ui/components/crawler/useCredentialFields';
+import useCrawlerDiscovery from '@ui/components/crawler/useCrawlerDiscovery';
 import { CrawlerField, OptionList, WizardNav, ScheduleList } from '@ui/components/crawler/wizardFields';
 import useCrawlerSave from '@ui/components/crawler/useCrawlerSave';
 
@@ -111,33 +112,15 @@ export default function ScimConfigWizard({ onComplete, onCancel, initialConfig, 
   const rmMap  = i => setTypeMapping(p => p.filter((_, idx) => idx !== i));
   const upMap  = (i, f, v) => setTypeMapping(p => p.map((e, idx) => idx === i ? { ...e, [f]: v } : e));
 
-  const [disco, setDisco] = useState(null);
-  const [discoLoading, setDiscoLoading] = useState(false);
-  const [discoError, setDiscoError] = useState(null);
-
-  const fetchDiscovery = async ({ force = false } = {}) => {
-    if (discoLoading || (disco !== null && !force)) return;
-    setDiscoLoading(true); setDiscoError(null);
-    try {
-      const body = initialConfig?.id
-        ? { configId: initialConfig.id }
-        : { config: { baseUrl: baseUrl.trim(), authMethod, scope: scope.trim(),
-                      ...Object.fromEntries(Object.entries(creds).map(([k, v]) => [k, v.trim()])) } };
-      const r = await authFetch('/api/admin/crawlers/scim/discover', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
-      });
-      if (r.ok) {
-        setDisco(await r.json());
-      } else {
-        const e = await r.json().catch(() => ({}));
-        setDisco(EMPTY_DISCOVERY);
-        setDiscoError(e.error || 'Could not reach the SCIM endpoint — check the base URL and credentials');
-      }
-    } catch {
-      setDisco(EMPTY_DISCOVERY);
-      setDiscoError('Discovery failed — check the base URL and credentials');
-    } finally { setDiscoLoading(false); }
-  };
+  const { disco, discoLoading, discoError, fetchDiscovery } = useCrawlerDiscovery({
+    authFetch, crawlerType: CRAWLER_TYPE, configId: initialConfig?.id,
+    buildConfig: () => ({
+      baseUrl: baseUrl.trim(), authMethod, scope: scope.trim(),
+      ...Object.fromEntries(Object.entries(creds).map(([k, v]) => [k, v.trim()])),
+    }),
+    emptyResult: EMPTY_DISCOVERY,
+    errorHint: 'Could not reach the SCIM endpoint — check the base URL and credentials',
+  });
 
   const [schedules, setSchedules] = useState(initialConfig?.schedules || []);
   const { save, saving, error } = useCrawlerSave({
