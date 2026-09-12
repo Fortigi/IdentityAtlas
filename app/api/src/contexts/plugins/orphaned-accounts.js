@@ -10,22 +10,10 @@
 // could not attach. The future principals-clustering plugin refines this set
 // into thematic contexts.
 
-import * as db from '../../db/connection.js';
 import { classifyAccount } from '../../accountlinking/classifier.js';
-import { DEFAULT_RULES } from '../../accountlinking/defaultRules.js';
+import { fetchOrphanPrincipals, loadActiveLinkingRules } from '../../accountlinking/orphanQuery.js';
 
 const ROOT = 'orphaned-accounts';
-
-async function loadRules() {
-  try {
-    const row = await db.queryOne(
-      `SELECT "rules" FROM "AccountLinkingConfig" WHERE "isActive" = true ORDER BY "updatedAt" DESC LIMIT 1`
-    );
-    return (row && row.rules) ? { ...DEFAULT_RULES, ...row.rules } : DEFAULT_RULES;
-  } catch {
-    return DEFAULT_RULES;
-  }
-}
 
 /** @type {import('./types.js').ContextPlugin} */
 export default {
@@ -38,15 +26,8 @@ export default {
   parametersSchema: { type: 'object', required: [], properties: {} },
 
   async run(params, ctx) {
-    const rules = await loadRules();
-
-    const orphans = (await db.query(`
-      SELECT p."id", p."displayName", p."email", p."extendedAttributes"
-        FROM "Principals" p
-        LEFT JOIN "IdentityMembers" m ON m."principalId" = p."id"
-       WHERE m."principalId" IS NULL
-         AND COALESCE(p."principalType", '') NOT IN ('ServicePrincipal', 'ManagedIdentity', 'AIAgent')
-    `)).rows;
+    const rules = await loadActiveLinkingRules();
+    const orphans = await fetchOrphanPrincipals();
 
     const contexts = [{
       externalId: ROOT,

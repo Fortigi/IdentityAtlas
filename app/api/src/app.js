@@ -36,6 +36,7 @@ import systemsRouter from './routes/systems.js';
 import resourcesRouter from './routes/resources.js';
 import contextsRouter from './routes/contexts.js';
 import contextPluginsRouter from './routes/contextPlugins.js';
+import reportsRouter from './routes/reports.js';
 import adminRouter from './routes/admin.js';
 import authRolesRouter from './routes/authRoles.js';
 import llmRouter from './routes/llm.js';
@@ -322,6 +323,9 @@ export function createApp() {
   app.use('/api', authMiddleware, systemsRouter);
   app.use('/api', authMiddleware, resourcesRouter);
   app.use('/api', authMiddleware, contextsRouter);
+  // Reports — an analyst read surface (it exposes nothing the Contexts page
+  // doesn't already show), so plain auth, no admin permission gate.
+  app.use('/api', authMiddleware, reportsRouter);
   // Context plugins (Admin → Contexts) — admin-only across the board.
   // Permission gates are applied PER ROUTE inside each router (not on the /api
   // mount) — a mount-level requirePermission on the shared '/api' prefix runs

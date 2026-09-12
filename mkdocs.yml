@@ -163,6 +163,7 @@ nav:
       - Test Coverage: reference/coverage.md
       - Under the hood:
           - Crawler Architecture: architecture/crawler-architecture.md
+          - Reports: architecture/reports.md
           - Audit History: architecture/audit-history.md
           - Soft-Delete & Tombstones: architecture/soft-delete.md
           - Effective Access Engine: architecture/effective-access-engine.md
