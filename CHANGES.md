@@ -1,5 +1,11 @@
 ## Changes in this PR
 
+- Upgraded the test runner (Vitest) and its coverage reporter to 5.0 across both the API and the UI, keeping the matched pair in lockstep.
+- Fixed the automated dependency updater so the test runner and its coverage reporter are always proposed together — previously they were offered as separate updates that could never be installed side by side, leaving their update requests permanently stuck.
+- Added tests for the matrix legend's "How to read this matrix" panel, covering the collapse/expand toggle and that the open/closed choice is remembered between visits — including browsers that block local storage, where the legend now stays readable instead of failing.
+
+## Changes in this PR
+
 - Added `docs/architecture/decision-principles.md` — a ratified, testable checklist for the "does this fit the existing architecture" judgment call, with confidence ratings and cited example issues, to help the Definition-of-Ready pipeline resolve more `awaiting-design`/`decompose` issues without a human round-trip.
 - Added `docs/architecture/architecture-guidance-review-2026-09.md`, a read-only audit of the current architecture documentation and backlog: contradictions found between docs (and between docs and precedent), an impact estimate, and backlog restructuring proposals (merges, epics, cross-item contradictions).
 - Flagged `docs/risk-scoring/plugin-architecture.md` as a speculative, unreconciled alternative to the in-tree risk-scoring plugin proposal, with a status banner pointing to the real one.
