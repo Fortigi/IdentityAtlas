@@ -55,7 +55,7 @@ This document lists all major software components, dependencies, and infrastruct
 
 | Package | Version | Purpose | License |
 |---------|---------|---------|---------|
-| vitest | ^4.1.10 | Unit testing framework | MIT |
+| vitest | ^5.0.0 | Unit testing framework | MIT |
 | supertest | ^7.2.2 | HTTP integration testing | MIT |
 | eslint | ^10.10.0 | JavaScript linter | MIT |
 | eslint-plugin-security | ^4.0.1 | Security-focused lint rules | Apache 2.0 |
@@ -107,7 +107,7 @@ This document lists all major software components, dependencies, and infrastruct
 
 | Package | Version | Purpose | License |
 |---------|---------|---------|---------|
-| @vitejs/plugin-react | ^6.1.0 | Vite React plugin | MIT |
+| @vitejs/plugin-react | ^6.1.1 | Vite React plugin | MIT |
 | eslint | ^10.10.0 | JavaScript linter | MIT |
 | eslint-plugin-react-hooks | ^7.1.1 | React hooks linting rules | MIT |
 | eslint-plugin-react-refresh | ^0.5.6 | React refresh linting | MIT |
