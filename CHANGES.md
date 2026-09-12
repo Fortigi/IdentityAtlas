@@ -1,5 +1,74 @@
 ## Changes in this PR
 
+- Matrix: **"Show business roles as foldable rows"** in the wizard's Resources step turns the whole business-role row view on for a matrix. It is off by default, and it is saved with the matrix, so a shared or saved matrix looks the same for everyone who opens it. Without it the matrix is unchanged from before.
+- Matrix: with the option on, each business role gets a row of its own and the resources it grants are drawn underneath it — indented, with the same triangle and elbow that expanding a nested group already used — and the role sits directly above them in the row order.
+- Matrix: a business role row can be folded to hide the resources it grants, leaving just the role plus an "N resources folded" chip — click the chevron again to bring them back. New "Fold roles" / "Unfold roles" toolbar buttons do it for every role at once, reducing the grid to business roles plus the resources no role grants.
+- Matrix: business roles arrive expanded, and your fold choices are remembered per matrix so they are still there when you come back to the same slice.
+- Matrix: a resource that more than one business role grants is shown under every one of those roles, and each of its rows carries a short "BR" / "BR+3" chip that counts and names the others — hover it for the names, click it to open the role. Folding a role takes away only its own rows.
+- Matrix: a business role's own row shows the "D" badge in its own column and its cells are coloured as governed, like any other access a business role hands out. Business-role memberships count as governed in the scope statistics, and the governed trend line counts them too — historical points read higher than before because they were understating governance, not because anything changed in your data.
+- Matrix: a folded business role shows, per subject, a red count of the folded resources that subject holds outside the role and an amber count of the resources the role assigns that the subject does not have — so folding shows both when someone has more than the role hands out and when they have less, and a subject can carry both at once.
+- Matrix: on the row of a resource a business role hands out, someone who holds it without that role is marked with a red count on their cell — the same finding the folded role shows, so unfolding a role never makes it disappear. The marker is not shown when a business role outside the current matrix slice already accounts for the access, and its tooltip says whether the subject holds a granting role. Hover it for the roles that grant the resource; the "How to read this matrix" legend explains every marker.
+- Matrix: a cell is marked when someone holds a permanent membership on a resource their business role only makes them eligible for — more access than the role assigns.
+- Matrix: cell markers now sit in a strip along the top of their own cell, so they no longer overlap each other, the D/I/E badge, or the labels of the cells around them.
+- Matrix Excel export: with business-role rows on, the exported file matches the grid — a resource appears under each business role that grants it. Folding only tidies the screen: the export always contains every resource, so a folded role can never leave access out of an export used for review.
+- Matrix: the "How to read this matrix" legend now lists only the markers the matrix you are looking at can actually draw.
+- Matrix: the grid can now be resized — drag the grip under it (or use the arrow keys) to give it more or less of the window, and it stays that height until you pick "Fit to window". Works in every matrix orientation.
+- Matrix scope statistics: each headline number is now announced together with the metric it belongs to (e.g. "Resources, 39") by screen readers.
+- Demo data: added a service desk business role whose holders show the full picture — one person short of what the role assigns, one both short on one group and over-provisioned on another, one holding a group of the role without holding the role, and two holding exactly what the role assigns. An IT operations role shares a group and an application role with it, so the "same resource in two roles" case is visible too.
+- Demo data: the engineering business role now actually hands its holders the VPN group it grants, so they no longer show up as provisioning gaps on a group their role does give them. The two system administrators keep that group directly, without the role — the example of access no business role accounts for.
+- Business roles and access packages no longer appear as rows in the matrix. They are governance intent and are already shown as the business-role columns, so the same role no longer shows up on both axes at once.
+- Added a **Show business roles as foldable rows** option to the matrix wizard's resource step for the cases where you do want them on the rows. It is off by default and is saved with the matrix, so everyone opening a shared or saved matrix sees the same rows.
+- Scoping a matrix to `resourceType = BusinessRole` still puts business roles on the rows without needing the option — a matrix of which access packages people hold remains buildable.
+- The wizard's resource and assignment counts, the scope panel and the scope timeline now count exactly the rows the matrix renders, instead of counting business roles that never appear.
+- Expanding a group row into its nested resources no longer reveals business roles either.
+- Owner rows are unchanged: ownership is still shown as its own row, because it is the only place the matrix shows who controls a group.
+- The "Business roles only" roll-up is unchanged — business roles are the rows there by design.
+
+## Changes in this PR
+
+- Linked Accounts on the identity detail page is now a table with System | Account | Enabled | Type columns, so you can see at a glance which source system each account came from and whether it is still enabled — without opening every account.
+- The Enabled column reflects the account's current state from the last crawl, falling back to the state recorded when the account was linked only when the account itself is no longer present.
+- Confirm / Remove / Undo, the correlation confidence bar, override badges and the "Linked from source" note are unchanged and stay on every row.
+
+## Changes in this PR
+
+- Fixed the AI issue-review silently doing nothing when it could not reach a model: a review that fails on every model now ends in a visibly failed run naming the likely cause, instead of a green run that leaves the issue parked in its entry column as if someone had been asked a question.
+- Fixed an AI review that finishes without choosing a route being reported as success — it now fails, so the issue is not left looking as though it is waiting on a person.
+- AI review comments now carry an invisible marker, so the pipeline health sweep can tell an agent comment from a human reply regardless of which account posted it.
+- The hourly pipeline health sweep now re-starts the AI review on issues it finds stranded, instead of only reporting them. An issue that was never reviewed, or whose review died partway, is picked up again automatically rather than waiting for someone to notice the health report.
+- The sweep now also re-starts the review when the requestor has already answered and nothing came back, so an answer can no longer go unread indefinitely.
+- Re-starts are budgeted: at most three attempts per issue and three issues per sweep. An issue that burns its budget is reported as needing a person, and the cap stops a large backlog from being re-driven all at once.
+- "Awaiting requestor" and "Awaiting design" no longer imply that somebody was actually asked something — the sweep now reads the thread before treating an issue as waiting on a human, and stays quiet when it cannot tell.
+
+## Changes in this PR
+
+- Upgraded the test runner (Vitest) and its coverage reporter to 5.0 across both the API and the UI, keeping the matched pair in lockstep.
+- Fixed the automated dependency updater so the test runner and its coverage reporter are always proposed together — previously they were offered as separate updates that could never be installed side by side, leaving their update requests permanently stuck.
+- Added tests for the matrix legend's "How to read this matrix" panel, covering the collapse/expand toggle and that the open/closed choice is remembered between visits — including browsers that block local storage, where the legend now stays readable instead of failing.
+
+## Changes in this PR
+
+- Added `docs/architecture/decision-principles.md` — a ratified, testable checklist for the "does this fit the existing architecture" judgment call, with confidence ratings and cited example issues, to help the Definition-of-Ready pipeline resolve more `awaiting-design`/`decompose` issues without a human round-trip.
+- Added `docs/architecture/architecture-guidance-review-2026-09.md`, a read-only audit of the current architecture documentation and backlog: contradictions found between docs (and between docs and precedent), an impact estimate, and backlog restructuring proposals (merges, epics, cross-item contradictions).
+- Flagged `docs/risk-scoring/plugin-architecture.md` as a speculative, unreconciled alternative to the in-tree risk-scoring plugin proposal, with a status banner pointing to the real one.
+- Sharpened the Definition of Ready's "Architect / tech lead" gate criteria and added a pointer from `CLAUDE.md`'s Coding Principles to the new decision-principles checklist.
+- Fixed the documentation link checker reporting false broken cross-links for markdown that only appears inside a fenced code block — a design doc quoting a snippet of another file no longer fails CI.
+- Documented the new epic layer above the feature backlog: how epics, sub-epics and decision issues are wired, which board and fields carry them, and the conventions that keep them out of the Definition-of-Ready pipeline.
+- Added an autonomy roadmap that measures the current process against the Fortigi implementation approach, records four deliberate deviations, and sets out the phased plan towards more autonomous feature delivery.
+- Added a session log recording what changed when the epic layer was introduced, including the corrections made along the way and the process lessons worth keeping.
+- Recorded the review finding that the 22 groupings are not one kind of thing (13 goals, 9 features with slices) and that the epic status field mixed a parent-level property with a roll-up of its children, together with the agreed fix: add issue types rather than re-parent anything.
+- Corrected the Key Result Review record: the cadence was agreed (monthly, all Key Results at once) but the roadmap still described it as undecided in four places.
+
+## Changes in this PR
+
+- Added `docs/architecture/decision-principles.md` — a ratified, testable checklist for the "does this fit the existing architecture" judgment call, with confidence ratings and cited example issues, to help the Definition-of-Ready pipeline resolve more `awaiting-design`/`decompose` issues without a human round-trip.
+- Added `docs/architecture/architecture-guidance-review-2026-09.md`, a read-only audit of the current architecture documentation and backlog: contradictions found between docs (and between docs and precedent), an impact estimate, and backlog restructuring proposals (merges, epics, cross-item contradictions).
+- Flagged `docs/risk-scoring/plugin-architecture.md` as a speculative, unreconciled alternative to the in-tree risk-scoring plugin proposal, with a status banner pointing to the real one.
+- Sharpened the Definition of Ready's "Architect / tech lead" gate criteria and added a pointer from `CLAUDE.md`'s Coding Principles to the new decision-principles checklist.
+- Fixed the documentation link checker reporting false broken cross-links for markdown that only appears inside a fenced code block — a design doc quoting a snippet of another file no longer fails CI.
+
+## Changes in this PR
+
 - Updated bundled third-party dependencies to pick up security fixes for newly published high-severity advisories in `browserslist` (unbounded memory growth, untrusted-stats crash) and `fast-uri` (host confusion and server-side request forgery), plus moderate fixes in `qs` and `@humanfs/node`.
 
 ## Changes in this PR

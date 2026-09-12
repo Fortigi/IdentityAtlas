@@ -33,16 +33,22 @@ const detail = {
     {
       principalId: 'p-1',
       displayName: 'dana@corp.com',
-      systemName: 'EntraID',
+      systemId: 1,
+      systemDisplayName: 'Entra ID',
+      accountType: 'Regular',
+      userAccountEnabled: true,
       isHrAuthoritative: true,
       jobTitle: 'Staff Engineer',
-      confidence: 0.95,
+      linkConfidence: 95,
     },
     {
       principalId: 'p-2',
       displayName: 'ddoe@legacy',
-      systemName: 'CSV',
-      confidence: 0.6,
+      systemId: 2,
+      systemDisplayName: 'HR CSV',
+      accountType: 'Regular',
+      userAccountEnabled: false,
+      linkConfidence: 60,
     },
   ],
   aggregateAssignments: {},
@@ -114,6 +120,12 @@ describe('IdentityDetailPage (mounted)', () => {
 
     expect(await screen.findByText('dana@corp.com')).toBeInTheDocument();
     expect(screen.getByText('ddoe@legacy')).toBeInTheDocument();
+    // Each account is shown with its source system and enabled state.
+    expect(screen.getAllByRole('columnheader').map(th => th.textContent))
+      .toEqual(['System', 'Account', 'Enabled', 'Type', 'Actions']);
+    const row = screen.getByRole('button', { name: 'ddoe@legacy' }).closest('tr');
+    expect(row).toHaveTextContent('HR CSV');
+    expect(row).toHaveTextContent('No');
   });
 
   it('switches to the Timeline tab and triggers the timeline fetch', async () => {

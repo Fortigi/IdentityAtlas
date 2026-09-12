@@ -66,6 +66,14 @@ An **identity holds no access of its own — its accounts do.** So the identity'
 
 The access categories — Groups (Direct), Governed, Owned, Eligible, OAuth2 Grants — do **not** hang off the identity. You reach them by drilling into a **linked account**: clicking an account under Linked Accounts fans out *that account's* own relationship categories via the normal user graph. When the identity-level assignment endpoints are used (`/api/identities/:id/assignments?type=…`), each item is annotated with the account it came through ("via &lt;account&gt;") so a roll-up across accounts still shows provenance.
 
+##### The Linked Accounts table
+
+Alongside the graph, the Relationships tab lists the identity's accounts in a table with the columns **System | Account | Enabled | Type**, plus an unlabelled trailing column holding the link-management controls (correlation confidence bar, analyst-override badge, Confirm / Remove / Undo, or "Linked from source" for crawler-owned links).
+
+- **System** is the account's source system, resolved at query time by joining `Principals."systemId"` to `Systems."displayName"` — it is not snapshotted onto `IdentityMembers`.
+- **Enabled** shows the **live** account state (`Principals."accountEnabled"`, refreshed each crawl), falling back to the link-time snapshot on `IdentityMembers."accountEnabled"` only when the Principal row is gone. The snapshot goes stale between linking runs, and a stale-access review has to see current state.
+- Any column with no value renders an em dash — including System for HR/CSV members that have no matching Principal row.
+
 ### Recent-change nodes
 
 If the entity's `/recent-changes` endpoint returns non-zero counts, two pseudo-categories are prepended to the root ring:

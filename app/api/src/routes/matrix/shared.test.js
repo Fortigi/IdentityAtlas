@@ -54,6 +54,15 @@ describe('parseFilter', () => {
   it('rejects an unknown rowType back to principal', () => {
     expect(parseFilter({ filter: { rowType: 'banana' } }).rowType).toBe('principal');
   });
+
+  it('defaults includeBusinessRoles off and accepts only a real boolean true', () => {
+    expect(parseFilter({ filter: {} }).includeBusinessRoles).toBe(false);
+    expect(parseFilter({ filter: { includeBusinessRoles: true } }).includeBusinessRoles).toBe(true);
+    // A saved matrix round-trips through JSONB; a stringy leftover must not
+    // silently switch a shared matrix to showing business-role rows.
+    expect(parseFilter({ filter: { includeBusinessRoles: 'true' } }).includeBusinessRoles).toBe(false);
+    expect(parseFilter({ filter: { includeBusinessRoles: 1 } }).includeBusinessRoles).toBe(false);
+  });
 });
 
 describe('normaliseBlock', () => {
@@ -112,6 +121,59 @@ describe('buildSubqueries', () => {
     expect(built.warnings).toEqual(['w', 'w']);
   });
 
+  // ── Default row visibility (#937) ──────────────────────────────────
+  // buildSubqueries is the single choke point: every matrix mode embeds the
+  // resource fragment it returns, so what is asserted here is what the flat
+  // grid, the roll-ups, the context zoom, the fold, the counts and the
+  // nested-group expansion all get.
+  const resourceCalls = () => buildEntity.mock.calls.map(([a]) => a).filter(a => a.entity === 'Resource');
+  const VISIBLE = `("resourceType" IS NULL OR "resourceType" NOT IN ('BusinessRole'))`;
+
+  it('pushes the row-visibility clause into the resource fragment by default', async () => {
+    const built = await buildSubqueries(parseFilter({ filter: {} }));
+    const { bind } = createParams();
+    built.resource(bind);
+    // The rendering closure — not just the throwaway probe — must carry it.
+    expect(resourceCalls().at(-1).extraClauses).toEqual([VISIBLE]);
+    expect(built.hidesDefaultResourceTypes).toBe(true);
+    expect(built.resourceTotalWhere).toBe(` WHERE ${VISIBLE}`);
+  });
+
+  it('drops the clause when the matrix opts business roles back in', async () => {
+    const built = await buildSubqueries(parseFilter({ filter: { includeBusinessRoles: true } }));
+    const { bind } = createParams();
+    built.resource(bind);
+    expect(resourceCalls().at(-1).extraClauses).toEqual([]);
+    expect(built.hidesDefaultResourceTypes).toBe(false);
+    // …and the unscoped total stops excluding them too, so "X of Y resources"
+    // counts exactly the rows that can render.
+    expect(built.resourceTotalWhere).toBe('');
+  });
+
+  it('drops the clause when the resource scope explicitly targets business roles', async () => {
+    const built = await buildSubqueries(parseFilter({ filter: { resource: {
+      include: [{ kind: 'attribute', field: 'resourceType', values: ['BusinessRole'] }],
+    } } }));
+    expect(built.hidesDefaultResourceTypes).toBe(false);
+    const { bind } = createParams();
+    built.resource(bind);
+    expect(resourceCalls().at(-1).extraClauses).toEqual([]);
+  });
+
+  it('keeps hasResource meaning "the analyst scoped resources", not "a clause was added"', async () => {
+    // inheritedAccess only folds inherited rows for a bounded resource scope;
+    // if the policy clause counted as a scope, an unscoped matrix would start
+    // running the effective-access engine over every resource.
+    const built = await buildSubqueries(parseFilter({ filter: {} }));
+    expect(built.hasResource).toBe(false);
+    // The probe call that decides the flag renders without the clause…
+    const probe = resourceCalls().at(-1);
+    expect(probe.extraClauses).toBeUndefined();
+    // …and the fragment the queries actually embed is still non-null.
+    buildEntity.mockReturnValue({ sql: '(SELECT id FROM "Resources" WHERE …)', warnings: [] });
+    expect(built.resource(createParams().bind).sql).not.toBeNull();
+  });
+
   it('routes identity rowType to the Identity subject entity', async () => {
     await buildSubqueries(parseFilter({ filter: { rowType: 'identity' } }));
     const entities = buildEntity.mock.calls.map(([arg]) => arg.entity);
@@ -147,6 +209,23 @@ describe('scopeCounts', () => {
     // The resource-count query has no IN clause when the resource fragment is null.
     const resourceCountSql = timedQ.mock.calls.find(c => c[1] === 'matrix-data-resource-count')[3];
     expect(resourceCountSql).not.toContain('WHERE id IN');
+  });
+
+  const totalSql = () => timedQ.mock.calls.find(c => c[1] === 'matrix-data-resource-total')[3];
+
+  it('applies the row-visibility predicate to the unscoped resource total', async () => {
+    timedQ.mockResolvedValue({ rows: [{ c: 4 }] });
+    await scopeCounts({}, {}, 'principal', await buildSubqueries(parseFilter({ filter: {} })));
+    // "X of Y resources" must never count rows the matrix cannot render.
+    expect(totalSql()).toBe(
+      `SELECT COUNT(*)::int AS c FROM "Resources" WHERE ("resourceType" IS NULL OR "resourceType" NOT IN ('BusinessRole'))`);
+  });
+
+  it('counts every resource in the total once business roles are shown', async () => {
+    timedQ.mockResolvedValue({ rows: [{ c: 4 }] });
+    await scopeCounts({}, {}, 'principal',
+      await buildSubqueries(parseFilter({ filter: { includeBusinessRoles: true } })));
+    expect(totalSql()).toBe('SELECT COUNT(*)::int AS c FROM "Resources"');
   });
 });
 

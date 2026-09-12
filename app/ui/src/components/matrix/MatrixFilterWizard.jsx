@@ -420,22 +420,26 @@ export default function MatrixFilterWizard({
             onRemove={(side, idx) => removeCondition('resource', side, idx)}
             onUpdate={(side, idx, patch) => updateCondition('resource', side, idx, patch)}
           />
-          <label className="mt-5 flex items-start gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
-            <input
-              type="checkbox"
-              className="mt-0.5 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500"
-              checked={!!filter.includeInheritedAccess}
-              onChange={(e) => setFilter(prev => ({ ...prev, includeInheritedAccess: e.target.checked }))}
-            />
-            <span>
-              Include inherited access
-              <span className="block text-xs text-gray-500 dark:text-gray-400">
-                Also show access inherited from higher scopes — e.g. Owner on a subscription appears as
-                an <strong>Indirect</strong> grant on every resource beneath it. Computed on demand, so
-                it's slower; only meaningful once you've scoped to a set of resources above.
-              </span>
-            </span>
-          </label>
+          <ResourceToggle
+            label="Show business roles as foldable rows"
+            checked={!!filter.includeBusinessRoles}
+            onChange={(v) => setFilter(prev => ({ ...prev, includeBusinessRoles: v }))}
+          >
+            Business roles and access packages are governance intent, not actual access — they already
+            appear as the business-role columns, so they are left off the rows by default. Tick this to
+            put each role on a row of its own, with the resources it grants drawn underneath it and
+            foldable into it — plus the markers that say where a subject holds more or less than the
+            role assigns.
+          </ResourceToggle>
+          <ResourceToggle
+            label="Include inherited access"
+            checked={!!filter.includeInheritedAccess}
+            onChange={(v) => setFilter(prev => ({ ...prev, includeInheritedAccess: v }))}
+          >
+            Also show access inherited from higher scopes — e.g. Owner on a subscription appears as
+            an <strong>Indirect</strong> grant on every resource beneath it. Computed on demand, so
+            it's slower; only meaningful once you've scoped to a set of resources above.
+          </ResourceToggle>
         </>
       )}
       {activeStep === 'sort' && (
@@ -950,6 +954,26 @@ function Step3Resource({ resource, contextMeta, columns, onContextResolved, onAd
         emptyHint="No exclude filters."
       />
     </div>
+  );
+}
+
+// One opt-in checkbox below the resource conditions (row visibility, inherited
+// access): a real <label> so the box is reachable by its accessible name, with
+// the explanation as help text under it.
+function ResourceToggle({ label, checked, onChange, children }) {
+  return (
+    <label className="mt-5 flex items-start gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
+      <input
+        type="checkbox"
+        className="mt-0.5 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+      />
+      <span>
+        {label}
+        <span className="block text-xs text-gray-500 dark:text-gray-400">{children}</span>
+      </span>
+    </label>
   );
 }
 

@@ -21,6 +21,8 @@ import base from './vitest.config.js';
 //   src/routes/matrix/shared.js    -> filterSql   (and via it src/routes/permissions/)
 //   src/routes/matrix/savedFilters.js, src/routes/matrix.js -> filterSql, inheritedAccess
 //   src/routes/resources.js        -> resourceContexts
+//   src/routes/matrix/shared.js, src/routes/resources/list.js, src/matrix/scopeHistory.js
+//                                  -> lib/resourceVisibility
 //
 // src/db/matrixHelpers.test.js is deliberately NOT here: matrixHelpers.js imports none of
 // the eight, so its tests can kill nothing and would only add runtime.
@@ -33,10 +35,12 @@ export default defineConfig({
   test: {
     ...base.test,
     include: [
+      'src/lib/resourceVisibility.test.js',
       'src/matrix/**/*.test.js',
       'src/routes/matrix/**/*.test.js',
       'src/routes/matrix.*.test.js',
       'src/routes/resources.test.js',
+      'src/routes/resources/**/*.test.js',
       'src/routes/permissions/**/*.test.js',
     ],
     exclude: ['**/node_modules/**'],

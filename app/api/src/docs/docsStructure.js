@@ -81,12 +81,32 @@ export function danglingNavEntries() {
 const LINK_RE = /\[[^\]]*\]\(([^)\s]+)\)/g;
 const EXTERNAL_RE = /^[a-z][a-z0-9+.-]*:/i;
 
+/**
+ * A page's prose, with fenced code blocks blanked out.
+ *
+ * Markdown inside a fence is sample text, not a link — a design doc that quotes
+ * the CLAUDE.md line it proposes shows a target written relative to the repo
+ * root, which is nonsense relative to the page holding the fence. Scanning it
+ * as a real link reported a broken cross-link no reader can click. Fenced lines
+ * are blanked rather than dropped so line numbers still line up.
+ */
+export function prose(body) {
+  let inFence = false;
+  return body
+    .split('\n')
+    .map(line => {
+      if (/^\s*(```|~~~)/.test(line)) { inFence = !inFence; return ''; }
+      return inFence ? '' : line;
+    })
+    .join('\n');
+}
+
 /** Relative markdown links inside docs/ that do not resolve to a real page. */
 export function brokenLinks() {
   const onDisk = new Set(listPages());
   const broken = [];
   for (const page of listPages()) {
-    const body = readFileSync(join(DOCS_ROOT, page), 'utf8');
+    const body = prose(readFileSync(join(DOCS_ROOT, page), 'utf8'));
     for (const [, raw] of body.matchAll(LINK_RE)) {
       const target = raw.split('#')[0];
       if (!target.endsWith('.md')) continue;
@@ -131,7 +151,7 @@ export function brokenAnchors() {
   const inPath = new Set(learningPathPages());
   const broken = [];
   for (const page of inPath) {
-    const body = readFileSync(join(DOCS_ROOT, page), 'utf8');
+    const body = prose(readFileSync(join(DOCS_ROOT, page), 'utf8'));
     for (const [, raw] of body.matchAll(LINK_RE)) {
       const link = anchorLinkTarget(page, raw, inPath);
       if (link && !anchorsFor(link.page).has(link.anchor)) broken.push({ page, target: raw });
