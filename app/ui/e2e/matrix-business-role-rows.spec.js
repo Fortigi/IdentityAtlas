@@ -6,7 +6,7 @@
 // itself, so before this change the same role appeared twice in one matrix:
 // as a governance (SOLL) column AND as an ordinary resource row. Business
 // roles are now off the resource axis by default, with a matrix-level opt-in
-// ("Show business roles as rows" on the wizard's Resources step) for the
+// ("Show business roles as foldable rows" on the wizard's Resources step) for the
 // deliberate "which access packages do people hold" matrix.
 //
 // Run against the live, demo-data-loaded app. Everything is read from the
@@ -114,7 +114,7 @@ test.describe('#937 — business roles are not matrix rows', () => {
     await next.click();
     await next.click();
 
-    const checkbox = page.getByRole('checkbox', { name: /Show business roles as rows/i });
+    const checkbox = page.getByRole('checkbox', { name: /Show business roles as foldable rows/i });
     await expect(checkbox).toBeVisible();
     await expect(checkbox).not.toBeChecked();
 
@@ -133,5 +133,32 @@ test.describe('#937 — business roles are not matrix rows', () => {
     await checkbox.check();
     await expect(checkbox).toBeChecked();
     await expect.poll(readCount, { timeout: 30000 }).toBeGreaterThan(before);
+  });
+
+  // The other half of the opt-in (#370): the fold layer arrives WITH the rows
+  // and only with them. A default matrix must carry none of it — no fold
+  // buttons, no chips, no markers that only a role row can produce. The
+  // opted-in grid is exercised in full by matrix.spec.js.
+  test('the default grid carries no business-role fold layer at all', async ({ page }) => {
+    const role = await aBusinessRole();
+    test.skip(!role, 'no business roles in this deployment');
+
+    const filter = { rowType: 'principal', orientation: 'rows-as-resources', ...EMPTY_SCOPE };
+    await page.goto(`${BASE}/#matrix?filter=` + encodeURIComponent(JSON.stringify(filter)));
+    await page.waitForLoadState('networkidle');
+    await expect(page.locator('table').first()).toBeVisible({ timeout: 60000 });
+    await page.waitForTimeout(1000); // let the virtualiser settle
+
+    await expect(page.getByRole('button', { name: 'Fold roles', exact: true })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Fold business role resources' })).toHaveCount(0);
+    await expect(page.locator('button[title^="Also granted by business role:"]')).toHaveCount(0);
+    await expect(page.locator('tbody td[title*="Granted by business role:"]')).toHaveCount(0);
+    await expect(page.locator('tbody span[title*="More than the business role assigns"]')).toHaveCount(0);
+    await expect(page.locator('tbody span[title*="Held outside business-role governance"]')).toHaveCount(0);
+
+    // Not vacuous: the grid itself rendered, and the legend still explains the
+    // markers a default matrix CAN draw.
+    await expect(page.locator('tbody tr').first()).toBeVisible();
+    await expect(page.getByText('Provisioning gap')).toBeVisible();
   });
 });

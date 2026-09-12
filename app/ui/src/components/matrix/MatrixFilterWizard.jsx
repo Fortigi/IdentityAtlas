@@ -421,13 +421,15 @@ export default function MatrixFilterWizard({
             onUpdate={(side, idx, patch) => updateCondition('resource', side, idx, patch)}
           />
           <ResourceToggle
-            label="Show business roles as rows"
+            label="Show business roles as foldable rows"
             checked={!!filter.includeBusinessRoles}
             onChange={(v) => setFilter(prev => ({ ...prev, includeBusinessRoles: v }))}
           >
             Business roles and access packages are governance intent, not actual access — they already
             appear as the business-role columns, so they are left off the rows by default. Tick this to
-            list them as resource rows too.
+            put each role on a row of its own, with the resources it grants drawn underneath it and
+            foldable into it — plus the markers that say where a subject holds more or less than the
+            role assigns.
           </ResourceToggle>
           <ResourceToggle
             label="Include inherited access"

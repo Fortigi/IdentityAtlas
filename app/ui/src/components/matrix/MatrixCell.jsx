@@ -1,5 +1,7 @@
 import { memo } from 'react';
 import { TYPE_COLORS } from '@ui/utils/colors';
+import CellMarkerStrip from './CellMarkerStrip';
+import { CELL_BOX_STYLE } from './cellMarkers';
 import { describeCell } from './MatrixCell.helpers';
 
 // One membership-type swatch (D / I / E). Indirect badges become clickable when
@@ -26,25 +28,27 @@ function MembershipBadge({ type, single, cellKey, onExplainInherited }) {
   );
 }
 
-function MatrixCell({ cellKey, membershipTypes, managed, apColor, apCount, apNames, provisioningGap, gapExpected, onExplainInherited }) {
+function MatrixCell({
+  cellKey, membershipTypes, managed, apColor, apCount, apNames,
+  provisioningGap, gapExpected, overGrant = null,
+  extraAccessCount = 0, missingAccessCount = 0,
+  heldOutsideCount = 0, heldOutsideNames = null, heldOutsideHoldsRole = false,
+  onExplainInherited,
+}) {
   const hasMembership = membershipTypes && membershipTypes.size > 0;
   const single = hasMembership && membershipTypes.size === 1;
   const { title, bgColor } = describeCell({
     hasMembership, membershipTypes, managed, apColor, apNames, provisioningGap, gapExpected,
+    overGrant, extraAccessCount, missingAccessCount, heldOutsideCount, heldOutsideNames,
+    heldOutsideHoldsRole,
   });
-  const needsRelative = apCount > 1 || provisioningGap;
 
   return (
     <td
-      className="px-0 py-0 text-center border-r border-b border-gray-100 dark:border-gray-700"
-      style={{
-        backgroundColor: bgColor,
-        minWidth: '24px',
-        width: '24px',
-        height: '24px',
-        position: needsRelative ? 'relative' : undefined,
-        zIndex: needsRelative ? 1 : undefined,
-      }}
+      className="text-center border-r border-b border-gray-100 dark:border-gray-700"
+      // The marker strip owns the top of every cell, so a marker is never
+      // painted outside its own box and can never land on a neighbour's badge.
+      style={{ ...CELL_BOX_STYLE, backgroundColor: bgColor }}
       title={title}
     >
       {hasMembership && (
@@ -60,22 +64,16 @@ function MatrixCell({ cellKey, membershipTypes, managed, apColor, apCount, apNam
           ))}
         </>
       )}
-      {provisioningGap && (
-        <span
-          className="absolute top-0 left-0 flex items-center justify-center w-2.5 h-2.5 rounded-full text-[6px] font-bold leading-none bg-amber-500 text-white border border-amber-600"
-          style={{ zIndex: 2 }}
-        >
-          !
-        </span>
-      )}
-      {apCount > 1 && (
-        <span
-          className="absolute -top-1 -right-1 flex items-center justify-center w-3 h-3 rounded-full text-[7px] font-bold leading-none bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-500 shadow-sm"
-          style={{ zIndex: 1 }}
-        >
-          {apCount}
-        </span>
-      )}
+      <CellMarkerStrip
+        provisioningGap={provisioningGap}
+        overGrant={overGrant}
+        apCount={apCount}
+        extraAccessCount={extraAccessCount}
+        missingAccessCount={missingAccessCount}
+        heldOutsideCount={heldOutsideCount}
+        heldOutsideNames={heldOutsideNames}
+        heldOutsideHoldsRole={heldOutsideHoldsRole}
+      />
     </td>
   );
 }
@@ -89,6 +87,12 @@ export default memo(MatrixCell, (prev, next) => {
     prev.apNames === next.apNames &&
     prev.provisioningGap === next.provisioningGap &&
     prev.gapExpected === next.gapExpected &&
+    prev.overGrant === next.overGrant &&
+    prev.extraAccessCount === next.extraAccessCount &&
+    prev.missingAccessCount === next.missingAccessCount &&
+    prev.heldOutsideCount === next.heldOutsideCount &&
+    prev.heldOutsideNames === next.heldOutsideNames &&
+    prev.heldOutsideHoldsRole === next.heldOutsideHoldsRole &&
     prev.onExplainInherited === next.onExplainInherited
   );
 });

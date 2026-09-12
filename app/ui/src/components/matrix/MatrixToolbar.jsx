@@ -24,6 +24,10 @@ export default function MatrixToolbar({
   isFolded = false,
   onFoldAllColumns,
   onUnfoldAllColumns,
+  canFoldRoles = false,
+  hasFoldedRoles = false,
+  onFoldAllRoles,
+  onUnfoldAllRoles,
   hideGaps = false,
 }) {
   const [copied, setCopied] = useState(false);
@@ -136,6 +140,29 @@ export default function MatrixToolbar({
               title="Unfold all columns back to individual subjects"
             >
               Unfold columns
+            </button>
+          )}
+        </>
+      )}
+
+      {/* Fold the resources a business role grants into the role's own row */}
+      {canFoldRoles && (
+        <>
+          <div className="border-l border-gray-300 dark:border-gray-600 h-5 mx-1" />
+          <button
+            onClick={onFoldAllRoles}
+            className="px-2 py-1 rounded text-xs text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-700"
+            title="Fold every business role — leaves only business roles and resources no role grants"
+          >
+            Fold roles
+          </button>
+          {hasFoldedRoles && (
+            <button
+              onClick={onUnfoldAllRoles}
+              className="px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-600"
+              title="Unfold all business roles and show their resources again"
+            >
+              Unfold roles
             </button>
           )}
         </>

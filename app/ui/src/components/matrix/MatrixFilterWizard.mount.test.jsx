@@ -225,7 +225,7 @@ describe('MatrixFilterWizard (mounted)', () => {
     await user.click(screen.getByText('Next')); // subjects
     await user.click(screen.getByText('Next')); // resources
 
-    const checkbox = screen.getByRole('checkbox', { name: /Show business roles as rows/i });
+    const checkbox = screen.getByRole('checkbox', { name: /Show business roles as foldable rows/i });
     expect(checkbox).not.toBeChecked();
     await user.click(checkbox);
     expect(checkbox).toBeChecked();
@@ -242,7 +242,7 @@ describe('MatrixFilterWizard (mounted)', () => {
     const user = userEvent.setup();
     await user.click(screen.getByText('Next')); // subjects
     await user.click(screen.getByText('Next')); // resources
-    expect(screen.getByRole('checkbox', { name: /Show business roles as rows/i })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: /Show business roles as foldable rows/i })).toBeChecked();
   });
 
   it('adds an attribute condition through the AttributePicker and shows it as a chip', async () => {

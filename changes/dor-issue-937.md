@@ -1,5 +1,5 @@
 - Business roles and access packages no longer appear as rows in the matrix. They are governance intent and are already shown as the business-role columns, so the same role no longer shows up on both axes at once.
-- Added a **Show business roles as rows** option to the matrix wizard's resource step for the cases where you do want them on the rows. It is off by default and is saved with the matrix, so everyone opening a shared or saved matrix sees the same rows.
+- Added a **Show business roles as foldable rows** option to the matrix wizard's resource step for the cases where you do want them on the rows. It is off by default and is saved with the matrix, so everyone opening a shared or saved matrix sees the same rows.
 - Scoping a matrix to `resourceType = BusinessRole` still puts business roles on the rows without needing the option — a matrix of which access packages people hold remains buildable.
 - The wizard's resource and assignment counts, the scope panel and the scope timeline now count exactly the rows the matrix renders, instead of counting business roles that never appear.
 - Expanding a group row into its nested resources no longer reveals business roles either.

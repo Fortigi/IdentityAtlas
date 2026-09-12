@@ -13,9 +13,22 @@ import {
 // element MatrixView builds (exercising MatrixColumnHeaders) plus one labelled
 // row per visible resource, so the orchestrator's column/sort/grouping wiring
 // runs end to end.
+// `body.props` keeps the last props the grid body received, so tests can assert
+// on the derived structures MatrixView hands it (SOLL mapping, row marking,
+// folded-role tallies) without reimplementing the cell rendering here.
+const body = vi.hoisted(() => ({ props: null }));
+
+// Capture what the Excel exporter is handed, without pulling in ExcelJS.
+const excel = vi.hoisted(() => ({ calls: [] }));
+vi.mock('../utils/exportToExcel', () => ({
+  exportToExcel: (payload) => { excel.calls.push(payload); },
+}));
+
 vi.mock('./matrix/SortableMatrixBody', () => ({
-  default: ({ columnHeaders, orderedGroups = [] }) =>
-    h('table', null,
+  default: (props) => {
+    body.props = props;
+    const { columnHeaders, orderedGroups = [] } = props;
+    return h('table', null,
       columnHeaders,
       h('tbody', null,
         orderedGroups.map(g =>
@@ -26,7 +39,8 @@ vi.mock('./matrix/SortableMatrixBody', () => ({
           ),
         ),
       ),
-    ),
+    );
+  },
 }));
 
 // A small but realistic matrix dataset: two resources, three subjects across two
@@ -40,12 +54,59 @@ function makeData() {
   ];
 }
 
+// A matrix that contains a business role (br-1) granting one of the resource
+// rows (res-1) — the shape the business-role fold operates on. res-2 is granted
+// by no role, so it must survive every fold.
+function makeRoleData() {
+  return [
+    ...makeData(),
+    { memberId: 'u1', memberDisplayName: 'Alice Eng', department: 'Engineering', memberType: 'User', resourceId: 'br-1', resourceDisplayName: 'HR Manager Role', resourceType: 'BusinessRole', membershipType: 'Direct' },
+  ];
+}
+const roleProps = {
+  data: makeRoleData(),
+  accessPackageGroups: [
+    { accessPackageId: 'br-1', accessPackageName: 'HR Manager Role', resourceId: 'res-1', roleName: 'Member', totalAssignments: 1 },
+  ],
+  // Server-side business-role coverage: the role covers the resource it
+  // Contains AND its own membership row (migration 061).
+  managedByPackages: [
+    { resourceId: 'res-1', memberId: 'u1', accessPackageIds: ['br-1'] },
+    { resourceId: 'br-1', memberId: 'u1', accessPackageIds: ['br-1'] },
+  ],
+};
+
+// The same matrix plus Carol, who holds the role but not the resource it grants
+// — the "fewer than the role assigns" side. Its own filter, so the fold state a
+// previous test persisted (per filter) can't carry into it.
+const driftProps = {
+  ...roleProps,
+  data: [
+    ...makeRoleData(),
+    { memberId: 'u3', memberDisplayName: 'Carol Sales', department: 'Sales', memberType: 'User', resourceId: 'br-1', resourceDisplayName: 'HR Manager Role', resourceType: 'BusinessRole', membershipType: 'Direct' },
+  ],
+  managedByPackages: [
+    ...roleProps.managedByPackages,
+    { resourceId: 'res-1', memberId: 'u3', accessPackageIds: ['br-1'] },
+    { resourceId: 'br-1', memberId: 'u3', accessPackageIds: ['br-1'] },
+  ],
+};
+
+const rowLabels = () =>
+  screen.queryAllByTestId('row-label').filter(el => el.isConnected).map(el => el.textContent);
+
 const baseFilter = {
   rowType: 'user',
   subject: { include: [], exclude: [] },
   resource: { include: [], exclude: [] },
   sortAttributes: [{ attribute: 'department', dir: 'asc' }],
 };
+
+// A matrix that opted into business roles on its rows — the wizard's "Show
+// business roles as foldable rows". Everything below about folding, the role's
+// children and the folded tallies needs it; without it the server sends no
+// business-role rows and there is nothing to fold.
+const roleFilter = { ...baseFilter, includeBusinessRoles: true };
 
 const counts = {
   subjectCount: 3, subjectTotal: 10, resourceCount: 2, resourceTotal: 5,
@@ -230,6 +291,163 @@ describe('MatrixView (mounted)', () => {
         }),
       ),
     );
+  });
+
+  // The default matrix is the one that was there before: no business-role rows,
+  // and therefore no fold layer at all. This is the promise the opt-in makes —
+  // a matrix that did not ask for business roles is not reshaped by the feature.
+  describe('without the business-role opt-in (the default matrix)', () => {
+    it('offers no fold controls and leaves the rows as they are', async () => {
+      // Same data, same coverage — only the flag differs. The rows arrive
+      // unchanged: no role parent, no injected copies, no toolbar buttons.
+      renderView({ ...roleProps, filter: baseFilter });
+      await expectRowVisible('Finance App');
+      expect(screen.queryByText('Fold roles')).toBeNull();
+      expect(screen.queryByText('Unfold roles')).toBeNull();
+      const rows = new Map(body.props.orderedGroups.map(g => [g.displayName, g]));
+      expect(rows.get('Finance App').roleParentId).toBeUndefined();
+      expect(body.props.roleExtraCounts).toBeNull();
+      expect(body.props.roleMissingCounts).toBeNull();
+      expect(body.props.foldableRoles.size).toBe(0);
+    });
+
+    it('exports the plain row order, not the under-role layout', async () => {
+      excel.calls.length = 0;
+      renderView({ ...roleProps, filter: baseFilter });
+      await expectRowVisible('Finance App');
+      await userEvent.setup().click(await screen.findByText('Export Excel'));
+      await waitFor(() => expect(excel.calls.length).toBe(1));
+      const exported = excel.calls[0].orderedGroups.map(g => g.displayName);
+      // Every row exactly once, and none of them filed under a role.
+      expect(exported.filter(n => n === 'Finance App')).toHaveLength(1);
+      expect(excel.calls[0].orderedGroups.every(g => !g.roleParentId)).toBe(true);
+    });
+  });
+
+  it('folds a business role\'s resources away and back from the toolbar', async () => {
+    renderView({ ...roleProps, filter: roleFilter });
+    const user = userEvent.setup();
+    await expectRowVisible('HR Manager Role');
+    await expectRowVisible('Finance App');
+
+    await user.click(await screen.findByText('Fold roles'));
+    // Only the role row and the resource no role grants remain.
+    await waitFor(() => expect(rowLabels()).not.toContain('Finance App'));
+    expect(rowLabels()).toContain('HR Manager Role');
+    expect(rowLabels()).toContain('HR Portal');
+
+    await user.click(await screen.findByText('Unfold roles'));
+    await expectRowVisible('Finance App');
+  });
+
+  it('promotes the business-role row directly above the resources it grants', async () => {
+    renderView({ ...roleProps, filter: roleFilter });
+    await expectRowVisible('HR Manager Role');
+    const labels = rowLabels();
+    expect(labels.indexOf('HR Manager Role')).toBe(labels.indexOf('Finance App') - 1);
+  });
+
+  it('grants a business role its own SOLL cell, so its column is not blank on its own row', async () => {
+    renderView({ ...roleProps, filter: roleFilter });
+    await expectRowVisible('HR Manager Role');
+    // Holding the role IS the assignment; the diagonal cell renders it as a
+    // Member (D) grant in the role's own column.
+    expect(body.props.apGroupMap.get('BR-1|br-1')).toBe('Member');
+    expect(body.props.apGroupMap.get('RES-1|br-1')).toBe('Member');
+  });
+
+  it('keeps a business role\'s column when only its own row is on screen', async () => {
+    renderView({
+      ...roleProps,
+      filter: roleFilter,
+      // The role grants a resource that is outside this matrix slice.
+      accessPackageGroups: [
+        { accessPackageId: 'br-1', accessPackageName: 'HR Manager Role', resourceId: 'res-99', roleName: 'Member', totalAssignments: 1 },
+      ],
+      managedByPackages: [{ resourceId: 'br-1', memberId: 'u1', accessPackageIds: ['br-1'] }],
+    });
+    await expectRowVisible('HR Manager Role');
+    expect(body.props.accessPackages.map(ap => ap.id)).toEqual(['br-1']);
+    expect(body.props.apGroupMap.get('BR-1|br-1')).toBe('Member');
+  });
+
+  it('shows the resources a role grants as that role\'s children', async () => {
+    renderView({ ...roleProps, filter: roleFilter });
+    await expectRowVisible('Finance App');
+    const rows = new Map(body.props.orderedGroups.map(g => [g.displayName, g]));
+    expect(rows.get('Finance App').roleParentId).toBe('BR-1');
+    // A resource no role grants stays a plain top-level row.
+    expect(rows.get('HR Portal').roleParentId).toBeUndefined();
+  });
+
+  it('tallies the access a folded role hides but does not grant', async () => {
+    renderView({ ...roleProps, filter: roleFilter });
+    const user = userEvent.setup();
+    await expectRowVisible('Finance App');
+    expect(body.props.roleExtraCounts).toBeNull();
+
+    await user.click(await screen.findByText('Fold roles'));
+    await waitFor(() => expect(body.props.roleExtraCounts).not.toBeNull());
+    // Alice holds Finance App through the role — covered, so not counted.
+    expect(body.props.roleExtraCounts.get('BR-1|u1')).toBeUndefined();
+    // Bob's Indirect membership on the same resource is not covered by it.
+    expect(body.props.roleExtraCounts.get('BR-1|u2')).toBe(1);
+  });
+
+  // Requestor feedback on #370: folding must summarise both directions of drift
+  // — Carol holds the role but not the resource it grants (fewer), while Bob
+  // holds that resource without the role (more).
+  it('tallies what a folded role assigns that the subject does not have', async () => {
+    renderView({ ...driftProps, filter: { ...roleFilter, sortAttributes: [{ attribute: 'jobTitle', dir: 'asc' }] } });
+    const user = userEvent.setup();
+    await expectRowVisible('Finance App');
+    expect(body.props.roleMissingCounts).toBeNull();
+
+    await user.click(await screen.findByText('Fold roles'));
+    await waitFor(() => expect(body.props.roleMissingCounts).not.toBeNull());
+    expect(body.props.roleMissingCounts.get('BR-1|u3')).toBe(1);
+    expect(body.props.roleMissingCounts.get('BR-1|u1')).toBeUndefined();
+    // ...and the opposite drift is still counted in the same folded row.
+    expect(body.props.roleExtraCounts.get('BR-1|u2')).toBe(1);
+  });
+
+  it('keeps only the rows a subject is short on in the Gaps view', async () => {
+    renderView({ ...driftProps, filter: roleFilter, managedFilter: 'gaps' });
+    // Carol holds the role but not the resource it grants — the only gap here.
+    await expectRowVisible('Finance App');
+    expect(rowLabels()).not.toContain('HR Portal');     // no role covers it
+    expect(rowLabels()).not.toContain('HR Manager Role'); // everyone holding it has it
+  });
+
+  // Main's #949 pinned "the export matches the matrix". #370 changed what the
+  // matrix shows, so the export follows the grid's row model — but never its
+  // fold state, or a folded role would silently drop resources from an
+  // access-review artifact.
+  it('exports the resources of a folded business role anyway', async () => {
+    excel.calls.length = 0;
+    // Its own filter: fold state is persisted per matrix, so this test must not
+    // inherit (or leave behind) a fold from another one.
+    renderView({ ...roleProps, filter: { ...roleFilter, sortAttributes: [{ attribute: 'email', dir: 'asc' }] } });
+    const user = userEvent.setup();
+    await expectRowVisible('Finance App');
+
+    await user.click(await screen.findByText('Fold roles'));
+    await waitFor(() => expect(rowLabels()).not.toContain('Finance App'));
+
+    await user.click(screen.getByRole('button', { name: /Export Excel/i }));
+    await waitFor(() => expect(excel.calls).toHaveLength(1));
+
+    const exported = excel.calls[0].orderedGroups.map(g => g.displayName);
+    // On screen the role's resource is folded away; in the file it is not.
+    expect(exported).toContain('HR Manager Role');
+    expect(exported).toContain('Finance App');
+  });
+
+  it('offers no fold controls in a matrix without business-role rows', async () => {
+    renderView();
+    await expectRowVisible('Finance App');
+    expect(screen.queryByText('Fold roles')).not.toBeInTheDocument();
+    expect(screen.queryByText('Unfold roles')).not.toBeInTheDocument();
   });
 
   it('threads the resourceContexts sidecar onto the matching resource rows', async () => {

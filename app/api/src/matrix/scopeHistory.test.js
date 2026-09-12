@@ -65,6 +65,54 @@ describe('buildScopeAsofSql', () => {
     expect(scopeMode).toBe('attribute');
   });
 
+  // The live scope statistics read vw_UserPermissionAssignmentViaBusinessRole,
+  // which since migration 061 has a second arm: holding a business role is
+  // itself governed access. The as-of path rebuilds that definition in SQL
+  // rather than reading the view, so it needs the same arm — without it the
+  // latest timeseries point reported a lower governed count than live
+  // scope-stats for the very same instant.
+  it('counts a governance resource membership as governed in its own right (061 parity)', () => {
+    const { sql } = build(EMPTY);
+    const coverage = sql.slice(sql.indexOf('coverage AS ('), sql.indexOf('sp AS ('));
+
+    // Arm 1 stays: coverage via the Contains relationship.
+    expect(coverage).toContain('asof_contains');
+    // Arm 2: the role's own cell, keyed on the assignment's own resource
+    // (ga.rid) rather than a Contains child.
+    expect(coverage).toMatch(/UNION/);
+    expect(coverage).toMatch(/ga\.rid AS "groupId"/);
+    // Both arms gate on the resource being a governance resource.
+    expect(coverage.match(/governanceResource/g)).toHaveLength(2);
+  });
+
+  // The reconciliation between 061 and the default row visibility: arm 2 says a
+  // business-role membership IS governed, but a matrix that does not show
+  // business roles as rows never counts that pair at all, because the role is
+  // not on the resource axis. Both statements have to hold in the SAME query —
+  // arm 2 unconditional, the resource axis filtered — or the timeline reports a
+  // governed percentage for rows the grid does not draw.
+  // Whitespace-insensitive comparison, as in the scope-condition describe below.
+  const flat = (sql) => (sql || '').replace(/\s+/g, ' ');
+
+  it('keeps the 061 arm while the resource axis still hides business roles', () => {
+    const { sql } = build(EMPTY);
+    const coverage = sql.slice(sql.indexOf('coverage AS ('), sql.indexOf('sp AS ('));
+    expect(coverage).toMatch(/ga\.rid AS "groupId"/);
+    // ...and the resource set the counts are taken over excludes them anyway.
+    expect(flat(sql)).toContain(
+      `FROM asof_resources sr WHERE (sr.state->>'resourceType' IS NULL`
+      + ` OR sr.state->>'resourceType' NOT IN ('BusinessRole')) )`);
+  });
+
+  it('counts business-role memberships once the matrix opts them onto the rows', () => {
+    const { sql } = build({ ...EMPTY, includeBusinessRoles: true });
+    const coverage = sql.slice(sql.indexOf('coverage AS ('), sql.indexOf('sp AS ('));
+    // The same arm, now over a resource axis that no longer filters them out —
+    // this is the only combination in which a role's own row is counted.
+    expect(coverage).toMatch(/ga\.rid AS "groupId"/);
+    expect(flat(sql)).toContain('FROM asof_resources sr )');
+  });
+
   it('excludes group-shaped principals from the subject count', () => {
     const { sql } = build(EMPTY);
     expect(sql).toContain('#microsoft.graph.group');

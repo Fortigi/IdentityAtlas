@@ -1,4 +1,4 @@
-import { useMemo, useState, useReducer, useCallback, useEffect, useLayoutEffect, useRef } from 'react';
+import { useMemo, useState, useReducer, useCallback, useEffect, useRef } from 'react';
 
 // useState-equivalent backed by useReducer (supports value + functional
 // updates): dispatch isn't flagged by react-hooks/set-state-in-effect, so the
@@ -7,6 +7,9 @@ const setStateReducer = (s, a) => (typeof a === 'function' ? a(s) : a);
 import { useAuth } from '@ui/auth/AuthGate';
 import { useMatrixRowOrder } from '@ui/hooks/useMatrixRowOrder';
 import { useNestedGroupExpand } from '@ui/hooks/useNestedGroupExpand';
+import { useBusinessRoleFold } from '@ui/hooks/useBusinessRoleFold';
+import useResizableGridHeight from '@ui/hooks/useResizableGridHeight';
+import GridResizeHandle from './matrix/GridResizeHandle';
 import MatrixToolbar from './matrix/MatrixToolbar';
 import MatrixLegend from './matrix/MatrixLegend';
 import MatrixFilterSummary from './matrix/MatrixFilterSummary';
@@ -19,6 +22,7 @@ import { toggleCollapsedGroups } from './matrix/foldState';
 import { buildMatrixModel } from './matrix/matrixModel';
 import { buildAccessPackages, buildApSortedGroups } from './matrix/accessPackageModel';
 import { buildDisplayGroups } from './matrix/nestedRows';
+import { buildRoleDeviationCounts, cellDeviation, NO_ROLE_DEVIATIONS } from './matrix/coverageDeviation';
 import InheritancePathModal from './matrix/InheritancePathModal';
 import { useHierarchyReset } from './matrix/useHierarchyReset';
 
@@ -385,25 +389,37 @@ export default function MatrixView({
       });
       if (groupAps.length === 0) return false;
 
+      // A row is a gap row when some subject is short of what a role covering
+      // this cell assigns — the same comparison the cell markers use, so the
+      // Gaps view and the amber "!" can never disagree.
       const groupApIdSetLower = new Set(groupAps.map(ap => ap.id.toLowerCase()));
       return users.some(user => {
         const cellKeyLower = `${realGid.toLowerCase()}|${user.id.toLowerCase()}`;
-        const userApIds = (managedApMap?.get(cellKeyLower) || []).filter(id => groupApIdSetLower.has(id));
-        if (userApIds.length === 0) return false;
-
-        const cellKey = `${group.id}|${user.id}`;
-        const cellTypes = displayMemberships.get(cellKey);
-        return userApIds.some(apId => {
-          const apObj = groupAps.find(a => a.id.toLowerCase() === apId);
-          const role = apObj ? (apGroupMap?.get(`${lookupGid}|${apObj.id.toLowerCase()}`) || 'Member') : 'Member';
-          const lower = role.toLowerCase();
-          if (lower.includes('owner')) return !cellTypes?.has('Owner');
-          if (lower.includes('eligible')) return !cellTypes?.has('Eligible');
-          return !cellTypes?.has('Direct');
-        });
+        const apIds = (managedApMap?.get(cellKeyLower) || []).filter(id => groupApIdSetLower.has(id));
+        const types = displayMemberships.get(`${group.id}|${user.id}`);
+        return cellDeviation({ types, apIds, apGroupMap, resourceKey: lookupGid }).missing.length > 0;
       });
     });
   }, [displayGroups, managedFilter, accessPackages, apGroupMap, users, managedApMap, displayMemberships]);
+
+  // ─── Business-role fold ─────────────────────────────────────────
+  // Only when the matrix asks for business roles as rows (the wizard's "Show
+  // business roles as foldable rows" option): without that, the grid holds no
+  // business-role rows at all and there is nothing to fold. Folding hides the
+  // rows of the resources a role grants, so the grid can be reduced to
+  // "business roles + resources no role covers". Applied last in the row
+  // pipeline, so it composes with the All/Governed/Non-governed/Gaps toggles
+  // and with the injected nested sub-rows.
+  const showBusinessRoles = filter?.includeBusinessRoles === true;
+  const {
+    visibleRows: foldedGroups, foldedChildRows, exportRows,
+    foldableRoles, foldedRoles, roleFoldInfo,
+    toggleRoleFold, foldAllRoles, unfoldAllRoles, canFoldRoles, hasFoldedRoles,
+  } = useBusinessRoleFold({
+    accessPackageGroups: showBusinessRoles ? accessPackageGroups : null,
+    rows: visibleGroups,
+    storageKey,
+  });
 
   // Lazy-load SortableMatrixBody (contains @dnd-kit + @tanstack/react-virtual)
   const [SortableBody, setSortableBody] = useState(null);
@@ -431,7 +447,11 @@ export default function MatrixView({
     const { exportToExcel } = await import('../utils/exportToExcel');
     exportToExcel({
       users,
-      orderedGroups,
+      // With business roles on the rows, export the layout the grid lays out —
+      // a resource appears under every role that grants it — but always
+      // unfolded, so folding stays a reading aid and can never leave access out
+      // of a file used for access review. Without them, the plain row order.
+      orderedGroups: showBusinessRoles ? exportRows : orderedGroups,
       memberships,
       managedApMap,
       apIdToIndex,
@@ -442,7 +462,7 @@ export default function MatrixView({
       shareUrl,
       sortAttributes: sortAttrs,
     });
-  }, [users, orderedGroups, memberships, managedApMap, apIdToIndex, accessPackages, apGroupMap, shareUrl, sortAttrs]);
+  }, [users, showBusinessRoles, exportRows, orderedGroups, memberships, managedApMap, apIdToIndex, accessPackages, apGroupMap, shareUrl, sortAttrs]);
 
   // Share: copy URL to clipboard
   const handleShare = useCallback(async () => {
@@ -500,6 +520,16 @@ export default function MatrixView({
     }
     return counts;
   }, [colMemberships, userToAgg, collapsedGroups]);
+
+  // Per (folded role, subject column): how the rows a role folded away deviate
+  // from what the role assigns — more than it grants (red) and fewer (amber).
+  // Folding a role otherwise hides exactly what a role-mining review is looking
+  // for, in both directions, so the folded row keeps both counts. Coverage comes
+  // from managedApMap (the server's business-role → cell mapping), never from a
+  // client-side guess at what a role ought to grant.
+  const roleDeviations = useMemo(() => buildRoleDeviationCounts({
+    foldedChildRows, users, memberships: colMemberships, managedApMap, apGroupMap, userToAgg,
+  }) || NO_ROLE_DEVIATIONS, [foldedChildRows, users, colMemberships, managedApMap, apGroupMap, userToAgg]);
 
   // Fold every top-level (first sort attribute) group into one aggregate column;
   // unfold clears all collapses. There's something to fold only when the first
@@ -567,46 +597,12 @@ export default function MatrixView({
   const scrollRef = useRef(null);
 
   const filterIsApplied = filter !== null && filter !== undefined;
-
   // Cap the grid's height to the remaining viewport so ONLY the grid scrolls,
-  // never the page too. A fixed viewport-minus-fixed-pixels max-height guesses
-  // the chrome height; the real chrome (auth banner + scope stats + "How to
-  // read") is taller, so the grid sat too low and the page got a second
-  // scrollbar. Measure the grid's real document-top instead and re-measure on
-  // any layout change (header content loads late, panels toggle).
+  // never the page too — until the analyst drags the grip below the grid to a
+  // height of their own, which then wins and is remembered.
   const rootRef = useRef(null);
-  const [gridMaxH, setGridMaxH] = useState(null);
-  useLayoutEffect(() => {
-    const measure = () => {
-      const el = scrollRef.current;
-      if (!el) return;
-      // Reserve room for the app footer (below <main>) + main's bottom padding.
-      const footer = document.querySelector('footer');
-      const below = (footer ? footer.getBoundingClientRect().height : 0) + 28;
-      // clientHeight = real layout height; document-relative top (rect.top is
-      // viewport-relative, so a scrolled page would read too small and cap the
-      // grid too tall — a self-sustaining overflow). scrollY corrects that.
-      const vh = document.documentElement.clientHeight;
-      const gridTop = el.getBoundingClientRect().top + window.scrollY;
-      // Fit the grid into the remaining viewport so ONLY the grid scrolls. Use
-      // the available space directly (so the page never gets a second
-      // scrollbar); a fixed 240px floor on a short viewport with tall chrome
-      // (e.g. gridTop ~530 on an 800px viewport leaves ~206px) overflowed the
-      // page by ~30px. A small 160px floor keeps the grid usable without
-      // re-introducing the overflow in any realistic viewport.
-      const avail = vh - gridTop - below;
-      setGridMaxH(Math.max(160, avail));
-    };
-    measure();
-    const raf = requestAnimationFrame(measure);
-    window.addEventListener('resize', measure);
-    let ro;
-    if (typeof ResizeObserver !== 'undefined') {
-      ro = new ResizeObserver(measure); // body: anything above the grid shifts it down
-      ro.observe(document.body);
-    }
-    return () => { cancelAnimationFrame(raf); window.removeEventListener('resize', measure); if (ro) ro.disconnect(); };
-  }, [filterIsApplied, users.length]);
+  const gridHeight = useResizableGridHeight(scrollRef, [filterIsApplied, users.length]);
+  const gridMaxH = gridHeight.height;
 
   return (
     <div ref={rootRef} className="flex flex-col gap-3">
@@ -635,9 +631,13 @@ export default function MatrixView({
         isFolded={collapsedGroups.size > 0}
         onFoldAllColumns={foldAllColumns}
         onUnfoldAllColumns={unfoldAllColumns}
+        canFoldRoles={canFoldRoles}
+        hasFoldedRoles={hasFoldedRoles}
+        onFoldAllRoles={foldAllRoles}
+        onUnfoldAllRoles={unfoldAllRoles}
       />
 
-      {filterIsApplied && <MatrixLegend />}
+      {filterIsApplied && <MatrixLegend showBusinessRoles={showBusinessRoles} />}
 
       {!filterIsApplied ? (
         <EmptyFilterState onAdjustFilter={onAdjustFilter} hasData={hasData} />
@@ -646,6 +646,7 @@ export default function MatrixView({
           No assignments match the current filter. Adjust the subjects or resources to widen the view.
         </div>
       ) : (
+        <>
         <div ref={scrollRef} className="relative border border-gray-200 dark:border-gray-700 rounded-lg overflow-auto" style={{ maxHeight: gridMaxH ? `${gridMaxH}px` : undefined }}>
           {refreshing && (
             <div className="absolute inset-0 bg-white/60 dark:bg-gray-900/60 z-10 flex items-center justify-center">
@@ -661,8 +662,7 @@ export default function MatrixView({
           {SortableBody ? (
             <SortableBody
               scrollRef={scrollRef}
-              orderedGroups={visibleGroups}
-              groupIds={groupIds}
+              orderedGroups={foldedGroups}
               onDragEnd={handleRowDragEnd}
               columnHeaders={columnHeaders}
               users={colUsers}
@@ -680,14 +680,21 @@ export default function MatrixView({
               expandedGroups={expandedGroups}
               onToggleExpand={toggleExpand}
               loadingNested={loadingNested}
+              showBusinessRoles={showBusinessRoles}
+              foldableRoles={foldableRoles}
+              foldedRoles={foldedRoles}
+              roleFoldInfo={roleFoldInfo}
+              roleExtraCounts={roleDeviations.extra}
+              roleMissingCounts={roleDeviations.missing}
+              onToggleRoleFold={toggleRoleFold}
             />
           ) : (
             <table className="border-collapse" style={{ tableLayout: 'fixed' }}>
               {columnHeaders}
               <tbody>
-                {visibleGroups.map(group => (
+                {foldedGroups.map(group => (
                   <MatrixGroupRow
-                    key={group.id}
+                    key={group.rowKey || group.id}
                     group={group}
                     users={colUsers}
                     totalUsers={colUsers.length}
@@ -705,12 +712,26 @@ export default function MatrixView({
                     expandedGroups={expandedGroups}
                     onToggleExpand={toggleExpand}
                     loadingNested={loadingNested}
+                    showBusinessRoles={showBusinessRoles}
+                    foldableRoles={foldableRoles}
+                    foldedRoles={foldedRoles}
+                    roleFoldInfo={roleFoldInfo}
+                    roleExtraCounts={roleDeviations.extra}
+                    roleMissingCounts={roleDeviations.missing}
+                    onToggleRoleFold={toggleRoleFold}
                   />
                 ))}
               </tbody>
             </table>
           )}
         </div>
+        <GridResizeHandle
+          isCustom={gridHeight.isCustom}
+          onStartDrag={gridHeight.startDrag}
+          onResizeBy={gridHeight.resizeBy}
+          onReset={gridHeight.reset}
+        />
+        </>
       )}
       <InheritancePathModal pathExplain={pathExplain} onClose={() => setPathExplain(null)} />
     </div>

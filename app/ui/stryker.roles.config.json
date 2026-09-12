@@ -1,0 +1,41 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "_comment": "The business-role layer of the matrix: the two modules that decide WHAT A REVIEWER IS TOLD about someone's access, and are each wrong in a way nobody can see from the screen. coverageDeviation.js compares actual access against what the business roles covering a cell assign -- get a comparison backwards and a provisioning gap reads as compliance, or a clean cell is flagged red in an access review. useBusinessRoleFold.js decides which rows exist at all: a resource is drawn under every role that grants it and folding a role takes those rows away, so an off-by-one in the adoption or fold logic silently removes access from the grid AND from the Excel export that reviews are signed off against. Run: cd app/ui && npm run test:mutation:roles. TEST INCLUDE IS WIDER THAN THE TWO MODULES' OWN TESTS -- see vitest.stryker.roles.config.js, which traces every importer; both are consumed by MatrixGroupRow / MatrixView / SortableMatrixBody as well as covered directly, and a mutant whose only killer lives in a component test would otherwise be reported as a survivor. MUTATOR SET: StringLiteral and ObjectLiteral excluded, matching stryker.hooks.config.json and the API configs. The strings here are tooltip prose (cellMarkers.js, which is excluded below for exactly that reason) rather than behaviour; the few that are behaviour -- the localStorage key prefix, the 'Eligible' role-name probe -- go unmeasured as a result, which is the accepted trade rather than an oversight. EXCLUSIONS: the five presentational/measurement files that landed with this feature are listed in mutationExclusions with their reasons. MEASURED 93.54% (333 killed, 21 survived, 2 with no coverage) across 356 mutants in 3 minutes 25 seconds -- the opposite end of the range from stryker.hooks.config.json (54.27%), and the difference is that both modules here are pure functions driven by tables of discriminating inputs rather than React state read through a mount. The 2 uncovered mutants are the '|| []' fallbacks in roleChildRows and in buildRoleLayout's children lookup; both are defensive on a branch the callers cannot reach (roleChildRows only ever runs for a block adoptRoleChildren already matched to a role, and the children lookup only for a key that is in foldableRoles because it HAS children), so they are unkillable by construction rather than by a missing test. The other 6 no-coverage mutants the first measurement reported were the same kind of fallback but WERE reachable, and are now killed by tests rather than explained away. MUTATION FLOOR 90, under the measured 93.54. `break` is a RATCHET -- raise it when the score rises, never lower it to make a red run green: a drop means a test stopped discriminating. Enforced by the weekly .github/workflows/js-mutation.yml, never on a PR.",
+  "packageManager": "npm",
+  "testRunner": "vitest",
+  "vitest": {
+    "configFile": "vitest.stryker.roles.config.js"
+  },
+  "reporters": [
+    "clear-text",
+    "json"
+  ],
+  "jsonReporter": {
+    "fileName": "reports/stryker-ui-roles.json"
+  },
+  "mutate": [
+    "src/components/matrix/coverageDeviation.js",
+    "src/hooks/useBusinessRoleFold.js"
+  ],
+  "mutationExclusions": {
+    "src/components/matrix/cellMarkers.js": "Tooltip prose and two layout constants, no branching beyond pluralisation. Its wording is asserted directly by cellMarkers/MatrixLegend tests; mutating the sentences would produce the same near-zero yield already measured on permissions.js (68 of 72 survivors on prose), and the StringLiteral mutator is off in every config here anyway.",
+    "src/components/matrix/CellMarkerStrip.jsx": "Presentational: picks which of three fixed slots a marker occupies and renders it. Every decision it makes is already made in coverageDeviation.js, which IS mutated here; what is left is markup asserted by CellMarkerStrip.mount.test.jsx.",
+    "src/components/matrix/GridResizeHandle.jsx": "Presentational drag/keyboard grip. It holds no state and computes nothing -- it forwards pointer and arrow-key events to useResizableGridHeight. Its own mount test asserts the forwarding; there is no logic under it to mutate.",
+    "src/hooks/useViewportFitHeight.js": "Pure DOM geometry: reads getBoundingClientRect, computed styles and clientHeight to work out the space left below an element. Under jsdom every one of those measurements is 0, so a mutated arithmetic operator produces the same 0 as the original and the mutants are unkillable by construction rather than by a missing test. The real behaviour is guarded by the MatrixView scrollbar test and by e2e.",
+    "src/hooks/useResizableGridHeight.js": "Same jsdom limitation as useViewportFitHeight, which it wraps: the drag path computes a height from pointer coordinates against a rect that is always zero-sized in jsdom. What can be tested without layout -- clamping, persistence, reset -- is asserted in useResizableGridHeight.test.jsx."
+  },
+  "mutator": {
+    "excludedMutations": [
+      "StringLiteral",
+      "ObjectLiteral"
+    ]
+  },
+  "thresholds": {
+    "high": 90,
+    "low": 70,
+    "break": 90
+  },
+  "concurrency": 4,
+  "timeoutMS": 60000,
+  "disableTypeChecks": false
+}

@@ -53,7 +53,7 @@ permissions:
 
 jobs:
   # ── Measure each scope, in parallel ─────────────────────────────────────────
-  # One job per Stryker config rather than one job running all four: the check
+  # One job per Stryker config rather than one job running them all: the check
   # names then say WHICH scope regressed without opening a log, and wall-clock is
   # the slowest scope instead of their sum.
   mutation:
@@ -71,8 +71,8 @@ jobs:
     # it, not to raise the number.
     timeout-minutes: 60
     strategy:
-      # A scope that lands below its floor must not cancel the other three. The
-      # point of the weekly run is a complete picture; losing three numbers to one
+      # A scope that lands below its floor must not cancel the others. The
+      # point of the weekly run is a complete picture; losing the other numbers to one
       # regression would also leave the publish job with nothing to merge.
       fail-fast: false
       matrix:
@@ -84,6 +84,7 @@ jobs:
           - { pkg: ui,  name: pilot,           label: 'UI permissions + filter' }
           - { pkg: ui,  name: hooks,           label: 'UI matrix hooks' }
           - { pkg: ui,  name: listhooks,       label: 'UI list-page hook' }
+          - { pkg: ui,  name: roles,           label: 'UI business-role layer' }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

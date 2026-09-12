@@ -3,7 +3,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { renderHook, act } from '@ui/test-utils/renderWithProviders';
 import { useMatrixRowOrder } from './useMatrixRowOrder';
 
-const VERSION = 6; // must match ROW_ORDER_VERSION in the hook
+const VERSION = 7; // must match ROW_ORDER_VERSION in the hook
 const key = (d) => `fgraph-roworder-${d || 'all'}`;
 
 // jsdom in this project runs without an origin, so window.localStorage is
