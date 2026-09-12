@@ -48,6 +48,28 @@ async function createShare(name) {
   return res.json();
 }
 
+// Fill the share form and mint the link. Both entry points — the wizard's final
+// step and the toolbar dialog — render the SAME ShareMatrixForm, so the steps to
+// drive it belong in one place; if they ever have to diverge, that is a signal the
+// two entry points have drifted apart and the divergence deserves its own test.
+//
+// Naming the people is not optional: `Create link` stays disabled until the share
+// has somebody to open it, which is asserted here on the way through.
+async function fillShareForm(page, { name, recipient }) {
+  await page.getByLabel('Name this view').fill(name);
+
+  const createLink = page.getByRole('button', { name: 'Create link' });
+  await expect(createLink).toBeDisabled();
+
+  await page.getByLabel('Share with').fill(recipient.userKey);
+  const results = page.getByRole('group', { name: 'Search results' });
+  await results.getByRole('button').first().click();
+  await expect(page.getByRole('list', { name: 'Selected people' })).toContainText(recipient.displayName);
+
+  await expect(createLink).toBeEnabled();
+  await createLink.click();
+}
+
 async function revokeShare(id) {
   await fetch(`${API}/matrix/shares/${id}/revoke`, { method: 'POST' });
 }
@@ -69,25 +91,14 @@ test.describe('Share a matrix (#1166)', () => {
     await gotoWizardStep(page, 'Share');
     await expect(page.getByText('Share this matrix (optional)')).toBeVisible();
 
-    await page.getByLabel('Name this view').fill('E2E — wizard share step');
-
     // Specific people, not an open link: no recipient, no share.
-    const createLink = page.getByRole('button', { name: 'Create link' });
-    await expect(createLink).toBeDisabled();
-
-    await page.getByLabel('Share with').fill(recipient.userKey);
-    const results = page.getByRole('group', { name: 'Search results' });
-    await results.getByRole('button').first().click();
-    await expect(page.getByRole('list', { name: 'Selected people' })).toContainText(recipient.displayName);
-
-    await expect(createLink).toBeEnabled();
-    await createLink.click();
+    await fillShareForm(page, { name: 'E2E — wizard share step', recipient });
 
     // The link is shown once, with the copy control the requestor asked for…
     await expect(page.locator('p.font-mono')).toBeVisible({ timeout: 30000 });
     const url = await page.locator('p.font-mono').innerText();
     expect(url).toContain('#shared:fgs_');
-    await expect(page.getByRole('button', { name: 'Copy link' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Copy share link' })).toBeVisible();
     await expect(page.getByRole('list', { name: 'Shared with' })).toContainText(recipient.displayName);
 
     // …and the step stays optional: Apply still commits the matrix from here.
@@ -109,20 +120,7 @@ test.describe('Share a matrix (#1166)', () => {
     await expect(shareView).toBeVisible({ timeout: 60000 });
     await shareView.click();
 
-    await page.getByLabel('Name this view').fill('E2E — analyst share');
-
-    // Naming the people is not optional: the button stays disabled until the
-    // share has somebody to open it, so assert that before picking one.
-    const createLink = page.getByRole('button', { name: 'Create link' });
-    await expect(createLink).toBeDisabled();
-
-    await page.getByLabel('Share with').fill(recipient.userKey);
-    const results = page.getByRole('group', { name: 'Search results' });
-    await results.getByRole('button').first().click();
-    await expect(page.getByRole('list', { name: 'Selected people' })).toContainText(recipient.displayName);
-
-    await expect(createLink).toBeEnabled();
-    await createLink.click();
+    await fillShareForm(page, { name: 'E2E — analyst share', recipient });
 
     // The link is shown exactly once, in full, so the sharer can copy it.
     await expect(page.getByRole('heading', { name: 'Share link created' })).toBeVisible({ timeout: 30000 });

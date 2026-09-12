@@ -18,28 +18,7 @@
     "src/components/CrawlersPage.SelectType.jsx": "Cannot be mutated: Stryker sandboxes app/ui alone, and this module resolves crawler metadata with import.meta.glob over ../../../tools/crawlers/*/CrawlerMeta.js — a path that does not exist in the sandbox. The glob would resolve to nothing there, so the dry run fails before a single mutant is evaluated (same constraint documented in vitest.stryker.config.js). It imports crawlerMetaRegistry.js, so it inherits that. Presentational besides: its one decision (offer experimental types or not) is selectableCrawlerTypes(), mutation-relevant logic that lives in the excluded module above and is covered by CrawlersPage.SelectType.test.jsx mounting the real picker.",
     "src/components/admin/ExperimentalFeaturesSection.jsx": "Cannot be mutated: Stryker sandboxes app/ui alone, and this module resolves crawler metadata with import.meta.glob over ../../../tools/crawlers/*/CrawlerMeta.js — a path that does not exist in the sandbox. The glob would resolve to nothing there, so the dry run fails before a single mutant is evaluated (same constraint documented in vitest.stryker.config.js). It imports crawlerMetaRegistry.js, so it inherits that. Mounted end-to-end in ExperimentalFeaturesSection.test.jsx (flag rendering, both toggle directions, the failure path); the flag semantics it drives are mutation-tested server-side in app/api/stryker.features.config.json.",
     "src/components/crawler/wizardFields.jsx": "Cannot be mutated: Stryker sandboxes app/ui alone, and the tests that assert this component's output are the crawler wizards' own render/e2e tests under tools/crawlers/, which is outside the sandbox — mutating it without its killers present would report false survivors, which is worse than measuring less (the same reasoning as vitest.stryker.config.js's narrow include). Presentational besides: labelled inputs, option lists, the schedule list and the Back/Next row. Its one behavioural rule — label and control stay siblings, because the e2e selects fields with `label:has-text(\"X\") + input` — is asserted by those e2e tests, not by anything mutable here.",
-    "src/components/crawler/CredentialFields.jsx": "Cannot be mutated: Stryker sandboxes app/ui alone, and the tests that assert this component's output are the crawler wizards' own render/e2e tests under tools/crawlers/, which is outside the sandbox — mutating it without its killers present would report false survivors, which is worse than measuring less (the same reasoning as vitest.stryker.config.js's narrow include). The decision it encodes — which fields each auth method needs — is mirrored by buildCredentialFields/canSubmitCredentials in @ui/utils/crawlerCredentials, and THAT is unit-tested (credentialGating.test.js in the omada and midPoint folders) and mutable. This file only renders the result."
-  },
-  "mutate": [
-    "src/auth/usePermissions.js",
-    "src/utils/matrixFilter.js",
-    "src/components/shared/sharedSnapshot.js",
-    "src/hooks/useHashPage.js",
-    "src/hooks/useFeatureToggle.js",
-    "src/components/crawler/saveCrawlerConfig.js",
-    "src/components/crawler/useCrawlerSave.js",
-    "src/components/crawler/useCredentialFields.js",
-    "src/components/crawler/useCrawlerDiscovery.js"
-  ],
-  "thresholds": {
-    "high": 90,
-    "low": 70,
-    "break": 93
-  },
-  "concurrency": 4,
-  "timeoutMS": 60000,
-  "disableTypeChecks": false,
-  "mutationExclusions": {
+    "src/components/crawler/CredentialFields.jsx": "Cannot be mutated: Stryker sandboxes app/ui alone, and the tests that assert this component's output are the crawler wizards' own render/e2e tests under tools/crawlers/, which is outside the sandbox — mutating it without its killers present would report false survivors, which is worse than measuring less (the same reasoning as vitest.stryker.config.js's narrow include). The decision it encodes — which fields each auth method needs — is mirrored by buildCredentialFields/canSubmitCredentials in @ui/utils/crawlerCredentials, and THAT is unit-tested (credentialGating.test.js in the omada and midPoint folders) and mutable. This file only renders the result.",
     "src/AppRoot.jsx": "The root route dispatcher (#1166): one branch — a '#shared:<token>' hash renders the recipient shell, anything else renders App — wrapped in a Suspense fallback. Both halves of that branch are already mutation-tested as pure functions: parseSharedRoute in App.helpers.js and useHashPage.js, which is in the mutate list above. What is left in this file is the lazy() import and the fallback markup, so its mutants would measure JSX, not the routing decision. AppRoot.mount.test.jsx asserts both branches render.",
     "src/contexts/SharedViewContext.jsx": "A createContext(false) plus the one-line useContext reader that the shared shell flips to hide analyst-only affordances (#1166). There is no decision in the file to mutate — the only meaningful mutant is the default value, and SharedViewContext.mount.test.jsx pins that (a component outside the provider must see analyst chrome) along with each consumer's opt-out.",
     "src/components/SharedMatricesPage.jsx": "The Admin overview of every share (#1166): a fetch, a table of rows, and a revoke confirmation. Its only logic is formatting — 'Never opened' versus a usage count, Active versus Revoked — which is markup-adjacent text a mutant changes without changing behaviour. SharedMatricesPage.mount.test.jsx drives the list, the empty state and the revoke round-trip; the SQL behind it is contract-tested.",
@@ -52,5 +31,24 @@
     "src/components/shared/SharedMatrixHeader.jsx": "Presentational header for the recipient's shell (#1166): the product mark, the share's name and a 'Shared matrix' label, with a Back control when a drill-down is open. No data and no decision — the back affordance's behaviour is asserted from the page in SharedMatrixPage.mount.test.jsx.",
     "src/components/shared/SharedMatrixRow.jsx": "One row of the Shared matrices table (#1166) — name, recipients, usage and the Revoke control, all rendered from props the page already resolved. Mutating it measures date and count formatting; what the row must SAY for a never-opened and for a revoked share is asserted in SharedMatricesPage.mount.test.jsx.",
     "src/components/shared/SharedMatrixUnavailable.jsx": "Four static messages for a share that cannot be opened — revoked, unknown, not-for-you, failed (#1166) — and a lookup into that table. The file is deliberately prose: the recipient is a business user who must never see a status code. Mutating the strings would produce survivors that say nothing, which is exactly the permissions.js lesson recorded in the API's auth config."
-  }
+  },
+  "mutate": [
+    "src/auth/usePermissions.js",
+    "src/utils/matrixFilter.js",
+    "src/hooks/useFeatureToggle.js",
+    "src/components/crawler/saveCrawlerConfig.js",
+    "src/components/crawler/useCrawlerSave.js",
+    "src/components/crawler/useCredentialFields.js",
+    "src/components/crawler/useCrawlerDiscovery.js",
+    "src/components/shared/sharedSnapshot.js",
+    "src/hooks/useHashPage.js"
+  ],
+  "thresholds": {
+    "high": 90,
+    "low": 70,
+    "break": 93
+  },
+  "concurrency": 4,
+  "timeoutMS": 60000,
+  "disableTypeChecks": false
 }

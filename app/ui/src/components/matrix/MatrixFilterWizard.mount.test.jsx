@@ -512,7 +512,7 @@ describe('MatrixFilterWizard — the Share step (#1166)', () => {
     ]);
     // The link comes back once, with a copy control next to it.
     expect(await screen.findByText(/#shared:fgs_abc$/)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Copy link/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Copy share link/i })).toBeInTheDocument();
   });
 
   it('offers no share form for a matrix too large to load', async () => {

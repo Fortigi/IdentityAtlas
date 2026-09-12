@@ -46,7 +46,7 @@ function CreatedShare({ url, recipients }) {
         ))}
       </ul>
       <div className="mt-4">
-        <CopyButton text={url} label="Copy link" copiedLabel="Link copied" />
+        <CopyButton text={url} label="Copy share link" copiedLabel="Share link copied" />
       </div>
     </div>
   );

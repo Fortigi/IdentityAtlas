@@ -9,3 +9,4 @@
 - The people search says **Searching…** while it looks somebody up, instead of briefly claiming nobody matched.
 - Renamed the matrix toolbar's existing **Share Link** button to **Copy link**, so it no longer reads as the same action as the new **Share view…** — one copies the current URL for a colleague who already uses Identity Atlas, the other creates a read-only link for someone who does not.
 - Fixed the share dialog closing itself, and throwing away what had been typed into it, when the matrix behind it finished loading or switched to a roll-up view.
+- Renamed the share dialog's copy control to "Copy share link", so it is no longer confusable with the matrix toolbar's "Copy link" (which copies the current URL for a colleague who already has access).

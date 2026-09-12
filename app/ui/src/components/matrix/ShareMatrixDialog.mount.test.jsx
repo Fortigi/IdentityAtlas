@@ -149,8 +149,8 @@ describe('ShareMatrixDialog', () => {
 
     // userEvent installs a real clipboard stub, so read back what landed there
     // — and CopyButton only says "copied" when the write actually resolved.
-    await user.click(screen.getByRole('button', { name: /Copy link/i }));
-    expect(await screen.findByRole('button', { name: /Link copied/i })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /Copy share link/i }));
+    expect(await screen.findByRole('button', { name: /Share link copied/i })).toBeInTheDocument();
     expect(await navigator.clipboard.readText()).toBe(expected);
   });
 
