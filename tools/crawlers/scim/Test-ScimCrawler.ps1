@@ -162,6 +162,10 @@ $groups = @(
 # to create a config for it. Asserted first, and it also leaves the flag in the
 # state the rest of this file needs. Restored to OFF in the finally block so a
 # stack this test ran against is not left with the feature silently switched on.
+#
+# Note the CI stack sets FEATURE_EXPERIMENTAL_CRAWLERS=true (docker-compose.ci.yml),
+# so the stored override below has to actually BEAT that env var for this to pass —
+# which is the precedence rule worth asserting, not an accident of the default.
 Set-ExperimentalCrawlers -Enabled $false
 try {
     Invoke-AtlasApi -Method POST -Path '/admin/crawler-configs' `
