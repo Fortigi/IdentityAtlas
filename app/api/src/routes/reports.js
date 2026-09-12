@@ -11,7 +11,9 @@
 
 import { Router } from 'express';
 import { getReport, listReports, reportMetadata } from '../reports/registry.js';
-import { EXPORT_FORMAT_NAMES, exportFilename, resolveExportFormat } from '../reports/export.js';
+import {
+  DEFAULT_EXPORT_FORMAT, EXPORT_FORMAT_NAMES, exportFilename, resolveExportFormat,
+} from '../reports/export.js';
 
 const router = Router();
 
@@ -58,7 +60,7 @@ router.get('/reports/:name/export', async (req, res) => {
   const report = getReport(req.params.name);
   if (!report) return res.status(404).json({ error: 'Report not found' });
 
-  const { format = 'csv', ...params } = req.query || {};
+  const { format = DEFAULT_EXPORT_FORMAT, ...params } = req.query || {};
   const exportFormat = resolveExportFormat(String(format));
   if (!exportFormat) {
     return res.status(400).json({

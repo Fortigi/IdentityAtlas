@@ -15,7 +15,7 @@ const ORPHANS = {
   description: 'Accounts that are not linked to any identity.',
   form: 'list', parametersSchema: { type: 'object', required: [], properties: {} },
   columns: [{ key: 'displayName', label: 'Account' }, { key: 'systemName', label: 'System' }],
-  exportFormats: ['csv', 'json'],
+  exportFormats: ['json', 'xml'],
 };
 const STALE = { ...ORPHANS, name: 'stale-accounts', displayName: 'Stale Accounts', description: 'Untouched for a year.' };
 

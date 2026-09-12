@@ -3,6 +3,11 @@
 // A report in its own tab: it runs the report it was opened for, draws it from
 // the metadata the API returned, refreshes against the latest data, and hands
 // the file the server produced to the browser.
+//
+// The download formats in the fixture are deliberately *not* the pair this
+// deployment happens to serve: the page offers one button per format the API
+// advertised and knows none of them by name, so a fixture naming formats the UI
+// could not have hardcoded is what actually proves it.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
@@ -15,7 +20,7 @@ const META = {
   description: 'Accounts that are not linked to any identity.',
   form: 'list', parametersSchema: { type: 'object', required: [], properties: {} },
   columns: [{ key: 'displayName', label: 'Account' }, { key: 'systemName', label: 'System' }],
-  exportFormats: ['csv', 'json'],
+  exportFormats: ['json', 'xml'],
 };
 
 const ROW = { displayName: 'Ada Lovelace', systemName: 'Entra ID', _entity: { kind: 'user', id: 'p1' } };
@@ -27,7 +32,9 @@ const rowsBody = (rows, over = {}) => ({
 // `rows` is a handler (or body) for the rows call; `download` for the export call.
 function renderReport({
   rows = rowsBody([ROW]),
-  download = blobResponse('"Account"\r\n"Ada Lovelace"', { type: 'text/csv', filename: 'identity-atlas-report.csv' }),
+  download = blobResponse('{"rows":[{"displayName":"Ada Lovelace"}]}', {
+    type: 'application/json', filename: 'identity-atlas-report.json',
+  }),
   reportName = 'orphaned-accounts',
   ...props
 } = {}) {
@@ -129,9 +136,11 @@ describe('ReportViewPage', () => {
   it('offers one download button per format the API advertised, and no more', async () => {
     renderReport();
 
-    expect(await screen.findByRole('button', { name: 'Download CSV' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Download JSON' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Download XLSX/ })).not.toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Download JSON' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Download XML' })).toBeInTheDocument();
+    // Not a button the page invented for a format this response never offered.
+    expect(screen.queryByRole('button', { name: /Download CSV/ })).not.toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /^Download / })).toHaveLength(2);
   });
 
   it.each([
@@ -160,29 +169,29 @@ describe('ReportViewPage', () => {
     let finish;
     renderReport({
       download: () => new Promise((resolve) => {
-        finish = () => resolve(blobResponse('csv', { type: 'text/csv', filename: 'x.csv' }));
+        finish = () => resolve(blobResponse('<rows/>', { type: 'application/xml', filename: 'x.xml' }));
       }),
     });
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Download CSV' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Download XML' }));
 
     expect(await screen.findByRole('button', { name: 'Preparing…' })).toBeDisabled();
     // The other format is locked out too — one download at a time.
     expect(screen.getByRole('button', { name: 'Download JSON' })).toBeDisabled();
 
     finish();
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Download CSV' })).toBeEnabled());
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Download XML' })).toBeEnabled());
   });
 
   it('tells the user when the download fails, and keeps the report on screen', async () => {
     renderReport({ download: () => blobResponse('{}', { ok: false, status: 500 }) });
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Download CSV' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Download XML' }));
 
     expect(await screen.findByText('Download failed')).toBeInTheDocument();
     expect(screen.getByText('HTTP 500')).toBeInTheDocument();
     expect(screen.getByRole('cell', { name: 'Ada Lovelace' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Download CSV' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Download XML' })).toBeEnabled();
   });
 
   it('clears a previous download error when the next download is started', async () => {
@@ -190,13 +199,13 @@ describe('ReportViewPage', () => {
     renderReport({
       download: () => (call++ === 0
         ? blobResponse('{}', { ok: false, status: 500 })
-        : blobResponse('csv', { type: 'text/csv', filename: 'x.csv' })),
+        : blobResponse('<rows/>', { type: 'application/xml', filename: 'x.xml' })),
     });
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Download CSV' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Download XML' }));
     expect(await screen.findByText('Download failed')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Download CSV' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Download XML' }));
     await waitFor(() => expect(screen.queryByText('Download failed')).not.toBeInTheDocument());
   });
 

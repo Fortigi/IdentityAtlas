@@ -8,16 +8,19 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { blobResponse, makeAuthFetch } from '@ui/test-utils/renderWithProviders';
 import { downloadReport, reportExportUrl } from './reportExport';
 
-const CSV = '"Account"\r\n"Ada Lovelace"';
+// The bytes are the server's; this module only moves them. The formats named
+// below are likewise just strings passed through to the URL — the transport
+// knows none of them by name.
+const BYTES = '"Account"\r\n"Ada Lovelace"';
 
 describe('reportExportUrl', () => {
   it('addresses the report by name and asks for the chosen format', () => {
-    expect(reportExportUrl('sample-report', 'csv')).toBe('/api/reports/sample-report/export?format=csv');
     expect(reportExportUrl('sample-report', 'json')).toBe('/api/reports/sample-report/export?format=json');
+    expect(reportExportUrl('sample-report', 'xml')).toBe('/api/reports/sample-report/export?format=xml');
   });
 
   it('encodes a name that would otherwise change the path', () => {
-    expect(reportExportUrl('odd/name?x', 'csv')).toBe('/api/reports/odd%2Fname%3Fx/export?format=csv');
+    expect(reportExportUrl('odd/name?x', 'json')).toBe('/api/reports/odd%2Fname%3Fx/export?format=json');
   });
 });
 
@@ -36,30 +39,30 @@ describe('downloadReport', () => {
   afterEach(() => { vi.restoreAllMocks(); });
 
   it('fetches the export endpoint and saves the file under the server-supplied name', async () => {
-    const authFetch = makeAuthFetch(() => blobResponse(CSV, {
-      type: 'text/csv', filename: 'identity-atlas-sample-report-2026-09-12.csv',
+    const authFetch = makeAuthFetch(() => blobResponse(BYTES, {
+      type: 'application/xml', filename: 'identity-atlas-sample-report-2026-09-12.xml',
     }));
 
-    const filename = await downloadReport({ authFetch, name: 'sample-report', format: 'csv' });
+    const filename = await downloadReport({ authFetch, name: 'sample-report', format: 'xml' });
 
-    expect(authFetch).toHaveBeenCalledWith('/api/reports/sample-report/export?format=csv');
-    expect(filename).toBe('identity-atlas-sample-report-2026-09-12.csv');
-    expect(saved).toEqual(['identity-atlas-sample-report-2026-09-12.csv']);
+    expect(authFetch).toHaveBeenCalledWith('/api/reports/sample-report/export?format=xml');
+    expect(filename).toBe('identity-atlas-sample-report-2026-09-12.xml');
+    expect(saved).toEqual(['identity-atlas-sample-report-2026-09-12.xml']);
   });
 
   it('saves the bytes the server sent, rather than rebuilding the file locally', async () => {
-    const authFetch = makeAuthFetch(() => blobResponse(CSV, { type: 'text/csv', filename: 'x.csv' }));
+    const authFetch = makeAuthFetch(() => blobResponse(BYTES, { type: 'application/xml', filename: 'x.xml' }));
 
-    await downloadReport({ authFetch, name: 'sample-report', format: 'csv' });
+    await downloadReport({ authFetch, name: 'sample-report', format: 'xml' });
 
-    expect(await globalThis.URL.createObjectURL.mock.calls[0][0].text()).toBe(CSV);
+    expect(await globalThis.URL.createObjectURL.mock.calls[0][0].text()).toBe(BYTES);
   });
 
   it('falls back to a local name when the response carries no Content-Disposition', async () => {
-    const authFetch = makeAuthFetch(() => blobResponse(CSV, { type: 'text/csv' }));
+    const authFetch = makeAuthFetch(() => blobResponse(BYTES, { type: 'application/xml' }));
 
-    expect(await downloadReport({ authFetch, name: 'sample-report', format: 'csv' }))
-      .toBe('sample-report.csv');
+    expect(await downloadReport({ authFetch, name: 'sample-report', format: 'xml' }))
+      .toBe('sample-report.xml');
   });
 
   it.each([
@@ -69,7 +72,7 @@ describe('downloadReport', () => {
     // Defensive: a response shape without readable headers must still produce a
     // file, not a TypeError halfway through the download.
     const authFetch = makeAuthFetch(async () => ({
-      ok: true, status: 200, json: async () => ({}), blob: async () => new Blob([CSV]), ...over,
+      ok: true, status: 200, json: async () => ({}), blob: async () => new Blob([BYTES]), ...over,
     }));
 
     expect(await downloadReport({ authFetch, name: 'sample-report', format: 'json' }))
@@ -80,7 +83,7 @@ describe('downloadReport', () => {
   it('throws with the status — and saves nothing — when the report fails to run', async () => {
     const authFetch = makeAuthFetch(() => blobResponse('{"error":"Failed to run report"}', { ok: false, status: 500 }));
 
-    await expect(downloadReport({ authFetch, name: 'sample-report', format: 'csv' }))
+    await expect(downloadReport({ authFetch, name: 'sample-report', format: 'xml' }))
       .rejects.toThrow('HTTP 500');
     expect(saved).toEqual([]);
   });

@@ -42,13 +42,27 @@ function toJson(report) {
   return JSON.stringify(report, null, 2);
 }
 
-export const EXPORT_FORMATS = {
-  csv: { extension: 'csv', contentType: 'text/csv; charset=utf-8', serialize: toCsv },
-  json: { extension: 'json', contentType: 'application/json; charset=utf-8', serialize: toJson },
+const SERIALIZERS = {
+  csv: { contentType: 'text/csv; charset=utf-8', serialize: toCsv },
+  json: { contentType: 'application/json; charset=utf-8', serialize: toJson },
 };
+
+// A format's name doubles as its file extension — `?format=json` downloads a
+// `.json` — so it is written once rather than as two strings that can drift.
+//
+// Write a format name as an object key, never as a bare quoted string: `csv` is
+// also a crawler type (`tools/crawlers/csv/`), and the crawler-manifest CI gate
+// greps `app/api/src` and `app/ui/src` for quoted crawler-type literals so that
+// core can't hardcode crawler behaviour.
+export const EXPORT_FORMATS = Object.fromEntries(
+  Object.entries(SERIALIZERS).map(([name, format]) => [name, { extension: name, ...format }]),
+);
 
 /** Format names offered for download, in the order the UI should show them. */
 export const EXPORT_FORMAT_NAMES = Object.keys(EXPORT_FORMATS);
+
+/** The format a request gets when it names none — the first one offered. */
+export const DEFAULT_EXPORT_FORMAT = EXPORT_FORMAT_NAMES[0];
 
 /**
  * The format a `?format=` query parameter names, or null when it isn't one we

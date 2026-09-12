@@ -8,7 +8,7 @@
 
 import { describe, it, expect } from 'vitest';
 import {
-  EXPORT_FORMATS, EXPORT_FORMAT_NAMES, exportFilename, resolveExportFormat,
+  DEFAULT_EXPORT_FORMAT, EXPORT_FORMATS, EXPORT_FORMAT_NAMES, exportFilename, resolveExportFormat,
 } from './export.js';
 
 const csv = (report) => EXPORT_FORMATS.csv.serialize(report);
@@ -120,6 +120,19 @@ describe('resolveExportFormat', () => {
       expect(format.contentType).toMatch(/\//);
       expect(format.extension).toMatch(/^[a-z]+$/);
     }
+  });
+
+  it('names each format after its own file extension, so the two cannot drift', () => {
+    for (const name of EXPORT_FORMAT_NAMES) {
+      expect(resolveExportFormat(name).extension).toBe(name);
+    }
+  });
+
+  it('defaults to a format it actually offers, and serves CSV as that default', () => {
+    // A request with no `?format=` gets this one, so it has to resolve — and the
+    // documented default is the spreadsheet one, not JSON.
+    expect(EXPORT_FORMAT_NAMES).toContain(DEFAULT_EXPORT_FORMAT);
+    expect(resolveExportFormat(DEFAULT_EXPORT_FORMAT).contentType).toMatch(/^text\/csv/);
   });
 
   it('returns null for a format we do not offer', () => {
