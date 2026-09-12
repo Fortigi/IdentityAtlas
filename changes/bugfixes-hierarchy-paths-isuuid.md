@@ -1,1 +1,0 @@
-- Fixed sorting the matrix by a manager-hierarchy context, which silently did nothing. The request behind it failed on every call, and the matrix quietly fell back to no hierarchy instead of showing the org levels.

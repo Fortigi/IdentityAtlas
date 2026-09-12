@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Fixed sorting the matrix by a manager-hierarchy context, which silently did nothing. The request behind it failed on every call, and the matrix quietly fell back to no hierarchy instead of showing the org levels.
+
+## Changes in this PR
+
 - Fixed the matrix showing stale data after classifying business-role assignments. The classify step reported success but never actually refreshed the matrix views, so newly governed assignments only appeared once something else happened to refresh them.
 
 ## Changes in this PR
