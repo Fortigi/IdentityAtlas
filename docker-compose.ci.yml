@@ -21,6 +21,16 @@ services:
       USE_SQL: "true"
       DATABASE_URL: "postgres://identity_atlas:ci_test@postgres:5432/identity_atlas"
       AUTH_ENABLED: "false"
+      # CI exercises every crawler's wizard, experimental ones included, so the
+      # stack starts with them enabled — the documented deployment-level way to
+      # do that (see docs/reference/experimental-features.md). Deliberately an
+      # env var and not a toggle call from a test: the flag is global server
+      # state, so a test that flipped it would decide what every later test in
+      # the run sees. The flag's OFF behaviour is covered where it can be
+      # asserted in isolation instead — CrawlersPage.SelectType.test.jsx (the
+      # picker), jobs.experimentalGate.test.js (the 403), and AC0 in
+      # tools/crawlers/scim/Test-ScimCrawler.ps1 (end-to-end against the API).
+      FEATURE_EXPERIMENTAL_CRAWLERS: "true"
       PORT: "3001"
     ports: ["3001:3001"]
     volumes:

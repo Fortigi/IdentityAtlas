@@ -987,17 +987,40 @@ Describe 'Omada setup helpers' {
         $reg.systemId | Should -BeIn @(11, 12)
     }
 
-    It 'Register-OmadaSystems reports system id 0 when nothing could be mapped' {
-        # Neither branch fires: no main system and an empty map. 0 is the sentinel the
-        # caller checks; starting it anywhere else would name a real system that was never
-        # registered.
+    It 'Register-OmadaSystems registers the endpoint itself when Omada reports no systems' {
+        # An Omada that reports NO connected systems is not an error — a fresh or
+        # filtered tenant does exactly that — but it leaves nothing to attach
+        # accounts to, so the endpoint is registered as one system.
+        #
+        # This used to return 0, and every later ingest then failed on
+        # Principals_systemId_fkey. It only ever worked in practice by accident:
+        # zero systems meant an EMPTY ingest batch, the API rejected it with 400,
+        # and the exception fell into the catch where the fallback ran. The moment
+        # the API accepted an empty full sync, that accident stopped happening.
         Mock Invoke-ODataPagedRequest -ParameterFilter { $Path -eq '/System' } -MockWith { @() }
-        Mock Invoke-IngestAPI -MockWith { @{ systemIds = @(1) } }
+        Mock Invoke-IngestAPI -MockWith { @{ systemIds = @(42) } }
         Mock Invoke-RestMethod -MockWith { @() }
 
         $reg = Register-OmadaSystems -ApiBaseUrl 'http://x/api' -ApiKey 'k' -BaseUrl 'http://omada' -MaxRetries 5
 
-        $reg.systemId | Should -Be 0
+        $reg.systemId | Should -Be 42
+    }
+
+    It 'Register-OmadaSystems does not re-register when a system WAS mapped' {
+        # The endpoint fallback is for the empty case only: a tenant that did report
+        # systems must keep the id it mapped, not get a second synthetic system.
+        Mock Invoke-ODataPagedRequest -ParameterFilter { $Path -eq '/System' } -MockWith {
+            @([pscustomobject]@{ DisplayName = 'Omada Identity'; UId = 'main-uid' })
+        }
+        Mock Invoke-IngestAPI -MockWith { @{ systemIds = @(99) } }
+        Mock Invoke-RestMethod -MockWith {
+            @([pscustomobject]@{ systemType = 'Omada'; tenantId = 'main-uid'; id = 7 })
+        }
+
+        $reg = Register-OmadaSystems -ApiBaseUrl 'http://x/api' -ApiKey 'k' -BaseUrl 'http://omada' -MaxRetries 5
+
+        $reg.systemId | Should -Be 7
+        Should -Invoke Invoke-IngestAPI -Times 1 -Exactly   # the systems batch only
     }
 
     It 'Register-OmadaSystems falls back to single-system registration on error' {

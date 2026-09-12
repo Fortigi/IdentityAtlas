@@ -113,6 +113,7 @@ Runs can also be triggered on demand from the same Admin page; each run records 
 | Identity filter | `CrawlerConfigs.config.identityFilter` — set via the wizard |
 | Schedules | `CrawlerConfigs.config.schedules` — set via the wizard |
 | Risk scoring on/off | `WorkerConfig.FEATURE_RISK_SCORING` — set via the Admin → Risk Scoring toggle |
+| Experimental crawlers on/off | `WorkerConfig.FEATURE_EXPERIMENTAL_CRAWLERS` — set via the Admin → Experimental toggle; a deployment can start with it on via the backend env var `FEATURE_EXPERIMENTAL_CRAWLERS=true`, which the toggle then overrides. Off by default. See [Experimental features](experimental-features.md) |
 | Performance monitoring on/off | Runtime flag — set via the Admin → Performance toggle |
 | Database connection | Backend env var `DATABASE_URL` (PostgreSQL connection string) |
 | Filter/attribute value list size | Backend env var `MATRIX_VALUE_PAGE_SIZE` — how many distinct values a filter dropdown preloads per field (default `500`, max `5000`). Lower it on a test deployment to exercise the "more values than fit in the list" behaviour without importing thousands of objects; see [Matrix → Attribute values](../architecture/matrix.md#attribute-values--paged-discovery-not-a-silent-cap) |

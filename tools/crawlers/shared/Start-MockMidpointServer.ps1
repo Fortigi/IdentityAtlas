@@ -34,6 +34,8 @@ function Get-FreeMidpointPort {
     return $port
 }
 
+. (Join-Path $PSScriptRoot 'Start-MockServerJob.ps1')
+
 function Start-MockMidpointServer {
     <#
     .PARAMETER Objects
@@ -103,20 +105,8 @@ function Start-MockMidpointServer {
         } finally { try { $listener.Stop() } catch {}; Write-Output "MOCK_STOPPED" }
     }
 
-    $job = Start-Job -ScriptBlock $serverScript -ArgumentList $port, $objectsJson
-    $started = $false
-    for ($i = 0; $i -lt 20; $i++) {
-        Start-Sleep -Milliseconds 200
-        $out = Receive-Job -Job $job -Keep 2>&1
-        if ($out -match 'MOCK_STARTED') { $started = $true; break }
-        if ($out -match 'MOCK_ERROR')   { break }
-    }
-    if (-not $started) {
-        $out = Receive-Job -Job $job -Keep 2>&1
-        Stop-Job $job -ErrorAction SilentlyContinue; Remove-Job $job -Force -ErrorAction SilentlyContinue
-        throw "Mock midPoint server failed to start on port $port. Output: $($out -join '; ')"
-    }
-    return [PSCustomObject]@{ Job = $job; Port = $port }
+    return Start-MockServerJob -ScriptBlock $serverScript -ArgumentList $port, $objectsJson `
+        -Name 'midPoint' -Port $port
 }
 
 function Stop-MockMidpointServer {

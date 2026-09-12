@@ -78,6 +78,68 @@ beforeEach(() => {
 // A valid principals record for the happy path.
 const goodPrincipal = { records: [{ displayName: 'Alice' }], systemId: 1, syncMode: 'full' };
 
+// ── Empty batches ────────────────────────────────────────────────────────────
+//
+// The handler used to skip ingest() whenever records was empty, so the batch a
+// crawler sends to say "this scope is empty now" was accepted and then silently
+// ignored — an emptied source kept its rows. ingest() owns that decision now;
+// these pin that the handler actually hands it over.
+describe('ingest handler — an empty batch still reaches the engine', () => {
+  const emptyBody = (syncMode) => ({ systemId: 1, syncMode, records: [] });
+
+  it('calls ingest for an empty FULL batch, so the scope can be reconciled away', async () => {
+    mockIngest.mockResolvedValue({ inserted: 0, updated: 0, deleted: 4 });
+    const res = await request(app).post('/ingest/principals')
+      .send({ ...emptyBody('full'), scope: { principalType: 'User' } });
+
+    expect(res.status).toBe(201);
+    expect(mockIngest).toHaveBeenCalledTimes(1);
+    expect(mockIngest.mock.calls[0][4]).toMatchObject({ syncMode: 'full', scope: { principalType: 'User' } });
+    // The delete count has to reach the caller — a crawler logs it as the
+    // number of rows its reconcile removed.
+    expect(res.body.deleted).toBe(4);
+  });
+
+  it('an UNSCOPED empty full batch is a no-op, not a wipe of the whole system', async () => {
+    // Crawlers post unscoped empty batches routinely — harmless while the API
+    // rejected them. Treating one as 'this system has nothing' deletes every row
+    // it owns in that table, and for ingest/systems that is the system itself,
+    // which then breaks the foreign key on everything ingested after it.
+    mockIngest.mockResolvedValue({ inserted: 0, updated: 0, deleted: 0 });
+    const res = await request(app).post('/ingest/principals')
+      .send({ systemId: 1, syncMode: 'full', records: [] });
+
+    expect(res.status).toBe(201);
+    expect(mockIngest.mock.calls[0][4].scope).toEqual({});
+    expect(res.body.deleted).toBe(0);
+  });
+
+  it('accepts records:null — PowerShell serialises an empty array as null', async () => {
+    // A crawler phase with nothing to send posts null, not []. applyIngestDefaults
+    // normalises it; this pins that, because every use downstream indexes records
+    // like an array and a regression there would surface as a 500 mid-sync.
+    mockIngest.mockResolvedValue({ inserted: 0, updated: 0, deleted: 2 });
+    const res = await request(app).post('/ingest/principals')
+      .send({ systemId: 1, syncMode: 'full', records: null });
+
+    expect(res.status).toBe(201);
+    expect(res.body.records).toBe(0);
+    expect(res.body.deleted).toBe(2);
+  });
+
+  it('calls ingest for an empty DELTA batch too, and lets it decide to do nothing', async () => {
+    // Delta is rejected earlier by validation unless deletedIds are present, so
+    // this is the shape that reaches the handler: empty records + deletes.
+    mockIngest.mockResolvedValue({ inserted: 0, updated: 0, deleted: 0 });
+    const res = await request(app).post('/ingest/principals')
+      .send({ systemId: 1, syncMode: 'delta', records: [], deletedIds: ['aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'] });
+
+    expect(res.status).toBe(201);
+    expect(mockIngest.mock.calls[0][4]).toMatchObject({ syncMode: 'delta' });
+    expect(res.body.deleted).toBe(0);
+  });
+});
+
 // ── Permission + validation gates ────────────────────────────────────────────
 
 describe('ingest handler — gates', () => {
