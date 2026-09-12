@@ -1,0 +1,1 @@
+- Fixed the Worker showing a development version (and an amber "Mismatch" warning on Admin → Updates) after a fresh stable or beta install. The published worker image was never stamped with the release version, so it reported the in-development version instead of the one Web and Database showed. All three components now report the same version on a released deployment.

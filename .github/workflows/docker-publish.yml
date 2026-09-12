@@ -134,6 +134,10 @@ jobs:
           push: false
           load: true
           tags: identity-atlas-worker:qa
+          # Same version the web image gets. Both images must be stamped from the
+          # one `steps.version` output, or a release deploy reports a skew between
+          # web and worker that is not real.
+          build-args: MODULE_VERSION=${{ steps.version.outputs.version }}
           cache-from: type=gha,scope=worker
           cache-to: type=gha,mode=min,scope=worker,ignore-error=true
 
