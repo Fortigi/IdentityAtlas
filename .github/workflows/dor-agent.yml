@@ -53,9 +53,10 @@ jobs:
     # and be smoke-tested before anything runs.
     if: >-
       vars.DOR_ENABLED == 'true' &&
-      github.event.sender.type != 'Bot' &&
+      (github.event.sender.type != 'Bot' || github.event.label.name == 'dor-retry') &&
       !github.event.issue.pull_request &&
-      (github.event.action != 'labeled' || github.event.label.name == 'dor-vouched') &&
+      (github.event.action != 'labeled' || github.event.label.name == 'dor-vouched' ||
+       github.event.label.name == 'dor-retry') &&
       (!contains(github.event.issue.labels.*.name, 'needs-vouch') ||
        contains(github.event.issue.labels.*.name, 'dor-vouched')) &&
       contains(github.event.issue.labels.*.name, 'enhancement') &&
@@ -336,6 +337,10 @@ jobs:
         run: git restore --source=HEAD --staged --worktree -- .github
 
       - name: Post the agent's decision
+        # Only when a reasoning step actually produced output. With both models failed there is no
+        # route.txt, and running this step anyway would fail it on the missing file — which would
+        # again skip the diagnostic below, and would report a token outage under the wrong headline.
+        if: steps.reason.outcome == 'success' || steps.reason_fallback.outcome == 'success'
         env:
           GH_TOKEN: ${{ github.token }}
           BOARD_TOKEN: ${{ steps.board-token.outputs.token }}
@@ -348,10 +353,10 @@ jobs:
         # Route allow-list + egress token-scan + comment/label/board-sync, shared with the bug agent.
         run: bash .github/scripts/dor_post_decision.sh
 
-      # Both attempts failing means .dor/out/route.txt never got written, so the post step above just
-      # no-ops ("Agent chose no action this run") — silently, from the outside. Turn that into a loud,
-      # searchable red run instead of a stalled issue nobody notices until the health-check sweep flags
-      # it a day later.
+      # Both attempts failing means .dor/out/route.txt never got written. The post step above skips
+      # itself in that case, so without this the job would end GREEN having done nothing at all. Turn
+      # it into a loud, searchable red run that names the likely cause, instead of a stalled issue
+      # nobody notices until the hourly health sweep flags it.
       - name: Fail loudly if neither model produced a decision
         if: steps.reason.outcome == 'failure' && steps.reason_fallback.outcome == 'failure'
         run: |
