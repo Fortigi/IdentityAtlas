@@ -67,9 +67,9 @@ test.describe('Reports tab is optional', () => {
     await expect(page.getByRole('button', { name: 'Systems', exact: true })).toBeVisible({ timeout: 30000 });
 
     await page.getByTitle('Settings').click();
-    await page.locator('label').filter({ hasText: /^Reports$/ }).getByRole('button').click();
+    await page.getByRole('switch', { name: 'Show Reports tab' }).click();
 
-    const tab = page.getByRole('button', { name: 'Reports', exact: true });
+    const tab = page.getByRole('navigation').getByRole('button', { name: 'Reports', exact: true });
     await expect(tab).toBeVisible();
 
     // The preference stuck — it is still on after a reload, and the tab opens
