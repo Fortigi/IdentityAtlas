@@ -201,7 +201,7 @@
     "app/ui/src/components/IdentityDetailPage.jsx": 80,
     "app/ui/src/components/JobPhasesModal.jsx": 95,
     "app/ui/src/components/JsonViewer.jsx": 80,
-    "app/ui/src/components/LinkedAccountsPanel.jsx": 54,
+    "app/ui/src/components/LinkedAccountsPanel.jsx": 99,
     "app/ui/src/components/MappingRows.jsx": 0,
     "app/ui/src/components/MatrixView.jsx": 51,
     "app/ui/src/components/PerfPage.jsx": 94,

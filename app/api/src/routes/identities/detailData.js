@@ -15,6 +15,8 @@ export async function fetchIdentity(p, res, identityId) {
 }
 
 // All member accounts from Principals (v5), coalescing displayName / UPN.
+// The Systems join supplies the source-system name the Linked Accounts table
+// shows; it stays null for members whose Principal row is gone.
 export async function fetchIdentityMembers(p, res, identityId) {
   const membersResult = await timedQuery(p, 'identity-members', res, `
         SELECT m."identityId", m."principalId", m."isPrimary", m."isHrAuthoritative",
@@ -24,9 +26,12 @@ export async function fetchIdentityMembers(p, res, identityId) {
                COALESCE(m."displayName", u."displayName") AS "displayName",
                u.email AS "userPrincipalName",
                u.department, u."jobTitle", u."createdDateTime",
-               u."accountEnabled" AS "userAccountEnabled"
+               u."accountEnabled" AS "userAccountEnabled",
+               u."systemId",
+               s."displayName" AS "systemDisplayName"
         FROM "IdentityMembers" m
         LEFT JOIN "Principals" u ON m."principalId" = u.id
+        LEFT JOIN "Systems" s ON s.id = u."systemId"
         WHERE m."identityId" = $1
         ORDER BY m."isPrimary" DESC NULLS LAST, m."accountType" ASC
       `, [identityId]);
