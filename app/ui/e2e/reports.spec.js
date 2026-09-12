@@ -9,6 +9,7 @@
 // the feature: the UI never knows a report by name.
 
 import { test, expect } from '@playwright/test';
+import { ALL_OPTIONAL_TABS, setVisibleTabs } from './global-setup.js';
 
 const BASE = process.env.E2E_BASE_URL || 'http://localhost:3001';
 const API = `${BASE}/api`;
@@ -38,6 +39,48 @@ async function openReport(page, report) {
   await expect(page).toHaveURL(new RegExp(`#report:${report.name}`));
   await expect(page.getByRole('heading', { name: report.displayName, level: 2 })).toBeVisible({ timeout: 15000 });
 }
+
+// Reports is an opt-in tab (like Systems and Logs): off until the user turns it
+// on in Settings → Visible Tabs. These tests own the tab preferences, so they
+// put every optional tab back afterwards for the rest of the suite.
+test.describe('Reports tab is optional', () => {
+  test.afterEach(async () => {
+    await setVisibleTabs(ALL_OPTIONAL_TABS);
+  });
+
+  test('is hidden until the user opts in, but still reachable by URL', async ({ page }) => {
+    await setVisibleTabs(ALL_OPTIONAL_TABS.filter(t => t !== 'reports'));
+    await page.goto(`${BASE}/`);
+
+    // Systems is still on, so seeing it proves preferences have loaded — before
+    // they do, no optional tab is hidden yet and the assertion below is vacuous.
+    await expect(page.getByRole('button', { name: 'Systems', exact: true })).toBeVisible({ timeout: 30000 });
+    await expect(page.getByRole('button', { name: 'Reports', exact: true })).toHaveCount(0);
+
+    // Hiding the tab only declutters the nav — the page itself still works.
+    await openReports(page);
+  });
+
+  test('appears in the nav as soon as it is switched on in Settings', async ({ page }) => {
+    await setVisibleTabs(ALL_OPTIONAL_TABS.filter(t => t !== 'reports'));
+    await page.goto(`${BASE}/`);
+    await expect(page.getByRole('button', { name: 'Systems', exact: true })).toBeVisible({ timeout: 30000 });
+
+    await page.getByTitle('Settings').click();
+    await page.locator('label').filter({ hasText: /^Reports$/ }).getByRole('button').click();
+
+    const tab = page.getByRole('button', { name: 'Reports', exact: true });
+    await expect(tab).toBeVisible();
+
+    // The preference stuck — it is still on after a reload, and the tab opens
+    // the page.
+    await page.reload();
+    await expect(tab).toBeVisible({ timeout: 30000 });
+    await tab.click();
+    await expect(page).toHaveURL(/#reports/);
+    await expect(page.getByRole('heading', { name: 'Reports', level: 2 })).toBeVisible();
+  });
+});
 
 test.describe('Reports', () => {
   test('Reports tab is in the navigation and opens the page', async ({ page }) => {

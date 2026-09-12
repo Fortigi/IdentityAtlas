@@ -12,9 +12,9 @@
 //               always-available views that just declutter the nav (never combine
 //               with `feature`).
 //
-// Systems and Sync Log are optional: most users live in the Matrix / Principals /
-// Contexts surfaces, so these admin-leaning views are off by default and can be
-// switched on per-user when needed.
+// Systems, Reports and Sync Log are optional: most users live in the Matrix /
+// Principals / Contexts surfaces, so these admin-leaning views are off by
+// default and can be switched on per-user when needed.
 
 export const ALL_NAV_TABS = [
   { key: 'dashboard',        label: 'Dashboard' },
@@ -26,7 +26,7 @@ export const ALL_NAV_TABS = [
   { key: 'risk-scores',      label: 'Risk Scores',  feature: 'riskScoring' },
   { key: 'identities',       label: 'Identities',   feature: 'accountLinking' },
   { key: 'contexts',         label: 'Contexts' },
-  { key: 'reports',          label: 'Reports' },
+  { key: 'reports',          label: 'Reports',      optional: true },
   { key: 'sync-log',         label: 'Logs',         optional: true },
   { key: 'admin',            label: 'Admin' },
 ];

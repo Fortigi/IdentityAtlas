@@ -5,33 +5,42 @@ const keys = (tabs) => tabs.map(t => t.key);
 const ENABLE_ALL_FEATURES = { riskScoring: true, accountLinking: true };
 
 describe('navTabs', () => {
-  it('marks Systems and Sync Log as optional', () => {
-    for (const key of ['systems', 'sync-log']) {
+  it('marks Systems, Reports and Sync Log as optional', () => {
+    for (const key of ['systems', 'reports', 'sync-log']) {
       const tab = ALL_NAV_TABS.find(t => t.key === key);
       expect(tab, key).toBeTruthy();
       expect(tab.optional, `${key} should be optional`).toBe(true);
     }
   });
 
-  it('hides Systems and Sync Log by default (empty visibleTabs)', () => {
+  it('hides Systems, Reports and Sync Log by default (empty visibleTabs)', () => {
     const shown = keys(computeNavTabs({ features: ENABLE_ALL_FEATURES, visibleTabs: [], canSeeAdmin: true }));
     expect(shown).not.toContain('systems');
+    expect(shown).not.toContain('reports');
     expect(shown).not.toContain('sync-log');
   });
 
   it('shows them once the user enables them', () => {
     const shown = keys(computeNavTabs({
       features: ENABLE_ALL_FEATURES,
-      visibleTabs: ['systems', 'sync-log'],
+      visibleTabs: ['systems', 'reports', 'sync-log'],
       canSeeAdmin: true,
     }));
     expect(shown).toContain('systems');
+    expect(shown).toContain('reports');
     expect(shown).toContain('sync-log');
   });
 
-  it('offers Systems and Sync Log among the toggleable optional tabs', () => {
+  it('enables each optional tab on its own, without dragging the others in', () => {
+    const shown = keys(computeNavTabs({ features: ENABLE_ALL_FEATURES, visibleTabs: ['reports'], canSeeAdmin: true }));
+    expect(shown).toContain('reports');
+    expect(shown).not.toContain('systems');
+    expect(shown).not.toContain('sync-log');
+  });
+
+  it('offers Systems, Reports and Sync Log among the toggleable optional tabs', () => {
     const optional = keys(availableOptionalTabs(ENABLE_ALL_FEATURES));
-    expect(optional).toEqual(expect.arrayContaining(['systems', 'sync-log']));
+    expect(optional).toEqual(expect.arrayContaining(['systems', 'reports', 'sync-log']));
   });
 
   it('surfaces feature tabs (Risk Scores / Identities) as soon as their feature is on, with no second opt-in (H-13)', () => {
@@ -54,7 +63,7 @@ describe('navTabs', () => {
 
   it('keeps non-optional tabs visible regardless of preferences', () => {
     const shown = keys(computeNavTabs({ features: ENABLE_ALL_FEATURES, visibleTabs: [], canSeeAdmin: true }));
-    expect(shown).toEqual(expect.arrayContaining(['dashboard', 'matrix', 'principals', 'resources', 'access-packages', 'contexts', 'reports']));
+    expect(shown).toEqual(expect.arrayContaining(['dashboard', 'matrix', 'principals', 'resources', 'access-packages', 'contexts']));
   });
 
   it('does not hide optional tabs while preferences are still loading (visibleTabs null)', () => {
@@ -62,6 +71,7 @@ describe('navTabs', () => {
     // Before prefs load we don't yet know the user's choice, so we don't remove
     // optional tabs — avoids a flash of them disappearing.
     expect(shown).toContain('systems');
+    expect(shown).toContain('reports');
     expect(shown).toContain('sync-log');
   });
 

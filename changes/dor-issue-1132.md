@@ -1,3 +1,3 @@
-- Added a **Reports** tab: pick a report, see its content, and refresh it against the latest data at any time.
+- Added a **Reports** tab: pick a report, see its content, and refresh it against the latest data at any time. Like Systems and Logs it is optional and off by default — switch it on per user under Settings → Visible Tabs.
 - First report: **Orphaned Accounts** — every account that belongs to no identity, with its detected account type and source system. Service principals, managed identities and AI agents are excluded. Click a row to open that account's detail page.
 - Reports are pluggable: each one supplies its own query and its own presentation, so a new report can be added without touching the Reports page or the API around it.
