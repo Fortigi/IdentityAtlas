@@ -19,6 +19,7 @@ import { timedQuery } from '../perf/sqlTimer.js';
 import { createParams } from '../db/sqlParams.js';
 import { buildAssignmentExprs } from '../db/matrixHelpers.js';
 import { UUID_RE } from '../matrix/filterSql.js';
+import { isUuid } from '../matrix/contextRollup.js';
 import {
   getPrincipalColumns, getResourceColumns,
   getPrincipalColumnValuesMeta, getResourceColumnValuesMeta,
