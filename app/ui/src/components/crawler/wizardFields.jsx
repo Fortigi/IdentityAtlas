@@ -27,20 +27,20 @@ const HINT_CLS = 'mt-1 text-xs text-gray-500 dark:text-gray-400';
 
 // One labelled wizard input. `onChange` receives the VALUE, not the event —
 // every call site only ever wanted e.target.value.
-export function CrawlerField({ label, optional, hint, mono, type = 'text', value, onChange, placeholder }) {
+export function CrawlerField({ label, optional, hint, mono, type = 'text', value, onChange, placeholder, rows, children }) {
+  const cls = mono ? FIELD_MONO_CLS : FIELD_INPUT_CLS;
   return (
     <div>
       <label className={LABEL_CLS}>
         {label}
         {optional && <span className="font-normal text-gray-500"> (optional)</span>}
       </label>
-      <input
-        type={type}
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        className={mono ? FIELD_MONO_CLS : FIELD_INPUT_CLS}
-        placeholder={placeholder}
-      />
+      {rows ? (
+        <textarea value={value} onChange={e => onChange(e.target.value)} rows={rows} className={cls} placeholder={placeholder} />
+      ) : (
+        <input type={type} value={value} onChange={e => onChange(e.target.value)} className={cls} placeholder={placeholder} />
+      )}
+      {children}
       {hint && <p className={HINT_CLS}>{hint}</p>}
     </div>
   );

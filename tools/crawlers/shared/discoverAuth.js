@@ -35,8 +35,15 @@ export function trimTrailingSlashes(raw) {
 }
 
 // Build the Authorization header for a discover call, performing the OAuth2
-// client-credentials exchange when the config asks for it. `scope` is optional
-// and only sent when present.
+// token exchange when the config asks for it.
+//
+// Two OAuth2 grants are supported because the crawlers between them use both:
+// OAuth2CC is client_credentials, OAuth2ROPC is the password grant and also
+// sends the user's own username/password in the form. `oauthMethods` says which
+// of them this crawler offers, so a crawler that only supports one still
+// rejects the other as unsupported rather than silently accepting it.
+const OAUTH_GRANTS = { OAuth2CC: 'client_credentials', OAuth2ROPC: 'password' };
+
 export async function buildAuthHeader(c, { oauthMethods = ['OAuth2CC'] } = {}) {
   const m = c.authMethod;
   if (m === 'BasicAuth') {
@@ -47,16 +54,20 @@ export async function buildAuthHeader(c, { oauthMethods = ['OAuth2CC'] } = {}) {
     if (!c.apiToken) throw new Error('apiToken is required for ApiToken auth');
     return 'Bearer ' + c.apiToken;
   }
-  if (oauthMethods.includes(m)) {
+  if (oauthMethods.includes(m) && OAUTH_GRANTS[m]) {
     if (!c.tokenEndpoint || !c.clientId || !c.clientSecret) {
       throw new Error('tokenEndpoint, clientId and clientSecret are required for OAuth2');
     }
     assertHttpUrl(c.tokenEndpoint, 'tokenEndpoint');
     const form = new URLSearchParams({
-      grant_type: 'client_credentials',
+      grant_type: OAUTH_GRANTS[m],
       client_id: c.clientId,
       client_secret: c.clientSecret,
     });
+    if (m === 'OAuth2ROPC') {
+      form.set('username', c.username || '');
+      form.set('password', c.password || '');
+    }
     if (c.scope) form.set('scope', c.scope);
     const tr = await timedFetch(c.tokenEndpoint, {
       method: 'POST',

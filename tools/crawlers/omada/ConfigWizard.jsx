@@ -1,10 +1,14 @@
 import { useState } from 'react';
-import ScheduleEditor from '@ui/components/ScheduleEditor';
 import MappingRows from '@ui/components/MappingRows';
 import WizardShell from '@ui/components/WizardShell';
-import { SECRET_PLACEHOLDER, canSubmitCredentials, buildCredentialFields } from '@ui/utils/crawlerCredentials';
+import { canSubmitCredentials, buildCredentialFields } from '@ui/utils/crawlerCredentials';
+import CredentialFields from '@ui/components/crawler/CredentialFields';
+import { ScheduleList, WizardNav } from '@ui/components/crawler/wizardFields';
+import saveCrawlerConfig from '@ui/components/crawler/saveCrawlerConfig';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
+
+const CRAWLER_TYPE = 'omada';
 
 const AUTH_METHODS = [
   { id: 'FormCookie',   label: 'Form / Cookie',              description: 'POST username+password to /api/authenticate (on-premise)' },
@@ -70,13 +74,18 @@ export default function OmadaConfigWizard({ onComplete, onCancel, initialConfig,
   const [authMethod, setAuthMethod]     = useState(initialConfig?.authMethod || 'FormCookie');
 
   // Credential fields
-  const [username, setUsername]         = useState(initialConfig?.username || '');
-  const [password, setPassword]         = useState('');
-  const [clientId, setClientId]         = useState(initialConfig?.clientId || '');
-  const [clientSecret, setClientSecret] = useState('');
-  const [tokenEndpoint, setTokenEndpoint] = useState(initialConfig?.tokenEndpoint || '');
-  const [apiToken, setApiToken]         = useState('');
-  const [cookieString, setCookieString] = useState('');
+  // One object rather than a useState each — the shape canSubmitCredentials and
+  // buildCredentialFields already take, and what CredentialFields renders from.
+  const [creds, setCreds] = useState({
+    username: initialConfig?.username || '',
+    password: '',
+    clientId: initialConfig?.clientId || '',
+    clientSecret: '',
+    tokenEndpoint: initialConfig?.tokenEndpoint || '',
+    apiToken: '',
+    cookieString: '',
+  });
+  const setCred = (name, value) => setCreds(prev => ({ ...prev, [name]: value }));
   const [showCookieHelp, setShowCookieHelp] = useState(false);
 
   // Sync options
@@ -159,7 +168,7 @@ export default function OmadaConfigWizard({ onComplete, onCancel, initialConfig,
   const [error, setError] = useState(null);
 
   const canStep1 = displayName.trim() && baseUrl.trim();
-  const credentialFields = { username, password, clientId, clientSecret, tokenEndpoint, apiToken, cookieString };
+  const credentialFields = creds;
   const canStep2 = canSubmitCredentials(authMethod, credentialFields, isEdit);
 
   const handleSave = async () => {
@@ -188,24 +197,10 @@ export default function OmadaConfigWizard({ onComplete, onCancel, initialConfig,
 
       Object.assign(configPayload, buildCredentialFields(authMethod, credentialFields));
 
-      let r;
-      if (initialConfig?.id) {
-        r = await authFetch(`/api/admin/crawler-configs/${initialConfig.id}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ displayName: displayName.trim(), config: configPayload }),
-        });
-      } else {
-        r = await authFetch('/api/admin/crawler-configs', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ crawlerType: 'omada', displayName: displayName.trim(), config: configPayload }),
-        });
-      }
-      if (!r.ok) {
-        const e = await r.json().catch(() => ({}));
-        throw new Error(e.error || `HTTP ${r.status}`);
-      }
+      await saveCrawlerConfig({
+        authFetch, crawlerType: CRAWLER_TYPE, configId: initialConfig?.id,
+        displayName, config: configPayload,
+      });
       onComplete();
     } catch (err) {
       setError(err.message);
@@ -277,12 +272,7 @@ export default function OmadaConfigWizard({ onComplete, onCancel, initialConfig,
               ))}
             </div>
           </div>
-          <div className="flex justify-end">
-            <button onClick={() => setStep(2)} disabled={!canStep1}
-              className="px-4 py-2 bg-indigo-600 text-white rounded text-sm hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed">
-              Next →
-            </button>
-          </div>
+          <WizardNav onNext={() => setStep(2)} nextDisabled={!canStep1} />
         </div>
       )}
 
@@ -294,103 +284,38 @@ export default function OmadaConfigWizard({ onComplete, onCancel, initialConfig,
             {isEdit && <span className="ml-2 text-xs">(leave secret fields blank to keep the stored value)</span>}
           </p>
 
-          {(authMethod === 'FormCookie' || authMethod === 'OAuth2ROPC') && (
-            <>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Username</label>
-                <input value={username} onChange={e => setUsername(e.target.value)}
-                  className="w-full border border-gray-200 rounded px-3 py-2 text-sm bg-white dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
-                  placeholder="svc-crawler" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Password</label>
-                <input type="password" value={password} onChange={e => setPassword(e.target.value)}
-                  className="w-full border border-gray-200 rounded px-3 py-2 text-sm bg-white dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
-                  placeholder={isEdit ? SECRET_PLACEHOLDER : ''} />
-              </div>
-            </>
-          )}
-          {(authMethod === 'OAuth2CC' || authMethod === 'OAuth2ROPC') && (
-            <>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Token Endpoint URL</label>
-                <input value={tokenEndpoint} onChange={e => setTokenEndpoint(e.target.value)}
-                  className="w-full border border-gray-200 rounded px-3 py-2 text-sm font-mono bg-white dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
-                  placeholder="https://omada.example.com/oauth2/token" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Client ID</label>
-                <input value={clientId} onChange={e => setClientId(e.target.value)}
-                  className="w-full border border-gray-200 rounded px-3 py-2 text-sm font-mono bg-white dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Client Secret</label>
-                <input type="password" value={clientSecret} onChange={e => setClientSecret(e.target.value)}
-                  className="w-full border border-gray-200 rounded px-3 py-2 text-sm bg-white dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
-                  placeholder={isEdit ? SECRET_PLACEHOLDER : ''} />
-              </div>
-            </>
-          )}
-          {authMethod === 'ApiToken' && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">API Token</label>
-              <input type="password" value={apiToken} onChange={e => setApiToken(e.target.value)}
-                className="w-full border border-gray-200 rounded px-3 py-2 text-sm font-mono bg-white dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
-                placeholder={isEdit ? SECRET_PLACEHOLDER : ''} />
-            </div>
-          )}
-          {authMethod === 'BasicAuth' && (
-            <>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Username</label>
-                <input value={username} onChange={e => setUsername(e.target.value)}
-                  className="w-full border border-gray-200 rounded px-3 py-2 text-sm bg-white dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
-                  placeholder="svc-crawler" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Password</label>
-                <input type="password" value={password} onChange={e => setPassword(e.target.value)}
-                  className="w-full border border-gray-200 rounded px-3 py-2 text-sm bg-white dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
-                  placeholder={isEdit ? SECRET_PLACEHOLDER : ''} />
-              </div>
-            </>
-          )}
-          {authMethod === 'CookieString' && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Cookie String</label>
-              <textarea value={cookieString} onChange={e => setCookieString(e.target.value)} rows={3}
-                className="w-full border border-gray-200 rounded px-3 py-2 text-sm font-mono bg-white dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
-                placeholder={isEdit ? SECRET_PLACEHOLDER : 'ASP.NET_SessionId=abc123; OmadaAuth=xyz456'} />
-              <button onClick={() => setShowCookieHelp(h => !h)}
-                className="mt-1 text-xs text-indigo-600 dark:text-indigo-400 hover:underline">
-                {showCookieHelp ? '▲ Hide' : '▶ How to get the cookie string'}
-              </button>
-              {showCookieHelp && (
-                <div className="mt-2 p-3 bg-gray-50 border border-gray-200 rounded text-xs space-y-2 dark:bg-gray-700/50 dark:border-gray-600 text-gray-700 dark:text-gray-300">
-                  <p><strong>Omada Cloud (oisauthtoken):</strong> Log in to Omada Cloud → F12 DevTools → Application → Cookies → find <code>oisauthtoken</code> → copy its <em>Value</em> (a long JWT starting with <code>eyJ…</code>) → enter as <code>oisauthtoken=eyJ…</code></p>
-                  <p className="text-amber-600 dark:text-amber-400 font-medium">The value must start with <code>oisauthtoken=</code> followed by the full JWT (200+ characters). A short or missing value will cause 401 errors even though the format is correct.</p>
-                  <p><strong>On-premise (multiple cookies):</strong> Log in → F12 → Application → Cookies → copy all Name=Value pairs → join with <code>; </code> (e.g. <code>ASP.NET_SessionId=abc; OmadaAuth=xyz</code>)</p>
-                  <p><strong>PowerShell direct (on-prem):</strong></p>
-                  <pre className="bg-gray-100 dark:bg-gray-800 p-2 rounded overflow-x-auto">{`$s = [Microsoft.PowerShell.Commands.WebRequestSession]::new()
+          <CredentialFields
+            authMethod={authMethod} values={creds} onChange={setCred} isEdit={isEdit}
+            placeholders={{ username: 'svc-crawler', tokenEndpoint: 'https://omada.example.com/oauth2/token',
+                            cookieString: 'ASP.NET_SessionId=abc123; OmadaAuth=xyz456' }}
+            extras={{ cookieString: (
+              <>
+                <button onClick={() => setShowCookieHelp(h => !h)}
+                  className="mt-1 text-xs text-indigo-600 dark:text-indigo-400 hover:underline">
+                  {showCookieHelp ? '▲ Hide' : '▶ How to get the cookie string'}
+                </button>
+                {showCookieHelp && (
+                  <div className="mt-2 p-3 bg-gray-50 border border-gray-200 rounded text-xs space-y-2 dark:bg-gray-700/50 dark:border-gray-600 text-gray-700 dark:text-gray-300">
+                    <p><strong>Omada Cloud (oisauthtoken):</strong> Log in to Omada Cloud → F12 DevTools → Application → Cookies → find <code>oisauthtoken</code> → copy its <em>Value</em> (a long JWT starting with <code>eyJ…</code>) → enter as <code>oisauthtoken=eyJ…</code></p>
+                    <p className="text-amber-600 dark:text-amber-400 font-medium">The value must start with <code>oisauthtoken=</code> followed by the full JWT (200+ characters). A short or missing value will cause 401 errors even though the format is correct.</p>
+                    <p><strong>On-premise (multiple cookies):</strong> Log in → F12 → Application → Cookies → copy all Name=Value pairs → join with <code>; </code> (e.g. <code>ASP.NET_SessionId=abc; OmadaAuth=xyz</code>)</p>
+                    <p><strong>PowerShell direct (on-prem):</strong></p>
+                    <pre className="bg-gray-100 dark:bg-gray-800 p-2 rounded overflow-x-auto">{`$s = [Microsoft.PowerShell.Commands.WebRequestSession]::new()
 Invoke-RestMethod -Uri "https://omada.example.com/api/authenticate" \\
   -Method Post -ContentType application/json \\
   -Body '{"Username":"svc","Password":"..."}' \\
   -SessionVariable s | Out-Null
 $s.Cookies.GetCookies([Uri]"https://omada.example.com") |
   ForEach-Object { "$($_.Name)=$($_.Value)" } | Join-String -Separator '; '`}</pre>
-                  <p className="text-gray-500 dark:text-gray-400">⚠️ Omada session cookies expire (typically 20–60 min). Use FormCookie or OAuth2 for unattended scheduled syncs.</p>
-                </div>
-              )}
-            </div>
-          )}
+                    <p className="text-gray-500 dark:text-gray-400">⚠️ Omada session cookies expire (typically 20–60 min). Use FormCookie or OAuth2 for unattended scheduled syncs.</p>
+                  </div>
+                )}
 
-          <div className="flex justify-between">
-            <button onClick={() => setStep(1)} className="px-4 py-2 bg-gray-100 text-gray-700 rounded text-sm hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300">← Back</button>
-            <button onClick={() => handleStepClick(3)} disabled={!canStep2}
-              className="px-4 py-2 bg-indigo-600 text-white rounded text-sm hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed">
-              Next →
-            </button>
-          </div>
+              </>
+            ) }}
+          />
+
+          <WizardNav onBack={() => setStep(1)} onNext={() => handleStepClick(3)} nextDisabled={!canStep2} />
         </div>
       )}
 
@@ -513,10 +438,7 @@ $s.Cookies.GetCookies([Uri]"https://omada.example.com") |
             />
           </div>
 
-          <div className="flex justify-between">
-            <button onClick={() => setStep(2)} className="px-4 py-2 bg-gray-100 text-gray-700 rounded text-sm hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300">← Back</button>
-            <button onClick={() => setStep(4)} className="px-4 py-2 bg-indigo-600 text-white rounded text-sm hover:bg-indigo-700">Next →</button>
-          </div>
+          <WizardNav onBack={() => setStep(2)} onNext={() => setStep(4)} />
         </div>
       )}
 
@@ -526,29 +448,12 @@ $s.Cookies.GetCookies([Uri]"https://omada.example.com") |
           <p className="text-sm text-gray-500 dark:text-gray-400">
             Omada has no native delta API — each scheduled run performs a full sync.
           </p>
-          {schedules.length === 0 && (
-            <div className="p-4 bg-gray-50 border border-gray-200 rounded text-center text-sm text-gray-500 dark:bg-gray-700/50 dark:border-gray-600 dark:text-gray-400">
-              No schedules configured. The crawler will only run when you click "Run Now".
-            </div>
-          )}
-          {schedules.map((s, i) => (
-            <ScheduleEditor key={i}
-              schedule={{ enabled: true, ...s }}
-              onChange={(updated) => setSchedules(schedules.map((x, idx) => idx === i ? { ...updated, enabled: true } : x))}
-              onRemove={() => setSchedules(schedules.filter((_, idx) => idx !== i))}
-            />
-          ))}
-          <button onClick={() => setSchedules([...schedules, { enabled: true, syncMode: 'full', frequency: 'daily', hour: 2, minute: 0 }])}
-            className="px-3 py-1.5 text-xs bg-gray-200 rounded hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600">
-            + Add Schedule
-          </button>
-          <div className="flex justify-between">
-            <button onClick={() => setStep(3)} className="px-4 py-2 bg-gray-100 text-gray-700 rounded text-sm hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300">← Back</button>
-            <button onClick={handleSave} disabled={saving}
-              className="px-4 py-2 bg-green-600 text-white rounded text-sm hover:bg-green-700 disabled:opacity-50">
-              {saving ? 'Saving…' : isEdit ? 'Save Changes' : 'Add Crawler'}
-            </button>
-          </div>
+          <ScheduleList schedules={schedules} onChange={setSchedules} />
+          <WizardNav
+            onBack={() => setStep(3)} onNext={handleSave} nextDisabled={saving}
+            nextLabel={saving ? 'Saving…' : isEdit ? 'Save Changes' : 'Add Crawler'}
+            nextCls="px-4 py-2 bg-green-600 text-white rounded text-sm hover:bg-green-700 disabled:opacity-50"
+          />
         </div>
       )}
     </WizardShell>
