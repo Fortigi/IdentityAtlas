@@ -1,0 +1,3 @@
+- Upgraded the test runner (Vitest) and its coverage reporter to 5.0 across both the API and the UI, keeping the matched pair in lockstep.
+- Fixed the automated dependency updater so the test runner and its coverage reporter are always proposed together — previously they were offered as separate updates that could never be installed side by side, leaving their update requests permanently stuck.
+- Added tests for the matrix legend's "How to read this matrix" panel, covering the collapse/expand toggle and that the open/closed choice is remembered between visits — including browsers that block local storage, where the legend now stays readable instead of failing.
