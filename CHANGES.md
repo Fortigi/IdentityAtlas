@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Fixed the matrix showing stale data after classifying business-role assignments. The classify step reported success but never actually refreshed the matrix views, so newly governed assignments only appeared once something else happened to refresh them.
+
+## Changes in this PR
+
 - Fixed the Worker showing a development version (and an amber "Mismatch" warning on Admin → Updates) after a fresh stable or beta install. The published worker image was never stamped with the release version, so it reported the in-development version instead of the one Web and Database showed. All three components now report the same version on a released deployment.
 
 ## Changes in this PR
