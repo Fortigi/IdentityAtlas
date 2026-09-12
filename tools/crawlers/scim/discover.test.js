@@ -7,19 +7,9 @@
  */
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import handler, { schemaAttributeNames, attributesForResourceType } from './discover.js';
+import { makeReqRes, ok, stubFetch } from '../shared/discoverTestKit.js';
 
 const BASE = 'https://scim.example.com/scim/v2';
-
-function makeReqRes(body) {
-  const req = { body };
-  const res = {
-    statusCode: 200,
-    body: undefined,
-    status(code) { this.statusCode = code; return this; },
-    json(payload) { this.body = payload; return this; },
-  };
-  return { req, res };
-}
 
 const USER_SCHEMA = {
   id: 'urn:ietf:params:scim:schemas:core:2.0:User',
@@ -49,18 +39,6 @@ const RESOURCE_TYPES = {
   ],
 };
 
-// Dispatch a stubbed fetch by URL substring; first match wins.
-function stubFetch(routes) {
-  vi.stubGlobal('fetch', vi.fn(async (url) => {
-    const u = String(url);
-    for (const [match, response] of routes) {
-      if (u.includes(match)) return response;
-    }
-    return { ok: false, status: 404, json: async () => ({}) };
-  }));
-}
-
-const ok = (payload) => ({ ok: true, status: 200, json: async () => payload });
 const HAPPY_ROUTES = [
   ['/ResourceTypes', ok(RESOURCE_TYPES)],
   ['/Schemas', ok({ Resources: [USER_SCHEMA, GROUP_SCHEMA] })],

@@ -5,18 +5,10 @@
  * ConfigWizard.e2e.mjs; the branching logic is unit-tested in wizardLogic.test.js.
  */
 import { describe, it, expect } from 'vitest';
-import { renderToStaticMarkup } from 'react-dom/server';
-import { createElement as h } from 'react';
 import ConfigWizard from './ConfigWizard.jsx';
+import { makeWizardRenderer } from '../shared/wizardTestKit.js';
 
-const render = (props) => renderToStaticMarkup(h(ConfigWizard, {
-  onComplete: () => {},
-  onCancel: () => {},
-  initialConfig: null,
-  isEdit: false,
-  authFetch: () => new Promise(() => {}),
-  ...props,
-}));
+const render = makeWizardRenderer(ConfigWizard);
 
 describe('SCIM ConfigWizard render', () => {
   it('renders the add-mode connection step', () => {

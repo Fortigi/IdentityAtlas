@@ -19,7 +19,7 @@
  * full explanation.
  */
 
-const BASE = process.env.E2E_BASE_URL || 'http://localhost:3001';
+import { E2E_BASE as BASE, openCrawlerWizard } from '../shared/wizardE2EKit.mjs';
 
 // What the stubbed POST /api/admin/crawlers/scim/discover answers with. Routing
 // the discovery call in the browser keeps this test independent of any live SCIM
@@ -48,22 +48,9 @@ export function register(test, expect) {
   async function openScimWizard(page) {
     await page.route('**/api/admin/crawlers/scim/discover', route =>
       route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(DISCOVERY) }));
-
-    await page.goto(`${BASE}/#admin`);
-    await page.waitForLoadState('networkidle');
-    // .first() — an empty-data install shows a second "Add Crawler" CTA in the
-    // welcome banner alongside the toolbar button; both open the same picker.
-    const addBtn = page.locator('button:has-text("Add Crawler")').first();
-    if (!await addBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
-      test.skip();
-      return false;
-    }
-    await addBtn.click();
-    const scimBtn = page.locator('button:has-text("SCIM 2.0")').first();
-    await expect(scimBtn).toBeVisible({ timeout: 5000 });
-    await scimBtn.click();
-    await expect(page.locator('h3:has-text("Add SCIM 2.0 Crawler")')).toBeVisible({ timeout: 10000 });
-    return true;
+    return openCrawlerWizard({
+      page, test, expect, typeLabel: 'SCIM 2.0', heading: 'Add SCIM 2.0 Crawler',
+    });
   }
 
   test.describe('SCIM 2.0 crawler wizard', () => {
@@ -75,7 +62,6 @@ export function register(test, expect) {
       if (!await addBtn.isVisible({ timeout: 5000 }).catch(() => false)) { test.skip(); return; }
       await addBtn.click();
       const scimBtn = page.locator('button:has-text("SCIM 2.0")').first();
-      await expect(scimBtn).toBeVisible();
       await expect(scimBtn).toBeEnabled();
       // The badge is what tells an operator this connector is not yet proven.
       await expect(scimBtn.locator('text=Experimental')).toBeVisible();
