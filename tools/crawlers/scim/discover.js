@@ -12,6 +12,8 @@
 //
 // handler(req, res, { db, getConfigSecret, assertPublicUrl })
 
+import { assertHttpUrl, timedFetch, trimTrailingSlashes, buildAuthHeader } from '../shared/discoverAuth.js';
+
 // Resource types this crawler can sync today. Anything else the endpoint serves is
 // returned as `syncable: false` so the wizard can show it as visible-but-not-yet.
 const SYNCABLE_RESOURCE_TYPES = ['User', 'Group'];
@@ -21,59 +23,9 @@ const SYNCABLE_RESOURCE_TYPES = ['User', 'Group'];
 const CORE_USER_ATTRIBUTES = ['id', 'userName', 'displayName', 'active', 'emails', 'externalId', 'userType', 'name', 'title', 'members', 'groups', 'meta'];
 const CORE_GROUP_ATTRIBUTES = ['id', 'displayName', 'externalId', 'members', 'meta'];
 
-function scimBaseUrl(raw) {
-  let b = String(raw || '').trim();
-  let end = b.length;
-  while (end > 0 && b[end - 1] === '/') end--;
-  return b.slice(0, end);
-}
-
-function assertHttpUrl(raw, label) {
-  const u = new URL(raw);
-  if (u.protocol !== 'https:' && u.protocol !== 'http:') {
-    throw new Error(`${label} must use http or https`);
-  }
-  return u;
-}
-
-// Timed fetch (15 s) — avoids hanging forever on an unreachable endpoint.
-function scimFetch(url, opts = {}) {
-  return fetch(url, { ...opts, signal: AbortSignal.timeout(15_000) });
-}
-
-async function scimAuthHeader(c) {
-  const m = c.authMethod;
-  if (m === 'BasicAuth') {
-    if (!c.username || !c.password) throw new Error('username and password are required for BasicAuth');
-    return 'Basic ' + Buffer.from(`${c.username}:${c.password}`).toString('base64');
-  }
-  if (m === 'ApiToken') {
-    if (!c.apiToken) throw new Error('apiToken is required for ApiToken auth');
-    return 'Bearer ' + c.apiToken;
-  }
-  if (m === 'OAuth2CC') {
-    if (!c.tokenEndpoint || !c.clientId || !c.clientSecret) {
-      throw new Error('tokenEndpoint, clientId and clientSecret are required for OAuth2');
-    }
-    assertHttpUrl(c.tokenEndpoint, 'tokenEndpoint');
-    const form = new URLSearchParams({
-      grant_type: 'client_credentials',
-      client_id: c.clientId,
-      client_secret: c.clientSecret,
-    });
-    if (c.scope) form.set('scope', c.scope);
-    const tr = await scimFetch(c.tokenEndpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: form.toString(),
-    });
-    if (!tr.ok) throw new Error(`OAuth2 token endpoint returned HTTP ${tr.status}`);
-    const tk = await tr.json();
-    if (!tk.access_token) throw new Error('OAuth2 token response missing access_token');
-    return 'Bearer ' + tk.access_token;
-  }
-  throw new Error(`Unsupported authMethod: ${m}`);
-}
+const scimBaseUrl = trimTrailingSlashes;
+const scimFetch = timedFetch;
+const scimAuthHeader = c => buildAuthHeader(c);
 
 // GET a SCIM endpoint and unwrap the ListResponse `Resources` array. A provider
 // that returns a bare array (some do) is tolerated.

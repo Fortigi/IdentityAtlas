@@ -1,12 +1,12 @@
 import { useState } from 'react';
-import ScheduleEditor from '@ui/components/ScheduleEditor';
 import MappingRows from '@ui/components/MappingRows';
 import WizardShell from '@ui/components/WizardShell';
 import Combobox from '@ui/components/inputs/Combobox';
 import Select from '@ui/components/inputs/Select';
 import { canSubmitCredentials, buildCredentialFields } from '@ui/utils/crawlerCredentials';
 import CredentialFields from '@ui/components/crawler/CredentialFields';
-import { CrawlerField, OptionList, WizardNav } from '@ui/components/crawler/wizardFields';
+import { CrawlerField, OptionList, WizardNav, ScheduleList } from '@ui/components/crawler/wizardFields';
+import saveCrawlerConfig from '@ui/components/crawler/saveCrawlerConfig';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -24,6 +24,7 @@ const SYNC_OPTIONS = [
 
 const PRINCIPAL_TYPE_OPTIONS = ['User', 'ServicePrincipal', 'ManagedIdentity', 'WorkloadIdentity', 'AIAgent', 'ExternalUser', 'SharedMailbox'];
 const FIELD_CLS = 'text-sm border border-gray-300 rounded px-2 py-1 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200';
+const CRAWLER_TYPE = 'scim';
 const EMPTY_DISCOVERY = { resourceTypes: [], userAttributes: [], groupAttributes: [] };
 
 // ─── Pure logic (exported for unit tests) ────────────────────────────────────
@@ -167,19 +168,10 @@ export default function ScimConfigWizard({ onComplete, onCancel, initialConfig, 
       });
       Object.assign(configPayload, buildCredentialFields(authMethod, credentialFields));
 
-      const r = initialConfig?.id
-        ? await authFetch(`/api/admin/crawler-configs/${initialConfig.id}`, {
-            method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ displayName: displayName.trim(), config: configPayload }),
-          })
-        : await authFetch('/api/admin/crawler-configs', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ crawlerType: 'scim', displayName: displayName.trim(), config: configPayload }),
-          });
-      if (!r.ok) {
-        const e = await r.json().catch(() => ({}));
-        throw new Error(e.error || `HTTP ${r.status}`);
-      }
+      await saveCrawlerConfig({
+        authFetch, crawlerType: CRAWLER_TYPE, configId: initialConfig?.id,
+        displayName, config: configPayload,
+      });
       onComplete();
     } catch (err) {
       setError(err.message);
@@ -369,20 +361,7 @@ export default function ScimConfigWizard({ onComplete, onCancel, initialConfig, 
           <p className="text-sm text-gray-500 dark:text-gray-400">
             Schedule automatic syncs. SCIM has no standard change feed, so every run is a full sync.
           </p>
-          {schedules.length === 0 && (
-            <div className="p-4 bg-gray-50 border border-gray-200 rounded text-center text-sm text-gray-500 dark:bg-gray-700/50 dark:border-gray-600 dark:text-gray-400">
-              No schedules configured. The crawler will only run when you click &quot;Run Now&quot;.
-            </div>
-          )}
-          {schedules.map((s, i) => (
-            <ScheduleEditor key={i}
-              schedule={{ enabled: true, ...s }}
-              onChange={(updated) => setSchedules(schedules.map((x, idx) => idx === i ? { ...updated, enabled: true } : x))}
-              onRemove={() => setSchedules(schedules.filter((_, idx) => idx !== i))}
-            />
-          ))}
-          <button onClick={() => setSchedules([...schedules, { enabled: true, syncMode: 'full', frequency: 'daily', hour: 2, minute: 0 }])}
-            className="px-3 py-1.5 text-xs bg-gray-200 rounded hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600">+ Add Schedule</button>
+          <ScheduleList schedules={schedules} onChange={setSchedules} />
 
           <div className="border-t border-gray-200 dark:border-gray-700 pt-3 text-xs text-gray-500 dark:text-gray-400 space-y-1">
             <div>Endpoint: <span className="font-mono text-gray-700 dark:text-gray-300">{baseUrl || '—'}</span></div>

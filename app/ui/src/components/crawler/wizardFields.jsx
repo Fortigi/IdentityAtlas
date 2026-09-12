@@ -12,6 +12,8 @@
 // `label:has-text("Username") + input`, so nesting the input inside the label
 // would silently break every wizard's end-to-end coverage.
 
+import ScheduleEditor from '@ui/components/ScheduleEditor';
+
 export const FIELD_INPUT_CLS =
   'w-full border border-gray-200 rounded px-3 py-2 text-sm bg-white dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200';
 export const FIELD_MONO_CLS = FIELD_INPUT_CLS + ' font-mono';
@@ -87,5 +89,35 @@ export function WizardNav({ onBack, onNext, nextDisabled, nextLabel = 'Next →'
         </button>
       )}
     </div>
+  );
+}
+
+// The schedule step every pull crawler ends on: an empty-state line, one
+// ScheduleEditor per configured schedule, and the add button. Identical in
+// every wizard apart from the default it adds, so that is the only prop.
+export function ScheduleList({ schedules, onChange, defaultSchedule }) {
+  const add = { enabled: true, syncMode: 'full', frequency: 'daily', hour: 2, minute: 0, ...defaultSchedule };
+  return (
+    <>
+      {schedules.length === 0 && (
+        <div className="p-4 bg-gray-50 border border-gray-200 rounded text-center text-sm text-gray-500 dark:bg-gray-700/50 dark:border-gray-600 dark:text-gray-400">
+          No schedules configured. The crawler will only run when you click &quot;Run Now&quot;.
+        </div>
+      )}
+      {schedules.map((s, i) => (
+        <ScheduleEditor
+          key={i}
+          schedule={{ enabled: true, ...s }}
+          onChange={updated => onChange(schedules.map((x, idx) => (idx === i ? { ...updated, enabled: true } : x)))}
+          onRemove={() => onChange(schedules.filter((_, idx) => idx !== i))}
+        />
+      ))}
+      <button
+        onClick={() => onChange([...schedules, add])}
+        className="px-3 py-1.5 text-xs bg-gray-200 rounded hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
+      >
+        + Add Schedule
+      </button>
+    </>
   );
 }
