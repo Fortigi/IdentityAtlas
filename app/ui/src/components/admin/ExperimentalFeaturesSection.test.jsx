@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
 //
 // Admin → Experimental. What this pins down:
-//   • the flag renders from /api/features (OFF is the state a fresh install sees)
+//   • the flag renders from the features prop App.jsx passes down (OFF is the
+//     state a fresh install sees)
 //   • the experimental crawlers shipping in this build are listed by name
 //   • the switch POSTs the right feature name and the flipped value
 //   • the copy tells the operator that turning it off keeps existing crawlers
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createElement as h } from 'react';
 import ExperimentalFeaturesSection from './ExperimentalFeaturesSection';
 import { experimentalCrawlerTypes } from '@ui/utils/crawlerMetaRegistry';

@@ -129,6 +129,19 @@ function Set-ExperimentalCrawlers {
         -Body @{ feature = 'experimentalCrawlers'; enabled = $Enabled } | Out-Null
 }
 
+function Get-AtlasRows {
+    param([string]$Path)
+    # For endpoints that answer with a bare JSON array. @(Get-Atlas ...) around
+    # one of those yields a SINGLE element holding every row rather than one
+    # element per row: each property then reads as an array, so a Where-Object
+    # filter matches that one object no matter what it contains and .Count
+    # always reports 1. Piping unrolls it, so counts and filters mean what they
+    # say. The comma keeps an empty or single-row result an array.
+    $rows = @()
+    Get-Atlas $Path | ForEach-Object { $rows += $_ }
+    return ,$rows
+}
+
 function Format-AssignmentRows {
     param($Rows)
     $items = @()
@@ -229,8 +242,8 @@ try {
     $outerRow = @($groupRes | Where-Object { $_.externalId -eq $gOuter }) | Select-Object -First 1
     $innerRow = @($groupRes | Where-Object { $_.externalId -eq $gInner }) | Select-Object -First 1
     try {
-        $outerAssign = @(Get-Atlas "/resources/$($outerRow.id)/assignments")
-        $innerAssign = @(Get-Atlas "/resources/$($innerRow.id)/assignments")
+        $outerAssign = Get-AtlasRows "/resources/$($outerRow.id)/assignments"
+        $innerAssign = Get-AtlasRows "/resources/$($innerRow.id)/assignments"
 
         $direct   = @($outerAssign | Where-Object { $_.assignmentType -eq 'Direct' })
         $indirect = @($outerAssign | Where-Object { $_.assignmentType -eq 'Indirect' })
@@ -246,7 +259,7 @@ try {
     } catch { Write-Result 'Scim/Data — Direct memberships + Indirect rows from nesting' $false $_.Exception.Message }
 
     try {
-        $parents = @(Get-Atlas "/resources/$($innerRow.id)/parent-resources")
+        $parents = Get-AtlasRows "/resources/$($innerRow.id)/parent-resources"
         $contains = @($parents | Where-Object { $_.relationshipType -eq 'Contains' -and $_.parentResourceId -eq $outerRow.id })
         Write-Result 'Scim/Data — a nested group became a Contains relationship' ($contains.Count -eq 1) `
             "($($contains.Count) Contains edge(s) from Outer to Inner; expected 1)"

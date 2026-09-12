@@ -7,7 +7,7 @@
 //
 //   1. the request was rejected with 400 "records array cannot be empty"
 //      (validateRecordsArray), and
-//   2. even once accepted, upsertRecords returned early on an empty array —
+//   2. even once accepted, ingest() returned early on an empty array —
 //      before the scoped delete ran — so nothing was tombstoned.
 //
 // The visible symptom was a SCIM endpoint that legitimately served no groups
@@ -19,7 +19,7 @@
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import pg from 'pg';
-import { upsertRecords } from '../src/ingest/engine.js';
+import { ingest } from '../src/ingest/engine.js';
 import { validateRecordsArray } from '../src/ingest/validation.helpers.js';
 
 let pool;
@@ -72,7 +72,7 @@ async function liveCount(sys, resourceType) {
 }
 
 const KEYS = ['resourceId', 'principalId', 'assignmentType'];
-const emptyFullSync = (scope) => upsertRecords('ResourceAssignments', [], KEYS, {
+const emptyFullSync = (scope) => ingest(null, 'ResourceAssignments', KEYS, [], {
   systemId, syncMode: 'full', scope, conflictFilter: '"principalId" IS NOT NULL',
 });
 
@@ -132,7 +132,7 @@ describe('empty delta sync — nothing is touched', () => {
   it('leaves the rows alone, because delta says nothing about what is absent', async () => {
     await insertRA(systemId, GROUP_A, U1, 'Direct', 'Group');
 
-    const result = await upsertRecords('ResourceAssignments', [], KEYS, {
+    const result = await ingest(null, 'ResourceAssignments', KEYS, [], {
       systemId, syncMode: 'delta', scope: { resourceType: 'Group' },
       conflictFilter: '"principalId" IS NOT NULL',
     });
