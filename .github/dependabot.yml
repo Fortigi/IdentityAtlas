@@ -80,6 +80,19 @@ updates:
       interval: "weekly"
     commit-message:
       prefix: "build"
+    groups:
+      # `@vitest/coverage-v8` pins an EXACT peer on its matching `vitest`
+      # ("peer vitest@5.0.0"), so a PR moving one without the other can never
+      # install — `npm ci` dies with ERESOLVE and every downstream job (lint,
+      # unit, contract, integration, e2e, Socket) fails on that one step.
+      # This entry had no groups at all, so Dependabot cut #1177 (coverage-v8
+      # -> 5) and #1179 (vitest -> 5) as separate PRs, each holding the
+      # other's missing half and both permanently red. Group them so the pair
+      # always moves in a single PR.
+      vitest:
+        patterns:
+          - "vitest"
+          - "@vitest/*"
 
   # React UI dependencies
   - package-ecosystem: "npm"
@@ -99,11 +112,19 @@ updates:
           - "@types/react-dom"
       # vite and its React plugin + test runner must move together — each
       # declares a peer dep on a specific vite major range.
+      #
+      # `@vitest/*` belongs here too: `@vitest/coverage-v8` pins an EXACT peer
+      # on its matching `vitest` ("peer vitest@5.0.0"). The bare `vitest`
+      # pattern does NOT match the scoped `@vitest/coverage-v8`, so the group
+      # took `vitest` while coverage-v8 was cut as its own PR — #1169 and
+      # #1181, each the other's missing half, neither able to `npm ci`. Same
+      # failure shape as the codeql-action sub-path glob above.
       vite:
         patterns:
           - "vite"
           - "@vitejs/*"
           - "vitest"
+          - "@vitest/*"
       # tailwindcss core and its plugins are always released together and
       # must stay on the same version. Independent of vite — tailwindcss
       # itself has no vite peer dep.
