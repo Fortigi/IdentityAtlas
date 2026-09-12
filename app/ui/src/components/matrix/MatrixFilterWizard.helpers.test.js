@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { deriveSteps } from './MatrixFilterWizard.helpers';
+import { deriveSteps, commitFilter } from './MatrixFilterWizard.helpers';
 
 describe('deriveSteps', () => {
   it('lists Setup → Subjects → Resources → Sort with no roll-up', () => {
@@ -86,5 +86,41 @@ describe('deriveSteps', () => {
       expect(stepKeys).not.toContain('share');
       expect(stepKeys).toContain(activeStep);
     });
+  });
+});
+
+describe('commitFilter', () => {
+  it('stamps foldAttributes and clears the expand state when folding', () => {
+    const out = commitFilter(
+      { rowType: 'principal', sortAttributes: [{ attribute: 'department', dir: 'asc' }], rollupExpanded: ['Sales'], rollupCollapsed: ['HR'] },
+      true,
+    );
+    expect(out.foldAttributes).toBe(true);
+    expect(out.rollupExpanded).toEqual([]);
+    expect(out.rollupCollapsed).toEqual([]);
+    // Everything the steps edited survives untouched.
+    expect(out.rowType).toBe('principal');
+    expect(out.sortAttributes).toEqual([{ attribute: 'department', dir: 'asc' }]);
+  });
+
+  it('keeps an existing expand state when not folding', () => {
+    const out = commitFilter({ rollupExpanded: ['Sales'], rollupCollapsed: ['HR'] }, false);
+    expect(out.foldAttributes).toBe(false);
+    expect(out.rollupExpanded).toEqual(['Sales']);
+    expect(out.rollupCollapsed).toEqual([]);
+  });
+
+  it('defaults a missing expand state to empty rather than undefined', () => {
+    // A filter loaded from an older saved matrix has neither key; the matrix
+    // reads them as arrays, so the committed shape must supply them.
+    const out = commitFilter({ rowType: 'identity' }, false);
+    expect(out.rollupExpanded).toEqual([]);
+    expect(out.rollupCollapsed).toEqual([]);
+  });
+
+  it('does not mutate the filter it was given', () => {
+    const input = { rollupExpanded: ['Sales'] };
+    commitFilter(input, true);
+    expect(input).toEqual({ rollupExpanded: ['Sales'] });
   });
 });

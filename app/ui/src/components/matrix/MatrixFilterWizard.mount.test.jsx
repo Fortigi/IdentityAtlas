@@ -4,7 +4,7 @@ import { createElement as h, useState } from 'react';
 import MatrixFilterWizard from './MatrixFilterWizard';
 import {
   renderWithProviders, makeAuthFetch, jsonResponse,
-  screen, fireEvent, waitFor, userEvent,
+  screen, within, fireEvent, waitFor, userEvent,
 } from '@ui/test-utils/renderWithProviders';
 
 // Column schema payloads returned by /api/matrix/columns. Each row is a
@@ -422,5 +422,80 @@ describe('MatrixFilterWizard — the Share step (#1166)', () => {
 
     await user.click(screen.getByText('Apply'));
     expect(onApply).toHaveBeenCalledTimes(1);
+  });
+
+  // An oversized matrix that folds on attributes only loads as the layered,
+  // server-aggregated view — which Apply arranges by stamping `foldAttributes`.
+  // A share is a frozen snapshot, so if the step shared the raw edit state
+  // instead, the recipient would ask for every per-subject row of a matrix that
+  // can't be served that way, with no control to fix it.
+  const OVERSIZED_FOLDABLE = {
+    rowType: 'principal',
+    subject: { include: [], exclude: [] },
+    resource: { include: [], exclude: [] },
+    sortAttributes: [{ attribute: 'department', dir: 'asc' }],
+    foldOnLoad: true,
+    // Left over from the saved matrix this was loaded from — the committed
+    // shape drops it, so the recipient opens at the top level like the sharer.
+    rollupExpanded: ['Engineering'],
+  };
+
+  function shareFetch() {
+    return makeAuthFetch((url, opts = {}) => {
+      const u = String(url);
+      if (u.includes('/api/matrix/shares') && opts.method === 'POST') {
+        return jsonResponse({ id: 'sh-1', token: 'fgs_abc', recipients: [{ userKey: 'ann@contoso.com', displayName: 'Ann Manager' }] }, { status: 201 });
+      }
+      if (u.includes('/api/users')) {
+        return jsonResponse({ data: [{ id: '3fa85f64-5717-4562-b3fc-2c963f66afa6', displayName: 'Ann Manager', userPrincipalName: 'ann@contoso.com' }] });
+      }
+      return makeFetch({ preview: { assignmentCount: 99999 } })(url, opts);
+    });
+  }
+
+  it('shares the matrix Apply would commit, not the raw edit state', async () => {
+    const authFetch = shareFetch();
+    renderWizard({ initialFilter: OVERSIZED_FOLDABLE }, authFetch);
+    const user = userEvent.setup();
+    for (const _ of [1, 2, 3]) await user.click(screen.getByText('Next')); // → sort
+    await user.click(screen.getByText('Next'));                            // → share
+
+    expect(await screen.findByRole('textbox', { name: /Share with/i })).toBeInTheDocument();
+    await user.type(screen.getByRole('textbox', { name: /Name this view/i }), 'Engineering access');
+    await user.type(screen.getByRole('textbox', { name: /Share with/i }), 'ann');
+    await user.click(await within(await screen.findByRole('group', { name: 'Search results' }))
+      .findByRole('button', { name: /Ann Manager/i }));
+    await user.click(screen.getByRole('button', { name: /Create link/i }));
+
+    await waitFor(() => {
+      expect(authFetch).toHaveBeenCalledWith('/api/matrix/shares', expect.objectContaining({ method: 'POST' }));
+    });
+    const call = authFetch.mock.calls.find(([u, o]) => String(u).includes('/api/matrix/shares') && o?.method === 'POST');
+    const body = JSON.parse(call[1].body);
+    expect(body.filter.foldAttributes).toBe(true);
+    expect(body.filter.rollupExpanded).toEqual([]);
+    expect(body.filter.rollupCollapsed).toEqual([]);
+    expect(body.recipients).toEqual([
+      { principalId: '3fa85f64-5717-4562-b3fc-2c963f66afa6', userKey: 'ann@contoso.com', displayName: 'Ann Manager' },
+    ]);
+    // The link comes back once, with a copy control next to it.
+    expect(await screen.findByText(/#shared:fgs_abc$/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Copy link/i })).toBeInTheDocument();
+  });
+
+  it('offers no share form for a matrix too large to load', async () => {
+    renderWizard(
+      {
+        initialFilter: { ...OVERSIZED_FOLDABLE, sortAttributes: [], foldOnLoad: false },
+      },
+      shareFetch(),
+    );
+    const user = userEvent.setup();
+    for (const _ of [1, 2, 3]) await user.click(screen.getByText('Next')); // → sort
+    await user.click(screen.getByText('Next'));                            // → share
+
+    expect(await screen.findByText(/too large to load, so there is nothing to share/i)).toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: /Share with/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Create link/i })).not.toBeInTheDocument();
   });
 });

@@ -36,3 +36,22 @@ export function deriveSteps(filter, step, { canShare = false } = {}) {
   const activeStep = stepKeys.includes(step) ? step : stepKeys[Math.min(curPos, steps.length - 1)];
   return { steps, stepKeys, curPos, isLast, activeStep, rollupOn };
 }
+
+// The filter in the shape the wizard COMMITS — what Apply hands to the matrix.
+// It differs from the filter the steps edit: `foldAttributes` decides whether
+// an oversized-but-foldable matrix is served as the layered, server-aggregated
+// attribute view, and the expand/collapse state starts fresh.
+//
+// The Share step mints its link from this same shape (#1166), not from the
+// raw edit state. A share is a snapshot nobody can adjust afterwards, so a
+// snapshot missing `foldAttributes` would ask a recipient's browser for every
+// per-subject row of a matrix that only loads aggregated — a link that opens
+// to nothing, with no way for them to fix it.
+export function commitFilter(filter, foldAttributes) {
+  return {
+    ...filter,
+    foldAttributes,
+    rollupExpanded: foldAttributes ? [] : (filter.rollupExpanded || []),
+    rollupCollapsed: [],
+  };
+}

@@ -17,14 +17,28 @@ The **data** behind a shared view stays live. The **view** does not: the filter 
 
 ## 1. Create the link
 
-1. Open **Matrix** and build the view you want to share (or load a saved one).
-2. Click **Share view…** in the matrix toolbar. (Not to be confused with **Copy link** next to it: that copies the current URL, which only opens for colleagues who already have Identity Atlas access.)
-3. Give the view a name — the recipient sees it, and so does everyone on the Shared matrices page.
-4. Click **Create link**, then use the dialog's **Copy link** button to put the share link on your clipboard.
+Sharing is usually the last thing you do to a matrix you built *for* somebody, so it is the last step of the wizard — you don't have to apply the matrix first and then go looking for a button.
+
+### From the wizard (**Share**, the final step)
+
+1. Open **Matrix** → **Adjust matrix** (or build a new one) and work through the steps as usual.
+2. On the last step, **Share**, name the view — the recipients see that name, and so does everyone on the Shared matrices page.
+3. Under **Share with**, search the directory by name or e-mail and pick the people it is for. You can add several; each appears as a chip you can remove again.
+4. Click **Create link**, then **Copy link**.
+
+The step is optional: pressing **Apply** without touching it is the ordinary path, and **Apply** stays available while the form is open. It only appears for a role that may share (see below), and a matrix that is [too large to load](../architecture/matrix.md) shows the reason instead of the form — a recipient cannot narrow a share down, so there is nothing useful to send them.
+
+### From the matrix toolbar
+
+Already looking at the matrix? Click **Share view…** in the toolbar for the same form. (Not to be confused with **Copy link** next to it: that copies the current URL, which only opens for colleagues who already have Identity Atlas access.)
+
+### Either way
+
+**At least one recipient is required** — **Create link** stays disabled until you have named somebody. There is no "anyone with the link" share: only the people you picked (and you) can open it, so a forwarded link is useless to anyone else, and they are told plainly that the view was shared with specific people.
 
 The link is shown **once**. Only a hash of its token is stored, so it cannot be recovered later; if you lose it, create a new share and revoke the old one.
 
-The button appears only if your role has the **Create matrix share links** (`data.share`) permission. Out of the box that is the **RoleMiner** role (and Admin, via the wildcard). To let Servicedesk share as well, tick the permission for that role in **Admin → Authentication → Roles & Permissions**. See [Permissions & Role Mapping](../reference/permissions.md).
+Sharing appears only if your role has the **Create matrix share links** (`data.share`) permission. Out of the box that is the **RoleMiner** role (and Admin, via the wildcard). To let Servicedesk share as well, tick the permission for that role in **Admin → Authentication → Roles & Permissions**. See [Permissions & Role Mapping](../reference/permissions.md).
 
 What the snapshot captures:
 
@@ -42,9 +56,10 @@ If the link has been revoked, was mistyped, or no longer resolves, they get a pl
 
 ## 3. See and revoke shares
 
-**Shared matrices** in the top navigation lists every share in the organisation — not just your own — with:
+**Admin → Shared Matrices** lists every share in the organisation — not just your own. Managing other people's links is an administrative job, so it sits with the other org-wide controls rather than in the top navigation. (A `#shared-matrices` link from an older build still works — it lands on the Admin tab.) The page shows:
 
 - the view's name and who shared it, and when;
+- **who it was shared with** — the people you picked;
 - **who has opened it**, how many times, and when they last did. Because every recipient signs in, this is per person, not just a "last used" stamp. A link nobody ever opened reads **Never opened**, which makes unused links easy to clean up;
 - whether it is still active, and a **Revoke** button.
 

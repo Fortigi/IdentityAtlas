@@ -26,14 +26,23 @@ function mount({ value = [], rows = [ANN, BOB, SVC], response, handler } = {}) {
 }
 
 const searchBox = () => screen.getByRole('textbox', { name: /Search people/i });
+
+// Every wait in this file sits behind the picker's 250ms search debounce, which
+// leaves little headroom under testing-library's 1000ms default: on a loaded
+// machine (the full suite running in parallel workers) the timer plus the
+// re-render can overrun it, and the query fails for lack of time rather than
+// because the picker misbehaved. These waits are for a *pending* state, so a
+// generous ceiling costs nothing when the state does arrive.
+const SETTLE = { timeout: 5000 };
+
 // Scoped to the dropdown: an already-selected person also appears as a chip
 // whose Remove button carries their name, so an unscoped query is ambiguous.
 // Both queries are awaited — the dropdown opens as soon as the debounce settles
 // and shows "Searching…" until the request resolves, so a synchronous get on
 // the row inside it would race the fetch.
+const resultsBox = () => screen.findByRole('group', { name: 'Search results' }, SETTLE);
 const option = async (name) =>
-  within(await screen.findByRole('group', { name: 'Search results' }))
-    .findByRole('button', { name: new RegExp(name, 'i') });
+  within(await resultsBox()).findByRole('button', { name: new RegExp(name, 'i') }, SETTLE);
 
 describe('toPerson', () => {
   it('keys a person on their sign-in name and keeps the directory id', () => {
@@ -55,7 +64,7 @@ describe('PeoplePicker', () => {
   it('searches the directory for what was typed, debounced', async () => {
     const { authFetch, user } = mount();
     await user.type(searchBox(), 'ann');
-    await waitFor(() => expect(authFetch).toHaveBeenCalled());
+    await waitFor(() => expect(authFetch).toHaveBeenCalled(), SETTLE);
     // One request for the settled term, not one per keystroke.
     expect(authFetch).toHaveBeenCalledTimes(1);
     expect(authFetch.mock.calls[0][0]).toBe('/api/users?search=ann&limit=10');
@@ -102,7 +111,7 @@ describe('PeoplePicker', () => {
   it('says so when nothing matches, rather than showing an empty box', async () => {
     const { user } = mount({ rows: [] });
     await user.type(searchBox(), 'nobody');
-    expect(await screen.findByText(/No people match “nobody”/)).toBeInTheDocument();
+    expect(await screen.findByText(/No people match “nobody”/, undefined, SETTLE)).toBeInTheDocument();
   });
 
   it('says it is still searching rather than claiming nobody matched', async () => {
@@ -115,7 +124,7 @@ describe('PeoplePicker', () => {
     const { user } = mount({ handler: () => new Promise(resolve => { release = () => resolve({ data: [ANN] }); }) });
     await user.type(searchBox(), 'ann');
 
-    const box = await screen.findByRole('group', { name: 'Search results' });
+    const box = await resultsBox();
     expect(box).toHaveTextContent('Searching…');
     expect(box).not.toHaveTextContent('No people match');
 
@@ -126,7 +135,7 @@ describe('PeoplePicker', () => {
   it('survives a failing search without breaking the form', async () => {
     const { user } = mount({ response: jsonResponse({ error: 'nope' }, { ok: false, status: 500 }) });
     await user.type(searchBox(), 'ann');
-    expect(await screen.findByText(/No people match/)).toBeInTheDocument();
+    expect(await screen.findByText(/No people match/, undefined, SETTLE)).toBeInTheDocument();
     expect(searchBox()).toBeInTheDocument();
   });
 

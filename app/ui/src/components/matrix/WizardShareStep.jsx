@@ -11,7 +11,7 @@
 
 import ShareMatrixForm from './ShareMatrixForm';
 
-export default function WizardShareStep({ filter, managed }) {
+export default function WizardShareStep({ filter, managed, blocked = false }) {
   return (
     <div className="space-y-3">
       <div>
@@ -24,7 +24,17 @@ export default function WizardShareStep({ filter, managed }) {
           the matrix toolbar.
         </p>
       </div>
-      <ShareMatrixForm filter={filter} managed={managed} />
+      {/* A share can't be adjusted by the person who receives it, so a matrix
+          that is too large to load must not become a link at all — they would
+          have no way out of it. The same condition disables Apply. */}
+      {blocked ? (
+        <p className="rounded border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-300">
+          This matrix is too large to load, so there is nothing to share yet. Go back and narrow it
+          down — or roll it up by an attribute — and the share form appears here.
+        </p>
+      ) : (
+        <ShareMatrixForm filter={filter} managed={managed} />
+      )}
     </div>
   );
 }

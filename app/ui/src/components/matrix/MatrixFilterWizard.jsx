@@ -1,9 +1,15 @@
-﻿// 3-step modal that builds a Matrix. The user must complete this before the
+﻿// Stepped modal that builds a Matrix. The user must complete this before the
 // matrix loads any data.
 //
-//   Step 1 — Setup              (subject type + orientation)
-//   Step 2 — Subject conditions (which users/identities to include)
-//   Step 3 — Resource conditions (which resources to include)
+//   Setup      — subject type + orientation
+//   Content    — what a roll-up puts in the grid (roll-up only)
+//   Subjects   — which users/identities to include
+//   Resources  — which resources to include (unless rolling up roles only)
+//   Sort       — column order / fold (flat matrices only)
+//   Share      — hand this view to named colleagues (needs `data.share`)
+//
+// The list is dynamic; deriveSteps() in the helpers file owns which steps a
+// given filter and permission set actually show.
 //
 // Each step shows live counts so the analyst can see the size of the
 // sub-selection grow/shrink as they tweak conditions. The final "Apply" button
@@ -24,7 +30,7 @@ import { variantMeta, targetTypeMeta } from '@ui/utils/contextStyles';
 import { useDialog } from '@ui/components/dialogContext';
 import { friendlyLabel } from '@ui/utils/formatters';
 import { DEFAULT_SORT, normalizeMatrixFilter } from '@ui/utils/matrixFilter';
-import { deriveSteps } from './MatrixFilterWizard.helpers';
+import { deriveSteps, commitFilter } from './MatrixFilterWizard.helpers';
 import WizardShareStep from './WizardShareStep';
 
 // ─── Constants ──────────────────────────────────────────────────────
@@ -306,7 +312,7 @@ export default function MatrixFilterWizard({
     // Oversized but foldable on attributes → serve it as the layered,
     // server-aggregated attribute view (a fresh expand state each apply).
     const foldAttributes = servesViaAttrCut(filter, anyRollup, preview.assignmentCount);
-    onApply({ ...filter, foldAttributes, rollupExpanded: foldAttributes ? [] : (filter.rollupExpanded || []), rollupCollapsed: [] }, managed);
+    onApply(commitFilter(filter, foldAttributes), managed);
   };
 
   // ─── Save filter ───────────────────────────────────────────────
@@ -456,7 +462,15 @@ export default function MatrixFilterWizard({
           onHierarchyChange={(sortHierarchy) => setFilter(prev => ({ ...prev, sortHierarchy }))}
         />
       )}
-      {activeStep === 'share' && <WizardShareStep filter={filter} managed={managed} />}
+      {activeStep === 'share' && (
+        <WizardShareStep
+          // The committed shape, exactly as Apply would hand it to the matrix —
+          // a share is a snapshot, so it must be of the matrix that loads.
+          filter={commitFilter(filter, servesViaAttrCut(filter, rollupOn, preview.assignmentCount))}
+          managed={managed}
+          blocked={matrixIsBlocked(filter, rollupOn, preview.assignmentCount)}
+        />
+      )}
       <ErrorBox message={error} />
 
       {/* Live summary */}

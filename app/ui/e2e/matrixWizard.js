@@ -50,6 +50,37 @@ export async function matrixColumn(column, entity = 'Resource') {
 }
 
 /**
+ * Open the matrix wizard on its first step.
+ *
+ * @param {import('@playwright/test').Page} page
+ */
+export async function openWizard(page) {
+  await page.goto(`${BASE}/#matrix`);
+  await page.waitForLoadState('networkidle');
+
+  // "Create matrix" on the empty state, "Adjust matrix" once a matrix is loaded.
+  const open = page.getByRole('button', { name: /Create matrix|Adjust matrix/ }).first();
+  await expect(open).toBeVisible({ timeout: 60000 });
+  await open.click();
+  await expect(page.getByRole('button', { name: 'Next' })).toBeVisible({ timeout: 30000 });
+}
+
+/**
+ * Jump straight to a named wizard step via the step indicator, rather than
+ * counting "Next" clicks — the step list is dynamic (a roll-up inserts Content
+ * and drops Sort; Share needs a permission), so a count is only right for one
+ * configuration.
+ *
+ * @param {import('@playwright/test').Page} page
+ * @param {string} label
+ */
+export async function gotoWizardStep(page, label) {
+  const step = page.getByRole('button', { name: new RegExp(`Go to step \\d+: ${label}$`) });
+  await expect(step).toBeVisible({ timeout: 30000 });
+  await step.click();
+}
+
+/**
  * Open the matrix wizard's "Add attribute filter" picker on the given step and
  * return its Field dropdown.
  *
@@ -57,18 +88,10 @@ export async function matrixColumn(column, entity = 'Resource') {
  * @param {'subjects' | 'resources'} step
  */
 export async function openAttributePicker(page, step) {
-  await page.goto(`${BASE}/#matrix`);
-  await page.waitForLoadState('networkidle');
-
-  // Open the wizard — "Create matrix" on the empty state, "Adjust matrix"
-  // once a matrix is loaded.
-  const openWizard = page.getByRole('button', { name: /Create matrix|Adjust matrix/ }).first();
-  await expect(openWizard).toBeVisible({ timeout: 60000 });
-  await openWizard.click();
+  await openWizard(page);
 
   // Setup → Subjects → Resources (the reporter's "Next, Next").
   const next = page.getByRole('button', { name: 'Next' });
-  await expect(next).toBeVisible({ timeout: 30000 });
   for (let i = 0; i < STEP_CLICKS[step]; i++) await next.click();
 
   // + Attribute on that step's Include list.

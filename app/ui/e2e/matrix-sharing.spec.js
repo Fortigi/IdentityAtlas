@@ -10,9 +10,7 @@
 // real tenant alike.
 
 import { test, expect } from '@playwright/test';
-
-const BASE = process.env.E2E_BASE_URL || 'http://localhost:3001';
-const API = `${BASE}/api`;
+import { BASE, API, openWizard, gotoWizardStep } from './matrixWizard.js';
 
 // The deployment's default saved filter (or its first one) — the filter an
 // analyst would be looking at when they share.
@@ -58,6 +56,47 @@ test.describe('Share a matrix (#1166)', () => {
   // Same cold-start allowance as the other matrix specs: the first matrix
   // query in CI can take 20-30s.
   test.setTimeout(90000);
+
+  // The wizard's own last step is the route the requestor asked for: an analyst
+  // who builds a matrix *for* somebody shouldn't have to apply it and then go
+  // hunting for a toolbar button.
+  test('analyst mints a share link from the wizard\'s final Share step', async ({ page }) => {
+    test.slow();
+    const recipient = await someRecipient();
+    test.skip(!recipient, 'deployment has no directory user to share with');
+
+    await openWizard(page);
+    await gotoWizardStep(page, 'Share');
+    await expect(page.getByText('Share this matrix (optional)')).toBeVisible();
+
+    await page.getByLabel('Name this view').fill('E2E — wizard share step');
+
+    // Specific people, not an open link: no recipient, no share.
+    const createLink = page.getByRole('button', { name: 'Create link' });
+    await expect(createLink).toBeDisabled();
+
+    await page.getByLabel('Share with').fill(recipient.userKey);
+    const results = page.getByRole('group', { name: 'Search results' });
+    await results.getByRole('button').first().click();
+    await expect(page.getByRole('list', { name: 'Selected people' })).toContainText(recipient.displayName);
+
+    await expect(createLink).toBeEnabled();
+    await createLink.click();
+
+    // The link is shown once, with the copy control the requestor asked for…
+    await expect(page.locator('p.font-mono')).toBeVisible({ timeout: 30000 });
+    const url = await page.locator('p.font-mono').innerText();
+    expect(url).toContain('#shared:fgs_');
+    await expect(page.getByRole('button', { name: 'Copy link' })).toBeVisible();
+    await expect(page.getByRole('list', { name: 'Shared with' })).toContainText(recipient.displayName);
+
+    // …and the step stays optional: Apply still commits the matrix from here.
+    await page.getByRole('button', { name: 'Apply' }).click();
+    await expect(page.getByText('Share this matrix (optional)')).toBeHidden();
+
+    await page.goto(url);
+    await expect(page.getByText('E2E — wizard share step')).toBeVisible({ timeout: 60000 });
+  });
 
   test('analyst mints a share link from the matrix toolbar', async ({ page }) => {
     test.slow();
@@ -172,10 +211,26 @@ test.describe('Share a matrix (#1166)', () => {
       .toBeVisible({ timeout: 30000 });
   });
 
+  // Managing other people's share links is administration, so the overview is
+  // an Admin sub-tab and NOT a top-level tab (requestor feedback on #1166).
+  test('Shared matrices lives under Admin, not in the top navigation', async ({ page }) => {
+    await page.goto(`${BASE}/#dashboard`);
+    await expect(page.getByRole('button', { name: 'Admin' })).toBeVisible({ timeout: 60000 });
+    await expect(page.getByRole('button', { name: /^Shared matrices$/i })).toHaveCount(0);
+
+    await page.goto(`${BASE}/#admin`);
+    const tab = page.locator('[data-testid="admin-subtabs"]').getByRole('button', { name: 'Shared Matrices' });
+    await expect(tab).toBeVisible({ timeout: 30000 });
+    await tab.click();
+    await expect(page.getByText(/Every matrix shared by a link/)).toBeVisible({ timeout: 30000 });
+    expect(page.url()).toContain('#admin?sub=shares');
+  });
+
   test('Shared matrices page lists the share and can revoke it', async ({ page }) => {
     const share = await createShare('E2E — overview row');
     test.skip(!share, 'deployment has no saved matrix filter to share');
 
+    // The pre-move #shared-matrices link still resolves — to the Admin sub-tab.
     await page.goto(`${BASE}/#shared-matrices`);
     const row = page.locator('tr', { hasText: 'E2E — overview row' }).first();
     await expect(row).toBeVisible({ timeout: 30000 });
