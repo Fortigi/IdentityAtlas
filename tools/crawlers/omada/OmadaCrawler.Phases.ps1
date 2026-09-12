@@ -952,6 +952,22 @@ function Get-OmadaAvailableEntitySets {
 # Registers every Omada connected system as its own Identity Atlas System and
 # resolves the main IGA system id. Falls back to a single-system registration on
 # failure. Returns @{ systemId; omadaSystemMap; allOmadaSystems; omadaIdentitySystemUId }.
+# Register the Omada endpoint itself as a single Identity Atlas system, and return
+# its id. Used when Omada reports no connected systems, and when the systems
+# fetch/registration fails outright — in both cases the later phases still need
+# somewhere to put accounts.
+function Register-OmadaEndpointSystem {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string]$BaseUrl)
+    $result = Invoke-IngestAPI -Endpoint 'ingest/systems' -Body @{
+        syncMode = 'full'
+        records  = @(@{ systemType = 'Omada'; displayName = "Omada ($BaseUrl)"; tenantId = $BaseUrl; enabled = $True; syncEnabled = $True })
+    }
+    $id = [int]($result.systemIds[0])
+    Write-Host "  Endpoint system ID: $id" -ForegroundColor Gray
+    return $id
+}
+
 function Register-OmadaSystems {
     [CmdletBinding()]
     param([string]$ApiBaseUrl, [string]$ApiKey, [string]$BaseUrl, [int]$MaxRetries = 5)
@@ -991,12 +1007,23 @@ function Register-OmadaSystems {
         Write-Host "  Main Omada IGA system ID: $SystemId (UId: $MainSysUId)" -ForegroundColor Gray
     } catch {
         Write-Host "  Warning: could not register Omada systems — $($_.Exception.Message)" -ForegroundColor Yellow
-        $FbResult = Invoke-IngestAPI -Endpoint 'ingest/systems' -Body @{
-            syncMode = 'full'
-            records  = @(@{ systemType = 'Omada'; displayName = "Omada ($BaseUrl)"; tenantId = $BaseUrl; enabled = $True; syncEnabled = $True })
-        }
-        $SystemId = [int]($FbResult.systemIds[0])
-        Write-Host "  Fallback system ID: $SystemId" -ForegroundColor Gray
+        $SystemId = Register-OmadaEndpointSystem -BaseUrl $BaseUrl
+    }
+
+    # An Omada that reports NO connected systems is not an error — a fresh or
+    # filtered tenant does exactly that — but it leaves nothing to attach accounts
+    # to. Register the endpoint itself as one system so the later phases have a
+    # systemId.
+    #
+    # This used to happen only by accident: zero systems meant an EMPTY ingest
+    # batch, the API rejected it with 400, and the exception fell into the catch
+    # above where the fallback ran. Once the API accepted an empty full sync that
+    # exception stopped happening, $SystemId was left 0, and every later ingest
+    # failed with a foreign-key violation on Principals_systemId_fkey. Depending
+    # on an error to reach a normal path is the actual bug; this makes it a step.
+    if (-not $SystemId) {
+        Write-Host "  Omada reported no connected systems — registering the endpoint itself" -ForegroundColor Yellow
+        $SystemId = Register-OmadaEndpointSystem -BaseUrl $BaseUrl
     }
     return @{ systemId = $SystemId; omadaSystemMap = $OmadaSystemMap; allOmadaSystems = $AllOmadaSystems; omadaIdentitySystemUId = $OmadaIdentitySystemUId }
 }
