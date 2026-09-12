@@ -16,14 +16,26 @@ function makeApEntry(row) {
 }
 
 // Collect AP entries + the "groupId|apId" -> roleName mapping for visible groups.
+//
+// Two things earn a role a column: it grants a resource that is on screen, or
+// its OWN row is. The latter only happens when the matrix asks for business
+// roles as rows (`includeBusinessRoles`); holding the role IS a governed Direct
+// assignment on it, which is not a `Contains` relationship and so can never
+// arrive as a (role, resource) pair — without the self arm the role's column was
+// blank on its own row.
 function collectAccessPackages(accessPackageGroups, visibleGroupIds) {
   const apMap = new Map();
   const mapping = new Map();
   for (const row of accessPackageGroups) {
     const gid = (row.resourceId || row.groupId)?.toUpperCase();
-    if (!gid || !visibleGroupIds.has(gid)) continue;
+    const selfGid = row.accessPackageId?.toUpperCase();
+    const selfVisible = !!selfGid && visibleGroupIds.has(selfGid);
+    const childVisible = !!gid && visibleGroupIds.has(gid);
+    if (!selfVisible && !childVisible) continue;
     if (!apMap.has(row.accessPackageId)) apMap.set(row.accessPackageId, makeApEntry(row));
-    mapping.set(`${gid}|${row.accessPackageId.toLowerCase()}`, row.roleName || 'Member');
+    const apKey = row.accessPackageId.toLowerCase();
+    if (selfVisible) mapping.set(`${selfGid}|${apKey}`, 'Member');
+    if (childVisible) mapping.set(`${gid}|${apKey}`, row.roleName || 'Member');
   }
   return { apMap, mapping };
 }
@@ -86,10 +98,24 @@ function apBucketFor(g, accessPackages, apGroupMap) {
   return accessPackages.length;
 }
 
-// Within a bucket, fall back to membership priority.
-function compareByBucket(a, b, buckets) {
+// Within a bucket, the business role's own row comes first — it is the parent of
+// the resources it grants, and folding is only coherent when a parent sits
+// directly above the children it hides. Everything else falls back to membership
+// priority. `roleRowIds` is empty unless the matrix shows business roles as
+// rows, so this reduces to the plain priority sort by default.
+function compareByBucket(a, b, buckets, roleRowIds) {
   const d = buckets.get(a.id) - buckets.get(b.id);
-  return d !== 0 ? d : compareGroupsByPriority(a, b);
+  if (d !== 0) return d;
+  const aRole = roleRowIds.has(a.id);
+  if (aRole !== roleRowIds.has(b.id)) return aRole ? -1 : 1;
+  return compareGroupsByPriority(a, b);
+}
+
+// Index of the AP column a row IS (rather than one it merely belongs to) — a
+// business role's own row, which owns its bucket. Owner rows never qualify: they
+// stand for the ownership of a resource, not for the resource itself.
+function selfBucketFor(g, apIdToIndex) {
+  return g.realGroupId ? undefined : apIdToIndex.get(g.id.toLowerCase());
 }
 
 // Default AP-staircase row order: all groups in the leftmost AP first, then the
@@ -98,7 +124,13 @@ function compareByBucket(a, b, buckets) {
 export function buildApSortedGroups(groups, accessPackages, apGroupMap, managedFilter) {
   if (managedFilter === 'unmanaged') return groups;
   if (accessPackages.length === 0) return groups;
+  const apIdToIndex = new Map(accessPackages.map((ap, i) => [ap.id.toLowerCase(), i]));
   const groupApBucket = new Map();
-  for (const g of groups) groupApBucket.set(g.id, apBucketFor(g, accessPackages, apGroupMap));
-  return [...groups].sort((a, b) => compareByBucket(a, b, groupApBucket));
+  const roleRowIds = new Set();
+  for (const g of groups) {
+    const selfBucket = selfBucketFor(g, apIdToIndex);
+    if (selfBucket != null) roleRowIds.add(g.id);
+    groupApBucket.set(g.id, selfBucket ?? apBucketFor(g, accessPackages, apGroupMap));
+  }
+  return [...groups].sort((a, b) => compareByBucket(a, b, groupApBucket, roleRowIds));
 }

@@ -215,6 +215,36 @@ describe('MatrixFilterWizard (mounted)', () => {
     expect(checkbox).toBeChecked();
   });
 
+  it('starts with business-role rows off and applies the flag once ticked', async () => {
+    // Business roles are already the SOLL columns, so they are off the row axis
+    // by default (#937). The checkbox is the matrix-level opt-in, so what
+    // matters is that it reaches onApply — that value is what gets POSTed and
+    // saved with the matrix.
+    const { onApply } = renderWizard();
+    const user = userEvent.setup();
+    await user.click(screen.getByText('Next')); // subjects
+    await user.click(screen.getByText('Next')); // resources
+
+    const checkbox = screen.getByRole('checkbox', { name: /Show business roles as foldable rows/i });
+    expect(checkbox).not.toBeChecked();
+    await user.click(checkbox);
+    expect(checkbox).toBeChecked();
+    // Ticking one option must not tick the other — they share a component.
+    expect(screen.getByRole('checkbox', { name: /Include inherited access/i })).not.toBeChecked();
+
+    await user.click(screen.getByText('Next')); // sort
+    await user.click(await screen.findByText('Apply'));
+    expect(onApply.mock.calls[0][0]).toMatchObject({ includeBusinessRoles: true });
+  });
+
+  it('shows the box already ticked when adjusting a matrix that opted in', async () => {
+    renderWizard({ initialFilter: { rowType: 'principal', includeBusinessRoles: true } });
+    const user = userEvent.setup();
+    await user.click(screen.getByText('Next')); // subjects
+    await user.click(screen.getByText('Next')); // resources
+    expect(screen.getByRole('checkbox', { name: /Show business roles as foldable rows/i })).toBeChecked();
+  });
+
   it('adds an attribute condition through the AttributePicker and shows it as a chip', async () => {
     renderWizard();
     const user = userEvent.setup();

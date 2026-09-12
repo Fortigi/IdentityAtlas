@@ -28,6 +28,7 @@
 
 import { UUID_RE, collectContextIds } from './filterSql.js';
 import { GROUP_PRINCIPAL_TYPE } from '../lib/principalTypes.js';
+import { shouldHideDefaultResourceTypes, visibleResourceTypesSql } from '../lib/resourceVisibility.js';
 
 const SAFE_IDENT_RE = /^[a-zA-Z0-9_]+$/;
 const EXT_PREFIX = 'ext.';
@@ -237,6 +238,14 @@ export function buildScopeAsofSql({ filter, principalColSet, resourceColSet, con
   ];
   if (subj.where) principalWhere.push(subj.where);
 
+  // Resource axis — same default row visibility the live queries apply, so the
+  // timeline's resource/assignment counts track the rendered matrix over time.
+  const resourceWhere = [];
+  if (res.where) resourceWhere.push(res.where);
+  if (shouldHideDefaultResourceTypes(filter)) {
+    resourceWhere.push(visibleResourceTypesSql(`sr.state->>'resourceType'`));
+  }
+
   // For identity rowType we count distinct identities the in-scope principals
   // map to (via IdentityMembers, which IS audited but we use current links for
   // the id→identity mapping — attribute reconstruction of Identities isn't
@@ -258,12 +267,29 @@ export function buildScopeAsofSql({ filter, principalColSet, resourceColSet, con
     -- assignment type, from 049 on as a normal Direct membership on a resource
     -- flagged governanceResource. The derived governed rows are not history
     -- tracked, so coverage is reconstructed from membership and Contains facts.
+    --
+    -- Two arms, mirroring "vw_UserPermissionAssignmentViaBusinessRole" (049 +
+    -- 061) so the as-of numbers use the same definition of governed as the live
+    -- scope statistics. Without arm 2 the history path reported every
+    -- business-role membership row as ungoverned while the live path counted it,
+    -- so the latest timeseries point disagreed with live scope-stats.
     coverage AS (
+      -- Arm 1: the resources a governance resource Contains.
       SELECT DISTINCT ga.pid AS "userId", rr.child AS "groupId"
         FROM asof_assign ga
         JOIN asof_contains rr ON rr.parent = ga.rid
        WHERE ga.atype = 'Governed'
           OR EXISTS (
+               SELECT 1 FROM asof_resources ar
+                WHERE (ar.state->>'id') = ga.rid
+                  AND COALESCE((ar.state->>'governanceResource')::boolean, false)
+             )
+      UNION
+      -- Arm 2: the governance resource covers its own membership cell —
+      -- holding a business role IS governed access.
+      SELECT DISTINCT ga.pid AS "userId", ga.rid AS "groupId"
+        FROM asof_assign ga
+       WHERE EXISTS (
                SELECT 1 FROM asof_resources ar
                 WHERE (ar.state->>'id') = ga.rid
                   AND COALESCE((ar.state->>'governanceResource')::boolean, false)
@@ -277,7 +303,7 @@ export function buildScopeAsofSql({ filter, principalColSet, resourceColSet, con
     sr AS (
       SELECT (sr.state->>'id')::uuid AS id
         FROM asof_resources sr
-       ${res.where ? `WHERE ${res.where}` : ''}
+       ${resourceWhere.length ? `WHERE ${resourceWhere.join(' AND ')}` : ''}
     ),
     pairs AS (
       SELECT a.rid, a.pid, bool_or(c."userId" IS NOT NULL) AS governed

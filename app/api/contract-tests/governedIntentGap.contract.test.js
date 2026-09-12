@@ -91,3 +91,46 @@ describe('matrix matview — managedByAccessPackage from governance coverage', (
     expect(rows).toHaveLength(0);
   });
 });
+
+// Migration 061: holding a business role is governed access, so the role's own
+// row must be covered by the role itself — otherwise the matrix paints the role
+// row ungoverned and the scope statistics count it as an ungoverned assignment.
+describe('business-role coverage — a role covers its own membership row (061)', () => {
+  async function coverage(principalId) {
+    await pool.query(`REFRESH MATERIALIZED VIEW "vw_UserPermissionAssignmentViaBusinessRole"`);
+    const r = await pool.query(
+      `SELECT "resourceId", "businessRoleId"
+         FROM "vw_UserPermissionAssignmentViaBusinessRole"
+        WHERE "userId" = $1
+        ORDER BY "resourceId"`,
+      [principalId],
+    );
+    return r.rows;
+  }
+
+  it('reports both the role itself and the resources it Contains', async () => {
+    await assign({ resourceId: BR, principalId: U_OK, governed: true });
+    const rows = await coverage(U_OK);
+    expect(rows).toEqual(expect.arrayContaining([
+      { resourceId: BR, businessRoleId: BR },
+      { resourceId: G, businessRoleId: BR },
+    ]));
+    expect(rows).toHaveLength(2);
+  });
+
+  it('leaves a subject who does not hold the role uncovered', async () => {
+    await assign({ resourceId: G, principalId: U_UN, governed: false });
+    expect(await coverage(U_UN)).toEqual([]);
+  });
+
+  it('drops the self row again when the role assignment is soft-deleted', async () => {
+    await assign({ resourceId: BR, principalId: U_GAP, governed: true });
+    expect(await coverage(U_GAP)).toHaveLength(2);
+    await pool.query(
+      `UPDATE "ResourceAssignments" SET "deletedAt" = now()
+        WHERE "resourceId" = $1 AND "principalId" = $2`,
+      [BR, U_GAP],
+    );
+    expect(await coverage(U_GAP)).toEqual([]);
+  });
+});

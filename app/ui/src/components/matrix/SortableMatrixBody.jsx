@@ -9,6 +9,15 @@ import MatrixGroupRow from './MatrixGroupRow';
 // Row height in px — must match the actual rendered row height (24px cells + borders)
 const ROW_HEIGHT = 25;
 
+// The rows that own their position, and can therefore be dragged. A group's
+// nested sub-rows and the resources drawn under the business role(s) granting
+// them travel with the row they belong to — and a resource several roles grant
+// has a row under each of them, all sharing one resource id, so they could not
+// each be a sortable of their own anyway.
+export function sortableRowIds(rows) {
+  return (rows || []).filter(r => !r.isNestedRow && !r.roleParentId).map(r => r.id);
+}
+
 // Wrapper that provides sortable DnD props to a MatrixGroupRow
 function SortableRow(props) {
   const {
@@ -40,7 +49,6 @@ function SortableRow(props) {
 export default function SortableMatrixBody({
   scrollRef,
   orderedGroups,
-  groupIds,
   onDragEnd,
   columnHeaders,
   // Row props passed through to MatrixGroupRow
@@ -60,6 +68,13 @@ export default function SortableMatrixBody({
   expandedGroups,
   onToggleExpand,
   loadingNested,
+  // Business-role fold props
+  foldableRoles,
+  foldedRoles,
+  roleFoldInfo,
+  roleExtraCounts,
+  roleMissingCounts,
+  onToggleRoleFold,
 }) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
@@ -91,6 +106,8 @@ export default function SortableMatrixBody({
 
   const virtualRows = virtualizer.getVirtualItems();
 
+  const sortableIds = sortableRowIds(orderedGroups);
+
   // Row props shared by all rows
   const rowProps = {
     users,
@@ -109,14 +126,25 @@ export default function SortableMatrixBody({
     expandedGroups,
     onToggleExpand,
     loadingNested,
+    foldableRoles,
+    foldedRoles,
+    roleFoldInfo,
+    roleExtraCounts,
+    roleMissingCounts,
+    onToggleRoleFold,
   };
 
-  // Render a single row — nested rows are plain (not sortable), others are sortable
+  // Render a single row. Rows that belong to another row's block — nested
+  // sub-rows, and the resources drawn under the business role(s) granting them
+  // — move with their parent instead of on their own, so they are plain rows.
+  // They also share their resource's `id` across each role that grants it, which
+  // is why the React/DnD identity is `rowKey`.
   const renderRow = (group) => {
-    if (group.isNestedRow) {
-      return <MatrixGroupRow key={group.id} group={group} {...rowProps} />;
+    const key = group.rowKey || group.id;
+    if (group.isNestedRow || group.roleParentId) {
+      return <MatrixGroupRow key={key} group={group} {...rowProps} />;
     }
-    return <SortableRow key={group.id} group={group} {...rowProps} />;
+    return <SortableRow key={key} group={group} {...rowProps} />;
   };
 
   // When dragging: render all rows (DnD needs full DOM for accurate positioning).
@@ -158,7 +186,7 @@ export default function SortableMatrixBody({
     >
       <table className="border-collapse" style={{ tableLayout: 'fixed' }}>
         {columnHeaders}
-        <SortableContext items={groupIds} strategy={verticalListSortingStrategy}>
+        <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
           <tbody>
             {renderRows()}
           </tbody>
