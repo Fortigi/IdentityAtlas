@@ -1,5 +1,26 @@
 ## Changes in this PR
 
+- Added `docs/architecture/decision-principles.md` — a ratified, testable checklist for the "does this fit the existing architecture" judgment call, with confidence ratings and cited example issues, to help the Definition-of-Ready pipeline resolve more `awaiting-design`/`decompose` issues without a human round-trip.
+- Added `docs/architecture/architecture-guidance-review-2026-09.md`, a read-only audit of the current architecture documentation and backlog: contradictions found between docs (and between docs and precedent), an impact estimate, and backlog restructuring proposals (merges, epics, cross-item contradictions).
+- Flagged `docs/risk-scoring/plugin-architecture.md` as a speculative, unreconciled alternative to the in-tree risk-scoring plugin proposal, with a status banner pointing to the real one.
+- Sharpened the Definition of Ready's "Architect / tech lead" gate criteria and added a pointer from `CLAUDE.md`'s Coding Principles to the new decision-principles checklist.
+- Fixed the documentation link checker reporting false broken cross-links for markdown that only appears inside a fenced code block — a design doc quoting a snippet of another file no longer fails CI.
+- Documented the new epic layer above the feature backlog: how epics, sub-epics and decision issues are wired, which board and fields carry them, and the conventions that keep them out of the Definition-of-Ready pipeline.
+- Added an autonomy roadmap that measures the current process against the Fortigi implementation approach, records four deliberate deviations, and sets out the phased plan towards more autonomous feature delivery.
+- Added a session log recording what changed when the epic layer was introduced, including the corrections made along the way and the process lessons worth keeping.
+- Recorded the review finding that the 22 groupings are not one kind of thing (13 goals, 9 features with slices) and that the epic status field mixed a parent-level property with a roll-up of its children, together with the agreed fix: add issue types rather than re-parent anything.
+- Corrected the Key Result Review record: the cadence was agreed (monthly, all Key Results at once) but the roadmap still described it as undecided in four places.
+
+## Changes in this PR
+
+- Added `docs/architecture/decision-principles.md` — a ratified, testable checklist for the "does this fit the existing architecture" judgment call, with confidence ratings and cited example issues, to help the Definition-of-Ready pipeline resolve more `awaiting-design`/`decompose` issues without a human round-trip.
+- Added `docs/architecture/architecture-guidance-review-2026-09.md`, a read-only audit of the current architecture documentation and backlog: contradictions found between docs (and between docs and precedent), an impact estimate, and backlog restructuring proposals (merges, epics, cross-item contradictions).
+- Flagged `docs/risk-scoring/plugin-architecture.md` as a speculative, unreconciled alternative to the in-tree risk-scoring plugin proposal, with a status banner pointing to the real one.
+- Sharpened the Definition of Ready's "Architect / tech lead" gate criteria and added a pointer from `CLAUDE.md`'s Coding Principles to the new decision-principles checklist.
+- Fixed the documentation link checker reporting false broken cross-links for markdown that only appears inside a fenced code block — a design doc quoting a snippet of another file no longer fails CI.
+
+## Changes in this PR
+
 - Updated bundled third-party dependencies to pick up security fixes for newly published high-severity advisories in `browserslist` (unbounded memory growth, untrusted-stats crash) and `fast-uri` (host confusion and server-side request forgery), plus moderate fixes in `qs` and `@humanfs/node`.
 
 ## Changes in this PR
