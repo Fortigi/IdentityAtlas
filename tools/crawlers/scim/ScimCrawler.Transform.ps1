@@ -14,6 +14,10 @@
     references (resourceExternalId / principalExternalId) resolve to the same rows.
 #>
 
+# The nested-group closure walk is shared with every other crawler that
+# materialises Indirect assignments — see tools/crawlers/shared/.
+. (Join-Path $PSScriptRoot '..' 'shared' 'Get-NestedGroupUserSet.ps1')
+
 #region Value helpers
 
 # Coerce a SCIM attribute value to something worth storing in extendedAttributes.
@@ -282,25 +286,6 @@ function Get-ScimGroupAdjacency {
 # Every user reachable below a set of seed child groups, walking the nesting graph
 # downward. Cycle-safe ($visited), so a membership cycle (A∈B, B∈A) or a diamond
 # neither loops nor double-counts.
-function Get-ScimNestedGroupUserSet {
-    [CmdletBinding()]
-    param([Parameter(Mandatory)] $SeedGroups, [Parameter(Mandatory)] $ChildGroups, [Parameter(Mandatory)] $DirectUsers)
-    $users   = [System.Collections.Generic.HashSet[string]]::new()
-    $visited = [System.Collections.Generic.HashSet[string]]::new()
-    $stack   = [System.Collections.Generic.Stack[string]]::new()
-    foreach ($g in $SeedGroups) { [void]$stack.Push($g) }
-    while ($stack.Count -gt 0) {
-        $g = $stack.Pop()
-        if (-not $visited.Add($g)) { continue }
-        if ($DirectUsers.ContainsKey($g)) {
-            foreach ($u in $DirectUsers[$g]) { [void]$users.Add($u) }
-        }
-        if ($ChildGroups.ContainsKey($g)) {
-            foreach ($cg in $ChildGroups[$g]) { [void]$stack.Push($cg) }
-        }
-    }
-    return $users
-}
 
 # Expand group-in-group nesting into per-user Indirect assignments, so the matrix
 # shows inherited members. The matrix reads a declared-only matview and never walks
@@ -317,7 +302,7 @@ function ConvertTo-ScimNestedGroupIndirectAssignments {
     $out         = [System.Collections.Generic.List[object]]::new()
 
     foreach ($rootId in $childGroups.Keys) {
-        $transitive = Get-ScimNestedGroupUserSet -SeedGroups $childGroups[$rootId] -ChildGroups $childGroups -DirectUsers $directUsers
+        $transitive = Get-NestedGroupUserSet -SeedGroups $childGroups[$rootId] -ChildGroups $childGroups -DirectUsers $directUsers
         $rootDirect = if ($directUsers.ContainsKey($rootId)) { $directUsers[$rootId] } else { $null }
         foreach ($u in $transitive) {
             if ($rootDirect -and $rootDirect.Contains($u)) { continue }
