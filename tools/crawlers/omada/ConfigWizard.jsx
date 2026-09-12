@@ -3,6 +3,7 @@ import MappingRows from '@ui/components/MappingRows';
 import WizardShell from '@ui/components/WizardShell';
 import { canSubmitCredentials, buildCredentialFields } from '@ui/utils/crawlerCredentials';
 import CredentialFields from '@ui/components/crawler/CredentialFields';
+import useCredentialFields from '@ui/components/crawler/useCredentialFields';
 import { ScheduleList, WizardNav } from '@ui/components/crawler/wizardFields';
 import useCrawlerSave from '@ui/components/crawler/useCrawlerSave';
 
@@ -74,18 +75,7 @@ export default function OmadaConfigWizard({ onComplete, onCancel, initialConfig,
   const [authMethod, setAuthMethod]     = useState(initialConfig?.authMethod || 'FormCookie');
 
   // Credential fields
-  // One object rather than a useState each — the shape canSubmitCredentials and
-  // buildCredentialFields already take, and what CredentialFields renders from.
-  const [creds, setCreds] = useState({
-    username: initialConfig?.username || '',
-    password: '',
-    clientId: initialConfig?.clientId || '',
-    clientSecret: '',
-    tokenEndpoint: initialConfig?.tokenEndpoint || '',
-    apiToken: '',
-    cookieString: '',
-  });
-  const setCred = (name, value) => setCreds(prev => ({ ...prev, [name]: value }));
+  const { creds, setCred } = useCredentialFields(initialConfig);
   const [showCookieHelp, setShowCookieHelp] = useState(false);
 
   // Sync options

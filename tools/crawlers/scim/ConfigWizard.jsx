@@ -5,6 +5,7 @@ import Combobox from '@ui/components/inputs/Combobox';
 import Select from '@ui/components/inputs/Select';
 import { canSubmitCredentials, buildCredentialFields } from '@ui/utils/crawlerCredentials';
 import CredentialFields from '@ui/components/crawler/CredentialFields';
+import useCredentialFields from '@ui/components/crawler/useCredentialFields';
 import { CrawlerField, OptionList, WizardNav, ScheduleList } from '@ui/components/crawler/wizardFields';
 import useCrawlerSave from '@ui/components/crawler/useCrawlerSave';
 
@@ -89,19 +90,7 @@ export default function ScimConfigWizard({ onComplete, onCancel, initialConfig, 
   const [systemName, setSystemName]   = useState(initialConfig?.systemName || '');
   const [authMethod, setAuthMethod]   = useState(initialConfig?.authMethod || 'BasicAuth');
 
-  // Credential fields (secrets start blank; blank = keep stored value in edit mode).
-  // One object rather than a useState each: CredentialFields renders whichever
-  // set the active auth method needs, and canSubmitCredentials /
-  // buildCredentialFields already take the same shape.
-  const [creds, setCreds] = useState({
-    username: initialConfig?.username || '',
-    password: '',
-    apiToken: '',
-    clientId: initialConfig?.clientId || '',
-    clientSecret: '',
-    tokenEndpoint: initialConfig?.tokenEndpoint || '',
-  });
-  const setCred = (name, value) => setCreds(prev => ({ ...prev, [name]: value }));
+  const { creds, setCred } = useCredentialFields(initialConfig);
   const [scope, setScope] = useState(initialConfig?.scope || '');
 
   const [selectedObjects, setSelectedObjects] = useState({
