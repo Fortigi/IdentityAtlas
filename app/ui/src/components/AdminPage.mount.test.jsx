@@ -140,9 +140,26 @@ describe('AdminPage (mounted)', () => {
   it('renders the admin shell with all sub-tabs visible', async () => {
     renderAdmin();
     expect(await screen.findByRole('heading', { name: 'Admin' })).toBeInTheDocument();
-    for (const label of ['Crawlers', 'Plugins', 'Account Linking', 'Risk Scoring', 'LLM Settings', 'Performance', 'Authentication', 'Data', 'Updates', 'About']) {
+    for (const label of ['Crawlers', 'Plugins', 'Account Linking', 'Risk Scoring', 'LLM Settings', 'Performance', 'Authentication', 'Data', 'Updates', 'Shared Matrices', 'About']) {
       expect(screen.getByRole('button', { name: label })).toBeInTheDocument();
     }
+  });
+
+  it('hosts the Shared Matrices page as a sub-tab (#1166)', async () => {
+    renderAdmin();
+    await userEvent.setup().click(await screen.findByRole('button', { name: 'Shared Matrices' }));
+    // The lazily-loaded page renders inside the Admin shell, not as its own route.
+    expect(await screen.findByText(/who it was shared with/i)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Admin' })).toBeInTheDocument();
+  });
+
+  it('lands the legacy #shared-matrices link on that sub-tab (#1166)', async () => {
+    // The page used to be a top-level tab; links already sent must still work.
+    window.location.hash = '#shared-matrices';
+    renderAdmin();
+    expect(await screen.findByText(/who it was shared with/i)).toBeInTheDocument();
+    // …and the hash is rewritten to the canonical sub-tab form.
+    expect(window.location.hash).toBe('#admin?sub=shares');
   });
 
   it('renders the Data tab: Power Query tokens, curated data, history retention and danger zone', async () => {

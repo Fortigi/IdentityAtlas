@@ -31,6 +31,7 @@ Permissions are grouped into **Read**, **Export**, **Write**, and **Admin**.
 |---|---|---|
 | `data.export.ui` | Export to Excel/CSV | `GET /api/admin/export/curated`, `POST /api/admin/data-export/workbook` |
 | `data.export.apikey` | Generate read-only API keys | `POST /api/admin/read-tokens` (mint your own `fgr_` token) |
+| `data.share` | Create matrix share links | `POST /api/matrix/shares` (also `GET /api/matrix/shares` and `POST /api/matrix/shares/:id/revoke` — the Shared matrices management page). See [Sharing a matrix](../ui/sharing-a-matrix.md). |
 
 ### Write
 
@@ -62,7 +63,7 @@ A fresh install ships with this mapping (customisable in the Admin UI):
 | Role | Permissions |
 |---|---|
 | `Admin` | `*` (all permissions) |
-| `RoleMiner` | `data.read`, `data.export.ui`, `data.export.apikey` |
+| `RoleMiner` | `data.read`, `data.export.ui`, `data.export.apikey`, `data.share` |
 | `Servicedesk` | `data.read` |
 
 ### No-role users fail closed

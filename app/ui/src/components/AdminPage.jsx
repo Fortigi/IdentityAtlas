@@ -14,6 +14,7 @@ const PerfPage = lazy(() => import('./PerfPage'));
 const AboutPage = lazy(() => import('./AboutPage'));
 const AccountLinkingSettings = lazy(() => import('./AccountLinkingSettings'));
 const UpdatesSettings = lazy(() => import('./UpdatesSettings'));
+const SharedMatricesPage = lazy(() => import('./SharedMatricesPage'));
 // Lazy because it pulls the crawler-metadata glob that no other admin tab needs.
 const ExperimentalFeaturesSection = lazy(() => import('./admin/ExperimentalFeaturesSection'));
 
@@ -48,13 +49,15 @@ function AdminSubTabs({ activeTab, onTabChange, tabs }) {
 
 export default function AdminPage({ onNavigate, onRefresh, onRiskScoresRefresh, features, version }) {
   // Persist active sub-tab in URL hash like #admin?sub=crawlers so deep links work.
-  // Also handles legacy #crawlers and #performance hashes by mapping them to the
-  // corresponding sub-tab.
+  // Also handles the legacy #crawlers / #performance / #shared-matrices hashes by
+  // mapping them to the corresponding sub-tab (Shared matrices moved in here from
+  // the top navigation, #1166 — links that were already sent must keep working).
   const getInitialTab = () => {
     const hash = window.location.hash.replace('#', '');
     const page = hash.split('?')[0];
     if (page === 'crawlers') return 'crawlers';
     if (page === 'performance') return 'performance';
+    if (page === 'shared-matrices') return 'shares';
     // Parse query parameters properly using URLSearchParams (consistent with App.jsx parseHash())
     const qIndex = hash.indexOf('?');
     const params = new URLSearchParams(qIndex >= 0 ? hash.substring(qIndex + 1) : '');
@@ -94,7 +97,7 @@ export default function AdminPage({ onNavigate, onRefresh, onRiskScoresRefresh, 
     // Also rewrite legacy #crawlers / #performance to #admin?sub=...
     const hash = window.location.hash.replace('#', '');
     const page = hash.split('?')[0];
-    const isLegacy = page === 'crawlers' || page === 'performance';
+    const isLegacy = page === 'crawlers' || page === 'performance' || page === 'shared-matrices';
     const newHash = `#admin?sub=${activeTab}`;
     if (isLegacy || !window.location.hash.includes(`sub=${activeTab}`)) {
       window.history.replaceState(null, '', newHash);
@@ -125,6 +128,7 @@ export default function AdminPage({ onNavigate, onRefresh, onRiskScoresRefresh, 
     auth: AuthSettingsPage,
     roles: RolesPermissionsSection,
     updates: UpdatesSettings,
+    shares: SharedMatricesPage,
     experimental: ExperimentalFeaturesSection,
     about: AboutPage,
   };

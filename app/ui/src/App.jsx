@@ -5,6 +5,7 @@ import { useState, useEffect, useReducer, useCallback, useMemo, useRef } from 'r
 // and matrix auto-open effects below can dispatch instead of setState.
 const setStateReducer = (s, a) => (typeof a === 'function' ? a(s) : a);
 import { useMatrix } from './hooks/useMatrix';
+import { useHashPage } from './hooks/useHashPage';
 import { useAuth } from './auth/AuthGate';
 import { useCanSeeAdminTab } from './auth/usePermissions';
 import { useTheme } from './hooks/useTheme';
@@ -63,24 +64,6 @@ function buildMatrixUrl(state) {
   return `${window.location.origin}${window.location.pathname}#${hash}`;
 }
 
-// ─── Hash route hook ──────────────────────────────────────────────
-
-function useHashRoute() {
-  const getPage = () => {
-    const raw = decodeURIComponent(window.location.hash.replace('#', '') || 'dashboard');
-    const qIndex = raw.indexOf('?');
-    return qIndex >= 0 ? raw.substring(0, qIndex) : raw;
-  };
-  const [page, setPage] = useState(getPage());
-  useEffect(() => {
-    const onHash = () => setPage(getPage());
-    window.addEventListener('hashchange', onHash);
-    return () => window.removeEventListener('hashchange', onHash);
-  }, []);
-  const navigate = useCallback((p) => { window.location.hash = p; }, []);
-  return [page, navigate];
-}
-
 export default function App() {
   // Parse initial state from URL (runs once — empty deps intentional)
   // eslint-disable-next-line react-hooks/preserve-manual-memoization
@@ -97,7 +80,7 @@ export default function App() {
 
   const { data, rollup, counts, accessPackageGroups, managedByPackages, resourceContexts, groupTagMap, loading, refreshing, error, forceRefresh, hasData, defaultFilter, refetchPreChecks } = useMatrix(matrixFilter);
   const { account, logout, authFetch } = useAuth();
-  const [page, navigate] = useHashRoute();
+  const [page, navigate] = useHashPage();
   const [moduleVersion, setModuleVersion] = useState(null);
   const [features, setFeatures] = useState({ riskScoring: true, accountLinking: true });
   const [visibleTabs, setVisibleTabs] = useState(null); // null = loading, [] = loaded

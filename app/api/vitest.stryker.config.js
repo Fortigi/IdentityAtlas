@@ -18,13 +18,19 @@ export default defineConfig({
   ...base,
   test: {
     ...base.test,
-    // Only the auth unit tests. Stryker sandboxes app/api alone, so anything
-    // reading the real filesystem or the tools/crawlers manifests outside it
-    // fails the dry run and aborts the run before a mutant is evaluated. These
-    // are fully mocked and self-contained. Narrow scope beats a growing exclude
-    // list: an excluded test that happened to be a mutant's only killer would
-    // show up as a false survivor.
-    include: ['src/auth/**/*.test.js'],
+    // Only the auth unit tests, plus the one route-level file whose rule is the
+    // same kind of thing (#1166: who may open a shared matrix). Stryker
+    // sandboxes app/api alone, so anything reading the real filesystem or the
+    // tools/crawlers manifests outside it fails the dry run and aborts the run
+    // before a mutant is evaluated. These are fully mocked and self-contained —
+    // shareRecipients.test.js touches no database and no request object, which
+    // is why it can be named here while the rest of src/routes/** cannot.
+    // Narrow scope beats a growing exclude list: an excluded test that happened
+    // to be a mutant's only killer would show up as a false survivor.
+    include: [
+      'src/auth/**/*.test.js',
+      'src/routes/matrix/shareRecipients.test.js',
+    ],
     exclude: ['**/node_modules/**'],
     coverage: { ...base.test.coverage, thresholds: undefined },
   },

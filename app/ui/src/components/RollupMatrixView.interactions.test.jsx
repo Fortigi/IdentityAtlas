@@ -179,14 +179,14 @@ describe('RollupMatrixView — toolbar actions', () => {
 
   it('copies the share URL to the clipboard', async () => {
     renderView();
-    fireEvent.click(screen.getByTitle(/Copy shareable link/i));
+    fireEvent.click(screen.getByRole('button', { name: 'Copy link' }));
     await waitFor(() => expect(writeText).toHaveBeenCalledWith('https://example.test/matrix'));
   });
 
   it('survives a clipboard permission failure without throwing', async () => {
     writeText.mockRejectedValue(new Error('denied'));
     renderView();
-    fireEvent.click(screen.getByTitle(/Copy shareable link/i));
+    fireEvent.click(screen.getByRole('button', { name: 'Copy link' }));
     await waitFor(() => expect(writeText).toHaveBeenCalled());
     // The grid is still on screen — the rejection was swallowed.
     expect(screen.getByText('Finance App')).toBeInTheDocument();

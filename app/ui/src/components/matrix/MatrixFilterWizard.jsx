@@ -1,9 +1,15 @@
-﻿// 3-step modal that builds a Matrix. The user must complete this before the
+﻿// Stepped modal that builds a Matrix. The user must complete this before the
 // matrix loads any data.
 //
-//   Step 1 — Setup              (subject type + orientation)
-//   Step 2 — Subject conditions (which users/identities to include)
-//   Step 3 — Resource conditions (which resources to include)
+//   Setup      — subject type + orientation
+//   Content    — what a roll-up puts in the grid (roll-up only)
+//   Subjects   — which users/identities to include
+//   Resources  — which resources to include (unless rolling up roles only)
+//   Sort       — column order / fold (flat matrices only)
+//   Share      — hand this view to named colleagues (needs `data.share`)
+//
+// The list is dynamic; deriveSteps() in the helpers file owns which steps a
+// given filter and permission set actually show.
 //
 // Each step shows live counts so the analyst can see the size of the
 // sub-selection grow/shrink as they tweak conditions. The final "Apply" button
@@ -15,6 +21,7 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
+import { useHasPermission } from '@ui/auth/usePermissions';
 import Stepper from '@ui/components/Stepper';
 import { Modal, PrimaryButton, SecondaryButton, ErrorBox } from '@ui/components/contexts/ModalPrimitives';
 import ContextPicker from '@ui/components/contexts/ContextPicker';
@@ -23,7 +30,8 @@ import { variantMeta, targetTypeMeta } from '@ui/utils/contextStyles';
 import { useDialog } from '@ui/components/dialogContext';
 import { friendlyLabel } from '@ui/utils/formatters';
 import { DEFAULT_SORT, normalizeMatrixFilter } from '@ui/utils/matrixFilter';
-import { deriveSteps } from './MatrixFilterWizard.helpers';
+import { deriveSteps, commitFilter } from './MatrixFilterWizard.helpers';
+import WizardShareStep from './WizardShareStep';
 
 // ─── Constants ──────────────────────────────────────────────────────
 
@@ -99,6 +107,9 @@ export default function MatrixFilterWizard({
 }) {
   const { authFetch } = useAuth();
   const dialog = useDialog();
+  // Sharing is offered as the wizard's last step, but only to a user who may
+  // actually create one — otherwise the step would be a dead end (#1166).
+  const canShare = useHasPermission('data.share');
   const [step, setStep] = useState('setup');
   // Normalised (never structuredClone'd raw): the filter can arrive from a URL,
   // a saved matrix, or the seeded org default, any of which may be missing
@@ -301,7 +312,7 @@ export default function MatrixFilterWizard({
     // Oversized but foldable on attributes → serve it as the layered,
     // server-aggregated attribute view (a fresh expand state each apply).
     const foldAttributes = servesViaAttrCut(filter, anyRollup, preview.assignmentCount);
-    onApply({ ...filter, foldAttributes, rollupExpanded: foldAttributes ? [] : (filter.rollupExpanded || []), rollupCollapsed: [] }, managed);
+    onApply(commitFilter(filter, foldAttributes), managed);
   };
 
   // ─── Save filter ───────────────────────────────────────────────
@@ -358,7 +369,7 @@ export default function MatrixFilterWizard({
 
   const subjectColumns = filter.rowType === 'identity' ? identityColumns : principalColumns;
   // Dynamic, keyed steps + derived navigation position (see helpers file).
-  const { steps, stepKeys, curPos, isLast, activeStep, rollupOn } = deriveSteps(filter, step);
+  const { steps, stepKeys, curPos, isLast, activeStep, rollupOn } = deriveSteps(filter, step, { canShare });
   const goNext = () => setStep(stepKeys[Math.min(curPos + 1, steps.length - 1)]);
   const goBack = () => setStep(stepKeys[Math.max(curPos - 1, 0)]);
 
@@ -453,6 +464,15 @@ export default function MatrixFilterWizard({
           assignmentCount={preview.assignmentCount || 0}
           sortHierarchy={filter.sortHierarchy}
           onHierarchyChange={(sortHierarchy) => setFilter(prev => ({ ...prev, sortHierarchy }))}
+        />
+      )}
+      {activeStep === 'share' && (
+        <WizardShareStep
+          // The committed shape, exactly as Apply would hand it to the matrix —
+          // a share is a snapshot, so it must be of the matrix that loads.
+          filter={commitFilter(filter, servesViaAttrCut(filter, rollupOn, preview.assignmentCount))}
+          managed={managed}
+          blocked={matrixIsBlocked(filter, rollupOn, preview.assignmentCount)}
         />
       )}
       <ErrorBox message={error} />

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { deriveSteps } from './MatrixFilterWizard.helpers';
+import { deriveSteps, commitFilter } from './MatrixFilterWizard.helpers';
 
 describe('deriveSteps', () => {
   it('lists Setup → Subjects → Resources → Sort with no roll-up', () => {
@@ -53,5 +53,74 @@ describe('deriveSteps', () => {
 
   it('keeps the selected step active when it is still visible', () => {
     expect(deriveSteps({}, 'resources').activeStep).toBe('resources');
+  });
+
+  describe('the Share step (#1166)', () => {
+    it('is appended last for a user who may share', () => {
+      const { stepKeys, steps } = deriveSteps({}, 'setup', { canShare: true });
+      expect(stepKeys).toEqual(['setup', 'subjects', 'resources', 'sort', 'share']);
+      expect(steps.at(-1).label).toBe('Share');
+    });
+
+    it('stays last when a roll-up removes the Sort step', () => {
+      const { stepKeys } = deriveSteps({ rollup: 'department' }, 'setup', { canShare: true });
+      expect(stepKeys).toEqual(['setup', 'content', 'subjects', 'resources', 'share']);
+    });
+
+    it('is absent without the permission — the default', () => {
+      expect(deriveSteps({}, 'setup').stepKeys).not.toContain('share');
+      expect(deriveSteps({}, 'setup', { canShare: false }).stepKeys).not.toContain('share');
+    });
+
+    it('moves the Apply button onto itself, so Sort is no longer the end', () => {
+      // Apply renders on `isLast`; with sharing on, Sort must NOT be last or a
+      // sharer would never reach the step.
+      expect(deriveSteps({}, 'sort', { canShare: true }).isLast).toBe(false);
+      expect(deriveSteps({}, 'share', { canShare: true }).isLast).toBe(true);
+      // …and without the permission Sort keeps Apply exactly as before.
+      expect(deriveSteps({}, 'sort').isLast).toBe(true);
+    });
+
+    it('falls back to a visible step when sharing is revoked mid-wizard', () => {
+      const { activeStep, stepKeys } = deriveSteps({}, 'share', { canShare: false });
+      expect(stepKeys).not.toContain('share');
+      expect(stepKeys).toContain(activeStep);
+    });
+  });
+});
+
+describe('commitFilter', () => {
+  it('stamps foldAttributes and clears the expand state when folding', () => {
+    const out = commitFilter(
+      { rowType: 'principal', sortAttributes: [{ attribute: 'department', dir: 'asc' }], rollupExpanded: ['Sales'], rollupCollapsed: ['HR'] },
+      true,
+    );
+    expect(out.foldAttributes).toBe(true);
+    expect(out.rollupExpanded).toEqual([]);
+    expect(out.rollupCollapsed).toEqual([]);
+    // Everything the steps edited survives untouched.
+    expect(out.rowType).toBe('principal');
+    expect(out.sortAttributes).toEqual([{ attribute: 'department', dir: 'asc' }]);
+  });
+
+  it('keeps an existing expand state when not folding', () => {
+    const out = commitFilter({ rollupExpanded: ['Sales'], rollupCollapsed: ['HR'] }, false);
+    expect(out.foldAttributes).toBe(false);
+    expect(out.rollupExpanded).toEqual(['Sales']);
+    expect(out.rollupCollapsed).toEqual([]);
+  });
+
+  it('defaults a missing expand state to empty rather than undefined', () => {
+    // A filter loaded from an older saved matrix has neither key; the matrix
+    // reads them as arrays, so the committed shape must supply them.
+    const out = commitFilter({ rowType: 'identity' }, false);
+    expect(out.rollupExpanded).toEqual([]);
+    expect(out.rollupCollapsed).toEqual([]);
+  });
+
+  it('does not mutate the filter it was given', () => {
+    const input = { rollupExpanded: ['Sales'] };
+    commitFilter(input, true);
+    expect(input).toEqual({ rollupExpanded: ['Sales'] });
   });
 });

@@ -36,6 +36,10 @@ export const ALL_NAV_TABS = [
 //     have loaded; while `visibleTabs` is null we don't hide them, to avoid a
 //     flash of removal before prefs arrive)
 //   - Admin drops out for users without admin permission
+//
+// Shared matrices is deliberately NOT here: managing and revoking other
+// people's share links is administration, so it lives as an Admin sub-tab
+// (see components/admin/adminTabs.js) rather than as a twelfth top-level tab.
 export function computeNavTabs({ features = {}, visibleTabs = null, canSeeAdmin = true } = {}) {
   return ALL_NAV_TABS.filter(tab => {
     if (tab.feature && !features[tab.feature]) return false;

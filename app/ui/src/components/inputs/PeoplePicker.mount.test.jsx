@@ -1,0 +1,149 @@
+// @vitest-environment jsdom
+//
+// Mount tests for the people multi-select (#1166).
+//
+// Inputs are chosen to discriminate: the directory rows include a person who
+// has NO sign-in name, and a search whose term differs from the display name,
+// so an implementation that selected everything returned — or that keyed the
+// selection on the display name instead of the sign-in name — fails here.
+
+import { describe, it, expect, vi } from 'vitest';
+import PeoplePicker, { toPerson } from './PeoplePicker';
+import { renderWithProviders, makeAuthFetch, jsonResponse, screen, within, waitFor, userEvent } from '@ui/test-utils/renderWithProviders';
+
+const ANN = { id: '3fa85f64-5717-4562-b3fc-2c963f66afa6', displayName: 'Ann Manager', userPrincipalName: 'ann@contoso.com' };
+const BOB = { id: '5c9e2a11-1111-2222-3333-444455556666', displayName: 'Bob Owner', userPrincipalName: 'bob@contoso.com' };
+// A service principal / mail-less account: visible, but cannot be a recipient.
+const SVC = { id: '99999999-9999-9999-9999-999999999999', displayName: 'Backup Service', userPrincipalName: null };
+
+function mount({ value = [], rows = [ANN, BOB, SVC], response, handler } = {}) {
+  const authFetch = makeAuthFetch(handler ?? { '/api/users': response ?? { data: rows } });
+  const onChange = vi.fn();
+  renderWithProviders(<PeoplePicker value={value} onChange={onChange} />, {
+    auth: { permissions: new Set(['data.share']), hasWildcard: false, permissionsLoaded: true, authFetch },
+  });
+  return { authFetch, onChange, user: userEvent.setup() };
+}
+
+const searchBox = () => screen.getByRole('textbox', { name: /Search people/i });
+
+// Every wait in this file sits behind the picker's 250ms search debounce, which
+// leaves little headroom under testing-library's 1000ms default: on a loaded
+// machine (the full suite running in parallel workers) the timer plus the
+// re-render can overrun it, and the query fails for lack of time rather than
+// because the picker misbehaved. These waits are for a *pending* state, so a
+// generous ceiling costs nothing when the state does arrive.
+const SETTLE = { timeout: 5000 };
+
+// Scoped to the dropdown: an already-selected person also appears as a chip
+// whose Remove button carries their name, so an unscoped query is ambiguous.
+// Both queries are awaited — the dropdown opens as soon as the debounce settles
+// and shows "Searching…" until the request resolves, so a synchronous get on
+// the row inside it would race the fetch.
+const resultsBox = () => screen.findByRole('group', { name: 'Search results' }, SETTLE);
+const option = async (name) =>
+  within(await resultsBox()).findByRole('button', { name: new RegExp(name, 'i') }, SETTLE);
+
+describe('toPerson', () => {
+  it('keys a person on their sign-in name and keeps the directory id', () => {
+    expect(toPerson(ANN)).toEqual({
+      principalId: ANN.id, userKey: 'ann@contoso.com', displayName: 'Ann Manager',
+    });
+  });
+
+  it('falls back to the mail column when the row has no userPrincipalName', () => {
+    expect(toPerson({ id: 'x', displayName: 'Mailed', email: 'mail@contoso.com' }).userKey).toBe('mail@contoso.com');
+  });
+
+  it('yields an empty key for a row that cannot sign in', () => {
+    expect(toPerson(SVC).userKey).toBe('');
+  });
+});
+
+describe('PeoplePicker', () => {
+  it('searches the directory for what was typed, debounced', async () => {
+    const { authFetch, user } = mount();
+    await user.type(searchBox(), 'ann');
+    await waitFor(() => expect(authFetch).toHaveBeenCalled(), SETTLE);
+    // One request for the settled term, not one per keystroke.
+    expect(authFetch).toHaveBeenCalledTimes(1);
+    expect(authFetch.mock.calls[0][0]).toBe('/api/users?search=ann&limit=10');
+  });
+
+  it('adds the person that was clicked, not the first result', async () => {
+    const { onChange, user } = mount();
+    await user.type(searchBox(), 'o');
+    await user.click(await option('Bob Owner'));
+    expect(onChange).toHaveBeenCalledWith([toPerson(BOB)]);
+  });
+
+  it('refuses a person with no sign-in name, saying why', async () => {
+    const { onChange, user } = mount();
+    await user.type(searchBox(), 'service');
+    const row = await option('Backup Service');
+    expect(row).toBeDisabled();
+    expect(row).toHaveTextContent('cannot sign in');
+    await user.click(row);
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('will not add the same person twice', async () => {
+    const { onChange, user } = mount({ value: [toPerson(ANN)] });
+    await user.type(searchBox(), 'ann');
+    const row = await option('Ann Manager');
+    expect(row).toBeDisabled();
+    expect(row).toHaveTextContent('already added');
+    await user.click(row);
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('lists the selection as removable chips', async () => {
+    const { onChange, user } = mount({ value: [toPerson(ANN), toPerson(BOB)] });
+    const chips = screen.getByRole('list', { name: /Selected people/i });
+    expect(chips).toHaveTextContent('Ann Manager');
+    expect(chips).toHaveTextContent('Bob Owner');
+
+    await user.click(screen.getByRole('button', { name: 'Remove Ann Manager' }));
+    // Removal is by sign-in key: Bob survives, Ann goes.
+    expect(onChange).toHaveBeenCalledWith([toPerson(BOB)]);
+  });
+
+  it('says so when nothing matches, rather than showing an empty box', async () => {
+    const { user } = mount({ rows: [] });
+    await user.type(searchBox(), 'nobody');
+    expect(await screen.findByText(/No people match “nobody”/, undefined, SETTLE)).toBeInTheDocument();
+  });
+
+  it('says it is still searching rather than claiming nobody matched', async () => {
+    // The window between the debounce settling and the response arriving. With
+    // the result list and a loading flag held as two independent states, this
+    // render has an empty list and loading not yet true — so the dropdown
+    // flashes "No people match" for a term it has not looked up. Asserting the
+    // absence of that text is what discriminates.
+    let release = () => {};
+    const { user } = mount({ handler: () => new Promise(resolve => { release = () => resolve({ data: [ANN] }); }) });
+    await user.type(searchBox(), 'ann');
+
+    const box = await resultsBox();
+    expect(box).toHaveTextContent('Searching…');
+    expect(box).not.toHaveTextContent('No people match');
+
+    release();
+    expect(await option('Ann Manager')).toBeEnabled();
+  });
+
+  it('survives a failing search without breaking the form', async () => {
+    const { user } = mount({ response: jsonResponse({ error: 'nope' }, { ok: false, status: 500 }) });
+    await user.type(searchBox(), 'ann');
+    expect(await screen.findByText(/No people match/, undefined, SETTLE)).toBeInTheDocument();
+    expect(searchBox()).toBeInTheDocument();
+  });
+
+  it('does not search on an empty term', async () => {
+    const { authFetch, user } = mount();
+    await user.click(searchBox());
+    await user.type(searchBox(), '  ');
+    await new Promise(r => setTimeout(r, 400));
+    expect(authFetch).not.toHaveBeenCalled();
+  });
+});

@@ -6,7 +6,14 @@ import TabBar from './TabBar';
 import EntityTimeline from './EntityTimeline';
 import useExpandableGraph from '@ui/hooks/useExpandableGraph';
 import useTimeline from '@ui/hooks/useTimeline';
+import { useIsSharedView } from '@ui/contexts/SharedViewContext';
 import { getRootNodes } from './entityGraphShape';
+
+// Tabs a recipient of a share link sees (#1166). The analyst-only tabs — the
+// change Timeline and the Risk panel with its override controls — are dropped:
+// a business user who followed a link to one matrix has no use for them, and
+// the override actions inside Risk would 403 for a roleless recipient anyway.
+const SHARED_VIEW_TABS = new Set(['attributes', 'relationships']);
 
 // Error guard — shown when the detail fetch rejects. Retry/Close only when onRetry.
 function DetailErrorState({ entityLabel, error, onRetry, onClose }) {
@@ -159,6 +166,7 @@ export default function EntityDetailPage({
   const [error, setError] = useReducer((_, v) => v, null);
   const [activeTab, setActiveTab] = useState('attributes');
   const [timelineDays, setTimelineDays] = useState(90);
+  const isSharedView = useIsSharedView();
 
   useEffect(() => {
     if (!refreshKey && cachedData?.core) return;
@@ -209,7 +217,12 @@ export default function EntityDetailPage({
   if (!data) return null;
 
   const attributeEntries = getAttributeEntries(data);
-  const tabs = getTabs(data, attributeEntries);
+  const allTabs = getTabs(data, attributeEntries);
+  // getTabs callers emit `false`/`undefined` entries for feature-gated tabs;
+  // filter those out before narrowing, so the shared view can't keep one.
+  const tabs = isSharedView
+    ? allTabs.filter(t => t && SHARED_VIEW_TABS.has(t.key))
+    : allTabs;
 
   return (
     <div className="max-w-7xl mx-auto">

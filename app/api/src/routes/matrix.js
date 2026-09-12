@@ -27,6 +27,7 @@ import {
 } from '../db/columnCache.js';
 import { explainInheritance } from '../matrix/inheritedAccess.js';
 import savedFiltersRouter from './matrix/savedFilters.js';
+import sharesRouter from './matrix/shares.js';
 import scopeRouter from './matrix/scope.js';
 import dataRouter from './matrix/data.js';
 import { getIdentityColumns, getIdentityColumnValuesMeta, parseFilter, buildSubqueries, runCount, subjectScopeClauses } from './matrix/shared.js';
@@ -38,6 +39,9 @@ const router = Router();
 // Saved-filter CRUD + the org-wide default filter live in their own module
 // (routes/matrix/savedFilters.js) — part of the matrix.js split (Q1).
 router.use(savedFiltersRouter);
+// Share links (routes/matrix/shares.js) — create/list/revoke are data.share
+// gated; resolve is auth-only so a signed-in recipient can open a shared view.
+router.use(sharesRouter);
 router.use(scopeRouter);
 router.use(dataRouter);
 const useSql = process.env.USE_SQL === 'true';

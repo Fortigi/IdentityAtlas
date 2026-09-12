@@ -4,7 +4,7 @@ import { createElement as h, useState } from 'react';
 import MatrixFilterWizard from './MatrixFilterWizard';
 import {
   renderWithProviders, makeAuthFetch, jsonResponse,
-  screen, fireEvent, waitFor, userEvent,
+  screen, within, fireEvent, waitFor, userEvent,
 } from '@ui/test-utils/renderWithProviders';
 
 // Column schema payloads returned by /api/matrix/columns. Each row is a
@@ -158,6 +158,9 @@ describe('MatrixFilterWizard (mounted)', () => {
     // Falls back to the default sort attribute rather than rendering empty.
     expect(screen.getByText('Sort by')).toBeInTheDocument();
 
+    // Sharing is the last step for a user who may share (#1166), so Apply now
+    // lives one step further on.
+    await user.click(screen.getByText('Next')); // → Share
     await user.click(screen.getByText('Apply'));
     expect(onApply).toHaveBeenCalledWith(
       expect.objectContaining({ sortAttributes: [{ attribute: 'department', dir: 'asc' }] }),
@@ -233,6 +236,8 @@ describe('MatrixFilterWizard (mounted)', () => {
     expect(screen.getByRole('checkbox', { name: /Include inherited access/i })).not.toBeChecked();
 
     await user.click(screen.getByText('Next')); // sort
+    // Sharing is the last step for a user who may share (#1166), so Apply lives there.
+    await user.click(screen.getByText('Next')); // → Share
     await user.click(await screen.findByText('Apply'));
     expect(onApply.mock.calls[0][0]).toMatchObject({ includeBusinessRoles: true });
   });
@@ -307,6 +312,7 @@ describe('MatrixFilterWizard (mounted)', () => {
     await user.click(screen.getByText('Next')); // subjects
     await user.click(screen.getByText('Next')); // resources
     await user.click(screen.getByText('Next')); // sort
+    await user.click(screen.getByText('Next')); // share (#1166)
 
     await user.click(await screen.findByText('Apply'));
     expect(onApply).toHaveBeenCalledTimes(1);
@@ -391,9 +397,11 @@ describe('MatrixFilterWizard (mounted)', () => {
     await user.click(screen.getByText('Next')); // subjects
     await user.click(screen.getByText('Next')); // resources
 
-    // No Sort step when sortAttributes is empty? Sort step still shows; advance.
-    const next = screen.queryByText('Next');
-    if (next) await user.click(next);
+    // Advance through the remaining steps (Sort, then Share) to reach Apply.
+    for (let i = 0; i < 2; i++) {
+      const next = screen.queryByText('Next');
+      if (next) await user.click(next);
+    }
 
     // Wait for the oversized preview to land, then Apply should be disabled.
     // Locale-agnostic: the count is rendered via toLocaleString() (en-US "99,999"
@@ -403,5 +411,123 @@ describe('MatrixFilterWizard (mounted)', () => {
     const applyBtn = await screen.findByText('Apply');
     expect(applyBtn).toBeDisabled();
     expect(onApply).not.toHaveBeenCalled();
+  });
+});
+
+describe('MatrixFilterWizard — the Share step (#1166)', () => {
+  const reader = { permissions: new Set(['data.read']), hasWildcard: false, permissionsLoaded: true };
+
+  it('ends on Share for a sharer, with Apply still available there', async () => {
+    const { onApply } = renderWizard();
+    const user = userEvent.setup();
+    await user.click(screen.getByText('Next')); // subjects
+    await user.click(screen.getByText('Next')); // resources
+    await user.click(screen.getByText('Next')); // sort
+    await user.click(screen.getByText('Next')); // share
+
+    // The step offers the share form…
+    expect(await screen.findByText(/Share this matrix \(optional\)/i)).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: /Name this view/i })).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: /Share with/i })).toBeInTheDocument();
+    // …and it is the end of the wizard: Apply, no further Next.
+    expect(screen.queryByText('Next')).not.toBeInTheDocument();
+
+    // Skipping the share and applying is the ordinary path.
+    await user.click(screen.getByText('Apply'));
+    expect(onApply).toHaveBeenCalledTimes(1);
+  });
+
+  it('is absent for a user who cannot share — Sort stays the last step', async () => {
+    const onApply = vi.fn();
+    renderWithProviders(
+      h(MatrixFilterWizard, { open: true, onApply, onClose: vi.fn() }),
+      { auth: { ...reader, authFetch: makeFetch() } },
+    );
+    const user = userEvent.setup();
+    await user.click(screen.getByText('Next')); // subjects
+    await user.click(screen.getByText('Next')); // resources
+    await user.click(screen.getByText('Next')); // sort
+
+    expect(await screen.findByText('Sort columns')).toBeInTheDocument();
+    expect(screen.queryByText('Next')).not.toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: /Share with/i })).not.toBeInTheDocument();
+
+    await user.click(screen.getByText('Apply'));
+    expect(onApply).toHaveBeenCalledTimes(1);
+  });
+
+  // An oversized matrix that folds on attributes only loads as the layered,
+  // server-aggregated view — which Apply arranges by stamping `foldAttributes`.
+  // A share is a frozen snapshot, so if the step shared the raw edit state
+  // instead, the recipient would ask for every per-subject row of a matrix that
+  // can't be served that way, with no control to fix it.
+  const OVERSIZED_FOLDABLE = {
+    rowType: 'principal',
+    subject: { include: [], exclude: [] },
+    resource: { include: [], exclude: [] },
+    sortAttributes: [{ attribute: 'department', dir: 'asc' }],
+    foldOnLoad: true,
+    // Left over from the saved matrix this was loaded from — the committed
+    // shape drops it, so the recipient opens at the top level like the sharer.
+    rollupExpanded: ['Engineering'],
+  };
+
+  function shareFetch() {
+    return makeAuthFetch((url, opts = {}) => {
+      const u = String(url);
+      if (u.includes('/api/matrix/shares') && opts.method === 'POST') {
+        return jsonResponse({ id: 'sh-1', token: 'fgs_abc', recipients: [{ userKey: 'ann@contoso.com', displayName: 'Ann Manager' }] }, { status: 201 });
+      }
+      if (u.includes('/api/users')) {
+        return jsonResponse({ data: [{ id: '3fa85f64-5717-4562-b3fc-2c963f66afa6', displayName: 'Ann Manager', userPrincipalName: 'ann@contoso.com' }] });
+      }
+      return makeFetch({ preview: { assignmentCount: 99999 } })(url, opts);
+    });
+  }
+
+  it('shares the matrix Apply would commit, not the raw edit state', async () => {
+    const authFetch = shareFetch();
+    renderWizard({ initialFilter: OVERSIZED_FOLDABLE }, authFetch);
+    const user = userEvent.setup();
+    for (const _ of [1, 2, 3]) await user.click(screen.getByText('Next')); // → sort
+    await user.click(screen.getByText('Next'));                            // → share
+
+    expect(await screen.findByRole('textbox', { name: /Share with/i })).toBeInTheDocument();
+    await user.type(screen.getByRole('textbox', { name: /Name this view/i }), 'Engineering access');
+    await user.type(screen.getByRole('textbox', { name: /Share with/i }), 'ann');
+    await user.click(await within(await screen.findByRole('group', { name: 'Search results' }))
+      .findByRole('button', { name: /Ann Manager/i }));
+    await user.click(screen.getByRole('button', { name: /Create link/i }));
+
+    await waitFor(() => {
+      expect(authFetch).toHaveBeenCalledWith('/api/matrix/shares', expect.objectContaining({ method: 'POST' }));
+    });
+    const call = authFetch.mock.calls.find(([u, o]) => String(u).includes('/api/matrix/shares') && o?.method === 'POST');
+    const body = JSON.parse(call[1].body);
+    expect(body.filter.foldAttributes).toBe(true);
+    expect(body.filter.rollupExpanded).toEqual([]);
+    expect(body.filter.rollupCollapsed).toEqual([]);
+    expect(body.recipients).toEqual([
+      { principalId: '3fa85f64-5717-4562-b3fc-2c963f66afa6', userKey: 'ann@contoso.com', displayName: 'Ann Manager' },
+    ]);
+    // The link comes back once, with a copy control next to it.
+    expect(await screen.findByText(/#shared:fgs_abc$/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Copy share link/i })).toBeInTheDocument();
+  });
+
+  it('offers no share form for a matrix too large to load', async () => {
+    renderWizard(
+      {
+        initialFilter: { ...OVERSIZED_FOLDABLE, sortAttributes: [], foldOnLoad: false },
+      },
+      shareFetch(),
+    );
+    const user = userEvent.setup();
+    for (const _ of [1, 2, 3]) await user.click(screen.getByText('Next')); // → sort
+    await user.click(screen.getByText('Next'));                            // → share
+
+    expect(await screen.findByText(/too large to load, so there is nothing to share/i)).toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: /Share with/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Create link/i })).not.toBeInTheDocument();
   });
 });

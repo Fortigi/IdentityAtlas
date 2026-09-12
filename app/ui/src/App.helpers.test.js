@@ -5,6 +5,7 @@ import {
   parseDetailRoute,
   pickDisplayName,
   closeFallbackPage,
+  parseSharedRoute,
   detailTabIconBg,
 } from './App.helpers';
 
@@ -36,6 +37,34 @@ describe('parseDetailRoute', () => {
   it('returns null for non-detail pages', () => {
     expect(parseDetailRoute('dashboard')).toBeNull();
     expect(parseDetailRoute('matrix')).toBeNull();
+  });
+});
+
+describe('parseSharedRoute', () => {
+  it('extracts the token from a #shared: hash', () => {
+    expect(parseSharedRoute('shared:fgs_abc123')).toBe('fgs_abc123');
+    // Tokens are base64url — '-' and '_' must survive intact.
+    expect(parseSharedRoute('shared:fgs_a-b_c')).toBe('fgs_a-b_c');
+    expect(parseSharedRoute('shared: fgs_padded ')).toBe('fgs_padded');
+  });
+
+  it('returns null for every other route, so the normal shell still renders', () => {
+    expect(parseSharedRoute('matrix')).toBeNull();
+    expect(parseSharedRoute('dashboard')).toBeNull();
+    expect(parseSharedRoute('user:abc')).toBeNull();
+    // A prefix that only looks like one must not open a shared view.
+    expect(parseSharedRoute('sharedreports:abc')).toBeNull();
+    expect(parseSharedRoute('x-shared:abc')).toBeNull();
+  });
+
+  it('returns null for an empty or whitespace-only token', () => {
+    expect(parseSharedRoute('shared:')).toBeNull();
+    expect(parseSharedRoute('shared:   ')).toBeNull();
+  });
+
+  it('returns null for a non-string page', () => {
+    expect(parseSharedRoute(null)).toBeNull();
+    expect(parseSharedRoute(undefined)).toBeNull();
   });
 });
 

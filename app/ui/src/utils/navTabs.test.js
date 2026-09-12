@@ -65,6 +65,15 @@ describe('navTabs', () => {
     expect(shown).toContain('sync-log');
   });
 
+  it('keeps Shared matrices out of the top navigation — it lives under Admin (#1166)', () => {
+    // Managing other people's share links is administration, so the top nav
+    // must not carry it for anyone, permission or not.
+    expect(ALL_NAV_TABS.map(t => t.key)).not.toContain('shared-matrices');
+    const shown = keys(computeNavTabs({ features: ENABLE_ALL_FEATURES, visibleTabs: [], canSeeAdmin: true }));
+    expect(shown).not.toContain('shared-matrices');
+    expect(shown).toContain('admin');
+  });
+
   it('still gates the Admin tab on permission and feature flags', () => {
     const noAdmin = keys(computeNavTabs({ features: ENABLE_ALL_FEATURES, visibleTabs: [], canSeeAdmin: false }));
     expect(noAdmin).not.toContain('admin');

@@ -23,6 +23,7 @@ export const ADMIN_TABS = [
   { key: 'auth',            label: 'Authentication',   description: 'Single sign-on configuration',                                         requires: ['admin.auth'] },
   { key: 'roles',           label: 'Roles & Permissions', description: 'Map identity-provider roles to in-app permissions',                 requires: ['admin.auth'] },
   { key: 'data',            label: 'Data',             description: 'Export/import curated data and clean the database',                    requires: ['data.export.ui', 'admin.csv-import', 'admin.systems', 'admin.read-tokens', 'data.export.apikey'] },
+  { key: 'shares',          label: 'Shared Matrices',  description: 'Matrices shared by link: who they are for, who opened them, and revoking', requires: ['data.share'] },
   { key: 'experimental',    label: 'Experimental',     description: 'Preview features that are built and tested, but not yet proven in the field',   requires: ['admin.feature-flags'] },
   { key: 'updates',         label: 'Updates',          description: 'Automatic updates and version history',                                requires: ['admin.systems'] },
   { key: 'about',           label: 'About',            description: 'License, version, and software bill of materials' },
