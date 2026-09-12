@@ -178,9 +178,22 @@ export function createApp() {
   }
 
   // ─── Rate limiting on unauthenticated endpoints ──────────────────
+  // Same principle as the authenticated limiter below: bound abuse without ever
+  // biting normal interactive use or CI running through one source IP.
+  //
+  // This was 30/min, which did bite. Every SPA page load spends four of these —
+  // the index.html fallback at the bottom of this file, plus /api/auth-config,
+  // /api/version and /api/features — so seven page loads a minute exhausted it,
+  // and a user clicking around briskly got 429s on their own app. That stayed
+  // invisible while nothing important depended on the answers; once a feature
+  // flag gated UI it stopped being invisible, because a flag that fails to load
+  // must fail CLOSED, so a 429 silently removed an enabled feature from the
+  // screen. These four endpoints are tiny, read-only and cacheable; the cap is
+  // here to bound abuse, not to ration the app's own bootstrap.
+  //   600 req/min  =  10 req/sec sustained per IP
   const publicLimiter = rateLimit({
     windowMs: 60 * 1000,  // 1 minute
-    max: 30,               // 30 requests per minute per IP
+    max: 600,
     standardHeaders: true,
     legacyHeaders: false,
     message: { error: 'Too many requests, please try again later' },
