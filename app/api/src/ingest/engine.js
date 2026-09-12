@@ -87,7 +87,15 @@ export async function ingest(_pool, tableName, keyColumns, records, options = {}
   } = options;
 
   if (!records || records.length === 0) {
-    return { inserted: 0, updated: 0, deleted: 0 };
+    // An empty DELTA batch says nothing, so there is nothing to do. An empty
+    // FULL batch says something specific: "this scope is empty now". That is how
+    // a crawler reconciles a source down to zero — a SCIM endpoint that no longer
+    // serves any groups, say — and tools/crawlers/shared/Invoke-CrawlerIngest.ps1
+    // sends exactly that body for the purpose. Returning early here meant the
+    // rows were never tombstoned and the emptied source kept its old data.
+    if (syncMode !== 'full') return { inserted: 0, updated: 0, deleted: 0 };
+    const deleted = await deleteEntireScope(tableName, keyColumns, systemId, scope, systemIdColumn, scopeDeleteFilter);
+    return { inserted: 0, updated: 0, deleted };
   }
 
   const activeColumns = await resolveActiveColumns(tableName, records, keyColumns);
@@ -185,6 +193,26 @@ export async function ingest(_pool, tableName, keyColumns, records, options = {}
     }
 
     return { inserted, updated, deleted };
+  });
+}
+
+// Tombstone everything in one scope, for a full sync that carried no records.
+//
+// scopedDelete keeps whatever survives in a temp table of the incoming keys, so
+// "keep nothing" is simply that table with no rows in it. Built with SELECT ...
+// WHERE false so the key columns get their real types from the target table
+// rather than being guessed from records that do not exist.
+export async function deleteEntireScope(tableName, keyColumns, systemId, scope, systemIdColumn, scopeDeleteFilter) {
+  return await db.tx(async (client) => {
+    const tempName = `_tmp_wipe_${crypto.randomBytes(6).toString('hex')}`;
+    const keyCols = keyColumns.map(k => `"${k}"`).join(', ');
+    await client.query(
+      `CREATE TEMP TABLE "${tempName}" ON COMMIT DROP AS SELECT ${keyCols} FROM "${tableName}" WHERE false`);
+
+    const allColumns = await discoverColumns(null, tableName);
+    const tableColumnNames = new Set(allColumns.map(c => c.name));
+    return await scopedDelete(
+      client, tableName, keyColumns, tempName, systemId, scope, systemIdColumn, tableColumnNames, scopeDeleteFilter);
   });
 }
 

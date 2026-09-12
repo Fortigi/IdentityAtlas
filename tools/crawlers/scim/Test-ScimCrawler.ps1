@@ -129,6 +129,17 @@ function Set-ExperimentalCrawlers {
         -Body @{ feature = 'experimentalCrawlers'; enabled = $Enabled } | Out-Null
 }
 
+function Format-AssignmentRows {
+    param($Rows)
+    $items = @()
+    foreach ($r in @($Rows)) {
+        $name = if ($r.principalDisplayName) { $r.principalDisplayName } else { $r.principalId }
+        $items += "$name/$($r.principalType)"
+    }
+    if ($items.Count -eq 0) { return '0[]' }
+    return "$($items.Count)[$($items -join '; ')]"
+}
+
 #endregion Helpers
 
 Write-Host "`n=== SCIM Crawler Integration Test ===" -ForegroundColor Cyan
@@ -226,11 +237,12 @@ try {
         # Outer: Alice Direct; Bob + Service Indirect (reached through Inner).
         $innerDirect = @($innerAssign | Where-Object { $_.assignmentType -eq 'Direct' })
         $ok = ($direct.Count -eq 1) -and ($indirect.Count -eq 2) -and ($innerDirect.Count -eq 2)
-        # Name WHO landed, not just how many: when this is short it is always one
-        # specific member missing, and the count alone never said which.
-        $who = { param($rows) if (@($rows).Count) { (@($rows) | ForEach-Object { "$($_.principalDisplayName ?? $_.displayName ?? $_.principalId)[$($_.principalType)]" }) -join ',' } else { 'none' } }
+        # Name WHO landed, not just how many: when this is wrong it is always a
+        # specific member missing or duplicated, and a count never said which.
+        # Built with an explicit foreach — interpolating the collection renders
+        # every row into ONE string and hides how many rows there actually are.
         Write-Result 'Scim/Data — Direct memberships + Indirect rows from nesting' $ok `
-            "(outer Direct: $(& $who $direct); outer Indirect: $(& $who $indirect); inner Direct: $(& $who $innerDirect) — expected 1/2/2)"
+            "(outer[$($outerRow.id)] Direct=$(Format-AssignmentRows $direct) Indirect=$(Format-AssignmentRows $indirect); inner[$($innerRow.id)] Direct=$(Format-AssignmentRows $innerDirect) — expected 1/2/2)"
     } catch { Write-Result 'Scim/Data — Direct memberships + Indirect rows from nesting' $false $_.Exception.Message }
 
     try {
