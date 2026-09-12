@@ -16,7 +16,7 @@
         <link rel="prev" href="../../architecture/ingest-api/">
       
       
-        <link rel="next" href="../permissions/">
+        <link rel="next" href="../experimental-features/">
       
       
         
@@ -2018,6 +2018,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../sync/scim/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SCIM 2.0
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../sync/csv-import/" class="md-nav__link">
         
   
@@ -2707,6 +2735,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../experimental-features/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Experimental Features
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../permissions/" class="md-nav__link">
         
   
@@ -2863,10 +2919,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_8" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_9" >
         
           
-          <label class="md-nav__link" for="__nav_6_8" id="__nav_6_8_label" tabindex="">
+          <label class="md-nav__link" for="__nav_6_9" id="__nav_6_9_label" tabindex="">
             
   
   
@@ -2884,8 +2940,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_8_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_6_8">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_9_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_9">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -5157,6 +5213,10 @@
 <tr>
 <td>Risk scoring on/off</td>
 <td><code>WorkerConfig.FEATURE_RISK_SCORING</code> — set via the Admin → Risk Scoring toggle</td>
+</tr>
+<tr>
+<td>Experimental crawlers on/off</td>
+<td><code>WorkerConfig.FEATURE_EXPERIMENTAL_CRAWLERS</code> — set via the Admin → Experimental toggle; a deployment can start with it on via the backend env var <code>FEATURE_EXPERIMENTAL_CRAWLERS=true</code>, which the toggle then overrides. Off by default. See <a href="../experimental-features/">Experimental features</a></td>
 </tr>
 <tr>
 <td>Performance monitoring on/off</td>

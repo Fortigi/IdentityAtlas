@@ -321,6 +321,10 @@
          <lastmod>2026-09-12</lastmod>
     </url>
     <url>
+         <loc>https://fortigi.github.io/IdentityAtlas/stable/reference/experimental-features/</loc>
+         <lastmod>2026-09-12</lastmod>
+    </url>
+    <url>
          <loc>https://fortigi.github.io/IdentityAtlas/stable/reference/permissions/</loc>
          <lastmod>2026-09-12</lastmod>
     </url>
@@ -402,6 +406,10 @@
     </url>
     <url>
          <loc>https://fortigi.github.io/IdentityAtlas/stable/sync/omada/</loc>
+         <lastmod>2026-09-12</lastmod>
+    </url>
+    <url>
+         <loc>https://fortigi.github.io/IdentityAtlas/stable/sync/scim/</loc>
          <lastmod>2026-09-12</lastmod>
     </url>
     <url>

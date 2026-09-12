@@ -10,13 +10,13 @@
       
       
       
-        <link rel="canonical" href="https://fortigi.github.io/IdentityAtlas/stable/admin/excel-powerquery-export/">
+        <link rel="canonical" href="https://fortigi.github.io/IdentityAtlas/stable/sync/scim/">
       
       
-        <link rel="prev" href="../../architecture/entity-detail-pages/">
+        <link rel="prev" href="../midpoint-crawler-configuration/">
       
       
-        <link rel="next" href="../excel-template-authoring/">
+        <link rel="next" href="../csv-import/">
       
       
         
@@ -27,7 +27,7 @@
     
     
       
-        <title>Excel Export (Power Query) - Identity Atlas</title>
+        <title>SCIM 2.0 - Identity Atlas</title>
       
     
     
@@ -74,7 +74,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#excel-power-query-workbook-export" class="md-skip">
+        <a href="#syncing-from-a-scim-20-endpoint" class="md-skip">
           Skip to content
         </a>
       
@@ -113,7 +113,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Excel Export (Power Query)
+              SCIM 2.0
             
           </span>
         </div>
@@ -287,12 +287,10 @@
   
   
   
-    
-  
   
     
     
-      <li class="md-tabs__item md-tabs__item--active">
+      <li class="md-tabs__item">
         <a href="../../ui/overview/" class="md-tabs__link">
           
   
@@ -309,6 +307,8 @@
   
   
   
+    
+  
   
     
     
@@ -316,10 +316,12 @@
   
   
   
+    
+  
   
     
     
-      <li class="md-tabs__item">
+      <li class="md-tabs__item md-tabs__item--active">
         <a href="../../architecture/docker-setup/" class="md-tabs__link">
           
   
@@ -1110,31 +1112,26 @@
       
   
   
-    
   
   
-  
     
     
     
     
-      
-        
-        
       
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
         
           
-          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
             
   
   
@@ -1152,7 +1149,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_4">
             <span class="md-nav__icon md-icon"></span>
             
@@ -1232,20 +1229,17 @@
       
       
         
-          
-          
-        
       
     
     
-    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
         <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_3" >
         
           
-          <label class="md-nav__link" for="__nav_4_3" id="__nav_4_3_label" tabindex="">
+          <label class="md-nav__link" for="__nav_4_3" id="__nav_4_3_label" tabindex="0">
             
   
   
@@ -1426,31 +1420,26 @@
                 
   
   
-    
   
   
-  
     
     
     
     
       
       
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_7" >
         
           
-          
-        
-      
-    
-    
-    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
-      
-        
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_7" checked>
-        
-          
-          <label class="md-nav__link" for="__nav_4_7" id="__nav_4_7_label" tabindex="">
+          <label class="md-nav__link" for="__nav_4_7" id="__nav_4_7_label" tabindex="0">
             
   
   
@@ -1468,7 +1457,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_7_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_7_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_4_7">
             <span class="md-nav__icon md-icon"></span>
             
@@ -1483,37 +1472,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Excel Export (Power Query)
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../../admin/excel-powerquery-export/" class="md-nav__link">
         
   
   
@@ -1529,142 +1491,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#who-this-is-for" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Who this is for
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#what-the-download-contains" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        What the download contains
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#how-to-use-it" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        How to use it
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#rotating-or-retiring-tokens" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Rotating or retiring tokens
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Rotating or retiring tokens">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#automatic-revocation-of-idle-tokens" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Automatic revocation of idle tokens
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#how-the-token-is-used-against-the-api" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        How the token is used against the API
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#updating-a-workbook-to-point-at-a-different-deployment" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Updating a workbook to point at a different deployment
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#building-your-own-reports-from-this" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Building your own reports from this
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#security-notes" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Security notes
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#related" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Related
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -1677,7 +1503,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../excel-template-authoring/" class="md-nav__link">
+      <a href="../../admin/excel-template-authoring/" class="md-nav__link">
         
   
   
@@ -1717,26 +1543,31 @@
       
   
   
+    
   
   
+  
     
     
     
     
+      
+        
+        
       
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" checked>
         
           
-          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
             
   
   
@@ -1754,7 +1585,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_5">
             <span class="md-nav__icon md-icon"></span>
             
@@ -1778,17 +1609,20 @@
       
       
         
+          
+          
+        
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
       
         
         
         <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_1" >
         
           
-          <label class="md-nav__link" for="__nav_5_1" id="__nav_5_1_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_5_1" id="__nav_5_1_label" tabindex="">
             
   
   
@@ -1969,26 +1803,31 @@
                 
   
   
+    
   
   
+  
     
     
     
     
       
       
-        
-      
-    
-    
-    <li class="md-nav__item md-nav__item--nested">
-      
-        
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_2" >
         
           
-          <label class="md-nav__link" for="__nav_5_2" id="__nav_5_2_label" tabindex="0">
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_2" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_5_2" id="__nav_5_2_label" tabindex="">
             
   
   
@@ -2006,7 +1845,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_2_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_2_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_5_2">
             <span class="md-nav__icon md-icon"></span>
             
@@ -2024,7 +1863,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../sync/entra-id/" class="md-nav__link">
+      <a href="../entra-id/" class="md-nav__link">
         
   
   
@@ -2052,7 +1891,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../sync/azure-rm/" class="md-nav__link">
+      <a href="../azure-rm/" class="md-nav__link">
         
   
   
@@ -2080,7 +1919,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../sync/omada/" class="md-nav__link">
+      <a href="../omada/" class="md-nav__link">
         
   
   
@@ -2136,7 +1975,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../sync/midpoint/" class="md-nav__link">
+      <a href="../midpoint/" class="md-nav__link">
         
   
   
@@ -2164,7 +2003,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../sync/midpoint-crawler-configuration/" class="md-nav__link">
+      <a href="../midpoint-crawler-configuration/" class="md-nav__link">
         
   
   
@@ -2189,10 +2028,37 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../../sync/scim/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SCIM 2.0
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -2208,6 +2074,198 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#what-gets-imported" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What Gets Imported
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="What Gets Imported">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#always-synced-core-mapping" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Always-synced core mapping
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#extra-attributes-are-opt-in" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Extra attributes are opt-in
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#prerequisites" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prerequisites
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#running-a-sync" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Running a Sync
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Running a Sync">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#via-the-ui-recommended" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Via the UI (recommended)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#via-the-command-line" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Via the command line
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Configuration
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Configuration">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#example" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Example
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#mapping-user-types-to-principal-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Mapping user types to principal types
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#scheduling-and-sync-mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Scheduling and sync mode
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-a-full-sync-deletes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What a full sync deletes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#limitations-v1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Limitations (v1)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#troubleshooting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Troubleshooting
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -2220,7 +2278,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../sync/csv-import/" class="md-nav__link">
+      <a href="../csv-import/" class="md-nav__link">
         
   
   
@@ -2248,7 +2306,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../sync/custom-connector/" class="md-nav__link">
+      <a href="../custom-connector/" class="md-nav__link">
         
   
   
@@ -2290,17 +2348,20 @@
       
       
         
+          
+          
+        
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
       
         
         
         <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_3" >
         
           
-          <label class="md-nav__link" for="__nav_5_3" id="__nav_5_3_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_5_3" id="__nav_5_3_label" tabindex="">
             
   
   
@@ -2336,7 +2397,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../authentication/" class="md-nav__link">
+      <a href="../../admin/authentication/" class="md-nav__link">
         
   
   
@@ -2364,7 +2425,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../data-tab/" class="md-nav__link">
+      <a href="../../admin/data-tab/" class="md-nav__link">
         
   
   
@@ -2392,7 +2453,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../auto-updates/" class="md-nav__link">
+      <a href="../../admin/auto-updates/" class="md-nav__link">
         
   
   
@@ -3530,7 +3591,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../sync/building-a-crawler/" class="md-nav__link">
+      <a href="../building-a-crawler/" class="md-nav__link">
         
   
   
@@ -4893,55 +4954,33 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#who-this-is-for" class="md-nav__link">
+  <a href="#what-gets-imported" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Who this is for
+        What Gets Imported
       
     </span>
   </a>
   
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#what-the-download-contains" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        What the download contains
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#how-to-use-it" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        How to use it
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#rotating-or-retiring-tokens" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Rotating or retiring tokens
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Rotating or retiring tokens">
+    <nav class="md-nav" aria-label="What Gets Imported">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#automatic-revocation-of-idle-tokens" class="md-nav__link">
+  <a href="#always-synced-core-mapping" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Automatic revocation of idle tokens
+        Always-synced core mapping
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#extra-attributes-are-opt-in" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Extra attributes are opt-in
       
     </span>
   </a>
@@ -4954,10 +4993,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#how-the-token-is-used-against-the-api" class="md-nav__link">
+  <a href="#prerequisites" class="md-nav__link">
     <span class="md-ellipsis">
       
-        How the token is used against the API
+        Prerequisites
       
     </span>
   </a>
@@ -4965,10 +5004,88 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#updating-a-workbook-to-point-at-a-different-deployment" class="md-nav__link">
+  <a href="#running-a-sync" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Updating a workbook to point at a different deployment
+        Running a Sync
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Running a Sync">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#via-the-ui-recommended" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Via the UI (recommended)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#via-the-command-line" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Via the command line
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Configuration
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Configuration">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#example" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Example
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#mapping-user-types-to-principal-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Mapping user types to principal types
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#scheduling-and-sync-mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Scheduling and sync mode
       
     </span>
   </a>
@@ -4976,10 +5093,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#building-your-own-reports-from-this" class="md-nav__link">
+  <a href="#what-a-full-sync-deletes" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Building your own reports from this
+        What a full sync deletes
       
     </span>
   </a>
@@ -4987,10 +5104,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#security-notes" class="md-nav__link">
+  <a href="#limitations-v1" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Security notes
+        Limitations (v1)
       
     </span>
   </a>
@@ -4998,10 +5115,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#related" class="md-nav__link">
+  <a href="#troubleshooting" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Related
+        Troubleshooting
       
     </span>
   </a>
@@ -5050,15 +5167,23 @@
   
     
     
+      
+  
+  
+    
+    
       <li class="md-path__item">
-        <a href="../../ui/overview/" class="md-path__link">
+        <a href="../../architecture/docker-setup/" class="md-path__link">
           
   <span class="md-ellipsis">
-    Use
+    Set up & run
   </span>
 
         </a>
       </li>
+    
+  
+
     
   
 
@@ -5069,10 +5194,10 @@
     
     
       <li class="md-path__item">
-        <a href="./" class="md-path__link">
+        <a href="../entra-id/" class="md-path__link">
           
   <span class="md-ellipsis">
-    Get data out
+    Connect your systems
   </span>
 
         </a>
@@ -5094,226 +5219,289 @@
   
 
 
-<h1 id="excel-power-query-workbook-export">Excel Power Query workbook export<a class="headerlink" href="#excel-power-query-workbook-export" title="Permanent link">&para;</a></h1>
-<div class="admonition info">
-<p class="admonition-title">Before this page</p>
-<p>Assumes you have read <strong><a href="../../ui/overview/">The app at a glance</a></strong>.
-Brand new? Start at <a href="../../start/glossary/">The words you need first</a>.</p>
+<h1 id="syncing-from-a-scim-20-endpoint">Syncing from a SCIM 2.0 endpoint<a class="headerlink" href="#syncing-from-a-scim-20-endpoint" title="Permanent link">&para;</a></h1>
+<p>Identity Atlas can pull accounts and group memberships from <strong>any SCIM 2.0 service
+provider</strong> — SAP Cloud Identity Services, Okta, a home-grown SCIM façade, anything
+that speaks <a href="https://datatracker.ietf.org/doc/html/rfc7644">RFC 7643/7644</a>. There is
+no vendor-specific code: the crawler asks the endpoint what it serves
+(<code>/ServiceProviderConfig</code>, <code>/ResourceTypes</code>, <code>/Schemas</code>) and reads the standard
+<code>/Users</code> and <code>/Groups</code> collections.</p>
+<div class="admonition warning">
+<p class="admonition-title">This crawler is experimental</p>
+<p>It is built and covered by automated tests, but it has had only limited
+opportunity to prove itself against real SCIM providers. It therefore does not
+appear in <strong>Add Crawler</strong> until you switch on <strong>Admin → Experimental →
+Experimental crawlers</strong>. Turning that switch back off later leaves a SCIM
+crawler you already configured running — it only stops new ones being added.
+See <a href="../../reference/experimental-features/">Experimental features</a>.</p>
 </div>
-<p>Identity Atlas can hand a data analyst a pre-configured Excel workbook that
-pulls live data from the API via Power Query. A freshly-minted read-only
-token is embedded in the workbook, so refreshing the data on any machine is
-a single click — no API credentials to paste, no connections to configure.</p>
-<h2 id="who-this-is-for">Who this is for<a class="headerlink" href="#who-this-is-for" title="Permanent link">&para;</a></h2>
-<ul>
-<li>Data analysts who want Identity Atlas data in Excel or Power BI without
-  learning the API</li>
-<li>Anyone building ad-hoc reports (access reviews, risk dashboards, compliance
-  reports) against live principal / assignment / resource data</li>
-<li>Teams that want to pipe Identity Atlas into an existing BI stack via the
-  API but without standing up interactive OAuth for their service accounts</li>
-</ul>
-<h2 id="what-the-download-contains">What the download contains<a class="headerlink" href="#what-the-download-contains" title="Permanent link">&para;</a></h2>
-<p>One <code>.xlsx</code> file with these sheets:</p>
+<hr />
+<h2 id="what-gets-imported">What Gets Imported<a class="headerlink" href="#what-gets-imported" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
-<th>Sheet</th>
-<th>Endpoint</th>
-<th>Contents</th>
+<th>SCIM object</th>
+<th>Identity Atlas</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>README</td>
-<td>—</td>
-<td>Usage notes</td>
+<td><code>User</code></td>
+<td><strong>Principals</strong> (<code>principalType</code> from your user-type mapping, default <code>User</code>)</td>
 </tr>
 <tr>
-<td>Settings</td>
-<td>—</td>
-<td><code>BaseUrl</code> + <code>AuthToken</code> pre-populated named-range cells</td>
+<td><code>Group</code></td>
+<td><strong>Resources</strong> (<code>resourceType = Group</code>)</td>
 </tr>
 <tr>
-<td>Systems</td>
-<td><code>GET /api/systems</code></td>
-<td>Connected systems (Entra ID, Omada, CSV-backed, …)</td>
+<td>Group member that is a user</td>
+<td><strong>ResourceAssignments</strong> (<code>assignmentType = Direct</code>)</td>
 </tr>
 <tr>
-<td>Principals</td>
-<td><code>GET /api/users</code></td>
-<td>Every principalType — users, service principals, MIs, AI agents</td>
-</tr>
-<tr>
-<td>Resources</td>
-<td><code>GET /api/resources</code></td>
-<td>Groups, directory roles, app roles <strong>and</strong> business roles / access packages (the <code>governanceResource</code> flag marks the governance ones)</td>
-</tr>
-<tr>
-<td>Assignments</td>
-<td><code>GET /api/assignments</code></td>
-<td>Who has access to what (from <code>ResourceAssignments</code>). The <code>governed</code> flag splits governed-intent rows from actual access</td>
-</tr>
-<tr>
-<td>Identities</td>
-<td><code>GET /api/identities</code></td>
-<td>Real-person identities aggregated from multiple accounts</td>
-</tr>
-<tr>
-<td>IdentityMembers</td>
-<td><code>GET /api/identity-members</code></td>
-<td>Identity ↔ account links</td>
-</tr>
-<tr>
-<td>ResourceRelationships</td>
-<td><code>GET /api/resource-relationships</code></td>
-<td>Parent↔child resource links (Contains, GrantsAccessTo) — incl. which groups each business role <code>Contains</code></td>
-</tr>
-<tr>
-<td>GovernanceCatalogs</td>
-<td><code>GET /api/governance-catalogs</code></td>
-<td>Catalogs that group business roles / access packages</td>
-</tr>
-<tr>
-<td>AssignmentPolicies</td>
-<td><code>GET /api/assignment-policies</code></td>
-<td>Rules governing how a business role / access package is granted (auto-add/remove, access-review settings)</td>
-</tr>
-<tr>
-<td>AssignmentRequests</td>
-<td><code>GET /api/assignment-requests</code></td>
-<td>Access request / approval workflow rows</td>
-</tr>
-<tr>
-<td>CertificationDecisions</td>
-<td><code>GET /api/certification-decisions</code></td>
-<td>Access-review (certification) decisions — approve/deny/dontKnow outcomes</td>
+<td>Group member that is another group</td>
+<td><strong>ResourceRelationships</strong> (<code>Contains</code>) <strong>and</strong> a per-user <code>Indirect</code> ResourceAssignment on the outer group</td>
 </tr>
 </tbody>
 </table>
-<p>Between them these tabs carry the full governance (SOLL) layer, so an analyst
-can rebuild <strong>any</strong> matrix the web UI shows — including the governed/non-governed
-split and the business-role → group grants — entirely in Excel: join
-<code>Assignments</code> to <code>Resources</code> on <code>resourceId</code>, and <code>ResourceRelationships</code>
-(<code>relationshipType = "Contains"</code>) to <code>Resources</code> on both <code>parentResourceId</code>
-(the business role) and <code>childResourceId</code> (the group it grants).</p>
-<p>The Principals and Resources tabs auto-expand the <code>extendedAttributes</code> JSONB
-column into first-class <code>ext_*</code> columns (<code>ext_userType</code>,
-<code>ext_onPremisesSyncEnabled</code>, <code>ext_signInActivity</code>, <code>ext_appId</code>, etc.). Keys
-are collected across every row, so sparsely-populated attributes still show
-up.</p>
-<h2 id="how-to-use-it">How to use it<a class="headerlink" href="#how-to-use-it" title="Permanent link">&para;</a></h2>
+<p>The SCIM <code>id</code> is preserved as <code>externalId</code> on every record, and the Identity Atlas
+primary key is derived from it deterministically — so re-running a sync updates the
+same rows instead of creating new ones.</p>
+<h3 id="always-synced-core-mapping">Always-synced core mapping<a class="headerlink" href="#always-synced-core-mapping" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>SCIM attribute</th>
+<th>Identity Atlas field</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td><code>externalId</code></td>
+</tr>
+<tr>
+<td><code>displayName</code> (falls back to <code>userName</code>, then <code>id</code>)</td>
+<td><code>displayName</code></td>
+</tr>
+<tr>
+<td><code>userName</code></td>
+<td>stored in <code>extendedAttributes</code></td>
+</tr>
+<tr>
+<td><code>active</code></td>
+<td><code>accountEnabled</code> (<code>active: false</code> → disabled)</td>
+</tr>
+<tr>
+<td><code>emails</code> — the entry flagged <code>primary</code>, else the first with a value</td>
+<td><code>email</code></td>
+</tr>
+<tr>
+<td><code>name.givenName</code> / <code>name.familyName</code></td>
+<td><code>givenName</code> / <code>surname</code></td>
+</tr>
+<tr>
+<td><code>title</code></td>
+<td><code>jobTitle</code></td>
+</tr>
+<tr>
+<td><code>userType</code></td>
+<td>drives the principal-type mapping (see below)</td>
+</tr>
+</tbody>
+</table>
+<p>Group: <code>id</code> → <code>externalId</code>, <code>displayName</code> → <code>displayName</code>, <code>resourceType = Group</code>.</p>
+<h3 id="extra-attributes-are-opt-in">Extra attributes are opt-in<a class="headerlink" href="#extra-attributes-are-opt-in" title="Permanent link">&para;</a></h3>
+<p>Nothing beyond the core mapping is synced unless you pick it. The wizard's
+<strong>Attributes</strong> step lists every <em>simple</em> attribute the endpoint declares in
+<code>/Schemas</code> (complex attributes contribute their simple sub-attributes as
+<code>name.middleName</code>; multi-valued attributes are not offered in v1), starting with
+nothing selected and a <strong>Select all</strong> action per object type. Selected attributes
+land in the record's <code>extendedAttributes</code> JSON.</p>
+<hr />
+<h2 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h2>
+<ul>
+<li>A SCIM 2.0 endpoint that serves <code>/Users</code> and <code>/Groups</code> with <code>startIndex</code>/<code>count</code> paging</li>
+<li>Credentials for one of the supported auth methods (below)</li>
+<li>The endpoint must be reachable from the Identity Atlas worker container</li>
+</ul>
+<hr />
+<h2 id="running-a-sync">Running a Sync<a class="headerlink" href="#running-a-sync" title="Permanent link">&para;</a></h2>
+<h3 id="via-the-ui-recommended">Via the UI (recommended)<a class="headerlink" href="#via-the-ui-recommended" title="Permanent link">&para;</a></h3>
 <ol>
-<li><strong>Admin → Data → Excel Power Query Workbook</strong>.</li>
-<li>Click <strong>Generate token &amp; download workbook</strong>. A token is created and
-   the workbook is streamed back (a few KB).</li>
-<li>Open the file in Excel.</li>
-<li>For each data tab (Principals, Resources, Assignments, …):</li>
-<li>Go to <strong>Data → Get Data → From Other Sources → Blank Query</strong>.</li>
-<li>In Power Query Editor: <strong>Home → Advanced Editor</strong>.</li>
-<li>Copy the M code from cell A6 of that sheet and paste it into the
-     editor. Click <strong>Done</strong>.</li>
-<li>Rename the query to match the sheet name (e.g. <code>Principals</code>).</li>
-<li><strong>Home → Close &amp; Load To… → Existing worksheet → that sheet, cell A1</strong>.</li>
-<li>Back in Excel, <strong>Data → Refresh All</strong>. Every sheet fills with live data.</li>
+<li>Navigate to <strong>Admin → Crawlers</strong></li>
+<li>Click <strong>Add Crawler</strong> and select <strong>SCIM 2.0</strong></li>
+<li>Work through the six steps: connection → credentials → objects → attributes →
+   type mapping → schedule</li>
+<li>Click <strong>Add Crawler</strong>, then <strong>Run now</strong></li>
 </ol>
-<blockquote>
-<p><strong>One-click refresh coming soon.</strong> The current workbook requires the
-paste-into-Advanced-Editor step per sheet. A follow-up PR ships a
-hand-built template where the queries auto-load on first open — at
-that point the flow becomes "download → open → Refresh All".</p>
-</blockquote>
-<h2 id="rotating-or-retiring-tokens">Rotating or retiring tokens<a class="headerlink" href="#rotating-or-retiring-tokens" title="Permanent link">&para;</a></h2>
-<p>Each download mints a <strong>new</strong> read token so you have a fresh credential.
-The <strong>Existing tokens</strong> table on the same page lists every outstanding
-token with its prefix, creation date, and last-used timestamp. Click
-<strong>Revoke</strong> to invalidate any token immediately — workbooks using that
-token stop refreshing on their next attempt.</p>
-<h3 id="automatic-revocation-of-idle-tokens">Automatic revocation of idle tokens<a class="headerlink" href="#automatic-revocation-of-idle-tokens" title="Permanent link">&para;</a></h3>
-<p>Tokens that go unused for too long are revoked automatically, so a
-credential embedded in a workbook that nobody refreshes anymore doesn't
-linger as live read access. A token counts as "used" whenever a request
-authenticates with it (every workbook refresh); the clock falls back to
-the creation date for a token that was never used.</p>
-<p>The threshold defaults to <strong>90 days</strong> and is controlled by the
-<code>READ_TOKEN_IDLE_DAYS</code> key in <code>WorkerConfig</code>. Set it to <code>0</code> to disable
-idle revocation entirely, or to a different number of days to suit your
-policy. The sweep runs shortly after startup and every six hours
-thereafter; an idle token is therefore revoked within a few hours of
-crossing the threshold. Revoking is not deletion — idle-revoked tokens
-still appear in the <strong>Existing tokens</strong> table (marked revoked) for audit.</p>
-<h2 id="how-the-token-is-used-against-the-api">How the token is used against the API<a class="headerlink" href="#how-the-token-is-used-against-the-api" title="Permanent link">&para;</a></h2>
-<p>The workbook's M code reads the token from the <code>AuthToken</code> named range
-and sends it on every request:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>Authorization: Bearer fgr_…
+<p>Steps 3 and 4 run live discovery against the endpoint, which doubles as a
+credential check: a failure is reported inline with the reason.</p>
+<h3 id="via-the-command-line">Via the command line<a class="headerlink" href="#via-the-command-line" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="p">.\</span><span class="n">tools</span><span class="p">\</span><span class="n">crawlers</span><span class="p">\</span><span class="n">scim</span><span class="p">\</span><span class="nb">Start-ScimCrawler</span><span class="p">.</span><span class="n">ps1</span> <span class="p">`</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">-ApiBaseUrl</span> <span class="s2">"http://localhost:3001/api"</span> <span class="p">`</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">-ApiKey</span> <span class="s2">"fgc_abc123..."</span> <span class="p">`</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">-JobId</span> <span class="n">0</span> <span class="p">`</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">-ConfigPath</span> <span class="s2">".\myconfig.json"</span>
 </code></pre></div>
-<p>The token works on <strong>every read endpoint</strong> (<code>/api/users</code>,
-<code>/api/resources</code>, <code>/api/systems</code>, <code>/api/assignments</code>,
-<code>/api/identity-members</code>, <code>/api/resource-relationships</code>,
-<code>/api/identities</code>, etc.). It does <strong>not</strong> work on mutating endpoints
-(POST/PUT/PATCH/DELETE) nor on any <code>/api/admin/*</code> endpoint — the auth
-middleware rejects those with HTTP 403.</p>
-<p>That scoping means you can hand the token to a BI stack, a script, or a
-curl one-liner and the blast radius of a leak is read access only. It is
-<strong>not</strong> a substitute for a user's Entra ID sign-in when you need to
-manage data.</p>
-<h2 id="updating-a-workbook-to-point-at-a-different-deployment">Updating a workbook to point at a different deployment<a class="headerlink" href="#updating-a-workbook-to-point-at-a-different-deployment" title="Permanent link">&para;</a></h2>
-<p>The workbook works against whatever Identity Atlas host generated it.
-To retarget an existing workbook (e.g. point a locally-authored workbook
-at a production deployment):</p>
-<ol>
-<li>Open the workbook's <strong>Settings</strong> sheet.</li>
-<li>Change cell <strong>B2</strong> (<code>BaseUrl</code>) to the new <code>/api</code> base — e.g.
-   <code>https://identityatlas.example.com/api</code>.</li>
-<li>Paste in a new read token you generated on the target deployment in
-   cell <strong>B3</strong> (<code>AuthToken</code>).</li>
-<li><strong>Refresh All</strong>. Every query picks up the new values because they all
-   read from the named ranges.</li>
-</ol>
-<p>No M code edits needed — you only touch those two cells.</p>
-<h2 id="building-your-own-reports-from-this">Building your own reports from this<a class="headerlink" href="#building-your-own-reports-from-this" title="Permanent link">&para;</a></h2>
-<p>The workbook's tabs are just starting points. Once the raw data is loaded
-as Excel tables, you can:</p>
+<hr />
+<h2 id="configuration">Configuration<a class="headerlink" href="#configuration" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Required</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>baseUrl</code></td>
+<td>Yes</td>
+<td>The URL that serves <code>/Users</code> and <code>/Groups</code>, e.g. <code>https://api.example.com/scim/v2</code></td>
+</tr>
+<tr>
+<td><code>authMethod</code></td>
+<td>Yes</td>
+<td>One of <code>BasicAuth</code>, <code>ApiToken</code>, <code>OAuth2CC</code></td>
+</tr>
+<tr>
+<td><code>username</code> / <code>password</code></td>
+<td>BasicAuth</td>
+<td>HTTP Basic credentials</td>
+</tr>
+<tr>
+<td><code>apiToken</code></td>
+<td>ApiToken</td>
+<td>Static bearer token</td>
+</tr>
+<tr>
+<td><code>tokenEndpoint</code> / <code>clientId</code> / <code>clientSecret</code></td>
+<td>OAuth2CC</td>
+<td>OAuth2 client-credentials grant</td>
+</tr>
+<tr>
+<td><code>scope</code></td>
+<td>No</td>
+<td>Optional OAuth2 scope requested with the client-credentials grant</td>
+</tr>
+<tr>
+<td><code>systemName</code></td>
+<td>No (default <code>SCIM</code>)</td>
+<td>How this source is labelled in Identity Atlas</td>
+</tr>
+<tr>
+<td><code>pageSize</code></td>
+<td>No (default 100)</td>
+<td>The SCIM <code>count</code> parameter</td>
+</tr>
+<tr>
+<td><code>selectedObjects</code></td>
+<td>No</td>
+<td><code>{ users, groups, groupMembers }</code> booleans — all default to <code>true</code></td>
+</tr>
+<tr>
+<td><code>selectedAttributes</code></td>
+<td>No</td>
+<td><code>{ user: [...], group: [...] }</code> — the opt-in extras, empty by default</td>
+</tr>
+<tr>
+<td><code>userTypeMapping</code></td>
+<td>No</td>
+<td>Rows of <code>{ userType, principalType }</code>; a blank <code>userType</code> is the catch-all</td>
+</tr>
+</tbody>
+</table>
+<p>Secrets (<code>password</code>, <code>apiToken</code>, <code>clientSecret</code>) are never stored in the config blob
+— they go to the secrets vault and are injected into the job at dispatch time.</p>
+<h3 id="example">Example<a class="headerlink" href="#example" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="p">{</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span><span class="nt">"baseUrl"</span><span class="p">:</span><span class="w"> </span><span class="s2">"https://cis.example.com/scim/v2"</span><span class="p">,</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">  </span><span class="nt">"authMethod"</span><span class="p">:</span><span class="w"> </span><span class="s2">"OAuth2CC"</span><span class="p">,</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">  </span><span class="nt">"tokenEndpoint"</span><span class="p">:</span><span class="w"> </span><span class="s2">"https://cis.example.com/oauth/token"</span><span class="p">,</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">  </span><span class="nt">"clientId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"identity-atlas"</span><span class="p">,</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">  </span><span class="nt">"systemName"</span><span class="p">:</span><span class="w"> </span><span class="s2">"SAP CIS"</span><span class="p">,</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">  </span><span class="nt">"pageSize"</span><span class="p">:</span><span class="w"> </span><span class="mi">100</span><span class="p">,</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">  </span><span class="nt">"selectedObjects"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"users"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w"> </span><span class="nt">"groups"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w"> </span><span class="nt">"groupMembers"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="w"> </span><span class="p">},</span>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">  </span><span class="nt">"selectedAttributes"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"user"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"department"</span><span class="p">,</span><span class="w"> </span><span class="s2">"costCenter"</span><span class="p">],</span><span class="w"> </span><span class="nt">"group"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"description"</span><span class="p">]</span><span class="w"> </span><span class="p">},</span>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="w">  </span><span class="nt">"userTypeMapping"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="nt">"userType"</span><span class="p">:</span><span class="w"> </span><span class="s2">"technical"</span><span class="p">,</span><span class="w"> </span><span class="nt">"principalType"</span><span class="p">:</span><span class="w"> </span><span class="s2">"ServicePrincipal"</span><span class="w"> </span><span class="p">},</span>
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="nt">"userType"</span><span class="p">:</span><span class="w"> </span><span class="s2">""</span><span class="p">,</span><span class="w"> </span><span class="nt">"principalType"</span><span class="p">:</span><span class="w"> </span><span class="s2">"User"</span><span class="w"> </span><span class="p">}</span>
+<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="w">  </span><span class="p">]</span>
+<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="p">}</span>
+</code></pre></div>
+<h3 id="mapping-user-types-to-principal-types">Mapping user types to principal types<a class="headerlink" href="#mapping-user-types-to-principal-types" title="Permanent link">&para;</a></h3>
+<p>SCIM's <code>userType</code> is a free-form string, so the crawler maps it onto the Identity
+Atlas principal-type vocabulary. Matching is case-insensitive and exact; a row with
+a blank <code>userType</code> is the catch-all; with no match and no catch-all an account is a
+plain <code>User</code>. Valid principal types are <code>User</code>, <code>ServicePrincipal</code>,
+<code>ManagedIdentity</code>, <code>WorkloadIdentity</code>, <code>AIAgent</code>, <code>ExternalUser</code> and <code>SharedMailbox</code>.</p>
+<hr />
+<h2 id="scheduling-and-sync-mode">Scheduling and sync mode<a class="headerlink" href="#scheduling-and-sync-mode" title="Permanent link">&para;</a></h2>
+<p>Schedules work exactly as they do for every pull crawler. <strong>SCIM 2.0 defines no
+standard change feed or watermark</strong>, so there is no real delta sync: if a schedule
+(or a manual run) asks for a delta, the crawler executes a full sync and says so in
+the job log. Full syncs are idempotent, so this is safe to run on any cadence your
+endpoint can serve.</p>
+<hr />
+<h2 id="what-a-full-sync-deletes">What a full sync deletes<a class="headerlink" href="#what-a-full-sync-deletes" title="Permanent link">&para;</a></h2>
+<p>A full sync reconciles: rows this crawler previously wrote that the endpoint no
+longer serves are deleted. The delete is scoped to this crawler's own system — and,
+for principals, additionally partitioned by mapped <code>principalType</code> — so it can never
+touch another connector's data, and a <code>ServicePrincipal</code> batch can never delete the
+<code>User</code> rows.</p>
+<hr />
+<h2 id="limitations-v1">Limitations (v1)<a class="headerlink" href="#limitations-v1" title="Permanent link">&para;</a></h2>
 <ul>
-<li>Pivot any tab against any other via Power Query's <strong>Merge</strong> feature
-  (e.g. Assignments ⨝ Principals on <code>principalId</code>)</li>
-<li>Build pivot tables directly on a loaded sheet</li>
-<li>Use the <code>ext_*</code> columns as pivot filters for fine-grained slicing
-  (e.g. "Service Principals with <code>ext_servicePrincipalType = ManagedIdentity</code>")</li>
-<li>Chain into Power BI — same M code, same token pattern, same endpoints</li>
+<li><strong>Read-only.</strong> No SCIM write-back, no <code>/Bulk</code>, no <code>PATCH</code>.</li>
+<li><strong>Users and groups only.</strong> Other resource types the endpoint serves are listed in
+  the wizard as <em>visible but not yet syncable</em>.</li>
+<li><strong>No delta sync</strong> (see above).</li>
+<li><strong>No mTLS / X.509 client-certificate auth</strong>, and no OAuth2 resource-owner
+  password grant.</li>
+<li><strong>Simple attributes only</strong> in the opt-in picker — multi-valued attributes other
+  than <code>emails</code> (which is part of the core mapping) are not stored.</li>
+<li><strong>No Identities.</strong> SCIM supplies accounts; the scheduled Account Linking engine
+  correlates them into identities afterwards, exactly as for every other account
+  source.</li>
 </ul>
-<h2 id="security-notes">Security notes<a class="headerlink" href="#security-notes" title="Permanent link">&para;</a></h2>
-<ul>
-<li><strong>Tokens are secrets.</strong> The <code>Settings</code> sheet is not encrypted. If you
-  share the workbook, anyone with the file can read from the API as
-  long as the token is active. Rotate the token after sharing.</li>
-<li><strong>Tokens are read-only.</strong> They cannot mutate data or reach admin
-  endpoints — but they CAN list every principal, resource, and
-  assignment. Treat that with the same discretion as a database dump.</li>
-<li><strong>Revoke proactively.</strong> When someone leaves the team, or when a
-  workbook is superseded, revoke the token from Admin → Data. The
-  token's <code>lastUsedAt</code> timestamp helps you tell active from stale.</li>
-<li><strong>Per-user tokens.</strong> Click <strong>Create token only…</strong> to mint named
-  tokens that don't get bundled into a workbook, useful for scripts or
-  BI connectors. The Admin → Data list shows which person/integration
-  owns each one.</li>
-</ul>
-<h2 id="related">Related<a class="headerlink" href="#related" title="Permanent link">&para;</a></h2>
-<ul>
-<li><a href="../excel-template-authoring/">Authoring the polished XLSX template</a> —
-  for the maintainer wiring up the one-click-refresh template</li>
-<li><a href="../../api/">API reference</a> — the endpoints your Power Query
-  code hits</li>
-</ul>
+<hr />
+<h2 id="troubleshooting">Troubleshooting<a class="headerlink" href="#troubleshooting" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Cause / fix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Discovery says <em>Could not reach the SCIM endpoint: /ResourceTypes returned HTTP 401</em></td>
+<td>Wrong credentials, or the endpoint expects a different auth scheme than the one selected.</td>
+</tr>
+<tr>
+<td>Discovery says <em>baseUrl rejected</em></td>
+<td>The base URL resolves to a private, loopback or cloud-metadata address. The API refuses to fetch those with a stored credential.</td>
+</tr>
+<tr>
+<td>The attribute picker is empty</td>
+<td>The endpoint does not serve <code>/Schemas</code>, or its schemas declare no simple attributes beyond the core mapping. The sync still works — only the opt-in extras are unavailable.</td>
+</tr>
+<tr>
+<td>Group members are missing</td>
+<td>Members whose id matches neither a synced user nor a synced group are skipped and counted; the job log reports how many. That usually means the group contains a resource type this crawler does not sync yet.</td>
+</tr>
+<tr>
+<td>Users appear but no memberships</td>
+<td>Check that <strong>Group members</strong> is enabled in the wizard's Objects step, and that the endpoint returns <code>members</code> on <code>/Groups</code> (some providers require an explicit attribute request).</td>
+</tr>
+</tbody>
+</table>
 
 
 
 
 
 
-
-  
-  
 
 
 
