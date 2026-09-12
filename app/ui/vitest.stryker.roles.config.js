@@ -17,8 +17,10 @@ import path from 'path';
 //
 //   coverageDeviation.js   -> MatrixGroupRow (per-cell markers),
 //                             MatrixView (the Gaps row filter + folded tallies)
-//   useBusinessRoleFold.js -> MatrixView (row layout, export rows, toolbar)
+//   useBusinessRoleFold.js -> useMatrixBusinessRoleLayer, and through it MatrixView
+//                             (row layout, export rows, toolbar)
 //                             SortableMatrixBody (which rows stay draggable)
+//   useMatrixBusinessRoleLayer.js -> MatrixView only: it IS the switch
 //
 // Nothing else imports either module, so the list below is the complete set of
 // places a mutant can be killed. Re-trace it when adding a module here.
@@ -31,6 +33,7 @@ export default defineConfig({
     include: [
       'src/components/matrix/coverageDeviation.test.js',
       'src/hooks/useBusinessRoleFold.test.jsx',
+      'src/hooks/useMatrixBusinessRoleLayer.test.jsx',
       'src/components/matrix/MatrixGroupRow.mount.test.jsx',
       'src/components/matrix/SortableMatrixBody.test.js',
       'src/components/MatrixView.mount.test.jsx',

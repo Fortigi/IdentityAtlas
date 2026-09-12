@@ -15,7 +15,8 @@
   },
   "mutate": [
     "src/components/matrix/coverageDeviation.js",
-    "src/hooks/useBusinessRoleFold.js"
+    "src/hooks/useBusinessRoleFold.js",
+    "src/hooks/useMatrixBusinessRoleLayer.js"
   ],
   "mutationExclusions": {
     "src/components/matrix/cellMarkers.js": "Tooltip prose and two layout constants, no branching beyond pluralisation. Its wording is asserted directly by cellMarkers/MatrixLegend tests; mutating the sentences would produce the same near-zero yield already measured on permissions.js (68 of 72 survivors on prose), and the StringLiteral mutator is off in every config here anyway.",

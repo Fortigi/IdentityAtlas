@@ -7,7 +7,7 @@ const setStateReducer = (s, a) => (typeof a === 'function' ? a(s) : a);
 import { useAuth } from '@ui/auth/AuthGate';
 import { useMatrixRowOrder } from '@ui/hooks/useMatrixRowOrder';
 import { useNestedGroupExpand } from '@ui/hooks/useNestedGroupExpand';
-import { useBusinessRoleFold } from '@ui/hooks/useBusinessRoleFold';
+import { useMatrixBusinessRoleLayer } from '@ui/hooks/useMatrixBusinessRoleLayer';
 import useResizableGridHeight from '@ui/hooks/useResizableGridHeight';
 import GridResizeHandle from './matrix/GridResizeHandle';
 import MatrixToolbar from './matrix/MatrixToolbar';
@@ -22,7 +22,7 @@ import { toggleCollapsedGroups } from './matrix/foldState';
 import { buildMatrixModel } from './matrix/matrixModel';
 import { buildAccessPackages, buildApSortedGroups } from './matrix/accessPackageModel';
 import { buildDisplayGroups } from './matrix/nestedRows';
-import { buildRoleDeviationCounts, cellDeviation, NO_ROLE_DEVIATIONS } from './matrix/coverageDeviation';
+import { cellDeviation } from './matrix/coverageDeviation';
 import InheritancePathModal from './matrix/InheritancePathModal';
 import { useHierarchyReset } from './matrix/useHierarchyReset';
 
@@ -69,6 +69,11 @@ function EmptyFilterState({ onAdjustFilter, hasData }) {
 
 // Above this many assignments, an 'auto' fold-on-load matrix opens folded.
 const FOLD_AUTO_THRESHOLD = 5000;
+
+// React identity for a rendered row. A resource several business roles grant has
+// one row under each of them, all sharing the resource's own `id`, so the copies
+// are told apart by the `rowKey` the layout stamps on them.
+const rowRenderKey = (group) => group.rowKey || group.id;
 
 // Short label for a manager-hierarchy node name ("A · B · C (Manager)" → "C").
 function orgShort(name) {
@@ -402,25 +407,6 @@ export default function MatrixView({
     });
   }, [displayGroups, managedFilter, accessPackages, apGroupMap, users, managedApMap, displayMemberships]);
 
-  // ─── Business-role fold ─────────────────────────────────────────
-  // Only when the matrix asks for business roles as rows (the wizard's "Show
-  // business roles as foldable rows" option): without that, the grid holds no
-  // business-role rows at all and there is nothing to fold. Folding hides the
-  // rows of the resources a role grants, so the grid can be reduced to
-  // "business roles + resources no role covers". Applied last in the row
-  // pipeline, so it composes with the All/Governed/Non-governed/Gaps toggles
-  // and with the injected nested sub-rows.
-  const showBusinessRoles = filter?.includeBusinessRoles === true;
-  const {
-    visibleRows: foldedGroups, foldedChildRows, exportRows,
-    foldableRoles, foldedRoles, roleFoldInfo,
-    toggleRoleFold, foldAllRoles, unfoldAllRoles, canFoldRoles, hasFoldedRoles,
-  } = useBusinessRoleFold({
-    accessPackageGroups: showBusinessRoles ? accessPackageGroups : null,
-    rows: visibleGroups,
-    storageKey,
-  });
-
   // Lazy-load SortableMatrixBody (contains @dnd-kit + @tanstack/react-virtual)
   const [SortableBody, setSortableBody] = useState(null);
   useEffect(() => {
@@ -441,28 +427,6 @@ export default function MatrixView({
     const sorted = [...orderedGroups].sort((a, b) => b.memberCount - a.memberCount);
     rowOrderHook.updateOrder(sorted.map(g => g.id));
   }, [orderedGroups, rowOrderHook]);
-
-  // Excel export handler (lazy-loads ExcelJS ~200KB only when export is clicked)
-  const handleExportExcel = useCallback(async () => {
-    const { exportToExcel } = await import('../utils/exportToExcel');
-    exportToExcel({
-      users,
-      // With business roles on the rows, export the layout the grid lays out —
-      // a resource appears under every role that grants it — but always
-      // unfolded, so folding stays a reading aid and can never leave access out
-      // of a file used for access review. Without them, the plain row order.
-      orderedGroups: showBusinessRoles ? exportRows : orderedGroups,
-      memberships,
-      managedApMap,
-      apIdToIndex,
-      activeFilters: [],
-      filterFields: [],
-      accessPackages,
-      apGroupMap,
-      shareUrl,
-      sortAttributes: sortAttrs,
-    });
-  }, [users, showBusinessRoles, exportRows, orderedGroups, memberships, managedApMap, apIdToIndex, accessPackages, apGroupMap, shareUrl, sortAttrs]);
 
   // Share: copy URL to clipboard
   const handleShare = useCallback(async () => {
@@ -521,15 +485,41 @@ export default function MatrixView({
     return counts;
   }, [colMemberships, userToAgg, collapsedGroups]);
 
-  // Per (folded role, subject column): how the rows a role folded away deviate
-  // from what the role assigns — more than it grants (red) and fewer (amber).
-  // Folding a role otherwise hides exactly what a role-mining review is looking
-  // for, in both directions, so the folded row keeps both counts. Coverage comes
-  // from managedApMap (the server's business-role → cell mapping), never from a
-  // client-side guess at what a role ought to grant.
-  const roleDeviations = useMemo(() => buildRoleDeviationCounts({
-    foldedChildRows, users, memberships: colMemberships, managedApMap, apGroupMap, userToAgg,
-  }) || NO_ROLE_DEVIATIONS, [foldedChildRows, users, colMemberships, managedApMap, apGroupMap, userToAgg]);
+  // ─── Business-role layer ────────────────────────────────────────
+  // Rows for the business roles, the resources folded under them, and the
+  // tallies a folded role carries — the whole thing switched by the matrix's
+  // own "Show business roles as foldable rows". Off, it answers the empty case
+  // throughout and the grid is what it was before the layer existed.
+  const roleLayer = useMatrixBusinessRoleLayer({
+    filter,
+    accessPackageGroups,
+    rows: visibleGroups,
+    storageKey,
+    exportBase: orderedGroups,
+    users,
+    memberships: colMemberships,
+    managedApMap,
+    apGroupMap,
+    userToAgg,
+  });
+
+  // Excel export handler (lazy-loads ExcelJS ~200KB only when export is clicked)
+  const handleExportExcel = useCallback(async () => {
+    const { exportToExcel } = await import('../utils/exportToExcel');
+    exportToExcel({
+      users,
+      orderedGroups: roleLayer.exportRows,
+      memberships,
+      managedApMap,
+      apIdToIndex,
+      activeFilters: [],
+      filterFields: [],
+      accessPackages,
+      apGroupMap,
+      shareUrl,
+      sortAttributes: sortAttrs,
+    });
+  }, [users, roleLayer.exportRows, memberships, managedApMap, apIdToIndex, accessPackages, apGroupMap, shareUrl, sortAttrs]);
 
   // Fold every top-level (first sort attribute) group into one aggregate column;
   // unfold clears all collapses. There's something to fold only when the first
@@ -631,13 +621,13 @@ export default function MatrixView({
         isFolded={collapsedGroups.size > 0}
         onFoldAllColumns={foldAllColumns}
         onUnfoldAllColumns={unfoldAllColumns}
-        canFoldRoles={canFoldRoles}
-        hasFoldedRoles={hasFoldedRoles}
-        onFoldAllRoles={foldAllRoles}
-        onUnfoldAllRoles={unfoldAllRoles}
+        canFoldRoles={roleLayer.canFoldRoles}
+        hasFoldedRoles={roleLayer.hasFoldedRoles}
+        onFoldAllRoles={roleLayer.foldAllRoles}
+        onUnfoldAllRoles={roleLayer.unfoldAllRoles}
       />
 
-      {filterIsApplied && <MatrixLegend showBusinessRoles={showBusinessRoles} />}
+      {filterIsApplied && <MatrixLegend showBusinessRoles={roleLayer.enabled} />}
 
       {!filterIsApplied ? (
         <EmptyFilterState onAdjustFilter={onAdjustFilter} hasData={hasData} />
@@ -662,7 +652,7 @@ export default function MatrixView({
           {SortableBody ? (
             <SortableBody
               scrollRef={scrollRef}
-              orderedGroups={foldedGroups}
+              orderedGroups={roleLayer.rows}
               onDragEnd={handleRowDragEnd}
               columnHeaders={columnHeaders}
               users={colUsers}
@@ -680,21 +670,21 @@ export default function MatrixView({
               expandedGroups={expandedGroups}
               onToggleExpand={toggleExpand}
               loadingNested={loadingNested}
-              showBusinessRoles={showBusinessRoles}
-              foldableRoles={foldableRoles}
-              foldedRoles={foldedRoles}
-              roleFoldInfo={roleFoldInfo}
-              roleExtraCounts={roleDeviations.extra}
-              roleMissingCounts={roleDeviations.missing}
-              onToggleRoleFold={toggleRoleFold}
+              showBusinessRoles={roleLayer.enabled}
+              foldableRoles={roleLayer.foldableRoles}
+              foldedRoles={roleLayer.foldedRoles}
+              roleFoldInfo={roleLayer.roleFoldInfo}
+              roleExtraCounts={roleLayer.extraCounts}
+              roleMissingCounts={roleLayer.missingCounts}
+              onToggleRoleFold={roleLayer.toggleRoleFold}
             />
           ) : (
             <table className="border-collapse" style={{ tableLayout: 'fixed' }}>
               {columnHeaders}
               <tbody>
-                {foldedGroups.map(group => (
+                {roleLayer.rows.map(group => (
                   <MatrixGroupRow
-                    key={group.rowKey || group.id}
+                    key={rowRenderKey(group)}
                     group={group}
                     users={colUsers}
                     totalUsers={colUsers.length}
@@ -712,13 +702,13 @@ export default function MatrixView({
                     expandedGroups={expandedGroups}
                     onToggleExpand={toggleExpand}
                     loadingNested={loadingNested}
-                    showBusinessRoles={showBusinessRoles}
-                    foldableRoles={foldableRoles}
-                    foldedRoles={foldedRoles}
-                    roleFoldInfo={roleFoldInfo}
-                    roleExtraCounts={roleDeviations.extra}
-                    roleMissingCounts={roleDeviations.missing}
-                    onToggleRoleFold={toggleRoleFold}
+                    showBusinessRoles={roleLayer.enabled}
+                    foldableRoles={roleLayer.foldableRoles}
+                    foldedRoles={roleLayer.foldedRoles}
+                    roleFoldInfo={roleLayer.roleFoldInfo}
+                    roleExtraCounts={roleLayer.extraCounts}
+                    roleMissingCounts={roleLayer.missingCounts}
+                    onToggleRoleFold={roleLayer.toggleRoleFold}
                   />
                 ))}
               </tbody>
