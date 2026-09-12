@@ -4,7 +4,9 @@ import MappingRows from '@ui/components/MappingRows';
 import WizardShell from '@ui/components/WizardShell';
 import Combobox from '@ui/components/inputs/Combobox';
 import Select from '@ui/components/inputs/Select';
-import { SECRET_PLACEHOLDER, canSubmitCredentials, buildCredentialFields } from '@ui/utils/crawlerCredentials';
+import { canSubmitCredentials, buildCredentialFields } from '@ui/utils/crawlerCredentials';
+import CredentialFields from '@ui/components/crawler/CredentialFields';
+import { CrawlerField, OptionList, WizardNav } from '@ui/components/crawler/wizardFields';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -86,14 +88,20 @@ export default function ScimConfigWizard({ onComplete, onCancel, initialConfig, 
   const [systemName, setSystemName]   = useState(initialConfig?.systemName || '');
   const [authMethod, setAuthMethod]   = useState(initialConfig?.authMethod || 'BasicAuth');
 
-  // Credential fields (secrets start blank; blank = keep stored value in edit mode)
-  const [username, setUsername]           = useState(initialConfig?.username || '');
-  const [password, setPassword]           = useState('');
-  const [apiToken, setApiToken]           = useState('');
-  const [clientId, setClientId]           = useState(initialConfig?.clientId || '');
-  const [clientSecret, setClientSecret]   = useState('');
-  const [tokenEndpoint, setTokenEndpoint] = useState(initialConfig?.tokenEndpoint || '');
-  const [scope, setScope]                 = useState(initialConfig?.scope || '');
+  // Credential fields (secrets start blank; blank = keep stored value in edit mode).
+  // One object rather than a useState each: CredentialFields renders whichever
+  // set the active auth method needs, and canSubmitCredentials /
+  // buildCredentialFields already take the same shape.
+  const [creds, setCreds] = useState({
+    username: initialConfig?.username || '',
+    password: '',
+    apiToken: '',
+    clientId: initialConfig?.clientId || '',
+    clientSecret: '',
+    tokenEndpoint: initialConfig?.tokenEndpoint || '',
+  });
+  const setCred = (name, value) => setCreds(prev => ({ ...prev, [name]: value }));
+  const [scope, setScope] = useState(initialConfig?.scope || '');
 
   const [selectedObjects, setSelectedObjects] = useState({
     users: true, groups: true, groupMembers: true, ...(initialConfig?.selectedObjects || {}),
@@ -123,9 +131,8 @@ export default function ScimConfigWizard({ onComplete, onCancel, initialConfig, 
     try {
       const body = initialConfig?.id
         ? { configId: initialConfig.id }
-        : { config: { baseUrl: baseUrl.trim(), authMethod, username: username.trim(), password: password.trim(),
-                      apiToken: apiToken.trim(), clientId: clientId.trim(), clientSecret: clientSecret.trim(),
-                      tokenEndpoint: tokenEndpoint.trim(), scope: scope.trim() } };
+        : { config: { baseUrl: baseUrl.trim(), authMethod, scope: scope.trim(),
+                      ...Object.fromEntries(Object.entries(creds).map(([k, v]) => [k, v.trim()])) } };
       const r = await authFetch('/api/admin/crawlers/scim/discover', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
       });
@@ -147,7 +154,7 @@ export default function ScimConfigWizard({ onComplete, onCancel, initialConfig, 
   const [error, setError] = useState(null);
 
   const canStep1 = !!(displayName.trim() && baseUrl.trim());
-  const credentialFields = { username, password, clientId, clientSecret, tokenEndpoint, apiToken };
+  const credentialFields = creds;
   const canStep2 = canSubmitCredentials(authMethod, credentialFields, isEdit);
   const canStep3 = canSubmitObjects(selectedObjects);
 
@@ -181,10 +188,6 @@ export default function ScimConfigWizard({ onComplete, onCancel, initialConfig, 
     }
   };
 
-  const inputCls = 'w-full border border-gray-200 rounded px-3 py-2 text-sm bg-white dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200';
-  const monoCls  = inputCls + ' font-mono';
-  const nextCls  = 'px-4 py-2 bg-indigo-600 text-white rounded text-sm hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed';
-  const backCls  = 'px-4 py-2 bg-gray-100 text-gray-700 rounded text-sm hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300';
 
   const steps = [
     { n: 1, label: 'Connection' },
@@ -236,37 +239,21 @@ export default function ScimConfigWizard({ onComplete, onCancel, initialConfig, 
       {/* Step 1 — Connection */}
       {step === 1 && (
         <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Crawler Name</label>
-            <input value={displayName} onChange={e => setDisplayName(e.target.value)} className={inputCls} placeholder="SCIM 2.0" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">SCIM Base URL</label>
-            <input value={baseUrl} onChange={e => setBaseUrl(e.target.value)} className={monoCls} placeholder="https://api.example.com/scim/v2" />
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">The URL that serves <code>/Users</code> and <code>/Groups</code>, e.g. <code>https://host/scim/v2</code></p>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">System name <span className="font-normal text-gray-500">(optional)</span></label>
-            <input value={systemName} onChange={e => setSystemName(e.target.value)} className={inputCls} placeholder="SAP CIS" />
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">How this source is labelled in Identity Atlas. Defaults to “SCIM”.</p>
-          </div>
+          <CrawlerField label="Crawler Name" value={displayName} onChange={setDisplayName} placeholder="SCIM 2.0" />
+          <CrawlerField
+            label="SCIM Base URL" mono value={baseUrl} onChange={setBaseUrl}
+            placeholder="https://api.example.com/scim/v2"
+            hint={<>The URL that serves <code>/Users</code> and <code>/Groups</code>, e.g. <code>https://host/scim/v2</code></>}
+          />
+          <CrawlerField
+            label="System name" optional value={systemName} onChange={setSystemName} placeholder="SAP CIS"
+            hint="How this source is labelled in Identity Atlas. Defaults to “SCIM”."
+          />
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Authentication Method</label>
-            <div className="space-y-2">
-              {AUTH_METHODS.map(m => (
-                <label key={m.id} className="flex items-start gap-3 cursor-pointer">
-                  <input type="radio" name="scimAuthMethod" value={m.id} checked={authMethod === m.id} onChange={() => setAuthMethod(m.id)} className="mt-0.5" />
-                  <div>
-                    <span className="text-sm font-medium text-gray-800 dark:text-gray-200">{m.label}</span>
-                    <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">{m.description}</span>
-                  </div>
-                </label>
-              ))}
-            </div>
+            <OptionList options={AUTH_METHODS} name="scimAuthMethod" selected={authMethod} onSelect={setAuthMethod} />
           </div>
-          <div className="flex justify-end">
-            <button onClick={() => setStep(2)} disabled={!canStep1} className={nextCls}>Next →</button>
-          </div>
+          <WizardNav onNext={() => setStep(2)} nextDisabled={!canStep1} />
         </div>
       )}
 
@@ -277,48 +264,11 @@ export default function ScimConfigWizard({ onComplete, onCancel, initialConfig, 
             Auth method: <span className="font-medium text-gray-700 dark:text-gray-300">{authMethod}</span>
             {isEdit && <span className="ml-2 text-xs">(leave secret fields blank to keep the stored value)</span>}
           </p>
-          {authMethod === 'BasicAuth' && (
-            <>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Username</label>
-                <input value={username} onChange={e => setUsername(e.target.value)} className={inputCls} />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Password</label>
-                <input type="password" value={password} onChange={e => setPassword(e.target.value)} className={inputCls} placeholder={isEdit ? SECRET_PLACEHOLDER : ''} />
-              </div>
-            </>
-          )}
-          {authMethod === 'ApiToken' && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">API Token</label>
-              <input type="password" value={apiToken} onChange={e => setApiToken(e.target.value)} className={monoCls} placeholder={isEdit ? SECRET_PLACEHOLDER : ''} />
-            </div>
-          )}
+          <CredentialFields authMethod={authMethod} values={creds} onChange={setCred} isEdit={isEdit} />
           {authMethod === 'OAuth2CC' && (
-            <>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Token Endpoint URL</label>
-                <input value={tokenEndpoint} onChange={e => setTokenEndpoint(e.target.value)} className={monoCls} placeholder="https://idp.example.com/oauth2/token" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Client ID</label>
-                <input value={clientId} onChange={e => setClientId(e.target.value)} className={monoCls} />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Client Secret</label>
-                <input type="password" value={clientSecret} onChange={e => setClientSecret(e.target.value)} className={inputCls} placeholder={isEdit ? SECRET_PLACEHOLDER : ''} />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Scope <span className="font-normal text-gray-500">(optional)</span></label>
-                <input value={scope} onChange={e => setScope(e.target.value)} className={monoCls} placeholder="scim:read" />
-              </div>
-            </>
+            <CrawlerField label="Scope" optional mono value={scope} onChange={setScope} placeholder="scim:read" />
           )}
-          <div className="flex justify-between">
-            <button onClick={() => setStep(1)} className={backCls}>← Back</button>
-            <button onClick={() => { setStep(3); fetchDiscovery(); }} disabled={!canStep2} className={nextCls}>Next →</button>
-          </div>
+          <WizardNav onBack={() => setStep(1)} onNext={() => { setStep(3); fetchDiscovery(); }} nextDisabled={!canStep2} />
         </div>
       )}
 
@@ -334,18 +284,10 @@ export default function ScimConfigWizard({ onComplete, onCancel, initialConfig, 
           </div>
           {discoError && <p className="text-xs text-amber-600 dark:text-amber-400">{discoError}</p>}
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2">
-            {SYNC_OPTIONS.map(opt => (
-              <label key={opt.key} className="flex items-start gap-3 cursor-pointer">
-                <input type="checkbox" checked={!!selectedObjects[opt.key]}
-                  onChange={e => setSelectedObjects(prev => ({ ...prev, [opt.key]: e.target.checked }))} className="mt-0.5" />
-                <div>
-                  <span className="text-sm font-medium text-gray-800 dark:text-gray-200">{opt.label}</span>
-                  <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">{opt.description}</span>
-                </div>
-              </label>
-            ))}
-          </div>
+          <OptionList
+            options={SYNC_OPTIONS} type="checkbox" grid selected={selectedObjects}
+            onSelect={(key, checked) => setSelectedObjects(prev => ({ ...prev, [key]: checked }))}
+          />
           {!canStep3 && <p className="text-xs text-amber-600 dark:text-amber-400">Select at least Users or Groups.</p>}
 
           {(disco?.resourceTypes || []).some(rt => !rt.syncable) && (
@@ -368,10 +310,7 @@ export default function ScimConfigWizard({ onComplete, onCancel, initialConfig, 
             <span className="text-xs text-gray-500 dark:text-gray-400">the SCIM <code>count</code> parameter (default 100)</span>
           </div>
 
-          <div className="flex justify-between">
-            <button onClick={() => setStep(2)} className={backCls}>← Back</button>
-            <button onClick={() => { setStep(4); fetchDiscovery(); }} disabled={!canStep3} className={nextCls}>Next →</button>
-          </div>
+          <WizardNav onBack={() => setStep(2)} onNext={() => { setStep(4); fetchDiscovery(); }} nextDisabled={!canStep3} />
         </div>
       )}
 
@@ -386,10 +325,7 @@ export default function ScimConfigWizard({ onComplete, onCancel, initialConfig, 
           {discoError && <p className="text-xs text-amber-600 dark:text-amber-400">{discoError}</p>}
           {attributePicker('User attributes', disco?.userAttributes || [], userAttributes, setUserAttributes)}
           {attributePicker('Group attributes', disco?.groupAttributes || [], groupAttributes, setGroupAttributes)}
-          <div className="flex justify-between">
-            <button onClick={() => setStep(3)} className={backCls}>← Back</button>
-            <button onClick={() => setStep(5)} className={nextCls}>Next →</button>
-          </div>
+          <WizardNav onBack={() => setStep(3)} onNext={() => setStep(5)} />
         </div>
       )}
 
@@ -423,10 +359,7 @@ export default function ScimConfigWizard({ onComplete, onCancel, initialConfig, 
               )},
             ]}
           />
-          <div className="flex justify-between">
-            <button onClick={() => setStep(4)} className={backCls}>← Back</button>
-            <button onClick={() => setStep(6)} className={nextCls}>Next →</button>
-          </div>
+          <WizardNav onBack={() => setStep(4)} onNext={() => setStep(6)} />
         </div>
       )}
 
@@ -457,13 +390,11 @@ export default function ScimConfigWizard({ onComplete, onCancel, initialConfig, 
             <div>Extra attributes: {userAttributes.length} user, {groupAttributes.length} group</div>
           </div>
 
-          <div className="flex justify-between">
-            <button onClick={() => setStep(5)} className={backCls}>← Back</button>
-            <button onClick={handleSave} disabled={saving}
-              className="px-4 py-2 bg-green-600 text-white rounded text-sm hover:bg-green-700 disabled:opacity-50">
-              {saving ? 'Saving…' : isEdit ? 'Save Changes' : 'Add Crawler'}
-            </button>
-          </div>
+          <WizardNav
+            onBack={() => setStep(5)} onNext={handleSave} nextDisabled={saving}
+            nextLabel={saving ? 'Saving…' : isEdit ? 'Save Changes' : 'Add Crawler'}
+            nextCls="px-4 py-2 bg-green-600 text-white rounded text-sm hover:bg-green-700 disabled:opacity-50"
+          />
         </div>
       )}
     </WizardShell>
