@@ -4,7 +4,6 @@ import { formatDurationSeconds as formatDurationHMS } from '@ui/utils/formatters
 import { Modal } from './contexts/ModalPrimitives';
 import { JobPhasesModal } from './JobPhasesModal';
 import { JOB_PROGRESS_TERMINAL, deriveJobProgressDisplay } from './CrawlersPage.helpers.js';
-import useFeatures from '@ui/hooks/useFeatures';
 import { crawlerMetaFor } from '@ui/utils/crawlerMetaRegistry';
 import SelectType, { ExperimentalBadge } from './CrawlersPage.SelectType.jsx';
 
@@ -359,12 +358,13 @@ function GettingStarted({ onAddCrawler }) {
 // Main CrawlersPage
 // ═══════════════════════════════════════════════════════════════════════════════
 
-export default function CrawlersPage({ onNavigate }) {
+export default function CrawlersPage({ onNavigate, features }) {
   const { authFetch } = useAuth();
-  // Experimental crawler types are offered only while the flag is on. useFeatures
-  // starts with the flag absent (falsy), so the picker fails closed until
-  // /api/features answers — never the other way round.
-  const { experimentalCrawlers } = useFeatures();
+  // Experimental crawler types are offered only while the flag is on. `features`
+  // comes from App.jsx (fetched once, re-fetched on navigation) — deliberately NOT
+  // fetched here: /api/features is behind the public rate limiter, and a 429 on
+  // this page's own fetch would read as "flag off" and hide the type from an admin.
+  const experimentalCrawlers = features?.experimentalCrawlers;
   const [, startTransition] = useTransition();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);

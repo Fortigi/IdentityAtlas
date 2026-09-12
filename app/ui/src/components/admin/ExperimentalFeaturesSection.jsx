@@ -9,8 +9,6 @@
 // it keeps its schedule, keeps running, and keeps its Experimental badge. The
 // flag only governs whether a NEW one can be added — enforced server-side in
 // routes/jobs/configs.js, not just here.
-import { useCallback } from 'react';
-import { useFetch } from '@ui/hooks/useFetch';
 import useFeatureToggle from '@ui/hooks/useFeatureToggle';
 import { docsUrl } from '@ui/utils/docsUrl';
 import { experimentalCrawlerTypes } from '@ui/utils/crawlerMetaRegistry';
@@ -39,14 +37,12 @@ function CrawlerList({ types }) {
   );
 }
 
-export default function ExperimentalFeaturesSection() {
+// `features` and `version` are passed down from App.jsx, which already fetches
+// both once and re-fetches features on navigation. Fetching them here instead
+// would mean two more calls against the public 30-req/min rate limiter every time
+// this tab is opened, and a 429 would render the switch as Disabled when it isn't.
+export default function ExperimentalFeaturesSection({ features, version }) {
   const { toggle, toggling, error } = useFeatureToggle('experimentalCrawlers');
-
-  // /api/features and /api/version are public — a stable plain-fetch wrapper
-  // keeps useFetch's identity-based effect from refetching every render.
-  const plainFetch = useCallback((u) => fetch(u), []);
-  const { data: features } = useFetch('/api/features', { authFetch: plainFetch });
-  const { data: version } = useFetch('/api/version', { authFetch: plainFetch });
 
   const enabled = features?.experimentalCrawlers === true;
   const types = experimentalCrawlerTypes();
@@ -67,7 +63,7 @@ export default function ExperimentalFeaturesSection() {
           removed.
         </p>
         <a
-          href={docsUrl(version?.version, EXPERIMENTAL_DOCS_PATH)}
+          href={docsUrl(version, EXPERIMENTAL_DOCS_PATH)}
           target="_blank"
           rel="noopener noreferrer"
           className="mt-2 inline-block text-sm font-medium text-blue-700 dark:text-blue-300 hover:underline"

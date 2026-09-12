@@ -18,16 +18,6 @@ import {
   waitFor,
 } from '@ui/test-utils/renderWithProviders';
 
-// /api/features and /api/version are read with bare global fetch (they're public).
-function stubPublicApi(features) {
-  vi.stubGlobal('fetch', vi.fn(async (url) => {
-    const u = String(url);
-    if (u.includes('/api/features')) return jsonResponse(features);
-    if (u.includes('/api/version')) return jsonResponse({ version: '5.649.20260908.1151' });
-    return jsonResponse({});
-  }));
-}
-
 let reload;
 beforeEach(() => {
   // The toggle hard-reloads so the Crawlers tab re-reads the flag; jsdom can't navigate.
@@ -37,26 +27,30 @@ beforeEach(() => {
     value: { ...window.location, reload, hash: '' },
   });
 });
-afterEach(() => { vi.unstubAllGlobals(); });
 
-function render(features, toggleResponse) {
-  return renderWithProviders(h(ExperimentalFeaturesSection, {}), {
-    auth: { authFetch: makeAuthFetch({ '/api/admin/features/toggle': toggleResponse ?? {} }) },
-  });
+// features/version arrive as props from App.jsx — the component fetches nothing.
+const EDGE_VERSION = '5.649.20260908.1151';
+
+function render(experimentalCrawlers, toggleResponse) {
+  return renderWithProviders(
+    h(ExperimentalFeaturesSection, {
+      features: { riskScoring: false, accountLinking: true, experimentalCrawlers },
+      version: EDGE_VERSION,
+    }),
+    { auth: { authFetch: makeAuthFetch({ '/api/admin/features/toggle': toggleResponse ?? {} }) } },
+  );
 }
 
 describe('ExperimentalFeaturesSection', () => {
   it('shows the flag as Disabled and the switch as off when the feature is off', async () => {
-    stubPublicApi({ experimentalCrawlers: false });
-    render({ experimentalCrawlers: false });
+    render(false);
     const toggle = await screen.findByRole('switch', { name: 'Experimental crawlers' });
     await waitFor(() => expect(toggle).toHaveAttribute('aria-checked', 'false'));
     expect(screen.getByText('Disabled')).toBeInTheDocument();
   });
 
   it('shows the flag as Enabled when the feature is on', async () => {
-    stubPublicApi({ experimentalCrawlers: true });
-    render();
+    render(true);
     const toggle = await screen.findByRole('switch', { name: 'Experimental crawlers' });
     await waitFor(() => expect(toggle).toHaveAttribute('aria-checked', 'true'));
     expect(screen.getByText('Enabled')).toBeInTheDocument();
@@ -67,8 +61,7 @@ describe('ExperimentalFeaturesSection', () => {
     // experimental changes over time, and app/ui/ must carry no type literals.
     const types = experimentalCrawlerTypes();
     expect(types.length).toBeGreaterThan(0);
-    stubPublicApi({ experimentalCrawlers: false });
-    render();
+    render(false);
     for (const t of types) {
       expect(await screen.findByText(t.name), t.id).toBeInTheDocument();
       expect(screen.getByText(t.description), t.id).toBeInTheDocument();
@@ -76,15 +69,13 @@ describe('ExperimentalFeaturesSection', () => {
   });
 
   it('explains that turning the flag off leaves an already-configured crawler running', async () => {
-    stubPublicApi({ experimentalCrawlers: true });
-    render();
+    render(true);
     expect(await screen.findByText(/does not disable an experimental crawler you already configured/i))
       .toBeInTheDocument();
   });
 
   it('turns the flag ON by posting experimentalCrawlers:true, then reloads', async () => {
-    stubPublicApi({ experimentalCrawlers: false });
-    const { authFetch } = render();
+    const { authFetch } = render(false);
     const toggle = await screen.findByRole('switch', { name: 'Experimental crawlers' });
     await waitFor(() => expect(toggle).toHaveAttribute('aria-checked', 'false'));
     await userEvent.click(toggle);
@@ -95,8 +86,7 @@ describe('ExperimentalFeaturesSection', () => {
   });
 
   it('turns the flag OFF again by posting enabled:false', async () => {
-    stubPublicApi({ experimentalCrawlers: true });
-    const { authFetch } = render();
+    const { authFetch } = render(true);
     const toggle = await screen.findByRole('switch', { name: 'Experimental crawlers' });
     await waitFor(() => expect(toggle).toHaveAttribute('aria-checked', 'true'));
     await userEvent.click(toggle);
@@ -106,8 +96,7 @@ describe('ExperimentalFeaturesSection', () => {
   });
 
   it('surfaces a failed toggle and does not reload', async () => {
-    stubPublicApi({ experimentalCrawlers: false });
-    render(undefined, jsonResponse({ error: 'Feature toggle failed' }, { ok: false, status: 500 }));
+    render(false, jsonResponse({ error: 'Feature toggle failed' }, { ok: false, status: 500 }));
     const toggle = await screen.findByRole('switch', { name: 'Experimental crawlers' });
     await waitFor(() => expect(toggle).toHaveAttribute('aria-checked', 'false'));
     await userEvent.click(toggle);
@@ -116,8 +105,7 @@ describe('ExperimentalFeaturesSection', () => {
   });
 
   it('links to the experimental-features docs for the running build', async () => {
-    stubPublicApi({ experimentalCrawlers: false });
-    render();
+    render(false);
     const link = await screen.findByRole('link', { name: /Read more in the documentation/ });
     // An edge build (8-digit date segment) must link to /edge/, not /stable/.
     expect(link).toHaveAttribute(
