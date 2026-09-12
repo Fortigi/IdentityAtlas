@@ -12,3 +12,4 @@
 - Turning the switch off never disables an experimental crawler you already configured — it keeps its schedule, keeps syncing and can still be edited, run and removed. Only adding a *new* one is blocked.
 - The SCIM 2.0 crawler ships as the first experimental crawler, so it must be switched on in Admin → Experimental before it can be added.
 - Added a documentation page explaining what the experimental label means, what the switch does and does not do, and how a feature either graduates to a regular connector or is withdrawn.
+- Fixed a rate limit that could make the app hide its own features: the endpoints every page load needs (version, feature settings, sign-in config) were capped at 30 requests a minute per address, so clicking through more than about seven pages a minute started failing them — and a feature whose settings failed to load reads as switched off. Raised to a level a browser cannot reach by normal use.
