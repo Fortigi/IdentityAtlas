@@ -81,6 +81,7 @@ jobs:
           - { pkg: api, name: effectiveaccess, label: 'API effective access' }
           - { pkg: api, name: accountlinking,  label: 'API account linking' }
           - { pkg: api, name: matrix,          label: 'API matrix' }
+          - { pkg: api, name: features,        label: 'API feature flags' }
           - { pkg: ui,  name: pilot,           label: 'UI permissions + filter' }
           - { pkg: ui,  name: hooks,           label: 'UI matrix hooks' }
           - { pkg: ui,  name: listhooks,       label: 'UI list-page hook' }

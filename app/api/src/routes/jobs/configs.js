@@ -9,7 +9,8 @@ import * as db from '../../db/connection.js';
 import { createParams } from '../../db/sqlParams.js';
 import { deleteConfigFolder } from '../crawlerFiles.js';
 import { storeConfigSecret, deleteConfigSecret } from '../../secrets/crawlerSecrets.js';
-import { validateStoredCrawlerConfig, isPushModeType } from '../../crawlerManifests.js';
+import { validateStoredCrawlerConfig, isPushModeType, isExperimentalType } from '../../crawlerManifests.js';
+import { isFeatureEnabled } from '../../featureFlags.js';
 import { gate, useSql, SECRET_MASK, maskedConfigForResponse, mergeConfigForUpdate } from './helpers.js';
 
 const router = Router();
@@ -40,6 +41,16 @@ router.post('/admin/crawler-configs', gate, async (req, res) => {
 
   if (!crawlerType || !displayName?.trim()) {
     return res.status(400).json({ error: 'crawlerType and displayName are required' });
+  }
+
+  // Experimental crawler types can only be added while the feature flag is on.
+  // This is the enforcement point for the Add-Crawler picker's filter — turning
+  // the flag off must stop NEW configs being created, never break existing ones,
+  // so nothing here touches update, run or delete. See featureFlags.js.
+  if (isExperimentalType(crawlerType) && !(await isFeatureEnabled('experimentalCrawlers'))) {
+    return res.status(403).json({
+      error: `'${crawlerType}' is an experimental crawler. Enable Admin → Experimental → Experimental crawlers to add one.`,
+    });
   }
 
   try {

@@ -52,15 +52,23 @@ jobs:
           { echo "host=$(hostname)"; echo "url=$url"; } >> "$GITHUB_OUTPUT"
 
       - name: Reservation check (soft) — refuse a sidekick already holding another PR
+        id: lock
         env:
           PR: ${{ github.event.pull_request.number }}
         run: |
           set -euo pipefail
+          # The lock is "<PR> <ISSUE>" — written that way by the DoR build agent
+          # (dor_build_lib.sh claim_sidekick) and read field-by-field by dor-reset.yml.
+          # Read the PR field alone: comparing the whole line made this refuse the very
+          # PR the box was holding, so a DoR-built PR could never be redeployed by label.
           lock="$HOME/.dor-reservation"
-          if [ -f "$lock" ] && [ "$(cat "$lock")" != "$PR" ]; then
-            echo "::error::$(hostname) is reserved for PR #$(cat "$lock"). Free that slot (merge/close it) or re-run when the other sidekick is free."
+          plock=""; pissue=""
+          [ -f "$lock" ] && read -r plock pissue < "$lock" || true
+          if [ -n "$plock" ] && [ "$plock" != "$PR" ]; then
+            echo "::error::$(hostname) is reserved for PR #$plock. Free that slot (merge/close it) or re-run when the other sidekick is free."
             exit 1
           fi
+          echo "issue=$pissue" >> "$GITHUB_OUTPUT"
 
       - name: Deploy the PR branch (free :3001 → clone → build → up → health)
         env:
@@ -68,6 +76,7 @@ jobs:
           BRANCH: ${{ github.event.pull_request.head.ref }}
           REPO: ${{ github.repository }}
           PUBLIC_URL: ${{ steps.sk.outputs.url }}
+          ISSUE: ${{ steps.lock.outputs.issue }}
         run: |
           set -euo pipefail
           # Free the single :3001 slot: stop the edge placeholder and any prior stack on this box.
@@ -75,7 +84,10 @@ jobs:
             [ -d "$d" ] || continue
             ( cd "$d" && { docker compose down 2>/dev/null || docker compose -f docker-compose.prod.yml down 2>/dev/null || true; } )
           done
-          dir="$HOME/stacks/pr-$PR"
+          # Reuse the holder's own stack directory when this box already holds this PR
+          # for a DoR issue: dor-reset.yml tears down ~/stacks/dor-<issue> on close, so
+          # deploying next to it under pr-<PR> would leave an orphan stack behind.
+          if [ -n "${ISSUE:-}" ]; then dir="$HOME/stacks/dor-$ISSUE"; else dir="$HOME/stacks/pr-$PR"; fi
           rm -rf "$dir"
           git clone --depth 1 --branch "$BRANCH" "https://github.com/${REPO}.git" "$dir"
           cd "$dir"
@@ -102,7 +114,8 @@ jobs:
             docker compose -f docker-compose.yml -f dor-tls.override.yml logs --tail 60 web || true
             exit 1
           fi
-          echo "$PR" > "$HOME/.dor-reservation"
+          # Same "<PR> <ISSUE>" shape the agent writes and dor-reset.yml parses.
+          printf '%s%s\n' "$PR" "${ISSUE:+ $ISSUE}" > "$HOME/.dor-reservation"
 
       - name: Comment the functional-test URL on the PR
         env:
