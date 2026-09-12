@@ -1,0 +1,1 @@
+- Fixed the matrix showing stale data after classifying business-role assignments. The classify step reported success but never actually refreshed the matrix views, so newly governed assignments only appeared once something else happened to refresh them.
