@@ -1,0 +1,3 @@
+- Documented why Microsoft Defender for Cloud reports the Azure web app as unauthenticated ("App Service apps should have authentication enabled") even when Entra sign-in is working: the recommendation audits platform-level App Service authentication, while Identity Atlas enforces Entra sign-in inside the application.
+- Added a walkthrough section explaining why this is by design, two checks to confirm authentication really is on, and step-by-step instructions for creating a Defender for Cloud exemption to clear the marker.
+- Noted the same limitation in the Azure deployment architecture notes.
