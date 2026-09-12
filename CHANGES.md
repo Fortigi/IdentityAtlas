@@ -1,5 +1,11 @@
 ## Changes in this PR
 
+- Linked Accounts on the identity detail page is now a table with System | Account | Enabled | Type columns, so you can see at a glance which source system each account came from and whether it is still enabled — without opening every account.
+- The Enabled column reflects the account's current state from the last crawl, falling back to the state recorded when the account was linked only when the account itself is no longer present.
+- Confirm / Remove / Undo, the correlation confidence bar, override badges and the "Linked from source" note are unchanged and stay on every row.
+
+## Changes in this PR
+
 - Fixed the AI issue-review silently doing nothing when it could not reach a model: a review that fails on every model now ends in a visibly failed run naming the likely cause, instead of a green run that leaves the issue parked in its entry column as if someone had been asked a question.
 - Fixed an AI review that finishes without choosing a route being reported as success — it now fails, so the issue is not left looking as though it is waiting on a person.
 - AI review comments now carry an invisible marker, so the pipeline health sweep can tell an agent comment from a human reply regardless of which account posted it.
