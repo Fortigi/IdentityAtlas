@@ -1,9 +1,13 @@
-// Azure Database for PostgreSQL Flexible Server — public endpoint, firewall
-// restricted to "Allow Azure services". The simplest network posture; works
-// for the customer-CCoE pattern because no VNet integration is needed.
+// Azure Database for PostgreSQL Flexible Server.
 //
-// Future "Isolated" template adds delegatedSubnetResourceId for private
-// endpoint mode. For Simple, public endpoint + firewall is fine.
+// Network (SEC-2026-09 H-06):
+//   public mode  — public endpoint; firewall rules (postgres-firewall.bicep)
+//                  allow only the web App Service's outbound IP addresses.
+//   private mode — public network access disabled; the web app reaches the
+//                  server through a private endpoint (private-endpoints.bicep).
+// Both use the server's "public access" networking model, so an existing
+// server can move between them. (VNet injection is not used: that networking
+// model can only be chosen when a server is created.)
 
 @description('Resource name prefix')
 @minLength(3)
@@ -34,6 +38,10 @@ param skuTier string
 @allowed([32, 64, 128, 256, 512, 1024])
 param storageGb int = 32
 
+@description('Public network access. Disabled in the private network mode.')
+@allowed(['Enabled', 'Disabled'])
+param publicNetworkAccess string = 'Enabled'
+
 @description('Postgres version')
 @allowed(['14', '15', '16', '17'])
 param postgresVersion string = '16'
@@ -62,24 +70,12 @@ resource pg 'Microsoft.DBforPostgreSQL/flexibleServers@2024-11-01-preview' = {
     }
     highAvailability: { mode: 'Disabled' }
     network: {
-      publicNetworkAccess: 'Enabled'
+      publicNetworkAccess: publicNetworkAccess
     }
     authConfig: {
       activeDirectoryAuth: 'Disabled'
       passwordAuth: 'Enabled'
     }
-  }
-}
-
-// Firewall: allow any Azure service. The App Service comes from a Microsoft-
-// owned IP range, so this is the easy + correct rule. Tighten per tenant
-// policy if needed.
-resource fwAllowAzure 'Microsoft.DBforPostgreSQL/flexibleServers/firewallRules@2024-11-01-preview' = {
-  parent: pg
-  name: 'AllowAllAzureServicesAndResourcesWithinAzureIps'
-  properties: {
-    startIpAddress: '0.0.0.0'
-    endIpAddress: '0.0.0.0'  // sentinel value = "all Azure services" per the public docs
   }
 }
 
