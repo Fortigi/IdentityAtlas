@@ -203,3 +203,13 @@ export function requirePermission(...required) {
     });
   };
 }
+
+// Refuse fgr_ read tokens outright on a route that is not data — e.g. the
+// Performance page's request log (SEC-2026-09 L-02). A no-op for signed-in
+// users and in open mode; pair it with a requirePermission gate.
+export function rejectReadTokens(req, res, next) {
+  if (req.readToken) {
+    return res.status(403).json({ error: 'Read API keys cannot access this endpoint' });
+  }
+  next();
+}

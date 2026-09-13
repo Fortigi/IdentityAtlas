@@ -241,6 +241,14 @@ describe('read tokens are refused on /api/admin/* whatever the path casing', () 
     });
   }
 
+  it('a read token is refused on the performance request log (SEC-2026-09 L-02)', async () => {
+    for (const path of ['/api/perf', '/api/perf/recent', '/api/perf/slow', '/api/perf/export']) {
+      const res = await call(app, { method: 'GET', path }, READ_TOKEN);
+      expect(res.status, path).toBe(403);
+      expect(res.body.error, path).toBe('Read API keys cannot access this endpoint');
+    }
+  });
+
   it('a read token still reaches a non-admin run-history read (not 401/403)', async () => {
     const res = await call(app, { method: 'GET', path: '/api/risk-scoring/runs' }, READ_TOKEN);
     expect(res.status).not.toBe(401);
@@ -278,6 +286,11 @@ const NEWLY_GATED_READS = [
   { path: '/api/account-linking/runs',       allow: ['data.read'],             deny: null },
   { path: '/api/account-linking/runs/1',     allow: ['data.read'],             deny: null },
   { path: '/api/account-linking/config',     allow: ['admin.crawlers'],        deny: ['data.read', 'admin.systems'] },
+  // SEC-2026-09 L-02 — the Performance tab's request log.
+  { path: '/api/perf',                       allow: ['data.read'],             deny: null },
+  { path: '/api/perf/recent',                allow: ['admin.llm'],             deny: null },
+  { path: '/api/perf/slow',                  allow: ['data.read'],             deny: null },
+  { path: '/api/perf/export',                allow: ['data.share'],            deny: null },
 ];
 
 describe('formerly authentication-only reads now carry a permission gate', () => {
