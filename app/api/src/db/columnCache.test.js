@@ -442,3 +442,27 @@ describe('value caches', () => {
     expect(queryMock.mock.calls.length).toBeGreaterThan(afterFirst);
   });
 });
+
+// ─── SEC-2026-09 L-16 — the discovered extendedAttributes key set is capped ───
+
+describe('discoverExtendedAttrValues — key cap', () => {
+  it('asks for the most frequent safe keys, capped, and binds the cap', async () => {
+    queryMock
+      .mockResolvedValueOnce({ rows: [{ key: 'userType' }] })
+      .mockResolvedValueOnce({ rows: [{ col: 'ext.userType', val: 'Member' }] });
+    const mod = await freshModule();
+    await mod.discoverExtendedAttrValues('Principals', 10, 25);
+    const [sql, params] = queryMock.mock.calls[0];
+    expect(sql).toMatch(/GROUP BY key\s+ORDER BY COUNT\(\*\) DESC, key\s+LIMIT \$1/);
+    expect(sql).toContain("key ~ '^[a-zA-Z0-9_]+$'");
+    expect(params).toEqual([25]);
+  });
+
+  it('defaults the cap to MAX_EXTENDED_ATTR_KEYS (300)', async () => {
+    queryMock.mockResolvedValueOnce({ rows: [] });
+    const mod = await freshModule();
+    expect(mod.MAX_EXTENDED_ATTR_KEYS).toBe(300);
+    await mod.discoverExtendedAttrValues('Resources');
+    expect(queryMock.mock.calls[0][1]).toEqual([300]);
+  });
+});

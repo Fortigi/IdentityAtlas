@@ -515,6 +515,18 @@ describe('ingest/systems — never reconciled (C-01)', () => {
   });
 });
 
+describe('ingest handler — extendedAttributes bounds (L-16)', () => {
+  it('400 for a record with more extendedAttributes keys than the limit', async () => {
+    stagePrincipalColumns();
+    const extendedAttributes = Object.fromEntries(Array.from({ length: 501 }, (_, i) => [`k${i}`, 'v']));
+    const res = await request(app).post('/ingest/principals')
+      .send({ systemId: 1, syncMode: 'delta', records: [{ displayName: 'x', extendedAttributes }] });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/Record 0: extendedAttributes has more than 500 keys/);
+    expect(mockIngest).not.toHaveBeenCalled();
+  });
+});
+
 describe('data-plane endpoints (M-05)', () => {
   beforeEach(usePermissionsOfCaller);
 

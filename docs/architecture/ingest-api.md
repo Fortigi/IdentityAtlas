@@ -329,7 +329,7 @@ A crawler key with `systemIds` set can only read and write data of those systems
 
 `deletedIds` and the full-sync reconcile only reach rows the key's systems own. Unrestricted keys (`systemIds` null, such as the built-in worker) are not subject to these checks. Columns the server or analysts own (`deletedAt`, `riskScore`, `riskTier`, `linkConfidence`, `analystOverride`, `createdAt`, `updatedAt` and similar) are never written from a crawler record; a field with such a name is kept in `extendedAttributes` like any other attribute.
 
-A key can hold at most 3 multi-batch sessions open at once, and the API at most 7 in total (`INGEST_MAX_SESSIONS_PER_CRAWLER`, `INGEST_MAX_SESSIONS_GLOBAL`); a `start` beyond that returns `429`. The built-in worker is only subject to the global limit.
+A key can hold at most 3 multi-batch sessions open at once, and the API at most 7 in total (`INGEST_MAX_SESSIONS_PER_CRAWLER`, `INGEST_MAX_SESSIONS_GLOBAL`); a `start` beyond that returns `429`. The built-in worker is only subject to the global limit. A record's `extendedAttributes` may hold at most 500 keys and 512 KB.
 
 ### Validation Rules
 

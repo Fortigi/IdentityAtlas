@@ -9,7 +9,7 @@
 import { Router } from 'express';
 import * as db from '../../db/connection.js';
 import { ingest, writeSyncLog } from '../../ingest/engine.js';
-import { normalizeRecords } from '../../ingest/normalization.js';
+import { normalizeRecords, extendedAttributesBoundsError } from '../../ingest/normalization.js';
 import { restrictedSystemIds, writableCoreColumns, systemBoundaryDenial } from '../../ingest/systemBoundary.js';
 import { validateEnvelope, validateRecords, ENTITY_TABLE_MAP, ENTITY_KEY_MAP, ENTITY_SCOPE_MAP } from '../../ingest/validation.js';
 import { crawlerHasSystemAccess, crawlerHasPermission } from '../../middleware/crawlerAuth.js';
@@ -24,9 +24,12 @@ import {
 const router = Router();
 const useSql = process.env.USE_SQL === 'true';
 
-// Checks on the normalized batch before anything is written: for a key restricted
-// to specific systems, the per-system boundary (H-04). Returns { status, error } or null.
+// Checks on the normalized batch before anything is written: the extendedAttributes
+// bounds (every caller, L-16) and, for a key restricted to specific systems, the
+// per-system boundary (H-04). Returns { status, error } or null.
 async function batchBoundaryError(req, body, allowed, ctx) {
+  const boundsErr = extendedAttributesBoundsError(ctx.normalized);
+  if (boundsErr) return { status: 400, error: boundsErr };
   if (!allowed) return null;
   const denial = await systemBoundaryDenial({ ...ctx, records: ctx.normalized, syncMode: body.syncMode, allowed });
   if (!denial) return null;
