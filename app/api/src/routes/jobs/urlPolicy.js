@@ -7,7 +7,7 @@
 //     (an on-premises Omada / midPoint / SCIM server on a private network);
 //   - link-local / cloud-metadata / reserved addresses are refused either way.
 // The same two flags are honoured by the worker (tools/crawlers/shared/
-// Test-FGPublicUrl.ps1), which re-checks at connect time and on every
+// Assert-FGPublicUrl.ps1), which re-checks at connect time and on every
 // server-supplied pagination link. Which fields are URLs is declared per crawler
 // in crawler.json (`urlFields`), so this file carries no per-type knowledge.
 

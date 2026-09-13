@@ -60,6 +60,11 @@ BeforeAll {
     Get-ChildItem $script:odataRoot -Filter '*.ps1' |
         Where-Object { $_.Name -notlike 'Start-*' -and $_.Name -notlike 'Test-*' } |
         ForEach-Object { . $_.FullName }
+
+    # Connect-* runs the SSRF guard (tools/crawlers/shared/Assert-FGPublicUrl.ps1) on
+    # the base URL. Resolve every host these tests invent to a public address so
+    # they stay off real DNS; the guard itself is tested in AssertFGPublicUrl.Tests.ps1.
+    Mock Resolve-FGHostAddress { @('93.184.216.34') }
 }
 
 Describe 'OData library — public surface' {
@@ -131,13 +136,13 @@ Describe 'Get-ODataAuthRoot' {
     }
 
     It 'strips /odata/dataobjects from an on-prem URL' {
-        Connect-ODataAPI -BaseUrl 'http://server/odata/dataobjects' `
+        Connect-ODataAPI -BaseUrl 'http://server/odata/dataobjects' -AllowInsecureHttp `
             -AuthMethod 'ApiToken' -ApiToken 'tok'
         Get-ODataAuthRoot | Should -Be 'http://server'
     }
 
     It 'returns the base URL unchanged when no /odata/ segment is present' {
-        Connect-ODataAPI -BaseUrl 'http://server/api' `
+        Connect-ODataAPI -BaseUrl 'http://server/api' -AllowInsecureHttp `
             -AuthMethod 'ApiToken' -ApiToken 'tok'
         Get-ODataAuthRoot | Should -Be 'http://server/api'
     }
@@ -362,5 +367,74 @@ Describe 'OData library — file structure' {
         $manifest = Get-Content (Join-Path $script:odataRoot 'crawler.json') -Raw | ConvertFrom-Json
         $manifest.type | Should -Be 'odata'
         $manifest.dependsOn | Should -BeNullOrEmpty
+    }
+}
+
+# ─── SSRF guard wiring (SEC-2026-09 M-03) ─────────────────────────────────────
+# Assert-FGPublicUrl itself is tested in AssertFGPublicUrl.Tests.ps1; these pin that
+# the OData client calls it at every place a credential is about to leave.
+Describe 'OData client — connector URL guard' {
+    BeforeEach {
+        $script:ODataSession = $null
+        Mock Invoke-RestMethod { [pscustomobject]@{ access_token = 'tok'; expires_in = 3600 } }
+    }
+
+    It 'refuses a base URL on a private address before storing a session' {
+        Mock Resolve-FGHostAddress { @('10.0.0.7') }
+        { Connect-ODataAPI -BaseUrl 'https://omada.corp.local/odata/dataobjects' -AuthMethod 'ApiToken' -ApiToken 'tok' } |
+            Should -Throw -ExpectedMessage 'baseUrl rejected: *private or loopback*'
+        $script:ODataSession | Should -BeNullOrEmpty
+    }
+
+    It 'connects to that same private base URL, over http, when both opt-ins are given' {
+        Mock Resolve-FGHostAddress { @('10.0.0.7') }
+        Connect-ODataAPI -BaseUrl 'http://omada.corp.local/odata/dataobjects' -AuthMethod 'ApiToken' -ApiToken 'tok' -AllowPrivateNetwork -AllowInsecureHttp
+        $script:ODataSession.BaseUrl | Should -Be 'http://omada.corp.local/odata/dataobjects'
+        $script:ODataSession.AllowPrivateNetwork | Should -BeTrue
+        $script:ODataSession.AllowInsecureHttp | Should -BeTrue
+    }
+
+    It 'refuses an OAuth2 token endpoint on a metadata address without posting the client secret' {
+        Mock Resolve-FGHostAddress { @('93.184.216.34') }
+        { Connect-ODataAPI -BaseUrl 'https://tenant.example.com/odata/dataobjects' -AuthMethod 'OAuth2CC' `
+                -ClientId 'c' -ClientSecret 'secret' -TokenEndpoint 'https://[::ffff:169.254.169.254]/token' -AllowPrivateNetwork } |
+            Should -Throw -ExpectedMessage 'tokenEndpoint rejected: *metadata*'
+        Should -Invoke Invoke-RestMethod -Exactly 0
+    }
+
+    It 'posts to a public token endpoint' {
+        Mock Resolve-FGHostAddress { @('93.184.216.34') }
+        Connect-ODataAPI -BaseUrl 'https://tenant.example.com/odata/dataobjects' -AuthMethod 'OAuth2CC' `
+            -ClientId 'c' -ClientSecret 'secret' -TokenEndpoint 'https://login.example.com/token'
+        Should -Invoke Invoke-RestMethod -Exactly 1 -ParameterFilter { $Uri -eq 'https://login.example.com/token' -and $Method -eq 'Post' }
+    }
+
+    It 'stops paging when @odata.nextLink points at another host, before requesting it' {
+        Mock Resolve-FGHostAddress { @('93.184.216.34') }
+        Connect-ODataAPI -BaseUrl 'https://tenant.example.com/odata/dataobjects' -AuthMethod 'ApiToken' -ApiToken 'tok'
+        Mock Invoke-RestMethod {
+            [pscustomobject]@{ value = @([pscustomobject]@{ id = 1 }); '@odata.nextLink' = 'https://collector.example.net/odata?$skip=1' }
+        }
+        { Invoke-ODataGetRequest -Path '/Identity' -MaxRetries 0 } | Should -Throw -ExpectedMessage '*nextLink rejected: it points to a different host*'
+        Should -Invoke Invoke-RestMethod -Exactly 1
+        Should -Invoke Invoke-RestMethod -Exactly 0 -ParameterFilter { $Uri -like 'https://collector.example.net/*' }
+    }
+
+    It 'follows a same-host @odata.nextLink' {
+        Mock Resolve-FGHostAddress { @('93.184.216.34') }
+        Connect-ODataAPI -BaseUrl 'https://tenant.example.com/odata/dataobjects' -AuthMethod 'ApiToken' -ApiToken 'tok'
+        $script:pages = 0
+        Mock Invoke-RestMethod {
+            $script:pages++
+            if ($script:pages -eq 1) {
+                [pscustomobject]@{ value = @([pscustomobject]@{ id = 1 }); '@odata.nextLink' = 'https://tenant.example.com/odata/dataobjects/Identity?$skip=1' }
+            }
+            else {
+                [pscustomobject]@{ value = @([pscustomobject]@{ id = 2 }) }
+            }
+        }
+        $rows = Invoke-ODataGetRequest -Path '/Identity' -MaxRetries 0
+        @($rows).id | Should -Be @(1, 2)
+        Should -Invoke Invoke-RestMethod -Exactly 1 -ParameterFilter { $Uri -eq 'https://tenant.example.com/odata/dataobjects/Identity?$skip=1' }
     }
 }

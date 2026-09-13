@@ -119,6 +119,8 @@ function New-ScimConfig {
     param([string]$Name, [int]$Port, [hashtable]$Extra = @{})
     $config = @{
         baseUrl    = "http://host.docker.internal:$Port"
+        allowPrivateNetwork = $true   # the mock is plain http on the Docker host network
+        allowInsecureHttp   = $true
         authMethod = 'BasicAuth'
         username   = 'scim'
         password   = 'test'

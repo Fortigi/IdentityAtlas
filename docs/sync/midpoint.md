@@ -73,9 +73,34 @@ The `ApiKey` is the worker API key shown on the **Admin → Settings** page.
 | `clientId` | OAuth2CC / OAuth2ROPC | OAuth2 client ID |
 | `clientSecret` | OAuth2CC / OAuth2ROPC | OAuth2 client secret |
 | `tokenEndpoint` | OAuth2CC / OAuth2ROPC | OAuth2 token endpoint URL |
+| `allowPrivateNetwork` | No (default `false`) | Allow `baseUrl` / `tokenEndpoint` to resolve to a private or loopback address — set this for a server on your own network. See [Network access](#network-access) |
+| `allowInsecureHttp` | No (default `false`) | Allow plain `http` for `baseUrl` / `tokenEndpoint`. Credentials are then sent unencrypted. See [Network access](#network-access) |
 | `pageSize` | No (default 100) | Number of records per REST page |
 | `syncShadows` | No (default true) | Set to `false` to skip account/entitlement shadow sync |
 | `selectedObjects` | No | Object with boolean flags to enable/disable individual sync phases (see below) |
+
+### Network access
+
+Identity Atlas only sends midPoint credentials to an **https** URL on a **public**
+address unless you opt in. The check runs when the crawler is saved, when a job is
+started, when the wizard runs live discovery, and again on the worker right before it
+connects (including on every pagination link the server returns, which must stay on
+the configured host).
+
+| Your server | What to set |
+|---|---|
+| Public, https (a hosted midPoint) | Nothing — the defaults work. |
+| On your own network (private IP, e.g. `10.x`, `172.16–31.x`, `192.168.x`, or a hostname that resolves to one) | Tick **Allow private network** (`allowPrivateNetwork: true`). |
+| Only reachable over plain http | Tick **Allow insecure HTTP** (`allowInsecureHttp: true`). Prefer enabling https on the server instead. |
+
+Link-local and cloud-metadata addresses (for example `169.254.169.254`) are always
+refused, with or without these options. The wizard does not follow HTTP redirects:
+configure the final URL.
+
+> **Upgrading:** a crawler that already pointed at a private address or used `http`
+> keeps its configuration but will be refused until the matching option is enabled —
+> the job fails with *baseUrl rejected …* naming the option to set. Edit the crawler,
+> tick the option on the **Connection** step and save.
 
 ### Sync phase toggles (`selectedObjects`)
 
@@ -149,6 +174,9 @@ Each sync run is **safely scoped**: the crawler only deletes data it owns (match
 
 **midPoint not visible in "Add Crawler"**
 The `CRAWLER_MANIFESTS_DIR` environment variable on the web container must point to the folder containing the crawler manifests. See [Docker setup](../architecture/docker-setup.md).
+
+**Save, discovery or the job fails with *baseUrl rejected* or *tokenEndpoint rejected***
+The URL uses `http` or resolves to a private, loopback or cloud-metadata address. midPoint usually runs on-premises: enable **Allow private network**, and **Allow insecure HTTP** only if it is served over plain http (e.g. `http://midpoint:8080`) — see [Network access](#network-access).
 
 **Shadow search returns 500**
 Shadow search requires `?options=raw`. This is handled automatically by the crawler; if you see 500 errors, check your midPoint version (4.x required).

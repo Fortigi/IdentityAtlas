@@ -23,6 +23,8 @@ This is the only part you always have to fill in.
 | **Crawler Name** (`displayName`) | `midPoint (Evolveum)` | A label for this crawler in the UI. Pre-filled; change it if you run more than one midPoint connection. |
 | **Base URL** (`baseUrl`) | — *(required)* | Your midPoint URL, e.g. `https://midpoint.example.com/midpoint` or `…/midpoint/ws/rest`. A bare host also works (the crawler appends `/midpoint/ws/rest`). |
 | **Authentication Method** (`authMethod`) | `BasicAuth` | How the crawler authenticates to the midPoint REST API. One of `BasicAuth`, `ApiToken`, `OAuth2CC`, `OAuth2ROPC`. |
+| **Allow private network** (`allowPrivateNetwork`) | `false` | Allow the base URL and token endpoint to resolve to a private or loopback address. Needed for an on-premises midPoint. Cloud-metadata and link-local addresses are always refused. See [Network access](midpoint.md#network-access). |
+| **Allow insecure HTTP** (`allowInsecureHttp`) | `false` | Allow plain `http` for the base URL and token endpoint (credentials are sent unencrypted). See [Network access](midpoint.md#network-access). |
 
 ### Credentials per authentication method
 
@@ -213,6 +215,8 @@ schedules to run it automatically.
 | `clientId` | — | for OAuth2CC / OAuth2ROPC | 1 |
 | `clientSecret` | — | for OAuth2CC / OAuth2ROPC | 1 |
 | `tokenEndpoint` | — | for OAuth2CC / OAuth2ROPC | 1 |
+| `allowPrivateNetwork` | `false` | for a private / on-premises address | 1 |
+| `allowInsecureHttp` | `false` | for a plain-http URL | 1 |
 | `selectedObjects.*` (10 toggles) | all `true` | no | 2 |
 | `pageSize` | `100` | no | 3 |
 | `archetypeMapping` | `[{ "": "" → BusinessRole }]` | no | 4 |

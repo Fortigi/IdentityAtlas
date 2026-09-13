@@ -24,7 +24,7 @@
 // (IPv4-mapped, NAT64, 6to4) are classified by the IPv4 address they carry.
 //
 // This file has a PowerShell twin for the worker-side crawlers:
-// tools/crawlers/shared/Test-FGPublicUrl.ps1. Keep the two rule sets in step.
+// tools/crawlers/shared/Assert-FGPublicUrl.ps1. Keep the two rule sets in step.
 
 import dns from 'node:dns';
 import net from 'node:net';

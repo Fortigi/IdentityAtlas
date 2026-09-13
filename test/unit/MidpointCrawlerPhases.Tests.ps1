@@ -659,6 +659,14 @@ Describe 'Connect-MidpointSession' {
         }
     }
 
+    It 'forwards the URL opt-ins from the config, and leaves them off when absent' {
+        Mock Connect-MidpointAPI -MockWith { }
+        Connect-MidpointSession -Cfg ([pscustomobject]@{ baseUrl = 'http://mp.corp'; authMethod = 'ApiToken'; apiToken = 't'; allowPrivateNetwork = $true; allowInsecureHttp = $true })
+        Should -Invoke Connect-MidpointAPI -Exactly 1 -ParameterFilter { $AllowPrivateNetwork -and $AllowInsecureHttp }
+        Connect-MidpointSession -Cfg ([pscustomobject]@{ baseUrl = 'https://mp'; authMethod = 'ApiToken'; apiToken = 't' })
+        Should -Invoke Connect-MidpointAPI -Exactly 1 -ParameterFilter { -not $AllowPrivateNetwork -and -not $AllowInsecureHttp }
+    }
+
     It 'forwards OAuth2 client-credential fields when configured' {
         Mock Connect-MidpointAPI -MockWith { }
         $cfg = [pscustomobject]@{ baseUrl = 'https://mp'; authMethod = 'OAuth2CC'; clientId = 'cid'; clientSecret = 'sec'; tokenEndpoint = 'https://t' }

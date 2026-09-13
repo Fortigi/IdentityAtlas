@@ -67,11 +67,36 @@ The `ApiKey` is the worker API key shown on the **Admin → Settings** page.
 | `tokenEndpoint` / `clientId` / `clientSecret` | OAuth2CC / OAuth2ROPC | OAuth2 token endpoint and app registration |
 | `apiToken` | ApiToken | Static bearer token |
 | `cookieString` | CookieString | Pre-built session cookie — useful for Omada Cloud when only browser/PowerShell session cookies are available |
+| `allowPrivateNetwork` | No (default `false`) | Allow `baseUrl` / `tokenEndpoint` to resolve to a private or loopback address — set this for a server on your own network. See [Network access](#network-access) |
+| `allowInsecureHttp` | No (default `false`) | Allow plain `http` for `baseUrl` / `tokenEndpoint`. Credentials are then sent unencrypted. See [Network access](#network-access) |
 | `selectedObjects` | No | Object with boolean flags to enable/disable sync phases: `contexts`, `identities`, `accounts`, `contextMembers`, `resources`, `entitlements`, `assignments` |
 | `contextObjectTypes` | No (default: `Orgunit` only) | Which Omada entity sets to sync as Contexts — see below |
 | `resourceCategoryMapping` | No | Maps `ROLECATEGORY` to Identity Atlas `resourceType` — see below |
 
 In the wizard, the **Sync Options** step calls `$metadata` live against the connected Omada server to validate that `contextObjectTypes` entries reference real entity sets and identity fields (case-sensitive).
+
+### Network access
+
+Identity Atlas only sends Omada credentials to an **https** URL on a **public**
+address unless you opt in. The check runs when the crawler is saved, when a job is
+started, when the wizard runs live discovery, and again on the worker right before it
+connects (including on every pagination link the server returns, which must stay on
+the configured host).
+
+| Your server | What to set |
+|---|---|
+| Public, https (Omada Cloud) | Nothing — the defaults work. |
+| On your own network (private IP, e.g. `10.x`, `172.16–31.x`, `192.168.x`, or a hostname that resolves to one) | Tick **Allow private network** (`allowPrivateNetwork: true`). |
+| Only reachable over plain http | Tick **Allow insecure HTTP** (`allowInsecureHttp: true`). Prefer enabling https on the server instead. |
+
+Link-local and cloud-metadata addresses (for example `169.254.169.254`) are always
+refused, with or without these options. The wizard does not follow HTTP redirects:
+configure the final URL.
+
+> **Upgrading:** a crawler that already pointed at a private address or used `http`
+> keeps its configuration but will be refused until the matching option is enabled —
+> the job fails with *baseUrl rejected …* naming the option to set. Edit the crawler,
+> tick the option on the **Connection** step and save.
 
 ### `contextObjectTypes`
 
@@ -111,6 +136,9 @@ The `CRAWLER_MANIFESTS_DIR` environment variable on the web container must point
 
 **`$metadata` returns HTTP 500 (Omada Cloud)**
 Some cloud tenants return 500 on `$metadata`. This is non-fatal — the wizard shows a warning but the sync itself still runs all configured phases.
+
+**Save, discovery or the job fails with *baseUrl rejected* or *tokenEndpoint rejected***
+The URL uses `http` or resolves to a private, loopback or cloud-metadata address. For an on-premises Omada server enable **Allow private network** (and, only if it has no https, **Allow insecure HTTP**) — see [Network access](#network-access). Metadata and link-local addresses cannot be enabled.
 
 **Cookie session expires during a scheduled sync**
 `FormCookie` and `CookieString` sessions typically expire after 20–60 minutes. Use `OAuth2CC` or `OAuth2ROPC` for unattended scheduled syncs.

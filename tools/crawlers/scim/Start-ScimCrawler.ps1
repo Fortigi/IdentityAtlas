@@ -73,7 +73,8 @@ if ($ScimCfg.requestedMode -ne 'full') {
 }
 
 Update-CrawlerProgress -Step 'Authenticating to the SCIM endpoint' -Pct 2
-Connect-ScimAPI -BaseUrl $Cfg.baseUrl -AuthMethod $Cfg.authMethod `
+$UrlPolicy = Get-FGUrlPolicyParam -Cfg $Cfg
+Connect-ScimAPI @UrlPolicy -BaseUrl $Cfg.baseUrl -AuthMethod $Cfg.authMethod `
     -Username ([string]$Cfg.username) -Password ([string]$Cfg.password) -ApiToken ([string]$Cfg.apiToken) `
     -ClientId ([string]$Cfg.clientId) -ClientSecret ([string]$Cfg.clientSecret) `
     -TokenEndpoint ([string]$Cfg.tokenEndpoint) -Scope ([string]$Cfg.scope)

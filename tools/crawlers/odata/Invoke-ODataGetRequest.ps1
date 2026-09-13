@@ -271,8 +271,13 @@ function Invoke-ODataGetRequest {
 
         Add-ODataRecord -Response $resp -Collected $collected
 
-        # Follow OData nextLink; stop otherwise (numeric paging is Invoke-ODataPagedRequest's job)
+        # Follow OData nextLink; stop otherwise (numeric paging is Invoke-ODataPagedRequest's job).
+        # The link is server-supplied and the next request carries the credential, so
+        # it must stay on the configured host (SEC-2026-09 M-03).
         $nextUri = $resp.'@odata.nextLink'
+        if ($nextUri) {
+            Assert-FGSameHostLink -Url $nextUri -BaseUrl $base -Label 'OData @odata.nextLink' -AllowInsecureHttp:$script:ODataSession.AllowInsecureHttp
+        }
     }
 
     # Return as a typed array wrapped in the comma operator so PowerShell does

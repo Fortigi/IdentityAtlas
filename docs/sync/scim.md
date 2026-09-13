@@ -99,6 +99,8 @@ credential check: a failure is reported inline with the reason.
 | `apiToken` | ApiToken | Static bearer token |
 | `tokenEndpoint` / `clientId` / `clientSecret` | OAuth2CC | OAuth2 client-credentials grant |
 | `scope` | No | Optional OAuth2 scope requested with the client-credentials grant |
+| `allowPrivateNetwork` | No (default `false`) | Allow `baseUrl` / `tokenEndpoint` to resolve to a private or loopback address — set this for a server on your own network. See [Network access](#network-access) |
+| `allowInsecureHttp` | No (default `false`) | Allow plain `http` for `baseUrl` / `tokenEndpoint`. Credentials are then sent unencrypted. See [Network access](#network-access) |
 | `systemName` | No (default `SCIM`) | How this source is labelled in Identity Atlas |
 | `pageSize` | No (default 100) | The SCIM `count` parameter |
 | `selectedObjects` | No | `{ users, groups, groupMembers }` booleans — all default to `true` |
@@ -107,6 +109,29 @@ credential check: a failure is reported inline with the reason.
 
 Secrets (`password`, `apiToken`, `clientSecret`) are never stored in the config blob
 — they go to the secrets vault and are injected into the job at dispatch time.
+
+### Network access
+
+Identity Atlas only sends SCIM credentials to an **https** URL on a **public**
+address unless you opt in. The check runs when the crawler is saved, when a job is
+started, when the wizard runs live discovery, and again on the worker right before it
+connects (including on every pagination link the server returns, which must stay on
+the configured host).
+
+| Your server | What to set |
+|---|---|
+| Public, https (a SaaS SCIM endpoint) | Nothing — the defaults work. |
+| On your own network (private IP, e.g. `10.x`, `172.16–31.x`, `192.168.x`, or a hostname that resolves to one) | Tick **Allow private network** (`allowPrivateNetwork: true`). |
+| Only reachable over plain http | Tick **Allow insecure HTTP** (`allowInsecureHttp: true`). Prefer enabling https on the server instead. |
+
+Link-local and cloud-metadata addresses (for example `169.254.169.254`) are always
+refused, with or without these options. The wizard does not follow HTTP redirects:
+configure the final URL.
+
+> **Upgrading:** a crawler that already pointed at a private address or used `http`
+> keeps its configuration but will be refused until the matching option is enabled —
+> the job fails with *baseUrl rejected …* naming the option to set. Edit the crawler,
+> tick the option on the **Connection** step and save.
 
 ### Example
 
@@ -178,7 +203,8 @@ touch another connector's data, and a `ServicePrincipal` batch can never delete 
 | Symptom | Cause / fix |
 |---|---|
 | Discovery says *Could not reach the SCIM endpoint: /ResourceTypes returned HTTP 401* | Wrong credentials, or the endpoint expects a different auth scheme than the one selected. |
-| Discovery says *baseUrl rejected* | The base URL resolves to a private, loopback or cloud-metadata address. The API refuses to fetch those with a stored credential. |
+| Save, discovery or the job says *baseUrl rejected* / *tokenEndpoint rejected* | The URL uses `http` or resolves to a private, loopback or cloud-metadata address. Enable **Allow private network** / **Allow insecure HTTP** for an on-premises endpoint — see [Network access](#network-access). Metadata and link-local addresses cannot be enabled. |
+| Discovery says *endpoint answered with a redirect* | The wizard does not follow redirects. Enter the URL the endpoint redirects to. |
 | The attribute picker is empty | The endpoint does not serve `/Schemas`, or its schemas declare no simple attributes beyond the core mapping. The sync still works — only the opt-in extras are unavailable. |
 | Group members are missing | Members whose id matches neither a synced user nor a synced group are skipped and counted; the job log reports how many. That usually means the group contains a resource type this crawler does not sync yet. |
 | Users appear but no memberships | Check that **Group members** is enabled in the wizard's Objects step, and that the endpoint returns `members` on `/Groups` (some providers require an explicit attribute request). |

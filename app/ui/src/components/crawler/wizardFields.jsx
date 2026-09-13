@@ -77,6 +77,32 @@ export function OptionList({ options, type = 'radio', name, selected, onSelect, 
   );
 }
 
+// The connector-URL opt-ins (see useNetworkAccess). Off by default: the API and the
+// worker then refuse a base URL or token endpoint that is plain http or points at a
+// private address. Rendered with the shared checkbox list so it reads like every
+// other option group in the wizard.
+export const NETWORK_ACCESS_OPTIONS = [
+  {
+    key: 'allowPrivateNetwork',
+    label: 'Allow private network',
+    description: 'the server is on-premises (private or loopback address); cloud-metadata addresses stay blocked',
+  },
+  {
+    key: 'allowInsecureHttp',
+    label: 'Allow insecure HTTP',
+    description: 'the server does not offer https; credentials are sent unencrypted',
+  },
+];
+
+export function NetworkAccessOptions({ value, onChange }) {
+  return (
+    <div>
+      <label className={LABEL_CLS}>Network access</label>
+      <OptionList options={NETWORK_ACCESS_OPTIONS} type="checkbox" name="networkAccess" selected={value} onSelect={onChange} />
+    </div>
+  );
+}
+
 // The Back / Next (or Save) row that closes every wizard step.
 export function WizardNav({ onBack, onNext, nextDisabled, nextLabel = 'Next →', nextCls, children }) {
   return (

@@ -6,6 +6,8 @@ Before writing any helper, utility, middleware, or route logic — search first.
 
 **Known shared utilities in `src/`:**
 - `db/connection.js` — connection pool; never create one-off connections
+- `lib/ssrfGuard.js` — `assertPublicUrl(url, { allowPrivateNetwork, requireHttps })`, `classifyAddress`, `pinnedSafeLookup`: the one SSRF address guard. Run it on every admin-supplied URL before fetching, and fetch with `redirect: 'manual'`. Crawler configs go through `routes/jobs/urlPolicy.js` (`assertConnectorUrl`), which applies a config's opt-ins
+- `lib/cappedBody.js` — `readCappedBody(resp, maxBytes, label)`: read a fetch() body under a hard byte cap; use it for any response whose size someone else controls
 - `db/columnCache.js` — column discovery with 5-minute TTL; never query `information_schema` per-request
 - `lib/jsonb.js` — `parseJsonbColumn(value)` — normalises a value read from a JSONB column. **node-postgres already parses JSONB**, so `JSON.parse(row.someJsonbCol)` throws on every request; use this helper (passes an already-parsed value through, `JSON.parse`s a legacy raw string, returns null on null/invalid) instead of a hand-rolled `typeof x === 'string' ? JSON.parse(x) : x` guard
 - `db/migrate.js` — migration runner; add files to `src/db/migrations/`, never edit existing ones

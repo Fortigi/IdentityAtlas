@@ -26,6 +26,9 @@
 
 $script:MidpointSession = $null
 
+# Assert-FGPublicUrl (SSRF guard, SEC-2026-09 M-03).
+. (Join-Path $PSScriptRoot '..' 'shared' 'Assert-FGPublicUrl.ps1')
+
 #region Connection
 
 function Connect-MidpointAPI {
@@ -46,9 +49,14 @@ function Connect-MidpointAPI {
         [string]$ClientId      = '',
         [string]$ClientSecret  = '',
         [string]$TokenEndpoint = '',
-        [int]$TimeoutSec       = 120
+        [int]$TimeoutSec       = 120,
+        # Opt-ins from the crawler config (Get-FGUrlPolicyParam): reach a private /
+        # loopback address, or use plain http. Metadata addresses are never allowed.
+        [switch]$AllowPrivateNetwork,
+        [switch]$AllowInsecureHttp
     )
 
+    Assert-FGPublicUrl -Url $BaseUrl -Label 'baseUrl' -AllowPrivateNetwork:$AllowPrivateNetwork -AllowInsecureHttp:$AllowInsecureHttp
     $rest = Get-MidpointRestRoot -BaseUrl $BaseUrl
 
     $script:MidpointSession = @{
@@ -58,6 +66,8 @@ function Connect-MidpointAPI {
         AuthHeader      = $null
         AccessToken     = $null
         TokenExpiresAt  = $null
+        AllowPrivateNetwork = [bool]$AllowPrivateNetwork
+        AllowInsecureHttp   = [bool]$AllowInsecureHttp
         _Username       = $Username
         _Password       = $Password
         _ClientId       = $ClientId
@@ -103,6 +113,8 @@ function Invoke-MidpointOAuth2 {
     param([ValidateSet('client_credentials', 'password')][string]$GrantType)
     $endpoint = $script:MidpointSession._TokenEndpoint
     if (-not $endpoint) { throw "midPoint OAuth2: tokenEndpoint is required" }
+    # The client secret (and, for ROPC, the password) is posted here — vet it like the base URL.
+    Assert-FGPublicUrl -Url $endpoint -Label 'tokenEndpoint' -AllowPrivateNetwork:$script:MidpointSession.AllowPrivateNetwork -AllowInsecureHttp:$script:MidpointSession.AllowInsecureHttp
 
     $form = @{
         grant_type    = $GrantType
