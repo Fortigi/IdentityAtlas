@@ -77,6 +77,19 @@ describe('POST /tags', () => {
   });
 });
 
+describe('POST /tags — inherited property names are not entity types (SEC-2026-09 L-15)', () => {
+  for (const entityType of ['constructor', 'toString', '__proto__']) {
+    it(`400 for entityType=${entityType}, nothing queried`, async () => {
+      queryOne.mockReset();
+      query.mockReset();
+      const res = await request(app).post('/api/tags').send({ name: 'PII', entityType });
+      expect(res.status).toBe(400);
+      expect(queryOne).not.toHaveBeenCalled();
+      expect(query).not.toHaveBeenCalled();
+    });
+  }
+});
+
 describe('PATCH /tags/:id', () => {
   it('200 updates name + color', async () => {
     queryOne.mockResolvedValueOnce({ id: VALID, extendedAttributes: { tagColor: '#3b82f6' } });

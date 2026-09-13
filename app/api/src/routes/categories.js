@@ -207,7 +207,8 @@ router.get('/access-packages', async (req, res) => {
       category:         'categoryName',
       catalog:          'catalogName',
     };
-    const sortExpr = SORT_COL_MAP[req.query.sortCol] || 'ap."displayName"';
+    // Own keys only — an inherited name is not a sort column (SEC-2026-09 L-15).
+    const sortExpr = Object.hasOwn(SORT_COL_MAP, req.query.sortCol) ? SORT_COL_MAP[req.query.sortCol] : 'ap."displayName"';
     const sortDir = req.query.sortDir === 'desc' ? 'DESC' : 'ASC';
 
     const p = await db.getPool();

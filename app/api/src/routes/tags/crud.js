@@ -69,7 +69,8 @@ router.post('/tags', writeTags, async (req, res) => {
     if (!useSql) return res.status(400).json({ error: 'SQL mode required' });
     const { name, color, entityType } = req.body;
     if (!name || !entityType) return res.status(400).json({ error: 'name and entityType required' });
-    if (!ENTITY_TO_TARGET[entityType]) {
+    // Own keys only: an inherited name (`constructor`, …) is not an entity type (SEC-2026-09 L-15).
+    if (!Object.hasOwn(ENTITY_TO_TARGET, entityType)) {
       return res.status(400).json({ error: 'entityType must be one of user, group, resource, or identity' });
     }
     if (color && !HEX_COLOR_RE.test(color)) return res.status(400).json({ error: 'color must be a hex value like #3b82f6' });

@@ -115,3 +115,12 @@ describe('capability flags', () => {
     expect(isExperimentalType('does-not-exist')).toBe(false);
   });
 });
+
+describe('manifest maps ignore inherited property names (SEC-2026-09 L-15)', () => {
+  it('an inherited name has no manifest and no validator', () => {
+    expect(validateCrawlerConfig('hasOwnProperty', {})).toBeNull();
+    expect(validateCrawlerConfig('constructor', {})).toBeNull();
+    expect(isPushModeType('__proto__')).toBe(false);
+    expect(isSingletonJob('toString')).toBe(false);
+  });
+});
