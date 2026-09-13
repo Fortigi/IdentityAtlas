@@ -60,6 +60,7 @@ export default function RotatedMatrixView({
   onOpenDetail,
   onAdjustFilter,
   hasData,
+  onShareView,
 }) {
   const filterIsApplied = filter !== null && filter !== undefined;
 
@@ -115,8 +116,10 @@ export default function RotatedMatrixView({
       <MatrixToolbar
         managedFilter={managedFilter === 'gaps' ? 'all' : managedFilter}
         setManagedFilter={setManagedFilter}
+        filter={filter}
         onExportExcel={handleExportExcel}
         onShare={handleShare}
+        onShareView={onShareView}
         onResetRowOrder={() => {}}
         hasCustomRowOrder={false}
         hasExpandableGroups={false}

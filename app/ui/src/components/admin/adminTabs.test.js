@@ -29,8 +29,31 @@ describe('adminTabs', () => {
     expect(tabs.map(t => t.key)).not.toContain('auth');
   });
 
-  it('a wildcard user sees every tab', () => {
-    const tabs = visibleAdminTabs(new Set(), true);
+  it('hosts Shared Matrices as a data.share-gated sub-tab, not a top-level tab (#1166)', () => {
+    const shares = ADMIN_TABS.find(t => t.key === 'shares');
+    expect(shares).toBeTruthy();
+    expect(shares.label).toBe('Shared Matrices');
+    expect(shares.requires).toEqual(['data.share']);
+    const on = { matrixSharing: true };
+    // A RoleMiner has data.share but no admin.* — they must still reach it.
+    expect(visibleAdminTabs(new Set(['data.share']), false, ADMIN_TABS, on).map(t => t.key)).toContain('shares');
+    // …and an admin without it does not see a tab they cannot use.
+    expect(visibleAdminTabs(new Set(['admin.crawlers']), false, ADMIN_TABS, on).map(t => t.key)).not.toContain('shares');
+  });
+
+  it('hides Shared Matrices while the matrixSharing flag is off, whatever the permissions', () => {
+    const keys = (features) => visibleAdminTabs(new Set(['data.share']), false, ADMIN_TABS, features).map(t => t.key);
+    expect(keys({ matrixSharing: false })).not.toContain('shares');
+    expect(keys(undefined)).not.toContain('shares');          // flags not supplied → off
+    expect(keys({ matrixSharing: 'true' })).not.toContain('shares'); // only a real boolean true opens it
+    // A wildcard admin is no exception: there is no page to manage.
+    expect(visibleAdminTabs(new Set(), true).map(t => t.key)).not.toContain('shares');
+    // The flag only ever narrows: tabs without one are unaffected by it.
+    expect(keys({ matrixSharing: false })).toEqual(expect.arrayContaining(['performance', 'about']));
+  });
+
+  it('a wildcard user sees every tab once the flags they depend on are on', () => {
+    const tabs = visibleAdminTabs(new Set(), true, ADMIN_TABS, { matrixSharing: true });
     expect(tabs).toHaveLength(ADMIN_TABS.length);
   });
 

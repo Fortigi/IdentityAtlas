@@ -37,8 +37,9 @@ const ReportsPage = lazy(() => import('./components/ReportsPage'));
 // and renders its page; multi-key routes (resources/groups; performance/crawlers/
 // admin) share one component so the markup isn't duplicated.
 const GroupsRoute = ({ openDetailTab }) => <GroupsPage onOpenDetail={openDetailTab} />;
-// Crawlers and Performance live under Admin as sub-tabs; the legacy #crawlers /
-// #performance hashes render AdminPage, which routes to the matching sub-tab.
+// Crawlers, Performance and Shared matrices live under Admin as sub-tabs; the
+// legacy #crawlers / #performance / #shared-matrices hashes render AdminPage,
+// which routes to the matching sub-tab.
 const AdminRoute = ({ navigate, forceRefresh, onRiskScoresRefresh, features, version }) => (
   <AdminPage onNavigate={navigate} onRefresh={forceRefresh} onRiskScoresRefresh={onRiskScoresRefresh}
              features={features} version={version} />
@@ -65,6 +66,7 @@ export const PAGE_ROUTES = new Map([
   ['identities',      ({ openDetailTab }) => <IdentitiesPage onOpenDetail={openDetailTab} />],
   ['contexts',        ({ navigate, openDetailTab }) => <ContextsPage onOpenDetail={openDetailTab} onNavigate={navigate} />],
   ['reports',         ({ openDetailTab }) => <ReportsPage onOpenDetail={openDetailTab} />],
+  ['shared-matrices', AdminRoute],
   ['performance',     AdminRoute],
   ['crawlers',        AdminRoute],
   ['admin',           AdminRoute],

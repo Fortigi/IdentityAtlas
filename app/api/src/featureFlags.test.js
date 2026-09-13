@@ -9,7 +9,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 vi.mock('./db/connection.js');
 import { queryOne } from './db/connection.js';
 
-const { FEATURE_FLAGS, workerConfigKey, getFeatureOverride, isFeatureEnabled, readFeatures } =
+const { FEATURE_FLAGS, workerConfigKey, getFeatureOverride, isFeatureEnabled, readFeatures, requireFeature } =
   await import('./featureFlags.js');
 
 // Stage WorkerConfig rows by key, e.g. { FEATURE_RISK_SCORING: 'true' }.
@@ -20,7 +20,7 @@ function stageRows(rows) {
 
 const ENV_KEYS = [
   'USE_SQL', 'FEATURE_RISK_SCORING', 'FEATURE_ACCOUNT_LINKING',
-  'FEATURE_ACCOUNT_CORRELATION', 'FEATURE_EXPERIMENTAL_CRAWLERS',
+  'FEATURE_ACCOUNT_CORRELATION', 'FEATURE_EXPERIMENTAL_CRAWLERS', 'FEATURE_MATRIX_SHARING',
 ];
 let saved;
 
@@ -50,6 +50,23 @@ describe('workerConfigKey', () => {
 });
 
 describe('env-var defaults (no stored override)', () => {
+  it('matrixSharing is OFF unless the env var says exactly "true"', async () => {
+    expect(workerConfigKey('matrixSharing')).toBe('FEATURE_MATRIX_SHARING');
+    expect(await isFeatureEnabled('matrixSharing')).toBe(false);
+    process.env.FEATURE_MATRIX_SHARING = 'TRUE';   // not exactly "true"
+    expect(await isFeatureEnabled('matrixSharing')).toBe(false);
+    process.env.FEATURE_MATRIX_SHARING = 'true';
+    expect(await isFeatureEnabled('matrixSharing')).toBe(true);
+  });
+
+  it('a stored "true" turns matrixSharing on, and a stored "false" beats an enabling env var', async () => {
+    stageRows({ FEATURE_MATRIX_SHARING: 'true' });
+    expect(await isFeatureEnabled('matrixSharing')).toBe(true);
+    process.env.FEATURE_MATRIX_SHARING = 'true';
+    stageRows({ FEATURE_MATRIX_SHARING: 'false' });
+    expect(await isFeatureEnabled('matrixSharing')).toBe(false);
+  });
+
   it('experimentalCrawlers is OFF unless the env var says exactly "true"', async () => {
     expect(await isFeatureEnabled('experimentalCrawlers')).toBe(false);
     process.env.FEATURE_EXPERIMENTAL_CRAWLERS = 'yes';   // not "true"
@@ -150,7 +167,38 @@ describe('readFeatures', () => {
     process.env.FEATURE_EXPERIMENTAL_CRAWLERS = 'true';
     const payload = await readFeatures();
     expect(Object.keys(payload).sort()).toEqual(Object.keys(FEATURE_FLAGS).sort());
-    expect(payload).toEqual({ riskScoring: false, accountLinking: true, experimentalCrawlers: true });
+    expect(payload).toEqual({ riskScoring: false, accountLinking: true, experimentalCrawlers: true, matrixSharing: false });
+  });
+});
+
+describe('requireFeature', () => {
+  function run(name) {
+    const res = { status: vi.fn(() => res), json: vi.fn(() => res) };
+    const next = vi.fn();
+    return requireFeature(name)({}, res, next).then(() => ({ res, next }));
+  }
+
+  it('lets the request through when the flag is on', async () => {
+    stageRows({ FEATURE_MATRIX_SHARING: 'true' });
+    const { res, next } = await run('matrixSharing');
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(res.status).not.toHaveBeenCalled();
+  });
+
+  it('answers 404 and stops when the flag is off', async () => {
+    // The env var says on; the stored override says off — the override must win here too.
+    process.env.FEATURE_MATRIX_SHARING = 'true';
+    stageRows({ FEATURE_MATRIX_SHARING: 'false' });
+    const { res, next } = await run('matrixSharing');
+    expect(next).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(404);
+    expect(res.json).toHaveBeenCalledWith({ error: 'This feature is not enabled' });
+  });
+
+  it('treats an unknown flag as off', async () => {
+    const { res, next } = await run('noSuchFlag');
+    expect(next).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(404);
   });
 });
 

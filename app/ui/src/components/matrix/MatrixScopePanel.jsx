@@ -14,6 +14,7 @@ import { Fragment, useEffect, useMemo, useState, useReducer, useCallback } from 
 import { useAuth } from '@ui/auth/AuthGate';
 import { useDebouncedValue } from '@ui/hooks/useDebouncedValue';
 import TimeSeriesChart from '@ui/components/TimeSeriesChart';
+import { useIsSharedView } from '@ui/contexts/SharedViewContext';
 
 // Aligned with the Dashboard Trends palette (TimeSeriesChart colours):
 //   governed → emerald, principals → blue, resources → violet, assignments → amber.
@@ -110,7 +111,14 @@ function trendsReducer(s, a) {
   }
 }
 
-export default function MatrixScopePanel({ filter }) {
+// Scope statistics are analysis tooling, not part of what a share recipient
+// was sent: in a shared view the panel (and its stats fetches) is skipped (#1166).
+export default function MatrixScopePanel(props) {
+  if (useIsSharedView()) return null;
+  return <ScopePanel {...props} />;
+}
+
+function ScopePanel({ filter }) {
   const { authFetch } = useAuth();
   const debouncedFilter = useDebouncedValue(filter, 400);
   const filterKey = useMemo(() => JSON.stringify(debouncedFilter || null), [debouncedFilter]);

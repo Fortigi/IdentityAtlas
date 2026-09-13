@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { useCanExportUi } from '@ui/auth/usePermissions';
+import { useIsSharedView } from '@ui/contexts/SharedViewContext';
+import ShareMatrixButton from './ShareMatrixButton';
 
 // Simplified Matrix toolbar (post-wizard redesign).
 //
@@ -12,8 +14,10 @@ import { useCanExportUi } from '@ui/auth/usePermissions';
 export default function MatrixToolbar({
   managedFilter,
   setManagedFilter,
+  filter,
   onExportExcel,
   onShare,
+  onShareView,
   onResetRowOrder,
   hasCustomRowOrder,
   hasExpandableGroups,
@@ -31,7 +35,10 @@ export default function MatrixToolbar({
   hideGaps = false,
 }) {
   const [copied, setCopied] = useState(false);
-  const canExport = useCanExportUi();
+  // A recipient of a share link gets the matrix, not the analyst's tooling:
+  // no Excel export and no link-sharing controls (#1166).
+  const isSharedView = useIsSharedView();
+  const canExport = useCanExportUi() && !isSharedView;
 
   return (
     <div className="flex flex-wrap items-center gap-2 text-sm">
@@ -69,23 +76,30 @@ export default function MatrixToolbar({
         </button>
       )}
 
-      <button
-        onClick={async () => {
-          const ok = await onShare();
-          if (ok) {
-            setCopied(true);
-            setTimeout(() => setCopied(false), 2000);
-          }
-        }}
-        className={`px-2 py-1 rounded text-xs font-medium border transition-colors ${
-          copied
-            ? 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 border-green-300 dark:border-green-700'
-            : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 border-gray-200 dark:border-gray-600'
-        }`}
-        title="Copy shareable link to clipboard"
-      >
-        {copied ? 'Copied!' : 'Share Link'}
-      </button>
+      {/* Two different "share" actions, deliberately named apart: "Copy link" hands
+          the current URL to another analyst, "Share view…" mints a read-only link
+          for a colleague who has no Identity Atlas role at all (#1166). */}
+      {!isSharedView && (
+        <button
+          onClick={async () => {
+            const ok = await onShare();
+            if (ok) {
+              setCopied(true);
+              setTimeout(() => setCopied(false), 2000);
+            }
+          }}
+          className={`px-2 py-1 rounded text-xs font-medium border transition-colors ${
+            copied
+              ? 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 border-green-300 dark:border-green-700'
+              : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 border-gray-200 dark:border-gray-600'
+          }`}
+          title="Copy this matrix's URL — it only opens for colleagues who already have Identity Atlas access"
+        >
+          {copied ? 'Copied!' : 'Copy link'}
+        </button>
+      )}
+
+      {!isSharedView && <ShareMatrixButton filter={filter} onShareView={onShareView} />}
 
       {hasCustomRowOrder && (
         <>

@@ -32,10 +32,12 @@ beforeEach(() => {
 // features/version arrive as props from App.jsx — the component fetches nothing.
 const EDGE_VERSION = '5.649.20260908.1151';
 
-function render(experimentalCrawlers, toggleResponse) {
+// matrixSharing defaults to the OPPOSITE of experimentalCrawlers, so the two
+// cards never agree: a switch wired to the wrong flag shows the wrong state.
+function render(experimentalCrawlers, toggleResponse, matrixSharing = !experimentalCrawlers) {
   return renderWithProviders(
     h(ExperimentalFeaturesSection, {
-      features: { riskScoring: false, accountLinking: true, experimentalCrawlers },
+      features: { riskScoring: false, accountLinking: true, experimentalCrawlers, matrixSharing },
       version: EDGE_VERSION,
     }),
     { auth: { authFetch: makeAuthFetch({ '/api/admin/features/toggle': toggleResponse ?? {} }) } },
@@ -103,6 +105,51 @@ describe('ExperimentalFeaturesSection', () => {
     await userEvent.click(toggle);
     expect(await screen.findByText('Feature toggle failed')).toBeInTheDocument();
     expect(reload).not.toHaveBeenCalled();
+  });
+
+  describe('Matrix sharing (#1166)', () => {
+    it('reads its own flag, not the crawler one', async () => {
+      render(true, undefined, false);
+      const sharing = await screen.findByRole('switch', { name: 'Matrix sharing' });
+      const crawlers = screen.getByRole('switch', { name: 'Experimental crawlers' });
+      await waitFor(() => expect(sharing).toHaveAttribute('aria-checked', 'false'));
+      expect(crawlers).toHaveAttribute('aria-checked', 'true');
+    });
+
+    it('turns sharing ON by posting matrixSharing:true, then reloads', async () => {
+      const { authFetch } = render(true, undefined, false);
+      await userEvent.click(await screen.findByRole('switch', { name: 'Matrix sharing' }));
+      await waitFor(() => expect(reload).toHaveBeenCalled());
+      const [, opts] = authFetch.mock.calls.find(([u]) => String(u).includes('/features/toggle'));
+      expect(JSON.parse(opts.body)).toEqual({ feature: 'matrixSharing', enabled: true });
+    });
+
+    it('turns sharing OFF by posting matrixSharing:false', async () => {
+      const { authFetch } = render(false, undefined, true);
+      await userEvent.click(await screen.findByRole('switch', { name: 'Matrix sharing' }));
+      await waitFor(() => expect(reload).toHaveBeenCalled());
+      const [, opts] = authFetch.mock.calls.find(([u]) => String(u).includes('/features/toggle'));
+      expect(JSON.parse(opts.body)).toEqual({ feature: 'matrixSharing', enabled: false });
+    });
+
+    it('surfaces a failed toggle and does not reload', async () => {
+      render(true, jsonResponse({ error: 'Sharing toggle failed' }, { ok: false, status: 500 }), false);
+      await userEvent.click(await screen.findByRole('switch', { name: 'Matrix sharing' }));
+      expect(await screen.findByText('Sharing toggle failed')).toBeInTheDocument();
+      expect(reload).not.toHaveBeenCalled();
+    });
+
+    it('tells the operator that switching off stops sent links but keeps the shares', async () => {
+      render(false);
+      expect(await screen.findByText(/stops existing share links from opening; the shares themselves are kept/i))
+        .toBeInTheDocument();
+    });
+
+    it('cannot be flipped before the flags have loaded', async () => {
+      renderWithProviders(h(ExperimentalFeaturesSection, { features: null, version: EDGE_VERSION }),
+        { auth: { authFetch: makeAuthFetch({}) } });
+      expect(await screen.findByRole('switch', { name: 'Matrix sharing' })).toBeDisabled();
+    });
   });
 
   it('links to the experimental-features docs for the running build', async () => {

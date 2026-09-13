@@ -7,10 +7,19 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
+import { useIsSharedView } from '@ui/contexts/SharedViewContext';
 import { matrixFilterFingerprint } from '@ui/utils/matrixFilter';
 import { collectChips, collectContextIds } from './MatrixFilterSummary.helpers';
 
-export default function MatrixFilterSummary({ filter, preview, onAdjust }) {
+// A share recipient gets the matrix and nothing around it: the scope strip is
+// analyst context (rows, subject/resource counts, the saved-matrix badge, Adjust)
+// and is dropped whole — which also skips the fetches behind it (#1166).
+export default function MatrixFilterSummary(props) {
+  if (useIsSharedView()) return null;
+  return <FilterSummary {...props} />;
+}
+
+function FilterSummary({ filter, preview, onAdjust }) {
   const { authFetch } = useAuth();
   const [contextNames, setContextNames] = useState(new Map());
   const [savedFilters, setSavedFilters] = useState(null);  // null = still loading

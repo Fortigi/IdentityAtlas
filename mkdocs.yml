@@ -111,6 +111,7 @@ nav:
       - The matrix:
           - Reading the Matrix: architecture/matrix.md
           - Scope Statistics: architecture/matrix-scope-statistics.md
+          - Sharing a Matrix: ui/sharing-a-matrix.md
       - Contexts: ui/contexts.md
       - Effective Access (Who Can Access X): ui/effective-access.md
       - Entity Detail Pages: architecture/entity-detail-pages.md

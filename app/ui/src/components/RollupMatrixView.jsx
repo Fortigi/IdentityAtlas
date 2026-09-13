@@ -135,7 +135,7 @@ function BreadcrumbNav({ contextMode, layered, breadcrumb, jumpToCrumb }) {
 
 export default function RollupMatrixView({
   rollup, filter, counts, managedFilter, setManagedFilter, shareUrl,
-  refreshing, onOpenDetail, onAdjustFilter, onFilterChange,
+  refreshing, onOpenDetail, onAdjustFilter, onFilterChange, onShareView,
 }) {
   const { authFetch } = useAuth();
   const isDark = useIsDark();
@@ -586,8 +586,10 @@ export default function RollupMatrixView({
       <MatrixToolbar
         managedFilter={managedFilter}
         setManagedFilter={setManagedFilter}
+        filter={filter}
         onExportExcel={onExportExcel}
         onShare={onShare}
+        onShareView={onShareView}
         hideGaps
       />
 

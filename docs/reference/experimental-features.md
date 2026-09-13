@@ -38,7 +38,7 @@ stored in the database, so it survives container restarts and redeployments.
 
 ## Experimental crawlers
 
-The one experimental feature today. It controls whether crawler types marked
+It controls whether crawler types marked
 experimental are offered in **Admin → Crawlers → Add Crawler**.
 
 | Crawler | What it connects to |
@@ -66,6 +66,39 @@ run on demand, and deleted. The badge stays on its card so you can see what it i
 The switch governs *adding a new one* — nothing else. That is deliberate: an
 operator who turns the flag off after connecting a system should not silently lose
 that system's data.
+
+---
+
+## Matrix sharing
+
+Lets analysts share a configured matrix with named colleagues who have no Identity
+Atlas role — a manager, an application owner. See
+[Share a matrix with someone in your organisation](../ui/sharing-a-matrix.md) for the
+feature itself. It is experimental because it is the first thing in Identity Atlas
+that shows data to people outside the analyst team.
+
+Environment variable: `FEATURE_MATRIX_SHARING=true`.
+
+### What the switch does, precisely
+
+**On** — users with the **Create matrix share links** (`data.share`) permission get
+the wizard's **Share** step, the toolbar's **Share view…** button and the
+**Admin → Shared Matrices** tab, and share links open for their recipients.
+
+**Off** — all of those are hidden, and the API answers `404` on every share endpoint:
+creating, listing and revoking shares, **and opening a link**. A recipient who opens
+a link that was sent while sharing was on sees the same "This link doesn’t open a
+shared view" page as for an unknown link — never an error.
+
+### What the switch does *not* do
+
+Turning it off **does not delete anything.** Existing shares, their recipients and
+their usage history stay in the database; switching the flag back on makes every
+link that was not revoked open again. To end a single share for good, revoke it
+under **Admin → Shared Matrices** while the feature is on.
+
+The permission still decides *who* may share: the flag decides whether sharing
+exists on this install at all.
 
 ---
 

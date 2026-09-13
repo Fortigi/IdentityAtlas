@@ -1,9 +1,11 @@
 // Admin → Experimental.
 //
 // One tab for everything that is built and tested but has not yet had much
-// exposure to real-world data. Today that is a single flag — Experimental
-// crawlers — which decides whether crawler types marked `experimental: true`
-// in their CrawlerMeta.js / crawler.json are offered in Add Crawler.
+// exposure to real-world data. Two flags today:
+//   • Experimental crawlers — whether crawler types marked `experimental: true`
+//     in their CrawlerMeta.js / crawler.json are offered in Add Crawler.
+//   • Matrix sharing (#1166) — whether analysts can share a matrix with named
+//     colleagues, and whether links already sent still open.
 //
 // Turning the flag OFF never disables a crawler that is already configured:
 // it keeps its schedule, keeps running, and keeps its Experimental badge. The
@@ -34,6 +36,37 @@ function CrawlerList({ types }) {
         </li>
       ))}
     </ul>
+  );
+}
+
+// Matrix sharing reaches people outside the analyst team, so it is off until an
+// operator switches it on. Off hides every sharing control and the Shared
+// Matrices tab, and the API refuses the share endpoints — resolve included, so
+// links that were already sent stop opening. Nothing is deleted: switching it
+// back on restores the shares and their usage history.
+function MatrixSharingCard({ features }) {
+  const { toggle, toggling, error } = useFeatureToggle('matrixSharing');
+  const enabled = features?.matrixSharing === true;
+  return (
+    <FeatureToggleCard
+      title="Matrix sharing"
+      enabled={enabled}
+      busy={toggling}
+      disabled={features == null}
+      onToggle={() => { if (features) toggle(!enabled); }}
+      toggleTitle={enabled ? 'Disable matrix sharing' : 'Enable matrix sharing'}
+    >
+      <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+        Lets users with the <span className="font-medium">Create matrix share links</span> permission share a
+        matrix with named colleagues from the wizard's <span className="font-medium">Share</span> step or the
+        toolbar's <span className="font-medium">Share view…</span>, and manage those links under
+        <span className="font-medium"> Admin → Shared Matrices</span>. Turning this off hides all of that and
+        stops existing share links from opening; the shares themselves are kept, so turning it back on restores them.
+      </p>
+      {error && (
+        <div className="mt-3 p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded text-sm text-red-700 dark:text-red-300">{error}</div>
+      )}
+    </FeatureToggleCard>
   );
 }
 
@@ -90,6 +123,8 @@ export default function ExperimentalFeaturesSection({ features, version }) {
           <div className="mt-3 p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded text-sm text-red-700 dark:text-red-300">{error}</div>
         )}
       </FeatureToggleCard>
+
+      <MatrixSharingCard features={features} />
     </div>
   );
 }
