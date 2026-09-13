@@ -271,6 +271,44 @@ describe('include and exclude routing', () => {
   });
 });
 
+// ── extraClauses: standing policy, not a user condition ─────────────────────
+// Callers inject parameter-free predicates the entity carries regardless of the
+// user's filter (the default-hidden resource types, #937). They must render the
+// subquery on their own — that is what makes buildSubqueries a choke point for
+// row visibility instead of "only applies once you filter something".
+describe('extraClauses', () => {
+  const buildResource = (opts) => {
+    const { params, bind } = createParams();
+    const out = buildEntitySubquery({
+      entity: 'Resource', validColumns: new Set(['resourceType']), contextTypes: CONTEXT_TYPES, bind, ...opts,
+    });
+    return { ...out, params };
+  };
+  const VISIBLE = `("resourceType" IS NULL OR "resourceType" NOT IN ('BusinessRole'))`;
+
+  it('renders the subquery from an extra clause alone, binding nothing', () => {
+    const out = buildResource({ extraClauses: [VISIBLE] });
+    expect(out.sql).toBe(`(SELECT id FROM "Resources" WHERE ${VISIBLE})`);
+    expect(out.params).toEqual([]);
+  });
+
+  it('ANDs the extra clause after the user conditions', () => {
+    const out = buildResource({
+      include: [{ kind: 'attribute', field: 'resourceType', values: ['Group'] }],
+      extraClauses: [VISIBLE],
+    });
+    // One span, so a builder that emitted the two as separate statements — or
+    // dropped the separator — fails rather than passing on "contains both".
+    expect(out.sql).toBe(`(SELECT id FROM "Resources" WHERE "resourceType"::text IN ($1) AND ${VISIBLE})`);
+    expect(out.params).toEqual(['Group']);
+  });
+
+  it('stays null when the caller supplies no extra clauses', () => {
+    expect(buildResource({ extraClauses: [] }).sql).toBeNull();
+    expect(buildResource({}).sql).toBeNull();
+  });
+});
+
 // ── collectContextIds only collects real context ids ────────────────────────
 // This prefetches the context types the filter will need. Its guard rejects
 // anything that is not a context condition carrying a UUID string; loosen it and

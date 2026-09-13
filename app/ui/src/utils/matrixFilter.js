@@ -28,6 +28,11 @@ export const EMPTY_FILTER = {
   orientation: 'rows-as-resources',
   subject:  { include: [], exclude: [] },
   resource: { include: [], exclude: [] },
+  // Show business roles / access packages as resource rows. Off by default —
+  // they are governance intent and already appear as the business-role columns,
+  // so showing them as rows too lists the same role on both axes. A property of
+  // the matrix (saved and shared with it), not of the viewer.
+  includeBusinessRoles: false,
   // Roll-up: aggregate the subject (column) axis by this attribute. null = off.
   rollup: null,
   // What the roll-up shows (only when rollup is set):
@@ -101,6 +106,10 @@ export function normalizeMatrixFilter(f) {
     orientation: oneOf(src.orientation, ['rows-as-resources', 'rows-as-subjects']),
     subject:  normalizeBlock(src.subject),
     resource: normalizeBlock(src.resource),
+    // Strict `=== true`, matching the API's parseFilter: the flag is sent back
+    // to the server, and coercing a stray truthy value here would tick the box
+    // while the rows stayed hidden.
+    includeBusinessRoles: src.includeBusinessRoles === true,
     rollup: text(src.rollup),
     rollupContent: oneOf(src.rollupContent, ['resources-and-roles', 'resources-only', 'roles-only']),
     rollupMetric: oneOf(src.rollupMetric, ['count', 'percent']),

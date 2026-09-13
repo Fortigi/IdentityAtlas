@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { useFetch } from '@ui/hooks/useFetch';
+import useFeatureToggle from '@ui/hooks/useFeatureToggle';
 import { useAuth } from '@ui/auth/AuthGate';
-import { MetaBadge, JsonViewer, Section, NotConfigured } from './adminUi';
+import { MetaBadge, JsonViewer, Section, NotConfigured, FeatureToggleCard } from './adminUi';
 import { RiskProfileIcon, ClassifiersIcon } from './adminIcons';
 import { fmt } from './adminFormat';
 const RiskProfileWizard = lazy(() => import('../RiskProfileWizard'));
@@ -336,8 +337,7 @@ function NewRiskProfileLauncher({ onRiskScoresRefresh }) {
 // ─── Risk Scoring sub-tab — combines profile + classifiers + feature toggle ──
 export default function RiskScoringSection({ onRiskScoresRefresh }) {
   const { authFetch } = useAuth();
-  const [toggling, setToggling] = useState(false);
-  const [error, setError] = useState(null);
+  const { toggle, toggling, error } = useFeatureToggle('riskScoring');
   const [running, setRunning] = useState(false);
   const [runMsg, setRunMsg] = useState(null);
   const [runErr, setRunErr] = useState(null);
@@ -347,28 +347,8 @@ export default function RiskScoringSection({ onRiskScoresRefresh }) {
   const plainFetch = useCallback((u) => fetch(u), []);
   const { data: features } = useFetch('/api/features', { authFetch: plainFetch });
 
-  const handleToggle = async () => {
-    if (!features) return;
-    setToggling(true);
-    setError(null);
-    try {
-      const r = await authFetch('/api/admin/features/toggle', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ feature: 'riskScoring', enabled: !features.riskScoring }),
-      });
-      if (!r.ok) {
-        const err = await r.json().catch(() => ({}));
-        throw new Error(err.error || `HTTP ${r.status}`);
-      }
-      // Hard reload so the main navigation tabs (Risk Scores, Org Chart) re-evaluate
-      // their visibility against the new feature flags. A re-fetch alone wouldn't
-      // re-run the nav tab filter logic in App.jsx until the user navigates away.
-      window.location.reload();
-    } catch (err) {
-      setError(err.message);
-      setToggling(false);
-    }
+  const handleToggle = () => {
+    if (features) toggle(features.riskScoring === false);
   };
 
   const runNow = async () => {
@@ -392,41 +372,24 @@ export default function RiskScoringSection({ onRiskScoresRefresh }) {
   return (
     <div className="space-y-4">
       {/* Feature toggle card */}
-      <div className={`rounded-lg border p-5 ${enabled ? 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700' : 'bg-gray-50 dark:bg-gray-800/50 border-gray-300 dark:border-gray-600'}`}>
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h3 className="text-base font-semibold text-gray-900 dark:text-white">Risk Scoring Feature</h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-              Risk scoring assigns a 0-100 risk score to every identity based on direct classifier matches,
-              membership analysis, structural hygiene checks, and cross-entity propagation.
-              When disabled, the Risk Scores tab is hidden from the main navigation and the scoring engine
-              is skipped during sync runs.
-            </p>
-            {error && (
-              <div className="mt-3 p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded text-sm text-red-700 dark:text-red-300">{error}</div>
-            )}
-          </div>
-          <div className="flex-shrink-0">
-            <button
-              onClick={handleToggle}
-              disabled={toggling || features === null}
-              className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${
-                enabled ? 'bg-emerald-600' : 'bg-gray-300 dark:bg-gray-600'
-              } disabled:opacity-50`}
-              title={enabled ? 'Disable risk scoring' : 'Enable risk scoring'}
-            >
-              <span
-                className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
-                  enabled ? 'translate-x-6' : 'translate-x-1'
-                }`}
-              />
-            </button>
-            <div className="text-xs text-gray-500 dark:text-gray-400 text-center mt-1">
-              {toggling ? '...' : enabled ? 'Enabled' : 'Disabled'}
-            </div>
-          </div>
-        </div>
-      </div>
+      <FeatureToggleCard
+        title="Risk Scoring Feature"
+        enabled={enabled}
+        busy={toggling}
+        disabled={features === null}
+        onToggle={handleToggle}
+        toggleTitle={enabled ? 'Disable risk scoring' : 'Enable risk scoring'}
+      >
+        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+          Risk scoring assigns a 0-100 risk score to every identity based on direct classifier matches,
+          membership analysis, structural hygiene checks, and cross-entity propagation.
+          When disabled, the Risk Scores tab is hidden from the main navigation and the scoring engine
+          is skipped during sync runs.
+        </p>
+        {error && (
+          <div className="mt-3 p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded text-sm text-red-700 dark:text-red-300">{error}</div>
+        )}
+      </FeatureToggleCard>
 
       {/* Risk profile + classifiers — only render when feature is enabled */}
       {enabled ? (

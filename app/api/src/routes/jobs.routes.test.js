@@ -44,7 +44,7 @@ vi.mock('../secrets/crawlerSecrets.js', () => ({
 vi.mock('../crawlerManifests.js', () => ({
   CRAWLER_MANIFESTS_DIR: '', _crawlerManifests: {}, VALID_JOB_TYPES: ['entra-id', 'csv', 'demo'],
   validateCrawlerConfig: vi.fn(() => null), validateStoredCrawlerConfig: vi.fn(async () => null),
-  isSingletonJob: vi.fn(() => false), isPushModeType: vi.fn(() => false),
+  isSingletonJob: vi.fn(() => false), isPushModeType: vi.fn(() => false), isExperimentalType: vi.fn(() => false),
 }));
 
 const { default: router } = await import('./jobs.js');

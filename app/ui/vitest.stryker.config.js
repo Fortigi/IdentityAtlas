@@ -38,6 +38,9 @@ export default defineConfig({
     include: [
       'src/auth/usePermissions.test.jsx',
       'src/utils/matrixFilter.test.js',
+      'src/hooks/useFeatureToggle.test.jsx',
+      'src/components/crawler/saveCrawlerConfig.test.js',
+      'src/components/crawler/crawlerWizardHooks.test.jsx',
       'src/utils/attributeLabels.test.js',
       'src/hooks/useAttributeLabels.test.jsx',
     ],

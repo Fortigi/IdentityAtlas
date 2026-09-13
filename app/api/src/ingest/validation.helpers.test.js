@@ -79,6 +79,32 @@ describe('validateRecordsArray', () => {
     expect(validateRecordsArray({ deletedIds: ['x'] })).toEqual([]);
   });
 
+  it('allows an empty FULL sync — that is how a source that now holds nothing is reconciled', () => {
+    // A full sync's records ARE the complete set, so an empty one means "this
+    // scope is empty now, delete what you have". Rejecting it made a collection
+    // impossible to reconcile to zero: a SCIM endpoint serving no groups failed
+    // its entire sync. Invoke-CrawlerIngest.ps1 sends exactly this body.
+    expect(validateRecordsArray({ records: [], syncMode: 'full' })).toEqual([]);
+    expect(validateRecordsArray({ records: null, syncMode: 'full' })).toEqual([]);
+    expect(validateRecordsArray({ syncMode: 'full' })).toEqual([]);
+  });
+
+  it('still rejects an empty DELTA batch — nothing-at-all says nothing at all', () => {
+    expect(validateRecordsArray({ records: [], syncMode: 'delta' }))
+      .toEqual(['records array cannot be empty']);
+  });
+
+  it('still rejects an empty batch with no syncMode at all', () => {
+    // Only an explicit full sync carries the "this is the complete set" meaning;
+    // an unstated mode must not inherit it.
+    expect(validateRecordsArray({ records: [] })).toEqual(['records array cannot be empty']);
+  });
+
+  it('does not let syncMode:full excuse a non-array records field', () => {
+    expect(validateRecordsArray({ records: 'nope', syncMode: 'full' }))
+      .toEqual(['records must be an array']);
+  });
+
   it('accepts a normal non-empty records array', () => {
     expect(validateRecordsArray({ records: [{}] })).toEqual([]);
   });

@@ -10,7 +10,7 @@
     Why it exists: the matrix wizard's "+ Attribute" picker serves ONE PAGE of a
     column's distinct values (500 by default, see MATRIX_VALUE_PAGE_SIZE) and
     flags the column as truncated when there are more. That path — the subject of
-    issue #928 — simply does not appear on the standard 39-resource dataset,
+    issue #928 — simply does not appear on the standard 46-resource dataset,
     which carries about a dozen distinct descriptions, so a test environment
     loaded from it cannot demonstrate or verify the behaviour.
 

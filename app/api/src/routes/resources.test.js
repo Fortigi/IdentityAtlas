@@ -83,12 +83,12 @@ describe('GET /resources — list', () => {
 
   it('excludes BusinessRole resources when no resourceType filter is given', async () => {
     await request(app).get('/api/resources');
-    expect(listSql()).toContain(`r."resourceType" <> 'BusinessRole'`);
+    expect(listSql()).toContain(`r."resourceType" NOT IN ('BusinessRole')`);
   });
 
   it('includes BusinessRole resources when ?includeBusinessRoles=true (governance export)', async () => {
     await request(app).get('/api/resources?includeBusinessRoles=true');
-    expect(listSql()).not.toContain(`r."resourceType" <> 'BusinessRole'`);
+    expect(listSql()).not.toContain(`r."resourceType" NOT IN ('BusinessRole')`);
   });
 
   it('selects the governanceResource flag so business roles are identifiable', async () => {

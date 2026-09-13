@@ -63,6 +63,7 @@
     "057_principal_relationships.sql": "124f72d04f718f615ac665f47b8500479c84db7d39969159d55afd95e0525717",
     "058_rename_entra_app_role.sql": "b86da2c0c2b0fc2934affcab1298886b4e5d23644742b2c433abc08fc3d1c57f",
     "059_context_acyclic_trigger.sql": "b5cd241b6a5df8deb5834f56e020ba8e0be6ca02f324d8054f0042b6fd2eccd7",
-    "060_auth_role_change_log.sql": "a03e9ab49545a9e9d18b9fe9160f298205e640875cfeeb5cde2982570d4e4c8b"
+    "060_auth_role_change_log.sql": "a03e9ab49545a9e9d18b9fe9160f298205e640875cfeeb5cde2982570d4e4c8b",
+    "061_business_role_covers_itself.sql": "0dc53ad1e6691691d43a80d929b5f55a207b267831465ba8abb67569eb10e6f6"
   }
 }

@@ -21,6 +21,12 @@ export default {
   create(context) {
     const filename = (context.filename ?? context.getFilename?.() ?? '').replace(/\\/g, '/');
     if (filename.includes('tools/crawlers/')) return {};
+    // A TEST fixture is not the shipped crawler catalogue. This rule exists so a
+    // UI component cannot hardcode the list the registry is supposed to discover;
+    // a test that needs a crawler type which does not exist — a not-yet-available
+    // tile, say, which no shipped crawler produces — has nowhere else to put one,
+    // and nothing it declares ever reaches a user.
+    if (/[.](test|spec)[.][jt]sx?$/.test(filename)) return {};
 
     return {
       ObjectExpression(node) {

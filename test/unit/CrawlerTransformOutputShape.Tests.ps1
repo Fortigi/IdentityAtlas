@@ -41,6 +41,7 @@ BeforeAll {
     . (Join-Path $crawlers 'omada'    'OmadaCrawler.Transform.ps1')
     . (Join-Path $crawlers 'csv'      'CSVCrawler.Transform.ps1')
     . (Join-Path $crawlers 'azure-rm' 'AzureRMCrawler.Transform.ps1')
+    . (Join-Path $crawlers 'scim'     'ScimCrawler.Transform.ps1')
 
     $script:LEGAL_ASSIGNMENT   = @('Direct', 'Indirect', 'Eligible')
     $script:RETIRED_RESOURCE   = @('EntraGroup', 'EntraRole')
@@ -91,6 +92,26 @@ Describe 'Crawler transform output contract — assignmentType is always legal' 
             | Should -BeIn $script:LEGAL_ASSIGNMENT
     }
 
+    It 'SCIM — group memberships and the nested-group expansion are legal' {
+        $users  = [System.Collections.Generic.HashSet[string]]::new(); [void]$users.Add('u1'); [void]$users.Add('u2')
+        $groups = [System.Collections.Generic.HashSet[string]]::new(); [void]$groups.Add('gA'); [void]$groups.Add('gB')
+        $outer  = [pscustomobject]@{ id = 'gA'; members = @([pscustomobject]@{ value = 'u1' }, [pscustomobject]@{ value = 'gB' }) }
+        $inner  = [pscustomobject]@{ id = 'gB'; members = @([pscustomobject]@{ value = 'u2' }) }
+        $edges  = [System.Collections.Generic.List[object]]::new()
+        foreach ($g in @($outer, $inner)) {
+            $m = ConvertTo-ScimGroupMembership -Group $g -UserIds $users -GroupIds $groups -PrincipalTypeById @{}
+            foreach ($a in $m.assignments) { $a.assignmentType | Should -BeIn $script:LEGAL_ASSIGNMENT }
+            foreach ($a in $m.assignments) { $a.resourceType   | Should -Not -BeIn $script:RETIRED_RESOURCE }
+            foreach ($e in $m.edges) { [void]$edges.Add($e) }
+        }
+        $indirect = ConvertTo-ScimNestedGroupIndirectAssignments -Edges $edges -PrincipalTypeById @{}
+        @($indirect).Count | Should -BeGreaterThan 0
+        foreach ($a in $indirect) {
+            $a.assignmentType | Should -BeIn $script:LEGAL_ASSIGNMENT
+            $a.resourceType   | Should -Not -BeIn $script:RETIRED_RESOURCE
+        }
+    }
+
     It 'Azure RM — role grant is legal' {
         $a = [pscustomobject]@{ name = 'ra1'; properties = [pscustomobject]@{ principalId = 'p1' } }
         (New-AzureGrantRecord -CapResId 'cap1' -Assignment $a -PrincipalType 'User').assignmentType `
@@ -107,6 +128,9 @@ Describe 'Crawler transform output contract — assignmentType is always legal' 
         $emitted += (New-MidpointGovernanceAssignmentRecord -ResourceId 'r1' -PrincipalId 'u1' -ResourceType 'BusinessRole' -Grant 'direct').assignmentType
         $emitted += (New-OmadaRoleAssignmentRecord -ResourceUid 'res-1' -PrincipalId 'usr-1' -RoleAssignment ([pscustomobject]@{ VALIDFROM = '2026-01-01' })).assignmentType
         $emitted += (New-AzureGrantRecord -CapResId 'cap1' -Assignment $azA -PrincipalType 'User').assignmentType
+        $scimUsers  = [System.Collections.Generic.HashSet[string]]::new(); [void]$scimUsers.Add('u1')
+        $scimGroups = [System.Collections.Generic.HashSet[string]]::new(); [void]$scimGroups.Add('gA')
+        $emitted += Get-AssignmentTypes (ConvertTo-ScimGroupMembership -Group ([pscustomobject]@{ id = 'gA'; members = @([pscustomobject]@{ value = 'u1' }) }) -UserIds $scimUsers -GroupIds $scimGroups -PrincipalTypeById @{}).assignments
 
         $illegal = @($emitted | Where-Object { $_ -and $_ -notin $script:LEGAL_ASSIGNMENT }) | Sort-Object -Unique
         $illegal | Should -BeNullOrEmpty

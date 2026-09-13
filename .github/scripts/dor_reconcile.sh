@@ -20,6 +20,13 @@ PROJECT_ID="${PROJECT_ID:-PVT_kwDOAhfTz84Bern-}"
 LABEL="${LABEL:-enhancement}"                 # gate label for this pipeline (enhancement | bug)
 UNROUTED_HOURS="${UNROUTED_HOURS:-6}"
 STALE_FLAG_DAYS="${STALE_FLAG_DAYS:-14}"
+# Self-healing budget. RETRY_MAX is how often ONE issue may be re-dispatched before the sweep gives
+# up and asks for a human; RETRY_CAP is how many issues one sweep may re-dispatch at all. The cap
+# matters as much as the budget: the outage this was written for was CAUSED by ~10 agent runs
+# starting in the same minute and exhausting the model quota, so a sweep that re-drives an unbounded
+# backlog every hour would reliably reproduce it — and would do so unattended.
+RETRY_MAX="${RETRY_MAX:-3}"
+RETRY_CAP="${RETRY_CAP:-3}"
 # An ACTIVE phase is measured in minutes, not days. A build that dies 15 minutes in used to be
 # invisible for a fortnight, because STALE_FLAG_DAYS was the only staleness check and the two records
 # this sweep compares — issue labels and board Status — agreed with each other perfectly while the
@@ -40,6 +47,7 @@ US=$'\x1f'
 exceptions=""   # markdown bullet lines
 ex_keys=""      # one stable identity per exception — see the fingerprint in §4
 stalled=""      # issue numbers whose "Building" has no live run behind it
+redispatched=0  # how many issues this sweep has already re-driven (see RETRY_CAP)
 
 # Record an exception, and alongside it a STABLE identity for that exception. The report re-states
 # the same findings every sweep and most lines carry a moving age ("untouched for 17h"), so the text
@@ -162,6 +170,72 @@ build_phase() {
   esac
 }
 
+# Does a parked issue actually have a human on the hook? "Awaiting requestor" and "Awaiting design"
+# each mean two different things: they are the ENTRY state every new issue is created in (dor-triage
+# sets the Status, not a label) AND the state the agent routes to when it asks a real question. The
+# column alone therefore cannot tell "someone owes us an answer" from "the pipeline dropped this
+# thread", which is how 10 slices of the September epics sat looking like open questions with
+# nothing actually asked on them. Read the thread instead:
+#   answered — a human has commented since the last agent comment and nothing came back. Their
+#              answer went unread; re-drive the agent.
+#   waiting  — the agent spoke last. Genuinely on a human; leave it to the staleness flag.
+#   unknown  — comments exist but none is identifiable as the agent's. Pre-dates the
+#              dor-agent-comment marker AND was posted under a maintainer's account (that comment
+#              posts as whoever owns GH_TOKEN, so the last comments on #762 and #680 read as
+#              WimvandenHeijkant and are agent output). Authorship cannot decide it, so never
+#              re-dispatch on the guess — the staleness line keeps it visible until a human, or a
+#              content-aware pass, resolves it.
+# Never-routed issues do not reach here at all: they carry no state:* label and are caught earlier.
+waiting_verdict() {  # $1 = issue number -> answered | waiting | unknown
+  local rows agent_seen=false human_after=false is_agent
+  # A failed lookup must answer "waiting": that is the branch that does nothing, so an API hiccup
+  # can only ever cost a delay, never an unwanted re-dispatch.
+  rows="$(gh issue view "$1" --repo "$OWNER/$REPO" --json comments \
+    --jq '.comments[] | ((.body | test("<!-- dor-agent-comment")) or (.author.login == "github-actions")) | tostring' 2>/dev/null)" \
+    || { echo waiting; return; }
+  [ -n "$rows" ] || { echo unknown; return; }
+  while IFS= read -r is_agent; do
+    [ -n "$is_agent" ] || continue
+    if [ "$is_agent" = true ]; then agent_seen=true; human_after=false; else human_after=true; fi
+  done <<<"$rows"
+  [ "$agent_seen" = true ] || { echo unknown; return; }
+  if [ "$human_after" = true ]; then echo answered; else echo waiting; fi
+}
+
+# Re-drive the DoR agent on an issue the pipeline dropped, and report what happened either way.
+#
+# Mechanism copied from dor-resume.yml: remove-then-add a label AS THE BOT APP (which GH_TOKEN is
+# here). Both halves are load-bearing — GitHub suppresses workflow triggers for GITHUB_TOKEN writes,
+# and re-adding a label an issue already carries emits no `labeled` event at all, so a bare
+# --add-label would silently no-op from the second attempt onwards.
+#
+# The attempt count is read back off the timeline rather than stored: `labeled` events are permanent
+# and already per-issue, so there is no counter to keep in sync with reality, and clearing the label
+# (which dor_post_decision.sh does on a successful route) does not reset the budget.
+try_redispatch() {  # $1 = issue, $2 = status for the report, $3 = why, as report prose
+  local num="$1" status="$2" why="$3" tries
+  tries="$(gh api "repos/$OWNER/$REPO/issues/${num}/timeline" --paginate \
+    --jq '[.[] | select(.event=="labeled" and .label.name=="dor-retry")] | length' 2>/dev/null || echo 0)"
+  case "$tries" in ''|*[!0-9]*) tries=0 ;; esac
+  if [ "$tries" -ge "$RETRY_MAX" ]; then
+    add_ex "🔁 #${num} sits at **${status}** because ${why}, and has been re-dispatched ${tries}× without sticking — this one needs a human. Check its failed \`DoR agent\` runs."
+    return
+  fi
+  if [ "$redispatched" -ge "$RETRY_CAP" ]; then
+    add_ex "🚑 #${num} needs a re-dispatch (${why}) but this sweep has used its budget of ${RETRY_CAP}; it goes on the next one."
+    return
+  fi
+  gh label create dor-retry --repo "$OWNER/$REPO" --color FBCA04 \
+    --description "Reconcile is re-driving the DoR agent on this issue" >/dev/null 2>&1 || true
+  gh issue edit "$num" --repo "$OWNER/$REPO" --remove-label dor-retry >/dev/null 2>&1 || true
+  if gh issue edit "$num" --repo "$OWNER/$REPO" --add-label dor-retry >/dev/null 2>&1; then
+    redispatched=$(( redispatched + 1 ))
+    add_ex "🚑 #${num} sat at **${status}** because ${why} — re-dispatched the agent (attempt $(( tries + 1 ))/${RETRY_MAX})."
+  else
+    add_ex "❌ #${num} needed a re-dispatch (${why}) but the \`dor-retry\` write failed — kick it by hand."
+  fi
+}
+
 # 2. Walk every OPEN issue THIS BOARD carries, plus every open `$LABEL` issue missing from it.
 #
 #    MEMBERSHIP decides what gets swept, not the gate label. Status is the canonical phase (D3), yet
@@ -250,7 +324,11 @@ while IFS="$US" read -r num created_epoch updated_epoch needs_vouch sk_label sta
   if [ -z "$state_label" ] && ! build_phase "$status"; then
     age_h=$(( (now - updated_epoch) / 3600 ))
     if [ "$age_h" -ge "$UNROUTED_HOURS" ]; then
-      add_ex "🕳️ #${num} is on the board (Status: ${status:-none}) with no \`state:*\` label and untouched for ${age_h}h — the agent likely never ran."
+      # This used to only report. Reporting is not enough: the report says "the agent likely never
+      # ran", which is true and actionable, and it still took a human reading the board to act on it
+      # — 10 issues sat here for 20h+ after a model outage while the sweep re-stated the same line
+      # every hour. Re-drive it instead, and let the budget in try_redispatch decide when to stop.
+      try_redispatch "$num" "${status:-none}" "it has no \`state:*\` label ${age_h}h after its last update — the agent never routed it"
     fi
     continue
   fi
@@ -270,7 +348,14 @@ while IFS="$US" read -r num created_epoch updated_epoch needs_vouch sk_label sta
   case "$status" in
     "Awaiting requestor"|"Awaiting design")
       age_d=$(( (now - updated_epoch) / 86400 ))
-      [ "$age_d" -ge "$STALE_FLAG_DAYS" ] && add_ex "⏳ #${num} has sat in **${status}** for ${age_d}d with no update."
+      # Being in one of these columns is not evidence that anyone was asked anything — see
+      # waiting_verdict. Only the ambiguous and the genuinely-waiting fall through to the age flag.
+      case "$(waiting_verdict "$num")" in
+        answered)
+          try_redispatch "$num" "$status" "the last word on it is a human's and the agent never came back" ;;
+        *)
+          [ "$age_d" -ge "$STALE_FLAG_DAYS" ] && add_ex "⏳ #${num} has sat in **${status}** for ${age_d}d with no update." ;;
+      esac
       ;;
     "Awaiting approval") approval_backlog=$(( approval_backlog + 1 )) ;;
     # LIVENESS: "Building" asserts that a build or a feedback adjustment is running RIGHT NOW. When

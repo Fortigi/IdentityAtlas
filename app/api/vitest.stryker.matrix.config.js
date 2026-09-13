@@ -21,6 +21,8 @@ import base from './vitest.config.js';
 //   src/routes/matrix/shared.js    -> filterSql   (and via it src/routes/permissions/)
 //   src/routes/matrix/savedFilters.js, src/routes/matrix.js -> filterSql, inheritedAccess
 //   src/routes/resources.js        -> resourceContexts
+//   src/routes/matrix/shared.js, src/routes/resources/list.js, src/matrix/scopeHistory.js
+//                                  -> lib/resourceVisibility
 //
 // Same rule for the attribute-label pair added to this scope:
 //
@@ -45,10 +47,12 @@ export default defineConfig({
   test: {
     ...base.test,
     include: [
+      'src/lib/resourceVisibility.test.js',
       'src/matrix/**/*.test.js',
       'src/routes/matrix/**/*.test.js',
       'src/routes/matrix.*.test.js',
       'src/routes/resources.test.js',
+      'src/routes/resources/**/*.test.js',
       'src/routes/permissions/**/*.test.js',
       'src/lib/attributeLabels.test.js',
       'src/routes/attributeLabels.test.js',

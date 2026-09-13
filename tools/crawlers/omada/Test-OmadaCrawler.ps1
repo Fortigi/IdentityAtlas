@@ -40,18 +40,6 @@ function Invoke-AtlasApi {
     return Invoke-RestMethod @params
 }
 
-function Wait-JobComplete {
-    param([int]$JobId, [int]$TimeoutSec = 120)
-    $deadline = [datetime]::UtcNow.AddSeconds($TimeoutSec)
-    while ([datetime]::UtcNow -lt $deadline) {
-        Start-Sleep -Seconds 3
-        $j = Invoke-RestMethod -Uri "$ApiBaseUrl/admin/crawler-jobs/$JobId" `
-            -Headers @{ Authorization = "Bearer $ApiKey" } -ErrorAction SilentlyContinue
-        if ($j.status -in @('completed', 'failed')) { return $j }
-    }
-    return $null
-}
-
 Write-Host "`n=== Omada IGA Crawler Integration Test ===" -ForegroundColor Cyan
 
 # ── Load mock server ──────────────────────────────────────────────────────────

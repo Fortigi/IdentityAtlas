@@ -1,5 +1,15 @@
 # Plugin Architecture & Open Source Strategy
 
+!!! danger "Status: speculative long-horizon vision — not the risk-scoring plugin tier being built"
+    This describes a hypothetical **third-party/open-source** contributor ecosystem (Python ABCs,
+    YAML classifier packs, a CLI). It is unrelated to and inconsistent with
+    [`docs/architecture/risk-scoring-plugins.md`](../architecture/risk-scoring-plugins.md) — the
+    actual (also unbuilt) in-tree Node.js plugin-tier proposal tracked by issue #672 — and it
+    conflicts with `context-redesign.md`'s stated non-goal of a third-party plugin SDK ("plugins
+    remain in-tree code modules until there's a clear case for third-party plugins"). Do not treat
+    this page as architecture guidance until an architect reconciles the two — see
+    [`architecture-guidance-review-2026-09.md`](../architecture/architecture-guidance-review-2026-09.md#11-doc-vs-doc-two-incompatible-risk-scoring-plugin-architectures-for-the-same-slot).
+
 This document extends the [risk scoring design](design.md) with a plugin architecture designed for open-source community contribution. The guiding principle: **make the knowledge shareable, not just the code.**
 
 ---

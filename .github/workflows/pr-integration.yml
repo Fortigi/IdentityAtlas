@@ -736,8 +736,17 @@ jobs:
             if ($jobs.Count -eq 0) { continue }
             $jobs | Wait-Job | ForEach-Object {
               $type = $jobMeta[$_.Name]
-              $output = Receive-Job -Job $_ -Keep
+              # -ErrorAction SilentlyContinue + -ErrorVariable, NOT a bare Receive-Job.
+              # A failed test job carries a terminating error, and Receive-Job RETHROWS it;
+              # with the step's $ErrorActionPreference='Stop' that aborted this whole loop
+              # before anything was written, so the run reported "Test script exited with
+              # code 1" and never said WHICH crawler, never printed its output, and never
+              # closed the remaining groups. Capture both streams instead, so every crawler
+              # gets its log, its ::error title, and its ::endgroup.
+              $jobErrors = $null
+              $output = Receive-Job -Job $_ -Keep -ErrorAction SilentlyContinue -ErrorVariable jobErrors
               $output | ForEach-Object { Write-Host $_ }
+              $jobErrors | ForEach-Object { Write-Host $_ }
               $failed = $_.State -ne 'Completed' -or ($_.ChildJobs[0].State -ne 'Completed')
               Remove-Job $_ -Force -ErrorAction SilentlyContinue
 

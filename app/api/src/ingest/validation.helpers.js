@@ -28,9 +28,19 @@ export function validateSystemId(body, entityType) {
 /**
  * Validate the `records` field. PowerShell's ConvertTo-Json serialises an empty
  * array as `null`, so null/undefined records are treated as an empty array.
- * A body with no records AND no deletedIds fails; a present-but-non-array
- * records field fails first (and short-circuits the other checks, matching the
- * original if/else-if chain).
+ * A present-but-non-array records field fails first (and short-circuits the
+ * other checks, matching the original if/else-if chain).
+ *
+ * A body carrying neither records nor deletedIds fails — UNLESS it is a FULL
+ * sync. A full sync's records ARE the complete set, and a source can legitimately
+ * hold nothing: an empty full batch is how a crawler says "this scope is now
+ * empty, delete what you have", and tools/crawlers/shared/Invoke-CrawlerIngest.ps1
+ * sends exactly that ("Empty full-sync batch so the server scoped-deletes stale
+ * rows"). Rejecting it made a collection impossible to reconcile down to zero —
+ * a SCIM endpoint that legitimately serves no groups failed its whole sync.
+ *
+ * A DELTA batch with neither is still an error: delta means "here is what
+ * changed", and nothing-at-all says nothing at all.
  */
 export function validateRecordsArray(body) {
   const { records, deletedIds } = body;
@@ -41,8 +51,9 @@ export function validateRecordsArray(body) {
 
   const recordsEmpty = !records || records.length === 0;
   const deletesEmpty = !Array.isArray(deletedIds) || deletedIds.length === 0;
-  if (recordsEmpty && deletesEmpty) {
-    // Allow empty records when the caller is only sending delta deletes.
+  if (recordsEmpty && deletesEmpty && body.syncMode !== 'full') {
+    // Empty records are fine when the caller is only sending delta deletes, or
+    // when this is a full sync of a source that now holds nothing (see above).
     return ['records array cannot be empty'];
   }
 

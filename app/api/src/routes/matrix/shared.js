@@ -14,6 +14,7 @@ import {
 import { buildEntitySubquery, collectContextIds } from '../../matrix/filterSql.js';
 import { resourceMeta } from '../../db/matrixHelpers.js';
 import { GROUP_PRINCIPAL_TYPE } from '../../lib/principalTypes.js';
+import { shouldHideDefaultResourceTypes, visibleResourceTypesSql } from '../../lib/resourceVisibility.js';
 
 export const ROW_TYPES = new Set(['principal', 'identity']);
 export const SAFE_IDENT_RE = /^[a-zA-Z0-9_]+$/;
@@ -115,6 +116,12 @@ export function parseFilter(body) {
     // adds the next level as a new header row (see buildContextCutSql). Reused by
     // the layered attribute fold, where the entries are attribute-tuple keys.
     rollupExpanded: Array.isArray(f.rollupExpanded) ? f.rollupExpanded.filter(x => typeof x === 'string').slice(0, 200) : [],
+    // Show the resource types that are hidden from the resource axis by default
+    // (business roles / access packages — they are already the SOLL columns).
+    // A property of the matrix definition, not of the viewer, so a saved or
+    // shared matrix renders the same rows for everyone (see
+    // lib/resourceVisibility.js).
+    includeBusinessRoles: f.includeBusinessRoles === true,
     // Serve the attribute fold as a server-aggregated layered view (counts +
     // expand-in-place) rather than a flat per-subject grid — set by the wizard
     // for matrices too large to ship every row. Uses sortAttributes as the tree.
@@ -195,21 +202,35 @@ export async function buildSubqueries(filter) {
     contextTypes,
     bind,
   });
-  const resource = (bind) => buildEntitySubquery({
+  // The single choke point for default row visibility: every matrix mode embeds
+  // this resource fragment, so hiding a resourceType here hides it from the flat
+  // grid, the roll-ups, the context zoom, the attribute fold, the scope counts,
+  // the preview and the nested-group expansion at once (#937). With no user
+  // conditions the fragment is normally null; the visibility clause alone makes
+  // it render.
+  const hideDefaults = shouldHideDefaultResourceTypes(filter);
+  const resourceArgs = {
     entity: 'Resource',
     include: filter.resource.include,
     exclude: filter.resource.exclude,
     validColumns: resourceColSet,
     contextTypes,
+  };
+  const resource = (bind) => buildEntitySubquery({
+    ...resourceArgs,
     bind,
+    extraClauses: hideDefaults ? [visibleResourceTypesSql()] : [],
   });
 
   // Warnings + fragment-presence flags are bind-independent — compute once with
   // a throwaway binder. hasSubject/hasResource let callers guard on "is there a
   // filter fragment?" without rendering (the fragment sql is null when empty).
+  // The resource side is probed WITHOUT the visibility clause: hasResource means
+  // "the analyst scoped the resources" (inheritedAccess only folds inherited
+  // rows for a bounded scope), and a policy clause is not a user scope.
   const t = createParams();
   const subjectBuilt = subject(t.bind);
-  const resourceBuilt = resource(t.bind);
+  const resourceBuilt = buildEntitySubquery({ ...resourceArgs, bind: t.bind });
   const warnings = [...subjectBuilt.warnings, ...resourceBuilt.warnings];
 
   return {
@@ -217,6 +238,11 @@ export async function buildSubqueries(filter) {
     resource,
     hasSubject: subjectBuilt.sql != null,
     hasResource: resourceBuilt.sql != null,
+    // Whether the resource fragment carries the default-visibility clause — so
+    // the unscoped "of N resources" totals can apply the same predicate and
+    // never count rows that can't render.
+    hidesDefaultResourceTypes: hideDefaults,
+    resourceTotalWhere: hideDefaults ? ` WHERE ${visibleResourceTypesSql()}` : '',
     warnings,
     principalCols,
     resourceCols,
@@ -292,7 +318,7 @@ export async function scopeCounts(p, res, rowType, built) {
     runCount(p, 'matrix-data-resource-count', res,
       `SELECT COUNT(*)::int AS c FROM "Resources"${resourceSql ? ` WHERE id IN ${resourceSql}` : ''}`, rp.params),
     runCount(p, 'matrix-data-resource-total', res,
-      `SELECT COUNT(*)::int AS c FROM "Resources"`, []),
+      `SELECT COUNT(*)::int AS c FROM "Resources"${built.resourceTotalWhere || ''}`, []),
   ]);
   return { subjectCount, subjectTotal, resourceCount, resourceTotal };
 }

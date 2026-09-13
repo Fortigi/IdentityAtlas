@@ -14,6 +14,8 @@
 
 // Coerce a midPoint field (PolyString { orig } / { norm }, plain string, or
 // array of any of the above) to a single string.
+import { assertHttpUrl, timedFetch, buildAuthHeader } from '../shared/discoverAuth.js';
+
 function mpPoly(v) {
   if (v == null) return '';
   if (typeof v === 'string') return v;
@@ -43,53 +45,8 @@ function midpointRestRoot(baseUrl) {
   return b + '/midpoint/ws/rest';
 }
 
-function assertHttpUrl(raw, label) {
-  const u = new URL(raw);
-  if (u.protocol !== 'https:' && u.protocol !== 'http:') {
-    throw new Error(`${label} must use http or https`);
-  }
-  return u;
-}
-
-// Timed fetch (15 s) — avoids hanging forever on an unreachable midPoint node.
-function mpFetch(url, opts = {}) {
-  return fetch(url, { ...opts, signal: AbortSignal.timeout(15_000) });
-}
-
-// Build the Authorization header, performing the OAuth2 token exchange when needed.
-async function midpointAuthHeader(c) {
-  const m = c.authMethod;
-  if (m === 'BasicAuth') {
-    if (!c.username || !c.password) throw new Error('username and password are required for BasicAuth');
-    return 'Basic ' + Buffer.from(`${c.username}:${c.password}`).toString('base64');
-  }
-  if (m === 'ApiToken') {
-    if (!c.apiToken) throw new Error('apiToken is required for ApiToken auth');
-    return 'Bearer ' + c.apiToken;
-  }
-  if (m === 'OAuth2CC' || m === 'OAuth2ROPC') {
-    if (!c.tokenEndpoint || !c.clientId || !c.clientSecret) {
-      throw new Error('tokenEndpoint, clientId and clientSecret are required for OAuth2');
-    }
-    assertHttpUrl(c.tokenEndpoint, 'tokenEndpoint');
-    const form = new URLSearchParams({
-      grant_type: m === 'OAuth2CC' ? 'client_credentials' : 'password',
-      client_id: c.clientId,
-      client_secret: c.clientSecret,
-    });
-    if (m === 'OAuth2ROPC') { form.set('username', c.username || ''); form.set('password', c.password || ''); }
-    const tr = await mpFetch(c.tokenEndpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: form.toString(),
-    });
-    if (!tr.ok) throw new Error(`OAuth2 token endpoint returned HTTP ${tr.status}`);
-    const tk = await tr.json();
-    if (!tk.access_token) throw new Error('OAuth2 token response missing access_token');
-    return 'Bearer ' + tk.access_token;
-  }
-  throw new Error(`Unsupported authMethod: ${m}`);
-}
+const mpFetch = timedFetch;
+const midpointAuthHeader = c => buildAuthHeader(c, { oauthMethods: ['OAuth2CC', 'OAuth2ROPC'] });
 
 // POST /{type}/search and unwrap the { object: { object: [...] } } envelope.
 async function midpointSearch(restRoot, authHeader, type, maxSize) {

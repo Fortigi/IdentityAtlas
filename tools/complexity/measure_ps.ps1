@@ -41,10 +41,12 @@ Import-Module PSComplexity
 # test scaffolding). `.claude/` holds gitignored agent git worktrees whose full repo
 # copies would otherwise be double-measured locally (they don't exist in CI), so exclude
 # it to keep local and CI measurement in agreement. Pester files (*.Tests.ps1), crawler
-# test harnesses (Test-*Crawler.ps1), data seeders (Seed-*) and the mock servers are
-# test-support scaffolding, not measured source.
+# test harnesses (Test-*Crawler.ps1), data seeders (Seed-*) and the mock servers
+# (Start-Mock*Server.ps1) are test-support scaffolding, not measured source. The mock
+# rule is a pattern rather than the two server names it used to spell out, so a new
+# mock is classified like the existing ones without another edit here.
 $excludeRx = '[\\/](node_modules|dist|dist-node-launcher|bundled-scripts|\.claude)[\\/]' +
-             '|\.Tests\.ps1$|[\\/]Test-[^\\/]*Crawler\.ps1$|[\\/]Seed-|MockODataServer|MockMidpointServer'
+             '|\.Tests\.ps1$|[\\/]Test-[^\\/]*Crawler\.ps1$|[\\/]Seed-|[\\/]Start-Mock[^\\/]*Server\.ps1$'
 
 if ($Path) {
     $files = @(Get-ChildItem -Path $Path -Recurse -Include *.ps1, *.psm1 -File)

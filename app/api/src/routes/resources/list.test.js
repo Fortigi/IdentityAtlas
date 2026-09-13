@@ -50,7 +50,9 @@ describe('buildResourceListWhere', () => {
     const req = { query: { includeDeleted: 'true' } };
     const { where } = buildResourceListWhere(req, parseResourceListParams(req), new Set(), binder());
     expect(where).not.toContain('deletedAt');
-    expect(where).toContain(`r."resourceType" <> 'BusinessRole'`);
+    // Through the shared deny-list helper — NULL-safe, so a type-less resource
+    // still lists (lib/resourceVisibility.js).
+    expect(where).toContain(`(r."resourceType" IS NULL OR r."resourceType" NOT IN ('BusinessRole'))`);
   });
   it('emits a tag-filter JOIN when __resourceTag is set', () => {
     const req = { query: { filters: '{"__resourceTag":"vip"}' } };

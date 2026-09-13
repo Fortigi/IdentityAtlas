@@ -28,6 +28,7 @@ describe('normalizeMatrixFilter', () => {
       orientation: 'rows-as-subjects',
       subject:  { include: [{ kind: 'attribute', field: 'department', values: ['HR'] }], exclude: [] },
       resource: { include: [], exclude: [{ kind: 'attribute', field: 'resourceType', values: ['Group'] }] },
+      includeBusinessRoles: true,
       rollup: 'department',
       rollupContent: 'roles-only',
       rollupMetric: 'percent',
@@ -50,6 +51,7 @@ describe('normalizeMatrixFilter', () => {
       orientation: 'diagonal',
       subject: 'nope',
       resource: { include: 'nope', exclude: null },
+      includeBusinessRoles: 'yes',   // not a real boolean → off
       rollup: 42,
       rollupContent: 'everything',
       rollupMetric: 'ratio',
@@ -66,6 +68,15 @@ describe('normalizeMatrixFilter', () => {
     expect(out).toEqual({ ...EMPTY_FILTER, foldAttributes: true });
     expect(out.subject).toEqual({ include: [], exclude: [] });
     expect(out.resource).toEqual({ include: [], exclude: [] });
+  });
+
+  it('treats includeBusinessRoles strictly, like the API does', () => {
+    // The flag travels to /matrix/data, where parseFilter accepts only a real
+    // `true`. Coercing a JSONB round-trip's 'true' here would tick the wizard's
+    // checkbox while the server kept hiding the rows.
+    expect(normalizeMatrixFilter({ includeBusinessRoles: true }).includeBusinessRoles).toBe(true);
+    expect(normalizeMatrixFilter({ includeBusinessRoles: 'true' }).includeBusinessRoles).toBe(false);
+    expect(normalizeMatrixFilter({}).includeBusinessRoles).toBe(false);
   });
 
   it('caps sortAttributes at six levels', () => {
@@ -175,6 +186,9 @@ describe('matrixFilterFingerprint', () => {
     expect(matrixFilterFingerprint({ ...seeded, orientation: 'rows-as-subjects' })).not.toBe(base);
     expect(matrixFilterFingerprint({ ...seeded, rollup: 'department' })).not.toBe(base);
     expect(matrixFilterFingerprint({ ...seeded, foldOnLoad: true })).not.toBe(base);
+    // Row visibility is part of which matrix this is, not where you are in it —
+    // so a saved matrix that shows business-role rows keeps its own identity.
+    expect(matrixFilterFingerprint({ ...seeded, includeBusinessRoles: true })).not.toBe(base);
     expect(matrixFilterFingerprint({
       ...seeded, sortAttributes: [{ attribute: 'jobTitle', dir: 'asc' }],
     })).not.toBe(base);

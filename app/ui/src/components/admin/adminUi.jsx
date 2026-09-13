@@ -1,5 +1,6 @@
 // Shared Admin UI primitives — extracted from AdminPage.jsx so the section
-// components can share them without a monolith. Pure presentational helpers.
+// components can share them without a monolith. Pure presentational helpers;
+// the action behind FeatureToggleCard's switch is @ui/hooks/useFeatureToggle.
 import { useState } from 'react';
 
 export function MetaBadge({ label, value }) {
@@ -51,6 +52,45 @@ export function Section({ title, icon, children, defaultOpen = false }) {
         </svg>
       </button>
       {open && <div className="px-5 pb-5 pt-0 border-t border-gray-100 dark:border-gray-700">{children}</div>}
+    </div>
+  );
+}
+
+// A feature-flag card: title, explanation, and the on/off switch that POSTs to
+// /api/admin/features/toggle. Shared by every admin tab that owns a flag (Risk
+// Scoring, Experimental) so the switch looks and behaves identically everywhere.
+// `busy` disables the switch mid-request; `disabled` covers "flags not loaded yet".
+export function FeatureToggleCard({ title, enabled, busy, disabled, onToggle, toggleTitle, children }) {
+  return (
+    <div className={`rounded-lg border p-5 ${enabled ? 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700' : 'bg-gray-50 dark:bg-gray-800/50 border-gray-300 dark:border-gray-600'}`}>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h3 className="text-base font-semibold text-gray-900 dark:text-white">{title}</h3>
+          {children}
+        </div>
+        <div className="flex-shrink-0">
+          <button
+            onClick={onToggle}
+            disabled={busy || disabled}
+            role="switch"
+            aria-checked={enabled}
+            aria-label={title}
+            className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${
+              enabled ? 'bg-emerald-600' : 'bg-gray-300 dark:bg-gray-600'
+            } disabled:opacity-50`}
+            title={toggleTitle}
+          >
+            <span
+              className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
+                enabled ? 'translate-x-6' : 'translate-x-1'
+              }`}
+            />
+          </button>
+          <div className="text-xs text-gray-500 dark:text-gray-400 text-center mt-1">
+            {busy ? '...' : enabled ? 'Enabled' : 'Disabled'}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

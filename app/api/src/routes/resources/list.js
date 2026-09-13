@@ -8,6 +8,7 @@ import { parseJsonbColumn } from '../../lib/jsonb.js';
 import { buildFilterWhere, parseTags } from '../tags.js';
 import { extractRelFilters, buildRelationshipWhere } from '../../lib/referenceFilters.js';
 import { parseListParams } from '../../lib/listParams.js';
+import { visibleResourceTypesSql } from '../../lib/resourceVisibility.js';
 
 // Parse the list query params + attribute/tag/reference filters. Pure. The tag
 // filter is pulled out of the attribute object (which extractRelFilters then
@@ -51,8 +52,9 @@ export function buildResourceListWhere(req, parsed, colNames, bind) {
   } else if (req.query.includeBusinessRoles !== 'true') {
     // The UI grid lists actual-access resources only; business roles / access
     // packages live on the governance (SOLL) side and are hidden by default.
-    // The Excel export passes ?includeBusinessRoles=true.
-    where += ` AND (r."resourceType" IS NULL OR r."resourceType" <> 'BusinessRole')`;
+    // The Excel export passes ?includeBusinessRoles=true. Same deny-list the
+    // matrix applies to its resource axis — see lib/resourceVisibility.js.
+    where += ` AND ${visibleResourceTypesSql('r."resourceType"')}`;
   }
   if (systemId && /^\d+$/.test(systemId)) {
     where += ` AND r."systemId" = ${bind(parseInt(systemId, 10))}`;

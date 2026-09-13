@@ -17,7 +17,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('./secrets/crawlerSecrets.js', () => ({ hasConfigSecret: vi.fn() }));
 
 import { hasConfigSecret } from './secrets/crawlerSecrets.js';
-import { validateCrawlerConfig, validateStoredCrawlerConfig, isSingletonJob, isPushModeType, getPushModeType } from './crawlerManifests.js';
+import { validateCrawlerConfig, validateStoredCrawlerConfig, isSingletonJob, isPushModeType, getPushModeType, isExperimentalType } from './crawlerManifests.js';
 
 describe('validateStoredCrawlerConfig', () => {
   beforeEach(() => {
@@ -102,5 +102,16 @@ describe('capability flags', () => {
 
   it('getPushModeType resolves to the single push-mode crawler', () => {
     expect(getPushModeType()).toBe('custom-connector');
+  });
+
+  it('isExperimentalType is true for SCIM and false for every shipped non-experimental crawler', () => {
+    expect(isExperimentalType('scim')).toBe(true);
+    for (const type of ['entra-id', 'omada', 'midpoint', 'csv', 'custom-connector']) {
+      expect(isExperimentalType(type)).toBe(false);
+    }
+  });
+
+  it('isExperimentalType is false for an unknown type (no manifest)', () => {
+    expect(isExperimentalType('does-not-exist')).toBe(false);
   });
 });

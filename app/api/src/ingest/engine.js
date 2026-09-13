@@ -87,7 +87,25 @@ export async function ingest(_pool, tableName, keyColumns, records, options = {}
   } = options;
 
   if (!records || records.length === 0) {
-    return { inserted: 0, updated: 0, deleted: 0 };
+    // An empty DELTA batch says nothing, so there is nothing to do.
+    //
+    // An empty FULL batch with a SCOPE says something specific: "the partition I
+    // own is empty now". That is how a crawler reconciles a collection down to
+    // zero — a SCIM endpoint that no longer serves any groups, say — and
+    // tools/crawlers/shared/Invoke-CrawlerIngest.ps1 sends exactly that body.
+    //
+    // The scope is REQUIRED, and that is a safety rule rather than a detail. An
+    // unscoped empty full batch would read as "this system has nothing at all",
+    // and acting on it deletes every row the system owns in that table —
+    // including, for ingest/systems, the system row itself, which then fails the
+    // foreign key on everything ingested afterwards. Crawlers do post unscoped
+    // empty batches (they were harmless while the API rejected them), so an
+    // absent scope means "nothing to say", not "delete everything".
+    const scoped = scope && Object.keys(scope).length > 0;
+    if (syncMode !== 'full' || !scoped) return { inserted: 0, updated: 0, deleted: 0 };
+    const deleted = await db.tx(client =>
+      deleteEntireScope(client, tableName, keyColumns, systemId, scope, systemIdColumn, scopeDeleteFilter));
+    return { inserted: 0, updated: 0, deleted };
   }
 
   const activeColumns = await resolveActiveColumns(tableName, records, keyColumns);
@@ -186,6 +204,35 @@ export async function ingest(_pool, tableName, keyColumns, records, options = {}
 
     return { inserted, updated, deleted };
   });
+}
+
+// Tombstone everything in one scope, for a full sync that carried no records.
+//
+// scopedDelete keeps whatever survives in a temp table of the incoming keys, so
+// "keep nothing" is simply that table with no rows in it. Built with SELECT ...
+// WHERE false so the key columns get their real types from the target table
+// rather than being guessed from records that do not exist.
+// Takes a client rather than opening its own transaction: the wipe belongs in
+// the SAME transaction as the rest of the ingest that asked for it, and it makes
+// the function testable against a contract-test pool the way scopedDelete is.
+export async function deleteEntireScope(
+  client, tableName, keyColumns, systemId, scope, systemIdColumn, scopeDeleteFilter, tableColumnNames = null,
+) {
+  const tempName = `_tmp_wipe_${crypto.randomBytes(6).toString('hex')}`;
+  const keyCols = keyColumns.map(k => `"${k}"`).join(', ');
+  await client.query(
+    `CREATE TEMP TABLE "${tempName}" ON COMMIT DROP AS SELECT ${keyCols} FROM "${tableName}" WHERE false`);
+
+  // Discovered through the module-level db unless the caller supplies them —
+  // scopedDelete takes them as a parameter for the same reason, so a test can
+  // drive this against its own pool.
+  let columnNames = tableColumnNames;
+  if (!columnNames) {
+    const allColumns = await discoverColumns(null, tableName);
+    columnNames = new Set(allColumns.map(c => c.name));
+  }
+  return await scopedDelete(
+    client, tableName, keyColumns, tempName, systemId, scope, systemIdColumn, columnNames, scopeDeleteFilter);
 }
 
 export async function scopedDelete(client, tableName, keyColumns, tempName, systemId, scope, systemIdColumn, tableColumnNames, scopeDeleteFilter = null) {
