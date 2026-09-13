@@ -1887,6 +1887,67 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#microsoft-defender-for-cloud-app-service-apps-should-have-authentication-enabled" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Microsoft Defender for Cloud: "App Service apps should have authentication enabled"
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Microsoft Defender for Cloud: &#34;App Service apps should have authentication enabled&#34;">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#why-it-appears" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why it appears
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-its-by-design" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why it's by design
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#how-to-confirm-auth-really-is-on" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How to confirm auth really is on
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#how-to-clear-the-marker-defender-exemption" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How to clear the marker (Defender exemption)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#changing-something-later" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5121,6 +5182,67 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#microsoft-defender-for-cloud-app-service-apps-should-have-authentication-enabled" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Microsoft Defender for Cloud: "App Service apps should have authentication enabled"
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Microsoft Defender for Cloud: &#34;App Service apps should have authentication enabled&#34;">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#why-it-appears" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why it appears
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-its-by-design" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why it's by design
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#how-to-confirm-auth-really-is-on" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How to confirm auth really is on
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#how-to-clear-the-marker-defender-exemption" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How to clear the marker (Defender exemption)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#changing-something-later" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5498,6 +5620,42 @@
 </tr>
 </tbody>
 </table>
+<hr />
+<h2 id="microsoft-defender-for-cloud-app-service-apps-should-have-authentication-enabled">Microsoft Defender for Cloud: "App Service apps should have authentication enabled"<a class="headerlink" href="#microsoft-defender-for-cloud-app-service-apps-should-have-authentication-enabled" title="Permanent link">&para;</a></h2>
+<p>If the subscription has Microsoft Defender for Cloud enabled, the <code>idatlas-&lt;hash&gt;-web</code> App Service is listed as <strong>unhealthy</strong> under <strong>Recommendations → "App Service apps should have authentication enabled"</strong> — even after Steps 1-3 are complete and Entra sign-in demonstrably works.</p>
+<p><strong>This is expected. It is not a sign that your deployment is unauthenticated.</strong></p>
+<h3 id="why-it-appears">Why it appears<a class="headerlink" href="#why-it-appears" title="Permanent link">&para;</a></h3>
+<p>That recommendation audits one specific thing: the App Service <strong>platform</strong> auth feature (App Service Authentication, a.k.a. <em>Easy Auth</em> — the <code>authSettingsV2</code> resource config). Identity Atlas deliberately never configures it. Steps 1-3 set the <code>AUTH_ENABLED</code> / <code>AUTH_TENANT_ID</code> / <code>AUTH_CLIENT_ID</code> app settings, and sign-in is then enforced <strong>inside the application</strong>: the API validates every Entra access token itself and rejects anything else with a 401.</p>
+<p>Defender reads the platform setting, not the application, so it correctly reports "no platform authentication configured" while the app is in fact fully authenticated. The recommendation is accurate about the layer it measures and blind to the layer we use.</p>
+<h3 id="why-its-by-design">Why it's by design<a class="headerlink" href="#why-its-by-design" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>The app registration is deliberately secret-less.</strong> Identity Atlas is registered as a public SPA client (no client secret). Easy Auth's interactive login flow expects a <em>confidential</em> client with a secret, which would add a credential to store, rotate, and leak.</li>
+<li><strong>Platform enforcement would have to be perforated anyway.</strong> Easy Auth sits in front of <em>every</em> request, so enabling it in enforcing mode would require auth exclusions for the App Service health probe (<code>/api/health</code>), the Container App worker's ingest calls (which authenticate with an <code>fgc_</code> crawler API key against the public URL), and the <code>fgr_</code> read-token GETs used by Excel / Power Query. Those exclusions would carve unauthenticated tunnels through the write-heavy ingest surface — a worse posture than the one the finding complains about.</li>
+<li><strong>In-app validation is stricter than the platform check.</strong> The API pins the token audience to <code>api://&lt;clientId&gt;</code>, rejects id_tokens, verifies the issuing tenant, and applies the <code>AUTH_REQUIRED_ROLES</code> / role-to-permission mapping. Easy Auth does none of that.</li>
+</ul>
+<h3 id="how-to-confirm-auth-really-is-on">How to confirm auth really is on<a class="headerlink" href="#how-to-confirm-auth-really-is-on" title="Permanent link">&para;</a></h3>
+<p>Two checks, both from your own machine:</p>
+<ol>
+<li>Open <code>https://&lt;your-app-url&gt;</code> in a <strong>private browser window</strong> — you are redirected to Entra to sign in, and you never see application data before signing in.</li>
+<li>Call the API without a token — it must be rejected:
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>curl<span class="w"> </span>-i<span class="w"> </span>https://&lt;your-app-url&gt;/api/auth-me
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="c1"># HTTP/1.1 401 Unauthorized</span>
+</code></pre></div>
+   A <code>200</code> here would mean auth is genuinely off — check that <code>AUTH_ENABLED=true</code> and that <code>AUTH_TENANT_ID</code> / <code>AUTH_CLIENT_ID</code> are filled in (Step 3).</li>
+</ol>
+<h3 id="how-to-clear-the-marker-defender-exemption">How to clear the marker (Defender exemption)<a class="headerlink" href="#how-to-clear-the-marker-defender-exemption" title="Permanent link">&para;</a></h3>
+<p>Once you've confirmed the above, exempt the resource so the recommendation stops flagging it:</p>
+<ol>
+<li>Azure portal → <strong>Microsoft Defender for Cloud</strong> → <strong>Recommendations</strong></li>
+<li>Open <strong>"App Service apps should have authentication enabled"</strong></li>
+<li>Select the <code>idatlas-&lt;hash&gt;-web</code> App Service in the resource list → <strong>Exempt</strong></li>
+<li>Scope: the resource (or the resource group, if you prefer it to survive a redeploy)</li>
+<li>Category: <strong>Mitigated</strong> — justification e.g. <em>"Authentication is enforced at the application layer (Entra ID JWT validation in the API); platform Easy Auth is intentionally not configured. See Identity Atlas docs."</em></li>
+</ol>
+<p>Creating an exemption requires a role that can write policy exemptions at that scope — <strong>Owner</strong>, <strong>Resource Policy Contributor</strong>, or <strong>Security Admin</strong>. The exemption is recorded in Azure Policy, so it stays auditable.</p>
+<blockquote>
+<p>Adding platform-level (Easy Auth) authentication as defence-in-depth is tracked as possible future Azure hardening, alongside the network/secret and container hardening work. It is not part of the current deployment shape.</p>
+</blockquote>
 <hr />
 <h2 id="changing-something-later">Changing something later<a class="headerlink" href="#changing-something-later" title="Permanent link">&para;</a></h2>
 <table>

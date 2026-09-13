@@ -5508,6 +5508,7 @@ channel by redeploying with <code>imageChannel=stable</code> (the default) — p
 <li><strong>No custom domain on App Service.</strong> Free <code>*.azurewebsites.net</code> cert covers v1. Custom domain + customer TLS cert is a 2-step manual setup post-deploy.</li>
 <li><strong>No GitHub Actions deploy workflow.</strong> Use Deploy-to-Azure button + <code>deploy.ps1</code> for now.</li>
 <li><strong>No Entra App Registration auto-creation.</strong> Done manually if/when enabling Entra auth.</li>
+<li><strong>No platform-level App Service authentication (Easy Auth).</strong> Entra sign-in is enforced inside the application, not by the App Service <code>authSettingsV2</code> config. Microsoft Defender for Cloud therefore flags the web app with <em>"App Service apps should have authentication enabled"</em> on every deployment — expected, and cleared with a Defender exemption. See <a href="../azure-deployment-walkthrough/#microsoft-defender-for-cloud-app-service-apps-should-have-authentication-enabled">azure-deployment-walkthrough.md</a>.</li>
 <li><strong>Public Postgres / KV endpoints.</strong> A future "Isolated" template will add private endpoints when a customer wants them.</li>
 </ul>
 <h2 id="file-index">File index<a class="headerlink" href="#file-index" title="Permanent link">&para;</a></h2>
