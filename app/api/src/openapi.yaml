@@ -33,6 +33,8 @@ tags:
     description: Crawler management (requires Entra ID auth)
   - name: Effective Access
     description: On-demand effective-access resolution — computed per request, never stored
+  - name: Reports
+    description: Pluggable reports — self-describing templates, computed per request
 
 paths:
   # ─── Ingest Endpoints ──────────────────────────────────────────
@@ -474,6 +476,137 @@ paths:
         '400':
           description: Missing node, or unknown resolution policy
 
+  # ─── Reports ───────────────────────────────────────────────────
+  /reports:
+    get:
+      tags: [Reports]
+      summary: List the registered report templates
+      operationId: listReports
+      description: >
+        Metadata for every report a deployment offers. Each entry declares its presentation
+        `form` and its `columns`; a client renders a report from that metadata alone and never
+        needs to know the report by name.
+      security:
+        - EntraIdBearer: []
+      responses:
+        '200':
+          description: Registered report templates
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ReportMetadata'
+                  total:
+                    type: integer
+
+  /reports/{name}/rows:
+    get:
+      tags: [Reports]
+      summary: Run a report and return its rows
+      operationId: runReport
+      description: >
+        Runs the named report template against the current data and returns its rows. Content is
+        computed per request — there are no stored runs, so a re-fetch always reflects the latest
+        data. Any query parameters are passed to the template as its parameters.
+      security:
+        - EntraIdBearer: []
+      parameters:
+        - name: name
+          in: path
+          required: true
+          description: Report template name, as returned by `GET /reports`.
+          schema: { type: string }
+      responses:
+        '200':
+          description: Report content
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ReportMetadata'
+                  - type: object
+                    properties:
+                      rows:
+                        type: array
+                        description: >
+                          One object per row, keyed by the report's column keys. An optional
+                          `_entity` property ({kind, id}) links the row to an entity detail page.
+                        items:
+                          type: object
+                          additionalProperties: true
+                      total:
+                        type: integer
+                      generatedAt:
+                        type: string
+                        format: date-time
+        '404':
+          description: No report template with that name is registered
+        '500':
+          description: The report template failed to run
+
+  /reports/{name}/export:
+    get:
+      tags: [Reports]
+      summary: Download a report as a file
+      operationId: exportReport
+      description: >
+        Runs the named report template and returns the result as a downloadable file, with a
+        `Content-Disposition: attachment` filename of `identity-atlas-<report>-<date>.<ext>`.
+        The content is computed for this request, exactly as `/reports/{name}/rows` computes it,
+        so a download always matches what the page shows. Any query parameter other than
+        `format` is passed to the template as its parameters.
+      security:
+        - EntraIdBearer: []
+      parameters:
+        - name: name
+          in: path
+          required: true
+          description: Report template name, as returned by `GET /reports`.
+          schema: { type: string }
+        - name: format
+          in: query
+          required: false
+          description: >
+            One of the report's advertised `exportFormats`. `csv` holds the declared columns as
+            an RFC-4180 table; `json` holds the whole payload (metadata, rows, `generatedAt`).
+          schema:
+            type: string
+            enum: [csv, json]
+            default: csv
+      responses:
+        '200':
+          description: The report as a file
+          content:
+            text/csv:
+              schema:
+                type: string
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ReportMetadata'
+                  - type: object
+                    properties:
+                      rows:
+                        type: array
+                        items:
+                          type: object
+                          additionalProperties: true
+                      total:
+                        type: integer
+                      generatedAt:
+                        type: string
+                        format: date-time
+        '400':
+          description: The requested format is not one this deployment serves
+        '404':
+          description: No report template with that name is registered
+        '500':
+          description: The report template failed to run
+
 components:
   securitySchemes:
     CrawlerApiKey:
@@ -487,6 +620,44 @@ components:
       description: Entra ID JWT token
 
   schemas:
+    ReportMetadata:
+      type: object
+      description: Everything a client needs to list and render a report — no report-specific knowledge.
+      required: [name, displayName, form, columns]
+      properties:
+        name:
+          type: string
+          description: Stable template slug, used as the path parameter.
+        displayName:
+          type: string
+        description:
+          type: string
+        form:
+          type: string
+          description: "Presentation form the client resolves a renderer for (e.g. list)."
+        parametersSchema:
+          type: object
+          description: JSON-Schema-ish description of the parameters the template accepts.
+        columns:
+          type: array
+          items:
+            type: object
+            required: [key, label]
+            properties:
+              key:
+                type: string
+              label:
+                type: string
+        exportFormats:
+          type: array
+          description: >
+            Formats this deployment can serve the report as a download in, for use as the
+            `format` parameter of the export endpoint. Advertised rather than assumed, so a
+            client only offers downloads the server can actually produce.
+          items:
+            type: string
+          example: [csv, json]
+
     IngestEnvelope:
       type: object
       required: [records]

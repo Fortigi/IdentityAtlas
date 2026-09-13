@@ -61,6 +61,23 @@ export function jsonResponse(body, { ok = true, status = 200 } = {}) {
   };
 }
 
+// A fetch-Response-shaped object for a file download: .blob() plus the response
+// headers a download reads (Content-Disposition). Pass `headers` to control
+// them; `filename` is the shorthand for the usual attachment header.
+export function blobResponse(body, { type = 'text/plain', filename, headers = {}, ok = true, status = 200 } = {}) {
+  const all = { ...headers };
+  if (filename) all['Content-Disposition'] = `attachment; filename="${filename}"`;
+  const lower = Object.fromEntries(Object.entries(all).map(([k, v]) => [k.toLowerCase(), v]));
+  return {
+    ok,
+    status,
+    headers: { get: (name) => lower[String(name).toLowerCase()] ?? null },
+    blob: async () => new Blob([body], { type }),
+    text: async () => String(body),
+    json: async () => JSON.parse(String(body)),
+  };
+}
+
 // Builds a vi.fn() authFetch from either a function (url, opts) => body|Response
 // or an object whose keys are matched as substrings of the request URL. A bare
 // body value is wrapped in a 200 JSON response; return jsonResponse(...) to

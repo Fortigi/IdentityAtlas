@@ -40,9 +40,14 @@ app/desktop/node_modules/
 __pycache__/
 *.pyc
 
-# PowerShell mutation testing reports (PSMutant)
-reports/
-report/
+# Mutation-testing report output (PSMutant, and Stryker's jsonReporter).
+# Anchored to the directories that actually receive it — a bare `reports/`
+# matches at ANY depth, which silently ignored app/api/src/reports/ and
+# app/ui/src/components/reports/ (real source) as well.
+/reports/
+/report/
+app/api/reports/
+app/ui/reports/
 
 # PowerShell Pester coverage artifacts
 coverage.xml

@@ -8,9 +8,10 @@ const router = Router();
 const useSql = process.env.USE_SQL === 'true';
 
 // Keys of tabs a user may show/hide. Must stay in sync with the `optional`
-// tabs in the UI's utils/navTabs.js. Systems and Sync Log are opt-in (off by
-// default); Risk Scores / Identities / Performance / Admin remain optional too.
-const OPTIONAL_TABS = ['systems', 'sync-log', 'risk-scores', 'identities', 'performance', 'admin'];
+// tabs in the UI's utils/navTabs.js. Systems, Reports and Sync Log are opt-in
+// (off by default); Risk Scores / Identities / Performance / Admin remain
+// optional too.
+const OPTIONAL_TABS = ['systems', 'reports', 'sync-log', 'risk-scores', 'identities', 'performance', 'admin'];
 
 function getUserId(req) {
   if (req.user?.oid) return req.user.oid;

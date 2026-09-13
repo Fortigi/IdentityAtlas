@@ -42,7 +42,14 @@ export default function SettingsMenu({
             {optionalTabs.map(tab => (
               <label key={tab.key} className="flex items-center justify-between py-1.5 cursor-pointer group">
                 <span className="text-sm text-gray-700 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-white">{tab.label}</span>
+                {/* A switch, not a button: it announces its on/off state, and its
+                    name says what it does ("Show Reports tab") rather than just
+                    repeating the tab label — which would otherwise be the same
+                    accessible name as the tab itself in the nav. */}
                 <button
+                  role="switch"
+                  aria-checked={!!visibleTabs?.includes(tab.key)}
+                  aria-label={`Show ${tab.label} tab`}
                   onClick={() => toggleTab(tab.key)}
                   className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
                     visibleTabs?.includes(tab.key) ? 'bg-blue-500' : 'bg-gray-300 dark:bg-gray-600'
