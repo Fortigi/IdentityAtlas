@@ -30,6 +30,9 @@ export default defineConfig({
     include: [
       'src/auth/**/*.test.js',
       'src/routes/matrix/shareRecipients.test.js',
+      'src/middleware/requestOriginGuard.test.js',
+      'src/middleware/rateLimitKeys.test.js',
+      'src/middleware/crawlerAuthFailureLimiter.test.js',
     ],
     exclude: ['**/node_modules/**'],
     coverage: { ...base.test.coverage, thresholds: undefined },
