@@ -73,6 +73,8 @@ describe('buildContextFilterSql', () => {
     ]);
     expect(out.principalClauses[0]).toMatch(/WITH RECURSIVE scope/);
     expect(out.principalClauses[0]).toMatch(/SELECT id FROM "Contexts"/);
+    // Cycle guard on the descent (SEC-2026-09 I-08).
+    expect(out.principalClauses[0]).toMatch(/\)\s*(?:--[^\n]*\n\s*)*CYCLE id SET "isCycle" USING "cyclePath"\s+SELECT "memberId"/);
   });
 
   it('routes Resource targets to the resource side', () => {
