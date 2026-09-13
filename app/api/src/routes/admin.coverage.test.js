@@ -6,7 +6,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import request from 'supertest';
-import { mountRouter } from '../../test-utils/routeTestKit.js';
+import { mountRouter, mountRouterAs } from '../../test-utils/routeTestKit.js';
 
 process.env.USE_SQL = 'true';
 
@@ -216,6 +216,39 @@ describe('GET /admin/auth-settings', () => {
 
 // ── POST /admin/clean-database (danger zone) ─────────────────────────────────
 describe('POST /admin/clean-database', () => {
+  const CONFIRM = { confirm: 'DELETE ALL DATA' };
+  // The destructive limiter (5/min) is keyed per signed-in caller, so each test
+  // acts as its own admin instead of sharing the loopback address's bucket.
+  let adminSeq = 0;
+  const asAdmin = (oid = `admin-${++adminSeq}`) => mountRouterAs(router, () => ({ oid }));
+
+  it('limits destructive calls per admin, not per shared address (SEC-2026-09 M-09)', async () => {
+    const busy = asAdmin('busy-admin');
+    for (let i = 0; i < 5; i++) {
+      expect((await request(busy).post('/api/admin/clean-database').send({})).status).toBe(400);
+    }
+    expect((await request(busy).post('/api/admin/clean-database').send({})).status).toBe(429);
+    // A different admin arriving from the same address still has their own quota.
+    expect((await request(asAdmin('other-admin')).post('/api/admin/clean-database').send({})).status).toBe(400);
+  });
+
+  // SEC-2026-09 H-07: the wipe needs an explicit confirmation body.
+  for (const [label, send] of [
+    ['no body', undefined],
+    ['a text/plain body', 'confirm=DELETE ALL DATA'],
+    ['the wrong phrase', { confirm: 'delete all data' }],
+    ['the phrase under another key', { confirmation: 'DELETE ALL DATA' }],
+  ]) {
+    it(`400 without touching the database for ${label}`, async () => {
+      let req = request(asAdmin()).post('/api/admin/clean-database');
+      if (typeof send === 'string') req = req.set('Content-Type', 'text/plain');
+      const res = await (send === undefined ? req : req.send(send));
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/Confirmation required/);
+      expect(query).not.toHaveBeenCalled();
+    });
+  }
+
   it('wipes existing tables and reports skipped ones', async () => {
     // 1) existence batch check — only two tables "exist"
     query.mockResolvedValueOnce({
@@ -227,7 +260,7 @@ describe('POST /admin/clean-database', () => {
     // every subsequent query (DELETE, _history clean, ANALYZE, sequence lookup,
     // setval, CrawlerConfigs reset) resolves with an empty result.
     query.mockResolvedValue({ rowCount: 0, rows: [] });
-    const res = await request(app).post('/api/admin/clean-database');
+    const res = await request(asAdmin()).post('/api/admin/clean-database').send(CONFIRM);
     expect(res.status).toBe(200);
     expect(res.body.message).toBe('Database cleaned');
     const wipedTables = res.body.wiped.map(w => w.table);
@@ -238,7 +271,7 @@ describe('POST /admin/clean-database', () => {
 
   it('500 when the existence batch check rejects (generic error, no leak)', async () => {
     query.mockRejectedValueOnce(new Error('boom'));
-    const res = await request(app).post('/api/admin/clean-database');
+    const res = await request(asAdmin()).post('/api/admin/clean-database').send(CONFIRM);
     expect(res.status).toBe(500);
     expect(res.body.error).toBe('Clean database failed');
     expect(JSON.stringify(res.body)).not.toContain('boom'); // internal detail not leaked
