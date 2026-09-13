@@ -12,6 +12,7 @@ import { buildShareUrl } from '@ui/App.helpers';
 import { renderWithProviders, makeAuthFetch, jsonResponse, screen, waitFor, userEvent } from '@ui/test-utils/renderWithProviders';
 
 const FILTER = { rowType: 'user', subject: { include: [{ column: 'department', values: ['Sales'] }] } };
+const SHARING_ON = { matrixSharing: true };
 const sharer = { permissions: new Set(['data.share']), hasWildcard: false, permissionsLoaded: true };
 const reader = { permissions: new Set(['data.read']), hasWildcard: false, permissionsLoaded: true };
 
@@ -42,30 +43,35 @@ async function pickPerson(user, name) {
 
 describe('ShareMatrixButton', () => {
   it('offers sharing to a user with data.share', () => {
-    renderWithProviders(<ShareMatrixButton filter={FILTER} onShareView={() => {}} />, { auth: sharer });
+    renderWithProviders(<ShareMatrixButton filter={FILTER} onShareView={() => {}} />, { auth: sharer, features: SHARING_ON });
     expect(screen.getByRole('button', { name: /Share view/i })).toBeInTheDocument();
   });
 
+  it('renders nothing while matrix sharing is switched off, even for a sharer', () => {
+    renderWithProviders(<ShareMatrixButton filter={FILTER} onShareView={() => {}} />, { auth: sharer, features: { matrixSharing: false } });
+    expect(screen.queryByRole('button', { name: /Share view/i })).not.toBeInTheDocument();
+  });
+
   it('renders nothing without the permission — no door that would 403', () => {
-    renderWithProviders(<ShareMatrixButton filter={FILTER} onShareView={() => {}} />, { auth: reader });
+    renderWithProviders(<ShareMatrixButton filter={FILTER} onShareView={() => {}} />, { auth: reader, features: SHARING_ON });
     expect(screen.queryByRole('button', { name: /Share view/i })).not.toBeInTheDocument();
   });
 
   it('renders nothing when there is no matrix to share yet', () => {
-    renderWithProviders(<ShareMatrixButton filter={null} onShareView={() => {}} />, { auth: sharer });
+    renderWithProviders(<ShareMatrixButton filter={null} onShareView={() => {}} />, { auth: sharer, features: SHARING_ON });
     expect(screen.queryByRole('button', { name: /Share view/i })).not.toBeInTheDocument();
   });
 
   // The dialog lives in MatrixArea, above the view swap that would otherwise
   // destroy it (see MatrixArea.mount.test.jsx) — so the button only asks.
   it('renders nothing where nothing can host the dialog', () => {
-    renderWithProviders(<ShareMatrixButton filter={FILTER} />, { auth: sharer });
+    renderWithProviders(<ShareMatrixButton filter={FILTER} />, { auth: sharer, features: SHARING_ON });
     expect(screen.queryByRole('button', { name: /Share view/i })).not.toBeInTheDocument();
   });
 
   it('asks its host to open the dialog on click', async () => {
     const onShareView = vi.fn();
-    renderWithProviders(<ShareMatrixButton filter={FILTER} onShareView={onShareView} />, { auth: sharer });
+    renderWithProviders(<ShareMatrixButton filter={FILTER} onShareView={onShareView} />, { auth: sharer, features: SHARING_ON });
     await userEvent.setup().click(screen.getByRole('button', { name: /Share view/i }));
     expect(onShareView).toHaveBeenCalledTimes(1);
   });

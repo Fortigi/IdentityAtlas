@@ -32,6 +32,15 @@ export const FEATURE_FLAGS = {
     key: 'EXPERIMENTAL_CRAWLERS',
     envDefault: env => env.FEATURE_EXPERIMENTAL_CRAWLERS === 'true',
   },
+  // Matrix sharing (#1166): share a configured matrix with named colleagues who
+  // have no Identity Atlas role. New and outward-facing, so it ships switched
+  // OFF — an operator opts in from Admin → Experimental. While off, every share
+  // endpoint answers 404 (routes/matrix/shares.js), including resolve, so links
+  // that were already sent stop opening too.
+  matrixSharing: {
+    key: 'MATRIX_SHARING',
+    envDefault: env => env.FEATURE_MATRIX_SHARING === 'true',
+  },
 };
 
 // WorkerConfig key for a flag name, e.g. 'riskScoring' → 'FEATURE_RISK_SCORING'.
@@ -68,6 +77,15 @@ export async function isFeatureEnabled(name) {
     if (override === null) override = await getFeatureOverride(legacy);
   }
   return override !== null ? override : def.envDefault(process.env);
+}
+
+// Express middleware: answer 404 unless the flag is on. 404 rather than 403 —
+// a switched-off feature does not exist on this install, whoever is asking.
+export function requireFeature(name) {
+  return async (_req, res, next) => {
+    if (await isFeatureEnabled(name)) return next();
+    res.status(404).json({ error: 'This feature is not enabled' });
+  };
 }
 
 // The whole /api/features payload.

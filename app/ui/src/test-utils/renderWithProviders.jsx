@@ -17,6 +17,7 @@ import { afterEach, vi } from 'vitest';
 import { cleanup, render } from '@testing-library/react';
 import { createElement as h } from 'react';
 import { ThemeContext } from '@ui/contexts/ThemeContext';
+import { FeaturesContext } from '@ui/contexts/FeaturesContext';
 import { AuthContext } from '@ui/auth/AuthGate';
 import { DialogProvider } from '@ui/components/DialogProvider';
 
@@ -113,12 +114,15 @@ const defaultAuth = {
 // Pass `{ auth: { authFetch } }` to inject a stubbed API, `{ theme }` to flip
 // dark mode. Returns the Testing Library result plus the resolved authFetch
 // (handy for asserting calls without re-importing it).
-export function renderWithProviders(ui, { auth = {}, theme = { isDark: false, mode: 'light' } } = {}) {
+// `features` fills the FeaturesContext App.jsx provides (the /api/features
+// flags). Default `{}` — every flag off, as outside App.
+export function renderWithProviders(ui, { auth = {}, theme = { isDark: false, mode: 'light' }, features = {} } = {}) {
   const authValue = { ...defaultAuth, ...auth };
   const result = render(
     h(ThemeContext.Provider, { value: theme },
-      h(AuthContext.Provider, { value: authValue },
-        h(DialogProvider, null, ui))),
+      h(FeaturesContext.Provider, { value: features },
+        h(AuthContext.Provider, { value: authValue },
+          h(DialogProvider, null, ui)))),
   );
   return { authFetch: authValue.authFetch, ...result };
 }
@@ -128,12 +132,13 @@ export function renderWithProviders(ui, { auth = {}, theme = { isDark: false, mo
 // wrapper and the resolved authFetch (so tests can assert calls):
 //   const authFetch = makeAuthFetch({ '/api/foo': {...} });
 //   const { result } = renderHook(() => useFoo(), { wrapper: makeWrapper({ auth: { authFetch } }).wrapper });
-export function makeWrapper({ auth = {}, theme = { isDark: false, mode: 'light' } } = {}) {
+export function makeWrapper({ auth = {}, theme = { isDark: false, mode: 'light' }, features = {} } = {}) {
   const authValue = { ...defaultAuth, ...auth };
   function Wrapper({ children }) {
     return h(ThemeContext.Provider, { value: theme },
-      h(AuthContext.Provider, { value: authValue },
-        h(DialogProvider, null, children)));
+      h(FeaturesContext.Provider, { value: features },
+        h(AuthContext.Provider, { value: authValue },
+          h(DialogProvider, null, children))));
   }
   return { wrapper: Wrapper, authFetch: authValue.authFetch };
 }

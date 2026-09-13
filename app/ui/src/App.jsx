@@ -11,6 +11,7 @@ import { useCanSeeAdminTab } from './auth/usePermissions';
 import { useTheme } from './hooks/useTheme';
 import { useAttributeLabels } from './hooks/useAttributeLabels';
 import { ThemeContext } from './contexts/ThemeContext';
+import { FeaturesContext } from './contexts/FeaturesContext';
 import { computeNavTabs, availableOptionalTabs } from './utils/navTabs';
 import ErrorBoundary from './components/ErrorBoundary';
 import { resolvePageRoute } from './pageRegistry';
@@ -328,6 +329,7 @@ export default function App() {
 
   return (
     <ThemeContext.Provider value={{ isDark, mode }}>
+    <FeaturesContext.Provider value={features}>
     <ErrorBoundary>
     <div className="flex-1 min-h-0 flex flex-col bg-gray-50 dark:bg-gray-900">
       {/* Skip link — first focusable element, visible only when focused */}
@@ -370,6 +372,7 @@ export default function App() {
       <AppFooter moduleVersion={moduleVersion} navigate={navigate} />
     </div>
     </ErrorBoundary>
+    </FeaturesContext.Provider>
     </ThemeContext.Provider>
   );
 }

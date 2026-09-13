@@ -11,3 +11,4 @@
 - Fixed the share dialog closing itself, and throwing away what had been typed into it, when the matrix behind it finished loading or switched to a roll-up view.
 - Renamed the share dialog's copy control to "Copy share link", so it is no longer confusable with the matrix toolbar's "Copy link" (which copies the current URL for a colleague who already has access).
 - The shared view is even more focused: the scope strip above the matrix (rows, subject/resource/cell counts) and the scope statistics bar (totals, governed vs non-governed, Trends & breakdown) are no longer shown to recipients.
+- Matrix sharing is an **experimental feature, switched off by default**. Turn it on under **Admin → Experimental → Matrix sharing** (or set `FEATURE_MATRIX_SHARING=true`). While it is off, the wizard's Share step, the Share view… button and the Shared Matrices tab are hidden and share links do not open; existing shares are kept and work again once it is switched back on.

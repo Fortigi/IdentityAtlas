@@ -72,7 +72,7 @@ export default function AdminPage({ onNavigate, onRefresh, onRiskScoresRefresh, 
   // for admins on every platform. Platform-specific guidance (the Docker CLI
   // walkthrough) is hidden inside AuthSettingsPage, not by dropping the whole tab.
   const { hasWildcard, permissions } = useAuth();
-  const visibleTabs = visibleAdminTabs(permissions, hasWildcard);
+  const visibleTabs = visibleAdminTabs(permissions, hasWildcard, ADMIN_TABS, features);
 
   // Data-tab section gating. The Data tab is reachable if the user has ANY of
   // its permissions (adminTabs `requires`), but each section is a distinct

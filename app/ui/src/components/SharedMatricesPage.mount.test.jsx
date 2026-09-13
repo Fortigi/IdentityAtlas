@@ -54,6 +54,7 @@ const SHARES = [
   },
 ];
 
+const SHARING_ON = { matrixSharing: true };
 const sharer = { permissions: new Set(['data.share']), hasWildcard: false, permissionsLoaded: true };
 
 function rowFor(name) {
@@ -63,7 +64,7 @@ function rowFor(name) {
 describe('SharedMatricesPage', () => {
   it('lists every share org-wide with sharer, usage and status', async () => {
     const authFetch = makeAuthFetch({ '/api/matrix/shares': SHARES });
-    renderWithProviders(<SharedMatricesPage />, { auth: { ...sharer, authFetch } });
+    renderWithProviders(<SharedMatricesPage />, { auth: { ...sharer, authFetch }, features: SHARING_ON });
 
     expect(await screen.findByText('Sales team access')).toBeInTheDocument();
 
@@ -79,7 +80,7 @@ describe('SharedMatricesPage', () => {
 
   it('separates who a share was FOR from who actually opened it (#1166)', async () => {
     const authFetch = makeAuthFetch({ '/api/matrix/shares': SHARES });
-    renderWithProviders(<SharedMatricesPage />, { auth: { ...sharer, authFetch } });
+    renderWithProviders(<SharedMatricesPage />, { auth: { ...sharer, authFetch }, features: SHARING_ON });
     await screen.findByText('Sales team access');
 
     const used = rowFor('Sales team access');
@@ -97,7 +98,7 @@ describe('SharedMatricesPage', () => {
 
   it('makes a never-opened share obvious and offers no revoke on a revoked one', async () => {
     const authFetch = makeAuthFetch({ '/api/matrix/shares': SHARES });
-    renderWithProviders(<SharedMatricesPage />, { auth: { ...sharer, authFetch } });
+    renderWithProviders(<SharedMatricesPage />, { auth: { ...sharer, authFetch }, features: SHARING_ON });
     await screen.findByText('Payroll app owners');
 
     const unused = rowFor('Payroll app owners');
@@ -118,7 +119,7 @@ describe('SharedMatricesPage', () => {
       if (url.includes('/revoke')) return revoke(url, opts);
       return SHARES;
     });
-    renderWithProviders(<SharedMatricesPage />, { auth: { ...sharer, authFetch } });
+    renderWithProviders(<SharedMatricesPage />, { auth: { ...sharer, authFetch }, features: SHARING_ON });
     await screen.findByText('Payroll app owners');
 
     await user.click(within(rowFor('Payroll app owners')).getByRole('button', { name: 'Revoke' }));
@@ -138,7 +139,7 @@ describe('SharedMatricesPage', () => {
     const user = userEvent.setup();
     const revoke = vi.fn(async () => jsonResponse({}));
     const authFetch = makeAuthFetch((url, opts) => (url.includes('/revoke') ? revoke(url, opts) : SHARES));
-    renderWithProviders(<SharedMatricesPage />, { auth: { ...sharer, authFetch } });
+    renderWithProviders(<SharedMatricesPage />, { auth: { ...sharer, authFetch }, features: SHARING_ON });
     await screen.findByText('Payroll app owners');
 
     await user.click(within(rowFor('Payroll app owners')).getByRole('button', { name: 'Revoke' }));
@@ -148,15 +149,22 @@ describe('SharedMatricesPage', () => {
 
   it('shows an empty state when nothing has been shared', async () => {
     const authFetch = makeAuthFetch({ '/api/matrix/shares': [] });
-    renderWithProviders(<SharedMatricesPage />, { auth: { ...sharer, authFetch } });
+    renderWithProviders(<SharedMatricesPage />, { auth: { ...sharer, authFetch }, features: SHARING_ON });
     expect(await screen.findByText(/Nothing shared yet/i)).toBeInTheDocument();
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
   });
 
   it('surfaces a load failure without dropping the page', async () => {
     const authFetch = makeAuthFetch({ '/api/matrix/shares': jsonResponse({}, { ok: false, status: 500 }) });
-    renderWithProviders(<SharedMatricesPage />, { auth: { ...sharer, authFetch } });
+    renderWithProviders(<SharedMatricesPage />, { auth: { ...sharer, authFetch }, features: SHARING_ON });
     expect(await screen.findByText(/Could not load shared matrices/i)).toBeInTheDocument();
+  });
+
+  it('asks the API for nothing while matrix sharing is switched off, even for a sharer', async () => {
+    const authFetch = makeAuthFetch({ '/api/matrix/shares': SHARES });
+    renderWithProviders(<SharedMatricesPage />, { auth: { ...sharer, authFetch }, features: { matrixSharing: false } });
+    expect(await screen.findByText(/don't have access to shared matrices/i)).toBeInTheDocument();
+    expect(authFetch).not.toHaveBeenCalled();
   });
 
   it('tells a user without data.share why the page is empty, and asks the API for nothing', async () => {

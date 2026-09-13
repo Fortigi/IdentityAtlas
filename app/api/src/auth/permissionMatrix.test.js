@@ -20,6 +20,11 @@ import request from 'supertest';
 import { PERMISSIONS } from './permissions.js';
 import { GATED_ENDPOINTS, IMPLICIT_PERMISSIONS, RESERVED_PERMISSIONS } from './permissionManifest.js';
 
+// Feature-flagged routes 404 before their permission gate while the flag is off
+// (featureFlags.js requireFeature). This test is about the permission gate, so
+// the flags those representative endpoints sit behind start on.
+process.env.FEATURE_MATRIX_SHARING = 'true';
+
 const ALL_PERMS = Object.keys(PERMISSIONS);
 const roleFor = (perm) => `role-${perm}`;
 // Synthetic mapping: one role per permission, granting exactly that permission.

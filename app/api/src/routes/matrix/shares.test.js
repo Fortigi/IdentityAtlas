@@ -29,7 +29,21 @@ vi.mock('../../config/authConfig.js', async (importOriginal) => ({
 }));
 const { isAuthEnabled } = await import('../../config/authConfig.js');
 
+// The matrixSharing flag gates the whole router. requireFeature's own resolution
+// (override vs env, 404 body) is tested in featureFlags.test.js; here it is
+// replaced by a gate steered per test, which records the flag it was built for.
+const flagState = { on: true };
+vi.mock('../../featureFlags.js', async (importOriginal) => ({
+  ...(await importOriginal()),
+  requireFeature: vi.fn(() => (_req, res, next) => (flagState.on
+    ? next()
+    : res.status(404).json({ error: 'This feature is not enabled' }))),
+}));
+const { requireFeature } = await import('../../featureFlags.js');
+
 const { default: router } = await import('./shares.js');
+// Captured at import: the gate is built once, when the router module loads.
+const gatedFlags = requireFeature.mock.calls.map(c => c[0]);
 const app = mountRouter(router);
 
 // The same router with a signed-in caller in front of it, for the paths that
@@ -47,7 +61,42 @@ const FILTER = { rowType: 'user', subject: { include: [{ column: 'department', v
 const RECIPIENTS = [{ principalId: '3fa85f64-5717-4562-b3fc-2c963f66afa6', userKey: 'Ann@contoso.com', displayName: 'Ann Manager' }];
 
 beforeEach(() => { query.mockReset(); queryOne.mockReset(); });
-afterEach(() => { isAuthEnabled.mockReturnValue(false); });
+afterEach(() => { isAuthEnabled.mockReturnValue(false); flagState.on = true; });
+
+describe('with the matrixSharing flag off', () => {
+  // Every route, resolve included: a link sent while sharing was on must stop
+  // opening once it is switched off. None may touch the database.
+  const token = generateShareToken();
+  const calls = [
+    ['create', () => request(app).post('/api/matrix/shares').send({ name: 'x', filter: FILTER, recipients: RECIPIENTS })],
+    ['list', () => request(app).get('/api/matrix/shares')],
+    ['revoke', () => request(app).post(`/api/matrix/shares/${SHARE_ID}/revoke`)],
+    ['resolve', () => request(app).post('/api/matrix/shares/resolve').send({ token })],
+  ];
+
+  it('is built for the matrixSharing flag', () => {
+    expect(gatedFlags).toEqual(['matrixSharing']);
+  });
+
+  it.each(calls)('%s answers 404 without reading the database', async (_name, call) => {
+    flagState.on = false;
+    const res = await call();
+    expect(res.status).toBe(404);
+    expect(res.body).toEqual({ error: 'This feature is not enabled' });
+    expect(query).not.toHaveBeenCalled();
+    expect(queryOne).not.toHaveBeenCalled();
+  });
+
+  it('gates only the share paths, not the rest of the matrix router', async () => {
+    flagState.on = false;
+    const a = express();
+    a.use('/api', router);
+    a.get('/api/matrix/other', (_req, res) => res.json({ ok: true }));
+    const res = await request(a).get('/api/matrix/other');
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ ok: true });
+  });
+});
 
 describe('POST /api/matrix/shares', () => {
   // The create path runs inside db.tx, whose mock forwards the client's calls

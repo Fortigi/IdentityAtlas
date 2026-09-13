@@ -6,7 +6,7 @@
 //   Subjects   — which users/identities to include
 //   Resources  — which resources to include (unless rolling up roles only)
 //   Sort       — column order / fold (flat matrices only)
-//   Share      — hand this view to named colleagues (needs `data.share`)
+//   Share      — hand this view to named colleagues (matrixSharing flag + `data.share`)
 //
 // The list is dynamic; deriveSteps() in the helpers file owns which steps a
 // given filter and permission set actually show.
@@ -21,7 +21,7 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
-import { useHasPermission } from '@ui/auth/usePermissions';
+import { useCanShareMatrix } from '@ui/hooks/useCanShareMatrix';
 import Stepper from '@ui/components/Stepper';
 import { Modal, PrimaryButton, SecondaryButton, ErrorBox } from '@ui/components/contexts/ModalPrimitives';
 import ContextPicker from '@ui/components/contexts/ContextPicker';
@@ -107,9 +107,10 @@ export default function MatrixFilterWizard({
 }) {
   const { authFetch } = useAuth();
   const dialog = useDialog();
-  // Sharing is offered as the wizard's last step, but only to a user who may
-  // actually create one — otherwise the step would be a dead end (#1166).
-  const canShare = useHasPermission('data.share');
+  // Sharing is offered as the wizard's last step, but only when the feature is
+  // switched on and the user may create a share — otherwise it would be a dead
+  // end (#1166).
+  const canShare = useCanShareMatrix();
   const [step, setStep] = useState('setup');
   // Normalised (never structuredClone'd raw): the filter can arrive from a URL,
   // a saved matrix, or the seeded org default, any of which may be missing

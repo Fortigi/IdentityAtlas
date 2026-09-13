@@ -20,6 +20,10 @@
 // A share stores a SNAPSHOT of the view-state (filter + managed toggle +
 // display mode) so later edits to the originating saved filter never change
 // what a recipient sees; the underlying data stays live.
+//
+// The whole surface sits behind the `matrixSharing` feature flag: while it is
+// off every route here — resolve included — is a 404, before any permission
+// check or database read.
 
 import { Router } from 'express';
 import { randomUUID } from 'crypto';
@@ -29,9 +33,13 @@ import { isAuthEnabled } from '../../config/authConfig.js';
 import { UUID_RE } from '../../matrix/filterSql.js';
 import { generateShareToken, hashToken, isShareTokenFormat } from '../../auth/shareTokens.js';
 import { normalizeRecipients, identityKeysOf, objectIdOf } from './shareRecipients.js';
+import { requireFeature } from '../../featureFlags.js';
 
 const router = Router();
 const useSql = process.env.USE_SQL === 'true';
+// Scoped to the share paths: this router is mounted into the shared matrix
+// router, so an unscoped router.use() would gate every matrix endpoint.
+router.use('/matrix/shares', requireFeature('matrixSharing'));
 const canShare = requirePermission('data.share');
 
 // Columns returned to the management page — never the token hash.

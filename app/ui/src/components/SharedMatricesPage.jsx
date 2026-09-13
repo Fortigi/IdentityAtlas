@@ -14,14 +14,14 @@
 import { useCallback, useState } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
 import { useFetch } from '@ui/hooks/useFetch';
-import { useHasPermission } from '@ui/auth/usePermissions';
+import { useCanShareMatrix } from '@ui/hooks/useCanShareMatrix';
 import { useDialog } from '@ui/components/dialogContext';
 import EmptyState from './EmptyState';
 import SharedMatrixRow from './shared/SharedMatrixRow';
 
 export default function SharedMatricesPage() {
   const { authFetch } = useAuth();
-  const canShare = useHasPermission('data.share');
+  const canShare = useCanShareMatrix();
   const dialog = useDialog();
   const [busyId, setBusyId] = useState(null);
 

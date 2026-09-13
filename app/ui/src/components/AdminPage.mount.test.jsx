@@ -130,9 +130,12 @@ afterEach(() => {
   window.location.hash = '';
 });
 
-function renderAdmin(routeFn = adminRoutes) {
-  return renderWithProviders(h(AdminPage, {}), {
+function renderAdmin(routeFn = adminRoutes, features = { matrixSharing: true }) {
+  // App.jsx hands the flags to AdminPage as a prop AND provides them as context
+  // (the lazily-loaded Shared Matrices page reads the context) — mirror both.
+  return renderWithProviders(h(AdminPage, { features }), {
     auth: { authFetch: makeAuthFetch(routeFn), hasWildcard: true, permissions: new Set(['*']) },
+    features,
   });
 }
 
@@ -151,6 +154,13 @@ describe('AdminPage (mounted)', () => {
     // The lazily-loaded page renders inside the Admin shell, not as its own route.
     expect(await screen.findByText(/who it was shared with/i)).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Admin' })).toBeInTheDocument();
+  });
+
+  it('offers no Shared Matrices tab while matrix sharing is switched off', async () => {
+    renderAdmin(adminRoutes, { matrixSharing: false });
+    expect(await screen.findByRole('heading', { name: 'Admin' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Crawlers' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Shared Matrices' })).not.toBeInTheDocument();
   });
 
   it('lands the legacy #shared-matrices link on that sub-tab (#1166)', async () => {

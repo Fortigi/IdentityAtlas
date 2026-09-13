@@ -10,13 +10,14 @@
 // three matrix views (and this toolbar with them) are unmounted and remounted
 // whenever the data decides a different view should render. See MatrixArea.
 //
-// Self-gating: renders nothing without `data.share`, so the button doesn't
-// advertise a door that would 403 on click.
+// Self-gating: renders nothing unless matrix sharing is switched on and the user
+// holds `data.share` (useCanShareMatrix), so the button doesn't advertise a door
+// that would 403 — or 404 — on click.
 
-import { useHasPermission } from '@ui/auth/usePermissions';
+import { useCanShareMatrix } from '@ui/hooks/useCanShareMatrix';
 
 export default function ShareMatrixButton({ filter, onShareView }) {
-  const canShare = useHasPermission('data.share');
+  const canShare = useCanShareMatrix();
 
   if (!canShare || !filter || !onShareView) return null;
 

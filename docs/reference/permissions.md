@@ -31,7 +31,7 @@ Permissions are grouped into **Read**, **Export**, **Write**, and **Admin**.
 |---|---|---|
 | `data.export.ui` | Export to Excel/CSV | `GET /api/admin/export/curated`, `POST /api/admin/data-export/workbook` |
 | `data.export.apikey` | Generate read-only API keys | `POST /api/admin/read-tokens` (mint your own `fgr_` token) |
-| `data.share` | Create matrix share links | `POST /api/matrix/shares` (also `GET /api/matrix/shares` and `POST /api/matrix/shares/:id/revoke` — the Shared matrices management page). See [Sharing a matrix](../ui/sharing-a-matrix.md). |
+| `data.share` | Create matrix share links | `POST /api/matrix/shares` (also `GET /api/matrix/shares` and `POST /api/matrix/shares/:id/revoke` — the Shared matrices management page). Only takes effect while the experimental **Matrix sharing** feature is switched on — see [Experimental features](experimental-features.md#matrix-sharing). See [Sharing a matrix](../ui/sharing-a-matrix.md). |
 
 ### Write
 

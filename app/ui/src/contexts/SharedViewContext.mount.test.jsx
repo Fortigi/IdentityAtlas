@@ -18,7 +18,7 @@ const FILTER = { rowType: 'user', subject: { include: [] }, resource: { include:
 const analyst = { permissions: new Set(['data.read', 'data.export.ui', 'data.share']), hasWildcard: false, permissionsLoaded: true };
 
 function renderShared(ui, { shared, auth = analyst } = {}) {
-  return renderWithProviders(h(SharedViewContext.Provider, { value: shared }, ui), { auth });
+  return renderWithProviders(h(SharedViewContext.Provider, { value: shared }, ui), { auth, features: { matrixSharing: true } });
 }
 
 describe('MatrixToolbar under a shared view', () => {

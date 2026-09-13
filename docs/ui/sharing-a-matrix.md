@@ -11,6 +11,9 @@ outcome: You can share a configured matrix with a colleague who has no Identity 
 
 You have configured a matrix that answers a question someone else has: a manager who wants to see their team's access, an application owner who wants to see who can reach their resource. Sharing turns that matrix into a link. The recipient signs in with their normal Microsoft account — **no Identity Atlas role required** — and sees the matrix and nothing else: no navigation, no dashboard, no wizard, no export buttons. They can click a resource or a person and read the detail page, then come back.
 
+!!! note "Experimental — switched off by default"
+    Matrix sharing is an [experimental feature](../reference/experimental-features.md#matrix-sharing). An administrator turns it on under **Admin → Experimental → Matrix sharing**. While it is off, none of the controls on this page appear and share links do not open.
+
 The **data** behind a shared view stays live. The **view** does not: the filter is snapshotted at the moment you share, so editing (or deleting) the saved filter afterwards never silently changes what your recipient sees.
 
 ---

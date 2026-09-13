@@ -59,7 +59,9 @@ function makeFetch(extra = {}) {
   });
 }
 
-function renderWizard(props = {}, authFetch = makeFetch()) {
+// Matrix sharing on by default, so the default (wildcard) user gets the full
+// step list including Share; the Share-step block below turns it off.
+function renderWizard(props = {}, authFetch = makeFetch(), features = { matrixSharing: true }) {
   const onApply = props.onApply || vi.fn();
   const onClose = props.onClose || vi.fn();
   const result = renderWithProviders(
@@ -70,7 +72,7 @@ function renderWizard(props = {}, authFetch = makeFetch()) {
       onApply,
       onClose,
     }),
-    { auth: { authFetch } },
+    { auth: { authFetch }, features },
   );
   return { ...result, onApply, onClose, authFetch };
 }
@@ -230,7 +232,7 @@ describe('MatrixFilterWizard (mounted)', () => {
         h(MatrixFilterWizard, { open, onApply: vi.fn(), onClose: () => setOpen(false) }),
       );
     }
-    renderWithProviders(h(Harness), { auth: { authFetch: makeFetch() } });
+    renderWithProviders(h(Harness), { auth: { authFetch: makeFetch() }, features: { matrixSharing: true } });
     const user = userEvent.setup();
 
     // Advance from Setup → Subjects.
@@ -473,6 +475,20 @@ describe('MatrixFilterWizard — the Share step (#1166)', () => {
     expect(screen.queryByText('Next')).not.toBeInTheDocument();
 
     // Skipping the share and applying is the ordinary path.
+    await user.click(screen.getByText('Apply'));
+    expect(onApply).toHaveBeenCalledTimes(1);
+  });
+
+  it('is absent while matrix sharing is switched off, even for a sharer — Sort stays the last step', async () => {
+    const { onApply } = renderWizard({}, makeFetch(), { matrixSharing: false });
+    const user = userEvent.setup();
+    await user.click(screen.getByText('Next')); // subjects
+    await user.click(screen.getByText('Next')); // resources
+    await user.click(screen.getByText('Next')); // sort
+
+    expect(await screen.findByText('Sort columns')).toBeInTheDocument();
+    expect(screen.queryByText('Next')).not.toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: /Share with/i })).not.toBeInTheDocument();
     await user.click(screen.getByText('Apply'));
     expect(onApply).toHaveBeenCalledTimes(1);
   });

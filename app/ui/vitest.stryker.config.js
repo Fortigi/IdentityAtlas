@@ -41,6 +41,7 @@ export default defineConfig({
       'src/components/shared/sharedSnapshot.test.js',
       'src/hooks/useHashPage.test.jsx',
       'src/hooks/useFeatureToggle.test.jsx',
+      'src/hooks/useCanShareMatrix.test.jsx',
       'src/components/crawler/saveCrawlerConfig.test.js',
       'src/components/crawler/crawlerWizardHooks.test.jsx',
       'src/utils/attributeLabels.test.js',
