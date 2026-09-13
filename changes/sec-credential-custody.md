@@ -1,0 +1,8 @@
+- Hardened the credential vault: every secret is now read and deleted only through the feature it belongs to, so risk-profile scraper credentials can no longer be used to reach any other stored secret.
+- Hardened crawler jobs: a job now only receives the stored credentials of the crawler configuration it was actually created from.
+- Hardened crawler configurations: changing a crawler's base URL, token endpoint or other endpoint host now asks you to re-enter its stored credentials before the change is saved.
+- Crawler passwords, API tokens and cookie strings are now stored encrypted in the vault like client secrets; existing plaintext values are moved into the vault automatically on upgrade.
+- Hardened crawler API keys: admin-created crawlers can only be granted the `ingest` and `refreshViews` permissions, and the Built-in Worker can no longer be renamed, disabled, deleted or given different permissions (it is identified by a dedicated flag, not its name, and is re-enabled on startup if an earlier version disabled it).
+- Stored secrets are now cryptographically bound to their own vault entry, so a secret copied onto another entry no longer decrypts; existing secrets are re-bound automatically on startup.
+- Added a `rotate-master-key` command for rotating the vault master key without ever printing a stored secret (see the LLM & risk scoring architecture docs).
+- Crawler API keys are no longer kept in memory in plaintext by the authentication cache.
