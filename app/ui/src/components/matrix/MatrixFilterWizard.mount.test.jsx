@@ -479,25 +479,17 @@ describe('MatrixFilterWizard — the Share step (#1166)', () => {
     expect(onApply).toHaveBeenCalledTimes(1);
   });
 
-  it('is absent while matrix sharing is switched off, even for a sharer — Sort stays the last step', async () => {
-    const { onApply } = renderWizard({}, makeFetch(), { matrixSharing: false });
-    const user = userEvent.setup();
-    await user.click(screen.getByText('Next')); // subjects
-    await user.click(screen.getByText('Next')); // resources
-    await user.click(screen.getByText('Next')); // sort
-
-    expect(await screen.findByText('Sort columns')).toBeInTheDocument();
-    expect(screen.queryByText('Next')).not.toBeInTheDocument();
-    expect(screen.queryByRole('textbox', { name: /Share with/i })).not.toBeInTheDocument();
-    await user.click(screen.getByText('Apply'));
-    expect(onApply).toHaveBeenCalledTimes(1);
-  });
-
-  it('is absent for a user who cannot share — Sort stays the last step', async () => {
+  // Two independent reasons the step is missing, one setup each: the install has
+  // sharing switched off (a user who COULD share), or the user lacks data.share
+  // (sharing switched on). Either alone must leave Sort as the last step.
+  it.each([
+    ['matrix sharing is switched off, even for a sharer', {}, { matrixSharing: false }],
+    ['the user cannot share, even with sharing on', reader, { matrixSharing: true }],
+  ])('is absent when %s — Sort stays the last step', async (_why, auth, features) => {
     const onApply = vi.fn();
     renderWithProviders(
       h(MatrixFilterWizard, { open: true, onApply, onClose: vi.fn() }),
-      { auth: { ...reader, authFetch: makeFetch() } },
+      { auth: { ...auth, authFetch: makeFetch() }, features },
     );
     const user = userEvent.setup();
     await user.click(screen.getByText('Next')); // subjects
