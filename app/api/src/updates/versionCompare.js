@@ -6,6 +6,16 @@
 // prerelease of the same core; among prereleases the higher `-beta.N` wins.
 // Pure + dependency-free so it's trivially unit-testable.
 
+// The version strings Identity Atlas actually ships (see the shapes above):
+// 2–4 numeric segments, an optional leading "v", an optional dot-separated
+// prerelease suffix. Anything else — free text, shell metacharacters, an
+// oversized string — is not a version (SEC-2026-09 L-12).
+const VERSION_RE = /^v?\d{1,9}(\.\d{1,9}){1,3}(-[0-9A-Za-z]{1,20}(\.[0-9A-Za-z]{1,20}){0,3})?$/;
+
+export function isValidVersion(v) {
+  return typeof v === 'string' && VERSION_RE.test(v);
+}
+
 export function parseVersion(v) {
   if (typeof v !== 'string') return null;
   const cleaned = v.trim().replace(/^v/i, '');
