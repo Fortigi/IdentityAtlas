@@ -19,7 +19,7 @@ import { dirname } from 'path';
 import * as db from './db/connection.js';
 import { runMigrations } from './db/migrate.js';
 import { stampSchemaVersion } from './updates/componentVersions.js';
-import { selfTest as vaultSelfTest } from './secrets/vault.js';
+import { selfTest as vaultSelfTest, rebindLegacySecrets } from './secrets/vault.js';
 import { startScheduler } from './scheduler.js';
 import { seedContextAlgorithms } from './contexts/seedAlgorithms.js';
 import { migrateCrawlerSecretsToVault } from './secrets/migrateCrawlerSecrets.js';
@@ -357,6 +357,12 @@ export async function bootstrapWorker() {
       await migrateCrawlerSecretsToVault();
     } catch (err) {
       console.warn('Crawler secret migration skipped:', err.message);
+    }
+    // Bind any pre-AAD vault rows to their id + scope (SEC-2026-09 L-04).
+    try {
+      await rebindLegacySecrets();
+    } catch (err) {
+      console.warn('Vault re-bind skipped:', err.message);
     }
     try {
       await seedContextAlgorithms();

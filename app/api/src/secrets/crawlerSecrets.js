@@ -20,14 +20,14 @@ export const OTHER_SECRET_FIELDS = ['password', 'apiToken', 'cookieString'];
 export async function storeConfigSecret(configId, clientSecret) {
   await putSecret(configKey(configId), CONFIG_SCOPE, clientSecret, `Crawler config ${configId} clientSecret`);
 }
-export const getConfigSecret = (configId) => getSecret(configKey(configId));
-export const hasConfigSecret = (configId) => hasSecret(configKey(configId));
-export const deleteConfigSecret = (configId) => deleteSecret(configKey(configId));
+export const getConfigSecret = (configId) => getSecret(configKey(configId), CONFIG_SCOPE);
+export const hasConfigSecret = (configId) => hasSecret(configKey(configId), CONFIG_SCOPE);
+export const deleteConfigSecret = (configId) => deleteSecret(configKey(configId), CONFIG_SCOPE);
 
 export async function storeJobSecret(jobId, clientSecret) {
   await putSecret(jobKey(jobId), JOB_SCOPE, clientSecret, `Crawler job ${jobId} clientSecret`);
 }
-export const deleteJobSecret = (jobId) => deleteSecret(jobKey(jobId));
+export const deleteJobSecret = (jobId) => deleteSecret(jobKey(jobId), JOB_SCOPE);
 
 // Vault the non-clientSecret credential fields for a job.
 // Only stores fields that are present and non-empty in `creds`.
@@ -39,7 +39,7 @@ export async function storeJobCredentials(jobId, creds) {
   await putSecret(jobCredsKey(jobId), JOB_SCOPE, JSON.stringify(payload),
     `Crawler job ${jobId} credentials`);
 }
-export const deleteJobCredentials = (jobId) => deleteSecret(jobCredsKey(jobId));
+export const deleteJobCredentials = (jobId) => deleteSecret(jobCredsKey(jobId), JOB_SCOPE);
 
 // Inject all vaulted credentials back into a claimed job's config for dispatch
 // to the authenticated worker.  For config-based jobs clientSecret comes from
@@ -52,11 +52,11 @@ export async function injectJobSecret(job) {
   // clientSecret
   let secret = null;
   if (cfg._scheduledByConfigId != null) secret = await getConfigSecret(cfg._scheduledByConfigId);
-  if (!secret) secret = await getSecret(jobKey(job.id));
+  if (!secret) secret = await getSecret(jobKey(job.id), JOB_SCOPE);
   if (secret) cfg.clientSecret = secret;
 
   // Other credential fields (Omada: password, apiToken, cookieString)
-  const bundled = await getSecret(jobCredsKey(job.id));
+  const bundled = await getSecret(jobCredsKey(job.id), JOB_SCOPE);
   if (bundled) {
     try {
       const extra = JSON.parse(bundled);
