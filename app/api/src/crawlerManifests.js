@@ -77,6 +77,15 @@ export function getPushModeType() {
   return Object.keys(_crawlerManifests).find(t => _crawlerManifests[t].pushMode) ?? null;
 }
 
+// Config fields that hold a URL the crawler (or its discover handler) will send
+// credentials to. The API runs the SSRF guard over each of them before a config
+// is saved or a job is queued (SEC-2026-09 M-03); the worker checks them again at
+// connect time. Manifest: `"urlFields": ["baseUrl", "tokenEndpoint"]`.
+export function getUrlFields(type) {
+  const fields = _crawlerManifests[type]?.urlFields;
+  return Array.isArray(fields) ? fields.filter(f => typeof f === 'string') : [];
+}
+
 export function validateCrawlerConfig(type, config) {
   const validate = _configValidators[type];
   if (!validate) return null;

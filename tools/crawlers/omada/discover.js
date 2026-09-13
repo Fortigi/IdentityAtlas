@@ -7,17 +7,22 @@
 // endpoint in routes/jobs.js. Dependencies are injected via the third
 // argument so this file has no hard-coded paths into the API source tree.
 //
-// handler(req, res, { db })
-//   db — app/api/src/db/connection.js pool wrapper
+// handler(req, res, { db, assertConnectorUrl })
+//   db                 — app/api/src/db/connection.js pool wrapper
+//   assertConnectorUrl — app/api/src/routes/jobs/urlPolicy.js SSRF guard
+
+import { timedFetch } from '../shared/discoverAuth.js';
 
 // Timed fetch (10 s) — avoids hanging forever on an unreachable Omada server.
+// Shares the discover plumbing's no-redirect fetch, so a 3xx cannot carry the
+// request past the address check below (SEC-2026-09 M-02).
 function fetchOmadaMetadata(metaUrl, headers) {
-  const opts = { signal: AbortSignal.timeout(10_000) };
+  const opts = {};
   if (headers && Object.keys(headers).length) opts.headers = headers;
-  return fetch(metaUrl, opts);
+  return timedFetch(metaUrl, opts, 10_000);
 }
 
-export default async function handler(req, res, { db, assertPublicUrl }) {
+export default async function handler(req, res, { db, assertConnectorUrl }) {
   const { configId, config: inlineConfig } = req.body;
 
   let c;
@@ -49,12 +54,13 @@ export default async function handler(req, res, { db, assertPublicUrl }) {
     const u = new URL(trimLen < rawBaseUrl.length ? rawBaseUrl.slice(0, trimLen) : rawBaseUrl);
     if (u.protocol !== 'https:' && u.protocol !== 'http:')
       return res.status(400).json({ error: 'baseUrl must use http or https' });
-    // Reject a base URL that resolves to a private/loopback/metadata address
-    // before we fetch it with the connector's credential (SSRF guard, L-6).
+    // Reject a base URL that resolves to a private/loopback/metadata address (or
+    // uses http) before we fetch it with the connector's credential, unless the
+    // config opts in (SSRF guard, L-6 / SEC-2026-09 M-03).
     try {
-      await assertPublicUrl(u.origin);
+      await assertConnectorUrl(u.origin, c, 'baseUrl');
     } catch (e) {
-      return res.status(400).json({ error: `baseUrl rejected: ${e.message}` });
+      return res.status(400).json({ error: e.message });
     }
     if (!u.pathname.toLowerCase().endsWith('/odata/dataobjects')) u.pathname = '/odata/dataobjects';
     const baseUrl = u.origin + u.pathname;
@@ -72,7 +78,15 @@ export default async function handler(req, res, { db, assertPublicUrl }) {
       headers.Cookie = c.cookieString;
     }
 
-    const metaRes = await fetchOmadaMetadata(metaUrl, headers);
+    let metaRes;
+    try {
+      metaRes = await fetchOmadaMetadata(metaUrl, headers);
+    } catch (connErr) {
+      // Transport errors can carry internal detail (resolved addresses, TLS and
+      // socket internals); log it, return a fixed message (SEC-2026-09 I-05).
+      console.error('omada/discover fetch error:', connErr.message);
+      return res.status(502).json({ error: 'Could not reach the Omada $metadata endpoint' });
+    }
     if (!metaRes.ok) {
       return res.status(502).json({ error: `Omada $metadata returned HTTP ${metaRes.status}` });
     }
@@ -92,6 +106,6 @@ export default async function handler(req, res, { db, assertPublicUrl }) {
     res.json({ entitySets, identityProperties });
   } catch (err) {
     console.error('omada/discover error:', err.message);
-    res.status(500).json({ error: err.message || 'Failed to fetch metadata' });
+    res.status(500).json({ error: 'Failed to fetch Omada metadata' });
   }
 }
