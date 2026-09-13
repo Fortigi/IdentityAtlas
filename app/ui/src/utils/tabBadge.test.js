@@ -19,6 +19,10 @@ describe('tabBadge', () => {
     expect(tabBadge('run')).toBe('RUN');
   });
 
+  it('shows RPT (not AP) for report tabs', () => {
+    expect(tabBadge('report')).toBe('RPT');
+  });
+
   it('falls back to AP for an unknown type', () => {
     expect(tabBadge('something-else')).toBe('AP');
   });

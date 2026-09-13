@@ -50,6 +50,7 @@ describe('pageRegistry', () => {
     expect(resolvePageRoute('identities')(ctx).props.onOpenDetail).toBe(ctx.openDetailTab);
     expect(resolvePageRoute('contexts')(ctx).props.onNavigate).toBe(ctx.navigate);
     expect(resolvePageRoute('contexts')(ctx).props.onOpenDetail).toBe(ctx.openDetailTab);
+    expect(resolvePageRoute('reports')(ctx).props.onOpenDetail).toBe(ctx.openDetailTab);
   });
 
   it('renders the systems page without needing any context', () => {

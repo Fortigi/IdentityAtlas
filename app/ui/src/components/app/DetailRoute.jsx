@@ -9,6 +9,7 @@ const DepartmentDetailPage = lazy(() => import('@ui/components/DepartmentDetailP
 const ContextDetailPage = lazy(() => import('@ui/components/ContextDetailPage'));
 const RunDetailPage = lazy(() => import('@ui/components/RunDetailPage'));
 const IdentityDetailPage = lazy(() => import('@ui/components/IdentityDetailPage'));
+const ReportViewPage = lazy(() => import('@ui/components/reports/ReportViewPage'));
 
 // hash type → { detail page component, its id prop, whether it takes the cache }.
 // #group: is backward-compat and reuses ResourceDetailPage.
@@ -21,6 +22,10 @@ const DETAIL_ROUTES = {
   context:           { Comp: ContextDetailPage,       idProp: 'contextId' },
   identity:          { Comp: IdentityDetailPage,      idProp: 'identityId' },
   run:               { Comp: RunDetailPage,           idProp: 'runId', noCache: true },
+  // A report tab's id is the report's name. It takes the cache props purely for
+  // onCacheData: a tab opened straight from a URL is labelled with the slug
+  // until the report reports its display name.
+  report:            { Comp: ReportViewPage,           idProp: 'reportName' },
 };
 
 // Renders the detail page for the current hash, or null when the hash is not a

@@ -31,6 +31,7 @@ const RiskScoringPage = lazy(() => import('./components/RiskScoringPage'));
 const ContextsPage = lazy(() => import('./components/ContextsPage'));
 const IdentitiesPage = lazy(() => import('./components/IdentitiesPage'));
 const AdminPage = lazy(() => import('./components/AdminPage'));
+const ReportsPage = lazy(() => import('./components/ReportsPage'));
 
 // Each entry is a small component that takes the shared render context as PROPS
 // and renders its page; multi-key routes (resources/groups; performance/crawlers/
@@ -64,6 +65,7 @@ export const PAGE_ROUTES = new Map([
   ['risk-scores',     ({ openDetailTab, riskScoresRefreshKey }) => <RiskScoringPage key={riskScoresRefreshKey} onOpenDetail={openDetailTab} />],
   ['identities',      ({ openDetailTab }) => <IdentitiesPage onOpenDetail={openDetailTab} />],
   ['contexts',        ({ navigate, openDetailTab }) => <ContextsPage onOpenDetail={openDetailTab} onNavigate={navigate} />],
+  ['reports',         ({ openDetailTab }) => <ReportsPage onOpenDetail={openDetailTab} />],
   ['shared-matrices', AdminRoute],
   ['performance',     AdminRoute],
   ['crawlers',        AdminRoute],
