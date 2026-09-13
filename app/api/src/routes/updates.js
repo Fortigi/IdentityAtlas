@@ -16,6 +16,7 @@
 import { Router } from 'express';
 import * as db from '../db/connection.js';
 import { requirePermission } from '../middleware/auth.js';
+import { ALL_PERMISSION_KEYS } from '../auth/permissions.js';
 import { resolveChannel, getCurrentVersion } from '../updates/channel.js';
 import { runUpdateCheck, recordLog } from '../updates/checkForUpdates.js';
 import { isNewer } from '../updates/versionCompare.js';
@@ -23,6 +24,10 @@ import { getComponentVersion, computeSkew } from '../updates/componentVersions.j
 
 const router = Router();
 const writeUpdates = requirePermission('admin.systems');
+// Status + history are the Admin → Updates tab (admin.systems) (SEC-2026-09 M-01).
+const readUpdates = writeUpdates;
+// The apply agent polls intent with an fgr_ read token, which passes this gate.
+const readIntent = requirePermission(...ALL_PERMISSION_KEYS);
 const AUTO_UPDATE_KEY = 'AUTO_UPDATE_ENABLED';
 
 // How long the current version can sit "available" with auto-update on and no
@@ -39,7 +44,7 @@ async function getAutoUpdateEnabled() {
   return r ? r.configValue === 'true' : false;
 }
 
-router.get('/admin/updates/status', async (_req, res) => {
+router.get('/admin/updates/status', readUpdates, async (_req, res) => {
   try {
     const runningVersion = getCurrentVersion();
     const [enabled, last, workerRow, dbRow] = await Promise.all([
@@ -120,7 +125,7 @@ router.put('/admin/updates/auto', writeUpdates, async (req, res) => {
   }
 });
 
-router.get('/admin/updates/log', async (req, res) => {
+router.get('/admin/updates/log', readUpdates, async (req, res) => {
   const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 50, 1), 500);
   try {
     const r = await db.query(`SELECT * FROM "UpdateLog" ORDER BY "createdAt" DESC LIMIT $1`, [limit]);
@@ -141,7 +146,7 @@ router.post('/admin/updates/check', writeUpdates, async (_req, res) => {
   }
 });
 
-router.get('/updates/intent', async (_req, res) => {
+router.get('/updates/intent', readIntent, async (_req, res) => {
   try {
     const runningVersion = getCurrentVersion();
     const [enabled, last] = await Promise.all([

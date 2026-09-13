@@ -60,7 +60,13 @@ export const SEED_ROLE_PERMISSIONS = Object.freeze({
   Servicedesk: ['data.read'],
 });
 
-const ALL_PERMISSION_KEYS = Object.freeze(Object.keys(PERMISSIONS));
+// Every catalog permission. `requirePermission(...ALL_PERMISSION_KEYS)` is the
+// gate for read surfaces every mapped role may see (the Dashboard, run history
+// on the Logs page): holding ANY permission passes, so no mapped role — custom
+// roles without data.read included — loses access, while a signed-in user whose
+// roles map to nothing is refused (SEC-2026-09 M-01). fgr_ read tokens pass it
+// (they carry data.read) but stay barred from /api/admin/* by authMiddleware.
+export const ALL_PERMISSION_KEYS = Object.freeze(Object.keys(PERMISSIONS));
 
 export function isKnownPermission(key) {
   return key === '*' || Object.prototype.hasOwnProperty.call(PERMISSIONS, key);
