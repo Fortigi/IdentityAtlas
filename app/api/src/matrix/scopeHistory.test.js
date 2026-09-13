@@ -136,7 +136,8 @@ describe('buildScopeAsofSql', () => {
     expect(scopeMode).toBe('context-current');
     expect(sql).toContain('ContextMembers'); // current membership lookup
     // Cycle guard on the includeChildren descent (SEC-2026-09 I-08).
-    expect(sql).toMatch(/\)\s*(?:--[^\n]*\n\s*)*CYCLE id SET "isCycle" USING "cyclePath"\s+SELECT "memberId"/);
+    const flat = sql.replace(/--[^\n]*/g, '').replace(/\s+/g, ' ');
+    expect(flat).toContain(') CYCLE id SET "isCycle" USING "cyclePath" SELECT "memberId"');
   });
 
   it('counts distinct identities for rowType=identity', () => {

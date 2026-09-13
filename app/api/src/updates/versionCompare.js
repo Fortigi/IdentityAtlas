@@ -9,11 +9,20 @@
 // The version strings Identity Atlas actually ships (see the shapes above):
 // 2–4 numeric segments, an optional leading "v", an optional dot-separated
 // prerelease suffix. Anything else — free text, shell metacharacters, an
-// oversized string — is not a version (SEC-2026-09 L-12).
-const VERSION_RE = /^v?\d{1,9}(\.\d{1,9}){1,3}(-[0-9A-Za-z]{1,20}(\.[0-9A-Za-z]{1,20}){0,3})?$/;
+// oversized string — is not a version (SEC-2026-09 L-12). Checked per
+// segment so no regex carries a nested quantifier.
+const NUMERIC_SEGMENT_RE = /^\d{1,9}$/;
+const PRERELEASE_SEGMENT_RE = /^[0-9A-Za-z]{1,20}$/;
+
+const allMatch = (parts, re, min, max) =>
+  parts.length >= min && parts.length <= max && parts.every((p) => re.test(p));
 
 export function isValidVersion(v) {
-  return typeof v === 'string' && VERSION_RE.test(v);
+  if (typeof v !== 'string' || v.length > 100) return false;
+  const [core, pre, ...extra] = v.replace(/^v/, '').split('-');
+  if (extra.length > 0) return false;
+  if (!allMatch(core.split('.'), NUMERIC_SEGMENT_RE, 2, 4)) return false;
+  return pre === undefined || allMatch(pre.split('.'), PRERELEASE_SEGMENT_RE, 1, 4);
 }
 
 export function parseVersion(v) {
