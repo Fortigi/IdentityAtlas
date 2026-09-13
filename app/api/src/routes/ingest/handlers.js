@@ -14,7 +14,8 @@ import { restrictedSystemIds, writableCoreColumns, systemBoundaryDenial } from '
 import { validateEnvelope, validateRecords, ENTITY_TABLE_MAP, ENTITY_KEY_MAP, ENTITY_SCOPE_MAP } from '../../ingest/validation.js';
 import { crawlerHasSystemAccess, crawlerHasPermission } from '../../middleware/crawlerAuth.js';
 import { normalizePresenceQuery, lookupCrawlerPresence } from '../../ingest/crawlerPresence.js';
-import { refreshMatrixViews } from './matrixViews.js';
+import { refreshMatrixViewsSerialized } from './matrixViews.js';
+import { buildSyncLogRow, classifyScope } from './dataPlane.js';
 import {
   applyIngestDefaults, coerceSystemsSyncMode, recoverSystemPrefix, buildScope, conflictFilterFor, discoverCoreColumns,
   handleSessionPath, applyDeleteByIds, lookupSystemIds, writeAuditLog, ingestErrorResponse,
@@ -164,7 +165,9 @@ router.post('/ingest/principals-presence', async (req, res) => {
   const { tenantId, ids } = normalizePresenceQuery(req.body);
   if (!tenantId) return res.status(400).json({ error: 'tenantId is required' });
   try {
-    res.json(await lookupCrawlerPresence(db, tenantId, ids));
+    // A key restricted to specific systems only sees presence in those systems
+    // (SEC-2026-09 M-05); an unrestricted key keeps the tenant-wide lookup.
+    res.json(await lookupCrawlerPresence(db, tenantId, ids, restrictedSystemIds(req.crawler)));
   } catch (err) {
     console.error('principals-presence lookup failed:', err.message);
     res.status(500).json({ error: 'Lookup failed' });
@@ -190,21 +193,19 @@ router.post('/ingest/sync-log', async (req, res) => {
   if (!crawlerHasPermission(req, 'ingest')) {
     return res.status(403).json({ error: 'Insufficient permissions' });
   }
-  const { syncType, tableName, startTime, endTime, recordCount, status, errorMessage } = req.body || {};
-  if (!syncType || !startTime) {
-    return res.status(400).json({ error: 'syncType and startTime are required' });
-  }
+  // The row is stamped with the authenticated crawler (and a system it may access),
+  // so a key cannot write entries that pass for another crawler's (SEC-2026-09 M-05).
+  const row = buildSyncLogRow(req.body, req.crawler);
+  if (row.error) return res.status(row.status).json({ error: row.error });
   try {
-    const start = new Date(startTime);
-    const end = endTime ? new Date(endTime) : new Date();
-    const duration = Math.max(0, Math.round((end - start) / 1000));
     await db.query(
       `INSERT INTO "GraphSyncLog"
-         ("SyncType", "TableName", "StartTime", "EndTime", "DurationSeconds", "RecordCount", "Status", "ErrorMessage")
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-      [syncType, tableName || null, start, end, duration, recordCount || 0, status || 'Success', errorMessage || null]
+         ("SyncType", "TableName", "StartTime", "EndTime", "DurationSeconds", "RecordCount", "Status", "ErrorMessage",
+          "crawlerId", "systemId")
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+      row.values
     );
-    return res.status(201).json({ ok: true, durationSeconds: duration });
+    return res.status(201).json({ ok: true, durationSeconds: row.duration });
   } catch (err) {
     console.error('sync-log write failed:', err.message);
     return res.status(500).json({ error: 'Failed to write sync log' });
@@ -217,11 +218,17 @@ router.post('/ingest/sync-log', async (req, res) => {
 // assignment-import time, so this marks them after the fact. The provisioning
 // gap is DERIVED in the matrix matview from these governed memberships + the
 // Contains relationships — nothing is materialised here.
+//
+// It ends in a matview refresh, so it needs the refreshViews permission; the
+// UPDATE is limited to the systems the caller may access, and the refresh is
+// serialised with every other crawler-triggered refresh (SEC-2026-09 M-05).
 router.post('/ingest/classify-business-role-assignments', async (req, res) => {
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
-  if (!crawlerHasPermission(req, 'ingest')) {
-    return res.status(403).json({ error: 'Insufficient permissions' });
+  if (!crawlerHasPermission(req, 'refreshViews')) {
+    return res.status(403).json({ error: 'Insufficient permissions (requires refreshViews)' });
   }
+  const scope = classifyScope(req.body, req.crawler);
+  if (scope.error) return res.status(scope.status).json({ error: scope.error });
   try {
     const r = await db.query(`
       UPDATE "ResourceAssignments" ra
@@ -229,13 +236,13 @@ router.post('/ingest/classify-business-role-assignments', async (req, res) => {
         FROM "Resources" r
        WHERE r.id = ra."resourceId"
          AND r."governanceResource"
-         AND ra."governed" = false
-    `);
+         AND ra."governed" = false${scope.clause}
+    `, scope.params);
     // The matrix materialized views are now stale — refresh them before
     // returning so the UI sees the new data.
     let viewRefresh;
     try {
-      await refreshMatrixViews();
+      await refreshMatrixViewsSerialized();
       viewRefresh = 'ok';
     } catch (err) {
       console.error('classify: view refresh failed (non-critical):', err.message);

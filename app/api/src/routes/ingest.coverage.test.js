@@ -18,6 +18,7 @@ const UUID = '11111111-1111-1111-1111-111111111111';
 
 const { mockQuery, mockQueryOne, mockIngest, mockStart, mockContinue, mockEnd, mockHasSession } = vi.hoisted(() => {
   process.env.USE_SQL = 'true';
+  process.env.MATRIX_REFRESH_MIN_INTERVAL_MS = '0';
   return {
     mockQuery: vi.fn().mockResolvedValue({ rows: [], rowCount: 0 }),
     mockQueryOne: vi.fn().mockResolvedValue(null),
@@ -511,5 +512,53 @@ describe('ingest/systems — never reconciled (C-01)', () => {
       .send({ records: [{ tenantId: 'y' }], syncMode: 'full' });
     expect(res.status).toBe(400);
     expect(mockIngest).not.toHaveBeenCalled();
+  });
+});
+
+describe('data-plane endpoints (M-05)', () => {
+  beforeEach(usePermissionsOfCaller);
+
+  it('sync-log stamps the calling crawler and a system it may access', async () => {
+    const res = await request(appAs(RESTRICTED)).post('/ingest/sync-log')
+      .send({ syncType: 'X', startTime: '2026-01-01T00:00:00Z', endTime: '2026-01-01T00:00:10Z', systemId: 7 });
+    expect(res.status).toBe(201);
+    const [sql, params] = mockQuery.mock.calls.find(([s]) => /INSERT INTO "GraphSyncLog"/.test(String(s)));
+    expect(sql).toContain('"crawlerId", "systemId"');
+    expect(params.slice(-2)).toEqual([21, 7]);
+  });
+
+  it('sync-log refuses a system the crawler cannot access', async () => {
+    const res = await request(appAs(RESTRICTED)).post('/ingest/sync-log')
+      .send({ syncType: 'X', startTime: '2026-01-01T00:00:00Z', systemId: 1 });
+    expect(res.status).toBe(403);
+  });
+
+  it('classify needs refreshViews — an ingest-only key is refused before any UPDATE', async () => {
+    const res = await request(appAs(RESTRICTED)).post('/ingest/classify-business-role-assignments').send({});
+    expect(res.status).toBe(403);
+    expect(mockQuery).not.toHaveBeenCalled();
+  });
+
+  it('classify from a restricted refreshViews key only flags its own systems', async () => {
+    const caller = { ...RESTRICTED, permissions: ['ingest', 'refreshViews'] };
+    const res = await request(appAs(caller)).post('/ingest/classify-business-role-assignments').send({});
+    expect(res.status).toBe(200);
+    const [sql, params] = mockQuery.mock.calls.find(([s]) => /UPDATE "ResourceAssignments"/.test(String(s)));
+    expect(sql).toContain('AND ra."systemId" = ANY($1::int[])');
+    expect(params).toEqual([[7]]);
+  });
+
+  it('principals-presence passes a restricted key its own systems, and the worker none', async () => {
+    const presence = await import('../ingest/crawlerPresence.js');
+    await request(appAs(RESTRICTED)).post('/ingest/principals-presence').send({ tenantId: 't1', ids: [UUID] });
+    expect(presence.lookupCrawlerPresence.mock.calls.at(-1)[3]).toEqual([7]);
+    await request(appAs(WORKER)).post('/ingest/principals-presence').send({ tenantId: 't1', ids: [UUID] });
+    expect(presence.lookupCrawlerPresence.mock.calls.at(-1)[3]).toBeNull();
+  });
+
+  it('matrix-default-filter is worker-only: an ingest key is refused, the worker is not', async () => {
+    const body = { name: 'Default', filter: { rowType: 'user' } };
+    expect((await request(appAs(RESTRICTED)).post('/ingest/matrix-default-filter').send(body)).status).toBe(403);
+    expect((await request(appAs(WORKER)).post('/ingest/matrix-default-filter').send(body)).status).toBe(201);
   });
 });
