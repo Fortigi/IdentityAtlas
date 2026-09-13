@@ -28,6 +28,21 @@ describe('readCappedBody', () => {
     await expect(readCappedBody(resp, 5)).rejects.toThrow('Response too large (6 bytes > 5-byte cap)');
   });
 
+  it('accepts a declared Content-Length exactly at the cap', async () => {
+    const resp = new Response('abcde', { headers: { 'content-length': '5' } });
+    expect(await readCappedBody(resp, 5)).toBe('abcde');
+  });
+
+  it('cancels the upstream stream when it abandons an over-cap body', async () => {
+    let cancelled = false;
+    const body = new ReadableStream({
+      pull(controller) { controller.enqueue(new Uint8Array(4)); },
+      cancel() { cancelled = true; },
+    });
+    await expect(readCappedBody(new Response(body), 10)).rejects.toThrow(/exceeded 10-byte cap/);
+    expect(cancelled).toBe(true);
+  });
+
   it('falls back to text() for a body-less response object', async () => {
     expect(await readCappedBody({ headers: new Headers(), text: async () => 'plain' }, 1)).toBe('plain');
   });

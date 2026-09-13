@@ -81,7 +81,7 @@ export function OptionList({ options, type = 'radio', name, selected, onSelect, 
 // worker then refuse a base URL or token endpoint that is plain http or points at a
 // private address. Rendered with the shared checkbox list so it reads like every
 // other option group in the wizard.
-export const NETWORK_ACCESS_OPTIONS = [
+const NETWORK_ACCESS_OPTIONS = [
   {
     key: 'allowPrivateNetwork',
     label: 'Allow private network',

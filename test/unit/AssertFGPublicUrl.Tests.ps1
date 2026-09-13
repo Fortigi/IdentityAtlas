@@ -28,6 +28,8 @@ Describe 'Get-FGAddressClass' {
         @{ Address = '172.32.0.0'; Class = 'public' }
         @{ Address = '192.167.255.255'; Class = 'public' }
         @{ Address = '192.168.0.1'; Class = 'private' }
+        @{ Address = '192.169.0.1'; Class = 'public' }
+        @{ Address = '100.0.0.1'; Class = 'public' }
         @{ Address = '100.63.255.255'; Class = 'public' }
         @{ Address = '100.64.0.0'; Class = 'private' }
         @{ Address = '100.127.255.255'; Class = 'private' }

@@ -41,11 +41,24 @@ function Get-FGIPv4Class {
     $b = [int]$Bytes[1]
     if ($a -eq 0 -or ($a -eq 169 -and $b -eq 254) -or $a -ge 224) { return 'forbidden' }
 
-    if ($a -eq 127 -or $a -eq 10 -or ($a -eq 192 -and $b -eq 168)) { return 'private' }
-
-    if (($a -eq 172 -and $b -ge 16 -and $b -le 31) -or ($a -eq 100 -and $b -ge 64 -and $b -le 127)) { return 'private' }
+    if (Test-FGPrivateIPv4 -First $a -Second $b) { return 'private' }
 
     return 'public'
+}
+
+# Loopback 127/8, RFC 1918 (10/8, 172.16/12, 192.168/16) and CGNAT 100.64/10, from the
+# first two octets.
+function Test-FGPrivateIPv4 {
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param([Parameter(Mandatory)] [int]$First, [Parameter(Mandatory)] [int]$Second)
+    if ($First -eq 127 -or $First -eq 10) { return $true }
+
+    if ($First -eq 192) { return $Second -eq 168 }
+
+    if ($First -eq 172) { return ($Second -ge 16 -and $Second -le 31) }
+
+    return ($First -eq 100 -and $Second -ge 64 -and $Second -le 127)
 }
 
 # ::/96 (unspecified, loopback, IPv4-compatible), ::ffff:0:0/96 (IPv4-mapped) and
