@@ -165,12 +165,6 @@ export function createApp() {
   };
   app.use(cors(corsOptions));
 
-  // ─── Host allow-list + cross-site write guard (SEC-2026-09 H-07) ─
-  // Enforced while authentication is off; see middleware/requestOriginGuard.js.
-  app.use(createRequestOriginGuard({
-    extraOrigins: Array.isArray(corsOptions.origin) ? corsOptions.origin : [],
-  }));
-
   // ─── Body parsing with size limits ───────────────────────────────
   // Route-specific parsers for large payloads are set below (ingest: 10mb, import: 2mb).
   // The global parser handles all other routes with a conservative limit.
@@ -247,7 +241,14 @@ export function createApp() {
   const preAuthFailureLimiter = perMinuteLimiter(6000, 'Too many requests, please slow down', {
     skipSuccessfulRequests: true,
   });
-  app.use('/api', preAuthFailureLimiter);
+  app.use(preAuthFailureLimiter);
+
+  // ─── Host allow-list + cross-site write guard (SEC-2026-09 H-07) ─
+  // Enforced while authentication is off; see middleware/requestOriginGuard.js.
+  // Mounted behind the failure limiter so rejected requests are rate-limited too.
+  app.use(createRequestOriginGuard({
+    extraOrigins: Array.isArray(corsOptions.origin) ? corsOptions.origin : [],
+  }));
 
   // Unauthenticated endpoints (rate-limited)
   // Always 200 so the platform startup/health probe passes as soon as the port

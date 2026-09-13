@@ -67,8 +67,11 @@ function hostOfUrl(value) {
 }
 
 // "https://Atlas.example.com/" → "https://atlas.example.com"
+// (A loop instead of a /\/+$/ regex: the Origin header is client-controlled.)
 function normalizeOrigin(origin) {
-  return origin.replace(/\/+$/, '').toLowerCase();
+  let end = origin.length;
+  while (origin.endsWith('/', end)) end--;
+  return origin.slice(0, end).toLowerCase();
 }
 
 function splitList(value) {
@@ -136,6 +139,12 @@ export function isCrossSiteWrite(req, policy) {
   return false; // no browser provenance headers → non-browser client
 }
 
+// A client-supplied host name, cut to 100 characters with anything outside
+// printable ASCII (line breaks included) replaced, so it cannot forge log lines.
+export function printableForLog(value) {
+  return value.slice(0, 100).replace(/[^\x21-\x7e]/g, '?');
+}
+
 function isHostExemptPath(path) {
   return HOST_EXEMPT_PATHS.includes(path) || HOST_EXEMPT_PREFIXES.some(p => path.startsWith(p));
 }
@@ -149,7 +158,7 @@ export function createRequestOriginGuard({ env = process.env, extraOrigins = [],
     warnedHosts.add(host);
     const action = enforced ? 'Rejected' : 'Received';
     logger.warn(
-      `${action} a request for host "${host.slice(0, 100)}", which is not an allowed host name. ` +
+      `${action} a request for host "${printableForLog(host)}", which is not an allowed host name. ` +
       'If this is how users reach Identity Atlas, add it to ALLOWED_HOSTS (comma-separated) ' +
       'or set PUBLIC_BASE_URL. This is enforced while authentication is disabled.'
     );

@@ -11,6 +11,7 @@ import {
   isSameHostOrigin,
   isCrossSiteWrite,
   createRequestOriginGuard,
+  printableForLog,
 } from './requestOriginGuard.js';
 
 function fakeReq({ method = 'POST', path = '/api/admin/clean-database', headers = {} } = {}) {
@@ -106,6 +107,16 @@ describe('isSameHostOrigin', () => {
   });
   it('compares the Host header case- and whitespace-insensitively', () => {
     expect(isSameHostOrigin('http://localhost:3001', ' LOCALHOST:3001 ')).toBe(true);
+  });
+});
+
+describe('printableForLog', () => {
+  it('replaces line breaks, spaces and non-ASCII so a host cannot forge a log line', () => {
+    expect(printableForLog('evil\r\nFAKE entry é')).toBe('evil??FAKE?entry??');
+    expect(printableForLog('atlas.example.com:3001')).toBe('atlas.example.com:3001');
+  });
+  it('keeps at most 100 characters', () => {
+    expect(printableForLog('x'.repeat(150))).toBe('x'.repeat(100));
   });
 });
 
