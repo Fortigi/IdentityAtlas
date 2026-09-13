@@ -80,6 +80,11 @@ describe('readKeyFile', () => {
     expect(readKeyFile(legacyFile)).toBe('abc');
   });
 
+  it('treats a path under a non-directory as a missing file (Linux reports ENOTDIR)', () => {
+    const notDir = { readFileSync: () => { const e = new Error('ENOTDIR: not a directory'); e.code = 'ENOTDIR'; throw e; } };
+    expect(readKeyFile(legacyFile, notDir)).toBeNull();
+  });
+
   it('refuses an empty file', () => {
     writeFileSync(legacyFile, '\n');
     expect(() => readKeyFile(legacyFile)).toThrow(/is empty/);

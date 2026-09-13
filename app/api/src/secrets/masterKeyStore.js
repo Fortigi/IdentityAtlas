@@ -51,7 +51,8 @@ export function readKeyFile(path, fs = { readFileSync }) {
   try {
     key = fs.readFileSync(path, 'utf8').trim();
   } catch (err) {
-    if (err.code === 'ENOENT') return null;
+    // ENOTDIR: a path component is not a directory, so the file cannot exist either.
+    if (err.code === 'ENOENT' || err.code === 'ENOTDIR') return null;
     throw new Error(
       `Master key file exists at ${path} but could not be read: ${err.message}. ` +
       'This usually means the file is owned by a different user than the web container. ' +

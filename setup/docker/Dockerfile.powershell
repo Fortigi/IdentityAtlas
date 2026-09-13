@@ -26,7 +26,9 @@ COPY tools/crawlers/ ./tools/crawlers/
 COPY tools/powershell-sdk/ ./tools/powershell-sdk/
 COPY tools/riskscoring/ ./tools/riskscoring/
 COPY setup/ ./setup/
-COPY test/demo-dataset/ ./test/demo-dataset/
+# The demo crawler regenerates demo-company.json into this folder on every run,
+# so it is the one image path the non-root worker (uid 1000) must be able to write.
+COPY --chown=1000:1000 test/demo-dataset/ ./test/demo-dataset/
 
 # Run as a non-root user (SEC-2026-09 M-14). uid/gid 1000 on purpose: it is the
 # `node` user of the web image, which owns the shared /data/uploads volume and
