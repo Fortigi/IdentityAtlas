@@ -57,6 +57,12 @@ concurrency:
   group: pr-checks-${{ github.ref }}
   cancel-in-progress: true
 
+# Least privilege for GITHUB_TOKEN (SEC-2026-09 L-19). Every job reads the repository; the one that
+# needs more asks for it itself. Today that is only the path filter, which lists the PR's changed
+# files through the API. Artifacts and the Actions cache use the runner's own token, not this one.
+permissions:
+  contents: read
+
 env:
   DOTNET_NOLOGO: true
   POWERSHELL_TELEMETRY_OPTOUT: 1
@@ -117,6 +123,9 @@ jobs:
     needs: [changes]
     if: needs.changes.outputs.has_product_changes == 'true'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read   # dorny/paths-filter reads the PR's changed-file list via the API
     outputs:
       ps:      ${{ steps.f.outputs.ps }}
       pester:  ${{ steps.f.outputs.pester }}
@@ -924,6 +933,8 @@ jobs:
           bash test/ci-scripts/test-dor-reconcile-liveness.sh
           bash test/ci-scripts/test-dor-reconcile-selfheal.sh
           bash test/ci-scripts/test-dor-push-lease.sh
+          bash test/ci-scripts/test-dor-trusted-spec.sh
+          bash test/ci-scripts/test-dor-agent-sandbox.sh
           bash test/ci-scripts/test-gate-wiring.sh
 
       # The two Python tools that render and feed the Test Coverage docs page.
