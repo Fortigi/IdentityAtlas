@@ -1,4 +1,4 @@
-import { friendlyLabel } from '@ui/utils/formatters';
+import { attributeLabel, friendlyLabel } from '@ui/utils/formatters';
 import MatrixGroupingCell from './MatrixGroupingCell';
 import MatrixApBandCell from './MatrixApBandCell';
 
@@ -17,7 +17,7 @@ export default function MatrixGroupingRow({
       >
         <div className="text-[11px] text-gray-600 dark:text-gray-400 font-normal">
           {rowIdx === 0 ? <div className="text-[10px]">Drag rows to reorder</div> : null}
-          <div className="font-medium text-gray-600 dark:text-gray-300">{friendlyLabel(String(row.attribute).replace(/^ext\./, ''))}</div>
+          <div className="font-medium text-gray-600 dark:text-gray-300">{attributeLabel(row.attribute) || friendlyLabel(String(row.attribute).replace(/^ext\./, ''))}</div>
         </div>
       </th>
 

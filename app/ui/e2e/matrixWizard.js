@@ -19,6 +19,9 @@ export const API = `${BASE}/api`;
 // "Next" clicks needed to reach a wizard step from the opening Setup step.
 const STEP_CLICKS = { subjects: 1, resources: 2 };
 
+// The entity whose column metadata backs each step's Include list.
+const STEP_ENTITY = { subjects: 'Principal', resources: 'Resource' };
+
 /**
  * One stored value of a resource column, read from the deployment under test:
  * `dir: 'asc'` yields the alphabetically first, `'desc'` the alphabetically
@@ -52,17 +55,25 @@ export async function matrixColumn(column, entity = 'Resource') {
 /**
  * Open the matrix wizard on its first step.
  *
+ * `beforeOpen`, when given, runs just before the click that mounts the wizard
+ * — the place to arm a waitForResponse for something the wizard fetches on
+ * mount — and its return value is handed back as `armed`, wrapped in an object
+ * so an async function does not unwrap (and so await) a returned promise.
+ *
  * @param {import('@playwright/test').Page} page
+ * @param {{ beforeOpen?: () => any }} [options]
  */
-export async function openWizard(page) {
+export async function openWizard(page, { beforeOpen } = {}) {
   await page.goto(`${BASE}/#matrix`);
   await page.waitForLoadState('networkidle');
 
   // "Create matrix" on the empty state, "Adjust matrix" once a matrix is loaded.
   const open = page.getByRole('button', { name: /Create matrix|Adjust matrix/ }).first();
   await expect(open).toBeVisible({ timeout: 60000 });
+  const armed = beforeOpen?.();
   await open.click();
   await expect(page.getByRole('button', { name: 'Next' })).toBeVisible({ timeout: 30000 });
+  return { armed };
 }
 
 /**
@@ -82,17 +93,38 @@ export async function gotoWizardStep(page, label) {
 
 /**
  * Open the matrix wizard's "Add attribute filter" picker on the given step and
- * return its Field dropdown.
+ * return its Field dropdown, fully populated.
  *
  * @param {import('@playwright/test').Page} page
  * @param {'subjects' | 'resources'} step
  */
 export async function openAttributePicker(page, step) {
-  await openWizard(page);
+  // The wizard fills its field list TWICE: a fast `?schema=true` response with
+  // the core columns, then the full one carrying each column's values and the
+  // ext.* extension attributes derived from them. In between, the picker opens
+  // fully rendered and quietly incomplete — every count reads "(0)" and no
+  // extension attribute is listed at all. Nothing on screen distinguishes that
+  // from a deployment that genuinely has neither, so a spec that opens the
+  // picker and reads the list straight away is a coin flip: measured 4 failures
+  // in 10 runs before this wait, and the same gap is what made the value
+  // checkboxes in matrix-displayname-filter.spec.js intermittent.
+  //
+  // Armed before the click that mounts the wizard, so the response cannot land
+  // before we are listening for it.
+  const { armed: fullColumns } = await openWizard(page, {
+    beforeOpen: () => page.waitForResponse(res => {
+      const url = new URL(res.url());
+      return url.pathname.endsWith('/api/matrix/columns')
+        && url.searchParams.get('entity') === STEP_ENTITY[step]
+        && !url.searchParams.has('schema');
+    }, { timeout: 60000 }),
+  });
 
   // Setup → Subjects → Resources (the reporter's "Next, Next").
   const next = page.getByRole('button', { name: 'Next' });
   for (let i = 0; i < STEP_CLICKS[step]; i++) await next.click();
+
+  await fullColumns;
 
   // + Attribute on that step's Include list.
   await page.getByRole('button', { name: '+ Attribute' }).first().click();

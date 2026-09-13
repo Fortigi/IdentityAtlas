@@ -34,6 +34,7 @@ import identitiesRouter from './routes/identities.js';
 import preferencesRouter from './routes/preferences.js';
 import systemsRouter from './routes/systems.js';
 import resourcesRouter from './routes/resources.js';
+import attributeLabelsRouter from './routes/attributeLabels.js';
 import contextsRouter from './routes/contexts.js';
 import contextPluginsRouter from './routes/contextPlugins.js';
 import reportsRouter from './routes/reports.js';
@@ -322,6 +323,7 @@ export function createApp() {
   app.use('/api', authMiddleware, preferencesRouter);
   app.use('/api', authMiddleware, systemsRouter);
   app.use('/api', authMiddleware, resourcesRouter);
+  app.use('/api', authMiddleware, attributeLabelsRouter);
   app.use('/api', authMiddleware, contextsRouter);
   // Reports — an analyst read surface (it exposes nothing the Contexts page
   // doesn't already show), so plain auth, no admin permission gate.

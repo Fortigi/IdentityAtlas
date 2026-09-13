@@ -123,4 +123,48 @@ describe('generateWorkbook', () => {
     expect(principals).toContain('Record.FieldNames');
     expect(principals).toMatch(/ext_/);
   });
+
+  // ─── Attribute display names (#872) ───────────────────────────────
+  // The workbook header must be the string the browser shows. It gets there by
+  // LOOKING UP /api/attribute-labels, not by a second copy of the strip rule in
+  // M — a second copy is how the two would drift apart.
+
+  it.each([
+    ['Principals', 'principal'],
+    ['Resources', 'resource'],
+    ['Identities', 'identity'],
+    ['Systems', 'system'],
+  ])('titles %s columns from the /attribute-labels lookup for target=%s', (sheet, target) => {
+    const m = wb.getWorksheet(sheet).getCell('A6').value;
+    expect(m).toContain('RelativePath = "attribute-labels"');
+    expect(m).toContain(`target = "${target}"`);
+    expect(m).toContain('Record.FieldOrDefault(Labels, k, null)');
+    // The rule itself must NOT be reimplemented here.
+    expect(m).not.toMatch(/\[0-9a-f\]\{32\}/);
+    expect(m).not.toContain('Text.AfterDelimiter');
+  });
+
+  it('keeps ext_<key> as the title for anything unlabelled, and as the collision fallback', () => {
+    const m = wb.getWorksheet('Principals').getCell('A6').value;
+    // No label ⇒ ext_<key>, so `userType` still exports as `ext_userType`.
+    expect(m).toContain('names & { if usable then label else "ext_" & k }');
+    // "usable" is exactly: labelled, not already a real column, not already taken
+    // by an earlier expanded key — the guard that stops Power Query erroring on a
+    // duplicate column name when a JSON key is literally called `displayName`.
+    expect(m).toContain('List.RemoveItems(Table.ColumnNames(Expanded), {"extendedAttributes"})');
+    expect(m).toContain('label <> null and not List.Contains(Taken, label) and not List.Contains(names, label)');
+  });
+
+  it('leaves the join-table feeds on plain ext_ naming with no extra request', () => {
+    const m = wb.getWorksheet('Assignments').getCell('A6').value;
+    expect(m).toContain('Labels = [],');
+    expect(m).not.toContain('attribute-labels');
+  });
+
+  it('degrades to plain ext_ naming when the label endpoint is unreachable', () => {
+    // `try … otherwise []` — an old server, a revoked token or a 500 must not
+    // break the refresh; the workbook just falls back to the previous headers.
+    const m = wb.getWorksheet('Principals').getCell('A6').value;
+    expect(m).toMatch(/try Json\.Document[\s\S]*otherwise \[\]/);
+  });
 });

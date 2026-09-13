@@ -1,5 +1,13 @@
 ## Changes in this PR
 
+- Entra directory-extension attributes are now shown by their readable name (e.g. `sAMAccountName`) instead of the tenant-specific wire name (`extension_<appId>_sAMAccountName`) everywhere a name is rendered — principal, resource and identity detail pages, filter menus, the matrix attribute picker, grouping headers and roll-up captions, context schema forms, and both the matrix Excel export and the Power Query workbook.
+- Where two applications define an attribute with the same name, the label keeps a short application suffix (e.g. `employeeID (8ce8d3db)`) so the two stay distinguishable.
+- The original Entra attribute name is still available as a tooltip on detail pages, so nothing is hidden — only moved out of the way.
+- Filtering, sorting, grouping and API requests continue to use the full stored attribute key, so saved views, saved filters and shared links keep working unchanged.
+- The Entra ID crawler now records the friendly names it discovers for a tenant's extension attributes, so labels stay correct even when the same attribute name is defined by more than one application.
+
+## Changes in this PR
+
 - Added a **Reports** tab: pick a report, see its content, and refresh it against the latest data at any time. Like Systems and Logs it is optional and off by default — switch it on per user under Settings → Visible Tabs.
 - First report: **Orphaned Accounts** — every account that belongs to no identity, with its detected account type and source system. Service principals, managed identities and AI agents are excluded. Click a row to open that account's detail page.
 - Reports are pluggable: each one supplies its own query and its own presentation, so a new report can be added without touching the Reports page or the API around it.
