@@ -1,0 +1,1 @@
+- Hardened the outbound-URL safety check so every spelling of an internal, loopback, or cloud-metadata address (including IPv6 forms that embed an IPv4 address) is refused (SEC-2026-09 H-03)
