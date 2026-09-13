@@ -1,1 +1,2 @@
 - Hardened the outbound-URL safety check so every spelling of an internal, loopback, or cloud-metadata address (including IPv6 forms that embed an IPv4 address) is refused (SEC-2026-09 H-03)
+- Hardened the Risky Consent context plugin's threat-feed download: the feed URL must be https on a public host, redirects are not followed, and oversized responses are refused (SEC-2026-09 M-12)
