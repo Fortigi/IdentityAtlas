@@ -73,6 +73,20 @@ function Read-JobConfigInput {
     return $Reader.ReadToEnd()
 }
 
+# The job config as a hashtable: from stdin when -ConfigFromStdin, else -Config.
+function Resolve-JobConfig {
+    param($Config, [bool]$FromStdin)
+    if ($FromStdin) { $Config = Read-JobConfigInput }
+    return (ConvertTo-JobConfigHashtable -Config $Config)
+}
+
+# Hand the failure message to the parent process when it asked for one.
+function Write-JobFailureResult {
+    param([string]$ResultPath, [string]$Message)
+    if (-not $ResultPath) { return }
+    Set-Content -Path $ResultPath -Value $Message -Encoding UTF8 -ErrorAction SilentlyContinue
+}
+
 # Accept Config as either a hashtable (scheduler) or a JSON string (desktop worker).
 function ConvertTo-JobConfigHashtable {
     param($Config)
@@ -252,8 +266,7 @@ $appRoot = if ($env:IA_APP_ROOT) { $env:IA_APP_ROOT.TrimEnd('/\') } else { '/app
 
 try {
     $ApiKey = Resolve-JobApiKey -ApiKey $ApiKey
-    if ($ConfigFromStdin) { $Config = Read-JobConfigInput }
-    $Config = ConvertTo-JobConfigHashtable -Config $Config
+    $Config = Resolve-JobConfig -Config $Config -FromStdin $ConfigFromStdin.IsPresent
 
     # ─── Module bootstrap ─────────────────────────────────────────────────────
     Import-IdentityAtlasModule -AppRoot $appRoot
@@ -299,7 +312,7 @@ try {
     Set-JobResult @{ status = "$displayName completed successfully" }
 
 } catch {
-    if ($ResultPath) { Set-Content -Path $ResultPath -Value $_.Exception.Message -Encoding UTF8 -ErrorAction SilentlyContinue }
+    Write-JobFailureResult -ResultPath $ResultPath -Message $_.Exception.Message
     throw
 } finally {
     Stop-JobTranscript -Started $transcriptStarted
