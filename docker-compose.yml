@@ -27,6 +27,14 @@ services:
       timeout: 5s
       retries: 30
       start_period: 30s
+    # Same hardening as docker-compose.prod.yml. The official Postgres image
+    # needs these capabilities to fix data-directory ownership and drop to the
+    # postgres user.
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, SETGID, SETUID]
+    pids_limit: 2048
 
   # ── Web (serves built frontend + API) ───────────────────────────────────────
   web:
@@ -43,6 +51,9 @@ services:
       AUTH_ENABLED: "false"
       PORT:         "3001"
       CRAWLER_MANIFESTS_DIR: "/app/crawlers"
+      # Keep the auto-generated vault master key on the web-only volume, not on
+      # the job_data volume the worker mounts.
+      IDENTITY_ATLAS_KEY_DIR: /data/keys
       # How many distinct values a filter/attribute dropdown preloads per field
       # (default 500, max 5000). Lower it to exercise the "more values than fit
       # in the list" path on a small dataset — see docs/architecture/matrix.md.
@@ -51,10 +62,15 @@ services:
       - "3001:3001"
     volumes:
       - job_data:/data/uploads
+      - web_keys:/data/keys
       - ./setup/IdentityAtlas.psd1:/app/setup/IdentityAtlas.psd1:ro
     depends_on:
       postgres:
         condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    pids_limit: 2048
 
   # ── Worker (PowerShell — crawlers, risk scoring, account correlation) ──────
   # In v5 the worker container has NO database driver. It talks to the API
@@ -69,13 +85,10 @@ services:
       # API URL for the worker scheduler. The web container is reachable via
       # the docker network DNS name `web` on its internal port.
       WEB_API_URL: "http://web:3001/api"
-      # Optional global crawler API key — overridden per-job via WorkerConfig.
+      # Optional fixed crawler API key. Leave empty and the worker uses the key
+      # the web container writes to the shared volume. Crawler and LLM
+      # credentials are configured in the UI and reach the worker per job.
       CRAWLER_API_KEY:     "${CRAWLER_API_KEY:-}"
-      GRAPH_TENANT_ID:     "${GRAPH_TENANT_ID:-}"
-      GRAPH_CLIENT_ID:     "${GRAPH_CLIENT_ID:-}"
-      GRAPH_CLIENT_SECRET: "${GRAPH_CLIENT_SECRET:-}"
-      LLM_PROVIDER:        "${LLM_PROVIDER:-}"
-      LLM_API_KEY:         "${LLM_API_KEY:-}"
     volumes:
       - ./setup/docker/crontab:/app/setup/docker/crontab:ro
       - job_data:/data/uploads
@@ -85,8 +98,13 @@ services:
       # for the container to have started.
       web:
         condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    pids_limit: 4096
     restart: unless-stopped
 
 volumes:
   postgres_data:
   job_data:
+  web_keys:

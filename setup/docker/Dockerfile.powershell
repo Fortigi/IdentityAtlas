@@ -8,17 +8,37 @@
 #
 # Build context: repo root
 
-FROM mcr.microsoft.com/powershell:7.5-ubuntu-24.04
+# Pinned by digest (SEC-2026-09 M-14) so a rebuild can't silently pick up a
+# different image behind the same tag. Refresh tag and digest together.
+# mcr.microsoft.com/powershell:7.5-ubuntu-24.04
+FROM mcr.microsoft.com/powershell:7.5-ubuntu-24.04@sha256:042240d57ec9e47e511033b92625a8d95875ee5860af3015992c248b58a8be81
 
 WORKDIR /app
 
 # Copy module loader (manifest + module file).
 COPY setup/IdentityAtlas.psd1 setup/IdentityAtlas.psm1 ./setup/
 
-# Copy crawler scripts and the worker scheduler.
-COPY tools/ ./tools/
+# Copy only what the worker runs: the crawlers, the PowerShell SDK and the
+# risk-scoring functions the module loader imports (setup/IdentityAtlas.psm1).
+# The rest of tools/ is repository tooling (DoR automation, mutation testing,
+# ratchets, generators) and does not belong in a runtime image.
+COPY tools/crawlers/ ./tools/crawlers/
+COPY tools/powershell-sdk/ ./tools/powershell-sdk/
+COPY tools/riskscoring/ ./tools/riskscoring/
 COPY setup/ ./setup/
 COPY test/demo-dataset/ ./test/demo-dataset/
+
+# Run as a non-root user (SEC-2026-09 M-14). uid/gid 1000 on purpose: it is the
+# `node` user of the web image, which owns the shared /data/uploads volume and
+# writes the 0600 built-in worker key the scheduler reads. The Ubuntu base image
+# already ships uid 1000 (`ubuntu`); create one only if a future base does not.
+# /data/uploads is created with that ownership so a volume first initialised by
+# this container gets it too. Job trace directories left root-owned by older
+# (root) worker images are repaired at startup — see WorkerVolume.ps1.
+RUN (getent passwd 1000 >/dev/null || useradd --uid 1000 --user-group --create-home --shell /usr/sbin/nologin worker) \
+ && mkdir -p /data/uploads \
+ && chown 1000:1000 /data/uploads
+USER 1000:1000
 
 # Bake the release version into the image so the scheduler reports the same
 # version the web container does (Get-WorkerVersion prefers $env:MODULE_VERSION).
