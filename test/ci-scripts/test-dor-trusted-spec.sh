@@ -53,6 +53,11 @@ cat > "$TMP/comments.json" <<'JSON'
  {"user":{"login":"fortigi-ci-bot[bot]","type":"Bot"},"created_at":"t9","body":"Repro contract"}
 ]
 JSON
+# A thread far past the per-argument limit (128 KiB on Linux, less on Windows): a member's comment of
+# ~300 KB. Anything that passes the thread through argv (jq --argjson) fails on exactly this.
+big="$(printf "%300000s" "" | tr " " x)"
+printf '{"user":{"login":"bob","type":"User"},"created_at":"t1","body":"%sEND"}\n' "$big" > "$TMP/big-comments.jsonl"
+printf '{"user":{"login":"mallory","type":"User"},"created_at":"t2","body":"OUTSIDER"}\n' >> "$TMP/big-comments.jsonl"
 
 cat > "$TMP/gh" <<STUB
 #!/usr/bin/env bash
@@ -66,6 +71,8 @@ case "\$1" in
   repos/Fortigi/IdentityAtlas/issues/1[01]/comments) jq -c '.[]' "$TMP/comments.json" ;;
   repos/Fortigi/IdentityAtlas/issues/12)          cat "$TMP/issue.json" ;;
   repos/Fortigi/IdentityAtlas/issues/12/comments) exit 1 ;;
+  repos/Fortigi/IdentityAtlas/issues/13)          cat "$TMP/issue.json" ;;
+  repos/Fortigi/IdentityAtlas/issues/13/comments) cat "$TMP/big-comments.jsonl" ;;
   orgs/Fortigi/members/*)
     [ "\${GH_TOKEN:-}" = members-token ] || exit 1
     case "\${1##*/}" in alice|bob) exit 0 ;; flaky) echo boom >&2; exit 1 ;; *) exit 1 ;; esac ;;
@@ -129,7 +136,13 @@ assert "…and the withholding is recorded" true "$(jq -r '.trust.issueBodyOmitt
 assert "the certified bot comment still arrives, so the build has its plan" "yes" \
   "$(jq -r '.comments[].body' <<<"$out" | grep -q 'Certified spec' && echo yes || echo no)"
 
-# ── 5. Failure and input handling ───────────────────────────────────────────
+# ── 5. A long thread ─────────────────────────────────────────────────────────
+out="$(REQUESTOR=alice run 13)"; rc=$?
+assert "a thread past the argv limit still produces a spec" 0 "$rc"
+assert "…with the long member comment intact" 300003 "$(jq -r '.comments[0].body | length' <<<"$out")"
+assert "…and the outsider still dropped" 1 "$(jq -r '.trust.omittedComments' <<<"$out")"
+
+# ── 6. Failure and input handling ───────────────────────────────────────────
 run 12 >/dev/null; rc=$?
 assert "an unreadable comment list fails the step rather than building on half a thread" 1 "$rc"
 run 99 >/dev/null; rc=$?

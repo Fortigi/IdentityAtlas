@@ -56,25 +56,33 @@ is_trusted() {
   fi
 }
 
-if ! issue="$(gh api "repos/${REPO}/issues/${ISSUE}" 2>/dev/null)" || ! jq -e '.number' >/dev/null 2>&1 <<<"$issue"; then
+# Everything large goes through files, never argv: a long thread is easily past the kernel's
+# per-argument limit (MAX_ARG_STRLEN, 128 KiB on Linux), and --argjson with it would fail the build.
+TMPD="$(mktemp -d)"
+trap 'rm -rf "$TMPD"' EXIT
+
+if ! gh api "repos/${REPO}/issues/${ISSUE}" > "$TMPD/issue.json" 2>/dev/null \
+   || ! jq -e '.number' "$TMPD/issue.json" >/dev/null 2>&1; then
   echo "::error::dor_trusted_spec: cannot read issue #${ISSUE}" >&2
   exit 1
 fi
-if ! comments="$(gh api --paginate "repos/${REPO}/issues/${ISSUE}/comments" --jq '.[]' 2>/dev/null | jq -s '.')"; then
+if ! gh api --paginate "repos/${REPO}/issues/${ISSUE}/comments" --jq '.[]' 2>/dev/null | jq -s '.' > "$TMPD/comments.json"; then
   echo "::error::dor_trusted_spec: cannot read the comments of issue #${ISSUE}" >&2
   exit 1
 fi
 
 # One verdict per distinct (login, type), so a prolific commenter costs one lookup.
-verdicts='{}'
+: > "$TMPD/verdicts.tsv"
 while IFS=$'\t' read -r login type; do
   [ -n "$login" ] || continue
-  verdicts="$(jq -c --arg k "$login|$type" --argjson v "$(is_trusted "$login" "$type")" '. + {($k): $v}' <<<"$verdicts")"
-done < <(jq -r '[.[0].user, (.[1][] | .user)] | map(select(. != null) | [.login, .type] | @tsv) | unique | .[]' \
-           <<<"[$issue,$comments]")
+  printf '%s|%s\t%s\n' "$login" "$type" "$(is_trusted "$login" "$type")" >> "$TMPD/verdicts.tsv"
+done < <(jq -rn --slurpfile i "$TMPD/issue.json" --slurpfile c "$TMPD/comments.json" \
+           '[$i[0].user, ($c[0][] | .user)] | map(select(. != null) | [.login, .type] | @tsv) | unique | .[]')
+jq -Rn '[inputs | split("\t") | {(.[0]): (.[1] == "true")}] | add // {}' < "$TMPD/verdicts.tsv" > "$TMPD/verdicts.json"
 
-jq -n --argjson i "$issue" --argjson c "$comments" --argjson v "$verdicts" '
-  def trusted($u): $u != null and ($v[($u.login) + "|" + ($u.type)] == true);
+jq -n --slurpfile I "$TMPD/issue.json" --slurpfile C "$TMPD/comments.json" --slurpfile V "$TMPD/verdicts.json" '
+  $I[0] as $i | $C[0] as $c | $V[0] as $v
+  | def trusted($u): $u != null and ($v[($u.login) + "|" + ($u.type)] == true);
   (trusted($i.user)) as $body_ok
   | [$c[] | select(trusted(.user))] as $kept
   | {
@@ -91,5 +99,6 @@ jq -n --argjson i "$issue" --argjson c "$comments" --argjson v "$verdicts" '
       }
     }'
 
-omitted="$(jq -r --argjson v "$verdicts" '[.[] | select(($v[.user.login + "|" + .user.type]) != true)] | length' <<<"$comments")"
+omitted="$(jq -rn --slurpfile C "$TMPD/comments.json" --slurpfile V "$TMPD/verdicts.json" \
+             '$V[0] as $v | [$C[0][] | select(($v[.user.login + "|" + .user.type]) != true)] | length')"
 [ "$omitted" = 0 ] || echo "::notice::#${ISSUE}: omitted ${omitted} comment(s) by accounts outside the trusted set from the build spec" >&2
