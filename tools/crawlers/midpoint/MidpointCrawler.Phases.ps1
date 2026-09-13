@@ -283,6 +283,8 @@ function Sync-MidpointResources {
         } catch { Add-PhaseError 'Services' $_.Exception.Message }
     }
 
+    # A failed Roles or Services read leaves a bucket partial when both map to one resourceType.
+    if (-not (Test-PhaseInputsComplete -Phase 'Resources' -DependsOn @('Roles', 'Services'))) { $resByType.Clear() }
     foreach ($t in @($resByType.Keys)) {
         try {
             $recs = @($resByType[$t])
@@ -521,6 +523,8 @@ function Sync-MidpointShadows {
     Write-Host "`nShadows (accounts + entitlements):" -ForegroundColor Cyan
     Update-CrawlerProgress -Step 'Syncing shadows' -Pct 60
     $EntitlementByDn = @{}
+    # Without the Users read every entitlement assignment would re-key onto its shadow.
+    if (-not (Test-PhaseInputsComplete -Phase 'Shadows' -DependsOn @('Users'))) { return @{ entitlementByDn = $EntitlementByDn } }
     try {
         $acctBySystem  = @{}
         $entBySystem   = @{}
@@ -678,6 +682,7 @@ function Sync-MidpointAssignments {
     param([int]$MidpointSystemId, $AllUsers, $SyncedResourceIds, [hashtable]$ResourceOidToType = @{})
     Write-Host "`nAssignments (role/service memberships):" -ForegroundColor Cyan
     Update-CrawlerProgress -Step 'Syncing assignments' -Pct 82
+    if (-not (Test-PhaseInputsComplete -Phase 'Assignments' -DependsOn @('Roles', 'Services'))) { return }
     try {
         $seen = [System.Collections.Generic.HashSet[string]]::new()
         $ra   = [System.Collections.Generic.List[object]]::new()
@@ -757,6 +762,8 @@ function Sync-MidpointRoleNesting {
     if (-not $AllRoles) { return }
     Write-Host "`nRole nesting (Contains):" -ForegroundColor Cyan
     Update-CrawlerProgress -Step 'Syncing role nesting' -Pct 90
+    # Construction edges resolve against the Shadows read; service edges against Services.
+    if (-not (Test-PhaseInputsComplete -Phase 'RoleNesting' -DependsOn @('Roles', 'Services', 'Shadows'))) { return }
     try {
         $seen  = [System.Collections.Generic.HashSet[string]]::new()
         $rr    = [System.Collections.Generic.List[object]]::new()

@@ -230,6 +230,25 @@ function Add-ODataRecord {
     }
 }
 
+function Assert-ODataResponseBody {
+    <#
+    .SYNOPSIS
+        Throw when a successful GET carried no body.
+    .DESCRIPTION
+        An OData collection always answers with a JSON body — `{"value": []}` when
+        it is empty. A missing or blank body is therefore a broken response, not
+        the end of the data. Treating it as the end used to truncate the result
+        silently mid-pagination, and the caller would then run a full-sync
+        reconcile over a partial record set. (SEC-2026-09 M-11)
+    #>
+    [CmdletBinding()]
+    param($Response, [string]$Uri)
+
+    if ($null -eq $Response -or ($Response -is [string] -and [string]::IsNullOrWhiteSpace($Response))) {
+        throw "OData GET $Uri returned no response body — refusing to treat it as the end of the data"
+    }
+}
+
 function Invoke-ODataGetRequest {
     <#
     .SYNOPSIS
@@ -267,7 +286,7 @@ function Invoke-ODataGetRequest {
         Add-ODataAuthParam -ReqParams $reqParams -Session $script:ODataSession
 
         $resp = Invoke-ODataRequestWithRetry -ReqParams $reqParams -MaxRetries $MaxRetries
-        if ($null -eq $resp) { break }
+        Assert-ODataResponseBody -Response $resp -Uri $nextUri
 
         Add-ODataRecord -Response $resp -Collected $collected
 

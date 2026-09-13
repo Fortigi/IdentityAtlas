@@ -347,6 +347,52 @@ Describe 'Invoke-ODataPagedRequest' {
     }
 }
 
+Describe 'Invoke-ODataGetRequest — a response without a body' {
+    # SEC-2026-09 M-11: a 200 with no body used to end nextLink pagination as if
+    # the data were exhausted, so a consumer's full sync reconciled over a
+    # truncated record set. It must fail the read instead.
+    BeforeEach {
+        Connect-ODataAPI -BaseUrl 'https://h/odata' -AuthMethod 'ApiToken' -ApiToken 'tok'
+        $script:calls = [System.Collections.Generic.List[string]]::new()
+    }
+
+    It 'follows @odata.nextLink across well-formed pages' {
+        Mock Invoke-RestMethod {
+            $script:calls.Add($Uri)
+            if ($script:calls.Count -eq 1) {
+                return [pscustomobject]@{ value = @([pscustomobject]@{ id = 1 }); '@odata.nextLink' = 'https://h/odata/Items?page=2' }
+            }
+            return [pscustomobject]@{ value = @([pscustomobject]@{ id = 2 }) }
+        }
+        $out = Invoke-ODataGetRequest -Path '/Items'
+        $out.id | Should -Be @(1, 2)
+        $script:calls[1] | Should -Be 'https://h/odata/Items?page=2'
+    }
+
+    It 'throws instead of returning a truncated result when a nextLink page has no body' {
+        Mock Invoke-RestMethod {
+            $script:calls.Add($Uri)
+            if ($script:calls.Count -eq 1) {
+                return [pscustomobject]@{ value = @([pscustomobject]@{ id = 1 }); '@odata.nextLink' = 'https://h/odata/Items?page=2' }
+            }
+            return $null
+        }
+        { Invoke-ODataGetRequest -Path '/Items' } | Should -Throw '*Items?page=2 returned no response body*'
+    }
+
+    It 'throws when the first page is a blank string' {
+        Mock Invoke-RestMethod { '   ' }
+        { Invoke-ODataGetRequest -Path '/Items' } | Should -Throw '*returned no response body*'
+    }
+
+    It 'still returns an empty array for a well-formed empty collection' {
+        Mock Invoke-RestMethod { [pscustomobject]@{ value = @() } }
+        $out = Invoke-ODataGetRequest -Path '/Items'
+        $out.GetType().Name | Should -Be 'Object[]'
+        $out.Count | Should -Be 0
+    }
+}
+
 Describe 'OData library — file structure' {
     It 'the odata folder holds the protocol files' {
         Get-ChildItem $script:odataRoot -Filter '*.ps1' | Should -Not -BeNullOrEmpty
