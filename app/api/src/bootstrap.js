@@ -42,6 +42,7 @@ function writeWorkerKeyFile(apiKey) {
 const KEY_PREFIX = 'fgc_';
 const KEY_RANDOM_BYTES = 32;
 const BUILTIN_CRAWLER_NAME = 'Built-in Worker';
+const BUILTIN_CRAWLER_PERMISSIONS = '["ingest","refreshViews","admin"]';
 
 function generateApiKey() {
   const random = crypto.randomBytes(KEY_RANDOM_BYTES).toString('hex');
@@ -63,6 +64,20 @@ function readWorkerKeyFile() {
   }
 }
 
+// Older versions let an admin disable the worker row or edit its permissions,
+// which silently stops every crawler. Those edits are now refused by the API;
+// re-enable / restore a row that was changed before the upgrade.
+async function restoreBuiltinCrawlerAccess(existing) {
+  const perms = Array.isArray(existing.permissions) ? existing.permissions : null;
+  const needsRestore = existing.enabled === false || (perms !== null && !perms.includes('admin'));
+  if (!needsRestore) return;
+  await db.query(
+    `UPDATE "Crawlers" SET enabled = TRUE, permissions = $1::jsonb WHERE id = $2`,
+    [BUILTIN_CRAWLER_PERMISSIONS, existing.id]
+  );
+  console.log('Built-in Worker crawler re-enabled with its standard permissions');
+}
+
 // Ensure the built-in worker crawler exists and the worker has a valid API key.
 //
 // The key is persisted ONLY in two places: the scrypt hash in Crawlers (for
@@ -74,12 +89,14 @@ export async function ensureBuiltinCrawler() {
   // WorkerConfig; it is no longer written or read, so remove it on upgrade.
   await db.query(`DELETE FROM "WorkerConfig" WHERE "configKey" = 'BUILTIN_CRAWLER_API_KEY'`).catch(() => {});
 
+  // The worker row is identified by the bootstrap-owned isBuiltIn flag, never
+  // by its display name (SEC-2026-09 M-06).
   const existing = await db.queryOne(
-    `SELECT id, "apiKeyHash", "apiKeySalt" FROM "Crawlers" WHERE "displayName" = $1 AND "enabled" = TRUE`,
-    [BUILTIN_CRAWLER_NAME]
+    `SELECT id, "apiKeyHash", "apiKeySalt", enabled, permissions FROM "Crawlers" WHERE "isBuiltIn" = TRUE`
   );
 
   if (existing) {
+    await restoreBuiltinCrawlerAccess(existing);
     // Reuse the key on the shared volume IFF it still matches the stored scrypt
     // hash. Otherwise (file missing/stale, or a legacy 32-byte SHA-256 hash),
     // rotate: generate a new key, update the hash, and re-write the file.
@@ -119,10 +136,10 @@ export async function ensureBuiltinCrawler() {
 
   await db.query(
     `INSERT INTO "Crawlers"
-       ("displayName", "description", "apiKeyHash", "apiKeySalt", "apiKeyPrefix", "createdBy", "permissions")
-     VALUES ($1, $2, $3, $4, $5, 'system-bootstrap', '["ingest","refreshViews","admin"]'::jsonb)`,
+       ("displayName", "description", "apiKeyHash", "apiKeySalt", "apiKeyPrefix", "createdBy", "permissions", "isBuiltIn")
+     VALUES ($1, $2, $3, $4, $5, 'system-bootstrap', $6::jsonb, TRUE)`,
     [BUILTIN_CRAWLER_NAME, 'Auto-created crawler for the Docker worker container. Do not delete.',
-     hash, salt, prefix]
+     hash, salt, prefix, BUILTIN_CRAWLER_PERMISSIONS]
   );
 
   writeWorkerKeyFile(apiKey);

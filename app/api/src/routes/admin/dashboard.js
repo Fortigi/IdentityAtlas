@@ -65,7 +65,7 @@ router.get('/admin/dashboard-stats', async (_req, res) => {
         (SELECT COUNT(*)::int FROM "RiskProfiles" WHERE "isActive")                            AS "activeRiskProfile",
         (SELECT COUNT(*)::int FROM "RiskClassifiers" WHERE "isActive")                         AS "activeClassifiers",
         (  (SELECT COUNT(*)::int FROM "CrawlerConfigs" WHERE enabled)
-         + (SELECT COUNT(*)::int FROM "Crawlers" WHERE enabled AND "displayName" != 'Built-in Worker')
+         + (SELECT COUNT(*)::int FROM "Crawlers" WHERE enabled AND NOT "isBuiltIn")
         )                                                                                      AS "enabledCrawlers",
         (SELECT COUNT(*)::int FROM "CrawlerJobs" WHERE status = 'running')                     AS "runningJobs"
     `);

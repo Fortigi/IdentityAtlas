@@ -10,7 +10,7 @@ process.env.USE_SQL = 'true';
 
 vi.mock('../db/connection.js');
 const { query } = await import('../db/connection.js');
-const { crawlerAuthMiddleware } = await import('./crawlerAuth.js');
+const { crawlerAuthMiddleware, authCacheKey } = await import('./crawlerAuth.js');
 
 const SALT = Buffer.from('0123456789abcdef');
 const API_KEY = 'fgc_HAPPYkey';
@@ -138,6 +138,53 @@ describe('crawlerAuthMiddleware — state guards', () => {
     const second = await run();
     expect(second.res.statusCode).toBe(429);
     expect(second.res.body).toEqual({ error: 'Rate limit exceeded' });
+  });
+});
+
+describe('crawlerAuthMiddleware — built-in worker rate limit (M-06)', () => {
+  it('a crawler merely named "Built-in Worker" keeps its own limit', async () => {
+    const row = crawlerRow({ displayName: 'Built-in Worker', isBuiltIn: false, rateLimit: 1 });
+    query.mockResolvedValueOnce({ rows: [row] });
+    expect((await run()).nextCalled).toBe(true);
+    query.mockResolvedValueOnce({ rows: [row] });
+    expect((await run()).res.statusCode).toBe(429);
+  });
+
+  it('the isBuiltIn row gets the worker floor whatever its name', async () => {
+    const row = crawlerRow({ displayName: 'Renamed', isBuiltIn: true, rateLimit: 1 });
+    query.mockResolvedValueOnce({ rows: [row] });
+    expect((await run()).nextCalled).toBe(true);
+    query.mockResolvedValueOnce({ rows: [row] });
+    expect((await run()).nextCalled).toBe(true);
+  });
+
+  it('selects the isBuiltIn column in the prefix lookup', async () => {
+    query.mockResolvedValueOnce({ rows: [crawlerRow()] });
+    await run();
+    expect(query.mock.calls[0][0]).toContain('"isBuiltIn"');
+  });
+});
+
+describe('authCacheKey (I-03)', () => {
+  it('never embeds the plaintext API key', () => {
+    const key = authCacheKey(7, API_KEY);
+    expect(key).not.toContain(API_KEY);
+    expect(key).toBe(`7:${crypto.createHash('sha256').update(API_KEY).digest('hex')}`);
+  });
+
+  it('distinguishes crawler ids and keys', () => {
+    expect(authCacheKey(7, API_KEY)).not.toBe(authCacheKey(8, API_KEY));
+    expect(authCacheKey(7, API_KEY)).not.toBe(authCacheKey(7, `${API_KEY}x`));
+  });
+
+  it('still caches: a second valid request for the same key does not re-verify a now-wrong hash', async () => {
+    const row = crawlerRow({ id: 950, rateLimit: 1000 });
+    query.mockResolvedValueOnce({ rows: [row] });
+    expect((await run()).nextCalled).toBe(true);
+    // Same crawler id + key, but the stored hash no longer matches: a cache hit
+    // (keyed on the digest) must still accept within the TTL.
+    query.mockResolvedValueOnce({ rows: [{ ...row, apiKeyHash: Buffer.alloc(64) }] });
+    expect((await run()).nextCalled).toBe(true);
   });
 });
 

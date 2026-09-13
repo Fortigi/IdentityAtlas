@@ -16,18 +16,23 @@ const rateLimits = new Map();
 const RATE_WINDOW_MS = 60 * 1000;
 
 // Auth result cache: avoids running the expensive scrypt on every request.
-// Key: `${crawlerId}:${apiKey}`. TTL: 60 seconds.
+// Key: `${crawlerId}:${sha256(apiKey)}` — a digest, so the plaintext key is
+// never retained in memory as a Map key (SEC-2026-09 I-03). TTL: 60 seconds.
 // On key rotation the new apiKey string is different → cache miss → re-verify.
 const authCache = new Map();
 const AUTH_CACHE_TTL_MS = 60_000;
 
+export function authCacheKey(crawlerId, apiKey) {
+  return `${crawlerId}:${crypto.createHash('sha256').update(String(apiKey)).digest('hex')}`;
+}
+
 function getCachedAuth(crawlerId, apiKey) {
-  const entry = authCache.get(`${crawlerId}:${apiKey}`);
+  const entry = authCache.get(authCacheKey(crawlerId, apiKey));
   return (entry && Date.now() < entry.expires) ? entry.valid : null;
 }
 
 function setCachedAuth(crawlerId, apiKey, valid) {
-  authCache.set(`${crawlerId}:${apiKey}`, { valid, expires: Date.now() + AUTH_CACHE_TTL_MS });
+  authCache.set(authCacheKey(crawlerId, apiKey), { valid, expires: Date.now() + AUTH_CACHE_TTL_MS });
   if (authCache.size > 2000) {
     const now = Date.now();
     for (const [k, v] of authCache) { if (now >= v.expires) authCache.delete(k); }
@@ -66,7 +71,7 @@ async function logAudit(crawlerId, action, endpoint, statusCode, ipAddress) {
 async function findCrawlerByPrefix(prefix) {
   const r = await db.query(
     `SELECT id, "displayName", "apiKeyHash", "apiKeySalt", "systemIds", "permissions",
-            "enabled", "expiresAt", "rateLimit"
+            "enabled", "expiresAt", "rateLimit", "isBuiltIn"
        FROM "Crawlers"
       WHERE "apiKeyPrefix" = $1`,
     [prefix]
@@ -89,7 +94,7 @@ function verifyKeyDenial(crawler, apiKey) {
 }
 
 function rateLimitDenial(crawler) {
-  const limit = effectiveRateLimit(crawler.rateLimit, crawler.displayName);
+  const limit = effectiveRateLimit(crawler.rateLimit, crawler.isBuiltIn);
   return checkRateLimit(crawler.id, limit) ? null : DENIAL.rateLimited;
 }
 

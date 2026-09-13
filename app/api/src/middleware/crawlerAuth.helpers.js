@@ -44,8 +44,10 @@ export function expiryDenial(expiresAt) {
 // The built-in worker (created by bootstrap) needs a very high limit because
 // the CSV crawler makes many small batches (one per system × entity type).
 // Override the DB value for the built-in worker; external crawlers keep their
-// configured limit (default 100) to prevent accidental DoS.
-export function effectiveRateLimit(rateLimit, displayName) {
+// configured limit (default 100) to prevent accidental DoS. The worker is
+// recognised by the bootstrap-owned isBuiltIn flag, not by its display name
+// (SEC-2026-09 M-06).
+export function effectiveRateLimit(rateLimit, isBuiltIn) {
   const limit = rateLimit || 100;
-  return displayName === 'Built-in Worker' ? Math.max(limit, 2000) : limit;
+  return isBuiltIn === true ? Math.max(limit, 2000) : limit;
 }
