@@ -81,26 +81,12 @@ The `ApiKey` is the worker API key shown on the **Admin → Settings** page.
 
 ### Network access
 
-Identity Atlas only sends midPoint credentials to an **https** URL on a **public**
-address unless you opt in. The check runs when the crawler is saved, when a job is
-started, when the wizard runs live discovery, and again on the worker right before it
-connects (including on every pagination link the server returns, which must stay on
-the configured host).
-
-| Your server | What to set |
-|---|---|
-| Public, https (a hosted midPoint) | Nothing — the defaults work. |
-| On your own network (private IP, e.g. `10.x`, `172.16–31.x`, `192.168.x`, or a hostname that resolves to one) | Tick **Allow private network** (`allowPrivateNetwork: true`). |
-| Only reachable over plain http | Tick **Allow insecure HTTP** (`allowInsecureHttp: true`). Prefer enabling https on the server instead. |
-
-Link-local and cloud-metadata addresses (for example `169.254.169.254`) are always
-refused, with or without these options. The wizard does not follow HTTP redirects:
-configure the final URL.
-
-> **Upgrading:** a crawler that already pointed at a private address or used `http`
-> keeps its configuration but will be refused until the matching option is enabled —
-> the job fails with *baseUrl rejected …* naming the option to set. Edit the crawler,
-> tick the option on the **Connection** step and save.
+midPoint is usually installed on your own network, often as `http://midpoint:8080/midpoint`.
+Such a URL is refused until you tick **Allow private network** (the host resolves to a
+private address) and **Allow insecure HTTP** (plain `http`) on the wizard's Connection step —
+or set `allowPrivateNetwork` / `allowInsecureHttp` to `true` in the stored config. A midPoint
+reachable over public https needs neither. Details and the upgrade note:
+[Crawler URL rejected](../reference/troubleshooting.md#crawler-url-rejected).
 
 ### Sync phase toggles (`selectedObjects`)
 

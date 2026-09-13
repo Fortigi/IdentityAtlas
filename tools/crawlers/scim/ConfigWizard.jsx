@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import useNetworkAccess from '@ui/components/crawler/useNetworkAccess';
+import { CrawlerField, NetworkAccessOptions, OptionList, ScheduleList, WizardNav } from '@ui/components/crawler/wizardFields';
 import MappingRows from '@ui/components/MappingRows';
 import WizardShell from '@ui/components/WizardShell';
 import Combobox from '@ui/components/inputs/Combobox';
@@ -7,8 +9,6 @@ import { canSubmitCredentials, buildCredentialFields } from '@ui/utils/crawlerCr
 import CredentialFields from '@ui/components/crawler/CredentialFields';
 import useCredentialFields from '@ui/components/crawler/useCredentialFields';
 import useCrawlerDiscovery from '@ui/components/crawler/useCrawlerDiscovery';
-import { CrawlerField, NetworkAccessOptions, OptionList, ScheduleList, WizardNav } from '@ui/components/crawler/wizardFields';
-import useNetworkAccess from '@ui/components/crawler/useNetworkAccess';
 import useCrawlerSave from '@ui/components/crawler/useCrawlerSave';
 
 // ─── Constants ────────────────────────────────────────────────────────────────

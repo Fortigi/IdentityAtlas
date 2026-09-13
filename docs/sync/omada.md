@@ -77,26 +77,12 @@ In the wizard, the **Sync Options** step calls `$metadata` live against the conn
 
 ### Network access
 
-Identity Atlas only sends Omada credentials to an **https** URL on a **public**
-address unless you opt in. The check runs when the crawler is saved, when a job is
-started, when the wizard runs live discovery, and again on the worker right before it
-connects (including on every pagination link the server returns, which must stay on
-the configured host).
-
-| Your server | What to set |
-|---|---|
-| Public, https (Omada Cloud) | Nothing — the defaults work. |
-| On your own network (private IP, e.g. `10.x`, `172.16–31.x`, `192.168.x`, or a hostname that resolves to one) | Tick **Allow private network** (`allowPrivateNetwork: true`). |
-| Only reachable over plain http | Tick **Allow insecure HTTP** (`allowInsecureHttp: true`). Prefer enabling https on the server instead. |
-
-Link-local and cloud-metadata addresses (for example `169.254.169.254`) are always
-refused, with or without these options. The wizard does not follow HTTP redirects:
-configure the final URL.
-
-> **Upgrading:** a crawler that already pointed at a private address or used `http`
-> keeps its configuration but will be refused until the matching option is enabled —
-> the job fails with *baseUrl rejected …* naming the option to set. Edit the crawler,
-> tick the option on the **Connection** step and save.
+Omada Cloud (`https://<tenant>.omada.cloud`) needs no extra setting. For an **on-premises**
+Omada server whose address is private (`10.x`, `172.16–31.x`, `192.168.x`, or a name that
+resolves to one) tick **Allow private network** on the Connection step; if it is only served
+over plain `http`, also tick **Allow insecure HTTP**. The same applies to a self-hosted OAuth2
+token endpoint. Why these options exist, what stays blocked regardless, and what to do after
+upgrading: [Crawler URL rejected](../reference/troubleshooting.md#crawler-url-rejected).
 
 ### `contextObjectTypes`
 

@@ -15,13 +15,13 @@
       "clientId":    { "type": "string" },
       "clientSecret":{ "type": "string" },
       "tokenEndpoint":{ "type": "string" },
-      "allowPrivateNetwork": { "type": "boolean", "default": false, "description": "Allow baseUrl / tokenEndpoint to resolve to a private or loopback address (an on-premises server). Link-local and cloud-metadata addresses stay blocked." },
-      "allowInsecureHttp":   { "type": "boolean", "default": false, "description": "Allow plain http for baseUrl / tokenEndpoint. Credentials are then sent unencrypted." },
       "apiToken":    { "type": "string" },
       "cookieString":{ "type": "string" },
       "apiVersion":  { "type": "string", "default": "v4" },
       "sessionTimeoutMinutes": { "type": "number", "default": 30 },
-      "pageSize":    { "type": "number", "default": 100 }
+      "pageSize":    { "type": "number", "default": 100 },
+      "allowPrivateNetwork": { "type": "boolean", "default": false, "description": "Allow baseUrl / tokenEndpoint to resolve to a private or loopback address (an on-premises server). Link-local and cloud-metadata addresses stay blocked." },
+      "allowInsecureHttp":   { "type": "boolean", "default": false, "description": "Allow plain http for baseUrl / tokenEndpoint. Credentials are then sent unencrypted." }
     },
     "allOf": [
       { "if": { "properties": { "authMethod": { "const": "OAuth2ROPC" } } },
