@@ -17,9 +17,11 @@ import { query } from '../db/connection.js';
 vi.mock('../middleware/auth.js', () => ({ requirePermission: () => (_q, _s, next) => next() }));
 vi.mock('./crawlerFiles.js', () => ({ getUploadFolderPath: vi.fn(() => '/tmp/x'), deleteConfigFolder: vi.fn(async () => {}) }));
 vi.mock('../secrets/crawlerSecrets.js', () => ({
-  storeConfigSecret: vi.fn(async () => {}), hasConfigSecret: vi.fn(async () => false),
-  deleteConfigSecret: vi.fn(async () => {}), getConfigSecret: vi.fn(async () => null),
-  storeJobSecret: vi.fn(async () => {}), storeJobCredentials: vi.fn(async () => {}), OTHER_SECRET_FIELDS: [],
+  storeConfigFields: vi.fn(async () => {}), vaultedConfigFields: vi.fn(async () => []),
+  deleteConfigSecrets: vi.fn(async () => {}), getConfigSecret: vi.fn(async () => null),
+  getConfigCredentials: vi.fn(async () => ({})),
+  storeJobSecret: vi.fn(async () => {}), storeJobCredentials: vi.fn(async () => {}),
+  CONFIG_SECRET_FIELDS: ['clientSecret', 'password', 'apiToken', 'cookieString'],
 }));
 // Fictional types on purpose: the gate is generic, so naming a real crawler here
 // would only tie this test to whichever one happens to be experimental today.
@@ -27,7 +29,7 @@ vi.mock('../crawlerManifests.js', () => ({
   CRAWLER_MANIFESTS_DIR: '', _crawlerManifests: {}, VALID_JOB_TYPES: ['settled-type', 'preview-type'],
   validateCrawlerConfig: vi.fn(() => null), validateStoredCrawlerConfig: vi.fn(async () => null),
   isSingletonJob: vi.fn(() => false), isPushModeType: vi.fn(() => false),
-  isExperimentalType: vi.fn(t => t === 'preview-type'),
+  isExperimentalType: vi.fn(t => t === 'preview-type'), hostBearingFields: vi.fn(() => ['baseUrl', 'tokenEndpoint']),
 }));
 const isFeatureEnabled = vi.fn(async () => false);
 vi.mock('../featureFlags.js', () => ({ isFeatureEnabled: (...a) => isFeatureEnabled(...a) }));

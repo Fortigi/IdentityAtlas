@@ -8,10 +8,13 @@ import { Router } from 'express';
 import * as db from '../../db/connection.js';
 import { createParams } from '../../db/sqlParams.js';
 import { deleteConfigFolder } from '../crawlerFiles.js';
-import { storeConfigSecret, deleteConfigSecret } from '../../secrets/crawlerSecrets.js';
-import { validateStoredCrawlerConfig, isPushModeType, isExperimentalType } from '../../crawlerManifests.js';
+import { storeConfigFields, deleteConfigSecrets, vaultedConfigFields } from '../../secrets/crawlerSecrets.js';
+import { validateStoredCrawlerConfig, isPushModeType, isExperimentalType, hostBearingFields } from '../../crawlerManifests.js';
 import { isFeatureEnabled } from '../../featureFlags.js';
-import { gate, useSql, SECRET_MASK, maskedConfigForResponse, mergeConfigForUpdate } from './helpers.js';
+import {
+  gate, useSql, maskedConfigForResponse, mergeConfigForUpdate, splitConfigSecrets,
+  changedHostFields, credentialReentryError,
+} from './helpers.js';
 
 const router = Router();
 
@@ -54,10 +57,9 @@ router.post('/admin/crawler-configs', gate, async (req, res) => {
   }
 
   try {
-    // Strip the clientSecret out of the stored JSON — it goes to the vault.
-    const incoming = { ...(config || {}) };
-    const clientSecret = incoming.clientSecret;
-    delete incoming.clientSecret;
+    // Strip every credential field out of the stored JSON — they go to the
+    // vault, one row per field (SEC-2026-09 M-10).
+    const { rest: incoming, secrets } = splitConfigSecrets(config);
 
     const pool = await db.getPool();
     const result = await pool.query(
@@ -68,7 +70,7 @@ router.post('/admin/crawler-configs', gate, async (req, res) => {
     );
 
     const row = result.rows[0];
-    if (clientSecret && clientSecret !== SECRET_MASK) await storeConfigSecret(row.id, clientSecret);
+    await storeConfigFields(row.id, secrets);
     res.status(201).json({ ...row, config: await maskedConfigForResponse(row.id, row.config) });
   } catch (err) {
     console.error('Error creating crawler config:', err.message);
@@ -94,6 +96,18 @@ router.get('/admin/crawler-configs/:id', gate, async (req, res) => {
   }
 });
 
+// SEC-2026-09 M-02: refuse an edit that moves a host-bearing field (baseUrl,
+// tokenEndpoint, any URL-typed manifest field) to a different scheme/host while
+// keeping a credential already stored for this config. Returns { status, body }
+// or null.
+async function checkCredentialCustody(id, crawlerType, existingConfig, mergedConfig, newSecrets, keptFields) {
+  const changed = changedHostFields(hostBearingFields(crawlerType), existingConfig, mergedConfig);
+  if (changed.length === 0) return null;
+  const vaulted = await vaultedConfigFields(id);
+  const keptStored = keptFields.filter(f => vaulted.includes(f) || newSecrets[f]);
+  return credentialReentryError(changed, keptStored);
+}
+
 // PATCH /api/admin/crawler-configs/:id — Update config
 router.patch('/admin/crawler-configs/:id', gate, async (req, res) => {
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
@@ -112,15 +126,16 @@ router.patch('/admin/crawler-configs/:id', gate, async (req, res) => {
     const existing = await pool.query(`SELECT config, "crawlerType" FROM "CrawlerConfigs" WHERE id = $1`, [id]);
     if (existing.rows.length === 0) return res.status(404).json({ error: 'Config not found' });
 
-    const { mergedConfig, newSecret } = mergeConfigForUpdate(existing.rows[0].config, config);
+    const { mergedConfig, newSecrets, keptFields } = mergeConfigForUpdate(existing.rows[0].config, config);
 
     const crawlerType = existing.rows[0].crawlerType;
     if (config) {
-      // mergedConfig never has clientSecret (just stripped above) — use the
-      // vault-aware validator so types whose schema requires it (entra-id,
-      // omada/midPoint's OAuth2 methods) don't reject an edit that doesn't
-      // touch credentials.
-      const configErr = await validateStoredCrawlerConfig(crawlerType, mergedConfig, id);
+      const custodyErr = await checkCredentialCustody(id, crawlerType, existing.rows[0].config, mergedConfig, newSecrets, keptFields);
+      if (custodyErr) return res.status(custodyErr.status).json(custodyErr.body);
+      // mergedConfig never carries credential fields — use the vault-aware
+      // validator so a schema that requires one doesn't reject an edit that
+      // doesn't touch credentials. Newly entered values count as present.
+      const configErr = await validateStoredCrawlerConfig(crawlerType, { ...mergedConfig, ...newSecrets }, id);
       if (configErr) return res.status(400).json({ error: configErr });
     }
 
@@ -140,7 +155,7 @@ router.patch('/admin/crawler-configs/:id', gate, async (req, res) => {
       params
     );
     const row = result.rows[0];
-    if (newSecret) await storeConfigSecret(id, newSecret);
+    await storeConfigFields(id, newSecrets);
     res.json({ ...row, config: await maskedConfigForResponse(row.id, row.config) });
   } catch (err) {
     console.error('Error updating crawler config:', err.message);
@@ -163,7 +178,7 @@ router.delete('/admin/crawler-configs/:id', gate, async (req, res) => {
     if (result.rowCount === 0) return res.status(404).json({ error: 'Config not found' });
     // Best-effort cleanup of any uploaded files + the vaulted secret.
     deleteConfigFolder(crawlerType, id).catch(() => {});
-    deleteConfigSecret(id).catch(() => {});
+    deleteConfigSecrets(id).catch(() => {});
     // A push-mode type's card is a CrawlerConfigs row paired with a Crawlers
     // row (the API key) created together in routes/crawlers.js's POST
     // handler — clean up the other side too so removing the card doesn't

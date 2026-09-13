@@ -29,7 +29,7 @@ vi.mock('../db/connection.js', () => ({ query: (...a) => mockDbQuery(...a) }));
 // Secret vault + manifest + post-crawl pipeline are not under test here.
 vi.mock('../secrets/crawlerSecrets.js', () => ({
   injectJobSecret: async (job) => ({ ...job.config, clientSecret: 'INJECTED' }),
-  deleteJobSecret: async () => {},
+  deleteJobSecrets: async () => {},
 }));
 vi.mock('../crawlerManifests.js', () => ({ getPushModeType: () => 'custom-connector' }));
 vi.mock('../postCrawlJobs.js', () => ({ runPostCrawlJobs: async () => {} }));

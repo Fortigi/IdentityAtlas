@@ -9,7 +9,7 @@ import { Router } from 'express';
 import * as db from '../../db/connection.js';
 import { promises as fs } from 'fs';
 import path from 'path';
-import { getConfigSecret, storeJobSecret, storeJobCredentials } from '../../secrets/crawlerSecrets.js';
+import { getConfigSecret, getConfigCredentials, storeJobSecret, storeJobCredentials } from '../../secrets/crawlerSecrets.js';
 import { assertPublicUrl } from '../../lib/ssrfGuard.js';
 import { CRAWLER_MANIFESTS_DIR, _crawlerManifests, validateStoredCrawlerConfig } from '../../crawlerManifests.js';
 import { gate, useSql, VALID_JOB_TYPES, validateCreateJobBody, resolveJobConfig, resolveUploadFolder, prepareJobConfig, checkSingletonConflict, resolveCreatedBy } from './helpers.js';
@@ -63,10 +63,13 @@ router.post('/admin/crawler-jobs', gate, async (req, res) => {
     const { inlineSecret, configJson, extraCreds } = prepareJobConfig(resolvedConfig, configId, effectiveSyncMode);
 
     const result = await pool.query(
-      `INSERT INTO "CrawlerJobs" ("jobType", config, "createdBy")
-              VALUES ($1, $2, $3)
+      `INSERT INTO "CrawlerJobs" ("jobType", config, "createdBy", "configId")
+              VALUES ($1, $2, $3, $4)
               RETURNING *`,
-      [jobType, configJson, createdBy]
+      // "configId" is the only thing that decides which stored config's
+      // credentials the worker receives — set here from the validated request
+      // parameter, never from the config JSON (SEC-2026-09 H-02).
+      [jobType, configJson, createdBy, configId || null]
     );
     const newJobId = result.rows[0].id;
     if (inlineSecret) await storeJobSecret(newJobId, inlineSecret);
@@ -300,7 +303,10 @@ router.post('/admin/crawlers/:type/discover', gate, async (req, res) => {
   // assertPublicUrl lets a handler reject an admin-supplied base URL that
   // resolves to a private/loopback/metadata address before it fetches it with a
   // credential (SSRF guard, audit L-6).
-  return handler(req, res, { db, getConfigSecret, assertPublicUrl });
+  // getConfigCredentials returns every vaulted credential field of a stored
+  // config (clientSecret, password, apiToken, cookieString) for edit-mode
+  // discovery; getConfigSecret stays for handlers that only need clientSecret.
+  return handler(req, res, { db, getConfigSecret, getConfigCredentials, assertPublicUrl });
 });
 
 export default router;

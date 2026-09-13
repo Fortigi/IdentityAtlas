@@ -175,10 +175,14 @@ All three default to `true` when omitted — existing types need no changes.
 If present, the API exposes `POST /api/admin/crawlers/<type>/discover` backed by this file. The file must be ESM with a default export matching:
 
 ```js
-export default async function handler(req, res, { db, getConfigSecret }) {
+export default async function handler(req, res, { db, getConfigSecret, getConfigCredentials, assertPublicUrl }) {
   // req.body contains the current wizard config (credentials, base URL, etc.)
   // db — the pg pool (via getPool())
   // getConfigSecret(configId) — decrypts the stored clientSecret for that config
+  // getConfigCredentials(configId) — every vaulted credential field of that config
+  //   ({ clientSecret, password, apiToken, cookieString } — whichever are stored);
+  //   none of them is ever present in CrawlerConfigs.config
+  // assertPublicUrl(url) — SSRF guard; call it before fetching with a credential
   // respond with res.json(...)
 }
 ```

@@ -9,7 +9,7 @@ import { readdirSync, readFileSync } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import Ajv from 'ajv';
-import { hasConfigSecret } from './secrets/crawlerSecrets.js';
+import { vaultedConfigFields, CONFIG_SECRET_FIELDS } from './secrets/crawlerSecrets.js';
 
 // In Docker: manifests are at /app/crawlers/ (COPY'd from tools/crawlers/).
 // In local dev: resolve relative to the repo root via IA_APP_ROOT or __dirname.
@@ -84,26 +84,49 @@ export function validateCrawlerConfig(type, config) {
   return _ajv.errorsText(validate.errors, { separator: '; ' });
 }
 
-// Some crawler types declare clientSecret as schema-required (directly, or
-// conditionally via an authMethod allOf/if-then — omada and midPoint both do
-// this for OAuth2CC/OAuth2ROPC). But clientSecret is deliberately stripped
-// out of CrawlerConfigs.config once saved — it lives only in the secrets
-// vault (see secrets/crawlerSecrets.js) — so a config freshly loaded from
-// storage (an edit, a "Run Now", a scheduled run) never has it, and a plain
-// validateCrawlerConfig() call on that config always fails the `required`
-// check, even though credentials are genuinely present. Any caller
-// validating a config that came from storage rather than a fresh wizard
-// submission must call this instead, passing the configId so the vault can
-// be checked. No crawler-type branching here — this generically applies to
-// whichever type's schema happens to require clientSecret.
+// Some crawler types declare credential fields as schema-required (directly,
+// like entra-id's clientSecret, or conditionally via an authMethod
+// allOf/if-then — omada, midPoint, OData and SCIM require clientSecret /
+// password / apiToken / cookieString depending on the auth method). But every
+// credential field is deliberately stripped out of CrawlerConfigs.config once
+// saved — it lives only in the secrets vault (see secrets/crawlerSecrets.js) —
+// so a config freshly loaded from storage (an edit, a "Run Now", a scheduled
+// run) never has it, and a plain validateCrawlerConfig() call on that config
+// fails the `required` check even though credentials are genuinely present.
+// Any caller validating a config that came from storage rather than a fresh
+// wizard submission must call this instead, passing the configId so the vault
+// can be checked. No crawler-type branching here.
 const VAULTED_SECRET_PLACEHOLDER = '__vaulted-secret-present__';
+
+// The credential fields the validation error names that the config lacks.
+function missingCredentialFields(config, err) {
+  return CONFIG_SECRET_FIELDS.filter(f => !config[f] && err.includes(f));
+}
+
 export async function validateStoredCrawlerConfig(type, config, configId) {
   const err = validateCrawlerConfig(type, config);
-  if (!err) return null;
-  // Only worth a vault round-trip if clientSecret is plausibly the reason
-  // this failed — every other type/config keeps the cheap synchronous path.
-  if (configId && config && !config.clientSecret && /clientSecret/.test(err) && await hasConfigSecret(configId)) {
-    return validateCrawlerConfig(type, { ...config, clientSecret: VAULTED_SECRET_PLACEHOLDER });
-  }
-  return err;
+  if (!err || !configId || !config) return err;
+  // Only worth a vault round-trip if a credential field is plausibly the
+  // reason this failed — every other failure keeps the cheap synchronous path.
+  const missing = missingCredentialFields(config, err);
+  if (missing.length === 0) return err;
+  const vaulted = await vaultedConfigFields(configId);
+  const fill = missing.filter(f => vaulted.includes(f));
+  if (fill.length === 0) return err;
+  const withPlaceholders = { ...config };
+  for (const f of fill) withPlaceholders[f] = VAULTED_SECRET_PLACEHOLDER;
+  return validateCrawlerConfig(type, withPlaceholders);
+}
+
+// Every config field that carries a network location the worker sends
+// credentials to: `baseUrl` / `tokenEndpoint` plus any manifest property named
+// *Url / *Uri / *Endpoint or declared with a uri format. Used to force
+// credential re-entry when an endpoint's host changes (SEC-2026-09 M-02).
+const HOST_FIELD_NAME = /(url|uri|endpoint)$/i;
+export function hostBearingFields(type) {
+  const props = _crawlerManifests[type]?.configSchema?.properties || {};
+  const fromSchema = Object.entries(props)
+    .filter(([name, def]) => HOST_FIELD_NAME.test(name) || ['uri', 'url'].includes(def?.format))
+    .map(([name]) => name);
+  return [...new Set(['baseUrl', 'tokenEndpoint', ...fromSchema])];
 }

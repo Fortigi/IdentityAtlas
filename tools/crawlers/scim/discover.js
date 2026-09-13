@@ -88,7 +88,7 @@ function schemasNamed(schemas, name) {
     || String(s?.id || '').toLowerCase().endsWith(`:${name.toLowerCase()}`));
 }
 
-async function loadConfig(req, res, { db, getConfigSecret }) {
+async function loadConfig(req, res, { db, getConfigSecret, getConfigCredentials }) {
   const { configId, config: inlineConfig } = req.body;
   if (configId != null) {
     const id = parseInt(configId, 10);
@@ -96,7 +96,9 @@ async function loadConfig(req, res, { db, getConfigSecret }) {
     const row = await db.queryOne(`SELECT config FROM "CrawlerConfigs" WHERE id = $1`, [id]);
     if (!row) { res.status(404).json({ error: 'Config not found' }); return null; }
     const c = typeof row.config === 'string' ? JSON.parse(row.config) : { ...row.config };
-    // clientSecret lives in the vault, not the stored JSON — fetch it for OAuth2.
+    // Credentials (clientSecret, password, apiToken) live in the vault, not the
+    // stored JSON.
+    if (getConfigCredentials) return { ...c, ...(await getConfigCredentials(id)) };
     if (c.authMethod === 'OAuth2CC' && !c.clientSecret) c.clientSecret = await getConfigSecret(id);
     return c;
   }
@@ -105,10 +107,10 @@ async function loadConfig(req, res, { db, getConfigSecret }) {
   return null;
 }
 
-export default async function handler(req, res, { db, getConfigSecret, assertPublicUrl }) {
+export default async function handler(req, res, { db, getConfigSecret, getConfigCredentials, assertPublicUrl }) {
   let c;
   try {
-    c = await loadConfig(req, res, { db, getConfigSecret });
+    c = await loadConfig(req, res, { db, getConfigSecret, getConfigCredentials });
     if (!c) return;
   } catch (err) {
     console.error('scim/discover config lookup error:', err.message);
