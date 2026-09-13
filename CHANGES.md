@@ -1,5 +1,11 @@
 ## Changes in this PR
 
+- Documented why Microsoft Defender for Cloud reports the Azure web app as unauthenticated ("App Service apps should have authentication enabled") even when Entra sign-in is working: the recommendation audits platform-level App Service authentication, while Identity Atlas enforces Entra sign-in inside the application.
+- Added a walkthrough section explaining why this is by design, two checks to confirm authentication really is on, and step-by-step instructions for creating a Defender for Cloud exemption to clear the marker.
+- Noted the same limitation in the Azure deployment architecture notes.
+
+## Changes in this PR
+
 - Entra directory-extension attributes are now shown by their readable name (e.g. `sAMAccountName`) instead of the tenant-specific wire name (`extension_<appId>_sAMAccountName`) everywhere a name is rendered — principal, resource and identity detail pages, filter menus, the matrix attribute picker, grouping headers and roll-up captions, context schema forms, and both the matrix Excel export and the Power Query workbook.
 - Where two applications define an attribute with the same name, the label keeps a short application suffix (e.g. `employeeID (8ce8d3db)`) so the two stay distinguishable.
 - The original Entra attribute name is still available as a tooltip on detail pages, so nothing is hidden — only moved out of the way.
