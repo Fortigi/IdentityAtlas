@@ -310,6 +310,12 @@ export default function useEntityPage({ authFetch, entityType, listEndpoint, col
   // an ordinary filter with no special UI. Keys that start with `ext.` are
   // extended-attribute filters — we strip the prefix and tag "(ext)". Real
   // columns fall through to a humanised label.
+  //
+  // The same `label` channel now also carries the display name of an Entra
+  // directory-extension attribute (#872), so `ext.extension_<appId>_sfTeamID`
+  // reads "sfTeamID" while the filter still sends the full stored key. Only
+  // relabelled keys get one, which is why `ext.userType` still reads
+  // "User Type (ext)".
   const getFilterFields = useCallback((fieldLabels) => {
     const humanize = (s) => s.replace(/([A-Z])/g, ' $1').replace(/^./, c => c.toUpperCase()).trim();
     return availableColumns

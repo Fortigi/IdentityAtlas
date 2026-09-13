@@ -1,6 +1,6 @@
 import { TYPE_COLORS as TYPE_COLORS_SRC, AP_COLORS } from './colors';
 import { hexToArgb, thinBorder, setHeaderCell, safeCell } from './excelHelpers';
-import { friendlyLabel } from './formatters';
+import { attributeLabel, friendlyLabel } from './formatters';
 import { contextNames } from './resourceContexts';
 import { getApRoleBadge } from './accessPackageStyles';
 
@@ -38,11 +38,16 @@ export function setColumnWidths(ws, { infoColCount, userCount, apCount, apColSta
 // One header row per sort attribute (matching the on-screen stacked headers),
 // plus the AP banner on the first row. On-screen merged spans are written as the
 // same value repeated across each column — user-name cells are NOT merged.
+//
+// The attribute caption resolves through the same `attributeLabel` lookup the
+// on-screen header uses, so the workbook cell and the browser cell are the same
+// string by construction rather than by two formatters agreeing (#872).
 export function writeAttributeHeaders(ws, { attrs, headerLevels, infoColCount, userCount, users, apCount, apColStart }) {
   for (let L = 0; L < headerLevels; L++) {
     const hr = ws.getRow(L + 1);
     hr.height = 90;
-    setHeaderCell(ws.getCell(L + 1, 1), friendlyLabel(String(attrs[L]).replace(/^ext\./, '')));
+    setHeaderCell(ws.getCell(L + 1, 1),
+      attributeLabel(attrs[L]) || friendlyLabel(String(attrs[L]).replace(/^ext\./, '')));
     for (let u = 0; u < userCount; u++) {
       const cell = ws.getCell(L + 1, infoColCount + u + 1);
       cell.value = safeCell((users[u].sortKeys && users[u].sortKeys[L]) || '(none)');
