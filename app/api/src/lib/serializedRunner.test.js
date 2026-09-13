@@ -61,35 +61,56 @@ describe('createSerializedRunner', () => {
     expect(await second).toBe('ok');
   });
 
-  it('waits out the minimum interval measured from the end of the previous run', async () => {
+  it('spaces a follow-up run by the minimum interval, measured from the end of the run it waited for', async () => {
     let clock = 1000;
     const sleeps = [];
-    const run = createSerializedRunner(async () => { clock += 50; }, {
+    let release;
+    let calls = 0;
+    const run = createSerializedRunner(async () => {
+      calls++;
+      if (calls === 1) await new Promise(r => { release = r; });
+      clock += 50;
+    }, {
       minIntervalMs: 200,
       now: () => clock,
       sleep: async (ms) => { sleeps.push(ms); clock += ms; },
     });
-    await run();                 // first run: nothing to wait for
-    expect(sleeps).toEqual([]);
-    clock += 30;                 // 30ms after it finished
+    const first = run();
+    const followUp = run();      // arrives mid-run
+    await flush();
+    clock += 30;
+    release();
+    await first;                 // finished at clock 1080
+    clock += 20;                 // the follow-up starts 20ms later
+    await followUp;
+    expect(sleeps).toEqual([180]);
+  });
+
+  it('never delays a call that finds nothing in flight, however recent the last run', async () => {
+    const sleep = vi.fn(async () => {});
+    const fn = vi.fn(async () => {});
+    const run = createSerializedRunner(fn, { minIntervalMs: 60000, sleep });
     await run();
-    expect(sleeps).toEqual([170]);
-    clock += 500;                // long after
     await run();
-    expect(sleeps).toEqual([170]);
+    expect(fn).toHaveBeenCalledTimes(2);
+    expect(sleep).not.toHaveBeenCalled();
   });
 
   it('uses a real timer for the default sleep', async () => {
     vi.useFakeTimers();
     try {
-      const fn = vi.fn(async () => {});
+      let release;
+      const fn = vi.fn(async () => { if (fn.mock.calls.length === 1) await new Promise(r => { release = r; }); });
       const run = createSerializedRunner(fn, { minIntervalMs: 1000 });
-      await run();
-      const pending = run();
+      const first = run();
+      const followUp = run();
+      await vi.advanceTimersByTimeAsync(0);
+      release();
+      await first;
       await vi.advanceTimersByTimeAsync(999);
       expect(fn).toHaveBeenCalledTimes(1);
       await vi.advanceTimersByTimeAsync(1);
-      await pending;
+      await followUp;
       expect(fn).toHaveBeenCalledTimes(2);
     } finally {
       vi.useRealTimers();

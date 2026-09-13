@@ -14,8 +14,6 @@ import express from 'express';
 
 const { mockQuery } = vi.hoisted(() => {
   process.env.USE_SQL = 'true';
-  // No spacing between refreshes: each test issues its own (see serializedRunner.js).
-  process.env.MATRIX_REFRESH_MIN_INTERVAL_MS = '0';
   const mockQuery = vi.fn().mockResolvedValue({ rowCount: 0, rows: [] });
   return { mockQuery };
 });

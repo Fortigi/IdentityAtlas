@@ -18,7 +18,6 @@ const UUID = '11111111-1111-1111-1111-111111111111';
 
 const { mockQuery, mockQueryOne, mockIngest, mockStart, mockContinue, mockEnd, mockHasSession } = vi.hoisted(() => {
   process.env.USE_SQL = 'true';
-  process.env.MATRIX_REFRESH_MIN_INTERVAL_MS = '0';
   return {
     mockQuery: vi.fn().mockResolvedValue({ rows: [], rowCount: 0 }),
     mockQueryOne: vi.fn().mockResolvedValue(null),
