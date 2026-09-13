@@ -14,6 +14,8 @@
 // half-finished refinement doesn't pollute history.
 
 import { Router } from 'express';
+import rateLimit from 'express-rate-limit';
+import { principalRateLimitKey } from '../middleware/rateLimitKeys.js';
 import { requirePermission } from '../middleware/auth.js';
 import * as db from '../db/connection.js';
 import { chatWithSavedConfig, isLLMConfigured, getLLMConfig } from '../llm/service.js';
@@ -32,6 +34,18 @@ import {
 const router = Router();
 const gate = requirePermission('admin.llm');
 const useSql = process.env.USE_SQL === 'true';
+
+// LLM generation calls are slow and billed per token (up to 16k output tokens
+// each), so each caller gets a small per-minute budget (SEC-2026-09 L-11).
+export const LLM_GENERATION_LIMIT_PER_MINUTE = 10;
+const llmGenerationLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: LLM_GENERATION_LIMIT_PER_MINUTE,
+  keyGenerator: principalRateLimitKey,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many LLM generation requests, please wait a minute and try again' },
+});
 
 // Guard: every LLM-using endpoint should reject early when nothing is configured
 async function requireLLM(res) {
@@ -76,7 +90,7 @@ router.post('/risk-profiles/scrape', gate, async (req, res) => {
 //
 // Body: { domain, organizationName?, hints?, urls?: [{url, credentialId?}, ...] }
 // Returns { profile, scraped: [...status], llmModel }
-router.post('/risk-profiles/generate', gate, async (req, res) => {
+router.post('/risk-profiles/generate', gate, llmGenerationLimiter, async (req, res) => {
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
   if (!(await requireLLM(res))) return;
   const { domain, organizationName, hints, urls } = req.body || {};
@@ -121,7 +135,7 @@ router.post('/risk-profiles/generate', gate, async (req, res) => {
 //
 // Body: { profile, transcript: [{role, content}], userMessage }
 // Returns { profile (updated), assistantMessage: '[updated profile applied]' }
-router.post('/risk-profiles/refine', gate, async (req, res) => {
+router.post('/risk-profiles/refine', gate, llmGenerationLimiter, async (req, res) => {
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
   if (!(await requireLLM(res))) return;
   const { profile, transcript, userMessage } = req.body || {};
@@ -313,7 +327,7 @@ router.delete('/risk-profiles/:id', gate, async (req, res) => {
 // ─── Classifiers ──────────────────────────────────────────────────
 
 // Generate from a saved profile (no DB write)
-router.post('/risk-classifiers/generate', gate, async (req, res) => {
+router.post('/risk-classifiers/generate', gate, llmGenerationLimiter, async (req, res) => {
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
   if (!(await requireLLM(res))) return;
   const { profileId } = req.body || {};
