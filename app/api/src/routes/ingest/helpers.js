@@ -8,7 +8,7 @@
 
 import * as db from '../../db/connection.js';
 import { SOFT_DELETE_TABLES } from '../../ingest/engine.js';
-import { startSession, continueSession, endSession, hasSession } from '../../ingest/sessions.js';
+import { startSession, continueSession, endSession, hasSession, SessionLimitError } from '../../ingest/sessions.js';
 import { ownedRowPredicate } from '../../ingest/systemBoundary.js';
 
 export function applyIngestDefaults(entityType, body) {
@@ -94,7 +94,7 @@ export async function handleSessionPath(body, ctx) {
     const result = await startSession(null, tableName, keyColumns, normalized, {
       systemId: body.systemId, scope, syncMode: body.syncMode || 'full',
       scopeDeleteFilter, conflictFilter,
-      restrictSystemIds: ctx.restrictSystemIds ?? null,
+      crawlerId: ctx.crawlerId, isWorker: ctx.isWorker, restrictSystemIds: ctx.restrictSystemIds ?? null,
     });
     return { status: 201, body: {
       syncId: result.syncId, table: tableName,
@@ -102,7 +102,7 @@ export async function handleSessionPath(body, ctx) {
     } };
   }
   if (body.syncSession === 'continue') {
-    if (!body.syncId || !hasSession(body.syncId)) return { status: 400, body: { error: 'Invalid or expired syncId' } };
+    if (!body.syncId || !hasSession(body.syncId, ctx.crawlerId)) return { status: 400, body: { error: 'Invalid or expired syncId' } };
     const result = await continueSession(body.syncId, null, normalized, keyColumns);
     return { status: 200, body: {
       syncId: result.syncId, table: tableName,
@@ -110,7 +110,7 @@ export async function handleSessionPath(body, ctx) {
     } };
   }
   if (body.syncSession === 'end') {
-    if (!body.syncId || !hasSession(body.syncId)) return { status: 400, body: { error: 'Invalid or expired syncId' } };
+    if (!body.syncId || !hasSession(body.syncId, ctx.crawlerId)) return { status: 400, body: { error: 'Invalid or expired syncId' } };
     const result = await endSession(body.syncId, null, normalized, keyColumns, { syncMode: body.syncMode || 'full' });
     return { status: 200, body: {
       syncId: result.syncId, table: tableName,
@@ -198,6 +198,9 @@ export function writeAuditLog(req, body) {
 // 500. Extracted from the handler's catch so the handler stays under the cognitive
 // complexity ceiling.
 export function ingestErrorResponse(err) {
+  if (err instanceof SessionLimitError) {
+    return { status: 429, body: { error: err.message } };
+  }
   if (err.code === '23514' && /parentContextId cycle/i.test(err.message || '')) {
     return { status: 422, body: { error: 'Context hierarchy would create a cycle', message: err.message } };
   }

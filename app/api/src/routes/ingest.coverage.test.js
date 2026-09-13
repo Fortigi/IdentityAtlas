@@ -47,6 +47,7 @@ vi.mock('../ingest/sessions.js', () => ({
   continueSession: mockContinue,
   endSession: mockEnd,
   hasSession: mockHasSession,
+  SessionLimitError: class SessionLimitError extends Error {},
 }));
 
 vi.mock('../middleware/crawlerAuth.js', () => ({
@@ -464,6 +465,20 @@ describe('ingest handler — per-system boundary (H-04)', () => {
     expect(mockIngest.mock.calls[0][4].restrictSystemIds).toBeNull();
   });
 
+  it('a session is opened with the caller identity (per-crawler cap + ownership)', async () => {
+    await request(appAs(RESTRICTED)).post('/ingest/principals')
+      .send({ systemId: 7, syncMode: 'full', syncSession: 'start', scope: { principalType: 'User' }, records: [{ displayName: 'x' }] });
+    expect(mockStart.mock.calls[0][4]).toMatchObject({ crawlerId: 21, isWorker: false, restrictSystemIds: [7] });
+  });
+
+  it('429 when the session cap is reached', async () => {
+    const { SessionLimitError } = await import('../ingest/sessions.js');
+    mockStart.mockRejectedValueOnce(new SessionLimitError('Too many open ingest sessions for this crawler (limit 3)'));
+    const res = await request(appAs(RESTRICTED)).post('/ingest/principals')
+      .send({ systemId: 7, syncMode: 'full', syncSession: 'start', records: [{ displayName: 'x' }] });
+    expect(res.status).toBe(429);
+    expect(res.body.error).toMatch(/limit 3/);
+  });
 });
 
 describe('ingest handler — server-managed columns are not writable (H-04)', () => {

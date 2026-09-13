@@ -82,7 +82,7 @@ function createIngestHandler(entityType) {
       // ── Session paths ─────────────────────────────────────────────
       const sessionRes = await handleSessionPath(body, {
         tableName, keyColumns, normalized, scope, scopeDeleteFilter, conflictFilter,
-        restrictSystemIds: allowed,
+        crawlerId: req.crawler?.id, isWorker: crawlerHasPermission(req, 'admin'), restrictSystemIds: allowed,
       });
       if (sessionRes) return res.status(sessionRes.status).json(sessionRes.body);
 

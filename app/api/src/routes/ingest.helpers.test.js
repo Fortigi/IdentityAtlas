@@ -6,6 +6,7 @@ import { describe, it, expect, vi } from 'vitest';
 vi.mock('../db/connection.js', () => ({ query: vi.fn(), queryOne: vi.fn() }));
 vi.mock('../ingest/sessions.js', () => ({
   startSession: vi.fn(), continueSession: vi.fn(), endSession: vi.fn(), hasSession: vi.fn(),
+  SessionLimitError: class SessionLimitError extends Error {},
 }));
 
 import * as db from '../db/connection.js';
@@ -159,7 +160,8 @@ describe('writeAuditLog', () => {
 
 // ─── SEC-2026-09: per-system boundary helpers ───────────────────────────────
 
-const { coerceSystemsSyncMode, deleteOwnershipClause } = await import('./ingest/helpers.js');
+const { coerceSystemsSyncMode, deleteOwnershipClause, ingestErrorResponse } = await import('./ingest/helpers.js');
+const { SessionLimitError } = await import('../ingest/sessions.js');
 
 describe('coerceSystemsSyncMode (C-01)', () => {
   it('runs a full sync of systems as a delta — systems are registered, never reconciled', () => {
@@ -212,5 +214,35 @@ describe('applyDeleteByIds — restricted key (H-04)', () => {
     const [sql, params] = db.query.mock.calls.at(-1);
     expect(sql).toMatch(/^DELETE FROM "Contexts" t WHERE t.id = ANY\(\$1::uuid\[\]\) AND COALESCE/);
     expect(params).toEqual([[UUID], [7]]);
+  });
+});
+
+describe('handleSessionPath — session ownership and caps (H-04 / M-07)', () => {
+  const ctx = { tableName: 't', keyColumns: ['id'], normalized: [], scope: {}, scopeDeleteFilter: null,
+    conflictFilter: null, crawlerId: 12, isWorker: false, restrictSystemIds: [7] };
+
+  it('opens the session with the caller identity and allow-list', async () => {
+    startSession.mockResolvedValue({ syncId: 's1', inserted: 0, updated: 0 });
+    await handleSessionPath({ syncSession: 'start', systemId: 7 }, ctx);
+    expect(startSession.mock.calls.at(-1)[4]).toMatchObject({ crawlerId: 12, isWorker: false, restrictSystemIds: [7] });
+  });
+
+  it('looks the syncId up for THIS crawler on continue and end', async () => {
+    hasSession.mockReturnValue(false);
+    expect((await handleSessionPath({ syncSession: 'continue', syncId: 's1' }, ctx)).status).toBe(400);
+    expect(hasSession).toHaveBeenLastCalledWith('s1', 12);
+    expect((await handleSessionPath({ syncSession: 'end', syncId: 's1' }, ctx)).status).toBe(400);
+    expect(hasSession).toHaveBeenLastCalledWith('s1', 12);
+  });
+});
+
+describe('ingestErrorResponse — session cap (M-07)', () => {
+  it('maps a SessionLimitError to 429 with its message', () => {
+    expect(ingestErrorResponse(new SessionLimitError('Too many open ingest sessions (limit 7)')))
+      .toEqual({ status: 429, body: { error: 'Too many open ingest sessions (limit 7)' } });
+  });
+
+  it('keeps 500 for any other failure', () => {
+    expect(ingestErrorResponse(new Error('x')).status).toBe(500);
   });
 });
