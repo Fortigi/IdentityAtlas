@@ -1,5 +1,12 @@
 ## Changes in this PR
 
+- Added a **Reports** tab: pick a report, see its content, and refresh it against the latest data at any time. Like Systems and Logs it is optional and off by default — switch it on per user under Settings → Visible Tabs.
+- First report: **Orphaned Accounts** — every account that belongs to no identity, with its detected account type and source system. Service principals, managed identities and AI agents are excluded. Click a row to open that account's detail page.
+- Reports are pluggable: each one supplies its own query and its own presentation, so a new report can be added without touching the Reports page or the API around it.
+- The Settings → Visible Tabs controls are now announced as on/off switches named for what they do ("Show Reports tab"), so screen readers no longer read a toggle and the tab it controls as the same thing.
+
+## Changes in this PR
+
 - Fixed sorting the matrix by a manager-hierarchy context, which silently did nothing. The request behind it failed on every call, and the matrix quietly fell back to no hierarchy instead of showing the org levels.
 
 ## Changes in this PR
