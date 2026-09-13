@@ -77,7 +77,6 @@ services:
       LLM_PROVIDER:        "${LLM_PROVIDER:-}"
       LLM_API_KEY:         "${LLM_API_KEY:-}"
     volumes:
-      - ./setup/docker/crontab:/app/setup/docker/crontab:ro
       - job_data:/data/uploads
     depends_on:
       # Wait for the API to pass its healthcheck (migrations applied, /api/version

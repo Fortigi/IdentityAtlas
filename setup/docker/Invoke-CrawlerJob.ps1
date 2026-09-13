@@ -17,11 +17,21 @@
     The crawler type key (matches the "type" field in crawler.json).
 
 .PARAMETER Config
-    Hashtable parsed from the job's config JSON column, or a JSON string
-    (accepted for compatibility with the desktop worker which passes JSON directly).
+    Hashtable parsed from the job's config JSON column, or a JSON string. Only for
+    in-process callers: the config holds decrypted credentials, so a separate
+    process must never receive it on its command line — use -ConfigFromStdin.
 
 .PARAMETER ApiKey
-    The built-in crawler API key.
+    The crawler API key, for in-process callers. A separate process receives it
+    through the IA_JOB_API_KEY environment variable instead, never as an argument.
+
+.PARAMETER ConfigFromStdin
+    Read the job config JSON from standard input (the worker and the desktop
+    launcher run each job as its own pwsh process this way).
+
+.PARAMETER ResultPath
+    Optional file the failure message is written to, so the parent process can
+    report why the job failed.
 #>
 
 [CmdletBinding()]
@@ -35,11 +45,33 @@ Param(
     [Parameter(Mandatory = $false)]
     $Config = @{},
 
-    [Parameter(Mandatory)]
-    [string]$ApiKey
+    [Parameter(Mandatory = $false)]
+    [string]$ApiKey,
+
+    [switch]$ConfigFromStdin,
+
+    [string]$ResultPath
 )
 
 $ErrorActionPreference = 'Stop'
+
+# The API key: an explicit -ApiKey (in-process caller) or the IA_JOB_API_KEY
+# environment variable (child process). The variable is removed once read so
+# nothing the crawler starts inherits it. (SEC-2026-09 L-06)
+function Resolve-JobApiKey {
+    param([string]$ApiKey)
+    $fromEnv = $env:IA_JOB_API_KEY
+    Remove-Item Env:IA_JOB_API_KEY -ErrorAction SilentlyContinue
+    if ($ApiKey) { return $ApiKey }
+    if ($fromEnv) { return $fromEnv }
+    throw 'No crawler API key: pass -ApiKey or set IA_JOB_API_KEY'
+}
+
+# The job config from standard input (child process) — never from the command line.
+function Read-JobConfigInput {
+    param([System.IO.TextReader]$Reader = [Console]::In)
+    return $Reader.ReadToEnd()
+}
 
 # Accept Config as either a hashtable (scheduler) or a JSON string (desktop worker).
 function ConvertTo-JobConfigHashtable {
@@ -105,7 +137,9 @@ function Start-JobTranscript {
     param([string]$TraceDir, [string]$TraceFile)
     try {
         New-Item -ItemType Directory -Path $TraceDir -Force -ErrorAction SilentlyContinue | Out-Null
-        Start-Transcript -Path $TraceFile -Force | Out-Null
+        # Minimal header: the full header records the host command line, which must
+        # never carry job credentials into a log that the API serves. (SEC-2026-09 L-06)
+        Start-Transcript -Path $TraceFile -Force -UseMinimalHeader | Out-Null
         return $true
     } catch {
         Write-Host "  (trace: failed to start transcript: $($_.Exception.Message))" -ForegroundColor Yellow
@@ -131,8 +165,8 @@ function Remove-OldTraceLogs {
 }
 
 # ─── Module bootstrap ─────────────────────────────────────────────────────────
-# Desktop worker spawns a fresh pwsh with no module pre-loaded; Docker's
-# scheduler.ps1 imports the module in the same process before calling here.
+# Both the Docker scheduler and the desktop worker start a fresh pwsh per job, so
+# the module is normally imported here; an in-process caller may have loaded it.
 function Import-IdentityAtlasModule {
     param([string]$AppRoot)
     if (Get-Command Get-CrawlerRegistry -ErrorAction SilentlyContinue) { return }
@@ -204,8 +238,6 @@ function Invoke-CrawlerPostSyncHooks {
 }
 
 # ─── Job dispatch ─────────────────────────────────────────────────────────────
-$Config = ConvertTo-JobConfigHashtable -Config $Config
-
 $apiBaseUrl = $env:WEB_API_URL
 if (-not $apiBaseUrl) { $apiBaseUrl = 'http://web:3001/api' }
 $apiBaseUrl = $apiBaseUrl.TrimEnd('/')
@@ -219,6 +251,9 @@ Remove-OldTraceLogs -TraceDir $traceDir -Keep 20
 $appRoot = if ($env:IA_APP_ROOT) { $env:IA_APP_ROOT.TrimEnd('/\') } else { '/app' }
 
 try {
+    $ApiKey = Resolve-JobApiKey -ApiKey $ApiKey
+    if ($ConfigFromStdin) { $Config = Read-JobConfigInput }
+    $Config = ConvertTo-JobConfigHashtable -Config $Config
 
     # ─── Module bootstrap ─────────────────────────────────────────────────────
     Import-IdentityAtlasModule -AppRoot $appRoot
@@ -263,6 +298,9 @@ try {
     Update-JobProgress -Step 'Complete' -Pct 100
     Set-JobResult @{ status = "$displayName completed successfully" }
 
+} catch {
+    if ($ResultPath) { Set-Content -Path $ResultPath -Value $_.Exception.Message -Encoding UTF8 -ErrorAction SilentlyContinue }
+    throw
 } finally {
     Stop-JobTranscript -Started $transcriptStarted
 }

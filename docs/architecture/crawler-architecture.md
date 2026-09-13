@@ -98,12 +98,12 @@ The `odata` type is **library-only** — its entry point throws immediately if i
 ## How Job Dispatch Works
 
 1. The scheduler or UI creates a row in `CrawlerJobs` with `jobType = "my-source"`.
-2. The worker picks up the job and calls `Invoke-CrawlerJob.ps1 -JobType "my-source"`.
+2. The worker picks up the job and starts `Invoke-CrawlerJob.ps1 -JobType "my-source"` in a **new `pwsh` process** (one per job, so no credential or `$global:` token survives into the next job). The job config is written to that process's stdin and the API key is passed in the `IA_JOB_API_KEY` environment variable — never on the command line.
 3. The dispatcher calls `Get-CrawlerRegistry` to find the manifest for `my-source`.
 4. The dispatcher resolves `dependsOn` via DFS and dot-sources library files in topological order.
 5. The dispatcher writes the job config to a temp JSON file and invokes the entry point.
 6. After the entry point exits, the dispatcher runs any `postSyncHooks` declared in the manifest.
-7. The temp config file is deleted.
+7. The temp config file is deleted, and the process exits (non-zero on failure, with the error message handed back to the worker).
 
 The API (`routes/jobs.js`) reads the same manifests at startup to populate `VALID_JOB_TYPES` and to validate configs via `validateCrawlerConfig(type, config)` before a job is queued.
 
