@@ -386,3 +386,115 @@ describe('POST /ingest/refresh-views', () => {
     expect(res.body.message).toMatch(/refreshed/i);
   });
 });
+
+// ── SEC-2026-09: the per-system boundary, driven through the handler ─────────
+//
+// These requests carry a crawler identity (set by crawlerAuthMiddleware in
+// production). crawlerHasPermission answers from that identity's permissions;
+// systemBoundary.js runs for real against the SQL-blind query mock.
+
+const RESTRICTED = { id: 21, systemIds: [7], permissions: ['ingest'] };
+const WORKER = { id: 1, systemIds: null, permissions: ['ingest', 'refreshViews', 'admin'] };
+
+function appAs(crawler) {
+  return express().use(express.json())
+    .use((req, _res, next) => { req.crawler = crawler; next(); })
+    .use(router);
+}
+
+// Principals' real columns (snake_case, as information_schema returns them).
+function stagePrincipalColumns() {
+  const cols = ['id', 'system_id', 'display_name', 'extended_attributes', 'risk_score', 'deleted_at'];
+  mockQuery.mockImplementation(async (sql) => (/information_schema\.columns/.test(String(sql))
+    ? { rows: cols.map(column_name => ({ column_name })) } : { rows: [], rowCount: 0 }));
+}
+
+function usePermissionsOfCaller() {
+  crawlerAuth.crawlerHasPermission.mockImplementation((req, p) => !!req.crawler?.permissions.includes(p));
+}
+
+describe('ingest handler — per-system boundary (H-04)', () => {
+  beforeEach(usePermissionsOfCaller);
+
+  it('403 for a record that names another system, and nothing is written', async () => {
+    stagePrincipalColumns();
+    const res = await request(appAs(RESTRICTED)).post('/ingest/principals').send({
+      systemId: 7, syncMode: 'delta', records: [{ displayName: 'x', systemId: 1 }],
+    });
+    expect(res.status).toBe(403);
+    expect(res.body.error).toMatch(/Record 0: systemId 1 is outside this crawler's systems/);
+    expect(mockIngest).not.toHaveBeenCalled();
+  });
+
+  it('403 when the batch would overwrite a row another system owns', async () => {
+    mockQuery.mockImplementation(async (sql) => (/jsonb_populate_recordset/.test(String(sql))
+      ? { rows: [{ '?column?': 1 }], rowCount: 1 } : { rows: [], rowCount: 0 }));
+    const res = await request(appAs(RESTRICTED)).post('/ingest/principals').send({
+      systemId: 7, syncMode: 'delta', records: [{ id: UUID, displayName: 'x' }],
+    });
+    expect(res.status).toBe(403);
+    expect(res.body.error).toMatch(/would modify a Principals row owned by a system outside/);
+    expect(mockIngest).not.toHaveBeenCalled();
+  });
+
+  it('403 for an unscoped full sync of a table without a systemId column', async () => {
+    const res = await request(appAs(RESTRICTED)).post('/ingest/identities').send({
+      systemId: 7, syncMode: 'full', records: [{ id: UUID, displayName: 'x' }],
+    });
+    expect(res.status).toBe(403);
+    expect(res.body.error).toMatch(/needs a scope/);
+  });
+
+  it('an in-bounds batch reaches the engine with the allow-list for the reconcile and deletedIds', async () => {
+    const res = await request(appAs(RESTRICTED)).post('/ingest/principals').send({
+      systemId: 7, syncMode: 'full', records: [{ id: UUID, displayName: 'x' }], deletedIds: [UUID],
+    });
+    expect(res.status).toBe(201);
+    expect(mockIngest.mock.calls[0][4].restrictSystemIds).toEqual([7]);
+    const del = mockQuery.mock.calls.find(([sql]) => /DELETE FROM|SET "deletedAt" = now\(\)/.test(String(sql)));
+    expect(del[1]).toEqual([[UUID], [7]]);
+  });
+
+  it('the built-in worker is not boundary-checked: no lookup, and no allow-list reaches the engine', async () => {
+    const res = await request(appAs(WORKER)).post('/ingest/principals').send({
+      systemId: 7, syncMode: 'full', records: [{ id: UUID, displayName: 'x', systemId: 1 }],
+    });
+    expect(res.status).toBe(201);
+    expect(mockQuery.mock.calls.some(([sql]) => /jsonb_populate_recordset/.test(String(sql)))).toBe(false);
+    expect(mockIngest.mock.calls[0][4].restrictSystemIds).toBeNull();
+  });
+
+});
+
+describe('ingest handler — server-managed columns are not writable (H-04)', () => {
+  it('a record field named after a server-managed column is kept as an attribute, never written to the column', async () => {
+    mockQuery.mockImplementation(async (sql) => (/information_schema\.columns/.test(String(sql))
+      ? { rows: ['id', 'system_id', 'display_name', 'risk_score', 'deleted_at'].map(column_name => ({ column_name })) }
+      : { rows: [], rowCount: 0 }));
+    const res = await request(app).post('/ingest/principals').send({
+      systemId: 1, syncMode: 'delta', records: [{ displayName: 'x', riskScore: 0, deletedAt: '2020-01-01' }],
+    });
+    expect(res.status).toBe(201);
+    const rec = mockIngest.mock.calls[0][3][0];
+    expect(rec).not.toHaveProperty('riskScore');
+    expect(rec).not.toHaveProperty('deletedAt');
+    expect(JSON.parse(rec.extendedAttributes)).toEqual({ riskScore: 0, deletedAt: '2020-01-01' });
+  });
+});
+
+describe('ingest/systems — never reconciled (C-01)', () => {
+  it('runs a full sync of systems as a delta', async () => {
+    mockQueryOne.mockResolvedValue({ id: 42 });
+    const res = await request(app).post('/ingest/systems')
+      .send({ records: [{ displayName: 'X', systemType: 'X', tenantId: 'y' }], syncMode: 'full' });
+    expect(res.status).toBe(201);
+    expect(mockIngest.mock.calls[0][4].syncMode).toBe('delta');
+  });
+
+  it('still validates the required fields of a full batch before running it as a delta', async () => {
+    const res = await request(app).post('/ingest/systems')
+      .send({ records: [{ tenantId: 'y' }], syncMode: 'full' });
+    expect(res.status).toBe(400);
+    expect(mockIngest).not.toHaveBeenCalled();
+  });
+});

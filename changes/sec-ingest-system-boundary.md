@@ -1,0 +1,2 @@
+- Fixed a full sync sent to the systems ingest endpoint being able to remove other registered systems and all of their data; systems are now always registered as a delta, and the Omada crawler no longer requests a full sync for them.
+- Hardened crawler API keys that are restricted to specific systems: they can no longer create, overwrite, tombstone or delete data belonging to other systems, and cannot write server-managed fields such as risk scores, deletion stamps or analyst decisions.

@@ -134,3 +134,45 @@ describe('startSession — checkout path', () => {
     expect(res).toMatchObject({ inserted: 0, updated: 0, deleted: 0 });
   });
 });
+
+// A key restricted to specific systems hands its allow-list to ingest(); both
+// reconcile paths — the full batch and the empty scoped batch — must carry it
+// into the delete (SEC-2026-09 H-04).
+describe('ingest() — restrictSystemIds reaches the reconcile', () => {
+  const PA_KEYS = ['principalId', 'resourceId', 'activityType'];
+
+  function stagePrincipalActivity() {
+    query.mockImplementation(async (sql) => {
+      const s = String(sql);
+      if (/information_schema\.columns/.test(s)) {
+        const cols = ['principalId', 'resourceId', 'activityType', 'signInCount'];
+        return { rows: cols.map((column_name) => ({ column_name })), rowCount: cols.length };
+      }
+      if (/^\s*INSERT INTO "PrincipalActivity"/.test(s)) return { rows: [{ wasInsert: false }], rowCount: 1 };
+      if (/DELETE FROM "PrincipalActivity"/.test(s)) return { rowCount: 2, rows: [] };
+      return { rows: [], rowCount: 0 };
+    });
+  }
+
+  const deleteCall = () => query.mock.calls.find((c) => /DELETE FROM "PrincipalActivity"/.test(String(c[0])));
+
+  it('full batch: the ownership predicate and the allow-list are in the delete', async () => {
+    stagePrincipalActivity();
+    const res = await ingest(null, 'PrincipalActivity', PA_KEYS,
+      [{ principalId: 'p1', resourceId: 'r1', activityType: 'SignIn' }],
+      { syncMode: 'full', systemId: 7, scope: { activityType: 'SignIn' }, restrictSystemIds: [7] });
+    expect(res.deleted).toBe(2);
+    const [sql, params] = deleteCall();
+    expect(sql).toContain('op."systemId" = ANY($2::int[])');
+    expect(params).toEqual(['SignIn', [7]]);
+  });
+
+  it('empty scoped batch: the same predicate bounds the wipe', async () => {
+    stagePrincipalActivity();
+    await ingest(null, 'PrincipalActivity', PA_KEYS, [],
+      { syncMode: 'full', systemId: 7, scope: { activityType: 'SignIn' }, restrictSystemIds: [7] });
+    const [sql, params] = deleteCall();
+    expect(sql).toContain('op."systemId" = ANY($2::int[])');
+    expect(params).toEqual(['SignIn', [7]]);
+  });
+});

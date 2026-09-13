@@ -156,3 +156,61 @@ describe('writeAuditLog', () => {
     expect(db.query.mock.calls.at(-1)[0]).toContain('CrawlerAuditLog');
   });
 });
+
+// ─── SEC-2026-09: per-system boundary helpers ───────────────────────────────
+
+const { coerceSystemsSyncMode, deleteOwnershipClause } = await import('./ingest/helpers.js');
+
+describe('coerceSystemsSyncMode (C-01)', () => {
+  it('runs a full sync of systems as a delta — systems are registered, never reconciled', () => {
+    const body = { syncMode: 'full', records: [] };
+    expect(coerceSystemsSyncMode('systems', body)).toBe(true);
+    expect(body.syncMode).toBe('delta');
+  });
+
+  it('leaves every other entity, and a systems delta, alone', () => {
+    const principals = { syncMode: 'full' };
+    expect(coerceSystemsSyncMode('principals', principals)).toBe(false);
+    expect(principals.syncMode).toBe('full');
+    const systemsDelta = { syncMode: 'delta' };
+    expect(coerceSystemsSyncMode('systems', systemsDelta)).toBe(false);
+    expect(systemsDelta.syncMode).toBe('delta');
+  });
+});
+
+describe('deleteOwnershipClause (H-04)', () => {
+  it('adds nothing for an unrestricted key', () => {
+    expect(deleteOwnershipClause('Principals', null, [UUID])).toEqual({ clause: '', params: [[UUID]] });
+  });
+
+  it('limits the delete to rows the caller\'s systems own, bound as $2', () => {
+    expect(deleteOwnershipClause('Principals', [7], [UUID])).toEqual({
+      clause: ' AND COALESCE((t."systemId" = ANY($2::int[])), false)',
+      params: [[UUID], [7]],
+    });
+  });
+
+  it('uses the derived owner for a table without a systemId column', () => {
+    expect(deleteOwnershipClause('Contexts', [7], [UUID]).clause).toContain('t."scopeSystemId" = ANY($2::int[])');
+  });
+});
+
+describe('applyDeleteByIds — restricted key (H-04)', () => {
+  it('passes the allow-list and the ownership clause to the soft delete', async () => {
+    db.query.mockResolvedValue({ rowCount: 1 });
+    const result = { deleted: 0 };
+    await applyDeleteByIds({ deletedIds: [UUID] }, 'Principals', result, [7]);
+    const [sql, params] = db.query.mock.calls.at(-1);
+    expect(sql).toMatch(/UPDATE "Principals" t SET "deletedAt" = now\(\) WHERE t.id = ANY\(\$1::uuid\[\]\) AND t."deletedAt" IS NULL AND COALESCE/);
+    expect(params).toEqual([[UUID], [7]]);
+    expect(result.deleted).toBe(1);
+  });
+
+  it('passes it to the hard delete too', async () => {
+    db.query.mockResolvedValue({ rowCount: 0 });
+    await applyDeleteByIds({ deletedIds: [UUID] }, 'Contexts', { deleted: 0 }, [7]);
+    const [sql, params] = db.query.mock.calls.at(-1);
+    expect(sql).toMatch(/^DELETE FROM "Contexts" t WHERE t.id = ANY\(\$1::uuid\[\]\) AND COALESCE/);
+    expect(params).toEqual([[UUID], [7]]);
+  });
+});

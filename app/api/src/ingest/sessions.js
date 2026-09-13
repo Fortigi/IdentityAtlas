@@ -56,6 +56,7 @@ export async function startSession(_pool, tableName, keyColumns, records, option
   await copyRows(client, tempTable, activeColumns, records);
 
   sessions.set(syncId, {
+    restrictSystemIds: options.restrictSystemIds ?? null,
     client,
     tempTable,
     tableName,
@@ -136,7 +137,7 @@ export async function endSession(syncId, _pool, records, _keyColumns, options = 
       deleted = await scopedDelete(
         session.client, session.tableName, session.keyColumns, session.tempTable,
         session.systemId, session.scope, session.systemIdColumn, tableColumnNames,
-        session.scopeDeleteFilter
+        session.scopeDeleteFilter, session.restrictSystemIds
       );
     }
 

@@ -26,7 +26,7 @@ Point your connector at the deployment's public base URL. For a proxied/TLS depl
 
 Every request carries `Authorization: Bearer fgc_<key>` and a JSON body of `{ syncMode, records[], systemId? }`. `syncMode` is either `delta` (merge only) or `full` (merge, then delete any in-scope records missing from this batch).
 
-The example below registers a source system. `POST /api/ingest/systems` is the one endpoint that needs no pre-existing `systemId` — its `201` response returns the resolved `systemIds`, which you then pass as `systemId` on the follow-up calls (`/ingest/principals`, `/ingest/resources`, and so on).
+The example below registers a source system. `POST /api/ingest/systems` is the one endpoint that needs no pre-existing `systemId` — its `201` response returns the resolved `systemIds`, which you then pass as `systemId` on the follow-up calls (`/ingest/principals`, `/ingest/resources`, and so on). Systems are registered, never reconciled, so send this call as `delta`. If the key is restricted to specific systems, it can only write rows of those systems — see [Keys restricted to specific systems](../architecture/ingest-api.md#keys-restricted-to-specific-systems).
 
 ```bash
 curl -sS -X POST https://atlas.example.com/api/ingest/systems \

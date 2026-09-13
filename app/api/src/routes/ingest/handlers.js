@@ -10,17 +10,28 @@ import { Router } from 'express';
 import * as db from '../../db/connection.js';
 import { ingest, writeSyncLog } from '../../ingest/engine.js';
 import { normalizeRecords } from '../../ingest/normalization.js';
+import { restrictedSystemIds, writableCoreColumns, systemBoundaryDenial } from '../../ingest/systemBoundary.js';
 import { validateEnvelope, validateRecords, ENTITY_TABLE_MAP, ENTITY_KEY_MAP, ENTITY_SCOPE_MAP } from '../../ingest/validation.js';
 import { crawlerHasSystemAccess, crawlerHasPermission } from '../../middleware/crawlerAuth.js';
 import { normalizePresenceQuery, lookupCrawlerPresence } from '../../ingest/crawlerPresence.js';
 import { refreshMatrixViews } from './matrixViews.js';
 import {
-  applyIngestDefaults, recoverSystemPrefix, buildScope, conflictFilterFor, discoverCoreColumns,
+  applyIngestDefaults, coerceSystemsSyncMode, recoverSystemPrefix, buildScope, conflictFilterFor, discoverCoreColumns,
   handleSessionPath, applyDeleteByIds, lookupSystemIds, writeAuditLog, ingestErrorResponse,
 } from './helpers.js';
 
 const router = Router();
 const useSql = process.env.USE_SQL === 'true';
+
+// Checks on the normalized batch before anything is written: for a key restricted
+// to specific systems, the per-system boundary (H-04). Returns { status, error } or null.
+async function batchBoundaryError(req, body, allowed, ctx) {
+  if (!allowed) return null;
+  const denial = await systemBoundaryDenial({ ...ctx, records: ctx.normalized, syncMode: body.syncMode, allowed });
+  if (!denial) return null;
+  console.warn(`Ingest denied for crawler ${req.crawler?.id}: ${denial}`);
+  return { status: 403, error: denial };
+}
 
 function createIngestHandler(entityType) {
   const tableName = ENTITY_TABLE_MAP[entityType];   // snake_case in v5
@@ -51,10 +62,12 @@ function createIngestHandler(entityType) {
       console.warn(`Ingest record validation failed (${syncMode} mode): ${recResult.errors.length} error(s)`);
       return res.status(400).json({ error: 'Record validation failed', details: recResult.errors });
     }
+    coerceSystemsSyncMode(entityType, body);
+    const allowed = restrictedSystemIds(req.crawler);
 
     const startTime = new Date();
     try {
-      const coreColumns = await discoverCoreColumns(tableName);
+      const coreColumns = writableCoreColumns(await discoverCoreColumns(tableName));
       const { idPrefix, systemPrefix } = recoverSystemPrefix(entityType, body.idPrefix);
       const normalized = normalizeRecords(body.records, coreColumns, {
         idGeneration: body.idGeneration || 'native', idPrefix, systemPrefix, systemId: body.systemId,
@@ -63,8 +76,14 @@ function createIngestHandler(entityType) {
       const conflictFilter = conflictFilterFor(entityType);
       const scopeDeleteFilter = conflictFilter;
 
+      const boundaryErr = await batchBoundaryError(req, body, allowed, { tableName, keyColumns, normalized, scope, conflictFilter });
+      if (boundaryErr) return res.status(boundaryErr.status).json({ error: boundaryErr.error });
+
       // ── Session paths ─────────────────────────────────────────────
-      const sessionRes = await handleSessionPath(body, { tableName, keyColumns, normalized, scope, scopeDeleteFilter, conflictFilter });
+      const sessionRes = await handleSessionPath(body, {
+        tableName, keyColumns, normalized, scope, scopeDeleteFilter, conflictFilter,
+        restrictSystemIds: allowed,
+      });
       if (sessionRes) return res.status(sessionRes.status).json(sessionRes.body);
 
       // ── Single-batch path ─────────────────────────────────────────
@@ -75,9 +94,10 @@ function createIngestHandler(entityType) {
       // Short-circuiting here meant that batch was accepted and silently ignored.
       const result = await ingest(null, tableName, keyColumns, normalized, {
         syncMode: body.syncMode || 'delta', systemId: body.systemId, scope, scopeDeleteFilter, conflictFilter,
+        restrictSystemIds: allowed,
       });
 
-      const delErr = await applyDeleteByIds(body, tableName, result);
+      const delErr = await applyDeleteByIds(body, tableName, result, allowed);
       if (delErr) return res.status(delErr.status).json(delErr.body);
 
       // Context-tree acyclicity is enforced at the database (migration 059's
