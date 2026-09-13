@@ -23,7 +23,7 @@ Permissions are grouped into **Read**, **Export**, **Write**, and **Admin**.
 
 | Permission | Label | Notes |
 |---|---|---|
-| `data.read` | Read all data | Effectively "can sign in at all." Enforced as authentication-required — any signed-in user can read; there is no per-route `requirePermission('data.read')` gate. `fgr_` read tokens are granted it implicitly. The Dashboard reads (`GET /api/admin/dashboard-stats`, `/dashboard-timeseries`), run history (`GET /api/risk-scoring/runs`, `/api/context-plugins/runs`, `/api/account-linking/runs`) and `GET /api/updates/intent` additionally require **at least one** mapped permission, so a signed-in user whose roles map to nothing is refused. |
+| `data.read` | Read all data | Effectively "can sign in at all." Enforced as authentication-required — any signed-in user can read; there is no per-route `requirePermission('data.read')` gate. `fgr_` read tokens are granted it implicitly. The Dashboard reads (`GET /api/admin/dashboard-stats`, `/dashboard-timeseries`), run history (`GET /api/risk-scoring/runs`, `/api/context-plugins/runs`, `/api/account-linking/runs`) `GET /api/updates/intent` and the Performance request log (`GET /api/perf*`, which also refuses `fgr_` read tokens) additionally require **at least one** mapped permission, so a signed-in user whose roles map to nothing is refused. |
 
 ### Export
 
