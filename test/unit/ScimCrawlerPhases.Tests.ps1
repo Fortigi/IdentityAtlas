@@ -257,3 +257,75 @@ Describe 'Complete-ScimRun' {
         { Complete-ScimRun } | Should -Throw '*Users: HTTP 401; Groups: boom*'
     }
 }
+
+Describe 'Invoke-ScimSyncPhases' {
+    # SEC-2026-09 M-11: the members phase sends FULL-sync batches scoped to every
+    # Group assignment and Contains edge of the system. Built from a partial id-set
+    # they would reconcile away rows the source still has, so a failed read must
+    # stop the phase from sending anything at all.
+    BeforeEach {
+        Initialize-ScimPhaseTest
+        $script:cfg = @{
+            sync             = @{ users = $true; groups = $true; groupMembers = $true }
+            pageSize         = 100
+            userTypeMapping  = @(@{ userType = ''; principalType = 'User' })
+            userAttributes   = @()
+            groupAttributes  = @()
+            principalBuckets = @('User')
+        }
+        Mock -CommandName Invoke-ScimSearchStream -ParameterFilter { $Endpoint -eq 'Users' } -MockWith {
+            & $OnPage @([pscustomobject]@{ id = 'u-1'; userName = 'alice'; displayName = 'Alice'; active = $true })
+            return 1
+        }
+        Mock -CommandName Invoke-ScimSearchStream -ParameterFilter { $Endpoint -eq 'Groups' } -MockWith {
+            & $OnPage @([pscustomobject]@{ id = 'g-1'; displayName = 'Finance'; members = @([pscustomobject]@{ value = 'u-1' }) })
+            return 1
+        }
+        function Get-MemberBatch {
+            @($script:batches | Where-Object { $_.endpoint -in @('ingest/resource-assignments', 'ingest/resource-relationships') })
+        }
+    }
+
+    It 'syncs the membership of a clean run, resolving members against both id-sets' {
+        Invoke-ScimSyncPhases -SystemId 7 -ScimCfg $script:cfg
+        $assign = @($script:batches | Where-Object { $_.endpoint -eq 'ingest/resource-assignments' })
+        $assign.Count | Should -Be 1
+        @($assign[0].records).Count | Should -Be 1
+        $assign[0].records[0].principalExternalId | Should -Be 'u-1'
+        $assign[0].records[0].resourceExternalId  | Should -Be 'g-1'
+        @($script:batches | Where-Object { $_.endpoint -eq 'ingest/resource-relationships' }).Count | Should -Be 1
+        $script:phaseErrors.Count | Should -Be 0
+    }
+
+    It 'sends no assignment or relationship batch when the Groups read fails' {
+        Mock -CommandName Invoke-ScimSearchStream -ParameterFilter { $Endpoint -eq 'Groups' } -MockWith { throw 'SCIM request failed (HTTP 503)' }
+        Invoke-ScimSyncPhases -SystemId 7 -ScimCfg $script:cfg
+        (Get-MemberBatch).Count | Should -Be 0
+        $script:phaseErrors | Should -Contain 'GroupMembers: skipped because the Users or Groups phase failed'
+        $script:phaseErrors[0] | Should -Match '^Groups: .*HTTP 503'
+    }
+
+    It 'sends no assignment or relationship batch when the Users read fails' {
+        Mock -CommandName Invoke-ScimSearchStream -ParameterFilter { $Endpoint -eq 'Users' } -MockWith { throw 'SCIM request failed (HTTP 401)' }
+        Invoke-ScimSyncPhases -SystemId 7 -ScimCfg $script:cfg
+        (Get-MemberBatch).Count | Should -Be 0
+        # The Groups phase itself still ran — only the reconcile that depends on the users is withheld.
+        @($script:batches | Where-Object { $_.endpoint -eq 'ingest/resources' }).Count | Should -Be 1
+        $script:phaseErrors | Should -Contain 'GroupMembers: skipped because the Users or Groups phase failed'
+    }
+
+    It 'runs the members phase without a Users read when users are not synced (unchanged behaviour)' {
+        $script:cfg.sync.users = $false
+        Invoke-ScimSyncPhases -SystemId 7 -ScimCfg $script:cfg
+        Should -Invoke Invoke-ScimSearchStream -ParameterFilter { $Endpoint -eq 'Users' } -Times 0
+        (Get-MemberBatch).Count | Should -Be 2
+        $script:phaseErrors.Count | Should -Be 0
+    }
+
+    It 'runs no members phase when it is toggled off' {
+        $script:cfg.sync.groupMembers = $false
+        Invoke-ScimSyncPhases -SystemId 7 -ScimCfg $script:cfg
+        (Get-MemberBatch).Count | Should -Be 0
+        $script:phaseErrors.Count | Should -Be 0
+    }
+}
