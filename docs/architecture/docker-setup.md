@@ -57,7 +57,7 @@ To connect your own Entra ID tenant, click **"Connect Entra ID"** on the Crawler
 | Variable | Default | What to do |
 |---|---|---|
 | `POSTGRES_PASSWORD` | `identity_atlas_local` | **Change this** for any non-local deployment |
-| `IDENTITY_ATLAS_MASTER_KEY` | *(auto-generated)* | Set an explicit value so you can back it up; if left blank the container generates one and saves it to the `job_data` volume |
+| `IDENTITY_ATLAS_MASTER_KEY` | *(auto-generated)* | Set an explicit value so you can back it up; if left blank the web container generates one and saves it to the web-only `web_keys` volume |
 
 Full variable reference: [Environment Variables](#environment-variables).
 
@@ -163,6 +163,25 @@ docker compose exec postgres psql -U identity_atlas -d identity_atlas -c \
 ### Swap
 
 Do **not** rely on swap to carry crawler peaks. The workloads here (Node's V8 heap, PowerShell's .NET object graph, Postgres shared buffers) all degrade sharply under paging. If the table above says 12 GB, give it 12 GB of real RAM. A small swap partition (1–2 GB) as a safety net against OOM-kills is fine; anything larger invites false confidence.
+
+---
+
+## Container Security
+
+`docker-compose.prod.yml` (compose file version 4 and later) applies these defaults:
+
+- **Secrets as files, not environment variables.** `POSTGRES_PASSWORD` is still read from `.env`, but Compose hands it to the `postgres` and `web` containers as a secret file under `/run/secrets` (`POSTGRES_PASSWORD_FILE`), so it no longer appears in `docker inspect`. The API accepts `<NAME>_FILE` for `POSTGRES_PASSWORD`, `DATABASE_URL` and `IDENTITY_ATLAS_MASTER_KEY`; a plain variable that is set still wins. Environment-sourced Compose secrets need a recent Docker Compose v2 (v2.20 or later is recommended).
+- **The vault master key is not on the shared volume.** The web container keeps its auto-generated key in the `web_keys` volume (`IDENTITY_ATLAS_KEY_DIR=/data/keys`), which the worker does not mount. On the first start with this compose file, an existing `/data/uploads/.master-key` is copied there, read back, checked against a stored secret, and only then removed from `job_data`. **Back up the `web_keys` volume** (or set `IDENTITY_ATLAS_MASTER_KEY` explicitly).
+- **Fewer secrets in the worker.** The worker receives neither the database password nor the master key, and no longer gets the unused `GRAPH_*` / `LLM_*` variables. Crawler and LLM credentials are configured in the UI and reach the worker per job.
+- **Hardening.** Every service runs with `no-new-privileges` and `cap_drop: [ALL]` (Postgres keeps the five capabilities its entrypoint needs), a `pids_limit`, and a memory limit (`POSTGRES_MEM_LIMIT`, `WEB_MEM_LIMIT`, `WORKER_MEM_LIMIT`, default `8g` each; raise them for very large tenants, see [Sizing](#sizing)). The worker image runs as uid 1000, like the web image; on start it recreates a job-log directory left root-owned by an older worker image.
+- **Supply chain.** Base images are pinned by digest, and every published image carries signed build provenance and an SBOM: `gh attestation verify oci://ghcr.io/fortigi/identity-atlas:latest --owner Fortigi`.
+
+### Upgrading from an older compose file
+
+An older `docker-compose.prod.yml` keeps working with the new images: the master key stays at `/data/uploads/.master-key` (it is only moved when `IDENTITY_ATLAS_KEY_DIR` is set), and the database password is passed as before. Download the new file to get the protections above.
+
+- **If you pin `IMAGE_TAG` to an older release**, use the compose file from that release. The new file relies on `POSTGRES_PASSWORD_FILE` support in the web image.
+- **Rolling back after the key has moved.** If you return to an older compose file or image after the key was moved to `web_keys`, copy it out first and set it explicitly: run `docker compose exec web cat /data/keys/.master-key` and put the value in `IDENTITY_ATLAS_MASTER_KEY`. Current images refuse to generate a new key while the vault holds encrypted secrets and log how to recover instead; set `IDENTITY_ATLAS_ALLOW_NEW_MASTER_KEY=true` only if you intend to discard those secrets.
 
 ---
 
@@ -417,7 +436,10 @@ Both compose files (`docker-compose.yml` and `docker-compose.prod.yml`) read fro
 
 | Variable | Default | Description |
 |---|---|---|
-| `IDENTITY_ATLAS_MASTER_KEY` | *(auto-generated)* | Master key for the AES-256-GCM secrets vault (LLM API keys, scraper credentials). If left blank, the container generates a key on first start and persists it to the `job_data` volume. **Set an explicit value for production** so the key can be backed up alongside other root secrets. |
+| `IDENTITY_ATLAS_MASTER_KEY` | *(auto-generated)* | Master key for the AES-256-GCM secrets vault (LLM API keys, scraper credentials). If left blank, the web container generates a key on first start and persists it to the web-only `web_keys` volume (`docker-compose.prod.yml` v4+; older compose files use the `job_data` volume). **Set an explicit value for production** so the key can be backed up alongside other root secrets. |
+| `IDENTITY_ATLAS_MASTER_KEY_FILE` | — | Path to a file holding the master key (for Docker/Compose secrets). Used when `IDENTITY_ATLAS_MASTER_KEY` is empty. `POSTGRES_PASSWORD_FILE` and `DATABASE_URL_FILE` work the same way. |
+| `IDENTITY_ATLAS_KEY_DIR` | *(unset)* | Directory for the auto-generated master key. The compose files set it to `/data/keys` (a web-only volume). Only set it when that path is a persistent volume. |
+| `POSTGRES_MEM_LIMIT` / `WEB_MEM_LIMIT` / `WORKER_MEM_LIMIT` | `8g` | Container memory limits in `docker-compose.prod.yml`. |
 
 #### Authentication (optional)
 
@@ -430,21 +452,13 @@ Identity Atlas defaults to no-auth (any browser can access the UI). To require E
 | `AUTH_CLIENT_ID` | — | App Registration client ID for the UI. |
 | `AUTH_REQUIRED_ROLES` | — | Optional comma-separated list of app roles required to access the UI. |
 
-#### Crawler credentials (optional — can also configure via the in-browser wizard)
+#### Crawler credentials
 
 | Variable | Default | Description |
 |---|---|---|
 | `CRAWLER_API_KEY` | *(auto-generated)* | API key the worker uses to authenticate with the API. Auto-generated on first start; override only if you need a fixed key. |
-| `GRAPH_TENANT_ID` | — | Entra ID tenant ID for the Graph API crawler. |
-| `GRAPH_CLIENT_ID` | — | App Registration client ID. |
-| `GRAPH_CLIENT_SECRET` | — | App Registration client secret. |
 
-#### LLM / Risk Scoring (optional)
-
-| Variable | Default | Description |
-|---|---|---|
-| `LLM_PROVIDER` | — | `Anthropic`, `OpenAI`, or `AzureOpenAI`. Can also be configured per-tenant via Admin → LLM Settings. |
-| `LLM_API_KEY` | — | API key for the selected LLM provider. |
+Microsoft Graph and LLM credentials are configured in the UI (the crawler wizard and Admin → LLM Settings) and stored encrypted in the vault. The `GRAPH_TENANT_ID`, `GRAPH_CLIENT_ID`, `GRAPH_CLIENT_SECRET`, `LLM_PROVIDER` and `LLM_API_KEY` environment variables were never read by the containers and are no longer passed to them.
 
 ---
 
@@ -456,7 +470,8 @@ Identity Atlas defaults to no-auth (any browser can access the UI). To require E
 | `app/ui/` (built) | `/app/frontend/dist/` | web (static) |
 | `tools/` | `/app/tools/` | worker |
 | `setup/docker/crontab` | `/app/setup/docker/crontab` | worker |
-| `job_data` (named volume) | `/data/uploads/` | web (writes), worker (reads) — CSV crawler uploads |
+| `job_data` (named volume) | `/data/uploads/` | web (writes), worker (reads) — CSV crawler uploads, job logs, built-in worker key |
+| `web_keys` (named volume) | `/data/keys/` | web only — auto-generated vault master key |
 
 ---
 

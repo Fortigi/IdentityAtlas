@@ -192,7 +192,7 @@ Identity Atlas distributes pre-built Docker images via GitHub Container Registry
 ### Credential Storage
 
 - **Secrets vault**: All sensitive credentials (LLM API keys, scraper credentials) are stored encrypted in the PostgreSQL `Secrets` table using AES-256-GCM with envelope encryption
-- **Master key**: The `IDENTITY_ATLAS_MASTER_KEY` environment variable controls the root encryption key; if unset, a key is auto-generated and persisted to the `job_data` volume
+- **Master key**: The `IDENTITY_ATLAS_MASTER_KEY` environment variable controls the root encryption key; if unset, a key is auto-generated and persisted to the web-only `web_keys` volume
 - **PostgreSQL password**: Default password is for local evaluation only; production deployments must set `POSTGRES_PASSWORD` explicitly
 
 ### Network Exposure
