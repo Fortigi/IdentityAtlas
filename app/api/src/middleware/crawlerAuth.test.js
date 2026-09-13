@@ -169,7 +169,8 @@ describe('authCacheKey (I-03)', () => {
   it('never embeds the plaintext API key', () => {
     const key = authCacheKey(7, API_KEY);
     expect(key).not.toContain(API_KEY);
-    expect(key).toBe(`7:${crypto.createHash('sha256').update(API_KEY).digest('hex')}`);
+    expect(key).toMatch(/^7:[0-9a-f]{64}$/);
+    expect(authCacheKey(7, API_KEY)).toBe(key); // stable within the process
   });
 
   it('distinguishes crawler ids and keys', () => {

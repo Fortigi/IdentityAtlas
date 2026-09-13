@@ -16,12 +16,12 @@ import { query } from '../db/connection.js';
 
 vi.mock('../middleware/auth.js', () => ({ requirePermission: () => (_q, _s, next) => next() }));
 vi.mock('./crawlerFiles.js', () => ({ getUploadFolderPath: vi.fn(() => '/tmp/x'), deleteConfigFolder: vi.fn(async () => {}) }));
+// Only what the create / delete config paths under test reach.
 vi.mock('../secrets/crawlerSecrets.js', () => ({
-  storeConfigFields: vi.fn(async () => {}), vaultedConfigFields: vi.fn(async () => []),
-  deleteConfigSecrets: vi.fn(async () => {}), getConfigSecret: vi.fn(async () => null),
-  getConfigCredentials: vi.fn(async () => ({})),
-  storeJobSecret: vi.fn(async () => {}), storeJobCredentials: vi.fn(async () => {}),
-  CONFIG_SECRET_FIELDS: ['clientSecret', 'password', 'apiToken', 'cookieString'],
+  CONFIG_SECRET_FIELDS: ['clientSecret'],
+  storeConfigFields: vi.fn(async () => {}),
+  vaultedConfigFields: vi.fn(async () => []),
+  deleteConfigSecrets: vi.fn(async () => {}),
 }));
 // Fictional types on purpose: the gate is generic, so naming a real crawler here
 // would only tie this test to whichever one happens to be experimental today.
