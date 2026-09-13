@@ -8,7 +8,7 @@
 //
 //   const { params, bind } = createParams();
 //   let where = '1=1';
-//   if (search) { const s = bind(`%${search}%`); where += ` AND (a ILIKE ${s} OR b ILIKE ${s})`; }
+//   if (search) { const s = bind(likeContains(search)); where += ` AND (a ILIKE ${s} ESCAPE '\\' OR b ILIKE ${s} ESCAPE '\\')`; }
 //   if (type)   where += ` AND type = ${bind(type)}`;
 //   await db.query(`SELECT … WHERE ${where}`, params);
 //
@@ -19,4 +19,20 @@ export function createParams() {
   const params = [];
   const bind = (value) => `$${params.push(value)}`;
   return { params, bind };
+}
+
+// LIKE/ILIKE "contains" search on user input. Postgres treats % and _ in a
+// pattern as wildcards and \ as the escape character, so a raw search term is
+// not a literal substring: "_" matches any character and "%" matches anything,
+// turning a lookup into a broad (and slower) scan (SEC-2026-09 L-14).
+// escapeLike() backslash-escapes those three characters; pair the bound value
+// with an explicit ESCAPE '\' on every ILIKE that uses it —
+// routes/likeAudit.test.js fails on a bound ILIKE without one.
+export function escapeLike(value) {
+  return String(value).replace(/[\\%_]/g, (ch) => '\\' + ch);
+}
+
+// "%<escaped value>%" — the bound value for a contains-search.
+export function likeContains(value) {
+  return '%' + escapeLike(value) + '%';
 }

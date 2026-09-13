@@ -8,7 +8,7 @@
 
 import { Router } from 'express';
 import { getResourceColumns as getResourceCols, getPrincipalOrUserColumns, getPrincipalOrUserColumnValues, getResourceColumnValues } from '../../db/columnCache.js';
-import { createParams } from '../../db/sqlParams.js';
+import { createParams, likeContains } from '../../db/sqlParams.js';
 import { parseJsonbColumn } from '../../lib/jsonb.js';
 import { buildOrderBy } from '../../lib/listSort.js';
 import { parseListParams } from '../../lib/listParams.js';
@@ -144,8 +144,8 @@ router.get('/users', async (req, res) => {
     // Hide soft-deleted principals by default; ?includeDeleted=true reveals them.
     if (req.query.includeDeleted !== 'true') where += ` AND u."deletedAt" IS NULL`;
     if (search) {
-      const s = bind(`%${search}%`);
-      where += ` AND (u."displayName" ILIKE ${s} OR u."email" ILIKE ${s})`;
+      const s = bind(likeContains(search));
+      where += ` AND (u."displayName" ILIKE ${s} ESCAPE '\\' OR u."email" ILIKE ${s} ESCAPE '\\')`;
     }
     if (tagId) {
       where += ` AND EXISTS (SELECT 1 FROM "GraphTagAssignments" ta WHERE ta."tagId" = ${bind(tagId)} AND ta."entityId" = UPPER(u.id::text))`;
@@ -251,8 +251,8 @@ function buildGroupsListWhere(parsed, colNames, bind) {
   const { search, tagId, resourceType, attrFilters, groupTagFilter } = parsed;
   let where = '1=1';
   if (search) {
-    const s = bind(`%${search}%`);
-    where += ` AND (r."displayName" ILIKE ${s} OR r."description" ILIKE ${s})`;
+    const s = bind(likeContains(search));
+    where += ` AND (r."displayName" ILIKE ${s} ESCAPE '\\' OR r."description" ILIKE ${s} ESCAPE '\\')`;
   }
   if (resourceType) where += ` AND r."resourceType" = ${bind(resourceType)}`;
   if (tagId) {

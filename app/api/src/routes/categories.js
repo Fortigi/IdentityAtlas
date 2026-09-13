@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { requirePermission } from '../middleware/auth.js';
-import { createParams } from '../db/sqlParams.js';
+import { createParams, likeContains } from '../db/sqlParams.js';
 
 const router = Router();
 const useSql = process.env.USE_SQL === 'true';
@@ -216,8 +216,8 @@ router.get('/access-packages', async (req, res) => {
     const params = [];
     const where = [`ap."resourceType" = 'BusinessRole'`];
     if (search) {
-      params.push(`%${search}%`);
-      where.push(`(ap."displayName" ILIKE $${params.length} OR c."displayName" ILIKE $${params.length})`);
+      params.push(likeContains(search));
+      where.push(`(ap."displayName" ILIKE $${params.length} ESCAPE '\\' OR c."displayName" ILIKE $${params.length} ESCAPE '\\')`);
     }
     if (categoryFilter) {
       params.push(categoryFilter);

@@ -13,7 +13,7 @@ import { getPrincipalOrUserColumns, getResourceColumns as getResourceCols, getGr
 import { getOrCreateTagRoot } from '../../bootstrap.js';
 import { recalcMemberCountsForChain } from '../../contexts/memberCounts.js';
 import { requirePermission } from '../../middleware/auth.js';
-import { createParams } from '../../db/sqlParams.js';
+import { createParams, likeContains } from '../../db/sqlParams.js';
 import { useSql, db, ensureTagTables, buildFilterWhere, ENTITY_TO_TARGET, UUID_RE } from './shared.js';
 import { extractRelFilters, buildRelationshipWhere, storeForEntityType } from '../../lib/referenceFilters.js';
 
@@ -242,9 +242,9 @@ function tableForEntityType(entityType) {
 // placeholder). Users/identities search displayName + email; others + description.
 function buildAssignSearchWhere(entityType, alias, s) {
   if (entityType === 'user' || entityType === 'identity') {
-    return ` AND (${alias}."displayName" ILIKE ${s} OR ${alias}."email" ILIKE ${s})`;
+    return ` AND (${alias}."displayName" ILIKE ${s} ESCAPE '\\' OR ${alias}."email" ILIKE ${s} ESCAPE '\\')`;
   }
-  return ` AND (${alias}."displayName" ILIKE ${s} OR ${alias}."description" ILIKE ${s})`;
+  return ` AND (${alias}."displayName" ILIKE ${s} ESCAPE '\\' OR ${alias}."description" ILIKE ${s} ESCAPE '\\')`;
 }
 
 // Attribute + reference-field (rel.*) filter clauses for the bulk-assign query.
@@ -285,7 +285,7 @@ router.post('/tags/:id/assign-by-filter', writeTags, async (req, res) => {
     const tagIdPh = bind(tagId);
     let where = '1=1';
     // ILIKE for case-insensitive search; camelCase columns are double-quoted.
-    if (search) where += buildAssignSearchWhere(entityType, alias, bind(`%${search}%`));
+    if (search) where += buildAssignSearchWhere(entityType, alias, bind(likeContains(search)));
 
     // Reference-field (rel.*) filters MUST be applied too: bulk-tag re-runs the
     // list's filter set, so a dropped rel.* constraint would silently over-tag.
