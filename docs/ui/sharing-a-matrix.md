@@ -50,7 +50,7 @@ What the snapshot captures:
 
 ## 2. What the recipient gets
 
-They open the link, sign in if they aren't already, and land on a single page: a slim header with the view's name, and the matrix. Clicking a person or a resource opens its detail page — attributes and relationships, read-only — with a **Back to matrix** button. The analyst-only tabs (Timeline, Risk) and every write action are absent.
+They open the link, sign in if they aren't already, and land on a single page: a slim header with the view's name, and the matrix. The analyst context around the matrix — the scope strip (rows, subject/resource/cell counts) and the scope statistics (principal/resource/assignment totals, the governed bar, Trends & breakdown) — is left out. Clicking a person or a resource opens its detail page — attributes and relationships, read-only — with a **Back to matrix** button. The analyst-only tabs (Timeline, Risk) and every write action are absent.
 
 If the link has been revoked, was mistyped, or no longer resolves, they get a plain sentence explaining that, not an error page.
 

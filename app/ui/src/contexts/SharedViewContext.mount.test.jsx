@@ -10,6 +10,7 @@ import { createElement as h } from 'react';
 import { SharedViewContext } from './SharedViewContext';
 import MatrixToolbar from '@ui/components/matrix/MatrixToolbar';
 import MatrixFilterSummary from '@ui/components/matrix/MatrixFilterSummary';
+import MatrixScopePanel from '@ui/components/matrix/MatrixScopePanel';
 import EntityDetailPage from '@ui/components/EntityDetailPage';
 import { renderWithProviders, makeAuthFetch, screen, waitFor, cleanup } from '@ui/test-utils/renderWithProviders';
 
@@ -63,14 +64,41 @@ describe('MatrixFilterSummary under a shared view', () => {
     await waitFor(() => expect(screen.getByText('Not saved')).toBeInTheDocument());
   });
 
-  it('shows the recipient the scope but no way to change it, and skips the saved-filter fetch', async () => {
+  it('drops the whole scope strip for a recipient, and skips the fetches behind it', async () => {
     const authFetch = makeAuthFetch({ '/api/matrix/saved-filters': [] });
-    renderShared(summary, { shared: true, auth: { ...analyst, authFetch } });
+    const { container } = renderShared(summary, { shared: true, auth: { ...analyst, authFetch } });
+    // Not just the Adjust button — the rows/subjects/resources strip goes too,
+    // so the recipient sees the matrix and nothing around it.
+    expect(screen.queryByText('User × Resource')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Adjust matrix' })).not.toBeInTheDocument();
-    expect(screen.queryByText('Not saved')).not.toBeInTheDocument();
-    // The scope itself is still described — that's what they were sent.
-    expect(screen.getByText('User × Resource')).toBeInTheDocument();
-    expect(authFetch).not.toHaveBeenCalledWith('/api/matrix/saved-filters');
+    expect(container).toBeEmptyDOMElement();
+    expect(authFetch).not.toHaveBeenCalled();
+  });
+});
+
+describe('MatrixScopePanel under a shared view', () => {
+  const STATS = {
+    subjectCount: 1135, resourceCount: 1014, assignmentCount: 2084,
+    governedAssignmentCount: 710, ungovernedAssignmentCount: 1374, governedPct: 34.1,
+  };
+  const panel = <MatrixScopePanel filter={FILTER} />;
+
+  it('shows an analyst the scope statistics', async () => {
+    const authFetch = makeAuthFetch({ '/api/matrix/scope-stats': STATS });
+    renderShared(panel, { shared: false, auth: { ...analyst, authFetch } });
+    // toLocaleString() follows the runner's locale — assert with the same formatter.
+    expect(await screen.findByText((1135).toLocaleString())).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Trends & breakdown/i })).toBeInTheDocument();
+  });
+
+  it('renders nothing for a recipient and never asks for the stats', async () => {
+    cleanup();
+    const authFetch = makeAuthFetch({ '/api/matrix/scope-stats': STATS });
+    const { container } = renderShared(panel, { shared: true, auth: { ...analyst, authFetch } });
+    // The panel debounces its fetch; wait past that before asserting silence.
+    await new Promise(r => setTimeout(r, 500));
+    expect(container).toBeEmptyDOMElement();
+    expect(authFetch).not.toHaveBeenCalled();
   });
 });
 

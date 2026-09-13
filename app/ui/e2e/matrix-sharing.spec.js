@@ -151,6 +151,9 @@ test.describe('Share a matrix (#1166)', () => {
     await expect(page.getByRole('button', { name: /Adjust filter/i })).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Export Excel' })).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Share view…' })).toHaveCount(0);
+    // Nor the analyst context around the matrix: scope strip and scope stats.
+    await expect(page.getByText('User × Resource')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /Trends & breakdown/i })).toHaveCount(0);
 
     // The one view control a business user does get: the governed toggle.
     await expect(page.getByRole('button', { name: 'All', exact: true }).first()).toBeVisible();
