@@ -14,36 +14,38 @@ import crypto from 'crypto';
 const MASTER = crypto.randomBytes(32);
 process.env.IDENTITY_ATLAS_MASTER_KEY = MASTER.toString('base64');
 
-const h = vi.hoisted(() => ({ rows: new Map() }));
+vi.mock('../db/connection.js'); // picks up src/db/__mocks__/connection.js
+const { query, queryOne } = await import('../db/connection.js');
 
-vi.mock('../db/connection.js', () => {
-  const COLS = ['ciphertext', 'iv', 'authTag', 'encryptedKey', 'keyIv', 'keyAuthTag'];
-  const query = async (sql, params = []) => {
-    if (sql.startsWith('INSERT INTO "Secrets"')) {
-      const [id, scope, label, ...enc] = params;
-      h.rows.set(id, { id, scope, label, ...Object.fromEntries(COLS.map((c, i) => [c, enc[i]])) });
-      return { rowCount: 1, rows: [] };
-    }
-    if (sql.startsWith('DELETE FROM "Secrets"')) {
-      const row = h.rows.get(params[0]);
-      if (!row || row.scope !== params[1]) return { rowCount: 0, rows: [] };
-      h.rows.delete(params[0]);
-      return { rowCount: 1, rows: [] };
-    }
-    if (sql.includes('id = ANY($1)')) {
-      return { rows: [...h.rows.values()].filter(r => params[0].includes(r.id) && r.scope === params[1]) };
-    }
-    if (sql.includes('WHERE scope = $1')) {
-      return { rows: [...h.rows.values()].filter(r => r.scope === params[0]) };
-    }
-    return { rows: [...h.rows.values()] }; // full-table scan (rebind)
-  };
-  const queryOne = async (sql, params = []) => {
+// In-memory "Secrets" table behind the shared manual mock's spies.
+const h = { rows: new Map() };
+const COLS = ['ciphertext', 'iv', 'authTag', 'encryptedKey', 'keyIv', 'keyAuthTag'];
+
+function fakeQuery(sql, params = []) {
+  if (sql.startsWith('INSERT INTO "Secrets"')) {
+    const [id, scope, label, ...enc] = params;
+    h.rows.set(id, { id, scope, label, ...Object.fromEntries(COLS.map((c, i) => [c, enc[i]])) });
+    return { rowCount: 1, rows: [] };
+  }
+  if (sql.startsWith('DELETE FROM "Secrets"')) {
     const row = h.rows.get(params[0]);
-    return row && row.scope === params[1] ? row : null;
-  };
-  return { query, queryOne, default: { query, queryOne } };
-});
+    if (!row || row.scope !== params[1]) return { rowCount: 0, rows: [] };
+    h.rows.delete(params[0]);
+    return { rowCount: 1, rows: [] };
+  }
+  if (sql.includes('id = ANY($1)')) {
+    return { rows: [...h.rows.values()].filter(r => params[0].includes(r.id) && r.scope === params[1]) };
+  }
+  if (sql.includes('WHERE scope = $1')) {
+    return { rows: [...h.rows.values()].filter(r => r.scope === params[0]) };
+  }
+  return { rows: [...h.rows.values()] }; // full-table scan (rebind)
+}
+
+function fakeQueryOne(_sql, params = []) {
+  const row = h.rows.get(params[0]);
+  return row && row.scope === params[1] ? row : null;
+}
 
 const vault = await import('./vault.js');
 
@@ -65,7 +67,13 @@ function plantRow(id, scope, enc, label = null) {
   h.rows.set(id, { id, scope, label, ...enc });
 }
 
-beforeEach(() => h.rows.clear());
+beforeEach(() => {
+  h.rows.clear();
+  query.mockReset();
+  queryOne.mockReset();
+  query.mockImplementation(async (sql, params) => fakeQuery(sql, params));
+  queryOne.mockImplementation(async (sql, params) => fakeQueryOne(sql, params));
+});
 
 describe('vault selfTest', () => {
   it('passes the round-trip self-test with a valid master key', () => {
