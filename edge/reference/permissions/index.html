@@ -1324,6 +1324,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/sharing-a-matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sharing a Matrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -5224,6 +5252,11 @@
 <td>Generate read-only API keys</td>
 <td><code>POST /api/admin/read-tokens</code> (mint your own <code>fgr_</code> token)</td>
 </tr>
+<tr>
+<td><code>data.share</code></td>
+<td>Create matrix share links</td>
+<td><code>POST /api/matrix/shares</code> (also <code>GET /api/matrix/shares</code> and <code>POST /api/matrix/shares/:id/revoke</code> — the Shared matrices management page). Only takes effect while the experimental <strong>Matrix sharing</strong> feature is switched on — see <a href="../experimental-features/#matrix-sharing">Experimental features</a>. See <a href="../../ui/sharing-a-matrix/">Sharing a matrix</a>.</td>
+</tr>
 </tbody>
 </table>
 <h3 id="write">Write<a class="headerlink" href="#write" title="Permanent link">&para;</a></h3>
@@ -5331,7 +5364,7 @@
 </tr>
 <tr>
 <td><code>RoleMiner</code></td>
-<td><code>data.read</code>, <code>data.export.ui</code>, <code>data.export.apikey</code></td>
+<td><code>data.read</code>, <code>data.export.ui</code>, <code>data.export.apikey</code>, <code>data.share</code></td>
 </tr>
 <tr>
 <td><code>Servicedesk</code></td>

@@ -1324,6 +1324,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/sharing-a-matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sharing a Matrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -2728,6 +2756,45 @@
         
           <li class="md-nav__item">
   <a href="#what-the-switch-does-not-do" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the switch does not do
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#matrix-sharing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Matrix sharing
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Matrix sharing">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-the-switch-does-precisely_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the switch does, precisely
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-the-switch-does-not-do_1" class="md-nav__link">
     <span class="md-ellipsis">
       
         What the switch does not do
@@ -4916,6 +4983,45 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#matrix-sharing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Matrix sharing
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Matrix sharing">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-the-switch-does-precisely_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the switch does, precisely
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-the-switch-does-not-do_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the switch does not do
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#leaving-experimental-behind" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5033,7 +5139,7 @@ in the Admin UI overrides the environment variable from then on.</p>
 </div>
 <hr />
 <h2 id="experimental-crawlers">Experimental crawlers<a class="headerlink" href="#experimental-crawlers" title="Permanent link">&para;</a></h2>
-<p>The one experimental feature today. It controls whether crawler types marked
+<p>It controls whether crawler types marked
 experimental are offered in <strong>Admin → Crawlers → Add Crawler</strong>.</p>
 <table>
 <thead>
@@ -5064,6 +5170,29 @@ run on demand, and deleted. The badge stays on its card so you can see what it i
 <p>The switch governs <em>adding a new one</em> — nothing else. That is deliberate: an
 operator who turns the flag off after connecting a system should not silently lose
 that system's data.</p>
+<hr />
+<h2 id="matrix-sharing">Matrix sharing<a class="headerlink" href="#matrix-sharing" title="Permanent link">&para;</a></h2>
+<p>Lets analysts share a configured matrix with named colleagues who have no Identity
+Atlas role — a manager, an application owner. See
+<a href="../../ui/sharing-a-matrix/">Share a matrix with someone in your organisation</a> for the
+feature itself. It is experimental because it is the first thing in Identity Atlas
+that shows data to people outside the analyst team.</p>
+<p>Environment variable: <code>FEATURE_MATRIX_SHARING=true</code>.</p>
+<h3 id="what-the-switch-does-precisely_1">What the switch does, precisely<a class="headerlink" href="#what-the-switch-does-precisely_1" title="Permanent link">&para;</a></h3>
+<p><strong>On</strong> — users with the <strong>Create matrix share links</strong> (<code>data.share</code>) permission get
+the wizard's <strong>Share</strong> step, the toolbar's <strong>Share view…</strong> button and the
+<strong>Admin → Shared Matrices</strong> tab, and share links open for their recipients.</p>
+<p><strong>Off</strong> — all of those are hidden, and the API answers <code>404</code> on every share endpoint:
+creating, listing and revoking shares, <strong>and opening a link</strong>. A recipient who opens
+a link that was sent while sharing was on sees the same "This link doesn’t open a
+shared view" page as for an unknown link — never an error.</p>
+<h3 id="what-the-switch-does-not-do_1">What the switch does <em>not</em> do<a class="headerlink" href="#what-the-switch-does-not-do_1" title="Permanent link">&para;</a></h3>
+<p>Turning it off <strong>does not delete anything.</strong> Existing shares, their recipients and
+their usage history stay in the database; switching the flag back on makes every
+link that was not revoked open again. To end a single share for good, revoke it
+under <strong>Admin → Shared Matrices</strong> while the feature is on.</p>
+<p>The permission still decides <em>who</em> may share: the flag decides whether sharing
+exists on this install at all.</p>
 <hr />
 <h2 id="leaving-experimental-behind">Leaving experimental behind<a class="headerlink" href="#leaving-experimental-behind" title="Permanent link">&para;</a></h2>
 <p>The label is temporary by design. Once a feature has run against enough real
