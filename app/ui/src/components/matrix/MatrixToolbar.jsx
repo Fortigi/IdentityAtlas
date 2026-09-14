@@ -28,7 +28,7 @@ function ExportMenu({ onExportExcel }) {
       </button>
       {open && (
         <div ref={panelRef} role="menu" aria-label="Export"
-          className="absolute right-0 top-full z-30 mt-1 min-w-[10rem] rounded border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-600 dark:bg-gray-800">
+          className="absolute right-0 top-full z-50 mt-1 min-w-[10rem] rounded border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-600 dark:bg-gray-800">
           <button
             type="button"
             role="menuitem"
