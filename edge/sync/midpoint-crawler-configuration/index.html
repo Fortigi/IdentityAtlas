@@ -5258,6 +5258,16 @@ The four wizard steps map 1:1 to the sections below.</p>
 <td><code>BasicAuth</code></td>
 <td>How the crawler authenticates to the midPoint REST API. One of <code>BasicAuth</code>, <code>ApiToken</code>, <code>OAuth2CC</code>, <code>OAuth2ROPC</code>.</td>
 </tr>
+<tr>
+<td><strong>Allow private network</strong> (<code>allowPrivateNetwork</code>)</td>
+<td><code>false</code></td>
+<td>Allow the base URL and token endpoint to resolve to a private or loopback address. Needed for an on-premises midPoint. Cloud-metadata and link-local addresses are always refused. See <a href="../midpoint/#network-access">Network access</a>.</td>
+</tr>
+<tr>
+<td><strong>Allow insecure HTTP</strong> (<code>allowInsecureHttp</code>)</td>
+<td><code>false</code></td>
+<td>Allow plain <code>http</code> for the base URL and token endpoint (credentials are sent unencrypted). See <a href="../midpoint/#network-access">Network access</a>.</td>
+</tr>
 </tbody>
 </table>
 <h3 id="credentials-per-authentication-method">Credentials per authentication method<a class="headerlink" href="#credentials-per-authentication-method" title="Permanent link">&para;</a></h3>
@@ -5644,6 +5654,18 @@ fresher data between full runs.</p>
 <td><code>tokenEndpoint</code></td>
 <td>—</td>
 <td>for OAuth2CC / OAuth2ROPC</td>
+<td>1</td>
+</tr>
+<tr>
+<td><code>allowPrivateNetwork</code></td>
+<td><code>false</code></td>
+<td>for a private / on-premises address</td>
+<td>1</td>
+</tr>
+<tr>
+<td><code>allowInsecureHttp</code></td>
+<td><code>false</code></td>
+<td>for a plain-http URL</td>
 <td>1</td>
 </tr>
 <tr>

@@ -2080,6 +2080,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#network-access" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Network access
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#contextobjecttypes" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5022,6 +5033,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#network-access" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Network access
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#contextobjecttypes" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5282,6 +5304,16 @@
 <td>Pre-built session cookie — useful for Omada Cloud when only browser/PowerShell session cookies are available</td>
 </tr>
 <tr>
+<td><code>allowPrivateNetwork</code></td>
+<td>No (default <code>false</code>)</td>
+<td>Allow <code>baseUrl</code> / <code>tokenEndpoint</code> to resolve to a private or loopback address — set this for a server on your own network. See <a href="#network-access">Network access</a></td>
+</tr>
+<tr>
+<td><code>allowInsecureHttp</code></td>
+<td>No (default <code>false</code>)</td>
+<td>Allow plain <code>http</code> for <code>baseUrl</code> / <code>tokenEndpoint</code>. Credentials are then sent unencrypted. See <a href="#network-access">Network access</a></td>
+</tr>
+<tr>
 <td><code>selectedObjects</code></td>
 <td>No</td>
 <td>Object with boolean flags to enable/disable sync phases: <code>contexts</code>, <code>identities</code>, <code>accounts</code>, <code>contextMembers</code>, <code>resources</code>, <code>entitlements</code>, <code>assignments</code></td>
@@ -5299,6 +5331,13 @@
 </tbody>
 </table>
 <p>In the wizard, the <strong>Sync Options</strong> step calls <code>$metadata</code> live against the connected Omada server to validate that <code>contextObjectTypes</code> entries reference real entity sets and identity fields (case-sensitive).</p>
+<h3 id="network-access">Network access<a class="headerlink" href="#network-access" title="Permanent link">&para;</a></h3>
+<p>Omada Cloud (<code>https://&lt;tenant&gt;.omada.cloud</code>) needs no extra setting. For an <strong>on-premises</strong>
+Omada server whose address is private (<code>10.x</code>, <code>172.16–31.x</code>, <code>192.168.x</code>, or a name that
+resolves to one) tick <strong>Allow private network</strong> on the Connection step; if it is only served
+over plain <code>http</code>, also tick <strong>Allow insecure HTTP</strong>. The same applies to a self-hosted OAuth2
+token endpoint. Why these options exist, what stays blocked regardless, and what to do after
+upgrading: <a href="../../reference/troubleshooting/#crawler-url-rejected">Crawler URL rejected</a>.</p>
 <h3 id="contextobjecttypes"><code>contextObjectTypes</code><a class="headerlink" href="#contextobjecttypes" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="p">{</span>
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span><span class="nt">"contextObjectTypes"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
@@ -5325,6 +5364,8 @@
 The <code>CRAWLER_MANIFESTS_DIR</code> environment variable on the web container must point to the folder containing the crawler manifests. See <a href="../../architecture/docker-setup/">Docker setup</a>.</p>
 <p><strong><code>$metadata</code> returns HTTP 500 (Omada Cloud)</strong>
 Some cloud tenants return 500 on <code>$metadata</code>. This is non-fatal — the wizard shows a warning but the sync itself still runs all configured phases.</p>
+<p><strong>Save, discovery or the job fails with <em>baseUrl rejected<em> or </em>tokenEndpoint rejected</em></strong>
+The URL uses <code>http</code> or resolves to a private, loopback or cloud-metadata address. For an on-premises Omada server enable <strong>Allow private network</strong> (and, only if it has no https, <strong>Allow insecure HTTP</strong>) — see <a href="#network-access">Network access</a>. Metadata and link-local addresses cannot be enabled.</p>
 <p><strong>Cookie session expires during a scheduled sync</strong>
 <code>FormCookie</code> and <code>CookieString</code> sessions typically expire after 20–60 minutes. Use <code>OAuth2CC</code> or <code>OAuth2ROPC</code> for unattended scheduled syncs.</p>
 

@@ -2406,6 +2406,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#crawler-url-rejected" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Crawler URL rejected
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#required-permissions" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4919,6 +4930,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#crawler-url-rejected" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Crawler URL rejected
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#required-permissions" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5097,6 +5119,57 @@
 </tr>
 </tbody>
 </table>
+<hr />
+<h2 id="crawler-url-rejected">Crawler URL rejected<a class="headerlink" href="#crawler-url-rejected" title="Permanent link">&para;</a></h2>
+<p>The Omada, midPoint, SCIM and OData crawlers send their credentials to the <code>baseUrl</code> and
+OAuth2 <code>tokenEndpoint</code> in their configuration. To stop a configuration from pointing that
+credential at an internal service or a cloud-metadata endpoint, Identity Atlas accepts only
+<strong>https</strong> URLs on <strong>public</strong> addresses unless the crawler opts in. The check runs:</p>
+<ul>
+<li>when the crawler is saved and when a job is started (the API answers <code>400 … rejected</code>);</li>
+<li>when the wizard runs live discovery (which also does not follow HTTP redirects — enter the final URL);</li>
+<li>on the worker right before it connects, before every token request, and on every next-page
+  link the server returns (which must stay on the configured host).</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>Message contains</th>
+<th>Meaning</th>
+<th>Fix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><em>must use https</em></td>
+<td>The URL is plain <code>http</code>.</td>
+<td>Enable https on the server, or tick <strong>Allow insecure HTTP</strong> (<code>allowInsecureHttp: true</code>). Credentials are then sent unencrypted.</td>
+</tr>
+<tr>
+<td><em>private or loopback address</em></td>
+<td>The host resolves to <code>10.x</code>, <code>172.16–31.x</code>, <code>192.168.x</code>, <code>100.64–127.x</code>, <code>127.x</code> or an IPv6 unique-local address.</td>
+<td>For an on-premises server, tick <strong>Allow private network</strong> (<code>allowPrivateNetwork: true</code>).</td>
+</tr>
+<tr>
+<td><em>link-local, metadata, or reserved address</em></td>
+<td>The host resolves to <code>169.254.x</code>, <code>fe80::</code>, <code>0.0.0.0</code>, a multicast/reserved range, or an IPv6 form that embeds one of these.</td>
+<td>Cannot be enabled. Use the server's real address.</td>
+</tr>
+<tr>
+<td><em>points to a different host</em></td>
+<td>The server returned a next-page link on another host.</td>
+<td>Check the server's public URL / reverse-proxy settings; the crawler never follows such a link.</td>
+</tr>
+<tr>
+<td><em>redirect (HTTP 3xx)</em></td>
+<td>Discovery hit a redirect.</td>
+<td>Configure the URL the server redirects to.</td>
+</tr>
+</tbody>
+</table>
+<p>Both options are per crawler, on the wizard's <strong>Connection</strong> step. A crawler configured before
+these checks existed keeps its settings but is refused until the matching option is ticked:
+edit the crawler, tick it, and save.</p>
 <hr />
 <h2 id="required-permissions">Required Permissions<a class="headerlink" href="#required-permissions" title="Permanent link">&para;</a></h2>
 <p>All permissions below are <strong>Application</strong> permissions (not Delegated). They are configured on the App Registration used by the Entra ID crawler.</p>

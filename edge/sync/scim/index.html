@@ -2220,6 +2220,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#network-access" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Network access
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#example" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5111,6 +5122,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#network-access" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Network access
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#example" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5441,6 +5463,16 @@ credential check: a failure is reported inline with the reason.</p>
 <td>Optional OAuth2 scope requested with the client-credentials grant</td>
 </tr>
 <tr>
+<td><code>allowPrivateNetwork</code></td>
+<td>No (default <code>false</code>)</td>
+<td>Allow <code>baseUrl</code> / <code>tokenEndpoint</code> to resolve to a private or loopback address — set this for a server on your own network. See <a href="#network-access">Network access</a></td>
+</tr>
+<tr>
+<td><code>allowInsecureHttp</code></td>
+<td>No (default <code>false</code>)</td>
+<td>Allow plain <code>http</code> for <code>baseUrl</code> / <code>tokenEndpoint</code>. Credentials are then sent unencrypted. See <a href="#network-access">Network access</a></td>
+</tr>
+<tr>
 <td><code>systemName</code></td>
 <td>No (default <code>SCIM</code>)</td>
 <td>How this source is labelled in Identity Atlas</td>
@@ -5469,6 +5501,12 @@ credential check: a failure is reported inline with the reason.</p>
 </table>
 <p>Secrets (<code>password</code>, <code>apiToken</code>, <code>clientSecret</code>) are never stored in the config blob
 — they go to the secrets vault and are injected into the job at dispatch time.</p>
+<h3 id="network-access">Network access<a class="headerlink" href="#network-access" title="Permanent link">&para;</a></h3>
+<p>A SaaS SCIM endpoint on public https needs no extra setting. For a SCIM service provider inside
+your network, tick <strong>Allow private network</strong> in the wizard (<code>allowPrivateNetwork: true</code>); for
+one without TLS, <strong>Allow insecure HTTP</strong> (<code>allowInsecureHttp: true</code>). Both also cover the OAuth2
+<code>tokenEndpoint</code>. See <a href="../../reference/troubleshooting/#crawler-url-rejected">Crawler URL rejected</a>
+for exactly what is checked and when.</p>
 <h3 id="example">Example<a class="headerlink" href="#example" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="p">{</span>
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span><span class="nt">"baseUrl"</span><span class="p">:</span><span class="w"> </span><span class="s2">"https://cis.example.com/scim/v2"</span><span class="p">,</span>
@@ -5535,8 +5573,12 @@ touch another connector's data, and a <code>ServicePrincipal</code> batch can ne
 <td>Wrong credentials, or the endpoint expects a different auth scheme than the one selected.</td>
 </tr>
 <tr>
-<td>Discovery says <em>baseUrl rejected</em></td>
-<td>The base URL resolves to a private, loopback or cloud-metadata address. The API refuses to fetch those with a stored credential.</td>
+<td>Save, discovery or the job says <em>baseUrl rejected</em> / <em>tokenEndpoint rejected</em></td>
+<td>The URL uses <code>http</code> or resolves to a private, loopback or cloud-metadata address. Enable <strong>Allow private network</strong> / <strong>Allow insecure HTTP</strong> for an on-premises endpoint — see <a href="#network-access">Network access</a>. Metadata and link-local addresses cannot be enabled.</td>
+</tr>
+<tr>
+<td>Discovery says <em>endpoint answered with a redirect</em></td>
+<td>The wizard does not follow redirects. Enter the URL the endpoint redirects to.</td>
 </tr>
 <tr>
 <td>The attribute picker is empty</td>

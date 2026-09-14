@@ -2136,6 +2136,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#network-access" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Network access
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#sync-phase-toggles-selectedobjects" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5044,6 +5055,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#network-access" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Network access
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#sync-phase-toggles-selectedobjects" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5342,6 +5364,16 @@ sensible default and can be left as-is.</p>
 <td>OAuth2 token endpoint URL</td>
 </tr>
 <tr>
+<td><code>allowPrivateNetwork</code></td>
+<td>No (default <code>false</code>)</td>
+<td>Allow <code>baseUrl</code> / <code>tokenEndpoint</code> to resolve to a private or loopback address — set this for a server on your own network. See <a href="#network-access">Network access</a></td>
+</tr>
+<tr>
+<td><code>allowInsecureHttp</code></td>
+<td>No (default <code>false</code>)</td>
+<td>Allow plain <code>http</code> for <code>baseUrl</code> / <code>tokenEndpoint</code>. Credentials are then sent unencrypted. See <a href="#network-access">Network access</a></td>
+</tr>
+<tr>
 <td><code>pageSize</code></td>
 <td>No (default 100)</td>
 <td>Number of records per REST page</td>
@@ -5358,6 +5390,13 @@ sensible default and can be left as-is.</p>
 </tr>
 </tbody>
 </table>
+<h3 id="network-access">Network access<a class="headerlink" href="#network-access" title="Permanent link">&para;</a></h3>
+<p>midPoint is usually installed on your own network, often as <code>http://midpoint:8080/midpoint</code>.
+Such a URL is refused until you tick <strong>Allow private network</strong> (the host resolves to a
+private address) and <strong>Allow insecure HTTP</strong> (plain <code>http</code>) on the wizard's Connection step —
+or set <code>allowPrivateNetwork</code> / <code>allowInsecureHttp</code> to <code>true</code> in the stored config. A midPoint
+reachable over public https needs neither. Details and the upgrade note:
+<a href="../../reference/troubleshooting/#crawler-url-rejected">Crawler URL rejected</a>.</p>
 <h3 id="sync-phase-toggles-selectedobjects">Sync phase toggles (<code>selectedObjects</code>)<a class="headerlink" href="#sync-phase-toggles-selectedobjects" title="Permanent link">&para;</a></h3>
 <p>All phases are enabled by default. To disable individual phases:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="p">{</span>
@@ -5410,6 +5449,8 @@ sensible default and can be left as-is.</p>
 <h2 id="troubleshooting">Troubleshooting<a class="headerlink" href="#troubleshooting" title="Permanent link">&para;</a></h2>
 <p><strong>midPoint not visible in "Add Crawler"</strong>
 The <code>CRAWLER_MANIFESTS_DIR</code> environment variable on the web container must point to the folder containing the crawler manifests. See <a href="../../architecture/docker-setup/">Docker setup</a>.</p>
+<p><strong>Save, discovery or the job fails with <em>baseUrl rejected<em> or </em>tokenEndpoint rejected</em></strong>
+The URL uses <code>http</code> or resolves to a private, loopback or cloud-metadata address. midPoint usually runs on-premises: enable <strong>Allow private network</strong>, and <strong>Allow insecure HTTP</strong> only if it is served over plain http (e.g. <code>http://midpoint:8080</code>) — see <a href="#network-access">Network access</a>.</p>
 <p><strong>Shadow search returns 500</strong>
 Shadow search requires <code>?options=raw</code>. This is handled automatically by the crawler; if you see 500 errors, check your midPoint version (4.x required).</p>
 <p><strong><code>buildContexts</code> post-sync hook returns 404</strong>
