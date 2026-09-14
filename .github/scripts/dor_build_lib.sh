@@ -16,6 +16,9 @@ export PATH="$HOME/.local/bin:$PATH"
 # shellcheck source=dor_agent_sandbox.sh
 source "$(dirname "${BASH_SOURCE[0]}")/dor_agent_sandbox.sh"
 load_flow_credentials
+# Checkpoint + continue across workflow steps when BOARD_TOKEN nears its 1h expiry.
+# shellcheck source=dor_token_checkpoint.sh
+source "$(dirname "${BASH_SOURCE[0]}")/dor_token_checkpoint.sh"
 
 # ── Derived config (identical across both flows) ──────────────────────────────────────────────────
 BRANCH="dor/issue-${ISSUE}"
@@ -411,10 +414,13 @@ pause_and_exit() {
   # A paused branch is resumed from later, so it gets the same guard as every other push. Checked
   # BEFORE the pause marker: a refusal here is an Exception, not a pause.
   guard_protected_paths
-  touch "${RUNNER_TEMP:-/tmp}/dor-paused"   # tell the workflow's failure backstop this is a pause
   git -C "$WORK" restore --source=HEAD --staged --worktree -- .github 2>/dev/null || true
   git -C "$WORK" add -A 2>/dev/null || true
   git -C "$WORK" diff --cached --quiet 2>/dev/null || git -C "$WORK" commit -q -m "wip: paused on usage limit (#${ISSUE})" 2>/dev/null || true
+  # An expired token would silently lose the WIP push; hand over to a fresh-token step instead, which
+  # comes back here. Before the pause marker, so a run that ends up bailing is not reconciled as paused.
+  board_token_stale && checkpoint_and_exit pause "" 0 "$reason"
+  touch "${RUNNER_TEMP:-/tmp}/dor-paused"   # tell the workflow's failure backstop this is a pause
   # origin is anonymous, so the WIP goes out as the app like every other push.
   push_as_app --force-with-lease "HEAD:refs/heads/$BRANCH" >/dev/null 2>&1 || true
   GH_TOKEN="$BOARD_TOKEN" bash "$SCRIPTS/dor_set_status.sh" "$ISSUE" paused 2>/dev/null || true
@@ -550,8 +556,10 @@ ci_state() {
 # The verify loop shared by both flows: deploy+seed → e2e on live env → CI. The AI fixer is invoked
 # ONLY on a REAL failure (e2e failed, or a required check is red) — never merely because CI hasn't
 # reported yet (that spin is what burned a week of budget). $1 = the open PR number.
+# $2 = fix attempts already spent — non-zero only when resuming after a token refresh, so a
+# continuation never gets fresh attempts on top of MAX_ATTEMPTS.
 verify_loop() {
-  local pr="$1" attempt=0 e2e_rc ci ctx infra_waits=0
+  local pr="$1" attempt="${2:-0}" e2e_rc ci ctx infra_waits=0
   while : ; do
     deploy_and_seed || bail "deploy/seed of the live env failed on $HOST (infra)"
     run_feature_e2e; e2e_rc=$?
@@ -602,6 +610,6 @@ verify_loop() {
       git commit -q -m "fix: address e2e/CI failures (attempt ${attempt}, #${ISSUE})" || bail "git commit failed during fix (attempt ${attempt})"
     fi
     guard_protected_paths
-    push_as_app --force-with-lease "HEAD:refs/heads/$BRANCH" || bail "could not push fix on attempt ${attempt}"
+    push_or_checkpoint verify "$pr" "$attempt" || bail "could not push fix on attempt ${attempt}"
   done
 }

@@ -276,6 +276,16 @@ jobs:
           # push URL; not persisting it is what makes use_bot_remote's identity the only one on offer.
           persist-credentials: false
 
+      # The flow scripts as checked out, BEFORE any agent runs or the flow switches to the build branch.
+      # Token-refresh continuations run from this copy: by then the working tree holds the branch's
+      # (possibly older) .github/scripts and whatever the agent left in it, and neither should decide
+      # what runs with a freshly minted token.
+      - name: Snapshot the flow scripts (run by every flow step below)
+        run: |
+          set -euo pipefail
+          rm -rf "$RUNNER_TEMP/dor-flow"
+          cp -R .github/scripts "$RUNNER_TEMP/dor-flow"
+
       - name: Ensure the claude CLI is on PATH
         run: |
           set -euo pipefail
@@ -349,14 +359,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           BOARD_TOKEN: ${{ steps.bot.outputs.token }}
-        run: |
-          set -euo pipefail
-          umask 077
-          d="$RUNNER_TEMP/dor-cred"; rm -rf "$d"; mkdir -p "$d"
-          printf '%s\n' "$GH_TOKEN" > "$d/gh"
-          printf '%s\n' "$BOARD_TOKEN" > "$d/board"
+        run: bash "$RUNNER_TEMP/dor-flow/dor_stage_flow_credentials.sh"
 
       - name: Build → deploy+seed → e2e-verify → PR → CI (8× auto-fix) → gated notify
+        id: flow
         env:
           ISSUE: ${{ github.event.issue.number }}
           REPO: ${{ github.repository }}
@@ -364,11 +370,223 @@ jobs:
           HOST: ${{ steps.sk.outputs.host }}
           WORK: ${{ github.workspace }}
           DOR_CRED_DIR: ${{ runner.temp }}/dor-cred
+          DOR_TOKEN_REFRESHES_LEFT: '6'   # = the number of token-refresh slots below
           # Needed by the CLI itself. The agent can read it — residual risk, see dor_agent_sandbox.sh.
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           DOR_BUILD_MODEL: ${{ vars.DOR_BUILD_MODEL }}
-        run: bash .github/scripts/dor_build_flow.sh
+        run: bash "$RUNNER_TEMP/dor-flow/dor_flow_step.sh" dor_build_flow.sh
 
+      # ── Token-refresh continuations ──────────────────────────────────────────────────────────────
+      # The BOT token lives 1h, and a build's verify/fix loop (up to 8 attempts) routinely runs longer:
+      # run 34821100296 (#1202) dead-lettered on `Invalid username or token` pushing fix attempt 2.
+      # The private key never goes to the flow — the agent shares its unix user, and a leaked 1h token
+      # is bounded where a leaked key is not. So the flow checkpoints (dor_token_checkpoint.sh) before
+      # its token gets too old, its step reports `needs-token`, and the next slot mints a fresh token
+      # (same permissions as `bot`), stages it, and continues the flow where it stopped — same fix-attempt
+      # count, no second implement. Six slots = seven 50-minute token windows, past the job's 350-minute
+      # timeout; a flow that still needs one with DOR_TOKEN_REFRESHES_LEFT=0 bails to Exceptions. Each
+      # slot runs only if the step before it asked, so a build that finishes in time skips them all.
+      # Plain steps, not a local composite action: that would be read from the working tree the agent
+      # has written to, and it would receive the private key.
+      # (test/ci-scripts/test-dor-token-checkpoint.sh pins this wiring.)
+      - name: Token refresh 1/6 - mint a fresh BOT token
+        id: bot_c1
+        if: steps.flow.outputs.needs-token == 'true'
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ secrets.BOT_APP_ID }}
+          private-key: ${{ secrets.BOT_PRIVATE_KEY }}
+          owner: Fortigi
+          permission-organization-projects: write
+          permission-pull-requests: write
+          permission-contents: write
+          permission-issues: read
+      - name: Token refresh 1/6 - stage it for the flow
+        if: steps.flow.outputs.needs-token == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BOARD_TOKEN: ${{ steps.bot_c1.outputs.token }}
+        run: bash "$RUNNER_TEMP/dor-flow/dor_stage_flow_credentials.sh"
+      - name: Token refresh 1/6 - continue the build where it checkpointed
+        id: flow_c1
+        if: steps.flow.outputs.needs-token == 'true'
+        env:
+          ISSUE: ${{ github.event.issue.number }}
+          REPO: ${{ github.repository }}
+          URL: ${{ steps.sk.outputs.url }}
+          HOST: ${{ steps.sk.outputs.host }}
+          WORK: ${{ github.workspace }}
+          DOR_CRED_DIR: ${{ runner.temp }}/dor-cred
+          DOR_FLOW_MODE: continue
+          DOR_TOKEN_REFRESHES_LEFT: '5'
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          DOR_BUILD_MODEL: ${{ vars.DOR_BUILD_MODEL }}
+        run: bash "$RUNNER_TEMP/dor-flow/dor_flow_step.sh" dor_build_flow.sh
+      - name: Token refresh 2/6 - mint a fresh BOT token
+        id: bot_c2
+        if: steps.flow_c1.outputs.needs-token == 'true'
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ secrets.BOT_APP_ID }}
+          private-key: ${{ secrets.BOT_PRIVATE_KEY }}
+          owner: Fortigi
+          permission-organization-projects: write
+          permission-pull-requests: write
+          permission-contents: write
+          permission-issues: read
+      - name: Token refresh 2/6 - stage it for the flow
+        if: steps.flow_c1.outputs.needs-token == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BOARD_TOKEN: ${{ steps.bot_c2.outputs.token }}
+        run: bash "$RUNNER_TEMP/dor-flow/dor_stage_flow_credentials.sh"
+      - name: Token refresh 2/6 - continue the build where it checkpointed
+        id: flow_c2
+        if: steps.flow_c1.outputs.needs-token == 'true'
+        env:
+          ISSUE: ${{ github.event.issue.number }}
+          REPO: ${{ github.repository }}
+          URL: ${{ steps.sk.outputs.url }}
+          HOST: ${{ steps.sk.outputs.host }}
+          WORK: ${{ github.workspace }}
+          DOR_CRED_DIR: ${{ runner.temp }}/dor-cred
+          DOR_FLOW_MODE: continue
+          DOR_TOKEN_REFRESHES_LEFT: '4'
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          DOR_BUILD_MODEL: ${{ vars.DOR_BUILD_MODEL }}
+        run: bash "$RUNNER_TEMP/dor-flow/dor_flow_step.sh" dor_build_flow.sh
+      - name: Token refresh 3/6 - mint a fresh BOT token
+        id: bot_c3
+        if: steps.flow_c2.outputs.needs-token == 'true'
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ secrets.BOT_APP_ID }}
+          private-key: ${{ secrets.BOT_PRIVATE_KEY }}
+          owner: Fortigi
+          permission-organization-projects: write
+          permission-pull-requests: write
+          permission-contents: write
+          permission-issues: read
+      - name: Token refresh 3/6 - stage it for the flow
+        if: steps.flow_c2.outputs.needs-token == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BOARD_TOKEN: ${{ steps.bot_c3.outputs.token }}
+        run: bash "$RUNNER_TEMP/dor-flow/dor_stage_flow_credentials.sh"
+      - name: Token refresh 3/6 - continue the build where it checkpointed
+        id: flow_c3
+        if: steps.flow_c2.outputs.needs-token == 'true'
+        env:
+          ISSUE: ${{ github.event.issue.number }}
+          REPO: ${{ github.repository }}
+          URL: ${{ steps.sk.outputs.url }}
+          HOST: ${{ steps.sk.outputs.host }}
+          WORK: ${{ github.workspace }}
+          DOR_CRED_DIR: ${{ runner.temp }}/dor-cred
+          DOR_FLOW_MODE: continue
+          DOR_TOKEN_REFRESHES_LEFT: '3'
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          DOR_BUILD_MODEL: ${{ vars.DOR_BUILD_MODEL }}
+        run: bash "$RUNNER_TEMP/dor-flow/dor_flow_step.sh" dor_build_flow.sh
+      - name: Token refresh 4/6 - mint a fresh BOT token
+        id: bot_c4
+        if: steps.flow_c3.outputs.needs-token == 'true'
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ secrets.BOT_APP_ID }}
+          private-key: ${{ secrets.BOT_PRIVATE_KEY }}
+          owner: Fortigi
+          permission-organization-projects: write
+          permission-pull-requests: write
+          permission-contents: write
+          permission-issues: read
+      - name: Token refresh 4/6 - stage it for the flow
+        if: steps.flow_c3.outputs.needs-token == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BOARD_TOKEN: ${{ steps.bot_c4.outputs.token }}
+        run: bash "$RUNNER_TEMP/dor-flow/dor_stage_flow_credentials.sh"
+      - name: Token refresh 4/6 - continue the build where it checkpointed
+        id: flow_c4
+        if: steps.flow_c3.outputs.needs-token == 'true'
+        env:
+          ISSUE: ${{ github.event.issue.number }}
+          REPO: ${{ github.repository }}
+          URL: ${{ steps.sk.outputs.url }}
+          HOST: ${{ steps.sk.outputs.host }}
+          WORK: ${{ github.workspace }}
+          DOR_CRED_DIR: ${{ runner.temp }}/dor-cred
+          DOR_FLOW_MODE: continue
+          DOR_TOKEN_REFRESHES_LEFT: '2'
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          DOR_BUILD_MODEL: ${{ vars.DOR_BUILD_MODEL }}
+        run: bash "$RUNNER_TEMP/dor-flow/dor_flow_step.sh" dor_build_flow.sh
+      - name: Token refresh 5/6 - mint a fresh BOT token
+        id: bot_c5
+        if: steps.flow_c4.outputs.needs-token == 'true'
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ secrets.BOT_APP_ID }}
+          private-key: ${{ secrets.BOT_PRIVATE_KEY }}
+          owner: Fortigi
+          permission-organization-projects: write
+          permission-pull-requests: write
+          permission-contents: write
+          permission-issues: read
+      - name: Token refresh 5/6 - stage it for the flow
+        if: steps.flow_c4.outputs.needs-token == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BOARD_TOKEN: ${{ steps.bot_c5.outputs.token }}
+        run: bash "$RUNNER_TEMP/dor-flow/dor_stage_flow_credentials.sh"
+      - name: Token refresh 5/6 - continue the build where it checkpointed
+        id: flow_c5
+        if: steps.flow_c4.outputs.needs-token == 'true'
+        env:
+          ISSUE: ${{ github.event.issue.number }}
+          REPO: ${{ github.repository }}
+          URL: ${{ steps.sk.outputs.url }}
+          HOST: ${{ steps.sk.outputs.host }}
+          WORK: ${{ github.workspace }}
+          DOR_CRED_DIR: ${{ runner.temp }}/dor-cred
+          DOR_FLOW_MODE: continue
+          DOR_TOKEN_REFRESHES_LEFT: '1'
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          DOR_BUILD_MODEL: ${{ vars.DOR_BUILD_MODEL }}
+        run: bash "$RUNNER_TEMP/dor-flow/dor_flow_step.sh" dor_build_flow.sh
+      - name: Token refresh 6/6 - mint a fresh BOT token
+        id: bot_c6
+        if: steps.flow_c5.outputs.needs-token == 'true'
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ secrets.BOT_APP_ID }}
+          private-key: ${{ secrets.BOT_PRIVATE_KEY }}
+          owner: Fortigi
+          permission-organization-projects: write
+          permission-pull-requests: write
+          permission-contents: write
+          permission-issues: read
+      - name: Token refresh 6/6 - stage it for the flow
+        if: steps.flow_c5.outputs.needs-token == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BOARD_TOKEN: ${{ steps.bot_c6.outputs.token }}
+        run: bash "$RUNNER_TEMP/dor-flow/dor_stage_flow_credentials.sh"
+      - name: Token refresh 6/6 - continue the build where it checkpointed
+        id: flow_c6
+        if: steps.flow_c5.outputs.needs-token == 'true'
+        env:
+          ISSUE: ${{ github.event.issue.number }}
+          REPO: ${{ github.repository }}
+          URL: ${{ steps.sk.outputs.url }}
+          HOST: ${{ steps.sk.outputs.host }}
+          WORK: ${{ github.workspace }}
+          DOR_CRED_DIR: ${{ runner.temp }}/dor-cred
+          DOR_FLOW_MODE: continue
+          DOR_TOKEN_REFRESHES_LEFT: '0'
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          DOR_BUILD_MODEL: ${{ vars.DOR_BUILD_MODEL }}
+        run: bash "$RUNNER_TEMP/dor-flow/dor_flow_step.sh" dor_build_flow.sh
       - name: Remove any staged token the flow did not consume
         if: always()
         run: rm -rf "$RUNNER_TEMP/dor-cred"
@@ -377,7 +595,8 @@ jobs:
         if: failure()
         env:
           GH_TOKEN: ${{ github.token }}
-          BOARD_TOKEN: ${{ steps.bot.outputs.token }}
+          # The newest BOT token this job minted — the first one is likely expired on a long build.
+          BOARD_TOKEN: ${{ steps.bot_c6.outputs.token || steps.bot_c5.outputs.token || steps.bot_c4.outputs.token || steps.bot_c3.outputs.token || steps.bot_c2.outputs.token || steps.bot_c1.outputs.token || steps.bot.outputs.token }}
           ISSUE: ${{ github.event.issue.number }}
           REPO: ${{ github.repository }}
           HOST: ${{ steps.sk.outputs.host }}
@@ -386,9 +605,13 @@ jobs:
           # If the flow already routed to Exceptions (bail) or Paused (usage limit), don't double-post.
           [ -f "$RUNNER_TEMP/dor-bailed" ] && { echo "flow already handled the failure"; exit 0; }
           [ -f "$RUNNER_TEMP/dor-paused" ] && { echo "flow paused on a usage limit — not an error"; exit 0; }
+          # Mark it, so the fresh-token reconcile below also lands the column if this token is too old.
+          touch "$RUNNER_TEMP/dor-bailed"
+          what="failed unexpectedly (before the flow could self-report)"
+          [ -f "$RUNNER_TEMP/dor-checkpoint" ] && what="failed while refreshing its BOT token (the flow had checkpointed; its last commit is on the sidekick, not pushed)"
           GH_TOKEN="$BOARD_TOKEN" bash .github/scripts/dor_set_status.sh "$ISSUE" exception 2>/dev/null || true
           gh issue comment "$ISSUE" --repo "$REPO" \
-            --body "⚠️ @WimvandenHeijkant @TaekeK @robb536 — the automated build job for this feature failed unexpectedly (before the flow could self-report), on ${HOST}. Moved to **Exceptions** — please check the workflow run." >/dev/null 2>&1 || true
+            --body "⚠️ @WimvandenHeijkant @TaekeK @robb536 — the automated build job for this feature ${what}, on ${HOST}. Moved to **Exceptions** — please check the workflow run." >/dev/null 2>&1 || true
 
       # The BOARD_TOKEN minted above lives 1h; a build can run longer, so the flow's own terminal board
       # move can fail on an expired token. Mint a FRESH token here and set the board from the outcome the

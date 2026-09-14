@@ -939,6 +939,7 @@ jobs:
           bash test/ci-scripts/test-dor-push-lease.sh
           bash test/ci-scripts/test-dor-trusted-spec.sh
           bash test/ci-scripts/test-dor-agent-sandbox.sh
+          bash test/ci-scripts/test-dor-token-checkpoint.sh
           bash test/ci-scripts/test-gate-wiring.sh
 
       # The two Python tools that render and feed the Test Coverage docs page.
