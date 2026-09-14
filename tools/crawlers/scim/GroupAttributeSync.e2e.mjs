@@ -306,7 +306,9 @@ export function register(test, expect) {
         const attributes = page.locator('table').first();
         await expect(attributes).toContainText('type');
         await expect(attributes).toContainText('security');
-        await expect(attributes).toContainText(mock.groups[0][GROUP_EXT].description);
+        // `description` is a header field on ResourceDetailPage (HEADER_FIELDS):
+        // it renders under the heading and is deliberately kept out of the table.
+        await expect(page.getByText(mock.groups[0][GROUP_EXT].description, { exact: true })).toBeVisible();
       } finally {
         await mock.close();
       }
