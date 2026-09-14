@@ -169,6 +169,17 @@ The matrix can run with **identities** as subjects instead of individual princip
 
 When the orientation puts subjects on the column axis, an **identity column can be expanded into per-account sub-columns**. Clicking the chevron on an identity header (`MatrixColumnHeaders.jsx`) loads `GET /api/identities/:id/account-matrix`, which returns the identity's linked accounts plus each account's `(resourceId, membershipType)` rows drawn from the *same* `vw_ResourceUserPermissionAssignments` view the principal matrix uses — so the account sub-columns render cells identical to a principal-scoped matrix. The account sub-columns are visually tinted (blue) and labelled `displayName · accountType` to distinguish them from the rolled-up identity column.
 
+#### The accounts header row
+
+The accounts hang **under** their identity rather than beside it (#1212). `columnModel.js` still emits one real body column per account, immediately after its parent — the split is purely in the header, and `MatrixColumnHeaders.helpers.js`'s `splitAccountColumns()` is what performs it:
+
+- The identity keeps its own roll-up column. Its names-row `<th>` spans `1 + accounts` columns.
+- A second header row (`MatrixAccountsRow.jsx`) sits directly under the names row and fills that span: an "All accounts" cell for the identity's own column, then one blue cell per account.
+- Every other header cell on the names row — the corner/Resource Name/Contexts cells, non-expanded subjects, aggregates, access-package labels and the # / Type / Description block — carries `rowSpan=2` while the accounts row exists, so no blank band appears beside them. The row only exists while at least one identity is expanded; otherwise the header renders exactly as before.
+- The accounts row sits *after* the names row, so the sticky `<thead>` pins it along with the names row for free. Its height must **not** be added to the grouping offset below — that would push the header out of view and bring back the grey-band-on-scroll bug.
+
+An account column whose parent identity is not among the rendered columns stays on the names row: it still owns a body column, and every header row has to keep adding up to the body's width.
+
 ### Context picker filtered by row type
 
 The wizard's "+ Context" picker is filtered by the subject row type so an analyst can only pick contexts that actually apply to the rows:

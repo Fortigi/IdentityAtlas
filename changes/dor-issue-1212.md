@@ -1,0 +1,2 @@
+- Expanding an identity in the matrix now shows its linked accounts in a second header row beneath the identity, instead of as extra columns next to it. The identity header spans its own roll-up column plus its accounts, so it reads as the parent of the accounts it groups.
+- The new accounts row stays pinned with the column names while you scroll the grid, and disappears again as soon as the last expanded identity is collapsed.

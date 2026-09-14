@@ -7,7 +7,55 @@ import {
   subjectTitle,
   subjectLabel,
   identityGlyph,
+  splitAccountColumns,
+  accountRollupTitle,
 } from './MatrixColumnHeaders.helpers';
+
+describe('splitAccountColumns', () => {
+  const alice = { id: 'id1', displayName: 'Alice', memberType: 'Identity' };
+  const aliceAad = { id: 'acc1', displayName: 'Alice AAD', isAccountCol: true, parentId: 'id1' };
+  const aliceSap = { id: 'acc2', displayName: 'Alice SAP', isAccountCol: true, parentId: 'id1' };
+  const carl = { id: 'u5', displayName: 'Carl' };
+
+  it('leaves a matrix with no expanded identity untouched', () => {
+    const { namesCols, accountsByParent, hasAccountsRow } = splitAccountColumns([alice, carl]);
+    expect(namesCols).toEqual([alice, carl]);
+    expect(accountsByParent.size).toBe(0);
+    expect(hasAccountsRow).toBe(false);
+  });
+
+  it('moves every account column under its identity, in column order', () => {
+    const { namesCols, accountsByParent, hasAccountsRow } =
+      splitAccountColumns([alice, aliceAad, aliceSap, carl]);
+    // The identity keeps its own roll-up column; only the accounts move down.
+    expect(namesCols).toEqual([alice, carl]);
+    expect(accountsByParent.get('id1')).toEqual([aliceAad, aliceSap]);
+    expect(hasAccountsRow).toBe(true);
+  });
+
+  it('keeps an account whose identity is not on screen in the names row', () => {
+    // Its body column exists either way, so dropping it from the names row
+    // would shift every cell to its right by one column.
+    const orphan = { id: 'acc9', displayName: 'Ghost', isAccountCol: true, parentId: 'gone' };
+    const { namesCols, accountsByParent, hasAccountsRow } = splitAccountColumns([carl, orphan]);
+    expect(namesCols).toEqual([carl, orphan]);
+    expect(accountsByParent.size).toBe(0);
+    expect(hasAccountsRow).toBe(false);
+  });
+
+  it('survives a missing column list', () => {
+    expect(splitAccountColumns(undefined)).toEqual({
+      namesCols: [], accountsByParent: new Map(), hasAccountsRow: false,
+    });
+  });
+});
+
+describe('accountRollupTitle', () => {
+  it('names the identity whose combined access the roll-up column carries', () => {
+    expect(accountRollupTitle({ displayName: 'Alice' }))
+      .toBe("All accounts — Alice's combined access across every linked account");
+  });
+});
 
 describe('spanState', () => {
   it('flags a plain merged group as none of the special kinds', () => {

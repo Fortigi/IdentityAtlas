@@ -14,13 +14,14 @@ function makeUsers() {
   ];
 }
 
-function renderHeaders(sortAttributes) {
+function renderHeaders(sortAttributes, overrides = {}) {
   return renderWithProviders(
     h('table', null,
       h(MatrixColumnHeaders, {
         users: makeUsers(),
         infoColumnCount: 3,
         sortAttributes,
+        ...overrides,
       })),
   );
 }
@@ -79,5 +80,79 @@ describe('MatrixColumnHeaders metadata columns', () => {
       .reduce((n, th) => n + (Number(th.getAttribute('colspan')) || 1), 0);
     const expected = 3 + users.length + 3;
     for (const tr of rows) expect(widthOf(tr)).toBe(expected);
+  });
+});
+
+// ─── Expanding an identity into its accounts (#1212) ──────────────────────────
+//
+// The accounts of an expanded identity belong UNDER it, not beside it: the
+// identity's names cell spans its own roll-up column plus one column per
+// account, and an accounts row below fills that span.
+describe('MatrixColumnHeaders accounts row', () => {
+  // An identity with two linked accounts, exactly as columnModel.buildColumns
+  // emits them: the accounts follow their parent and inherit its sort keys.
+  const expandedUsers = [
+    { id: 'id1', displayName: 'Alice', memberType: 'Identity', sortKeys: ['Finance', 'Payroll', 'Analyst'] },
+    { id: 'acc1', displayName: 'Alice', isAccountCol: true, parentId: 'id1', accountType: 'AAD', sortKeys: ['Finance', 'Payroll', 'Analyst'] },
+    { id: 'acc2', displayName: 'A.Jansen', isAccountCol: true, parentId: 'id1', accountType: 'SAP', sortKeys: ['Finance', 'Payroll', 'Analyst'] },
+    { id: 'u3', displayName: 'Carol', sortKeys: ['Ops', 'Logistics', 'Planner'] },
+  ];
+
+  const renderExpanded = () => renderHeaders([{ attribute: 'department' }], {
+    users: expandedUsers,
+    expandedIdentities: new Set(['id1']),
+    loadingIdentityCols: new Set(),
+  });
+
+  it('adds the accounts row only while an identity is expanded', () => {
+    const plain = renderHeaders([{ attribute: 'department' }]);
+    expect(plain.container.querySelectorAll('thead tr')).toHaveLength(2); // grouping + names
+
+    const expanded = renderExpanded();
+    expect(expanded.container.querySelectorAll('thead tr')).toHaveLength(3);
+  });
+
+  it('keeps the sticky offset on the grouping rows alone, so the pinned header leaves no grey band', () => {
+    // The accounts row sits AFTER the names row, so it pins with it. Counting it
+    // into the negative `top` would push the header out of view on scroll.
+    const { container } = renderExpanded();
+    expect(container.querySelector('thead').style.top).toBe(`-${GROUP_ROW_H}px`);
+  });
+
+  it('keeps every header row exactly as wide as a resource row', () => {
+    // Walk the header as a grid: a cell occupies `colspan` columns on each of
+    // the `rowspan` rows it covers. If the spans didn't add up, every body cell
+    // beside an expanded identity would shift one column.
+    const { container } = renderExpanded();
+    const rows = [...container.querySelectorAll('thead tr')];
+    const width = new Array(rows.length).fill(0);
+    rows.forEach((tr, r) => {
+      for (const th of tr.children) {
+        const cols = Number(th.getAttribute('colspan')) || 1;
+        const span = Number(th.getAttribute('rowspan')) || 1;
+        for (let i = 0; i < span; i++) width[r + i] += cols;
+      }
+    });
+    const expected = 3 + expandedUsers.length + 3;
+    expect(width).toEqual(new Array(rows.length).fill(expected));
+  });
+
+  it('spans the identity over its accounts and puts their labels in the row below', () => {
+    const { container } = renderExpanded();
+    const [, namesRow, accountsRow] = [...container.querySelectorAll('thead tr')];
+
+    // 'Alice' exactly — the account below her is labelled 'Alice · AAD'.
+    const identityCell = screen.getByText('Alice').closest('th');
+    expect(identityCell.closest('tr')).toBe(namesRow);
+    expect(identityCell.colSpan).toBe(3); // roll-up column + two accounts
+
+    // The accounts row carries the roll-up label and both account labels…
+    expect(accountsRow).toHaveTextContent('All accounts');
+    expect(screen.getByText('Alice · AAD').closest('tr')).toBe(accountsRow);
+    expect(screen.getByText('A.Jansen · SAP').closest('tr')).toBe(accountsRow);
+    // …and a subject that is not expanded stays on the names row, spanning both.
+    const carol = screen.getByText('Carol').closest('th');
+    expect(carol.closest('tr')).toBe(namesRow);
+    expect(carol.rowSpan).toBe(2);
   });
 });

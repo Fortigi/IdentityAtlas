@@ -5,7 +5,7 @@ import { render as rtlRender } from '@testing-library/react';
 import MatrixView from './MatrixView';
 import {
   renderWithProviders, makeAuthFetch, makeWrapper, jsonResponse,
-  screen, userEvent, waitFor,
+  screen, within, userEvent, waitFor,
 } from '@ui/test-utils/renderWithProviders';
 
 // Stub the lazy-loaded virtual/DnD body so the test runner never pulls in
@@ -467,6 +467,46 @@ describe('MatrixView (mounted)', () => {
     expect(screen.getByTestId('row-contexts-res-2').textContent).toBe('');
     // The column header ships alongside the data.
     expect(screen.getAllByText('Contexts').length).toBeGreaterThan(0);
+  });
+
+  // The reporter's path in #1212: a matrix on identities, expand one into its
+  // linked accounts. The accounts belong under the identity, not beside it.
+  it('expands an identity into an accounts header row beneath it (#1212)', async () => {
+    const authFetch = makeFetch({
+      '/api/identities/id1/account-matrix': jsonResponse({
+        accounts: [{ id: 'acc1', displayName: 'A.Jansen', accountType: 'SAP' }],
+        memberships: [{ resourceId: 'res-1', principalId: 'acc1', membershipType: 'Direct' }],
+      }),
+    });
+    renderView({
+      data: [
+        { memberId: 'id1', memberDisplayName: 'Alice', department: 'Engineering', memberType: 'Identity', resourceId: 'res-1', resourceDisplayName: 'Finance App', membershipType: 'Direct' },
+        { memberId: 'id2', memberDisplayName: 'Carol', department: 'Sales', memberType: 'Identity', resourceId: 'res-2', resourceDisplayName: 'HR Portal', membershipType: 'Direct' },
+      ],
+      filter: { ...baseFilter, rowType: 'identity' },
+    }, authFetch);
+    const user = userEvent.setup();
+    await expectRowVisible('Finance App');
+
+    const namesRow = () => screen.getByText('Alice').closest('tr');
+    const headerRows = () => [...screen.getByText('Alice').closest('thead').rows];
+    const rowsBefore = headerRows().length;
+
+    await user.click(within(namesRow()).getAllByTitle('Expand into linked accounts')[0]);
+    await waitFor(() => expect(authFetch).toHaveBeenCalledWith('/api/identities/id1/account-matrix'));
+    const accountCell = await screen.findByText('A.Jansen · SAP');
+
+    // One new header row, holding the account and the roll-up cell for the
+    // identity's own column — and Alice's cell spans both of them.
+    expect(headerRows()).toHaveLength(rowsBefore + 1);
+    expect(screen.getByText('Alice').closest('th').colSpan).toBe(2);
+    expect(accountCell.closest('tr')).not.toBe(namesRow());
+    expect(headerRows().indexOf(accountCell.closest('tr')))
+      .toBeGreaterThan(headerRows().indexOf(namesRow()));
+    expect(within(accountCell.closest('tr')).getByText('All accounts')).toBeInTheDocument();
+
+    // Carol was never expanded, so she keeps a single cell spanning both rows.
+    expect(screen.getByText('Carol').closest('th').rowSpan).toBe(2);
   });
 
   it('clears expanded nesting when the matrix filter changes (#674)', async () => {
