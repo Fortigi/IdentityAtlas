@@ -1,5 +1,13 @@
 ## Changes in this PR
 
+- Hardened the automated issue-to-PR build pipeline: the build agent now only receives issue text written by the requestor, organisation members and the pipeline itself, and the spec records how many other comments were left out
+- Hardened the automated build pipeline so the build agent no longer has access to the pipeline's GitHub credentials, and so an automated change to CI configuration is stopped for human review instead of being pushed
+- Automated pull requests now point out changes to container images, compose files and package dependencies for the reviewer
+- Reduced the default permissions of the pull-request CI workflows and removed an unused site deployment workflow
+- Updated the `uuid` dependency used by the Excel export to a patched version and removed two unused API dependencies
+
+## Changes in this PR
+
 - Hardened access control on the API: the check that keeps read-only API keys away from admin endpoints can no longer be sidestepped by changing the letter case of the URL.
 - Dashboard statistics, run history (risk scoring, context plugins, account linking) and the update intent now require a signed-in user whose roles map to at least one permission; risk profile/classifier settings, history-retention settings, update status/history and the account-linking configuration now require the same admin permission as the screen that shows them.
 - The Performance page's request log no longer records query strings (search terms and filters), and is no longer readable with a read-only API key or by users without any mapped permission.
