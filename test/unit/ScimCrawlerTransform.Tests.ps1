@@ -335,6 +335,51 @@ Describe 'Selected attributes from a schema extension (RFC 7643 §3.3)' {
     }
 }
 
+Describe 'Get-ScimExtensionObject' {
+    # A SCIM URN always contains ':' and an attribute name never may (RFC 7643 §2.1),
+    # so the ':' test must pick out extension containers and nothing else.
+    It 'returns the URN-keyed containers and ignores ordinary attributes' {
+        $u = [pscustomobject]@{
+            userName = 'alice'
+            'urn:a:b' = [pscustomobject]@{ x = 1 }
+            'urn:c:d' = [pscustomobject]@{ y = 2 }
+        }
+        $found = @(Get-ScimExtensionObject -Object $u)
+        $found.Count | Should -Be 2
+        $found[0].x  | Should -Be 1
+        $found[1].y  | Should -Be 2
+    }
+
+    It 'reads extensions off a hashtable as well as a PSCustomObject' {
+        $found = @(Get-ScimExtensionObject -Object @{ userName = 'bob'; 'urn:a:b' = @{ department = 'Legal' } })
+        $found.Count            | Should -Be 1
+        $found[0]['department'] | Should -Be 'Legal'
+    }
+
+    It 'returns nothing for an object with no extensions, a scalar or $null' {
+        @(Get-ScimExtensionObject -Object ([pscustomobject]@{ userName = 'carol' })).Count | Should -Be 0
+        @(Get-ScimExtensionObject -Object 'a:string:with:colons').Count                   | Should -Be 0
+        @(Get-ScimExtensionObject -Object 42).Count                                       | Should -Be 0
+        @(Get-ScimExtensionObject -Object $null).Count                                    | Should -Be 0
+    }
+}
+
+Describe 'Get-ScimAttribute — extension fallback ordering' {
+    It 'takes the first extension that has the attribute, in document order' {
+        $u = [pscustomobject]@{
+            id = 'u-9'
+            'urn:first:ext'  = [pscustomobject]@{ department = 'from first' }
+            'urn:second:ext' = [pscustomobject]@{ department = 'from second' }
+        }
+        Get-ScimAttribute -Object $u -Path 'department' | Should -Be 'from first'
+    }
+
+    It 'still returns $null when no extension carries the attribute either' {
+        $u = [pscustomobject]@{ id = 'u-9'; 'urn:only:ext' = [pscustomobject]@{ costCenter = 'CC1' } }
+        Get-ScimAttribute -Object $u -Path 'department' | Should -BeNullOrEmpty
+    }
+}
+
 Describe 'Resolve-ScimMemberKind' {
     BeforeAll {
         $script:users  = New-IdSet @('u-1', 'u-2', 'both')

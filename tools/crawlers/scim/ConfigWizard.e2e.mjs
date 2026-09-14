@@ -30,8 +30,11 @@ const DISCOVERY = {
     { id: 'Group', name: 'Group', endpoint: '/Groups', schema: 'urn:ietf:params:scim:schemas:core:2.0:Group', syncable: true },
     { id: 'Device', name: 'Device', endpoint: '/Devices', schema: 'urn:example:Device', syncable: false },
   ],
+  // Group attributes come from a schema EXTENSION in every real endpoint — the core
+  // Group schema is only displayName + members — and discovery advertises them as
+  // bare names (issue #1209). 'type' is the attribute the bug was reported against.
   userAttributes: ['costCenter', 'department', 'preferredLanguage'],
-  groupAttributes: ['description'],
+  groupAttributes: ['description', 'type'],
   supportsFilter: true,
   supportsPatch: false,
 };
@@ -51,6 +54,19 @@ export function register(test, expect) {
     return openCrawlerWizard({
       page, test, expect, typeLabel: 'SCIM 2.0', heading: 'Add SCIM 2.0 Crawler',
     });
+  }
+
+  // Steps 1 and 2 are identical for every test that needs to get PAST them; only
+  // the credential-gate test below cares about what they do on the way.
+  async function fillConnectionAndCredentials(page, crawlerName) {
+    await page.fill('input[placeholder="SCIM 2.0"]', crawlerName);
+    await page.fill('input[placeholder="https://api.example.com/scim/v2"]', 'https://scim.example.com/scim/v2');
+    await page.fill('input[placeholder="SAP CIS"]', crawlerName);
+    await page.click('button:has-text("Next →")');
+
+    await page.locator('label:has-text("Username") + input, label:has-text("Username") ~ input').first().fill('scim-user');
+    await page.locator('input[type="password"]').first().fill('scim-pass');
+    await page.click('button:has-text("Next →")');
   }
 
   test.describe('SCIM 2.0 crawler wizard', () => {
@@ -91,15 +107,7 @@ export function register(test, expect) {
       if (!await openScimWizard(page)) return;
 
       const crawlerName = `e2e-scim-${Date.now()}`;
-      await page.fill('input[placeholder="SCIM 2.0"]', crawlerName);
-      await page.fill('input[placeholder="https://api.example.com/scim/v2"]', 'https://scim.example.com/scim/v2');
-      await page.fill('input[placeholder="SAP CIS"]', crawlerName);
-      await page.click('button:has-text("Next →")');
-
-      // Step 2 — credentials.
-      await page.locator('label:has-text("Username") + input, label:has-text("Username") ~ input').first().fill('scim-user');
-      await page.locator('input[type="password"]').first().fill('scim-pass');
-      await page.click('button:has-text("Next →")');
+      await fillConnectionAndCredentials(page, crawlerName);
 
       // Step 3 — objects. Discovery ran; a non-syncable resource type is shown
       // as visible-but-not-yet rather than offered as a toggle.
@@ -137,6 +145,56 @@ export function register(test, expect) {
       await expect(card).toBeVisible({ timeout: 15000 });
       await expect(page.locator('text=https://scim.example.com/scim/v2').first()).toBeVisible();
       await expect(page.locator('text=+3 user attrs').first()).toBeVisible();
+    });
+
+    // The reporter path from issue #1209: pick a GROUP attribute in the step-4
+    // picker, save, and check it is still there. Every pickable group attribute
+    // comes from a schema extension (the core Group schema is only displayName +
+    // members), and the crawler used to drop exactly those on sync — so this walks
+    // the same selection an operator makes and asserts it survives the round trip
+    // through the API into the saved config the crawler then reads.
+    test('a selected group attribute survives save and reopen (#1209)', async ({ page }) => {
+      if (!await openScimWizard(page)) return;
+
+      const crawlerName = `e2e-scim-group-attr-${Date.now()}`;
+      await fillConnectionAndCredentials(page, crawlerName);
+
+      // Step 3 — objects (defaults are fine; Groups is on).
+      await expect(page.locator('text=Also served by this endpoint, but not syncable yet:')).toBeVisible({ timeout: 10000 });
+      await page.click('button:has-text("Next →")');
+
+      // Step 4 — the GROUP picker. Scoped to its own section: 'description' and
+      // 'type' also have to be distinguishable from the user attributes above.
+      const groupPicker = page.locator('div:has(> div > p:text-is("Group attributes"))');
+      await expect(groupPicker).toBeVisible({ timeout: 10000 });
+      const typeCheckbox = groupPicker.locator('label:has(span:text-is("type")) input[type="checkbox"]');
+      await expect(typeCheckbox).not.toBeChecked();
+      await typeCheckbox.check();
+      // Only the one the operator ticked — 'description' stays out.
+      await expect(groupPicker.locator('label:has(span:text-is("description")) input[type="checkbox"]')).not.toBeChecked();
+      await expect(groupPicker.locator('text=1 selected')).toBeVisible();
+      await page.click('button:has-text("Next →")');
+
+      // Step 5 — mapping, then step 6 — review + save.
+      await page.click('button:has-text("Next →")');
+      await expect(page.locator('text=Extra attributes: 0 user, 1 group')).toBeVisible();
+      await page.locator('button:has-text("Add Crawler")').last().click();
+
+      // The saved card reports the group attribute…
+      const card = page.locator('div')
+        .filter({ has: page.locator(`h4:text-is("${crawlerName}")`) })
+        .filter({ has: page.locator('button:has-text("Configure")') })
+        .last();
+      await expect(card).toBeVisible({ timeout: 15000 });
+      await expect(page.locator('text=+1 group attr').first()).toBeVisible({ timeout: 15000 });
+
+      // …and reopening the wizard reads the stored config back from the API, so a
+      // selection that was dropped anywhere in that round trip shows up here.
+      await card.locator('button:has-text("Configure")').first().click();
+      await expect(page.locator('h3:has-text("Edit SCIM 2.0 Crawler")')).toBeVisible({ timeout: 10000 });
+      for (let i = 0; i < 3; i++) await page.click('button:has-text("Next →")');
+      const reopened = page.locator('div:has(> div > p:text-is("Group attributes"))');
+      await expect(reopened.locator('label:has(span:text-is("type")) input[type="checkbox"]')).toBeChecked({ timeout: 10000 });
     });
   });
 }

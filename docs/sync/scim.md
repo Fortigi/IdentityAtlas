@@ -54,6 +54,23 @@ Nothing beyond the core mapping is synced unless you pick it. The wizard's
 nothing selected and a **Select all** action per object type. Selected attributes
 land in the record's `extendedAttributes` JSON.
 
+Attributes that come from a **schema extension** are offered — and stored — under
+their plain name, not the extension URN. In the resource JSON a compliant provider
+nests them under the extension's URN (RFC 7643 §3.3):
+
+```json
+{ "schemas": ["urn:ietf:params:scim:schemas:core:2.0:Group",
+              "urn:example:params:scim:schemas:extension:acme:2.0:Group"],
+  "id": "g-1", "displayName": "Admins",
+  "urn:example:params:scim:schemas:extension:acme:2.0:Group": { "type": "security" } }
+```
+
+Selecting `type` there stores `type: "security"` — the crawler looks inside every
+extension the resource carries. This matters most for groups: the core Group schema
+declares only `displayName` and `members`, so every attribute in the group picker
+comes from an extension. If two schemas declare the same attribute name, the base
+schema's value wins, then extensions in the order the provider lists them.
+
 ---
 
 ## Prerequisites
@@ -191,5 +208,6 @@ touch another connector's data, and a `ServicePrincipal` batch can never delete 
 | Save, discovery or the job says *baseUrl rejected* / *tokenEndpoint rejected* | The URL uses `http` or resolves to a private, loopback or cloud-metadata address. Enable **Allow private network** / **Allow insecure HTTP** for an on-premises endpoint — see [Network access](#network-access). Metadata and link-local addresses cannot be enabled. |
 | Discovery says *endpoint answered with a redirect* | The wizard does not follow redirects. Enter the URL the endpoint redirects to. |
 | The attribute picker is empty | The endpoint does not serve `/Schemas`, or its schemas declare no simple attributes beyond the core mapping. The sync still works — only the opt-in extras are unavailable. |
+| A selected attribute is discovered but never gets a value | Check the raw resource JSON from `GET /Users` or `GET /Groups`. If the attribute only appears on `GET /<collection>/{id}` it is declared `returned: "request"` and the list response omits it — this crawler reads the list endpoints only. An attribute nested under a schema-extension URN *is* read (see [Extra attributes are opt-in](#extra-attributes-are-opt-in)); one served only per-resource is not yet. |
 | Group members are missing | Members whose id matches neither a synced user nor a synced group are skipped and counted; the job log reports how many. That usually means the group contains a resource type this crawler does not sync yet. |
 | Users appear but no memberships | Check that **Group members** is enabled in the wizard's Objects step, and that the endpoint returns `members` on `/Groups` (some providers require an explicit attribute request). |

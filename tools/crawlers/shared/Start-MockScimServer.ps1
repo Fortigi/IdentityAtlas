@@ -33,6 +33,13 @@
     Stop-MockScimServer -Mock $mock
 #>
 
+# The extension-schema URNs the default fixtures use. Exported as variables so a
+# test can nest its own values under exactly the key the mock advertises rather
+# than re-typing a URN (a typo there fails as "attribute missing", which is the
+# same symptom as the bug the fixture exists to catch).
+$MockScimEnterpriseUserUrn = 'urn:ietf:params:scim:schemas:extension:enterprise:2.0:User'
+$MockScimGroupExtensionUrn = 'urn:example:params:scim:schemas:extension:mock:2.0:Group'
+
 function Get-FreeScimPort {
     [CmdletBinding()] param()
     $tcp = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, 0)
@@ -49,8 +56,14 @@ function Start-MockScimServer {
     .PARAMETER Groups
         Array of SCIM Group resource hashtables served by /Groups.
     .PARAMETER Schemas
-        Optional array of SCIM schema hashtables served by /Schemas. Defaults to a
-        minimal core User schema with a `department` attribute.
+        Optional array of SCIM schema hashtables served by /Schemas. Defaults to the
+        RFC 7643 core User and Group schemas plus one extension schema each — the
+        enterprise User extension (`department`, `costCenter`) and an example Group
+        extension (`type`, `description`). The extras live in extensions on purpose:
+        no compliant provider serves `department` as a core User attribute, and the
+        core Group schema has nothing but `displayName` and `members`, so a fixture
+        that put them at the top level could not tell a working extension lookup
+        from a broken one (issue #1209).
     .PARAMETER Require401
         Answer every collection request with 401 (credential-failure fixture).
     .OUTPUTS
@@ -71,20 +84,39 @@ function Start-MockScimServer {
                    @{ name = 'userName';    type = 'string';  multiValued = $false }
                    @{ name = 'displayName'; type = 'string';  multiValued = $false }
                    @{ name = 'active';      type = 'boolean'; multiValued = $false }
-                   @{ name = 'department';  type = 'string';  multiValued = $false }
                    @{ name = 'title';       type = 'string';  multiValued = $false }
                    @{ name = 'emails';      type = 'complex'; multiValued = $true }
+               ) }
+            @{ id = $MockScimEnterpriseUserUrn; name = 'EnterpriseUser'
+               attributes = @(
+                   @{ name = 'department'; type = 'string'; multiValued = $false }
+                   @{ name = 'costCenter'; type = 'string'; multiValued = $false }
                ) }
             @{ id = 'urn:ietf:params:scim:schemas:core:2.0:Group'; name = 'Group'
                attributes = @(
                    @{ name = 'displayName'; type = 'string';  multiValued = $false }
                    @{ name = 'members';     type = 'complex'; multiValued = $true }
                ) }
+            @{ id = $MockScimGroupExtensionUrn; name = 'ExampleGroup'
+               attributes = @(
+                   @{ name = 'type';        type = 'string'; multiValued = $false }
+                   @{ name = 'description'; type = 'string'; multiValued = $false }
+               ) }
         )
     }
 
+    # /ResourceTypes declares the extension schemas as well as the base one, which is
+    # what makes discovery flatten extension attributes into the picker (RFC 7643 §6).
+    $resourceTypes = @(
+        @{ id = 'User';  name = 'User';  endpoint = '/Users';  schema = 'urn:ietf:params:scim:schemas:core:2.0:User'
+           schemaExtensions = @( @{ schema = $MockScimEnterpriseUserUrn; required = $false } ) }
+        @{ id = 'Group'; name = 'Group'; endpoint = '/Groups'; schema = 'urn:ietf:params:scim:schemas:core:2.0:Group'
+           schemaExtensions = @( @{ schema = $MockScimGroupExtensionUrn; required = $false } ) }
+        @{ id = 'Device'; name = 'Device'; endpoint = '/Devices'; schema = 'urn:example:params:scim:schemas:Device' }
+    )
+
     $port    = Get-FreeScimPort
-    $payload = @{ users = $Users; groups = $Groups; schemas = $Schemas; require401 = [bool]$Require401 } | ConvertTo-Json -Depth 30 -Compress
+    $payload = @{ users = $Users; groups = $Groups; schemas = $Schemas; resourceTypes = $resourceTypes; require401 = [bool]$Require401 } | ConvertTo-Json -Depth 30 -Compress
 
     $serverScript = {
         param([int]$Port, [string]$PayloadJson)
@@ -169,11 +201,7 @@ function Start-MockScimServer {
                         continue
                     }
                     if ($path -match '/ResourceTypes$') {
-                        Send-Response $stream -Body (New-ListResponse -Items @(
-                            @{ id = 'User';  name = 'User';  endpoint = '/Users';  schema = 'urn:ietf:params:scim:schemas:core:2.0:User' }
-                            @{ id = 'Group'; name = 'Group'; endpoint = '/Groups'; schema = 'urn:ietf:params:scim:schemas:core:2.0:Group' }
-                            @{ id = 'Device'; name = 'Device'; endpoint = '/Devices'; schema = 'urn:example:params:scim:schemas:Device' }
-                        ) -StartIndex 1 -Count 100)
+                        Send-Response $stream -Body (New-ListResponse -Items @($data.resourceTypes) -StartIndex 1 -Count 100)
                         continue
                     }
                     if ($path -match '/Schemas$') {
