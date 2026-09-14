@@ -3800,6 +3800,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#what-isolates-the-build-agent-and-what-does-not" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What isolates the build agent, and what does not
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#verify-its-ready" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4984,6 +4995,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#what-isolates-the-build-agent-and-what-does-not" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What isolates the build agent, and what does not
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#verify-its-ready" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5241,6 +5263,27 @@ label is missing, a build on it can still run, but the reset can't route to it â
 </tr>
 </tbody>
 </table>
+<h2 id="what-isolates-the-build-agent-and-what-does-not">What isolates the build agent, and what does not<a class="headerlink" href="#what-isolates-the-build-agent-and-what-does-not" title="Permanent link">&para;</a></h2>
+<p>The build agent is an LLM with a shell. The workflows limit what it can reach:</p>
+<ul>
+<li><strong>Input.</strong> Its spec contains only text by the requestor of record, Fortigi org members and the DoR
+  pipeline's own bots (<code>.github/scripts/dor_trusted_spec.sh</code>). Comments by other accounts are left
+  out, and the spec records how many were. Acceptance feedback is already gated on the commenter's
+  org membership.</li>
+<li><strong>Tokens.</strong> The <code>claude</code> process starts without <code>GH_TOKEN</code>, <code>BOARD_TOKEN</code> or any other credential in
+  its environment. The flow receives those tokens as files it deletes before the agent runs, so they
+  are not in the flow's process environment either, and no token is written into the checkout's git
+  config. After every agent run the flow restores the checkout's git config and clears its hooks, and
+  its own git commands ignore global/system git config (<code>.github/scripts/dor_agent_sandbox.sh</code>).</li>
+<li><strong>Output.</strong> A branch that changes anything under <code>.github/</code> is never pushed; the flow routes it to
+  Exceptions. Changes to Dockerfiles, compose files and <code>package.json</code> dependency or install-script
+  blocks are pointed out on the PR for the merge review.</li>
+</ul>
+<p>What this does <strong>not</strong> give you: the agent still runs as the runner's own user, in the <code>docker</code> group,
+with open egress and <code>CLAUDE_CODE_OAUTH_TOKEN</code> in its environment (the CLI needs it). A process that
+sets out to do harm can still act with that user's rights on the box. The real boundary is to run the
+agent in a disposable container, or as a separate user without <code>docker</code> access, with an egress
+allow-list. Until that exists, treat a sidekick as exposing everything its runner user can reach.</p>
 <h2 id="verify-its-ready">Verify it's ready<a class="headerlink" href="#verify-its-ready" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>bash<span class="w"> </span>tools/dor/provision-sidekick.sh<span class="w"> </span>--verify<span class="w">   </span><span class="c1"># baseline green?</span>
 </code></pre></div>
