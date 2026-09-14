@@ -167,18 +167,24 @@ The matrix can run with **identities** as subjects instead of individual princip
 - **User accounts** (`principal`) — each subject is one Principal (a single account). Best for clean-up sweeps and per-account audits.
 - **Identities** (`identity`) — each subject is one correlated person, unioning across their linked accounts. A cell is filled if *any* underlying account has the assignment. Best for role-mining and birthright analysis.
 
-When the orientation puts subjects on the column axis, an **identity column can be expanded into per-account sub-columns**. Clicking the chevron on an identity header (`MatrixColumnHeaders.jsx`) loads `GET /api/identities/:id/account-matrix`, which returns the identity's linked accounts plus each account's `(resourceId, membershipType)` rows drawn from the *same* `vw_ResourceUserPermissionAssignments` view the principal matrix uses — so the account sub-columns render cells identical to a principal-scoped matrix. The account sub-columns are visually tinted (blue) and labelled `displayName · accountType` to distinguish them from the rolled-up identity column.
+When the orientation puts subjects on the column axis, an **identity column can be expanded into per-account sub-columns**. Clicking the chevron on an identity header (`MatrixColumnHeaders.jsx`) loads `GET /api/identities/:id/account-matrix`, which returns the identity's linked accounts plus each account's `(resourceId, membershipType)` rows drawn from the *same* `vw_ResourceUserPermissionAssignments` view the principal matrix uses — so the account sub-columns render cells identical to a principal-scoped matrix. The account sub-columns are visually tinted (blue) and labelled `displayName · accountType` to distinguish them from the identity columns around them.
+
+#### Expanding is a drill-down, not an extra column
+
+Expanding **replaces** the identity's column with one column per linked account, the way an org grouping expands into the columns it contains (#1212). The identity's combined ("all accounts") column is what collapsing gives back — it is never shown next to the accounts it rolls up, which would be the same access counted twice on screen.
+
+`columnModel.js` owns this: `buildColumns()` emits the account columns *instead of* the identity, and each one carries its parent on `parent` (an identity whose account list comes back empty keeps its own column, so a subject can never vanish from the grid).
 
 #### The accounts header row
 
-The accounts hang **under** their identity rather than beside it (#1212). `columnModel.js` still emits one real body column per account, immediately after its parent — the split is purely in the header, and `MatrixColumnHeaders.helpers.js`'s `splitAccountColumns()` is what performs it:
+The accounts hang **under** their identity rather than beside it. The header is where the parent reappears, and `MatrixColumnHeaders.helpers.js`'s `splitAccountColumns()` is what puts it there:
 
-- The identity keeps its own roll-up column. Its names-row `<th>` spans `1 + accounts` columns.
-- A second header row (`MatrixAccountsRow.jsx`) sits directly under the names row and fills that span: an "All accounts" cell for the identity's own column, then one blue cell per account.
+- The identity re-enters the names row at the position of its first account column, and its `<th>` spans exactly `accounts` columns.
+- A second header row (`MatrixAccountsRow.jsx`) sits directly under the names row and fills that span with one blue cell per account.
 - Every other header cell on the names row — the corner/Resource Name/Contexts cells, non-expanded subjects, aggregates, access-package labels and the # / Type / Description block — carries `rowSpan=2` while the accounts row exists, so no blank band appears beside them. The row only exists while at least one identity is expanded; otherwise the header renders exactly as before.
 - The accounts row sits *after* the names row, so the sticky `<thead>` pins it along with the names row for free. Its height must **not** be added to the grouping offset below — that would push the header out of view and bring back the grey-band-on-scroll bug.
 
-An account column whose parent identity is not among the rendered columns stays on the names row: it still owns a body column, and every header row has to keep adding up to the body's width.
+An account column that carries no parent stays on the names row: it still owns a body column, and every header row has to keep adding up to the body's width.
 
 ### Context picker filtered by row type
 

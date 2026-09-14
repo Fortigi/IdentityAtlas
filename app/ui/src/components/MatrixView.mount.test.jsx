@@ -496,17 +496,50 @@ describe('MatrixView (mounted)', () => {
     await waitFor(() => expect(authFetch).toHaveBeenCalledWith('/api/identities/id1/account-matrix'));
     const accountCell = await screen.findByText('A.Jansen · SAP');
 
-    // One new header row, holding the account and the roll-up cell for the
-    // identity's own column — and Alice's cell spans both of them.
+    // One new header row, holding the account — and Alice's cell spans it rather
+    // than keeping a column of her own beside it.
     expect(headerRows()).toHaveLength(rowsBefore + 1);
-    expect(screen.getByText('Alice').closest('th').colSpan).toBe(2);
+    expect(screen.getByText('Alice').closest('th').colSpan).toBe(1);
     expect(accountCell.closest('tr')).not.toBe(namesRow());
     expect(headerRows().indexOf(accountCell.closest('tr')))
       .toBeGreaterThan(headerRows().indexOf(namesRow()));
-    expect(within(accountCell.closest('tr')).getByText('All accounts')).toBeInTheDocument();
+    expect(screen.queryByText('All accounts')).toBeNull();
+
+    // The grid underneath swapped the identity's column for her account's —
+    // expanding drills in, it does not add a column.
+    expect(body.props.users.map(u => u.id)).toEqual(['acc1', 'id2']);
 
     // Carol was never expanded, so she keeps a single cell spanning both rows.
     expect(screen.getByText('Carol').closest('th').rowSpan).toBe(2);
+  });
+
+  it('brings the identity column back when its accounts are collapsed again (#1212)', async () => {
+    const authFetch = makeFetch({
+      '/api/identities/id1/account-matrix': jsonResponse({
+        accounts: [{ id: 'acc1', displayName: 'A.Jansen', accountType: 'SAP' }],
+        memberships: [{ resourceId: 'res-1', principalId: 'acc1', membershipType: 'Direct' }],
+      }),
+    });
+    renderView({
+      data: [
+        { memberId: 'id1', memberDisplayName: 'Alice', department: 'Engineering', memberType: 'Identity', resourceId: 'res-1', resourceDisplayName: 'Finance App', membershipType: 'Direct' },
+      ],
+      filter: { ...baseFilter, rowType: 'identity' },
+    }, authFetch);
+    const user = userEvent.setup();
+    await expectRowVisible('Finance App');
+    const headerRows = () => [...screen.getByText('Alice').closest('thead').rows];
+    const rowsBefore = headerRows().length;
+
+    await user.click(screen.getAllByTitle('Expand into linked accounts')[0]);
+    await screen.findByText('A.Jansen · SAP');
+
+    // Collapsing is how the analyst gets the identity's combined "all accounts"
+    // column back — so the accounts row and the account column go away with it.
+    await user.click(screen.getAllByTitle('Collapse accounts')[0]);
+    await waitFor(() => expect(headerRows()).toHaveLength(rowsBefore));
+    expect(screen.queryByText('A.Jansen · SAP')).toBeNull();
+    expect(body.props.users.map(u => u.id)).toEqual(['id1']);
   });
 
   it('clears expanded nesting when the matrix filter changes (#674)', async () => {

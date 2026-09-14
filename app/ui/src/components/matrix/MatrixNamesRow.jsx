@@ -7,9 +7,8 @@ import MatrixApLabelCell from './MatrixApLabelCell';
 // away.
 //
 // While at least one identity is expanded, an accounts row follows underneath
-// (`hasAccountsRow`): each expanded identity's cell spans its own roll-up column
-// plus its account columns, and every other cell spans both rows so no blank
-// band appears beside them.
+// (`hasAccountsRow`): each expanded identity's cell spans its account columns,
+// and every other cell spans both rows so no blank band appears beside them.
 export default function MatrixNamesRow({
   columns, accountsByParent, hasAccountsRow,
   accessPackages, isDark, onSortByCount, onOpenDetail,
@@ -39,15 +38,15 @@ export default function MatrixNamesRow({
         if (user.isAggregateCol) {
           return <MatrixAggregateNameCell key={user.id} user={user} rowSpan={rowSpan} onToggleMembers={onToggleMembers} />;
         }
-        // An expanded identity spans its own roll-up column plus one column per
-        // linked account, and the accounts row below fills that span. Every
-        // other subject spans the accounts row instead.
+        // An expanded identity spans one column per linked account, and the
+        // accounts row below fills that span. Every other subject spans the
+        // accounts row instead.
         const accounts = accountsByParent.get(user.id)?.length || 0;
         return (
           <MatrixSubjectNameCell
             key={user.id}
             user={user}
-            colSpan={accounts ? 1 + accounts : undefined}
+            colSpan={accounts || undefined}
             rowSpan={accounts ? undefined : rowSpan}
             expandedIdentities={expandedIdentities}
             onToggleIdentity={onToggleIdentity}

@@ -5,9 +5,10 @@
 // The reporter's path: Matrix → subjects are Identities → click the ▸ "Expand
 // into linked accounts" control on an identity column header. The accounts used
 // to be spliced in as extra sibling columns to the RIGHT of the identity, in the
-// same header row. They now hang UNDER it: the identity's header cell spans its
-// own roll-up column plus one column per account, and a second header row below
-// carries the account labels.
+// same header row. They now hang UNDER it: the identity's header cell spans one
+// column per account, and a second header row below carries the account labels.
+// Expanding replaces the identity's own (combined) column — collapsing again is
+// how the analyst gets it back.
 //
 // Dataset-independent — the identity under test is read from the deployment
 // (the demo dataset correlates SAP accounts to 10 identities), and the spec
@@ -95,9 +96,9 @@ test.describe('Matrix — expanding an identity into its accounts (#1212)', () =
 
     const headerRows = page.locator('thead tr');
     const rowsBefore = await headerRows.count();
-    // No identity is expanded yet, so neither the accounts row nor anything in
-    // it can be on screen.
-    await expect(page.locator('thead').getByText('All accounts')).toHaveCount(0);
+    // No identity is expanded yet, so neither the accounts row nor any account
+    // column can be on screen.
+    await expect(page.locator('thead th[title*="(account"]')).toHaveCount(0);
 
     const name = await expandAnIdentity(page);
     test.skip(!name, 'no identity with several linked accounts has a column in this grid');
@@ -108,17 +109,17 @@ test.describe('Matrix — expanding an identity into its accounts (#1212)', () =
     const namesRow = headerRows.nth(rowsBefore - 1);
     const accountsRow = headerRows.nth(rowsBefore);
 
-    // The identity keeps its own column and spans it plus its accounts…
-    const identityCell = namesRow.locator('th').filter({ has: page.getByTitle('Collapse accounts') }).first();
-    expect(Number(await identityCell.getAttribute('colspan'))).toBeGreaterThan(1);
-
-    // …and every account label is in the row BELOW, next to the roll-up cell for
-    // the identity's own column — this is the whole of the report.
-    await expect(accountsRow.getByText('All accounts').first()).toBeVisible();
+    // Every account label is in the row BELOW — this is the whole of the report.
     const accountCells = accountsRow.locator('th[title*="(account"]');
-    await expect.poll(() => accountCells.count()).toBeGreaterThan(0);
+    await expect.poll(() => accountCells.count()).toBeGreaterThan(1);
     // The names row holds none of them any more.
     await expect(namesRow.locator('th[title*="(account"]')).toHaveCount(0);
+
+    // The identity spans exactly its accounts: it no longer keeps a column of
+    // its own ("All accounts") next to them.
+    const identityCell = namesRow.locator('th').filter({ has: page.getByTitle('Collapse accounts') }).first();
+    expect(Number(await identityCell.getAttribute('colspan'))).toBe(await accountCells.count());
+    await expect(page.locator('thead').getByText('All accounts')).toHaveCount(0);
   });
 
   test('the expanded header still lines up with the grid underneath it', async ({ page }) => {
@@ -154,10 +155,10 @@ test.describe('Matrix — expanding an identity into its accounts (#1212)', () =
     const scroller = page.locator('div[style*="max-height"]').first();
     await scroller.evaluate(el => { el.scrollTop = el.scrollHeight; });
     await expect(page.getByTitle('Collapse accounts').first()).toBeVisible();
-    await expect(page.locator('thead').getByText('All accounts').first()).toBeVisible();
+    await expect(page.locator('thead th[title*="(account"]').first()).toBeVisible();
   });
 
-  test('collapsing the identity takes the accounts row away again', async ({ page }) => {
+  test('collapsing the identity brings its combined column back', async ({ page }) => {
     await openIdentityMatrix(page);
     const name = await expandAnIdentity(page);
     test.skip(!name, 'no identity with several linked accounts has a column in this grid');
@@ -165,9 +166,11 @@ test.describe('Matrix — expanding an identity into its accounts (#1212)', () =
     const headerRows = page.locator('thead tr');
     const expanded = await headerRows.count();
 
+    // Collapsing is the only way back to the identity's combined view, so it has
+    // to drop the accounts row and every account column with it.
     await page.getByTitle('Collapse accounts').first().click();
     await expect(headerRows).toHaveCount(expanded - 1);
-    await expect(page.locator('thead').getByText('All accounts')).toHaveCount(0);
+    await expect(page.locator('thead th[title*="(account"]')).toHaveCount(0);
     await expect(page.getByTitle('Expand into linked accounts').first()).toBeVisible();
   });
 });

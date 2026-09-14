@@ -8,13 +8,16 @@ import {
   subjectLabel,
   identityGlyph,
   splitAccountColumns,
-  accountRollupTitle,
 } from './MatrixColumnHeaders.helpers';
 
 describe('splitAccountColumns', () => {
+  // Columns as columnModel.buildColumns emits them: an expanded identity has no
+  // column of its own — its accounts stand in for it and carry it on `parent`.
   const alice = { id: 'id1', displayName: 'Alice', memberType: 'Identity' };
-  const aliceAad = { id: 'acc1', displayName: 'Alice AAD', isAccountCol: true, parentId: 'id1' };
-  const aliceSap = { id: 'acc2', displayName: 'Alice SAP', isAccountCol: true, parentId: 'id1' };
+  const aliceAad = { id: 'acc1', displayName: 'Alice AAD', isAccountCol: true, parentId: 'id1', parent: alice };
+  const aliceSap = { id: 'acc2', displayName: 'Alice SAP', isAccountCol: true, parentId: 'id1', parent: alice };
+  const bob = { id: 'id2', displayName: 'Bob', memberType: 'Identity' };
+  const bobAad = { id: 'acc3', displayName: 'Bob AAD', isAccountCol: true, parentId: 'id2', parent: bob };
   const carl = { id: 'u5', displayName: 'Carl' };
 
   it('leaves a matrix with no expanded identity untouched', () => {
@@ -24,16 +27,25 @@ describe('splitAccountColumns', () => {
     expect(hasAccountsRow).toBe(false);
   });
 
-  it('moves every account column under its identity, in column order', () => {
+  it('puts the identity back on the names row in its accounts\' place', () => {
     const { namesCols, accountsByParent, hasAccountsRow } =
-      splitAccountColumns([alice, aliceAad, aliceSap, carl]);
-    // The identity keeps its own roll-up column; only the accounts move down.
+      splitAccountColumns([aliceAad, aliceSap, carl]);
+    // One names cell for Alice (it will span both accounts), then Carl — the
+    // identity has no roll-up column of its own any more.
     expect(namesCols).toEqual([alice, carl]);
     expect(accountsByParent.get('id1')).toEqual([aliceAad, aliceSap]);
     expect(hasAccountsRow).toBe(true);
   });
 
-  it('keeps an account whose identity is not on screen in the names row', () => {
+  it('keeps the column order when several identities are expanded', () => {
+    const { namesCols, accountsByParent } =
+      splitAccountColumns([aliceAad, aliceSap, carl, bobAad]);
+    expect(namesCols).toEqual([alice, carl, bob]);
+    expect([...accountsByParent.keys()]).toEqual(['id1', 'id2']);
+    expect(accountsByParent.get('id2')).toEqual([bobAad]);
+  });
+
+  it('keeps an account column with no parent on the names row', () => {
     // Its body column exists either way, so dropping it from the names row
     // would shift every cell to its right by one column.
     const orphan = { id: 'acc9', displayName: 'Ghost', isAccountCol: true, parentId: 'gone' };
@@ -47,13 +59,6 @@ describe('splitAccountColumns', () => {
     expect(splitAccountColumns(undefined)).toEqual({
       namesCols: [], accountsByParent: new Map(), hasAccountsRow: false,
     });
-  });
-});
-
-describe('accountRollupTitle', () => {
-  it('names the identity whose combined access the roll-up column carries', () => {
-    expect(accountRollupTitle({ displayName: 'Alice' }))
-      .toBe("All accounts — Alice's combined access across every linked account");
   });
 });
 

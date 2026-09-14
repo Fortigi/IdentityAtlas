@@ -7,40 +7,37 @@
 // the sticky `top` offset of the <thead>, so the two can never drift apart.
 export const GROUP_ROW_H = 120;
 
-// Height (px) of the accounts row that appears under the names row while at
-// least one identity is expanded. It sits AFTER the names row, so it must never
-// feed the <thead>'s sticky offset — only the grouping rows above the names row
-// do, or the pinned header escapes upward and leaves a grey band on scroll.
+// Height (px) of the accounts row that carries the account labels of every
+// expanded identity. It sits AFTER the names row, so it must never feed the
+// <thead>'s sticky offset — only the grouping rows above the names row do, or
+// the pinned header escapes upward and leaves a grey band on scroll.
 export const ACCOUNT_ROW_H = 72;
 
 // Split the rendered subject columns into the names row and the accounts row
-// beneath it. An expanded identity keeps its own roll-up column and spans it
-// plus each of its account sub-columns, which move down a row.
+// beneath it. An expanded identity has no column of its own — its accounts took
+// its place — so it re-enters the names row here, at the position its first
+// account column holds, and spans all of them.
 //
-// An account column whose parent identity is not among the columns stays in the
-// names row: the two rows must always add up to the same grid width as the body,
-// and an orphan account still owns a real body column.
+// An account column that carries no parent stays in the names row: the two rows
+// must always add up to the same grid width as the body, and such a column still
+// owns a real body column.
 export function splitAccountColumns(users) {
   const cols = Array.isArray(users) ? users : [];
-  const ids = new Set(cols.map(c => c.id));
   const accountsByParent = new Map();
   const namesCols = [];
   for (const col of cols) {
-    const parentId = col.isAccountCol ? col.parentId : null;
-    if (parentId && ids.has(parentId)) {
-      if (!accountsByParent.has(parentId)) accountsByParent.set(parentId, []);
-      accountsByParent.get(parentId).push(col);
-    } else {
+    const parent = col.isAccountCol ? col.parent : null;
+    if (!parent) {
       namesCols.push(col);
+      continue;
     }
+    if (!accountsByParent.has(parent.id)) {
+      accountsByParent.set(parent.id, []);
+      namesCols.push(parent);
+    }
+    accountsByParent.get(parent.id).push(col);
   }
   return { namesCols, accountsByParent, hasAccountsRow: accountsByParent.size > 0 };
-}
-
-// Tooltip for the roll-up cell that keeps an expanded identity's own column on
-// the accounts row.
-export function accountRollupTitle(user) {
-  return `All accounts — ${user.displayName}'s combined access across every linked account`;
 }
 
 const none = (v) => v || '(none)';

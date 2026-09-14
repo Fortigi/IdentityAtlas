@@ -86,15 +86,17 @@ describe('MatrixColumnHeaders metadata columns', () => {
 // ─── Expanding an identity into its accounts (#1212) ──────────────────────────
 //
 // The accounts of an expanded identity belong UNDER it, not beside it: the
-// identity's names cell spans its own roll-up column plus one column per
-// account, and an accounts row below fills that span.
+// identity's names cell spans one column per account, and an accounts row below
+// fills that span. The identity has no column of its own while expanded —
+// collapsing it is what brings its combined column back.
 describe('MatrixColumnHeaders accounts row', () => {
   // An identity with two linked accounts, exactly as columnModel.buildColumns
-  // emits them: the accounts follow their parent and inherit its sort keys.
+  // emits them: the accounts stand in for their parent, carry it on `parent` and
+  // inherit its sort keys.
+  const alice = { id: 'id1', displayName: 'Alice', memberType: 'Identity', sortKeys: ['Finance', 'Payroll', 'Analyst'] };
   const expandedUsers = [
-    { id: 'id1', displayName: 'Alice', memberType: 'Identity', sortKeys: ['Finance', 'Payroll', 'Analyst'] },
-    { id: 'acc1', displayName: 'Alice', isAccountCol: true, parentId: 'id1', accountType: 'AAD', sortKeys: ['Finance', 'Payroll', 'Analyst'] },
-    { id: 'acc2', displayName: 'A.Jansen', isAccountCol: true, parentId: 'id1', accountType: 'SAP', sortKeys: ['Finance', 'Payroll', 'Analyst'] },
+    { id: 'acc1', displayName: 'Alice', isAccountCol: true, parentId: 'id1', parent: alice, accountType: 'AAD', sortKeys: ['Finance', 'Payroll', 'Analyst'] },
+    { id: 'acc2', displayName: 'A.Jansen', isAccountCol: true, parentId: 'id1', parent: alice, accountType: 'SAP', sortKeys: ['Finance', 'Payroll', 'Analyst'] },
     { id: 'u3', displayName: 'Carol', sortKeys: ['Ops', 'Logistics', 'Planner'] },
   ];
 
@@ -144,10 +146,10 @@ describe('MatrixColumnHeaders accounts row', () => {
     // 'Alice' exactly — the account below her is labelled 'Alice · AAD'.
     const identityCell = screen.getByText('Alice').closest('th');
     expect(identityCell.closest('tr')).toBe(namesRow);
-    expect(identityCell.colSpan).toBe(3); // roll-up column + two accounts
+    expect(identityCell.colSpan).toBe(2); // one column per account, nothing else
 
-    // The accounts row carries the roll-up label and both account labels…
-    expect(accountsRow).toHaveTextContent('All accounts');
+    // The accounts row carries both account labels and no roll-up cell…
+    expect(accountsRow).not.toHaveTextContent('All accounts');
     expect(screen.getByText('Alice · AAD').closest('tr')).toBe(accountsRow);
     expect(screen.getByText('A.Jansen · SAP').closest('tr')).toBe(accountsRow);
     // …and a subject that is not expanded stays on the names row, spanning both.

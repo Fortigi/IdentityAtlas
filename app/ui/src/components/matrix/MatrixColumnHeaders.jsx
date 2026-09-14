@@ -35,11 +35,12 @@ export default function MatrixColumnHeaders({
     ? Math.min(maxHeaderDepth, attrs.length) : attrs.length;
   const attrRows = attrs.slice(0, shown).map((attribute, index) => ({ attribute, spans: computeAttributeSpans(users, index) }));
 
-  // An expanded identity's account columns move out of the names row into an
-  // accounts row underneath it, so the identity reads as the parent of its
-  // accounts instead of as their left-hand sibling. The grouping rows above keep
-  // spanning every column, account columns included — they inherit their
-  // parent's sort keys, so the merged spans stay contiguous either way.
+  // An expanded identity's account columns move into an accounts row underneath
+  // the names row, where the identity itself is drawn as the cell spanning them
+  // — it reads as the parent of its accounts instead of as their left-hand
+  // sibling. The grouping rows above keep spanning every column, account columns
+  // included: they inherit their parent's sort keys, so the merged spans stay
+  // contiguous either way.
   const { namesCols, accountsByParent, hasAccountsRow } = splitAccountColumns(users);
 
   // Keep only the final (names) row pinned on vertical scroll — the attribute

@@ -6,8 +6,8 @@ import { renderWithProviders, screen, fireEvent } from '@ui/test-utils/renderWit
 
 const alice = { id: 'id1', displayName: 'Alice', memberType: 'Identity' };
 const carl = { id: 'u5', displayName: 'Carl' };
-const aliceAad = { id: 'acc1', displayName: 'Alice', isAccountCol: true, parentId: 'id1', accountType: 'AAD' };
-const aliceSap = { id: 'acc2', displayName: 'A.Jansen', isAccountCol: true, parentId: 'id1', accountType: 'SAP' };
+const aliceAad = { id: 'acc1', displayName: 'Alice', isAccountCol: true, parentId: 'id1', parent: alice, accountType: 'AAD' };
+const aliceSap = { id: 'acc2', displayName: 'A.Jansen', isAccountCol: true, parentId: 'id1', parent: alice, accountType: 'SAP' };
 
 function renderRow(overrides = {}) {
   const onOpenDetail = vi.fn();
@@ -24,20 +24,19 @@ function renderRow(overrides = {}) {
 }
 
 describe('MatrixAccountsRow', () => {
-  it('fills the expanded identity span with a roll-up cell and one cell per account', () => {
+  it('fills the expanded identity span with one cell per account and nothing else', () => {
     const { container } = renderRow();
     const cells = [...container.querySelectorAll('th')];
 
-    // Exactly the identity's span: its own roll-up column + its two accounts.
-    // Carl is covered by a rowSpan=2 names cell, so this row holds nothing for
-    // him — anything else here would shift the columns beside it.
-    expect(cells).toHaveLength(3);
-    expect(cells[0]).toHaveTextContent('All accounts');
-    expect(cells[0]).toHaveAttribute(
-      'title', "All accounts — Alice's combined access across every linked account");
-    expect(cells[1]).toHaveTextContent('Alice · AAD');
-    expect(cells[2]).toHaveTextContent('A.Jansen · SAP');
+    // Exactly Alice's two accounts — no "all accounts" roll-up cell, because the
+    // identity has no column of its own while expanded. Carl is covered by a
+    // rowSpan=2 names cell, so this row holds nothing for him either; anything
+    // else here would shift the columns beside it.
+    expect(cells).toHaveLength(2);
+    expect(cells[0]).toHaveTextContent('Alice · AAD');
+    expect(cells[1]).toHaveTextContent('A.Jansen · SAP');
     expect(screen.queryByText('Carl')).toBeNull();
+    expect(container.textContent).not.toContain('All accounts');
   });
 
   it('opens the account — not the identity — from an account label', () => {
