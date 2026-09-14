@@ -89,9 +89,9 @@ Describe 'Register-AzureRMSystem' {
         Mock Invoke-IngestAPI { @{ systemIds = @(42) } }
         Register-AzureRMSystem -Config (New-TestConfig) | Should -Be 42
     }
-    It 'defaults to 1 when no id is returned' {
+    It 'throws when no id is returned, instead of guessing a system to scope deletes to' {
         Mock Invoke-IngestAPI { @{} }
-        Register-AzureRMSystem -Config (New-TestConfig) | Should -Be 1
+        { Register-AzureRMSystem -Config (New-TestConfig) } | Should -Throw '*Could not resolve the Azure RM system id*'
     }
 }
 
@@ -478,11 +478,12 @@ Describe 'Register-AzureRMSystem — the record it registers' {
         $script:body.syncMode | Should -Be 'delta'
     }
 
-    It 'falls back to 1 only when the response carries no usable id' {
+    It 'refuses a response that carries the key but no usable id' {
         # The guard is `systemIds -and systemIds.Count -gt 0`; relaxing it to -or
         # would index an empty array on a response that has the key but no values.
+        # SEC-2026-09 M-11: it used to fall back to id 1 — another system's scope.
         Mock Invoke-IngestAPI { @{ systemIds = @() } }
-        Register-AzureRMSystem -Config (New-TestConfig) | Should -Be 1
+        { Register-AzureRMSystem -Config (New-TestConfig) } | Should -Throw '*Could not resolve the Azure RM system id*'
     }
 }
 
@@ -560,13 +561,17 @@ Describe 'Add-AzureScope / Add-AzureContainsEdge — edge and node shape' {
 # ─────────────────────────────────────────────────────────────────────────────
 
 Describe 'Register-AzureRMSystem — the system id it trusts' {
-    It 'falls back to 1 when systemIds is present but not a usable collection' {
-        # The guard is `$systemIds -and $systemIds.Count -gt 0`, and an empty array
-        # cannot tell it apart from `-or` (both operands are false). A scalar 0 can:
-        # it is falsy, but PowerShell reports .Count = 1 on a scalar, so `-or` would
-        # accept it and hand back systemId 0 — which is then stamped on every ingest
-        # batch for the rest of the run.
+    It 'refuses a systemIds value that is present but not a usable id' {
+        # A scalar 0 is falsy, but PowerShell reports .Count = 1 on a scalar. Nothing
+        # may hand back system id 0 (or guess another id) — it would be stamped on
+        # every ingest batch for the rest of the run. (SEC-2026-09 M-11)
         Mock Invoke-IngestAPI { @{ systemIds = 0 } }
+        { Register-AzureRMSystem -Config (New-TestConfig) } | Should -Throw '*Could not resolve the Azure RM system id*'
+    }
+
+    It 'accepts system id 1 when the API returns it' {
+        # The old fallback value; now only ever used when the API actually says so.
+        Mock Invoke-IngestAPI { @{ systemIds = @(1) } }
         Register-AzureRMSystem -Config (New-TestConfig) | Should -Be 1
     }
 }

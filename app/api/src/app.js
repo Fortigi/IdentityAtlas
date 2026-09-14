@@ -376,8 +376,9 @@ export function createApp() {
   app.use('/api', authMiddleware, authRolesRouter);
   // adminRouter is a grab-bag of /admin/* endpoints with mixed permission needs
   // (read dashboards, write retention config, toggle feature flags, export curated
-  // dumps, …). Gates are applied per-handler inside admin.js so each endpoint
-  // requires the right permission.
+  // dumps, …). Every handler in routes/admin/*.js carries its own gate — none is
+  // authentication-only; auth/adminRouteGates.test.js fails on an ungated
+  // /admin/* route.
   app.use('/api', authMiddleware, adminRouter);
   app.use('/api', authMiddleware, llmRouter);
   // Risk profile / classifier config is owned by the LLM admin — it drives how

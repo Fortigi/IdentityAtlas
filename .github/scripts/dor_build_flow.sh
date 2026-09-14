@@ -18,7 +18,9 @@
 #        CLAUDE_CODE_OAUTH_TOKEN            — Max subscription (auto-picked-up; do NOT pass --bare)
 #        GH_TOKEN                           — github.token: git push + gh reads + issue comments/labels
 #        BOARD_TOKEN                        — BOT app token: gh pr create + board Status moves
-#        WORK                               — the runner checkout dir ($GITHUB_WORKSPACE)
+#        DOR_CRED_DIR (opt)                 — where the workflow staged GH_TOKEN/BOARD_TOKEN as files instead
+#                                             (how the workflows call this; see dor_agent_sandbox.sh)
+#        WORK                              — the runner checkout dir ($GITHUB_WORKSPACE)
 #        DOR_BUILD_MODEL (opt)              — model (default claude-opus-5; Fable is reserved for the spec side)
 set -uo pipefail
 FLOW_NOUN="build"
@@ -191,6 +193,7 @@ Leave your changes in the working tree — do NOT commit, push or open a PR.%s' 
     git diff --cached --quiet && bail "the AI produced no changes"
     git commit -q -m "$title (#${ISSUE})" || bail "git commit failed"
   fi
+  guard_protected_paths
   push_as_app --force-with-lease "HEAD:refs/heads/$BRANCH" || bail "could not push $BRANCH"
 fi
 
@@ -203,10 +206,12 @@ fi
 # CI runs on drafts exactly as on any PR (no workflow here filters on draft), so verify_loop below
 # is unaffected — the only thing a draft cannot do is merge.
 pr=$(gh pr list --repo "$REPO" --head "$BRANCH" --state open --json number --jq '.[0].number // empty')
+# Container, compose and dependency changes are called out in the PR for the merge review.
+supply_flags="$(supply_chain_section)"
 if [ -z "$pr" ]; then
   pr=$(GH_TOKEN="$BOARD_TOKEN" gh pr create --repo "$REPO" --base main --head "$BRANCH" --draft \
         --title "$(gh issue view "$ISSUE" --repo "$REPO" --json title --jq '.title')" \
-        --body "$(printf 'Closes #%s\n\n> **Requestor acceptance: not yet.** This PR is a draft until the requestor replies `approve` on #%s. It becomes ready for review then, and not before.\n\nBuilt autonomously by the DoR build agent from the certified spec. Functional-test env: %s\n\nGreen checks here mean the agent'\''s own tests pass — they say nothing about whether the solution is the one that was asked for.' "$ISSUE" "$ISSUE" "$URL")" \
+        --body "$(printf 'Closes #%s\n\n> **Requestor acceptance: not yet.** This PR is a draft until the requestor replies `approve` on #%s. It becomes ready for review then, and not before.\n\nBuilt autonomously by the DoR build agent from the certified spec. Functional-test env: %s\n\nGreen checks here mean the agent'\''s own tests pass — they say nothing about whether the solution is the one that was asked for.%s' "$ISSUE" "$ISSUE" "$URL" "$supply_flags")" \
       | grep -oE '[0-9]+$') || bail "could not open the PR"
 fi
 claim_sidekick "$pr"   # ~/.dor-reservation + the sk:<label> that reset/feedback dispatch off
@@ -215,6 +220,9 @@ comment_issue "$(printf '🔨 Building (PR #%s) — I'\''ll comment when it'\''s
 
 # 3-5. Verify: deploy+seed → e2e on live env → CI green. Fix + retry up to MAX_ATTEMPTS (else Exceptions).
 verify_loop "$pr"
+
+# The fix loop may have changed the picture since the PR body was written.
+note_supply_chain_changes "$pr" "$supply_flags"
 
 # 6. All criteria met → move to Awaiting functional acceptance + notify requestor & commenters.
 touch "${RUNNER_TEMP:-/tmp}/dor-done"   # tell the workflow's fresh-token reconcile step this succeeded

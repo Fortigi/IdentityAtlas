@@ -17,8 +17,10 @@
 .PARAMETER ApiKey
     Crawler API key (fgc_...)
 
-.PARAMETER ConfigFile
-    Path to FortigiGraph config file (for Graph API credentials)
+.PARAMETER ConfigPath
+    Path to the JSON job config written by the dispatcher (tenantId, clientId,
+    clientSecret and the sync toggles). The Graph credentials are passed to
+    Get-FGAccessToken in memory; they are never written to another file.
 
 .PARAMETER SyncPrincipals
     Sync user principals (default: true)
@@ -92,7 +94,7 @@
     Refresh materialized SQL views after sync (default: true)
 
 .EXAMPLE
-    .\Start-EntraIDCrawler.ps1 -ApiBaseUrl "https://myapp.azurewebsites.net/api" -ApiKey "fgc_abc123..." -ConfigFile ".\Config\mycompany.json"
+    .\Start-EntraIDCrawler.ps1 -ApiBaseUrl "https://myapp.azurewebsites.net/api" -ApiKey "fgc_abc123..." -JobId 0 -ConfigPath ".\job-config.json"
 #>
 
 [CmdletBinding()]
@@ -106,21 +108,6 @@ Param(
 # Read full job config and derive all crawler variables from it.
 # This replaces the many named parameters previously splatted by the dispatcher.
 $RawConfig = Get-Content $ConfigPath -Raw | ConvertFrom-Json -AsHashtable
-
-# Build a synthetic ConfigFile so Get-FGAccessToken can be called with -ConfigFile.
-# The Graph SDK expects { Graph: { TenantId, ClientId, ClientSecret } }.
-$_graphConfigFile = [System.IO.Path]::GetTempFileName() -replace '\.tmp$', '.json'
-try {
-    @{ Graph = @{
-        TenantId     = $RawConfig['tenantId']
-        ClientId     = $RawConfig['clientId']
-        ClientSecret = $RawConfig['clientSecret']
-    }} | ConvertTo-Json -Depth 5 | Set-Content $_graphConfigFile -Encoding UTF8
-} catch {
-    Remove-Item $_graphConfigFile -Force -ErrorAction SilentlyContinue
-    throw
-}
-$ConfigFile = $_graphConfigFile  # used by Get-FGAccessToken and Graph SDK helpers
 
 $ErrorActionPreference = 'Stop'
 $ApiBaseUrl = $ApiBaseUrl.TrimEnd('/')
@@ -176,7 +163,8 @@ $script:phaseErrors = [System.Collections.Generic.List[string]]::new()
 #   name, status ('ok' | 'failed'), durationMs, error?, records?
 $script:phases = [System.Collections.Generic.List[object]]::new()
 
-$systemId = Initialize-EntraCrawlerRun -ApiBaseUrl $ApiBaseUrl -ApiKey $ApiKey -ConfigFile $ConfigFile
+$systemId = Initialize-EntraCrawlerRun -ApiBaseUrl $ApiBaseUrl -ApiKey $ApiKey -TenantId ([string]$RawConfig['tenantId']) `
+    -ClientId ([string]$RawConfig['clientId']) -ClientSecret ([string]$RawConfig['clientSecret'])
 
 $syncStart = Get-Date
 
@@ -372,6 +360,3 @@ if ($script:phaseErrors.Count -gt 0) {
 }
 
 Complete-EntraDeltaModeFlip -SyncMode $SyncMode -RawConfig $RawConfig -ApiBaseUrl $ApiBaseUrl -ApiKey $ApiKey
-
-# Clean up the temporary Graph credentials file (contains client secret)
-Remove-Item $_graphConfigFile -Force -ErrorAction SilentlyContinue

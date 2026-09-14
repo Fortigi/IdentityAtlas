@@ -153,7 +153,7 @@ router.post('/admin/clean-database', writeSystems, adminDestructiveLimiter, asyn
 const HISTORY_RETENTION_KEY = 'HISTORY_RETENTION_DAYS';
 const HISTORY_RETENTION_DEFAULT = 180;
 
-router.get('/admin/history-retention', async (_req, res) => {
+router.get('/admin/history-retention', writeSystems, async (_req, res) => {
   if (process.env.USE_SQL !== 'true') return res.status(503).json({ error: 'SQL not configured' });
   try {
     const r = await db.queryOne(

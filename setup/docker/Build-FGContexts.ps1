@@ -11,10 +11,13 @@
     department information. Idempotent — safe to call after every sync.
 #>
 
-$ApiBaseUrl = $env:API_BASE_URL
-if (-not $ApiBaseUrl) { $ApiBaseUrl = 'http://web:3001/api' }
+# WEB_API_URL is what the worker, the dispatcher and the desktop launcher set.
+# API_BASE_URL is still honoured for anyone who configured the old name.
+$ApiBaseUrl = if ($env:WEB_API_URL) { $env:WEB_API_URL } elseif ($env:API_BASE_URL) { $env:API_BASE_URL } else { 'http://web:3001/api' }
+$ApiBaseUrl = $ApiBaseUrl.TrimEnd('/')
 
-$keyFile = '/data/uploads/.builtin-worker-key'
+# Same override the scheduler uses for the key file location.
+$keyFile = if ($env:WORKER_KEY_FILE) { $env:WORKER_KEY_FILE } else { '/data/uploads/.builtin-worker-key' }
 if (-not (Test-Path $keyFile)) {
     Write-Host '  Build-FGContexts: built-in worker key file not found — skipping' -ForegroundColor Yellow
     return

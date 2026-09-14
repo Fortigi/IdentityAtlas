@@ -8,7 +8,7 @@
  * → "JS/UI Testing" → "Testing a discover.js handler".
  */
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import handler from './discover.js';
+import handler, { nextGraphLink } from './discover.js';
 
 function makeReqRes(body) {
   const req = { body };
@@ -89,6 +89,28 @@ describe('entra-id discover.js handler', () => {
       expect(res.body.permissions['Group.Read.All']).toBe(false);
       expect(res.body.objectTypes.length).toBeGreaterThan(0);
       expect(res.body.permissionObjectMap['User.Read.All']).toContain('identity');
+    });
+
+    it('follows @odata.nextLink on Graph but never hands the bearer token to another host', async () => {
+      const evil = 'https://graph.microsoft.com.attacker.example/v1.0/next';
+      stubFetch([
+        TOKEN_OK,
+        ['/v1.0/organization', { ok: true, json: async () => ({ value: [] }) }],
+        ["/v1.0/servicePrincipals(appId=", { ok: true, json: async () => ({ id: 'sp-1' }) }],
+        ['page=2', { ok: true, json: async () => ({ value: [{ appRoleId: 'df021288-bdef-4463-88db-98f22de89214' }], '@odata.nextLink': evil }) }],
+        ['/appRoleAssignments', { ok: true, json: async () => ({ value: [], '@odata.nextLink': 'https://graph.microsoft.com/v1.0/servicePrincipals/sp-1/appRoleAssignments?page=2' }) }],
+      ]);
+      const { req, res } = makeReqRes({ type: 'validate', config: { tenantId: 't', clientId: 'c', clientSecret: 's' } });
+      await handler(req, res, {});
+      expect(res.body.permissions['User.Read.All']).toBe(true); // page 2 was read
+      expect(fetch.mock.calls.map(([u]) => String(u))).not.toContain(evil);
+    });
+
+    it('nextGraphLink keeps only https Graph links', () => {
+      expect(nextGraphLink('https://graph.microsoft.com/v1.0/x?$skiptoken=1')).toBe('https://graph.microsoft.com/v1.0/x?$skiptoken=1');
+      for (const bad of ['http://graph.microsoft.com/v1.0/x', 'https://graph.microsoft.com.evil.example/', 'https://evil.example/https://graph.microsoft.com/', undefined, 42]) {
+        expect(nextGraphLink(bad)).toBeNull();
+      }
     });
 
     it('falls back to permissions all-false when the appRoleAssignments lookup fails', async () => {

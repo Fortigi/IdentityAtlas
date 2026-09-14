@@ -18,6 +18,8 @@ name: DoR acceptance (requestor feedback + approval)
 #
 # SECURITY: issue_comment runs with secrets for ANY commenter on a PUBLIC repo and is NOT covered by
 # fork-PR approval, so org membership (dor-authorize) is the gate. INERT until DOR_ENABLED=true.
+# That gate checks the COMMENTER (github.actor), so FEEDBACK is always text by an org member. The
+# adjustment agent still gets no GitHub token: see the staging step in the feedback job (SEC-2026-09 H-05).
 
 on:
   issue_comment:
@@ -272,6 +274,20 @@ jobs:
                                         # CI at all (see dor-build-agent.yml, which had this right)
           permission-issues: read
 
+      # As in dor-build-agent.yml: the tokens reach the flow as files, never as its step env, so the
+      # adjustment agent it starts cannot read them back from the flow's process environment.
+      - name: Stage the flow's GitHub tokens (kept out of the agent's reach)
+        if: steps.sk.outputs.holder == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BOARD_TOKEN: ${{ steps.bot.outputs.token }}
+        run: |
+          set -euo pipefail
+          umask 077
+          d="$RUNNER_TEMP/dor-cred"; rm -rf "$d"; mkdir -p "$d"
+          printf '%s\n' "$GH_TOKEN" > "$d/gh"
+          printf '%s\n' "$BOARD_TOKEN" > "$d/board"
+
       - name: Adjust the build for the feedback → re-deploy → re-verify → report
         if: steps.sk.outputs.holder == 'true'
         env:
@@ -280,13 +296,17 @@ jobs:
           URL: ${{ steps.sk.outputs.url }}
           HOST: ${{ steps.sk.outputs.host }}
           WORK: ${{ github.workspace }}
-          GH_TOKEN: ${{ github.token }}
-          BOARD_TOKEN: ${{ steps.bot.outputs.token }}
+          DOR_CRED_DIR: ${{ runner.temp }}/dor-cred
+          # Needed by the CLI itself. The agent can read it — residual risk, see dor_agent_sandbox.sh.
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           DOR_BUILD_MODEL: ${{ vars.DOR_BUILD_MODEL }}
           FEEDBACK: ${{ needs.triage.outputs.feedback }}
           FEEDBACK_AUTHOR: ${{ github.actor }}
         run: bash .github/scripts/dor_feedback_flow.sh
+
+      - name: Remove any staged token the flow did not consume
+        if: always() && steps.sk.outputs.holder == 'true'
+        run: rm -rf "$RUNNER_TEMP/dor-cred"
 
       - name: On unexpected failure → Exceptions (backstop)
         if: failure() && steps.sk.outputs.holder == 'true'

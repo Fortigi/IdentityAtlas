@@ -10,8 +10,32 @@ import { renderHook, act, waitFor, makeWrapper } from '@ui/test-utils/renderWith
 import useCredentialFields from './useCredentialFields';
 import useCrawlerSave from './useCrawlerSave';
 import useCrawlerDiscovery from './useCrawlerDiscovery';
+import useNetworkAccess from './useNetworkAccess';
 
 const { wrapper } = makeWrapper();
+
+describe('useNetworkAccess', () => {
+  it('starts with both connector-URL opt-ins off when there is no saved config', () => {
+    const { result } = renderHook(() => useNetworkAccess(undefined), { wrapper });
+    expect(result.current.network).toEqual({ allowPrivateNetwork: false, allowInsecureHttp: false });
+  });
+
+  it('seeds each opt-in from the saved config, but only from a literal boolean true', () => {
+    // The API and the worker ignore a string "true"; the wizard must not show a
+    // checked box for a setting that is not actually in effect.
+    const { result } = renderHook(
+      () => useNetworkAccess({ allowPrivateNetwork: true, allowInsecureHttp: 'true' }), { wrapper });
+    expect(result.current.network).toEqual({ allowPrivateNetwork: true, allowInsecureHttp: false });
+  });
+
+  it('sets one flag without touching the other, and coerces to a boolean', () => {
+    const { result } = renderHook(() => useNetworkAccess({ allowPrivateNetwork: true }), { wrapper });
+    act(() => result.current.setNetworkFlag('allowInsecureHttp', 1));
+    expect(result.current.network).toEqual({ allowPrivateNetwork: true, allowInsecureHttp: true });
+    act(() => result.current.setNetworkFlag('allowPrivateNetwork', undefined));
+    expect(result.current.network).toEqual({ allowPrivateNetwork: false, allowInsecureHttp: true });
+  });
+});
 
 describe('useCredentialFields', () => {
   it('seeds the non-secret fields from a saved config', () => {

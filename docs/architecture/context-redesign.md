@@ -194,7 +194,7 @@ The runner reconciles the plugin output with existing `Contexts` rows where `sou
 
 ### 4.2 Initial plugin set
 
-The registry ships **ten** plugins (`app/api/src/contexts/plugins/registry.js`):
+The registry ships **twelve** plugins (`app/api/src/contexts/plugins/registry.js`):
 
 | Plugin | Target | Source | Notes |
 |---|---|---|---|
@@ -202,9 +202,11 @@ The registry ships **ten** plugins (`app/api/src/contexts/plugins/registry.js`):
 | `department-from-principal` | Principal | `Principals.department` | One node per department value, scoped by system. Replaces the former `refresh-contexts` derived OrgUnit tree. |
 | `ad-ou-from-dn` | Principal | LDAP DN (default: `extendedAttributes.onPremisesDistinguishedName`) | OU components (outer-to-inner) form the tree; DC components ignored. Source field configurable via the `dnField` parameter. |
 | `principal-type-tree` | Principal | `principalType` (or another column / `extendedAttributes` key) | One bucket per distinct principal type. |
+| `system-membership-principals` | Principal | `Principals.systemId` | One context per connected system, named after the system's `displayName` and keyed on its id (so a rename updates in place). Scopes the matrix to the accounts loaded from one source system. |
 | `orphaned-accounts` | Principal | Principals with no `IdentityMembers` row | Buckets unlinked accounts by detected account type. Refreshed automatically at the end of every Account Linking run — see [Account Linking](account-linking.md). |
 | `resource-cluster` | Resource | `Resources.displayName` tokenised + indexed | Deterministic, non-LLM. See [`resource-cluster-algorithm.md`](resource-cluster-algorithm.md). Replaces the former stem-based Risk-Scoring clusters. |
 | `resource-type-tree` | Resource | `azureResourceType` (or another `extendedAttributes` key) | One bucket per distinct resource type. |
+| `system-membership-resources` | Resource | `Resources.systemId` | The resource-side mirror of `system-membership-principals`; both share `system-membership.helpers.js`. Two plugins rather than one because a plugin declares a single `targetType` and the runner stamps it on every context and member it writes. |
 | `scope-hierarchy` | Resource | `Contains` relationship edges | Walks the resource `Contains` hierarchy into a nested scope tree. |
 | `entra-group-category-tree` | Resource | Entra group category attributes | One bucket per Entra group category; scoped to one Group system or all. |
 | `risky-consent` | Resource | OAuth consent grants + external threat feed | Buckets risky OAuth app-consent grants by tier/severity; the context members are the grant resources. **Fetches a third-party threat feed (OAuthSentry) over the network at run time.** |

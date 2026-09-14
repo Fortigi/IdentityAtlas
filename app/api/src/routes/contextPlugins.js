@@ -8,6 +8,7 @@
 
 import { Router } from 'express';
 import { requirePermission } from '../middleware/auth.js';
+import { ALL_PERMISSION_KEYS } from '../auth/permissions.js';
 import * as db from '../db/connection.js';
 import { REGISTERED_PLUGINS, getPlugin } from '../contexts/plugins/registry.js';
 import { enqueueRun, dryRun, getRun, listRuns } from '../contexts/plugins/runner.js';
@@ -15,6 +16,9 @@ import { getPrincipalColumns } from '../db/columnCache.js';
 
 const router = Router();
 const gate = requirePermission('admin.context-plugins');
+// Run history is shown on the Logs page and the Contexts page to every mapped
+// role (SEC-2026-09 M-01).
+const readRuns = requirePermission(...ALL_PERMISSION_KEYS);
 const useSql = process.env.USE_SQL === 'true';
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -113,7 +117,7 @@ router.post('/context-plugins/:name/run', gate, async (req, res) => {
 });
 
 // GET /api/context-plugins/runs
-router.get('/context-plugins/runs', async (req, res) => {
+router.get('/context-plugins/runs', readRuns, async (req, res) => {
   if (!useSql) return res.json({ data: [], total: 0 });
   try {
     const rows = await listRuns({
@@ -128,7 +132,7 @@ router.get('/context-plugins/runs', async (req, res) => {
 });
 
 // GET /api/context-plugins/runs/:id
-router.get('/context-plugins/runs/:id', async (req, res) => {
+router.get('/context-plugins/runs/:id', readRuns, async (req, res) => {
   if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'Invalid run id' });
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
   try {

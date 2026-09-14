@@ -23,6 +23,11 @@ BeforeAll {
     . (Join-Path $script:scimDir 'ScimCrawler.Transform.ps1')
     . (Join-Path $script:scimDir 'ScimCrawler.Functions.ps1')
 
+    # Connect-ScimAPI runs the SSRF guard (tools/crawlers/shared/Assert-FGPublicUrl.ps1).
+    # Resolve every invented host to a public address so these tests stay off real
+    # DNS; the guard itself is tested in AssertFGPublicUrl.Tests.ps1.
+    Mock Resolve-FGHostAddress { @('93.184.216.34') }
+
     # A SCIM ListResponse page.
     function New-ScimPage {
         param([array]$Items, [int]$Total)
@@ -219,6 +224,27 @@ Describe 'Connect-ScimAPI' {
 
     It 'rejects an auth method this crawler does not implement' {
         { Connect-ScimAPI -BaseUrl 'https://h' -AuthMethod 'ClientCert' } | Should -Throw
+    }
+}
+
+Describe 'Connect-ScimAPI — connector URL guard (SEC-2026-09 M-03)' {
+    It 'refuses a base URL on a private or metadata address, the latter even with AllowPrivateNetwork' {
+        $script:ScimSession = $null
+        { Connect-ScimAPI -BaseUrl 'https://[fd00:ec2::254]/scim' -AuthMethod 'ApiToken' -ApiToken 't' } |
+            Should -Throw -ExpectedMessage 'baseUrl rejected: *private or loopback*'
+        { Connect-ScimAPI -BaseUrl 'https://169.254.169.254/scim' -AuthMethod 'ApiToken' -ApiToken 't' -AllowPrivateNetwork } |
+            Should -Throw -ExpectedMessage 'baseUrl rejected: *metadata*'
+        $script:ScimSession | Should -BeNullOrEmpty
+    }
+
+    It 'vets the OAuth2 token endpoint with the session opt-ins before posting to it' {
+        Mock Invoke-RestMethod { [pscustomobject]@{ access_token = 'a'; expires_in = 60 } }
+        Mock Resolve-FGHostAddress -ParameterFilter { $HostName -eq 'idp.corp' } -MockWith { @('10.1.1.1') }
+        { Connect-ScimAPI -BaseUrl 'https://h/scim/v2' -AuthMethod 'OAuth2CC' -TokenEndpoint 'https://idp.corp/token' -ClientId 'c' -ClientSecret 's' } |
+            Should -Throw -ExpectedMessage 'tokenEndpoint rejected: *'
+        Should -Invoke Invoke-RestMethod -Exactly 0
+        Connect-ScimAPI -BaseUrl 'https://h/scim/v2' -AuthMethod 'OAuth2CC' -TokenEndpoint 'https://idp.corp/token' -ClientId 'c' -ClientSecret 's' -AllowPrivateNetwork
+        Should -Invoke Invoke-RestMethod -Exactly 1 -ParameterFilter { $Uri -eq 'https://idp.corp/token' }
     }
 }
 

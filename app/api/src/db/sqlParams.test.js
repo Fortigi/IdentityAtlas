@@ -1,5 +1,24 @@
 import { describe, it, expect } from 'vitest';
-import { createParams } from './sqlParams.js';
+import { createParams, escapeLike, likeContains } from './sqlParams.js';
+
+describe('escapeLike / likeContains (SEC-2026-09 L-14)', () => {
+  it('escapes the LIKE wildcards and the escape character itself', () => {
+    expect(escapeLike('a_b')).toBe('a\\_b');
+    expect(escapeLike('100%')).toBe('100\\%');
+    expect(escapeLike('dom\\user')).toBe('dom\\\\user');
+    expect(escapeLike('%_\\%')).toBe('\\%\\_\\\\\\%');
+  });
+
+  it('leaves ordinary text (and other regex-ish characters) alone', () => {
+    expect(escapeLike('Jane O\'Neil [x].*')).toBe('Jane O\'Neil [x].*');
+    expect(escapeLike(42)).toBe('42');
+  });
+
+  it('wraps the escaped value for a contains-search', () => {
+    expect(likeContains('50%_off')).toBe('%50\\%\\_off%');
+    expect(likeContains('')).toBe('%%');
+  });
+});
 
 describe('createParams', () => {
   it('hands out sequential $N tokens and collects the values', () => {

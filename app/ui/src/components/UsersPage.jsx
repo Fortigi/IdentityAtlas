@@ -17,6 +17,7 @@ const FIELD_LABELS = {
   onPremisesSyncEnabled: 'On-Prem Sync',
   mail: 'Mail',
   __userTag: 'User Tag',
+  __system: 'System',
 };
 
 const TABLE_COLUMNS = [

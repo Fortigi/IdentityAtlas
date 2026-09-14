@@ -7,6 +7,7 @@
 import { timedQuery } from '../../perf/sqlTimer.js';
 import { isMissingSchema } from '../../db/schemaErrors.js';
 import { db } from './shared.js';
+import { likeContains } from '../../db/sqlParams.js';
 
 // Whitelisted columns the useEntityPage filter bar can filter on (equality).
 const IDENTITY_FILTER_COLS = new Set([
@@ -59,8 +60,8 @@ export function buildIdentityListWhere(f, bind) {
 
   let where = 'WHERE 1=1';
   if (search) {
-    const s = bind(`%${search}%`);
-    where += ` AND ("displayName" ILIKE ${s} OR email ILIKE ${s} OR "jobTitle" ILIKE ${s} OR "employeeId" ILIKE ${s})`;
+    const s = bind(likeContains(search));
+    where += ` AND ("displayName" ILIKE ${s} ESCAPE '\\' OR email ILIKE ${s} ESCAPE '\\' OR "jobTitle" ILIKE ${s} ESCAPE '\\' OR "employeeId" ILIKE ${s} ESCAPE '\\')`;
   }
   if (minAccounts) {
     const min = parseInt(minAccounts);

@@ -59,7 +59,6 @@ $ApiBaseUrl = $ApiBaseUrl.TrimEnd('/')
 
 $ScimCfg = Resolve-ScimConfig -ConfigPath $ConfigPath
 $Cfg     = $ScimCfg.cfg
-$Sync    = $ScimCfg.sync
 #endregion Configuration
 
 #region Main
@@ -73,36 +72,17 @@ if ($ScimCfg.requestedMode -ne 'full') {
 }
 
 Update-CrawlerProgress -Step 'Authenticating to the SCIM endpoint' -Pct 2
-Connect-ScimAPI -BaseUrl $Cfg.baseUrl -AuthMethod $Cfg.authMethod `
+$UrlPolicy = Get-FGUrlPolicyParam -Cfg $Cfg
+Connect-ScimAPI @UrlPolicy -BaseUrl $Cfg.baseUrl -AuthMethod $Cfg.authMethod `
     -Username ([string]$Cfg.username) -Password ([string]$Cfg.password) -ApiToken ([string]$Cfg.apiToken) `
     -ClientId ([string]$Cfg.clientId) -ClientSecret ([string]$Cfg.clientSecret) `
     -TokenEndpoint ([string]$Cfg.tokenEndpoint) -Scope ([string]$Cfg.scope)
 
 $SystemId = Register-ScimSystem -BaseUrl $script:ScimSession.BaseUrl -SystemName $ScimCfg.systemName
 
-$UserIds           = [System.Collections.Generic.HashSet[string]]::new()
-$PrincipalTypeById = @{}
-$Groups            = $null
-
-# ─── Users → Principals ──────────────────────────────────────────
-if ($Sync.users) {
-    $userResult        = Sync-ScimUsers -SystemId $SystemId -PageSize $ScimCfg.pageSize `
-        -Mapping $ScimCfg.userTypeMapping -SelectedAttributes $ScimCfg.userAttributes -Buckets $ScimCfg.principalBuckets
-    $UserIds           = $userResult.userIds
-    $PrincipalTypeById = $userResult.principalTypeById
-}
-
-# ─── Groups → Resources ──────────────────────────────────────────
-if ($Sync.groups) {
-    $Groups = Sync-ScimGroups -SystemId $SystemId -PageSize $ScimCfg.pageSize -SelectedAttributes $ScimCfg.groupAttributes
-}
-
-# ─── Group members → assignments + nesting ───────────────────────
-# $Groups is $null unless the Groups phase ran, so it already implies $Sync.groups.
-if ($Sync.groupMembers -and $Groups) {
-    Sync-ScimGroupMembers -SystemId $SystemId -Membership $Groups.membership `
-        -UserIds $UserIds -GroupIds $Groups.groupIds -PrincipalTypeById $PrincipalTypeById
-}
+# Users → Principals, Groups → Resources, then group members → assignments +
+# nesting. The members phase only runs when both id-sets were read completely.
+Invoke-ScimSyncPhases -SystemId $SystemId -ScimCfg $ScimCfg
 
 Complete-ScimRun
 #endregion Main

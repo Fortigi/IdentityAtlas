@@ -8,6 +8,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import handler, { schemaAttributeNames, attributesForResourceType } from './discover.js';
 import { makeReqRes, ok, stubFetch } from '../shared/discoverTestKit.js';
+import { buildAuthHeader } from '../shared/discoverAuth.js';
 
 const BASE = 'https://scim.example.com/scim/v2';
 
@@ -45,7 +46,7 @@ const HAPPY_ROUTES = [
   ['/ServiceProviderConfig', ok({ filter: { supported: true }, patch: { supported: false } })],
 ];
 
-const deps = { db: { queryOne: vi.fn() }, getConfigSecret: vi.fn(), assertPublicUrl: vi.fn().mockResolvedValue(undefined) };
+const deps = { db: { queryOne: vi.fn() }, getConfigSecret: vi.fn(), assertConnectorUrl: vi.fn().mockResolvedValue(undefined) };
 
 describe('scim discover.js — pure schema helpers', () => {
   it('lists simple attributes and flattens complex sub-attributes, dropping core + multi-valued ones', () => {
@@ -109,7 +110,7 @@ describe('scim discover.js handler', () => {
   it('rejects a base URL the SSRF guard refuses, without fetching it', async () => {
     stubFetch(HAPPY_ROUTES);
     const { req, res } = makeReqRes({ config: { baseUrl: 'http://169.254.169.254/scim', authMethod: 'ApiToken', apiToken: 't' } });
-    await handler(req, res, { ...deps, assertPublicUrl: vi.fn().mockRejectedValue(new Error('link-local address')) });
+    await handler(req, res, { ...deps, assertConnectorUrl: vi.fn().mockRejectedValue(new Error('link-local address')) });
     expect(res.statusCode).toBe(400);
     expect(res.body.error).toMatch(/link-local address/);
     expect(fetch).not.toHaveBeenCalled();
@@ -208,5 +209,41 @@ describe('scim discover.js handler', () => {
     await handler(req, res, deps);
     expect(res.statusCode).toBe(400);
     expect(res.body.error).toMatch(/configId must be a number/);
+  });
+
+  // SEC-2026-09 M-02: the token endpoint receives the client secret, so it is
+  // guarded exactly like the base URL — and before anything is posted to it.
+  it('refuses an OAuth2 token endpoint the guard rejects, without posting the secret anywhere', async () => {
+    stubFetch([['https://idp/token', ok({ access_token: 'x' })], ...HAPPY_ROUTES]);
+    const guard = vi.fn(async (url, _cfg, label) => {
+      if (label === 'tokenEndpoint') throw new Error('tokenEndpoint rejected: URL host resolves to a private or loopback address');
+    });
+    const config = { baseUrl: BASE, authMethod: 'OAuth2CC', tokenEndpoint: 'https://idp/token', clientId: 'c', clientSecret: 's' };
+    const { req, res } = makeReqRes({ config });
+    await handler(req, res, { ...deps, assertConnectorUrl: guard });
+    expect(guard).toHaveBeenCalledWith(BASE, config, 'baseUrl');
+    expect(guard).toHaveBeenCalledWith('https://idp/token', config, 'tokenEndpoint');
+    expect(res.statusCode).toBe(400);
+    expect(res.body.error).toMatch(/^tokenEndpoint rejected/);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('the shared auth builder refuses OAuth2 outright when it is given no guard for the token endpoint', async () => {
+    stubFetch([['https://idp/token', ok({ access_token: 'x' })]]);
+    const config = { authMethod: 'OAuth2CC', tokenEndpoint: 'https://idp/token', clientId: 'c', clientSecret: 's' };
+    await expect(buildAuthHeader(config)).rejects.toThrow(/cannot be validated/);
+    expect(fetch).not.toHaveBeenCalled();
+    // …while the non-OAuth methods, which post nothing to a second URL, need none.
+    expect(await buildAuthHeader({ authMethod: 'ApiToken', apiToken: 'tok' })).toBe('Bearer tok');
+  });
+
+  it('reports a redirect from the endpoint instead of following it', async () => {
+    stubFetch([['/ResourceTypes', { ok: false, status: 307, json: async () => ({}) }], ...HAPPY_ROUTES]);
+    const { req, res } = makeReqRes({ config: { baseUrl: BASE, authMethod: 'ApiToken', apiToken: 't' } });
+    await handler(req, res, deps);
+    expect(res.statusCode).toBe(502);
+    expect(res.body.error).toContain('redirect (HTTP 307)');
+    const [, opts] = fetch.mock.calls.find(([u]) => String(u).includes('/ResourceTypes'));
+    expect(opts.redirect).toBe('manual');
   });
 });

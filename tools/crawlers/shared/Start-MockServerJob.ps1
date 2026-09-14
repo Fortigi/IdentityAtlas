@@ -24,6 +24,13 @@
 
 .PARAMETER Port
     The port the block was told to listen on — reported in the failure message.
+
+.PARAMETER TimeoutMs
+    How long to wait for the marker. A background job is a fresh pwsh process, and the integration
+    suite starts every crawler's tests at once, so on a busy CI runner the job alone can take several
+    seconds to come up. The old 4 s window failed the OData tests with an empty output for exactly
+    that reason. A server that starts returns as soon as its marker arrives, so the ceiling costs
+    nothing on the happy path.
 #>
 function Start-MockServerJob {
     [CmdletBinding()]
@@ -32,7 +39,7 @@ function Start-MockServerJob {
         [Parameter(Mandatory)][object[]]$ArgumentList,
         [Parameter(Mandatory)][string]$Name,
         [Parameter(Mandatory)][int]$Port,
-        [int]$TimeoutMs = 4000
+        [int]$TimeoutMs = 30000
     )
 
     $job = Start-Job -ScriptBlock $ScriptBlock -ArgumentList $ArgumentList

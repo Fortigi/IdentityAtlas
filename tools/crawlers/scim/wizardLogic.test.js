@@ -81,6 +81,13 @@ describe('buildScimConfig', () => {
     userTypeMapping: [{ userType: ' service ', principalType: 'ServicePrincipal' }],
   };
 
+  it('always writes both connector-URL opt-ins as booleans, so turning one off on edit sticks', () => {
+    expect(buildScimConfig(base)).toMatchObject({ allowPrivateNetwork: false, allowInsecureHttp: false });
+    const on = buildScimConfig({ ...base, network: { allowPrivateNetwork: true, allowInsecureHttp: 'yes' } });
+    expect(on.allowPrivateNetwork).toBe(true);
+    expect(on.allowInsecureHttp).toBe(false);
+  });
+
   it('trims the base URL and strips trailing slashes so /Users never doubles up', () => {
     expect(buildScimConfig(base).baseUrl).toBe('https://scim.example.com/scim/v2');
   });
