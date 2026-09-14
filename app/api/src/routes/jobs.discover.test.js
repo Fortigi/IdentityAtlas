@@ -104,3 +104,24 @@ describe('POST /api/admin/crawlers/:type/discover — VALID_JOB_TYPES coverage',
     }
   });
 });
+
+// SEC-2026-09 H-03 / M-03, end to end: the route injects the real connector-URL
+// guard, and a real discover handler refuses before any request leaves.
+describe('POST /api/admin/crawlers/:type/discover — connector-URL guard', () => {
+  const discover = (config) => request(makeApp()).post('/api/admin/crawlers/midpoint/discover').send({ config });
+
+  it('refuses an IPv4-mapped IPv6 spelling of the metadata address, even with allowPrivateNetwork', async () => {
+    const res = await discover({ baseUrl: 'https://[::ffff:169.254.169.254]/midpoint', authMethod: 'ApiToken', apiToken: 't', allowPrivateNetwork: true });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/^baseUrl rejected: .*link-local, metadata, or reserved/);
+  });
+
+  it('refuses an http base URL on a private address, naming both opt-ins that would be needed', async () => {
+    const http = await discover({ baseUrl: 'http://10.0.0.5/midpoint', authMethod: 'ApiToken', apiToken: 't' });
+    expect(http.status).toBe(400);
+    expect(http.body.error).toMatch(/Allow insecure HTTP/);
+    const priv = await discover({ baseUrl: 'https://10.0.0.5/midpoint', authMethod: 'ApiToken', apiToken: 't' });
+    expect(priv.status).toBe(400);
+    expect(priv.body.error).toMatch(/Allow private network/);
+  });
+});

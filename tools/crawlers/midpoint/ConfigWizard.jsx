@@ -7,7 +7,8 @@ import { canSubmitCredentials, buildCredentialFields } from '@ui/utils/crawlerCr
 import CredentialFields from '@ui/components/crawler/CredentialFields';
 import useCredentialFields from '@ui/components/crawler/useCredentialFields';
 import useCrawlerDiscovery from '@ui/components/crawler/useCrawlerDiscovery';
-import { CrawlerField, OptionList, ScheduleList, WizardNav } from '@ui/components/crawler/wizardFields';
+import { CrawlerField, NetworkAccessOptions, OptionList, ScheduleList, WizardNav } from '@ui/components/crawler/wizardFields';
+import useNetworkAccess from '@ui/components/crawler/useNetworkAccess';
 import useCrawlerSave from '@ui/components/crawler/useCrawlerSave';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -48,6 +49,7 @@ export default function MidpointConfigWizard({ onComplete, onCancel, initialConf
 
   // Credential fields (secrets start blank; blank = keep stored value in edit mode)
   const { creds, setCred } = useCredentialFields(initialConfig);
+  const { network, setNetworkFlag } = useNetworkAccess(initialConfig);
 
   const defaultObjects = { systems: true, orgs: true, roles: true, services: true, users: true,
                            shadows: true, orgMembership: true, assignments: true, roleNesting: true, reviews: true };
@@ -86,7 +88,7 @@ export default function MidpointConfigWizard({ onComplete, onCancel, initialConf
   const { disco, discoLoading, discoError, fetchDiscovery } = useCrawlerDiscovery({
     authFetch, crawlerType: CRAWLER_TYPE, configId: initialConfig?.id,
     buildConfig: () => ({
-      baseUrl: baseUrl.trim(), authMethod,
+      baseUrl: baseUrl.trim(), authMethod, ...network,
       ...Object.fromEntries(Object.entries(creds).map(([k, v]) => [k, v.trim()])),
     }),
     emptyResult: { archetypes: [], roleSubtypes: [], orgSubtypes: [], userTypes: [] },
@@ -106,6 +108,7 @@ export default function MidpointConfigWizard({ onComplete, onCancel, initialConf
     const configPayload = {
       baseUrl: baseUrl.trim(),
       authMethod,
+      ...network,
       pageSize: parseInt(pageSize, 10) || 100,
       selectedObjects,
       archetypeMapping: archetypeMapping.map(m => ({ archetype: m.archetype.trim(), subtype: m.subtype.trim(), resourceType: m.resourceType || 'BusinessRole' })),
@@ -152,6 +155,7 @@ export default function MidpointConfigWizard({ onComplete, onCancel, initialConf
             placeholder="https://midpoint.example.com/midpoint"
             hint={<>e.g. <code>https://host:8080/midpoint</code> or <code>…/midpoint/ws/rest</code></>}
           />
+          <NetworkAccessOptions value={network} onChange={setNetworkFlag} />
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Authentication Method</label>
             <OptionList options={AUTH_METHODS} name="mpAuthMethod" selected={authMethod} onSelect={setAuthMethod} />

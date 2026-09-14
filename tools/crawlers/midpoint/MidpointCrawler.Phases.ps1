@@ -877,7 +877,7 @@ function Resolve-MidpointConfig {
 function Connect-MidpointSession {
     [CmdletBinding()]
     param($Cfg)
-    $AuthParams = @{ BaseUrl = $Cfg.baseUrl; AuthMethod = $Cfg.authMethod }
+    $AuthParams = @{ BaseUrl = $Cfg.baseUrl; AuthMethod = $Cfg.authMethod } + (Get-FGUrlPolicyParam -Cfg $Cfg)
     if ($Cfg.username)      { $AuthParams['Username']      = $Cfg.username }
     if ($Cfg.password)      { $AuthParams['Password']      = $Cfg.password }
     if ($Cfg.apiToken)      { $AuthParams['ApiToken']      = $Cfg.apiToken }

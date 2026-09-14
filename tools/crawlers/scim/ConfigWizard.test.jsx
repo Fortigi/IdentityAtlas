@@ -6,11 +6,13 @@
  */
 import { describe, it, expect } from 'vitest';
 import ConfigWizard from './ConfigWizard.jsx';
-import { makeWizardRenderer } from '../shared/wizardTestKit.js';
+import { makeWizardRenderer, networkAccessRenderTests } from '../shared/wizardTestKit.js';
 
 const render = makeWizardRenderer(ConfigWizard);
 
 describe('SCIM ConfigWizard render', () => {
+  networkAccessRenderTests(render, { title: 'Add SCIM 2.0 Crawler', field: 'SCIM Base URL' });
+
   it('renders the add-mode connection step', () => {
     const html = render();
     expect(html).toContain('Add SCIM 2.0 Crawler');
