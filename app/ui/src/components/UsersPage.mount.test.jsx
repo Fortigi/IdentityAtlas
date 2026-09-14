@@ -6,6 +6,7 @@ import {
   screen,
   fireEvent,
   waitFor,
+  within,
 } from '@ui/test-utils/renderWithProviders';
 import UsersPage from '@ui/components/UsersPage';
 
@@ -18,11 +19,11 @@ beforeEach(() => {
 });
 
 // Records every list URL so a test can assert what the sub-tab actually asked the API for.
-function renderPage(rows, onOpenDetail = () => {}) {
+function renderPage(rows, onOpenDetail = () => {}, columns = []) {
   const listUrls = [];
   const authFetch = makeAuthFetch((url) => {
     const s = String(url);
-    if (s.includes(COLUMNS)) return [];
+    if (s.includes(COLUMNS)) return columns;
     if (s.includes('/api/tags')) return [];
     if (s.includes(LIST)) { listUrls.push(s); return { data: rows, total: rows.length }; }
     return undefined;
@@ -53,6 +54,23 @@ describe('UsersPage rows', () => {
     expect(await screen.findByText('Ada Lovelace')).toBeInTheDocument();
     // Matched on the badge's title — "Include deleted" also contains the word.
     expect(screen.getByTitle(/^Deleted /)).toHaveTextContent('Deleted');
+  });
+
+  it('labels the virtual __system column "System" and filters the list by it', async () => {
+    const { listUrls } = renderPage([ada], () => {}, [
+      { column: '__system', values: ['ContosoHR', 'DemoIGA'] },
+    ]);
+    await screen.findByText('Ada Lovelace');
+
+    fireEvent.click(screen.getByRole('button', { name: '+ Add filter' }));
+    const fieldSelect = screen.getByRole('combobox');
+    // FIELD_LABELS gives the virtual column a human name, not the raw key.
+    expect(within(fieldSelect).getByRole('option', { name: 'System' })).toBeInTheDocument();
+
+    fireEvent.change(fieldSelect, { target: { value: '__system' } });
+    fireEvent.change(screen.getAllByRole('combobox')[1], { target: { value: 'DemoIGA' } });
+
+    await waitFor(() => expect(listUrls.some(u => decodeURIComponent(u).includes('"__system":"DemoIGA"'))).toBe(true));
   });
 });
 

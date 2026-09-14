@@ -234,11 +234,21 @@ describe('GET /resources/:id — lazy-loaded sub-resources', () => {
 });
 
 describe('GET /resource-columns', () => {
-  it('schema=true returns column-name objects incl. the virtual __resourceTag', async () => {
+  it('schema=true returns column-name objects incl. the virtual __resourceTag and __system', async () => {
     const res = await request(app).get('/api/resource-columns?schema=true');
     expect(res.status).toBe(200);
     expect(res.body.some((c) => c.column === 'displayName')).toBe(true);
     expect(res.body.some((c) => c.column === '__resourceTag')).toBe(true);
+    expect(res.body.find((c) => c.column === '__system').values).toEqual([]);
+  });
+
+  it('offers __system valued by system display name', async () => {
+    mockDb.query.mockImplementation((sql) => Promise.resolve(
+      /FROM "Systems"/.test(String(sql)) ? { rows: [{ displayName: 'Contoso HR' }] } : { rows: [] }
+    ));
+    const res = await request(app).get('/api/resource-columns');
+    expect(res.status).toBe(200);
+    expect(res.body.find((c) => c.column === '__system').values).toEqual(['Contoso HR']);
   });
 });
 
