@@ -746,3 +746,74 @@ Describe 'Complete-MidpointRun' {
         { Complete-MidpointRun } | Should -Throw '*completed with errors: Users: boom; Shadows: kaboom*'
     }
 }
+
+# ─── Fail-safe reconcile (SEC-2026-09 M-11) ────────────────────────────────────
+# A phase whose scoped full-sync batch is built from an earlier phase's read must
+# not send when that read failed: the batch is partial, not empty, so the ingest
+# helper's SkipWhenEmpty cannot catch it and the reconcile would delete live rows.
+Describe 'Test-PhaseInputsComplete' {
+    BeforeEach { Reset-PhaseTestState }
+
+    It 'returns true and records nothing when no dependency failed' {
+        $script:phaseErrors.Add('Reviews: 500')   # an unrelated phase
+        Test-PhaseInputsComplete -Phase 'RoleNesting' -DependsOn @('Roles', 'Services') | Should -BeTrue
+        $script:phaseErrors.Count | Should -Be 1
+    }
+
+    It 'returns false and names every failed dependency as this phase''s error' {
+        $script:phaseErrors.Add('Roles: 401')
+        $script:phaseErrors.Add('Shadows: 503')
+        Test-PhaseInputsComplete -Phase 'RoleNesting' -DependsOn @('Roles', 'Services', 'Shadows') | Should -BeFalse
+        $script:phaseErrors[-1] | Should -Be 'RoleNesting: skipped because Roles, Shadows failed'
+    }
+
+    It 'matches the phase name exactly, not a longer phase label that starts with it' {
+        $script:phaseErrors.Add('Resources(BusinessRole): ingest 500')
+        Test-PhaseInputsComplete -Phase 'X' -DependsOn @('Resources') | Should -BeTrue
+    }
+}
+
+Describe 'Fail-safe reconcile across midPoint phases' {
+    BeforeEach {
+        Reset-PhaseTestState
+        Mock Send-IngestBatch -MockWith $script:SendMock
+    }
+
+    It 'Sync-MidpointResources sends no resource bucket when the Roles read failed' {
+        Mock Invoke-MidpointSearch -ParameterFilter { $Type -eq 'roles' } -MockWith { throw 'roles 503' }
+        Mock Invoke-MidpointSearch -ParameterFilter { $Type -eq 'services' } -MockWith {
+            @([pscustomobject]@{ oid = 'svc-1'; name = 'email'; displayName = 'Email' })
+        }
+        $mapping = ConvertTo-MapRows $null @('archetype', 'subtype', 'resourceType')
+        Sync-MidpointResources -MidpointSystemId 10 -ArchetypeMapping $mapping | Out-Null
+        @(Get-Sent { $_.Endpoint -eq 'ingest/resources' }).Count | Should -Be 0
+        $script:phaseErrors | Should -Contain 'Resources: skipped because Roles failed'
+    }
+
+    It 'Sync-MidpointAssignments sends nothing when the Services read failed' {
+        $script:phaseErrors.Add('Services: 500')
+        $users = @([pscustomobject]@{ oid = 'u-1'; assignment = @([pscustomobject]@{ targetRef = [pscustomobject]@{ oid = 'role-1'; type = 'c:RoleType' } }) })
+        Sync-MidpointAssignments -MidpointSystemId 10 -AllUsers $users -SyncedResourceIds (New-StrSet 'role-1') -ResourceOidToType @{ 'role-1' = 'BusinessRole' }
+        @(Get-Sent { $_.Endpoint -eq 'ingest/resource-assignments' }).Count | Should -Be 0
+        $script:phaseErrors | Should -Contain 'Assignments: skipped because Services failed'
+    }
+
+    It 'Sync-MidpointRoleNesting sends no Contains batch when the Shadows phase failed' {
+        $script:phaseErrors.Add('Shadows: 500')
+        $roles = @([pscustomobject]@{ oid = 'parent'; inducement = @([pscustomobject]@{ targetRef = [pscustomobject]@{ oid = 'child'; type = 'c:RoleType' } }) })
+        Sync-MidpointRoleNesting -MidpointSystemId 10 -AllRoles $roles -SyncedResourceIds (New-StrSet @('child')) -EntitlementByDn @{}
+        @(Get-Sent { $_.Scope.relationshipType -eq 'Contains' }).Count | Should -Be 0
+        $script:phaseErrors | Should -Contain 'RoleNesting: skipped because Shadows failed'
+    }
+
+    It 'Sync-MidpointShadows reads nothing and sends nothing when the Users read failed' {
+        Mock Invoke-MidpointSearchStream -MockWith { return 0 }
+        $script:phaseErrors.Add('Users: 401')
+        $r = Sync-MidpointShadows -MidpointSystemId 10 -ResourceSystemId @{ 'res-1' = 11 } -ShadowOidToUserOid @{} `
+            -SyncedResourceIds ([System.Collections.Generic.HashSet[string]]::new())
+        Should -Invoke Invoke-MidpointSearchStream -Times 0
+        $script:sent.Count | Should -Be 0
+        $r.entitlementByDn.Count | Should -Be 0
+        $script:phaseErrors | Should -Contain 'Shadows: skipped because Users failed'
+    }
+}

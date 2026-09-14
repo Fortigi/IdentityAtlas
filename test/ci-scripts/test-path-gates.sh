@@ -50,6 +50,8 @@ simulate_filter() {
     { [[ "$f" =~ ^tools/powershell-sdk/ ]]              && pester="true"; } || true
     { [[ "$f" =~ ^tools/crawlers/shared/ ]]             && pester="true"; } || true
     { [[ "$f" = "setup/docker/Invoke-CrawlerJob.ps1" ]] && pester="true"; } || true
+    { [[ "$f" = "setup/docker/Invoke-CrawlerJobProcess.ps1" ]] && pester="true"; } || true
+    { [[ "$f" = "setup/docker/Build-FGContexts.ps1" ]]  && pester="true"; } || true
     { [[ "$f" = "setup/IdentityAtlas.psm1" ]]           && pester="true"; } || true
     { [[ "$f" =~ ^test/unit/ ]]                         && pester="true"; } || true
 
@@ -57,6 +59,8 @@ simulate_filter() {
     { [[ "$f" =~ ^app/api/src/ ]]                       && api="true"; } || true
     { [[ "$f" = "app/api/package.json" ]]               && api="true"; } || true
     { [[ "$f" = "app/api/package-lock.json" ]]          && api="true"; } || true
+    { [[ "$f" =~ ^app/desktop/[^/]*\.cjs$ ]]           && api="true"; } || true
+    { [[ "$f" =~ ^app/desktop/[^/]*\.test\.js$ ]]      && api="true"; } || true
 
     # ui scope
     { [[ "$f" =~ ^app/ui/src/ ]]                        && ui="true"; } || true

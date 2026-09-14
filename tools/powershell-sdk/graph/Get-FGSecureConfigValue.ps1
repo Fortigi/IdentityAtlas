@@ -11,8 +11,15 @@ function Get-FGSecureConfigValue {
         - Automatic migration from plaintext to encrypted storage
         - Dot-notation property paths (e.g., "Azure.AdminUserPassword")
 
-        If a credential is not stored, prompts the user and encrypts it using Windows DPAPI.
-        Encrypted values are user-specific and can only be decrypted by the same user account.
+        If a credential is not stored, prompts the user and stores it via ConvertFrom-SecureString.
+        On Windows that is DPAPI encryption, bound to the same user account and machine.
+
+        WARNING — on Linux and macOS, ConvertFrom-SecureString without -Key/-SecureKey does NOT
+        encrypt: the stored "_Encrypted" value is only an encoding that anyone who can read the
+        file can reverse. Treat a config file written by this function on those platforms as
+        plaintext, and protect it with file permissions (or do not store the secret in it).
+        The Identity Atlas crawlers do not use this function; they receive credentials from
+        the worker in memory.
 
     .PARAMETER ConfigPath
         Path to the JSON configuration file.
@@ -44,10 +51,10 @@ function Get-FGSecureConfigValue {
         Gets the password as a SecureString object.
 
     .NOTES
-        - Uses Windows DPAPI (Data Protection API) for encryption
-        - Encrypted values are user-specific and machine-specific
-        - Plaintext values are automatically migrated to encrypted storage
-        - Config file is updated with encrypted values automatically
+        - Windows: uses DPAPI; encrypted values are user-specific and machine-specific
+        - Linux/macOS: NOT encrypted — the stored value is a reversible encoding (see DESCRIPTION)
+        - Plaintext values are automatically migrated to the "_Encrypted" form
+        - Config file is rewritten with that form automatically
     #>
 
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute(

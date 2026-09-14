@@ -119,6 +119,26 @@ function Add-PhaseError {
     $Script:phaseErrors.Add("${Phase}: $Msg")
 }
 
+# Fail-safe reconcile guard (SEC-2026-09 M-11). A phase whose scoped full-sync batch
+# is built from an EARLIER phase's read must not send when that read failed: the
+# batch would be partial rather than empty, so SkipWhenEmpty cannot catch it, and
+# the reconcile would delete rows the source still has. Returns $true when none of
+# the -DependsOn phases recorded an error; otherwise records the skip as this
+# phase's own error (so the job still fails) and returns $false.
+function Test-PhaseInputsComplete {
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param([Parameter(Mandatory)][string]$Phase, [Parameter(Mandatory)][string[]]$DependsOn)
+    $failed = [System.Collections.Generic.List[string]]::new()
+    foreach ($dep in $DependsOn) {
+        if (@($Script:phaseErrors | Where-Object { $_.StartsWith("${dep}:") }).Count -gt 0) { $failed.Add($dep) }
+    }
+    if ($failed.Count -eq 0) { return $true }
+    Write-Host "  $Phase skipped: $($failed -join ', ') failed, so its reconcile would run over a partial read" -ForegroundColor Yellow
+    $Script:phaseErrors.Add("${Phase}: skipped because $($failed -join ', ') failed")
+    return $false
+}
+
 function Add-IngestStat {
     [CmdletBinding()]
     param([string]$Endpoint, [double]$Seconds, [int]$Records)

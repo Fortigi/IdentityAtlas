@@ -1333,7 +1333,7 @@ function Get-EntraReviewDefApId {
     if ($resolved.reason -eq 'noscope') {
         $State.noScope++
         if ($State.sampleLogged -lt 2) {
-            Write-Host "    (sample skip, no scope/resourceScope.query on def $($Def.id): $($Def | ConvertTo-Json -Depth 3 -Compress))" -ForegroundColor DarkGray
+            Write-Host "    (sample skip, no scope/resourceScope.query on def $($Def.id) '$($Def.displayName)')" -ForegroundColor DarkGray
             $State.sampleLogged++
         }
     } else {
@@ -1693,14 +1693,14 @@ function Set-EntraConfigExtras {
 
 # ─── Run initialization ──────────────────────────────────────────
 # Verify Ingest API connectivity, authenticate to Graph, and register/get the
-# EntraID system. Returns the resolved systemId (falls back to 1). Calls exit 1
+# EntraID system. Returns the resolved systemId (throws if none). Calls exit 1
 # if the API is unreachable — same as the original inline setup.
 function Initialize-EntraCrawlerRun {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)] [string]$ApiBaseUrl,
         [Parameter(Mandatory)] [string]$ApiKey,
-        [Parameter(Mandatory)] [string]$ConfigFile
+        [string]$TenantId, [string]$ClientId, [string]$ClientSecret
     )
     Write-Host "`n=== FortigiGraph EntraID Crawler ===" -ForegroundColor Cyan
     Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Starting EntraID sync via Ingest API" -ForegroundColor Cyan
@@ -1717,7 +1717,8 @@ function Initialize-EntraCrawlerRun {
     }
 
     Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Authenticating to Microsoft Graph..." -ForegroundColor Cyan
-    Get-FGAccessToken -ConfigFile $ConfigFile | Out-Null
+    # In memory only — never via a credentials file (SEC-2026-09 L-07).
+    Get-FGAccessToken -TenantId $TenantId -ClientId $ClientId -ClientSecret $ClientSecret | Out-Null
 
     Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Registering system..." -ForegroundColor Cyan
     $systemResult = Invoke-IngestAPI -Endpoint 'ingest/systems' -Body @{
@@ -1732,14 +1733,9 @@ function Initialize-EntraCrawlerRun {
     }
 
     # ingest/systems returns systemIds[] after merging the record(s).
-    $systemId = $null
-    if ($systemResult.systemIds -and $systemResult.systemIds.Count -gt 0) {
-        $systemId = [int]$systemResult.systemIds[0]
-    }
-    if (-not $systemId) {
-        Write-Host "  WARNING: ingest/systems did not return a systemId — falling back to 1" -ForegroundColor Yellow
-        $systemId = 1
-    }
+    # Every scoped full-sync reconcile is keyed on this id: never guess one (SEC-2026-09 M-11).
+    $systemId = if ($systemResult.systemIds -and $systemResult.systemIds.Count -gt 0) { [int]$systemResult.systemIds[0] } else { 0 }
+    if ($systemId -le 0) { throw "Could not resolve the Entra ID system id after registration" }
     Write-Host "  System ID: $systemId" -ForegroundColor Green
     return $systemId
 }

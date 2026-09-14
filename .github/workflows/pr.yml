@@ -153,6 +153,8 @@ jobs:
               - 'tools/powershell-sdk/**'
               - 'tools/crawlers/shared/**'
               - 'setup/docker/Invoke-CrawlerJob.ps1'
+              - 'setup/docker/Invoke-CrawlerJobProcess.ps1'
+              - 'setup/docker/Build-FGContexts.ps1'
               - 'setup/IdentityAtlas.psm1'
               - 'test/unit/**'
               - 'azure/**'
@@ -175,6 +177,9 @@ jobs:
               - 'app/api/vitest.config.js'
               - 'app/api/vitest.contract.config.js'
               - 'app/api/eslint.config.js'
+              # The desktop job worker's tests run in the API Vitest suite.
+              - 'app/desktop/*.cjs'
+              - 'app/desktop/*.test.js'
             ui:
               - 'app/ui/src/**'
               - 'app/ui/package.json'
@@ -264,7 +269,6 @@ jobs:
             'PSUseProcessBlockForPipelineCommand'      # these functions are not designed for pipeline use
             'PSAvoidUsingEmptyCatchBlock'              # empty catches are intentional for non-critical operations
             'PSUseDeclaredVarsMoreThanAssignments'     # investigate separately; too noisy for CI gate
-            'PSAvoidUsingInvokeExpression'             # scheduler crontab is image-baked, not dynamic user input
             'PSReviewUnusedParameter'                  # some parameters are kept for dispatcher API compatibility
           )
           $results = @()
