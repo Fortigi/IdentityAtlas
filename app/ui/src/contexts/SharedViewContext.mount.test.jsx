@@ -23,30 +23,25 @@ function renderShared(ui, { shared, auth = analyst } = {}) {
 
 describe('MatrixToolbar under a shared view', () => {
   const toolbar = (
-    <MatrixToolbar managedFilter="all" setManagedFilter={() => {}}
-      onExportExcel={() => {}} onShare={() => {}} />
+    <MatrixToolbar managedFilter="all" setManagedFilter={() => {}} onExportExcel={() => {}} />
   );
 
-  it('gives an analyst the export and copy-link controls', () => {
+  it('gives an analyst the Export control', () => {
     renderShared(toolbar, { shared: false });
-    expect(screen.getByRole('button', { name: /Export Excel/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Copy link/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Export/ })).toBeInTheDocument();
   });
 
-  // Sharing WITH somebody who has no role is a different act from copying the
-  // URL, and since #1202 it has exactly one home — the Load / Save / Share bar.
-  // The toolbar must not grow a second control for it.
-  it('keeps sharing out of the toolbar — it lives in the save bar', () => {
+  // Sharing lives in the Load / Save / Share bar (#1202), and the old Copy link
+  // is gone — the toolbar must grow no link or share control of any kind.
+  it('keeps sharing and link-copying out of the toolbar', () => {
     renderShared(toolbar, { shared: false });
-    expect(screen.queryByRole('button', { name: /Share view/i })).not.toBeInTheDocument();
-    expect(screen.getAllByRole('button', { name: /link/i }).map(b => b.textContent))
-      .toEqual(['Copy link']);
+    expect(screen.queryByRole('button', { name: /Share/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /link/i })).not.toBeInTheDocument();
   });
 
-  it('drops both for a share recipient, keeping the governed toggle', () => {
+  it('drops Export for a share recipient, keeping the governed toggle', () => {
     renderShared(toolbar, { shared: true });
-    expect(screen.queryByRole('button', { name: /Export Excel/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Copy link/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Export/ })).not.toBeInTheDocument();
     // Reading controls stay — the recipient can still switch governed/gaps.
     expect(screen.getByRole('button', { name: 'Governed' })).toBeInTheDocument();
   });

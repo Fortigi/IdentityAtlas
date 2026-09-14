@@ -11,14 +11,14 @@ import { useMatrixBusinessRoleLayer } from '@ui/hooks/useMatrixBusinessRoleLayer
 import useResizableGridHeight from '@ui/hooks/useResizableGridHeight';
 import GridResizeHandle from './matrix/GridResizeHandle';
 import MatrixToolbar from './matrix/MatrixToolbar';
-import MatrixLegend from './matrix/MatrixLegend';
+import { ColumnAxisControls, RowAxisControls } from './matrix/GridCornerControls';
 import MatrixFilterSummary from './matrix/MatrixFilterSummary';
 import MatrixScopePanel from './matrix/MatrixScopePanel';
 import MatrixColumnHeaders from './matrix/MatrixColumnHeaders';
 import MatrixGroupRow from './matrix/MatrixGroupRow';
 import { buildResourceContextMap } from '@ui/utils/resourceContexts';
 import { AGG_SENTINEL, collapseKey, buildColumns } from './matrix/columnModel';
-import { toggleCollapsedGroups } from './matrix/foldState';
+import { toggleCollapsedGroups, columnFoldState } from './matrix/foldState';
 import { buildMatrixModel } from './matrix/matrixModel';
 import { buildAccessPackages, buildApSortedGroups } from './matrix/accessPackageModel';
 import { buildDisplayGroups } from './matrix/nestedRows';
@@ -430,16 +430,6 @@ export default function MatrixView({
     rowOrderHook.updateOrder(sorted.map(g => g.id));
   }, [orderedGroups, rowOrderHook]);
 
-  // Share: copy URL to clipboard
-  const handleShare = useCallback(async () => {
-    try {
-      await navigator.clipboard.writeText(shareUrl);
-      return true;
-    } catch {
-      return false;
-    }
-  }, [shareUrl]);
-
   // Number of info columns on the left (drag handle + resource name + type)
   const infoColumnCount = 3;
 
@@ -582,6 +572,13 @@ export default function MatrixView({
       loadingIdentityCols={loadingIdentityCols}
       onToggleCollapse={toggleCollapse}
       onToggleMembers={toggleMembers}
+      columnCorner={<ColumnAxisControls showBusinessRoles={roleLayer.enabled} canFoldColumns={canFoldColumns}
+        columnFoldState={columnFoldState(distinctTopGroups, collapsedGroups)}
+        onFoldAllColumns={foldAllColumns} onUnfoldAllColumns={unfoldAllColumns} />}
+      rowCorner={<RowAxisControls hasNestedGroups={groupsWithNested.size > 0} hasExpandedGroups={expandedGroups.size > 0}
+        onExpandAll={expandAll} onCollapseAll={collapseAll} canFoldRoles={roleLayer.canFoldRoles}
+        hasFoldedRoles={roleLayer.hasFoldedRoles} onFoldAllRoles={roleLayer.foldAllRoles} onUnfoldAllRoles={roleLayer.unfoldAllRoles}
+        hasCustomRowOrder={rowOrderHook.hasCustomOrder} onResetRowOrder={rowOrderHook.resetOrder} />}
     />
   );
 
@@ -615,25 +612,7 @@ export default function MatrixView({
         managedFilter={managedFilter}
         setManagedFilter={setManagedFilter}
         onExportExcel={handleExportExcel}
-        onShare={handleShare}
-        onShareView={onShareView}
-        onResetRowOrder={rowOrderHook.resetOrder}
-        hasCustomRowOrder={rowOrderHook.hasCustomOrder}
-        hasExpandableGroups={groupsWithNested.size > 0}
-        hasExpandedGroups={expandedGroups.size > 0}
-        onExpandAll={expandAll}
-        onCollapseAll={collapseAll}
-        canFoldColumns={canFoldColumns}
-        isFolded={collapsedGroups.size > 0}
-        onFoldAllColumns={foldAllColumns}
-        onUnfoldAllColumns={unfoldAllColumns}
-        canFoldRoles={roleLayer.canFoldRoles}
-        hasFoldedRoles={roleLayer.hasFoldedRoles}
-        onFoldAllRoles={roleLayer.foldAllRoles}
-        onUnfoldAllRoles={roleLayer.unfoldAllRoles}
       />
-
-      {filterIsApplied && <MatrixLegend showBusinessRoles={roleLayer.enabled} />}
 
       {!filterIsApplied ? (
         <EmptyFilterState onAdjustFilter={onAdjustFilter} hasData={hasData} />

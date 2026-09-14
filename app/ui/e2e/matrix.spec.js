@@ -58,7 +58,7 @@ test.describe('Matrix View', () => {
     await expect(dBadges).toBeVisible({ timeout: 10000 });
   });
 
-  test('"How to read this matrix" legend is available when a matrix is applied', async ({ page }) => {
+  test('"How to read this matrix" legend opens from the grid corner when a matrix is applied', async ({ page }) => {
     test.slow(); // permissions API cold start
     const table = page.locator('table').first();
     const emptyHeading = page.getByRole('heading', { name: /Pick a slice to inspect/i });
@@ -66,18 +66,27 @@ test.describe('Matrix View', () => {
     // the grid (it shows once a matrix filter is applied).
     await expect(table.or(emptyHeading)).toBeVisible({ timeout: 60000 });
     if (await table.isVisible()) {
-      await expect(
-        page.getByRole('button', { name: /How to read this matrix/i })
-      ).toBeVisible({ timeout: 10000 });
+      // A "?" button in the grid's header corner (#1202), not a bar above it.
+      const legend = page.locator('thead').getByRole('button', { name: 'How to read this matrix' }).first();
+      await expect(legend).toBeVisible({ timeout: 10000 });
+      await expect(legend).toHaveAttribute('aria-expanded', 'false');
+      await legend.click();
+      const dialog = page.getByRole('dialog', { name: 'How to read this matrix' });
+      await expect(dialog).toBeVisible();
+      await expect(dialog.getByText('Cell badges — how the access is held')).toBeVisible();
+      await page.keyboard.press('Escape');
+      await expect(dialog).toHaveCount(0);
+      await expect(legend).toHaveAttribute('aria-expanded', 'false');
     }
   });
 
-  // "Copy link" copies the current URL for another analyst. Sharing WITH a
-  // colleague who has no Identity Atlas role is a different act and, since
-  // #1202, has exactly one home — the Load / Save / Share bar. Two controls for
-  // it in the same toolbar was the ambiguity #1166 shipped with.
-  test('the toolbar has Copy link, and sharing lives on the save bar', async ({ page }) => {
-    await expect(page.getByRole('button', { name: 'Copy link' })).toBeVisible();
+  // Sharing has exactly one home — the Load / Save / Share bar (#1202) — and
+  // it made "Copy link" obsolete (the URL still carries the matrix). The
+  // toolbar row keeps only the lens and Export.
+  test('the toolbar has no Copy link, and sharing lives on the save bar', async ({ page }) => {
+    await expect(page.getByRole('button', { name: 'All', exact: true }).first()).toBeVisible({ timeout: 60000 });
+    await expect(page.getByRole('button', { name: /^Export/ })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Copy link' })).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Share view…' })).toHaveCount(0);
     await expect(page.getByRole('button', { name: /Load matrix/ })).toBeVisible();
   });
@@ -163,8 +172,8 @@ test.describe('Matrix — fold business-role resources', () => {
     return true;
   }
 
-  const foldAll = (page) => page.getByRole('button', { name: 'Fold roles', exact: true });
-  const unfoldAll = (page) => page.getByRole('button', { name: 'Unfold roles', exact: true });
+  const foldAll = (page) => page.getByRole('button', { name: 'Fold business roles', exact: true });
+  const unfoldAll = (page) => page.getByRole('button', { name: 'Unfold business roles', exact: true });
 
   // Total height of the (virtualised) row list — it shrinks when rows fold away.
   const rowsHeight = (page) => page.evaluate(() => {
@@ -188,7 +197,7 @@ test.describe('Matrix — fold business-role resources', () => {
     test.skip(foldable === 0, 'no business role grants a visible resource in this dataset');
   }
 
-  test('"Fold roles" hides the resources roles grant, "Unfold roles" restores them', async ({ page }) => {
+  test('"Fold business roles" hides the resources roles grant, "Unfold business roles" restores them', async ({ page }) => {
     await openFoldableGrid(page);
 
     const before = await rowsHeight(page);
@@ -201,6 +210,36 @@ test.describe('Matrix — fold business-role resources', () => {
     await unfoldAll(page).click();
     await expect.poll(() => rowsHeight(page)).toBe(before);
     await expect(unfoldAll(page)).toHaveCount(0);
+  });
+
+  // #1202: the fold controls sit in the grid's header corner, one toggle per
+  // axis, following the real state — never a Fold button left on screen for
+  // something already folded (the bug the old toolbar pair had).
+  test('the grid corner has one column-fold toggle that follows the fold state', async ({ page }) => {
+    const rendered = await openGrid(page);
+    test.skip(!rendered, 'matrix grid did not render (no data)');
+    const head = page.locator('thead');
+    const fold = head.getByRole('button', { name: 'Fold all columns', exact: true });
+    const unfold = head.getByRole('button', { name: 'Unfold all columns', exact: true });
+    test.skip(await fold.count() + await unfold.count() === 0, 'only one top-level column group in this dataset');
+
+    // A large matrix opens folded; start from unfolded either way.
+    if (await unfold.count()) await unfold.click();
+    await expect(fold).toHaveAttribute('aria-pressed', 'false');
+    await expect(unfold).toHaveCount(0);
+
+    await fold.click();
+    await expect(unfold).toHaveAttribute('aria-pressed', 'true');
+    await expect(fold).toHaveCount(0);
+
+    await unfold.click();
+    await expect(fold).toHaveAttribute('aria-pressed', 'false');
+    await expect(unfold).toHaveCount(0);
+  });
+
+  test('the business-role fold toggle sits in the grid corner, not in the toolbar', async ({ page }) => {
+    await openFoldableGrid(page);
+    await expect(page.locator('thead').getByRole('button', { name: 'Fold business roles', exact: true })).toBeVisible();
   });
 
   test('a per-role chevron folds only that role, and is labelled for screen readers', async ({ page }) => {
@@ -585,8 +624,8 @@ test.describe('Matrix — resizing the grid height', () => {
     } catch {
       return false;
     }
-    // Collapse "How to read this matrix" so the chrome leaves the grid a
-    // measurable cap to start from (the same setup the scrollbar spec uses).
+    // The legend is a closed popover in the grid corner now (#1202); close it
+    // if it happens to be open so the grid has a measurable cap to start from.
     const legend = page.getByRole('button', { name: /How to read this matrix/i }).first();
     await expect(legend).toBeVisible({ timeout: 20000 });
     if (await legend.getAttribute('aria-expanded') === 'true') await legend.click();
@@ -1006,8 +1045,8 @@ test.describe('Matrix — no double scrollbar', () => {
   }
 
   test('the grid and the page never scroll at the same time', async ({ page }) => {
-    // Short viewport + the "How to read this matrix" panel open: the chrome eats
-    // most of the window, which is exactly the case the old fixed cap got wrong.
+    // Short viewport: the chrome eats most of the window, which is exactly the
+    // case the old fixed cap got wrong.
     await page.setViewportSize({ width: 1280, height: 800 });
     test.skip(!await openFullMatrix(page), 'matrix grid did not render (no data)');
 
@@ -1022,8 +1061,8 @@ test.describe('Matrix — no double scrollbar', () => {
     await page.setViewportSize({ width: 1280, height: 800 });
     test.skip(!await openFullMatrix(page), 'matrix grid did not render (no data)');
 
-    // Collapse the legend to free the ~270px that keeps the grid from getting a
-    // usable height. The measuring hook re-measures and caps the grid.
+    // Make sure the legend popover is closed (it no longer takes height above
+    // the grid, #1202). The measuring hook re-measures and caps the grid.
     const legend = page.getByRole('button', { name: /How to read this matrix/i }).first();
     await expect(legend).toBeVisible({ timeout: 20000 });
     if (await legend.getAttribute('aria-expanded') === 'true') await legend.click();

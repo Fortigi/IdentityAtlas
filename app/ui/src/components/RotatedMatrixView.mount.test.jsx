@@ -58,7 +58,6 @@ function renderView(props = {}, authFetch = makeFetch()) {
       managedFilter: props.managedFilter || 'all',
       setManagedFilter,
       refreshing: props.refreshing || false,
-      shareUrl: 'https://example.test/matrix',
       onOpenDetail,
       onAdjustFilter,
       hasData: props.hasData,
@@ -126,19 +125,19 @@ describe('RotatedMatrixView (mounted)', () => {
   it('shows an Excel-not-supported tip when export is clicked', async () => {
     renderView();
     const user = userEvent.setup();
-    await user.click(screen.getByText('Export Excel'));
+    await user.click(screen.getByRole('button', { name: /^Export/ }));
+    await user.click(screen.getByRole('menuitem', { name: 'Export Excel' }));
     expect(await screen.findByText(/Excel export is not yet supported/i)).toBeInTheDocument();
   });
 
-  it('copies the share URL to the clipboard when Copy link is clicked', async () => {
-    const writeText = vi.fn().mockResolvedValue(undefined);
-    // Define our own clipboard stub and drive the click with fireEvent so
-    // userEvent's own clipboard shim doesn't intercept the write.
-    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+  // Rotated has no row/column fold, nested groups, row reorder or legend — and
+  // no Copy link any more — so the toolbar is the lens and Export, nothing else.
+  it('renders only the lens and Export, and no grid corner controls', () => {
     renderView();
-    fireEventClick(screen.getByText('Copy link'));
-    expect(await screen.findByText('Copied!')).toBeInTheDocument();
-    expect(writeText).toHaveBeenCalledWith('https://example.test/matrix');
+    expect(screen.queryByRole('button', { name: /Copy link/i })).not.toBeInTheDocument();
+    for (const name of [/all columns/, /nested groups/, /business roles/, 'Reset row order']) {
+      expect(screen.queryByRole('button', { name })).not.toBeInTheDocument();
+    }
   });
 
   it('shows the refreshing overlay when refreshing', () => {

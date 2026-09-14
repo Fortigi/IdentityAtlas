@@ -149,7 +149,7 @@ test.describe('#937 — business roles are not matrix rows', () => {
     await expect(page.locator('table').first()).toBeVisible({ timeout: 60000 });
     await page.waitForTimeout(1000); // let the virtualiser settle
 
-    await expect(page.getByRole('button', { name: 'Fold roles', exact: true })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Fold business roles', exact: true })).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Fold business role resources' })).toHaveCount(0);
     await expect(page.locator('button[title^="Also granted by business role:"]')).toHaveCount(0);
     await expect(page.locator('tbody td[title*="Granted by business role:"]')).toHaveCount(0);

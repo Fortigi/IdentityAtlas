@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { collapseKey } from './columnModel.js';
-import { toggleCollapsedGroups } from './foldState.js';
+import { toggleCollapsedGroups, columnFoldState } from './foldState.js';
 
 const sub = (sortKeys) => ({ sortKeys });
 
@@ -32,5 +32,31 @@ describe('toggleCollapsedGroups', () => {
     const next = toggleCollapsedGroups(new Set([deeper]), users, ['Eng', 'SWE'], 0, 2);
     expect(next.has(collapseKey(['Eng', 'SWE'], 0))).toBe(true);
     expect(next.has(deeper)).toBe(false);
+  });
+});
+
+describe('columnFoldState', () => {
+  const top = new Set(['Eng', 'Sales']);
+
+  it('is none when nothing is folded', () => {
+    expect(columnFoldState(top, new Set())).toBe('none');
+  });
+
+  // One of two groups folded: a check that looked only at size > 0 would call
+  // this 'all', and one that looked for the first key only would too.
+  it('is some when only one of the top-level groups is folded', () => {
+    expect(columnFoldState(top, new Set(['Sales']))).toBe('some');
+    expect(columnFoldState(top, new Set(['Eng']))).toBe('some');
+  });
+
+  // Drilling into a folded group replaces its key with deeper ones: columns are
+  // still folded, but not every top-level group is.
+  it('is some when only deeper levels are folded', () => {
+    expect(columnFoldState(top, new Set(['Eng / SWE']))).toBe('some');
+  });
+
+  it('is all when every top-level group is folded, extra deeper keys or not', () => {
+    expect(columnFoldState(top, new Set(['Eng', 'Sales']))).toBe('all');
+    expect(columnFoldState(top, new Set(['Eng', 'Sales', 'x']))).toBe('all');
   });
 });

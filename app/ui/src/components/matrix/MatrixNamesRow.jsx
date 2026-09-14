@@ -6,7 +6,7 @@ import MatrixApLabelCell from './MatrixApLabelCell';
 // vertical scroll — the attribute grouping rows above it scroll away.
 export default function MatrixNamesRow({
   users, accessPackages, isDark, onSortByCount, onOpenDetail,
-  expandedIdentities, onToggleIdentity, loadingIdentityCols, onToggleMembers,
+  expandedIdentities, onToggleIdentity, loadingIdentityCols, onToggleMembers, corner = null,
 }) {
   return (
     <tr>
@@ -16,7 +16,10 @@ export default function MatrixNamesRow({
       </th>
       <th className="sticky top-0 z-40 bg-gray-100 dark:bg-gray-800 border-b border-r border-gray-300 dark:border-gray-600 px-2 py-1 text-xs text-gray-600 dark:text-gray-400 text-left font-medium"
           style={{ left: '24px', minWidth: '275px' }}>
-        Resource Name
+        <div className="flex items-center justify-between gap-2">
+          <span>Resource Name</span>
+          {corner}
+        </div>
       </th>
       <th className="sticky top-0 z-40 border-b border-r border-gray-300 dark:border-gray-600 px-2 py-1 text-xs text-left font-medium bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400"
           style={{ left: '299px', minWidth: '180px' }}

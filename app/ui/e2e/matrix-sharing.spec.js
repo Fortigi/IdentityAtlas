@@ -263,7 +263,7 @@ test.describe('Save and share a matrix as one act (#1202)', () => {
     await expect(page.getByRole('button', { name: 'Dashboard' })).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Contexts' })).toHaveCount(0);
     await expect(page.getByRole('button', { name: /Adjust matrix/i })).toHaveCount(0);
-    await expect(page.getByRole('button', { name: 'Export Excel' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /^Export/ })).toHaveCount(0);
     await expect(page.getByRole('button', { name: /Load matrix/ })).toHaveCount(0);
     await expect(page.getByRole('button', { name: /Shared with/ })).toHaveCount(0);
     // Nor the analyst context around the matrix: scope strip and scope stats.
