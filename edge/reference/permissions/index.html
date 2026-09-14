@@ -5209,7 +5209,7 @@
 <div class="admonition note">
 <p class="admonition-title">Read &amp; crawler API keys</p>
 <ul>
-<li><strong>Read API keys (<code>fgr_…</code>)</strong> are accepted only on <code>GET</code> requests to non-admin endpoints and resolve to <code>data.read</code>. They're used by the generated Excel/Power Query workbook.</li>
+<li><strong>Read API keys (<code>fgr_…</code>)</strong> are accepted only on <code>GET</code> requests to non-admin endpoints (the <code>/api/admin/</code> check ignores path casing) and resolve to <code>data.read</code>. They're used by the generated Excel/Power Query workbook.</li>
 <li><strong>Crawler API keys (<code>fgc_…</code>)</strong> authenticate the worker on <code>/api/crawlers/*</code> and <code>/api/ingest/*</code> only, with their own per-crawler scope (<code>systemIds</code>) and permissions (<code>ingest</code>, <code>refreshViews</code>, <code>admin</code>). They are separate from the user-facing permission catalog below.</li>
 </ul>
 </div>
@@ -5228,7 +5228,7 @@
 <tr>
 <td><code>data.read</code></td>
 <td>Read all data</td>
-<td>Effectively "can sign in at all." Enforced as authentication-required — any signed-in user can read; there is no per-route <code>requirePermission('data.read')</code> gate. <code>fgr_</code> read tokens are granted it implicitly.</td>
+<td>Effectively "can sign in at all." Enforced as authentication-required — any signed-in user can read; there is no per-route <code>requirePermission('data.read')</code> gate. <code>fgr_</code> read tokens are granted it implicitly. The Dashboard reads (<code>GET /api/admin/dashboard-stats</code>, <code>/dashboard-timeseries</code>), run history (<code>GET /api/risk-scoring/runs</code>, <code>/api/context-plugins/runs</code>, <code>/api/account-linking/runs</code>) <code>GET /api/updates/intent</code> and the Performance request log (<code>GET /api/perf*</code>, which also refuses <code>fgr_</code> read tokens) additionally require <strong>at least one</strong> mapped permission, so a signed-in user whose roles map to nothing is refused.</td>
 </tr>
 </tbody>
 </table>
@@ -5309,17 +5309,17 @@
 <tr>
 <td><code>admin.crawlers</code></td>
 <td>Crawler configuration</td>
-<td><code>GET/POST/PATCH/DELETE /api/admin/crawlers…</code>, crawler jobs, trigger risk-scoring runs, account-linking config + runs (<code>PUT /api/account-linking/config</code>, <code>POST /api/account-linking/runs</code>)</td>
+<td><code>GET/POST/PATCH/DELETE /api/admin/crawlers…</code>, crawler jobs, trigger risk-scoring runs, account-linking config + runs (<code>GET/PUT /api/account-linking/config</code>, <code>POST /api/account-linking/runs</code>), risk profile/classifier reads (<code>GET /api/admin/risk-profile</code>, <code>/api/admin/classifiers</code>)</td>
 </tr>
 <tr>
 <td><code>admin.systems</code></td>
 <td>Systems configuration</td>
-<td><code>PUT /api/systems/:id</code>, owners, clean-database, history-retention</td>
+<td><code>PUT /api/systems/:id</code>, owners, clean-database, history-retention (read + write), auto-update status/log/toggle (<code>/api/admin/updates/*</code>)</td>
 </tr>
 <tr>
 <td><code>admin.llm</code></td>
 <td>LLM configuration</td>
-<td><code>/api/admin/llm/*</code>, risk profiles/classifiers</td>
+<td><code>/api/admin/llm/*</code>, risk profiles/classifiers (incl. <code>GET /api/admin/risk-profile</code>, <code>/api/admin/classifiers</code>)</td>
 </tr>
 <tr>
 <td><code>admin.context-plugins</code></td>
