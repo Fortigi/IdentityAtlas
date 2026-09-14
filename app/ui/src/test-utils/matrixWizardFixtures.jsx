@@ -55,31 +55,38 @@ export function makeWizardFetch(overrides = {}) {
     shares = [],
     preview = {},
   } = overrides;
-  return makeAuthFetch((url, opts = {}) => {
-    const u = String(url);
+  // Saving and sharing — what the tests override.
+  const savingRoute = (u, opts) => {
     if (u.startsWith('/api/matrix/saved-filters/') && opts.method === 'PUT') return put;
     if (u === '/api/matrix/saved-filters' && opts.method === 'POST') {
       return post ?? jsonResponse({ id: 'sf-new', ...JSON.parse(opts.body) }, { status: 201 });
     }
     if (u === '/api/matrix/saved-filters') return saved;
-    if (u === '/api/matrix/shares' && opts.method === 'POST') return share;
-    if (u === '/api/matrix/shares') return shares;
-    if (u.startsWith('/api/users')) return { data: [ANN] };
-    if (u.includes('/api/matrix/columns')) {
-      if (u.includes('entity=Identity')) return identityCols;
-      if (u.includes('entity=Resource')) return resourceCols;
-      return principalCols;
-    }
-    if (u.includes('/api/matrix/preview')) return { ...previewBody, ...preview };
-    if (u.includes('/api/contexts?contextType=ManagerHierarchy')) {
-      return { data: [{ id: 'ctx-1', displayName: 'Org Chart', totalMemberCount: 99 }] };
-    }
-    if (u.startsWith('/api/contexts/')) {
-      const id = u.split('/').pop();
-      return { attributes: { id, displayName: `Context ${id}`, variant: 'generated', targetType: 'Identity' } };
-    }
-    return undefined; // 404
+    if (u === '/api/matrix/shares') return opts.method === 'POST' ? share : shares;
+    return undefined;
+  };
+  return makeAuthFetch((url, opts = {}) => {
+    const u = String(url);
+    return savingRoute(u, opts) ?? discoveryRoute(u, preview);
   });
+}
+
+// The wizard's read-only discovery endpoints: people, columns, preview, contexts.
+function discoveryRoute(u, preview) {
+  if (u.startsWith('/api/users')) return { data: [ANN] };
+  if (u.includes('/api/matrix/columns')) {
+    if (u.includes('entity=Identity')) return identityCols;
+    return u.includes('entity=Resource') ? resourceCols : principalCols;
+  }
+  if (u.includes('/api/matrix/preview')) return { ...previewBody, ...preview };
+  if (u.includes('/api/contexts?contextType=ManagerHierarchy')) {
+    return { data: [{ id: 'ctx-1', displayName: 'Org Chart', totalMemberCount: 99 }] };
+  }
+  if (u.startsWith('/api/contexts/')) {
+    const id = u.split('/').pop();
+    return { attributes: { id, displayName: `Context ${id}`, variant: 'generated', targetType: 'Identity' } };
+  }
+  return undefined; // 404
 }
 
 // Matrix sharing on by default, so the default (wildcard) user may share.
