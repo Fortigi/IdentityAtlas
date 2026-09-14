@@ -9,7 +9,9 @@
     Covers the fixture-backed acceptance criteria:
       0  feature gate    — creating a SCIM config is refused while experimental crawlers are off
       1  happy path      — users, groups, Direct memberships, Contains nesting, Indirect rows
-      2  opt-in picker   — only the selected extra attribute is stored
+      2  opt-in picker   — only the selected extra attribute is stored, for users
+                          AND groups, with the values served the compliant way:
+                          nested under their schema-extension URN (#1209)
       3  active:false    — the account lands disabled
       4  idempotency     — a second identical run updates rather than duplicates
       5  stale delete    — a user removed at the source is removed here, another system untouched
@@ -180,15 +182,24 @@ $uSvc   = "u-svc-$runTag"
 $gOuter = "g-outer-$runTag"
 $gInner = "g-inner-$runTag"
 
+#
+# `department` / `costCenter` / `type` are nested under their schema extension's URN,
+# the way RFC 7643 §3.3 says a compliant provider serves them — NOT at the top level.
+# The fixture used to put them top-level, which meant the opt-in assertions below
+# passed without the extension lookup ever running and #1209 shipped green.
 $users = @(
     @{ id = $uAlice; userName = "alice.$runTag"; displayName = "Alice $runTag"; active = $true
-       userType = 'employee'; department = 'Finance'; title = 'Analyst'; costCenter = 'CC-42'
+       userType = 'employee'; title = 'Analyst'
+       schemas = @('urn:ietf:params:scim:schemas:core:2.0:User', $MockScimEnterpriseUserUrn)
+       $MockScimEnterpriseUserUrn = @{ department = 'Finance'; costCenter = 'CC-42' }
        name = @{ givenName = 'Alice'; familyName = 'Anderson' }
        emails = @( @{ value = "alias.$runTag@example.com"; type = 'other' }, @{ value = "alice.$runTag@example.com"; primary = $true } ) }
     @{ id = $uBob; userName = "bob.$runTag"; displayName = "Bob $runTag"; active = $false
-       userType = 'employee'; department = 'HR' }
+       userType = 'employee'
+       $MockScimEnterpriseUserUrn = @{ department = 'HR' } }
     @{ id = $uSvc; userName = "svc.$runTag"; displayName = "Service $runTag"; active = $true
-       userType = 'service'; department = 'IT' }
+       userType = 'service'
+       $MockScimEnterpriseUserUrn = @{ department = 'IT' } }
 )
 $groups = @(
     @{ id = $gOuter; displayName = "Outer $runTag"; members = @(
@@ -198,6 +209,12 @@ $groups = @(
     ) }
     @{ id = $gInner; displayName = "Inner $runTag"; members = @( @{ value = $uBob }, @{ value = $uSvc } ) }
 )
+# The group attribute the reporter of #1209 selected: extension-nested, because the
+# core Group schema has nothing but displayName and members.
+foreach ($g in $groups) {
+    $g['schemas'] = @('urn:ietf:params:scim:schemas:core:2.0:Group', $MockScimGroupExtensionUrn)
+    $g[$MockScimGroupExtensionUrn] = @{ type = 'security'; description = "desc $runTag" }
+}
 
 # ── AC0: the experimental-crawler gate ───────────────────────────────────────
 # SCIM ships as an experimental crawler, so with the flag OFF the API must refuse
@@ -225,7 +242,7 @@ try {
     Write-Host "  Mock SCIM server started on port $($mock.Port)" -ForegroundColor Gray
 
     $configId = New-ScimConfig -Name $systemName -Port $mock.Port -Extra @{
-        selectedAttributes = @{ user = @('department'); group = @() }
+        selectedAttributes = @{ user = @('department'); group = @('type') }
         userTypeMapping    = @(
             @{ userType = 'service'; principalType = 'ServicePrincipal' }
             @{ userType = '';        principalType = 'User' }
@@ -307,6 +324,24 @@ try {
             ($svc.principalType -eq 'ServicePrincipal' -and $alice.principalType -eq 'User') `
             "(service: '$($svc.principalType)', employee: '$($alice.principalType)')"
     } catch { Write-Result 'Scim/Data — attribute + type mapping' $false $_.Exception.Message }
+
+    # ── AC2b: the GROUP half of the opt-in picker (#1209) ────────────────────
+    # The reported bug: a selected group attribute is discovered, saved, and then
+    # never stored, because its value lives under the extension-schema URN in the
+    # group JSON. 'type' is selected, 'description' is not — both are nested under
+    # the same extension, so this fails one way if the extension lookup is missing
+    # and the other way if it ignores the operator's selection. 'type' has no
+    # Resources column so it lands in extendedAttributes; 'description' does, which
+    # is where an opted-OUT value would show up if the picker were ignored.
+    try {
+        $outerStored = @($groupRes | Where-Object { $_.externalId -eq $gOuter }) | Select-Object -First 1
+        $gExt = $outerStored.extendedAttributes
+        if ($gExt -is [string]) { $gExt = $gExt | ConvertFrom-Json }
+        $leaked = ($outerStored.description -eq "desc $runTag") -or ($gExt.description -eq "desc $runTag")
+        $ok = ($gExt.type -eq 'security') -and (-not $leaked)
+        Write-Result 'Scim/Data — a selected group attribute from a schema extension is stored' $ok `
+            "(type: '$($gExt.type)', unselected description leaked: $leaked — expected 'security' / False)"
+    } catch { Write-Result 'Scim/Data — a selected group attribute from a schema extension is stored' $false $_.Exception.Message }
 
     # ── AC5 prep: a SECOND SCIM system that must stay untouched ─────────────
     $otherMockUsers = @( @{ id = "u-other-$runTag"; userName = "other.$runTag"; displayName = "Other $runTag"; active = $true } )

@@ -53,18 +53,63 @@ function Get-ScimPrimaryEmail {
     return $first
 }
 
-# Read a possibly-nested attribute off a SCIM object. 'name.givenName' walks into
-# the complex `name` attribute; a plain key reads the top-level attribute.
-function Get-ScimAttribute {
+# Walk a dotted path from one object downwards, without looking at extensions.
+# 'name.givenName' walks into the complex `name` attribute; a plain key reads the
+# top-level attribute.
+function Get-ScimPlainAttribute {
     [CmdletBinding()]
     param($Object, [string]$Path)
-    if (-not $Path) { return $null }
     $current = $Object
     foreach ($segment in $Path.Split('.')) {
         if ($null -eq $current) { return $null }
         $current = $current.$segment
     }
     return $current
+}
+
+# The schema-extension containers on a SCIM resource, in the order the provider
+# serialised them. RFC 7643 §3.3 nests every extension attribute under the
+# extension's URN as a top-level key — a URN always contains ':' and a SCIM
+# attribute name never may (RFC 7643 §2.1: letters, digits and '$' / '-' / '_'),
+# so that is an exact test rather than a heuristic.
+function Get-ScimExtensionObject {
+    [CmdletBinding()]
+    param($Object)
+    $out = [System.Collections.Generic.List[object]]::new()
+    if ($null -eq $Object -or $Object -is [string] -or $Object -is [System.ValueType]) { return @($out) }
+    if ($Object -is [System.Collections.IDictionary]) {
+        foreach ($key in $Object.Keys) {
+            if ([string]$key -like '*:*') { [void]$out.Add($Object[$key]) }
+        }
+        return @($out)
+    }
+    foreach ($prop in $Object.PSObject.Properties) {
+        if ($prop.Name -like '*:*') { [void]$out.Add($prop.Value) }
+    }
+    return @($out)
+}
+
+# Read a possibly-nested attribute off a SCIM object, looking inside schema
+# extensions when the name does not resolve at the top level.
+#
+# Discovery advertises extension attributes as BARE names — attributesForResourceType
+# in discover.js merges the base schema and every schemaExtension into one flat list —
+# but the resource JSON puts their values under the extension URN key. Without this
+# fallback a selected attribute resolved to $null and was silently dropped, which is
+# the whole opt-in picker for groups (the core Group schema has only displayName and
+# members, so every pickable group attribute comes from an extension). Tie-break for
+# a name two schemas share: the base schema wins, then extensions in document order.
+function Get-ScimAttribute {
+    [CmdletBinding()]
+    param($Object, [string]$Path)
+    if (-not $Path) { return $null }
+    $value = Get-ScimPlainAttribute -Object $Object -Path $Path
+    if ($null -ne $value) { return $value }
+    foreach ($extension in (Get-ScimExtensionObject -Object $Object)) {
+        $value = Get-ScimPlainAttribute -Object $extension -Path $Path
+        if ($null -ne $value) { return $value }
+    }
+    return $null
 }
 
 # The opt-in attribute picker (S2): only attributes the operator selected are

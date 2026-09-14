@@ -19,7 +19,11 @@
  * full explanation.
  */
 
-import { E2E_BASE as BASE, openCrawlerWizard } from '../shared/wizardE2EKit.mjs';
+import { E2E_BASE as BASE, deleteCrawlerConfigs, enableFeatureFlag, openCrawlerWizard } from '../shared/wizardE2EKit.mjs';
+
+// Every config these tests save is named with this prefix so afterAll can find
+// and remove them again.
+const CONFIG_PREFIX = 'e2e-scim-';
 
 // What the stubbed POST /api/admin/crawlers/scim/discover answers with. Routing
 // the discovery call in the browser keeps this test independent of any live SCIM
@@ -30,21 +34,31 @@ const DISCOVERY = {
     { id: 'Group', name: 'Group', endpoint: '/Groups', schema: 'urn:ietf:params:scim:schemas:core:2.0:Group', syncable: true },
     { id: 'Device', name: 'Device', endpoint: '/Devices', schema: 'urn:example:Device', syncable: false },
   ],
+  // Group attributes come from a schema EXTENSION in every real endpoint — the core
+  // Group schema is only displayName + members — and discovery advertises them as
+  // bare names (issue #1209). 'type' is the attribute the bug was reported against.
   userAttributes: ['costCenter', 'department', 'preferredLanguage'],
-  groupAttributes: ['description'],
+  groupAttributes: ['description', 'type'],
   supportsFilter: true,
   supportsPatch: false,
 };
 
 export function register(test, expect) {
   // SCIM is an EXPERIMENTAL crawler, so it only appears in the Add Crawler picker
-  // while the experimentalCrawlers flag is on. The CI stack sets
-  // FEATURE_EXPERIMENTAL_CRAWLERS=true (docker-compose.ci.yml) rather than any test
-  // toggling it: the flag is global server state, and a test that flipped it would
-  // decide what every later test in the run sees. The OFF behaviour is asserted in
-  // isolation instead — app/ui/src/components/CrawlersPage.SelectType.test.jsx for
-  // the picker, app/api/src/routes/jobs.experimentalGate.test.js for the 403, and
-  // AC0 in Test-ScimCrawler.ps1 against the real API.
+  // while the experimentalCrawlers flag is on. This file used to rely on the CI
+  // stack's FEATURE_EXPERIMENTAL_CRAWLERS=true (docker-compose.ci.yml) instead of
+  // asking for the flag itself, on the grounds that flipping global server state
+  // decides what later tests see. That reasoning held; the premise did not. The
+  // toggle is a stored WorkerConfig override that BEATS the env var, so any run
+  // that left one behind turned every test below into "SCIM 2.0 is not in the
+  // picker" — which is exactly how this suite failed against a deployment the
+  // SCIM integration test had touched. The spec now states its precondition and
+  // restores the previous value afterwards.
+  //
+  // The OFF behaviour still gets asserted in isolation, where it belongs —
+  // app/ui/src/components/CrawlersPage.SelectType.test.jsx for the picker,
+  // app/api/src/routes/jobs.experimentalGate.test.js for the 403, and AC0 in
+  // Test-ScimCrawler.ps1 against the real API.
   async function openScimWizard(page) {
     await page.route('**/api/admin/crawlers/scim/discover', route =>
       route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(DISCOVERY) }));
@@ -53,7 +67,30 @@ export function register(test, expect) {
     });
   }
 
+  // Steps 1 and 2 are identical for every test that needs to get PAST them; only
+  // the credential-gate test below cares about what they do on the way.
+  async function fillConnectionAndCredentials(page, crawlerName) {
+    await page.fill('input[placeholder="SCIM 2.0"]', crawlerName);
+    await page.fill('input[placeholder="https://api.example.com/scim/v2"]', 'https://scim.example.com/scim/v2');
+    await page.fill('input[placeholder="SAP CIS"]', crawlerName);
+    await page.click('button:has-text("Next →")');
+
+    await page.locator('label:has-text("Username") + input, label:has-text("Username") ~ input').first().fill('scim-user');
+    await page.locator('input[type="password"]').first().fill('scim-pass');
+    await page.click('button:has-text("Next →")');
+  }
+
   test.describe('SCIM 2.0 crawler wizard', () => {
+    // beforeAll/afterAll are scoped INSIDE the describe on purpose: every
+    // crawler's *.e2e.mjs is register()ed into the single
+    // app/ui/e2e/crawler-plugin-tests.spec.js file, so a file-level hook here
+    // would run for other crawlers' tests too.
+    let restoreExperimental = async () => {};
+    test.beforeAll(async () => { restoreExperimental = await enableFeatureFlag('experimentalCrawlers'); });
+    test.afterAll(async () => {
+      await deleteCrawlerConfigs(name => name.startsWith(CONFIG_PREFIX));
+      await restoreExperimental();
+    });
 
     test('SCIM 2.0 is offered as a crawler type, badged Experimental', async ({ page }) => {
       await page.goto(`${BASE}/#admin`);
@@ -90,16 +127,8 @@ export function register(test, expect) {
     test('walks the six steps and saves a config the summary card reflects', async ({ page }) => {
       if (!await openScimWizard(page)) return;
 
-      const crawlerName = `e2e-scim-${Date.now()}`;
-      await page.fill('input[placeholder="SCIM 2.0"]', crawlerName);
-      await page.fill('input[placeholder="https://api.example.com/scim/v2"]', 'https://scim.example.com/scim/v2');
-      await page.fill('input[placeholder="SAP CIS"]', crawlerName);
-      await page.click('button:has-text("Next →")');
-
-      // Step 2 — credentials.
-      await page.locator('label:has-text("Username") + input, label:has-text("Username") ~ input').first().fill('scim-user');
-      await page.locator('input[type="password"]').first().fill('scim-pass');
-      await page.click('button:has-text("Next →")');
+      const crawlerName = `${CONFIG_PREFIX}${Date.now()}`;
+      await fillConnectionAndCredentials(page, crawlerName);
 
       // Step 3 — objects. Discovery ran; a non-syncable resource type is shown
       // as visible-but-not-yet rather than offered as a toggle.
@@ -137,6 +166,56 @@ export function register(test, expect) {
       await expect(card).toBeVisible({ timeout: 15000 });
       await expect(page.locator('text=https://scim.example.com/scim/v2').first()).toBeVisible();
       await expect(page.locator('text=+3 user attrs').first()).toBeVisible();
+    });
+
+    // The reporter path from issue #1209: pick a GROUP attribute in the step-4
+    // picker, save, and check it is still there. Every pickable group attribute
+    // comes from a schema extension (the core Group schema is only displayName +
+    // members), and the crawler used to drop exactly those on sync — so this walks
+    // the same selection an operator makes and asserts it survives the round trip
+    // through the API into the saved config the crawler then reads.
+    test('a selected group attribute survives save and reopen (#1209)', async ({ page }) => {
+      if (!await openScimWizard(page)) return;
+
+      const crawlerName = `${CONFIG_PREFIX}group-attr-${Date.now()}`;
+      await fillConnectionAndCredentials(page, crawlerName);
+
+      // Step 3 — objects (defaults are fine; Groups is on).
+      await expect(page.locator('text=Also served by this endpoint, but not syncable yet:')).toBeVisible({ timeout: 10000 });
+      await page.click('button:has-text("Next →")');
+
+      // Step 4 — the GROUP picker. Scoped to its own section: 'description' and
+      // 'type' also have to be distinguishable from the user attributes above.
+      const groupPicker = page.locator('div:has(> div > p:text-is("Group attributes"))');
+      await expect(groupPicker).toBeVisible({ timeout: 10000 });
+      const typeCheckbox = groupPicker.locator('label:has(span:text-is("type")) input[type="checkbox"]');
+      await expect(typeCheckbox).not.toBeChecked();
+      await typeCheckbox.check();
+      // Only the one the operator ticked — 'description' stays out.
+      await expect(groupPicker.locator('label:has(span:text-is("description")) input[type="checkbox"]')).not.toBeChecked();
+      await expect(groupPicker.locator('text=1 selected')).toBeVisible();
+      await page.click('button:has-text("Next →")');
+
+      // Step 5 — mapping, then step 6 — review + save.
+      await page.click('button:has-text("Next →")');
+      await expect(page.locator('text=Extra attributes: 0 user, 1 group')).toBeVisible();
+      await page.locator('button:has-text("Add Crawler")').last().click();
+
+      // The saved card reports the group attribute…
+      const card = page.locator('div')
+        .filter({ has: page.locator(`h4:text-is("${crawlerName}")`) })
+        .filter({ has: page.locator('button:has-text("Configure")') })
+        .last();
+      await expect(card).toBeVisible({ timeout: 15000 });
+      await expect(page.locator('text=+1 group attr').first()).toBeVisible({ timeout: 15000 });
+
+      // …and reopening the wizard reads the stored config back from the API, so a
+      // selection that was dropped anywhere in that round trip shows up here.
+      await card.locator('button:has-text("Configure")').first().click();
+      await expect(page.locator('h3:has-text("Edit SCIM 2.0 Crawler")')).toBeVisible({ timeout: 10000 });
+      for (let i = 0; i < 3; i++) await page.click('button:has-text("Next →")');
+      const reopened = page.locator('div:has(> div > p:text-is("Group attributes"))');
+      await expect(reopened.locator('label:has(span:text-is("type")) input[type="checkbox"]')).toBeChecked({ timeout: 10000 });
     });
 
     // #1207 — the reporter's path: name the crawler ABC, leave the optional
