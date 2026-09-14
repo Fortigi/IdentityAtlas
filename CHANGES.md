@@ -1,5 +1,18 @@
 ## Changes in this PR
 
+- Hardened the SCIM crawler: when reading users or groups from the SCIM endpoint fails, the run no longer reconciles group memberships and nesting, so existing assignments are kept instead of being removed before the job is marked failed.
+- Hardened the midPoint crawler: phases that depend on an earlier read (resources, accounts and entitlements, role assignments, role nesting) are skipped, and the job fails, when that read failed, instead of reconciling over incomplete data.
+- Fixed the OData library (used by the Omada crawler) treating an empty response body as the end of the data; the read now fails instead of returning a silently truncated result.
+- Fixed the CSV, Azure RM and Entra ID crawlers continuing with a guessed system id when system registration returned none; the run now stops instead of syncing into another system.
+- Hardened the Entra ID crawler so the client secret is no longer written to a temporary file (a failed run used to leave it behind); credentials are passed in memory.
+- Hardened the worker so each crawler job runs in its own PowerShell process: credentials and tokens from one job are no longer available to the next.
+- Hardened the worker and the desktop launcher so a job's configuration (including credentials) and the worker API key are never passed on a process command line, and job logs no longer record the command line in their header.
+- Reduced the Entra ID access-review diagnostic log line to the review definition's id and name instead of the full object.
+- Removed the unused worker crontab file and its scheduler support; crawler schedules are managed in the web app. Recurring non-crawler tasks can be scheduled from the host (see the Docker setup docs).
+- Fixed the context-refresh post-sync step reading an outdated API URL setting; it now uses the same setting as the rest of the worker.
+
+## Changes in this PR
+
 - Hardened the automated issue-to-PR build pipeline: the build agent now only receives issue text written by the requestor, organisation members and the pipeline itself, and the spec records how many other comments were left out
 - Hardened the automated build pipeline so the build agent no longer has access to the pipeline's GitHub credentials, and so an automated change to CI configuration is stopped for human review instead of being pushed
 - Automated pull requests now point out changes to container images, compose files and package dependencies for the reviewer
