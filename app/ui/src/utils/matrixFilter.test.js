@@ -29,6 +29,7 @@ describe('normalizeMatrixFilter', () => {
       subject:  { include: [{ kind: 'attribute', field: 'department', values: ['HR'] }], exclude: [] },
       resource: { include: [], exclude: [{ kind: 'attribute', field: 'resourceType', values: ['Group'] }] },
       includeBusinessRoles: true,
+      includeInheritedAccess: true,
       rollup: 'department',
       rollupContent: 'roles-only',
       rollupMetric: 'percent',
@@ -53,6 +54,7 @@ describe('normalizeMatrixFilter', () => {
       subject: 'nope',
       resource: { include: 'nope', exclude: null },
       includeBusinessRoles: 'yes',   // not a real boolean → off
+      includeInheritedAccess: 1,     // not a real boolean → off
       rollup: 42,
       rollupContent: 'everything',
       rollupMetric: 'ratio',
@@ -79,6 +81,15 @@ describe('normalizeMatrixFilter', () => {
     expect(normalizeMatrixFilter({ includeBusinessRoles: true }).includeBusinessRoles).toBe(true);
     expect(normalizeMatrixFilter({ includeBusinessRoles: 'true' }).includeBusinessRoles).toBe(false);
     expect(normalizeMatrixFilter({}).includeBusinessRoles).toBe(false);
+  });
+
+  it('keeps includeInheritedAccess through an adjust, strictly (#1202)', () => {
+    // The wizard's More options checkbox. Dropped by the normaliser, a matrix
+    // saved with it on reopened in the wizard with the box unticked, and the
+    // next save wrote it off.
+    expect(normalizeMatrixFilter({ includeInheritedAccess: true }).includeInheritedAccess).toBe(true);
+    expect(normalizeMatrixFilter({ includeInheritedAccess: 'true' }).includeInheritedAccess).toBe(false);
+    expect(normalizeMatrixFilter({}).includeInheritedAccess).toBe(false);
   });
 
   it('leaves the trends panel off unless the matrix asked for it (#1202)', () => {

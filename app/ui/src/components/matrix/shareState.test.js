@@ -7,7 +7,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   matchSavedMatrix, activeShareOf, sharedWithLabel, liveShareWarning, wizardPreferredSavedId, tagWithSavedMatrix,
-  savedMatrixLoadArgs, currentSavedMatrix, appliedSavedMatrix, copyName, renameShareWarning,
+  savedMatrixLoadArgs, currentSavedMatrix, appliedSavedMatrix, copyName, renameShareWarning, shareRequestBody,
 } from './shareState';
 
 const FILTER = {
@@ -177,6 +177,31 @@ describe('currentSavedMatrix', () => {
   it('forgets a tag whose saved matrix is gone', () => {
     expect(currentSavedMatrix(SAVED, { ...CHANGED, savedFilterId: 'sf-deleted' })).toEqual({ current: null, diverged: false });
     expect(currentSavedMatrix(null, { ...FILTER, savedFilterId: 'sf-1' })).toEqual({ current: null, diverged: false });
+  });
+});
+
+describe('shareRequestBody', () => {
+  const people = [{ userKey: 'ann@contoso.com', displayName: 'Ann' }];
+
+  it('shares a saved matrix by id and sends nothing that would rename or re-save it', () => {
+    expect(shareRequestBody({ savedFilterId: 'sf-1', name: 'Other name', filter: FILTER, managed: 'gaps', recipients: people }))
+      .toEqual({ savedFilterId: 'sf-1', recipients: people });
+  });
+
+  it('saves and shares an unsaved matrix under the trimmed name, with its lens and display mode', () => {
+    expect(shareRequestBody({ name: '  Sales team  ', filter: FILTER, managed: 'gaps', recipients: people }))
+      .toEqual({ name: 'Sales team', filter: FILTER, managed: 'gaps', displayMode: 'grid', recipients: people });
+  });
+
+  it('records a rotated or rolled-up matrix as such, and a missing lens as all', () => {
+    const rotated = { ...FILTER, orientation: 'rows-as-subjects' };
+    expect(shareRequestBody({ name: 'R', filter: rotated, recipients: people })).toMatchObject({ displayMode: 'rotated', managed: 'all' });
+    expect(shareRequestBody({ name: 'U', filter: { ...FILTER, rollup: 'department' }, managed: '', recipients: people }))
+      .toMatchObject({ displayMode: 'rollup', managed: 'all' });
+  });
+
+  it('never sends a name of undefined', () => {
+    expect(shareRequestBody({ filter: FILTER, recipients: people }).name).toBe('');
   });
 });
 

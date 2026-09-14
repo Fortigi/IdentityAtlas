@@ -1,10 +1,11 @@
 // The body of "share this matrix": pick who it is for, and share it (#1166,
 // reworked by #1202).
 //
-// One component, three hosts — the matrix bar's share panel, the wizard's
-// Save/Share step and the toolbar dialog. They differ only in the chrome
-// around this, so the create call, the validation and the link live here rather
-// than being written three times and drifting.
+// Hosted by SharePanel (the matrix bar's share dialog and Admin). The wizard's
+// Save & share step does not host the form — its one primary button saves and
+// then shares — but it builds the same request (shareRequestBody), sends it the
+// same way (sendJson) and picks people with the same field (SharePeopleField),
+// so the two paths cannot drift.
 //
 // ONE name, never two. A matrix that is already saved is shared under its own
 // name and is not asked for another; an unsaved one is saved and shared in a
@@ -20,7 +21,8 @@ import { useAuth } from '@ui/auth/AuthGate';
 import { Field, ErrorBox, PrimaryButton } from '@ui/components/contexts/ModalPrimitives';
 import CopyButton from '@ui/components/CopyButton';
 import PeoplePicker from '@ui/components/inputs/PeoplePicker';
-import { displayModeOf } from '@ui/components/shared/sharedSnapshot';
+import { shareRequestBody } from './shareState';
+import { sendJson } from './matrixRequests';
 // The share address rides in the URL fragment, which browsers never send to a
 // server — so it can't land in a proxy or access log. buildShareUrl owns that
 // shape.
@@ -58,6 +60,21 @@ function CreatedShare({ url, recipients }) {
   );
 }
 
+// "Share with": the people a new share is addressed to. One component so the
+// wizard's Save & share step picks recipients with exactly the field this form
+// uses — same label, same promise about who can open the link.
+export function SharePeopleField({ value, onChange }) {
+  return (
+    <PeoplePicker
+      value={value}
+      onChange={onChange}
+      inputId="share-matrix-people"
+      label="Share with"
+      help="Only these people can open the link. Anyone else it reaches is turned away."
+    />
+  );
+}
+
 export default function ShareMatrixForm({ filter, managed, savedFilterId = null, savedName = null, onCreated }) {
   const { authFetch } = useAuth();
   const [name, setName] = useState('');
@@ -73,21 +90,10 @@ export default function ShareMatrixForm({ filter, managed, savedFilterId = null,
     setBusy(true);
     setError(null);
     try {
-      const res = await authFetch('/api/matrix/shares', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(alreadySaved
-          ? { savedFilterId, recipients: people }
-          : {
-            name: name.trim(),
-            filter,
-            managed: managed || 'all',
-            displayMode: displayModeOf(filter),
-            recipients: people,
-          }),
+      const body = await sendJson(authFetch, '/api/matrix/shares', {
+        body: shareRequestBody({ savedFilterId, name, filter, managed, recipients: people }),
+        fallback: 'Could not share this matrix',
       });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(body.error || `Could not share this matrix (HTTP ${res.status})`);
       setCreated({ url: buildShareUrl(body.shareAddress || body.id), recipients: body.recipients || people });
       onCreated?.(body);
     } catch (err) {
@@ -121,13 +127,7 @@ export default function ShareMatrixForm({ filter, managed, savedFilterId = null,
           />
         </Field>
       )}
-      <PeoplePicker
-        value={people}
-        onChange={setPeople}
-        inputId="share-matrix-people"
-        label="Share with"
-        help="Only these people can open the link. Anyone else it reaches is turned away."
-      />
+      <SharePeopleField value={people} onChange={setPeople} />
       <ErrorBox message={error} />
       <div className="flex justify-end">
         <PrimaryButton onClick={create} disabled={busy || (!alreadySaved && !name.trim()) || people.length === 0}>

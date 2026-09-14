@@ -59,37 +59,14 @@ async function deleteSavedMatrix(id) {
   if (id) await fetch(`${API}/matrix/saved-filters/${id}`, { method: 'DELETE' });
 }
 
-// Drive the share form. Both entry points — the wizard's final step and the
-// matrix bar's dialog — render the SAME panel, so the steps to drive it belong
-// in one place; if they ever have to diverge, that is a signal the two entry
-// points have drifted apart and the divergence deserves its own test.
-//
-// Naming the people is not optional: the share button stays disabled until the
-// share has somebody to open it, which is asserted here on the way through.
-async function fillShareForm(page, { name, recipient }) {
-  const share = page.getByRole('button', { name: name ? 'Save & share' : 'Share matrix' });
-
-  if (name) {
-    // Asserted before filling: `fill` waits for the field for the whole test
-    // timeout, so a matrix that is unexpectedly already saved (no name asked)
-    // used to hang this spec for six minutes instead of failing on the reason.
-    const nameField = page.getByLabel('Name this matrix');
-    await expect(nameField, 'the matrix is unsaved, so the share form asks for a name').toBeVisible({ timeout: 15000 });
-    await nameField.fill(name);
-  } else {
-    // Already saved: the one thing #1202 forbids is asking for the name twice.
-    await expect(page.getByLabel('Name this matrix')).toHaveCount(0);
-  }
-
-  await expect(share).toBeDisabled();
+// Pick a recipient in a "Share with" people field — the wizard's Save & share
+// step and the matrix bar's share dialog use the same field.
+async function pickRecipient(page, recipient) {
   await page.getByLabel('Share with', { exact: true }).fill(recipient.userKey);
   const result = page.getByRole('group', { name: 'Search results' }).getByRole('button').first();
   await expect(result).toBeVisible({ timeout: 30000 });
   await result.click();
   await expect(page.getByRole('list', { name: 'Selected people' })).toContainText(recipient.displayName);
-
-  await expect(share).toBeEnabled();
-  await share.click();
 }
 
 test.describe('Save and share a matrix as one act (#1202)', () => {
@@ -97,8 +74,8 @@ test.describe('Save and share a matrix as one act (#1202)', () => {
   // query in CI can take 20-30s.
   test.setTimeout(120000);
 
-  // The headline of the issue: one name, and afterwards the matrix is BOTH
-  // saved and shared — and says so.
+  // The headline of the issue: one name, one click, and afterwards the matrix
+  // is BOTH saved and shared — and says so.
   test('one name saves and shares, and the matrix then shows it is shared', async ({ page }) => {
     test.slow();
     const recipient = await someRecipient();
@@ -106,36 +83,48 @@ test.describe('Save and share a matrix as one act (#1202)', () => {
     const name = `E2E — one name ${Date.now()}`;
 
     // The wizard opens on whatever the matrix shows — on the demo data that is
-    // the saved default, which (rightly) shares without asking for a name. Make
-    // it a NEW matrix first: switching the rows to identities is a real change
-    // on any dataset, so no saved matrix matches it any more.
+    // the saved default, whose name the last step would prefill. Make it a NEW
+    // matrix first: switching the rows to identities is a real change on any
+    // dataset, so no saved matrix matches it any more.
     await openWizard(page);
-    // The Setup card, not the top-nav tab of the same name: its accessible
-    // name carries the description after the title.
-    await page.getByRole('button', { name: /^Identities\s*Each subject is one correlated person/ }).click();
-    await gotoWizardStep(page, 'Share');
-    await expect(page.getByText('Share this matrix (optional)')).toBeVisible({ timeout: 30000 });
+    // The Subjects step's choice card, not the top-nav tab of the same name: its
+    // accessible name carries the description after the title.
+    await page.getByRole('button', { name: /^Identities\s*One subject per person/ }).click();
+    await gotoWizardStep(page, 'Save & share');
 
-    await fillShareForm(page, { name, recipient });
+    const nameField = page.getByLabel('Name', { exact: true });
+    await expect(nameField).toBeVisible({ timeout: 30000 });
+    // Adjusting the default and changing it, the name is still the default's —
+    // this is a new matrix, so give it its own (the button follows the field).
+    await nameField.fill('');
+    await expect(page.getByRole('button', { name: 'Show matrix', exact: true })).toBeVisible();
 
-    // The link is shown, addressed by share id (so it is copyable again later).
-    await expect(page.locator('p.font-mono')).toBeVisible({ timeout: 30000 });
-    const url = await page.locator('p.font-mono').innerText();
-    expect(url).toContain('#shared:');
-    expect(url).not.toContain('#shared:fgs_');
-    await expect(page.getByRole('button', { name: 'Copy share link' })).toBeVisible();
+    // People picked without a name: the button asks to save, and a click is
+    // refused on the name field rather than sharing nothing.
+    await pickRecipient(page, recipient);
+    await page.getByRole('button', { name: 'Save & show', exact: true }).click();
+    await expect(page.getByText('Name this matrix to share it')).toBeVisible();
 
-    // It was SAVED too — under that same one name, nothing else asked for.
+    await nameField.fill(name);
+    await page.getByRole('button', { name: 'Save & show', exact: true }).click();
+
+    // One click saved it, shared it and showed it: the wizard is gone and the
+    // strip above the grid names it and says it is shared.
+    await expect(nameField).toBeHidden({ timeout: 60000 });
+    await expect(page.getByText(name)).toBeVisible({ timeout: 60000 });
+    await expect(page.getByRole('button', { name: /Shared with 1 person/ })).toBeVisible();
+
+    // It was SAVED under that same one name, nothing else asked for…
     const saved = await (await fetch(`${API}/matrix/saved-filters`)).json();
     const row = saved.find(r => r.name === name);
     expect(row).toBeTruthy();
     expect(row.shared).toBe(true);
     expect(row.recipientCount).toBe(1);
-
-    // Apply it, and the matrix bar says both things without opening anything.
-    await page.getByRole('button', { name: 'Apply' }).click();
-    await expect(page.getByText(name)).toBeVisible({ timeout: 60000 });
-    await expect(page.getByRole('button', { name: /Shared with 1 person/ })).toBeVisible();
+    // …and shared by id, so its link can be copied again later.
+    const shares = await (await fetch(`${API}/matrix/shares`)).json();
+    const share = shares.find(s => s.savedFilterId === row.id && !s.revokedAt);
+    expect(share).toBeTruthy();
+    expect(share.id).not.toMatch(/^fgs_/);
 
     await deleteSavedMatrix(row.id);
   });
@@ -166,7 +155,7 @@ test.describe('Save and share a matrix as one act (#1202)', () => {
     // Wait for the loaded matrix's data before adjusting. Loading swaps the
     // whole matrix area — wizard included — for a loading pane, so a wizard
     // opened before that request lands is torn down mid-edit and reopens on
-    // Setup (which is what this spec kept tripping over).
+    // its first step (which is what this spec kept tripping over).
     const loaded = page.waitForResponse(r => r.url().includes('/api/matrix/data') && r.request().method() === 'POST', { timeout: 60000 });
     await entry.click();
     await loaded;
@@ -174,7 +163,7 @@ test.describe('Save and share a matrix as one act (#1202)', () => {
     await expect(page.getByRole('button', { name: /Shared with 1 person/ })).toBeVisible({ timeout: 60000 });
 
     await page.getByRole('button', { name: 'Adjust matrix' }).click();
-    await gotoWizardStep(page, 'Share');
+    await gotoWizardStep(page, 'Save & share');
     // The panel's own sentence — the strip's "Shared with 1 person ▾" button
     // is still on the page behind the wizard.
     await expect(page.getByText(/^Shared with 1 person\. They see this matrix/)).toBeVisible({ timeout: 30000 });
