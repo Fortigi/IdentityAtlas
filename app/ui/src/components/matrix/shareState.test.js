@@ -5,7 +5,7 @@
 // against is a matrix that still reads as shared after its link was revoked.
 
 import { describe, it, expect } from 'vitest';
-import { matchSavedMatrix, activeShareOf, sharedWithLabel, liveShareWarning, wizardPreferredSavedId, tagWithSavedMatrix } from './shareState';
+import { matchSavedMatrix, activeShareOf, sharedWithLabel, liveShareWarning, wizardPreferredSavedId, tagWithSavedMatrix, shareRequestBody, appliedSavedMatrix } from './shareState';
 
 const FILTER = {
   rowType: 'principal',
@@ -123,5 +123,50 @@ describe('tagWithSavedMatrix', () => {
     expect(tagWithSavedMatrix(FILTER, { id: 'sf-1' })).toEqual({ ...FILTER, savedFilterId: 'sf-1' });
     expect(tagWithSavedMatrix(FILTER, null)).toBe(FILTER);
     expect(FILTER).not.toHaveProperty('savedFilterId');
+  });
+});
+
+describe('shareRequestBody', () => {
+  const people = [{ userKey: 'ann@contoso.com', displayName: 'Ann' }];
+
+  it('shares a saved matrix by id and sends nothing that would rename or re-save it', () => {
+    expect(shareRequestBody({ savedFilterId: 'sf-1', name: 'Other name', filter: FILTER, managed: 'gaps', recipients: people }))
+      .toEqual({ savedFilterId: 'sf-1', recipients: people });
+  });
+
+  it('saves and shares an unsaved matrix under the trimmed name, with its lens and display mode', () => {
+    expect(shareRequestBody({ name: '  Sales team  ', filter: FILTER, managed: 'gaps', recipients: people }))
+      .toEqual({ name: 'Sales team', filter: FILTER, managed: 'gaps', displayMode: 'grid', recipients: people });
+  });
+
+  it('records a rotated or rolled-up matrix as such, and a missing lens as all', () => {
+    const rotated = { ...FILTER, orientation: 'rows-as-subjects' };
+    expect(shareRequestBody({ name: 'R', filter: rotated, recipients: people })).toMatchObject({ displayMode: 'rotated', managed: 'all' });
+    expect(shareRequestBody({ name: 'U', filter: { ...FILTER, rollup: 'department' }, managed: '', recipients: people }))
+      .toMatchObject({ displayMode: 'rollup', managed: 'all' });
+  });
+
+  it('never sends a name of undefined', () => {
+    expect(shareRequestBody({ filter: FILTER, recipients: people }).name).toBe('');
+  });
+});
+
+describe('appliedSavedMatrix', () => {
+  const list = [{ id: 'sf-1', name: 'HR users' }, { id: 'sf-2', name: 'Everyone' }];
+
+  it('prefers the matrix the result IS, then the one being edited', () => {
+    expect(appliedSavedMatrix({ savedMatch: list[1], editingSaved: list[0], savedFilters: list })?.id).toBe('sf-2');
+    expect(appliedSavedMatrix({ savedMatch: null, editingSaved: list[0], savedFilters: list, initialFilter: { savedFilterId: 'sf-2' } })?.id).toBe('sf-1');
+  });
+
+  it('falls back to the saved matrix the wizard was opened on, while it still exists', () => {
+    expect(appliedSavedMatrix({ savedFilters: list, initialFilter: { savedFilterId: 'sf-2' } })?.id).toBe('sf-2');
+    expect(appliedSavedMatrix({ savedFilters: list, initialFilter: { savedFilterId: 'sf-gone' } })).toBeNull();
+    expect(appliedSavedMatrix({ savedFilters: null, initialFilter: { savedFilterId: 'sf-2' } })).toBeNull();
+  });
+
+  it('tags nothing for a matrix that was never saved', () => {
+    expect(appliedSavedMatrix({ savedFilters: list, initialFilter: null })).toBeNull();
+    expect(appliedSavedMatrix({ savedFilters: list, initialFilter: {} })).toBeNull();
   });
 });

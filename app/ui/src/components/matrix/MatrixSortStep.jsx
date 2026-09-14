@@ -1,6 +1,7 @@
-// The Matrix wizard's "Sort" step — column order, plus the two options that
-// decide how the matrix OPENS: folded into count columns, and whether the scope
-// statistics (trends & breakdown) panel comes with it.
+// The Matrix wizard's "Group & sort columns" section (Layout step, #1202) —
+// column order, plus whether the matrix OPENS with its first group folded into
+// count columns. The trends & breakdown toggle moved to the Layout step's
+// "Open with" section.
 //
 // Extracted from MatrixFilterWizard.jsx, which is over the file-size ceiling and
 // may only shrink.
@@ -15,10 +16,9 @@ import {
 } from './sortStepState';
 
 export default function MatrixSortStep({
-  sortAttributes, columns, disabled, onChange,
+  sortAttributes, columns, onChange,
   foldOnLoad = 'auto', onFoldChange, assignmentCount = 0,
   sortHierarchy, onHierarchyChange,
-  showTrends = false, onShowTrendsChange,
 }) {
   const { authFetch } = useAuth();
   // Any attribute can be sorted on, including ext.* extended attributes — the
@@ -55,7 +55,7 @@ export default function MatrixSortStep({
   return (
     <div className="space-y-3">
       <div>
-        <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-1">Sort columns</h3>
+        <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-1">Group &amp; sort columns</h3>
         <p className="text-xs text-gray-500 dark:text-gray-400">
           Order the columns by attributes, or by the Manager Hierarchy tree. The chosen levels appear as
           grouped header rows — click a header value to fold that group into a single count column.
@@ -98,10 +98,6 @@ export default function MatrixSortStep({
             unfold a group to reveal the next level — down to individual people.
           </p>
         </div>
-      ) : disabled ? (
-        <p className="text-xs text-gray-500 dark:text-gray-400 italic">
-          Sorting doesn’t apply in roll-up mode — columns are the roll-up groups, ordered alphabetically.
-        </p>
       ) : (
         <>
           {rows.map((r, i) => (
@@ -142,29 +138,18 @@ export default function MatrixSortStep({
         </>
       )}
 
-      {/* How the matrix opens. Both are properties of the matrix, so they are
-          saved and shared with it. */}
-      <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700 space-y-2">
-        {!disabled && !isHierarchy && (
+      {/* Whether the matrix opens folded is a property of the matrix, so it is
+          saved and shared with it. A hierarchy sort opens at its top level instead. */}
+      {!isHierarchy && (
+        <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700">
           <OpenWithToggle checked={foldChecked} onChange={(v) => onFoldChange?.(v)}>
             Open with the first group folded into count columns
             {foldOnLoad === 'auto' && (
               <span className="text-gray-500 dark:text-gray-400"> — auto ({autoFold ? 'on' : 'off'}: {assignmentCount.toLocaleString()} assignments, folds at {FOLD_AUTO_THRESHOLD.toLocaleString()}+ to keep rendering fast)</span>
             )}
           </OpenWithToggle>
-        )}
-
-        {/* #1202: the scope-statistics panel used to sit above every matrix,
-            pushing the grid down. It is reporting tooling — opt in per matrix. */}
-        <OpenWithToggle checked={!!showTrends} onChange={(v) => onShowTrendsChange?.(v)}>
-          Show trends &amp; breakdown above the matrix
-          <span className="block text-gray-500 dark:text-gray-400">
-            Adds the scope-statistics panel: subject / resource / assignment totals, the governed split,
-            and — on expand — the history of each and a per-department breakdown. Off by default, so the
-            matrix starts at the top of the page.
-          </span>
-        </OpenWithToggle>
-      </div>
+        </div>
+      )}
     </div>
   );
 }

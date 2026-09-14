@@ -6,7 +6,7 @@
 // itself, so before this change the same role appeared twice in one matrix:
 // as a governance (SOLL) column AND as an ordinary resource row. Business
 // roles are now off the resource axis by default, with a matrix-level opt-in
-// ("Show business roles as foldable rows" on the wizard's Resources step) for the
+// (the "Resources and business roles" choice on the wizard's Resources step) for the
 // deliberate "which access packages do people hold" matrix.
 //
 // Run against the live, demo-data-loaded app. Everything is read from the
@@ -108,15 +108,18 @@ test.describe('#937 — business roles are not matrix rows', () => {
     await expect(openWizard).toBeVisible({ timeout: 60000 });
     await openWizard.click();
 
-    // Setup → Subjects → Resources.
+    // Subjects (where the wizard opens) → Resources.
     const next = page.getByRole('button', { name: 'Next' });
     await expect(next).toBeVisible({ timeout: 30000 });
     await next.click();
-    await next.click();
 
-    const checkbox = page.getByRole('checkbox', { name: /Show business roles as foldable rows/i });
-    await expect(checkbox).toBeVisible();
-    await expect(checkbox).not.toBeChecked();
+    // The opening choice of the Resources step (#1202). A choice card carries its
+    // state in aria-pressed; its accessible name is the title plus description.
+    const resourcesOnly = page.getByRole('button', { name: /^Resources\s*Groups, roles, apps/ });
+    const withRoles = page.getByRole('button', { name: /^Resources and business roles/ });
+    await expect(withRoles).toBeVisible();
+    await expect(resourcesOnly).toHaveAttribute('aria-pressed', 'true');
+    await expect(withRoles).toHaveAttribute('aria-pressed', 'false');
 
     // The live summary's resource count is the wizard's own view of the row
     // set, so it must move when the flag does.
@@ -130,8 +133,9 @@ test.describe('#937 — business roles are not matrix rows', () => {
     };
     const before = await readCount();
 
-    await checkbox.check();
-    await expect(checkbox).toBeChecked();
+    await withRoles.click();
+    await expect(withRoles).toHaveAttribute('aria-pressed', 'true');
+    await expect(resourcesOnly).toHaveAttribute('aria-pressed', 'false');
     await expect.poll(readCount, { timeout: 30000 }).toBeGreaterThan(before);
   });
 

@@ -6,6 +6,25 @@
 // so the three can't drift on what "shared" means or how a link is spelled.
 
 import { matrixFilterFingerprint } from '@ui/utils/matrixFilter';
+import { displayModeOf } from '@ui/components/shared/sharedSnapshot';
+
+// The body POSTed to /api/matrix/shares — one shape for both places that create
+// a share: the share form (matrix bar, Admin) and the wizard's Save & share step.
+//
+// A matrix that is already saved is shared BY ID, and nothing else is sent: its
+// name, filter and lens are the saved row's, and sending them again is the "asked
+// for a second name" confusion #1202 was filed about. An unsaved one is saved and
+// shared in the same request under the single name given.
+export function shareRequestBody({ savedFilterId = null, name, filter, managed, recipients }) {
+  if (savedFilterId) return { savedFilterId, recipients };
+  return {
+    name: String(name ?? '').trim(),
+    filter,
+    managed: managed || 'all',
+    displayMode: displayModeOf(filter),
+    recipients,
+  };
+}
 
 // The saved matrix the current view IS, or null when the view is unsaved.
 //
@@ -36,6 +55,18 @@ export function wizardPreferredSavedId(editingSaved, initialFilter) {
 // the save bar can tell identical saved matrices apart.
 export function tagWithSavedMatrix(filter, saved) {
   return saved ? { ...filter, savedFilterId: saved.id } : filter;
+}
+
+// The saved matrix the wizard tags its Apply with: the one the result IS, else
+// the one being edited, else the one the wizard was opened on. Keeping the tag
+// on a CHANGED matrix is what lets the strip say "Unsaved changes" rather than
+// forgetting where the matrix came from.
+// (Same name and semantics as the helper the strip slice added — one of the two
+// is dropped when the branches meet.)
+export function appliedSavedMatrix({ savedMatch, editingSaved, savedFilters, initialFilter }) {
+  if (savedMatch || editingSaved) return savedMatch || editingSaved;
+  const tag = initialFilter?.savedFilterId;
+  return (tag && Array.isArray(savedFilters) && savedFilters.find(s => s.id === tag)) || null;
 }
 
 // The live share of a saved matrix, out of the org-wide share list. A revoked

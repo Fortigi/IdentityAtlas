@@ -33,6 +33,11 @@ export const EMPTY_FILTER = {
   // so showing them as rows too lists the same role on both axes. A property of
   // the matrix (saved and shared with it), not of the viewer.
   includeBusinessRoles: false,
+  // Also fold in access inherited from higher scopes (Owner on a subscription ⇒
+  // Indirect on everything beneath it), computed on demand by the API. Off by
+  // default; a property of the matrix, saved with it — so it must survive being
+  // adjusted, which it did not while the normaliser dropped it (#1202).
+  includeInheritedAccess: false,
   // Roll-up: aggregate the subject (column) axis by this attribute. null = off.
   rollup: null,
   // What the roll-up shows (only when rollup is set):
@@ -116,6 +121,8 @@ export function normalizeMatrixFilter(f) {
     // to the server, and coercing a stray truthy value here would tick the box
     // while the rows stayed hidden.
     includeBusinessRoles: src.includeBusinessRoles === true,
+    // Strict for the same reason: the API reads only a real `true`.
+    includeInheritedAccess: src.includeInheritedAccess === true,
     rollup: text(src.rollup),
     rollupContent: oneOf(src.rollupContent, ['resources-and-roles', 'resources-only', 'roles-only']),
     rollupMetric: oneOf(src.rollupMetric, ['count', 'percent']),

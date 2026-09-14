@@ -126,7 +126,7 @@ test.describe('Matrix — fold business-role resources', () => {
   test.setTimeout(90000);
 
   // `includeBusinessRoles` is what puts business roles on the resource axis at
-  // all — the wizard's "Show business roles as foldable rows" (#937). Without it
+  // all — the wizard's "Resources and business roles" choice (#937). Without it
   // the grid holds no role rows and nothing below could exist; the default
   // matrix is covered by matrix-business-role-rows.spec.js instead.
   const ALL_DATA_FILTER = {
@@ -773,15 +773,25 @@ test.describe('Matrix — Contexts column', () => {
 // The steps the wizard can show, and a marker that only renders once that
 // step's body is on screen. Keyed by the label in the step indicator.
 const STEP_MARKERS = {
-  Setup:     'Subject type',
-  Content:   'Roll-up content',
-  Subjects:  /Narrow down the (users|identities) that appear as rows/,
-  Resources: 'Narrow down the resources that appear as columns',
-  Sort:      'Sort columns',
-  // The wizard's optional last step, offered to anyone with `data.share` (#1166).
-  // A matrix that is already shared opens that step on its recipients instead.
-  Share:     /^(Share this matrix \(optional\)|Shared with)$/,
+  Subjects:       /Narrow down the (users|identities) in the matrix/,
+  Resources:      'Narrow down the resources in the matrix',
+  Layout:         'Group & sort columns',
+  // The last step, always present (#1202): saving needs no share permission.
+  'Save & share': 'Leave empty to show it without saving. Saved matrices are visible to everyone in the org.',
 };
+
+// The wizard's one primary button on its last step shows the matrix. Adjusting a
+// saved matrix prefills its name, and an unchanged one reads "Show matrix"; any
+// real change turns it into "Save changes & show" — which would write to a
+// matrix everyone sees. These specs never mean to save, so they empty the name
+// first whenever the button offers anything but showing.
+async function showWithoutSaving(page) {
+  const show = page.getByRole('button', { name: 'Show matrix', exact: true });
+  if (!await show.isVisible()) {
+    await page.getByLabel('Name', { exact: true }).fill('');
+  }
+  await show.click();
+}
 
 // Records the counts of every matrix payload the page loads, newest last, so a
 // test can assert the matrix before and after an adjust is the same one.
@@ -827,9 +837,9 @@ function visibleRowNames(page) {
 // nothing, and apply. Returns the labels of the steps that were visited.
 async function adjustWithoutChanges(page) {
   await page.getByRole('button', { name: 'Adjust matrix' }).click();
-  await expect(page.getByText(STEP_MARKERS.Setup)).toBeVisible({ timeout: 20000 });
+  await expect(page.getByText(STEP_MARKERS.Subjects)).toBeVisible({ timeout: 20000 });
 
-  // The step list is dynamic (a roll-up adds Content and drops Sort), so read it
+  // The step list is dynamic (a roles-only roll-up drops Resources), so read it
   // off the indicator rather than assuming a fixed sequence.
   const stepButtons = page.getByRole('button', { name: /^Go to step \d+: / });
   const labels = (await stepButtons.allTextContents()).map(t => t.replace(/^\d+|✓/, '').trim());
@@ -842,8 +852,9 @@ async function adjustWithoutChanges(page) {
     await expect(page.getByText(marker).first()).toBeVisible({ timeout: 10000 });
   }
 
-  // Apply is only offered on the last step, which is where the walk ended.
-  await page.getByRole('button', { name: 'Apply', exact: true }).click();
+  // The walk ended on the last step. Nothing changed, so its one primary button
+  // must offer to SHOW the matrix — never to save changes that were not made.
+  await page.getByRole('button', { name: 'Show matrix', exact: true }).click();
   await expect(page.getByText(STEP_MARKERS[labels[labels.length - 1]]).first())
     .toBeHidden({ timeout: 10000 });
   return labels;
@@ -890,10 +901,9 @@ test.describe('Matrix — adjust without changing anything', () => {
     expect(rowsBefore.length, 'the grid rendered no resource rows').toBeGreaterThan(0);
 
     const steps = await adjustWithoutChanges(page);
-    // 'Share' is the wizard's optional last step, offered to anyone holding
-    // `data.share` (#1166) — which, on an auth-off deployment like the one under
-    // test, is everyone.
-    expect(steps).toEqual(['Setup', 'Subjects', 'Resources', 'Sort', 'Share']);
+    // Four steps, each answering one question (#1202). Save & share is always
+    // the last one — saving needs no share permission.
+    expect(steps).toEqual(['Subjects', 'Resources', 'Layout', 'Save & share']);
 
     // The page is still the matrix, not the error boundary.
     await expect(page.getByText('Something went wrong')).toBeHidden();
@@ -924,7 +934,7 @@ test.describe('Matrix — adjust without changing anything', () => {
 
   test('an identity matrix survives an adjust that changes nothing', async ({ page }) => {
     // rowType=identity makes the wizard lazy-load a different column set for the
-    // Subjects and Sort steps — those must render before the columns arrive too.
+    // Subjects and Layout steps — those must render before the columns arrive too.
     const crashes = [];
     page.on('pageerror', (err) => crashes.push(err.message));
 
@@ -1044,7 +1054,7 @@ test.describe('Matrix — no double scrollbar', () => {
 //
 //   * the save controls and the filter summary are ONE row;
 //   * the scope-statistics panel (trends & breakdown) is off unless the matrix
-//     asked for it, and the wizard's Sort step is where you ask.
+//     asked for it, and the wizard's Layout step is where you ask.
 test.describe('Matrix — the strip above the grid', () => {
   test.setTimeout(90000);
 
@@ -1084,7 +1094,7 @@ test.describe('Matrix — the strip above the grid', () => {
     await expect(bar.getByRole('button', { name: 'Adjust matrix' })).toBeVisible();
   });
 
-  test('trends & breakdown is off by default and the Sort step switches it on', async ({ page }) => {
+  test('trends & breakdown is off by default and the Layout step switches it on', async ({ page }) => {
     test.skip(!await openMatrix(page), 'matrix grid did not render (no data)');
 
     // Off: no panel, and none of its numbers, above the grid.
@@ -1093,16 +1103,17 @@ test.describe('Matrix — the strip above the grid', () => {
 
     await page.getByRole('button', { name: 'Adjust matrix' }).click();
     const steps = page.getByRole('button', { name: /^Go to step \d+: / });
-    await steps.filter({ hasText: 'Sort' }).click();
+    await steps.filter({ hasText: 'Layout' }).click();
 
     const box = page.getByRole('checkbox', { name: /Show trends & breakdown/ });
     await expect(box).toBeVisible({ timeout: 20000 });
     await expect(box).not.toBeChecked();
     await box.check();
 
-    // Apply is offered on the last step, whichever that is for this role.
+    // Show it from the last step — without saving the change into whichever
+    // saved matrix this filter happens to be.
     await steps.last().click();
-    await page.getByRole('button', { name: 'Apply', exact: true }).click();
+    await showWithoutSaving(page);
 
     // On: the panel is there, with its live numbers.
     await expect(page.getByRole('button', { name: /Trends & breakdown/i })).toBeVisible({ timeout: 30000 });

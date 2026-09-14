@@ -233,40 +233,61 @@ describe('ShareMatrixDialog — sharing a matrix that is already saved', () => {
   });
 });
 
-describe('WizardShareStep', () => {
-  it('offers the same save-and-share form as the wizard’s last step', async () => {
+describe('WizardShareStep — the Share with section of the wizard’s last step', () => {
+  // Picking people here must NOT share by itself: the wizard's one primary button
+  // saves the matrix and then shares it. So the section is the people field and
+  // nothing that POSTs.
+  it('offers the same people field as the share form, and no button of its own', async () => {
     const authFetch = stubApi();
-    renderWithProviders(<WizardShareStep filter={FILTER} managed="all" />, { auth: { ...sharer, authFetch } });
+    const onRecipientsChange = vi.fn();
+    renderWithProviders(
+      <WizardShareStep filter={FILTER} managed="all" recipients={[]} onRecipientsChange={onRecipientsChange} />,
+      { auth: { ...sharer, authFetch } },
+    );
     const user = userEvent.setup();
 
-    // Named as optional — Apply is still the ordinary way out of the wizard.
-    expect(screen.getByText(/Share this matrix \(optional\)/i)).toBeInTheDocument();
-    await user.type(screen.getByRole('textbox', { name: /Name this matrix/i }), 'Team access');
+    expect(screen.queryByRole('textbox', { name: /Name this matrix/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Save & share|Share matrix/ })).not.toBeInTheDocument();
     await pickPerson(user, 'Ann Manager');
-    await user.click(screen.getByRole('button', { name: 'Save & share' }));
-
-    expect(await screen.findByText(buildShareUrl(SHARE_ID))).toBeInTheDocument();
-    expect(postBody(authFetch).recipients).toEqual([
+    expect(onRecipientsChange).toHaveBeenLastCalledWith([
       { principalId: ANN.id, userKey: 'ann@contoso.com', displayName: 'Ann Manager' },
     ]);
+    expect(postBody(authFetch)).toBeNull();
   });
 
   // The #1202 repro: adjust a shared matrix and the wizard shows it is shared.
   it('shows the shared state of the matrix being adjusted, and manages it there', async () => {
     const authFetch = stubApi({ shares: [LIVE_SHARE] });
     renderWithProviders(
-      <WizardShareStep filter={FILTER} managed="all" saved={{ id: SAVED_ID, name: 'Sales team access', shared: true, recipientCount: 1 }} />,
+      <WizardShareStep filter={FILTER} managed="all" recipients={[]} onRecipientsChange={() => {}} saved={{ id: SAVED_ID, name: 'Sales team access', shared: true, recipientCount: 1 }} />,
       { auth: { ...sharer, authFetch } },
     );
 
     expect(await screen.findByText(/Shared with 1 person/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Stop sharing' })).toBeInTheDocument();
-    expect(screen.queryByRole('textbox', { name: /Name this matrix/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: /^Share with/i })).not.toBeInTheDocument();
   });
 
-  it('offers nothing to share when the matrix is too large to load', () => {
-    renderWithProviders(<WizardShareStep filter={FILTER} managed="all" blocked />, { auth: sharer });
+  it('offers new recipients, not the original’s, when the shared matrix is saved as a copy', () => {
+    renderWithProviders(
+      <WizardShareStep copy filter={FILTER} managed="all" recipients={[]} onRecipientsChange={() => {}} saved={{ id: SAVED_ID, name: 'Sales team access', shared: true }} />,
+      { auth: { ...sharer, authFetch: stubApi({ shares: [LIVE_SHARE] }) } },
+    );
+    expect(screen.getByRole('textbox', { name: /^Share with/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Stop sharing' })).not.toBeInTheDocument();
+  });
+
+  it('offers nothing to share when the matrix is too large to load — but still manages an existing share', async () => {
+    const { unmount } = renderWithProviders(<WizardShareStep filter={FILTER} managed="all" recipients={[]} blocked />, { auth: sharer });
     expect(screen.getByText(/too large to load/i)).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Save & share' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: /^Share with/i })).not.toBeInTheDocument();
+    unmount();
+
+    renderWithProviders(
+      <WizardShareStep blocked filter={FILTER} managed="all" recipients={[]} saved={{ id: SAVED_ID, name: 'Sales team access', shared: true }} />,
+      { auth: { ...sharer, authFetch: stubApi({ shares: [LIVE_SHARE] }) } },
+    );
+    expect(await screen.findByRole('button', { name: 'Stop sharing' })).toBeInTheDocument();
+    expect(screen.queryByText(/too large to load/i)).not.toBeInTheDocument();
   });
 });
