@@ -1,2 +1,0 @@
-- Fixed the SCIM 2.0 crawler not storing extra attributes that a provider serves under a schema-extension URN. Attributes picked in the wizard — including every group attribute, since the standard group schema offers none of its own — now sync their values instead of arriving empty.
-- Documented how extension attributes are matched (plain name in the picker, extension URN in the data, base schema wins a name clash) and added a troubleshooting entry for an attribute a provider only returns on a single-resource request.
