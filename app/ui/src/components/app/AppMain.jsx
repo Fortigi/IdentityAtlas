@@ -1,6 +1,7 @@
 import { Suspense, createElement, lazy, useState } from 'react';
 import DetailRoute from './DetailRoute';
 import MatrixArea from './MatrixArea';
+import MatrixWizardHost from './MatrixWizardHost';
 
 const ShareMatrixDialog = lazy(() => import('@ui/components/matrix/ShareMatrixDialog'));
 
@@ -30,6 +31,7 @@ function LoadingPane({ label }) {
 export default function AppMain({ isDetail, detailRouteProps, staticRoute, pageCtx, loading, matrixProps }) {
   const [shareTarget, setShareTarget] = useState(null);
 
+  const onMatrixPage = !isDetail && !staticRoute;
   let body;
   if (isDetail) {
     body = <DetailRoute {...detailRouteProps} />;
@@ -51,6 +53,10 @@ export default function AppMain({ isDetail, detailRouteProps, staticRoute, pageC
       {/* Its own boundary, and outside the one above: the dialog is a lazy chunk,
           and sharing the body's boundary would replace the matrix with "Loading…"
           while that chunk arrives. */}
+      {/* The wizard lives here too, for the same reason (MatrixWizardHost). */}
+      <Suspense fallback={null}>
+        {onMatrixPage && <MatrixWizardHost {...matrixProps} />}
+      </Suspense>
       <Suspense fallback={null}>
         {shareTarget && (
           <ShareMatrixDialog

@@ -31,7 +31,16 @@ function viewStub(testId) {
 vi.mock('@ui/components/MatrixView', () => viewStub('grid-view'));
 vi.mock('@ui/components/RotatedMatrixView', () => viewStub('rotated-view'));
 vi.mock('@ui/components/RollupMatrixView', () => viewStub('rollup-view'));
-vi.mock('@ui/components/matrix/MatrixFilterWizard', () => ({ default: () => null }));
+// A stub wizard that holds typed state of its own, so a remount (which resets
+// it) is visible — the bug an Adjust opened mid-load used to hit (#1202).
+vi.mock('@ui/components/matrix/MatrixFilterWizard', async () => {
+  const { useState } = await import('react');
+  function WizardStub({ open }) {
+    const [draft, setDraft] = useState('');
+    return open ? <input aria-label="Wizard draft" value={draft} onChange={e => setDraft(e.target.value)} /> : null;
+  }
+  return { default: WizardStub };
+});
 vi.mock('./DetailRoute', () => ({ default: () => <div data-testid="detail" /> }));
 
 import AppMain from './AppMain';
@@ -42,7 +51,7 @@ const ROLLUP = { attribute: 'department', resources: [], groupValues: [], cells:
 // The load is driven from INSIDE the tree, the way the real app does it when a
 // matrix payload lands — re-rendering from the test would tear down the
 // providers too and prove nothing about the swap.
-function Shell({ matrixFilter = FILTER, nextRollup = ROLLUP, ...rest }) {
+function Shell({ matrixFilter = FILTER, nextRollup = ROLLUP, wizardOpenProp = false, ...rest }) {
   const [state, setState] = useState({ loading: false, rollup: null });
   return (
     <>
@@ -50,7 +59,7 @@ function Shell({ matrixFilter = FILTER, nextRollup = ROLLUP, ...rest }) {
       <button type="button" onClick={() => setState({ loading: false, rollup: nextRollup })}>matrix payload arrives</button>
       <AppMain
         loading={state.loading}
-        matrixProps={{ matrixFilter, managedFilter: 'all', rollup: state.rollup }}
+        matrixProps={{ matrixFilter, managedFilter: 'all', rollup: state.rollup, wizardOpen: wizardOpenProp }}
         {...rest}
       />
     </>
@@ -122,9 +131,25 @@ describe('AppMain', () => {
     await waitFor(() => expect(screen.queryByText('Share this matrix')).not.toBeInTheDocument());
   });
 
-  it('renders a detail route instead of the matrix when one is open', () => {
-    renderShell({ isDetail: true, detailRouteProps: {} });
+  it('keeps an open wizard — and what was typed into it — through a refetch and a view swap', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<Shell wizardOpenProp />, { auth: { authFetch: makeAuthFetch({}) } });
+    await screen.findByTestId('grid-view');
+    await user.type(await screen.findByRole('textbox', { name: 'Wizard draft' }), 'half-edited');
+
+    await user.click(screen.getByRole('button', { name: 'matrix refetches' }));
+    expect(screen.getByText('Loading permission data...')).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Wizard draft' })).toHaveValue('half-edited');
+
+    await user.click(screen.getByRole('button', { name: 'matrix payload arrives' }));
+    expect(await screen.findByTestId('rollup-view')).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Wizard draft' })).toHaveValue('half-edited');
+  });
+
+  it('renders a detail route instead of the matrix when one is open, with no wizard', () => {
+    renderShell({ isDetail: true, detailRouteProps: {}, wizardOpenProp: true });
     expect(screen.getByTestId('detail')).toBeInTheDocument();
     expect(screen.queryByTestId('grid-view')).not.toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: 'Wizard draft' })).not.toBeInTheDocument();
   });
 });

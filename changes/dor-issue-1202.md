@@ -22,3 +22,4 @@
 - Saving happens in the wizard's last step: give the matrix a name to save it, or leave the name empty to just show it. One button follows what you filled in — **Show matrix**, **Save & show**, or **Save changes & show** when you are adjusting a saved matrix (with **Save as a copy instead** next to it). Picking people to share with saves and shares in the same click, and a name that is already taken is shown right on the name field.
 - A saved matrix can now carry a description, added from the wizard's Save & share step.
 - The separate "Saved matrices" dropdown and "Save matrix…" button were removed from the wizard; open saved matrices from the matrix itself.
+- Adjusting a matrix while it is still loading no longer throws away what you had changed in the wizard and sends you back to the first step.
