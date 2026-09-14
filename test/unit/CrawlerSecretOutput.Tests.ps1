@@ -24,6 +24,14 @@ BeforeAll {
     $script:crawlers = Join-Path $script:repoRoot 'tools' 'crawlers'
     $script:S        = 'SENTINEL-s3cr3t-7f1c'
 
+    # The Connect-* functions check every base and token URL with the public-URL guard
+    # (tools/crawlers/shared/Assert-FGPublicUrl.ps1), which resolves the host through
+    # DNS. The *.example.test hosts in this file never resolve, so every connection was
+    # refused before it reached the mocked HTTP boundary. Each crawler block below
+    # mocks the guard's DNS seam to a public address, so the guard still runs; it has
+    # its own tests in AssertFGPublicUrl.Tests.ps1.
+    $script:PublicTestAddress = '93.184.216.34'
+
     . (Join-Path $script:crawlers 'shared' 'Invoke-CrawlerIngest.ps1')
     . (Join-Path $script:repoRoot 'tools' 'powershell-sdk' 'graph' 'Get-FGAccessToken.ps1')
 
@@ -75,6 +83,7 @@ Describe 'SCIM: Resolve-ScimConfig / Connect-ScimAPI' {
     BeforeAll {
         . (Join-Path $script:crawlers 'scim' 'ScimCrawler.Transform.ps1')
         . (Join-Path $script:crawlers 'scim' 'ScimCrawler.Functions.ps1')
+        Mock Resolve-FGHostAddress { @($script:PublicTestAddress) }
     }
 
     It 'resolving the config prints nothing secret' {
@@ -111,6 +120,7 @@ Describe 'midPoint: Resolve-MidpointConfig / Connect-MidpointSession' {
         . (Join-Path $script:crawlers 'midpoint' 'MidpointCrawler.Functions.ps1')
         . (Join-Path $script:crawlers 'midpoint' 'MidpointCrawler.Transform.ps1')
         . (Join-Path $script:crawlers 'midpoint' 'MidpointCrawler.Phases.ps1')
+        Mock Resolve-FGHostAddress { @($script:PublicTestAddress) }
     }
 
     It 'resolving the config prints nothing secret' {
@@ -140,6 +150,7 @@ Describe 'OData / Omada: Resolve-OmadaConfig / Connect-OmadaSession / Connect-OD
         . (Join-Path $script:crawlers 'omada' 'OmadaCrawler.Functions.ps1')
         . (Join-Path $script:crawlers 'omada' 'OmadaCrawler.Transform.ps1')
         . (Join-Path $script:crawlers 'omada' 'OmadaCrawler.Phases.ps1')
+        Mock Resolve-FGHostAddress { @($script:PublicTestAddress) }
     }
 
     It 'resolving the Omada config prints nothing secret' {
