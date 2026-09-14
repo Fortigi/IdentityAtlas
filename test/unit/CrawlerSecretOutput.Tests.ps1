@@ -75,6 +75,14 @@ Describe 'SCIM: Resolve-ScimConfig / Connect-ScimAPI' {
     BeforeAll {
         . (Join-Path $script:crawlers 'scim' 'ScimCrawler.Transform.ps1')
         . (Join-Path $script:crawlers 'scim' 'ScimCrawler.Functions.ps1')
+        # Connect-* runs the SSRF guard, which resolves the host for real. The
+        # invented .test hosts below are NXDOMAIN everywhere, so without this the
+        # guard rejects the URL before the connect path runs and every assertion
+        # below reads a rejection message instead of the output under test. The
+        # mock must come AFTER the dot-sourcing, which is what defines the
+        # function. Same pattern as ScimCrawlerFunctions.Tests.ps1; the guard
+        # itself is tested in AssertFGPublicUrl.Tests.ps1.
+        Mock Resolve-FGHostAddress { @('93.184.216.34') }
     }
 
     It 'resolving the config prints nothing secret' {
@@ -111,6 +119,7 @@ Describe 'midPoint: Resolve-MidpointConfig / Connect-MidpointSession' {
         . (Join-Path $script:crawlers 'midpoint' 'MidpointCrawler.Functions.ps1')
         . (Join-Path $script:crawlers 'midpoint' 'MidpointCrawler.Transform.ps1')
         . (Join-Path $script:crawlers 'midpoint' 'MidpointCrawler.Phases.ps1')
+        Mock Resolve-FGHostAddress { @('93.184.216.34') }   # see the SCIM block above
     }
 
     It 'resolving the config prints nothing secret' {
@@ -140,6 +149,7 @@ Describe 'OData / Omada: Resolve-OmadaConfig / Connect-OmadaSession / Connect-OD
         . (Join-Path $script:crawlers 'omada' 'OmadaCrawler.Functions.ps1')
         . (Join-Path $script:crawlers 'omada' 'OmadaCrawler.Transform.ps1')
         . (Join-Path $script:crawlers 'omada' 'OmadaCrawler.Phases.ps1')
+        Mock Resolve-FGHostAddress { @('93.184.216.34') }   # see the SCIM block above
     }
 
     It 'resolving the Omada config prints nothing secret' {
