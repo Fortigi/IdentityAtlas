@@ -10,9 +10,19 @@ These endpoints power the detail pages for users, resources, business roles, sys
 
 #### GET /api/user-columns-page
 
-Column discovery for the Users page. Returns all populated columns from the `Principals` table with the alphabetically first page of distinct values each (500 by default — see `MATRIX_VALUE_PAGE_SIZE` in [matrix.md](matrix.md#get-apimatrixcolumns)), plus the virtual `__userTag` column if any user tags exist. Used to build the filter UI on the Users page.
+Column discovery for the Users page. Returns all populated columns from the `Principals` table with the alphabetically first page of distinct values each (500 by default — see `MATRIX_VALUE_PAGE_SIZE` in [matrix.md](matrix.md#get-apimatrixcolumns)), plus the virtual `__userTag` column if any user tags exist and the virtual `__system` column (see below). Used to build the filter UI on the Users page.
 
 Same response format as [`GET /api/user-columns`](matrix.md#get-apiuser-columns).
+
+---
+
+#### The virtual `__system` filter column
+
+`/api/user-columns-page`, `/api/group-columns` (alias `/api/resource-columns-page`) and `/api/resource-columns` all offer a `__system` column whose values are the `Systems.displayName` of every connected system. The values come from the `Systems` table, not from distinct row values, so a system with no principals or resources is still offered as a filter value. On the `?schema=true` fast path the column is returned with an empty value list.
+
+Passing it back as a filter — `filters={"__system":"<displayName>"}` on `/api/users`, `/api/groups` or `/api/resources` — narrows the list to that system's rows. `Systems.displayName` is not unique, so two systems sharing a name both match.
+
+The raw `systemId` column stays excluded from column discovery (`db/columnCache.js`) on purpose: surfacing it there would put an opaque integer field into every discovery-driven surface (the matrix attribute picker, the permissions grid, tags, the context-plugin attribute dropdown). `__system` is a list-page filter only.
 
 ---
 
@@ -29,7 +39,7 @@ Paginated list of principals with their tags.
 | `search` | string | | Full-text search on `displayName` and `userPrincipalName` (SQL `LIKE %term%`) |
 | `limit` | int | 100 | Page size. Maximum: 500. |
 | `offset` | int | 0 | Pagination offset. |
-| `filters` | JSON string | | Attribute filters. Same format as [Matrix filters](matrix.md#filter-architecture). |
+| `filters` | JSON string | | Attribute filters. Same format as [Matrix filters](matrix.md#filter-architecture). Also accepts the virtual `__userTag` and `__system` keys. |
 
 **Response**
 
@@ -162,7 +172,7 @@ Version history for a user principal. Each entry represents a recorded change fr
 
 #### GET /api/group-columns
 
-Column discovery for the Groups/Resources page. Returns populated columns from the `Resources` table with the alphabetically first page of distinct values each (500 by default — see `MATRIX_VALUE_PAGE_SIZE` in [matrix.md](matrix.md#get-apimatrixcolumns)), plus the virtual `__groupTag` column if any group tags exist.
+Column discovery for the Groups/Resources page. Returns populated columns from the `Resources` table with the alphabetically first page of distinct values each (500 by default — see `MATRIX_VALUE_PAGE_SIZE` in [matrix.md](matrix.md#get-apimatrixcolumns)), plus the virtual `__groupTag` column if any group tags exist and the virtual `__system` column (see below).
 
 **Reads From:** `Resources` (via `db/columnCache.js`, 5-minute TTL)
 
@@ -193,7 +203,7 @@ Paginated resource list with optional type and system filters. Used by the Resou
 | `systemId` | string | | Filter by originating system |
 | `limit` | int | 100 | Page size. Maximum: 500. |
 | `offset` | int | 0 | Pagination offset. |
-| `filters` | JSON string | | Attribute filters. |
+| `filters` | JSON string | | Attribute filters. Also accepts the virtual `__resourceTag` and `__system` keys. |
 
 **Reads From:** `Resources` + `GraphTagAssignments` + `GraphTags`
 
