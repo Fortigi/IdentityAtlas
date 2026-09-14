@@ -175,6 +175,7 @@ stateDiagram-v2
 | Awaiting functional acceptance | Building | build or rework finished | `dor_build_flow.sh` / `dor_feedback_flow.sh` |
 | Awaiting merge | Awaiting functional acceptance | requestor accepts | `dor-acceptance`, after the org-member + classify gate |
 | **Done** | Awaiting merge | PR **merged** | `dor-reset` — also closes the issue and drops every in-flight label |
+| **Done** | any non-Done column | a PR from any **other** branch that closes the issue (`Closes #N`) is merged | `dor-reset` → [`dor_finalize_merged_pr.sh`](https://github.com/Fortigi/IdentityAtlas/blob/main/.github/scripts/dor_finalize_merged_pr.sh). Only issues already on a DoR board are moved |
 | Out of pipeline | Awaiting merge | PR closed **unmerged** | `dor-reset`, with a comment explaining how to restart |
 | Paused | Building | Claude usage limit | `dor_build_lib.sh` → work saved on the branch, runner released |
 | Building | Paused | every 6h | `dor-resume` re-dispatches |

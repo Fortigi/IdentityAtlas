@@ -1,0 +1,1 @@
+- Fixed pipeline board cards staying at "Awaiting merge" after their fix was merged. When a pull request from any branch closes a Feature or Bug Pipeline issue, that issue now moves to Done automatically — previously only the pipeline's own build branches did this.
