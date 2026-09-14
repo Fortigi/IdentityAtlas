@@ -267,6 +267,74 @@ Describe 'ConvertTo-ScimGroupRecord' {
     }
 }
 
+Describe 'Selected attributes from a schema extension (RFC 7643 §3.3)' {
+    # Discovery advertises extension-schema attributes as BARE names (discover.js
+    # flattens base + schemaExtensions into one list), but the resource JSON nests
+    # their values under the extension URN key. Every pickable group attribute is
+    # an extension attribute — the core Group schema only has displayName +
+    # members — so this is the whole opt-in picker for groups, not an edge case.
+    BeforeAll {
+        $script:acmeGroupUrn = 'urn:example:params:scim:schemas:extension:acme:2.0:Group'
+        $script:entUserUrn   = 'urn:ietf:params:scim:schemas:extension:enterprise:2.0:User'
+        $script:mapping      = @( @{ userType = ''; principalType = 'User' } )
+    }
+
+    It 'reads a selected group attribute nested under its extension URN' {
+        $g = [pscustomobject]@{
+            id          = 'g-1'
+            displayName = 'Admins'
+            schemas     = @('urn:ietf:params:scim:schemas:core:2.0:Group', $script:acmeGroupUrn)
+            $script:acmeGroupUrn = [pscustomobject]@{ type = 'security' }
+        }
+        $rec = ConvertTo-ScimGroupRecord -Group $g -SelectedAttributes @('type')
+        $rec['type'] | Should -Be 'security'
+    }
+
+    It 'reads an enterprise-extension user attribute the same way' {
+        $u = [pscustomobject]@{
+            id       = 'u-1'
+            userName = 'alice'
+            schemas  = @('urn:ietf:params:scim:schemas:core:2.0:User', $script:entUserUrn)
+            $script:entUserUrn = [pscustomobject]@{ department = 'Finance'; costCenter = 'CC9' }
+        }
+        $rec = ConvertTo-ScimPrincipalRecord -User $u -Mapping $script:mapping -SelectedAttributes @('department')
+        $rec['department'] | Should -Be 'Finance'
+        # Still opt-in: an extension attribute nobody selected stays out of the record.
+        $rec.ContainsKey('costCenter') | Should -BeFalse
+    }
+
+    It 'resolves a dotted sub-attribute inside an extension' {
+        $u = [pscustomobject]@{
+            id       = 'u-2'
+            userName = 'bob'
+            $script:entUserUrn = [pscustomobject]@{ manager = [pscustomobject]@{ displayName = 'Carol' } }
+        }
+        (Get-ScimSelectedAttributes -Object $u -Selected @('manager.displayName'))['manager.displayName'] | Should -Be 'Carol'
+    }
+
+    It 'prefers the base-schema value when an extension repeats the same name' {
+        # discover.js dedupes names across base + extensions, so a shared name is
+        # ambiguous by the time it reaches the picker: base schema wins.
+        $g = [pscustomobject]@{
+            id          = 'g-2'
+            displayName = 'HR'
+            description = 'from base'
+            $script:acmeGroupUrn = [pscustomobject]@{ description = 'from extension' }
+        }
+        (ConvertTo-ScimGroupRecord -Group $g -SelectedAttributes @('description')).description | Should -Be 'from base'
+    }
+
+    It 'still skips a complex extension attribute — v1 stores simple values only' {
+        $u = [pscustomobject]@{
+            id       = 'u-3'
+            userName = 'dave'
+            $script:entUserUrn = [pscustomobject]@{ manager = [pscustomobject]@{ displayName = 'Carol' } }
+        }
+        $out = Get-ScimSelectedAttributes -Object $u -Selected @('manager')
+        $out.ContainsKey('manager') | Should -BeFalse
+    }
+}
+
 Describe 'Resolve-ScimMemberKind' {
     BeforeAll {
         $script:users  = New-IdSet @('u-1', 'u-2', 'both')
