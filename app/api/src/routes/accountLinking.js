@@ -14,14 +14,17 @@ import * as db from '../db/connection.js';
 import { runLinking } from '../accountlinking/engine.js';
 import { DEFAULT_RULES } from '../accountlinking/defaultRules.js';
 import { requirePermission } from '../middleware/auth.js';
+import { ALL_PERMISSION_KEYS } from '../auth/permissions.js';
 
 const router = Router();
 const useSql = process.env.USE_SQL === 'true';
 // Same gate as risk-scoring runs — configured + scheduled from the Admin area.
 const gate = requirePermission('admin.crawlers');
+// Run history is shown on the Logs page to every mapped role (SEC-2026-09 M-01).
+const readRuns = requirePermission(...ALL_PERMISSION_KEYS);
 
 // ─── Config (the editable dictionary + schedules) ─────────────────
-router.get('/account-linking/config', async (_req, res) => {
+router.get('/account-linking/config', gate, async (_req, res) => {
   if (!useSql) return res.json({ id: null, rules: DEFAULT_RULES, schedules: [], isActive: true, defaults: true });
   try {
     const row = await db.queryOne(
@@ -97,7 +100,7 @@ router.post('/account-linking/runs', gate, async (req, res) => {
   }
 });
 
-router.get('/account-linking/runs', async (_req, res) => {
+router.get('/account-linking/runs', readRuns, async (_req, res) => {
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
   try {
     const r = await db.query(`SELECT * FROM "AccountLinkingRuns" ORDER BY "startedAt" DESC LIMIT 50`);
@@ -108,7 +111,7 @@ router.get('/account-linking/runs', async (_req, res) => {
   }
 });
 
-router.get('/account-linking/runs/:id', async (req, res) => {
+router.get('/account-linking/runs/:id', readRuns, async (req, res) => {
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) return res.status(400).json({ error: 'Invalid id' });

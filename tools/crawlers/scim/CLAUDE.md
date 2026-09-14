@@ -37,6 +37,9 @@ Unit tests: `test/unit/ScimCrawlerTransform.Tests.ps1`, `ScimCrawlerFunctions.Te
    The `members` arrays are retained.
 4. **Group members** — user members → `Direct` assignments; nested groups →
    `Contains` relationships **and** expanded per-user `Indirect` assignments.
+   Skipped (and the job failed) when the Users or Groups read failed: its batches
+   are full syncs over every Group assignment and `Contains` edge of the system,
+   so a partial id-set would delete live rows. `Invoke-ScimSyncPhases` owns that gate.
 
 ## Things that will bite you
 

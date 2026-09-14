@@ -60,6 +60,7 @@ function Sync-ScimUsers {
     $userIds           = [System.Collections.Generic.HashSet[string]]::new()
     $principalTypeById = @{}
     $count             = 0
+    $succeeded         = $true
     try {
         $writer = New-ScimIngestWriter -Endpoint 'ingest/principals' -SystemId $SystemId -ScopeKey 'principalType'
         $count  = Invoke-ScimSearchStream -Endpoint 'Users' -PageSize $PageSize -OnPage {
@@ -74,9 +75,12 @@ function Sync-ScimUsers {
         }
         Complete-ScimIngestWriter -Writer $writer -DeclaredBuckets $Buckets
         Write-Host "  $($userIds.Count) principal(s) from $count SCIM user(s)" -ForegroundColor Green
-    } catch { Add-ScimPhaseError 'Users' $_.Exception.Message }
+    } catch {
+        $succeeded = $false
+        Add-ScimPhaseError 'Users' $_.Exception.Message
+    }
 
-    return @{ userIds = $userIds; principalTypeById = $principalTypeById; count = $count }
+    return @{ userIds = $userIds; principalTypeById = $principalTypeById; count = $count; succeeded = $succeeded }
 }
 
 # ─── Phase: Groups → Resources ───────────────────────────────────
@@ -92,6 +96,7 @@ function Sync-ScimGroups {
     $groupIds   = [System.Collections.Generic.HashSet[string]]::new()
     $membership = [System.Collections.Generic.List[object]]::new()
     $count      = 0
+    $succeeded  = $true
     try {
         $writer = New-ScimIngestWriter -Endpoint 'ingest/resources' -SystemId $SystemId -FixedScope @{ resourceType = 'Group' }
         $count  = Invoke-ScimSearchStream -Endpoint 'Groups' -PageSize $PageSize -OnPage {
@@ -106,9 +111,47 @@ function Sync-ScimGroups {
         }
         Complete-ScimIngestWriter -Writer $writer -DeclaredBuckets @('Group')
         Write-Host "  $($groupIds.Count) group resource(s) from $count SCIM group(s)" -ForegroundColor Green
-    } catch { Add-ScimPhaseError 'Groups' $_.Exception.Message }
+    } catch {
+        $succeeded = $false
+        Add-ScimPhaseError 'Groups' $_.Exception.Message
+    }
 
-    return @{ groupIds = $groupIds; membership = $membership; count = $count }
+    return @{ groupIds = $groupIds; membership = $membership; count = $count; succeeded = $succeeded }
+}
+
+# ─── Orchestration: run the enabled phases in order ──────────────
+# The members phase sends FULL-sync batches scoped to every Group assignment and
+# every Contains edge of this system, so it is only a faithful reconcile when the
+# id-sets it classifies members against are complete. When the Users or Groups
+# phase failed, those sets are partial (or empty) and the batches would reconcile
+# away rows the source still has — so the phase is skipped and recorded as an
+# error, and Complete-ScimRun fails the job with the stored rows left untouched.
+# (SEC-2026-09 M-11)
+function Invoke-ScimSyncPhases {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][int]$SystemId, [Parameter(Mandatory)]$ScimCfg)
+    $sync   = $ScimCfg.sync
+    $users  = @{ userIds = [System.Collections.Generic.HashSet[string]]::new(); principalTypeById = @{}; succeeded = $true }
+    $groups = $null
+    if ($sync.users) {
+        $users = Sync-ScimUsers -SystemId $SystemId -PageSize $ScimCfg.pageSize `
+            -Mapping $ScimCfg.userTypeMapping -SelectedAttributes $ScimCfg.userAttributes -Buckets $ScimCfg.principalBuckets
+    }
+
+    if ($sync.groups) {
+        $groups = Sync-ScimGroups -SystemId $SystemId -PageSize $ScimCfg.pageSize -SelectedAttributes $ScimCfg.groupAttributes
+    }
+
+    # $groups is $null unless the Groups phase ran, so it already implies $sync.groups.
+    if (-not ($sync.groupMembers -and $groups)) { return }
+    if (-not ($users.succeeded -and $groups.succeeded)) {
+        Write-Host "`nGroup members: skipped — an earlier phase failed, so memberships cannot be reconciled safely" -ForegroundColor Yellow
+        $Script:phaseErrors.Add('GroupMembers: skipped because the Users or Groups phase failed')
+        return
+    }
+
+    Sync-ScimGroupMembers -SystemId $SystemId -Membership $groups.membership `
+        -UserIds $users.userIds -GroupIds $groups.groupIds -PrincipalTypeById $users.principalTypeById
 }
 
 # ─── Phase: Group members → assignments + nesting ────────────────

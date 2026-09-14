@@ -161,6 +161,8 @@ function contextClause({ entity, stateAlias, contextId, includeChildren, ctxType
           SELECT id FROM "Contexts" WHERE id = ${idP}
           UNION ALL
           SELECT c.id FROM "Contexts" c JOIN scope ON c."parentContextId" = scope.id)
+        -- CYCLE guard: a corrupt parent chain must not recurse forever (SEC-2026-09 I-08).
+        CYCLE id SET "isCycle" USING "cyclePath"
         SELECT "memberId" FROM "ContextMembers"
          WHERE "memberType" = ${mtP} AND "contextId" IN (SELECT id FROM scope))`
     : `(SELECT "memberId" FROM "ContextMembers"

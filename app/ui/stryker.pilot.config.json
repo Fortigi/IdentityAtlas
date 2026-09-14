@@ -41,6 +41,7 @@
     "src/components/crawler/saveCrawlerConfig.js",
     "src/components/crawler/useCrawlerSave.js",
     "src/components/crawler/useCredentialFields.js",
+    "src/components/crawler/useNetworkAccess.js",
     "src/components/crawler/useCrawlerDiscovery.js",
     "src/utils/attributeLabels.js",
     "src/components/shared/sharedSnapshot.js",

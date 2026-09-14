@@ -7,8 +7,13 @@
 
 import { Router } from 'express';
 import * as db from '../../db/connection.js';
+import { requirePermission } from '../../middleware/auth.js';
+import { ALL_PERMISSION_KEYS } from '../../auth/permissions.js';
 
 const router = Router();
+// Shown to every mapped role on the Dashboard; a zero-role caller is refused
+// (SEC-2026-09 M-01).
+const readDashboard = requirePermission(...ALL_PERMISSION_KEYS);
 
 // ─── Dashboard stats — one-shot overview of loaded data ────────────────────
 //
@@ -19,7 +24,7 @@ const router = Router();
 // Single round-trip to the database: one multi-value SELECT. If any table
 // doesn't exist yet (fresh install before migrations fully land) each
 // subquery falls back to zero via COALESCE.
-router.get('/admin/dashboard-stats', async (_req, res) => {
+router.get('/admin/dashboard-stats', readDashboard, async (_req, res) => {
   if (process.env.USE_SQL !== 'true') return res.status(503).json({ error: 'SQL not configured' });
   try {
     // Two-pass approach to keep the Home page snappy on large datasets:
@@ -105,7 +110,7 @@ router.get('/admin/dashboard-stats', async (_req, res) => {
 //
 // We deliberately do NOT backfill from history — the chart starts on the
 // day migration 027 applied and grows from there.
-router.get('/admin/dashboard-timeseries', async (req, res) => {
+router.get('/admin/dashboard-timeseries', readDashboard, async (req, res) => {
   if (process.env.USE_SQL !== 'true') return res.status(503).json({ error: 'SQL not configured' });
   try {
     const days = Math.min(Math.max(parseInt(req.query.days, 10) || 90, 1), 730);

@@ -45,7 +45,7 @@ export const FEATURE_FLAGS = {
 
 // WorkerConfig key for a flag name, e.g. 'riskScoring' → 'FEATURE_RISK_SCORING'.
 export function workerConfigKey(name) {
-  const def = FEATURE_FLAGS[name];
+  const def = Object.hasOwn(FEATURE_FLAGS, name) ? FEATURE_FLAGS[name] : null;
   return def ? `FEATURE_${def.key}` : null;
 }
 
@@ -70,7 +70,7 @@ export async function getFeatureOverride(key) {
 
 // Resolve one flag to a boolean: stored override (incl. legacy keys) → env default.
 export async function isFeatureEnabled(name) {
-  const def = FEATURE_FLAGS[name];
+  const def = Object.hasOwn(FEATURE_FLAGS, name) ? FEATURE_FLAGS[name] : null;
   if (!def) return false;
   let override = await getFeatureOverride(def.key);
   for (const legacy of def.legacyKeys || []) {

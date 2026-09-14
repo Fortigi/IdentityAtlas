@@ -128,3 +128,11 @@ describe('getPolicy', () => {
     expect(() => getPolicy('NopeOverrides')).toThrow();
   });
 });
+
+describe('getPolicy — inherited property names are unknown policies (SEC-2026-09 L-15)', () => {
+  for (const name of ['constructor', 'toString', '__proto__']) {
+    it(`throws for ${name}`, () => {
+      expect(() => getPolicy(name)).toThrow(/Unknown resolution policy/);
+    });
+  }
+});

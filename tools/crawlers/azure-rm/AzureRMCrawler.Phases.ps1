@@ -81,7 +81,10 @@ function Register-AzureRMSystem {
         syncMode = 'delta'
         records  = @(@{ systemType = 'AzureRM'; displayName = "Azure RM ($($Config.tenantId))"; tenantId = [string]$Config.tenantId; enabled = $true; syncEnabled = $true })
     }
-    $id = if ($sysResult.systemIds -and $sysResult.systemIds.Count -gt 0) { [int]$sysResult.systemIds[0] } else { 1 }
+    $id = if ($sysResult.systemIds -and $sysResult.systemIds.Count -gt 0) { [int]$sysResult.systemIds[0] } else { 0 }
+    # Every full-sync reconcile of the run is scoped to this id; guessing one would
+    # aim those deletes at another system's rows. (SEC-2026-09 M-11)
+    if ($id -le 0) { throw "Could not resolve the Azure RM system id after registration" }
     Write-Host "  System ID: $id" -ForegroundColor Green
     return $id
 }

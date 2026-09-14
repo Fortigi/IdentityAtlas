@@ -20,7 +20,7 @@ vi.mock('./secrets/crawlerSecrets.js', () => ({
 }));
 
 import { vaultedConfigFields } from './secrets/crawlerSecrets.js';
-import { _crawlerManifests, validateCrawlerConfig, validateStoredCrawlerConfig, hostBearingFields, isSingletonJob, isPushModeType, getPushModeType, isExperimentalType } from './crawlerManifests.js';
+import { validateCrawlerConfig, validateStoredCrawlerConfig, isSingletonJob, isPushModeType, getPushModeType, isExperimentalType, getUrlFields, _crawlerManifests } from './crawlerManifests.js';
 
 describe('validateStoredCrawlerConfig', () => {
   beforeEach(() => {
@@ -103,26 +103,6 @@ describe('validateStoredCrawlerConfig', () => {
   });
 });
 
-describe('hostBearingFields', () => {
-  it('always includes baseUrl and tokenEndpoint, once each', () => {
-    expect(hostBearingFields('midpoint')).toEqual(['baseUrl', 'tokenEndpoint']);
-    expect(hostBearingFields('entra-id')).toEqual(['baseUrl', 'tokenEndpoint']);
-    expect(hostBearingFields('no-such-type')).toEqual(['baseUrl', 'tokenEndpoint']);
-  });
-
-  it('adds manifest properties named *Url / *Uri / *Endpoint or declared with a uri format', () => {
-    _crawlerManifests['test-hosts'] = { configSchema: { properties: {
-      baseUrl: { type: 'string' }, authorityUri: { type: 'string' }, graphEndpoint: { type: 'string' },
-      mirror: { type: 'string', format: 'uri' }, tenantId: { type: 'string' }, urlPrefix: { type: 'string' },
-    } } };
-    try {
-      expect(hostBearingFields('test-hosts')).toEqual(['baseUrl', 'tokenEndpoint', 'authorityUri', 'graphEndpoint', 'mirror']);
-    } finally {
-      delete _crawlerManifests['test-hosts'];
-    }
-  });
-});
-
 // Manifest-driven capability flags. These let core code (routes/jobs.js,
 // routes/crawlers.js) avoid hardcoded `=== '<type>'` checks — the drift the
 // crawler-manifest CI check now blocks in app/api/src. Asserted against the
@@ -153,7 +133,37 @@ describe('capability flags', () => {
     }
   });
 
+  it('getUrlFields lists the credential-bearing URL fields of the REST connectors, and nothing for the rest', () => {
+    for (const type of ['omada', 'odata', 'midpoint', 'scim']) {
+      expect(getUrlFields(type), type).toEqual(['baseUrl', 'tokenEndpoint']);
+    }
+    for (const type of ['entra-id', 'azure-rm', 'csv', 'demo', 'custom-connector', 'does-not-exist']) {
+      expect(getUrlFields(type), type).toEqual([]);
+    }
+  });
+
+  it('getUrlFields ignores a malformed declaration instead of treating a string as a field list', () => {
+    _crawlerManifests['fixture-malformed-urlfields'] = { urlFields: 'baseUrl' };
+    _crawlerManifests['fixture-mixed-urlfields'] = { urlFields: ['baseUrl', 7, null] };
+    try {
+      expect(getUrlFields('fixture-malformed-urlfields')).toEqual([]);
+      expect(getUrlFields('fixture-mixed-urlfields')).toEqual(['baseUrl']);
+    } finally {
+      delete _crawlerManifests['fixture-malformed-urlfields'];
+      delete _crawlerManifests['fixture-mixed-urlfields'];
+    }
+  });
+
   it('isExperimentalType is false for an unknown type (no manifest)', () => {
     expect(isExperimentalType('does-not-exist')).toBe(false);
+  });
+});
+
+describe('manifest maps ignore inherited property names (SEC-2026-09 L-15)', () => {
+  it('an inherited name has no manifest and no validator', () => {
+    expect(validateCrawlerConfig('hasOwnProperty', {})).toBeNull();
+    expect(validateCrawlerConfig('constructor', {})).toBeNull();
+    expect(isPushModeType('__proto__')).toBe(false);
+    expect(isSingletonJob('toString')).toBe(false);
   });
 });

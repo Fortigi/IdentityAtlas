@@ -57,7 +57,7 @@ export default {
       unknownTier: { type: 'string', enum: ['High', 'Medium', 'Low'], description: 'Tier for unmapped permissions. Default "Low".' },
       includeAppReputation: { type: 'boolean', description: 'Also emit the malicious/suspicious app-reputation groups. Default true.' },
       useThreatFeed: { type: 'boolean', description: 'Fetch the OAuthSentry feed for the malicious group. Default true; falls back to heuristics if unreachable.' },
-      feedUrl: { type: 'string', description: 'OAuthSentry malicious-app feed CSV URL. Default the public all_malicious feed.' },
+      feedUrl: { type: 'string', description: 'OAuthSentry malicious-app feed CSV URL (https, public host; redirects are not followed). Default the public all_malicious feed.' },
       heuristics: { type: 'boolean', description: 'Flag suspicious apps (unverified publisher / low prevalence). Default true.' },
       lowPrevalenceThreshold: { type: 'integer', description: 'An app consented by at most this many principals is low-prevalence. Default 2.' },
     },

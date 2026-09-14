@@ -1,5 +1,60 @@
 ## Changes in this PR
 
+- Added a **System** filter to the Principals and Resources pages, so you can see and list only the users or resources that came from one connected system.
+- Every connected system is offered as a filter value by its display name — including a system that has no principals or resources yet.
+- Added two context plugins, **Principals by System** and **Resources by System**, that generate one context per connected system, named after the system. Use them to scope the matrix to a single system's users and/or resources.
+- Re-running either plugin keeps the contexts in step with the connected systems: a new system gets its own context, a removed system's context disappears, and renaming a system renames its context without losing your edits.
+
+## Changes in this PR
+
+- Published the September 2026 security re-assessment in the documentation: scope, method, all findings by severity with their remediation pull requests, a regression check against June 2026, and confirmed strengths
+
+## Changes in this PR
+
+- Hardened the outbound-URL safety check so every spelling of an internal, loopback, or cloud-metadata address (including IPv6 forms that embed an IPv4 address) is refused (SEC-2026-09 H-03)
+- Hardened the Risky Consent context plugin's threat-feed download: the feed URL must be https on a public host, redirects are not followed, and oversized responses are refused (SEC-2026-09 M-12)
+- Crawler base URLs and OAuth2 token endpoints are now checked when a crawler is saved, run, or used for live discovery: they must use https and point at a public address. On-premises systems can be reached by enabling the new "Allow private network" option, and plain http by enabling "Allow insecure HTTP"; cloud-metadata and link-local addresses are always refused (SEC-2026-09 M-02, M-03)
+- Live discovery in the crawler wizards no longer follows HTTP redirects, and the Omada wizard no longer shows internal error details when the server cannot be reached (SEC-2026-09 M-02, I-05)
+- Added "Allow private network" and "Allow insecure HTTP" options to the Omada, midPoint and SCIM crawler wizards, and documented them on each crawler's page
+- The worker now also refuses a crawler base URL or token endpoint that uses http or points at an internal address (unless the matching option is enabled), and stops paging if an OData server returns a next-page link on a different host (SEC-2026-09 M-03)
+- Fixed live discovery in the Omada wizard when adding a new crawler, which always reported that metadata could not be fetched
+
+## Changes in this PR
+
+- Hardened the SCIM crawler: when reading users or groups from the SCIM endpoint fails, the run no longer reconciles group memberships and nesting, so existing assignments are kept instead of being removed before the job is marked failed.
+- Hardened the midPoint crawler: phases that depend on an earlier read (resources, accounts and entitlements, role assignments, role nesting) are skipped, and the job fails, when that read failed, instead of reconciling over incomplete data.
+- Fixed the OData library (used by the Omada crawler) treating an empty response body as the end of the data; the read now fails instead of returning a silently truncated result.
+- Fixed the CSV, Azure RM and Entra ID crawlers continuing with a guessed system id when system registration returned none; the run now stops instead of syncing into another system.
+- Hardened the Entra ID crawler so the client secret is no longer written to a temporary file (a failed run used to leave it behind); credentials are passed in memory.
+- Hardened the worker so each crawler job runs in its own PowerShell process: credentials and tokens from one job are no longer available to the next.
+- Hardened the worker and the desktop launcher so a job's configuration (including credentials) and the worker API key are never passed on a process command line, and job logs no longer record the command line in their header.
+- Reduced the Entra ID access-review diagnostic log line to the review definition's id and name instead of the full object.
+- Removed the unused worker crontab file and its scheduler support; crawler schedules are managed in the web app. Recurring non-crawler tasks can be scheduled from the host (see the Docker setup docs).
+- Fixed the context-refresh post-sync step reading an outdated API URL setting; it now uses the same setting as the rest of the worker.
+
+## Changes in this PR
+
+- Hardened the automated issue-to-PR build pipeline: the build agent now only receives issue text written by the requestor, organisation members and the pipeline itself, and the spec records how many other comments were left out
+- Hardened the automated build pipeline so the build agent no longer has access to the pipeline's GitHub credentials, and so an automated change to CI configuration is stopped for human review instead of being pushed
+- Automated pull requests now point out changes to container images, compose files and package dependencies for the reviewer
+- Reduced the default permissions of the pull-request CI workflows and removed an unused site deployment workflow
+- Updated the `uuid` dependency used by the Excel export to a patched version and removed two unused API dependencies
+
+## Changes in this PR
+
+- Hardened access control on the API: the check that keeps read-only API keys away from admin endpoints can no longer be sidestepped by changing the letter case of the URL.
+- Dashboard statistics, run history (risk scoring, context plugins, account linking) and the update intent now require a signed-in user whose roles map to at least one permission; risk profile/classifier settings, history-retention settings, update status/history and the account-linking configuration now require the same admin permission as the screen that shows them.
+- The Performance page's request log no longer records query strings (search terms and filters), and is no longer readable with a read-only API key or by users without any mapped permission.
+- Fixed the role-mapping self-lockout guard so it also protects administrators holding the wildcard (`*`) permission; role-mapping changes are now recorded with the editor's immutable object id as well as their display name.
+- Hardened sign-in token validation against floods of tokens carrying unknown signing-key ids (rate-limited and time-bounded key lookups).
+- The update agent's reported versions are validated, and an agent's apply report can no longer make the update check believe a newer version is waiting.
+- Fixed searches treating `%` and `_` as wildcards; they now match literally.
+- Fixed a server error when a sort column, entity type or feature name matched a built-in JavaScript property name such as `constructor`.
+- Fixed "include child contexts" filters so a corrupt, circular context hierarchy can no longer make matrix and scope queries run until they time out.
+- Replaced example tenant and client ids in the `auth-config` CLI help with placeholders.
+
+## Changes in this PR
+
 - The matrix wizard now ends with a **Share** step: name the view, pick the colleagues it is for, and copy the link without leaving the wizard. The step is optional — **Apply** still commits the matrix from it.
 - A matrix is shared with **specific people**. Search the directory by name or e-mail and add one or more recipients; only they (and you) can open the link, so forwarding it to anybody else gets them nowhere. A share with no recipients cannot be created.
 - Added **Share view…** to the matrix toolbar for the same form, for when you are already looking at the matrix you want to send. The link captures the matrix exactly as it looks at that moment — the filter, the Governed/Non-governed/Gaps toggle and the display mode — while the access data behind it stays up to date.

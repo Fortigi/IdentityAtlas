@@ -10,7 +10,7 @@
 // in routes/jobs.js. Dependencies are injected via the third argument so this file
 // has no hard-coded paths into the API source tree.
 //
-// handler(req, res, { db, getConfigSecret, assertPublicUrl })
+// handler(req, res, { db, getConfigSecret, assertConnectorUrl })
 
 import { assertHttpUrl, timedFetch, trimTrailingSlashes, buildAuthHeader } from '../shared/discoverAuth.js';
 
@@ -25,7 +25,7 @@ const CORE_GROUP_ATTRIBUTES = ['id', 'displayName', 'externalId', 'members', 'me
 
 const scimBaseUrl = trimTrailingSlashes;
 const scimFetch = timedFetch;
-const scimAuthHeader = c => buildAuthHeader(c);
+const scimAuthHeader = (c, assertUrl) => buildAuthHeader(c, { assertUrl });
 
 // GET a SCIM endpoint and unwrap the ListResponse `Resources` array. A provider
 // that returns a bare array (some do) is tolerated.
@@ -107,7 +107,7 @@ async function loadConfig(req, res, { db, getConfigSecret, getConfigCredentials 
   return null;
 }
 
-export default async function handler(req, res, { db, getConfigSecret, getConfigCredentials, assertPublicUrl }) {
+export default async function handler(req, res, { db, getConfigSecret, getConfigCredentials, assertConnectorUrl }) {
   let c;
   try {
     c = await loadConfig(req, res, { db, getConfigSecret, getConfigCredentials });
@@ -121,19 +121,19 @@ export default async function handler(req, res, { db, getConfigSecret, getConfig
     const rawBaseUrl = scimBaseUrl(c.baseUrl);
     if (!rawBaseUrl) return res.status(400).json({ error: 'No baseUrl in config' });
     assertHttpUrl(rawBaseUrl, 'baseUrl');
-    // Reject a base URL that resolves to a private/loopback/metadata address
-    // before we fetch it with the connector's credential (SSRF guard).
-    if (assertPublicUrl) {
-      try {
-        await assertPublicUrl(rawBaseUrl);
-      } catch (e) {
-        return res.status(400).json({ error: `baseUrl rejected: ${e.message}` });
-      }
+    // Reject a base URL that resolves to a private/loopback/metadata address (or
+    // uses http) before we fetch it with the connector's credential, unless the
+    // config opts in (SSRF guard, SEC-2026-09 M-03). Always required: a missing
+    // guard must not mean "no check".
+    try {
+      await assertConnectorUrl(rawBaseUrl, c, 'baseUrl');
+    } catch (e) {
+      return res.status(400).json({ error: e.message });
     }
 
     let authHeader;
     try {
-      authHeader = await scimAuthHeader(c);
+      authHeader = await scimAuthHeader(c, assertConnectorUrl);
     } catch (authErr) {
       return res.status(400).json({ error: authErr.message });
     }

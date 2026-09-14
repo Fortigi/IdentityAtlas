@@ -9,12 +9,13 @@ import * as db from '../../db/connection.js';
 import { createParams } from '../../db/sqlParams.js';
 import { deleteConfigFolder } from '../crawlerFiles.js';
 import { storeConfigFields, deleteConfigSecrets, vaultedConfigFields } from '../../secrets/crawlerSecrets.js';
-import { validateStoredCrawlerConfig, isPushModeType, isExperimentalType, hostBearingFields } from '../../crawlerManifests.js';
+import { validateStoredCrawlerConfig, isPushModeType, isExperimentalType, getUrlFields } from '../../crawlerManifests.js';
 import { isFeatureEnabled } from '../../featureFlags.js';
 import {
   gate, useSql, maskedConfigForResponse, mergeConfigForUpdate, splitConfigSecrets,
   changedHostFields, credentialReentryError,
 } from './helpers.js';
+import { checkCrawlerConfigUrls } from './urlPolicy.js';
 
 const router = Router();
 
@@ -56,6 +57,11 @@ router.post('/admin/crawler-configs', gate, async (req, res) => {
     });
   }
 
+  // Refuse a connector URL that points at an internal or metadata address, or
+  // uses http, unless the config explicitly opts in (SEC-2026-09 M-03).
+  const urlErr = await checkCrawlerConfigUrls(crawlerType, config);
+  if (urlErr) return res.status(400).json({ error: urlErr });
+
   try {
     // Strip every credential field out of the stored JSON — they go to the
     // vault, one row per field (SEC-2026-09 M-10).
@@ -96,12 +102,12 @@ router.get('/admin/crawler-configs/:id', gate, async (req, res) => {
   }
 });
 
-// SEC-2026-09 M-02: refuse an edit that moves a host-bearing field (baseUrl,
-// tokenEndpoint, any URL-typed manifest field) to a different scheme/host while
+// SEC-2026-09 M-02: refuse an edit that moves a manifest-declared URL field
+// (crawler.json `urlFields`, e.g. baseUrl / tokenEndpoint) to a different scheme/host while
 // keeping a credential already stored for this config. Returns { status, body }
 // or null.
 async function checkCredentialCustody(id, crawlerType, existingConfig, mergedConfig, newSecrets, keptFields) {
-  const changed = changedHostFields(hostBearingFields(crawlerType), existingConfig, mergedConfig);
+  const changed = changedHostFields(getUrlFields(crawlerType), existingConfig, mergedConfig);
   if (changed.length === 0) return null;
   const vaulted = await vaultedConfigFields(id);
   const keptStored = keptFields.filter(f => vaulted.includes(f) || newSecrets[f]);
@@ -137,6 +143,8 @@ router.patch('/admin/crawler-configs/:id', gate, async (req, res) => {
       // doesn't touch credentials. Newly entered values count as present.
       const configErr = await validateStoredCrawlerConfig(crawlerType, { ...mergedConfig, ...newSecrets }, id);
       if (configErr) return res.status(400).json({ error: configErr });
+      const urlErr = await checkCrawlerConfigUrls(crawlerType, mergedConfig);
+      if (urlErr) return res.status(400).json({ error: urlErr });
     }
 
     const { params, bind } = createParams();

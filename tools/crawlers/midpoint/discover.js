@@ -6,10 +6,11 @@
 // endpoint in routes/jobs.js. Dependencies are injected via the third
 // argument so this file has no hard-coded paths into the API source tree.
 //
-// handler(req, res, { db, getConfigSecret, getConfigCredentials, assertPublicUrl })
-//   db             — app/api/src/db/connection.js pool wrapper
-//   getConfigSecret — app/api/src/secrets/crawlerSecrets.js vault reader
+// handler(req, res, { db, getConfigSecret, getConfigCredentials, assertConnectorUrl })
+//   db                   — app/api/src/db/connection.js pool wrapper
+//   getConfigSecret      — app/api/src/secrets/crawlerSecrets.js vault reader
 //   getConfigCredentials — every vaulted credential field of a stored config
+//   assertConnectorUrl   — app/api/src/routes/jobs/urlPolicy.js SSRF guard
 
 // ─── midPoint helpers ────────────────────────────────────────────────────────
 
@@ -47,7 +48,7 @@ function midpointRestRoot(baseUrl) {
 }
 
 const mpFetch = timedFetch;
-const midpointAuthHeader = c => buildAuthHeader(c, { oauthMethods: ['OAuth2CC', 'OAuth2ROPC'] });
+const midpointAuthHeader = (c, assertUrl) => buildAuthHeader(c, { oauthMethods: ['OAuth2CC', 'OAuth2ROPC'], assertUrl });
 
 // POST /{type}/search and unwrap the { object: { object: [...] } } envelope.
 async function midpointSearch(restRoot, authHeader, type, maxSize) {
@@ -65,7 +66,7 @@ async function midpointSearch(restRoot, authHeader, type, maxSize) {
 
 // ─── Discovery handler ───────────────────────────────────────────────────────
 
-export default async function handler(req, res, { db, getConfigSecret, getConfigCredentials, assertPublicUrl }) {
+export default async function handler(req, res, { db, getConfigSecret, getConfigCredentials, assertConnectorUrl }) {
   const { configId, config: inlineConfig } = req.body;
 
   let c;
@@ -97,18 +98,19 @@ export default async function handler(req, res, { db, getConfigSecret, getConfig
     const rawBaseUrl = (c.baseUrl || '').trim();
     if (!rawBaseUrl) return res.status(400).json({ error: 'No baseUrl in config' });
     assertHttpUrl(rawBaseUrl, 'baseUrl');
-    // Reject a base URL that resolves to a private/loopback/metadata address
-    // before we fetch it with the connector's credential (SSRF guard, L-6).
+    // Reject a base URL that resolves to a private/loopback/metadata address (or
+    // uses http) before we fetch it with the connector's credential, unless the
+    // config opts in (SSRF guard, L-6 / SEC-2026-09 M-03).
     try {
-      await assertPublicUrl(rawBaseUrl);
+      await assertConnectorUrl(rawBaseUrl, c, 'baseUrl');
     } catch (e) {
-      return res.status(400).json({ error: `baseUrl rejected: ${e.message}` });
+      return res.status(400).json({ error: e.message });
     }
     const restRoot = midpointRestRoot(rawBaseUrl);
 
     let authHeader;
     try {
-      authHeader = await midpointAuthHeader(c);
+      authHeader = await midpointAuthHeader(c, assertConnectorUrl);
     } catch (authErr) {
       return res.status(400).json({ error: authErr.message });
     }

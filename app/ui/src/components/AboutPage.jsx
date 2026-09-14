@@ -35,7 +35,6 @@ const SBOM_SECTIONS = [
     rows: [
       { name: 'express',            version: '^4.21.0',       purpose: 'Web application framework',                    license: 'MIT' },
       { name: 'pg',                 version: '^8.13.1',       purpose: 'PostgreSQL client',                             license: 'MIT' },
-      { name: 'pg-copy-streams',    version: '^7.0.0',        purpose: 'High-performance bulk import',                  license: 'MIT' },
       { name: 'helmet',             version: '^8.1.0',        purpose: 'Security headers middleware',                   license: 'MIT' },
       { name: 'express-rate-limit', version: '^8.2.1',        purpose: 'Rate limiting protection',                     license: 'MIT' },
       { name: 'cors',               version: '^2.8.5',        purpose: 'Cross-Origin Resource Sharing',                 license: 'MIT' },
