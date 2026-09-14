@@ -19,7 +19,11 @@
  * full explanation.
  */
 
-import { E2E_BASE as BASE, openCrawlerWizard } from '../shared/wizardE2EKit.mjs';
+import { E2E_BASE as BASE, deleteCrawlerConfigs, enableFeatureFlag, openCrawlerWizard } from '../shared/wizardE2EKit.mjs';
+
+// Every config these tests save is named with this prefix so afterAll can find
+// and remove them again.
+const CONFIG_PREFIX = 'e2e-scim-';
 
 // What the stubbed POST /api/admin/crawlers/scim/discover answers with. Routing
 // the discovery call in the browser keeps this test independent of any live SCIM
@@ -41,13 +45,20 @@ const DISCOVERY = {
 
 export function register(test, expect) {
   // SCIM is an EXPERIMENTAL crawler, so it only appears in the Add Crawler picker
-  // while the experimentalCrawlers flag is on. The CI stack sets
-  // FEATURE_EXPERIMENTAL_CRAWLERS=true (docker-compose.ci.yml) rather than any test
-  // toggling it: the flag is global server state, and a test that flipped it would
-  // decide what every later test in the run sees. The OFF behaviour is asserted in
-  // isolation instead — app/ui/src/components/CrawlersPage.SelectType.test.jsx for
-  // the picker, app/api/src/routes/jobs.experimentalGate.test.js for the 403, and
-  // AC0 in Test-ScimCrawler.ps1 against the real API.
+  // while the experimentalCrawlers flag is on. This file used to rely on the CI
+  // stack's FEATURE_EXPERIMENTAL_CRAWLERS=true (docker-compose.ci.yml) instead of
+  // asking for the flag itself, on the grounds that flipping global server state
+  // decides what later tests see. That reasoning held; the premise did not. The
+  // toggle is a stored WorkerConfig override that BEATS the env var, so any run
+  // that left one behind turned every test below into "SCIM 2.0 is not in the
+  // picker" — which is exactly how this suite failed against a deployment the
+  // SCIM integration test had touched. The spec now states its precondition and
+  // restores the previous value afterwards.
+  //
+  // The OFF behaviour still gets asserted in isolation, where it belongs —
+  // app/ui/src/components/CrawlersPage.SelectType.test.jsx for the picker,
+  // app/api/src/routes/jobs.experimentalGate.test.js for the 403, and AC0 in
+  // Test-ScimCrawler.ps1 against the real API.
   async function openScimWizard(page) {
     await page.route('**/api/admin/crawlers/scim/discover', route =>
       route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(DISCOVERY) }));
@@ -70,6 +81,16 @@ export function register(test, expect) {
   }
 
   test.describe('SCIM 2.0 crawler wizard', () => {
+    // beforeAll/afterAll are scoped INSIDE the describe on purpose: every
+    // crawler's *.e2e.mjs is register()ed into the single
+    // app/ui/e2e/crawler-plugin-tests.spec.js file, so a file-level hook here
+    // would run for other crawlers' tests too.
+    let restoreExperimental = async () => {};
+    test.beforeAll(async () => { restoreExperimental = await enableFeatureFlag('experimentalCrawlers'); });
+    test.afterAll(async () => {
+      await deleteCrawlerConfigs(name => name.startsWith(CONFIG_PREFIX));
+      await restoreExperimental();
+    });
 
     test('SCIM 2.0 is offered as a crawler type, badged Experimental', async ({ page }) => {
       await page.goto(`${BASE}/#admin`);
@@ -106,7 +127,7 @@ export function register(test, expect) {
     test('walks the six steps and saves a config the summary card reflects', async ({ page }) => {
       if (!await openScimWizard(page)) return;
 
-      const crawlerName = `e2e-scim-${Date.now()}`;
+      const crawlerName = `${CONFIG_PREFIX}${Date.now()}`;
       await fillConnectionAndCredentials(page, crawlerName);
 
       // Step 3 — objects. Discovery ran; a non-syncable resource type is shown
@@ -156,7 +177,7 @@ export function register(test, expect) {
     test('a selected group attribute survives save and reopen (#1209)', async ({ page }) => {
       if (!await openScimWizard(page)) return;
 
-      const crawlerName = `e2e-scim-group-attr-${Date.now()}`;
+      const crawlerName = `${CONFIG_PREFIX}group-attr-${Date.now()}`;
       await fillConnectionAndCredentials(page, crawlerName);
 
       // Step 3 — objects (defaults are fine; Groups is on).
