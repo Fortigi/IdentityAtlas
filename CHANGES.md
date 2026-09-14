@@ -1,5 +1,12 @@
 ## Changes in this PR
 
+- Added a **System** filter to the Principals and Resources pages, so you can see and list only the users or resources that came from one connected system.
+- Every connected system is offered as a filter value by its display name — including a system that has no principals or resources yet.
+- Added two context plugins, **Principals by System** and **Resources by System**, that generate one context per connected system, named after the system. Use them to scope the matrix to a single system's users and/or resources.
+- Re-running either plugin keeps the contexts in step with the connected systems: a new system gets its own context, a removed system's context disappears, and renaming a system renames its context without losing your edits.
+
+## Changes in this PR
+
 - Published the September 2026 security re-assessment in the documentation: scope, method, all findings by severity with their remediation pull requests, a regression check against June 2026, and confirmed strengths
 
 ## Changes in this PR

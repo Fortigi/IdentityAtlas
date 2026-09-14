@@ -1,4 +1,0 @@
-- Added a **System** filter to the Principals and Resources pages, so you can see and list only the users or resources that came from one connected system.
-- Every connected system is offered as a filter value by its display name — including a system that has no principals or resources yet.
-- Added two context plugins, **Principals by System** and **Resources by System**, that generate one context per connected system, named after the system. Use them to scope the matrix to a single system's users and/or resources.
-- Re-running either plugin keeps the contexts in step with the connected systems: a new system gets its own context, a removed system's context disappears, and renaming a system renames its context without losing your edits.
