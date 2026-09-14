@@ -5,7 +5,7 @@ import { render as rtlRender } from '@testing-library/react';
 import MatrixView from './MatrixView';
 import {
   renderWithProviders, makeAuthFetch, makeWrapper, jsonResponse,
-  screen, userEvent, waitFor,
+  screen, userEvent, waitFor, act,
 } from '@ui/test-utils/renderWithProviders';
 
 // Stub the lazy-loaded virtual/DnD body so the test runner never pulls in
@@ -91,6 +91,12 @@ const driftProps = {
     { resourceId: 'br-1', memberId: 'u3', accessPackageIds: ['br-1'] },
   ],
 };
+
+// Export lives in the toolbar's Export menu (#1202): open it, pick Excel.
+async function exportExcel(user) {
+  await user.click(await screen.findByRole('button', { name: /^Export/ }));
+  await user.click(screen.getByRole('menuitem', { name: 'Export Excel' }));
+}
 
 const rowLabels = () =>
   screen.queryAllByTestId('row-label').filter(el => el.isConnected).map(el => el.textContent);
@@ -270,7 +276,7 @@ describe('MatrixView (mounted)', () => {
     await expectRowVisible('Finance App');
   });
 
-  it('forwards the active resource filter to the nested-groups fetch on Expand All', async () => {
+  it('forwards the active resource filter to the nested-groups fetch when expanding all nested groups', async () => {
     // A resource-type-scoped matrix: expanding must POST that scope so the
     // backend constrains nested resources to it (regression: #674).
     const filter = {
@@ -279,9 +285,9 @@ describe('MatrixView (mounted)', () => {
     };
     const { authFetch } = renderView({ filter });
     const user = userEvent.setup();
-    // Wait for the mount-time groups-with-nested fetch so Expand All renders.
+    // Wait for the mount-time groups-with-nested fetch so the nested toggle renders.
     await waitFor(() => expect(authFetch).toHaveBeenCalledWith('/api/groups-with-nested'));
-    await user.click(await screen.findByText('Expand All'));
+    await user.click(await screen.findByRole('button', { name: 'Expand nested groups' }));
     await waitFor(() =>
       expect(authFetch).toHaveBeenCalledWith(
         expect.stringContaining('/api/group/res-1/nested-groups'),
@@ -299,11 +305,11 @@ describe('MatrixView (mounted)', () => {
   describe('without the business-role opt-in (the default matrix)', () => {
     it('offers no fold controls and leaves the rows as they are', async () => {
       // Same data, same coverage — only the flag differs. The rows arrive
-      // unchanged: no role parent, no injected copies, no toolbar buttons.
+      // unchanged: no role parent, no injected copies, no corner buttons.
       renderView({ ...roleProps, filter: baseFilter });
       await expectRowVisible('Finance App');
-      expect(screen.queryByText('Fold roles')).toBeNull();
-      expect(screen.queryByText('Unfold roles')).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Fold business roles' })).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Unfold business roles' })).toBeNull();
       const rows = new Map(body.props.orderedGroups.map(g => [g.displayName, g]));
       expect(rows.get('Finance App').roleParentId).toBeUndefined();
       expect(body.props.roleExtraCounts).toBeNull();
@@ -315,7 +321,7 @@ describe('MatrixView (mounted)', () => {
       excel.calls.length = 0;
       renderView({ ...roleProps, filter: baseFilter });
       await expectRowVisible('Finance App');
-      await userEvent.setup().click(await screen.findByText('Export Excel'));
+      await exportExcel(userEvent.setup());
       await waitFor(() => expect(excel.calls.length).toBe(1));
       const exported = excel.calls[0].orderedGroups.map(g => g.displayName);
       // Every row exactly once, and none of them filed under a role.
@@ -324,19 +330,19 @@ describe('MatrixView (mounted)', () => {
     });
   });
 
-  it('folds a business role\'s resources away and back from the toolbar', async () => {
+  it('folds a business role\'s resources away and back from the grid corner', async () => {
     renderView({ ...roleProps, filter: roleFilter });
     const user = userEvent.setup();
     await expectRowVisible('HR Manager Role');
     await expectRowVisible('Finance App');
 
-    await user.click(await screen.findByText('Fold roles'));
+    await user.click(await screen.findByRole('button', { name: 'Fold business roles' }));
     // Only the role row and the resource no role grants remain.
     await waitFor(() => expect(rowLabels()).not.toContain('Finance App'));
     expect(rowLabels()).toContain('HR Manager Role');
     expect(rowLabels()).toContain('HR Portal');
 
-    await user.click(await screen.findByText('Unfold roles'));
+    await user.click(await screen.findByRole('button', { name: 'Unfold business roles' }));
     await expectRowVisible('Finance App');
   });
 
@@ -386,7 +392,7 @@ describe('MatrixView (mounted)', () => {
     await expectRowVisible('Finance App');
     expect(body.props.roleExtraCounts).toBeNull();
 
-    await user.click(await screen.findByText('Fold roles'));
+    await user.click(await screen.findByRole('button', { name: 'Fold business roles' }));
     await waitFor(() => expect(body.props.roleExtraCounts).not.toBeNull());
     // Alice holds Finance App through the role — covered, so not counted.
     expect(body.props.roleExtraCounts.get('BR-1|u1')).toBeUndefined();
@@ -403,7 +409,7 @@ describe('MatrixView (mounted)', () => {
     await expectRowVisible('Finance App');
     expect(body.props.roleMissingCounts).toBeNull();
 
-    await user.click(await screen.findByText('Fold roles'));
+    await user.click(await screen.findByRole('button', { name: 'Fold business roles' }));
     await waitFor(() => expect(body.props.roleMissingCounts).not.toBeNull());
     expect(body.props.roleMissingCounts.get('BR-1|u3')).toBe(1);
     expect(body.props.roleMissingCounts.get('BR-1|u1')).toBeUndefined();
@@ -431,10 +437,10 @@ describe('MatrixView (mounted)', () => {
     const user = userEvent.setup();
     await expectRowVisible('Finance App');
 
-    await user.click(await screen.findByText('Fold roles'));
+    await user.click(await screen.findByRole('button', { name: 'Fold business roles' }));
     await waitFor(() => expect(rowLabels()).not.toContain('Finance App'));
 
-    await user.click(screen.getByRole('button', { name: /Export Excel/i }));
+    await exportExcel(user);
     await waitFor(() => expect(excel.calls).toHaveLength(1));
 
     const exported = excel.calls[0].orderedGroups.map(g => g.displayName);
@@ -446,8 +452,8 @@ describe('MatrixView (mounted)', () => {
   it('offers no fold controls in a matrix without business-role rows', async () => {
     renderView();
     await expectRowVisible('Finance App');
-    expect(screen.queryByText('Fold roles')).not.toBeInTheDocument();
-    expect(screen.queryByText('Unfold roles')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Fold business roles' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Unfold business roles' })).not.toBeInTheDocument();
   });
 
   it('threads the resourceContexts sidecar onto the matching resource rows', async () => {
@@ -485,14 +491,92 @@ describe('MatrixView (mounted)', () => {
     const user = userEvent.setup();
     const { rerender } = rtlRender(el(baseFilter), { wrapper });
     await waitFor(() => expect(authFetch).toHaveBeenCalledWith('/api/groups-with-nested'));
-    await user.click(await screen.findByText('Expand All'));
-    // Collapse All only renders while something is expanded.
-    await screen.findByText('Collapse All');
+    await user.click(await screen.findByRole('button', { name: 'Expand nested groups' }));
+    // The nested toggle flips to Collapse only while something is expanded.
+    await screen.findByRole('button', { name: 'Collapse nested groups' });
     // Change the filter → render-time reset collapses the nesting.
     rerender(el({
       ...baseFilter,
       resource: { include: [{ kind: 'attribute', field: 'resourceType', values: ['Group'] }] },
     }));
-    await waitFor(() => expect(screen.queryByText('Collapse All')).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Collapse nested groups' })).not.toBeInTheDocument());
+  });
+
+  // ─── The toolbar row and the grid's corner controls (#1202) ───────────────
+  it('keeps only the lens and Export in the toolbar — no Copy link, no legend bar', async () => {
+    renderView();
+    await expectRowVisible('Finance App');
+    expect(screen.queryByRole('button', { name: /Copy link/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Export/ })).toBeInTheDocument();
+    // The legend is a "?" in the grid's corner now, closed until asked for.
+    const legend = screen.getByRole('button', { name: 'How to read this matrix' });
+    expect(legend.closest('thead')).not.toBeNull();
+    expect(legend).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByText(/Cell badges — how the access is held/)).not.toBeInTheDocument();
+  });
+
+  it('shows no grid corner controls before a matrix is applied', () => {
+    renderView({ filter: null });
+    expect(screen.queryByRole('button', { name: 'How to read this matrix' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /all columns/ })).not.toBeInTheDocument();
+  });
+
+  // The requestor's bug: after folding, "Fold columns" was still offered. The
+  // corner toggle follows the real fold state instead — all, some or none.
+  it('folds and unfolds every column group from one corner toggle that follows the fold state', async () => {
+    renderView({ filter: { ...baseFilter, sortAttributes: [{ attribute: 'jobTitle', dir: 'asc' }] } });
+    const user = userEvent.setup();
+    await expectRowVisible('Finance App');
+    expect(screen.getAllByText('Carol Sales').length).toBeGreaterThan(0);
+
+    const fold = screen.getByRole('button', { name: 'Fold all columns' });
+    expect(fold).toHaveAttribute('aria-pressed', 'false');
+    expect(fold.closest('thead')).not.toBeNull();
+    await user.click(fold);
+
+    const unfold = await screen.findByRole('button', { name: 'Unfold all columns' });
+    expect(unfold).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.queryByRole('button', { name: 'Fold all columns' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Carol Sales')).not.toBeInTheDocument();
+
+    await user.click(unfold);
+    expect(await screen.findByRole('button', { name: 'Fold all columns' })).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getAllByText('Carol Sales').length).toBeGreaterThan(0);
+  });
+
+  it('offers no column fold toggle when there is only one top-level group', async () => {
+    renderView({ filter: { ...baseFilter, sortAttributes: [{ attribute: 'memberType', dir: 'asc' }, { attribute: 'department', dir: 'asc' }] } });
+    await expectRowVisible('Finance App');
+    // One top-level group only (every subject is a User) — nothing to fold all.
+    expect(screen.queryByRole('button', { name: /all columns/ })).not.toBeInTheDocument();
+  });
+
+  it('marks the column toggle mixed when a single group header is folded', async () => {
+    renderView({ filter: { ...baseFilter, sortAttributes: [{ attribute: 'department', dir: 'desc' }] } });
+    const user = userEvent.setup();
+    await expectRowVisible('Finance App');
+    await user.click(screen.getByTitle('Collapse Sales into one column'));
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Fold all columns' })).toHaveAttribute('aria-pressed', 'mixed'));
+  });
+
+  it('offers Reset row order in the row corner only after rows were reordered', async () => {
+    localStorage.clear();
+    const filter = { ...baseFilter, sortAttributes: [{ attribute: 'displayName', dir: 'asc' }] };
+    renderView({ filter });
+    const user = userEvent.setup();
+    await expectRowVisible('HR Portal');
+    expect(screen.queryByRole('button', { name: 'Reset row order' })).not.toBeInTheDocument();
+    const before = rowLabels();
+
+    act(() => body.props.onDragEnd({ active: { id: 'res-2' }, over: { id: 'res-1' } }));
+    const reset = await screen.findByRole('button', { name: 'Reset row order' });
+    // It sits in the header corner above the row labels, next to Resource Name.
+    expect(reset.closest('th')).toHaveTextContent('Resource Name');
+    expect(rowLabels()).toEqual([...before].reverse());
+
+    await user.click(reset);
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Reset row order' })).not.toBeInTheDocument());
+    expect(rowLabels()).toEqual(before);
   });
 });

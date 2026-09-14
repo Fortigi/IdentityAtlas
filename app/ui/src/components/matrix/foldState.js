@@ -31,3 +31,13 @@ export function toggleCollapsedGroups(prev, users, sortKeys, level, nAttr) {
   else foldAndClearDeeper(next, users, key, level, nAttr);
   return next;
 }
+
+// How folded the column axis is, for the grid corner's fold-all toggle:
+// 'all' when every top-level group is folded into its count column, 'some' when
+// any column is folded (a single group, or a deeper level after drilling in),
+// 'none' otherwise. `topKeys` are the level-0 collapse keys of the subjects.
+export function columnFoldState(topKeys, collapsedGroups) {
+  if (collapsedGroups.size === 0) return 'none';
+  for (const k of topKeys) if (!collapsedGroups.has(k)) return 'some';
+  return 'all';
+}

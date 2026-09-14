@@ -10,7 +10,7 @@
 //  - The IST/SOLL/Gaps toggle in the toolbar collapses to All/IST/SOLL —
 //    "Gaps" requires AP data and is hidden.
 //
-// Everything else (filter chip, share link, Excel export hook, basic
+// Everything else (filter chip, Excel export hook, basic
 // per-cell membership-type badges) works the same as the default view.
 
 import { useMemo, useCallback, useState, useRef } from 'react';
@@ -56,7 +56,6 @@ export default function RotatedMatrixView({
   counts,
   managedFilter, setManagedFilter,
   refreshing,
-  shareUrl,
   onOpenDetail,
   onAdjustFilter,
   onLoadSaved,
@@ -90,14 +89,7 @@ export default function RotatedMatrixView({
   // Group consecutive resources by resourceType for merged top header.
   const typeSpans = useMemo(() => buildTypeSpans(resources), [resources]);
 
-  // Share + export handlers (export not yet supported in rotated mode).
-  const handleShare = useCallback(async () => {
-    try {
-      await navigator.clipboard.writeText(shareUrl);
-      return true;
-    } catch { return false; }
-  }, [shareUrl]);
-
+  // Export is not yet supported in rotated mode — say so instead.
   const [exportTip, setExportTip] = useState(false);
   const handleExportExcel = useCallback(() => {
     setExportTip(true);
@@ -121,14 +113,6 @@ export default function RotatedMatrixView({
         managedFilter={managedFilter === 'gaps' ? 'all' : managedFilter}
         setManagedFilter={setManagedFilter}
         onExportExcel={handleExportExcel}
-        onShare={handleShare}
-        onShareView={onShareView}
-        onResetRowOrder={() => {}}
-        hasCustomRowOrder={false}
-        hasExpandableGroups={false}
-        hasExpandedGroups={false}
-        onExpandAll={() => {}}
-        onCollapseAll={() => {}}
       />
 
       {exportTip && (

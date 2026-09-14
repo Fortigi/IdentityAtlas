@@ -9,3 +9,6 @@
 - Existing share links, their recipients and their usage history keep working — every active share becomes a saved matrix, with a numbered suffix if its name was already taken.
 - When two saved matrices happen to have exactly the same filter, the matrix strip and the wizard now show the one you actually loaded — with its own name and sharing — instead of whichever came first alphabetically.
 - Fixed a link straight to Admin → Shared Matrices (including old shared-matrices links) sometimes opening the Crawlers tab instead.
+- The toolbar above the matrix is now just the view lens (All / Governed / Non-governed / Gaps) and an **Export** menu. The **Copy link** button is gone — sharing replaces it, and the page address still opens the same matrix.
+- Grid controls now sit in the grid's own header corner, next to the axis they act on: one **Fold all columns / Unfold all columns** toggle above the column groups, and **Expand / collapse nested groups**, **Fold / unfold business roles** and **Reset row order** above the row labels. Each toggle shows the state the grid is actually in, so a "Fold columns" button no longer stays on screen after the columns are folded.
+- "How to read this matrix" is now a **?** button in the grid's top-left corner that opens the legend as a popover (Escape or clicking elsewhere closes it), instead of a full-width bar above the grid.

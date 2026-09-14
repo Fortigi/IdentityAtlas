@@ -352,8 +352,9 @@ The column fold above collapses *columns*; the **business-role fold** collapses
 ordinary expand triangle (`▼`/`▶` — the same control, and the same indent + `└`
 elbow on the rows below it, as the nested-group expand): collapsing it hides the
 rows of the resources that role grants — its `Contains` children — leaving the
-role row with an "*N* resources folded" chip. A **Fold roles / Unfold roles**
-toolbar pair does it for every role at once, which reduces the grid to exactly
+role row with an "*N* resources folded" chip. A **Fold business roles** toggle in
+the grid's header corner (above the row labels; it flips to **Unfold business
+roles** once folded) does it for every role at once, which reduces the grid to exactly
 "business roles + resources no role grants" — the role-mining view without the
 duplication between a role and its contents.
 
