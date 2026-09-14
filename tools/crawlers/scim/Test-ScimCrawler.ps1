@@ -116,7 +116,10 @@ function Get-SystemResources {
 }
 
 function New-ScimConfig {
-    param([string]$Name, [int]$Port, [hashtable]$Extra = @{})
+    # -OmitSystemName leaves the optional systemName override out of the config,
+    # the way the wizard does when the operator leaves that field blank. The run
+    # then has only the crawler's own name to name its system after — see AC10.
+    param([string]$Name, [int]$Port, [hashtable]$Extra = @{}, [switch]$OmitSystemName)
     $config = @{
         baseUrl    = "http://host.docker.internal:$Port"
         allowPrivateNetwork = $true   # the mock is plain http on the Docker host network
@@ -124,9 +127,9 @@ function New-ScimConfig {
         authMethod = 'BasicAuth'
         username   = 'scim'
         password   = 'test'
-        systemName = $Name
         pageSize   = 100
     }
+    if (-not $OmitSystemName) { $config['systemName'] = $Name }
     foreach ($kv in $Extra.GetEnumerator()) { $config[$kv.Key] = $kv.Value }
     $cfg = Invoke-AtlasApi -Method POST -Path '/admin/crawler-configs' -Body @{ crawlerType = 'scim'; displayName = $Name; config = $config }
     return $cfg.id
@@ -216,7 +219,7 @@ try {
 }
 Set-ExperimentalCrawlers -Enabled $true
 
-$mock = $null; $configId = $null; $otherConfigId = $null; $pagingMock = $null; $pagingConfigId = $null; $authMock = $null; $authConfigId = $null
+$mock = $null; $configId = $null; $otherConfigId = $null; $pagingMock = $null; $pagingConfigId = $null; $authMock = $null; $authConfigId = $null; $nameMock = $null; $nameConfigId = $null
 try {
     $mock = Start-MockScimServer -Users $users -Groups $groups
     Write-Host "  Mock SCIM server started on port $($mock.Port)" -ForegroundColor Gray
@@ -392,6 +395,45 @@ try {
         if ($authConfigId) { try { Invoke-AtlasApi -Method DELETE -Path "/admin/crawler-configs/$authConfigId" | Out-Null } catch {} }
         Stop-MockScimServer -Mock $authMock
         $authMock = $null
+    }
+
+    # ── AC10 (#1207): the system is named after the CRAWLER, not the type ────
+    # Every other config in this file sets systemName explicitly, which is the
+    # one case that always worked. Here the override is left out, the way the
+    # wizard leaves it out when the operator doesn't fill the field in: the run
+    # then has only the crawler's own name to go on (`_configName`, stamped onto
+    # the job config by the API). It used to register a system called 'SCIM' —
+    # the crawler *type* — so two SCIM crawlers were indistinguishable in the
+    # Systems list, and renaming a crawler renamed nothing. Both halves of that
+    # report are asserted here against real runs.
+    $nameMock = Start-MockScimServer -Groups @() -Users @(
+        @{ id = "u-name-$runTag"; userName = "name.$runTag"; displayName = "Name $runTag"; active = $true }
+    )
+    $crawlerName = "scim-it-named-$runTag"
+    try {
+        $nameConfigId = New-ScimConfig -Name $crawlerName -Port $nameMock.Port -OmitSystemName
+        $namedJob = Invoke-ScimJob -ConfigId $nameConfigId
+        $namedSystemId = Get-ScimSystemId -SystemName $crawlerName
+        Write-Result 'Scim/Naming — with no override the system is named after the crawler' `
+            (($namedJob.status -eq 'completed') -and ($namedSystemId -gt 0)) `
+            "(status: $($namedJob.status)$(Get-JobFailureDetail $namedJob), system id: $namedSystemId; expected a system called '$crawlerName')"
+
+        # Renaming the crawler renames the SAME system on its next run — the
+        # Systems upsert is keyed on the endpoint, so the row is updated rather
+        # than a second system appearing beside the first.
+        $renamedName = "$crawlerName-renamed"
+        Invoke-AtlasApi -Method PATCH -Path "/admin/crawler-configs/$nameConfigId" -Body @{ displayName = $renamedName } | Out-Null
+        $renamedJob = Invoke-ScimJob -ConfigId $nameConfigId
+        $renamedSystemId = Get-ScimSystemId -SystemName $renamedName
+        Write-Result 'Scim/Naming — renaming the crawler renames its system on the next run' `
+            (($renamedJob.status -eq 'completed') -and ($namedSystemId -gt 0) -and ($renamedSystemId -eq $namedSystemId)) `
+            "(status: $($renamedJob.status)$(Get-JobFailureDetail $renamedJob), system id: $renamedSystemId; expected the same system ($namedSystemId) under the new name)"
+        Write-Result 'Scim/Naming — the crawler''s previous name is gone from the Systems list' `
+            ((Get-ScimSystemId -SystemName $crawlerName) -eq 0) '(a second system under the previous name was left behind)'
+    } finally {
+        if ($nameConfigId) { try { Invoke-AtlasApi -Method DELETE -Path "/admin/crawler-configs/$nameConfigId" | Out-Null } catch {} }
+        Stop-MockScimServer -Mock $nameMock
+        $nameMock = $null
     }
 
 } catch {

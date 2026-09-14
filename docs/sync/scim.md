@@ -101,7 +101,7 @@ credential check: a failure is reported inline with the reason.
 | `scope` | No | Optional OAuth2 scope requested with the client-credentials grant |
 | `allowPrivateNetwork` | No (default `false`) | Allow `baseUrl` / `tokenEndpoint` to resolve to a private or loopback address — set this for a server on your own network. See [Network access](#network-access) |
 | `allowInsecureHttp` | No (default `false`) | Allow plain `http` for `baseUrl` / `tokenEndpoint`. Credentials are then sent unencrypted. See [Network access](#network-access) |
-| `systemName` | No (default `SCIM`) | How this source is labelled in Identity Atlas |
+| `systemName` | No | Overrides how this source is labelled in Identity Atlas. Omit it and the system is named after the crawler itself (`SCIM` only when the crawler has no name) — see [System naming](#system-naming) |
 | `pageSize` | No (default 100) | The SCIM `count` parameter |
 | `selectedObjects` | No | `{ users, groups, groupMembers }` booleans — all default to `true` |
 | `selectedAttributes` | No | `{ user: [...], group: [...] }` — the opt-in extras, empty by default |
@@ -109,6 +109,17 @@ credential check: a failure is reported inline with the reason.
 
 Secrets (`password`, `apiToken`, `clientSecret`) are never stored in the config blob
 — they go to the secrets vault and are injected into the job at dispatch time.
+
+### System naming
+
+The Identity Atlas **system** this crawler registers is named after the crawler itself. Name the
+crawler *SAP CIS* and the Systems list shows *SAP CIS* — so several SCIM crawlers side by side stay
+distinguishable. Rename the crawler and the system follows on its next run (the system is keyed on
+its base URL, so the row is updated, not duplicated).
+
+Fill in the wizard's optional **System name** field only to label the system as something other
+than the crawler — it is an override and always wins. Leaving it blank is not a choice of the
+literal `SCIM`: that name is used only when the crawler has no name at all.
 
 ### Network access
 

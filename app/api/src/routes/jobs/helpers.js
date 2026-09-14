@@ -10,6 +10,7 @@ import { readdirSync } from 'fs';
 import path from 'path';
 import { getUploadFolderPath } from '../crawlerFiles.js';
 import { hasConfigSecret, OTHER_SECRET_FIELDS } from '../../secrets/crawlerSecrets.js';
+import { stampConfigName } from '../../lib/jobConfig.js';
 import { VALID_JOB_TYPES, validateCrawlerConfig, isSingletonJob } from '../../crawlerManifests.js';
 
 // Re-exported for existing consumers (scheduler.js, jobs.*.test.js) that import
@@ -88,12 +89,13 @@ export function validateCreateJobBody(body) {
 }
 
 // Resolve the config a job should run with: inline (no configId) or the stored
-// CrawlerConfigs row. Returns { resolvedConfig, configNextRunMode } or
-// { error: { status, body } }. Exported for unit tests.
+// CrawlerConfigs row. Returns { resolvedConfig, configNextRunMode, configName }
+// or { error: { status, body } }. An inline config has no CrawlerConfigs row and
+// so carries no configName. Exported for unit tests.
 export async function resolveJobConfig(pool, inlineConfig, configId) {
   if (!configId) return { resolvedConfig: inlineConfig || null, configNextRunMode: null };
   const cfgResult = await pool.query(
-    `SELECT config, "nextRunMode" FROM "CrawlerConfigs" WHERE id = $1 AND "enabled" = TRUE`,
+    `SELECT config, "nextRunMode", "displayName" FROM "CrawlerConfigs" WHERE id = $1 AND "enabled" = TRUE`,
     [configId]
   );
   if (cfgResult.rows.length === 0) return { error: { status: 404, body: { error: 'Crawler config not found' } } };
@@ -102,6 +104,7 @@ export async function resolveJobConfig(pool, inlineConfig, configId) {
   return {
     resolvedConfig: (typeof raw === 'string') ? JSON.parse(raw) : raw,
     configNextRunMode: cfgResult.rows[0].nextRunMode || 'delta',
+    configName: cfgResult.rows[0].displayName || null,
   };
 }
 
@@ -134,14 +137,17 @@ export function resolveUploadFolder(jobType, configId, resolvedConfig) {
 }
 
 // Prepare the job's stored config: pick the effective syncMode, stamp the source
-// configId, and strip every credential field (vaulted per-job, injected at claim
-// time). Returns { inlineSecret, configToStore, configJson, extraCreds }. Pure.
-// Exported for unit tests.
-export function prepareJobConfig(resolvedConfig, configId, effectiveSyncMode) {
+// configId and the crawler's own name, and strip every credential field (vaulted
+// per-job, injected at claim time). Returns { inlineSecret, configToStore,
+// configJson, extraCreds }. Pure. Exported for unit tests.
+export function prepareJobConfig(resolvedConfig, configId, effectiveSyncMode, configName) {
   const inlineSecret = (!configId && resolvedConfig?.clientSecret) ? resolvedConfig.clientSecret : null;
   const configToStore = configId
     ? { ...(resolvedConfig || {}), _scheduledByConfigId: configId, _syncMode: effectiveSyncMode }
     : (resolvedConfig ? { ...resolvedConfig, _syncMode: effectiveSyncMode } : null);
+  // The crawler can only name what it registers after the crawler's own name if
+  // that name reaches the run — see stampConfigName's note on the reserved key.
+  stampConfigName(configToStore, configName);
   const extraCreds = {};
   if (configToStore) {
     delete configToStore.clientSecret;
