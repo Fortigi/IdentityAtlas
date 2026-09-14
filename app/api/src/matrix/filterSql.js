@@ -196,6 +196,9 @@ function buildContextClause({ entity, contextId, includeChildren, contextTargetT
           UNION ALL
           SELECT c.id FROM "Contexts" c JOIN scope ON c."parentContextId" = scope.id
         )
+        -- CYCLE guard: a corrupt parent chain must not recurse forever
+        -- (SEC-2026-09 I-08; same guard as routes/contexts/read.js).
+        CYCLE id SET "isCycle" USING "cyclePath"
         SELECT "memberId" FROM "ContextMembers"
          WHERE "memberType" = ${memPh}
            AND "contextId" IN (SELECT id FROM scope)

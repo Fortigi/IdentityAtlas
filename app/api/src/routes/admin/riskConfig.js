@@ -7,8 +7,12 @@
 
 import { Router } from 'express';
 import * as db from '../../db/connection.js';
+import { requirePermission } from '../../middleware/auth.js';
 
 const router = Router();
+// Same audience as the Admin → Risk Scoring tab that renders these
+// (SEC-2026-09 M-01).
+const readRiskConfig = requirePermission('admin.llm', 'admin.crawlers');
 const useSql = process.env.USE_SQL === 'true';
 
 // ── GET /api/admin/risk-profile ───────────────────────────────────
@@ -18,7 +22,7 @@ const useSql = process.env.USE_SQL === 'true';
 // New profile). The response shape is kept compatible with the existing
 // AdminPage renderer: domain/industry/country are promoted to top-level fields,
 // `profile` carries the full structured customer_profile object.
-router.get('/admin/risk-profile', async (req, res) => {
+router.get('/admin/risk-profile', readRiskConfig, async (req, res) => {
   if (!useSql) return res.json({ available: false });
 
   try {
@@ -60,7 +64,7 @@ router.get('/admin/risk-profile', async (req, res) => {
 // Returns the active v5 classifier set (or the most recent one if none active).
 // Like /admin/risk-profile, this reads from the v5 RiskClassifiers table used
 // by the wizard, not the retired GraphRiskClassifiers table.
-router.get('/admin/classifiers', async (req, res) => {
+router.get('/admin/classifiers', readRiskConfig, async (req, res) => {
   if (!useSql) return res.json({ available: false });
 
   try {

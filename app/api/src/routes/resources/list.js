@@ -8,6 +8,7 @@ import { parseJsonbColumn } from '../../lib/jsonb.js';
 import { buildFilterWhere, parseTags } from '../tags.js';
 import { extractRelFilters, buildRelationshipWhere } from '../../lib/referenceFilters.js';
 import { parseListParams } from '../../lib/listParams.js';
+import { likeContains } from '../../db/sqlParams.js';
 import { visibleResourceTypesSql } from '../../lib/resourceVisibility.js';
 
 // Parse the list query params + attribute/tag/reference filters. Pure. The tag
@@ -44,8 +45,8 @@ export function buildResourceListWhere(req, parsed, colNames, bind) {
   // Hide soft-deleted resources by default; ?includeDeleted=true reveals them.
   if (req.query.includeDeleted !== 'true') where += ` AND r."deletedAt" IS NULL`;
   if (search) {
-    const s = bind(`%${search}%`);
-    where += ` AND (r."displayName" ILIKE ${s} OR r."description" ILIKE ${s})`;
+    const s = bind(likeContains(search));
+    where += ` AND (r."displayName" ILIKE ${s} ESCAPE '\\' OR r."description" ILIKE ${s} ESCAPE '\\')`;
   }
   if (resourceType) {
     where += ` AND r."resourceType" = ${bind(resourceType)}`;

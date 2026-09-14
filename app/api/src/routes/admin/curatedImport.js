@@ -134,7 +134,7 @@ async function attachTagAssignments(deps, tag, targetType, tagId, stats) {
 export async function importCuratedTag(tag, deps, stats) {
   const { ENTITY_TO_TARGET, recalcMemberCountsForChain } = deps;
   if (!tag.name || !tag.entityType) return;
-  const targetType = ENTITY_TO_TARGET[tag.entityType];
+  const targetType = Object.hasOwn(ENTITY_TO_TARGET, tag.entityType) ? ENTITY_TO_TARGET[tag.entityType] : null;
   if (!targetType) { stats.tagsSkipped++; return; }
   const name = String(tag.name).trim().slice(0, 100);
   if (!name) { stats.tagsSkipped++; return; }

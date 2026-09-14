@@ -85,7 +85,7 @@ describe('PUT /admin/roles validation', () => {
     expect(setRolePermissions).toHaveBeenCalled();
     // A 'save' row was attempted against the change log.
     const insert = query.mock.calls.find(c => /INSERT INTO "AuthRoleChangeLog"/.test(String(c[0])));
-    expect(insert?.[1]?.[1]).toBe('save');
+    expect(insert?.[1]?.[2]).toBe('save');
   });
 
   it('500 when save rejects', async () => {
@@ -104,7 +104,7 @@ describe('DELETE /admin/roles', () => {
     expect(res.body).toMatchObject({ ok: true, isCustom: false });
     expect(setRolePermissions).toHaveBeenCalledWith(null);
     const insert = query.mock.calls.find(c => /INSERT INTO "AuthRoleChangeLog"/.test(String(c[0])));
-    expect(insert?.[1]?.[1]).toBe('reset');
+    expect(insert?.[1]?.[2]).toBe('reset');
   });
 
   it('500 when reset rejects', async () => {

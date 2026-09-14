@@ -10,9 +10,12 @@ import { Router } from 'express';
 import * as db from '../db/connection.js';
 import { runScoring } from '../riskscoring/engine.js';
 import { requirePermission } from '../middleware/auth.js';
+import { ALL_PERMISSION_KEYS } from '../auth/permissions.js';
 
 const router = Router();
 const useSql = process.env.USE_SQL === 'true';
+// Run history is shown on the Logs page to every mapped role (SEC-2026-09 M-01).
+const readRuns = requirePermission(...ALL_PERMISSION_KEYS);
 
 router.post('/risk-scoring/runs', requirePermission('admin.crawlers'), async (req, res) => {
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
@@ -51,7 +54,7 @@ router.post('/risk-scoring/runs', requirePermission('admin.crawlers'), async (re
   }
 });
 
-router.get('/risk-scoring/runs', async (_req, res) => {
+router.get('/risk-scoring/runs', readRuns, async (_req, res) => {
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
   try {
     const r = await db.query(
@@ -67,7 +70,7 @@ router.get('/risk-scoring/runs', async (_req, res) => {
   }
 });
 
-router.get('/risk-scoring/runs/:id', async (req, res) => {
+router.get('/risk-scoring/runs/:id', readRuns, async (req, res) => {
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) return res.status(400).json({ error: 'Invalid id' });

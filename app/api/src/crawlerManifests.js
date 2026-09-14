@@ -20,8 +20,10 @@ export const CRAWLER_MANIFESTS_DIR = process.env.CRAWLER_MANIFESTS_DIR ||
     : path.resolve(__dirname, '../../../tools/crawlers'));
 
 const _ajv = new Ajv({ allErrors: true });
-export const _crawlerManifests = {};   // type → manifest object
-const _configValidators = {};          // type → compiled ajv validator (or null)
+// Null-prototype maps: lookups are keyed by request-supplied type names, and an
+// inherited name such as `constructor` must not resolve (SEC-2026-09 L-15).
+export const _crawlerManifests = Object.create(null);   // type → manifest object
+const _configValidators = Object.create(null);          // type → compiled ajv validator (or null)
 
 try {
   for (const dir of readdirSync(CRAWLER_MANIFESTS_DIR, { withFileTypes: true })) {

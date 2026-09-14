@@ -126,7 +126,7 @@ router.get('/risk-scores/:type/:id', async (req, res) => {
       Context: 'Contexts',
       Identity: 'Identities',
     };
-    const tableName = entityTableMap[entityType];
+    const tableName = Object.hasOwn(entityTableMap, entityType) ? entityTableMap[entityType] : null;
     if (tableName) {
       try {
         // tableName comes from the fixed entityTableMap allow-list above, so
