@@ -67,11 +67,22 @@ The `ApiKey` is the worker API key shown on the **Admin → Settings** page.
 | `tokenEndpoint` / `clientId` / `clientSecret` | OAuth2CC / OAuth2ROPC | OAuth2 token endpoint and app registration |
 | `apiToken` | ApiToken | Static bearer token |
 | `cookieString` | CookieString | Pre-built session cookie — useful for Omada Cloud when only browser/PowerShell session cookies are available |
+| `allowPrivateNetwork` | No (default `false`) | Allow `baseUrl` / `tokenEndpoint` to resolve to a private or loopback address — set this for a server on your own network. See [Network access](#network-access) |
+| `allowInsecureHttp` | No (default `false`) | Allow plain `http` for `baseUrl` / `tokenEndpoint`. Credentials are then sent unencrypted. See [Network access](#network-access) |
 | `selectedObjects` | No | Object with boolean flags to enable/disable sync phases: `contexts`, `identities`, `accounts`, `contextMembers`, `resources`, `entitlements`, `assignments` |
 | `contextObjectTypes` | No (default: `Orgunit` only) | Which Omada entity sets to sync as Contexts — see below |
 | `resourceCategoryMapping` | No | Maps `ROLECATEGORY` to Identity Atlas `resourceType` — see below |
 
 In the wizard, the **Sync Options** step calls `$metadata` live against the connected Omada server to validate that `contextObjectTypes` entries reference real entity sets and identity fields (case-sensitive).
+
+### Network access
+
+Omada Cloud (`https://<tenant>.omada.cloud`) needs no extra setting. For an **on-premises**
+Omada server whose address is private (`10.x`, `172.16–31.x`, `192.168.x`, or a name that
+resolves to one) tick **Allow private network** on the Connection step; if it is only served
+over plain `http`, also tick **Allow insecure HTTP**. The same applies to a self-hosted OAuth2
+token endpoint. Why these options exist, what stays blocked regardless, and what to do after
+upgrading: [Crawler URL rejected](../reference/troubleshooting.md#crawler-url-rejected).
 
 ### `contextObjectTypes`
 
@@ -111,6 +122,9 @@ The `CRAWLER_MANIFESTS_DIR` environment variable on the web container must point
 
 **`$metadata` returns HTTP 500 (Omada Cloud)**
 Some cloud tenants return 500 on `$metadata`. This is non-fatal — the wizard shows a warning but the sync itself still runs all configured phases.
+
+**Save, discovery or the job fails with *baseUrl rejected* or *tokenEndpoint rejected***
+The URL uses `http` or resolves to a private, loopback or cloud-metadata address. For an on-premises Omada server enable **Allow private network** (and, only if it has no https, **Allow insecure HTTP**) — see [Network access](#network-access). Metadata and link-local addresses cannot be enabled.
 
 **Cookie session expires during a scheduled sync**
 `FormCookie` and `CookieString` sessions typically expire after 20–60 minutes. Use `OAuth2CC` or `OAuth2ROPC` for unattended scheduled syncs.

@@ -20,8 +20,10 @@ export const CRAWLER_MANIFESTS_DIR = process.env.CRAWLER_MANIFESTS_DIR ||
     : path.resolve(__dirname, '../../../tools/crawlers'));
 
 const _ajv = new Ajv({ allErrors: true });
-export const _crawlerManifests = {};   // type → manifest object
-const _configValidators = {};          // type → compiled ajv validator (or null)
+// Null-prototype maps: lookups are keyed by request-supplied type names, and an
+// inherited name such as `constructor` must not resolve (SEC-2026-09 L-15).
+export const _crawlerManifests = Object.create(null);   // type → manifest object
+const _configValidators = Object.create(null);          // type → compiled ajv validator (or null)
 
 try {
   for (const dir of readdirSync(CRAWLER_MANIFESTS_DIR, { withFileTypes: true })) {
@@ -75,6 +77,15 @@ export function isExperimentalType(type) {
 // Returns null if no push-mode crawler is installed.
 export function getPushModeType() {
   return Object.keys(_crawlerManifests).find(t => _crawlerManifests[t].pushMode) ?? null;
+}
+
+// Config fields that hold a URL the crawler (or its discover handler) will send
+// credentials to. The API runs the SSRF guard over each of them before a config
+// is saved or a job is queued (SEC-2026-09 M-03); the worker checks them again at
+// connect time. Manifest: `"urlFields": ["baseUrl", "tokenEndpoint"]`.
+export function getUrlFields(type) {
+  const fields = _crawlerManifests[type]?.urlFields;
+  return Array.isArray(fields) ? fields.filter(f => typeof f === 'string') : [];
 }
 
 export function validateCrawlerConfig(type, config) {

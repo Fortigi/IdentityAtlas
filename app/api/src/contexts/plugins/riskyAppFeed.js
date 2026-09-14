@@ -9,7 +9,13 @@
 // Feed columns: appname,appid,metadata_category,metadata_severity,metadata_comment,
 //               metadata_reference,service   (appId is a GUID in `appid`).
 
+import { assertPublicUrl } from '../../lib/ssrfGuard.js';
+import { readCappedBody } from '../../lib/cappedBody.js';
+
 export const DEFAULT_FEED_URL = 'https://oauthsentry.github.io/feeds/all/all_malicious.csv';
+// The public feed is a few hundred KB; anything near this cap is not that feed.
+export const MAX_FEED_BYTES = 5 * 1024 * 1024;
+const FEED_TIMEOUT_MS = 30_000;
 
 // Minimal quote-aware CSV line split (fields may contain commas inside quotes).
 function splitCsvLine(line) {
@@ -57,13 +63,24 @@ export function parseAppIdsCsv(text) {
 
 /**
  * Fetch the malicious-app feed and return a Set of lower-cased appIds.
- * `fetchImpl` is injectable for unit tests.
+ *
+ * The URL is an admin-editable plugin parameter, so it is treated as untrusted
+ * (SEC-2026-09 M-12): it must be https and resolve to a public address, a redirect
+ * is refused rather than followed past that check, and the body is read under a
+ * byte cap. `fetchImpl` and `assertUrl` are injectable for unit tests.
  * @param {string} [feedUrl]
  * @param {Function} [fetchImpl]
+ * @param {{ assertUrl?: Function, maxBytes?: number }} [opts]
  * @returns {Promise<Set<string>>}
  */
-export async function fetchMaliciousAppIds(feedUrl = DEFAULT_FEED_URL, fetchImpl = fetch) {
-  const r = await fetchImpl(feedUrl, { headers: { 'User-Agent': 'IdentityAtlas-risky-app-consent' } });
+export async function fetchMaliciousAppIds(feedUrl = DEFAULT_FEED_URL, fetchImpl = fetch, { assertUrl = assertPublicUrl, maxBytes = MAX_FEED_BYTES } = {}) {
+  await assertUrl(feedUrl, { requireHttps: true });
+  const r = await fetchImpl(feedUrl, {
+    headers: { 'User-Agent': 'IdentityAtlas-risky-app-consent' },
+    redirect: 'manual',
+    signal: AbortSignal.timeout(FEED_TIMEOUT_MS),
+  });
+  if (r.status >= 300 && r.status < 400) throw new Error(`OAuthSentry feed redirected (HTTP ${r.status}); redirects are not followed`);
   if (!r.ok) throw new Error(`OAuthSentry feed fetch returned ${r.status}`);
-  return parseAppIdsCsv(await r.text());
+  return parseAppIdsCsv(await readCappedBody(r, maxBytes, 'OAuthSentry feed'));
 }

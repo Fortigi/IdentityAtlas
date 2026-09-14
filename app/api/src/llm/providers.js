@@ -20,6 +20,8 @@
 // Network errors and non-2xx responses throw. The response shape is normalised so
 // the caller can render `text` and optionally show `usage` token counts.
 
+import { readCappedBody } from '../lib/cappedBody.js';
+
 const DEFAULT_MAX_TOKENS = 4096;
 const DEFAULT_TEMPERATURE = 0.3;
 
@@ -58,30 +60,6 @@ const DEFAULT_MODELS = {
 const LLM_TIMEOUT_MS = Number(process.env.LLM_TIMEOUT_MS) || 120_000;
 const LLM_MAX_RESPONSE_BYTES = 16 * 1024 * 1024; // 16 MB — far above any real chat / model-list payload
 
-async function readCappedBody(resp, maxBytes) {
-  // Fast reject if the server advertises an over-cap body.
-  const declared = Number(resp.headers?.get?.('content-length'));
-  if (Number.isFinite(declared) && declared > maxBytes) {
-    throw new Error(`LLM response too large (${declared} bytes > ${maxBytes}-byte cap)`);
-  }
-  const reader = resp.body?.getReader?.();
-  if (!reader) return resp.text(); // no readable stream; platform already bounded it
-  const chunks = [];
-  let total = 0;
-  try {
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      total += value.byteLength;
-      if (total > maxBytes) throw new Error(`LLM response exceeded ${maxBytes}-byte cap`);
-      chunks.push(Buffer.from(value));
-    }
-  } finally {
-    await reader.cancel().catch(() => {});
-  }
-  return Buffer.concat(chunks).toString('utf8');
-}
-
 export async function llmFetch(url, options = {}) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), LLM_TIMEOUT_MS);
@@ -94,7 +72,7 @@ export async function llmFetch(url, options = {}) {
     if (resp.type === 'opaqueredirect' || (resp.status >= 300 && resp.status < 400)) {
       throw new Error('LLM provider attempted an unexpected redirect; refusing to follow');
     }
-    const bodyText = await readCappedBody(resp, LLM_MAX_RESPONSE_BYTES);
+    const bodyText = await readCappedBody(resp, LLM_MAX_RESPONSE_BYTES, 'LLM response');
     return { ok: resp.ok, status: resp.status, bodyText };
   } catch (e) {
     if (e.name === 'AbortError') {

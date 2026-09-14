@@ -42,6 +42,32 @@ Debug output writes to the host (not the pipeline), so it does not interfere wit
 
 ---
 
+## Crawler URL rejected
+
+The Omada, midPoint, SCIM and OData crawlers send their credentials to the `baseUrl` and
+OAuth2 `tokenEndpoint` in their configuration. To stop a configuration from pointing that
+credential at an internal service or a cloud-metadata endpoint, Identity Atlas accepts only
+**https** URLs on **public** addresses unless the crawler opts in. The check runs:
+
+- when the crawler is saved and when a job is started (the API answers `400 … rejected`);
+- when the wizard runs live discovery (which also does not follow HTTP redirects — enter the final URL);
+- on the worker right before it connects, before every token request, and on every next-page
+  link the server returns (which must stay on the configured host).
+
+| Message contains | Meaning | Fix |
+|---|---|---|
+| *must use https* | The URL is plain `http`. | Enable https on the server, or tick **Allow insecure HTTP** (`allowInsecureHttp: true`). Credentials are then sent unencrypted. |
+| *private or loopback address* | The host resolves to `10.x`, `172.16–31.x`, `192.168.x`, `100.64–127.x`, `127.x` or an IPv6 unique-local address. | For an on-premises server, tick **Allow private network** (`allowPrivateNetwork: true`). |
+| *link-local, metadata, or reserved address* | The host resolves to `169.254.x`, `fe80::`, `0.0.0.0`, a multicast/reserved range, or an IPv6 form that embeds one of these. | Cannot be enabled. Use the server's real address. |
+| *points to a different host* | The server returned a next-page link on another host. | Check the server's public URL / reverse-proxy settings; the crawler never follows such a link. |
+| *redirect (HTTP 3xx)* | Discovery hit a redirect. | Configure the URL the server redirects to. |
+
+Both options are per crawler, on the wizard's **Connection** step. A crawler configured before
+these checks existed keeps its settings but is refused until the matching option is ticked:
+edit the crawler, tick it, and save.
+
+---
+
 ## Required Permissions
 
 All permissions below are **Application** permissions (not Delegated). They are configured on the App Registration used by the Entra ID crawler.

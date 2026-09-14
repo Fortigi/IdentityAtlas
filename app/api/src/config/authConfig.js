@@ -51,12 +51,27 @@ let _state = {
   loaded: false,
 };
 
-function buildJwksClient(tenantId) {
+// Signing-key lookups that miss the cache (a token with an unknown `kid`) go
+// out to Entra. Bound them so a flood of tokens with made-up key ids cannot
+// turn every request into an outbound fetch or pin requests on a slow
+// endpoint (SEC-2026-09 L-03). Cache hits don't count against the limit, so
+// real sign-ins — a handful of published keys — are unaffected; a key
+// rotation needs one miss per new kid.
+export const JWKS_CLIENT_OPTIONS = Object.freeze({
+  cache: true,
+  cacheMaxAge: 86400000,       // 24h — same as the previous middleware
+  rateLimit: true,
+  jwksRequestsPerMinute: 10,   // outbound JWKS fetches per minute, across all callers
+  timeout: 10000,              // ms per JWKS fetch (library default is 30s)
+});
+
+// `overrides` exists for tests (e.g. a stub `fetcher`); production passes none.
+export function buildJwksClient(tenantId, overrides = {}) {
   if (!tenantId) return null;
   return jwksClient({
     jwksUri: `https://login.microsoftonline.com/${tenantId}/discovery/v2.0/keys`,
-    cache: true,
-    cacheMaxAge: 86400000,  // 24h — same as the previous middleware
+    ...JWKS_CLIENT_OPTIONS,
+    ...overrides,
   });
 }
 

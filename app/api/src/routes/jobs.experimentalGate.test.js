@@ -27,7 +27,7 @@ vi.mock('../crawlerManifests.js', () => ({
   CRAWLER_MANIFESTS_DIR: '', _crawlerManifests: {}, VALID_JOB_TYPES: ['settled-type', 'preview-type'],
   validateCrawlerConfig: vi.fn(() => null), validateStoredCrawlerConfig: vi.fn(async () => null),
   isSingletonJob: vi.fn(() => false), isPushModeType: vi.fn(() => false),
-  isExperimentalType: vi.fn(t => t === 'preview-type'),
+  isExperimentalType: vi.fn(t => t === 'preview-type'), getUrlFields: vi.fn(() => []),
 }));
 const isFeatureEnabled = vi.fn(async () => false);
 vi.mock('../featureFlags.js', () => ({ isFeatureEnabled: (...a) => isFeatureEnabled(...a) }));

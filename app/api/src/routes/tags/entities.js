@@ -8,13 +8,14 @@
 
 import { Router } from 'express';
 import { getResourceColumns as getResourceCols, getPrincipalOrUserColumns, getPrincipalOrUserColumnValues, getResourceColumnValues } from '../../db/columnCache.js';
-import { createParams } from '../../db/sqlParams.js';
+import { createParams, likeContains } from '../../db/sqlParams.js';
 import { parseJsonbColumn } from '../../lib/jsonb.js';
 import { buildOrderBy } from '../../lib/listSort.js';
 import { parseListParams } from '../../lib/listParams.js';
 import { useSql, db, ensureTagTables, buildFilterWhere, UUID_RE, parseTags } from './shared.js';
 import { extractRelFilters, buildRelationshipWhere, discoverReferenceFields } from '../../lib/referenceFilters.js';
 import { withAttributeLabels } from '../../lib/attributeLabels.js';
+import { addSystemColumn, extractSystemFilter, systemFilterWhere } from '../../lib/systemFilter.js';
 
 const router = Router();
 
@@ -50,6 +51,10 @@ router.get('/user-columns-page', async (req, res) => {
       const userTags = tagResult.rows.map(r => r.name);
       if (userTags.length > 0) grouped['__userTag'] = userTags;
     } catch { /* tag tables may not exist yet */ }
+
+    // Virtual __system column — system display names, sourced from the Systems
+    // table so a system with no principals is still offered.
+    await addSystemColumn(grouped);
 
     const columns = Object.entries(grouped).map(([column, values]) => ({ column, values }));
 
@@ -107,6 +112,10 @@ async function groupColumnsHandler(req, res) {
       grouped['__groupTag'] = schemaOnly ? [] : groupTags;
     } catch { /* tag tables may not exist yet */ }
 
+    // Virtual __system column — system display names, sourced from the Systems
+    // table so a system with no resources is still offered.
+    await addSystemColumn(grouped, { schemaOnly });
+
     return res.json(await withAttributeLabels(
       Object.entries(grouped).map(([column, values]) => ({ column, values })), 'resource'));
   } catch (err) {
@@ -128,6 +137,8 @@ router.get('/users', async (req, res) => {
       userTagFilter = String(attrFilters['__userTag']);
       delete attrFilters['__userTag'];
     }
+    // Virtual __system filter — translated into a systemId predicate below.
+    const systemFilter = extractSystemFilter(attrFilters);
     // Pull reference-field (rel.*) filters out before column validation — they
     // are applied as correlated count subqueries, not scalar column matches.
     const relFilters = extractRelFilters(attrFilters);
@@ -144,8 +155,8 @@ router.get('/users', async (req, res) => {
     // Hide soft-deleted principals by default; ?includeDeleted=true reveals them.
     if (req.query.includeDeleted !== 'true') where += ` AND u."deletedAt" IS NULL`;
     if (search) {
-      const s = bind(`%${search}%`);
-      where += ` AND (u."displayName" ILIKE ${s} OR u."email" ILIKE ${s})`;
+      const s = bind(likeContains(search));
+      where += ` AND (u."displayName" ILIKE ${s} ESCAPE '\\' OR u."email" ILIKE ${s} ESCAPE '\\')`;
     }
     if (tagId) {
       where += ` AND EXISTS (SELECT 1 FROM "GraphTagAssignments" ta WHERE ta."tagId" = ${bind(tagId)} AND ta."entityId" = UPPER(u.id::text))`;
@@ -157,6 +168,7 @@ router.get('/users', async (req, res) => {
         INNER JOIN "GraphTags" _ut ON _uta."tagId" = _ut.id AND _ut."name" = ${bind(userTagFilter)} AND _ut."entityType" = 'user'`;
     }
     where += buildFilterWhere(attrFilters, colNames, 'u', bind);
+    where += systemFilterWhere(systemFilter, 'u', bind);
     where += buildRelationshipWhere(relFilters, 'principals', 'u');
 
     // Paginate FIRST (cheap), then resolve the per-row tag string only for the
@@ -243,16 +255,17 @@ function parseGroupsListParams(req) {
     groupTagFilter = String(attrFilters['__resourceTag']);
     delete attrFilters['__resourceTag'];
   }
-  return { search, tagId, limit, offset, resourceType, attrFilters, groupTagFilter };
+  const systemFilter = extractSystemFilter(attrFilters);
+  return { search, tagId, limit, offset, resourceType, attrFilters, groupTagFilter, systemFilter };
 }
 
 // Build the /groups WHERE + optional tag-filter JOIN, binding via `bind`.
 function buildGroupsListWhere(parsed, colNames, bind) {
-  const { search, tagId, resourceType, attrFilters, groupTagFilter } = parsed;
+  const { search, tagId, resourceType, attrFilters, groupTagFilter, systemFilter } = parsed;
   let where = '1=1';
   if (search) {
-    const s = bind(`%${search}%`);
-    where += ` AND (r."displayName" ILIKE ${s} OR r."description" ILIKE ${s})`;
+    const s = bind(likeContains(search));
+    where += ` AND (r."displayName" ILIKE ${s} ESCAPE '\\' OR r."description" ILIKE ${s} ESCAPE '\\')`;
   }
   if (resourceType) where += ` AND r."resourceType" = ${bind(resourceType)}`;
   if (tagId) {
@@ -265,6 +278,7 @@ function buildGroupsListWhere(parsed, colNames, bind) {
         INNER JOIN "GraphTags" _gt ON _gta."tagId" = _gt.id AND _gt."name" = ${bind(groupTagFilter)} AND _gt."entityType" IN ('resource', 'group')`;
   }
   where += buildFilterWhere(attrFilters, colNames, 'r', bind);
+  where += systemFilterWhere(systemFilter, 'r', bind);
   return { where, groupTagJoin };
 }
 

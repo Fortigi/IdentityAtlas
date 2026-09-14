@@ -23,7 +23,6 @@ This document lists all major software components, dependencies, and infrastruct
 |---------|---------|---------|---------|
 | express | ^5.2.1 | Web application framework | MIT |
 | pg | ^8.23.0 | PostgreSQL client | MIT |
-| pg-copy-streams | ^7.0.0 | High-performance bulk import | MIT |
 | ajv | ^8.20.0 | JSON Schema validation for crawler configs | MIT |
 | re2 | ^1.26.1 | Safe regex engine (ReDoS protection) | BSD-3-Clause |
 
@@ -60,7 +59,6 @@ This document lists all major software components, dependencies, and infrastruct
 | eslint | ^10.10.0 | JavaScript linter | MIT |
 | eslint-plugin-security | ^4.0.1 | Security-focused lint rules | Apache 2.0 |
 | esbuild | ^0.28.2 | Bundler for desktop launcher build | MIT |
-| patch-package | ^8.0.1 | Patch third-party packages | MIT |
 
 ---
 

@@ -26,6 +26,8 @@ git fetch origin "$BRANCH" -q 2>/dev/null || { comment_issue "🤖 I don't have 
 git checkout -B "$BRANCH" "origin/$BRANCH" || bail "could not check out $BRANCH to adjust"
 pr=$(gh pr list --repo "$REPO" --head "$BRANCH" --state open --json number --jq '.[0].number // empty')
 [ -n "$pr" ] || { comment_issue "🤖 The PR for this build is no longer open, so there's nothing to adjust. Re-open it or file a new request."; exit 0; }
+# What the PR has already been flagged for, so only a CHANGE in supply-chain surface is reported.
+supply_flags_before="$(supply_chain_section)"
 
 comment_issue "$(printf '🤖 On it — adjusting for your feedback, then re-deploying to %s.%s' "$URL" "${RUN_URL:+ · 👀 [follow progress]($RUN_URL)}")"
 # The AI is now working — reflect that on the board (not "Awaiting functional acceptance", which reads
@@ -65,10 +67,13 @@ if is_bug; then
   esac
 fi
 
+guard_protected_paths
 push_as_app --force-with-lease "HEAD:refs/heads/$BRANCH" || bail "could not push the adjustment for #${ISSUE}"
 
 # 2. Re-deploy + re-verify on the live env (feature e2e + PR CI, auto-fix up to 8×; else Exceptions).
 verify_loop "$pr"
+
+note_supply_chain_changes "$pr" "$supply_flags_before"
 
 # 3. Adjustment deployed + verified → back to Awaiting functional acceptance, and report back.
 touch "${RUNNER_TEMP:-/tmp}/dor-done"   # success → the workflow's fresh-token reconcile step asserts build-done (survives >1h cycles)

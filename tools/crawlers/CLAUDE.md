@@ -205,6 +205,8 @@ Core API code must never branch on a crawler-type string (`if (jobType === 'demo
 
 | `"experimental": true` | `isExperimentalType(type)` | The type is built and tested but has had little real-world exposure. It is hidden from the Add Crawler picker and `POST /admin/crawler-configs` refuses it with 403, unless the `experimentalCrawlers` feature flag is on (Admin → Experimental). Nothing else is gated: an already-configured instance keeps its schedule, keeps running, and can still be edited and deleted with the flag off. Set the SAME flag in `CrawlerMeta.js` (`experimental: true`) — `crawler.json` is the server-side gate, `CrawlerMeta.js` drives the picker filter and the badge. Used by SCIM 2.0. |
 
+| `"urlFields": ["baseUrl", "tokenEndpoint"]` | `getUrlFields(type)` | Config fields holding a URL the crawler sends a credential to. `routes/jobs/urlPolicy.js` runs the SSRF guard over them on config save/patch and job creation: https + public address only, unless the config sets `allowPrivateNetwork` / `allowInsecureHttp` (link-local / cloud-metadata always refused). The worker re-checks with `shared/Assert-FGPublicUrl.ps1`. Used by omada, odata, midPoint, SCIM (SEC-2026-09 M-03). |
+
 To add a new type-specific behaviour, add a flag + a helper here — never a `=== '<type>'` check in a route.
 
 ## Rules
@@ -411,6 +413,7 @@ The worker container loads `setup/IdentityAtlas.psm1` before running any crawler
 | `setup/docker/Invoke-CrawlerJob.ps1` | Manifest-driven dispatcher; reads registry, resolves deps via DFS, runs entry point |
 | `app/api/src/routes/jobs.js` | Node.js side; reads same manifests for `VALID_JOB_TYPES` and `configSchema` validation |
 | `tools/crawlers/shared/Start-MockODataServer.ps1` | Reusable mock HTTP server for integration tests |
+| `tools/crawlers/shared/Assert-FGPublicUrl.ps1` | Worker-side SSRF guard (`Test-FGPublicUrl`, `Assert-FGPublicUrl`, `Assert-FGSameHostLink`, `Get-FGUrlPolicyParam`) — PowerShell twin of `app/api/src/lib/ssrfGuard.js`. Call from every `Connect-*`, before posting to a token endpoint, and on server-supplied pagination links |
 | `tools/crawlers/shared/Invoke-CrawlerIngest.ps1` | Shared ingest helpers (`Invoke-IngestAPI`, `Update-CrawlerProgress`, `ConvertTo-JsonArray`) — dot-source from each crawler entry point |
 
 ## Shared ingest helpers

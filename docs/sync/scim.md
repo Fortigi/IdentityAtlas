@@ -99,6 +99,8 @@ credential check: a failure is reported inline with the reason.
 | `apiToken` | ApiToken | Static bearer token |
 | `tokenEndpoint` / `clientId` / `clientSecret` | OAuth2CC | OAuth2 client-credentials grant |
 | `scope` | No | Optional OAuth2 scope requested with the client-credentials grant |
+| `allowPrivateNetwork` | No (default `false`) | Allow `baseUrl` / `tokenEndpoint` to resolve to a private or loopback address — set this for a server on your own network. See [Network access](#network-access) |
+| `allowInsecureHttp` | No (default `false`) | Allow plain `http` for `baseUrl` / `tokenEndpoint`. Credentials are then sent unencrypted. See [Network access](#network-access) |
 | `systemName` | No (default `SCIM`) | How this source is labelled in Identity Atlas |
 | `pageSize` | No (default 100) | The SCIM `count` parameter |
 | `selectedObjects` | No | `{ users, groups, groupMembers }` booleans — all default to `true` |
@@ -107,6 +109,14 @@ credential check: a failure is reported inline with the reason.
 
 Secrets (`password`, `apiToken`, `clientSecret`) are never stored in the config blob
 — they go to the secrets vault and are injected into the job at dispatch time.
+
+### Network access
+
+A SaaS SCIM endpoint on public https needs no extra setting. For a SCIM service provider inside
+your network, tick **Allow private network** in the wizard (`allowPrivateNetwork: true`); for
+one without TLS, **Allow insecure HTTP** (`allowInsecureHttp: true`). Both also cover the OAuth2
+`tokenEndpoint`. See [Crawler URL rejected](../reference/troubleshooting.md#crawler-url-rejected)
+for exactly what is checked and when.
 
 ### Example
 
@@ -178,7 +188,8 @@ touch another connector's data, and a `ServicePrincipal` batch can never delete 
 | Symptom | Cause / fix |
 |---|---|
 | Discovery says *Could not reach the SCIM endpoint: /ResourceTypes returned HTTP 401* | Wrong credentials, or the endpoint expects a different auth scheme than the one selected. |
-| Discovery says *baseUrl rejected* | The base URL resolves to a private, loopback or cloud-metadata address. The API refuses to fetch those with a stored credential. |
+| Save, discovery or the job says *baseUrl rejected* / *tokenEndpoint rejected* | The URL uses `http` or resolves to a private, loopback or cloud-metadata address. Enable **Allow private network** / **Allow insecure HTTP** for an on-premises endpoint — see [Network access](#network-access). Metadata and link-local addresses cannot be enabled. |
+| Discovery says *endpoint answered with a redirect* | The wizard does not follow redirects. Enter the URL the endpoint redirects to. |
 | The attribute picker is empty | The endpoint does not serve `/Schemas`, or its schemas declare no simple attributes beyond the core mapping. The sync still works — only the opt-in extras are unavailable. |
 | Group members are missing | Members whose id matches neither a synced user nor a synced group are skipped and counted; the job log reports how many. That usually means the group contains a resource type this crawler does not sync yet. |
 | Users appear but no memberships | Check that **Group members** is enabled in the wizard's Objects step, and that the endpoint returns `members` on `/Groups` (some providers require an explicit attribute request). |

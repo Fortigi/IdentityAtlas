@@ -6,6 +6,7 @@ import {
   screen,
   fireEvent,
 } from '@ui/test-utils/renderWithProviders';
+import { SYSTEM_COLUMNS, expectSystemFilterApplied } from '@ui/test-utils/systemFilter';
 import ResourcesPage from '@ui/components/GroupsPage';
 
 // This page is almost entirely a call to EntityListPage plus two render props. Those render props
@@ -16,15 +17,17 @@ const COLUMNS = '/api/resource-columns';
 
 beforeEach(() => sessionStorage.clear());   // useEntityPage persists filters per entityType
 
-function renderPage(rows, onOpenDetail = () => {}) {
+function renderPage(rows, onOpenDetail = () => {}, columns = []) {
+  const listUrls = [];
   const authFetch = makeAuthFetch((url) => {
     const s = String(url);
-    if (s.includes(COLUMNS)) return [];
+    if (s.includes(COLUMNS)) return columns;
     if (s.includes('/api/tags')) return [];
-    if (s.includes(LIST)) return { data: rows, total: rows.length };
+    if (s.includes(LIST)) { listUrls.push(s); return { data: rows, total: rows.length }; }
     return undefined;
   });
-  return renderWithProviders(<ResourcesPage onOpenDetail={onOpenDetail} />, { auth: { authFetch } });
+  const r = renderWithProviders(<ResourcesPage onOpenDetail={onOpenDetail} />, { auth: { authFetch } });
+  return { ...r, listUrls };
 }
 
 describe('ResourcesPage (GroupsPage)', () => {
@@ -56,5 +59,16 @@ describe('ResourcesPage (GroupsPage)', () => {
     // The badge carries the deletion time in its title — match on that rather than the word
     // "deleted", which the "Include deleted" filter control also uses.
     expect(screen.getByTitle(/^Deleted /)).toHaveTextContent('Deleted');
+  });
+
+  it('labels the virtual __system column "System" and filters the list by it', async () => {
+    const { listUrls } = renderPage(
+      [{ id: 'g1', displayName: 'Finance Admins', resourceType: 'Group' }],
+      () => {},
+      SYSTEM_COLUMNS,
+    );
+    await screen.findByText('Finance Admins');
+
+    await expectSystemFilterApplied(listUrls);
   });
 });

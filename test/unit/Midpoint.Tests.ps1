@@ -345,14 +345,20 @@ Describe 'ConvertTo-MidpointObjectArray' {
 
 # ─── Connect-MidpointAPI (no HTTP) ────────────────────────────────────────────
 Describe 'Connect-MidpointAPI' {
+    BeforeAll {
+        # Keep the SSRF guard's DNS lookup off the network (see AssertFGPublicUrl.Tests.ps1).
+        Mock Resolve-FGHostAddress { @('93.184.216.34') }
+    }
+
     It 'builds a Basic auth header without any HTTP call' {
-        { Connect-MidpointAPI -BaseUrl 'http://mp:8080/midpoint' -AuthMethod 'BasicAuth' -Username 'administrator' -Password 'pw' } | Should -Not -Throw
+        { Connect-MidpointAPI -BaseUrl 'http://mp:8080/midpoint' -AllowInsecureHttp -AuthMethod 'BasicAuth' -Username 'administrator' -Password 'pw' } | Should -Not -Throw
     }
     It 'throws when BasicAuth is missing credentials' {
-        { Connect-MidpointAPI -BaseUrl 'http://mp:8080/midpoint' -AuthMethod 'BasicAuth' -Username 'administrator' } | Should -Throw
+        { Connect-MidpointAPI -BaseUrl 'http://mp:8080/midpoint' -AllowInsecureHttp -AuthMethod 'BasicAuth' -Username 'administrator' } |
+            Should -Throw -ExpectedMessage '*username and password are required*'
     }
     It 'accepts a static ApiToken without an HTTP call' {
-        { Connect-MidpointAPI -BaseUrl 'http://mp:8080/midpoint' -AuthMethod 'ApiToken' -ApiToken 'tok' } | Should -Not -Throw
+        { Connect-MidpointAPI -BaseUrl 'http://mp:8080/midpoint' -AllowInsecureHttp -AuthMethod 'ApiToken' -ApiToken 'tok' } | Should -Not -Throw
     }
 }
 

@@ -90,7 +90,6 @@ services:
       # credentials are configured in the UI and reach the worker per job.
       CRAWLER_API_KEY:     "${CRAWLER_API_KEY:-}"
     volumes:
-      - ./setup/docker/crontab:/app/setup/docker/crontab:ro
       - job_data:/data/uploads
     depends_on:
       # Wait for the API to pass its healthcheck (migrations applied, /api/version

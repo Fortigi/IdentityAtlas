@@ -20,9 +20,17 @@ export function assertHttpUrl(raw, label) {
   return u;
 }
 
-// Timed fetch — avoids hanging forever on an unreachable endpoint.
-export function timedFetch(url, opts = {}, timeoutMs = 15_000) {
-  return fetch(url, { ...opts, signal: AbortSignal.timeout(timeoutMs) });
+// Timed fetch — avoids hanging forever on an unreachable endpoint — that never
+// follows a redirect. The SSRF guard only vets the URL the handler was given; a
+// followed 3xx would carry the request on to wherever the server pointed, past
+// that check (SEC-2026-09 M-02). A redirect is reported as an error instead, so
+// the operator can configure the final URL directly.
+export async function timedFetch(url, opts = {}, timeoutMs = 15_000) {
+  const res = await fetch(url, { ...opts, redirect: 'manual', signal: AbortSignal.timeout(timeoutMs) });
+  if (res.type === 'opaqueredirect' || (res.status >= 300 && res.status < 400)) {
+    throw new Error(`endpoint answered with a redirect (HTTP ${res.status}); redirects are not followed — configure the final URL`);
+  }
+  return res;
 }
 
 // Trim trailing slashes off a base URL without a regex (so a pathological
@@ -44,7 +52,11 @@ export function trimTrailingSlashes(raw) {
 // rejects the other as unsupported rather than silently accepting it.
 const OAUTH_GRANTS = { OAuth2CC: 'client_credentials', OAuth2ROPC: 'password' };
 
-export async function buildAuthHeader(c, { oauthMethods = ['OAuth2CC'] } = {}) {
+// `assertUrl(url, config, label)` is the API's connector-URL guard (injected into
+// every discover handler as ctx.assertConnectorUrl). It is REQUIRED for the OAuth2
+// grants: the token endpoint receives the client secret, so it gets the same
+// address and scheme check as the base URL before anything is posted to it.
+export async function buildAuthHeader(c, { oauthMethods = ['OAuth2CC'], assertUrl } = {}) {
   const m = c.authMethod;
   if (m === 'BasicAuth') {
     if (!c.username || !c.password) throw new Error('username and password are required for BasicAuth');
@@ -59,6 +71,8 @@ export async function buildAuthHeader(c, { oauthMethods = ['OAuth2CC'] } = {}) {
       throw new Error('tokenEndpoint, clientId and clientSecret are required for OAuth2');
     }
     assertHttpUrl(c.tokenEndpoint, 'tokenEndpoint');
+    if (typeof assertUrl !== 'function') throw new Error('tokenEndpoint cannot be validated; refusing to send credentials');
+    await assertUrl(c.tokenEndpoint, c, 'tokenEndpoint');
     const form = new URLSearchParams({
       grant_type: OAUTH_GRANTS[m],
       client_id: c.clientId,

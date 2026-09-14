@@ -7,6 +7,7 @@ import {
   fireEvent,
   waitFor,
 } from '@ui/test-utils/renderWithProviders';
+import { SYSTEM_COLUMNS, expectSystemFilterApplied } from '@ui/test-utils/systemFilter';
 import UsersPage from '@ui/components/UsersPage';
 
 const LIST = '/api/users';
@@ -18,11 +19,11 @@ beforeEach(() => {
 });
 
 // Records every list URL so a test can assert what the sub-tab actually asked the API for.
-function renderPage(rows, onOpenDetail = () => {}) {
+function renderPage(rows, onOpenDetail = () => {}, columns = []) {
   const listUrls = [];
   const authFetch = makeAuthFetch((url) => {
     const s = String(url);
-    if (s.includes(COLUMNS)) return [];
+    if (s.includes(COLUMNS)) return columns;
     if (s.includes('/api/tags')) return [];
     if (s.includes(LIST)) { listUrls.push(s); return { data: rows, total: rows.length }; }
     return undefined;
@@ -53,6 +54,13 @@ describe('UsersPage rows', () => {
     expect(await screen.findByText('Ada Lovelace')).toBeInTheDocument();
     // Matched on the badge's title — "Include deleted" also contains the word.
     expect(screen.getByTitle(/^Deleted /)).toHaveTextContent('Deleted');
+  });
+
+  it('labels the virtual __system column "System" and filters the list by it', async () => {
+    const { listUrls } = renderPage([ada], () => {}, SYSTEM_COLUMNS);
+    await screen.findByText('Ada Lovelace');
+
+    await expectSystemFilterApplied(listUrls);
   });
 });
 

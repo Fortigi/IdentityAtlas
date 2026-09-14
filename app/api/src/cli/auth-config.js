@@ -135,8 +135,8 @@ Examples:
   docker compose exec web node /app/backend/src/cli/auth-config.js status
 
   docker compose exec web node /app/backend/src/cli/auth-config.js \\
-      enable --tenant 10b6a2c8-41f9-400d-8020-4ca96606899f \\
-             --client 368b9b10-24cf-446f-b5f2-a0a2dbe83a65
+      enable --tenant 00000000-0000-0000-0000-000000000000 \\
+             --client 00000000-0000-0000-0000-000000000000
 
   docker compose exec web node /app/backend/src/cli/auth-config.js disable
 

@@ -66,6 +66,7 @@
     "060_auth_role_change_log.sql": "a03e9ab49545a9e9d18b9fe9160f298205e640875cfeeb5cde2982570d4e4c8b",
     "061_business_role_covers_itself.sql": "0dc53ad1e6691691d43a80d929b5f55a207b267831465ba8abb67569eb10e6f6",
     "062_matrix_shares.sql": "f28e33bfa6488c70875903e3025256b42f8eb6e97988d2e16763713fc940ce28",
-    "063_matrix_share_recipients.sql": "7549731e93f6eede031c9b98189da6b6d5d1713042c700f4a662237e95199feb"
+    "063_matrix_share_recipients.sql": "7549731e93f6eede031c9b98189da6b6d5d1713042c700f4a662237e95199feb",
+    "066_auth_role_change_log_oid.sql": "4b548f517532bdf3b0f3fc789ba5b96a772648115069a049df88950855f4d2ec"
   }
 }

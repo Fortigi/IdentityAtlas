@@ -208,3 +208,12 @@ describe('isFeatureEnabled on an unknown flag', () => {
     expect(queryOne).not.toHaveBeenCalled();
   });
 });
+
+describe('inherited property names are not flags (SEC-2026-09 L-15)', () => {
+  for (const name of ['constructor', '__proto__', 'toString']) {
+    it(`workerConfigKey(${name}) is null and the flag resolves off`, async () => {
+      expect(workerConfigKey(name)).toBeNull();
+      await expect(isFeatureEnabled(name)).resolves.toBe(false);
+    });
+  }
+});

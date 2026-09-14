@@ -82,6 +82,10 @@ describe('buildEntitySubquery', () => {
       includeChildren: true,
     }]);
     expect(out.sql).toMatch(/WITH RECURSIVE/);
+    // Cycle guard on the descent (SEC-2026-09 I-08): a corrupt parent chain
+    // must not recurse forever. Behaviour proven in contextScopeCycle.contract.test.js.
+    const flat = out.sql.replace(/--[^\n]*/g, '').replace(/\s+/g, ' ');
+    expect(flat).toContain(') CYCLE id SET "isCycle" USING "cyclePath" SELECT "memberId"');
   });
 
   it('warns and drops a context with an unknown id', () => {

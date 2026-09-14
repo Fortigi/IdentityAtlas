@@ -155,8 +155,47 @@ describe('updates routes', () => {
     expect(bad.status).toBe(400);
 
     const ok = await request(app).post('/api/admin/updates/record')
-      .send({ status: 'installed', fromVersion: '5.310.x', toVersion: '5.311.x' });
+      .send({ status: 'installed', fromVersion: RUNNING, toVersion: NEWER });
     expect(ok.status).toBe(200);
     expect(cf.recordLog).toHaveBeenCalledTimes(1);
+    expect(cf.recordLog.mock.calls[0][0]).toMatchObject({ latestVersion: NEWER, source: 'agent' });
+  });
+
+  it('POST /admin/updates/record refuses a malformed version and records nothing (SEC-2026-09 L-12)', async () => {
+    for (const body of [
+      { status: 'installed', toVersion: '5.311.x' },
+      { status: 'installed', toVersion: 'latest; reboot' },
+      { status: 'failed', fromVersion: '5' },
+      { status: 'applying', toVersion: '5.3.0-beta.1'.repeat(5) },
+    ]) {
+      const res = await request(app).post('/api/admin/updates/record').send(body);
+      expect(res.status, JSON.stringify(body)).toBe(400);
+    }
+    expect(cf.recordLog).not.toHaveBeenCalled();
+  });
+
+  it('POST /admin/updates/record accepts release, edge and beta version shapes, and omitted versions', async () => {
+    for (const toVersion of ['5.2.1.0', 'v5.311.20260630.0900', '5.3.0-beta.2', undefined, '']) {
+      const res = await request(app).post('/api/admin/updates/record').send({ status: 'installed', toVersion });
+      expect(res.status, String(toVersion)).toBe(200);
+    }
+    expect(cf.recordLog).toHaveBeenCalledTimes(5);
+  });
+
+  it('intent and status read the latest row that is NOT an agent report (SEC-2026-09 L-12)', async () => {
+    mockDb.queryOne
+      .mockResolvedValueOnce({ configValue: 'true' })
+      .mockResolvedValueOnce({ latestVersion: RUNNING });
+    await request(app).get('/api/updates/intent');
+    mockDb.queryOne
+      .mockResolvedValueOnce({ configValue: 'false' })
+      .mockResolvedValueOnce({ id: 1, status: 'up-to-date', latestVersion: RUNNING });
+    mockDb.query
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] });
+    await request(app).get('/api/admin/updates/status');
+    const logReads = mockDb.queryOne.mock.calls.map((c) => String(c[0])).filter((q) => /FROM "UpdateLog"/.test(q));
+    expect(logReads).toHaveLength(2);
+    for (const q of logReads) expect(q).toMatch(/WHERE "source" IS DISTINCT FROM 'agent'/);
   });
 });

@@ -24,6 +24,9 @@
 
 $script:ODataSession = $null
 
+# Assert-FGPublicUrl / Assert-FGSameHostLink (SSRF guard, SEC-2026-09 M-03).
+. (Join-Path $PSScriptRoot '..' 'shared' 'Assert-FGPublicUrl.ps1')
+
 #region Functions
 
 function Connect-ODataAPI {
@@ -46,9 +49,14 @@ function Connect-ODataAPI {
         [string]$ApiToken          = '',
         [string]$CookieString      = '',
         [string]$ApiVersion        = 'v4',
-        [int]$SessionTimeoutMinutes = 30
+        [int]$SessionTimeoutMinutes = 30,
+        # Opt-ins from the crawler config (Get-FGUrlPolicyParam): reach a private /
+        # loopback address, or use plain http. Metadata addresses are never allowed.
+        [switch]$AllowPrivateNetwork,
+        [switch]$AllowInsecureHttp
     )
 
+    Assert-FGPublicUrl -Url $BaseUrl -Label 'baseUrl' -AllowPrivateNetwork:$AllowPrivateNetwork -AllowInsecureHttp:$AllowInsecureHttp
     $base = $BaseUrl.TrimEnd('/')
 
     $script:ODataSession = @{
@@ -62,6 +70,8 @@ function Connect-ODataAPI {
         TokenExpiresAt        = $null
         LastAuthAt            = $null
         SessionTimeoutMinutes = $SessionTimeoutMinutes
+        AllowPrivateNetwork   = [bool]$AllowPrivateNetwork
+        AllowInsecureHttp     = [bool]$AllowInsecureHttp
         # Stored for re-auth
         _Username             = $Username
         _Password             = $Password
@@ -122,6 +132,8 @@ function Invoke-ODataOAuth2 {
     param([ValidateSet('client_credentials','password')] [string]$GrantType)
     $endpoint = $script:ODataSession._TokenEndpoint
     if (-not $endpoint) { throw "OData OAuth2: tokenEndpoint is required" }
+    # The client secret is posted here — vet it like the base URL, on every refresh.
+    Assert-FGPublicUrl -Url $endpoint -Label 'tokenEndpoint' -AllowPrivateNetwork:$script:ODataSession.AllowPrivateNetwork -AllowInsecureHttp:$script:ODataSession.AllowInsecureHttp
 
     $form = @{
         grant_type    = $GrantType
