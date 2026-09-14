@@ -112,15 +112,19 @@ describe('midpoint discover.js handler — edit mode credentials', () => {
   });
 
   it('without getConfigCredentials, still resolves an OAuth2 clientSecret via getConfigSecret', async () => {
-    stubFetch([['https://idp.example.com/token', ok({ access_token: 'at' })], ...HAPPY_ROUTES]);
-    const db = { queryOne: vi.fn().mockResolvedValue({ config: { baseUrl: BASE, authMethod: 'OAuth2CC', tokenEndpoint: 'https://idp.example.com/token', clientId: 'c' } }) };
+    const TOKEN_URL = 'https://idp.example.com/token';
+    stubFetch([['/token', ok({ access_token: 'at' })], ...HAPPY_ROUTES]);
+    const db = { queryOne: vi.fn().mockResolvedValue({ config: { baseUrl: BASE, authMethod: 'OAuth2CC', tokenEndpoint: TOKEN_URL, clientId: 'c' } }) };
     const getConfigSecret = vi.fn().mockResolvedValue('vaulted-secret');
     const { req, res } = makeReqRes({ configId: 5 });
 
     await handler(req, res, deps({ db, getConfigSecret }));
 
     expect(getConfigSecret).toHaveBeenCalledWith(5);
-    const [, tokenOpts] = fetch.mock.calls.find(([u]) => String(u).includes('https://idp.example.com/token'));
+    // Exact match: the token request must go to the configured endpoint itself.
+    const tokenCall = fetch.mock.calls.find(([u]) => String(u) === TOKEN_URL);
+    expect(tokenCall).toBeDefined();
+    const [, tokenOpts] = tokenCall;
     expect(String(tokenOpts.body)).toContain('client_secret=vaulted-secret');
     expect(authHeaderSent()).toBe('Bearer at');
   });
