@@ -23,7 +23,7 @@ const app = express().use(express.json()).use(dataRouter);
 describe('buildMatrixContext', () => {
   const built = {
     principalCols: [{ name: 'displayName' }, { name: 'email' }, { name: 'department' }],
-    identityCols: [{ name: 'displayName' }, { name: 'jobTitle' }],
+    identityCols: [{ name: 'displayName' }, { name: 'jobTitle' }, { name: 'accountCount' }],
   };
 
   it('derives principal-mode expressions', () => {
@@ -35,6 +35,8 @@ describe('buildMatrixContext', () => {
     expect(ctx.subjectJoin).not.toContain('IdentityMembers');
     // displayName/email are excluded from the dynamic column list
     expect(ctx.dynamicSubjectCols).toBe('u."department"');
+    // A principal IS an account, so there is nothing to count into (#1212).
+    expect(ctx.accountCountSelect).toBe('');
   });
 
   it('derives identity-mode expressions (joins through IdentityMembers)', () => {
@@ -44,8 +46,18 @@ describe('buildMatrixContext', () => {
     expect(ctx.memberTypeExpr).toBe(`'Identity'`);
     expect(ctx.subjectJoin).toContain('IdentityMembers');
     expect(ctx.subjectJoin).toContain('INNER JOIN "Identities" i');
-    expect(ctx.dynamicSubjectCols).toBe('i."jobTitle"');
     expect(ctx.includeInherited).toBe(true);
+  });
+
+  // #1212: the matrix header shows how many accounts an identity expands into,
+  // so the count has to arrive WITH the grid rows — not on expand.
+  it('selects a null-normalised accountCount for identity subjects, exactly once', () => {
+    const ctx = buildMatrixContext({ rowType: 'identity' }, built, false, {});
+    expect(ctx.accountCountSelect).toBe('COALESCE(i."accountCount", 0) AS "accountCount",');
+    // …and the "every remaining column" list must not select it a second time:
+    // two output columns of one name resolve to whichever the driver reads last,
+    // which would put the raw NULL back on the row.
+    expect(ctx.dynamicSubjectCols).toBe('i."jobTitle"');
   });
 });
 

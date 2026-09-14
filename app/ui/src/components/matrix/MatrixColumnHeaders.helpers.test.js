@@ -8,6 +8,9 @@ import {
   subjectLabel,
   identityGlyph,
   splitAccountColumns,
+  subjectAccountCount,
+  subjectLabelMaxHeight,
+  ACCOUNT_ROW_H,
 } from './MatrixColumnHeaders.helpers';
 
 describe('splitAccountColumns', () => {
@@ -178,6 +181,18 @@ describe('subject helpers', () => {
       .toBe('Cy (account)\n\n');
   });
 
+  // #1212 follow-up: the badge is a bare number, so the tooltip is where it says
+  // what the number counts.
+  it('spells the linked-account count out in the title, pluralised, only when there is one', () => {
+    const identity = { displayName: 'Alice', jobTitle: 'Analyst', department: 'Finance', memberType: 'Identity' };
+    expect(subjectTitle({ ...identity, accountCount: 3 }))
+      .toBe('Alice\nAnalyst\nFinance\n3 linked accounts');
+    expect(subjectTitle({ ...identity, accountCount: 1 }))
+      .toBe('Alice\nAnalyst\nFinance\n1 linked account');
+    expect(subjectTitle({ ...identity, accountCount: 0 }))
+      .toBe('Alice\nAnalyst\nFinance');
+  });
+
   it('appends the account type to an account label only', () => {
     expect(subjectLabel({ displayName: 'Alice' })).toBe('Alice');
     expect(subjectLabel({ displayName: 'Bob', isAccountCol: true, accountType: 'AAD' })).toBe('Bob · AAD');
@@ -188,5 +203,49 @@ describe('subject helpers', () => {
     expect(identityGlyph(true, false)).toBe('⋯');
     expect(identityGlyph(false, true)).toBe('▾');
     expect(identityGlyph(false, false)).toBe('▸');
+  });
+});
+
+// #1212 follow-up: the badge tells the analyst which identities are worth
+// expanding, so it is shown for identities with linked accounts and nobody else.
+describe('subjectAccountCount', () => {
+  const identity = (accountCount) => ({ displayName: 'Alice', memberType: 'Identity', accountCount });
+
+  it('returns the count for an identity that has linked accounts', () => {
+    expect(subjectAccountCount(identity(4))).toBe(4);
+    expect(subjectAccountCount(identity(1))).toBe(1);
+  });
+
+  it('returns null for an identity with nothing to expand into', () => {
+    expect(subjectAccountCount(identity(0))).toBeNull();
+    expect(subjectAccountCount(identity(null))).toBeNull();
+    expect(subjectAccountCount(identity(undefined))).toBeNull();
+  });
+
+  it('returns null for a plain account column, even one carrying a count', () => {
+    // An account sub-column inherits fields from its parent identity; the badge
+    // would then claim the account expands into 4 accounts of its own.
+    expect(subjectAccountCount({ ...identity(4), isAccountCol: true })).toBeNull();
+    expect(subjectAccountCount({ displayName: 'Bob', memberType: 'Principal', accountCount: 2 })).toBeNull();
+    expect(subjectAccountCount(undefined)).toBeNull();
+  });
+});
+
+describe('subjectLabelMaxHeight', () => {
+  it('gives the badge its own room, so the name does not overflow the header', () => {
+    const plain = subjectLabelMaxHeight({ isIdentity: false, hasCount: false });
+    const identity = subjectLabelMaxHeight({ isIdentity: true, hasCount: false });
+    const badged = subjectLabelMaxHeight({ isIdentity: true, hasCount: true });
+    // Each thing stacked above the name (expand control, then count) shortens it.
+    expect(identity).toBeLessThan(plain);
+    expect(badged).toBeLessThan(identity);
+    // The cell is 100px tall — every variant has to fit inside it.
+    expect(plain).toBeLessThan(100);
+  });
+
+  it('sizes an accounts-row label to that row instead', () => {
+    // The accounts row is shorter than the names row and carries no badge.
+    expect(subjectLabelMaxHeight({ inAccountsRow: true, isIdentity: false, hasCount: false }))
+      .toBe(ACCOUNT_ROW_H - 5);
   });
 });

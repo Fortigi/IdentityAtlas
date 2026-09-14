@@ -13,6 +13,7 @@ let pool;
 let systemId;
 const resourceIds = [];
 const principalIds = [];
+const identityIds = {};
 
 beforeAll(async () => {
   ({ agent, pool } = await bootContractApp());
@@ -59,12 +60,34 @@ beforeAll(async () => {
     );
   }
 
+  // Two identities over the same two principals, so the identity row type has
+  // something to return. Alice's identity carries a linked-account count; Bob's
+  // is NULL — the state of an identity the linking engine never rolled up, which
+  // the grid has to render as "nothing to expand into" rather than a blank.
+  for (const [key, name, principalId, accountCount] of [
+    ['alice', 'Alice Person', principalIds[0], 2],
+    ['bob', 'Bob Person', principalIds[1], null],
+  ]) {
+    const r = await pool.query(
+      `INSERT INTO "Identities" ("id", "displayName", "accountCount")
+       VALUES (gen_random_uuid(), $1, $2) RETURNING "id"`,
+      [name, accountCount],
+    );
+    identityIds[key] = r.rows[0].id;
+    await pool.query(
+      `INSERT INTO "IdentityMembers" ("identityId", "principalId", "isPrimary") VALUES ($1, $2, true)`,
+      [identityIds[key], principalId],
+    );
+  }
+
   // The grid reads a materialized view that migrations create unpopulated.
   await pool.query(`REFRESH MATERIALIZED VIEW "vw_ResourceUserPermissionAssignments"`);
   await pool.query(`REFRESH MATERIALIZED VIEW "vw_UserPermissionAssignmentViaBusinessRole"`);
 });
 
 afterAll(async () => {
+  // IdentityMembers cascades off Identities.
+  await pool.query(`DELETE FROM "Identities" WHERE "id" = ANY($1::uuid[])`, [Object.values(identityIds)]);
   await pool.query(`DELETE FROM "ResourceAssignments" WHERE "systemId" = $1`, [systemId]);
   await pool.query(`DELETE FROM "Resources" WHERE "systemId" = $1`, [systemId]);
   await pool.query(`DELETE FROM "Principals" WHERE "systemId" = $1`, [systemId]);
@@ -113,5 +136,36 @@ describe('POST /matrix/data — flat grid', () => {
     const ourRows = res.body.data.filter(r => resourceIds.includes(r.resourceId));
     const breakdown = ourRows.reduce((acc, r) => { acc[r.membershipType] = (acc[r.membershipType] || 0) + 1; return acc; }, {});
     expect(breakdown).toEqual({ Direct: 4, Indirect: 1 });
+  });
+
+  // #1212: the matrix header shows how many accounts an identity expands into,
+  // which means the count has to arrive WITH the grid rows. Only a real database
+  // can say whether the column is selected once, under that name, and whether
+  // the NULL an un-rolled-up identity carries comes back as 0.
+  it('ships a linked-account count with every identity row', async () => {
+    const res = await agent
+      .post('/api/matrix/data')
+      .send({ filter: { rowType: 'identity', subject: { include: [], exclude: [] }, resource: { include: [], exclude: [] } } });
+
+    expect(res.status).toBe(200);
+    expect(res.body.rowType).toBe('identity');
+    const ourRows = res.body.data.filter(r => resourceIds.includes(r.resourceId));
+    expect(ourRows.length).toBeGreaterThan(0);
+
+    const byIdentity = new Map(ourRows.map(r => [r.memberId, r.accountCount]));
+    expect(byIdentity.get(identityIds.alice)).toBe(2);
+    // NULL normalises to 0 — a blank would badge the header with nothing at all
+    // and an absent key would make it look like the API stopped sending it.
+    expect(byIdentity.get(identityIds.bob)).toBe(0);
+  });
+
+  it('sends no account count on a principal grid, where a subject IS an account', async () => {
+    const res = await agent
+      .post('/api/matrix/data')
+      .send({ filter: { rowType: 'principal', subject: { include: [], exclude: [] }, resource: { include: [], exclude: [] } } });
+    expect(res.status).toBe(200);
+    const ourRows = res.body.data.filter(r => resourceIds.includes(r.resourceId));
+    expect(ourRows.length).toBe(5);
+    for (const row of ourRows) expect(row).not.toHaveProperty('accountCount');
   });
 });

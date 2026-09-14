@@ -27,6 +27,12 @@ import { GROUP_PRINCIPAL_TYPE } from '../../lib/principalTypes.js';
 const router = Router();
 const useSql = process.env.USE_SQL === 'true';
 
+// Subject columns the queries below already select under an explicit expression,
+// so the "every remaining column" list must skip them — a duplicate output name
+// resolves to whichever copy the driver reads last, silently. displayName/email
+// ride along as memberDisplayName/memberUPN; accountCount is null-normalised.
+const EXPLICIT_SUBJECT_COLS = ['displayName', 'email', 'accountCount'];
+
 // Shared per-request query context. Every mode below reads the same derived
 // subject-column SELECT, subject join, and member expressions off this object,
 // so the dispatcher computes them once and passes `ctx` to the chosen handler.
@@ -39,7 +45,7 @@ export function buildMatrixContext(filter, built, includeInherited, p) {
   const subjectCols = rowType === 'identity' ? built.identityCols : built.principalCols;
   const subjectAlias = rowType === 'identity' ? 'i' : 'u';
   const dynamicSubjectCols = subjectCols
-    .filter(c => !['displayName', 'email'].includes(c.name))
+    .filter(c => !EXPLICIT_SUBJECT_COLS.includes(c.name))
     .map(c => `${subjectAlias}."${c.name}"`)
     .join(',\n        ');
 
@@ -56,10 +62,27 @@ export function buildMatrixContext(filter, built, includeInherited, p) {
 
   const subjectIdForFilter = rowType === 'identity' ? 'i.id' : 'p."principalId"';
 
+  // How many accounts an identity is linked to, shipped with every one of its
+  // rows so the column header can show the count BEFORE anyone expands it — the
+  // accounts themselves are still fetched on demand from
+  // /api/identities/:id/account-matrix, which is too late to decide whether the
+  // identity is worth expanding at all (#1212).
+  //
+  // Read from the denormalised "Identities"."accountCount" that the
+  // account-linking engine maintains — the same column the identity list, the
+  // identity detail page and the risk-score list already show, so the matrix
+  // can't disagree with them. NULL (an identity the linker never rolled up)
+  // normalises to 0, which reads as "nothing to expand into". Principal-row
+  // matrices have no such column and get no alias at all.
+  const accountCountSelect = rowType === 'identity'
+    ? 'COALESCE(i."accountCount", 0) AS "accountCount",'
+    : '';
+
   return {
     filter, built, includeInherited, p, rowType,
     subjectCols, subjectAlias, dynamicSubjectCols, subjectJoin,
     memberIdExpr, memberNameExpr, memberUpnExpr, memberTypeExpr, subjectIdForFilter,
+    accountCountSelect,
   };
 }
 
@@ -616,7 +639,7 @@ async function handleFlatGrid(res, ctx) {
   const {
     built, rowType, subjectCols, subjectAlias, dynamicSubjectCols,
     subjectJoin, memberIdExpr, memberNameExpr, memberUpnExpr, memberTypeExpr,
-    subjectIdForFilter, includeInherited, p,
+    subjectIdForFilter, accountCountSelect, includeInherited, p,
   } = ctx;
 
   const { params, bind } = createParams();
@@ -647,6 +670,7 @@ async function handleFlatGrid(res, ctx) {
         ${memberNameExpr} AS "memberDisplayName",
         ${memberUpnExpr}  AS "memberUPN",
         ${memberTypeExpr} AS "memberType",
+        ${accountCountSelect}
         p."membershipType",
         ${dynamicSubjectCols ? dynamicSubjectCols + ',' : ''}
         ${subjectAlias}."extendedAttributes" AS "extendedAttributes",

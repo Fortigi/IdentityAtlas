@@ -32,6 +32,7 @@ vi.mock('../../db/connection.js', () => ({
 // Handlers are keyed by label substring; each is an array of rows or a function
 // (called per query — throw to drive an error path).
 let labelHandlers = {};   // label-substring → rows[] | (() => rows[] | throws)
+let lastSql = {};         // label → the SQL string that query was issued with
 function dispatch(label) {
   for (const key of Object.keys(labelHandlers)) {
     if (label.includes(key)) {
@@ -44,7 +45,7 @@ function dispatch(label) {
   return Promise.resolve({ rows: [] });
 }
 vi.mock('../../perf/sqlTimer.js', () => ({
-  timedQuery: (_pool, label) => dispatch(label),
+  timedQuery: (_pool, label, _res, sql) => { lastSql[label] = sql; return dispatch(label); },
 }));
 
 // ── Mock shared.js: full control over filter + built + counts ──
@@ -116,6 +117,7 @@ function baseBuilt(over = {}) {
 
 beforeEach(() => {
   labelHandlers = {};
+  lastSql = {};
   poolQuery.mockReset();
   poolQuery.mockResolvedValue({ rows: [] });
   parseFilterImpl = () => baseFilter();
@@ -180,6 +182,23 @@ describe('matrix/data — flat per-subject grid', () => {
     expect(res.status).toBe(200);
     expect(res.body.rowType).toBe('identity');
     expect(res.body.data).toHaveLength(1);
+    expect(lastSql['matrix-data[identity]']).toContain('SELECT DISTINCT');
+    expect(lastSql['matrix-data[identity]']).toContain('INNER JOIN "IdentityMembers"');
+  });
+
+  // #1212: an identity's linked-account count ships with its grid rows, so the
+  // column header can show it before anyone expands the identity.
+  it('ships a linked-account count with every identity row, and none with a principal row', async () => {
+    parseFilterImpl = () => baseFilter({ rowType: 'identity' });
+    labelHandlers = { 'matrix-data[': [{ resourceId: 'r1', memberId: 'i1', accountCount: 3 }] };
+    const identity = await post({ filter: { rowType: 'identity' } });
+    expect(identity.body.data[0].accountCount).toBe(3);
+    expect(lastSql['matrix-data[identity]']).toContain('COALESCE(i."accountCount", 0) AS "accountCount"');
+
+    parseFilterImpl = () => baseFilter();
+    labelHandlers = { 'matrix-data[': [{ resourceId: 'r1', memberId: 'm1' }] };
+    await post({ filter: {} });
+    expect(lastSql['matrix-data[principal]']).not.toContain('"accountCount"');
   });
 
   it('works when the subject/resource scope is empty (no scope filters)', async () => {

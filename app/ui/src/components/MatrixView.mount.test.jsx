@@ -469,8 +469,9 @@ describe('MatrixView (mounted)', () => {
     expect(screen.getAllByText('Contexts').length).toBeGreaterThan(0);
   });
 
-  // #1212 fixture: an identity matrix where Alice (id1) has one linked SAP account.
-  const aliceRow = { memberId: 'id1', memberDisplayName: 'Alice', department: 'Engineering', memberType: 'Identity', resourceId: 'res-1', resourceDisplayName: 'Finance App', membershipType: 'Direct' };
+  // #1212 fixture: an identity matrix where Alice (id1) has one linked SAP
+  // account. `accountCount` is what the API ships with each identity row.
+  const aliceRow = { memberId: 'id1', memberDisplayName: 'Alice', department: 'Engineering', memberType: 'Identity', accountCount: 1, resourceId: 'res-1', resourceDisplayName: 'Finance App', membershipType: 'Direct' };
   function renderIdentityMatrix(extraRows = []) {
     const authFetch = makeFetch({
       '/api/identities/id1/account-matrix': jsonResponse({
@@ -532,6 +533,28 @@ describe('MatrixView (mounted)', () => {
     await waitFor(() => expect(headerRows()).toHaveLength(rowsBefore));
     expect(screen.queryByText('A.Jansen · SAP')).toBeNull();
     expect(body.props.users.map(u => u.id)).toEqual(['id1']);
+  });
+
+  // #1212 follow-up: the point of the count is to be readable while still
+  // collapsed, so the analyst can see which identities are worth expanding.
+  it('shows an identity its linked-account count before it is expanded (#1212)', async () => {
+    const authFetch = renderIdentityMatrix([
+      { memberId: 'id2', memberDisplayName: 'Carol', department: 'Sales', memberType: 'Identity', accountCount: 0, resourceId: 'res-2', resourceDisplayName: 'HR Portal', membershipType: 'Direct' },
+    ]);
+    await expectRowVisible('Finance App');
+
+    // Nothing has been expanded, and the per-identity account fetch is what
+    // expanding triggers — so the count came in with the matrix rows, which is
+    // the only way it can be known this early.
+    const alice = screen.getByText('Alice').closest('th');
+    expect(alice).toHaveTextContent('1');
+    expect(alice.getAttribute('title')).toContain('1 linked account');
+    expect(authFetch).not.toHaveBeenCalledWith('/api/identities/id1/account-matrix');
+    expect(screen.getAllByTitle('Expand into linked accounts').length).toBeGreaterThan(0);
+
+    // Carol has no linked accounts, so she gets no count to mislead with.
+    const carol = screen.getByText('Carol').closest('th');
+    expect(carol.getAttribute('title')).not.toContain('linked account');
   });
 
   it('clears expanded nesting when the matrix filter changes (#674)', async () => {

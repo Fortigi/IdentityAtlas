@@ -93,7 +93,7 @@ describe('MatrixColumnHeaders accounts row', () => {
   // An identity with two linked accounts, exactly as columnModel.buildColumns
   // emits them: the accounts stand in for their parent, carry it on `parent` and
   // inherit its sort keys.
-  const alice = { id: 'id1', displayName: 'Alice', memberType: 'Identity', sortKeys: ['Finance', 'Payroll', 'Analyst'] };
+  const alice = { id: 'id1', displayName: 'Alice', memberType: 'Identity', accountCount: 2, sortKeys: ['Finance', 'Payroll', 'Analyst'] };
   const expandedUsers = [
     { id: 'acc1', displayName: 'Alice', isAccountCol: true, parentId: 'id1', parent: alice, accountType: 'AAD', sortKeys: ['Finance', 'Payroll', 'Analyst'] },
     { id: 'acc2', displayName: 'A.Jansen', isAccountCol: true, parentId: 'id1', parent: alice, accountType: 'SAP', sortKeys: ['Finance', 'Payroll', 'Analyst'] },
@@ -156,5 +156,61 @@ describe('MatrixColumnHeaders accounts row', () => {
     const carol = screen.getByText('Carol').closest('th');
     expect(carol.closest('tr')).toBe(namesRow);
     expect(carol.rowSpan).toBe(2);
+  });
+
+  it('keeps the account count on the identity while it is expanded', () => {
+    // The count may stay up once expanded — it still describes the span below.
+    const { container } = renderExpanded();
+    const identityCell = screen.getByText('Alice').closest('th');
+    expect(identityCell).toHaveTextContent('2');
+    // The accounts themselves never carry one: an account expands into nothing.
+    const accountsRow = [...container.querySelectorAll('thead tr')].at(-1);
+    expect(accountsRow).not.toHaveTextContent('2');
+  });
+});
+
+// ─── Linked-account count on an identity header (#1212 follow-up) ─────────────
+//
+// The count says how many accounts the column expands into, and it has to be
+// readable BEFORE expanding — that is how the analyst picks which identities are
+// worth a click. It rides along on the matrix rows, so no fetch is involved.
+describe('MatrixColumnHeaders identity account count', () => {
+  const subjects = [
+    { id: 'id1', displayName: 'Alice', memberType: 'Identity', accountCount: 3, sortKeys: ['Finance'] },
+    { id: 'id2', displayName: 'Bob', memberType: 'Identity', accountCount: 0, sortKeys: ['Finance'] },
+    { id: 'u3', displayName: 'Carol', memberType: 'User', accountCount: 7, sortKeys: ['Ops'] },
+  ];
+  const renderSubjects = () => renderHeaders([{ attribute: 'department' }], {
+    users: subjects,
+    expandedIdentities: new Set(),
+    loadingIdentityCols: new Set(),
+  });
+
+  it('badges an unexpanded identity with its number of linked accounts', () => {
+    renderSubjects();
+    const alice = screen.getByText('Alice').closest('th');
+    expect(alice).toHaveTextContent('3');
+    // The bare number needs the tooltip to say what it counts.
+    expect(alice.getAttribute('title')).toContain('3 linked accounts');
+    // Nothing was fetched to learn it — the count came in with the grid rows,
+    // and the identity is still collapsed.
+    expect(alice.querySelector('[title="Expand into linked accounts"]')).toBeTruthy();
+  });
+
+  it('leaves it off an identity with no linked accounts', () => {
+    renderSubjects();
+    const bob = screen.getByText('Bob').closest('th');
+    expect(bob).toHaveTextContent('Bob');
+    expect(bob.textContent.replace('Bob', '')).not.toMatch(/\d/);
+    expect(bob.getAttribute('title')).not.toContain('linked account');
+  });
+
+  it('leaves it off a plain account subject', () => {
+    // A principal-row matrix has no identities: every subject IS an account, so
+    // a count would be meaningless even if a stray value rode along.
+    renderSubjects();
+    const carol = screen.getByText('Carol').closest('th');
+    expect(carol.textContent.replace('Carol', '')).not.toMatch(/\d/);
+    expect(carol.getAttribute('title')).not.toContain('linked account');
   });
 });

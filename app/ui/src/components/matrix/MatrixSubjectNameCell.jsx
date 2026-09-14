@@ -1,7 +1,11 @@
-import { subjectTitle, subjectLabel, identityGlyph, ACCOUNT_ROW_H } from './MatrixColumnHeaders.helpers';
+import {
+  subjectTitle, subjectLabel, identityGlyph, subjectAccountCount,
+  subjectLabelMaxHeight, ACCOUNT_ROW_H,
+} from './MatrixColumnHeaders.helpers';
 
 // Header cell for a single subject. Identity columns get an expand control (into
-// their linked accounts); account columns get a blue-tinted style.
+// their linked accounts) and, when they have any, a count of them; account
+// columns get a blue-tinted style.
 //
 // The same cell serves both header rows. On the names row it is sticky and 100px
 // tall, and spans the accounts row (`rowSpan`) or its own account sub-columns
@@ -16,6 +20,9 @@ export default function MatrixSubjectNameCell({
   const isExpanded = expandedIdentities?.has(user.id);
   const isLoadingCol = loadingIdentityCols?.has(user.id);
   const height = inAccountsRow ? `${ACCOUNT_ROW_H}px` : '100px';
+  // Linked accounts this identity expands into — shown before expanding (so you
+  // can tell which identities are worth a click) and kept while expanded.
+  const accountCount = subjectAccountCount(user);
   return (
     <th
       colSpan={colSpan}
@@ -36,6 +43,11 @@ export default function MatrixSubjectNameCell({
             {identityGlyph(isLoadingCol, isExpanded)}
           </button>
         )}
+        {accountCount !== null && (
+          <span className="text-[9px] leading-none text-gray-500 dark:text-gray-400 shrink-0">
+            {accountCount}
+          </span>
+        )}
         <div
           className={`text-[10px] font-medium cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 ${
             isAcct ? 'text-blue-700 dark:text-blue-300' : 'text-gray-700 dark:text-gray-300'
@@ -44,7 +56,7 @@ export default function MatrixSubjectNameCell({
             writingMode: 'vertical-lr',
             textOrientation: 'mixed',
             transform: 'rotate(180deg)',
-            maxHeight: inAccountsRow ? `${ACCOUNT_ROW_H - 5}px` : (isIdentity ? '78px' : '95px'),
+            maxHeight: `${subjectLabelMaxHeight({ inAccountsRow, isIdentity, hasCount: accountCount !== null })}px`,
             overflow: 'hidden',
             whiteSpace: 'nowrap',
             margin: '0 auto',

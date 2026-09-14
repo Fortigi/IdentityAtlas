@@ -108,11 +108,35 @@ export function apLeftBorderClass(idx, isCategoryBoundary) {
   return '';
 }
 
+// Linked-account count to badge on a subject column, or null when there is
+// nothing worth showing. Only an identity that actually has linked accounts gets
+// one: the badge says "this column expands into N accounts", which is meaningless
+// on a plain account column and on an identity with nothing to expand into.
+//
+// The count rides along on the matrix rows (see the API's accountCountSelect),
+// so it is known before the identity is expanded — which is the point: it is how
+// the analyst decides which identities are worth expanding.
+export function subjectAccountCount(user) {
+  if (user?.memberType !== 'Identity' || user?.isAccountCol) return null;
+  const n = Number(user?.accountCount);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
 // Multi-line tooltip for a subject (name) column.
 export function subjectTitle(user) {
   const isAcct = !!user.isAccountCol;
   const acct = isAcct ? ` (account${user.accountType ? ' · ' + user.accountType : ''})` : '';
-  return `${user.displayName}${acct}\n${user.jobTitle || ''}\n${user.department || ''}`;
+  const n = subjectAccountCount(user);
+  const accounts = n ? `\n${n} linked account${n === 1 ? '' : 's'}` : '';
+  return `${user.displayName}${acct}\n${user.jobTitle || ''}\n${user.department || ''}${accounts}`;
+}
+
+// Max height (px) of the rotated name label. Its cell is fixed-height, so
+// everything stacked above the name — the expand control, the account count —
+// has to come out of the label's budget or the name overflows the header.
+export function subjectLabelMaxHeight({ inAccountsRow, isIdentity, hasCount }) {
+  if (inAccountsRow) return ACCOUNT_ROW_H - 5;
+  return 95 - (isIdentity ? 17 : 0) - (hasCount ? 10 : 0);
 }
 
 // Rotated label text for a subject column (accounts append their type).

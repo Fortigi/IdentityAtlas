@@ -158,6 +158,47 @@ test.describe('Matrix — expanding an identity into its accounts (#1212)', () =
     await expect(page.locator('thead th[title*="(account"]').first()).toBeVisible();
   });
 
+  // The count is only useful if it is there BEFORE expanding — it is how the
+  // analyst picks which identities are worth a click. It ships with the matrix
+  // rows, so no per-identity fetch stands between opening the grid and reading it.
+  test('an identity header counts its linked accounts before it is expanded', async ({ page }) => {
+    const correlated = await correlatedIdentities();
+    test.skip(!correlated.length, 'no identity in this deployment has several linked accounts');
+
+    await openIdentityMatrix(page);
+
+    // Find a column for one of them, while everything is still collapsed.
+    const collapsed = page.locator('thead th')
+      .filter({ has: page.getByTitle('Expand into linked accounts') });
+    const byName = new Map(correlated.map(i => [i.displayName, i.accountCount]));
+    let header = null;
+    let expected = 0;
+    for (let i = 0; i < await collapsed.count(); i++) {
+      const title = (await collapsed.nth(i).getAttribute('title')) || '';
+      const name = title.split('\n')[0];
+      if (!byName.has(name)) continue;
+      header = collapsed.nth(i);
+      expected = byName.get(name);
+      break;
+    }
+    test.skip(!header, 'no identity with several linked accounts has a column in this grid');
+
+    // The header carries the number the identities list reports for it, and the
+    // tooltip says what the number counts.
+    await expect(header).toContainText(String(expected));
+    expect(await header.getAttribute('title')).toContain(`${expected} linked accounts`);
+    // Still collapsed: the count did not come from expanding.
+    await expect(header.getByTitle('Expand into linked accounts')).toBeVisible();
+
+    // It may stay up once expanded — it still describes the span below. The
+    // control flipped, so the identity's cell has to be found again by it.
+    await header.getByTitle('Expand into linked accounts').click();
+    await expect(page.getByTitle('Collapse accounts').first()).toBeVisible({ timeout: 30000 });
+    const expandedHeader = page.locator('thead th')
+      .filter({ has: page.getByTitle('Collapse accounts') }).first();
+    await expect(expandedHeader).toContainText(String(expected));
+  });
+
   test('collapsing the identity brings its combined column back', async ({ page }) => {
     await openIdentityMatrix(page);
     const name = await expandAnIdentity(page);

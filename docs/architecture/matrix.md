@@ -186,6 +186,14 @@ The accounts hang **under** their identity rather than beside it. The header is 
 
 An account column that carries no parent stays on the names row: it still owns a body column, and every header row has to keep adding up to the body's width.
 
+#### The linked-account count on an identity header
+
+An identity header shows the number of accounts it expands into, as a small grey count above the rotated name (the same treatment the roll-up matrix gives its group headers), with the number spelled out in the header tooltip. Only identity columns that have linked accounts get one — a plain account column expands into nothing, and neither does an identity with no accounts.
+
+**The count must be readable before expanding** — it is what tells an analyst which identities are worth a click — so it cannot come from `/api/identities/:id/account-matrix`, which is only fetched *on* expand. `/api/matrix/data` therefore ships an `accountCount` with every identity row (`accountCountSelect` in `routes/matrix/data.js`), read from the denormalised `Identities.accountCount` the account-linking engine maintains — the same column the identities list, the identity detail page and the risk-score list already display, so the matrix can't disagree with them. NULL normalises to `0`. Principal-row matrices get no such column: there, a subject already *is* an account.
+
+Nothing is counted client-side: `matrixModel.js` carries the value from the row onto the subject, and `subjectAccountCount()` in `MatrixColumnHeaders.helpers.js` decides whether it is worth showing. The count stays up while the identity is expanded, where it describes the span below it.
+
 ### Context picker filtered by row type
 
 The wizard's "+ Context" picker is filtered by the subject row type so an analyst can only pick contexts that actually apply to the rows:
