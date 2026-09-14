@@ -1,2 +1,0 @@
-- The Identity Atlas system a crawler registers is now named after the crawler itself instead of the crawler type, so several crawlers of the same type no longer collapse into one identically-named system. Renaming a crawler renames its system on the next run.
-- The SCIM wizard's "System name" field is now a genuine override: leave it blank to use the crawler's name, or fill it in to label the system something else.
