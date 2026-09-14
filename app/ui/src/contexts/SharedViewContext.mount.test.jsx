@@ -82,7 +82,9 @@ describe('MatrixScopePanel under a shared view', () => {
     subjectCount: 1135, resourceCount: 1014, assignmentCount: 2084,
     governedAssignmentCount: 710, ungovernedAssignmentCount: 1374, governedPct: 34.1,
   };
-  const panel = <MatrixScopePanel filter={FILTER} />;
+  // A matrix that asked for the panel (#1202) — otherwise it renders nothing
+  // for anybody and the shared-view flag would be untested here.
+  const panel = <MatrixScopePanel filter={{ ...FILTER, showTrends: true }} />;
 
   it('shows an analyst the scope statistics', async () => {
     const authFetch = makeAuthFetch({ '/api/matrix/scope-stats': STATS });

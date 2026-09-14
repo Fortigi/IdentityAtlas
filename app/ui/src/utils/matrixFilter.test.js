@@ -41,6 +41,7 @@ describe('normalizeMatrixFilter', () => {
       sortAttributes: [{ attribute: 'jobTitle', dir: 'desc' }],
       sortHierarchy: { contextId: 'ctx-2' },
       foldOnLoad: true,
+      showTrends: true,
     };
     expect(normalizeMatrixFilter(full)).toEqual(full);
   });
@@ -64,6 +65,7 @@ describe('normalizeMatrixFilter', () => {
       sortAttributes: [],
       sortHierarchy: { contextId: 7 },
       foldOnLoad: 'sometimes',
+      showTrends: 'yes',             // not a real boolean → panel stays off
     });
     expect(out).toEqual({ ...EMPTY_FILTER, foldAttributes: true });
     expect(out.subject).toEqual({ include: [], exclude: [] });
@@ -77,6 +79,18 @@ describe('normalizeMatrixFilter', () => {
     expect(normalizeMatrixFilter({ includeBusinessRoles: true }).includeBusinessRoles).toBe(true);
     expect(normalizeMatrixFilter({ includeBusinessRoles: 'true' }).includeBusinessRoles).toBe(false);
     expect(normalizeMatrixFilter({}).includeBusinessRoles).toBe(false);
+  });
+
+  it('leaves the trends panel off unless the matrix asked for it (#1202)', () => {
+    // The scope-statistics panel is opt-in per matrix. Every filter that
+    // predates the flag — every saved matrix, every shared link, the seeded
+    // org default — must open WITHOUT it, so a truthy-but-not-true value
+    // cannot switch it on either.
+    expect(normalizeMatrixFilter({}).showTrends).toBe(false);
+    expect(normalizeMatrixFilter({ showTrends: 'true' }).showTrends).toBe(false);
+    expect(normalizeMatrixFilter({ showTrends: 1 }).showTrends).toBe(false);
+    expect(normalizeMatrixFilter({ showTrends: true }).showTrends).toBe(true);
+    expect(EMPTY_FILTER.showTrends).toBe(false);
   });
 
   it('caps sortAttributes at six levels', () => {

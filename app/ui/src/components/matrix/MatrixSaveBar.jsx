@@ -1,11 +1,16 @@
-// The matrix's Load / Save / Share bar (#768 + #1202).
+// The matrix's Load / Save / Share controls (#768 + #1202).
 //
 // Three things used to be hidden or scolding: loading a saved matrix lived
 // inside the wizard, saving lived behind a wizard footer button, and a matrix
-// that matched nothing wore an amber "Not saved" warning triangle. They are one
-// visible row now — which saved matrix this is, whether it has unsaved changes,
-// and who it is shared with — so "is this saved?" and "is this shared?" are
-// answered without opening anything.
+// that matched nothing wore an amber "Not saved" warning triangle. They are
+// visible controls now — which saved matrix this is, whether it has unsaved
+// changes, and who it is shared with — so "is this saved?" and "is this
+// shared?" are answered without opening anything.
+//
+// These render as inline items with no card of their own: they share ONE strip
+// above the matrix with the filter chips (MatrixFilterSummary owns it). They
+// used to be a second bar stacked on top of it, which is exactly the vertical
+// space the grid wanted back (#1202).
 //
 // Apply and Save stay deliberately separate verbs: Apply (the wizard) changes
 // what is on screen, Save stores it for the org. Nothing here applies anything
@@ -108,7 +113,7 @@ export default function MatrixSaveBar({ filter, managed, onLoad, onShare }) {
   }, [authFetch, reload]);
 
   return (
-    <div className="flex flex-wrap items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs dark:border-gray-700 dark:bg-gray-800">
+    <>
       <SavedMatrixMenu savedFilters={savedFilters || []} onLoad={load} onDelete={remove} />
 
       {loading ? (
@@ -135,7 +140,7 @@ export default function MatrixSaveBar({ filter, managed, onLoad, onShare }) {
         <button
           type="button"
           onClick={() => onShare({ savedFilterId: saved?.id || null, savedName: saved?.name || null })}
-          className={`ml-auto rounded border px-2 py-1 text-xs font-medium ${
+          className={`rounded border px-2 py-1 text-xs font-medium ${
             saved?.shared
               ? 'border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 dark:border-blue-700 dark:bg-blue-900/20 dark:text-blue-300 dark:hover:bg-blue-900/40'
               : 'border-gray-200 text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700/50'
@@ -156,7 +161,6 @@ export default function MatrixSaveBar({ filter, managed, onLoad, onShare }) {
           error={saveError}
         />
       )}
-
-    </div>
+    </>
   );
 }

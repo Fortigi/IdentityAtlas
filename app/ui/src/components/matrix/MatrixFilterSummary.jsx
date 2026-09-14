@@ -1,9 +1,15 @@
-// The strip above the matrix: the Load / Save / Share bar (#768, #1202) and a
-// compact display of the currently-applied filter. Each filter condition is
-// rendered as a small chip; an "Adjust matrix" button re-opens the wizard.
+// The one strip above the matrix: which saved matrix this is and what it is
+// shared with (the Load / Save / Share controls, #768) on the left, what it
+// currently selects in the middle, and "Adjust matrix" on the right.
+//
+// It was two stacked rows until #1202 — a save bar on top of a filter bar,
+// which together with the scope-statistics panel pushed the grid a long way
+// down the page for no information the one row can't hold. Everything wraps, so
+// a narrow window or a chip-heavy filter spills onto a second line rather than
+// truncating.
 //
 // The filter half is read-only — it never mutates the filter; the wizard owns
-// editing. Saving, loading and sharing live in MatrixSaveBar above it.
+// editing. Saving, loading and sharing are MatrixSaveBar's inline controls.
 
 import { useEffect, useState } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
@@ -52,34 +58,34 @@ function FilterSummary({ filter, managed, preview, onAdjust, onLoadSaved, onShar
   const resourceChips = collectChips(filter.resource, contextNames);
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="bg-blue-50/30 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800 rounded-lg px-3 py-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
       {/* Which saved matrix this is, whether it has unsaved changes, and who it
-          is shared with — one visible row rather than a badge that scolds. */}
+          is shared with. */}
       <MatrixSaveBar filter={filter} managed={managed} onLoad={onLoadSaved} onShare={onShareView} />
 
-      <div className="bg-blue-50/30 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800 rounded-lg px-3 py-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+      <span className="h-4 border-l border-blue-200 dark:border-blue-800" aria-hidden="true" />
+
+      <span className="inline-flex items-center gap-1">
+        <span className="text-[10px] uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">Rows</span>
+        <span className="px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 font-medium">{rowTypeLabel} × Resource</span>
+      </span>
+
+      <Section label="Subjects" chips={subjectChips} preview={preview ? `${preview.subjectCount.toLocaleString()}/${preview.subjectTotal.toLocaleString()}` : null} />
+      <Section label="Resources" chips={resourceChips} preview={preview ? `${preview.resourceCount.toLocaleString()}/${preview.resourceTotal.toLocaleString()}` : null} />
+
+      {preview && (
         <span className="inline-flex items-center gap-1">
-          <span className="text-[10px] uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">Rows</span>
-          <span className="px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 font-medium">{rowTypeLabel} × Resource</span>
+          <span className="text-[10px] uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">Cells</span>
+          <span className="font-medium text-gray-800 dark:text-gray-200">{preview.assignmentCount.toLocaleString()}</span>
         </span>
+      )}
 
-        <Section label="Subjects" chips={subjectChips} preview={preview ? `${preview.subjectCount.toLocaleString()}/${preview.subjectTotal.toLocaleString()}` : null} />
-        <Section label="Resources" chips={resourceChips} preview={preview ? `${preview.resourceCount.toLocaleString()}/${preview.resourceTotal.toLocaleString()}` : null} />
-
-        {preview && (
-          <span className="inline-flex items-center gap-1">
-            <span className="text-[10px] uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">Cells</span>
-            <span className="font-medium text-gray-800 dark:text-gray-200">{preview.assignmentCount.toLocaleString()}</span>
-          </span>
-        )}
-
-        <button
-          onClick={onAdjust}
-          className="ml-auto px-2 py-1 rounded text-xs font-medium bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-600"
-        >
-          Adjust matrix
-        </button>
-      </div>
+      <button
+        onClick={onAdjust}
+        className="ml-auto px-2 py-1 rounded text-xs font-medium bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-600"
+      >
+        Adjust matrix
+      </button>
     </div>
   );
 }

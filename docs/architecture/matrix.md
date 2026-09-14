@@ -267,9 +267,25 @@ grid-side consumers (`MatrixView`, `sortUsers`, the Excel export) already fall
 back to `DEFAULT_SORT` on their own, so a partial filter renders — it was only
 the wizard that assumed the full shape.
 
+### The strip above the grid
+
+Everything between the tab bar and the matrix is **one row**
+(`MatrixFilterSummary`): which saved matrix this is, whether it has unsaved
+changes, who it is shared with (`MatrixSaveBar`'s controls, rendered inline — it
+has no card of its own), what the matrix selects, and **Adjust matrix**. It was
+two stacked bars, with the scope-statistics panel under them, which put three
+bars and ~240px between the tab bar and the first row of data — the feedback that
+reopened #1202 called the result "quite a mess".
+
+The scope-statistics panel (`MatrixScopePanel`) is now **opt-in per matrix**:
+it renders only for a filter carrying `showTrends: true`, ticked on the wizard's
+Sort step. See [Scope Statistics](matrix-scope-statistics.md#switching-it-on).
+The flag is part of the filter — saved, shared and URL-carried with it — not a
+viewer preference, so one saved matrix opens the same way for everyone.
+
 ### Matrix identity — comparing two filters
 
-"Is this the matrix I saved?" is asked by the Load / Save / Share bar
+"Is this the matrix I saved?" is asked by the Load / Save / Share controls
 (`MatrixSaveBar`, via `matchSavedMatrix` in `components/matrix/shareState.js`),
 which labels the applied matrix with its saved name — and, when it is shared,
 with how many people see it — or states "Unsaved changes" next to a Save action. Filters are compared with `matrixFilterFingerprint()` — canonical
@@ -584,8 +600,8 @@ whatever is laid out under the grid, including the resize grip), so exactly one
 of the grid and the page ever scrolls.
 
 That measurement is a **default, not a verdict**: how much of the window the
-grid deserves next to the scope-statistics and legend panels above it is a
-judgement call. The grip under the grid
+grid deserves next to the legend — and the scope-statistics panel, when the
+matrix asks for it — is a judgement call. The grip under the grid
 ([`matrix/GridResizeHandle.jsx`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/ui/src/components/matrix/GridResizeHandle.jsx))
 resizes it by drag or arrow keys; the chosen height overrides the fit, is
 remembered in `localStorage` under `fgraph-matrix-height`, and is handed back to

@@ -96,11 +96,12 @@ This toggle is part of a saved matrix, so it round-trips through save/load.
 
 #### Filter Wizard (matrix scoping)
 
-There is no user-limit slider or department filter pills. You scope the matrix through a 3-step modal wizard (**Create matrix** / **Adjust matrix**), opened automatically on first visit and re-openable from the toolbar's **Adjust filter** button:
+There is no user-limit slider or department filter pills. You scope the matrix through a stepped modal wizard (**Create matrix** / **Adjust matrix**), opened automatically on first visit and re-openable from the **Adjust matrix** button on the strip above the grid:
 
 1. **Setup** — pick the subject type (**User accounts** = one Principal per column, or **Identities** = one correlated person per column, unioning across their accounts) and the orientation (resources-as-rows vs. subjects-as-rows).
 2. **Subjects** — narrow which users/identities appear, using include/exclude conditions built from **Contexts** (e.g. an org-unit or tag context, optionally including descendants) or **attribute** filters (any column value). Includes are AND'd; excludes negate.
 3. **Resources** — narrow which resources appear, using the same context/attribute conditions, plus an optional **Include inherited access** checkbox.
+4. **Sort** — order the columns by attributes or by a Manager Hierarchy tree, and choose how the matrix opens: folded into count columns, and whether to **show trends & breakdown above the matrix** (the [scope-statistics](../architecture/matrix-scope-statistics.md) panel — off by default). Both choices are part of the saved matrix.
 
 A **live summary** at the bottom shows counts as you tweak — subjects matched / total, resources matched / total, and the resulting assignment count — with warnings when a matrix grows large and a hard block on an oversized flat (per-subject) grid.
 

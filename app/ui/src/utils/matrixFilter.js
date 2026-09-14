@@ -67,6 +67,12 @@ export const EMPTY_FILTER = {
   // columns. 'auto' folds only when the matrix is large (keeps load fast);
   // true/false force it.
   foldOnLoad: 'auto',
+  // Show the scope-statistics panel (totals, the governed split and, on expand,
+  // trends & breakdown) above the matrix. Off by default — it is reporting
+  // tooling, not part of reading the grid, and the strip above the matrix stays
+  // one line without it. A property of the matrix (saved and shared with it),
+  // not of the viewer, so a saved matrix opens the way it was stored.
+  showTrends: false,
 };
 
 // Per-field readers, so the normaliser below stays a flat list of fields
@@ -124,6 +130,9 @@ export function normalizeMatrixFilter(f) {
     sortAttributes: normalizeSort(src.sortAttributes),
     sortHierarchy: normalizeHierarchy(src.sortHierarchy),
     foldOnLoad: oneOf(src.foldOnLoad, ['auto', true, false]),
+    // Strict `=== true`, like includeBusinessRoles: an absent or stray value
+    // leaves the panel off rather than half-enabling it.
+    showTrends: src.showTrends === true,
   };
 }
 

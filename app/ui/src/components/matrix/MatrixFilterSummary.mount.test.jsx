@@ -83,6 +83,18 @@ describe('MatrixFilterSummary (mounted)', () => {
     expect(onAdjust).toHaveBeenCalled();
   });
 
+  // #1202: the save controls and the filter chips were two stacked bars. They
+  // are one row now — asserted structurally (same parent element), because both
+  // layouts render all of these controls and only the nesting tells them apart.
+  it('puts the save controls and the filter summary in ONE row', async () => {
+    renderSummary(adjustedFilter);
+    const row = (await screen.findByRole('button', { name: 'Adjust matrix' })).parentElement;
+
+    expect(row).toContainElement(await screen.findByRole('button', { name: /Load matrix \(2\)/ }));
+    expect(row).toContainElement(screen.getByText('Fortigi Demo Corp — All'));
+    expect(row).toContainElement(screen.getByText('User × Resource'));
+  });
+
   it('labels the matrix with the saved matrix it came from', async () => {
     renderSummary(seededFilter);
     expect(await screen.findByText('Fortigi Demo Corp — All')).toBeInTheDocument();

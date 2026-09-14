@@ -1,5 +1,8 @@
 // Pure step-list derivation for the Matrix filter wizard.
 //
+// Also home to the constants the wizard and its Sort step both need, so neither
+// file owns a copy of the other's threshold.
+//
 // The wizard's steps are dynamic and keyed. Attribute roll-up inserts a
 // "Content" step (resources/roles shape); roles-only drops the Resources
 // filter. Any roll-up (attribute or context tree) drops the Sort step. The
@@ -12,6 +15,11 @@
 // belongs at the end of the wizard rather than only on a toolbar the analyst
 // has to remember afterwards. It is purely optional: Apply is available on it
 // exactly as it was on the previous last step.
+
+// Above this many assignments, 'auto' fold-on-load defaults to folded so the
+// first render stays fast. Read by the wizard (to decide what Apply commits)
+// and by the Sort step (to label the 'auto' checkbox with what it will do).
+export const FOLD_AUTO_THRESHOLD = 5000;
 
 // Which keyed steps this filter shows, plus the derived navigation position.
 // `step` is the currently-selected key; when it has become hidden (the user

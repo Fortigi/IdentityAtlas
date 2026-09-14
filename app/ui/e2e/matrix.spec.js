@@ -150,8 +150,10 @@ test.describe('Matrix — fold business-role resources', () => {
   }
 
   // Open the all-data matrix. Returns false when no grid renders (no data here).
-  async function openGrid(page) {
-    await gotoSlice(page, ALL_DATA_FILTER);
+  // `extra` overlays the filter — the scope-statistics test needs a matrix that
+  // asked for that panel (`showTrends`, #1202); it is off by default.
+  async function openGrid(page, extra = {}) {
+    await gotoSlice(page, { ...ALL_DATA_FILTER, ...extra });
     try {
       await expect(page.locator('table').first()).toBeVisible({ timeout: 40000 });
     } catch {
@@ -179,8 +181,8 @@ test.describe('Matrix — fold business-role resources', () => {
     return value.innerText();
   }
 
-  async function openFoldableGrid(page) {
-    const rendered = await openGrid(page);
+  async function openFoldableGrid(page, extra = {}) {
+    const rendered = await openGrid(page, extra);
     test.skip(!rendered, 'matrix grid did not render (no data) — cannot exercise the fold');
     const foldable = await foldAll(page).count();
     test.skip(foldable === 0, 'no business role grants a visible resource in this dataset');
@@ -218,7 +220,8 @@ test.describe('Matrix — fold business-role resources', () => {
   });
 
   test('folding changes no number in the scope-statistics panel', async ({ page }) => {
-    await openFoldableGrid(page);
+    // The panel only exists for a matrix that asked for it (#1202).
+    await openFoldableGrid(page, { showTrends: true });
 
     const before = {
       resources: await statValue(page, 'Resources'),
@@ -799,10 +802,11 @@ function trackMatrixLoads(page) {
   return loads;
 }
 
-// The name the summary bar gives the applied matrix: the saved matrix it came
-// from, or "Not saved". It's the bar's leading badge — the bar itself being the
-// innermost element that holds the "Adjust matrix" button. Waits out the "…"
-// the badge shows while the saved-matrix list is still loading.
+// The name the strip gives the applied matrix: the saved matrix it came from,
+// or "Unsaved changes". It's the first badge on the strip — the strip being the
+// innermost element that holds the "Adjust matrix" button, which since #1202
+// carries the save controls too. Waits out the "…" the badge shows while the
+// saved-matrix list is still loading.
 async function savedBadgeText(page) {
   const bar = page.locator('div')
     .filter({ has: page.getByRole('button', { name: 'Adjust matrix' }) }).last();
@@ -900,9 +904,10 @@ test.describe('Matrix — adjust without changing anything', () => {
     await expect.poll(() => loads[loads.length - 1], { timeout: 20000 }).toEqual(before);
     expect(await visibleRowNames(page)).toEqual(rowsBefore);
     // Including its identity: it's still the saved matrix it was loaded from,
-    // not a look-alike relabelled "Not saved".
+    // not a look-alike relabelled as unsaved.
     await expect.poll(() => savedBadgeText(page), { timeout: 20000 }).toBe(savedNameBefore);
-    expect(savedNameBefore).not.toBe('Not saved');
+    expect(savedNameBefore, 'the matrix read as unsaved before the adjust too — the check above proves nothing')
+      .not.toMatch(/^(Not saved|Unsaved changes)$/);
   });
 
   test('a matrix shared as a link survives an adjust that changes nothing', async ({ page }) => {
@@ -1027,5 +1032,82 @@ test.describe('Matrix — no double scrollbar', () => {
     const m = await readScrollState(page);
     expect(m.gridScrolls, 'the grid should scroll internally').toBe(true);
     expect(m.pageScrolls, 'the page should not scroll when the grid does').toBe(false);
+  });
+});
+
+// ─── The strip above the grid (#1202) ─────────────────────────────────────────
+//
+// Functional acceptance on #1202 called the top of the matrix "quite a mess":
+// three stacked bars (save, filter summary, scope statistics) before the grid
+// even starts. Two changes answer it, and both are structural, so both are
+// asserted here rather than by eye:
+//
+//   * the save controls and the filter summary are ONE row;
+//   * the scope-statistics panel (trends & breakdown) is off unless the matrix
+//     asked for it, and the wizard's Sort step is where you ask.
+test.describe('Matrix — the strip above the grid', () => {
+  test.setTimeout(90000);
+
+  const ALL_DATA = {
+    rowType: 'principal',
+    orientation: 'rows-as-resources',
+    subject: { include: [], exclude: [] },
+    resource: { include: [], exclude: [] },
+  };
+
+  // The innermost element holding "Adjust matrix" — the strip itself.
+  const strip = (page) => page.locator('div')
+    .filter({ has: page.getByRole('button', { name: 'Adjust matrix' }) }).last();
+
+  async function openMatrix(page, filter = ALL_DATA) {
+    await page.goto('about:blank');
+    await page.goto('/#matrix?filter=' + encodeURIComponent(JSON.stringify(filter)));
+    await page.waitForLoadState('networkidle');
+    try {
+      await expect(page.locator('table').first()).toBeVisible({ timeout: 40000 });
+    } catch {
+      return false;
+    }
+    await expect(page.getByRole('button', { name: 'Adjust matrix' })).toBeVisible({ timeout: 20000 });
+    return true;
+  }
+
+  test('the save controls and the filter summary share one row', async ({ page }) => {
+    test.skip(!await openMatrix(page), 'matrix grid did not render (no data)');
+
+    // All three inside the SAME element: which matrix this is (Load), what it
+    // selects (the Rows chip), and how to change it (Adjust). Two stacked bars
+    // would put Load outside the element that holds Adjust.
+    const bar = strip(page);
+    await expect(bar.getByRole('button', { name: /Load matrix/ })).toBeVisible({ timeout: 20000 });
+    await expect(bar.getByText('User × Resource')).toBeVisible();
+    await expect(bar.getByRole('button', { name: 'Adjust matrix' })).toBeVisible();
+  });
+
+  test('trends & breakdown is off by default and the Sort step switches it on', async ({ page }) => {
+    test.skip(!await openMatrix(page), 'matrix grid did not render (no data)');
+
+    // Off: no panel, and none of its numbers, above the grid.
+    await expect(page.getByRole('button', { name: /Trends & breakdown/i })).toHaveCount(0);
+    await expect(page.getByRole('group', { name: 'Assignments' })).toHaveCount(0);
+
+    await page.getByRole('button', { name: 'Adjust matrix' }).click();
+    const steps = page.getByRole('button', { name: /^Go to step \d+: / });
+    await steps.filter({ hasText: 'Sort' }).click();
+
+    const box = page.getByRole('checkbox', { name: /Show trends & breakdown/ });
+    await expect(box).toBeVisible({ timeout: 20000 });
+    await expect(box).not.toBeChecked();
+    await box.check();
+
+    // Apply is offered on the last step, whichever that is for this role.
+    await steps.last().click();
+    await page.getByRole('button', { name: 'Apply', exact: true }).click();
+
+    // On: the panel is there, with its live numbers.
+    await expect(page.getByRole('button', { name: /Trends & breakdown/i })).toBeVisible({ timeout: 30000 });
+    const assignments = page.getByRole('group', { name: 'Assignments' });
+    await expect(assignments).toBeVisible();
+    await expect(assignments).not.toHaveText(/—/, { timeout: 30000 });
   });
 });

@@ -335,6 +335,35 @@ describe('MatrixFilterWizard (mounted)', () => {
     expect(selects.length).toBeGreaterThan(1);
   });
 
+  // #1202: trends & breakdown is opt-in per matrix, and the Sort step is where
+  // it is switched on. Both halves matter — that Apply carries `true` after the
+  // tick, and that it carries `false` without one (the panel used to be
+  // unconditional, so only the pair pins the default).
+  it('ticks trends & breakdown on the Sort step and applies it with the matrix', async () => {
+    const { onApply } = renderWizard();
+    const user = userEvent.setup();
+    await user.click(screen.getByText('Next')); // subjects
+    await user.click(screen.getByText('Next')); // resources
+    await user.click(screen.getByText('Next')); // sort
+
+    const box = await screen.findByRole('checkbox', { name: /Show trends & breakdown above the matrix/ });
+    expect(box).not.toBeChecked();
+    await user.click(box);
+    expect(box).toBeChecked();
+
+    await user.click(screen.getByText('Next')); // share
+    await user.click(await screen.findByText('Apply'));
+    expect(onApply.mock.calls[0][0]).toMatchObject({ showTrends: true });
+  });
+
+  it('applies a matrix without the trends panel when the box is left alone', async () => {
+    const { onApply } = renderWizard();
+    const user = userEvent.setup();
+    for (const _ of [1, 2, 3, 4]) await user.click(screen.getByText('Next')); // → share
+    await user.click(await screen.findByText('Apply'));
+    expect(onApply.mock.calls[0][0]).toMatchObject({ showTrends: false });
+  });
+
   it('switches the Sort step to Manager Hierarchy and loads the hierarchy list', async () => {
     renderWizard();
     const user = userEvent.setup();

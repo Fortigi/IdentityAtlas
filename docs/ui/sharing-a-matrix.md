@@ -20,9 +20,9 @@ Recipients see the matrix **as it stands** — both the data and the view. Save 
 
 ---
 
-## 1. The Load / Save / Share bar
+## 1. The Load / Save / Share controls
 
-Directly above every matrix sits one row that answers three questions without opening anything:
+Directly above every matrix sits one row. On its left it answers three questions without opening anything; the rest of the row is what the matrix currently selects, and **Adjust matrix**:
 
 | Control | What it says / does |
 |---|---|
@@ -63,7 +63,7 @@ Deleting a saved matrix that is shared warns you first, naming how many people i
 
 ## 4. What the recipient gets
 
-They open the link, sign in if they aren't already, and land on a single page: a slim header with the matrix's name, and the matrix as it currently stands. The analyst context around the matrix — the scope strip (rows, subject/resource/cell counts) and the scope statistics (principal/resource/assignment totals, the governed bar, Trends & breakdown) — is left out. Clicking a person or a resource opens its detail page — attributes and relationships, read-only — with a **Back to matrix** button. The analyst-only tabs (Timeline, Risk) and every write action are absent.
+They open the link, sign in if they aren't already, and land on a single page: a slim header with the matrix's name, and the matrix as it currently stands. The analyst context around the matrix — the strip above it (rows, subject/resource/cell counts, Load / Save / Share, Adjust matrix) and the scope statistics (principal/resource/assignment totals, the governed bar, Trends & breakdown — left out even when the matrix was saved with them switched on) — is dropped. Clicking a person or a resource opens its detail page — attributes and relationships, read-only — with a **Back to matrix** button. The analyst-only tabs (Timeline, Risk) and every write action are absent.
 
 If the link has been revoked, was mistyped, or no longer resolves, they get a plain sentence explaining that, not an error page.
 

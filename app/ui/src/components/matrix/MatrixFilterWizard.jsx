@@ -5,7 +5,7 @@
 //   Content    — what a roll-up puts in the grid (roll-up only)
 //   Subjects   — which users/identities to include
 //   Resources  — which resources to include (unless rolling up roles only)
-//   Sort       — column order / fold (flat matrices only)
+//   Sort       — column order / fold / trends panel (flat matrices only)
 //   Share      — hand this view to named colleagues (matrixSharing flag + `data.share`)
 //
 // The list is dynamic; deriveSteps() in the helpers file owns which steps a
@@ -29,8 +29,9 @@ import AttributePicker from './AttributePicker';
 import { variantMeta, targetTypeMeta } from '@ui/utils/contextStyles';
 import { useDialog } from '@ui/components/dialogContext';
 import { attributeLabel, friendlyLabel } from '@ui/utils/formatters';
-import { DEFAULT_SORT, normalizeMatrixFilter } from '@ui/utils/matrixFilter';
-import { deriveSteps, commitFilter } from './MatrixFilterWizard.helpers';
+import { normalizeMatrixFilter } from '@ui/utils/matrixFilter';
+import { deriveSteps, commitFilter, FOLD_AUTO_THRESHOLD } from './MatrixFilterWizard.helpers';
+import MatrixSortStep from './MatrixSortStep';
 import WizardShareStep from './WizardShareStep';
 import SavedMatrixMenu from './SavedMatrixMenu';
 import SaveMatrixDialog from './SaveMatrixDialog';
@@ -40,10 +41,6 @@ import { matchSavedMatrix, tagWithSavedMatrix, wizardPreferredSavedId } from './
 
 const WARN_ASSIGNMENTS  =  5_000;
 const BLOCK_ASSIGNMENTS = 25_000;
-
-// Above this many assignments, 'auto' fold-on-load defaults to folded so the
-// first render stays fast.
-const FOLD_AUTO_THRESHOLD = 5000;
 
 function willLoadFolded(filter, assignmentCount) {
   const fol = filter?.foldOnLoad ?? 'auto';
@@ -76,18 +73,6 @@ function matrixIsBlocked(filter, anyRollup, assignmentCount) {
   if (anyRollup || filter?.sortHierarchy) return false;
   if ((assignmentCount || 0) <= BLOCK_ASSIGNMENTS) return false;
   return !(((filter?.sortAttributes?.length || 0) > 0) && willLoadFolded(filter, assignmentCount));
-}
-
-// Pull selectable attribute names out of a /matrix/columns response. Excludes
-// the display-name column (every value is unique, useless to group/sort by).
-// When realOnly, drops ext.* keys (the flat matrix payload can't sort by them).
-function attributeOptions(columns, { realOnly = false } = {}) {
-  if (!Array.isArray(columns)) return [];
-  return columns
-    .map(c => c.column)
-    .filter(Boolean)
-    .filter(name => name !== 'displayName')
-    .filter(name => !realOnly || !name.startsWith('ext.'));
 }
 
 function filterHasAnyCondition(f) {
@@ -526,7 +511,7 @@ export default function MatrixFilterWizard({
         </>
       )}
       {activeStep === 'sort' && (
-        <Step5Sort
+        <MatrixSortStep
           sortAttributes={filter.sortAttributes}
           columns={subjectColumns}
           disabled={false}
@@ -536,6 +521,8 @@ export default function MatrixFilterWizard({
           assignmentCount={preview.assignmentCount || 0}
           sortHierarchy={filter.sortHierarchy}
           onHierarchyChange={(sortHierarchy) => setFilter(prev => ({ ...prev, sortHierarchy }))}
+          showTrends={filter.showTrends}
+          onShowTrendsChange={(showTrends) => setFilter(prev => ({ ...prev, showTrends }))}
         />
       )}
       {activeStep === 'share' && (
@@ -674,154 +661,6 @@ export function Step2Content({ rollupContent, rollupMetric, rollup, onChange, on
   );
 }
 
-// ─── Step 5 — Sort ──────────────────────────────────────────────────
-function Step5Sort({ sortAttributes, columns, disabled, onChange, foldOnLoad = 'auto', onFoldChange, assignmentCount = 0, sortHierarchy, onHierarchyChange }) {
-  const { authFetch } = useAuth();
-  // Any attribute can be sorted on, including ext.* extended attributes — the
-  // matrix payload now carries extendedAttributes for the column sort.
-  const options = attributeOptions(columns);
-  const rows = sortAttributes.length ? sortAttributes : DEFAULT_SORT;
-  const autoFold = assignmentCount >= FOLD_AUTO_THRESHOLD;
-  const foldChecked = foldOnLoad === 'auto' ? autoFold : !!foldOnLoad;
-  const isHierarchy = !!sortHierarchy; // an object (even with empty contextId) = hierarchy mode
-
-  // Manager-Hierarchy roots to sort by.
-  const [ctxRoots, setCtxRoots] = useState(null);
-  useEffect(() => {
-    if (!isHierarchy || ctxRoots !== null) return;
-    let cancelled = false;
-    authFetch('/api/contexts?contextType=ManagerHierarchy')
-      .then(r => r.ok ? r.json() : { data: [] })
-      .then(body => { if (!cancelled) setCtxRoots(Array.isArray(body.data) ? body.data : []); })
-      .catch(() => { if (!cancelled) setCtxRoots([]); });
-    return () => { cancelled = true; };
-  }, [isHierarchy, ctxRoots, authFetch]);
-
-  // Default to the first hierarchy once the list loads.
-  useEffect(() => {
-    if (isHierarchy && !sortHierarchy.contextId && Array.isArray(ctxRoots) && ctxRoots.length) {
-      onHierarchyChange?.({ contextId: ctxRoots[0].id });
-    }
-  }, [isHierarchy, sortHierarchy, ctxRoots, onHierarchyChange]);
-
-  const update = (i, patch) => onChange(rows.map((r, idx) => idx === i ? { ...r, ...patch } : r));
-  const remove = (i) => onChange(rows.filter((_, idx) => idx !== i));
-  const add = () => {
-    const used = new Set(rows.map(r => r.attribute));
-    const next = options.find(o => !used.has(o)) || options[0];
-    if (next) onChange([...rows, { attribute: next, dir: 'asc' }]);
-  };
-
-  return (
-    <div className="space-y-3">
-      <div>
-        <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-1">Sort columns</h3>
-        <p className="text-xs text-gray-500 dark:text-gray-400">
-          Order the columns by attributes, or by the Manager Hierarchy tree. The chosen levels appear as
-          grouped header rows — click a header value to fold that group into a single count column.
-        </p>
-      </div>
-
-      {/* Mode: attributes vs Manager Hierarchy */}
-      <div className="flex gap-2">
-        <button
-          type="button"
-          onClick={() => onHierarchyChange?.(null)}
-          className={`text-xs px-2 py-1 rounded border ${!isHierarchy ? 'border-blue-500 bg-blue-50/50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300' : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300'}`}
-        >By attributes</button>
-        <button
-          type="button"
-          onClick={() => onHierarchyChange?.({ contextId: '' })}
-          className={`text-xs px-2 py-1 rounded border ${isHierarchy ? 'border-blue-500 bg-blue-50/50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300' : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300'}`}
-        >By Manager Hierarchy</button>
-      </div>
-
-      {isHierarchy ? (
-        <div>
-          <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Hierarchy</label>
-          {ctxRoots === null ? (
-            <p className="text-xs text-gray-500 dark:text-gray-400">Loading hierarchies…</p>
-          ) : ctxRoots.length === 0 ? (
-            <p className="text-xs text-amber-700 dark:text-amber-400">No Manager Hierarchy context found — run the manager-hierarchy plugin first.</p>
-          ) : (
-            <select
-              value={sortHierarchy.contextId || ''}
-              onChange={e => onHierarchyChange?.({ contextId: e.target.value })}
-              className="w-full max-w-md border rounded px-2 py-1 text-sm bg-white dark:bg-gray-800 dark:text-gray-200 dark:border-gray-600"
-            >
-              <option value="">Select a hierarchy…</option>
-              {ctxRoots.map(c => <option key={c.id} value={c.id}>{c.displayName} ({c.totalMemberCount})</option>)}
-            </select>
-          )}
-          <p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
-            Columns are sorted by each subject's place in the org tree. Start folded at the top level, then
-            unfold a group to reveal the next level — down to individual people.
-          </p>
-        </div>
-      ) : disabled ? (
-        <p className="text-xs text-gray-500 dark:text-gray-400 italic">
-          Sorting doesn’t apply in roll-up mode — columns are the roll-up groups, ordered alphabetically.
-        </p>
-      ) : (
-        <>
-          {rows.map((r, i) => (
-            <div key={i} className="flex items-center gap-2">
-              <span className="text-[11px] text-gray-500 dark:text-gray-400 w-12">{i === 0 ? 'Sort by' : 'then by'}</span>
-              <select
-                value={r.attribute}
-                onChange={e => update(i, { attribute: e.target.value })}
-                className="flex-1 max-w-xs border rounded px-2 py-1 text-sm bg-white dark:bg-gray-800 dark:text-gray-200 dark:border-gray-600"
-              >
-                {/* Option TEXT is the display name; option VALUE stays the stored
-                    key (`ext.extension_<appId>_sfTeamID`) so the sort still
-                    addresses the real attribute — labels only, never keys (#872). */}
-                {!options.includes(r.attribute) && <option value={r.attribute}>{attributeLabel(r.attribute) || r.attribute}</option>}
-                {options.map(o => <option key={o} value={o}>{attributeLabel(o) || o}</option>)}
-              </select>
-              <button
-                type="button"
-                onClick={() => update(i, { dir: r.dir === 'asc' ? 'desc' : 'asc' })}
-                className="px-2 py-1 text-xs rounded border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50"
-                title="Toggle ascending / descending"
-              >{r.dir === 'asc' ? 'A→Z' : 'Z→A'}</button>
-              {rows.length > 1 && (
-                <button
-                  type="button"
-                  onClick={() => remove(i)}
-                  className="w-6 h-6 flex items-center justify-center text-gray-500 hover:text-red-600 dark:hover:text-red-400 rounded shrink-0"
-                  title="Remove"
-                >×</button>
-              )}
-            </div>
-          ))}
-          {rows.length < 6 && options.length > rows.length && (
-            <button type="button" onClick={add} className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline">
-              + Add attribute
-            </button>
-          )}
-        </>
-      )}
-
-      {!disabled && !isHierarchy && (
-        <label className="flex items-start gap-2 text-xs text-gray-700 dark:text-gray-300 mt-3 pt-3 border-t border-gray-100 dark:border-gray-700 cursor-pointer">
-          <input
-            type="checkbox"
-            className="mt-0.5"
-            checked={foldChecked}
-            onChange={e => onFoldChange?.(e.target.checked)}
-          />
-          <span>
-            Open with the first group folded into count columns
-            {foldOnLoad === 'auto' && (
-              <span className="text-gray-500 dark:text-gray-400"> — auto ({autoFold ? 'on' : 'off'}: {assignmentCount.toLocaleString()} assignments, folds at {FOLD_AUTO_THRESHOLD.toLocaleString()}+ to keep rendering fast)</span>
-            )}
-          </span>
-        </label>
-      )}
-    </div>
-  );
-}
-
 // ─── Live summary footer ───────────────────────────────────────────
 
 function LiveSummary({ preview, loading, rowType, rollup, filter, rollupOn }) {
@@ -933,81 +772,64 @@ function RadioCard({ active, onClick, title, description, visual }) {
   );
 }
 
-// ─── Step 2 — Subjects ─────────────────────────────────────────────
+// ─── Steps 2 & 3 — Subjects / Resources ────────────────────────────
+//
+// One component, two steps: both narrow one side of the matrix with the same
+// Include / Exclude condition lists, and differed only in their wording and in
+// which contexts they accept. They were two copies of the same JSX until the
+// duplication check caught them.
 
-function Step2Subject({ rowType, subject, contextMeta, columns, onContextResolved, onAdd, onRemove, onUpdate }) {
-  const entity = rowType === 'identity' ? 'Identity' : 'Principal';
+function ConditionStep({ intro, block, allowedTargets, entity, contextMeta, columns, onContextResolved, onAdd, onRemove, onUpdate, includeHint }) {
   return (
     <div className="space-y-3">
-      <p className="text-xs text-gray-600 dark:text-gray-400">
-        Narrow down the {rowType === 'identity' ? 'identities' : 'users'} that appear as rows. Includes are AND'd; excludes negate.
-      </p>
-      <ConditionList
-        title="Include"
-        conditions={subject.include}
-        allowedTargets={rowType === 'identity' ? ['Identity'] : ['Principal']}
-        contextMeta={contextMeta}
-        columns={columns}
-        entity={entity}
-        onContextResolved={onContextResolved}
-        onAdd={(c) => onAdd('include', c)}
-        onRemove={(idx) => onRemove('include', idx)}
-        onUpdate={(idx, patch) => onUpdate('include', idx, patch)}
-        emptyHint="No include filters — every row matches."
-      />
-      <ConditionList
-        title="Exclude"
-        conditions={subject.exclude}
-        allowedTargets={rowType === 'identity' ? ['Identity'] : ['Principal']}
-        contextMeta={contextMeta}
-        columns={columns}
-        entity={entity}
-        onContextResolved={onContextResolved}
-        onAdd={(c) => onAdd('exclude', c)}
-        onRemove={(idx) => onRemove('exclude', idx)}
-        onUpdate={(idx, patch) => onUpdate('exclude', idx, patch)}
-        emptyHint="No exclude filters."
-      />
+      <p className="text-xs text-gray-600 dark:text-gray-400">{intro}</p>
+      {[
+        { title: 'Include', side: 'include', emptyHint: includeHint },
+        { title: 'Exclude', side: 'exclude', emptyHint: 'No exclude filters.' },
+      ].map(({ title, side, emptyHint }) => (
+        <ConditionList
+          key={side}
+          title={title}
+          conditions={block[side]}
+          allowedTargets={allowedTargets}
+          contextMeta={contextMeta}
+          columns={columns}
+          entity={entity}
+          onContextResolved={onContextResolved}
+          onAdd={(c) => onAdd(side, c)}
+          onRemove={(idx) => onRemove(side, idx)}
+          onUpdate={(idx, patch) => onUpdate(side, idx, patch)}
+          emptyHint={emptyHint}
+        />
+      ))}
     </div>
   );
 }
 
-// ─── Step 3 — Resources ────────────────────────────────────────────
-
-function Step3Resource({ resource, contextMeta, columns, onContextResolved, onAdd, onRemove, onUpdate }) {
-  const entity = 'Resource';
+function Step2Subject({ rowType, subject, ...rest }) {
+  const identities = rowType === 'identity';
   return (
-    <div className="space-y-3">
-      <p className="text-xs text-gray-600 dark:text-gray-400">
-        Narrow down the resources that appear as columns. Includes are AND'd; excludes negate.
-      </p>
-      <ConditionList
-        title="Include"
-        conditions={resource.include}
-        allowedTargets={['Resource', 'System']}
-        contextMeta={contextMeta}
-        columns={columns}
-        entity={entity}
-        onContextResolved={onContextResolved}
-        onAdd={(c) => onAdd('include', c)}
-        onRemove={(idx) => onRemove('include', idx)}
-        onUpdate={(idx, patch) => onUpdate('include', idx, patch)}
-        emptyHint="No include filters — every resource matches."
-      />
-      <ConditionList
-        title="Exclude"
-        conditions={resource.exclude}
-        allowedTargets={['Resource', 'System']}
-        contextMeta={contextMeta}
-        columns={columns}
-        entity={entity}
-        onContextResolved={onContextResolved}
-        onAdd={(c) => onAdd('exclude', c)}
-        onRemove={(idx) => onRemove('exclude', idx)}
-        onUpdate={(idx, patch) => onUpdate('exclude', idx, patch)}
-        emptyHint="No exclude filters."
-      />
-    </div>
+    <ConditionStep
+      intro={`Narrow down the ${identities ? 'identities' : 'users'} that appear as rows. Includes are AND'd; excludes negate.`}
+      block={subject}
+      allowedTargets={identities ? ['Identity'] : ['Principal']}
+      entity={identities ? 'Identity' : 'Principal'}
+      includeHint="No include filters — every row matches."
+      {...rest}
+    />
+  );
+}
+
+function Step3Resource({ resource, ...rest }) {
+  return (
+    <ConditionStep
+      intro="Narrow down the resources that appear as columns. Includes are AND'd; excludes negate."
+      block={resource}
+      allowedTargets={['Resource', 'System']}
+      entity="Resource"
+      includeHint="No include filters — every resource matches."
+      {...rest}
+    />
   );
 }
 
