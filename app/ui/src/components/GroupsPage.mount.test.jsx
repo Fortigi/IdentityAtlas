@@ -5,9 +5,8 @@ import {
   makeAuthFetch,
   screen,
   fireEvent,
-  waitFor,
-  within,
 } from '@ui/test-utils/renderWithProviders';
+import { SYSTEM_COLUMNS, expectSystemFilterApplied } from '@ui/test-utils/systemFilter';
 import ResourcesPage from '@ui/components/GroupsPage';
 
 // This page is almost entirely a call to EntityListPage plus two render props. Those render props
@@ -66,18 +65,10 @@ describe('ResourcesPage (GroupsPage)', () => {
     const { listUrls } = renderPage(
       [{ id: 'g1', displayName: 'Finance Admins', resourceType: 'Group' }],
       () => {},
-      [{ column: '__system', values: ['ContosoHR', 'DemoIGA'] }],
+      SYSTEM_COLUMNS,
     );
     await screen.findByText('Finance Admins');
 
-    fireEvent.click(screen.getByRole('button', { name: '+ Add filter' }));
-    const fieldSelect = screen.getByRole('combobox');
-    // FIELD_LABELS gives the virtual column a human name, not the raw key.
-    expect(within(fieldSelect).getByRole('option', { name: 'System' })).toBeInTheDocument();
-
-    fireEvent.change(fieldSelect, { target: { value: '__system' } });
-    fireEvent.change(screen.getAllByRole('combobox')[1], { target: { value: 'DemoIGA' } });
-
-    await waitFor(() => expect(listUrls.some(u => decodeURIComponent(u).includes('"__system":"DemoIGA"'))).toBe(true));
+    await expectSystemFilterApplied(listUrls);
   });
 });

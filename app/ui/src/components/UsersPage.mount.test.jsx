@@ -6,8 +6,8 @@ import {
   screen,
   fireEvent,
   waitFor,
-  within,
 } from '@ui/test-utils/renderWithProviders';
+import { SYSTEM_COLUMNS, expectSystemFilterApplied } from '@ui/test-utils/systemFilter';
 import UsersPage from '@ui/components/UsersPage';
 
 const LIST = '/api/users';
@@ -57,20 +57,10 @@ describe('UsersPage rows', () => {
   });
 
   it('labels the virtual __system column "System" and filters the list by it', async () => {
-    const { listUrls } = renderPage([ada], () => {}, [
-      { column: '__system', values: ['ContosoHR', 'DemoIGA'] },
-    ]);
+    const { listUrls } = renderPage([ada], () => {}, SYSTEM_COLUMNS);
     await screen.findByText('Ada Lovelace');
 
-    fireEvent.click(screen.getByRole('button', { name: '+ Add filter' }));
-    const fieldSelect = screen.getByRole('combobox');
-    // FIELD_LABELS gives the virtual column a human name, not the raw key.
-    expect(within(fieldSelect).getByRole('option', { name: 'System' })).toBeInTheDocument();
-
-    fireEvent.change(fieldSelect, { target: { value: '__system' } });
-    fireEvent.change(screen.getAllByRole('combobox')[1], { target: { value: 'DemoIGA' } });
-
-    await waitFor(() => expect(listUrls.some(u => decodeURIComponent(u).includes('"__system":"DemoIGA"'))).toBe(true));
+    await expectSystemFilterApplied(listUrls);
   });
 });
 
