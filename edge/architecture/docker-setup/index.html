@@ -1987,10 +1987,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#legacy-crontab-for-non-crawler-jobs" class="md-nav__link">
+  <a href="#recurring-non-crawler-jobs" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Legacy Crontab (for non-crawler jobs)
+        Recurring non-crawler jobs
       
     </span>
   </a>
@@ -5437,10 +5437,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#legacy-crontab-for-non-crawler-jobs" class="md-nav__link">
+  <a href="#recurring-non-crawler-jobs" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Legacy Crontab (for non-crawler jobs)
+        Recurring non-crawler jobs
       
     </span>
   </a>
@@ -6110,12 +6110,8 @@ write goes through the API.</p>
 <p>Scheduled jobs appear in the "Recent Jobs" table like any other job.</p>
 <hr />
 <h2 id="worker-container">Worker Container<a class="headerlink" href="#worker-container" title="Permanent link">&para;</a></h2>
-<p>The worker container runs PowerShell 7 with the Identity Atlas module pre-loaded. It has three responsibilities:</p>
-<ol>
-<li><strong>Job queue polling</strong> — picks up queued jobs from CrawlerJobs every 30 seconds</li>
-<li><strong>Scheduled crawlers</strong> — reads CrawlerConfigs schedules every minute and queues jobs at the right time</li>
-<li><strong>Legacy crontab</strong> — reads <code>setup/docker/crontab</code> for manually configured jobs (e.g. risk scoring)</li>
-</ol>
+<p>The worker container runs PowerShell 7 with the Identity Atlas module available. It polls the job queue (CrawlerJobs) every 30 seconds and runs each claimed job in its <strong>own <code>pwsh</code> process</strong>, so no credential, token or tenant id from one job is still in memory when the next one starts. The job config reaches that process on standard input and the API key through an environment variable — neither appears on a command line or in the job log.</p>
+<p>Crawler schedules are evaluated by the web container's scheduler (<code>app/api/src/scheduler.js</code>), which queues the jobs the worker picks up.</p>
 <h3 id="run-ad-hoc-commands">Run Ad-Hoc Commands<a class="headerlink" href="#run-ad-hoc-commands" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="c"># Open an interactive PowerShell session in the worker</span>
 <a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="n">docker</span> <span class="n">compose</span> <span class="n">exec</span> <span class="n">worker</span> <span class="n">pwsh</span>
@@ -6123,23 +6119,21 @@ write goes through the API.</p>
 <a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="c"># Run a one-off command</span>
 <a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="n">docker</span> <span class="n">compose</span> <span class="n">exec</span> <span class="n">worker</span> <span class="n">pwsh</span> <span class="n">-Command</span> <span class="s2">"Import-Module /app/setup/IdentityAtlas.psd1; Get-Command *FG*"</span>
 </code></pre></div>
-<h3 id="legacy-crontab-for-non-crawler-jobs">Legacy Crontab (for non-crawler jobs)<a class="headerlink" href="#legacy-crontab-for-non-crawler-jobs" title="Permanent link">&para;</a></h3>
-<p>Edit <code>setup/docker/crontab</code> for jobs that aren't configured via the UI (e.g. risk scoring). Account Linking is <strong>not</strong> a crontab job — it is scheduled via <code>AccountLinkingConfig.schedules</code> and run by the web container's scheduler; see <a href="../account-linking/">Account Linking</a>.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a># Risk scoring nightly at 03:00
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>0 3 * * * /usr/bin/pwsh -Command "Import-Module /app/setup/IdentityAtlas.psd1; Invoke-FGRiskScoring"
-</code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="n">docker</span> <span class="n">compose</span> <span class="o">-f</span> <span class="n">docker-compose</span><span class="p">.</span><span class="n">yml</span> <span class="n">restart</span> <span class="n">worker</span>
+<h3 id="recurring-non-crawler-jobs">Recurring non-crawler jobs<a class="headerlink" href="#recurring-non-crawler-jobs" title="Permanent link">&para;</a></h3>
+<p>The worker no longer reads a <code>crontab</code> file (that feature, and <code>setup/docker/crontab</code>, were removed — every entry in it was commented out). Account Linking is scheduled via <code>AccountLinkingConfig.schedules</code> and run by the web container's scheduler; see <a href="../account-linking/">Account Linking</a>. For anything else, such as a nightly risk-scoring run, schedule the ad-hoc command above from the host's own scheduler (cron, systemd timer, Task Scheduler):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a># Host crontab: risk scoring nightly at 03:00
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>0 3 * * * docker compose -f /path/to/docker-compose.yml exec -T worker pwsh -Command "Import-Module /app/setup/IdentityAtlas.psd1; Invoke-FGRiskScoring"
 </code></pre></div>
 <h3 id="environment-variables">Environment Variables<a class="headerlink" href="#environment-variables" title="Permanent link">&para;</a></h3>
 <p>Copy the template once, then edit the values you need:</p>
 <div class="tabbed-set tabbed-alternate" data-tabs="4:2"><input checked="checked" id="__tabbed_4_1" name="__tabbed_4" type="radio" /><input id="__tabbed_4_2" name="__tabbed_4" type="radio" /><div class="tabbed-labels"><label for="__tabbed_4_1">Linux / macOS</label><label for="__tabbed_4_2">Windows (PowerShell)</label></div>
 <div class="tabbed-content">
 <div class="tabbed-block">
-<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>cp<span class="w"> </span>setup/config/.env.example<span class="w"> </span>.env
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>cp<span class="w"> </span>setup/config/.env.example<span class="w"> </span>.env
 </code></pre></div>
 </div>
 <div class="tabbed-block">
-<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="nb">Copy-Item</span> <span class="n">setup</span><span class="p">/</span><span class="n">config</span><span class="p">/.</span><span class="n">env</span><span class="p">.</span><span class="n">example</span> <span class="p">.</span><span class="n">env</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="nb">Copy-Item</span> <span class="n">setup</span><span class="p">/</span><span class="n">config</span><span class="p">/.</span><span class="n">env</span><span class="p">.</span><span class="n">example</span> <span class="p">.</span><span class="n">env</span>
 </code></pre></div>
 </div>
 </div>
@@ -6320,11 +6314,6 @@ write goes through the API.</p>
 <td>worker</td>
 </tr>
 <tr>
-<td><code>setup/docker/crontab</code></td>
-<td><code>/app/setup/docker/crontab</code></td>
-<td>worker</td>
-</tr>
-<tr>
 <td><code>job_data</code> (named volume)</td>
 <td><code>/data/uploads/</code></td>
 <td>web (writes), worker (reads) — CSV crawler uploads</td>
@@ -6334,15 +6323,15 @@ write goes through the API.</p>
 <hr />
 <h2 id="rebuilding">Rebuilding<a class="headerlink" href="#rebuilding" title="Permanent link">&para;</a></h2>
 <p>After code changes:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="c"># Rebuild only the web service (API + UI changes)</span>
-<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="n">docker</span> <span class="n">compose</span> <span class="o">-f</span> <span class="n">docker-compose</span><span class="p">.</span><span class="n">yml</span> <span class="n">up</span> <span class="n">-d</span> <span class="p">-</span><span class="n">-build</span> <span class="n">web</span>
-<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>
-<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a><span class="c"># Rebuild the worker (PowerShell script changes)</span>
-<a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a><span class="n">docker</span> <span class="n">compose</span> <span class="o">-f</span> <span class="n">docker-compose</span><span class="p">.</span><span class="n">yml</span> <span class="n">up</span> <span class="n">-d</span> <span class="p">-</span><span class="n">-build</span> <span class="n">worker</span>
-<a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a>
-<a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a><span class="c"># Rebuild everything from scratch</span>
-<a id="__codelineno-14-8" name="__codelineno-14-8" href="#__codelineno-14-8"></a><span class="n">docker</span> <span class="n">compose</span> <span class="o">-f</span> <span class="n">docker-compose</span><span class="p">.</span><span class="n">yml</span> <span class="n">down</span> <span class="n">-v</span>
-<a id="__codelineno-14-9" name="__codelineno-14-9" href="#__codelineno-14-9"></a><span class="n">docker</span> <span class="n">compose</span> <span class="o">-f</span> <span class="n">docker-compose</span><span class="p">.</span><span class="n">yml</span> <span class="n">up</span> <span class="n">-d</span> <span class="p">-</span><span class="n">-build</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="c"># Rebuild only the web service (API + UI changes)</span>
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="n">docker</span> <span class="n">compose</span> <span class="o">-f</span> <span class="n">docker-compose</span><span class="p">.</span><span class="n">yml</span> <span class="n">up</span> <span class="n">-d</span> <span class="p">-</span><span class="n">-build</span> <span class="n">web</span>
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>
+<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="c"># Rebuild the worker (PowerShell script changes)</span>
+<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a><span class="n">docker</span> <span class="n">compose</span> <span class="o">-f</span> <span class="n">docker-compose</span><span class="p">.</span><span class="n">yml</span> <span class="n">up</span> <span class="n">-d</span> <span class="p">-</span><span class="n">-build</span> <span class="n">worker</span>
+<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a>
+<a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a><span class="c"># Rebuild everything from scratch</span>
+<a id="__codelineno-13-8" name="__codelineno-13-8" href="#__codelineno-13-8"></a><span class="n">docker</span> <span class="n">compose</span> <span class="o">-f</span> <span class="n">docker-compose</span><span class="p">.</span><span class="n">yml</span> <span class="n">down</span> <span class="n">-v</span>
+<a id="__codelineno-13-9" name="__codelineno-13-9" href="#__codelineno-13-9"></a><span class="n">docker</span> <span class="n">compose</span> <span class="o">-f</span> <span class="n">docker-compose</span><span class="p">.</span><span class="n">yml</span> <span class="n">up</span> <span class="n">-d</span> <span class="p">-</span><span class="n">-build</span>
 </code></pre></div>
 
 

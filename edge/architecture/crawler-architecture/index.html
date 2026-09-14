@@ -5325,12 +5325,12 @@
 <h2 id="how-job-dispatch-works">How Job Dispatch Works<a class="headerlink" href="#how-job-dispatch-works" title="Permanent link">&para;</a></h2>
 <ol>
 <li>The scheduler or UI creates a row in <code>CrawlerJobs</code> with <code>jobType = "my-source"</code>.</li>
-<li>The worker picks up the job and calls <code>Invoke-CrawlerJob.ps1 -JobType "my-source"</code>.</li>
+<li>The worker picks up the job and starts <code>Invoke-CrawlerJob.ps1 -JobType "my-source"</code> in a <strong>new <code>pwsh</code> process</strong> (one per job, so no credential or <code>$global:</code> token survives into the next job). The job config is written to that process's stdin and the API key is passed in the <code>IA_JOB_API_KEY</code> environment variable — never on the command line.</li>
 <li>The dispatcher calls <code>Get-CrawlerRegistry</code> to find the manifest for <code>my-source</code>.</li>
 <li>The dispatcher resolves <code>dependsOn</code> via DFS and dot-sources library files in topological order.</li>
 <li>The dispatcher writes the job config to a temp JSON file and invokes the entry point.</li>
 <li>After the entry point exits, the dispatcher runs any <code>postSyncHooks</code> declared in the manifest.</li>
-<li>The temp config file is deleted.</li>
+<li>The temp config file is deleted, and the process exits (non-zero on failure, with the error message handed back to the worker).</li>
 </ol>
 <p>The API (<code>routes/jobs.js</code>) reads the same manifests at startup to populate <code>VALID_JOB_TYPES</code> and to validate configs via <code>validateCrawlerConfig(type, config)</code> before a job is queued.</p>
 <hr />
