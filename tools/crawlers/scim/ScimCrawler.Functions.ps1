@@ -281,12 +281,21 @@ function ConvertFrom-ScimConfigMap {
     $pageSize = if ($raw['pageSize']) { [int]$raw['pageSize'] } else { 100 }
     if ($pageSize -lt 1) { $pageSize = 100 }
 
+    # The Systems row this crawler registers is named from this value. Prefer an
+    # explicit systemName override, then the crawler's own name (`_configName`,
+    # injected by the job dispatcher), and only then the bare type literal — which
+    # would otherwise give every SCIM crawler an identically-named system.
+    $nameCandidate = @($raw['systemName'], $raw['_configName'], 'SCIM') |
+        Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+        Select-Object -First 1
+    $systemName = ([string]$nameCandidate).Trim()
+
     return @{
         cfg              = $raw
         sync             = Get-ScimSyncToggles -Raw $raw
         requestedMode    = if ($raw['_syncMode']) { [string]$raw['_syncMode'] } else { 'full' }
         pageSize         = $pageSize
-        systemName       = if ($raw['systemName']) { [string]$raw['systemName'] } else { 'SCIM' }
+        systemName       = $systemName
         userAttributes   = Get-ScimAttributeList -SelectedAttributes $selected -Key 'user'
         groupAttributes  = Get-ScimAttributeList -SelectedAttributes $selected -Key 'group'
         userTypeMapping  = $mapping
