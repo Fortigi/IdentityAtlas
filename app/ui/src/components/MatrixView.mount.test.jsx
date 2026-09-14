@@ -469,22 +469,25 @@ describe('MatrixView (mounted)', () => {
     expect(screen.getAllByText('Contexts').length).toBeGreaterThan(0);
   });
 
-  // The reporter's path in #1212: a matrix on identities, expand one into its
-  // linked accounts. The accounts belong under the identity, not beside it.
-  it('expands an identity into an accounts header row beneath it (#1212)', async () => {
+  // #1212 fixture: an identity matrix where Alice (id1) has one linked SAP account.
+  const aliceRow = { memberId: 'id1', memberDisplayName: 'Alice', department: 'Engineering', memberType: 'Identity', resourceId: 'res-1', resourceDisplayName: 'Finance App', membershipType: 'Direct' };
+  function renderIdentityMatrix(extraRows = []) {
     const authFetch = makeFetch({
       '/api/identities/id1/account-matrix': jsonResponse({
         accounts: [{ id: 'acc1', displayName: 'A.Jansen', accountType: 'SAP' }],
         memberships: [{ resourceId: 'res-1', principalId: 'acc1', membershipType: 'Direct' }],
       }),
     });
-    renderView({
-      data: [
-        { memberId: 'id1', memberDisplayName: 'Alice', department: 'Engineering', memberType: 'Identity', resourceId: 'res-1', resourceDisplayName: 'Finance App', membershipType: 'Direct' },
-        { memberId: 'id2', memberDisplayName: 'Carol', department: 'Sales', memberType: 'Identity', resourceId: 'res-2', resourceDisplayName: 'HR Portal', membershipType: 'Direct' },
-      ],
-      filter: { ...baseFilter, rowType: 'identity' },
-    }, authFetch);
+    renderView({ data: [aliceRow, ...extraRows], filter: { ...baseFilter, rowType: 'identity' } }, authFetch);
+    return authFetch;
+  }
+
+  // The reporter's path in #1212: a matrix on identities, expand one into its
+  // linked accounts. The accounts belong under the identity, not beside it.
+  it('expands an identity into an accounts header row beneath it (#1212)', async () => {
+    const authFetch = renderIdentityMatrix([
+      { memberId: 'id2', memberDisplayName: 'Carol', department: 'Sales', memberType: 'Identity', resourceId: 'res-2', resourceDisplayName: 'HR Portal', membershipType: 'Direct' },
+    ]);
     const user = userEvent.setup();
     await expectRowVisible('Finance App');
 
@@ -514,18 +517,7 @@ describe('MatrixView (mounted)', () => {
   });
 
   it('brings the identity column back when its accounts are collapsed again (#1212)', async () => {
-    const authFetch = makeFetch({
-      '/api/identities/id1/account-matrix': jsonResponse({
-        accounts: [{ id: 'acc1', displayName: 'A.Jansen', accountType: 'SAP' }],
-        memberships: [{ resourceId: 'res-1', principalId: 'acc1', membershipType: 'Direct' }],
-      }),
-    });
-    renderView({
-      data: [
-        { memberId: 'id1', memberDisplayName: 'Alice', department: 'Engineering', memberType: 'Identity', resourceId: 'res-1', resourceDisplayName: 'Finance App', membershipType: 'Direct' },
-      ],
-      filter: { ...baseFilter, rowType: 'identity' },
-    }, authFetch);
+    renderIdentityMatrix();
     const user = userEvent.setup();
     await expectRowVisible('Finance App');
     const headerRows = () => [...screen.getByText('Alice').closest('thead').rows];
