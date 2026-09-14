@@ -27,6 +27,32 @@ describe('matchSavedMatrix', () => {
     expect(matchSavedMatrix(SAVED, drilled)?.id).toBe('sf-1');
   });
 
+  describe('two saved matrices with identical filters', () => {
+    // "Sales team" was shared off "HR users" without changing it: same content,
+    // different matrix. Listed FIRST so that "first match wins" would pick the
+    // wrong one — only the loaded-from id can pick right.
+    const twins = [{ id: 'sf-share', name: 'Sales team', filter: FILTER, shared: true }, ...SAVED];
+
+    it('picks the one the view was loaded from', () => {
+      expect(matchSavedMatrix(twins, { ...FILTER, savedFilterId: 'sf-1' })?.name).toBe('HR users');
+      expect(matchSavedMatrix(twins, { ...FILTER, savedFilterId: 'sf-share' })?.name).toBe('Sales team');
+    });
+
+    it('lets an explicit preference override the tag on the filter', () => {
+      expect(matchSavedMatrix(twins, { ...FILTER, savedFilterId: 'sf-share' }, 'sf-1')?.name).toBe('HR users');
+    });
+
+    it('ignores a tag whose matrix no longer has this content, falling back to a content match', () => {
+      // Loaded from "Everyone", then changed into HR users' filter.
+      expect(matchSavedMatrix(twins, { ...FILTER, savedFilterId: 'sf-2' })?.id).toBe('sf-share');
+      expect(matchSavedMatrix(twins, { ...FILTER, savedFilterId: 'sf-deleted' })?.id).toBe('sf-share');
+    });
+
+    it('does not let the tag itself make two filters differ', () => {
+      expect(matchSavedMatrix(SAVED, { ...FILTER, savedFilterId: 'anything' })?.id).toBe('sf-1');
+    });
+  });
+
   it('returns null for a filter that genuinely differs, and for missing inputs', () => {
     expect(matchSavedMatrix(SAVED, { ...FILTER, rowType: 'identity' })).toBeNull();
     expect(matchSavedMatrix(SAVED, null)).toBeNull();

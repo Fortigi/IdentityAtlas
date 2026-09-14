@@ -421,6 +421,122 @@ describe('MatrixFilterWizard (mounted)', () => {
     });
   });
 
+  describe('saving a change back to the matrix being edited (#1202)', () => {
+    const hrFilter = {
+      rowType: 'principal',
+      subject: { include: [{ kind: 'attribute', field: 'department', values: ['HR'] }], exclude: [] },
+    };
+
+    // The org's saved list holds one SHARED matrix the wizard was opened on;
+    // PUT answers with `putResponse`.
+    function editFetch(putResponse) {
+      return makeAuthFetch((url, opts = {}) => {
+        const u = String(url);
+        if (u.includes('/api/matrix/saved-filters/sf-1') && opts.method === 'PUT') return putResponse;
+        if (u.includes('/api/matrix/saved-filters')) {
+          return jsonResponse([{ id: 'sf-1', name: 'HR users', filter: hrFilter, shared: true, recipientCount: 2 }]);
+        }
+        if (u.includes('/api/matrix/columns')) return jsonResponse(u.includes('entity=Resource') ? resourceCols : principalCols);
+        if (u.includes('/api/matrix/preview')) return jsonResponse(previewBody);
+        return undefined;
+      });
+    }
+
+    // Open on the saved matrix, then diverge from it by adding a condition.
+    async function divergeAndOpenSave(authFetch) {
+      renderWizard({ initialFilter: hrFilter, initialManaged: 'Governed' }, authFetch);
+      const user = userEvent.setup();
+      await waitFor(() => expect(authFetch).toHaveBeenCalledWith('/api/matrix/saved-filters'));
+      await user.click(screen.getByText('Next')); // subjects
+      await user.click(screen.getAllByText('+ Attribute')[0]);
+      fireEvent.change(await screen.findByRole('combobox'), { target: { value: 'jobTitle' } });
+      await user.click(await screen.findByRole('checkbox', { name: /Manager/i }));
+      await user.click(screen.getByText('Add'));
+      await user.click(screen.getByText(/Save matrix…/));
+      await screen.findByRole('heading', { name: 'Save matrix' });
+      return user;
+    }
+
+    it('writes the change to the edited matrix, warning that its recipients will see it', async () => {
+      const authFetch = editFetch(jsonResponse({ id: 'sf-1' }));
+      const user = await divergeAndOpenSave(authFetch);
+
+      expect(screen.getByText('Shared with 2 people — they will see this change.')).toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: 'Save changes to HR users' }));
+
+      await waitFor(() => expect(screen.queryByRole('heading', { name: 'Save matrix' })).not.toBeInTheDocument());
+      const put = authFetch.mock.calls.find(([u, o]) => u === '/api/matrix/saved-filters/sf-1' && o?.method === 'PUT');
+      expect(put).toBeDefined();
+      const sent = JSON.parse(put[1].body).filter;
+      // Both the original HR condition and the new one travel, with the governed toggle folded in.
+      expect(sent.subject.include.map(c => c.field)).toEqual(['department', 'jobTitle']);
+      expect(sent.managed).toBe('Governed');
+      // No second matrix was created under a new name.
+      expect(authFetch.mock.calls.some(([u, o]) => u === '/api/matrix/saved-filters' && o?.method === 'POST')).toBe(false);
+      // The list is re-read so the shared state stays current.
+      const listReads = authFetch.mock.calls.filter(([u, o]) => u === '/api/matrix/saved-filters' && !o);
+      expect(listReads.length).toBeGreaterThanOrEqual(2);
+    });
+
+    it('keeps the dialog open and shows the API error when the update is refused', async () => {
+      const authFetch = editFetch(jsonResponse({ error: 'Saved matrix not found' }, { ok: false, status: 404 }));
+      const user = await divergeAndOpenSave(authFetch);
+
+      await user.click(screen.getByRole('button', { name: 'Save changes to HR users' }));
+
+      expect(await screen.findByText('Saved matrix not found')).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'Save matrix' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Save changes to HR users' })).toBeEnabled();
+    });
+
+    // A share made off "HR users" without changing it has identical content.
+    // Listed first, so matching on content alone would hand the matrix the
+    // wrong identity on Apply.
+    async function applyOpenedOn(initialFilter) {
+      const authFetch = makeAuthFetch((url) => {
+        const u = String(url);
+        if (u.includes('/api/matrix/saved-filters')) {
+          return jsonResponse([
+            { id: 'sf-share', name: 'Sales team', filter: hrFilter, shared: true, recipientCount: 1 },
+            { id: 'sf-1', name: 'HR users', filter: hrFilter },
+          ]);
+        }
+        if (u.includes('/api/matrix/columns')) return jsonResponse(u.includes('entity=Resource') ? resourceCols : principalCols);
+        if (u.includes('/api/matrix/preview')) return jsonResponse(previewBody);
+        return undefined;
+      });
+      const { onApply } = renderWizard({ initialFilter }, authFetch);
+      const user = userEvent.setup();
+      await waitFor(() => expect(authFetch).toHaveBeenCalledWith('/api/matrix/saved-filters'));
+      await screen.findByText('120'); // preview landed, so Apply is enabled
+      for (let i = 0; i < 6 && !screen.queryByText('Apply'); i++) await user.click(screen.getByText('Next'));
+      await user.click(screen.getByText('Apply'));
+      return onApply.mock.calls[0][0];
+    }
+
+    it('tags the applied matrix with the saved matrix it was opened on, not its twin', async () => {
+      expect((await applyOpenedOn({ ...hrFilter, savedFilterId: 'sf-1' })).savedFilterId).toBe('sf-1');
+    });
+
+    it('tags an untagged matrix with its first content match', async () => {
+      expect((await applyOpenedOn(hrFilter)).savedFilterId).toBe('sf-share');
+    });
+
+    it('applies an unsaved matrix without a tag', async () => {
+      const applied = await applyOpenedOn({ ...hrFilter, rowType: 'identity', savedFilterId: 'sf-1' });
+      expect(applied).not.toHaveProperty('savedFilterId');
+    });
+
+    it('falls back to the HTTP status when the refusal carries no message', async () => {
+      const authFetch = editFetch({ ok: false, status: 500, json: async () => { throw new Error('not json'); } });
+      const user = await divergeAndOpenSave(authFetch);
+
+      await user.click(screen.getByRole('button', { name: 'Save changes to HR users' }));
+
+      expect(await screen.findByText('HTTP 500')).toBeInTheDocument();
+    });
+  });
+
   it('blocks Apply and shows an error for an oversized flat unfoldable matrix', async () => {
     const { onApply } = renderWizard(
       {

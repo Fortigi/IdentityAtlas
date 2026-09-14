@@ -155,7 +155,9 @@ export default function MatrixFilterWizard({
 
   // Which saved matrix the current filter IS, if any. Fingerprint-matched, so a
   // matrix that was only folded or drilled still recognises itself.
-  const savedMatch = matchSavedMatrix(savedFilters, filter);
+  // The matrix being edited wins a tie, or — before the list has matched
+  // anything — the one the wizard was opened on.
+  const savedMatch = matchSavedMatrix(savedFilters, filter, editingSaved?.id ?? initialFilter?.savedFilterId);
   useEffect(() => {
     if (savedMatch && savedMatch.id !== editingSaved?.id) setEditingSaved(savedMatch);
   }, [savedMatch, editingSaved]);
@@ -349,7 +351,10 @@ export default function MatrixFilterWizard({
     // Oversized but foldable on attributes → serve it as the layered,
     // server-aggregated attribute view (a fresh expand state each apply).
     const foldAttributes = servesViaAttrCut(filter, anyRollup, preview.assignmentCount);
-    onApply(commitFilter(filter, foldAttributes), managed);
+    // Tag the applied matrix with the saved one it is, so the save bar names
+    // the right one when two saved matrices share a filter.
+    const committed = commitFilter(filter, foldAttributes);
+    onApply(savedMatch ? { ...committed, savedFilterId: savedMatch.id } : committed, managed);
   };
 
   // ─── Save matrix ───────────────────────────────────────────────

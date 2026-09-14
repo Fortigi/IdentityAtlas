@@ -20,8 +20,14 @@ export class HttpError extends Error {
 // it is folded into the filter — the same shape the wizard's own save writes.
 // The display mode needs no folding: it is already derivable from the filter's
 // `orientation` / roll-up keys, which is why the UI derives it there too.
+//
+// `savedFilterId` is dropped: the UI tags an applied matrix with the saved
+// matrix it was loaded from, so two saved matrices with identical filters are
+// told apart on screen. That is a pointer TO a saved matrix, never part of its
+// content — stored, it would make every copy claim to be the original.
 export function savedMatrixShape(filter, managed) {
-  return managed ? { ...filter, managed } : { ...filter };
+  const { savedFilterId: _loadedFrom, ...content } = filter;
+  return managed ? { ...content, managed } : content;
 }
 
 // Write the people a share is addressed to. `ON CONFLICT … DO UPDATE` rather

@@ -263,7 +263,9 @@ export default function App() {
     if (defaultFilter !== null) {
       // skip wizard, apply saved default — restore its managed-state toggle too
       const { managed: savedManaged, ...f } = defaultFilter.filter || {};
-      setMatrixFilter(f);
+      // Tagged with its id so a twin with identical content (a share made off
+      // the default) can't take over its name on the save bar.
+      setMatrixFilter({ ...f, savedFilterId: defaultFilter.id });
       if (savedManaged) setManagedFilter(savedManaged);
     } else {
       setWizardOpen(true); // no default — let user configure

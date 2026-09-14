@@ -64,6 +64,26 @@ describe('matrix saved-filters', () => {
     expect(res.body).toEqual({ id: VALID, name: 'New', filter: {} });
   });
 
+  // The UI tags an applied matrix with the saved matrix it came from (#1202).
+  // Saving that view as a new matrix must not store the tag, or the copy would
+  // claim to be the original it was loaded from.
+  it('POST stores the filter without the loaded-from tag', async () => {
+    query.mockResolvedValue({});
+    queryOne.mockResolvedValue({ id: VALID, name: 'Copy', filter: {} });
+    await request(app).post('/api/matrix/saved-filters')
+      .send({ name: 'Copy', filter: { rowType: 'identity', managed: 'gaps', savedFilterId: 'orig-id' } });
+    const insert = query.mock.calls.find(([sql]) => sql.includes('INSERT INTO "SavedMatrixFilters"'));
+    expect(insert[1][3]).toEqual({ rowType: 'identity', managed: 'gaps' });
+  });
+
+  it('PUT stores the filter without the loaded-from tag', async () => {
+    query.mockResolvedValue({ rowCount: 1, rows: [{ id: VALID }] });
+    await request(app).put(`/api/matrix/saved-filters/${VALID}`)
+      .send({ filter: { rowType: 'principal', savedFilterId: VALID } });
+    const update = query.mock.calls.find(([sql]) => sql.includes('UPDATE'));
+    expect(update[1][0]).toEqual({ rowType: 'principal' });
+  });
+
   it('POST 409 on a duplicate name', async () => {
     query.mockRejectedValue({ code: '23505' });
     const res = await request(app).post('/api/matrix/saved-filters').send({ name: 'Dup', filter: {} });

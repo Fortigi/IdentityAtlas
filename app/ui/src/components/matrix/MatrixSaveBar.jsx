@@ -97,7 +97,9 @@ export default function MatrixSaveBar({ filter, managed, onLoad, onShare }) {
     const row = (savedFilters || []).find(f => f.id === id);
     if (!row || !onLoad) return;
     const { managed: savedManaged, ...rest } = row.filter || {};
-    onLoad(rest, ['all', 'managed', 'unmanaged', 'gaps'].includes(savedManaged) ? savedManaged : 'all');
+    // Tagged with where it came from, so a twin with identical content can't
+    // take over its name and shared state (see matchSavedMatrix).
+    onLoad({ ...rest, savedFilterId: row.id }, ['all', 'managed', 'unmanaged', 'gaps'].includes(savedManaged) ? savedManaged : 'all');
   }, [onLoad, savedFilters]);
 
   const remove = useCallback(async (id) => {

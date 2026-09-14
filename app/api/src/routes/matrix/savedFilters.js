@@ -14,6 +14,7 @@ import { Router } from 'express';
 import { randomUUID } from 'crypto';
 import * as db from '../../db/connection.js';
 import { UUID_RE } from '../../matrix/filterSql.js';
+import { savedMatrixShape } from './shareLinking.js';
 
 const router = Router();
 const useSql = process.env.USE_SQL === 'true';
@@ -66,7 +67,7 @@ router.post('/matrix/saved-filters', async (req, res) => {
     await db.query(
       `INSERT INTO "SavedMatrixFilters" (id, "name", "description", "filter", "createdBy", "updatedBy")
        VALUES ($1, $2, $3, $4, $5, $5)`,
-      [id, name, description, body.filter, actor],
+      [id, name, description, savedMatrixShape(body.filter), actor],
     );
     const row = await db.queryOne(`SELECT * FROM "SavedMatrixFilters" WHERE id = $1`, [id]);
     res.status(201).json(row);
@@ -91,7 +92,7 @@ router.put('/matrix/saved-filters/:id', async (req, res) => {
   if (typeof body.description === 'string' || body.description === null) {
     push('description', body.description ? body.description.slice(0, 1000) : null);
   }
-  if (body.filter && typeof body.filter === 'object') push('filter', body.filter);
+  if (body.filter && typeof body.filter === 'object') push('filter', savedMatrixShape(body.filter));
   if (typeof body.isDefault === 'boolean') push('isDefault', body.isDefault);
   if (sets.length === 0) return res.status(400).json({ error: 'No updatable fields' });
 

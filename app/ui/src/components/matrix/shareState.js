@@ -12,10 +12,17 @@ import { matrixFilterFingerprint } from '@ui/utils/matrixFilter';
 // Compared by fingerprint rather than raw JSON so a saved matrix stays
 // recognised after being folded, drilled or re-applied without actually being
 // changed — see utils/matrixFilter.js.
-export function matchSavedMatrix(savedFilters, filter) {
+//
+// Content alone can't tell two saved matrices with identical filters apart
+// ("Sales team" shared off the org-wide "All" is exactly that), so an applied
+// matrix carries `savedFilterId` — the saved matrix it was loaded from — and a
+// candidate with that id wins. Without the tag, or when the view has since
+// diverged from it, the first content match stands.
+export function matchSavedMatrix(savedFilters, filter, preferId = filter?.savedFilterId) {
   if (!Array.isArray(savedFilters) || !filter) return null;
   const fingerprint = matrixFilterFingerprint(filter);
-  return savedFilters.find(s => matrixFilterFingerprint(s.filter) === fingerprint) || null;
+  const candidates = savedFilters.filter(s => matrixFilterFingerprint(s.filter) === fingerprint);
+  return candidates.find(s => s.id === preferId) || candidates[0] || null;
 }
 
 // The live share of a saved matrix, out of the org-wide share list. A revoked

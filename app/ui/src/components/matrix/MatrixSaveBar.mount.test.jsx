@@ -93,8 +93,9 @@ describe('MatrixSaveBar — loading', () => {
     await user.click(await screen.findByRole('button', { name: 'HR users' }));
 
     // The filter is applied WITHOUT the stored toggle riding inside it — the
-    // toggle is handed over separately, as the matrix's own state.
-    expect(onLoad).toHaveBeenCalledWith(FILTER, 'managed');
+    // toggle is handed over separately, as the matrix's own state. It is tagged
+    // with the saved matrix it came from.
+    expect(onLoad).toHaveBeenCalledWith({ ...FILTER, savedFilterId: 'sf-1' }, 'managed');
   });
 
   it('warns that deleting a shared matrix closes its recipients out', async () => {
@@ -114,6 +115,32 @@ describe('MatrixSaveBar — loading', () => {
     await user.click(await screen.findByRole('button', { name: 'Cancel' }));
 
     expect(authFetch).not.toHaveBeenCalledWith('/api/matrix/saved-filters/sf-1', { method: 'DELETE' });
+  });
+});
+
+describe('MatrixSaveBar — twins with identical filters', () => {
+  // A share made off "HR users" without changing it is a second saved matrix
+  // with the same content. Listed first, so a bar matching on content alone
+  // would name — and show the sharing of — the wrong one.
+  const twins = [
+    savedRow({ id: 'sf-share', name: 'Sales team', shared: true, recipientCount: 3 }),
+    savedRow(),
+  ];
+
+  it('names the matrix the view was loaded from, not its twin', async () => {
+    const onShare = vi.fn();
+    const { user } = render({ saved: twins, filter: { ...FILTER, savedFilterId: 'sf-1' }, onShare });
+    expect(await screen.findByText('HR users')).toBeInTheDocument();
+    expect(screen.queryByText('Sales team')).not.toBeInTheDocument();
+    // Its own (unshared) state, and Share acts on it — not on the twin.
+    await user.click(await screen.findByRole('button', { name: 'Share…' }));
+    expect(onShare).toHaveBeenCalledWith({ savedFilterId: 'sf-1', savedName: 'HR users' });
+  });
+
+  it('shows the twin and its sharing when that is the one loaded', async () => {
+    render({ saved: twins, filter: { ...FILTER, savedFilterId: 'sf-share' }, onShare: vi.fn() });
+    expect(await screen.findByText('Sales team')).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: /Shared with 3 people/ })).toBeInTheDocument();
   });
 });
 
