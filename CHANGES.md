@@ -1,5 +1,18 @@
 ## Changes in this PR
 
+- Hardened access control on the API: the check that keeps read-only API keys away from admin endpoints can no longer be sidestepped by changing the letter case of the URL.
+- Dashboard statistics, run history (risk scoring, context plugins, account linking) and the update intent now require a signed-in user whose roles map to at least one permission; risk profile/classifier settings, history-retention settings, update status/history and the account-linking configuration now require the same admin permission as the screen that shows them.
+- The Performance page's request log no longer records query strings (search terms and filters), and is no longer readable with a read-only API key or by users without any mapped permission.
+- Fixed the role-mapping self-lockout guard so it also protects administrators holding the wildcard (`*`) permission; role-mapping changes are now recorded with the editor's immutable object id as well as their display name.
+- Hardened sign-in token validation against floods of tokens carrying unknown signing-key ids (rate-limited and time-bounded key lookups).
+- The update agent's reported versions are validated, and an agent's apply report can no longer make the update check believe a newer version is waiting.
+- Fixed searches treating `%` and `_` as wildcards; they now match literally.
+- Fixed a server error when a sort column, entity type or feature name matched a built-in JavaScript property name such as `constructor`.
+- Fixed "include child contexts" filters so a corrupt, circular context hierarchy can no longer make matrix and scope queries run until they time out.
+- Replaced example tenant and client ids in the `auth-config` CLI help with placeholders.
+
+## Changes in this PR
+
 - The matrix wizard now ends with a **Share** step: name the view, pick the colleagues it is for, and copy the link without leaving the wizard. The step is optional — **Apply** still commits the matrix from it.
 - A matrix is shared with **specific people**. Search the directory by name or e-mail and add one or more recipients; only they (and you) can open the link, so forwarding it to anybody else gets them nowhere. A share with no recipients cannot be created.
 - Added **Share view…** to the matrix toolbar for the same form, for when you are already looking at the matrix you want to send. The link captures the matrix exactly as it looks at that moment — the filter, the Governed/Non-governed/Gaps toggle and the display mode — while the access data behind it stays up to date.
