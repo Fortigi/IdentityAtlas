@@ -8,18 +8,11 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
 import { attributeLabel } from '@ui/utils/formatters';
-import { DEFAULT_SORT } from '@ui/utils/matrixFilter';
 import { FOLD_AUTO_THRESHOLD } from './MatrixFilterWizard.helpers';
-
-// Pull selectable attribute names out of a /matrix/columns response. Excludes
-// the display-name column (every value is unique, useless to group/sort by).
-function attributeOptions(columns) {
-  if (!Array.isArray(columns)) return [];
-  return columns
-    .map(c => c.column)
-    .filter(Boolean)
-    .filter(name => name !== 'displayName');
-}
+import {
+  attributeOptions, sortRows, autoFolds, foldOnLoadChecked,
+  canAddSortRow, addSortRow, updateSortRow, removeSortRow, toggleDir,
+} from './sortStepState';
 
 export default function MatrixSortStep({
   sortAttributes, columns, disabled, onChange,
@@ -31,9 +24,9 @@ export default function MatrixSortStep({
   // Any attribute can be sorted on, including ext.* extended attributes — the
   // matrix payload now carries extendedAttributes for the column sort.
   const options = attributeOptions(columns);
-  const rows = sortAttributes.length ? sortAttributes : DEFAULT_SORT;
-  const autoFold = assignmentCount >= FOLD_AUTO_THRESHOLD;
-  const foldChecked = foldOnLoad === 'auto' ? autoFold : !!foldOnLoad;
+  const rows = sortRows(sortAttributes);
+  const autoFold = autoFolds(assignmentCount);
+  const foldChecked = foldOnLoadChecked(foldOnLoad, assignmentCount);
   const isHierarchy = !!sortHierarchy; // an object (even with empty contextId) = hierarchy mode
 
   // Manager-Hierarchy roots to sort by.
@@ -55,13 +48,9 @@ export default function MatrixSortStep({
     }
   }, [isHierarchy, sortHierarchy, ctxRoots, onHierarchyChange]);
 
-  const update = (i, patch) => onChange(rows.map((r, idx) => idx === i ? { ...r, ...patch } : r));
-  const remove = (i) => onChange(rows.filter((_, idx) => idx !== i));
-  const add = () => {
-    const used = new Set(rows.map(r => r.attribute));
-    const next = options.find(o => !used.has(o)) || options[0];
-    if (next) onChange([...rows, { attribute: next, dir: 'asc' }]);
-  };
+  const update = (i, patch) => onChange(updateSortRow(rows, i, patch));
+  const remove = (i) => onChange(removeSortRow(rows, i));
+  const add = () => onChange(addSortRow(rows, options));
 
   return (
     <div className="space-y-3">
@@ -131,7 +120,7 @@ export default function MatrixSortStep({
               </select>
               <button
                 type="button"
-                onClick={() => update(i, { dir: r.dir === 'asc' ? 'desc' : 'asc' })}
+                onClick={() => update(i, { dir: toggleDir(r.dir) })}
                 className="px-2 py-1 text-xs rounded border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50"
                 title="Toggle ascending / descending"
               >{r.dir === 'asc' ? 'A→Z' : 'Z→A'}</button>
@@ -145,7 +134,7 @@ export default function MatrixSortStep({
               )}
             </div>
           ))}
-          {rows.length < 6 && options.length > rows.length && (
+          {canAddSortRow(rows, options) && (
             <button type="button" onClick={add} className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline">
               + Add attribute
             </button>
