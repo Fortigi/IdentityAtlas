@@ -1,5 +1,10 @@
 ## Changes in this PR
 
+- The Identity Atlas system a crawler registers is now named after the crawler itself instead of the crawler type, so several crawlers of the same type no longer collapse into one identically-named system. Renaming a crawler renames its system on the next run.
+- The SCIM wizard's "System name" field is now a genuine override: leave it blank to use the crawler's name, or fill it in to label the system something else.
+
+## Changes in this PR
+
 - Added a **System** filter to the Principals and Resources pages, so you can see and list only the users or resources that came from one connected system.
 - Every connected system is offered as a filter value by its display name — including a system that has no principals or resources yet.
 - Added two context plugins, **Principals by System** and **Resources by System**, that generate one context per connected system, named after the system. Use them to scope the matrix to a single system's users and/or resources.

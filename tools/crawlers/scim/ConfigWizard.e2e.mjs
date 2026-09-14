@@ -217,5 +217,75 @@ export function register(test, expect) {
       const reopened = page.locator('div:has(> div > p:text-is("Group attributes"))');
       await expect(reopened.locator('label:has(span:text-is("type")) input[type="checkbox"]')).toBeChecked({ timeout: 10000 });
     });
+
+    // #1207 — the reporter's path: name the crawler ABC, leave the optional
+    // "System name" blank, save and run. The Identity Atlas system the run
+    // registers used to be called "SCIM" (the crawler *type*), so a second SCIM
+    // crawler produced a second, indistinguishable "SCIM" system.
+    //
+    // Two layers have to hold for the system to come out named ABC, and this
+    // walks both: the saved config must NOT bake a systemName in (or the run can
+    // never fall back to the crawler name), and the queued job's config must
+    // carry the crawler name as `_configName` (the only channel the API has to
+    // tell a run what its crawler is called). The crawler's own use of that key
+    // is pinned by test/unit/ScimCrawlerFunctions.Tests.ps1 and exercised against
+    // a live endpoint by Test-ScimCrawler.ps1 — this test covers everything from
+    // the wizard down to the queued job.
+    test('a crawler saved with no system-name override carries its own name into the run (#1207)', async ({ page, request }) => {
+      if (!await openScimWizard(page)) return;
+
+      const crawlerName = `e2e-scim-1207-${Date.now()}`;
+      await page.fill('input[placeholder="SCIM 2.0"]', crawlerName);
+      await page.fill('input[placeholder="https://api.example.com/scim/v2"]', 'https://scim.example.com/scim/v2');
+      // The whole point of the case: the override field stays empty.
+      await expect(page.locator('input[placeholder="SAP CIS"]')).toHaveValue('');
+      await page.click('button:has-text("Next →")');
+
+      // Step 2 — credentials.
+      await page.locator('label:has-text("Username") + input, label:has-text("Username") ~ input').first().fill('scim-user');
+      await page.locator('input[type="password"]').first().fill('scim-pass');
+      await page.click('button:has-text("Next →")');
+
+      // Steps 3–6 — take the defaults through to the save button.
+      await expect(page.locator('text=Also served by this endpoint, but not syncable yet:')).toBeVisible({ timeout: 10000 });
+      await page.click('button:has-text("Next →")');
+      await expect(page.locator('text=User attributes')).toBeVisible({ timeout: 10000 });
+      await page.click('button:has-text("Next →")');
+      await expect(page.locator('text=User type → principal type')).toBeVisible();
+      await page.click('button:has-text("Next →")');
+      await expect(page.locator('text=No schedules configured.')).toBeVisible();
+      await page.locator('button:has-text("Add Crawler")').last().click();
+
+      // The card's summary panel names the system the operator will actually see
+      // in the Systems list — the crawler's name, not the literal "SCIM".
+      const card = page.locator('div').filter({ hasText: crawlerName }).last();
+      await expect(card).toBeVisible({ timeout: 15000 });
+      await expect(card.locator(`text=System: ${crawlerName}`).first()).toBeVisible();
+
+      const api = `${BASE}/api`;
+      const configs = await (await request.get(`${api}/admin/crawler-configs`)).json();
+      const saved = configs.find(c => c.displayName === crawlerName);
+      expect(saved, `expected a saved CrawlerConfigs row named ${crawlerName}`).toBeTruthy();
+      // A blank override must be absent, not stored as the literal 'SCIM' —
+      // otherwise "no preference" is indistinguishable from a deliberate choice.
+      expect(saved.config.systemName).toBeUndefined();
+
+      let jobId = null;
+      try {
+        const created = await request.post(`${api}/admin/crawler-jobs`, { data: { jobType: 'scim', configId: saved.id } });
+        expect(created.status(), await created.text()).toBe(201);
+        const job = await created.json();
+        jobId = job.id;
+        const jobConfig = typeof job.config === 'string' ? JSON.parse(job.config) : job.config;
+        // Before the fix this key did not exist at all: the run had no way to
+        // know the crawler was called ABC, so it named the system 'SCIM'.
+        expect(jobConfig._configName).toBe(crawlerName);
+      } finally {
+        // Leave nothing behind — the endpoint is a stub, so a queued job would
+        // just fail noisily in the run list.
+        if (jobId) await request.delete(`${api}/admin/crawler-jobs/${jobId}`);
+        await request.delete(`${api}/admin/crawler-configs/${saved.id}`);
+      }
+    });
   });
 }

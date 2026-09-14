@@ -98,9 +98,16 @@ describe('buildScimConfig', () => {
     expect(buildScimConfig({ ...base, pageSize: 'abc' }).pageSize).toBe(100);
   });
 
-  it('defaults the system name when left blank', () => {
+  // System name is an optional override. Baking a default into the saved config
+  // makes it indistinguishable from a deliberate choice, and the run can then
+  // never fall back to the crawler's own name — so a blank field omits the key.
+  it('keeps an explicit system name, trimmed', () => {
     expect(buildScimConfig(base).systemName).toBe('SAP CIS');
-    expect(buildScimConfig({ ...base, systemName: '   ' }).systemName).toBe('SCIM');
+  });
+
+  it('omits systemName when left blank so the run falls back to the crawler name', () => {
+    expect(buildScimConfig({ ...base, systemName: '   ' })).not.toHaveProperty('systemName');
+    expect(buildScimConfig({ ...base, systemName: undefined })).not.toHaveProperty('systemName');
   });
 
   it('writes every object toggle as an explicit boolean', () => {

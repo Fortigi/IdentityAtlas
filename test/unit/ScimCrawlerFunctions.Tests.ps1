@@ -340,6 +340,30 @@ Describe 'ConvertFrom-ScimConfigMap' {
     }
 }
 
+# The Systems row this crawler registers is named from the resolved systemName
+# (ScimCrawler.Phases.ps1 → Register-ScimSystem). Defaulting that to the type
+# literal 'SCIM' means every SCIM crawler registers a system called "SCIM",
+# regardless of what the operator named the crawler, and a rename of the crawler
+# never reaches the system. The crawler's own name arrives as the dispatcher-
+# injected `_configName` key (CrawlerConfigs.displayName).
+Describe 'ConvertFrom-ScimConfigMap — system naming' {
+    It 'falls back to the crawler name when no explicit system name is configured' {
+        (ConvertFrom-ScimConfigMap -Raw @{ _configName = 'ABC' }).systemName | Should -Be 'ABC'
+    }
+
+    It 'still prefers an explicit system name over the crawler name' {
+        (ConvertFrom-ScimConfigMap -Raw @{ _configName = 'ABC'; systemName = 'SAP CIS' }).systemName | Should -Be 'SAP CIS'
+    }
+
+    It 'ignores a blank crawler name rather than naming the system an empty string' {
+        (ConvertFrom-ScimConfigMap -Raw @{ _configName = '   ' }).systemName | Should -Be 'SCIM'
+    }
+
+    It 'keeps the literal SCIM fallback when neither name is present' {
+        (ConvertFrom-ScimConfigMap -Raw @{}).systemName | Should -Be 'SCIM'
+    }
+}
+
 Describe 'Get-ScimIdPrefix' {
     It 'namespaces deterministic ids per system so two endpoints cannot collide' {
         Get-ScimIdPrefix -SystemId 3  | Should -Be 'scim-sys3'

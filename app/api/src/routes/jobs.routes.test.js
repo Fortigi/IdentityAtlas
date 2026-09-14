@@ -62,7 +62,7 @@ beforeEach(() => {
     if (/UPDATE "CrawlerConfigs" SET config/.test(sql)) return P({ recordset: [{ id: 1, config: {} }] });
     if (/SELECT config, "crawlerType" FROM "CrawlerConfigs"/.test(sql)) return P({ recordset: [{ config: {}, crawlerType: 'demo' }] });
     if (/SELECT "crawlerType", config FROM "CrawlerConfigs"/.test(sql)) return P({ recordset: [{ crawlerType: 'demo', config: {} }] });
-    if (/SELECT config, "nextRunMode" FROM "CrawlerConfigs"/.test(sql)) return P({ recordset: [{ config: {}, nextRunMode: 'delta' }] });
+    if (/SELECT config, "nextRunMode".* FROM "CrawlerConfigs"/.test(sql)) return P({ recordset: [{ config: {}, nextRunMode: 'delta' }] });
     if (/DELETE FROM "CrawlerConfigs"/.test(sql)) return P({ recordset: [], rowsAffected: [1] });
     if (/SELECT \* FROM "CrawlerConfigs"/.test(sql)) return P({ recordset: [{ id: 1, config: {} }] });
     if (/INSERT INTO "CrawlerJobs"/.test(sql)) return P({ recordset: [{ id: 5, jobType: 'demo' }] });
@@ -181,7 +181,7 @@ describe('connector-URL guard on config save and job creation', () => {
 
   it('POST job re-vets a stored config (saved before the guard existed)', async () => {
     poolQuery.mockImplementation((sql) => {
-      if (/SELECT config, "nextRunMode" FROM "CrawlerConfigs"/.test(sql)) return P({ recordset: [{ config: { baseUrl: 'http://10.0.0.9/' }, nextRunMode: 'delta' }] });
+      if (/SELECT config, "nextRunMode".* FROM "CrawlerConfigs"/.test(sql)) return P({ recordset: [{ config: { baseUrl: 'http://10.0.0.9/' }, nextRunMode: 'delta' }] });
       return P({ recordset: [{ id: 5 }] });
     });
     const res = await request(app).post('/api/admin/crawler-jobs').send({ jobType: 'rest-type', configId: 3 });
