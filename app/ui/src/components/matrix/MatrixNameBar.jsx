@@ -65,16 +65,18 @@ export default function MatrixNameBar({ filter, onLoad, onAdjust, onShare }) {
     transform: rows => (Array.isArray(rows) ? rows : []),
   });
 
-  // Re-fetched whenever the applied filter changes — that is when a save from
-  // the wizard, or a load, may just have happened. Guarded on the previous key
-  // so mounting doesn't fetch the list twice.
-  const filterKey = filter ? JSON.stringify(filter) : '';
-  const lastFilterKey = useRef(filterKey);
+  // Re-fetched whenever a matrix is applied — that is when a save or share from
+  // the wizard, or a load, may just have happened. Keyed on the filter OBJECT,
+  // not its content: sharing an unchanged saved matrix applies an identical
+  // filter, and the strip must still learn that it is now shared. Every apply
+  // hands over a new object; re-renders keep the same one. Guarded so mounting
+  // doesn't fetch the list twice.
+  const lastFilter = useRef(filter);
   useEffect(() => {
-    if (lastFilterKey.current === filterKey) return;
-    lastFilterKey.current = filterKey;
+    if (lastFilter.current === filter) return;
+    lastFilter.current = filter;
     reload();
-  }, [filterKey, reload]);
+  }, [filter, reload]);
 
   // Always an array: `initialData` and `transform` see to it, and a failed read
   // keeps the last list.

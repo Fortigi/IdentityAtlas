@@ -110,6 +110,35 @@ describe('MatrixNameBar — the name on screen', () => {
     expect(await screen.findByRole('button', { name: 'Everyone' })).toBeInTheDocument();
     expect(listReads(authFetch)).toHaveLength(2);
   });
+
+  // Sharing an unchanged saved matrix from the wizard applies an IDENTICAL
+  // filter. The strip must still re-read the list, or it never shows the share;
+  // a plain re-render (no apply) must not.
+  it('re-reads after an apply of identical content, but not on a mere re-render', async () => {
+    let shared = false;
+    const authFetch = makeAuthFetch(() => [savedRow({ shared, recipientCount: shared ? 2 : 0 })]);
+    function Harness() {
+      const [filter, setFilter] = useState({ ...FILTER, savedFilterId: 'sf-1' });
+      const [, rerender] = useState(0);
+      return (
+        <>
+          <button type="button" onClick={() => { shared = true; setFilter(f => ({ ...f })); }}>apply same</button>
+          <button type="button" onClick={() => rerender(n => n + 1)}>rerender</button>
+          <MatrixNameBar filter={filter} onShare={() => {}} />
+        </>
+      );
+    }
+    renderWithProviders(<Harness />, { auth: { authFetch }, features: { matrixSharing: true } });
+    expect(await screen.findByRole('button', { name: 'HR users' })).toBeInTheDocument();
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole('button', { name: 'rerender' }));
+    expect(listReads(authFetch)).toHaveLength(1);
+
+    await user.click(screen.getByRole('button', { name: 'apply same' }));
+    expect(await screen.findByRole('button', { name: /Shared with 2 people/ })).toBeInTheDocument();
+    expect(listReads(authFetch)).toHaveLength(2);
+  });
 });
 
 describe('MatrixNameBar — the name menu', () => {
