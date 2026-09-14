@@ -4,11 +4,18 @@
 #   dor_feedback_flow.sh  — a requestor-feedback adjustment on an already-built feature
 #
 # Source this ("source dor_build_lib.sh"); do NOT execute it. The caller must export at least
-# ISSUE REPO URL HOST WORK GH_TOKEN BOARD_TOKEN before sourcing; everything else is derived here so
-# both flows stay in lock-step. Set FLOW_NOUN (e.g. "build" / "adjustment") before sourcing to tune
+# ISSUE REPO URL HOST WORK before sourcing, plus GH_TOKEN BOARD_TOKEN — either directly, or staged as
+# files in DOR_CRED_DIR, which is how the workflows hand them over (see dor_agent_sandbox.sh).
+# Everything else is derived here so both flows stay in lock-step. Set FLOW_NOUN (e.g. "build" / "adjustment") before sourcing to tune
 # the human-facing wording of bail()/pause().
 
 export PATH="$HOME/.local/bin:$PATH"
+
+# The agent-isolation helpers (credential hand-off, scrubbed agent env, git-state restore, output
+# guards). Sourced first: load_flow_credentials must run before anything below needs a token.
+# shellcheck source=dor_agent_sandbox.sh
+source "$(dirname "${BASH_SOURCE[0]}")/dor_agent_sandbox.sh"
+load_flow_credentials
 
 # ── Derived config (identical across both flows) ──────────────────────────────────────────────────
 BRANCH="dor/issue-${ISSUE}"
@@ -248,13 +255,18 @@ drop_checkout_credentials() {
   return 0
 }
 
-# Make git push/fetch on THIS checkout authenticate as the BOT app instead of the job's GITHUB_TOKEN.
+# Prepare THIS checkout so the only identity a push can use is the BOT app's, supplied per push.
 # GitHub suppresses workflow runs for commits pushed with GITHUB_TOKEN (anti-recursion) — which is why
 # the bot PR got ZERO CI checks. Pushing as the app makes the PR's CI actually run. Call once, after
 # checkout, before any push. (BOARD_TOKEN must carry contents:write.)
+#
+# origin itself stays ANONYMOUS. This used to write the app token into the origin URL, which left a
+# push-capable credential in .git/config for the whole run, readable by the agent working in the same
+# checkout (SEC-2026-09 H-05). The repository is public, so fetches need no credential, and every push
+# goes through push_as_app, which hands the token to that one command only.
 use_bot_remote() {
   drop_checkout_credentials
-  git -C "$WORK" remote set-url origin "$(app_remote_url)"
+  git -C "$WORK" remote set-url origin "https://github.com/${REPO}.git"
 }
 
 # The app-authenticated remote URL. Factored out so use_bot_remote, push_as_app's lease resolution
@@ -289,8 +301,16 @@ app_remote_url() { printf '%s' "https://x-access-token:${BOARD_TOKEN}@github.com
 # pushing to a URL, and these branches are held by one reserved sidekick at a time anyway. An
 # explicit `--force-with-lease=<ref>:<sha>` from a caller is passed through untouched.
 push_as_app() {  # $@ = refspec + flags
-  local url dst="" a sha hdr
+  local url dst="" a sha hdr blocked
   url="$(app_remote_url)"
+
+  # Nothing that changes .github/ leaves this box, whoever calls. The flows check first so they can
+  # say why (guard_protected_paths); this is the backstop for a push that did not.
+  blocked="$(protected_path_changes)"
+  if [ -n "$blocked" ]; then
+    echo "::error::refusing to push: the branch changes protected CI paths: $(printf '%s' "$blocked" | tr '\n' ' ')"
+    return 1
+  fi
   for a in "$@"; do case "$a" in *:refs/heads/*) dst="${a#*:}" ;; esac; done
 
   # Reset the Authorization header for github.com on the command line, which outranks every config
@@ -331,13 +351,18 @@ push_as_app() {  # $@ = refspec + flags
 
 # Run the AI once. $1=prompt $2=outfile $3=max-turns. Returns: 0 ok · 2 usage/spend LIMIT (429, → pause)
 # · 1 any other error (→ bail). Centralises model, turn cap, terse output, and limit detection.
+#
+# The CLI runs through agent_exec, so it starts without GH_TOKEN, BOARD_TOKEN or any other credential
+# in its environment, and the checkout's git config and hooks are put back the moment it returns.
 run_claude() {
-  claude -p "$1${TERSE}" \
+  snapshot_git_state
+  agent_exec claude -p "$1${TERSE}" \
     --allowedTools "Read,Edit,Write,Bash,Grep,Glob" \
     --model "$MODEL" --fallback-model "$FALLBACK_MODEL" \
     --max-turns "${3:-$FIX_TURNS}" \
     --output-format json >"$2" 2>&1
   local rc=$?
+  restore_git_state
   # A usage/spend limit is NOT a code failure — the caller should PAUSE, not route to Exceptions.
   if grep -qE '"api_error_status"[[:space:]]*:[[:space:]]*429' "$2" 2>/dev/null \
      || grep -qiE 'spend limit|usage limit|reached your.*limit|hit your (org|plan|weekly)' "$2" 2>/dev/null; then
@@ -347,6 +372,22 @@ run_claude() {
   grep -qE '"subtype"[[:space:]]*:[[:space:]]*"error_max_turns"' "$2" 2>/dev/null && return 3
   grep -qE '"is_error"[[:space:]]*:[[:space:]]*true' "$2" 2>/dev/null && return 1
   return "$rc"
+}
+
+# Stop the flow if the branch changes .github/ (see protected_path_changes). Call before every push.
+guard_protected_paths() {
+  local hit; hit="$(protected_path_changes)"
+  [ -z "$hit" ] && return 0
+  bail "the change modifies protected CI paths ($(printf '%s' "$hit" | tr '\n' ' ')). An automated build may never change workflows or pipeline scripts, which run with repository secrets — a maintainer must review this by hand."
+}
+
+# Tell the PR reviewer when the branch touches container, compose or dependency definitions. Never
+# blocking. $1 = PR number, $2 = what was already reported (the PR body, or the state before this
+# run), so an unchanged list is not posted again on every adjustment.
+note_supply_chain_changes() {
+  local section; section="$(supply_chain_section)"
+  { [ -n "$section" ] && [ "$section" != "${2:-}" ]; } || return 0
+  gh pr comment "$1" --repo "$REPO" --body "$(printf '🔎 **For the merge review**%s' "$section")" >/dev/null 2>&1 || true
 }
 
 # Route to the Exceptions column + notify maintainers, then stop. Called on any unrecoverable failure.
@@ -367,11 +408,15 @@ bail() {
 pause_and_exit() {
   local reason="$1"
   echo "::warning::PAUSING (${FLOW_NOUN}): ${reason}"
+  # A paused branch is resumed from later, so it gets the same guard as every other push. Checked
+  # BEFORE the pause marker: a refusal here is an Exception, not a pause.
+  guard_protected_paths
   touch "${RUNNER_TEMP:-/tmp}/dor-paused"   # tell the workflow's failure backstop this is a pause
   git -C "$WORK" restore --source=HEAD --staged --worktree -- .github 2>/dev/null || true
   git -C "$WORK" add -A 2>/dev/null || true
   git -C "$WORK" diff --cached --quiet 2>/dev/null || git -C "$WORK" commit -q -m "wip: paused on usage limit (#${ISSUE})" 2>/dev/null || true
-  git -C "$WORK" push --force-with-lease origin "$BRANCH" 2>/dev/null || true
+  # origin is anonymous, so the WIP goes out as the app like every other push.
+  push_as_app --force-with-lease "HEAD:refs/heads/$BRANCH" >/dev/null 2>&1 || true
   GH_TOKEN="$BOARD_TOKEN" bash "$SCRIPTS/dor_set_status.sh" "$ISSUE" paused 2>/dev/null || true
   gh issue edit "$ISSUE" --repo "$REPO" --add-label dor-paused --remove-label ready-to-build >/dev/null 2>&1 || true
   comment_issue "$(printf '⏸️ **Paused** — hit a Claude usage limit. Work is saved on `%s`; will **auto-resume** when capacity returns (no action needed).' "$BRANCH")"
@@ -556,6 +601,7 @@ verify_loop() {
     if ! git diff --cached --quiet; then
       git commit -q -m "fix: address e2e/CI failures (attempt ${attempt}, #${ISSUE})" || bail "git commit failed during fix (attempt ${attempt})"
     fi
+    guard_protected_paths
     push_as_app --force-with-lease "HEAD:refs/heads/$BRANCH" || bail "could not push fix on attempt ${attempt}"
   done
 }

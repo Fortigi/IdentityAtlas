@@ -1,0 +1,5 @@
+- Hardened the automated issue-to-PR build pipeline: the build agent now only receives issue text written by the requestor, organisation members and the pipeline itself, and the spec records how many other comments were left out
+- Hardened the automated build pipeline so the build agent no longer has access to the pipeline's GitHub credentials, and so an automated change to CI configuration is stopped for human review instead of being pushed
+- Automated pull requests now point out changes to container images, compose files and package dependencies for the reviewer
+- Reduced the default permissions of the pull-request CI workflows and removed an unused site deployment workflow
+- Updated the `uuid` dependency used by the Excel export to a patched version and removed two unused API dependencies

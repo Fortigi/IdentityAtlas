@@ -35,6 +35,8 @@
     Stop-MockODataServer -Mock $mock
 #>
 
+. (Join-Path $PSScriptRoot 'Start-MockServerJob.ps1')
+
 function Get-FreePort {
     [CmdletBinding()] param()
     $tcp = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, 0)
@@ -245,27 +247,8 @@ $entitySetEntries
         }
     }
 
-    $job = Start-Job -ScriptBlock $serverScript -ArgumentList $port, $entitySetsJson, $edmxSetsJson
-
-    # Poll for startup confirmation: 20 × 200 ms = 4 s maximum wait
-    $startupPollMs    = 200
-    $startupMaxPolls  = 20
-    $started = $false
-    for ($i = 0; $i -lt $startupMaxPolls; $i++) {
-        Start-Sleep -Milliseconds $startupPollMs
-        $out = Receive-Job -Job $job -Keep 2>&1
-        if ($out -match 'MOCK_STARTED') { $started = $true; break }
-        if ($out -match 'MOCK_ERROR')   { break }
-    }
-
-    if (-not $started) {
-        $out = Receive-Job -Job $job -Keep 2>&1
-        Stop-Job   -Job $job -ErrorAction SilentlyContinue
-        Remove-Job -Job $job -Force -ErrorAction SilentlyContinue
-        throw "Mock OData server failed to start on port $port. Output: $($out -join '; ')"
-    }
-
-    return [PSCustomObject]@{ Job = $job; Port = $port }
+    return Start-MockServerJob -ScriptBlock $serverScript -ArgumentList $port, $entitySetsJson, $edmxSetsJson `
+        -Name 'OData' -Port $port
 }
 
 function Stop-MockODataServer {
