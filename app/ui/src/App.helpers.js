@@ -85,3 +85,14 @@ const DETAIL_TAB_ICON_BG_DEFAULT =
 export function detailTabIconBg(type) {
   return DETAIL_TAB_ICON_BG[type] || DETAIL_TAB_ICON_BG_DEFAULT;
 }
+
+// How the matrix wizard opens (#1202): on which step, and whether as a fresh,
+// empty matrix instead of the one on screen. Anything else passed in — such as
+// the click event of an onClick wired straight to the opener — opens it the
+// usual way: the matrix on screen, first step.
+export function wizardOpening(options) {
+  return {
+    step: typeof options?.step === 'string' ? options.step : null,
+    fresh: options?.fresh === true,
+  };
+}

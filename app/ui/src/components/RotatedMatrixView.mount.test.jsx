@@ -60,6 +60,7 @@ function renderView(props = {}, authFetch = makeFetch()) {
       refreshing: props.refreshing || false,
       onOpenDetail,
       onAdjustFilter,
+      onLoadSaved: props.onLoadSaved,
       hasData: props.hasData,
     }),
     { auth: { authFetch } },
@@ -153,12 +154,25 @@ describe('RotatedMatrixView (mounted)', () => {
     expect(screen.getByText('Finance App')).toBeInTheDocument();
   });
 
-  it('renders the "pick a slice" empty state when no filter is applied', () => {
+  it('renders the "Open a matrix" list when no filter is applied, with New matrix opening a fresh wizard', () => {
     const { onAdjustFilter } = renderView({ filter: null, hasData: true });
-    expect(screen.getByText(/Pick a slice to inspect/i)).toBeInTheDocument();
-    const btn = screen.getByText('Create matrix');
-    fireEventClick(btn);
-    expect(onAdjustFilter).toHaveBeenCalled();
+    expect(screen.getByRole('heading', { name: 'Open a matrix' })).toBeInTheDocument();
+    fireEventClick(screen.getByRole('button', { name: 'New matrix' }));
+    expect(onAdjustFilter).toHaveBeenCalledWith({ fresh: true });
+  });
+
+  it('opens a saved matrix from the empty state, tagged with its id', async () => {
+    const onLoadSaved = vi.fn();
+    const authFetch = makeFetch({ '/api/matrix/saved-filters': [{ id: 'sf-7', name: 'Rotated HR', filter: { rowType: 'principal', orientation: 'rows-as-subjects' } }] });
+    renderView({ filter: null, hasData: true, onLoadSaved }, authFetch);
+    fireEventClick(await screen.findByRole('button', { name: /Rotated HR/ }));
+    expect(onLoadSaved).toHaveBeenCalledWith({ rowType: 'principal', orientation: 'rows-as-subjects', savedFilterId: 'sf-7' }, 'all');
+  });
+
+  it('shows the strip with its counts when a filter is applied', async () => {
+    renderView({ counts: { subjectCount: 2, resourceCount: 3, assignmentCount: 3 } });
+    expect(screen.getByText('2 users × 3 resources · 3 cells')).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Unsaved matrix' })).toBeInTheDocument();
   });
 
   it('renders the "no data available" empty state when hasData is false', () => {

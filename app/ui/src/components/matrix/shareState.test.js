@@ -5,7 +5,10 @@
 // against is a matrix that still reads as shared after its link was revoked.
 
 import { describe, it, expect } from 'vitest';
-import { matchSavedMatrix, activeShareOf, sharedWithLabel, liveShareWarning, wizardPreferredSavedId, tagWithSavedMatrix } from './shareState';
+import {
+  matchSavedMatrix, activeShareOf, sharedWithLabel, liveShareWarning, wizardPreferredSavedId, tagWithSavedMatrix,
+  savedMatrixLoadArgs, currentSavedMatrix, appliedSavedMatrix, copyName, renameShareWarning,
+} from './shareState';
 
 const FILTER = {
   rowType: 'principal',
@@ -123,5 +126,90 @@ describe('tagWithSavedMatrix', () => {
     expect(tagWithSavedMatrix(FILTER, { id: 'sf-1' })).toEqual({ ...FILTER, savedFilterId: 'sf-1' });
     expect(tagWithSavedMatrix(FILTER, null)).toBe(FILTER);
     expect(FILTER).not.toHaveProperty('savedFilterId');
+  });
+});
+
+describe('savedMatrixLoadArgs', () => {
+  it('applies the stored filter tagged with its id, and hands the governed toggle over separately', () => {
+    const [filter, managed] = savedMatrixLoadArgs({ id: 'sf-1', filter: { ...FILTER, managed: 'gaps' } });
+    expect(filter).toEqual({ ...FILTER, savedFilterId: 'sf-1' });
+    expect(filter).not.toHaveProperty('managed');
+    expect(managed).toBe('gaps');
+  });
+
+  it('accepts each of the four governed states and falls back to "all" for anything else', () => {
+    for (const m of ['all', 'managed', 'unmanaged', 'gaps']) {
+      expect(savedMatrixLoadArgs({ id: 'x', filter: { managed: m } })[1]).toBe(m);
+    }
+    expect(savedMatrixLoadArgs({ id: 'x', filter: { managed: 'governed' } })[1]).toBe('all');
+    expect(savedMatrixLoadArgs({ id: 'x', filter: FILTER })[1]).toBe('all');
+  });
+
+  it('survives a row with no filter at all', () => {
+    expect(savedMatrixLoadArgs({ id: 'sf-9' })).toEqual([{ savedFilterId: 'sf-9' }, 'all']);
+  });
+});
+
+describe('currentSavedMatrix', () => {
+  const CHANGED = { ...FILTER, rowType: 'identity' };
+
+  it('is the saved matrix the view was loaded from, unchanged', () => {
+    expect(currentSavedMatrix(SAVED, { ...FILTER, savedFilterId: 'sf-1' })).toEqual({ current: SAVED[0], diverged: false });
+  });
+
+  it('keeps the name of the matrix it came from after a change, and says it diverged', () => {
+    expect(currentSavedMatrix(SAVED, { ...CHANGED, savedFilterId: 'sf-1' })).toEqual({ current: SAVED[0], diverged: true });
+  });
+
+  it('diverges from its origin even when the change happens to equal ANOTHER saved matrix', () => {
+    // Loaded from "Everyone" (sf-2), then narrowed into exactly HR users' filter.
+    expect(currentSavedMatrix(SAVED, { ...FILTER, savedFilterId: 'sf-2' })).toEqual({ current: SAVED[1], diverged: true });
+  });
+
+  it('never calls a matrix that was never saved "changed"', () => {
+    expect(currentSavedMatrix(SAVED, CHANGED)).toEqual({ current: null, diverged: false });
+  });
+
+  it('names an untagged view by content, without calling it changed', () => {
+    expect(currentSavedMatrix(SAVED, FILTER)).toEqual({ current: SAVED[0], diverged: false });
+  });
+
+  it('forgets a tag whose saved matrix is gone', () => {
+    expect(currentSavedMatrix(SAVED, { ...CHANGED, savedFilterId: 'sf-deleted' })).toEqual({ current: null, diverged: false });
+    expect(currentSavedMatrix(null, { ...FILTER, savedFilterId: 'sf-1' })).toEqual({ current: null, diverged: false });
+  });
+});
+
+describe('appliedSavedMatrix', () => {
+  const match = { id: 'sf-match' };
+  const editing = { id: 'sf-edit' };
+  const openedOn = (savedFilterId) => ({ ...FILTER, savedFilterId });
+
+  it('prefers the saved matrix the result IS, then the one being edited', () => {
+    expect(appliedSavedMatrix({ savedMatch: match, editingSaved: editing, savedFilters: SAVED, initialFilter: openedOn('sf-1') })).toBe(match);
+    expect(appliedSavedMatrix({ savedMatch: null, editingSaved: editing, savedFilters: SAVED, initialFilter: openedOn('sf-1') })).toBe(editing);
+  });
+
+  it('falls back to the saved matrix the wizard was opened on, when it still exists', () => {
+    expect(appliedSavedMatrix({ savedMatch: null, editingSaved: null, savedFilters: SAVED, initialFilter: openedOn('sf-2') })).toBe(SAVED[1]);
+    expect(appliedSavedMatrix({ savedMatch: null, editingSaved: null, savedFilters: SAVED, initialFilter: openedOn('sf-gone') })).toBeNull();
+  });
+
+  it('tags nothing for a matrix that never came from a saved one', () => {
+    expect(appliedSavedMatrix({ savedMatch: null, editingSaved: null, savedFilters: SAVED, initialFilter: FILTER })).toBeNull();
+    expect(appliedSavedMatrix({ savedMatch: null, editingSaved: null, savedFilters: SAVED, initialFilter: null })).toBeNull();
+    expect(appliedSavedMatrix({ savedMatch: null, editingSaved: null, savedFilters: null, initialFilter: openedOn('sf-1') })).toBeNull();
+  });
+});
+
+describe('copyName / renameShareWarning', () => {
+  it('offers "Copy of <name>" for a duplicate', () => {
+    expect(copyName('HR users')).toBe('Copy of HR users');
+  });
+
+  it('warns that recipients see a new name only when the matrix is shared', () => {
+    expect(renameShareWarning({ shared: true, recipientCount: 1 })).toBe('Shared with 1 person — they will see the new name.');
+    expect(renameShareWarning({ shared: false, recipientCount: 4 })).toBe('');
+    expect(renameShareWarning(null)).toBe('');
   });
 });

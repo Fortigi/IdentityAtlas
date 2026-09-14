@@ -270,12 +270,34 @@ the wizard that assumed the full shape.
 ### The strip above the grid
 
 Everything between the tab bar and the matrix is **one row**
-(`MatrixFilterSummary`): which saved matrix this is, whether it has unsaved
-changes, who it is shared with (`MatrixSaveBar`'s controls, rendered inline — it
-has no card of its own), what the matrix selects, and **Adjust matrix**. It was
-two stacked bars, with the scope-statistics panel under them, which put three
-bars and ~240px between the tab bar and the first row of data — the feedback that
-reopened #1202 called the result "quite a mess".
+(`MatrixFilterSummary`) — "a matrix is a document":
+
+```
+[<Matrix name> ▾]  [Unsaved changes]  [Shared with N ▾]  ·····  45 users × 39 resources · 127 cells  [Adjust]
+```
+
+* **The name menu** (`MatrixNameBar` → `SavedMatrixMenu`) — the saved matrix on
+  screen, or "Unsaved matrix". It lists every saved matrix (current one marked)
+  and holds the document verbs: New matrix…, and for the current saved matrix
+  Rename…, Duplicate… and Delete….
+* **Unsaved changes** — only for a matrix loaded from a saved one that has since
+  diverged from it (`currentSavedMatrix` in `shareState.js`); it opens the wizard
+  on its last (save/share) step. A never-saved matrix has no chip.
+* **Shared with N** — only for a shared saved matrix, for someone who may share;
+  it opens the recipients panel. Creating a share is the wizard's last step.
+* The three live counts, and **Adjust** (accessible name "Adjust matrix").
+
+The wizard is opened through `onAdjustFilter(options?)`: no options = the matrix
+on screen, first step; `{ step }` = that step; `{ fresh: true }` = a new, empty
+matrix (`wizardOpening` in `App.helpers.js`, `initialStep` on the wizard).
+
+With no matrix on screen the tab shows **Open a matrix** (`OpenMatrixList`):
+every saved matrix, one click to open, plus New matrix. The org default still
+auto-applies; the wizard is no longer thrown open on arrival.
+
+It was two stacked bars, with the scope-statistics panel under them, which put
+three bars and ~240px between the tab bar and the first row of data — the
+feedback that reopened #1202 called the result "quite a mess".
 
 The scope-statistics panel (`MatrixScopePanel`) is now **opt-in per matrix**:
 it renders only for a filter carrying `showTrends: true`, ticked on the wizard's
@@ -285,10 +307,11 @@ viewer preference, so one saved matrix opens the same way for everyone.
 
 ### Matrix identity — comparing two filters
 
-"Is this the matrix I saved?" is asked by the Load / Save / Share controls
-(`MatrixSaveBar`, via `matchSavedMatrix` in `components/matrix/shareState.js`),
-which labels the applied matrix with its saved name — and, when it is shared,
-with how many people see it — or states "Unsaved changes" next to a Save action. Filters are compared with `matrixFilterFingerprint()` — canonical
+"Is this the matrix I saved?" is asked by the strip's name menu
+(`MatrixNameBar`, via `matchSavedMatrix` / `currentSavedMatrix` in
+`components/matrix/shareState.js`), which labels the applied matrix with its
+saved name — and, when it is shared, with how many people see it — or "Unsaved
+matrix", and marks a loaded matrix that has since changed "Unsaved changes". Filters are compared with `matrixFilterFingerprint()` — canonical
 (key-order-independent) JSON of the **normalised** filter, minus the view-state
 keys `rollupExpanded` / `rollupCollapsed` / `rollupPath` / `foldAttributes`.
 Never compare filters with raw `JSON.stringify`:

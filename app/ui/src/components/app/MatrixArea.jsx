@@ -15,12 +15,17 @@ const MatrixFilterWizard = lazy(() => import('@ui/components/matrix/MatrixFilter
 // as soon as it learns the payload is a roll-up, destroying anything the
 // outgoing view held. `onLoadSaved` is the wizard's own Apply handler: loading a
 // saved matrix and applying one from the wizard are the same act (#1202).
+//
+// `onAdjustFilter(options?)` opens the wizard; `wizardMode` ({ step, fresh }, see
+// wizardOpening in App.helpers.js) is how it was asked to open: on a given step,
+// and/or as a fresh, empty matrix rather than the one on screen.
 export default function MatrixArea({
   rollup, data, matrixFilter, counts, managedFilter, setManagedFilter,
   shareUrl, refreshing, onOpenDetail, onAdjustFilter, setMatrixFilter,
   accessPackageGroups, managedByPackages, resourceContexts, groupTagMap, hasData,
-  wizardOpen, onWizardApply, onWizardClose, onShareView,
+  wizardOpen, wizardMode, onWizardApply, onWizardClose, onShareView,
 }) {
+  const fresh = wizardMode?.fresh === true;
   return (
     <>
       {rollup ? (
@@ -75,8 +80,9 @@ export default function MatrixArea({
       )}
       <MatrixFilterWizard
         open={wizardOpen}
-        initialFilter={matrixFilter}
-        initialManaged={managedFilter}
+        initialFilter={fresh ? null : matrixFilter}
+        initialManaged={fresh ? 'all' : managedFilter}
+        initialStep={wizardMode?.step || undefined}
         onApply={onWizardApply}
         onClose={onWizardClose}
       />

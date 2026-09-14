@@ -149,9 +149,16 @@ test.describe('Save and share a matrix as one act (#1202)', () => {
     const other = await someRecipient(1);
     test.skip(!other, 'deployment has only one directory user');
 
-    // Load the shared matrix into the view, then reopen the wizard on it.
+    // Load the shared matrix into the view, then reopen the wizard on it. With
+    // no matrix on screen the tab lists the saved matrices itself ("Open a
+    // matrix"); with the org default applied they are in the strip's name menu —
+    // the first expandable button on the strip that holds Adjust (#1202).
     await page.goto(`${BASE}/#matrix`);
-    await page.getByRole('button', { name: /Load matrix/ }).click({ timeout: 60000 });
+    const adjust = page.getByRole('button', { name: 'Adjust matrix' });
+    await expect(page.getByRole('heading', { name: 'Open a matrix' }).or(adjust)).toBeVisible({ timeout: 60000 });
+    if (await adjust.isVisible()) {
+      await page.locator('div').filter({ has: adjust }).last().locator('button[aria-expanded]').first().click();
+    }
     // A shared entry's accessible name is "<name> Shared with N people", so
     // match the name as a prefix — an exact match waits out the test timeout.
     const entry = page.getByRole('button', { name: new RegExp(`^${share.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`) });
@@ -168,7 +175,7 @@ test.describe('Save and share a matrix as one act (#1202)', () => {
 
     await page.getByRole('button', { name: 'Adjust matrix' }).click();
     await gotoWizardStep(page, 'Share');
-    // The panel's own sentence — the save bar's "Shared with 1 person ▾" button
+    // The panel's own sentence — the strip's "Shared with 1 person ▾" button
     // is still on the page behind the wizard.
     await expect(page.getByText(/^Shared with 1 person\. They see this matrix/)).toBeVisible({ timeout: 30000 });
     await expect(page.getByRole('button', { name: 'Stop sharing' })).toBeVisible();

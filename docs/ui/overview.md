@@ -96,7 +96,7 @@ This toggle is part of a saved matrix, so it round-trips through save/load.
 
 #### Filter Wizard (matrix scoping)
 
-There is no user-limit slider or department filter pills. You scope the matrix through a stepped modal wizard (**Create matrix** / **Adjust matrix**), opened automatically on first visit and re-openable from the **Adjust matrix** button on the strip above the grid:
+There is no user-limit slider or department filter pills. You scope the matrix through a stepped modal wizard (**Create matrix** / **Adjust matrix**), opened from **New matrix** (on the **Open a matrix** list the tab shows when no matrix is on screen, or the name menu on the strip above the grid) or from the **Adjust** button on that strip:
 
 1. **Setup** — pick the subject type (**User accounts** = one Principal per column, or **Identities** = one correlated person per column, unioning across their accounts) and the orientation (resources-as-rows vs. subjects-as-rows).
 2. **Subjects** — narrow which users/identities appear, using include/exclude conditions built from **Contexts** (e.g. an org-unit or tag context, optionally including descendants) or **attribute** filters (any column value). Includes are AND'd; excludes negate.

@@ -161,6 +161,7 @@ function renderView(props = {}, authFetch = makeFetch()) {
       shareUrl: 'https://example.test/matrix',
       onOpenDetail,
       onAdjustFilter,
+      onLoadSaved: props.onLoadSaved,
       hasData: 'hasData' in props ? props.hasData : true,
     }),
     { auth: { authFetch } },
@@ -190,27 +191,32 @@ describe('MatrixView (mounted)', () => {
     expect(screen.getAllByText('Carol Sales').length).toBeGreaterThan(0);
   });
 
-  it('shows the filter summary and scope panel when a filter is applied', () => {
+  it('shows the strip — name, counts and Adjust — when a filter is applied', async () => {
+    const { onAdjustFilter } = renderView();
+    expect(screen.getByText(/users × \d+ resources · \d+ cells/)).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Unsaved matrix' })).toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Adjust matrix' }));
+    expect(onAdjustFilter).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows no "Open a matrix" list when a filter is applied', () => {
     renderView();
-    // Filter summary chip: rows axis label.
-    expect(screen.getByText(/× Resource/i)).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Open a matrix' })).not.toBeInTheDocument();
   });
 
-  it('shows the legend and no empty-state when a filter is applied', () => {
-    renderView();
-    expect(screen.queryByText(/Pick a slice to inspect/i)).not.toBeInTheDocument();
+  it('renders the "Open a matrix" list when no filter is applied, and opens a saved matrix from it', async () => {
+    const onLoadSaved = vi.fn();
+    const authFetch = makeFetch({ '/api/matrix/saved-filters': [{ id: 'sf-1', name: 'HR users', filter: { rowType: 'principal', managed: 'managed' } }] });
+    renderView({ filter: null, onLoadSaved }, authFetch);
+    expect(screen.getByRole('heading', { name: 'Open a matrix' })).toBeInTheDocument();
+    await userEvent.setup().click(await screen.findByRole('button', { name: /HR users/ }));
+    expect(onLoadSaved).toHaveBeenCalledWith({ rowType: 'principal', savedFilterId: 'sf-1' }, 'managed');
   });
 
-  it('renders the "pick a slice" empty state when no filter is applied', () => {
-    renderView({ filter: null });
-    expect(screen.getByText(/Pick a slice to inspect/i)).toBeInTheDocument();
-  });
-
-  it('invokes onAdjustFilter from the empty-state Create matrix button', async () => {
+  it('opens the wizard for a FRESH matrix from the empty state\'s New matrix button', async () => {
     const { onAdjustFilter } = renderView({ filter: null });
-    const user = userEvent.setup();
-    await user.click(screen.getByText('Create matrix'));
-    expect(onAdjustFilter).toHaveBeenCalled();
+    await userEvent.setup().click(screen.getByRole('button', { name: 'New matrix' }));
+    expect(onAdjustFilter).toHaveBeenCalledWith({ fresh: true });
   });
 
   it('renders the "no data available" empty state when hasData is false', () => {

@@ -11,19 +11,30 @@
 // When the wizard is editing an existing saved matrix, `target` names it and
 // the dialog offers to save the change back to it — and, if people are looking
 // at that matrix through a share, says so before the change reaches them.
+//
+// The strip's name menu reuses it for Rename and Duplicate (#1202): the same
+// field and the same inline name-clash error, with its own `title` and
+// `saveLabel` and — for a shared matrix being renamed — a `notice` naming who
+// will see the change.
 
 import { Modal, Field, ErrorBox, PrimaryButton, SecondaryButton } from '@ui/components/contexts/ModalPrimitives';
 import { liveShareWarning } from './shareState';
 
 export default function SaveMatrixDialog({
   name, onNameChange, onSave, onUpdate, onClose, saving, error, target = null,
+  title = 'Save matrix', saveLabel = 'Save as new matrix', notice = '',
 }) {
   const warning = target?.shared ? liveShareWarning(target) : '';
   return (
-    <Modal title="Save matrix" onClose={onClose} width={440} dismissOnBackdrop={false}>
+    <Modal title={title} onClose={onClose} width={440} dismissOnBackdrop={false}>
       <p className="text-[11px] text-gray-600 dark:text-gray-400">
         Saved matrices are visible to everyone in the org. The name must be unique.
       </p>
+      {notice && (
+        <p className="mt-2 rounded border border-blue-200 bg-blue-50 px-2 py-1.5 text-[11px] text-blue-800 dark:border-blue-700 dark:bg-blue-900/20 dark:text-blue-300">
+          {notice}
+        </p>
+      )}
 
       {target && onUpdate && (
         <div className="mt-3 rounded border border-gray-200 p-2 dark:border-gray-700">
@@ -60,7 +71,7 @@ export default function SaveMatrixDialog({
       <div className="mt-3 flex justify-end gap-2">
         <SecondaryButton onClick={onClose} disabled={saving}>Cancel</SecondaryButton>
         <PrimaryButton onClick={onSave} disabled={saving || !name.trim()}>
-          {saving ? 'Saving…' : 'Save as new matrix'}
+          {saving ? 'Saving…' : saveLabel}
         </PrimaryButton>
       </div>
     </Modal>

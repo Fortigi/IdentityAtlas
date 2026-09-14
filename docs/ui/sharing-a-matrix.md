@@ -20,17 +20,19 @@ Recipients see the matrix **as it stands** — both the data and the view. Save 
 
 ---
 
-## 1. The Load / Save / Share controls
+## 1. The strip above the matrix
 
-Directly above every matrix sits one row. On its left it answers three questions without opening anything; the rest of the row is what the matrix currently selects, and **Adjust matrix**:
+Directly above every matrix sits one row. On its left it answers three questions without opening anything; on its right are the matrix's live counts (users × resources · cells) and **Adjust**:
 
 | Control | What it says / does |
 |---|---|
-| **Load matrix (n)** | Every saved matrix in the org. Picking one applies it to your view. Shared ones say so underneath their name. |
-| The name, or **Unsaved changes** | Which saved matrix you are looking at. When it is nothing yet, **Save matrix…** stores it under a name of your choosing. |
-| **Share…** / **Shared with n people** | Sharing, in place. The chip tells you a matrix is shared and how widely, before you click. |
+| The name ▾ | Which saved matrix you are looking at, or **Unsaved matrix**. Opens a menu listing every saved matrix in the org (shared ones say so underneath their name) — picking one opens it — plus **New matrix…** and, for the saved matrix on screen, **Rename…**, **Duplicate…** and **Delete…**. |
+| **Unsaved changes** | Shown only when you opened a saved matrix and then changed it. Click it to go straight to the wizard's last step to save the changes. |
+| **Shared with n people** | Shown only when the saved matrix is shared. Opens the recipients panel. |
 
-**Load** and the wizard's **Apply** change what is on screen. **Save** stores a matrix for the org. They are separate, deliberately — neither one quietly does the other.
+With no matrix on screen, the Matrix tab shows **Open a matrix**: every saved matrix with when it last changed, and **New matrix**.
+
+Opening a matrix and the wizard's **Apply** change what is on screen. Saving stores a matrix for the org. They are separate, deliberately — neither one quietly does the other.
 
 ## 2. Save and share, in one act
 
@@ -63,7 +65,7 @@ Deleting a saved matrix that is shared warns you first, naming how many people i
 
 ## 4. What the recipient gets
 
-They open the link, sign in if they aren't already, and land on a single page: a slim header with the matrix's name, and the matrix as it currently stands. The analyst context around the matrix — the strip above it (rows, subject/resource/cell counts, Load / Save / Share, Adjust matrix) and the scope statistics (principal/resource/assignment totals, the governed bar, Trends & breakdown — left out even when the matrix was saved with them switched on) — is dropped. Clicking a person or a resource opens its detail page — attributes and relationships, read-only — with a **Back to matrix** button. The analyst-only tabs (Timeline, Risk) and every write action are absent.
+They open the link, sign in if they aren't already, and land on a single page: a slim header with the matrix's name, and the matrix as it currently stands. The analyst context around the matrix — the strip above it (the matrix's name menu, its sharing, the user/resource/cell counts, Adjust) and the scope statistics (principal/resource/assignment totals, the governed bar, Trends & breakdown — left out even when the matrix was saved with them switched on) — is dropped. Clicking a person or a resource opens its detail page — attributes and relationships, read-only — with a **Back to matrix** button. The analyst-only tabs (Timeline, Risk) and every write action are absent.
 
 If the link has been revoked, was mistyped, or no longer resolves, they get a plain sentence explaining that, not an error page.
 

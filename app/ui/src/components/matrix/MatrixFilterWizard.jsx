@@ -35,7 +35,7 @@ import MatrixSortStep from './MatrixSortStep';
 import WizardShareStep from './WizardShareStep';
 import SavedMatrixMenu from './SavedMatrixMenu';
 import SaveMatrixDialog from './SaveMatrixDialog';
-import { matchSavedMatrix, tagWithSavedMatrix, wizardPreferredSavedId } from './shareState';
+import { appliedSavedMatrix, matchSavedMatrix, tagWithSavedMatrix, wizardPreferredSavedId } from './shareState';
 
 // ─── Constants ──────────────────────────────────────────────────────
 
@@ -90,6 +90,9 @@ export default function MatrixFilterWizard({
   open,
   initialFilter,
   initialManaged = 'all',
+  // Which step to open on (#1202) — the strip's "Unsaved changes" opens the
+  // last (save/share) step directly. Unset: the first step, as always.
+  initialStep,
   onApply,
   onClose,
 }) {
@@ -156,7 +159,7 @@ export default function MatrixFilterWizard({
     if (open) {
       setFilter(normalizeMatrixFilter(initialFilter));
       setManaged(initialManaged);
-      setStep('setup');
+      setStep(initialStep || 'setup');
       setError(null);
       setEditingSaved(null);
     }
@@ -336,9 +339,12 @@ export default function MatrixFilterWizard({
     // Oversized but foldable on attributes → serve it as the layered,
     // server-aggregated attribute view (a fresh expand state each apply).
     const foldAttributes = servesViaAttrCut(filter, anyRollup, preview.assignmentCount);
-    // Tag the applied matrix with the saved one it is, so the save bar names
-    // the right one when two saved matrices share a filter.
-    onApply(tagWithSavedMatrix(commitFilter(filter, foldAttributes), savedMatch), managed);
+    // Tag the applied matrix with the saved one it is, so the strip names the
+    // right one when two saved matrices share a filter — and, when it was
+    // CHANGED, with the saved one it came from, so the strip keeps its name and
+    // says it has unsaved changes (#1202).
+    const tag = appliedSavedMatrix({ savedMatch, editingSaved, savedFilters, initialFilter });
+    onApply(tagWithSavedMatrix(commitFilter(filter, foldAttributes), tag), managed);
   };
 
   // ─── Save matrix ───────────────────────────────────────────────

@@ -31,8 +31,9 @@ describe('MatrixToolbar under a shared view', () => {
     expect(screen.getByRole('button', { name: /^Export/ })).toBeInTheDocument();
   });
 
-  // Sharing lives in the Load / Save / Share bar (#1202), and the old Copy link
-  // is gone — the toolbar must grow no link or share control of any kind.
+  // Since #1202 a share is created in the wizard's last step and managed from
+  // the strip's "Shared with N" chip, and Copy link is gone — the toolbar must
+  // grow no link or share control of any kind.
   it('keeps sharing and link-copying out of the toolbar', () => {
     renderShared(toolbar, { shared: false });
     expect(screen.queryByRole('button', { name: /Share/i })).not.toBeInTheDocument();
@@ -50,23 +51,20 @@ describe('MatrixToolbar under a shared view', () => {
 describe('MatrixFilterSummary under a shared view', () => {
   const summary = <MatrixFilterSummary filter={FILTER} preview={null} onAdjust={() => {}} />;
 
-  it('offers an analyst the Adjust matrix button and the save bar', async () => {
+  it('offers an analyst the Adjust matrix button and the name menu', async () => {
     const authFetch = makeAuthFetch({ '/api/matrix/saved-filters': [] });
     renderShared(summary, { shared: false, auth: { ...analyst, authFetch } });
     expect(screen.getByRole('button', { name: 'Adjust matrix' })).toBeInTheDocument();
-    await waitFor(() => expect(screen.getByText('Unsaved changes')).toBeInTheDocument());
-    expect(screen.getByRole('button', { name: 'Save matrix…' })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Unsaved matrix' })).toBeInTheDocument());
   });
 
   it('drops the whole scope strip for a recipient, and skips the fetches behind it', async () => {
     const authFetch = makeAuthFetch({ '/api/matrix/saved-filters': [] });
     const { container } = renderShared(summary, { shared: true, auth: { ...analyst, authFetch } });
-    // Not just the Adjust button — the rows/subjects/resources strip and the
-    // Load / Save / Share bar go too, so the recipient sees the matrix and
-    // nothing around it.
-    expect(screen.queryByText('User × Resource')).not.toBeInTheDocument();
+    // Not just the Adjust button — the matrix's name menu and its counts go too,
+    // so the recipient sees the matrix and nothing around it.
     expect(screen.queryByRole('button', { name: 'Adjust matrix' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Load matrix/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Unsaved matrix|Loading matrix/ })).not.toBeInTheDocument();
     expect(container).toBeEmptyDOMElement();
     expect(authFetch).not.toHaveBeenCalled();
   });
