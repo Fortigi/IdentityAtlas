@@ -59,6 +59,7 @@ export default function RotatedMatrixView({
   shareUrl,
   onOpenDetail,
   onAdjustFilter,
+  onLoadSaved,
   hasData,
   onShareView,
 }) {
@@ -108,15 +109,17 @@ export default function RotatedMatrixView({
       {filterIsApplied && (
         <MatrixFilterSummary
           filter={filter}
+          managed={managedFilter}
           preview={counts}
           onAdjust={onAdjustFilter}
+          onLoadSaved={onLoadSaved}
+          onShareView={onShareView}
         />
       )}
 
       <MatrixToolbar
         managedFilter={managedFilter === 'gaps' ? 'all' : managedFilter}
         setManagedFilter={setManagedFilter}
-        filter={filter}
         onExportExcel={handleExportExcel}
         onShare={handleShare}
         onShareView={onShareView}

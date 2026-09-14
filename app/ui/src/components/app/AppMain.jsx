@@ -16,16 +16,19 @@ function LoadingPane({ label }) {
 // (from the instrumented pageRegistry map), a loading pane, or the matrix — and
 // renders it inside the shared Suspense boundary.
 //
-// The share dialog (#1166) is owned HERE, deliberately outside that switch. It
-// is opened from a button in the matrix toolbar, but everything between that
-// button and this level is torn down and rebuilt as the app works: a matrix
-// refetch swaps the whole body for the loading pane, and MatrixArea picks a
-// different view component once it knows whether the payload is a roll-up. With
-// the dialog anywhere below, an analyst who hit "Share view…" on a slow tenant
-// watched it vanish, half-filled, the moment the matrix caught up. This is the
-// shallowest level that survives all of it.
+// The share dialog (#1166, #1202) is owned HERE, deliberately outside that
+// switch. It is opened from the matrix's Load / Save / Share bar, but everything
+// between that bar and this level is torn down and rebuilt as the app works: a
+// matrix refetch swaps the whole body for the loading pane, and MatrixArea picks
+// a different view component once it knows whether the payload is a roll-up.
+// With the dialog anywhere below, an analyst mid-way through naming recipients
+// on a slow tenant watched it vanish, half-filled, the moment the matrix caught
+// up. This is the shallowest level that survives all of it.
+//
+// The bar hands over WHICH saved matrix is being shared (null when the matrix
+// isn't saved yet, in which case the panel saves and shares it in one act).
 export default function AppMain({ isDetail, detailRouteProps, staticRoute, pageCtx, loading, matrixProps }) {
-  const [shareOpen, setShareOpen] = useState(false);
+  const [shareTarget, setShareTarget] = useState(null);
 
   let body;
   if (isDetail) {
@@ -37,7 +40,7 @@ export default function AppMain({ isDetail, detailRouteProps, staticRoute, pageC
   } else if (loading) {
     body = <LoadingPane label="Loading permission data..." />;
   } else {
-    body = <MatrixArea {...matrixProps} onShareView={() => setShareOpen(true)} />;
+    body = <MatrixArea {...matrixProps} onShareView={setShareTarget} />;
   }
 
   return (
@@ -49,11 +52,13 @@ export default function AppMain({ isDetail, detailRouteProps, staticRoute, pageC
           and sharing the body's boundary would replace the matrix with "Loading…"
           while that chunk arrives. */}
       <Suspense fallback={null}>
-        {shareOpen && (
+        {shareTarget && (
           <ShareMatrixDialog
             filter={matrixProps?.matrixFilter}
             managed={matrixProps?.managedFilter}
-            onClose={() => setShareOpen(false)}
+            savedFilterId={shareTarget.savedFilterId}
+            savedName={shareTarget.savedName}
+            onClose={() => setShareTarget(null)}
           />
         )}
       </Suspense>

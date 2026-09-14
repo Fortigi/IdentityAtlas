@@ -1,0 +1,8 @@
+- Saving and sharing a matrix are now one experience: sharing a matrix that isn't saved yet asks for **one** name and saves and shares it in a single step, and sharing an already-saved matrix never asks for a name again.
+- Added a Load / Save / Share bar above every matrix: it always shows which saved matrix you are looking at, whether it has unsaved changes, and how many people it is shared with. Loading a saved matrix is now a visible control instead of something to hunt for in the wizard.
+- Replaced the amber "Not saved" badge with a neutral "Unsaved changes" indicator next to a Save action, and kept "apply these settings to my view" and "save this matrix" as clearly separate actions.
+- You can now add or remove recipients, copy the share link again, and stop sharing from the matrix itself, from the wizard's Share step, and from Admin → Shared Matrices. Changing who a matrix is shared with keeps the same link, and somebody you remove loses access immediately.
+- Recipients now see the current saved matrix rather than a frozen copy. Saving a change to a shared matrix tells you how many people will see it.
+- Stopping sharing revokes the link but keeps the saved matrix; sharing it again later issues a new link. Deleting a shared matrix warns you first, naming how many people it reaches.
+- Saved-matrix names stay unique across the organisation: a name that is already taken now comes back as an error asking for a different one, instead of being silently accepted.
+- Existing share links, their recipients and their usage history keep working — every active share becomes a saved matrix, with a numbered suffix if its name was already taken.

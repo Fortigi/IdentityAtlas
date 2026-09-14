@@ -25,10 +25,25 @@ function getActor(req) {
 router.get('/matrix/saved-filters', async (req, res) => {
   if (!useSql) return res.json([]);
   try {
+    // `shared` / `recipientCount` ride along (#1202) so the matrix bar and the
+    // wizard can show a saved matrix's shared state without a second round
+    // trip. Deliberately counts only — WHO it is shared with is `data.share`
+    // information and stays behind GET /api/matrix/shares. Everyone who can
+    // edit an org-wide saved matrix needs to know that recipients will see it.
     const r = await db.query(`
-      SELECT id, "name", "description", "filter", "isDefault", "createdBy", "createdAt", "updatedBy", "updatedAt"
-        FROM "SavedMatrixFilters"
-       ORDER BY LOWER("name")
+      SELECT f.id, f."name", f."description", f."filter", f."isDefault",
+             f."createdBy", f."createdAt", f."updatedBy", f."updatedAt",
+             (sh.id IS NOT NULL) AS "shared",
+             COALESCE(sh."recipientCount", 0)::int AS "recipientCount"
+        FROM "SavedMatrixFilters" f
+        LEFT JOIN LATERAL (
+          SELECT s.id,
+                 (SELECT COUNT(*) FROM "MatrixShareRecipients" r WHERE r."shareId" = s.id) AS "recipientCount"
+            FROM "MatrixShares" s
+           WHERE s."savedFilterId" = f.id AND s."revokedAt" IS NULL
+           LIMIT 1
+        ) sh ON TRUE
+       ORDER BY LOWER(f."name")
     `);
     res.json(r.rows);
   } catch (err) {
@@ -103,8 +118,23 @@ router.delete('/matrix/saved-filters/:id', async (req, res) => {
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
   if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'Invalid id' });
   try {
-    const r = await db.query(`DELETE FROM "SavedMatrixFilters" WHERE id = $1`, [req.params.id]);
-    if (r.rowCount === 0) return res.status(404).json({ error: 'Filter not found' });
+    // Deleting a shared matrix revokes its link in the same transaction
+    // (#1202), so a recipient is never left holding a link to something that no
+    // longer exists. The share row itself survives — the usage history is what
+    // Admin's "shared but never used" view is for — it just goes revoked, and
+    // the FK drops its pointer to the deleted matrix.
+    const rowCount = await db.tx(async (client) => {
+      await client.query(
+        `UPDATE "MatrixShares"
+            SET "revokedAt" = COALESCE("revokedAt", now()),
+                "revokedBy" = COALESCE("revokedBy", $2)
+          WHERE "savedFilterId" = $1 AND "revokedAt" IS NULL`,
+        [req.params.id, getActor(req)],
+      );
+      const r = await client.query(`DELETE FROM "SavedMatrixFilters" WHERE id = $1`, [req.params.id]);
+      return r.rowCount;
+    });
+    if (rowCount === 0) return res.status(404).json({ error: 'Filter not found' });
     res.status(204).end();
   } catch (err) {
     console.error('DELETE matrix/saved-filters/:id failed:', err.message);

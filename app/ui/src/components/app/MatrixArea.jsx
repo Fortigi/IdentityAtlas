@@ -13,7 +13,8 @@ const MatrixFilterWizard = lazy(() => import('@ui/components/matrix/MatrixFilter
 // `onShareView` only travels through here — the share dialog itself is owned by
 // AppMain (#1166), because this component swaps one view component for another
 // as soon as it learns the payload is a roll-up, destroying anything the
-// outgoing view held.
+// outgoing view held. `onLoadSaved` is the wizard's own Apply handler: loading a
+// saved matrix and applying one from the wizard are the same act (#1202).
 export default function MatrixArea({
   rollup, data, matrixFilter, counts, managedFilter, setManagedFilter,
   shareUrl, refreshing, onOpenDetail, onAdjustFilter, setMatrixFilter,
@@ -34,6 +35,7 @@ export default function MatrixArea({
           onOpenDetail={onOpenDetail}
           onAdjustFilter={onAdjustFilter}
           onFilterChange={setMatrixFilter}
+          onLoadSaved={onWizardApply}
           onShareView={onShareView}
         />
       ) : matrixFilter?.orientation === 'rows-as-subjects' ? (
@@ -47,6 +49,7 @@ export default function MatrixArea({
           shareUrl={shareUrl}
           onOpenDetail={onOpenDetail}
           onAdjustFilter={onAdjustFilter}
+          onLoadSaved={onWizardApply}
           hasData={hasData}
           onShareView={onShareView}
         />
@@ -65,6 +68,7 @@ export default function MatrixArea({
           shareUrl={shareUrl}
           onOpenDetail={onOpenDetail}
           onAdjustFilter={onAdjustFilter}
+          onLoadSaved={onWizardApply}
           hasData={hasData}
           onShareView={onShareView}
         />

@@ -7,9 +7,8 @@ import { mountRouter } from '../../../test-utils/routeTestKit.js';
 
 process.env.USE_SQL = 'true';
 
-const query = vi.fn();
-const queryOne = vi.fn();
-vi.mock('../../db/connection.js', () => ({ query: (...a) => query(...a), queryOne: (...a) => queryOne(...a) }));
+vi.mock('../../db/connection.js');
+const { query, queryOne } = await import('../../db/connection.js');
 
 const { default: router } = await import('./savedFilters.js');
 const app = mountRouter(router);
@@ -19,13 +18,22 @@ const VALID = '11111111-1111-1111-1111-111111111111';
 beforeEach(() => { query.mockReset(); queryOne.mockReset(); });
 
 describe('matrix saved-filters', () => {
-  it('GET /matrix/saved-filters returns the rows', async () => {
+  it('GET /matrix/saved-filters returns the rows with their shared state', async () => {
     // Blanket-mock db.query so the handler's SELECT returns rows (the table is
     // created by migrations 023/028 now, not a runtime ensure step).
-    query.mockResolvedValue({ rows: [{ id: VALID, name: 'Mine' }] });
+    const rows = [{ id: VALID, name: 'Mine', shared: true, recipientCount: 2 }];
+    query.mockResolvedValue({ rows });
     const res = await request(app).get('/api/matrix/saved-filters');
     expect(res.status).toBe(200);
-    expect(res.body).toEqual([{ id: VALID, name: 'Mine' }]);
+    expect(res.body).toEqual(rows);
+
+    const sql = query.mock.calls[0][0];
+    // Shared state comes from a LIVE share only — a revoked one must not make a
+    // saved matrix read as still shared (#1202).
+    expect(sql).toMatch(/"savedFilterId" = f\.id AND s\."revokedAt" IS NULL/);
+    expect(sql).toMatch(/AS "recipientCount"/);
+    // Counts only: who it is shared with is data.share information.
+    expect(sql).not.toMatch(/"displayName"/);
   });
 
   it('POST 400 when name is missing', async () => {
@@ -76,13 +84,26 @@ describe('matrix saved-filters', () => {
     expect(res.status).toBe(404);
   });
 
-  it('DELETE 204 removes a filter', async () => {
-    query.mockResolvedValue({ rowCount: 1 });
+  it('DELETE 204 removes a filter, revoking its share first (#1202)', async () => {
+    // Inside db.tx: call 0 revokes any live share of this matrix, call 1 deletes
+    // it. Staged with DIFFERENT rowCounts so a handler that read the revoke's
+    // result as the delete's would report 404 for a successful delete.
+    query
+      .mockResolvedValueOnce({ rowCount: 0 })
+      .mockResolvedValueOnce({ rowCount: 1 });
     expect((await request(app).delete(`/api/matrix/saved-filters/${VALID}`)).status).toBe(204);
+
+    const [revokeSql, revokeParams] = query.mock.calls[0];
+    expect(revokeSql).toMatch(/UPDATE "MatrixShares"/);
+    expect(revokeSql).toMatch(/"savedFilterId" = \$1 AND "revokedAt" IS NULL/);
+    expect(revokeParams[0]).toBe(VALID);
+    // Soft revoke — the usage history Admin reports on must survive the delete.
+    expect(revokeSql).not.toMatch(/DELETE FROM "MatrixShares"/);
+    expect(query.mock.calls[1][0]).toMatch(/DELETE FROM "SavedMatrixFilters"/);
   });
 
   it('DELETE 404 when the filter does not exist', async () => {
-    query.mockResolvedValue({ rowCount: 0 });
+    query.mockResolvedValueOnce({ rowCount: 0 }).mockResolvedValueOnce({ rowCount: 0 });
     expect((await request(app).delete(`/api/matrix/saved-filters/${VALID}`)).status).toBe(404);
   });
 

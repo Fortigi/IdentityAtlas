@@ -19,7 +19,7 @@
 // matrix) and live in the `SavedMatrixFilters` table (name retained for
 // backward compat; the user-facing term is "matrix").
 
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useReducer, useState, useCallback, useRef } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
 import { useCanShareMatrix } from '@ui/hooks/useCanShareMatrix';
 import Stepper from '@ui/components/Stepper';
@@ -32,6 +32,9 @@ import { attributeLabel, friendlyLabel } from '@ui/utils/formatters';
 import { DEFAULT_SORT, normalizeMatrixFilter } from '@ui/utils/matrixFilter';
 import { deriveSteps, commitFilter } from './MatrixFilterWizard.helpers';
 import WizardShareStep from './WizardShareStep';
+import SavedMatrixMenu from './SavedMatrixMenu';
+import SaveMatrixDialog from './SaveMatrixDialog';
+import { matchSavedMatrix } from './shareState';
 
 // ─── Constants ──────────────────────────────────────────────────────
 
@@ -136,11 +139,26 @@ export default function MatrixFilterWizard({
   const [preview, setPreview] = useState({ subjectCount: 0, subjectTotal: 0, resourceCount: 0, resourceTotal: 0, assignmentCount: 0 });
   const [previewLoading, setPreviewLoading] = useState(false);
 
-  // Save-filter dialog state.
+  // Save-matrix dialog state.
   const [saveOpen, setSaveOpen] = useState(false);
   const [saveName, setSaveName] = useState('');
   const [saving, setSaving]   = useState(false);
   const [saveError, setSaveError] = useState(null);
+
+  // Which saved matrix the wizard is EDITING. `savedMatch` answers "does the
+  // current filter equal a saved one" and goes null the moment anything is
+  // changed; this remembers which matrix those changes belong to, so Save can
+  // offer to write them back instead of demanding a second name (#1202).
+  // Value-only state; a reducer dispatch keeps the sync effect below clear of
+  // react-hooks/set-state-in-effect.
+  const [editingSaved, setEditingSaved] = useReducer((_, v) => v, null);
+
+  // Which saved matrix the current filter IS, if any. Fingerprint-matched, so a
+  // matrix that was only folded or drilled still recognises itself.
+  const savedMatch = matchSavedMatrix(savedFilters, filter);
+  useEffect(() => {
+    if (savedMatch && savedMatch.id !== editingSaved?.id) setEditingSaved(savedMatch);
+  }, [savedMatch, editingSaved]);
 
   // Reset state when reopened. Done during render on the closed→open
   // transition (React's "adjusting state when a prop changes" pattern) rather
@@ -153,10 +171,14 @@ export default function MatrixFilterWizard({
       setManaged(initialManaged);
       setStep('setup');
       setError(null);
+      setEditingSaved(null);
     }
   }
 
-  // Load saved filters and column schemas when the modal opens.
+  // Load saved filters and column schemas when the modal opens. The list also
+  // carries each matrix's shared state (#1202), so it is re-read after sharing
+  // changes — hence the bump key rather than a one-shot fetch.
+  const [savedReloadKey, reloadSavedFilters] = useReducer(n => n + 1, 0);
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
@@ -165,7 +187,7 @@ export default function MatrixFilterWizard({
       .then(rows => { if (!cancelled) setSavedFilters(Array.isArray(rows) ? rows : []); })
       .catch(() => { if (!cancelled) setSavedFilters([]); });
     return () => { cancelled = true; };
-  }, [open, authFetch]);
+  }, [open, authFetch, savedReloadKey]);
 
   // Schema-only first for a fast paint, then full values in the background.
   //
@@ -330,7 +352,34 @@ export default function MatrixFilterWizard({
     onApply(commitFilter(filter, foldAttributes), managed);
   };
 
-  // ─── Save filter ───────────────────────────────────────────────
+  // ─── Save matrix ───────────────────────────────────────────────
+
+  // Saving the change back to the matrix being edited, rather than under a
+  // second name (#1202). Recipients of a shared matrix see the change — the
+  // dialog says so before this runs.
+  const handleUpdate = async () => {
+    if (!editingSaved) return;
+    setSaveError(null);
+    setSaving(true);
+    try {
+      const res = await authFetch(`/api/matrix/saved-filters/${editingSaved.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filter: { ...filter, managed } }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || `HTTP ${res.status}`);
+      }
+      setSaveOpen(false);
+      setSaveName('');
+      reloadSavedFilters();
+    } catch (err) {
+      setSaveError(err.message || 'Failed to save the matrix');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const handleSave = async () => {
     setSaveError(null);
@@ -351,6 +400,7 @@ export default function MatrixFilterWizard({
       setSavedFilters(prev => [...prev.filter(f => f.id !== saved.id), saved].sort((a, b) => a.name.localeCompare(b.name)));
       setSaveOpen(false);
       setSaveName('');
+      setEditingSaved(saved);
     } catch (err) {
       setSaveError(err.message || 'Failed to save filter');
     } finally {
@@ -358,14 +408,16 @@ export default function MatrixFilterWizard({
     }
   };
 
+  // The warning — including "this is shared with N people" — is SavedMatrixMenu's,
+  // because it is the component that knows each row's shared state.
   const handleDeleteSaved = async (id) => {
-    if (!(await dialog.confirm({ message: 'Delete this saved filter? This affects everyone in the org.', confirmLabel: 'Delete', danger: true }))) return;
     await authFetch(`/api/matrix/saved-filters/${id}`, { method: 'DELETE' }).catch(() => {});
     setSavedFilters(prev => prev.filter(f => f.id !== id));
   };
   const handleLoadSaved = (id) => {
     const row = savedFilters.find(f => f.id === id);
     if (!row) return;
+    setEditingSaved(row);
     // Normalise — older saves might be missing fields (e.g. orientation
     // didn't exist before). Loading a saved matrix always starts from a clean
     // view state, unlike adjusting the open one.
@@ -399,10 +451,11 @@ export default function MatrixFilterWizard({
     >
       {/* Saved filters loader + step indicator */}
       <div className="flex items-center justify-between gap-2 mb-3 pb-3 border-b border-gray-100 dark:border-gray-700">
-        <SavedFilterDropdown
+        <SavedMatrixMenu
           savedFilters={savedFilters}
           onLoad={handleLoadSaved}
           onDelete={handleDeleteSaved}
+          label="Saved matrices"
         />
         <StepIndicator steps={steps} current={activeStep} onJump={setStep} />
       </div>
@@ -484,9 +537,14 @@ export default function MatrixFilterWizard({
       {activeStep === 'share' && (
         <WizardShareStep
           // The committed shape, exactly as Apply would hand it to the matrix —
-          // a share is a snapshot, so it must be of the matrix that loads.
+          // what gets shared must be the matrix that loads.
           filter={commitFilter(filter, servesViaAttrCut(filter, rollupOn, preview.assignmentCount))}
           managed={managed}
+          // The saved matrix being edited, when there is one: the step shows its
+          // shared state and manages it in place rather than offering to create
+          // a second thing under a second name (#1202).
+          saved={savedMatch}
+          onSharingChanged={reloadSavedFilters}
           blocked={matrixIsBlocked(filter, rollupOn, preview.assignmentCount)}
         />
       )}
@@ -511,10 +569,14 @@ export default function MatrixFilterWizard({
 
       {/* Save dialog */}
       {saveOpen && (
-        <SaveFilterDialog
+        <SaveMatrixDialog
           name={saveName}
           onNameChange={setSaveName}
           onSave={handleSave}
+          // Only offered when the open matrix has actually diverged from the one
+          // it was loaded from — otherwise there is no change to save back.
+          onUpdate={editingSaved && !savedMatch ? handleUpdate : null}
+          target={editingSaved && !savedMatch ? editingSaved : null}
           onClose={() => { setSaveOpen(false); setSaveError(null); }}
           saving={saving}
           error={saveError}
@@ -751,56 +813,6 @@ function Step5Sort({ sortAttributes, columns, disabled, onChange, foldOnLoad = '
             )}
           </span>
         </label>
-      )}
-    </div>
-  );
-}
-
-// ─── Saved-filter dropdown ─────────────────────────────────────────
-
-function SavedFilterDropdown({ savedFilters, onLoad, onDelete }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef(null);
-  useEffect(() => {
-    if (!open) return;
-    const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
-    document.addEventListener('mousedown', h);
-    return () => document.removeEventListener('mousedown', h);
-  }, [open]);
-
-  return (
-    <div ref={ref} className="relative">
-      <button
-        onClick={() => setOpen(o => !o)}
-        className="text-xs px-2 py-1 rounded border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50"
-      >
-        Saved matrices ({savedFilters.length}) ▾
-      </button>
-      {open && (
-        <div className="absolute left-0 top-full mt-1 z-10 w-72 max-h-80 overflow-y-auto bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded shadow-lg">
-          {savedFilters.length === 0 ? (
-            <div className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400 italic">No saved matrices yet</div>
-          ) : (
-            savedFilters.map(f => (
-              <div key={f.id} className="flex items-center justify-between gap-2 px-2 py-1.5 hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                <button
-                  onClick={() => { onLoad(f.id); setOpen(false); }}
-                  className="flex-1 text-left text-xs text-gray-800 dark:text-gray-200 truncate"
-                  title={f.description || f.name}
-                >
-                  {f.name}
-                </button>
-                <button
-                  onClick={() => onDelete(f.id)}
-                  className="text-[10px] text-gray-600 dark:text-gray-400 hover:text-red-500 dark:hover:text-red-400"
-                  title="Delete (org-wide)"
-                >
-                  Delete
-                </button>
-              </div>
-            ))
-          )}
-        </div>
       )}
     </div>
   );
@@ -1126,38 +1138,4 @@ function ConditionRow({ cond, contextMeta, onRemove, onUpdate }) {
     );
   }
   return null;
-}
-
-// ─── Save dialog ───────────────────────────────────────────────────
-
-function SaveFilterDialog({ name, onNameChange, onSave, onClose, saving, error }) {
-  return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 dark:bg-black/70" onClick={onClose}>
-      <div
-        className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl p-4 w-[420px] max-w-full"
-        onClick={e => e.stopPropagation()}
-      >
-        <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">Save matrix</h3>
-        <p className="text-[11px] text-gray-500 dark:text-gray-400 mb-3">
-          Saved matrices are visible to everyone in the org. Name must be unique.
-        </p>
-        <label className="block text-[11px] font-medium text-gray-700 dark:text-gray-300 mb-1">Name</label>
-        <input
-          type="text"
-          value={name}
-          onChange={e => onNameChange(e.target.value)}
-          placeholder="e.g. HR users · M365 apps"
-          autoFocus
-          className="w-full px-2 py-1 text-xs rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-200"
-        />
-        {error && <ErrorBox message={error} />}
-        <div className="flex justify-end gap-2 mt-3">
-          <SecondaryButton onClick={onClose} disabled={saving}>Cancel</SecondaryButton>
-          <PrimaryButton onClick={onSave} disabled={saving || !name.trim()}>
-            {saving ? 'Saving…' : 'Save'}
-          </PrimaryButton>
-        </div>
-      </div>
-    </div>
-  );
 }

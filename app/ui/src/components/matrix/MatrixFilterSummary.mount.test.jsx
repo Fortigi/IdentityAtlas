@@ -108,10 +108,23 @@ describe('MatrixFilterSummary (mounted)', () => {
     expect(await screen.findByText('Fortigi Demo Corp — All')).toBeInTheDocument();
   });
 
-  it('marks a matrix that matches no saved one as "Not saved"', async () => {
+  // #768: the amber "Not saved" warning triangle is gone. A matrix that matches
+  // no saved one states the fact neutrally, next to the action that fixes it.
+  it('marks a matrix that matches no saved one neutrally, with a Save action', async () => {
     renderSummary({ ...adjustedFilter, rowType: 'identity' });
-    expect(await screen.findByText('Not saved')).toBeInTheDocument();
+    expect(await screen.findByText('Unsaved changes')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Save matrix…' })).toBeInTheDocument();
+    expect(screen.queryByText('Not saved')).not.toBeInTheDocument();
     expect(screen.getByText('Identity × Resource')).toBeInTheDocument();
+  });
+
+  // #768: loading is a visible control on the bar, not something to hunt for
+  // inside the wizard.
+  it('offers Load as a visible control, listing the saved matrices', async () => {
+    renderSummary(adjustedFilter);
+    const load = await screen.findByRole('button', { name: /Load matrix \(2\)/ });
+    await userEvent.setup().click(load);
+    expect(await screen.findByRole('button', { name: 'HR users' })).toBeInTheDocument();
   });
 
   it('renders attribute and exclude conditions as chips', async () => {
@@ -138,9 +151,9 @@ describe('MatrixFilterSummary (mounted)', () => {
     await waitFor(() => expect(authFetch).toHaveBeenCalledWith('/api/contexts/ctx-1'));
   });
 
-  it('falls back to "Not saved" when the saved-matrix list cannot be loaded', async () => {
+  it('falls back to the unsaved state when the saved-matrix list cannot be loaded', async () => {
     const authFetch = makeAuthFetch(() => jsonResponse({ error: 'nope' }, { ok: false, status: 500 }));
     renderSummary(adjustedFilter, { authFetch });
-    expect(await screen.findByText('Not saved')).toBeInTheDocument();
+    expect(await screen.findByText('Unsaved changes')).toBeInTheDocument();
   });
 });

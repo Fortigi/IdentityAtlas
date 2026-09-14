@@ -59,7 +59,7 @@ function MatrixSharingCard({ features }) {
       <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
         Lets users with the <span className="font-medium">Create matrix share links</span> permission share a
         matrix with named colleagues from the wizard's <span className="font-medium">Share</span> step or the
-        toolbar's <span className="font-medium">Share view…</span>, and manage those links under
+        matrix bar's <span className="font-medium">Share…</span>, and manage those links under
         <span className="font-medium"> Admin → Shared Matrices</span>. Turning this off hides all of that and
         stops existing share links from opening; the shares themselves are kept, so turning it back on restores them.
       </p>

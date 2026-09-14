@@ -1,12 +1,17 @@
-// One row of the Shared matrices table (#1166).
+// One row of the Shared matrices table (#1166, #1202).
 //
 // Two cells carry the page: "shared with" names the people the link was
 // addressed to (nobody else can open it), and "opened by" shows which of them
 // actually did. A share nobody ever opened reads as "Never opened" rather than
 // a blank or a zero buried in a column, so unused links are easy to spot and
 // clean up.
+//
+// "Manage" expands the same SharePanel the matrix bar and the wizard use, so
+// recipients can be adjusted and the link copied from here too — Admin is a
+// third window onto one share, never a second mechanism.
 
 import { formatDate, formatRelativeTime } from '@ui/utils/formatters';
+import SharePanel from '@ui/components/matrix/SharePanel';
 
 function RecipientsCell({ recipients }) {
   if (!recipients || recipients.length === 0) {
@@ -64,8 +69,9 @@ function StatusCell({ share }) {
   );
 }
 
-export default function SharedMatrixRow({ share, busy, onRevoke }) {
+export default function SharedMatrixRow({ share, busy, expanded, onToggle, onRevoke, onChanged }) {
   return (
+    <>
     <tr className="align-top">
       <td className="px-4 py-3">
         <span className="font-medium text-gray-900 dark:text-gray-100">{share.name}</span>
@@ -81,18 +87,36 @@ export default function SharedMatrixRow({ share, busy, onRevoke }) {
         <UsageCell usage={share.usage} accessCount={share.accessCount} />
       </td>
       <td className="px-4 py-3"><StatusCell share={share} /></td>
-      <td className="px-4 py-3 text-right">
+      <td className="whitespace-nowrap px-4 py-3 text-right">
         {!share.revokedAt && (
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => onRevoke(share)}
-            className="rounded border border-red-200 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-50 dark:border-red-700 dark:text-red-300 dark:hover:bg-red-900/30"
-          >
-            {busy ? 'Revoking…' : 'Revoke'}
-          </button>
+          <>
+            <button
+              type="button"
+              onClick={() => onToggle(share.id)}
+              aria-expanded={!!expanded}
+              className="mr-2 rounded border border-gray-200 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700/50"
+            >
+              {expanded ? 'Close' : 'Manage'}
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => onRevoke(share)}
+              className="rounded border border-red-200 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-50 dark:border-red-700 dark:text-red-300 dark:hover:bg-red-900/30"
+            >
+              {busy ? 'Revoking…' : 'Revoke'}
+            </button>
+          </>
         )}
       </td>
     </tr>
+    {expanded && !share.revokedAt && (
+      <tr>
+        <td colSpan={6} className="bg-gray-50 px-4 py-3 dark:bg-gray-900/40">
+          <SharePanel share={share} onChanged={onChanged} />
+        </td>
+      </tr>
+    )}
+    </>
   );
 }

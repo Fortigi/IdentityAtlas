@@ -135,7 +135,7 @@ function BreadcrumbNav({ contextMode, layered, breadcrumb, jumpToCrumb }) {
 
 export default function RollupMatrixView({
   rollup, filter, counts, managedFilter, setManagedFilter, shareUrl,
-  refreshing, onOpenDetail, onAdjustFilter, onFilterChange, onShareView,
+  refreshing, onOpenDetail, onAdjustFilter, onLoadSaved, onFilterChange, onShareView,
 }) {
   const { authFetch } = useAuth();
   const isDark = useIsDark();
@@ -577,7 +577,7 @@ export default function RollupMatrixView({
   return (
     <div className="flex flex-col gap-3">
       {/* Filter summary chips + Adjust matrix — same toolbar as the per-subject view. */}
-      {filter && <MatrixFilterSummary filter={filter} preview={counts} onAdjust={onAdjustFilter} />}
+      {filter && <MatrixFilterSummary filter={filter} managed={managedFilter} preview={counts} onAdjust={onAdjustFilter} onLoadSaved={onLoadSaved} onShareView={onShareView} />}
 
       {/* Scope Statistics — governed % etc. */}
       {filter && <MatrixScopePanel filter={filter} />}
@@ -586,7 +586,6 @@ export default function RollupMatrixView({
       <MatrixToolbar
         managedFilter={managedFilter}
         setManagedFilter={setManagedFilter}
-        filter={filter}
         onExportExcel={onExportExcel}
         onShare={onShare}
         onShareView={onShareView}

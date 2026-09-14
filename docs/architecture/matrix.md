@@ -269,9 +269,10 @@ the wizard that assumed the full shape.
 
 ### Matrix identity — comparing two filters
 
-"Is this the matrix I saved?" is asked by the summary bar
-(`MatrixFilterSummary`), which labels the applied matrix with its saved name or
-"Not saved". Filters are compared with `matrixFilterFingerprint()` — canonical
+"Is this the matrix I saved?" is asked by the Load / Save / Share bar
+(`MatrixSaveBar`, via `matchSavedMatrix` in `components/matrix/shareState.js`),
+which labels the applied matrix with its saved name — and, when it is shared,
+with how many people see it — or states "Unsaved changes" next to a Save action. Filters are compared with `matrixFilterFingerprint()` — canonical
 (key-order-independent) JSON of the **normalised** filter, minus the view-state
 keys `rollupExpanded` / `rollupCollapsed` / `rollupPath` / `foldAttributes`.
 Never compare filters with raw `JSON.stringify`:

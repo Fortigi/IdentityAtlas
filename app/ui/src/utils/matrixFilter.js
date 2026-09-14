@@ -136,8 +136,8 @@ export function normalizeMatrixFilter(f) {
 //     may predate a field or only carry what its writer cared about (the demo
 //     seed writes four keys). Comparing raw JSON made a matrix stop matching
 //     the saved row it came from the moment it was adjusted — so opening the
-//     wizard and applying without changing anything relabelled the demo default
-//     "Not saved".
+//     wizard and applying without changing anything made the demo default read
+//     as unsaved.
 //   * view state. Which groups are folded and how far the analyst has drilled
 //     is where they are IN the matrix, not which matrix it is; the wizard
 //     rewrites those keys on every apply.

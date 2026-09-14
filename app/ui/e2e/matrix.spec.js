@@ -72,15 +72,14 @@ test.describe('Matrix View', () => {
     }
   });
 
-  // Two different sharing controls live here and must stay distinguishable:
-  // "Copy link" copies the current URL for another analyst, "Share view…" mints
-  // a read-only link for a colleague with no Identity Atlas role (#1166). A
-  // loose /Share/i once matched both and the ambiguity was real, not just a
-  // locator problem.
-  test('the two sharing buttons are named apart', async ({ page }) => {
+  // "Copy link" copies the current URL for another analyst. Sharing WITH a
+  // colleague who has no Identity Atlas role is a different act and, since
+  // #1202, has exactly one home — the Load / Save / Share bar. Two controls for
+  // it in the same toolbar was the ambiguity #1166 shipped with.
+  test('the toolbar has Copy link, and sharing lives on the save bar', async ({ page }) => {
     await expect(page.getByRole('button', { name: 'Copy link' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Share view…' })).toBeVisible();
-    await expect(page.getByRole('button', { name: /share/i })).toHaveCount(1);
+    await expect(page.getByRole('button', { name: 'Share view…' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /Load matrix/ })).toBeVisible();
   });
 
   test('export button exists', async ({ page }) => {

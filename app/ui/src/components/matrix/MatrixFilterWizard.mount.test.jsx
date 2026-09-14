@@ -407,11 +407,11 @@ describe('MatrixFilterWizard (mounted)', () => {
 
     // Open the Save dialog.
     await user.click(screen.getByText(/Save matrix…/));
-    expect(await screen.findByText('Save matrix')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Save matrix' })).toBeInTheDocument();
 
-    const nameInput = screen.getByPlaceholderText(/HR users/i);
+    const nameInput = screen.getByRole('textbox', { name: 'Matrix name' });
     fireEvent.change(nameInput, { target: { value: 'My Matrix' } });
-    await user.click(screen.getByText('Save'));
+    await user.click(screen.getByRole('button', { name: 'Save as new matrix' }));
 
     await waitFor(() => {
       expect(authFetch).toHaveBeenCalledWith(
@@ -456,7 +456,7 @@ describe('MatrixFilterWizard (mounted)', () => {
   });
 });
 
-describe('MatrixFilterWizard — the Share step (#1166)', () => {
+describe('MatrixFilterWizard — the Save/Share step (#1166, #1202)', () => {
   const reader = { permissions: new Set(['data.read']), hasWildcard: false, permissionsLoaded: true };
 
   it('ends on Share for a sharer, with Apply still available there', async () => {
@@ -467,9 +467,9 @@ describe('MatrixFilterWizard — the Share step (#1166)', () => {
     await user.click(screen.getByText('Next')); // sort
     await user.click(screen.getByText('Next')); // share
 
-    // The step offers the share form…
+    // The step offers the save-and-share form…
     expect(await screen.findByText(/Share this matrix \(optional\)/i)).toBeInTheDocument();
-    expect(screen.getByRole('textbox', { name: /Name this view/i })).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: /Name this matrix/i })).toBeInTheDocument();
     expect(screen.getByRole('textbox', { name: /Share with/i })).toBeInTheDocument();
     // …and it is the end of the wizard: Apply, no further Next.
     expect(screen.queryByText('Next')).not.toBeInTheDocument();
@@ -506,9 +506,9 @@ describe('MatrixFilterWizard — the Share step (#1166)', () => {
 
   // An oversized matrix that folds on attributes only loads as the layered,
   // server-aggregated view — which Apply arranges by stamping `foldAttributes`.
-  // A share is a frozen snapshot, so if the step shared the raw edit state
-  // instead, the recipient would ask for every per-subject row of a matrix that
-  // can't be served that way, with no control to fix it.
+  // If the step saved-and-shared the raw edit state instead, the recipient would
+  // ask for every per-subject row of a matrix that can't be served that way,
+  // with no control to fix it.
   const OVERSIZED_FOLDABLE = {
     rowType: 'principal',
     subject: { include: [], exclude: [] },
@@ -524,7 +524,7 @@ describe('MatrixFilterWizard — the Share step (#1166)', () => {
     return makeAuthFetch((url, opts = {}) => {
       const u = String(url);
       if (u.includes('/api/matrix/shares') && opts.method === 'POST') {
-        return jsonResponse({ id: 'sh-1', token: 'fgs_abc', recipients: [{ userKey: 'ann@contoso.com', displayName: 'Ann Manager' }] }, { status: 201 });
+        return jsonResponse({ id: SHARE_ID, shareAddress: SHARE_ID, recipients: [{ userKey: 'ann@contoso.com', displayName: 'Ann Manager' }] }, { status: 201 });
       }
       if (u.includes('/api/users')) {
         return jsonResponse({ data: [{ id: '3fa85f64-5717-4562-b3fc-2c963f66afa6', displayName: 'Ann Manager', userPrincipalName: 'ann@contoso.com' }] });
@@ -532,6 +532,8 @@ describe('MatrixFilterWizard — the Share step (#1166)', () => {
       return makeFetch({ preview: { assignmentCount: 99999 } })(url, opts);
     });
   }
+
+  const SHARE_ID = '11111111-1111-1111-1111-111111111111';
 
   it('shares the matrix Apply would commit, not the raw edit state', async () => {
     const authFetch = shareFetch();
@@ -541,11 +543,11 @@ describe('MatrixFilterWizard — the Share step (#1166)', () => {
     await user.click(screen.getByText('Next'));                            // → share
 
     expect(await screen.findByRole('textbox', { name: /Share with/i })).toBeInTheDocument();
-    await user.type(screen.getByRole('textbox', { name: /Name this view/i }), 'Engineering access');
+    await user.type(screen.getByRole('textbox', { name: /Name this matrix/i }), 'Engineering access');
     await user.type(screen.getByRole('textbox', { name: /Share with/i }), 'ann');
     await user.click(await within(await screen.findByRole('group', { name: 'Search results' }))
       .findByRole('button', { name: /Ann Manager/i }));
-    await user.click(screen.getByRole('button', { name: /Create link/i }));
+    await user.click(screen.getByRole('button', { name: 'Save & share' }));
 
     await waitFor(() => {
       expect(authFetch).toHaveBeenCalledWith('/api/matrix/shares', expect.objectContaining({ method: 'POST' }));
@@ -558,8 +560,8 @@ describe('MatrixFilterWizard — the Share step (#1166)', () => {
     expect(body.recipients).toEqual([
       { principalId: '3fa85f64-5717-4562-b3fc-2c963f66afa6', userKey: 'ann@contoso.com', displayName: 'Ann Manager' },
     ]);
-    // The link comes back once, with a copy control next to it.
-    expect(await screen.findByText(/#shared:fgs_abc$/)).toBeInTheDocument();
+    // The link comes back, addressed by share id, with a copy control next to it.
+    expect(await screen.findByText(new RegExp(`#shared:${SHARE_ID}$`))).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Copy share link/i })).toBeInTheDocument();
   });
 
@@ -576,6 +578,6 @@ describe('MatrixFilterWizard — the Share step (#1166)', () => {
 
     expect(await screen.findByText(/too large to load, so there is nothing to share/i)).toBeInTheDocument();
     expect(screen.queryByRole('textbox', { name: /Share with/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Create link/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Save & share' })).not.toBeInTheDocument();
   });
 });

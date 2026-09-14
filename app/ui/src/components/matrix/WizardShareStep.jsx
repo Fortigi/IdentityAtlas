@@ -1,4 +1,5 @@
-// The matrix wizard's final step: share what you just built (#1166).
+// The matrix wizard's final step: save and share what you just built (#1166,
+// reworked by #1202).
 //
 // An analyst usually configures a matrix *for* somebody — a team manager, a
 // resource owner — so the offer to send it belongs at the end of the same
@@ -6,34 +7,45 @@
 // optional: skipping it and pressing Apply is the ordinary path, and Apply
 // stays available while the form is open.
 //
-// The form itself is ShareMatrixForm, shared with the toolbar's dialog — the
-// two must not drift on what a share captures or who it is for.
+// The step is state-aware. "Adjust matrix" on a matrix that is already shared
+// opens here showing who it is shared with, with the same add/remove,
+// copy-link and stop-sharing controls as the matrix bar and Admin — which is
+// the point of #1202: a shared matrix is managed from the matrix itself. The
+// body is SharePanel in all three places, so they cannot drift.
 
-import ShareMatrixForm from './ShareMatrixForm';
+import SharePanel from './SharePanel';
 
-export default function WizardShareStep({ filter, managed, blocked = false }) {
+export default function WizardShareStep({ filter, managed, saved = null, onSharingChanged, blocked = false }) {
   return (
     <div className="space-y-3">
       <div>
         <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-gray-400">
-          Share this matrix (optional)
+          {saved?.shared ? 'Shared with' : 'Share this matrix (optional)'}
         </h4>
         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-          Send this exact view to colleagues who have no Identity Atlas role. Skip this step and
-          press Apply if you are only building it for yourself — you can still share it later from
-          the matrix toolbar.
+          {saved?.shared
+            ? 'This matrix is shared. Add or remove people, copy the link again, or stop sharing — the link stays the same when you change who it is for.'
+            : 'Send this matrix to colleagues who have no Identity Atlas role. Skip this step and press Apply if you are only building it for yourself — you can still share it later from the matrix bar.'}
         </p>
       </div>
       {/* A share can't be adjusted by the person who receives it, so a matrix
           that is too large to load must not become a link at all — they would
-          have no way out of it. The same condition disables Apply. */}
-      {blocked ? (
+          have no way out of it. The same condition disables Apply. An existing
+          share is still managed here: taking somebody off a share must never
+          depend on the matrix being loadable. */}
+      {blocked && !saved?.shared ? (
         <p className="rounded border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-300">
           This matrix is too large to load, so there is nothing to share yet. Go back and narrow it
           down — or roll it up by an attribute — and the share form appears here.
         </p>
       ) : (
-        <ShareMatrixForm filter={filter} managed={managed} />
+        <SharePanel
+          savedFilterId={saved?.id || null}
+          savedName={saved?.name || null}
+          filter={filter}
+          managed={managed}
+          onChanged={onSharingChanged}
+        />
       )}
     </div>
   );

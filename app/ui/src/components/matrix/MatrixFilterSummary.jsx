@@ -1,14 +1,14 @@
-// Compact display of the currently-applied Matrix filter, shown above the
-// matrix. Each condition is rendered as a small chip; an "Adjust filter"
-// button re-opens the wizard.
+// The strip above the matrix: the Load / Save / Share bar (#768, #1202) and a
+// compact display of the currently-applied filter. Each filter condition is
+// rendered as a small chip; an "Adjust matrix" button re-opens the wizard.
 //
-// This component is read-only — it never mutates the filter. The wizard owns
-// editing.
+// The filter half is read-only — it never mutates the filter; the wizard owns
+// editing. Saving, loading and sharing live in MatrixSaveBar above it.
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
 import { useIsSharedView } from '@ui/contexts/SharedViewContext';
-import { matrixFilterFingerprint } from '@ui/utils/matrixFilter';
+import MatrixSaveBar from './MatrixSaveBar';
 import { collectChips, collectContextIds } from './MatrixFilterSummary.helpers';
 
 // A share recipient gets the matrix and nothing around it: the scope strip is
@@ -19,32 +19,9 @@ export default function MatrixFilterSummary(props) {
   return <FilterSummary {...props} />;
 }
 
-function FilterSummary({ filter, preview, onAdjust }) {
+function FilterSummary({ filter, managed, preview, onAdjust, onLoadSaved, onShareView }) {
   const { authFetch } = useAuth();
   const [contextNames, setContextNames] = useState(new Map());
-  const [savedFilters, setSavedFilters] = useState(null);  // null = still loading
-
-  // Fetch saved filters so we can label the current filter with its saved
-  // name (or "Not saved" if no match). Refetched whenever the filter is
-  // re-applied — that's when a save-from-wizard might have just happened.
-  const filterKey = filter ? JSON.stringify(filter) : '';
-  useEffect(() => {
-    let cancelled = false;
-    authFetch('/api/matrix/saved-filters')
-      .then(r => r.ok ? r.json() : [])
-      .then(rows => { if (!cancelled) setSavedFilters(Array.isArray(rows) ? rows : []); })
-      .catch(() => { if (!cancelled) setSavedFilters([]); });
-    return () => { cancelled = true; };
-  }, [authFetch, filterKey]);
-
-  // Match the current filter against the saved ones. Compared by fingerprint,
-  // not raw JSON, so a saved matrix keeps its badge after being adjusted (or
-  // folded/drilled) without actually being changed — see utils/matrixFilter.js.
-  const savedMatch = useMemo(() => {
-    if (!savedFilters || !filter) return null;
-    const fingerprint = matrixFilterFingerprint(filter);
-    return savedFilters.find(s => matrixFilterFingerprint(s.filter) === fingerprint) || null;
-  }, [savedFilters, filter]);
 
   // Resolve display names for any context conditions in the filter.
   useEffect(() => {
@@ -75,65 +52,35 @@ function FilterSummary({ filter, preview, onAdjust }) {
   const resourceChips = collectChips(filter.resource, contextNames);
 
   return (
-    <div className="bg-blue-50/30 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800 rounded-lg px-3 py-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
-      <SavedBadge savedMatch={savedMatch} loading={savedFilters === null} />
+    <div className="flex flex-col gap-2">
+      {/* Which saved matrix this is, whether it has unsaved changes, and who it
+          is shared with — one visible row rather than a badge that scolds. */}
+      <MatrixSaveBar filter={filter} managed={managed} onLoad={onLoadSaved} onShare={onShareView} />
 
-      <span className="inline-flex items-center gap-1">
-        <span className="text-[10px] uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">Rows</span>
-        <span className="px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 font-medium">{rowTypeLabel} × Resource</span>
-      </span>
-
-      <Section label="Subjects" chips={subjectChips} preview={preview ? `${preview.subjectCount.toLocaleString()}/${preview.subjectTotal.toLocaleString()}` : null} />
-      <Section label="Resources" chips={resourceChips} preview={preview ? `${preview.resourceCount.toLocaleString()}/${preview.resourceTotal.toLocaleString()}` : null} />
-
-      {preview && (
+      <div className="bg-blue-50/30 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800 rounded-lg px-3 py-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
         <span className="inline-flex items-center gap-1">
-          <span className="text-[10px] uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">Cells</span>
-          <span className="font-medium text-gray-800 dark:text-gray-200">{preview.assignmentCount.toLocaleString()}</span>
+          <span className="text-[10px] uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">Rows</span>
+          <span className="px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 font-medium">{rowTypeLabel} × Resource</span>
         </span>
-      )}
 
-      <button
-        onClick={onAdjust}
-        className="ml-auto px-2 py-1 rounded text-xs font-medium bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-600"
-      >
-        Adjust matrix
-      </button>
+        <Section label="Subjects" chips={subjectChips} preview={preview ? `${preview.subjectCount.toLocaleString()}/${preview.subjectTotal.toLocaleString()}` : null} />
+        <Section label="Resources" chips={resourceChips} preview={preview ? `${preview.resourceCount.toLocaleString()}/${preview.resourceTotal.toLocaleString()}` : null} />
+
+        {preview && (
+          <span className="inline-flex items-center gap-1">
+            <span className="text-[10px] uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">Cells</span>
+            <span className="font-medium text-gray-800 dark:text-gray-200">{preview.assignmentCount.toLocaleString()}</span>
+          </span>
+        )}
+
+        <button
+          onClick={onAdjust}
+          className="ml-auto px-2 py-1 rounded text-xs font-medium bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-600"
+        >
+          Adjust matrix
+        </button>
+      </div>
     </div>
-  );
-}
-
-function SavedBadge({ savedMatch, loading }) {
-  if (loading) {
-    return (
-      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/30 text-gray-600 dark:text-gray-400 text-[11px]">
-        …
-      </span>
-    );
-  }
-  if (savedMatch) {
-    return (
-      <span
-        className="inline-flex items-center gap-1 px-2 py-0.5 rounded border border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 text-[11px] font-medium"
-        title={savedMatch.description || `Saved org-wide matrix`}
-      >
-        <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
-          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/>
-        </svg>
-        <span className="truncate max-w-[20ch]">{savedMatch.name}</span>
-      </span>
-    );
-  }
-  return (
-    <span
-      className="inline-flex items-center gap-1 px-2 py-0.5 rounded border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 text-[11px] font-medium"
-      title="This matrix doesn't match any saved one. Use the wizard to save it."
-    >
-      <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
-        <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.515 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 6a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 6zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd"/>
-      </svg>
-      Not saved
-    </span>
   );
 }
 

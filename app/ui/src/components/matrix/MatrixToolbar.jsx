@@ -1,23 +1,21 @@
 import { useState } from 'react';
 import { useCanExportUi } from '@ui/auth/usePermissions';
 import { useIsSharedView } from '@ui/contexts/SharedViewContext';
-import ShareMatrixButton from './ShareMatrixButton';
 
 // Simplified Matrix toolbar (post-wizard redesign).
 //
 //   - Row selection / filtering happens in MatrixFilterWizard.
 //   - The toolbar keeps only "view-time" controls: Governed/Non-governed/Gaps
-//     toggle (formerly SOLL/IST), Excel export, Share link.
+//     toggle (formerly SOLL/IST), Excel export, Copy link. Saving, loading and
+//     sharing live in the Load / Save / Share bar above it (#768/#1202).
 //   - "Adjust filter" re-opens the wizard.
 //   - Search, user-limit slider, attribute/context FilterBars are gone.
 
 export default function MatrixToolbar({
   managedFilter,
   setManagedFilter,
-  filter,
   onExportExcel,
   onShare,
-  onShareView,
   onResetRowOrder,
   hasCustomRowOrder,
   hasExpandableGroups,
@@ -76,9 +74,10 @@ export default function MatrixToolbar({
         </button>
       )}
 
-      {/* Two different "share" actions, deliberately named apart: "Copy link" hands
-          the current URL to another analyst, "Share view…" mints a read-only link
-          for a colleague who has no Identity Atlas role at all (#1166). */}
+      {/* "Copy link" hands the current matrix's URL to another analyst who
+          already has Identity Atlas access. Sharing WITH somebody who has no
+          role at all is a different act and lives in the Load / Save / Share bar
+          above (#1202) — there is one control for it, not two. */}
       {!isSharedView && (
         <button
           onClick={async () => {
@@ -99,7 +98,6 @@ export default function MatrixToolbar({
         </button>
       )}
 
-      {!isSharedView && <ShareMatrixButton filter={filter} onShareView={onShareView} />}
 
       {hasCustomRowOrder && (
         <>

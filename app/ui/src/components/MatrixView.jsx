@@ -92,6 +92,7 @@ export default function MatrixView({
   shareUrl,
   onOpenDetail,
   onAdjustFilter,
+  onLoadSaved,
   hasData,
   onShareView,
 }) {
@@ -600,8 +601,11 @@ export default function MatrixView({
       {filterIsApplied && (
         <MatrixFilterSummary
           filter={filter}
+          managed={managedFilter}
           preview={counts}
           onAdjust={onAdjustFilter}
+          onLoadSaved={onLoadSaved}
+          onShareView={onShareView}
         />
       )}
 
@@ -610,7 +614,6 @@ export default function MatrixView({
       <MatrixToolbar
         managedFilter={managedFilter}
         setManagedFilter={setManagedFilter}
-        filter={filter}
         onExportExcel={handleExportExcel}
         onShare={handleShare}
         onShareView={onShareView}
