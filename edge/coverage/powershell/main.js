@@ -360,7 +360,7 @@ var assemblies = [
     "classes": [
       { "name": "tools/crawlers/scim/ScimCrawler.Functions", "rp": "scim_Functions.html", "cl": 170, "ucl": 0, "cal": 170, "tl": 437, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
       { "name": "tools/crawlers/scim/ScimCrawler.Phases", "rp": "scim_Phases.html", "cl": 91, "ucl": 1, "cal": 92, "tl": 228, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
-      { "name": "tools/crawlers/scim/ScimCrawler.Transform", "rp": "scim_Transform.html", "cl": 149, "ucl": 0, "cal": 149, "tl": 323, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
+      { "name": "tools/crawlers/scim/ScimCrawler.Transform", "rp": "scim_Transform.html", "cl": 164, "ucl": 0, "cal": 164, "tl": 368, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
       { "name": "tools/crawlers/scim/Start-ScimCrawler", "rp": "scim_tools_crawlers_scim_Start_ScimCrawler.html", "cl": 0, "ucl": 23, "cal": 23, "tl": 88, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
     ]},
   {
