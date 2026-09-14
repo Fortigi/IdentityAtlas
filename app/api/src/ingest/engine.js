@@ -5,9 +5,8 @@
 // bulk insert into a temp table and then upserts into the target table.
 //
 // Implementation notes:
-//   - Bulk loading uses `pg-copy-streams` (`COPY ... FROM STDIN`) which is the
-//     fastest path for inserting many rows in postgres. Comparable to SQL
-//     Server's SqlBulkCopy.
+//   - Bulk loading uses batched multi-row `INSERT ... VALUES` into the temp
+//     table (see the note in the loader below for why not `COPY FROM STDIN`).
 //   - The upsert uses `INSERT ... ON CONFLICT (...) DO UPDATE ... RETURNING
 //     (xmax = 0) AS wasInsert` — the xmax trick lets us count inserted vs
 //     updated rows without a separate query.

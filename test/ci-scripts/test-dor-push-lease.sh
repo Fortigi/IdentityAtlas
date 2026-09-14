@@ -52,9 +52,14 @@ git -C "$WORK" config user.name  Test
 git -C "$WORK" config core.autocrlf false   # keeps the run quiet on a Windows dev box
 commit() { echo "$1" > "$WORK/f.txt"; git -C "$WORK" add f.txt; git -C "$WORK" commit --quiet -m "$1"; }
 commit one
+# push_as_app refuses a branch that changes .github/ relative to main (SEC-2026-09 H-05), and fails
+# closed when there is no main to compare against. Give the fixture one, as a real checkout has.
+git -C "$WORK" push --quiet "file://$TMP/origin.git" HEAD:refs/heads/main
+git -C "$WORK" update-ref refs/remotes/origin/main HEAD
 
 # dor_build_lib.sh derives BRANCH from ISSUE and expects these exported before it is sourced. Its
-# only side effects at source time are two `git config` calls on $WORK, which is why this is safe.
+# only side effects at source time are two `git config` calls on $WORK (and the git environment the
+# sandbox helpers export), which is why this is safe.
 export ISSUE=665 REPO=Fortigi/IdentityAtlas WORK
 export URL=https://example.invalid HOST=sk-test GH_TOKEN=stub BOARD_TOKEN=stub-token
 # shellcheck source=/dev/null
@@ -155,6 +160,10 @@ assert "…and the remote moved to it" "$(git -C "$WORK" rev-parse HEAD)" "$(rem
 git -C "$WORK" remote add origin "file://$TMP/origin.git"
 use_bot_remote
 assert "use_bot_remote clears the includeIf'd credential" "" "$(live_header)"
+# …and it must not put a credential of its own back in its place (SEC-2026-09 H-05).
+assert "use_bot_remote leaves origin without a token" "https://github.com/${REPO}.git" \
+  "$(git -C "$WORK" config --get remote.origin.url)"
+git -C "$WORK" remote set-url origin "file://$TMP/origin.git"   # keep the rest of the run offline
 
 # ── 7. What the reset CANNOT cover — the guard is not decoration ─────────────
 # git resolves http.* by URL specificity, so a header scoped to the repo path outranks the reset,

@@ -313,16 +313,36 @@ Don't render `lastRunAt`/`lastRunStatus` — the card already shows those generi
 If your wizard needs to validate credentials or populate a dropdown from the live source system (entity sets, role archetypes, available attributes, …), drop a `discover.js` and the API exposes `POST /api/admin/crawlers/<type>/discover` automatically — no route changes needed:
 
 ```js
-export default async function handler(req, res, { db, getConfigSecret }) {
+export default async function handler(req, res, { db, getConfigSecret, assertConnectorUrl }) {
   // req.body — whatever the wizard sent (credentials, or { configId } in edit
   //            mode when the user hasn't re-entered a secret)
   // getConfigSecret(configId) — resolves a vaulted secret in edit mode; never
   //            trust req.body.clientSecret alone, it's stripped from storage
   //            on every save (see app/api/CLAUDE.md re: secrets/vault.js)
   // db — the pg pool (via getPool())
+  // assertConnectorUrl(url, config, label) — the SSRF guard. Call it on every
+  //            URL you are about to send a credential to, BEFORE fetching; it
+  //            throws an operator-facing message and honours the config's
+  //            allowPrivateNetwork / allowInsecureHttp opt-ins
   res.json({ /* whatever your wizard expects back */ });
 }
 ```
+
+**Outbound requests from a crawler must be guarded.** A config's URLs are admin-supplied, and
+the crawler sends a credential to them, so:
+
+- List every credential-bearing URL field in `crawler.json` as `"urlFields": ["baseUrl", "tokenEndpoint"]`.
+  The API then refuses a save or a job whose URLs are plain `http` or resolve to a private or
+  metadata address, unless the config sets `allowPrivateNetwork` / `allowInsecureHttp`. Declare
+  those two booleans in your `configSchema` and offer them in the wizard with the shared
+  `NetworkAccessOptions` + `useNetworkAccess` (`app/ui/src/components/crawler/`).
+- In `discover.js`, call `assertConnectorUrl` before fetching, and use `timedFetch` /
+  `buildAuthHeader` from `tools/crawlers/shared/discoverAuth.js` — `timedFetch` never follows a
+  redirect, and `buildAuthHeader` vets the OAuth2 token endpoint before posting the secret.
+- In PowerShell, call `Assert-FGPublicUrl` (`tools/crawlers/shared/Assert-FGPublicUrl.ps1`) in
+  your `Connect-*` function and before posting to a token endpoint, and
+  `Assert-FGSameHostLink` on any server-supplied pagination link. Read the opt-ins with
+  `Get-FGUrlPolicyParam -Cfg $Cfg`.
 
 See `tools/crawlers/omada/discover.js` and `tools/crawlers/midpoint/discover.js` for real examples, and `tools/crawlers/omada/discover.test.js` for how to test one (mock `fetch` + `getConfigSecret`, no HTTP server needed — co-located with the handler, not under `app/api/src/routes/`; the API's `vitest.config.js` is what picks it up).
 

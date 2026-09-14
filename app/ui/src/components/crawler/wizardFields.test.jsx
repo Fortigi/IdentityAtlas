@@ -8,7 +8,7 @@
 // look identical on screen and silently break every wizard's end-to-end coverage.
 import { describe, it, expect, vi } from 'vitest';
 import { createElement as h } from 'react';
-import { CrawlerField, OptionList, WizardNav, ScheduleList } from './wizardFields';
+import { CrawlerField, OptionList, WizardNav, ScheduleList, NetworkAccessOptions } from './wizardFields';
 import { renderWithProviders, screen, userEvent } from '@ui/test-utils/renderWithProviders';
 
 describe('CrawlerField', () => {
@@ -96,6 +96,21 @@ describe('OptionList', () => {
 
     await userEvent.click(boxes[1]);
     expect(onSelect).toHaveBeenCalledWith('groups', true);
+  });
+});
+
+describe('NetworkAccessOptions', () => {
+  it('renders both opt-ins as checkboxes reflecting the current value', () => {
+    renderWithProviders(h(NetworkAccessOptions, { value: { allowPrivateNetwork: true, allowInsecureHttp: false }, onChange: vi.fn() }));
+    expect(screen.getByRole('checkbox', { name: /Allow private network/ })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: /Allow insecure HTTP/ })).not.toBeChecked();
+  });
+
+  it('reports the flag name and its new state when toggled', async () => {
+    const onChange = vi.fn();
+    renderWithProviders(h(NetworkAccessOptions, { value: { allowPrivateNetwork: false, allowInsecureHttp: false }, onChange }));
+    await userEvent.click(screen.getByRole('checkbox', { name: /Allow insecure HTTP/ }));
+    expect(onChange).toHaveBeenCalledWith('allowInsecureHttp', true);
   });
 });
 

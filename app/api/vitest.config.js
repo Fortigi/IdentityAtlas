@@ -24,6 +24,8 @@ export default defineConfig({
       'src/**/*.test.js',
       '../../tools/crawlers/**/discover.test.js',
       '../../tools/crawlers/**/configValidation.test.js',
+      // The desktop launcher's job worker (plain Node, no JSX) — see app/desktop/.
+      '../desktop/*.test.js',
     ],
     coverage: {
       provider: 'v8',

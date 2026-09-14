@@ -51,6 +51,8 @@ $mock = Start-MockODataServer -EntitySets @{
     )
 }
 $baseUrl     = "http://localhost:$($mock.Port)/odata/v4"
+# The mock listens on plain http on loopback: both SSRF-guard opt-ins are needed.
+$urlOptIn    = @{ AllowPrivateNetwork = $true; AllowInsecureHttp = $true }
 $controlUrl  = "http://localhost:$($mock.Port)/_control"
 
 function Set-MockControl {
@@ -77,7 +79,7 @@ try {
     foreach ($case in $authCases) {
         try {
             $extraParams = $case.Extra
-            Connect-ODataAPI -BaseUrl $baseUrl -AuthMethod $case.Method @extraParams
+            Connect-ODataAPI @urlOptIn -BaseUrl $baseUrl -AuthMethod $case.Method @extraParams
             $result = Invoke-ODataGetRequest -Path '/TestEntities'
             $passed = $null -ne $result -and $result.Count -gt 0
             Write-Result "OData/$($case.Method) — auth + data fetch" $passed "($($result.Count) entities returned)"
@@ -89,7 +91,7 @@ try {
     # ── @odata.nextLink pagination ────────────────────────────────────────────
     Write-Host "`n  Pagination tests:" -ForegroundColor Gray
     try {
-        Connect-ODataAPI -BaseUrl $baseUrl -AuthMethod BasicAuth -Username testuser -Password testpass
+        Connect-ODataAPI @urlOptIn -BaseUrl $baseUrl -AuthMethod BasicAuth -Username testuser -Password testpass
         $result = Invoke-ODataGetRequest -Path '/Paginated'
         $passed = $null -ne $result -and $result.Count -eq 2
         Write-Result 'OData/Pagination — @odata.nextLink followed' $passed "($($result.Count) total entities across pages)"
@@ -101,7 +103,7 @@ try {
     Write-Host "`n  Error handling tests:" -ForegroundColor Gray
     Set-MockControl @{ alwaysReturnStatus = 401 }
     try {
-        Connect-ODataAPI -BaseUrl $baseUrl -AuthMethod ApiToken -ApiToken 'mock-api-token'
+        Connect-ODataAPI @urlOptIn -BaseUrl $baseUrl -AuthMethod ApiToken -ApiToken 'mock-api-token'
         Invoke-ODataGetRequest -Path '/TestEntities' -MaxRetries 0 | Out-Null
         Write-Result 'OData/Error — 401 throws exception' $false '(expected throw, but succeeded)'
     } catch {
@@ -118,7 +120,7 @@ try {
     Write-Host "`n  Token refresh test:" -ForegroundColor Gray
     try {
         Set-MockControl @{ tokenExpiresIn = 0 }
-        Connect-ODataAPI -BaseUrl $baseUrl -AuthMethod OAuth2CC `
+        Connect-ODataAPI @urlOptIn -BaseUrl $baseUrl -AuthMethod OAuth2CC `
             -ClientId 'mock-client' -ClientSecret 'mock-secret' `
             -TokenEndpoint "http://localhost:$($mock.Port)/oauth/token"
         $result = Invoke-ODataGetRequest -Path '/TestEntities'
@@ -133,7 +135,7 @@ try {
 
     # ── $skip pagination (Invoke-ODataPagedRequest) ───────────────────────────
     try {
-        Connect-ODataAPI -BaseUrl $baseUrl -AuthMethod BasicAuth -Username testuser -Password testpass
+        Connect-ODataAPI @urlOptIn -BaseUrl $baseUrl -AuthMethod BasicAuth -Username testuser -Password testpass
         $result = Invoke-ODataPagedRequest -Path '/Items' -PageSize 2
         $passed = $null -ne $result -and $result.Count -eq 3
         Write-Result 'OData/Pagination — $skip walk (Invoke-ODataPagedRequest)' $passed "($($result.Count) total entities)"
@@ -150,7 +152,7 @@ try {
 $mock = $null
 try {
     $mock = Start-MockODataServer -EntitySets @{ Empty = @() }
-    Connect-ODataAPI -BaseUrl "http://localhost:$($mock.Port)/odata/v4" `
+    Connect-ODataAPI -AllowPrivateNetwork -AllowInsecureHttp -BaseUrl "http://localhost:$($mock.Port)/odata/v4" `
         -AuthMethod BasicAuth -Username testuser -Password testpass
     try {
         $result = Invoke-ODataGetRequest -Path '/Empty'
@@ -169,7 +171,7 @@ try {
 $mock = $null
 try {
     $mock = Start-MockODataServer -EntitySets @{ Users = @(); Roles = @() }
-    Connect-ODataAPI -BaseUrl "http://localhost:$($mock.Port)/odata/v4" `
+    Connect-ODataAPI -AllowPrivateNetwork -AllowInsecureHttp -BaseUrl "http://localhost:$($mock.Port)/odata/v4" `
         -AuthMethod BasicAuth -Username testuser -Password testpass
     try {
         $sets = Get-ODataEntitySets

@@ -38,3 +38,11 @@ describe('buildOrderBy', () => {
     expect(buildOrderBy('password', 'asc', ALLOWED)).toBe('"displayName" ASC');
   });
 });
+
+describe('buildOrderBy — inherited property names are not columns (SEC-2026-09 L-15)', () => {
+  for (const key of ['constructor', '__proto__', 'toString', 'hasOwnProperty']) {
+    it(`falls back for sort=${key}`, () => {
+      expect(buildOrderBy(key, 'desc', ALLOWED)).toBe('"displayName" ASC');
+    });
+  }
+});

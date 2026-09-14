@@ -17,7 +17,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('./secrets/crawlerSecrets.js', () => ({ hasConfigSecret: vi.fn() }));
 
 import { hasConfigSecret } from './secrets/crawlerSecrets.js';
-import { validateCrawlerConfig, validateStoredCrawlerConfig, isSingletonJob, isPushModeType, getPushModeType, isExperimentalType } from './crawlerManifests.js';
+import { validateCrawlerConfig, validateStoredCrawlerConfig, isSingletonJob, isPushModeType, getPushModeType, isExperimentalType, getUrlFields, _crawlerManifests } from './crawlerManifests.js';
 
 describe('validateStoredCrawlerConfig', () => {
   beforeEach(() => {
@@ -111,7 +111,37 @@ describe('capability flags', () => {
     }
   });
 
+  it('getUrlFields lists the credential-bearing URL fields of the REST connectors, and nothing for the rest', () => {
+    for (const type of ['omada', 'odata', 'midpoint', 'scim']) {
+      expect(getUrlFields(type), type).toEqual(['baseUrl', 'tokenEndpoint']);
+    }
+    for (const type of ['entra-id', 'azure-rm', 'csv', 'demo', 'custom-connector', 'does-not-exist']) {
+      expect(getUrlFields(type), type).toEqual([]);
+    }
+  });
+
+  it('getUrlFields ignores a malformed declaration instead of treating a string as a field list', () => {
+    _crawlerManifests['fixture-malformed-urlfields'] = { urlFields: 'baseUrl' };
+    _crawlerManifests['fixture-mixed-urlfields'] = { urlFields: ['baseUrl', 7, null] };
+    try {
+      expect(getUrlFields('fixture-malformed-urlfields')).toEqual([]);
+      expect(getUrlFields('fixture-mixed-urlfields')).toEqual(['baseUrl']);
+    } finally {
+      delete _crawlerManifests['fixture-malformed-urlfields'];
+      delete _crawlerManifests['fixture-mixed-urlfields'];
+    }
+  });
+
   it('isExperimentalType is false for an unknown type (no manifest)', () => {
     expect(isExperimentalType('does-not-exist')).toBe(false);
+  });
+});
+
+describe('manifest maps ignore inherited property names (SEC-2026-09 L-15)', () => {
+  it('an inherited name has no manifest and no validator', () => {
+    expect(validateCrawlerConfig('hasOwnProperty', {})).toBeNull();
+    expect(validateCrawlerConfig('constructor', {})).toBeNull();
+    expect(isPushModeType('__proto__')).toBe(false);
+    expect(isSingletonJob('toString')).toBe(false);
   });
 });

@@ -34,3 +34,19 @@ describe('versionCompare', () => {
     expect(parseVersion(42)).toBe(null);
   });
 });
+
+describe('isValidVersion (SEC-2026-09 L-12)', () => {
+  it('accepts the shipped shapes', async () => {
+    const { isValidVersion } = await import('./versionCompare.js');
+    for (const v of ['5.2.1.0', '5.310.20260629.1221', '5.3.0-beta.2', 'v5.2.1', '5.3']) {
+      expect(isValidVersion(v), v).toBe(true);
+    }
+  });
+
+  it('rejects anything else', async () => {
+    const { isValidVersion } = await import('./versionCompare.js');
+    for (const v of ['5', '5.2.1.0.9', '5.310.x', 'latest', '5.2.1.0\n', ' 5.2.1.0', '5.2.1.0;id', '1.2.3-', '1.2.3-a.b.c.d.e', 99, null]) {
+      expect(isValidVersion(v), String(v)).toBe(false);
+    }
+  });
+});

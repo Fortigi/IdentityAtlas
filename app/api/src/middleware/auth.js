@@ -16,6 +16,17 @@ import {
 import { isReadTokenFormat, findActiveByPlaintext } from '../auth/readTokens.js';
 import { resolvePermissions } from '../auth/permissions.js';
 
+// The request path the prefix guards below compare against: originalUrl (not
+// req.path, which is mount-stripped under app.use('/api', ...)), without the
+// query string, lower-cased. Express matches routes case-insensitively by
+// default, so a case-sensitive prefix compare could be sidestepped by changing
+// the casing of a path segment while the router still dispatched to the same
+// handler (SEC-2026-09 M-01). Normalising here keeps the guards aligned with
+// how Express actually routes.
+export function guardPath(req) {
+  return String(req.originalUrl || '').split('?')[0].toLowerCase();
+}
+
 // jwks-rsa's getSigningKey is callback-shaped. We need a stable function ref
 // that resolves the *current* client at call time so a hot reload picks up the
 // new tenant on the next request.
@@ -52,7 +63,7 @@ export function authMiddleware(req, res, next) {
   if (token.startsWith('fgc_')) {
     // Use originalUrl because req.path inside an app.use('/api', ...) layer
     // reflects the mount-stripped path on some Express versions.
-    const fullPath = req.originalUrl.split('?')[0];
+    const fullPath = guardPath(req);
     if (fullPath.startsWith('/api/crawlers/') || fullPath.startsWith('/api/ingest/')) {
       return next();
     }
@@ -71,8 +82,9 @@ export function authMiddleware(req, res, next) {
     // is stripped from req.path, so a `/api/admin/` check on req.path would never
     // match — leaving admin GET endpoints reachable with a leaked read token
     // (security finding H-08). originalUrl preserves the full path (same fix the
-    // fgc_ block above uses).
-    if (req.originalUrl.split('?')[0].startsWith('/api/admin/')) {
+    // fgc_ block above uses), lower-cased by guardPath() so path casing
+    // cannot sidestep the compare (SEC-2026-09 M-01).
+    if (guardPath(req).startsWith('/api/admin/')) {
       return res.status(403).json({ error: 'Read API keys cannot access admin endpoints' });
     }
     findActiveByPlaintext(token).then(row => {
@@ -190,4 +202,14 @@ export function requirePermission(...required) {
       have: Array.from(perms).filter(p => p !== '*'),
     });
   };
+}
+
+// Refuse fgr_ read tokens outright on a route that is not data — e.g. the
+// Performance page's request log (SEC-2026-09 L-02). A no-op for signed-in
+// users and in open mode; pair it with a requirePermission gate.
+export function rejectReadTokens(req, res, next) {
+  if (req.readToken) {
+    return res.status(403).json({ error: 'Read API keys cannot access this endpoint' });
+  }
+  next();
 }

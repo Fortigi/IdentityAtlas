@@ -107,6 +107,29 @@ Provided by the workflow at run time — **do not** store these on the sidekick:
 | `DOR_ENABLED` | repo variable | master switch — every DoR workflow is inert unless `true` |
 | `DOR_BUILD_MODEL` | repo variable | optional model override (defaults to `claude-fable-5`) |
 
+## What isolates the build agent, and what does not
+
+The build agent is an LLM with a shell. The workflows limit what it can reach:
+
+- **Input.** Its spec contains only text by the requestor of record, Fortigi org members and the DoR
+  pipeline's own bots (`.github/scripts/dor_trusted_spec.sh`). Comments by other accounts are left
+  out, and the spec records how many were. Acceptance feedback is already gated on the commenter's
+  org membership.
+- **Tokens.** The `claude` process starts without `GH_TOKEN`, `BOARD_TOKEN` or any other credential in
+  its environment. The flow receives those tokens as files it deletes before the agent runs, so they
+  are not in the flow's process environment either, and no token is written into the checkout's git
+  config. After every agent run the flow restores the checkout's git config and clears its hooks, and
+  its own git commands ignore global/system git config (`.github/scripts/dor_agent_sandbox.sh`).
+- **Output.** A branch that changes anything under `.github/` is never pushed; the flow routes it to
+  Exceptions. Changes to Dockerfiles, compose files and `package.json` dependency or install-script
+  blocks are pointed out on the PR for the merge review.
+
+What this does **not** give you: the agent still runs as the runner's own user, in the `docker` group,
+with open egress and `CLAUDE_CODE_OAUTH_TOKEN` in its environment (the CLI needs it). A process that
+sets out to do harm can still act with that user's rights on the box. The real boundary is to run the
+agent in a disposable container, or as a separate user without `docker` access, with an egress
+allow-list. Until that exists, treat a sidekick as exposing everything its runner user can reach.
+
 ## Verify it's ready
 
 ```bash

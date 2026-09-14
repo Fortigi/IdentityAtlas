@@ -18,6 +18,9 @@
 
 $script:ScimSession = $null
 
+# Assert-FGPublicUrl (SSRF guard, SEC-2026-09 M-03).
+. (Join-Path $PSScriptRoot '..' 'shared' 'Assert-FGPublicUrl.ps1')
+
 #region Connection
 
 # Normalise the configured base URL: strip trailing slashes so '<base>/Users'
@@ -34,6 +37,8 @@ function Invoke-ScimOAuth2 {
     param()
     $endpoint = $script:ScimSession._TokenEndpoint
     if (-not $endpoint) { throw "SCIM OAuth2: tokenEndpoint is required" }
+    # The client secret is posted here — vet it like the base URL.
+    Assert-FGPublicUrl -Url $endpoint -Label 'tokenEndpoint' -AllowPrivateNetwork:$script:ScimSession.AllowPrivateNetwork -AllowInsecureHttp:$script:ScimSession.AllowInsecureHttp
     $form = @{
         grant_type    = 'client_credentials'
         client_id     = $script:ScimSession._ClientId
@@ -73,8 +78,13 @@ function Connect-ScimAPI {
         [string]$ClientSecret  = '',
         [string]$TokenEndpoint = '',
         [string]$Scope         = '',
-        [int]$TimeoutSec       = 120
+        [int]$TimeoutSec       = 120,
+        # Opt-ins from the crawler config (Get-FGUrlPolicyParam): reach a private /
+        # loopback address, or use plain http. Metadata addresses are never allowed.
+        [switch]$AllowPrivateNetwork,
+        [switch]$AllowInsecureHttp
     )
+    Assert-FGPublicUrl -Url $BaseUrl -Label 'baseUrl' -AllowPrivateNetwork:$AllowPrivateNetwork -AllowInsecureHttp:$AllowInsecureHttp
     $base = Get-ScimBaseUrl -BaseUrl $BaseUrl
     $script:ScimSession = @{
         AuthMethod     = $AuthMethod
@@ -83,6 +93,8 @@ function Connect-ScimAPI {
         AuthHeader     = $null
         AccessToken    = $null
         TokenExpiresAt = $null
+        AllowPrivateNetwork = [bool]$AllowPrivateNetwork
+        AllowInsecureHttp   = [bool]$AllowInsecureHttp
         _ClientId      = $ClientId
         _ClientSecret  = $ClientSecret
         _TokenEndpoint = $TokenEndpoint

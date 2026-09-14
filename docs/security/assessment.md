@@ -4,6 +4,9 @@ Identity Atlas underwent an independent **white-box security assessment and pene
 
 This page is a **public, sanitized summary**: it records what was assessed, the findings by severity and status, and the pull requests that remediated them. Step-by-step exploit detail, proof-of-concept payloads, attack chains, and live-environment specifics are deliberately omitted. The full technical report is **confidential** and available to customers and auditors on request.
 
+!!! tip "September 2026 re-test"
+    A full white-box re-assessment followed in September 2026. See [Security Assessment — September 2026](assessment-2026-09.md) for its findings and remediation pull requests.
+
 !!! info "Why we publish this"
     We believe a governance product should be transparent about its own security. Every Critical and High finding has been remediated and merged; the remaining items are tracked openly below. Technical exploit detail for any finding that is not yet fully remediated is withheld.
 

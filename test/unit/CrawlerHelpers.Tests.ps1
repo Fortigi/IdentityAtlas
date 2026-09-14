@@ -39,6 +39,11 @@ BeforeAll {
     # midPoint REST client
     . (Join-Path $script:repoRoot 'tools/crawlers/midpoint/Invoke-MidpointApi.ps1')
 
+    # Connect-* runs the SSRF guard (tools/crawlers/shared/Assert-FGPublicUrl.ps1) on
+    # the base URL. Resolve every host these tests invent to a public address so
+    # they stay off real DNS; the guard itself is tested in AssertFGPublicUrl.Tests.ps1.
+    Mock Resolve-FGHostAddress { @('93.184.216.34') }
+
     # Azure RM (auth + paged GET) then Azure RG (ARG) — RG depends on RM's token refresh
     . (Join-Path $script:repoRoot 'tools/crawlers/azure-rm/Get-AzureRMHelpers.ps1')
     . (Join-Path $script:repoRoot 'tools/crawlers/azure-rm/Get-AzureRGHelpers.ps1')
@@ -96,6 +101,21 @@ Describe 'Connect-MidpointAPI — auth header construction' {
         $script:MidpointSession.AccessToken    | Should -Be 'oauth-tok'
         $script:MidpointSession.TokenExpiresAt | Should -BeOfType ([datetime])
         Should -Invoke Invoke-RestMethod -Exactly 1 -ParameterFilter { $Uri -eq 'https://h/token' }
+    }
+    It 'refuses a private token endpoint before posting the client secret and password to it' {
+        Mock Invoke-RestMethod { [pscustomobject]@{ access_token = 'x' } }
+        Mock Resolve-FGHostAddress -ParameterFilter { $HostName -eq 'idp.corp' } -MockWith { @('192.168.4.4') }
+        { Connect-MidpointAPI -BaseUrl 'https://h' -AuthMethod 'OAuth2ROPC' -ClientId 'cid' -ClientSecret 'sec' -TokenEndpoint 'https://idp.corp/token' -Username 'u' -Password 'p' } |
+            Should -Throw -ExpectedMessage 'tokenEndpoint rejected: *private or loopback*'
+        Should -Invoke Invoke-RestMethod -Exactly 0
+    }
+    It 'refuses a base URL that uses http unless AllowInsecureHttp is given' {
+        { Connect-MidpointAPI -BaseUrl 'http://h/midpoint' -AuthMethod 'ApiToken' -ApiToken 'tok' } |
+            Should -Throw -ExpectedMessage 'baseUrl rejected: *must use https*'
+        Connect-MidpointAPI -BaseUrl 'http://h/midpoint' -AuthMethod 'ApiToken' -ApiToken 'tok' -AllowInsecureHttp
+        $script:MidpointSession.RestRoot | Should -Be 'http://h/midpoint/ws/rest'
+        $script:MidpointSession.AllowInsecureHttp | Should -BeTrue
+        $script:MidpointSession.AllowPrivateNetwork | Should -BeFalse
     }
     It 'OAuth2ROPC sends username/password in the form body' {
         Mock Invoke-RestMethod { [pscustomobject]@{ access_token = 'ropc-tok' } }

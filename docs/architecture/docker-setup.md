@@ -352,11 +352,9 @@ Scheduled jobs appear in the "Recent Jobs" table like any other job.
 
 ## Worker Container
 
-The worker container runs PowerShell 7 with the Identity Atlas module pre-loaded. It has three responsibilities:
+The worker container runs PowerShell 7 with the Identity Atlas module available. It polls the job queue (CrawlerJobs) every 30 seconds and runs each claimed job in its **own `pwsh` process**, so no credential, token or tenant id from one job is still in memory when the next one starts. The job config reaches that process on standard input and the API key through an environment variable — neither appears on a command line or in the job log.
 
-1. **Job queue polling** — picks up queued jobs from CrawlerJobs every 30 seconds
-2. **Scheduled crawlers** — reads CrawlerConfigs schedules every minute and queues jobs at the right time
-3. **Legacy crontab** — reads `setup/docker/crontab` for manually configured jobs (e.g. risk scoring)
+Crawler schedules are evaluated by the web container's scheduler (`app/api/src/scheduler.js`), which queues the jobs the worker picks up.
 
 ### Run Ad-Hoc Commands
 
@@ -368,17 +366,13 @@ docker compose exec worker pwsh
 docker compose exec worker pwsh -Command "Import-Module /app/setup/IdentityAtlas.psd1; Get-Command *FG*"
 ```
 
-### Legacy Crontab (for non-crawler jobs)
+### Recurring non-crawler jobs
 
-Edit `setup/docker/crontab` for jobs that aren't configured via the UI (e.g. risk scoring). Account Linking is **not** a crontab job — it is scheduled via `AccountLinkingConfig.schedules` and run by the web container's scheduler; see [Account Linking](account-linking.md).
+The worker no longer reads a `crontab` file (that feature, and `setup/docker/crontab`, were removed — every entry in it was commented out). Account Linking is scheduled via `AccountLinkingConfig.schedules` and run by the web container's scheduler; see [Account Linking](account-linking.md). For anything else, such as a nightly risk-scoring run, schedule the ad-hoc command above from the host's own scheduler (cron, systemd timer, Task Scheduler):
 
 ```cron
-# Risk scoring nightly at 03:00
-0 3 * * * /usr/bin/pwsh -Command "Import-Module /app/setup/IdentityAtlas.psd1; Invoke-FGRiskScoring"
-```
-
-```powershell
-docker compose -f docker-compose.yml restart worker
+# Host crontab: risk scoring nightly at 03:00
+0 3 * * * docker compose -f /path/to/docker-compose.yml exec -T worker pwsh -Command "Import-Module /app/setup/IdentityAtlas.psd1; Invoke-FGRiskScoring"
 ```
 
 ### Environment Variables
@@ -455,7 +449,6 @@ Identity Atlas defaults to no-auth (any browser can access the UI). To require E
 | `app/api/src/` | `/app/backend/src/` | web |
 | `app/ui/` (built) | `/app/frontend/dist/` | web (static) |
 | `tools/` | `/app/tools/` | worker |
-| `setup/docker/crontab` | `/app/setup/docker/crontab` | worker |
 | `job_data` (named volume) | `/data/uploads/` | web (writes), worker (reads) — CSV crawler uploads |
 
 ---

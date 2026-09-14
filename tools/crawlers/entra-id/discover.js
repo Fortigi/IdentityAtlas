@@ -157,6 +157,14 @@ function flattenExtensionAttributes(obj) {
   return flat;
 }
 
+// A server-supplied @odata.nextLink is followed only while it stays on Microsoft
+// Graph over https — the request carries the Graph bearer token, which must never
+// be handed to another host (SEC-2026-09 M-02). Anything else ends pagination.
+const GRAPH_ORIGIN = 'https://graph.microsoft.com/';
+export function nextGraphLink(link) {
+  return typeof link === 'string' && link.startsWith(GRAPH_ORIGIN) ? link : null;
+}
+
 // Acquire a Graph access token via client-credentials. Throws on failure —
 // callers that need a soft `{valid:false}` response catch and unwrap err.message.
 async function acquireGraphToken({ tenantId, clientId, clientSecret }) {
@@ -222,7 +230,7 @@ async function handleValidate(req, res) {
           if (!page.ok) break;
           const data = await page.json();
           for (const a of data.value || []) allAssignments.push(a);
-          url = data['@odata.nextLink'] || null;
+          url = nextGraphLink(data['@odata.nextLink']);
         }
 
         for (const a of allAssignments) {

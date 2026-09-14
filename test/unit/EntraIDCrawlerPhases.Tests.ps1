@@ -62,8 +62,9 @@ BeforeAll {
     # refresh branch runs without the Graph SDK loaded.
     function Update-FGAccessTokenIfExpired { param([string]$DebugFlag) }
 
-    # Graph auth stub for the run-init phase + tenant id for system registration.
-    function Get-FGAccessToken { param($ConfigFile) }
+    # The real Graph auth function (mocked per test) so its parameter sets bind as in
+    # production, + tenant id for system registration.
+    . (Join-Path $script:repoRoot 'tools' 'powershell-sdk' 'graph' 'Get-FGAccessToken.ps1')
     $Global:TenantId = 'tenant-123'
 
     # The Graph SDK functions the phases call. Defined as stubs so Pester can Mock
@@ -1573,7 +1574,7 @@ Describe 'Sync-EntraGovernanceReviews' {
         Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'accessReviews/definitions\?' } -MockWith {
             @(
                 [pscustomobject]@{ id = 'rd1' }   # kept
-                [pscustomobject]@{ id = 'rd2' }   # skipped: no scope
+                [pscustomobject]@{ id = 'rd2'; displayName = 'Quarterly'; descriptionForReviewers = 'SENTINEL-DEF-BODY' }   # skipped: no scope
                 [pscustomobject]@{ id = 'rd4' }   # skipped: no scope (TWO of them, deliberately)
                 [pscustomobject]@{ id = 'rd3' }   # skipped: scope, but no AP id in it
             )
@@ -1603,6 +1604,10 @@ Describe 'Sync-EntraGovernanceReviews' {
         # one before the first skip happens; raising the ceiling logs every skip, which on
         # a tenant with hundreds of unmatched definitions is what the budget exists to stop.
         @($script:said | Where-Object { $_ -match 'sample skip' }) | Should -HaveCount 2
+        # SEC-2026-09 L-10: the sample names the definition; it no longer dumps the raw
+        # Graph object (reviewer text, scopes, people) into the job transcript.
+        $out | Should -Match ([regex]::Escape("def rd2 'Quarterly'"))
+        $out | Should -Not -Match 'SENTINEL-DEF-BODY'
     }
 
     It 'records a phase failure when the definitions fetch throws' {
@@ -1917,7 +1922,7 @@ Describe 'Initialize-EntraCrawlerRun' {
         Mock Get-FGAccessToken -MockWith { }
         Mock Invoke-IngestAPI -ParameterFilter { $Endpoint -eq 'ingest/systems' } -MockWith { @{ systemIds = @(42) } }
 
-        Initialize-EntraCrawlerRun -ApiBaseUrl 'http://x/api' -ApiKey 'k' -ConfigFile 'c.json' | Should -Be 42
+        Initialize-EntraCrawlerRun -ApiBaseUrl 'http://x/api' -ApiKey 'k' -TenantId 'tid' -ClientId 'cid' -ClientSecret 'csecret' | Should -Be 42
     }
 
     It 'registers the tenant as enabled and sync-enabled' {
@@ -1932,7 +1937,7 @@ Describe 'Initialize-EntraCrawlerRun' {
             @{ systemIds = @(42) }
         }
 
-        Initialize-EntraCrawlerRun -ApiBaseUrl 'http://x/api' -ApiKey 'k' -ConfigFile 'c.json' | Out-Null
+        Initialize-EntraCrawlerRun -ApiBaseUrl 'http://x/api' -ApiKey 'k' -TenantId 'tid' -ClientId 'cid' -ClientSecret 'csecret' | Out-Null
 
         $script:sysRecs | Should -HaveCount 1
         $script:sysRecs[0].enabled     | Should -BeTrue
@@ -1940,24 +1945,41 @@ Describe 'Initialize-EntraCrawlerRun' {
         $script:sysRecs[0].systemType  | Should -Be 'EntraID'
     }
 
-    It 'falls back to systemId 1 when systemIds comes back EMPTY rather than absent' {
+    It 'throws when systemIds is ABSENT rather than guessing a system id' {
         # The paired test below returns @() -- an empty array is falsy in PowerShell, so
         # the first half of `systemIds -and systemIds.Count -gt 0` already short-circuits
         # and the second half is never reached. A response with the key MISSING entirely
-        # is the other shape a caller can send, and both must land on the same fallback.
+        # is the other shape a caller can send, and both must be refused: the old
+        # fallback (id 1) would scope every full-sync reconcile to another system.
         Mock Invoke-RestMethod -ParameterFilter { $Uri -match 'whoami' } -MockWith { @{ displayName = 'Worker' } }
         Mock Get-FGAccessToken -MockWith { }
         Mock Invoke-IngestAPI -ParameterFilter { $Endpoint -eq 'ingest/systems' } -MockWith { @{} }
 
-        Initialize-EntraCrawlerRun -ApiBaseUrl 'http://x/api' -ApiKey 'k' -ConfigFile 'c.json' | Should -Be 1
+        { Initialize-EntraCrawlerRun -ApiBaseUrl 'http://x/api' -ApiKey 'k' -TenantId 'tid' -ClientId 'cid' -ClientSecret 'csecret' } |
+            Should -Throw '*Could not resolve the Entra ID system id*'
     }
 
-    It 'falls back to systemId 1 when none is returned' {
+    It 'throws when systemIds comes back empty' {
         Mock Invoke-RestMethod -ParameterFilter { $Uri -match 'whoami' } -MockWith { @{ displayName = 'Worker' } }
         Mock Get-FGAccessToken -MockWith { }
         Mock Invoke-IngestAPI -ParameterFilter { $Endpoint -eq 'ingest/systems' } -MockWith { @{ systemIds = @() } }
 
-        Initialize-EntraCrawlerRun -ApiBaseUrl 'http://x/api' -ApiKey 'k' -ConfigFile 'c.json' | Should -Be 1
+        { Initialize-EntraCrawlerRun -ApiBaseUrl 'http://x/api' -ApiKey 'k' -TenantId 'tid' -ClientId 'cid' -ClientSecret 'csecret' } |
+            Should -Throw '*Could not resolve the Entra ID system id*'
+    }
+
+    It 'authenticates with the credentials in memory, never through a credentials file' {
+        # SEC-2026-09 L-07: the crawler used to write the client secret to a temp file
+        # for Get-FGAccessToken -ConfigFile, and a failed run left that file behind.
+        Mock Invoke-RestMethod -ParameterFilter { $Uri -match 'whoami' } -MockWith { @{ displayName = 'Worker' } }
+        Mock Get-FGAccessToken -MockWith { }
+        Mock Invoke-IngestAPI -ParameterFilter { $Endpoint -eq 'ingest/systems' } -MockWith { @{ systemIds = @(42) } }
+
+        Initialize-EntraCrawlerRun -ApiBaseUrl 'http://x/api' -ApiKey 'k' -TenantId 'tid' -ClientId 'cid' -ClientSecret 'csecret' | Out-Null
+
+        Should -Invoke Get-FGAccessToken -Exactly 1 -ParameterFilter {
+            $TenantId -eq 'tid' -and $ClientId -eq 'cid' -and $ClientSecret -eq 'csecret' -and -not $ConfigFile
+        }
     }
 }
 

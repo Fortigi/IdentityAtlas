@@ -12,6 +12,7 @@ import { storeConfigSecret, deleteConfigSecret } from '../../secrets/crawlerSecr
 import { validateStoredCrawlerConfig, isPushModeType, isExperimentalType } from '../../crawlerManifests.js';
 import { isFeatureEnabled } from '../../featureFlags.js';
 import { gate, useSql, SECRET_MASK, maskedConfigForResponse, mergeConfigForUpdate } from './helpers.js';
+import { checkCrawlerConfigUrls } from './urlPolicy.js';
 
 const router = Router();
 
@@ -52,6 +53,11 @@ router.post('/admin/crawler-configs', gate, async (req, res) => {
       error: `'${crawlerType}' is an experimental crawler. Enable Admin → Experimental → Experimental crawlers to add one.`,
     });
   }
+
+  // Refuse a connector URL that points at an internal or metadata address, or
+  // uses http, unless the config explicitly opts in (SEC-2026-09 M-03).
+  const urlErr = await checkCrawlerConfigUrls(crawlerType, config);
+  if (urlErr) return res.status(400).json({ error: urlErr });
 
   try {
     // Strip the clientSecret out of the stored JSON — it goes to the vault.
@@ -122,6 +128,8 @@ router.patch('/admin/crawler-configs/:id', gate, async (req, res) => {
       // touch credentials.
       const configErr = await validateStoredCrawlerConfig(crawlerType, mergedConfig, id);
       if (configErr) return res.status(400).json({ error: configErr });
+      const urlErr = await checkCrawlerConfigUrls(crawlerType, mergedConfig);
+      if (urlErr) return res.status(400).json({ error: urlErr });
     }
 
     const { params, bind } = createParams();

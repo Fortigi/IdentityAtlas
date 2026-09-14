@@ -23,6 +23,13 @@ function getRoutePattern(req) {
   return req.path;
 }
 
+// The recorded URL keeps the path but drops the query string. The Performance
+// page is readable by every signed-in role, and query strings carry other
+// users' search terms, filters and ids (SEC-2026-09 L-02).
+export function pathOnly(url) {
+  return String(url ?? '').split('?')[0];
+}
+
 export function perfMetrics(req, res, next) {
   if (!isEnabled()) return next();
 
@@ -62,7 +69,7 @@ export function perfMetrics(req, res, next) {
       sqlQueryCount: sqlQueries.length,
       responseBytes: contentLength ? parseInt(contentLength) : null,
       timestamp: Date.now(),
-      url: req.originalUrl,
+      url: pathOnly(req.originalUrl),
     });
 
     return originalEnd.apply(this, args);

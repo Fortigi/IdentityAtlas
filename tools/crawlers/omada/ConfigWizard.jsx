@@ -4,7 +4,8 @@ import WizardShell from '@ui/components/WizardShell';
 import { canSubmitCredentials, buildCredentialFields } from '@ui/utils/crawlerCredentials';
 import CredentialFields from '@ui/components/crawler/CredentialFields';
 import useCredentialFields from '@ui/components/crawler/useCredentialFields';
-import { ScheduleList, WizardNav } from '@ui/components/crawler/wizardFields';
+import { NetworkAccessOptions, ScheduleList, WizardNav } from '@ui/components/crawler/wizardFields';
+import useNetworkAccess from '@ui/components/crawler/useNetworkAccess';
 import useCrawlerSave from '@ui/components/crawler/useCrawlerSave';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -76,6 +77,7 @@ export default function OmadaConfigWizard({ onComplete, onCancel, initialConfig,
 
   // Credential fields
   const { creds, setCred } = useCredentialFields(initialConfig);
+  const { network, setNetworkFlag } = useNetworkAccess(initialConfig);
   const [showCookieHelp, setShowCookieHelp] = useState(false);
 
   // Sync options
@@ -111,9 +113,8 @@ export default function OmadaConfigWizard({ onComplete, onCancel, initialConfig,
     try {
       const body = initialConfig?.id
         ? { configId: initialConfig.id }
-        : { config: { baseUrl: baseUrl.trim(), authMethod, username: username.trim(), password: password.trim(),
-                      tokenEndpoint: tokenEndpoint.trim(), clientId: clientId.trim(), clientSecret: clientSecret.trim(),
-                      apiToken: apiToken.trim(), cookieString: cookieString.trim() } };
+        : { config: { baseUrl: baseUrl.trim(), authMethod, ...network,
+                      ...Object.fromEntries(Object.entries(creds).map(([k, v]) => [k, v.trim()])) } };
       const r = await authFetch('/api/admin/crawlers/omada/discover', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -167,6 +168,7 @@ export default function OmadaConfigWizard({ onComplete, onCancel, initialConfig,
       baseUrl: baseUrl.trim(),
       apiVersion,
       authMethod,
+      ...network,
       selectedObjects,
       contextObjectTypes: contextObjectTypes
         .filter(c => c.entitySet.trim())
@@ -222,6 +224,7 @@ export default function OmadaConfigWizard({ onComplete, onCancel, initialConfig,
               className="w-full border border-gray-200 rounded px-3 py-2 text-sm font-mono bg-white dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
               placeholder="https://omada.example.com" />
           </div>
+          <NetworkAccessOptions value={network} onChange={setNetworkFlag} />
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Omada Version</label>
             <div className="flex gap-2">

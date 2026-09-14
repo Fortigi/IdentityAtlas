@@ -14,7 +14,6 @@
     "test:contract": "vitest run --config vitest.contract.config.js",
     "test:watch": "vitest",
     "lint": "eslint src/",
-    "postinstall": "patch-package || true",
     "build:node-launcher": "node ../desktop/scripts/build-node-launcher.mjs",
     "build:node-launcher:skip-ui": "node ../desktop/scripts/build-node-launcher.mjs --skip-ui-build",
     "test:mutation": "npm run test:mutation:auth && npm run test:mutation:effectiveaccess && npm run test:mutation:accountlinking && npm run test:mutation:matrix && npm run test:mutation:features && npm run test:mutation:reports",
@@ -35,7 +34,6 @@
     "eslint": "^10.10.0",
     "eslint-plugin-security": "^4.0.1",
     "eslint-plugin-sonarjs": "4.2.0",
-    "patch-package": "^8.0.1",
     "supertest": "^7.2.2",
     "vitest": "^5.0.0"
   },
@@ -50,12 +48,12 @@
     "jwks-rsa": "^4.1.0",
     "multer": "^2.3.0",
     "pg": "^8.23.0",
-    "pg-copy-streams": "^7.0.0",
     "re2": "^1.26.1",
     "swagger-ui-express": "^5.0.1",
     "yamljs": "^0.3.0"
   },
   "overrides": {
-    "brace-expansion": "^5.0.8"
+    "brace-expansion": "^5.0.8",
+    "uuid": "^11.1.1"
   }
 }

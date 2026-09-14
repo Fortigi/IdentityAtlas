@@ -108,6 +108,8 @@ try {
     $runTag = [guid]::NewGuid().ToString('N').Substring(0, 8)
     $config = @{
         baseUrl    = "http://host.docker.internal:$($mock.Port)/odata/dataobjects"
+        allowPrivateNetwork = $true   # the mock is plain http on the Docker host network
+        allowInsecureHttp   = $true
         authMethod = 'BasicAuth'
         username   = 'testuser'
         password   = 'testpass'
@@ -245,6 +247,8 @@ try {
 
         $pfConfig = @{
             baseUrl    = "http://host.docker.internal:$($mock.Port)/odata/dataobjects"
+            allowPrivateNetwork = $true
+            allowInsecureHttp   = $true
             authMethod = 'BasicAuth'
             username   = 'testuser'
             password   = 'testpass'

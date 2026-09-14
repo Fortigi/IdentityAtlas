@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import useNetworkAccess from '@ui/components/crawler/useNetworkAccess';
+import { CrawlerField, NetworkAccessOptions, OptionList, ScheduleList, WizardNav } from '@ui/components/crawler/wizardFields';
 import MappingRows from '@ui/components/MappingRows';
 import WizardShell from '@ui/components/WizardShell';
 import Combobox from '@ui/components/inputs/Combobox';
@@ -7,7 +9,6 @@ import { canSubmitCredentials, buildCredentialFields } from '@ui/utils/crawlerCr
 import CredentialFields from '@ui/components/crawler/CredentialFields';
 import useCredentialFields from '@ui/components/crawler/useCredentialFields';
 import useCrawlerDiscovery from '@ui/components/crawler/useCrawlerDiscovery';
-import { CrawlerField, OptionList, WizardNav, ScheduleList } from '@ui/components/crawler/wizardFields';
 import useCrawlerSave from '@ui/components/crawler/useCrawlerSave';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -57,10 +58,13 @@ export function canSubmitObjects(selectedObjects) {
 
 // Build the saved config blob. Credentials are merged in by the caller via
 // buildCredentialFields so a blank secret keeps the stored value on edit.
-export function buildScimConfig({ baseUrl, authMethod, systemName, pageSize, selectedObjects, userAttributes, groupAttributes, userTypeMapping, scope, schedules }) {
+export function buildScimConfig({ baseUrl, authMethod, systemName, pageSize, selectedObjects, userAttributes, groupAttributes, userTypeMapping, scope, schedules, network }) {
   const config = {
     baseUrl: (baseUrl || '').trim().replace(/\/+$/, ''),
     authMethod,
+    // Connector-URL opt-ins — always written, so turning one off on edit sticks.
+    allowPrivateNetwork: network?.allowPrivateNetwork === true,
+    allowInsecureHttp: network?.allowInsecureHttp === true,
     systemName: (systemName || '').trim() || 'SCIM',
     pageSize: parseInt(pageSize, 10) || 100,
     selectedObjects: {
@@ -92,6 +96,7 @@ export default function ScimConfigWizard({ onComplete, onCancel, initialConfig, 
   const [authMethod, setAuthMethod]   = useState(initialConfig?.authMethod || 'BasicAuth');
 
   const { creds, setCred } = useCredentialFields(initialConfig);
+  const { network, setNetworkFlag } = useNetworkAccess(initialConfig);
   const [scope, setScope] = useState(initialConfig?.scope || '');
 
   const [selectedObjects, setSelectedObjects] = useState({
@@ -115,7 +120,7 @@ export default function ScimConfigWizard({ onComplete, onCancel, initialConfig, 
   const { disco, discoLoading, discoError, fetchDiscovery } = useCrawlerDiscovery({
     authFetch, crawlerType: CRAWLER_TYPE, configId: initialConfig?.id,
     buildConfig: () => ({
-      baseUrl: baseUrl.trim(), authMethod, scope: scope.trim(),
+      baseUrl: baseUrl.trim(), authMethod, scope: scope.trim(), ...network,
       ...Object.fromEntries(Object.entries(creds).map(([k, v]) => [k, v.trim()])),
     }),
     emptyResult: EMPTY_DISCOVERY,
@@ -135,7 +140,7 @@ export default function ScimConfigWizard({ onComplete, onCancel, initialConfig, 
   const handleSave = async () => {
     const configPayload = buildScimConfig({
       baseUrl, authMethod, systemName, pageSize, selectedObjects,
-      userAttributes, groupAttributes, userTypeMapping: typeMapping, scope, schedules,
+      userAttributes, groupAttributes, userTypeMapping: typeMapping, scope, schedules, network,
     });
     Object.assign(configPayload, buildCredentialFields(authMethod, credentialFields));
 
@@ -198,6 +203,7 @@ export default function ScimConfigWizard({ onComplete, onCancel, initialConfig, 
             placeholder="https://api.example.com/scim/v2"
             hint={<>The URL that serves <code>/Users</code> and <code>/Groups</code>, e.g. <code>https://host/scim/v2</code></>}
           />
+          <NetworkAccessOptions value={network} onChange={setNetworkFlag} />
           <CrawlerField
             label="System name" optional value={systemName} onChange={setSystemName} placeholder="SAP CIS"
             hint="How this source is labelled in Identity Atlas. Defaults to “SCIM”."
