@@ -12,7 +12,9 @@ function makeUsers() {
     { id: 'agg1', value: 'Finance', userCount: 3, isAggregateCol: true, level: 0, sortKeys: ['Finance', 'Payroll'], childCounts: [0, 2] },
     { id: 'mem1', value: 'Ops', isMemberCol: true, memberLevel: 0, sortKeys: ['Ops', 'Logistics'] },
     { id: 'id1', displayName: 'Alice', memberType: 'Identity', sortKeys: ['HR', 'Recruiting'] },
-    { id: 'acc1', displayName: 'Bob', isAccountCol: true, accountType: 'AAD', sortKeys: ['IT', 'Support'] },
+    // Account sub-column of the expanded identity id1 — makeAccountCol() stamps
+    // parentId and copies the parent's sortKeys, so mirror both here.
+    { id: 'acc1', displayName: 'Bob', isAccountCol: true, parentId: 'id1', accountType: 'AAD', sortKeys: ['HR', 'Recruiting'] },
     { id: 'u5', displayName: 'Carl', jobTitle: 'Rep', department: 'Sales', sortKeys: ['Sales', 'Field'] },
   ];
 }
@@ -60,6 +62,22 @@ describe('MatrixColumnHeaders rich columns', () => {
     // Both access-package labels render on the pinned names row.
     expect(screen.getByText('Package One')).toBeInTheDocument();
     expect(screen.getByText('Package Two')).toBeInTheDocument();
+  });
+
+  it('renders expanded-identity accounts in their own header row under the identity span', () => {
+    renderRich(); // id1 (Alice) is expanded; acc1 (Bob · AAD) is her account column
+    const identityCell = screen.getByText('Alice').closest('th');
+    const accountCell = screen.getByText('Bob · AAD').closest('th');
+    const identityRow = identityCell.closest('tr');
+    const accountRow = accountCell.closest('tr');
+
+    // The identity header spans its own roll-up column plus its account column…
+    expect(identityCell.colSpan).toBe(2);
+    // …and the account label sits in a separate header row BELOW the names row,
+    // not spliced in as a sibling cell of the same row (the reported behavior).
+    expect(accountRow).not.toBe(identityRow);
+    const rows = [...identityRow.closest('thead').rows];
+    expect(rows.indexOf(accountRow)).toBeGreaterThan(rows.indexOf(identityRow));
   });
 
   it('fires the collapse/expand handlers from grouping cells', () => {
