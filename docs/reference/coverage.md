@@ -6,7 +6,7 @@ Test quality across the project's automated suites — line/branch/method covera
 
 | Suite | Line | Branch | Method | Cyclomatic | Cognitive | Mutation | Lines covered |
 |-------|------|--------|--------|------------|-----------|----------|---------------|
-| [API (Node / Vitest — unit + contract)](../coverage/api/index.html) | 89.5% | 79.8% | 89.6% | 3.8 / 20 | 2.3 / 15 | 86.0% | 8,585 / 9,583 |
+| [API (Node / Vitest — unit + contract)](../coverage/api/index.html) | 89.8% | 80.3% | 89.7% | 3.8 / 20 | 2.3 / 15 | 86.0% | 8,636 / 9,615 |
 | [UI (React / Vitest)](../coverage/ui/index.html) | 83.2% | 73.6% | 72.6% | 2.8 / 28 | 1.1 / 15 | 69.5% | 6,833 / 8,212 |
 | [PowerShell (Pester)](../coverage/powershell/index.html) | 91.0% | — | 96.7% | 3.8 / 15 | 4.0 / 15 | 100.0% | 5,996 / 6,584 |
 
@@ -19,7 +19,6 @@ Every figure above is scoped to what its tool actually measured. The notes below
 ### API (Node / Vitest — unit + contract)
 
 - **Mutation is scoped.** Mutation testing covers 29 file(s) of 204 — 11% of the suite's coverable lines. It describes that subset — not the suite — and is not comparable with the suite-wide line figure on the same row. **The score itself is older than that scope:** it was measured over 18 file(s), before the current list was committed. Mutation runs are regenerated on their own schedule, so the percentage catches up on the next run.
-- **The most complex code is the least branch-covered.** `app/api/src/routes/updates.js` (Async arrow function, cyclomatic 20, 76.0% branch) — below this suite's own branch average, so the aggregate percentage overstates how well the hard parts are tested.
 
 ### UI (React / Vitest)
 
@@ -40,4 +39,4 @@ Each suite links to a full per-file, line-by-line HTML report:
 - [UI (React / Vitest)](../coverage/ui/index.html)
 - [PowerShell (Pester)](../coverage/powershell/index.html)
 
-_Generated 2026-09-13 13:26 UTC from commit `e2edaf7d`._
+_Generated 2026-09-14 07:42 UTC from commit `a1bcf84a`._
