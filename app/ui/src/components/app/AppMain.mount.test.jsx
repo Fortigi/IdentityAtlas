@@ -21,15 +21,16 @@ import { renderWithProviders, makeAuthFetch, screen, waitFor, userEvent } from '
 // DIFFERENT components, so React unmounts one to mount another. Each stub hands
 // up the same share target the real save bar does — an unsaved matrix here, so
 // the dialog opens on the save-and-share form.
-vi.mock('@ui/components/MatrixView', () => ({
-  default: ({ onShareView }) => <button type="button" onClick={() => onShareView({ savedFilterId: null, savedName: null })} data-testid="grid-view">Share…</button>,
-}));
-vi.mock('@ui/components/RotatedMatrixView', () => ({
-  default: ({ onShareView }) => <button type="button" onClick={() => onShareView({ savedFilterId: null, savedName: null })} data-testid="rotated-view">Share…</button>,
-}));
-vi.mock('@ui/components/RollupMatrixView', () => ({
-  default: ({ onShareView }) => <button type="button" onClick={() => onShareView({ savedFilterId: null, savedName: null })} data-testid="rollup-view">Share…</button>,
-}));
+function viewStub(testId) {
+  return {
+    default: ({ onShareView }) => (
+      <button type="button" onClick={() => onShareView({ savedFilterId: null, savedName: null })} data-testid={testId}>Share…</button>
+    ),
+  };
+}
+vi.mock('@ui/components/MatrixView', () => viewStub('grid-view'));
+vi.mock('@ui/components/RotatedMatrixView', () => viewStub('rotated-view'));
+vi.mock('@ui/components/RollupMatrixView', () => viewStub('rollup-view'));
 vi.mock('@ui/components/matrix/MatrixFilterWizard', () => ({ default: () => null }));
 vi.mock('./DetailRoute', () => ({ default: () => <div data-testid="detail" /> }));
 
