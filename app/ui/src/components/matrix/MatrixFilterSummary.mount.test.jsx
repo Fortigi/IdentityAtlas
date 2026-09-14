@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 //
 // The strip above the matrix (#1202):
-//   [<name> ▾] [Unsaved changes] [Shared with N ▾] ····· 45 users × 39 resources · 143 cells [Adjust]
+//   [<name> ▾] [Unsaved changes] [Shared with N ▾] ····· 45 users × 39 resources · 143 assignments [Adjust]
 // The name menu's own behaviour is MatrixNameBar.mount.test.jsx; this file is
 // about the strip as a whole — what it holds, what it no longer holds, and the
 // fingerprint rules that decide which name it shows.
@@ -83,7 +83,7 @@ describe('MatrixFilterSummary — the strip (mounted)', () => {
   it('shows the three live counts and one Adjust button that opens the wizard as usual', async () => {
     const { onAdjust } = renderSummary(seededFilter);
     // Selected counts, not the totals they are "of".
-    expect(screen.getByText('45 users × 39 resources · 143 cells')).toBeInTheDocument();
+    expect(screen.getByText('45 users × 39 resources · 143 assignments')).toBeInTheDocument();
 
     const adjust = screen.getByRole('button', { name: 'Adjust matrix' });
     expect(adjust).toHaveTextContent(/^Adjust$/);
@@ -95,7 +95,7 @@ describe('MatrixFilterSummary — the strip (mounted)', () => {
 
   it('counts identities for an identity matrix', () => {
     renderSummary({ ...seededFilter, rowType: 'identity' });
-    expect(screen.getByText('45 identities × 39 resources · 143 cells')).toBeInTheDocument();
+    expect(screen.getByText('45 identities × 39 resources · 143 assignments')).toBeInTheDocument();
   });
 
   it('shows no counts before they are known', () => {
@@ -107,7 +107,7 @@ describe('MatrixFilterSummary — the strip (mounted)', () => {
     renderSummary(adjustedFilter);
     const row = screen.getByRole('button', { name: 'Adjust matrix' }).parentElement;
     expect(row).toContainElement(await screen.findByRole('button', { name: 'Fortigi Demo Corp — All' }));
-    expect(row).toContainElement(screen.getByText('45 users × 39 resources · 143 cells'));
+    expect(row).toContainElement(screen.getByText('45 users × 39 resources · 143 assignments'));
 
     for (const gone of [/Load matrix/, /^Save matrix/, /^Share…$/]) {
       expect(screen.queryByRole('button', { name: gone })).not.toBeInTheDocument();

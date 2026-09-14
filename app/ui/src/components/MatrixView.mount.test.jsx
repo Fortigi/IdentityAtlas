@@ -193,7 +193,7 @@ describe('MatrixView (mounted)', () => {
 
   it('shows the strip — name, counts and Adjust — when a filter is applied', async () => {
     const { onAdjustFilter } = renderView();
-    expect(screen.getByText(/users × \d+ resources · \d+ cells/)).toBeInTheDocument();
+    expect(screen.getByText(/users × \d+ resources · \d+ assignments/)).toBeInTheDocument();
     expect(await screen.findByRole('button', { name: 'Unsaved matrix' })).toBeInTheDocument();
     await userEvent.setup().click(screen.getByRole('button', { name: 'Adjust matrix' }));
     expect(onAdjustFilter).toHaveBeenCalledTimes(1);
@@ -209,6 +209,9 @@ describe('MatrixView (mounted)', () => {
     const authFetch = makeFetch({ '/api/matrix/saved-filters': [{ id: 'sf-1', name: 'HR users', filter: { rowType: 'principal', managed: 'managed' } }] });
     renderView({ filter: null, onLoadSaved }, authFetch);
     expect(screen.getByRole('heading', { name: 'Open a matrix' })).toBeInTheDocument();
+    // No matrix on screen: no lens to switch and nothing to export.
+    expect(screen.queryByRole('button', { name: 'Governed' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Export/ })).not.toBeInTheDocument();
     await userEvent.setup().click(await screen.findByRole('button', { name: /HR users/ }));
     expect(onLoadSaved).toHaveBeenCalledWith({ rowType: 'principal', savedFilterId: 'sf-1' }, 'managed');
   });

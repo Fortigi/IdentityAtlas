@@ -1,6 +1,6 @@
 // The one strip above the matrix (#1202):
 //
-//   [<Matrix name> ▾]  [Unsaved changes]  [Shared with N ▾]  ·····  45 users × 39 resources · 127 cells  [Adjust]
+//   [<Matrix name> ▾]  [Unsaved changes]  [Shared with N ▾]  ·····  45 users × 39 resources · 127 assignments  [Adjust]
 //
 // "A matrix is a document": the left half names it and holds its document verbs
 // (MatrixNameBar), the right half is what it selects — three live numbers — and

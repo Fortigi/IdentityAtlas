@@ -24,3 +24,5 @@
 - The separate "Saved matrices" dropdown and "Save matrix…" button were removed from the wizard; open saved matrices from the matrix itself.
 - Adjusting a matrix while it is still loading no longer throws away what you had changed in the wizard and sends you back to the first step.
 - When adjusting a saved matrix, emptying its name and typing a new one now saves a new matrix — it can no longer rename or overwrite the matrix you opened (such as the org default).
+- The count strip above the matrix now shows the real number of assignments (it used to read 0), worded the same as in the wizard.
+- With no matrix open, the Matrix tab shows only the list of matrices to open — no view lens or Export button with nothing to apply them to.

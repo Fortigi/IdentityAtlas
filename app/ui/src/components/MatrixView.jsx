@@ -579,11 +579,12 @@ export default function MatrixView({
 
       {filterIsApplied && <MatrixScopePanel filter={filter} />}
 
-      <MatrixToolbar
+      {/* No matrix, no lens and nothing to export: the tab is the "Open a matrix" list. */}
+      {filterIsApplied && <MatrixToolbar
         managedFilter={managedFilter}
         setManagedFilter={setManagedFilter}
         onExportExcel={handleExportExcel}
-      />
+      />}
 
       {!filterIsApplied ? (
         <OpenMatrixList hasData={hasData} onLoad={onLoadSaved} onNew={() => onAdjustFilter?.({ fresh: true })} />

@@ -157,6 +157,8 @@ describe('RotatedMatrixView (mounted)', () => {
   it('renders the "Open a matrix" list when no filter is applied, with New matrix opening a fresh wizard', () => {
     const { onAdjustFilter } = renderView({ filter: null, hasData: true });
     expect(screen.getByRole('heading', { name: 'Open a matrix' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Governed' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Export/ })).not.toBeInTheDocument();
     fireEventClick(screen.getByRole('button', { name: 'New matrix' }));
     expect(onAdjustFilter).toHaveBeenCalledWith({ fresh: true });
   });
@@ -171,7 +173,7 @@ describe('RotatedMatrixView (mounted)', () => {
 
   it('shows the strip with its counts when a filter is applied', async () => {
     renderView({ counts: { subjectCount: 2, resourceCount: 3, assignmentCount: 3 } });
-    expect(screen.getByText('2 users × 3 resources · 3 cells')).toBeInTheDocument();
+    expect(screen.getByText('2 users × 3 resources · 3 assignments')).toBeInTheDocument();
     expect(await screen.findByRole('button', { name: 'Unsaved matrix' })).toBeInTheDocument();
   });
 

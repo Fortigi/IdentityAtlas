@@ -68,7 +68,9 @@ export default function WizardSaveStep({
 
       {canShare && (
         <div className="pt-3 border-t border-gray-100 dark:border-gray-700">
-          <SectionHeading hint="Send it to colleagues who have no Identity Atlas role. They see it read-only, as it stands.">
+          {/* An already-shared matrix says who has it right below, in the
+              recipients editor; the introduction would only repeat that. */}
+          <SectionHeading hint={editing?.shared && !copy ? null : 'Send it to colleagues who have no Identity Atlas role. They see it read-only, as it stands.'}>
             Share with
           </SectionHeading>
           <WizardShareStep

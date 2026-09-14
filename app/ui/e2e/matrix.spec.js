@@ -1137,7 +1137,10 @@ test.describe('Matrix — the strip above the grid', () => {
     // stacked bars would put the name outside the element that holds Adjust.
     const bar = strip(page);
     await expect(bar.locator('button[aria-expanded]').first()).toBeVisible({ timeout: 20000 });
-    await expect(bar.getByText(/^[\d,.]+ users × [\d,.]+ resources · [\d,.]+ cells$/)).toBeVisible();
+    // The assignment count is real, not a placeholder 0 (#1202: /matrix/data never sent it).
+    const counts = bar.getByText(/^[\d,.]+ users × [\d,.]+ resources · [\d,.]+ assignments?$/);
+    await expect(counts).toBeVisible();
+    await expect(counts).not.toHaveText(/· 0 assignments$/);
     await expect(bar.getByRole('button', { name: 'Adjust matrix' })).toBeVisible();
     await expect(bar.getByText('User × Resource')).toHaveCount(0);
   });

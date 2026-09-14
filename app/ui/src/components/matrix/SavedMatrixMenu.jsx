@@ -118,7 +118,9 @@ export default function SavedMatrixMenu({
         <span aria-hidden="true"> ▾</span>
       </button>
       {open && (
-        <div className="absolute left-0 top-full z-20 mt-1 w-80 rounded border border-gray-200 bg-white shadow-lg dark:border-gray-600 dark:bg-gray-800">
+        // z-50: above the grid's sticky header cells (z-40), which otherwise
+        // paint over the list — same layer as the Export menu and legend popover.
+        <div className="absolute left-0 top-full z-50 mt-1 w-80 rounded border border-gray-200 bg-white shadow-lg dark:border-gray-600 dark:bg-gray-800">
           {savedFilters.length === 0 ? (
             <div className="px-3 py-2 text-xs italic text-gray-600 dark:text-gray-400">No saved matrices yet</div>
           ) : (

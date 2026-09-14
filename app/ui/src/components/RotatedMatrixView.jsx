@@ -81,11 +81,12 @@ export default function RotatedMatrixView({
         />
       )}
 
-      <MatrixToolbar
+      {/* No matrix, no lens and nothing to export: the tab is the "Open a matrix" list. */}
+      {filterIsApplied && <MatrixToolbar
         managedFilter={managedFilter === 'gaps' ? 'all' : managedFilter}
         setManagedFilter={setManagedFilter}
         onExportExcel={handleExportExcel}
-      />
+      />}
 
       {exportTip && (
         <div className="text-xs text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded px-3 py-1">
