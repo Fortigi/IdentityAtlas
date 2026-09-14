@@ -2220,6 +2220,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#system-naming" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        System naming
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#network-access" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5150,6 +5161,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#system-naming" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        System naming
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#network-access" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5502,8 +5524,8 @@ credential check: a failure is reported inline with the reason.</p>
 </tr>
 <tr>
 <td><code>systemName</code></td>
-<td>No (default <code>SCIM</code>)</td>
-<td>How this source is labelled in Identity Atlas</td>
+<td>No</td>
+<td>Overrides how this source is labelled in Identity Atlas. Omit it and the system is named after the crawler itself (<code>SCIM</code> only when the crawler has no name) — see <a href="#system-naming">System naming</a></td>
 </tr>
 <tr>
 <td><code>pageSize</code></td>
@@ -5529,6 +5551,14 @@ credential check: a failure is reported inline with the reason.</p>
 </table>
 <p>Secrets (<code>password</code>, <code>apiToken</code>, <code>clientSecret</code>) are never stored in the config blob
 — they go to the secrets vault and are injected into the job at dispatch time.</p>
+<h3 id="system-naming">System naming<a class="headerlink" href="#system-naming" title="Permanent link">&para;</a></h3>
+<p>The Identity Atlas <strong>system</strong> this crawler registers is named after the crawler itself. Name the
+crawler <em>SAP CIS</em> and the Systems list shows <em>SAP CIS</em> — so several SCIM crawlers side by side stay
+distinguishable. Rename the crawler and the system follows on its next run (the system is keyed on
+its base URL, so the row is updated, not duplicated).</p>
+<p>Fill in the wizard's optional <strong>System name</strong> field only to label the system as something other
+than the crawler — it is an override and always wins. Leaving it blank is not a choice of the
+literal <code>SCIM</code>: that name is used only when the crawler has no name at all.</p>
 <h3 id="network-access">Network access<a class="headerlink" href="#network-access" title="Permanent link">&para;</a></h3>
 <p>A SaaS SCIM endpoint on public https needs no extra setting. For a SCIM service provider inside
 your network, tick <strong>Allow private network</strong> in the wizard (<code>allowPrivateNetwork: true</code>); for
