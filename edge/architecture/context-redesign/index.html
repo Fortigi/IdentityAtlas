@@ -5746,7 +5746,7 @@
 </code></pre></div>
 <p>The runner reconciles the plugin output with existing <code>Contexts</code> rows where <code>sourceAlgorithmId</code> matches: insert new, update changed, delete missing. Manual children grafted under a generated parent are preserved by <code>parentContextId</code>.</p>
 <h3 id="42-initial-plugin-set">4.2 Initial plugin set<a class="headerlink" href="#42-initial-plugin-set" title="Permanent link">&para;</a></h3>
-<p>The registry ships <strong>ten</strong> plugins (<code>app/api/src/contexts/plugins/registry.js</code>):</p>
+<p>The registry ships <strong>twelve</strong> plugins (<code>app/api/src/contexts/plugins/registry.js</code>):</p>
 <table>
 <thead>
 <tr>
@@ -5782,6 +5782,12 @@
 <td>One bucket per distinct principal type.</td>
 </tr>
 <tr>
+<td><code>system-membership-principals</code></td>
+<td>Principal</td>
+<td><code>Principals.systemId</code></td>
+<td>One context per connected system, named after the system's <code>displayName</code> and keyed on its id (so a rename updates in place). Scopes the matrix to the accounts loaded from one source system.</td>
+</tr>
+<tr>
 <td><code>orphaned-accounts</code></td>
 <td>Principal</td>
 <td>Principals with no <code>IdentityMembers</code> row</td>
@@ -5798,6 +5804,12 @@
 <td>Resource</td>
 <td><code>azureResourceType</code> (or another <code>extendedAttributes</code> key)</td>
 <td>One bucket per distinct resource type.</td>
+</tr>
+<tr>
+<td><code>system-membership-resources</code></td>
+<td>Resource</td>
+<td><code>Resources.systemId</code></td>
+<td>The resource-side mirror of <code>system-membership-principals</code>; both share <code>system-membership.helpers.js</code>. Two plugins rather than one because a plugin declares a single <code>targetType</code> and the runner stamps it on every context and member it writes.</td>
 </tr>
 <tr>
 <td><code>scope-hierarchy</code></td>

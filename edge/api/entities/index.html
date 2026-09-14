@@ -2609,6 +2609,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#the-virtual-__system-filter-column" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The virtual __system filter column
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -5509,6 +5520,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#the-virtual-__system-filter-column" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The virtual __system filter column
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -6186,8 +6208,13 @@
 <h2 id="users">Users<a class="headerlink" href="#users" title="Permanent link">&para;</a></h2>
 <h3 id="column-discovery">Column Discovery<a class="headerlink" href="#column-discovery" title="Permanent link">&para;</a></h3>
 <h4 id="get-apiuser-columns-page">GET /api/user-columns-page<a class="headerlink" href="#get-apiuser-columns-page" title="Permanent link">&para;</a></h4>
-<p>Column discovery for the Users page. Returns all populated columns from the <code>Principals</code> table with the alphabetically first page of distinct values each (500 by default — see <code>MATRIX_VALUE_PAGE_SIZE</code> in <a href="../matrix/#get-apimatrixcolumns">matrix.md</a>), plus the virtual <code>__userTag</code> column if any user tags exist. Used to build the filter UI on the Users page.</p>
+<p>Column discovery for the Users page. Returns all populated columns from the <code>Principals</code> table with the alphabetically first page of distinct values each (500 by default — see <code>MATRIX_VALUE_PAGE_SIZE</code> in <a href="../matrix/#get-apimatrixcolumns">matrix.md</a>), plus the virtual <code>__userTag</code> column if any user tags exist and the virtual <code>__system</code> column (see below). Used to build the filter UI on the Users page.</p>
 <p>Same response format as <a href="../matrix/#get-apiuser-columns"><code>GET /api/user-columns</code></a>.</p>
+<hr />
+<h4 id="the-virtual-__system-filter-column">The virtual <code>__system</code> filter column<a class="headerlink" href="#the-virtual-__system-filter-column" title="Permanent link">&para;</a></h4>
+<p><code>/api/user-columns-page</code>, <code>/api/group-columns</code> (alias <code>/api/resource-columns-page</code>) and <code>/api/resource-columns</code> all offer a <code>__system</code> column whose values are the <code>Systems.displayName</code> of every connected system. The values come from the <code>Systems</code> table, not from distinct row values, so a system with no principals or resources is still offered as a filter value. On the <code>?schema=true</code> fast path the column is returned with an empty value list.</p>
+<p>Passing it back as a filter — <code>filters={"__system":"&lt;displayName&gt;"}</code> on <code>/api/users</code>, <code>/api/groups</code> or <code>/api/resources</code> — narrows the list to that system's rows. <code>Systems.displayName</code> is not unique, so two systems sharing a name both match.</p>
+<p>The raw <code>systemId</code> column stays excluded from column discovery (<code>db/columnCache.js</code>) on purpose: surfacing it there would put an opaque integer field into every discovery-driven surface (the matrix attribute picker, the permissions grid, tags, the context-plugin attribute dropdown). <code>__system</code> is a list-page filter only.</p>
 <hr />
 <h3 id="user-list">User List<a class="headerlink" href="#user-list" title="Permanent link">&para;</a></h3>
 <h4 id="get-apiusers">GET /api/users<a class="headerlink" href="#get-apiusers" title="Permanent link">&para;</a></h4>
@@ -6225,7 +6252,7 @@
 <td><code>filters</code></td>
 <td>JSON string</td>
 <td></td>
-<td>Attribute filters. Same format as <a href="../matrix/#filter-architecture">Matrix filters</a>.</td>
+<td>Attribute filters. Same format as <a href="../matrix/#filter-architecture">Matrix filters</a>. Also accepts the virtual <code>__userTag</code> and <code>__system</code> keys.</td>
 </tr>
 </tbody>
 </table>
@@ -6323,7 +6350,7 @@
 <h2 id="resources">Resources<a class="headerlink" href="#resources" title="Permanent link">&para;</a></h2>
 <h3 id="column-discovery_1">Column Discovery<a class="headerlink" href="#column-discovery_1" title="Permanent link">&para;</a></h3>
 <h4 id="get-apigroup-columns">GET /api/group-columns<a class="headerlink" href="#get-apigroup-columns" title="Permanent link">&para;</a></h4>
-<p>Column discovery for the Groups/Resources page. Returns populated columns from the <code>Resources</code> table with the alphabetically first page of distinct values each (500 by default — see <code>MATRIX_VALUE_PAGE_SIZE</code> in <a href="../matrix/#get-apimatrixcolumns">matrix.md</a>), plus the virtual <code>__groupTag</code> column if any group tags exist.</p>
+<p>Column discovery for the Groups/Resources page. Returns populated columns from the <code>Resources</code> table with the alphabetically first page of distinct values each (500 by default — see <code>MATRIX_VALUE_PAGE_SIZE</code> in <a href="../matrix/#get-apimatrixcolumns">matrix.md</a>), plus the virtual <code>__groupTag</code> column if any group tags exist and the virtual <code>__system</code> column (see below).</p>
 <p><strong>Reads From:</strong> <code>Resources</code> (via <code>db/columnCache.js</code>, 5-minute TTL)</p>
 <hr />
 <h3 id="resource-list">Resource List<a class="headerlink" href="#resource-list" title="Permanent link">&para;</a></h3>
@@ -6379,7 +6406,7 @@
 <td><code>filters</code></td>
 <td>JSON string</td>
 <td></td>
-<td>Attribute filters.</td>
+<td>Attribute filters. Also accepts the virtual <code>__resourceTag</code> and <code>__system</code> keys.</td>
 </tr>
 </tbody>
 </table>
