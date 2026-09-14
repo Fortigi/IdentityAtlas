@@ -77,6 +77,17 @@ describe('prepareJobConfig', () => {
   it('returns null configJson for a null config', () => {
     expect(prepareJobConfig(null, null, 'delta').configJson).toBe(null);
   });
+  // A crawler can only name the system it registers after the name it was given
+  // in the UI if that name actually reaches the run. Stamped generically (like
+  // _syncMode) so every crawler type can read it, not just the one that needs it.
+  it('stamps the crawler name into the job config as _configName', () => {
+    const { configToStore } = prepareJobConfig({ baseUrl: 'https://h/scim' }, 7, 'full', 'ABC');
+    expect(configToStore._configName).toBe('ABC');
+  });
+  it('omits _configName when the crawler has no name', () => {
+    expect(prepareJobConfig({ baseUrl: 'https://h/scim' }, 7, 'full').configToStore)
+      .not.toHaveProperty('_configName');
+  });
 });
 
 describe('resolveJobConfig', () => {
@@ -95,6 +106,18 @@ describe('resolveJobConfig', () => {
     const r = await resolveJobConfig(mockPool([{ config: '{"x":2}', nextRunMode: null }]), null, 5);
     expect(r.resolvedConfig).toEqual({ x: 2 });
     expect(r.configNextRunMode).toBe('delta');
+  });
+  it('returns the stored crawler name alongside the config', async () => {
+    const r = await resolveJobConfig(mockPool([{ config: { x: 1 }, nextRunMode: 'full', displayName: 'ABC' }]), null, 5);
+    expect(r.configName).toBe('ABC');
+  });
+  // The mock pool is SQL-blind, so the assertion above would still pass if the
+  // query never asked for the column. Pin the SELECT too.
+  it('selects displayName from CrawlerConfigs', async () => {
+    let seenSql = '';
+    const capturingPool = { query: async (sql) => { seenSql = sql; return { rows: [{ config: {}, nextRunMode: 'full', displayName: 'ABC' }] }; } };
+    await resolveJobConfig(capturingPool, null, 5);
+    expect(seenSql).toMatch(/"displayName"/);
   });
 });
 
