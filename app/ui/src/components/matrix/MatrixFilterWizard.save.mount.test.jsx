@@ -195,6 +195,40 @@ describe('MatrixFilterWizard — Save & share', () => {
       expect(bodiesSent(authFetch, `${SAVED_URL}/sf-1`, 'PUT')).toEqual([]);
     });
 
+    // Emptying the name and typing another must never rename — and so overwrite —
+    // the matrix that was opened (the org default, in the e2e that caught this).
+    it('treats a name typed after emptying it as a NEW matrix, leaving the original untouched', async () => {
+      const { user, onApply, authFetch } = await openSaveStep({ initialFilter: HR_FILTER }, editFetch());
+      await waitFor(() => expect(nameField()).toHaveValue('HR users'));
+      await divergeFromSaved(user);
+
+      await user.clear(nameField());
+      expect(screen.getByRole('textbox', { name: 'Description' })).toHaveValue('');
+      await user.type(nameField(), 'HR managers');
+      expect(primary('Save & show')).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Save changes & show' })).not.toBeInTheDocument();
+
+      await user.click(primary('Save & show'));
+      await waitFor(() => expect(onApply).toHaveBeenCalledTimes(1));
+      const [post] = bodiesSent(authFetch, SAVED_URL, 'POST');
+      expect(post.name).toBe('HR managers');
+      expect(post.description).toBeNull();
+      expect(bodiesSent(authFetch, `${SAVED_URL}/sf-1`, 'PUT')).toEqual([]);
+      expect(onApply.mock.calls[0][0].savedFilterId).toBe('sf-new');
+    });
+
+    it('refuses the original name after emptying it, rather than clashing or overwriting', async () => {
+      const { user, authFetch } = await openSaveStep({ initialFilter: HR_FILTER }, editFetch());
+      await waitFor(() => expect(nameField()).toHaveValue('HR users'));
+      await divergeFromSaved(user);
+      await user.clear(nameField());
+      await user.type(nameField(), 'HR users');
+      await user.click(primary('Save & show'));
+      expect(screen.getByRole('alert')).toHaveTextContent('Give the copy a different name');
+      expect(bodiesSent(authFetch, SAVED_URL, 'POST')).toEqual([]);
+      expect(bodiesSent(authFetch, `${SAVED_URL}/sf-1`, 'PUT')).toEqual([]);
+    });
+
     it('saves changes back with a PUT, warning that its recipients will see them', async () => {
       const { user, onApply, authFetch } = await openSaveStep({ initialFilter: HR_FILTER, initialManaged: 'managed' }, editFetch());
       await waitFor(() => expect(nameField()).toHaveValue('HR users'));

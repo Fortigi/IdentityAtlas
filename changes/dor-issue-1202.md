@@ -23,3 +23,4 @@
 - A saved matrix can now carry a description, added from the wizard's Save & share step.
 - The separate "Saved matrices" dropdown and "Save matrix…" button were removed from the wizard; open saved matrices from the matrix itself.
 - Adjusting a matrix while it is still loading no longer throws away what you had changed in the wizard and sends you back to the first step.
+- When adjusting a saved matrix, emptying its name and typing a new one now saves a new matrix — it can no longer rename or overwrite the matrix you opened (such as the org default).

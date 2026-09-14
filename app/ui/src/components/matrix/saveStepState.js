@@ -51,6 +51,14 @@ export function primaryAction({ name, recipientCount = 0, editing = null, copy =
   return { kind: 'show', label: 'Show matrix' };
 }
 
+// Does this edit of the name field let go of the saved matrix being edited?
+// Emptying the name says "this is not that matrix any more": from there a name
+// typed in is a NEW matrix, never a rename that overwrites the one opened —
+// the org default included (#1202).
+export function detachesFromSaved({ editing = null, copy = false, name }) {
+  return !!editing && !copy && !trimmed(name);
+}
+
 // Why the name field refuses a click, or null when it doesn't.
 export function nameProblem(action, { name, editing = null, copy = false }) {
   if (action.kind === 'needName') return 'Name this matrix to share it';

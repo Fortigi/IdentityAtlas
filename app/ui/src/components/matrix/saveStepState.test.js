@@ -6,7 +6,7 @@
 
 import { describe, it, expect } from 'vitest';
 import {
-  LENS_VALUES, lensOf, isDirty, primaryAction, nameProblem, savedMatrixBody, copyNameOf,
+  LENS_VALUES, lensOf, isDirty, primaryAction, nameProblem, savedMatrixBody, copyNameOf, detachesFromSaved,
 } from './saveStepState';
 
 const EDITING = { id: 'sf-1', name: 'HR users', description: 'People in HR', filter: { managed: 'gaps' } };
@@ -125,5 +125,18 @@ describe('copyNameOf', () => {
   it('suggests a name that differs from the original', () => {
     expect(copyNameOf(' HR users ')).toBe('HR users (copy)');
     expect(nameProblem({ kind: 'create' }, { name: copyNameOf(EDITING.name), editing: EDITING, copy: true })).toBeNull();
+  });
+});
+
+describe('detachesFromSaved', () => {
+  it('lets go of the edited matrix only when its name is emptied', () => {
+    expect(detachesFromSaved({ editing: EDITING, name: '' })).toBe(true);
+    expect(detachesFromSaved({ editing: EDITING, name: '   ' })).toBe(true);
+    expect(detachesFromSaved({ editing: EDITING, name: 'HR use' })).toBe(false);
+  });
+
+  it('does nothing for a new matrix, or one already detached as a copy', () => {
+    expect(detachesFromSaved({ editing: null, name: '' })).toBe(false);
+    expect(detachesFromSaved({ editing: EDITING, copy: true, name: '' })).toBe(false);
   });
 });

@@ -9,7 +9,7 @@
 
 import { useState } from 'react';
 import {
-  isDirty, primaryAction, nameProblem, savedMatrixBody, copyNameOf,
+  isDirty, primaryAction, nameProblem, savedMatrixBody, copyNameOf, detachesFromSaved,
 } from './saveStepState';
 import { shareRequestBody, sharedWithLabel, tagWithSavedMatrix } from './shareState';
 import { sendJson, isNameClash } from './matrixRequests';
@@ -92,7 +92,17 @@ export function useWizardSave({ authFetch, dialog, editing, savedMatch, showAs, 
   }
 
   return {
-    name, setName: (v) => { setNameDraft(v); setNameError(null); },
+    name,
+    setName: (v) => {
+      // Emptied while editing a saved matrix: detach, so the next name is a new
+      // matrix (and the description it inherited stays with the old one).
+      if (detachesFromSaved({ editing, copy, name: v })) {
+        setCopy(true);
+        setDescriptionDraft('');
+      }
+      setNameDraft(v);
+      setNameError(null);
+    },
     description, setDescription: setDescriptionDraft,
     recipients, setRecipients: (v) => { setRecipients(v); setNameError(null); },
     copy,
