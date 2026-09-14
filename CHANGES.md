@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Published the September 2026 security re-assessment in the documentation: scope, method, all findings by severity with their remediation pull requests, a regression check against June 2026, and confirmed strengths
+
+## Changes in this PR
+
 - Hardened the outbound-URL safety check so every spelling of an internal, loopback, or cloud-metadata address (including IPv6 forms that embed an IPv4 address) is refused (SEC-2026-09 H-03)
 - Hardened the Risky Consent context plugin's threat-feed download: the feed URL must be https on a public host, redirects are not followed, and oversized responses are refused (SEC-2026-09 M-12)
 - Crawler base URLs and OAuth2 token endpoints are now checked when a crawler is saved, run, or used for live discovery: they must use https and point at a public address. On-premises systems can be reached by enabling the new "Allow private network" option, and plain http by enabling "Allow insecure HTTP"; cloud-metadata and link-local addresses are always refused (SEC-2026-09 M-02, M-03)

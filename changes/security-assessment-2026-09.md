@@ -1,1 +1,0 @@
-- Published the September 2026 security re-assessment in the documentation: scope, method, all findings by severity with their remediation pull requests, a regression check against June 2026, and confirmed strengths
