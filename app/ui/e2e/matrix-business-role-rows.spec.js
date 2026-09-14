@@ -163,6 +163,8 @@ test.describe('#937 — business roles are not matrix rows', () => {
     // Not vacuous: the grid itself rendered, and the legend still explains the
     // markers a default matrix CAN draw.
     await expect(page.locator('tbody tr').first()).toBeVisible();
-    await expect(page.getByText('Provisioning gap')).toBeVisible();
+    // The legend is a "?" popover in the grid's corner now (#1202).
+    await page.locator('thead').getByRole('button', { name: 'How to read this matrix' }).first().click();
+    await expect(page.getByRole('dialog', { name: 'How to read this matrix' }).getByText('Provisioning gap')).toBeVisible();
   });
 });
