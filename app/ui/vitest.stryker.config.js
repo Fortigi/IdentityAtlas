@@ -46,6 +46,8 @@ export default defineConfig({
       'src/components/crawler/crawlerWizardHooks.test.jsx',
       'src/utils/attributeLabels.test.js',
       'src/hooks/useAttributeLabels.test.jsx',
+      'src/components/matrix/shareState.test.js',
+      'src/components/matrix/useSavedMatrixNaming.test.js',
     ],
     exclude: ['**/node_modules/**'],
   },

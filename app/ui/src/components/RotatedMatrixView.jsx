@@ -19,36 +19,8 @@ import GridResizeHandle from './matrix/GridResizeHandle';
 import MatrixToolbar from './matrix/MatrixToolbar';
 import MatrixFilterSummary from './matrix/MatrixFilterSummary';
 import MatrixCell from './matrix/MatrixCell';
+import OpenMatrixList from './matrix/OpenMatrixList';
 import { buildMatrixIndexes, buildTypeSpans } from './RotatedMatrixView.helpers';
-
-function EmptyState({ onAdjustFilter, hasData }) {
-  if (hasData === false) {
-    return (
-      <div className="border border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-10 text-center bg-white dark:bg-gray-800">
-        <h2 className="text-base font-semibold text-gray-800 dark:text-gray-200 mb-1">No data available yet</h2>
-        <p className="text-sm text-gray-600 dark:text-gray-400 max-w-xl mx-auto">
-          Run a crawler first to import users and resources. Once data is loaded you can build a matrix here.
-        </p>
-      </div>
-    );
-  }
-  if (hasData === null) return null;
-  return (
-    <div className="border border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-10 text-center bg-white dark:bg-gray-800">
-      <h2 className="text-base font-semibold text-gray-800 dark:text-gray-200 mb-1">Pick a slice to inspect</h2>
-      <p className="text-sm text-gray-600 dark:text-gray-400 max-w-xl mx-auto mb-4">
-        The Matrix tab always operates on a defined sub-selection of subjects (users or
-        identities) and resources. Open the wizard to set up which slice to compare.
-      </p>
-      <button
-        onClick={onAdjustFilter}
-        className="px-4 py-2 rounded text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-600"
-      >
-        Create matrix
-      </button>
-    </div>
-  );
-}
 
 export default function RotatedMatrixView({
   data,
@@ -138,7 +110,7 @@ export default function RotatedMatrixView({
       )}
 
       {!filterIsApplied ? (
-        <EmptyState onAdjustFilter={onAdjustFilter} hasData={hasData} />
+        <OpenMatrixList hasData={hasData} onLoad={onLoadSaved} onNew={() => onAdjustFilter?.({ fresh: true })} />
       ) : users.length === 0 || resources.length === 0 ? (
         <div className="text-center text-gray-500 dark:text-gray-400 py-12">
           No assignments match the current matrix. Adjust the subjects or resources to widen the view.

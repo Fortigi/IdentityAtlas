@@ -104,7 +104,7 @@ test.describe('#937 — business roles are not matrix rows', () => {
     await page.goto(`${BASE}/#matrix`);
     await page.waitForLoadState('networkidle');
 
-    const openWizard = page.getByRole('button', { name: /Create matrix|Adjust matrix/ }).first();
+    const openWizard = page.getByRole('button', { name: /^(New matrix|Adjust matrix)$/ }).first();
     await expect(openWizard).toBeVisible({ timeout: 60000 });
     await openWizard.click();
 

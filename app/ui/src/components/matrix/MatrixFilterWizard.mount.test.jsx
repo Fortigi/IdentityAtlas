@@ -69,6 +69,7 @@ function renderWizard(props = {}, authFetch = makeFetch(), features = { matrixSh
       open: props.open ?? true,
       initialFilter: props.initialFilter,
       initialManaged: props.initialManaged,
+      initialStep: props.initialStep,
       onApply,
       onClose,
     }),
@@ -551,8 +552,16 @@ describe('MatrixFilterWizard (mounted)', () => {
       expect((await applyOpenedOn(hrFilter)).savedFilterId).toBe('sf-share');
     });
 
-    it('applies an unsaved matrix without a tag', async () => {
+    // #1202: a CHANGED matrix keeps the tag of the saved one it came from, so
+    // the strip keeps its name and says it has unsaved changes.
+    it('keeps the tag of the saved matrix it was opened on when the matrix was changed', async () => {
       const applied = await applyOpenedOn({ ...hrFilter, rowType: 'identity', savedFilterId: 'sf-1' });
+      expect(applied.rowType).toBe('identity');
+      expect(applied.savedFilterId).toBe('sf-1');
+    });
+
+    it('applies a matrix that never came from a saved one without a tag', async () => {
+      const applied = await applyOpenedOn({ ...hrFilter, rowType: 'identity' });
       expect(applied).not.toHaveProperty('savedFilterId');
     });
 
@@ -724,5 +733,45 @@ describe('MatrixFilterWizard — the Save/Share step (#1166, #1202)', () => {
     expect(await screen.findByText(/too large to load, so there is nothing to share/i)).toBeInTheDocument();
     expect(screen.queryByRole('textbox', { name: /Share with/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Save & share' })).not.toBeInTheDocument();
+  });
+});
+
+// #1202: the strip's "Unsaved changes" opens the wizard straight on its last
+// (save/share) step; everything else still opens on the first.
+describe('MatrixFilterWizard — initialStep', () => {
+  const opened = { rowType: 'principal', subject: { include: [], exclude: [] }, resource: { include: [], exclude: [] } };
+
+  it('opens on the step it is given', async () => {
+    renderWizard({ initialFilter: opened, initialStep: 'share' });
+    expect(await screen.findByText('Share this matrix (optional)')).toBeInTheDocument();
+    expect(screen.queryByText('User accounts')).not.toBeInTheDocument();
+  });
+
+  it('opens on the first step without one', async () => {
+    renderWizard({ initialFilter: opened });
+    expect(await screen.findByText('User accounts')).toBeInTheDocument();
+    expect(screen.queryByText('Share this matrix (optional)')).not.toBeInTheDocument();
+  });
+
+  it('opens on the step again every time it is reopened, not where it was left', async () => {
+    const authFetch = makeFetch();
+    function Harness() {
+      const [open, setOpen] = useState(true);
+      return (
+        <>
+          <button type="button" onClick={() => setOpen(o => !o)}>toggle wizard</button>
+          <MatrixFilterWizard open={open} initialFilter={opened} initialStep="share" onApply={vi.fn()} onClose={vi.fn()} />
+        </>
+      );
+    }
+    renderWithProviders(<Harness />, { auth: { authFetch }, features: { matrixSharing: true } });
+    const user = userEvent.setup();
+    expect(await screen.findByText('Share this matrix (optional)')).toBeInTheDocument();
+    await user.click(screen.getByText('Setup'));
+    expect(await screen.findByText('User accounts')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'toggle wizard' }));
+    await user.click(screen.getByRole('button', { name: 'toggle wizard' }));
+    expect(await screen.findByText('Share this matrix (optional)')).toBeInTheDocument();
   });
 });

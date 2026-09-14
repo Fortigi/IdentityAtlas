@@ -67,8 +67,9 @@ export async function openWizard(page, { beforeOpen } = {}) {
   await page.goto(`${BASE}/#matrix`);
   await page.waitForLoadState('networkidle');
 
-  // "Create matrix" on the empty state, "Adjust matrix" once a matrix is loaded.
-  const open = page.getByRole('button', { name: /Create matrix|Adjust matrix/ }).first();
+  // "New matrix" on the "Open a matrix" empty state, "Adjust matrix" (the
+  // strip's Adjust button) once a matrix is loaded (#1202).
+  const open = page.getByRole('button', { name: /^(New matrix|Adjust matrix)$/ }).first();
   await expect(open).toBeVisible({ timeout: 60000 });
   const armed = beforeOpen?.();
   await open.click();

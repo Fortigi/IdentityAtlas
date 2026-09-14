@@ -21,16 +21,16 @@ test.describe('Matrix View', () => {
 
   test('matrix renders with rows and columns', async ({ page }) => {
     test.slow(); // Triple timeout — permissions API cold start takes 20-30s on CI
-    // Matrix tab now opens to the wizard empty state when no filter is
-    // saved. The "matrix page renders" assertion needs to accept either:
-    //   (a) the rendered grid (a saved filter is available), OR
-    //   (b) the empty-state heading + "Create matrix" button (no filter yet).
+    // With no org-default matrix the Matrix tab opens on the "Open a matrix"
+    // list (#1202). The "matrix page renders" assertion needs to accept either:
+    //   (a) the rendered grid (a default matrix is available), OR
+    //   (b) the "Open a matrix" heading (no matrix on screen yet).
     // Both prove the page rendered without crashing, which is the spirit of
     // this smoke test. Walking the wizard from inside Playwright is brittle
     // (race against the modal's transition / data prefetch in CI), so we
     // leave that to per-wizard tests.
     const table = page.locator('table').first();
-    const emptyHeading = page.getByRole('heading', { name: /Pick a slice to inspect/i });
+    const emptyHeading = page.getByRole('heading', { name: 'Open a matrix' });
     await expect(table.or(emptyHeading)).toBeVisible({ timeout: 60000 });
   });
 
@@ -61,7 +61,7 @@ test.describe('Matrix View', () => {
   test('"How to read this matrix" legend is available when a matrix is applied', async ({ page }) => {
     test.slow(); // permissions API cold start
     const table = page.locator('table').first();
-    const emptyHeading = page.getByRole('heading', { name: /Pick a slice to inspect/i });
+    const emptyHeading = page.getByRole('heading', { name: 'Open a matrix' });
     // Either the grid or the empty state renders; the legend only accompanies
     // the grid (it shows once a matrix filter is applied).
     await expect(table.or(emptyHeading)).toBeVisible({ timeout: 60000 });
@@ -73,13 +73,18 @@ test.describe('Matrix View', () => {
   });
 
   // "Copy link" copies the current URL for another analyst. Sharing WITH a
-  // colleague who has no Identity Atlas role is a different act and, since
-  // #1202, has exactly one home — the Load / Save / Share bar. Two controls for
-  // it in the same toolbar was the ambiguity #1166 shipped with.
-  test('the toolbar has Copy link, and sharing lives on the save bar', async ({ page }) => {
+  // colleague who has no Identity Atlas role is a different act: since #1202 a
+  // share is created in the wizard's last step and, once it exists, managed from
+  // the strip's "Shared with N" chip. Two controls for it in the same toolbar
+  // was the ambiguity #1166 shipped with; the strip's old Load / Save / Share
+  // buttons are gone too.
+  test('the toolbar has Copy link, and the strip no longer carries Load / Save / Share', async ({ page }) => {
     await expect(page.getByRole('button', { name: 'Copy link' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Share view…' })).toHaveCount(0);
-    await expect(page.getByRole('button', { name: /Load matrix/ })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Adjust matrix' })).toBeVisible();
+    await expect(page.getByRole('button', { name: /Load matrix/ })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /^Save matrix/ })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Share…', exact: true })).toHaveCount(0);
   });
 
   test('export button exists', async ({ page }) => {
@@ -802,17 +807,20 @@ function trackMatrixLoads(page) {
   return loads;
 }
 
-// The name the strip gives the applied matrix: the saved matrix it came from,
-// or "Unsaved changes". It's the first badge on the strip — the strip being the
-// innermost element that holds the "Adjust matrix" button, which since #1202
-// carries the save controls too. Waits out the "…" the badge shows while the
-// saved-matrix list is still loading.
+// The name the strip gives the applied matrix (#1202): the name menu's trigger
+// — the saved matrix it is, or "Unsaved matrix" — suffixed with " (Unsaved
+// changes)" when that chip is showing. The strip is the innermost element that
+// holds the "Adjust matrix" button; the name menu is its first expandable
+// button. Waits out the "Loading matrix…" it shows while the saved-matrix list
+// is still loading.
 async function savedBadgeText(page) {
   const bar = page.locator('div')
     .filter({ has: page.getByRole('button', { name: 'Adjust matrix' }) }).last();
-  const badge = bar.locator('> span').first();
-  await expect(badge).not.toHaveText('…', { timeout: 20000 });
-  return (await badge.innerText()).trim();
+  const nameMenu = bar.locator('button[aria-expanded]').first();
+  await expect(nameMenu).not.toHaveText(/Loading matrix…/, { timeout: 20000 });
+  const name = (await nameMenu.innerText()).replace('▾', '').trim();
+  const changed = await bar.getByRole('button', { name: 'Unsaved changes' }).count();
+  return changed ? `${name} (Unsaved changes)` : name;
 }
 
 // The resource names currently rendered in the grid's pinned name column.
@@ -907,7 +915,7 @@ test.describe('Matrix — adjust without changing anything', () => {
     // not a look-alike relabelled as unsaved.
     await expect.poll(() => savedBadgeText(page), { timeout: 20000 }).toBe(savedNameBefore);
     expect(savedNameBefore, 'the matrix read as unsaved before the adjust too — the check above proves nothing')
-      .not.toMatch(/^(Not saved|Unsaved changes)$/);
+      .not.toMatch(/^Unsaved matrix$|\(Unsaved changes\)$/);
   });
 
   test('a matrix shared as a link survives an adjust that changes nothing', async ({ page }) => {
@@ -1072,16 +1080,17 @@ test.describe('Matrix — the strip above the grid', () => {
     return true;
   }
 
-  test('the save controls and the filter summary share one row', async ({ page }) => {
+  test('the name, the counts and Adjust share one row', async ({ page }) => {
     test.skip(!await openMatrix(page), 'matrix grid did not render (no data)');
 
-    // All three inside the SAME element: which matrix this is (Load), what it
-    // selects (the Rows chip), and how to change it (Adjust). Two stacked bars
-    // would put Load outside the element that holds Adjust.
+    // All three inside the SAME element: which matrix this is (the name menu),
+    // what it selects (the live counts), and how to change it (Adjust). Two
+    // stacked bars would put the name outside the element that holds Adjust.
     const bar = strip(page);
-    await expect(bar.getByRole('button', { name: /Load matrix/ })).toBeVisible({ timeout: 20000 });
-    await expect(bar.getByText('User × Resource')).toBeVisible();
+    await expect(bar.locator('button[aria-expanded]').first()).toBeVisible({ timeout: 20000 });
+    await expect(bar.getByText(/^[\d,.]+ users × [\d,.]+ resources · [\d,.]+ cells$/)).toBeVisible();
     await expect(bar.getByRole('button', { name: 'Adjust matrix' })).toBeVisible();
+    await expect(bar.getByText('User × Resource')).toHaveCount(0);
   });
 
   test('trends & breakdown is off by default and the Sort step switches it on', async ({ page }) => {
