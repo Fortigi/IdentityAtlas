@@ -5,7 +5,7 @@
 // against is a matrix that still reads as shared after its link was revoked.
 
 import { describe, it, expect } from 'vitest';
-import { matchSavedMatrix, activeShareOf, sharedWithLabel, liveShareWarning } from './shareState';
+import { matchSavedMatrix, activeShareOf, sharedWithLabel, liveShareWarning, wizardPreferredSavedId, tagWithSavedMatrix } from './shareState';
 
 const FILTER = {
   rowType: 'principal',
@@ -46,6 +46,13 @@ describe('matchSavedMatrix', () => {
       // Loaded from "Everyone", then changed into HR users' filter.
       expect(matchSavedMatrix(twins, { ...FILTER, savedFilterId: 'sf-2' })?.id).toBe('sf-share');
       expect(matchSavedMatrix(twins, { ...FILTER, savedFilterId: 'sf-deleted' })?.id).toBe('sf-share');
+    });
+
+    it('prefers the org default for an untagged view, before whichever twin sorts first', () => {
+      const withDefault = [twins[0], { ...twins[1], isDefault: true }];
+      expect(matchSavedMatrix(withDefault, FILTER)?.id).toBe('sf-1');
+      // …and the default still yields to an explicit tag.
+      expect(matchSavedMatrix(withDefault, { ...FILTER, savedFilterId: 'sf-share' })?.id).toBe('sf-share');
     });
 
     it('does not let the tag itself make two filters differ', () => {
@@ -100,5 +107,21 @@ describe('liveShareWarning', () => {
 
   it('says nothing when there is no share to warn about', () => {
     expect(liveShareWarning(null)).toBe('');
+  });
+});
+
+describe('wizardPreferredSavedId', () => {
+  it('prefers the matrix being edited over the one the wizard was opened on', () => {
+    expect(wizardPreferredSavedId({ id: 'sf-edit' }, { savedFilterId: 'sf-open' })).toBe('sf-edit');
+    expect(wizardPreferredSavedId(null, { savedFilterId: 'sf-open' })).toBe('sf-open');
+    expect(wizardPreferredSavedId(null, undefined)).toBeUndefined();
+  });
+});
+
+describe('tagWithSavedMatrix', () => {
+  it('tags a saved matrix with its id and leaves an unsaved one untouched', () => {
+    expect(tagWithSavedMatrix(FILTER, { id: 'sf-1' })).toEqual({ ...FILTER, savedFilterId: 'sf-1' });
+    expect(tagWithSavedMatrix(FILTER, null)).toBe(FILTER);
+    expect(FILTER).not.toHaveProperty('savedFilterId');
   });
 });

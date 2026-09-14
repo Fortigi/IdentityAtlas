@@ -156,17 +156,28 @@ test.describe('Save and share a matrix as one act (#1202)', () => {
     // match the name as a prefix — an exact match waits out the test timeout.
     const entry = page.getByRole('button', { name: new RegExp(`^${share.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`) });
     await expect(entry).toBeVisible({ timeout: 30000 });
+    // Wait for the loaded matrix's data before adjusting. Loading swaps the
+    // whole matrix area — wizard included — for a loading pane, so a wizard
+    // opened before that request lands is torn down mid-edit and reopens on
+    // Setup (which is what this spec kept tripping over).
+    const loaded = page.waitForResponse(r => r.url().includes('/api/matrix/data') && r.request().method() === 'POST', { timeout: 60000 });
     await entry.click();
+    await loaded;
+    await expect(page.locator('table').first()).toBeVisible({ timeout: 60000 });
     await expect(page.getByRole('button', { name: /Shared with 1 person/ })).toBeVisible({ timeout: 60000 });
 
     await page.getByRole('button', { name: 'Adjust matrix' }).click();
     await gotoWizardStep(page, 'Share');
-    await expect(page.getByText(/Shared with 1 person/)).toBeVisible({ timeout: 30000 });
+    // The panel's own sentence — the save bar's "Shared with 1 person ▾" button
+    // is still on the page behind the wizard.
+    await expect(page.getByText(/^Shared with 1 person\. They see this matrix/)).toBeVisible({ timeout: 30000 });
     await expect(page.getByRole('button', { name: 'Stop sharing' })).toBeVisible();
 
     // Add the second person: same link, one more recipient.
     await page.getByLabel('Shared with', { exact: true }).fill(other.userKey);
-    await page.getByRole('group', { name: 'Search results' }).getByRole('button').first().click();
+    const result = page.getByRole('group', { name: 'Search results' }).getByRole('button').first();
+    await expect(result).toBeVisible({ timeout: 30000 });
+    await result.click();
     await page.getByRole('button', { name: 'Save recipients' }).click();
 
     await expect.poll(async () => {

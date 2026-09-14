@@ -776,7 +776,8 @@ const STEP_MARKERS = {
   Resources: 'Narrow down the resources that appear as columns',
   Sort:      'Sort columns',
   // The wizard's optional last step, offered to anyone with `data.share` (#1166).
-  Share:     'Share this matrix (optional)',
+  // A matrix that is already shared opens that step on its recipients instead.
+  Share:     /^(Share this matrix \(optional\)|Shared with)$/,
 };
 
 // Records the counts of every matrix payload the page loads, newest last, so a

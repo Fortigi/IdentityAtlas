@@ -16,13 +16,26 @@ import { matrixFilterFingerprint } from '@ui/utils/matrixFilter';
 // Content alone can't tell two saved matrices with identical filters apart
 // ("Sales team" shared off the org-wide "All" is exactly that), so an applied
 // matrix carries `savedFilterId` — the saved matrix it was loaded from — and a
-// candidate with that id wins. Without the tag, or when the view has since
-// diverged from it, the first content match stands.
+// candidate with that id wins. Without the tag (a pasted `#matrix?filter=`
+// link), or when the tag no longer matches, the org default is the likelier
+// intent than whichever twin sorts first; failing that, the first match.
 export function matchSavedMatrix(savedFilters, filter, preferId = filter?.savedFilterId) {
   if (!Array.isArray(savedFilters) || !filter) return null;
   const fingerprint = matrixFilterFingerprint(filter);
   const candidates = savedFilters.filter(s => matrixFilterFingerprint(s.filter) === fingerprint);
-  return candidates.find(s => s.id === preferId) || candidates[0] || null;
+  return candidates.find(s => s.id === preferId) || candidates.find(s => s.isDefault) || candidates[0] || null;
+}
+
+// The id the wizard should prefer when matching: the saved matrix it is
+// editing, else the one the matrix it was opened on was loaded from.
+export function wizardPreferredSavedId(editingSaved, initialFilter) {
+  return editingSaved?.id ?? initialFilter?.savedFilterId;
+}
+
+// The applied filter, tagged with the saved matrix it is (when it is one) so
+// the save bar can tell identical saved matrices apart.
+export function tagWithSavedMatrix(filter, saved) {
+  return saved ? { ...filter, savedFilterId: saved.id } : filter;
 }
 
 // The live share of a saved matrix, out of the org-wide share list. A revoked

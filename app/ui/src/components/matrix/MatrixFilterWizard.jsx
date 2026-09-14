@@ -34,7 +34,7 @@ import { deriveSteps, commitFilter } from './MatrixFilterWizard.helpers';
 import WizardShareStep from './WizardShareStep';
 import SavedMatrixMenu from './SavedMatrixMenu';
 import SaveMatrixDialog from './SaveMatrixDialog';
-import { matchSavedMatrix } from './shareState';
+import { matchSavedMatrix, tagWithSavedMatrix, wizardPreferredSavedId } from './shareState';
 
 // ─── Constants ──────────────────────────────────────────────────────
 
@@ -157,7 +157,7 @@ export default function MatrixFilterWizard({
   // matrix that was only folded or drilled still recognises itself.
   // The matrix being edited wins a tie, or — before the list has matched
   // anything — the one the wizard was opened on.
-  const savedMatch = matchSavedMatrix(savedFilters, filter, editingSaved?.id ?? initialFilter?.savedFilterId);
+  const savedMatch = matchSavedMatrix(savedFilters, filter, wizardPreferredSavedId(editingSaved, initialFilter));
   useEffect(() => {
     if (savedMatch && savedMatch.id !== editingSaved?.id) setEditingSaved(savedMatch);
   }, [savedMatch, editingSaved]);
@@ -353,8 +353,7 @@ export default function MatrixFilterWizard({
     const foldAttributes = servesViaAttrCut(filter, anyRollup, preview.assignmentCount);
     // Tag the applied matrix with the saved one it is, so the save bar names
     // the right one when two saved matrices share a filter.
-    const committed = commitFilter(filter, foldAttributes);
-    onApply(savedMatch ? { ...committed, savedFilterId: savedMatch.id } : committed, managed);
+    onApply(tagWithSavedMatrix(commitFilter(filter, foldAttributes), savedMatch), managed);
   };
 
   // ─── Save matrix ───────────────────────────────────────────────

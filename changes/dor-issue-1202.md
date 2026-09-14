@@ -7,3 +7,4 @@
 - Saved-matrix names stay unique across the organisation: a name that is already taken now comes back as an error asking for a different one, instead of being silently accepted.
 - Existing share links, their recipients and their usage history keep working — every active share becomes a saved matrix, with a numbered suffix if its name was already taken.
 - When two saved matrices happen to have exactly the same filter, the matrix bar and the wizard now show the one you actually loaded — with its own name and sharing — instead of whichever came first alphabetically.
+- Fixed a link straight to Admin → Shared Matrices (including old shared-matrices links) sometimes opening the Crawlers tab instead.
