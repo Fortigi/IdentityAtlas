@@ -103,6 +103,7 @@ const BASE = {
       },
       directReports: {
         label: 'Direct reports', target: 'user', cardinality: 'many',
+        compareNoun: 'direct reports',
         some: 'has a direct report', none: 'has no direct reports',
         description: 'accounts that have this account as their manager',
         from: (outer, inner) => ({
@@ -112,6 +113,7 @@ const BASE = {
       },
       memberOf: {
         label: 'Member of groups', target: 'group', cardinality: 'many',
+        compareNoun: 'group memberships',
         some: 'is a member of a group', none: 'is not a member of any group',
         description: 'groups the account is a member of (direct or nested). ONLY groups — for roles, applications or permissions use access',
         from: (outer, inner, u) => {
@@ -125,6 +127,7 @@ const BASE = {
       },
       access: {
         label: 'Has access to', target: 'resource', cardinality: 'many',
+        compareNoun: 'access',
         some: 'has access to a resource', none: 'has no access to any resource',
         description: 'any resource the account holds: directory roles, groups, app roles, permissions, business roles, Azure roles. Use this for "has the X role"',
         from: (outer, inner, u) => {
@@ -138,6 +141,7 @@ const BASE = {
       },
       owns: {
         label: 'Owner of', target: 'resource', cardinality: 'many',
+        compareNoun: 'ownerships',
         some: 'owns a resource', none: 'owns no resource',
         description: 'groups and applications this account is an OWNER of (not membership)',
         from: (outer, inner, u) => {
@@ -198,6 +202,7 @@ const BASE = {
     relations: {
       members: {
         label: 'Members', target: 'account', cardinality: 'many',
+        compareNoun: 'members',
         some: 'has a member', none: 'has no members',
         description: 'accounts that are members of / assigned to this resource (NOT owners)',
         from: (outer, inner, u) => {
@@ -211,6 +216,7 @@ const BASE = {
       },
       owners: {
         label: 'Owners', target: 'account', cardinality: 'many',
+        compareNoun: 'owners',
         some: 'has an owner', none: 'has no owner',
         description: 'accounts that OWN this group or application (NOT members). "nobody owns" = owners none',
         from: (outer, inner, u) => {
@@ -225,6 +231,7 @@ const BASE = {
       },
       businessRoles: {
         label: 'In business roles', target: 'resource', cardinality: 'many',
+        compareNoun: 'business roles',
         some: 'is in a business role', none: 'is not in any business role',
         description: 'business roles / access packages that contain this resource',
         from: (outer, inner, u) => {

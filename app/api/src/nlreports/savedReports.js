@@ -10,6 +10,7 @@ import { registerReportSource } from '../reports/registry.js';
 import { compileSpec } from './compile.js';
 import { validateSpec } from './spec.js';
 import { loadValues, runSpec } from './service.js';
+import { referenceProblemText, resolveReferences } from './compare.js';
 
 export const SAVED_PREFIX = 'custom-';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -37,6 +38,8 @@ export async function prepareSavedReport(body) {
   const question = typeof body?.question === 'string' ? body.question.trim().slice(0, 2000) : '';
   const result = validateSpec(body?.definition, await loadValues());
   if (!result.ok) errors.push(...result.errors);
+  // Store the resolved record id, so a saved comparison survives a rename.
+  if (result.ok) errors.push(...(await resolveReferences(result.spec, query)).problems.map(referenceProblemText));
   if (errors.length) return { errors };
   return { value: { name, description: description || null, question: question || null, definition: result.spec } };
 }
@@ -81,7 +84,13 @@ export async function deleteSavedReport(id) {
 /** A saved report, shaped as a report template for the registry. */
 export function toReportTemplate(row) {
   const { spec } = validateSpec(row.definition);
-  const compiled = spec ? compileSpec(spec) : { columns: [] };
+  let compiled = { columns: [] };
+  try {
+    if (spec) compiled = compileSpec(spec);
+  } catch (err) {
+    // An unresolvable definition must not break the whole report list; running it reports the problem.
+    console.error(`saved report ${row.id} cannot be compiled:`, err.message);
+  }
   return {
     name: `${SAVED_PREFIX}${row.id}`,
     displayName: row.name,

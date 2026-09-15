@@ -5,6 +5,7 @@
 // model's own prose.
 
 import { ENTITIES, OPERATORS } from './catalog.js';
+import { explainCompare } from './compare.js';
 
 function formatValue(field, value) {
   if (field.type === 'boolean') return value ? 'Yes' : 'No';
@@ -28,6 +29,10 @@ function conditionLines(entityName, c, depth, out) {
   const entity = ENTITIES[entityName];
   if (c.type === 'field') {
     out.push({ depth, text: fieldText(entityName, c) });
+    return;
+  }
+  if (c.type === 'compare') {
+    out.push({ depth, text: explainCompare(entityName, c) });
     return;
   }
   if (c.type === 'relation') {

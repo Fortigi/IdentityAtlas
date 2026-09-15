@@ -7,6 +7,9 @@
 
 import { ENTITIES } from './catalog.js';
 import { resolveColumn } from './spec.js';
+import {
+  COMPARE_COLUMNS, compareColumnLabel, compareColumnSql, compareConditions, comparePredicate,
+} from './compare.js';
 
 const CAST = { number: '::numeric', boolean: '::boolean', date: '', text: '', enum: '' };
 
@@ -21,6 +24,8 @@ function createContext() {
     alias: () => `t${n++}`,
     param: (v) => { params.push(v); return `$${params.length}`; },
     params,
+    ctes: [],
+    refCtes: new Map(),
   };
 }
 
@@ -71,6 +76,7 @@ function conditionSql(entityName, c, alias, ctx) {
     const exists = `EXISTS (SELECT 1 FROM ${from} WHERE ${where}${filter})`;
     return c.quantifier === 'none' ? `NOT ${exists}` : exists;
   }
+  if (c.type === 'compare') return comparePredicate(entityName, c, alias, ctx);
   // group
   return joinPredicates(c.conditions.map(ic => conditionSql(entityName, ic, alias, ctx)), c.match);
 }
@@ -78,6 +84,7 @@ function conditionSql(entityName, c, alias, ctx) {
 function columnSql(entityName, colDef, alias, ctx) {
   const entity = ENTITIES[entityName];
   if (colDef.kind === 'field') return entity.fields[colDef.field].sql(alias);
+  if (colDef.kind === 'compare') return compareColumnSql(entityName, ctx.firstCompare, colDef.sub, alias, ctx);
   const rel = entity.relations[colDef.relation];
   const inner = ctx.alias();
   const { from, where } = rel.from(alias, inner, ctx.alias);
@@ -92,6 +99,7 @@ function columnSql(entityName, colDef, alias, ctx) {
 export function columnType(entityName, colDef) {
   const entity = ENTITIES[entityName];
   if (colDef.kind === 'field') return entity.fields[colDef.field].type;
+  if (colDef.kind === 'compare') return COMPARE_COLUMNS[colDef.sub].type;
   if (colDef.kind === 'oneRelationField') {
     return ENTITIES[entity.relations[colDef.relation].target].fields[colDef.field].type;
   }
@@ -106,6 +114,9 @@ export function compileSpec(spec) {
   const entity = ENTITIES[spec.entity];
   const ctx = createContext();
   const root = ctx.alias();
+  const compares = compareConditions(spec);
+  if (compares.some(c => !c.reference.id)) throw new Error('compare references must be resolved before compiling');
+  ctx.firstCompare = compares[0];
 
   const columns = spec.columns.map(ref => resolveColumn(spec.entity, ref));
   const select = [`${root}."id" AS "__id"`]
@@ -114,16 +125,28 @@ export function compileSpec(spec) {
   const preds = spec.conditions.map(c => conditionSql(spec.entity, c, root, ctx));
   const where = `${entity.where(root)} AND ${joinPredicates(preds, spec.match)}`;
 
-  const order = spec.sort
-    ? `${entity.fields[spec.sort.field].sql(root)} ${spec.sort.direction === 'desc' ? 'DESC' : 'ASC'} NULLS LAST, ${root}."id"`
-    : `${root}."displayName" ASC NULLS LAST, ${root}."id"`;
+  // A comparison report lists the closest matches first.
+  let order;
+  if (spec.sort) {
+    order = `${entity.fields[spec.sort.field].sql(root)} ${spec.sort.direction === 'desc' ? 'DESC' : 'ASC'} NULLS LAST, ${root}."id"`;
+  } else {
+    const similarity = ctx.firstCompare
+      ? `${compareColumnSql(spec.entity, ctx.firstCompare, 'similarity', root, ctx)} DESC NULLS LAST, `
+      : '';
+    order = `${similarity}${root}."displayName" ASC NULLS LAST, ${root}."id"`;
+  }
 
   // One extra row tells the caller the result was truncated.
   const limit = ctx.param(spec.limit + 1);
-  const text = `SELECT ${select.join(',\n  ')}\nFROM "${entity.table}" ${root}\nWHERE ${where}\nORDER BY ${order}\nLIMIT ${limit}`;
+  const withClause = ctx.ctes.length ? `WITH ${ctx.ctes.join(',\n')}\n` : '';
+  const text = `${withClause}SELECT ${select.join(',\n  ')}\nFROM "${entity.table}" ${root}\nWHERE ${where}\nORDER BY ${order}\nLIMIT ${limit}`;
   return {
     text,
     params: ctx.params,
-    columns: columns.map(cd => ({ key: cd.key, label: cd.label, type: columnType(spec.entity, cd) })),
+    columns: columns.map(cd => ({
+      key: cd.key,
+      label: cd.kind === 'compare' ? compareColumnLabel(cd.sub, ctx.firstCompare) : cd.label,
+      type: columnType(spec.entity, cd),
+    })),
   };
 }

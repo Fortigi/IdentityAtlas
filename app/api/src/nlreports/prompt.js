@@ -10,6 +10,7 @@
 // anything that is not a well-formed reply with known field/relation names.
 
 import { ENTITIES, OPERATORS_BY_TYPE, OPERATORS } from './catalog.js';
+import { MEASURES } from './compare.js';
 
 const allFieldNames = [...new Set(Object.values(ENTITIES).flatMap(e => Object.keys(e.fields)))];
 const allRelationNames = [...new Set(Object.values(ENTITIES).flatMap(e => Object.keys(e.relations)))];
@@ -37,12 +38,31 @@ const RELATION_CONDITION = {
   required: ['type', 'relation', 'quantifier', 'match', 'conditions'],
 };
 
+const COMPARE_CONDITION = {
+  type: 'object',
+  properties: {
+    type: { type: 'string', enum: ['compare'] },
+    relation: { type: 'string', enum: allRelationNames },
+    measure: { type: 'string', enum: Object.keys(MEASURES) },
+    minSimilarity: { type: 'number' },
+    reference: {
+      type: 'object',
+      properties: {
+        entity: { type: 'string', enum: Object.keys(ENTITIES) },
+        name: { type: 'string' },
+      },
+      required: ['entity', 'name'],
+    },
+  },
+  required: ['type', 'relation', 'measure', 'minSimilarity', 'reference'],
+};
+
 const GROUP_CONDITION = {
   type: 'object',
   properties: {
     type: { type: 'string', enum: ['group'] },
     match: { type: 'string', enum: ['all', 'any'] },
-    conditions: { type: 'array', items: { anyOf: [FIELD_CONDITION, RELATION_CONDITION] } },
+    conditions: { type: 'array', items: { anyOf: [FIELD_CONDITION, RELATION_CONDITION, COMPARE_CONDITION] } },
   },
   required: ['type', 'match', 'conditions'],
 };
@@ -52,7 +72,7 @@ const SPEC = {
   properties: {
     entity: { type: 'string', enum: Object.keys(ENTITIES) },
     match: { type: 'string', enum: ['all', 'any'] },
-    conditions: { type: 'array', items: { anyOf: [FIELD_CONDITION, RELATION_CONDITION, GROUP_CONDITION] } },
+    conditions: { type: 'array', items: { anyOf: [FIELD_CONDITION, RELATION_CONDITION, COMPARE_CONDITION, GROUP_CONDITION] } },
     columns: { type: 'array', items: { type: 'string' } },
   },
   required: ['entity', 'match', 'conditions', 'columns'],
@@ -161,6 +181,18 @@ const EXAMPLES = [
     ] },
   },
   {
+    q: 'people with exactly the same group memberships as Jan de Vries',
+    a: { kind: 'report', assumptions: ['"Jan de Vries" is a user.'], spec: { entity: 'user', match: 'all', conditions: [
+      { type: 'compare', relation: 'memberOf', measure: 'identical', minSimilarity: 100, reference: { entity: 'user', name: 'Jan de Vries' } },
+    ], columns: [] } },
+  },
+  {
+    q: 'groups whose members overlap at least 70 percent with the Finance Team group',
+    a: { kind: 'report', assumptions: [], spec: { entity: 'group', match: 'all', conditions: [
+      { type: 'compare', relation: 'members', measure: 'similar', minSimilarity: 70, reference: { entity: 'group', name: 'Finance Team' } },
+    ], columns: [] } },
+  },
+  {
     q: 'users that do not have MFA enabled',
     a: { kind: 'clarify', question: 'There is no MFA / authentication-method information in the fields I can use, so I cannot build this report. Which field holds MFA status in your data?', options: [
       'Show all enabled users instead',
@@ -187,6 +219,10 @@ Boolean values are true/false. withinLastDays / olderThanDays take a number of d
 - relation: {"type":"relation","relation":"...","quantifier":"some"|"none","match":"all","conditions":[field conditions on the RELATED entity]}
   "has no manager" = relation manager, quantifier none, no conditions. "manager is disabled" = relation manager, quantifier some, condition accountEnabled eq false.
 - group:    {"type":"group","match":"any","conditions":[...]} — use for an OR inside an AND (or the reverse).
+- compare:  {"type":"compare","relation":"members","measure":"identical","minSimilarity":100,"reference":{"entity":"resource","name":"exact name"}}
+  Compares the set each row reaches over a relation (members, memberOf, access, owners, owns, …) with the same set of ONE named record.
+  measure: identical = exactly the same set · containsAll = has everything the reference has (maybe more) · within = has only things the reference also has · similar = overlap of at least minSimilarity percent.
+  The comparison columns (similarity, what is only here, what is missing) are added automatically.
 
 # Columns
 Field names of the entity; "manager.displayName" style for the manager; "<relation>.names" or "<relation>.count" for the other relations. Use [] when the user did not ask for specific columns; always include displayName when you do list columns.
@@ -199,7 +235,8 @@ Field names of the entity; "manager.displayName" style for the manager; "<relati
 4. Reply with {"kind":"clarify"} ONLY when the request is genuinely ambiguous in a way that changes which rows are returned. Give 2-3 short options. Never ask about columns, sorting or formatting. When the user has answered a question or says to use your judgement, reply with a report.
 5. Record every interpretation choice you made as a short sentence in "assumptions".
 6. When the user refines an earlier report, reply with the COMPLETE updated definition.
-7. Use ONLY the fields and relations listed above. When the request depends on information that is not listed (for example last sign-in, MFA, licence cost, passwords), do NOT substitute a different field: reply with {"kind":"clarify"} that names the missing information and asks which field holds it.
+7. Questions that compare sets — "the same members as", "the same access as", "has everything X has", "similar to", "overlaps with" — use a compare condition. Put the name exactly as the user wrote it in reference.name; a business role or access package is entity resource. "same" = identical, "mostly the same / similar / overlap" = similar with minSimilarity 80 unless the user gives a percentage. Membership of a business role itself ("part of / in business role X") is the businessRoles relation with a displayName condition.
+8. Use ONLY the fields and relations listed above. When the request depends on information that is not listed (for example last sign-in, MFA, licence cost, passwords), do NOT substitute a different field: reply with {"kind":"clarify"} that names the missing information and asks which field holds it.
 
 # Examples
 ${examples}`;

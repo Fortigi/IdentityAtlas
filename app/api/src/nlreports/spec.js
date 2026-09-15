@@ -13,9 +13,14 @@
 //   Condition = { type:'field', field, op, value? }
 //             | { type:'relation', relation, quantifier:'some'|'none', match?, conditions:[field conditions] }
 //             | { type:'group', match, conditions:[field or relation conditions] }
+//             | { type:'compare', relation, measure, minSimilarity?, reference:{ entity, name, id? } }   (see compare.js)
 //   Column    = 'field' | '<one-relation>.<field>' | '<many-relation>.count' | '<many-relation>.names'
+//             | 'compare.<similarity|shared|onlyHere|onlyReference|onlyHereNames|onlyReferenceNames>'
 
 import { ENTITIES, OPERATORS, OPERATORS_BY_TYPE } from './catalog.js';
+import {
+  COMPARE_COLUMNS, DEFAULT_COMPARE_COLUMNS, MAX_COMPARES, compareConditions, validateCompare,
+} from './compare.js';
 
 export const MAX_CONDITIONS = 25;
 export const MAX_COLUMNS = 15;
@@ -27,7 +32,10 @@ const ENTITY_ALIASES = {
   group: 'group', groups: 'group',
   account: 'account', accounts: 'account', principal: 'account', principals: 'account',
   resource: 'resource', resources: 'resource',
+  businessrole: 'resource', 'business role': 'resource', 'access package': 'resource',
 };
+
+const aliasOf = (word) => ENTITY_ALIASES[String(word || '').toLowerCase()];
 
 // A derived entity (user, group) already implies its type. Restating it is
 // harmless and dropped; asking for a different type is a real mistake.
@@ -40,6 +48,7 @@ const has = (obj, key) => obj != null && Object.hasOwn(obj, key);
 
 function inferType(c) {
   if (c.type) return c.type;
+  if (c.measure || c.reference) return 'compare';
   if (c.relation) return 'relation';
   if (Array.isArray(c.conditions)) return 'group';
   return 'field';
@@ -160,6 +169,11 @@ function validateCondition(entityName, c, values, err, depth) {
     };
   }
 
+  if (type === 'compare') {
+    if (depth > 0) { err('a compare condition cannot be nested inside a relation'); return null; }
+    return validateCompare(entityName, c, err, aliasOf);
+  }
+
   if (type === 'group') {
     if (depth > 0) { err('groups cannot be nested'); return null; }
     const inner = (Array.isArray(c.conditions) ? c.conditions : [])
@@ -184,6 +198,9 @@ export function resolveColumn(entityName, ref) {
     return { key: ref, label: entity.fields[ref].label, kind: 'field', field: ref };
   }
   const [relName, sub, extra] = ref.split('.');
+  if (relName === 'compare' && extra === undefined && has(COMPARE_COLUMNS, sub)) {
+    return { key: ref, label: COMPARE_COLUMNS[sub].label, kind: 'compare', sub };
+  }
   if (extra !== undefined || !has(entity.relations, relName)) return null;
   const rel = entity.relations[relName];
   const target = ENTITIES[rel.target];
@@ -209,6 +226,7 @@ export function availableColumns(entityName) {
       refs.push(`${name}.names`, `${name}.count`);
     }
   }
+  refs.push(...Object.keys(COMPARE_COLUMNS).map(s => `compare.${s}`));
   return refs.map(r => resolveColumn(entityName, r));
 }
 
@@ -231,16 +249,21 @@ export function validateSpec(raw, values = {}) {
 
   const conditions = validateConditionList(entityName, raw.conditions, values, err, 0);
   if (conditions.length > MAX_CONDITIONS) err(`at most ${MAX_CONDITIONS} conditions`);
+  const compares = compareConditions({ conditions });
+  if (compares.length > MAX_COMPARES) err(`at most ${MAX_COMPARES} compare conditions`);
 
   let columns = [];
   const seen = new Set();
   for (const ref of Array.isArray(raw.columns) ? raw.columns : []) {
     if (entity.implicit && ref === entity.implicit.field) continue;
+    // Comparison columns only mean something when the report compares.
+    if (typeof ref === 'string' && ref.startsWith('compare.') && compares.length === 0) continue;
     const colDef = resolveColumn(entityName, ref);
     if (!colDef) { err(`"${ref}" is not a valid column for ${entityName}`); continue; }
     if (!seen.has(colDef.key)) { seen.add(colDef.key); columns.push(colDef.key); }
   }
   if (columns.length === 0) columns = [...entity.defaultColumns];
+  if (compares.length && !columns.some(c => c.startsWith('compare.'))) columns.push(...DEFAULT_COMPARE_COLUMNS);
   if (columns.length > MAX_COLUMNS) { err(`at most ${MAX_COLUMNS} columns`); columns = columns.slice(0, MAX_COLUMNS); }
 
   let sort;
