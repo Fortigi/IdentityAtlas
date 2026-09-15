@@ -160,6 +160,13 @@ const EXAMPLES = [
       'Accounts with any access to a resource with "Salesforce" in the name (groups, app roles, permissions)',
     ] },
   },
+  {
+    q: 'users that do not have MFA enabled',
+    a: { kind: 'clarify', question: 'There is no MFA / authentication-method information in the fields I can use, so I cannot build this report. Which field holds MFA status in your data?', options: [
+      'Show all enabled users instead',
+      'I will ask an administrator to import MFA data',
+    ] },
+  },
 ];
 
 /** @param {object} values known enum values keyed by catalog valuesFrom */
@@ -192,6 +199,7 @@ Field names of the entity; "manager.displayName" style for the manager; "<relati
 4. Reply with {"kind":"clarify"} ONLY when the request is genuinely ambiguous in a way that changes which rows are returned. Give 2-3 short options. Never ask about columns, sorting or formatting. When the user has answered a question or says to use your judgement, reply with a report.
 5. Record every interpretation choice you made as a short sentence in "assumptions".
 6. When the user refines an earlier report, reply with the COMPLETE updated definition.
+7. Use ONLY the fields and relations listed above. When the request depends on information that is not listed (for example last sign-in, MFA, licence cost, passwords), do NOT substitute a different field: reply with {"kind":"clarify"} that names the missing information and asks which field holds it.
 
 # Examples
 ${examples}`;

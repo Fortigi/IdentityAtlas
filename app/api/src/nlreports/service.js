@@ -37,6 +37,22 @@ function addTiming(a, b) {
   return out;
 }
 
+const OR_REPAIR_MESSAGE =
+  'The request says "or", but your definition requires ALL conditions at the same time. ' +
+  'Put the alternatives that are joined by "or" together in a group with match "any"; keep the other conditions outside that group. ' +
+  'Reply with the corrected complete JSON.';
+
+/** True when the spec has an OR anywhere: top-level, in a group, or inside a relation. */
+export function hasAnyMatch(spec) {
+  if (spec.match === 'any' && spec.conditions.length > 1) return true;
+  return spec.conditions.some(c => (c.type === 'group' || c.type === 'relation') && c.match === 'any' && c.conditions.length > 1);
+}
+
+/** The question joins alternatives with "or"/"either", but the definition has no OR at all. */
+export function needsOrRepair(question, spec) {
+  return /\b(or|either)\b/i.test(question) && spec.conditions.length > 1 && !hasAnyMatch(spec);
+}
+
 function parseReply(content) {
   try { return JSON.parse(content); } catch { return null; }
 }
@@ -85,6 +101,28 @@ export async function interpret({ question, history = [], model = DEFAULT_MODEL 
         raw = retry.content;
         reply = retried;
         result = validateSpec(reply.spec, values);
+      }
+    }
+    if (result.ok && needsOrRepair(question, result.spec)) {
+      // The most common small-model mistake: "X or Y" compiled as X AND Y.
+      repaired = true;
+      const retry = await chat({
+        model,
+        schema: REPORT_ONLY_SCHEMA,
+        messages: [
+          ...messages,
+          { role: 'assistant', content: raw },
+          { role: 'user', content: OR_REPAIR_MESSAGE },
+        ],
+      });
+      timing = addTiming(timing, retry.timing);
+      const retried = parseReply(retry.content);
+      const retriedResult = retried?.kind === 'report' ? validateSpec(retried.spec, values) : null;
+      // Only take the correction when it is valid and actually contains an "any".
+      if (retriedResult?.ok && hasAnyMatch(retriedResult.spec)) {
+        raw = retry.content;
+        reply = retried;
+        result = retriedResult;
       }
     }
     errors = result.errors;

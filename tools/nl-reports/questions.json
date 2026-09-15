@@ -671,5 +671,102 @@
         }
       ]
     }
+  },
+  {
+    "id": "groups-no-access-package",
+    "question": "Groups that are not yet part of an access package",
+    "expected": {
+      "entity": "resource",
+      "conditions": [
+        {
+          "field": "resourceType",
+          "op": "eq",
+          "value": "Group"
+        },
+        {
+          "relation": "businessRoles",
+          "quantifier": "none",
+          "conditions": []
+        }
+      ]
+    }
+  },
+  {
+    "id": "groups-owner-none-or-disabled",
+    "question": "Groups without an owner or where the owner is disabled",
+    "expected": {
+      "entity": "resource",
+      "conditions": [
+        {
+          "field": "resourceType",
+          "op": "eq",
+          "value": "Group"
+        },
+        {
+          "type": "group",
+          "match": "any",
+          "conditions": [
+            {
+              "relation": "owners",
+              "quantifier": "none",
+              "conditions": []
+            },
+            {
+              "relation": "owners",
+              "quantifier": "some",
+              "conditions": [
+                {
+                  "field": "accountEnabled",
+                  "op": "eq",
+                  "value": false
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "signin-missing-data",
+    "question": "Users that have not signed in for more then 90 days",
+    "expectKind": "clarify",
+    "note": "no last sign-in data in the catalog: the generator must say so instead of building a report"
+  },
+  {
+    "id": "guest-manager-or-example",
+    "question": "Guest accounts that don't have a manager, or whose manager is disabled",
+    "expected": {
+      "entity": "account",
+      "conditions": [
+        {
+          "field": "userType",
+          "op": "eq",
+          "value": "Guest"
+        },
+        {
+          "type": "group",
+          "match": "any",
+          "conditions": [
+            {
+              "relation": "manager",
+              "quantifier": "none",
+              "conditions": []
+            },
+            {
+              "relation": "manager",
+              "quantifier": "some",
+              "conditions": [
+                {
+                  "field": "accountEnabled",
+                  "op": "eq",
+                  "value": false
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
   }
 ]

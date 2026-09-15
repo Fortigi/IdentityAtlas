@@ -44,6 +44,7 @@ const sameSet = (a, b) => a.size === b.size && [...a].every(x => b.has(x));
 
 if (args.check) {
   for (const q of questions) {
+    if (!q.expected) { console.log(`${q.id.padEnd(24)}   expects: ${q.expectKind}`); continue; }
     try {
       const s = await ids(q.expected);
       console.log(`${q.id.padEnd(24)} ${String(s.size).padStart(5)} rows${s.size === 0 ? '   <-- empty (weak test)' : ''}`);
@@ -83,7 +84,8 @@ for (const model of models) {
       for (let round = 0; round < 3; round++) {
         reply = await post('interpret', { model, question: text, history });
         timing = addTiming(timing, reply.timing || {});
-        if (reply.kind !== 'clarify' || round === 2) break;
+        // A question whose right answer IS a clarification must not be answered for the model.
+        if (reply.kind !== 'clarify' || round === 2 || q.expectKind === 'clarify') break;
         clarifications.push({ question: reply.question, options: reply.options });
         history = [...history, { role: 'user', content: text }, { role: 'assistant', content: reply.raw }];
         text = q.answer || 'Use your best judgement and produce the report.';
@@ -96,7 +98,10 @@ for (const model of models) {
     let pass = false;
     let expectedCount = null;
     let actualCount = null;
-    if (!error && reply?.kind === 'report') {
+    if (!error && q.expectKind === 'clarify') {
+      pass = reply?.kind === 'clarify';
+      if (!pass) error = `expected a clarification, got ${reply?.kind}`;
+    } else if (!error && reply?.kind === 'report') {
       try {
         const [exp, act] = await Promise.all([ids(q.expected), ids(reply.spec)]);
         expectedCount = exp.size; actualCount = act.size;
@@ -109,7 +114,9 @@ for (const model of models) {
 
     const row = {
       id: q.id, pass, weak: expectedCount === 0, ambiguous: !!q.ambiguous,
-      clarified: clarifications.length > 0, clarifications, columnsOk,
+      clarified: clarifications.length > 0 || (q.expectKind === 'clarify' && reply?.kind === 'clarify'), clarifications, columnsOk,
+      expectClarify: q.expectKind === 'clarify',
+      replyQuestion: reply?.kind === 'clarify' ? reply.question : undefined,
       expectedCount, actualCount, error, repaired: !!reply?.repaired, wallMs, timing,
       explanation: reply?.explanation, assumptions: reply?.assumptions, spec: reply?.spec,
     };
@@ -131,7 +138,7 @@ for (const model of models) {
     totalNonWeak: graded.length,
     askedWhenAmbiguous: rows.filter(r => r.ambiguous && r.clarified).length,
     ambiguous: rows.filter(r => r.ambiguous).length,
-    askedWhenClear: rows.filter(r => !r.ambiguous && r.clarified).length,
+    askedWhenClear: rows.filter(r => !r.ambiguous && !r.expectClarify && r.clarified).length,
     errors: rows.filter(r => r.error).length,
     repaired: rows.filter(r => r.repaired).length,
     medianSeconds: +(pct(lat, 0.5) / 1000).toFixed(1),
