@@ -938,6 +938,7 @@ jobs:
           bash test/ci-scripts/test-dor-reconcile-selfheal.sh
           bash test/ci-scripts/test-dor-push-lease.sh
           bash test/ci-scripts/test-dor-sidekick-claim.sh
+          bash test/ci-scripts/test-dor-drop-workflow-labels.sh
           bash test/ci-scripts/test-dor-trusted-spec.sh
           bash test/ci-scripts/test-dor-agent-sandbox.sh
           bash test/ci-scripts/test-gate-wiring.sh

@@ -5,7 +5,7 @@ import { render as rtlRender } from '@testing-library/react';
 import MatrixView from './MatrixView';
 import {
   renderWithProviders, makeAuthFetch, makeWrapper, jsonResponse,
-  screen, userEvent, waitFor, act,
+  screen, within, userEvent, waitFor, act,
 } from '@ui/test-utils/renderWithProviders';
 
 // Stub the lazy-loaded virtual/DnD body so the test runner never pulls in
@@ -482,6 +482,94 @@ describe('MatrixView (mounted)', () => {
     expect(screen.getByTestId('row-contexts-res-2').textContent).toBe('');
     // The column header ships alongside the data.
     expect(screen.getAllByText('Contexts').length).toBeGreaterThan(0);
+  });
+
+  // #1212 fixture: an identity matrix where Alice (id1) has one linked SAP
+  // account. `accountCount` is what the API ships with each identity row.
+  const aliceRow = { memberId: 'id1', memberDisplayName: 'Alice', department: 'Engineering', memberType: 'Identity', accountCount: 1, resourceId: 'res-1', resourceDisplayName: 'Finance App', membershipType: 'Direct' };
+  function renderIdentityMatrix(extraRows = []) {
+    const authFetch = makeFetch({
+      '/api/identities/id1/account-matrix': jsonResponse({
+        accounts: [{ id: 'acc1', displayName: 'A.Jansen', accountType: 'SAP' }],
+        memberships: [{ resourceId: 'res-1', principalId: 'acc1', membershipType: 'Direct' }],
+      }),
+    });
+    renderView({ data: [aliceRow, ...extraRows], filter: { ...baseFilter, rowType: 'identity' } }, authFetch);
+    return authFetch;
+  }
+
+  // The reporter's path in #1212: a matrix on identities, expand one into its
+  // linked accounts. The accounts belong under the identity, not beside it.
+  it('expands an identity into an accounts header row beneath it (#1212)', async () => {
+    const authFetch = renderIdentityMatrix([
+      { memberId: 'id2', memberDisplayName: 'Carol', department: 'Sales', memberType: 'Identity', resourceId: 'res-2', resourceDisplayName: 'HR Portal', membershipType: 'Direct' },
+    ]);
+    const user = userEvent.setup();
+    await expectRowVisible('Finance App');
+
+    const namesRow = () => screen.getByText('Alice').closest('tr');
+    const headerRows = () => [...screen.getByText('Alice').closest('thead').rows];
+    const rowsBefore = headerRows().length;
+
+    await user.click(within(namesRow()).getAllByTitle('Expand into linked accounts')[0]);
+    await waitFor(() => expect(authFetch).toHaveBeenCalledWith('/api/identities/id1/account-matrix'));
+    const accountCell = await screen.findByText('A.Jansen · SAP');
+
+    // One new header row, holding the account — and Alice's cell spans it rather
+    // than keeping a column of her own beside it.
+    expect(headerRows()).toHaveLength(rowsBefore + 1);
+    expect(screen.getByText('Alice').closest('th').colSpan).toBe(1);
+    expect(accountCell.closest('tr')).not.toBe(namesRow());
+    expect(headerRows().indexOf(accountCell.closest('tr')))
+      .toBeGreaterThan(headerRows().indexOf(namesRow()));
+    expect(screen.queryByText('All accounts')).toBeNull();
+
+    // The grid underneath swapped the identity's column for her account's —
+    // expanding drills in, it does not add a column.
+    expect(body.props.users.map(u => u.id)).toEqual(['acc1', 'id2']);
+
+    // Carol was never expanded, so she keeps a single cell spanning both rows.
+    expect(screen.getByText('Carol').closest('th').rowSpan).toBe(2);
+  });
+
+  it('brings the identity column back when its accounts are collapsed again (#1212)', async () => {
+    renderIdentityMatrix();
+    const user = userEvent.setup();
+    await expectRowVisible('Finance App');
+    const headerRows = () => [...screen.getByText('Alice').closest('thead').rows];
+    const rowsBefore = headerRows().length;
+
+    await user.click(screen.getAllByTitle('Expand into linked accounts')[0]);
+    await screen.findByText('A.Jansen · SAP');
+
+    // Collapsing is how the analyst gets the identity's combined "all accounts"
+    // column back — so the accounts row and the account column go away with it.
+    await user.click(screen.getAllByTitle('Collapse accounts')[0]);
+    await waitFor(() => expect(headerRows()).toHaveLength(rowsBefore));
+    expect(screen.queryByText('A.Jansen · SAP')).toBeNull();
+    expect(body.props.users.map(u => u.id)).toEqual(['id1']);
+  });
+
+  // #1212 follow-up: the point of the count is to be readable while still
+  // collapsed, so the analyst can see which identities are worth expanding.
+  it('shows an identity its linked-account count before it is expanded (#1212)', async () => {
+    const authFetch = renderIdentityMatrix([
+      { memberId: 'id2', memberDisplayName: 'Carol', department: 'Sales', memberType: 'Identity', accountCount: 0, resourceId: 'res-2', resourceDisplayName: 'HR Portal', membershipType: 'Direct' },
+    ]);
+    await expectRowVisible('Finance App');
+
+    // Nothing has been expanded, and the per-identity account fetch is what
+    // expanding triggers — so the count came in with the matrix rows, which is
+    // the only way it can be known this early.
+    const alice = screen.getByText('Alice').closest('th');
+    expect(alice).toHaveTextContent('1');
+    expect(alice.getAttribute('title')).toContain('1 linked account');
+    expect(authFetch).not.toHaveBeenCalledWith('/api/identities/id1/account-matrix');
+    expect(screen.getAllByTitle('Expand into linked accounts').length).toBeGreaterThan(0);
+
+    // Carol has no linked accounts, so she gets no count to mislead with.
+    const carol = screen.getByText('Carol').closest('th');
+    expect(carol.getAttribute('title')).not.toContain('linked account');
   });
 
   it('clears expanded nesting when the matrix filter changes (#674)', async () => {

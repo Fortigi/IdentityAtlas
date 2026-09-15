@@ -16,6 +16,12 @@ function addUser(userMap, d, opts) {
     department: d.department || '',
     upn: d.memberUPN || '',
     memberType: d.memberType || '',
+    // How many accounts this identity is linked to, counted by the API from the
+    // same IdentityMembers rows the expand fetches. It ships with every matrix
+    // row (identity row type only) so the header can show the count without
+    // first fetching the identity's account matrix — null on a principal-row
+    // matrix, where a subject IS an account.
+    accountCount: d.accountCount ?? null,
   };
   u.sortKeys = opts.hierActive
     ? Array.from({ length: opts.hierDepth }, (_, i) => (opts.hierPaths.get(d.memberId)?.[i] ?? ''))
