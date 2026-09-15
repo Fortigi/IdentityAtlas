@@ -7,6 +7,7 @@ import {
   closeFallbackPage,
   parseSharedRoute,
   detailTabIconBg,
+  wizardOpening,
 } from './App.helpers';
 
 describe('isDetailPage', () => {
@@ -124,5 +125,28 @@ describe('detailTabIconBg', () => {
     expect(detailTabIconBg('identity')).toContain('indigo');
     expect(detailTabIconBg('run')).toContain('indigo');
     expect(detailTabIconBg('access-package')).toContain('indigo');
+  });
+});
+
+describe('wizardOpening', () => {
+  it('opens the matrix on screen on the first step by default', () => {
+    expect(wizardOpening()).toEqual({ step: null, fresh: false });
+    expect(wizardOpening({})).toEqual({ step: null, fresh: false });
+  });
+
+  it('opens on the step asked for', () => {
+    expect(wizardOpening({ step: 'share' })).toEqual({ step: 'share', fresh: false });
+  });
+
+  it('opens a fresh matrix only for an explicit fresh: true', () => {
+    expect(wizardOpening({ fresh: true })).toEqual({ step: null, fresh: true });
+    // Truthy is not enough — a stray value must not throw the analyst's matrix away.
+    expect(wizardOpening({ fresh: 'yes' })).toEqual({ step: null, fresh: false });
+  });
+
+  it('ignores a click event passed straight through from an onClick', () => {
+    const clickEvent = { type: 'click', target: {}, step: undefined, detail: 1 };
+    expect(wizardOpening(clickEvent)).toEqual({ step: null, fresh: false });
+    expect(wizardOpening({ step: 3 })).toEqual({ step: null, fresh: false });
   });
 });

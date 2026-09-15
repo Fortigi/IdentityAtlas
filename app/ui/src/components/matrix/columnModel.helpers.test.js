@@ -35,6 +35,12 @@ describe('makeAccountCol', () => {
     expect(col.sortKeys).toEqual(['Eng']);
     expect(col.sortKeys).not.toBe(keys); // copied, not shared
   });
+  it('carries the parent subject itself, which the header spans over its accounts', () => {
+    // The expanded identity has no column of its own, so this reference is the
+    // only way the names row can still draw it.
+    const parent = { id: 'u1', displayName: 'Alice', memberType: 'Identity' };
+    expect(makeAccountCol(parent, { id: 'a1' }, []).parent).toBe(parent);
+  });
   it('falls back to the account id for a missing display name', () => {
     expect(makeAccountCol({ id: 'u1' }, { id: 'a1' }, []).displayName).toBe('a1');
   });
@@ -94,13 +100,54 @@ describe('buildColumns', () => {
     expect(cols.map(c => c.id)).toEqual(['u2']); // u1 has a deeper level, excluded
   });
 
-  it('splices per-account sub-columns after an expanded identity', () => {
+  it('replaces an expanded identity with one column per linked account', () => {
+    // #1212: expanding drills into the accounts — the identity's own combined
+    // column is what you get back by collapsing, not an extra column beside them.
+    const users = [sub('u1', ['Eng'], { memberType: 'Identity' }), sub('u2', ['Sales'])];
+    const { cols } = buildColumns(users, ctx({
+      expandedIdentities: new Set(['u1']),
+      accountMatrixCache: new Map([['u1', {
+        accounts: [{ id: 'a1', displayName: 'Acc 1' }, { id: 'a2', displayName: 'Acc 2' }],
+      }]]),
+    }));
+    expect(cols.map(c => c.id)).toEqual(['a1', 'a2', 'u2']);
+    expect(cols.every(c => c.id === 'u2' || c.isAccountCol)).toBe(true);
+    expect(cols[0].parent).toBe(users[0]);
+  });
+
+  it('keeps an expanded identity that has no linked account as its own column', () => {
+    // Otherwise the subject would disappear from the grid entirely on expand.
     const users = [sub('u1', ['Eng'], { memberType: 'Identity' })];
     const { cols } = buildColumns(users, ctx({
       expandedIdentities: new Set(['u1']),
+      accountMatrixCache: new Map([['u1', { accounts: [] }]]),
+    }));
+    expect(cols.map(c => c.id)).toEqual(['u1']);
+    expect(cols[0].isAccountCol).toBeUndefined();
+  });
+
+  it('keeps an expanded identity whose accounts have not been loaded yet', () => {
+    // The cache entry is written before the identity is marked expanded, but a
+    // failed load (or a cache dropped on a filter change) can leave the two out
+    // of step — the subject must keep its column rather than disappear.
+    const users = [sub('u1', ['Eng'], { memberType: 'Identity' })];
+    const { cols } = buildColumns(users, ctx({ expandedIdentities: new Set(['u1']) }));
+    expect(cols).toEqual(users);
+  });
+
+  it('expands a member-exploded identity into its accounts too', () => {
+    const users = [sub('u1', ['Eng'], { memberType: 'Identity' }), sub('u2', ['Eng'])];
+    const key = collapseKey(['Eng'], 0);
+    const { cols } = buildColumns(users, ctx({
+      collapsedGroups: new Set([key]),
+      memberExpanded: new Map([[key, 'all']]),
+      expandedIdentities: new Set(['u1']),
       accountMatrixCache: new Map([['u1', { accounts: [{ id: 'a1', displayName: 'Acc 1' }] }]]),
     }));
-    expect(cols.map(c => c.id)).toEqual(['u1', 'a1']);
-    expect(cols[1].isAccountCol).toBe(true);
+    expect(cols.map(c => c.id)).toEqual(['a1', 'u2']);
+    // The account inherits the member column's truncated sort-keys, so the
+    // merged header span above it stays contiguous.
+    expect(cols[0].sortKeys).toEqual(['Eng']);
+    expect(cols[0].parent.isMemberCol).toBe(true);
   });
 });

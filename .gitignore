@@ -58,3 +58,7 @@ test/unit/logs/
 
 # Stryker mutation-testing sandbox (it copies the package into here to run mutants)
 .stryker-tmp/
+
+# jscpd duplication-gate reports (PR Checks writes these; a local reproduction must not commit them)
+jscpd-head/
+jscpd-base/

@@ -20,7 +20,7 @@
       "allowPrivateNetwork": { "type": "boolean", "default": false, "description": "Allow baseUrl / tokenEndpoint to resolve to a private or loopback address (an on-premises server). Link-local and cloud-metadata addresses stay blocked." },
       "allowInsecureHttp":   { "type": "boolean", "default": false, "description": "Allow plain http for baseUrl / tokenEndpoint. Credentials are then sent unencrypted." },
       "scope":        { "type": "string", "description": "Optional OAuth2 scope requested with the client-credentials grant" },
-      "systemName":   { "type": "string", "description": "Display name of the Identity Atlas system this endpoint is registered as" },
+      "systemName":   { "type": "string", "description": "Optional override for the display name of the Identity Atlas system this endpoint is registered as. Omit it to name the system after the crawler itself." },
       "pageSize":     { "type": "number", "default": 100, "description": "SCIM page size (the `count` query parameter)" },
       "selectedObjects": {
         "type": "object",

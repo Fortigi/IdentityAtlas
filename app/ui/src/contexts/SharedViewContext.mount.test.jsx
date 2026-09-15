@@ -23,32 +23,26 @@ function renderShared(ui, { shared, auth = analyst } = {}) {
 
 describe('MatrixToolbar under a shared view', () => {
   const toolbar = (
-    <MatrixToolbar managedFilter="all" setManagedFilter={() => {}} filter={FILTER}
-      onExportExcel={() => {}} onShare={() => {}} onShareView={() => {}} />
+    <MatrixToolbar managedFilter="all" setManagedFilter={() => {}} onExportExcel={() => {}} />
   );
 
-  it('gives an analyst the export and share controls', () => {
+  it('gives an analyst the Export control', () => {
     renderShared(toolbar, { shared: false });
-    expect(screen.getByRole('button', { name: /Export Excel/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Copy link/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Share view/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Export/ })).toBeInTheDocument();
   });
 
-  // Two share-ish buttons sit side by side; they must not read as the same
-  // control. "Copy link" hands the URL to another analyst, "Share view…" mints
-  // a read-only link for someone with no role at all (#1166).
-  it('names the two sharing controls apart', () => {
+  // Since #1202 a share is created in the wizard's last step and managed from
+  // the strip's "Shared with N" chip, and Copy link is gone — the toolbar must
+  // grow no link or share control of any kind.
+  it('keeps sharing and link-copying out of the toolbar', () => {
     renderShared(toolbar, { shared: false });
-    expect(screen.getAllByRole('button', { name: /share/i }).map(b => b.textContent))
-      .toEqual(['Share view…']);
-    expect(screen.getByRole('button', { name: 'Copy link' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Share/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /link/i })).not.toBeInTheDocument();
   });
 
-  it('drops all three for a share recipient, keeping the governed toggle', () => {
+  it('drops Export for a share recipient, keeping the governed toggle', () => {
     renderShared(toolbar, { shared: true });
-    expect(screen.queryByRole('button', { name: /Export Excel/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Copy link/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Share view/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Export/ })).not.toBeInTheDocument();
     // Reading controls stay — the recipient can still switch governed/gaps.
     expect(screen.getByRole('button', { name: 'Governed' })).toBeInTheDocument();
   });
@@ -57,20 +51,20 @@ describe('MatrixToolbar under a shared view', () => {
 describe('MatrixFilterSummary under a shared view', () => {
   const summary = <MatrixFilterSummary filter={FILTER} preview={null} onAdjust={() => {}} />;
 
-  it('offers an analyst the Adjust matrix button and the saved badge', async () => {
+  it('offers an analyst the Adjust matrix button and the name menu', async () => {
     const authFetch = makeAuthFetch({ '/api/matrix/saved-filters': [] });
     renderShared(summary, { shared: false, auth: { ...analyst, authFetch } });
     expect(screen.getByRole('button', { name: 'Adjust matrix' })).toBeInTheDocument();
-    await waitFor(() => expect(screen.getByText('Not saved')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Unsaved matrix' })).toBeInTheDocument());
   });
 
   it('drops the whole scope strip for a recipient, and skips the fetches behind it', async () => {
     const authFetch = makeAuthFetch({ '/api/matrix/saved-filters': [] });
     const { container } = renderShared(summary, { shared: true, auth: { ...analyst, authFetch } });
-    // Not just the Adjust button — the rows/subjects/resources strip goes too,
+    // Not just the Adjust button — the matrix's name menu and its counts go too,
     // so the recipient sees the matrix and nothing around it.
-    expect(screen.queryByText('User × Resource')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Adjust matrix' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Unsaved matrix|Loading matrix/ })).not.toBeInTheDocument();
     expect(container).toBeEmptyDOMElement();
     expect(authFetch).not.toHaveBeenCalled();
   });
@@ -81,7 +75,9 @@ describe('MatrixScopePanel under a shared view', () => {
     subjectCount: 1135, resourceCount: 1014, assignmentCount: 2084,
     governedAssignmentCount: 710, ungovernedAssignmentCount: 1374, governedPct: 34.1,
   };
-  const panel = <MatrixScopePanel filter={FILTER} />;
+  // A matrix that asked for the panel (#1202) — otherwise it renders nothing
+  // for anybody and the shared-view flag would be untested here.
+  const panel = <MatrixScopePanel filter={{ ...FILTER, showTrends: true }} />;
 
   it('shows an analyst the scope statistics', async () => {
     const authFetch = makeAuthFetch({ '/api/matrix/scope-stats': STATS });
