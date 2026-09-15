@@ -439,7 +439,7 @@ done < <(printf '%s\n' "$board")
 while IFS="$US" read -r num sk c_is_bug; do
   [ -n "$num" ] || continue
   belongs_here "$c_is_bug" || continue
-  add_ex "🧟 #${num} is CLOSED but still claims \`${sk}\` — release that box by hand (\`~/.dor-reservation\` + \`~/stacks/dor-${num}\`), then drop the label."
+  add_ex "🧟 #${num} is CLOSED but still claims \`${sk}\` — the hourly sidekick sweep releases it, so if this stays, that box is offline or not in \`DOR_POOL\`: release it by hand (\`~/.dor-reservation\` + \`~/stacks/dor-${num}\`) and drop the label."
 done < <([ -n "$sk_all" ] && gh issue list --repo "$OWNER/$REPO" --state closed --search "label:$sk_all" --limit 50 \
   --json number,labels \
   --jq '.[] | [.labels[].name] as $l

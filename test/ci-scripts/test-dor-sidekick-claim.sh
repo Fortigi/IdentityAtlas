@@ -185,6 +185,48 @@ assert "every pool box claimed → no pick (fall back to the pool + backstop)" "
 reset_world; issue 1125 OPEN
 assert "no DOR_POOL → no pick" "" "$(DOR_POOL='' pick_sidekick)"
 
+# ── sweep_sidekick: release what a box holds for nobody ─────────────────────
+# Real dirs under $HOME/stacks; docker is a logger, so a teardown is visible as "docker <dir> …".
+docker() { echo "docker ${PWD##*/} $*" >> "$CALLS"; }
+stacks() { rm -rf "$HOME/stacks"; for s in "$@"; do mkdir -p "$HOME/stacks/$s"; done; }
+present() { (cd "$HOME/stacks" && ls -d -- * 2>/dev/null | sort | paste -sd' ' -); }
+downs()   { grep -o '^docker [^ ]* compose .*down -v' "$CALLS" | cut -d' ' -f2 | sort -u | paste -sd' ' -; }
+edge_up() { grep -q '^docker edge compose -f docker-compose.prod.yml up -d' "$CALLS" && echo true || echo false; }
+
+# sk3 on 2026-09-15: parked on #1209, closed, whose label had moved on before the reset ran.
+reset_world; stacks edge main dor-1209; lock "1213 1209"; issue 1209 CLOSED
+sweep_sidekick >/dev/null
+assert "a closed issue's reservation is released" "false" "$([ -f "$HOME/.dor-reservation" ] && echo true || echo false)"
+assert "…its stack is torn down with its volumes, and its dir removed" "dor-1209|edge main" "$(downs)|$(present)"
+assert "…the box's claim label is dropped from that issue" "true" \
+  "$(grep -qx 'edit #1209 add= remove=sk:sk5' "$CALLS" && echo true || echo false)"
+assert "…and the idle box serves the edge placeholder again" "true" "$(edge_up)"
+
+# sk7 the same morning: still locked to #1212, whose claim had moved to another box.
+reset_world; stacks edge dor-1212; lock "1214 1212"; issue 1212 OPEN sk:sk9
+sweep_sidekick >/dev/null
+assert "a reservation whose claim moved to another box is released too" "dor-1212|edge" "$(downs)|$(present)"
+
+# A live holder, with the leftovers of others around it.
+reset_world; stacks edge dor-1049 dor-1166 dor-1202 dor-819 pr-903 pr-904
+lock "1050 1049"; issue 1049 OPEN sk:sk5
+issue 1202 CLOSED; issue 1166 OPEN sk:sk7; issue 819 OPEN; pr 903 MERGED; pr 904 OPEN
+sweep_sidekick >/dev/null
+assert "the live holder's reservation is untouched" "1050 1049" "$(cat "$HOME/.dor-reservation")"
+assert "leftovers of closed / moved issues and merged PRs go; the holder, an open unclaimed issue, an open PR and edge stay" \
+  "dor-1166 dor-1202 pr-903|dor-1049 dor-819 edge pr-904" "$(downs)|$(present)"
+assert "…and the holder's running env is not replaced by the edge placeholder" "false" "$(edge_up)"
+
+reset_world; stacks edge dor-1049 nl-reports dor-x; lock "1050 1049"
+sweep_sidekick >/dev/null
+assert "an issue that cannot be read keeps its reservation and its stack" "1050 1049|dor-1049 dor-x edge nl-reports" \
+  "$(cat "$HOME/.dor-reservation")|$(present)"
+assert "…and nothing on the box is touched" "" "$(cat "$CALLS")"
+
+reset_world; stacks edge dor-1202; issue 1202 CLOSED
+sweep_sidekick >/dev/null
+assert "a leftover stack on an unlocked box goes, and edge comes back" "dor-1202|edge|true" "$(downs)|$(present)|$(edge_up)"
+
 # ── Wiring: the pieces are only worth anything if they are called ──────────
 FLOW="$REPO_ROOT/.github/scripts/dor_build_flow.sh"
 AGENT="$REPO_ROOT/.github/workflows/dor-build-agent.yml"
@@ -196,6 +238,11 @@ assert "the build flow bails rather than claim over a holder" "true" \
   "$(grep -A1 '^claim_sidekick "\$pr"' "$FLOW" | grep -q 'bail' && echo true || echo false)"
 assert "the build job runs on the picked box" "true" \
   "$(grep -q "needs.pick.outputs.sk || 'dor-build'" "$AGENT" && echo true || echo false)"
+RECONCILE="$REPO_ROOT/.github/workflows/dor-reconcile.yml"
+assert "the hourly reconcile sweeps each pool box on that box's own runner" "true" \
+  "$(grep -q '^ *sweep_sidekick$' "$RECONCILE" && grep -q -- '- \${{ matrix.sk }}' "$RECONCILE" && echo true || echo false)"
+assert "…with no workflow-level concurrency an offline box could hold every later run behind" "false" \
+  "$(grep -q '^concurrency:' "$RECONCILE" && echo true || echo false)"
 
 echo
 echo "  $PASS passed, $FAIL failed"
