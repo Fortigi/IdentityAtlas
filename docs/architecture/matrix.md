@@ -167,7 +167,36 @@ The matrix can run with **identities** as subjects instead of individual princip
 - **User accounts** (`principal`) — each subject is one Principal (a single account). Best for clean-up sweeps and per-account audits.
 - **Identities** (`identity`) — each subject is one correlated person, unioning across their linked accounts. A cell is filled if *any* underlying account has the assignment. Best for role-mining and birthright analysis.
 
-When the orientation puts subjects on the column axis, an **identity column can be expanded into per-account sub-columns**. Clicking the chevron on an identity header (`MatrixColumnHeaders.jsx`) loads `GET /api/identities/:id/account-matrix`, which returns the identity's linked accounts plus each account's `(resourceId, membershipType)` rows drawn from the *same* `vw_ResourceUserPermissionAssignments` view the principal matrix uses — so the account sub-columns render cells identical to a principal-scoped matrix. The account sub-columns are visually tinted (blue) and labelled `displayName · accountType` to distinguish them from the rolled-up identity column.
+When the orientation puts subjects on the column axis, an **identity column can be expanded into per-account sub-columns**. Clicking the chevron on an identity header (`MatrixColumnHeaders.jsx`) loads `GET /api/identities/:id/account-matrix`, which returns the identity's linked accounts plus each account's `(resourceId, membershipType)` rows drawn from the *same* `vw_ResourceUserPermissionAssignments` view the principal matrix uses — so the account sub-columns render cells identical to a principal-scoped matrix. The account sub-columns are visually tinted (blue) and labelled `displayName · accountType` to distinguish them from the identity columns around them.
+
+#### Expanding is a drill-down, not an extra column
+
+Expanding **replaces** the identity's column with one column per linked account, the way an org grouping expands into the columns it contains (#1212). The identity's combined ("all accounts") column is what collapsing gives back — it is never shown next to the accounts it rolls up, which would be the same access counted twice on screen.
+
+`columnModel.js` owns this: `buildColumns()` emits the account columns *instead of* the identity, and each one carries its parent on `parent` (an identity whose account list comes back empty keeps its own column, so a subject can never vanish from the grid).
+
+#### The accounts header row
+
+The accounts hang **under** their identity rather than beside it. The header is where the parent reappears, and `MatrixColumnHeaders.helpers.js`'s `splitAccountColumns()` is what puts it there:
+
+- The identity re-enters the names row at the position of its first account column, and its `<th>` spans exactly `accounts` columns.
+- A second header row (`MatrixAccountsRow.jsx`) sits directly under the names row and fills that span with one blue cell per account.
+- Every other header cell on the names row — the corner/Resource Name/Contexts cells, non-expanded subjects, aggregates, access-package labels and the # / Type / Description block — carries `rowSpan=2` while the accounts row exists, so no blank band appears beside them. The row only exists while at least one identity is expanded; otherwise the header renders exactly as before.
+- The accounts row sits *after* the names row, so the sticky `<thead>` pins it along with the names row for free. Its height must **not** be added to the grouping offset below — that would push the header out of view and bring back the grey-band-on-scroll bug.
+
+An account column that carries no parent stays on the names row: it still owns a body column, and every header row has to keep adding up to the body's width.
+
+#### The linked-account count on an identity header
+
+An identity header shows the number of accounts it expands into, as a small grey count above the rotated name (the same treatment the roll-up matrix gives its group headers), with the number spelled out in the header tooltip. Only identity columns that have linked accounts get one — a plain account column expands into nothing, and neither does an identity with no accounts.
+
+**The count must be readable before expanding** — it is what tells an analyst which identities are worth a click — so it cannot come from `/api/identities/:id/account-matrix`, which is only fetched *on* expand. `/api/matrix/data` therefore ships an `accountCount` with every identity row (`accountCountJoin` / `accountCountSelect` in `routes/matrix/data.js`). Principal-row matrices get no such column: there, a subject already *is* an account.
+
+It is counted **live from `IdentityMembers`**, the same table `/api/identities/:id/account-matrix` reads, so the badge always states the exact number of columns that expanding will produce. Do **not** read the denormalised `Identities.accountCount` here, tempting as it looks: only the account-linking engine writes that column, and only for the identities a given run newly *linked*. Every identity whose accounts arrived from a crawler, a CSV import or an analyst decision still carries `NULL` — which is most real data, the demo dataset included — and reading it made the count render as nothing at all on exactly the multi-account identities it exists to flag ([#1212](https://github.com/Fortigi/IdentityAtlas/issues/1212)). The identities list, identity detail page and risk-score list still display the stored column and remain subject to that staleness; they are not fed by this query.
+
+The aggregate is grouped once and `LEFT JOIN`ed rather than correlated per row — the flat grid emits one row per (subject, resource) assignment, so a scalar subquery would re-count the same identity thousands of times per request.
+
+Nothing is counted client-side: `matrixModel.js` carries the value from the row onto the subject, and `subjectAccountCount()` in `MatrixColumnHeaders.helpers.js` decides whether it is worth showing. The count stays up while the identity is expanded, where it describes the span below it.
 
 ### Context picker filtered by row type
 
