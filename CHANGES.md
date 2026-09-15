@@ -1,5 +1,13 @@
 ## Changes in this PR
 
+- Fixed automated builds overwriting another request's test environment: a new build could be sent to a sidekick that was still holding a feature in functional acceptance, which wiped that environment and silently disconnected the feature from its sidekick
+- Automated builds now go to a sidekick that no open request holds (set by the `DOR_POOL` repository variable), and a request that is rebuilt goes back to its own sidekick
+- A build that still lands on a sidekick in use now waits and retries automatically instead of taking it over, and puts back the holder's sidekick label if it was missing
+- Sidekicks left holding the test environment of a closed request, or of a request that has since moved to another sidekick, are now released automatically every hour and returned to the build pool
+- Leftover test environments of closed requests and merged pull requests are removed from the sidekicks during the same hourly check, freeing their disk space
+
+## Changes in this PR
+
 - Hardened the credential vault: every secret is now read and deleted only through the feature it belongs to, so risk-profile scraper credentials can no longer be used to reach any other stored secret.
 - Hardened crawler jobs: a job now only receives the stored credentials of the crawler configuration it was actually created from.
 - Hardened crawler configurations: changing a crawler's base URL, token endpoint or other endpoint host now asks you to re-enter its stored credentials before the change is saved.

@@ -1,3 +1,0 @@
-- Fixed automated builds overwriting another request's test environment: a new build could be sent to a sidekick that was still holding a feature in functional acceptance, which wiped that environment and silently disconnected the feature from its sidekick
-- Automated builds now go to a sidekick that no open request holds (set by the `DOR_POOL` repository variable), and a request that is rebuilt goes back to its own sidekick
-- A build that still lands on a sidekick in use now waits and retries automatically instead of taking it over, and puts back the holder's sidekick label if it was missing
