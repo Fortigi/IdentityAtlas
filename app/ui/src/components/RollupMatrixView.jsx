@@ -7,7 +7,7 @@ import { exportRollupToExcel } from '@ui/utils/exportRollupToExcel';
 import { useIsDark } from '@ui/contexts/ThemeContext';
 import MatrixCell from './matrix/MatrixCell';
 import MatrixScopePanel from './matrix/MatrixScopePanel';
-import MatrixLegend from './matrix/MatrixLegend';
+import { MatrixLegendButton } from './matrix/GridCornerControls';
 import MatrixFilterSummary from './matrix/MatrixFilterSummary';
 import MatrixToolbar from './matrix/MatrixToolbar';
 import GridResizeHandle from './matrix/GridResizeHandle';
@@ -134,8 +134,8 @@ function BreadcrumbNav({ contextMode, layered, breadcrumb, jumpToCrumb }) {
 }
 
 export default function RollupMatrixView({
-  rollup, filter, counts, managedFilter, setManagedFilter, shareUrl,
-  refreshing, onOpenDetail, onAdjustFilter, onFilterChange, onShareView,
+  rollup, filter, counts, managedFilter, setManagedFilter,
+  refreshing, onOpenDetail, onAdjustFilter, onLoadSaved, onFilterChange, onShareView,
 }) {
   const { authFetch } = useAuth();
   const isDark = useIsDark();
@@ -323,11 +323,6 @@ export default function RollupMatrixView({
     return out;
   }, [groupValues, expanded, cache]);
 
-  // Share + export (parity with the per-subject toolbar).
-  const onShare = useCallback(async () => {
-    try { await navigator.clipboard.writeText(shareUrl || window.location.href); return true; } catch { return false; }
-  }, [shareUrl]);
-
   const onExportExcel = useCallback(() => {
     const columns = groupValues.map(g => {
       const node = nodeMap.get(g);
@@ -364,6 +359,11 @@ export default function RollupMatrixView({
   const gridMaxH = gridHeight.height;
 
   const trailingCols = visibleRoles.length + 3; // resource + # + Description (+ roles handled separately)
+
+  // The corner above the row labels: what the rows are, and the "?" legend.
+  const cornerLabel = (
+    <div className="flex items-center justify-between gap-2"><span>{rowNoun}</span><MatrixLegendButton /></div>
+  );
 
 
   // ── Layered hierarchy header: one merged row per org level. A node sits at
@@ -518,7 +518,7 @@ export default function RollupMatrixView({
   const layeredHeaderRow = (L, isLast, indexed) => {
     const stick = isLast ? ' sticky top-0' : '';
     const cells = [
-      <th key={`corner-${L}`} className={`sticky left-0 ${isLast ? 'top-0 z-40' : 'z-30'} bg-gray-100 dark:bg-gray-800 border-r border-gray-300 dark:border-gray-600 px-2 py-1 text-left align-bottom text-gray-600 dark:text-gray-300 font-medium ${isLast ? 'border-b' : ''}`} style={{ minWidth: '280px' }}>{isLast ? rowNoun : ''}</th>,
+      <th key={`corner-${L}`} className={`sticky left-0 ${isLast ? 'top-0 z-40' : 'z-30'} bg-gray-100 dark:bg-gray-800 border-r border-gray-300 dark:border-gray-600 px-2 py-1 text-left align-bottom text-gray-600 dark:text-gray-300 font-medium ${isLast ? 'border-b' : ''}`} style={{ minWidth: '280px' }}>{isLast ? cornerLabel : ''}</th>,
     ];
     let i = 0;
     while (i < indexed.length) {
@@ -577,29 +577,18 @@ export default function RollupMatrixView({
   return (
     <div className="flex flex-col gap-3">
       {/* Filter summary chips + Adjust matrix — same toolbar as the per-subject view. */}
-      {filter && <MatrixFilterSummary filter={filter} preview={counts} onAdjust={onAdjustFilter} />}
+      {filter && <MatrixFilterSummary filter={filter} managed={managedFilter} preview={counts} onAdjust={onAdjustFilter} onLoadSaved={onLoadSaved} onShareView={onShareView} />}
 
       {/* Scope Statistics — governed % etc. */}
       {filter && <MatrixScopePanel filter={filter} />}
 
-      {/* All / Governed / Non-governed + Export + Share — same toolbar as the per-subject view. */}
-      <MatrixToolbar
-        managedFilter={managedFilter}
-        setManagedFilter={setManagedFilter}
-        filter={filter}
-        onExportExcel={onExportExcel}
-        onShare={onShare}
-        onShareView={onShareView}
-        hideGaps
-      />
+      {/* All / Governed / Non-governed + Export — same toolbar as the per-subject view. */}
+      <MatrixToolbar managedFilter={managedFilter} setManagedFilter={setManagedFilter} onExportExcel={onExportExcel} hideGaps />
 
       <div className="px-1 text-[11px] text-gray-600 dark:text-gray-300">
         <ModeDescription percentMode={percentMode} subjectWord={subjectWord} contextMode={contextMode} layered={layered} layeredAttributes={layeredAttributes} rolesOnly={rolesOnly} attribute={attribute} mode={mode} />
         {refreshing && <span className="ml-2 text-gray-500 dark:text-gray-400">updating…</span>}
       </div>
-
-      {/* How to read this matrix — same legend as the per-subject view. */}
-      <MatrixLegend />
 
       {/* Context drill breadcrumb — sits just above the column headers. */}
       <BreadcrumbNav contextMode={contextMode} layered={layered} breadcrumb={breadcrumb} jumpToCrumb={jumpToCrumb} />
@@ -610,7 +599,7 @@ export default function RollupMatrixView({
             {layered ? layeredHeader() : (
             <tr>
               <th className="sticky left-0 z-30 bg-gray-100 dark:bg-gray-800 border-b border-r border-gray-300 dark:border-gray-600 px-2 py-1 text-left text-gray-600 dark:text-gray-300 font-medium" style={{ minWidth: '280px' }}>
-                {rowNoun}
+                {cornerLabel}
               </th>
               {columns.map(col => {
                 if (col.type === 'group') {

@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { TYPE_COLORS } from '@ui/utils/colors';
 
 // On-screen key for the matrix. The grid encodes everything as single colored
@@ -81,77 +80,51 @@ function BusinessRoleRowMarkers() {
   );
 }
 
-const STORAGE_KEY = 'matrixLegendCollapsed';
-
+// The legend's content only. It opens as a popover from the "?" button in the
+// grid's top-left corner (GridCornerControls → MatrixLegendButton) instead of
+// occupying a full-width bar above the grid.
 export default function MatrixLegend({ showBusinessRoles = false }) {
-  // Default open so first-time users can read the grid; persist the choice.
-  const [collapsed, setCollapsed] = useState(() => {
-    try { return localStorage.getItem(STORAGE_KEY) === '1'; } catch { return false; }
-  });
-
-  const toggle = () => {
-    setCollapsed(prev => {
-      const next = !prev;
-      try { localStorage.setItem(STORAGE_KEY, next ? '1' : '0'); } catch { /* ignore */ }
-      return next;
-    });
-  };
-
   return (
-    <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-xs">
-      <button
-        type="button"
-        onClick={toggle}
-        aria-expanded={!collapsed}
-        className="flex w-full items-center gap-2 px-3 py-1.5 text-left font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-lg"
-      >
-        <span className="text-gray-500 dark:text-gray-400" aria-hidden="true">{collapsed ? '▸' : '▾'}</span>
-        How to read this matrix
-      </button>
-
-      {!collapsed && (
-        <div className="flex flex-col gap-3 px-3 pb-3 pt-1">
-          {/* Membership-type badges */}
-          <div>
-            <div className="mb-1 text-gray-500 dark:text-gray-400">Cell badges — how the access is held</div>
-            <div className="grid grid-cols-2 gap-x-6 gap-y-1 sm:grid-cols-4">
-              {TYPE_LABELS.map(([type, label]) => (
-                <div key={type} className="flex items-center gap-1.5">
-                  <Badge type={type} />
-                  <span className="text-gray-700 dark:text-gray-300">{label}</span>
-                </div>
-              ))}
+    <div className="flex flex-col gap-3 text-xs">
+      {/* Membership-type badges */}
+      <div>
+        <div className="mb-1 text-gray-500 dark:text-gray-400">Cell badges — how the access is held</div>
+        <div className="grid grid-cols-2 gap-x-6 gap-y-1 sm:grid-cols-4">
+          {TYPE_LABELS.map(([type, label]) => (
+            <div key={type} className="flex items-center gap-1.5">
+              <Badge type={type} />
+              <span className="text-gray-700 dark:text-gray-300">{label}</span>
             </div>
-          </div>
-
-          {/* Background / markers */}
-          <div className="flex flex-col gap-1 border-t border-gray-100 dark:border-gray-700 pt-2">
-            <div className="flex items-center gap-1.5">
-              <span className="inline-block w-4 h-4 rounded-sm border border-gray-300 dark:border-gray-600 shrink-0" style={{ backgroundColor: '#fde68a' }} aria-hidden="true" />
-              <span className="text-gray-700 dark:text-gray-300">
-                Coloured cell = membership is <span className="font-medium">governed</span> by a business role / access package (the colour matches its column).
-              </span>
-            </div>
-            <div className="text-gray-500 dark:text-gray-400 pt-1">
-              Markers sit in a strip along the top of a cell, above its badge — always in the same
-              places: <span className="font-medium">left</span> = fewer than the business role
-              assigns, <span className="font-medium">centre</span> = how many roles cover the cell
-              {showBusinessRoles && <>, <span className="font-medium">right</span> = more than the role assigns</>}.
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="inline-flex w-4 h-4 items-center justify-center rounded-full bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-500 text-[8px] font-bold shrink-0" aria-hidden="true">2</span>
-              <span className="text-gray-700 dark:text-gray-300">Centre — covered by more than one business role (the number shows how many; the cell&apos;s tooltip names them).</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="inline-flex w-4 h-4 items-center justify-center rounded-full bg-amber-500 text-white border border-amber-600 text-[8px] font-bold shrink-0" aria-hidden="true">!</span>
-              <span className="text-gray-700 dark:text-gray-300">
-                Left — <span className="font-medium">Provisioning gap</span>: a business role expects this membership but the user doesn&apos;t have it.
-              </span>
-            </div>
-            {showBusinessRoles && <BusinessRoleRowMarkers />}
-          </div>
+          ))}
         </div>
-      )}
+      </div>
+
+      {/* Background / markers */}
+      <div className="flex flex-col gap-1 border-t border-gray-100 dark:border-gray-700 pt-2">
+        <div className="flex items-center gap-1.5">
+          <span className="inline-block w-4 h-4 rounded-sm border border-gray-300 dark:border-gray-600 shrink-0" style={{ backgroundColor: '#fde68a' }} aria-hidden="true" />
+          <span className="text-gray-700 dark:text-gray-300">
+            Coloured cell = membership is <span className="font-medium">governed</span> by a business role / access package (the colour matches its column).
+          </span>
+        </div>
+        <div className="text-gray-500 dark:text-gray-400 pt-1">
+          Markers sit in a strip along the top of a cell, above its badge — always in the same
+          places: <span className="font-medium">left</span> = fewer than the business role
+          assigns, <span className="font-medium">centre</span> = how many roles cover the cell
+          {showBusinessRoles && <>, <span className="font-medium">right</span> = more than the role assigns</>}.
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="inline-flex w-4 h-4 items-center justify-center rounded-full bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-500 text-[8px] font-bold shrink-0" aria-hidden="true">2</span>
+          <span className="text-gray-700 dark:text-gray-300">Centre — covered by more than one business role (the number shows how many; the cell&apos;s tooltip names them).</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="inline-flex w-4 h-4 items-center justify-center rounded-full bg-amber-500 text-white border border-amber-600 text-[8px] font-bold shrink-0" aria-hidden="true">!</span>
+          <span className="text-gray-700 dark:text-gray-300">
+            Left — <span className="font-medium">Provisioning gap</span>: a business role expects this membership but the user doesn&apos;t have it.
+          </span>
+        </div>
+        {showBusinessRoles && <BusinessRoleRowMarkers />}
+      </div>
     </div>
   );
 }

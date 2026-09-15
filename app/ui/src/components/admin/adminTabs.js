@@ -39,3 +39,14 @@ export function visibleAdminTabs(permissions, hasWildcard, tabs = ADMIN_TABS, fe
     (!t.feature || features[t.feature] === true)
     && (!t.requires || hasPermission(permissions, hasWildcard, ...t.requires)));
 }
+
+// Should the page move the user off `activeTab` because they can't see it?
+// Not while the tab's feature flag is still unreported: /api/features answers
+// after the first render, and a flag it hasn't reported yet is unknown, not
+// off. Bouncing on "unknown" sent a `#admin?sub=shares` deep link (and the
+// legacy #shared-matrices link) to Crawlers whenever the page won that race.
+export function shouldLeaveTab(activeTab, visibleTabs, features = {}) {
+  if (!visibleTabs.length || visibleTabs.some(t => t.key === activeTab)) return false;
+  const def = ADMIN_TABS.find(t => t.key === activeTab);
+  return !(def?.feature && !Object.hasOwn(features || {}, def.feature));
+}

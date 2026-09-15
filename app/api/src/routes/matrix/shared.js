@@ -12,7 +12,7 @@ import {
   discoverColumnValues, discoverExtendedAttrValues, mergeValueSets, valuePageSize,
 } from '../../db/columnCache.js';
 import { buildEntitySubquery, collectContextIds } from '../../matrix/filterSql.js';
-import { resourceMeta } from '../../db/matrixHelpers.js';
+import { resourceMeta, buildAssignmentExprs } from '../../db/matrixHelpers.js';
 import { GROUP_PRINCIPAL_TYPE } from '../../lib/principalTypes.js';
 import { shouldHideDefaultResourceTypes, visibleResourceTypesSql } from '../../lib/resourceVisibility.js';
 
@@ -300,7 +300,10 @@ export function subjectScopeClauses(rowType, subjectSql) {
   };
 }
 
-// Subject/resource scope counts shared by /matrix/data (flat + roll-up paths).
+// Subject/resource/assignment scope counts shared by /matrix/data (flat + roll-up
+// paths). `assignmentCount` is the same distinct subject×resource count the
+// wizard's live preview shows, so the strip above the matrix and the wizard agree
+// on how many assignments a matrix holds (#1202 — the strip read 0 without it).
 export async function scopeCounts(p, res, rowType, built) {
   // Each COUNT query renders its fragment fresh with its own params array.
   const sp = createParams();
@@ -310,7 +313,11 @@ export async function scopeCounts(p, res, rowType, built) {
   const rp = createParams();
   const resourceSql = built.resource(rp.bind).sql;
 
-  const [subjectCount, subjectTotal, resourceCount, resourceTotal] = await Promise.all([
+  const ap = createParams();
+  const { subjectIdExpr, assignmentJoin, assignmentWhere } =
+    buildAssignmentExprs(rowType, built.subject(ap.bind).sql, built.resource(ap.bind).sql);
+
+  const [subjectCount, subjectTotal, resourceCount, resourceTotal, assignmentCount] = await Promise.all([
     runCount(p, 'matrix-data-subject-count', res,
       `SELECT COUNT(*)::int AS c FROM "${subj.subjectTable}"${subj.where}`, sp.params),
     runCount(p, 'matrix-data-subject-total', res,
@@ -319,6 +326,13 @@ export async function scopeCounts(p, res, rowType, built) {
       `SELECT COUNT(*)::int AS c FROM "Resources"${resourceSql ? ` WHERE id IN ${resourceSql}` : ''}`, rp.params),
     runCount(p, 'matrix-data-resource-total', res,
       `SELECT COUNT(*)::int AS c FROM "Resources"${built.resourceTotalWhere || ''}`, []),
+    runCount(p, 'matrix-data-assignments', res,
+      `SELECT COUNT(*)::int AS c FROM (
+         SELECT DISTINCT ${subjectIdExpr} AS sid, p."resourceId" AS rid
+           FROM "vw_ResourceUserPermissionAssignments" p
+           ${assignmentJoin}
+          WHERE ${assignmentWhere.join(' AND ')}
+       ) t`, ap.params),
   ]);
-  return { subjectCount, subjectTotal, resourceCount, resourceTotal };
+  return { subjectCount, subjectTotal, resourceCount, resourceTotal, assignmentCount };
 }

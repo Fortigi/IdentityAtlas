@@ -15,9 +15,10 @@ describe('MatrixView', () => {
     expect(src).toContain('loadingIdentityCols');
   });
 
-  it('shows an empty state before a slice is picked and when no data exists', () => {
-    expect(src).toContain('Pick a slice to inspect');
-    expect(src).toContain('No data available yet');
+  it('hands the no-matrix state to the "Open a matrix" list', () => {
+    // The list itself — saved matrices, New matrix, the no-data message — is
+    // mounted and asserted in matrix/OpenMatrixList.mount.test.jsx (#1202).
+    expect(src).toContain('<OpenMatrixList');
   });
 
   it('fetches expandable groups through the auth-wrapped client', () => {

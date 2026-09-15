@@ -33,6 +33,11 @@ export const EMPTY_FILTER = {
   // so showing them as rows too lists the same role on both axes. A property of
   // the matrix (saved and shared with it), not of the viewer.
   includeBusinessRoles: false,
+  // Also fold in access inherited from higher scopes (Owner on a subscription ⇒
+  // Indirect on everything beneath it), computed on demand by the API. Off by
+  // default; a property of the matrix, saved with it — so it must survive being
+  // adjusted, which it did not while the normaliser dropped it (#1202).
+  includeInheritedAccess: false,
   // Roll-up: aggregate the subject (column) axis by this attribute. null = off.
   rollup: null,
   // What the roll-up shows (only when rollup is set):
@@ -67,6 +72,12 @@ export const EMPTY_FILTER = {
   // columns. 'auto' folds only when the matrix is large (keeps load fast);
   // true/false force it.
   foldOnLoad: 'auto',
+  // Show the scope-statistics panel (totals, the governed split and, on expand,
+  // trends & breakdown) above the matrix. Off by default — it is reporting
+  // tooling, not part of reading the grid, and the strip above the matrix stays
+  // one line without it. A property of the matrix (saved and shared with it),
+  // not of the viewer, so a saved matrix opens the way it was stored.
+  showTrends: false,
 };
 
 // Per-field readers, so the normaliser below stays a flat list of fields
@@ -110,6 +121,8 @@ export function normalizeMatrixFilter(f) {
     // to the server, and coercing a stray truthy value here would tick the box
     // while the rows stayed hidden.
     includeBusinessRoles: src.includeBusinessRoles === true,
+    // Strict for the same reason: the API reads only a real `true`.
+    includeInheritedAccess: src.includeInheritedAccess === true,
     rollup: text(src.rollup),
     rollupContent: oneOf(src.rollupContent, ['resources-and-roles', 'resources-only', 'roles-only']),
     rollupMetric: oneOf(src.rollupMetric, ['count', 'percent']),
@@ -124,6 +137,9 @@ export function normalizeMatrixFilter(f) {
     sortAttributes: normalizeSort(src.sortAttributes),
     sortHierarchy: normalizeHierarchy(src.sortHierarchy),
     foldOnLoad: oneOf(src.foldOnLoad, ['auto', true, false]),
+    // Strict `=== true`, like includeBusinessRoles: an absent or stray value
+    // leaves the panel off rather than half-enabling it.
+    showTrends: src.showTrends === true,
   };
 }
 
@@ -136,8 +152,8 @@ export function normalizeMatrixFilter(f) {
 //     may predate a field or only carry what its writer cared about (the demo
 //     seed writes four keys). Comparing raw JSON made a matrix stop matching
 //     the saved row it came from the moment it was adjusted — so opening the
-//     wizard and applying without changing anything relabelled the demo default
-//     "Not saved".
+//     wizard and applying without changing anything made the demo default read
+//     as unsaved.
 //   * view state. Which groups are folded and how far the analyst has drilled
 //     is where they are IN the matrix, not which matrix it is; the wizard
 //     rewrites those keys on every apply.

@@ -675,7 +675,7 @@ async function handleFlatGrid(res, ctx) {
     });
   }
 
-  const { subjectCount, subjectTotal, resourceCount, resourceTotal } = await scopeCounts(p, res, rowType, built);
+  const { subjectCount, subjectTotal, resourceCount, resourceTotal, assignmentCount } = await scopeCounts(p, res, rowType, built);
 
   // AP mapping — keyed by memberId (principal or identity depending on
   // rowType) so the existing frontend renders SOLL columns correctly.
@@ -726,6 +726,7 @@ async function handleFlatGrid(res, ctx) {
     subjectTotal,
     resourceCount,
     resourceTotal,
+    assignmentCount,
     // Backward-compat alias used by the existing matrix toolbar footer.
     totalUsers: subjectTotal,
     managedByPackages,

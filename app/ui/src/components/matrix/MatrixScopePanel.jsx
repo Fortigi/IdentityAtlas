@@ -1,4 +1,5 @@
-// Scope Statistics panel for the Matrix view.
+// Scope Statistics panel for the Matrix view — opt-in per matrix, off by
+// default (see the export at the bottom half of this file).
 //
 // For the current matrix selection it shows live counts (principals / resources
 // / assignments) and the governed-vs-non-governed split, and — on expand —
@@ -111,10 +112,17 @@ function trendsReducer(s, a) {
   }
 }
 
-// Scope statistics are analysis tooling, not part of what a share recipient
-// was sent: in a shared view the panel (and its stats fetches) is skipped (#1166).
+// Two reasons the panel renders nothing at all:
+//
+//   * it is off unless the matrix asks for it (`filter.showTrends`, ticked on
+//     the wizard's Sort step). Reporting tooling is not what most analysts open
+//     the matrix for, and four stacked bars above the grid pushed it off screen
+//     (#1202) — so it is opt-in per matrix, and travels with the saved one;
+//   * scope statistics are analysis tooling, not part of what a share recipient
+//     was sent: in a shared view the panel (and its fetches) is skipped (#1166).
 export default function MatrixScopePanel(props) {
   if (useIsSharedView()) return null;
+  if (props.filter?.showTrends !== true) return null;
   return <ScopePanel {...props} />;
 }
 
@@ -184,8 +192,8 @@ function ScopePanel({ filter }) {
     trendsDispatch({ type: 'setDrill', drill: { key: groupKey, points: ts?.points || [] } });
   }, [drill, breakdown, debouncedFilter, post]);
 
-  if (!filter) return null;
-
+  // No `if (!filter)` guard — the export above only mounts this for a filter
+  // that asked for the panel.
   const s = stats || {};
   const subjectLabel = (s.rowType === 'identity') ? 'Identities' : 'Principals';
 

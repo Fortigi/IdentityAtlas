@@ -82,11 +82,14 @@ Environment variable: `FEATURE_MATRIX_SHARING=true`.
 ### What the switch does, precisely
 
 **On** — users with the **Create matrix share links** (`data.share`) permission get
-the wizard's **Share** step, the toolbar's **Share view…** button and the
-**Admin → Shared Matrices** tab, and share links open for their recipients.
+the wizard's **Share** step, the share control on the matrix's Load / Save / Share
+bar and the **Admin → Shared Matrices** tab, and share links open for their
+recipients. The rest of that bar — loading and saving a matrix — is not
+experimental and is always available.
 
-**Off** — all of those are hidden, and the API answers `404` on every share endpoint:
-creating, listing and revoking shares, **and opening a link**. A recipient who opens
+**Off** — all of the share affordances are hidden, and the API answers `404` on every
+share endpoint: creating, listing, adjusting recipients and revoking shares, **and
+opening a link**. A recipient who opens
 a link that was sent while sharing was on sees the same "This link doesn’t open a
 shared view" page as for an unknown link — never an error.
 
