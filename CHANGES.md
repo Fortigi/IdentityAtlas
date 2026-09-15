@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Fixed automated bug builds being sent to Exceptions when a fix touched more than one PowerShell test file; the test run was refused before any test ran, so a correct fix was reported as not passing its regression test
+
+## Changes in this PR
+
 - Fixed issues keeping their workflow labels (such as "awaiting approval" or "build done") after their pull request was merged or closed; the cleanup silently did nothing whenever one of the labels it clears did not exist yet
 
 ## Changes in this PR
