@@ -169,6 +169,76 @@ describe('MatrixColumnHeaders accounts row', () => {
   });
 });
 
+// ─── Axis corner controls beside the accounts row (#1206 × #1212) ─────────────
+//
+// The corner controls and the accounts row land on the same three cells: the
+// controls live inside the info block on the grouping and names rows, and the
+// accounts row is what gives those same cells their `rowSpan=2`. Both sides met
+// in one conflict when #1206 merged in, so the two are asserted together — a
+// resolution that keeps only one of them still renders a plausible header.
+describe('MatrixColumnHeaders axis corner controls', () => {
+  const corners = {
+    columnCorner: h('button', { type: 'button' }, 'fold columns'),
+    rowCorner: h('button', { type: 'button' }, 'fold rows'),
+  };
+  const twoAttrs = [{ attribute: 'businessUnit' }, { attribute: 'department' }];
+
+  it('puts the column-axis corner on the first grouping row only', () => {
+    const { container } = renderHeaders(twoAttrs, corners);
+    const [first, second] = [...container.querySelectorAll('thead tr')];
+
+    expect(first).toHaveTextContent('fold columns');
+    // The second grouping row gets `null`, so a control that leaked onto every
+    // row (or onto the names row) fails here rather than merely looking busy.
+    expect(second).not.toHaveTextContent('fold columns');
+    expect(container.querySelectorAll('thead tr')[2]).not.toHaveTextContent('fold columns');
+  });
+
+  it('puts the row-axis corner in the Resource Name cell on the names row', () => {
+    const { container } = renderHeaders(twoAttrs, corners);
+    const namesRow = [...container.querySelectorAll('thead tr')].at(-1);
+    const resourceName = [...namesRow.children][1];
+
+    expect(resourceName).toHaveTextContent('Resource Name');
+    expect(resourceName).toHaveTextContent('fold rows');
+    // Collapsed grid: nothing below the names row, so the info cells span one row.
+    expect(resourceName.getAttribute('rowspan')).toBeNull();
+  });
+
+  it('keeps both corners while an identity is expanded into its accounts', () => {
+    // The accounts row makes the info cells span two rows. The corner content
+    // sits inside the Resource Name cell, so a resolution that reinstated the
+    // plain `Resource Name` text would silently drop the row-axis controls.
+    const alice = { id: 'id1', displayName: 'Alice', memberType: 'Identity', accountCount: 2, sortKeys: ['Finance', 'Payroll'] };
+    const { container } = renderHeaders(twoAttrs, {
+      ...corners,
+      users: [
+        { id: 'acc1', displayName: 'Alice', isAccountCol: true, parentId: 'id1', parent: alice, accountType: 'AAD', sortKeys: ['Finance', 'Payroll'] },
+        { id: 'acc2', displayName: 'A.Jansen', isAccountCol: true, parentId: 'id1', parent: alice, accountType: 'SAP', sortKeys: ['Finance', 'Payroll'] },
+      ],
+      expandedIdentities: new Set(['id1']),
+      loadingIdentityCols: new Set(),
+    });
+
+    const rows = [...container.querySelectorAll('thead tr')];
+    expect(rows).toHaveLength(4); // two grouping rows + names + accounts
+    expect(rows[0]).toHaveTextContent('fold columns');
+
+    const namesRow = rows[2];
+    const [handle, resourceName, contexts] = [...namesRow.children];
+    expect(resourceName).toHaveTextContent('Resource Name');
+    expect(resourceName).toHaveTextContent('fold rows');
+    // All three info cells reach over the accounts row — otherwise a blank band
+    // opens beside the accounts and the header stops adding up to the body width.
+    expect(handle.rowSpan).toBe(2);
+    expect(resourceName.rowSpan).toBe(2);
+    expect(contexts.rowSpan).toBe(2);
+    // The accounts row starts at the first account column: the info block is
+    // already covered by the spans above it.
+    expect(rows[3].children).toHaveLength(2);
+  });
+});
+
 // ─── Linked-account count on an identity header (#1212 follow-up) ─────────────
 //
 // The count says how many accounts the column expands into, and it has to be
