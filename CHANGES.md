@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Fixed issues keeping their workflow labels (such as "awaiting approval" or "build done") after their pull request was merged or closed; the cleanup silently did nothing whenever one of the labels it clears did not exist yet
+
+## Changes in this PR
+
 - Expanding an identity in the matrix now drills into its linked accounts: the identity's column is replaced by one column per account, shown in a second header row beneath the identity, which spans them. It reads like an organizational expand — collapsing the identity again brings back its combined all-accounts column.
 - The new accounts row stays pinned with the column names while you scroll the grid, and disappears again as soon as the last expanded identity is collapsed.
 - Identity column headers in the matrix now show how many accounts are linked to that identity, so you can see which identities are worth expanding before you expand them. The count sits next to the name as a small grey number, with the full wording in the header tooltip, and stays visible while the identity is expanded. Identities without linked accounts, and plain account columns, show no count.
