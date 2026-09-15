@@ -23,6 +23,7 @@ import CuratedDataSection from './admin/CuratedDataSection';
 import HistoryRetentionSection from './admin/HistoryRetentionSection';
 import DangerZoneSection from './admin/DangerZoneSection';
 import LLMSettingsSection from './admin/LLMSettingsSection';
+import ReportGeneratorLLMSection from './admin/ReportGeneratorLLMSection';
 import RiskScoringSection from './admin/RiskScoringSection';
 
 function AdminSubTabs({ activeTab, onTabChange, tabs }) {
@@ -172,7 +173,12 @@ export default function AdminPage({ onNavigate, onRefresh, onRiskScoresRefresh, 
         )}
 
         {activeTab === 'risk-scoring' && <RiskScoringSection onRiskScoresRefresh={onRiskScoresRefresh} />}
-        {activeTab === 'llm' && <LLMSettingsSection />}
+        {activeTab === 'llm' && (
+          <div className="space-y-4">
+            <LLMSettingsSection />
+            <ReportGeneratorLLMSection />
+          </div>
+        )}
       </div>
     </div>
   );

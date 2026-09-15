@@ -1,1 +1,4 @@
 - Prototype: "Ask for a report" on the Reports page — describe a report in your own words and a model running locally on the server turns it into criteria you can check, edit and run. The model never sees your data.
+- Prototype: save reports you build, and edit or delete them later; saved reports appear in the Reports list and can be refreshed and downloaded like any other report.
+- Prototype: creating or editing a report opens a report builder in its own tab, where a report can be described in plain language, built by hand with the report definition editor, or both.
+- Prototype: the local model used by the report generator is chosen under Admin → LLM ("Local LLM for report generator").

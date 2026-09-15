@@ -72,6 +72,15 @@ export default function ReportViewPage({ reportName, onClose, onOpenDetail, onCa
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {report.editable && onOpenDetail && (
+            <button
+              type="button"
+              onClick={() => onOpenDetail('report-builder', report.editable.builderId, report.displayName)}
+              className="rounded bg-gray-200 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
+            >
+              Edit
+            </button>
+          )}
           {(report.exportFormats || []).map(format => (
             <DownloadButton
               key={format}

@@ -143,7 +143,33 @@ function Condition({ entity, condition, onChange, onRemove, catalog, depth }) {
       <div className="pl-4">
         <ConditionList entity={entity} conditions={condition.conditions} catalog={catalog} depth={depth + 1}
           onChange={cs => onChange({ ...condition, conditions: cs })} />
+        <AddButtons entity={entity} catalog={catalog}
+          onAdd={c => onChange({ ...condition, conditions: [...condition.conditions, c] })} />
       </div>
+    </div>
+  );
+}
+
+// "+ condition", "+ related condition" and "+ any/all group" — enough to build
+// every definition the model can produce, by hand.
+function AddButtons({ entity, catalog, onAdd, allowRelation = true, allowGroup = false }) {
+  const relations = catalog.entities[entity].relations;
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-3">
+      <button type="button" className={LINK_BUTTON} onClick={() => onAdd(newFieldCondition(catalog, entity))}>+ condition</button>
+      {allowRelation && relations.length > 0 && (
+        <select aria-label="Add related condition" className={`${INPUT} text-blue-700 dark:text-blue-300`} value=""
+          onChange={e => e.target.value && onAdd({ type: 'relation', relation: e.target.value, quantifier: 'some', match: 'all', conditions: [] })}>
+          <option value="">+ related condition…</option>
+          {relations.map(r => <option key={r.name} value={r.name}>{r.label}</option>)}
+        </select>
+      )}
+      {allowGroup && (
+        <button type="button" className={LINK_BUTTON}
+          onClick={() => onAdd({ type: 'group', match: 'any', conditions: [newFieldCondition(catalog, entity)] })}>
+          + any/all group
+        </button>
+      )}
     </div>
   );
 }
@@ -154,12 +180,19 @@ export default function SpecEditor({ spec, catalog, onChange }) {
     const has = spec.columns.includes(key);
     onChange({ ...spec, columns: has ? spec.columns.filter(c => c !== key) : [...spec.columns, key] });
   };
+  const changeEntity = (name) => {
+    onChange({ entity: name, match: 'all', conditions: [], columns: [...catalog.entities[name].defaultColumns] });
+  };
 
   return (
     <div className="space-y-4">
       <div>
         <div className="mb-2 flex flex-wrap items-center gap-2 text-sm text-gray-800 dark:text-gray-200">
-          <span className="font-semibold">{entity.label}s</span>
+          <label htmlFor="spec-entity" className="sr-only">Report on</label>
+          <select id="spec-entity" className={`${INPUT} font-semibold`} value={spec.entity} onChange={e => changeEntity(e.target.value)}
+            title="Changing this clears the conditions">
+            {Object.entries(catalog.entities).map(([n, e]) => <option key={n} value={n}>{e.label}s</option>)}
+          </select>
           {spec.conditions.length > 1 && (
             <><span>matching</span><MatchSelect label="Match" value={spec.match} onChange={m => onChange({ ...spec, match: m })} /><span>of:</span></>
           )}
@@ -167,10 +200,8 @@ export default function SpecEditor({ spec, catalog, onChange }) {
         </div>
         <ConditionList entity={spec.entity} conditions={spec.conditions} catalog={catalog} depth={0}
           onChange={cs => onChange({ ...spec, conditions: cs })} />
-        <button type="button" className={`${LINK_BUTTON} mt-2`}
-          onClick={() => onChange({ ...spec, conditions: [...spec.conditions, newFieldCondition(catalog, spec.entity)] })}>
-          + add condition
-        </button>
+        <AddButtons entity={spec.entity} catalog={catalog} allowGroup
+          onAdd={c => onChange({ ...spec, conditions: [...spec.conditions, c] })} />
       </div>
 
       <fieldset>

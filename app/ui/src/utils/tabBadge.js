@@ -13,6 +13,7 @@ export function tabBadge(type) {
     case 'identity':    return 'ID';
     case 'run':         return 'RUN';
     case 'report':      return 'RPT';
+    case 'report-builder': return 'EDIT';
     case 'access-package':
     default:            return 'AP';
   }
