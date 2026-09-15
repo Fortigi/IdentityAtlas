@@ -1382,6 +1382,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#switching-it-on" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Switching it on
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#what-counts-as-governed" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4949,6 +4960,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#switching-it-on" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Switching it on
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#what-counts-as-governed" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5110,7 +5132,7 @@ Brand new? Start at <a href="../../start/glossary/">The words you need first</a>
 <p>Companion to <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/routes/matrix.js"><code>matrix.js</code></a>, <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/matrix/scopeHistory.js"><code>scopeHistory.js</code></a>, <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/ui/src/components/matrix/MatrixScopePanel.jsx"><code>MatrixScopePanel.jsx</code></a>, <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/ui/src/components/TimeSeriesChart.jsx"><code>TimeSeriesChart.jsx</code></a>. See also <a href="../audit-history/">Audit History</a>.</p>
 </blockquote>
 <h2 id="what-it-does">What it does<a class="headerlink" href="#what-it-does" title="Permanent link">&para;</a></h2>
-<p>Whenever you build a matrix (a subject/resource filter), the <strong>Scope Statistics</strong> panel at the top summarises that selection:</p>
+<p>The <strong>Scope Statistics</strong> panel sits above the matrix and summarises the selection it is built from:</p>
 <ul>
 <li><strong>Principals / Identities</strong> in scope</li>
 <li><strong>Resources</strong> in scope</li>
@@ -5122,6 +5144,10 @@ Brand new? Start at <a href="../../start/glossary/">The words you need first</a>
 <li>A <strong>department-by-department</strong> (or any principal attribute) breakdown of governed vs non-governed, where each row drills into that department's own governed-% trend.</li>
 </ul>
 <p>It was built for reporting role-mining progress: "what share of access is governed, by department, and is it improving?"</p>
+<h2 id="switching-it-on">Switching it on<a class="headerlink" href="#switching-it-on" title="Permanent link">&para;</a></h2>
+<p>The panel is <strong>off by default</strong> — it is reporting tooling, and most sittings with the matrix are not reporting sittings. Tick <strong>Show trends &amp; breakdown above the matrix</strong> on <strong>Adjust matrix → Sort</strong> to add it, then <strong>Apply</strong>.</p>
+<p>The choice is <code>showTrends</code> on the matrix filter, so it behaves like every other property of a matrix: it is saved with a saved matrix, travels in a <code>#matrix?filter=…</code> URL, and a matrix saved before the flag existed opens without the panel. It is <em>not</em> a per-user preference — the same saved matrix opens the same way for everyone. Share recipients never get the panel regardless (<a href="../../ui/sharing-a-matrix/">Sharing a matrix</a>).</p>
+<p>A roll-up has no Sort step, so switch the panel on before rolling up; the flag then rides along with the roll-up.</p>
 <h2 id="what-counts-as-governed">What counts as "governed"<a class="headerlink" href="#what-counts-as-governed" title="Permanent link">&para;</a></h2>
 <p>A <code>(principal, resource)</code> membership is <strong>governed</strong> when it is <strong>covered by a business role the user holds</strong> — i.e. it appears in <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/db/migrations/013_matrix_matviews_and_indexes.sql"><code>vw_UserPermissionAssignmentViaBusinessRole</code></a>: there is a <code>BusinessRole</code> that <strong>Contains</strong> the group (<code>ResourceRelationships.relationshipType = 'Contains'</code>) <strong>and</strong> the user holds that role (a <code>Governed</code> assignment to it). This is exactly what the matrix paints as <strong>SOLL</strong>.</p>
 <p>This is deliberately <em>not</em> the same as <code>vw_ResourceUserPermissionAssignments.managedByAccessPackage</code>, which is only true for the rare assignment recorded directly as <code>Governed</code> on the group itself. In real data, users hold the <strong>business role</strong> while their group membership is recorded as <code>Direct</code>, so that flag reads as ~0% governed — which is why the whole feature (panel counts, the <code>Governed</code> / <code>Non-governed</code> toggle, and the trends) keys off business-role <em>coverage</em> instead, so every surface agrees.</p>

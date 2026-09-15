@@ -1571,6 +1571,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#the-strip-above-the-grid" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The strip above the grid
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#matrix-identity-comparing-two-filters" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5493,6 +5504,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#the-strip-above-the-grid" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The strip above the grid
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#matrix-identity-comparing-two-filters" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -6094,10 +6116,43 @@ and deep-copies the source so wizard edits can't mutate the applied filter. The
 grid-side consumers (<code>MatrixView</code>, <code>sortUsers</code>, the Excel export) already fall
 back to <code>DEFAULT_SORT</code> on their own, so a partial filter renders — it was only
 the wizard that assumed the full shape.</p>
+<h3 id="the-strip-above-the-grid">The strip above the grid<a class="headerlink" href="#the-strip-above-the-grid" title="Permanent link">&para;</a></h3>
+<p>Everything between the tab bar and the matrix is <strong>one row</strong>
+(<code>MatrixFilterSummary</code>) — "a matrix is a document":</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>[&lt;Matrix name&gt; ▾]  [Unsaved changes]  [Shared with N ▾]  ·····  45 users × 39 resources · 127 cells  [Adjust]
+</code></pre></div>
+<ul>
+<li><strong>The name menu</strong> (<code>MatrixNameBar</code> → <code>SavedMatrixMenu</code>) — the saved matrix on
+  screen, or "Unsaved matrix". It lists every saved matrix (current one marked)
+  and holds the document verbs: New matrix…, and for the current saved matrix
+  Rename…, Duplicate… and Delete….</li>
+<li><strong>Unsaved changes</strong> — only for a matrix loaded from a saved one that has since
+  diverged from it (<code>currentSavedMatrix</code> in <code>shareState.js</code>); it opens the wizard
+  on its last (save/share) step. A never-saved matrix has no chip.</li>
+<li><strong>Shared with N</strong> — only for a shared saved matrix, for someone who may share;
+  it opens the recipients panel. Creating a share is the wizard's last step.</li>
+<li>The three live counts, and <strong>Adjust</strong> (accessible name "Adjust matrix").</li>
+</ul>
+<p>The wizard is opened through <code>onAdjustFilter(options?)</code>: no options = the matrix
+on screen, first step; <code>{ step }</code> = that step; <code>{ fresh: true }</code> = a new, empty
+matrix (<code>wizardOpening</code> in <code>App.helpers.js</code>, <code>initialStep</code> on the wizard).</p>
+<p>With no matrix on screen the tab shows <strong>Open a matrix</strong> (<code>OpenMatrixList</code>):
+every saved matrix, one click to open, plus New matrix. The org default still
+auto-applies; the wizard is no longer thrown open on arrival.</p>
+<p>It was two stacked bars, with the scope-statistics panel under them, which put
+three bars and ~240px between the tab bar and the first row of data — the
+feedback that reopened #1202 called the result "quite a mess".</p>
+<p>The scope-statistics panel (<code>MatrixScopePanel</code>) is now <strong>opt-in per matrix</strong>:
+it renders only for a filter carrying <code>showTrends: true</code>, ticked on the wizard's
+Sort step. See <a href="../matrix-scope-statistics/#switching-it-on">Scope Statistics</a>.
+The flag is part of the filter — saved, shared and URL-carried with it — not a
+viewer preference, so one saved matrix opens the same way for everyone.</p>
 <h3 id="matrix-identity-comparing-two-filters">Matrix identity — comparing two filters<a class="headerlink" href="#matrix-identity-comparing-two-filters" title="Permanent link">&para;</a></h3>
-<p>"Is this the matrix I saved?" is asked by the summary bar
-(<code>MatrixFilterSummary</code>), which labels the applied matrix with its saved name or
-"Not saved". Filters are compared with <code>matrixFilterFingerprint()</code> — canonical
+<p>"Is this the matrix I saved?" is asked by the strip's name menu
+(<code>MatrixNameBar</code>, via <code>matchSavedMatrix</code> / <code>currentSavedMatrix</code> in
+<code>components/matrix/shareState.js</code>), which labels the applied matrix with its
+saved name — and, when it is shared, with how many people see it — or "Unsaved
+matrix", and marks a loaded matrix that has since changed "Unsaved changes". Filters are compared with <code>matrixFilterFingerprint()</code> — canonical
 (key-order-independent) JSON of the <strong>normalised</strong> filter, minus the view-state
 keys <code>rollupExpanded</code> / <code>rollupCollapsed</code> / <code>rollupPath</code> / <code>foldAttributes</code>.
 Never compare filters with raw <code>JSON.stringify</code>:</p>
@@ -6155,8 +6210,9 @@ test can pin rather than an emergent one.</p>
 ordinary expand triangle (<code>▼</code>/<code>▶</code> — the same control, and the same indent + <code>└</code>
 elbow on the rows below it, as the nested-group expand): collapsing it hides the
 rows of the resources that role grants — its <code>Contains</code> children — leaving the
-role row with an "<em>N</em> resources folded" chip. A <strong>Fold roles / Unfold roles</strong>
-toolbar pair does it for every role at once, which reduces the grid to exactly
+role row with an "<em>N</em> resources folded" chip. A <strong>Fold business roles</strong> toggle in
+the grid's header corner (above the row labels; it flips to <strong>Unfold business
+roles</strong> once folded) does it for every role at once, which reduces the grid to exactly
 "business roles + resources no role grants" — the role-mining view without the
 duplication between a role and its contents.</p>
 <p>The parent → child mapping is not derived client-side: it is the same
@@ -6466,8 +6522,8 @@ asserts the invariant on the busiest grid the demo data can produce.</p>
 whatever is laid out under the grid, including the resize grip), so exactly one
 of the grid and the page ever scrolls.</p>
 <p>That measurement is a <strong>default, not a verdict</strong>: how much of the window the
-grid deserves next to the scope-statistics and legend panels above it is a
-judgement call. The grip under the grid
+grid deserves next to the legend — and the scope-statistics panel, when the
+matrix asks for it — is a judgement call. The grip under the grid
 (<a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/ui/src/components/matrix/GridResizeHandle.jsx"><code>matrix/GridResizeHandle.jsx</code></a>)
 resizes it by drag or arrow keys; the chosen height overrides the fit, is
 remembered in <code>localStorage</code> under <code>fgraph-matrix-height</code>, and is handed back to

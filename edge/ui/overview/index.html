@@ -5773,11 +5773,12 @@
 </table>
 <p>This toggle is part of a saved matrix, so it round-trips through save/load.</p>
 <h4 id="filter-wizard-matrix-scoping">Filter Wizard (matrix scoping)<a class="headerlink" href="#filter-wizard-matrix-scoping" title="Permanent link">&para;</a></h4>
-<p>There is no user-limit slider or department filter pills. You scope the matrix through a 3-step modal wizard (<strong>Create matrix</strong> / <strong>Adjust matrix</strong>), opened automatically on first visit and re-openable from the toolbar's <strong>Adjust filter</strong> button:</p>
+<p>There is no user-limit slider or department filter pills. You scope the matrix through a stepped modal wizard (<strong>Create matrix</strong> / <strong>Adjust matrix</strong>), opened from <strong>New matrix</strong> (on the <strong>Open a matrix</strong> list the tab shows when no matrix is on screen, or the name menu on the strip above the grid) or from the <strong>Adjust</strong> button on that strip:</p>
 <ol>
 <li><strong>Setup</strong> — pick the subject type (<strong>User accounts</strong> = one Principal per column, or <strong>Identities</strong> = one correlated person per column, unioning across their accounts) and the orientation (resources-as-rows vs. subjects-as-rows).</li>
 <li><strong>Subjects</strong> — narrow which users/identities appear, using include/exclude conditions built from <strong>Contexts</strong> (e.g. an org-unit or tag context, optionally including descendants) or <strong>attribute</strong> filters (any column value). Includes are AND'd; excludes negate.</li>
 <li><strong>Resources</strong> — narrow which resources appear, using the same context/attribute conditions, plus an optional <strong>Include inherited access</strong> checkbox.</li>
+<li><strong>Sort</strong> — order the columns by attributes or by a Manager Hierarchy tree, and choose how the matrix opens: folded into count columns, and whether to <strong>show trends &amp; breakdown above the matrix</strong> (the <a href="../../architecture/matrix-scope-statistics/">scope-statistics</a> panel — off by default). Both choices are part of the saved matrix.</li>
 </ol>
 <p>A <strong>live summary</strong> at the bottom shows counts as you tweak — subjects matched / total, resources matched / total, and the resulting assignment count — with warnings when a matrix grows large and a hard block on an oversized flat (per-subject) grid.</p>
 <h4 id="roll-up-by-attribute">Roll-up by Attribute<a class="headerlink" href="#roll-up-by-attribute" title="Permanent link">&para;</a></h4>

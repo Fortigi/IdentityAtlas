@@ -5208,10 +5208,13 @@ that shows data to people outside the analyst team.</p>
 <p>Environment variable: <code>FEATURE_MATRIX_SHARING=true</code>.</p>
 <h3 id="what-the-switch-does-precisely_1">What the switch does, precisely<a class="headerlink" href="#what-the-switch-does-precisely_1" title="Permanent link">&para;</a></h3>
 <p><strong>On</strong> — users with the <strong>Create matrix share links</strong> (<code>data.share</code>) permission get
-the wizard's <strong>Share</strong> step, the toolbar's <strong>Share view…</strong> button and the
-<strong>Admin → Shared Matrices</strong> tab, and share links open for their recipients.</p>
-<p><strong>Off</strong> — all of those are hidden, and the API answers <code>404</code> on every share endpoint:
-creating, listing and revoking shares, <strong>and opening a link</strong>. A recipient who opens
+the wizard's <strong>Share</strong> step, the share control on the matrix's Load / Save / Share
+bar and the <strong>Admin → Shared Matrices</strong> tab, and share links open for their
+recipients. The rest of that bar — loading and saving a matrix — is not
+experimental and is always available.</p>
+<p><strong>Off</strong> — all of the share affordances are hidden, and the API answers <code>404</code> on every
+share endpoint: creating, listing, adjusting recipients and revoking shares, <strong>and
+opening a link</strong>. A recipient who opens
 a link that was sent while sharing was on sees the same "This link doesn’t open a
 shared view" page as for an unknown link — never an error.</p>
 <h3 id="what-the-switch-does-not-do_1">What the switch does <em>not</em> do<a class="headerlink" href="#what-the-switch-does-not-do_1" title="Permanent link">&para;</a></h3>
