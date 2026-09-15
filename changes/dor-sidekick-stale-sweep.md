@@ -1,0 +1,2 @@
+- Sidekicks left holding the test environment of a closed request, or of a request that has since moved to another sidekick, are now released automatically every hour and returned to the build pool
+- Leftover test environments of closed requests and merged pull requests are removed from the sidekicks during the same hourly check, freeing their disk space

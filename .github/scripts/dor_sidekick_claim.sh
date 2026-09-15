@@ -25,23 +25,79 @@ sk_label() { local n; n="$(hostname)"; n="${n##*-}"; printf 'sk%d' "$((10#$n))";
 # leaves its old lock behind). Anything we cannot read counts as HELD: guessing "free" is what wipes
 # somebody's env, guessing "held" only delays a build.
 sidekick_holder() {
-  local lock="$HOME/.dor-reservation" plock="" pissue="" state="" claims=""
+  local lock="$HOME/.dor-reservation" plock="" pissue=""
   [ -f "$lock" ] && read -r plock pissue < "$lock"
   [ -n "$plock" ] || return 0
   if [ -z "$pissue" ]; then
     # A `deploy-to-sidekick` of a PR with no DoR issue behind it.
-    state="$(gh pr view "$plock" --repo "$REPO" --json state --jq .state 2>/dev/null || true)"
-    case "$state" in MERGED|CLOSED) return 0 ;; esac
-    echo "PR #$plock"; return 0
-  fi
-  [ "$pissue" = "$ISSUE" ] && return 0
-  read -r state claims < <(gh issue view "$pissue" --repo "$REPO" --json state,labels \
-    --jq '.state + " " + ([.labels[].name | select(startswith("sk:"))] | join(","))' 2>/dev/null) || true
-  [ "$state" = CLOSED ] && return 0
-  if [ "$state" = OPEN ] && [ -n "$claims" ] && [[ ",$claims," != *",sk:$(sk_label),"* ]]; then
+    pr_is_done "$plock" || echo "PR #$plock"
     return 0
   fi
-  echo "#$pissue"
+  [ "$pissue" = "$ISSUE" ] && return 0
+  issue_env_is_stale "$pissue" || echo "#$pissue"
+}
+
+# Is an env on THIS box for issue $1 left over? Yes when the issue is closed, or when its claim label
+# names another box. No — kept — when it is open and claims this box or nothing, or cannot be read.
+issue_env_is_stale() {
+  local state="" claims=""
+  read -r state claims < <(gh issue view "$1" --repo "$REPO" --json state,labels \
+    --jq '.state + " " + ([.labels[].name | select(startswith("sk:"))] | join(","))' 2>/dev/null) || true
+  [ "$state" = CLOSED ] && return 0
+  [ "$state" = OPEN ] && [ -n "$claims" ] && [[ ",$claims," != *",sk:$(sk_label),"* ]]
+}
+
+pr_is_done() {  # $1 = PR number; an unreadable PR is NOT done
+  case "$(gh pr view "$1" --repo "$REPO" --json state --jq .state 2>/dev/null || true)" in
+    MERGED|CLOSED) return 0 ;;
+  esac
+  return 1
+}
+
+# ── The hourly sweep (dor-reconcile.yml, one job per DOR_POOL box) ───────────────────────────────────
+# The reset on PR close only reaches the box the issue's label names, and the label is a mirror that
+# drifts: a claim that moved boxes leaves its old lock behind, and a label dropped before the merge
+# leaves the reset nowhere to go. sk3, sk6, sk7 and sk8 were all parked on closed or moved issues at
+# once, out of the pool for nobody. The sweep asks each box itself.
+
+drop_stack() {  # $1 = stack dir: stack down with its volumes, then the dir
+  ( cd "$1" && { docker compose -f docker-compose.yml -f dor-tls.override.yml down -v 2>/dev/null \
+                 || docker compose down -v 2>/dev/null || true; } )
+  rm -rf "$1"
+}
+
+# Release what this box holds for nobody: a stale reservation (with its stack), and any dor-N / pr-N
+# stack dir left behind by an issue or PR that no longer owns it. The live holder's stack, and any
+# dir that is not dor-N / pr-N (edge, hand-made stacks), are never touched.
+sweep_sidekick() {
+  local ISSUE="" lock="$HOME/.dor-reservation" plock="" pissue="" d name n released=0
+  [ -f "$lock" ] && read -r plock pissue < "$lock"
+  if [ -n "$plock" ] && [ -z "$(sidekick_holder)" ]; then
+    echo "::notice::$(hostname): releasing the stale reservation for ${pissue:+#$pissue / }PR #$plock"
+    if [ -n "$pissue" ]; then d="$HOME/stacks/dor-$pissue"; else d="$HOME/stacks/pr-$plock"; fi
+    [ -d "$d" ] && drop_stack "$d"
+    rm -f "$lock"
+    [ -n "$pissue" ] && gh issue edit "$pissue" --repo "$REPO" --remove-label "sk:$(sk_label)" >/dev/null 2>&1
+    plock=""; pissue=""; released=1
+  fi
+  for d in "$HOME"/stacks/dor-* "$HOME"/stacks/pr-*; do
+    [ -d "$d" ] || continue
+    name="${d##*/}"; n="${name#*-}"
+    case "$n" in ''|*[!0-9]*) continue ;; esac
+    case "$name" in
+      dor-*) [ "$n" = "$pissue" ] && continue; issue_env_is_stale "$n" || continue ;;
+      pr-*)  [ "$n" = "$plock" ]  && continue; pr_is_done "$n"        || continue ;;
+    esac
+    echo "::notice::$(hostname): removing the leftover $name stack"
+    drop_stack "$d"; released=1
+  done
+  [ "$released" = 1 ] || { echo "$(hostname): nothing stale"; return 0; }
+  docker image prune -f >/dev/null 2>&1 || true
+  # A box that now holds nothing serves the empty edge placeholder again, as after a reset.
+  if [ ! -f "$lock" ] && [ -d "$HOME/stacks/edge" ]; then
+    ( cd "$HOME/stacks/edge" && docker compose -f docker-compose.prod.yml up -d 2>/dev/null || true )
+  fi
+  return 0
 }
 
 # The hosted half: which box should this build run on? Prints an sk label, or nothing to fall back to
