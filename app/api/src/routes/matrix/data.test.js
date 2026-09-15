@@ -35,8 +35,10 @@ describe('buildMatrixContext', () => {
     expect(ctx.subjectJoin).not.toContain('IdentityMembers');
     // displayName/email are excluded from the dynamic column list
     expect(ctx.dynamicSubjectCols).toBe('u."department"');
-    // A principal IS an account, so there is nothing to count into (#1212).
+    // A principal IS an account, so there is nothing to count into (#1212) —
+    // neither the alias nor the join it would read from.
     expect(ctx.accountCountSelect).toBe('');
+    expect(ctx.accountCountJoin).toBe('');
   });
 
   it('derives identity-mode expressions (joins through IdentityMembers)', () => {
@@ -51,12 +53,20 @@ describe('buildMatrixContext', () => {
 
   // #1212: the matrix header shows how many accounts an identity expands into,
   // so the count has to arrive WITH the grid rows — not on expand.
-  it('selects a null-normalised accountCount for identity subjects, exactly once', () => {
+  it('counts an identity\'s accounts from IdentityMembers, not the denormalised column', () => {
     const ctx = buildMatrixContext({ rowType: 'identity' }, built, false, {});
-    expect(ctx.accountCountSelect).toBe('COALESCE(i."accountCount", 0) AS "accountCount",');
-    // …and the "every remaining column" list must not select it a second time:
-    // two output columns of one name resolve to whichever the driver reads last,
-    // which would put the raw NULL back on the row.
+    // The count has to come off the aggregate alias. Reading i."accountCount"
+    // instead looks identical in a mock but is NULL for every identity the
+    // account-linking engine never rolled up — which is how the badge went
+    // missing for crawler- and CSV-sourced identities in the first place.
+    expect(ctx.accountCountSelect).toBe('COALESCE(ac."accountCount", 0) AS "accountCount",');
+    expect(ctx.accountCountSelect).not.toContain('i."accountCount"');
+    expect(ctx.accountCountJoin).toContain('FROM "IdentityMembers"');
+    expect(ctx.accountCountJoin).toContain('GROUP BY "identityId"');
+    expect(ctx.accountCountJoin).toContain('ac."identityId" = i.id');
+    // …and the "every remaining column" list must not select the denormalised
+    // column a second time: two output columns of one name resolve to whichever
+    // the driver reads last, which would put the stale value back on the row.
     expect(ctx.dynamicSubjectCols).toBe('i."jobTitle"');
   });
 });

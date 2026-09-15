@@ -28,11 +28,28 @@ const IDENTITY_FILTER = {
 
 // Identities with more than one linked account, most accounts first — the ones
 // that have something to expand into.
+//
+// Each candidate's accounts are counted from /account-matrix, the endpoint the
+// expand itself calls, NOT from the identities list's `accountCount` column.
+// That column is only ever written by the account-linking engine, so it is NULL
+// for every identity a crawler or a CSV import created — which on a demo
+// deployment is all of them, and used to make this whole spec skip silently
+// while the feature it guards was visibly broken (#1212).
+let identityCache = null;
 async function correlatedIdentities() {
-  const res = await fetch(`${API}/identities?sort=accountCount&dir=desc&limit=10`);
+  if (identityCache) return identityCache;
+  const res = await fetch(`${API}/identities?limit=40`);
   if (!res.ok) return [];
-  const body = await res.json();
-  return (body?.data || []).filter(i => (i.accountCount ?? 0) > 1 && i.displayName);
+  const candidates = ((await res.json())?.data || []).filter(i => i.id && i.displayName);
+  const counted = await Promise.all(candidates.map(async (i) => {
+    const am = await fetch(`${API}/identities/${encodeURIComponent(i.id)}/account-matrix`);
+    if (!am.ok) return null;
+    return { displayName: i.displayName, accountCount: ((await am.json())?.accounts || []).length };
+  }));
+  identityCache = counted
+    .filter(i => i && i.accountCount > 1)
+    .sort((a, b) => b.accountCount - a.accountCount);
+  return identityCache;
 }
 
 async function openIdentityMatrix(page) {
@@ -183,7 +200,7 @@ test.describe('Matrix — expanding an identity into its accounts (#1212)', () =
     }
     test.skip(!header, 'no identity with several linked accounts has a column in this grid');
 
-    // The header carries the number the identities list reports for it, and the
+    // The header carries the identity's real number of linked accounts, and the
     // tooltip says what the number counts.
     await expect(header).toContainText(String(expected));
     expect(await header.getAttribute('title')).toContain(`${expected} linked accounts`);
@@ -197,6 +214,11 @@ test.describe('Matrix — expanding an identity into its accounts (#1212)', () =
     const expandedHeader = page.locator('thead th')
       .filter({ has: page.getByTitle('Collapse accounts') }).first();
     await expect(expandedHeader).toContainText(String(expected));
+
+    // …and the promise it made holds: the count IS the number of account columns
+    // the click produced. A count read from a source the expand doesn't share
+    // can drift from this without any other test noticing.
+    expect(Number(await expandedHeader.getAttribute('colspan'))).toBe(expected);
   });
 
   test('collapsing the identity brings its combined column back', async ({ page }) => {

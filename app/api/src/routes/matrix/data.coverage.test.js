@@ -193,7 +193,12 @@ describe('matrix/data — flat per-subject grid', () => {
     labelHandlers = { 'matrix-data[': [{ resourceId: 'r1', memberId: 'i1', accountCount: 3 }] };
     const identity = await post({ filter: { rowType: 'identity' } });
     expect(identity.body.data[0].accountCount).toBe(3);
-    expect(lastSql['matrix-data[identity]']).toContain('COALESCE(i."accountCount", 0) AS "accountCount"');
+    // Counted from IdentityMembers, and the aggregate actually reaches the FROM
+    // clause — a select off `ac` with the join dropped is a syntax error no
+    // SQL-blind mock would notice.
+    expect(lastSql['matrix-data[identity]']).toContain('COALESCE(ac."accountCount", 0) AS "accountCount"');
+    expect(lastSql['matrix-data[identity]']).toContain('COUNT(*)::int AS "accountCount"');
+    expect(lastSql['matrix-data[identity]']).toContain('ac."identityId" = i.id');
 
     parseFilterImpl = () => baseFilter();
     labelHandlers = { 'matrix-data[': [{ resourceId: 'r1', memberId: 'm1' }] };

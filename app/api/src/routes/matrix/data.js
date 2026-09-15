@@ -30,7 +30,9 @@ const useSql = process.env.USE_SQL === 'true';
 // Subject columns the queries below already select under an explicit expression,
 // so the "every remaining column" list must skip them — a duplicate output name
 // resolves to whichever copy the driver reads last, silently. displayName/email
-// ride along as memberDisplayName/memberUPN; accountCount is null-normalised.
+// ride along as memberDisplayName/memberUPN; accountCount is counted live from
+// "IdentityMembers", and selecting "Identities"."accountCount" alongside it under
+// the same name would put the stale denormalised value back on the row.
 const EXPLICIT_SUBJECT_COLS = ['displayName', 'email', 'accountCount'];
 
 // Shared per-request query context. Every mode below reads the same derived
@@ -68,21 +70,40 @@ export function buildMatrixContext(filter, built, includeInherited, p) {
   // /api/identities/:id/account-matrix, which is too late to decide whether the
   // identity is worth expanding at all (#1212).
   //
-  // Read from the denormalised "Identities"."accountCount" that the
-  // account-linking engine maintains — the same column the identity list, the
-  // identity detail page and the risk-score list already show, so the matrix
-  // can't disagree with them. NULL (an identity the linker never rolled up)
-  // normalises to 0, which reads as "nothing to expand into". Principal-row
-  // matrices have no such column and get no alias at all.
+  // Counted live from "IdentityMembers" — the SAME table the expand endpoint
+  // reads — so the badge can never promise a different number of columns than
+  // clicking actually produces. The denormalised "Identities"."accountCount"
+  // looks like the obvious source and is the wrong one: only the account-linking
+  // engine writes it, and only for the identities a given run newly linked, so
+  // every identity whose accounts arrived from a crawler, a CSV import or an
+  // analyst decision still carries NULL. That is the majority of real data (the
+  // whole demo dataset included), and it made the count silently render as
+  // nothing at all.
+  //
+  // Aggregated once and joined, not correlated per row: the flat grid emits one
+  // row per (subject, resource) assignment, so a scalar subquery would re-count
+  // the same identity thousands of times per request. LEFT + COALESCE keep it a
+  // pure decoration — the grid reaches "Identities" through "IdentityMembers"
+  // already, so every identity here has a match, and an inner join would be the
+  // one shape that could silently drop assignment rows if that ever changed.
+  // Principal-row matrices have no accounts to count into and get neither the
+  // join nor the alias.
+  const accountCountJoin = rowType === 'identity'
+    ? `LEFT JOIN (
+           SELECT "identityId", COUNT(*)::int AS "accountCount"
+             FROM "IdentityMembers"
+            GROUP BY "identityId"
+         ) ac ON ac."identityId" = i.id`
+    : '';
   const accountCountSelect = rowType === 'identity'
-    ? 'COALESCE(i."accountCount", 0) AS "accountCount",'
+    ? 'COALESCE(ac."accountCount", 0) AS "accountCount",'
     : '';
 
   return {
     filter, built, includeInherited, p, rowType,
     subjectCols, subjectAlias, dynamicSubjectCols, subjectJoin,
     memberIdExpr, memberNameExpr, memberUpnExpr, memberTypeExpr, subjectIdForFilter,
-    accountCountSelect,
+    accountCountJoin, accountCountSelect,
   };
 }
 
@@ -639,7 +660,7 @@ async function handleFlatGrid(res, ctx) {
   const {
     built, rowType, subjectCols, subjectAlias, dynamicSubjectCols,
     subjectJoin, memberIdExpr, memberNameExpr, memberUpnExpr, memberTypeExpr,
-    subjectIdForFilter, accountCountSelect, includeInherited, p,
+    subjectIdForFilter, accountCountJoin, accountCountSelect, includeInherited, p,
   } = ctx;
 
   const { params, bind } = createParams();
@@ -677,6 +698,7 @@ async function handleFlatGrid(res, ctx) {
         p."managedByAccessPackage"
       FROM "vw_ResourceUserPermissionAssignments" p
       ${subjectJoin}
+      ${accountCountJoin}
       LEFT JOIN "Resources" r ON p."resourceId" = r.id
       LEFT JOIN "Systems" sys ON r."systemId" = sys.id
       WHERE ${where.join(' AND ')}

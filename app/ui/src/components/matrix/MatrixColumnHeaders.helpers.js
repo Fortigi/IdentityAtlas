@@ -115,7 +115,9 @@ export function apLeftBorderClass(idx, isCategoryBoundary) {
 //
 // The count rides along on the matrix rows (see the API's accountCountSelect),
 // so it is known before the identity is expanded — which is the point: it is how
-// the analyst decides which identities are worth expanding.
+// the analyst decides which identities are worth expanding. The API counts it
+// from the same IdentityMembers rows the expand fetches, so the number here is
+// exactly the number of account columns a click produces.
 export function subjectAccountCount(user) {
   if (user?.memberType !== 'Identity' || user?.isAccountCol) return null;
   const n = Number(user?.accountCount);
