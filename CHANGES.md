@@ -1,5 +1,10 @@
 ## Changes in this PR
 
+- Fixed autonomous builds failing with an authentication error ("Invalid username or token") and landing in Exceptions when the build ran longer than one hour; long builds now pick up a fresh bot credential and continue where they stopped, without extra fix attempts
+- Fixed a usage-limit pause on a long build silently losing its saved work-in-progress when the bot credential had already expired
+
+## Changes in this PR
+
 - Fixed pipeline board cards staying at "Awaiting merge" after their fix was merged. When a pull request from any branch closes a Feature or Bug Pipeline issue, that issue now moves to Done automatically — previously only the pipeline's own build branches did this.
 
 ## Changes in this PR

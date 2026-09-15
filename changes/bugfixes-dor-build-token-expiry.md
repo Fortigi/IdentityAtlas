@@ -1,2 +1,0 @@
-- Fixed autonomous builds failing with an authentication error ("Invalid username or token") and landing in Exceptions when the build ran longer than one hour; long builds now pick up a fresh bot credential and continue where they stopped, without extra fix attempts
-- Fixed a usage-limit pause on a long build silently losing its saved work-in-progress when the bot credential had already expired
