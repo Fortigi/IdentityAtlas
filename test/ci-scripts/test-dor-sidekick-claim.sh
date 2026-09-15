@@ -235,7 +235,7 @@ consume_line="$(grep -n 'remove-label ready-to-build' "$FLOW" | head -1 | cut -d
 assert "the build flow checks the box before it consumes the trigger or moves the board" "true" \
   "$([ -n "$guard_line" ] && [ -n "$consume_line" ] && [ "$guard_line" -lt "$consume_line" ] && echo true || echo false)"
 assert "the build flow bails rather than claim over a holder" "true" \
-  "$(grep -A1 '^claim_sidekick "\$pr"' "$FLOW" | grep -q 'bail' && echo true || echo false)"
+  "$(grep -A1 '^[[:space:]]*claim_sidekick "\$pr"' "$FLOW" | grep -q 'bail' && echo true || echo false)"
 assert "the build job runs on the picked box" "true" \
   "$(grep -q "needs.pick.outputs.sk || 'dor-build'" "$AGENT" && echo true || echo false)"
 RECONCILE="$REPO_ROOT/.github/workflows/dor-reconcile.yml"
