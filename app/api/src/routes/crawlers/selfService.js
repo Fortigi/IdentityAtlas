@@ -89,7 +89,10 @@ function mergeJobProgress(existingProgress, safe) {
   return merged;
 }
 
-selfServiceCrawlersRouter.post('/crawlers/job-progress', async (req, res) => {
+// Worker-class keys only: jobs are claimed and run by the worker, and a job row
+// carries no owning crawler, so any other key could otherwise rewrite the
+// progress of any job (SEC-2026-09 M-05).
+selfServiceCrawlersRouter.post('/crawlers/job-progress', requireWorkerCrawler, async (req, res) => {
   if (!req.crawler) return res.status(401).json({ error: 'Not authenticated' });
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
 

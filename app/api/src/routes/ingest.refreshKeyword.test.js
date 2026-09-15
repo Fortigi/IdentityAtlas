@@ -24,3 +24,12 @@ describe('refreshKeyword — CONCURRENTLY guard', () => {
       .toBe('');
   });
 });
+
+describe('matrixRefreshMinIntervalMs — spacing of piled-up refreshes (SEC-2026-09 M-05)', () => {
+  it('defaults to 5 s and honours a non-negative integer override', async () => {
+    const { matrixRefreshMinIntervalMs } = await import('./ingest/matrixViews.js');
+    expect(matrixRefreshMinIntervalMs({})).toBe(5000);
+    expect(matrixRefreshMinIntervalMs({ MATRIX_REFRESH_MIN_INTERVAL_MS: '0' })).toBe(0);
+    expect(matrixRefreshMinIntervalMs({ MATRIX_REFRESH_MIN_INTERVAL_MS: '-3' })).toBe(5000);
+  });
+});

@@ -155,6 +155,8 @@ Response — `201 Created`:
 | `full` | MERGE all records + DELETE records in scope not in batch | Scheduled full sync |
 | `delta` | MERGE only; no deletes | Real-time webhook, incremental changes |
 
+`POST /api/ingest/systems` is never reconciled: systems are registered, not synced, so a `full` batch there is run as a `delta`. A reconcile delete that would have no system, scope or ownership bound at all is refused and reports `deleted: 0`.
+
 ### Deterministic GUID Generation
 
 For source systems that don't use GUIDs (e.g., Omada uses integer IDs):
@@ -316,6 +318,18 @@ The engine preserves the same scoping patterns used by the current PowerShell sy
 - **Attribute-scoped:** `WHERE resourceType = @scope` (if provided)
 - **Current-state scoped:** operates on the current table rows (no temporal filtering needed in v5)
 - **Batch-scoped:** `AND NOT EXISTS (SELECT 1 FROM #temp WHERE ...)`
+
+### Keys restricted to specific systems
+
+A crawler key with `systemIds` set can only read and write data of those systems. On top of the envelope `systemId` check, every batch from such a key is refused (`403`) when:
+
+- a record carries a `systemId` (or a context's `scopeSystemId`) outside the key's systems;
+- the batch would update an existing row owned by another system — ownership is the row's `systemId`; for tables without one it is derived: a synced context's `scopeSystemId`, a context member's context, an identity member's or activity row's principal, and an identity's linked principals;
+- it is a `full` sync of `identities`, `identity-members`, `contexts`, `context-members` or `principal-activity` without a `scope`.
+
+`deletedIds` and the full-sync reconcile only reach rows the key's systems own. Unrestricted keys (`systemIds` null, such as the built-in worker) are not subject to these checks. Columns the server or analysts own (`deletedAt`, `riskScore`, `riskTier`, `linkConfidence`, `analystOverride`, `createdAt`, `updatedAt` and similar) are never written from a crawler record; a field with such a name is kept in `extendedAttributes` like any other attribute.
+
+A key can hold at most 3 multi-batch sessions open at once, and the API at most 7 in total (`INGEST_MAX_SESSIONS_PER_CRAWLER`, `INGEST_MAX_SESSIONS_GLOBAL`); a `start` beyond that returns `429`. The built-in worker is only subject to the global limit. A record's `extendedAttributes` may hold at most 500 keys and 512 KB.
 
 ### Validation Rules
 

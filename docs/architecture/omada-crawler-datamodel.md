@@ -121,7 +121,7 @@ Every `System` entity in Omada is registered as a separate Identity Atlas System
 | | |
 |--|--|
 | **OData source** | `/System?$filter=Deleted eq false` |
-| **IA destination** | `ingest/systems` (full sync) |
+| **IA destination** | `ingest/systems` (delta — systems are registered, never reconciled) |
 
 **Mapping:**
 

@@ -1047,6 +1047,44 @@ Describe 'Omada setup helpers' {
         (Register-OmadaSystems -ApiBaseUrl 'http://x/api' -ApiKey 'k' -BaseUrl 'http://omada' -MaxRetries 5).systemId | Should -Be 99
     }
 
+    It 'Register-OmadaSystems registers systems as a delta, never a full sync (SEC-2026-09 C-01)' {
+        # Systems are registered, not reconciled. A full sync to ingest/systems asks the
+        # API to treat the batch as the complete set of systems, which on a shared
+        # deployment would remove every system another crawler registered.
+        Mock Invoke-ODataPagedRequest -ParameterFilter { $Path -eq '/System' } -MockWith {
+            @([pscustomobject]@{ DisplayName = 'Omada Identity'; UId = 'main-uid' })
+        }
+        Mock Invoke-RestMethod -MockWith { @([pscustomobject]@{ systemType = 'Omada'; tenantId = 'main-uid'; id = 7 }) }
+        $script:systemsModes = [System.Collections.Generic.List[string]]::new()
+        Mock Invoke-IngestAPI -ParameterFilter { $Endpoint -eq 'ingest/systems' } -MockWith {
+            $script:systemsModes.Add([string]$Body.syncMode)
+            @{ systemIds = @(7) }
+        }
+
+        Register-OmadaSystems -ApiBaseUrl 'http://x/api' -ApiKey 'k' -BaseUrl 'http://omada' -MaxRetries 5 | Out-Null
+
+        @($script:systemsModes) | Should -Be @('delta')
+    }
+
+    It 'Register-OmadaSystems registers the endpoint fallback as a delta and skips the empty batch' {
+        # Zero connected systems: an empty delta says nothing, so the batch call is not
+        # made at all, and the one call that IS made (the endpoint fallback) is a delta.
+        Mock Invoke-ODataPagedRequest -ParameterFilter { $Path -eq '/System' } -MockWith { @() }
+        Mock Invoke-RestMethod -MockWith { @() }
+        $script:systemsBodies = [System.Collections.Generic.List[object]]::new()
+        Mock Invoke-IngestAPI -ParameterFilter { $Endpoint -eq 'ingest/systems' } -MockWith {
+            $script:systemsBodies.Add($Body)
+            @{ systemIds = @(42) }
+        }
+
+        $reg = Register-OmadaSystems -ApiBaseUrl 'http://x/api' -ApiKey 'k' -BaseUrl 'http://omada' -MaxRetries 5
+
+        $reg.systemId | Should -Be 42
+        $script:systemsBodies.Count | Should -Be 1
+        $script:systemsBodies[0].syncMode | Should -Be 'delta'
+        $script:systemsBodies[0].records[0].tenantId | Should -Be 'http://omada'
+    }
+
     It 'Register-OmadaSystems falls back to the first mapped system when no "Omada Identity" system exists' {
         Mock Invoke-ODataPagedRequest -ParameterFilter { $Path -eq '/System' } -MockWith {
             @([pscustomobject]@{ DisplayName = 'Some Connected System'; UId = 'sys-a' })
