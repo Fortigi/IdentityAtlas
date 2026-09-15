@@ -5590,6 +5590,12 @@ approval</em> — nothing has set <em>Building</em>, because nothing is building
 <td><code>dor-reset</code> — also closes the issue and drops every in-flight label</td>
 </tr>
 <tr>
+<td><strong>Done</strong></td>
+<td>any non-Done column</td>
+<td>a PR from any <strong>other</strong> branch that closes the issue (<code>Closes #N</code>) is merged</td>
+<td><code>dor-reset</code> → <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/.github/scripts/dor_finalize_merged_pr.sh"><code>dor_finalize_merged_pr.sh</code></a>. Only issues already on a DoR board are moved</td>
+</tr>
+<tr>
 <td>Out of pipeline</td>
 <td>Awaiting merge</td>
 <td>PR closed <strong>unmerged</strong></td>
