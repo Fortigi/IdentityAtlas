@@ -10,7 +10,7 @@
 //
 // Usage (on the sidekick, against the running stack):
 //   node tools/nl-reports/eval.mjs --check                       # validate expected specs only
-//   node tools/nl-reports/eval.mjs --models qwen2.5-coder:3b,qwen3:4b [--only id1,id2] [--out file.json]
+//   node tools/nl-reports/eval.mjs --models qwen2.5-coder:3b,qwen3:4b [--file holdout.json] [--only id1,id2] [--out file.json]
 
 import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -23,7 +23,7 @@ const args = Object.fromEntries(process.argv.slice(2).reduce((acc, a, i, all) =>
 
 const BASE = args.base || 'http://localhost:3001';
 const here = dirname(fileURLToPath(import.meta.url));
-let questions = JSON.parse(readFileSync(join(here, 'questions.json'), 'utf8'));
+let questions = JSON.parse(readFileSync(args.file || join(here, 'questions.json'), 'utf8'));
 if (args.only) questions = questions.filter(q => args.only.split(',').includes(q.id));
 
 async function post(path, body) {
