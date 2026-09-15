@@ -13,8 +13,8 @@ test.describe('App Navigation', () => {
 
   test('default page is Matrix', async ({ page }) => {
     // Matrix tab should be active by default
-    // `exact: true` — without it, the wizard's "Create matrix" button on
-    // the empty-state landing also matches and trips strict-mode.
+    // `exact: true` — without it, the "New matrix" button on the "Open a
+    // matrix" empty-state landing also matches and trips strict-mode.
     const matrixTab = page.getByRole('button', { name: 'Matrix', exact: true });
     await expect(matrixTab).toBeVisible();
   });

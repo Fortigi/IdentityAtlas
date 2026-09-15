@@ -70,7 +70,6 @@ function renderView(props = {}, authFetch = makeFetch()) {
       counts: props.counts ?? null,
       managedFilter: props.managedFilter || 'all',
       setManagedFilter,
-      shareUrl: 'https://example.test/matrix',
       refreshing: props.refreshing || false,
       onOpenDetail,
       onAdjustFilter,

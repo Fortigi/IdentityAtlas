@@ -1,8 +1,9 @@
 import { useIsDark } from '@ui/contexts/ThemeContext';
 import { computeAttributeSpans } from './sortUsers';
-import { GROUP_ROW_H } from './MatrixColumnHeaders.helpers';
+import { GROUP_ROW_H, splitAccountColumns } from './MatrixColumnHeaders.helpers';
 import MatrixGroupingRow from './MatrixGroupingRow';
 import MatrixNamesRow from './MatrixNamesRow';
+import MatrixAccountsRow from './MatrixAccountsRow';
 
 export { GROUP_ROW_H };
 
@@ -19,6 +20,8 @@ export default function MatrixColumnHeaders({
   onToggleCollapse,
   onToggleMembers,
   maxHeaderDepth,
+  columnCorner = null,
+  rowCorner = null,
 }) {
   const isDark = useIsDark();
 
@@ -33,6 +36,14 @@ export default function MatrixColumnHeaders({
   const shown = (typeof maxHeaderDepth === 'number' && maxHeaderDepth > 0)
     ? Math.min(maxHeaderDepth, attrs.length) : attrs.length;
   const attrRows = attrs.slice(0, shown).map((attribute, index) => ({ attribute, spans: computeAttributeSpans(users, index) }));
+
+  // An expanded identity's account columns move into an accounts row underneath
+  // the names row, where the identity itself is drawn as the cell spanning them
+  // — it reads as the parent of its accounts instead of as their left-hand
+  // sibling. The grouping rows above keep spanning every column, account columns
+  // included: they inherit their parent's sort keys, so the merged spans stay
+  // contiguous either way.
+  const { namesCols, accountsByParent, hasAccountsRow } = splitAccountColumns(users);
 
   // Keep only the final (names) row pinned on vertical scroll — the attribute
   // grouping rows above it scroll away, so many sort attributes don't bury the
@@ -62,12 +73,15 @@ export default function MatrixColumnHeaders({
           isDark={isDark}
           onToggleCollapse={onToggleCollapse}
           onToggleMembers={onToggleMembers}
+          corner={rowIdx === 0 ? columnCorner : null}
         />
       ))}
 
-      {/* Final row: User names — the only sticky header row on vertical scroll */}
+      {/* User names — the first sticky header row on vertical scroll */}
       <MatrixNamesRow
-        users={users}
+        columns={namesCols}
+        accountsByParent={accountsByParent}
+        hasAccountsRow={hasAccountsRow}
         accessPackages={accessPackages}
         isDark={isDark}
         onSortByCount={onSortByCount}
@@ -76,7 +90,19 @@ export default function MatrixColumnHeaders({
         onToggleIdentity={onToggleIdentity}
         loadingIdentityCols={loadingIdentityCols}
         onToggleMembers={onToggleMembers}
+        corner={rowCorner}
       />
+
+      {/* The accounts of every expanded identity, under their identity. It sits
+          after the names row, so the sticky <thead> pins it along with it — the
+          grouping offset above must NOT grow to account for it. */}
+      {hasAccountsRow && (
+        <MatrixAccountsRow
+          columns={namesCols}
+          accountsByParent={accountsByParent}
+          onOpenDetail={onOpenDetail}
+        />
+      )}
     </thead>
   );
 }

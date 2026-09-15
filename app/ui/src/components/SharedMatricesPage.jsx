@@ -1,6 +1,9 @@
 // Shared matrices — the central overview of who shared what, with whom, and
 // whether the link was ever opened (#1166).
 //
+// Recipients can be adjusted and the link copied from here too (#1202) — the
+// row expands the same SharePanel the matrix bar and the wizard host.
+//
 // Lives as an Admin sub-tab: revoking somebody else's share link is an
 // administrative act, not day-to-day analysis, so it sits with the other
 // org-wide controls rather than in the top navigation.
@@ -24,6 +27,9 @@ export default function SharedMatricesPage() {
   const canShare = useCanShareMatrix();
   const dialog = useDialog();
   const [busyId, setBusyId] = useState(null);
+  // Which row has its share panel open. One at a time: two open editors on the
+  // same page invite saving the wrong recipient list to the wrong share.
+  const [managingId, setManagingId] = useState(null);
 
   const { data: shares, loading, error, reload } = useFetch('/api/matrix/shares', {
     authFetch,
@@ -66,7 +72,8 @@ export default function SharedMatricesPage() {
     <div className="space-y-4">
       <p className="text-sm text-gray-600 dark:text-gray-400">
         Every matrix shared by a link, who shared it, who it was shared with, and who has
-        opened it. Revoke a link to close it off — the usage history stays.
+        opened it. Use Manage to adjust who it is shared with or copy the link again; revoking
+        closes the link off and keeps the saved matrix and the usage history.
       </p>
 
       {loading && <p className="text-sm text-gray-500 dark:text-gray-400">Loading shared matrices…</p>}
@@ -80,7 +87,7 @@ export default function SharedMatricesPage() {
       {!loading && !error && shares.length === 0 && (
         <EmptyState
           title="Nothing shared yet"
-          hint="Open the Matrix tab and build the view you want a colleague to see. The wizard’s last step — or “Share view…” in the toolbar — turns it into a link for the people you name."
+          hint="Open the Matrix tab and build the view you want a colleague to see. The wizard’s last step — or “Share…” in the matrix bar — saves it and turns it into a link for the people you name."
         />
       )}
 
@@ -103,7 +110,10 @@ export default function SharedMatricesPage() {
                   key={share.id}
                   share={share}
                   busy={busyId === share.id}
+                  expanded={managingId === share.id}
+                  onToggle={id => setManagingId(cur => (cur === id ? null : id))}
                   onRevoke={revoke}
+                  onChanged={reload}
                 />
               ))}
             </tbody>

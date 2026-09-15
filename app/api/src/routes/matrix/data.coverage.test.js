@@ -32,6 +32,7 @@ vi.mock('../../db/connection.js', () => ({
 // Handlers are keyed by label substring; each is an array of rows or a function
 // (called per query — throw to drive an error path).
 let labelHandlers = {};   // label-substring → rows[] | (() => rows[] | throws)
+let lastSql = {};         // label → the SQL string that query was issued with
 function dispatch(label) {
   for (const key of Object.keys(labelHandlers)) {
     if (label.includes(key)) {
@@ -44,13 +45,13 @@ function dispatch(label) {
   return Promise.resolve({ rows: [] });
 }
 vi.mock('../../perf/sqlTimer.js', () => ({
-  timedQuery: (_pool, label) => dispatch(label),
+  timedQuery: (_pool, label, _res, sql) => { lastSql[label] = sql; return dispatch(label); },
 }));
 
 // ── Mock shared.js: full control over filter + built + counts ──
 let parseFilterImpl = () => baseFilter();
 let buildSubqueriesImpl = async () => baseBuilt();
-let scopeCountsImpl = async () => ({ subjectCount: 5, subjectTotal: 10, resourceCount: 3, resourceTotal: 8 });
+let scopeCountsImpl = async () => ({ subjectCount: 5, subjectTotal: 10, resourceCount: 3, resourceTotal: 8, assignmentCount: 7 });
 // Spread the real module so runBound/collectResources (pure helpers over the
 // mocked timedQuery + built) are exercised for real; override only the three
 // entry points the tests drive.
@@ -116,11 +117,12 @@ function baseBuilt(over = {}) {
 
 beforeEach(() => {
   labelHandlers = {};
+  lastSql = {};
   poolQuery.mockReset();
   poolQuery.mockResolvedValue({ rows: [] });
   parseFilterImpl = () => baseFilter();
   buildSubqueriesImpl = async () => baseBuilt();
-  scopeCountsImpl = async () => ({ subjectCount: 5, subjectTotal: 10, resourceCount: 3, resourceTotal: 8 });
+  scopeCountsImpl = async () => ({ subjectCount: 5, subjectTotal: 10, resourceCount: 3, resourceTotal: 8, assignmentCount: 7 });
   inhFlat = async () => [];
   inhRollup = async () => null;
   inhContext = async () => null;
@@ -168,6 +170,8 @@ describe('matrix/data — flat per-subject grid', () => {
     expect(res.body.subjectCount).toBe(5);
     expect(res.body.subjectTotal).toBe(10);
     expect(res.body.totalUsers).toBe(10);
+    // The strip's assignment count (#1202) travels with the flat grid too.
+    expect(res.body.assignmentCount).toBe(7);
     expect(res.body.managedByPackages).toEqual([
       { memberId: 'm1', resourceId: 'r1', groupId: 'r1', accessPackageIds: ['ap1', 'ap2'] },
     ]);
@@ -180,6 +184,28 @@ describe('matrix/data — flat per-subject grid', () => {
     expect(res.status).toBe(200);
     expect(res.body.rowType).toBe('identity');
     expect(res.body.data).toHaveLength(1);
+    expect(lastSql['matrix-data[identity]']).toContain('SELECT DISTINCT');
+    expect(lastSql['matrix-data[identity]']).toContain('INNER JOIN "IdentityMembers"');
+  });
+
+  // #1212: an identity's linked-account count ships with its grid rows, so the
+  // column header can show it before anyone expands the identity.
+  it('ships a linked-account count with every identity row, and none with a principal row', async () => {
+    parseFilterImpl = () => baseFilter({ rowType: 'identity' });
+    labelHandlers = { 'matrix-data[': [{ resourceId: 'r1', memberId: 'i1', accountCount: 3 }] };
+    const identity = await post({ filter: { rowType: 'identity' } });
+    expect(identity.body.data[0].accountCount).toBe(3);
+    // Counted from IdentityMembers, and the aggregate actually reaches the FROM
+    // clause — a select off `ac` with the join dropped is a syntax error no
+    // SQL-blind mock would notice.
+    expect(lastSql['matrix-data[identity]']).toContain('COALESCE(ac."accountCount", 0) AS "accountCount"');
+    expect(lastSql['matrix-data[identity]']).toContain('COUNT(*)::int AS "accountCount"');
+    expect(lastSql['matrix-data[identity]']).toContain('ac."identityId" = i.id');
+
+    parseFilterImpl = () => baseFilter();
+    labelHandlers = { 'matrix-data[': [{ resourceId: 'r1', memberId: 'm1' }] };
+    await post({ filter: {} });
+    expect(lastSql['matrix-data[principal]']).not.toContain('"accountCount"');
   });
 
   it('works when the subject/resource scope is empty (no scope filters)', async () => {

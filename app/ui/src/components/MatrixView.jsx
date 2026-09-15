@@ -11,14 +11,15 @@ import { useMatrixBusinessRoleLayer } from '@ui/hooks/useMatrixBusinessRoleLayer
 import useResizableGridHeight from '@ui/hooks/useResizableGridHeight';
 import GridResizeHandle from './matrix/GridResizeHandle';
 import MatrixToolbar from './matrix/MatrixToolbar';
-import MatrixLegend from './matrix/MatrixLegend';
+import { ColumnAxisControls, RowAxisControls } from './matrix/GridCornerControls';
 import MatrixFilterSummary from './matrix/MatrixFilterSummary';
 import MatrixScopePanel from './matrix/MatrixScopePanel';
+import OpenMatrixList from './matrix/OpenMatrixList';
 import MatrixColumnHeaders from './matrix/MatrixColumnHeaders';
 import MatrixGroupRow from './matrix/MatrixGroupRow';
 import { buildResourceContextMap } from '@ui/utils/resourceContexts';
 import { AGG_SENTINEL, collapseKey, buildColumns } from './matrix/columnModel';
-import { toggleCollapsedGroups } from './matrix/foldState';
+import { toggleCollapsedGroups, columnFoldState } from './matrix/foldState';
 import { buildMatrixModel } from './matrix/matrixModel';
 import { buildAccessPackages, buildApSortedGroups } from './matrix/accessPackageModel';
 import { buildDisplayGroups } from './matrix/nestedRows';
@@ -35,36 +36,6 @@ function arrayMove(arr, from, to) {
   const [item] = result.splice(from, 1);
   result.splice(to, 0, item);
   return result;
-}
-
-// Empty state shown when the user hasn't created a matrix yet.
-function EmptyFilterState({ onAdjustFilter, hasData }) {
-  if (hasData === false) {
-    return (
-      <div className="border border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-10 text-center bg-white dark:bg-gray-800">
-        <h2 className="text-base font-semibold text-gray-800 dark:text-gray-200 mb-1">No data available yet</h2>
-        <p className="text-sm text-gray-600 dark:text-gray-400 max-w-xl mx-auto">
-          Run a crawler first to import users and resources. Once data is loaded you can build a matrix here.
-        </p>
-      </div>
-    );
-  }
-  if (hasData === null) return null;
-  return (
-    <div className="border border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-10 text-center bg-white dark:bg-gray-800">
-      <h2 className="text-base font-semibold text-gray-800 dark:text-gray-200 mb-1">Pick a slice to inspect</h2>
-      <p className="text-sm text-gray-600 dark:text-gray-400 max-w-xl mx-auto mb-4">
-        The Matrix tab always operates on a defined sub-selection of subjects (users or
-        identities) and resources. Open the wizard to set up which slice to compare.
-      </p>
-      <button
-        onClick={onAdjustFilter}
-        className="px-4 py-2 rounded text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-600"
-      >
-        Create matrix
-      </button>
-    </div>
-  );
 }
 
 // Above this many assignments, an 'auto' fold-on-load matrix opens folded.
@@ -92,6 +63,7 @@ export default function MatrixView({
   shareUrl,
   onOpenDetail,
   onAdjustFilter,
+  onLoadSaved,
   hasData,
   onShareView,
 }) {
@@ -429,16 +401,6 @@ export default function MatrixView({
     rowOrderHook.updateOrder(sorted.map(g => g.id));
   }, [orderedGroups, rowOrderHook]);
 
-  // Share: copy URL to clipboard
-  const handleShare = useCallback(async () => {
-    try {
-      await navigator.clipboard.writeText(shareUrl);
-      return true;
-    } catch {
-      return false;
-    }
-  }, [shareUrl]);
-
   // Number of info columns on the left (drag handle + resource name + type)
   const infoColumnCount = 3;
 
@@ -581,6 +543,13 @@ export default function MatrixView({
       loadingIdentityCols={loadingIdentityCols}
       onToggleCollapse={toggleCollapse}
       onToggleMembers={toggleMembers}
+      columnCorner={<ColumnAxisControls showBusinessRoles={roleLayer.enabled} canFoldColumns={canFoldColumns}
+        columnFoldState={columnFoldState(distinctTopGroups, collapsedGroups)}
+        onFoldAllColumns={foldAllColumns} onUnfoldAllColumns={unfoldAllColumns} />}
+      rowCorner={<RowAxisControls hasNestedGroups={groupsWithNested.size > 0} hasExpandedGroups={expandedGroups.size > 0}
+        onExpandAll={expandAll} onCollapseAll={collapseAll} canFoldRoles={roleLayer.canFoldRoles}
+        hasFoldedRoles={roleLayer.hasFoldedRoles} onFoldAllRoles={roleLayer.foldAllRoles} onUnfoldAllRoles={roleLayer.unfoldAllRoles}
+        hasCustomRowOrder={rowOrderHook.hasCustomOrder} onResetRowOrder={rowOrderHook.resetOrder} />}
     />
   );
 
@@ -600,40 +569,25 @@ export default function MatrixView({
       {filterIsApplied && (
         <MatrixFilterSummary
           filter={filter}
+          managed={managedFilter}
           preview={counts}
           onAdjust={onAdjustFilter}
+          onLoadSaved={onLoadSaved}
+          onShareView={onShareView}
         />
       )}
 
       {filterIsApplied && <MatrixScopePanel filter={filter} />}
 
-      <MatrixToolbar
+      {/* No matrix, no lens and nothing to export: the tab is the "Open a matrix" list. */}
+      {filterIsApplied && <MatrixToolbar
         managedFilter={managedFilter}
         setManagedFilter={setManagedFilter}
-        filter={filter}
         onExportExcel={handleExportExcel}
-        onShare={handleShare}
-        onShareView={onShareView}
-        onResetRowOrder={rowOrderHook.resetOrder}
-        hasCustomRowOrder={rowOrderHook.hasCustomOrder}
-        hasExpandableGroups={groupsWithNested.size > 0}
-        hasExpandedGroups={expandedGroups.size > 0}
-        onExpandAll={expandAll}
-        onCollapseAll={collapseAll}
-        canFoldColumns={canFoldColumns}
-        isFolded={collapsedGroups.size > 0}
-        onFoldAllColumns={foldAllColumns}
-        onUnfoldAllColumns={unfoldAllColumns}
-        canFoldRoles={roleLayer.canFoldRoles}
-        hasFoldedRoles={roleLayer.hasFoldedRoles}
-        onFoldAllRoles={roleLayer.foldAllRoles}
-        onUnfoldAllRoles={roleLayer.unfoldAllRoles}
-      />
-
-      {filterIsApplied && <MatrixLegend showBusinessRoles={roleLayer.enabled} />}
+      />}
 
       {!filterIsApplied ? (
-        <EmptyFilterState onAdjustFilter={onAdjustFilter} hasData={hasData} />
+        <OpenMatrixList hasData={hasData} onLoad={onLoadSaved} onNew={() => onAdjustFilter?.({ fresh: true })} />
       ) : users.length === 0 || orderedGroups.length === 0 ? (
         <div className="text-center text-gray-500 dark:text-gray-400 py-12">
           No assignments match the current filter. Adjust the subjects or resources to widen the view.

@@ -282,6 +282,22 @@ describe('queueScheduledJob', () => {
     expect(storedJobConfig(db)._syncMode).toBe('full');
   });
 
+  // Both queue paths (Run Now and the scheduler) have to stamp the name, or a
+  // crawler's system is named after its type on scheduled runs only.
+  it('stamps the crawler name into the stored job config as _configName', async () => {
+    const db = makeDb({ insertedId: 1 });
+    const { queueScheduledJob } = await loadScheduler(db);
+    await queueScheduledJob(baseConfig, 0);
+    expect(storedJobConfig(db)._configName).toBe('Test CSV');
+  });
+
+  it('omits _configName when the config row has no displayName', async () => {
+    const db = makeDb({ insertedId: 1 });
+    const { queueScheduledJob } = await loadScheduler(db);
+    await queueScheduledJob({ ...baseConfig, displayName: null }, 0);
+    expect(storedJobConfig(db)).not.toHaveProperty('_configName');
+  });
+
   it('updates lastRunAt on the config after queuing', async () => {
     const db = makeDb({ insertedId: 1 });
     const { queueScheduledJob } = await loadScheduler(db);
