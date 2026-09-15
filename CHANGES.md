@@ -1,5 +1,22 @@
 ## Changes in this PR
 
+- Fixed the SCIM 2.0 crawler not storing extra attributes that a provider serves under a schema-extension URN. Attributes picked in the wizard — including every group attribute, since the standard group schema offers none of its own — now sync their values instead of arriving empty.
+- Documented how extension attributes are matched (plain name in the picker, extension URN in the data, base schema wins a name clash) and added a troubleshooting entry for an attribute a provider only returns on a single-resource request.
+
+## Changes in this PR
+
+- The Identity Atlas system a crawler registers is now named after the crawler itself instead of the crawler type, so several crawlers of the same type no longer collapse into one identically-named system. Renaming a crawler renames its system on the next run.
+- The SCIM wizard's "System name" field is now a genuine override: leave it blank to use the crawler's name, or fill it in to label the system something else.
+
+## Changes in this PR
+
+- Added a **System** filter to the Principals and Resources pages, so you can see and list only the users or resources that came from one connected system.
+- Every connected system is offered as a filter value by its display name — including a system that has no principals or resources yet.
+- Added two context plugins, **Principals by System** and **Resources by System**, that generate one context per connected system, named after the system. Use them to scope the matrix to a single system's users and/or resources.
+- Re-running either plugin keeps the contexts in step with the connected systems: a new system gets its own context, a removed system's context disappears, and renaming a system renames its context without losing your edits.
+
+## Changes in this PR
+
 - Published the September 2026 security re-assessment in the documentation: scope, method, all findings by severity with their remediation pull requests, a regression check against June 2026, and confirmed strengths
 
 ## Changes in this PR

@@ -6,9 +6,9 @@ Test quality across the project's automated suites — line/branch/method covera
 
 | Suite | Line | Branch | Method | Cyclomatic | Cognitive | Mutation | Lines covered |
 |-------|------|--------|--------|------------|-----------|----------|---------------|
-| [API (Node / Vitest — unit + contract)](../coverage/api/index.html) | 90.0% | 80.6% | 89.7% | 3.8 / 20 | 2.3 / 15 | 86.0% | 8,709 / 9,674 |
-| [UI (React / Vitest)](../coverage/ui/index.html) | 83.2% | 73.6% | 72.6% | 2.8 / 28 | 1.1 / 15 | 69.5% | 6,838 / 8,217 |
-| [PowerShell (Pester)](../coverage/powershell/index.html) | 91.6% | — | 97.1% | 3.8 / 15 | 4.0 / 15 | 100.0% | 6,127 / 6,683 |
+| [API (Node / Vitest — unit + contract)](../coverage/api/index.html) | 90.0% | 80.7% | 89.8% | 3.8 / 20 | 2.3 / 15 | 86.0% | 8,763 / 9,728 |
+| [UI (React / Vitest)](../coverage/ui/index.html) | 83.2% | 73.6% | 72.5% | 2.8 / 28 | 1.1 / 15 | 69.5% | 6,838 / 8,217 |
+| [PowerShell (Pester)](../coverage/powershell/index.html) | 91.9% | — | 97.3% | 3.8 / 15 | 4.0 / 15 | 100.0% | 6,164 / 6,702 |
 
 **Cyclomatic** / **Cognitive** are _average / max_ per unit (each function, and for PowerShell each script/module body too): PowerShell via [PSComplexity](https://github.com/Fortigi/PSComplexity), JS/TS via ESLint's `complexity` rule + [eslint-plugin-sonarjs](https://github.com/SonarSource/eslint-plugin-sonarjs). **Mutation** is the share of injected faults the tests catch via [PSMutant](https://github.com/Fortigi/PSMutant), PowerShell-only today. A suite without a given signal shows —.
 
@@ -18,12 +18,12 @@ Every figure above is scoped to what its tool actually measured. The notes below
 
 ### API (Node / Vitest — unit + contract)
 
-- **Mutation is scoped.** Mutation testing covers 29 file(s) of 206 — 11% of the suite's coverable lines. It describes that subset — not the suite — and is not comparable with the suite-wide line figure on the same row. **The score itself is older than that scope:** it was measured over 18 file(s), before the current list was committed. Mutation runs are regenerated on their own schedule, so the percentage catches up on the next run.
+- **Mutation is scoped.** Mutation testing covers 29 file(s) of 211 — 11% of the suite's coverable lines. It describes that subset — not the suite — and is not comparable with the suite-wide line figure on the same row. **The score itself is older than that scope:** it was measured over 18 file(s), before the current list was committed. Mutation runs are regenerated on their own schedule, so the percentage catches up on the next run.
 
 ### UI (React / Vitest)
 
 - **Mutation is scoped.** Mutation testing covers 26 file(s) of 263 — 9% of the suite's coverable lines. It describes that subset — not the suite — and is not comparable with the suite-wide line figure on the same row. **The score itself is older than that scope:** it was measured over 6 file(s), before the current list was committed. Mutation runs are regenerated on their own schedule, so the percentage catches up on the next run.
-- **method coverage (72.6%) sits below line coverage (83.2%)** — roughly a third of functions are never invoked, while the ones that are get exercised well. Typically components rendered but not interacted with: the untested part is event handlers, callbacks and conditional render paths.
+- **method coverage (72.5%) sits below line coverage (83.2%)** — roughly a third of functions are never invoked, while the ones that are get exercised well. Typically components rendered but not interacted with: the untested part is event handlers, callbacks and conditional render paths.
 - **The most complex code is the least branch-covered.** `app/ui/src/components/MatrixView.jsx` (Function 'MatrixView', cyclomatic 20, 58.2% branch) — below this suite's own branch average, so the aggregate percentage overstates how well the hard parts are tested.
 
 ### PowerShell (Pester)
@@ -39,4 +39,4 @@ Each suite links to a full per-file, line-by-line HTML report:
 - [UI (React / Vitest)](../coverage/ui/index.html)
 - [PowerShell (Pester)](../coverage/powershell/index.html)
 
-_Generated 2026-09-14 07:48 UTC from commit `c6a41547`._
+_Generated 2026-09-14 17:39 UTC from commit `6c3befc1`._

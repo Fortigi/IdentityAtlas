@@ -9,7 +9,9 @@
     Covers the fixture-backed acceptance criteria:
       0  feature gate    — creating a SCIM config is refused while experimental crawlers are off
       1  happy path      — users, groups, Direct memberships, Contains nesting, Indirect rows
-      2  opt-in picker   — only the selected extra attribute is stored
+      2  opt-in picker   — only the selected extra attribute is stored, for users
+                          AND groups, with the values served the compliant way:
+                          nested under their schema-extension URN (#1209)
       3  active:false    — the account lands disabled
       4  idempotency     — a second identical run updates rather than duplicates
       5  stale delete    — a user removed at the source is removed here, another system untouched
@@ -116,7 +118,10 @@ function Get-SystemResources {
 }
 
 function New-ScimConfig {
-    param([string]$Name, [int]$Port, [hashtable]$Extra = @{})
+    # -OmitSystemName leaves the optional systemName override out of the config,
+    # the way the wizard does when the operator leaves that field blank. The run
+    # then has only the crawler's own name to name its system after — see AC10.
+    param([string]$Name, [int]$Port, [hashtable]$Extra = @{}, [switch]$OmitSystemName)
     $config = @{
         baseUrl    = "http://host.docker.internal:$Port"
         allowPrivateNetwork = $true   # the mock is plain http on the Docker host network
@@ -124,9 +129,9 @@ function New-ScimConfig {
         authMethod = 'BasicAuth'
         username   = 'scim'
         password   = 'test'
-        systemName = $Name
         pageSize   = 100
     }
+    if (-not $OmitSystemName) { $config['systemName'] = $Name }
     foreach ($kv in $Extra.GetEnumerator()) { $config[$kv.Key] = $kv.Value }
     $cfg = Invoke-AtlasApi -Method POST -Path '/admin/crawler-configs' -Body @{ crawlerType = 'scim'; displayName = $Name; config = $config }
     return $cfg.id
@@ -177,15 +182,24 @@ $uSvc   = "u-svc-$runTag"
 $gOuter = "g-outer-$runTag"
 $gInner = "g-inner-$runTag"
 
+#
+# `department` / `costCenter` / `type` are nested under their schema extension's URN,
+# the way RFC 7643 §3.3 says a compliant provider serves them — NOT at the top level.
+# The fixture used to put them top-level, which meant the opt-in assertions below
+# passed without the extension lookup ever running and #1209 shipped green.
 $users = @(
     @{ id = $uAlice; userName = "alice.$runTag"; displayName = "Alice $runTag"; active = $true
-       userType = 'employee'; department = 'Finance'; title = 'Analyst'; costCenter = 'CC-42'
+       userType = 'employee'; title = 'Analyst'
+       schemas = @('urn:ietf:params:scim:schemas:core:2.0:User', $MockScimEnterpriseUserUrn)
+       $MockScimEnterpriseUserUrn = @{ department = 'Finance'; costCenter = 'CC-42' }
        name = @{ givenName = 'Alice'; familyName = 'Anderson' }
        emails = @( @{ value = "alias.$runTag@example.com"; type = 'other' }, @{ value = "alice.$runTag@example.com"; primary = $true } ) }
     @{ id = $uBob; userName = "bob.$runTag"; displayName = "Bob $runTag"; active = $false
-       userType = 'employee'; department = 'HR' }
+       userType = 'employee'
+       $MockScimEnterpriseUserUrn = @{ department = 'HR' } }
     @{ id = $uSvc; userName = "svc.$runTag"; displayName = "Service $runTag"; active = $true
-       userType = 'service'; department = 'IT' }
+       userType = 'service'
+       $MockScimEnterpriseUserUrn = @{ department = 'IT' } }
 )
 $groups = @(
     @{ id = $gOuter; displayName = "Outer $runTag"; members = @(
@@ -195,6 +209,12 @@ $groups = @(
     ) }
     @{ id = $gInner; displayName = "Inner $runTag"; members = @( @{ value = $uBob }, @{ value = $uSvc } ) }
 )
+# The group attribute the reporter of #1209 selected: extension-nested, because the
+# core Group schema has nothing but displayName and members.
+foreach ($g in $groups) {
+    $g['schemas'] = @('urn:ietf:params:scim:schemas:core:2.0:Group', $MockScimGroupExtensionUrn)
+    $g[$MockScimGroupExtensionUrn] = @{ type = 'security'; description = "desc $runTag" }
+}
 
 # ── AC0: the experimental-crawler gate ───────────────────────────────────────
 # SCIM ships as an experimental crawler, so with the flag OFF the API must refuse
@@ -216,13 +236,13 @@ try {
 }
 Set-ExperimentalCrawlers -Enabled $true
 
-$mock = $null; $configId = $null; $otherConfigId = $null; $pagingMock = $null; $pagingConfigId = $null; $authMock = $null; $authConfigId = $null
+$mock = $null; $configId = $null; $otherConfigId = $null; $pagingMock = $null; $pagingConfigId = $null; $authMock = $null; $authConfigId = $null; $nameMock = $null; $nameConfigId = $null
 try {
     $mock = Start-MockScimServer -Users $users -Groups $groups
     Write-Host "  Mock SCIM server started on port $($mock.Port)" -ForegroundColor Gray
 
     $configId = New-ScimConfig -Name $systemName -Port $mock.Port -Extra @{
-        selectedAttributes = @{ user = @('department'); group = @() }
+        selectedAttributes = @{ user = @('department'); group = @('type') }
         userTypeMapping    = @(
             @{ userType = 'service'; principalType = 'ServicePrincipal' }
             @{ userType = '';        principalType = 'User' }
@@ -304,6 +324,24 @@ try {
             ($svc.principalType -eq 'ServicePrincipal' -and $alice.principalType -eq 'User') `
             "(service: '$($svc.principalType)', employee: '$($alice.principalType)')"
     } catch { Write-Result 'Scim/Data — attribute + type mapping' $false $_.Exception.Message }
+
+    # ── AC2b: the GROUP half of the opt-in picker (#1209) ────────────────────
+    # The reported bug: a selected group attribute is discovered, saved, and then
+    # never stored, because its value lives under the extension-schema URN in the
+    # group JSON. 'type' is selected, 'description' is not — both are nested under
+    # the same extension, so this fails one way if the extension lookup is missing
+    # and the other way if it ignores the operator's selection. 'type' has no
+    # Resources column so it lands in extendedAttributes; 'description' does, which
+    # is where an opted-OUT value would show up if the picker were ignored.
+    try {
+        $outerStored = @($groupRes | Where-Object { $_.externalId -eq $gOuter }) | Select-Object -First 1
+        $gExt = $outerStored.extendedAttributes
+        if ($gExt -is [string]) { $gExt = $gExt | ConvertFrom-Json }
+        $leaked = ($outerStored.description -eq "desc $runTag") -or ($gExt.description -eq "desc $runTag")
+        $ok = ($gExt.type -eq 'security') -and (-not $leaked)
+        Write-Result 'Scim/Data — a selected group attribute from a schema extension is stored' $ok `
+            "(type: '$($gExt.type)', unselected description leaked: $leaked — expected 'security' / False)"
+    } catch { Write-Result 'Scim/Data — a selected group attribute from a schema extension is stored' $false $_.Exception.Message }
 
     # ── AC5 prep: a SECOND SCIM system that must stay untouched ─────────────
     $otherMockUsers = @( @{ id = "u-other-$runTag"; userName = "other.$runTag"; displayName = "Other $runTag"; active = $true } )
@@ -392,6 +430,45 @@ try {
         if ($authConfigId) { try { Invoke-AtlasApi -Method DELETE -Path "/admin/crawler-configs/$authConfigId" | Out-Null } catch {} }
         Stop-MockScimServer -Mock $authMock
         $authMock = $null
+    }
+
+    # ── AC10 (#1207): the system is named after the CRAWLER, not the type ────
+    # Every other config in this file sets systemName explicitly, which is the
+    # one case that always worked. Here the override is left out, the way the
+    # wizard leaves it out when the operator doesn't fill the field in: the run
+    # then has only the crawler's own name to go on (`_configName`, stamped onto
+    # the job config by the API). It used to register a system called 'SCIM' —
+    # the crawler *type* — so two SCIM crawlers were indistinguishable in the
+    # Systems list, and renaming a crawler renamed nothing. Both halves of that
+    # report are asserted here against real runs.
+    $nameMock = Start-MockScimServer -Groups @() -Users @(
+        @{ id = "u-name-$runTag"; userName = "name.$runTag"; displayName = "Name $runTag"; active = $true }
+    )
+    $crawlerName = "scim-it-named-$runTag"
+    try {
+        $nameConfigId = New-ScimConfig -Name $crawlerName -Port $nameMock.Port -OmitSystemName
+        $namedJob = Invoke-ScimJob -ConfigId $nameConfigId
+        $namedSystemId = Get-ScimSystemId -SystemName $crawlerName
+        Write-Result 'Scim/Naming — with no override the system is named after the crawler' `
+            (($namedJob.status -eq 'completed') -and ($namedSystemId -gt 0)) `
+            "(status: $($namedJob.status)$(Get-JobFailureDetail $namedJob), system id: $namedSystemId; expected a system called '$crawlerName')"
+
+        # Renaming the crawler renames the SAME system on its next run — the
+        # Systems upsert is keyed on the endpoint, so the row is updated rather
+        # than a second system appearing beside the first.
+        $renamedName = "$crawlerName-renamed"
+        Invoke-AtlasApi -Method PATCH -Path "/admin/crawler-configs/$nameConfigId" -Body @{ displayName = $renamedName } | Out-Null
+        $renamedJob = Invoke-ScimJob -ConfigId $nameConfigId
+        $renamedSystemId = Get-ScimSystemId -SystemName $renamedName
+        Write-Result 'Scim/Naming — renaming the crawler renames its system on the next run' `
+            (($renamedJob.status -eq 'completed') -and ($namedSystemId -gt 0) -and ($renamedSystemId -eq $namedSystemId)) `
+            "(status: $($renamedJob.status)$(Get-JobFailureDetail $renamedJob), system id: $renamedSystemId; expected the same system ($namedSystemId) under the new name)"
+        Write-Result 'Scim/Naming — the crawler''s previous name is gone from the Systems list' `
+            ((Get-ScimSystemId -SystemName $crawlerName) -eq 0) '(a second system under the previous name was left behind)'
+    } finally {
+        if ($nameConfigId) { try { Invoke-AtlasApi -Method DELETE -Path "/admin/crawler-configs/$nameConfigId" | Out-Null } catch {} }
+        Stop-MockScimServer -Mock $nameMock
+        $nameMock = $null
     }
 
 } catch {

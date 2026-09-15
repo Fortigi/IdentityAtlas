@@ -10,6 +10,7 @@ import { extractRelFilters, buildRelationshipWhere } from '../../lib/referenceFi
 import { parseListParams } from '../../lib/listParams.js';
 import { likeContains } from '../../db/sqlParams.js';
 import { visibleResourceTypesSql } from '../../lib/resourceVisibility.js';
+import { extractSystemFilter, systemFilterWhere } from '../../lib/systemFilter.js';
 
 // Parse the list query params + attribute/tag/reference filters. Pure. The tag
 // filter is pulled out of the attribute object (which extractRelFilters then
@@ -30,16 +31,19 @@ export function parseResourceListParams(req) {
     resourceTagFilter = String(attrFilters['__groupTag']);
     delete attrFilters['__groupTag'];
   }
+  // Virtual __system filter (a system display name) — the friendly counterpart
+  // of the raw ?systemId= query param, translated in buildResourceListWhere.
+  const systemFilter = extractSystemFilter(attrFilters);
   // Reference-field (rel.*) filters — applied as correlated count subqueries.
   const relFilters = extractRelFilters(attrFilters);
 
-  return { search, resourceType, systemId, tagId, limit, offset, attrFilters, resourceTagFilter, relFilters };
+  return { search, resourceType, systemId, tagId, limit, offset, attrFilters, resourceTagFilter, relFilters, systemFilter };
 }
 
 // Build the WHERE clause + optional tag-filter JOIN for the list query, binding
 // values through the caller's `bind`. Returns { where, resourceTagJoin }.
 export function buildResourceListWhere(req, parsed, colNames, bind) {
-  const { search, resourceType, systemId, tagId, attrFilters, resourceTagFilter, relFilters } = parsed;
+  const { search, resourceType, systemId, tagId, attrFilters, resourceTagFilter, relFilters, systemFilter } = parsed;
 
   let where = '1=1';
   // Hide soft-deleted resources by default; ?includeDeleted=true reveals them.
@@ -76,6 +80,7 @@ export function buildResourceListWhere(req, parsed, colNames, bind) {
       INNER JOIN "GraphTags" _rt ON _rta."tagId" = _rt.id AND _rt."name" = ${bind(resourceTagFilter)} AND _rt."entityType" IN ('resource', 'group')`;
   }
   where += buildFilterWhere(attrFilters, colNames, 'r', bind);
+  where += systemFilterWhere(systemFilter, 'r', bind);
   where += buildRelationshipWhere(relFilters, 'resources', 'r');
 
   return { where, resourceTagJoin };
