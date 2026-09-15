@@ -11,6 +11,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
 import { useFetch } from '@ui/hooks/useFetch';
+import ConfirmChoices from './ConfirmChoices';
 
 const EXAMPLES = [
   'Guest accounts that don\'t have a manager, or whose manager is disabled',
@@ -29,7 +30,9 @@ export async function postJson(authFetch, url, body, method = 'POST') {
   const json = await res.json().catch(() => ({}));
   if (!res.ok) {
     const detail = json.errors?.length ? `: ${json.errors.join('; ')}` : '';
-    throw new Error(`${json.error || `Request failed (${res.status})`}${detail}`);
+    const err = new Error(`${json.error || `Request failed (${res.status})`}${detail}`);
+    err.body = json; // callers can react to structured answers, e.g. a confirmation
+    throw err;
   }
   return json;
 }
@@ -51,7 +54,7 @@ function formatTiming(t) {
   return `${s(t.totalMs)} · read ${t.promptTokens} tokens in ${s(t.promptMs)} · wrote ${t.outputTokens} tokens in ${s(t.outputMs)}`;
 }
 
-function Turn({ turn, onAnswer, busy, isLast }) {
+function Turn({ turn, onAnswer, onConfirm, busy, isLast }) {
   if (turn.role === 'user') {
     return (
       <div className="flex justify-end">
@@ -73,6 +76,10 @@ function Turn({ turn, onAnswer, busy, isLast }) {
           )}
         </>
       )}
+      {r.kind === 'confirm' && (isLast
+        ? <ConfirmChoices confirm={r.confirm} busy={busy} onChoose={choice => onConfirm(r, choice)} />
+        : <p>{r.confirm.message}</p>)}
+      {r.kind === 'chosen' && <p>Using “{r.name}”.</p>}
       {r.kind === 'report' && (
         <>
           <p>I've updated the report definition{r.repaired ? ' (after correcting my first attempt)' : ''} — check it below.</p>
@@ -105,6 +112,7 @@ export default function AskAssistant({ currentSpec, onReport }) {
   const [error, setError] = useState(null);
   const elapsed = useElapsed(busy || warm === 'warming');
   const warmed = useRef(false);
+  const lastQuestion = useRef('');
 
   // Load the model and pre-read the prompt when the builder opens, so the first
   // question doesn't pay for it.
@@ -145,6 +153,29 @@ export default function AskAssistant({ currentSpec, onReport }) {
       setTurns(t => [...t, { role: 'assistant', reply }]);
       setHistory(h => [...h, { role: 'user', content: question }, { role: 'assistant', content: reply.raw || '' }].slice(-MAX_HISTORY));
       if (reply.kind === 'report') onReport(reply, question);
+      if (reply.kind === 'confirm') lastQuestion.current = question;
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // The analyst picked (or typed) the object they meant. Applied by the server;
+  // the model is not asked again.
+  const confirmChoice = async (reply, choice) => {
+    setBusy(true);
+    setError(null);
+    try {
+      const resolved = await postJson(authFetch, '/api/nl-reports/resolve', { spec: reply.spec, choice });
+      const next = { ...reply, spec: resolved.spec, explanation: resolved.explanation };
+      setTurns(t => [...t, { role: 'assistant', reply: { kind: 'chosen', name: choice.name } }]);
+      if (resolved.confirm) {
+        setTurns(t => [...t, { role: 'assistant', reply: { ...next, kind: 'confirm', confirm: resolved.confirm, timing: null } }]);
+      } else {
+        setTurns(t => [...t, { role: 'assistant', reply: { ...next, kind: 'report', timing: null } }]);
+        onReport({ ...next, kind: 'report' }, lastQuestion.current);
+      }
     } catch (e) {
       setError(e.message);
     } finally {
@@ -159,7 +190,7 @@ export default function AskAssistant({ currentSpec, onReport }) {
     <div className="space-y-3">
       {turns.length > 0 && (
         <div className="space-y-3">
-          {turns.map((t, i) => <Turn key={i} turn={t} busy={busy} isLast={i === turns.length - 1} onAnswer={ask} />)}
+          {turns.map((t, i) => <Turn key={i} turn={t} busy={busy} isLast={i === turns.length - 1} onAnswer={ask} onConfirm={confirmChoice} />)}
         </div>
       )}
       {busy && <p className={MUTED} aria-live="polite">Thinking… {elapsed}s{warm === 'warming' ? ' (the model is still warming up)' : ''}</p>}

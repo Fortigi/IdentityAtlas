@@ -82,12 +82,22 @@ for (const model of models) {
     let reply;
     let timing;
     let clarifications = [];
+    const confirmations = [];
     let error = null;
     try {
       for (let round = 0; round < 3; round++) {
         reply = await post('interpret', { model, question: text, history });
         timing = addTiming(timing, reply.timing || {});
         // A question whose right answer IS a clarification must not be answered for the model.
+        // A "did you mean" confirmation: the simulated analyst accepts the first suggestion.
+        while (reply.kind === 'confirm' && reply.confirm.choices.length && confirmations.length < 3) {
+          const pick = reply.confirm.choices[0];
+          confirmations.push({ asked: reply.confirm.name, chose: pick.name });
+          const resolved = await post('resolve', { spec: reply.spec, choice: { path: reply.confirm.path, name: pick.name, id: pick.id } });
+          reply = resolved.confirm
+            ? { ...reply, spec: resolved.spec, confirm: resolved.confirm }
+            : { ...reply, kind: 'report', spec: resolved.spec, explanation: resolved.explanation };
+        }
         if (reply.kind !== 'clarify' || round === 2 || q.expectKind === 'clarify') break;
         clarifications.push({ question: reply.question, options: reply.options });
         history = [...history, { role: 'user', content: text }, { role: 'assistant', content: reply.raw }];
@@ -119,6 +129,7 @@ for (const model of models) {
       id: q.id, pass, weak: expectedCount === 0, ambiguous: !!q.ambiguous,
       clarified: clarifications.length > 0 || (q.expectKind === 'clarify' && reply?.kind === 'clarify'), clarifications, columnsOk,
       expectClarify: q.expectKind === 'clarify',
+      confirmations,
       replyQuestion: reply?.kind === 'clarify' ? reply.question : undefined,
       expectedCount, actualCount, error, repaired: !!reply?.repaired, wallMs, timing,
       explanation: reply?.explanation, assumptions: reply?.assumptions, spec: reply?.spec,
@@ -126,7 +137,7 @@ for (const model of models) {
     rows.push(row);
     const flag = pass ? 'PASS' : 'FAIL';
     console.log(`${flag} ${q.id.padEnd(24)} ${(wallMs / 1000).toFixed(1).padStart(6)}s ` +
-      `${row.clarified ? '[asked] ' : ''}${row.repaired ? '[repaired] ' : ''}` +
+      `${row.clarified ? '[asked] ' : ''}${row.repaired ? '[repaired] ' : ''}${confirmations.length ? `[confirmed ${confirmations.map(c => c.chose).join(', ')}] ` : ''}` +
       `${error ? `error: ${error}` : `rows ${actualCount}/${expectedCount}`}`);
     results.models[model] = { warmMs, rows };
     writeFileSync(outFile, JSON.stringify(results, null, 2));

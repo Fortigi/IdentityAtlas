@@ -14,6 +14,7 @@ import ListReportRenderer from '@ui/components/reports/ListReportRenderer';
 import ReportError from '@ui/components/reports/ReportError';
 import SpecEditor from './SpecEditor';
 import AskAssistant, { postJson } from './AskAssistant';
+import ConfirmChoices from './ConfirmChoices';
 
 const CARD = 'rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800';
 const PRIMARY = 'rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 dark:bg-blue-700 dark:hover:bg-blue-600';
@@ -56,6 +57,7 @@ export default function ReportBuilderPage({ builderId, onClose, onOpenDetail, on
   const [result, setResult] = useState(null);
   const [running, setRunning] = useState(false);
   const [runError, setRunError] = useState(null);
+  const [confirm, setConfirm] = useState(null);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState(null);
   const [seeded, setSeeded] = useState(null);
@@ -82,11 +84,28 @@ export default function ReportBuilderPage({ builderId, onClose, onOpenDetail, on
   const run = async (s) => {
     setRunning(true);
     setRunError(null);
+    setConfirm(null);
     try {
       const r = await postJson(authFetch, '/api/nl-reports/run', { spec: s });
       setResult(r);
       setSpec(r.spec);
       setDirty(false);
+    } catch (e) {
+      // A name that did not match exactly: let the analyst say which object they meant.
+      if (e.body?.confirm) setConfirm({ spec: e.body.spec, confirm: e.body.confirm });
+      else setRunError(e.message);
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  const confirmChoice = async (choice) => {
+    setRunning(true);
+    try {
+      const resolved = await postJson(authFetch, '/api/nl-reports/resolve', { spec: confirm.spec, choice });
+      setSpec(resolved.spec);
+      if (resolved.confirm) setConfirm({ spec: resolved.spec, confirm: resolved.confirm });
+      else { setConfirm(null); await run(resolved.spec); }
     } catch (e) {
       setRunError(e.message);
     } finally {
@@ -206,6 +225,11 @@ export default function ReportBuilderPage({ builderId, onClose, onOpenDetail, on
         </div>
       </div>
 
+      {confirm && (
+        <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-gray-900 dark:border-amber-700 dark:bg-amber-900/20 dark:text-gray-100">
+          <ConfirmChoices confirm={confirm.confirm} busy={running} onChoose={confirmChoice} />
+        </div>
+      )}
       {runError && <p className="text-sm text-red-700 dark:text-red-300" role="alert">{runError}</p>}
       {result && (
         <div className="space-y-2">

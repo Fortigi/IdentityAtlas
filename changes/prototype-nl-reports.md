@@ -3,3 +3,5 @@
 - Prototype: creating or editing a report opens a report builder in its own tab, where a report can be described in plain language, built by hand with the report definition editor, or both.
 - Prototype: the local model used by the report generator is chosen under Admin → LLM ("Local LLM for report generator").
 - Prototype: reports can compare against a named record — for example "groups with exactly the same members as business role X", "users in the same groups as Jan", or "groups that are at least 80% the same as group Y" — with similarity, extra and missing members shown per row.
+- Prototype: when a report names a specific object (a business role, group or user) that doesn't match a name exactly, the report builder suggests the closest matches and asks you to confirm which one you meant.
+- Prototype: the report generator understands interchangeable terms — person and identity, account, principal and user, business role and access package — and reports can now be about persons (identities) and their linked accounts.

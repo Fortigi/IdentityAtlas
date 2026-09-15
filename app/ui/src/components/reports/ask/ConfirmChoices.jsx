@@ -1,0 +1,52 @@
+// PROTOTYPE — "did you mean …?" for a named object the lookup could not match exactly.
+//
+// Shown by the assistant and by the builder's preview. Picking a choice (or typing
+// the exact name) is applied by POST /api/nl-reports/resolve — no model round-trip.
+
+import { useState } from 'react';
+
+const CHOICE = 'rounded border border-gray-300 bg-white px-3 py-1.5 text-left text-sm text-gray-800 hover:border-blue-400 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200';
+
+function humanType(type) {
+  return type ? type.replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase() : '';
+}
+
+/**
+ * @param {object}   props.confirm   { kind, path, name, message, choices: [{ id, name, type, score? }] }
+ * @param {Function} props.onChoose  ({ path, name, id?, keep? }) => void
+ */
+export default function ConfirmChoices({ confirm, onChoose, busy }) {
+  const [typed, setTyped] = useState('');
+  const choose = (patch) => onChoose({ path: confirm.path, ...patch });
+
+  return (
+    <div className="space-y-2">
+      <p>{confirm.message}</p>
+      {confirm.choices.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {confirm.choices.map(c => (
+            <button key={c.id} type="button" className={CHOICE} disabled={busy}
+              onClick={() => choose({ name: c.name, id: confirm.kind === 'reference' ? c.id : undefined })}>
+              <span className="font-medium">{c.name}</span>
+              {c.type && <span className="ml-1.5 text-xs text-gray-600 dark:text-gray-400">{humanType(c.type)}</span>}
+            </button>
+          ))}
+        </div>
+      )}
+      <form className="flex flex-wrap items-center gap-2" onSubmit={e => { e.preventDefault(); if (typed.trim()) choose({ name: typed }); }}>
+        <label htmlFor={`confirm-${confirm.path.join('-')}`} className="text-xs text-gray-700 dark:text-gray-300">
+          {confirm.choices.length ? 'None of these — exact name:' : 'Exact name:'}
+        </label>
+        <input id={`confirm-${confirm.path.join('-')}`} value={typed} onChange={e => setTyped(e.target.value)} disabled={busy}
+          className="w-64 rounded border border-gray-300 bg-white px-2 py-1 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100" />
+        <button type="submit" className={CHOICE} disabled={busy || !typed.trim()}>Use this name</button>
+        {confirm.kind === 'value' && (
+          <button type="button" className="text-xs text-blue-700 hover:underline dark:text-blue-300" disabled={busy}
+            onClick={() => choose({ name: confirm.name, keep: true })}>
+            Keep “{confirm.name}” as written
+          </button>
+        )}
+      </form>
+    </div>
+  );
+}
