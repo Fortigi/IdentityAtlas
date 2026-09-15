@@ -768,5 +768,17 @@
         }
       ]
     }
+  },
+  {
+    "id": "rolemining-same-members-as-br",
+    "question": "Show me all groups that have the same members as business role \"Fortigi - Algemeen - Maten\" but which are not part of the business role",
+    "pending": "needs a membership-comparison capability; not expressible in the current report definition",
+    "expectedGroups": {
+      "identical": [
+        "Fortigi Members",
+        "Fortigi.Maten"
+      ],
+      "note": "business role has 9 members and contains 81 groups; ~13 more groups hold the same 9 plus 2 others (e.g. Fortigi.All, Iedereen) — a good answer shows those as near matches"
+    }
   }
 ]

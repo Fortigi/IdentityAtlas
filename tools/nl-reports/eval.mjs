@@ -25,6 +25,9 @@ const BASE = args.base || 'http://localhost:3001';
 const here = dirname(fileURLToPath(import.meta.url));
 let questions = JSON.parse(readFileSync(args.file || join(here, 'questions.json'), 'utf8'));
 if (args.only) questions = questions.filter(q => args.only.split(',').includes(q.id));
+// Questions that need a capability the engine does not have yet are recorded but not run.
+for (const q of questions.filter(x => x.pending)) console.log(`SKIP ${q.id}: ${q.pending}`);
+questions = questions.filter(q => !q.pending);
 
 async function post(path, body) {
   const r = await fetch(`${BASE}/api/nl-reports/${path}`, {
