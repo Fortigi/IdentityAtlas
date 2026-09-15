@@ -341,7 +341,7 @@ var assemblies = [
   {
     "name": "tools/crawlers/odata",
     "classes": [
-      { "name": "tools/crawlers/odata/Invoke-ODataAuth", "rp": "odata_tools_crawlers_odata_Invoke_ODataAuth.html", "cl": 55, "ucl": 44, "cal": 99, "tl": 256, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
+      { "name": "tools/crawlers/odata/Invoke-ODataAuth", "rp": "odata_tools_crawlers_odata_Invoke_ODataAuth.html", "cl": 70, "ucl": 29, "cal": 99, "tl": 256, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
       { "name": "tools/crawlers/odata/Invoke-ODataGetRequest", "rp": "odata_tools_crawlers_odata_Invoke_ODataGetRequest.html", "cl": 70, "ucl": 9, "cal": 79, "tl": 305, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
       { "name": "tools/crawlers/odata/Invoke-ODataPagedRequest", "rp": "odata_tools_crawlers_odata_Invoke_ODataPagedRequest.html", "cl": 9, "ucl": 0, "cal": 9, "tl": 53, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
       { "name": "tools/crawlers/odata/Start-ODataCrawler", "rp": "odata_tools_crawlers_odata_Start_ODataCrawler.html", "cl": 0, "ucl": 3, "cal": 3, "tl": 38, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
@@ -358,9 +358,9 @@ var assemblies = [
   {
     "name": "tools/crawlers/scim",
     "classes": [
-      { "name": "tools/crawlers/scim/ScimCrawler.Functions", "rp": "scim_Functions.html", "cl": 163, "ucl": 3, "cal": 166, "tl": 428, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
+      { "name": "tools/crawlers/scim/ScimCrawler.Functions", "rp": "scim_Functions.html", "cl": 170, "ucl": 0, "cal": 170, "tl": 437, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
       { "name": "tools/crawlers/scim/ScimCrawler.Phases", "rp": "scim_Phases.html", "cl": 91, "ucl": 1, "cal": 92, "tl": 228, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
-      { "name": "tools/crawlers/scim/ScimCrawler.Transform", "rp": "scim_Transform.html", "cl": 149, "ucl": 0, "cal": 149, "tl": 323, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
+      { "name": "tools/crawlers/scim/ScimCrawler.Transform", "rp": "scim_Transform.html", "cl": 164, "ucl": 0, "cal": 164, "tl": 368, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
       { "name": "tools/crawlers/scim/Start-ScimCrawler", "rp": "scim_tools_crawlers_scim_Start_ScimCrawler.html", "cl": 0, "ucl": 23, "cal": 23, "tl": 88, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
     ]},
   {

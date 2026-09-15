@@ -10,6 +10,7 @@ import { readdirSync } from 'fs';
 import path from 'path';
 import { getUploadFolderPath } from '../crawlerFiles.js';
 import { vaultedConfigFields, CONFIG_SECRET_FIELDS } from '../../secrets/crawlerSecrets.js';
+import { stampConfigName } from '../../lib/jobConfig.js';
 import { VALID_JOB_TYPES, validateCrawlerConfig, isSingletonJob } from '../../crawlerManifests.js';
 
 // Re-exported for existing consumers (scheduler.js, jobs.*.test.js) that import
@@ -133,12 +134,13 @@ export function validateCreateJobBody(body) {
 }
 
 // Resolve the config a job should run with: inline (no configId) or the stored
-// CrawlerConfigs row. Returns { resolvedConfig, configNextRunMode } or
-// { error: { status, body } }. Exported for unit tests.
+// CrawlerConfigs row. Returns { resolvedConfig, configNextRunMode, configName }
+// or { error: { status, body } }. An inline config has no CrawlerConfigs row and
+// so carries no configName. Exported for unit tests.
 export async function resolveJobConfig(pool, inlineConfig, configId) {
   if (!configId) return { resolvedConfig: inlineConfig || null, configNextRunMode: null };
   const cfgResult = await pool.query(
-    `SELECT config, "nextRunMode" FROM "CrawlerConfigs" WHERE id = $1 AND "enabled" = TRUE`,
+    `SELECT config, "nextRunMode", "displayName" FROM "CrawlerConfigs" WHERE id = $1 AND "enabled" = TRUE`,
     [configId]
   );
   if (cfgResult.rows.length === 0) return { error: { status: 404, body: { error: 'Crawler config not found' } } };
@@ -147,6 +149,7 @@ export async function resolveJobConfig(pool, inlineConfig, configId) {
   return {
     resolvedConfig: (typeof raw === 'string') ? JSON.parse(raw) : raw,
     configNextRunMode: cfgResult.rows[0].nextRunMode || 'delta',
+    configName: cfgResult.rows[0].displayName || null,
   };
 }
 
@@ -179,26 +182,31 @@ export function resolveUploadFolder(jobType, configId, resolvedConfig) {
 }
 
 // Drop every `_`-prefixed key. Those are server-owned job metadata
-// (`_scheduledByConfigId`, `_syncMode`, `_scheduleIndex`) and must never be
-// taken from a caller- or admin-supplied config (SEC-2026-09 H-02). Pure.
+// (`_scheduledByConfigId`, `_syncMode`, `_scheduleIndex`, `_configName`) and must
+// never be taken from a caller- or admin-supplied config (SEC-2026-09 H-02). Pure.
 export function stripServerOwnedKeys(config) {
   if (!config || typeof config !== 'object') return null;
   return Object.fromEntries(Object.entries(config).filter(([k]) => !k.startsWith('_')));
 }
 
 // Prepare the job's stored config: drop caller-supplied server-owned keys, pick
-// the effective syncMode, stamp the source configId, and strip every credential
-// field (vaulted per-job, injected at claim time). Which config's credentials a
-// job receives comes from the CrawlerJobs."configId" column the caller writes;
-// `_scheduledByConfigId` in the JSON is informational only (UI + the worker's
-// delta-mode callback). Returns { inlineSecret, configToStore, configJson,
-// extraCreds }. Pure. Exported for unit tests.
-export function prepareJobConfig(resolvedConfig, configId, effectiveSyncMode) {
+// the effective syncMode, stamp the source configId and the crawler's own name,
+// and strip every credential field (vaulted per-job, injected at claim time).
+// Which config's credentials a job receives comes from the CrawlerJobs."configId"
+// column the caller writes; `_scheduledByConfigId` in the JSON is informational
+// only (UI + the worker's delta-mode callback). The server-owned keys are stripped
+// BEFORE the name is stamped, so a caller cannot supply `_configName` either.
+// Returns { inlineSecret, configToStore, configJson, extraCreds }. Pure. Exported
+// for unit tests.
+export function prepareJobConfig(resolvedConfig, configId, effectiveSyncMode, configName) {
   const base = stripServerOwnedKeys(resolvedConfig);
   const inlineSecret = (!configId && base?.clientSecret) ? base.clientSecret : null;
   const configToStore = configId
     ? { ...(base || {}), _scheduledByConfigId: configId, _syncMode: effectiveSyncMode }
     : (base ? { ...base, _syncMode: effectiveSyncMode } : null);
+  // The crawler can only name what it registers after the crawler's own name if
+  // that name reaches the run — see stampConfigName's note on the reserved key.
+  stampConfigName(configToStore, configName);
   const extraCreds = {};
   if (configToStore) {
     delete configToStore.clientSecret;

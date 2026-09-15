@@ -62,7 +62,7 @@ router.post('/admin/crawler-jobs', gate, async (req, res) => {
     // Explicit syncMode in the request body wins (the "Run Delta" / "Run Full"
     // buttons). Falls back to the stored config's nextRunMode toggle, then delta.
     const effectiveSyncMode = explicitSyncMode || cfg.configNextRunMode || 'delta';
-    const { inlineSecret, configJson, extraCreds } = prepareJobConfig(resolvedConfig, configId, effectiveSyncMode);
+    const { inlineSecret, configJson, extraCreds } = prepareJobConfig(resolvedConfig, configId, effectiveSyncMode, cfg.configName);
 
     const result = await pool.query(
       `INSERT INTO "CrawlerJobs" ("jobType", config, "createdBy", "configId")

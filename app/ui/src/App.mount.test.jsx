@@ -52,3 +52,33 @@ describe('App — hash routing', () => {
     expect(screen.getAllByText('u-123').length).toBeGreaterThan(0);
   });
 });
+
+// #1202: arriving on the matrix tab with data but no org default no longer
+// throws the wizard open — it shows the saved matrices to open, and New matrix.
+describe('App — the matrix tab with no matrix on screen', () => {
+  const matrixAuth = (defaultFilter) => ({
+    auth: {
+      authFetch: makeAuthFetch({
+        '/api/preferences': { visibleTabs: [] },
+        '/api/admin/dashboard-stats': { hasData: true },
+        '/api/matrix/default-filter': defaultFilter,
+        '/api/matrix/saved-filters': [{ id: 'sf-1', name: 'HR users', filter: { rowType: 'principal' } }],
+        '/api/matrix/columns': [],
+        '/api/matrix/preview': { subjectCount: 0, subjectTotal: 0, resourceCount: 0, resourceTotal: 0, assignmentCount: 0 },
+      }),
+    },
+  });
+
+  it('shows "Open a matrix" instead of opening the wizard, and New matrix opens a fresh one', async () => {
+    window.location.hash = '#matrix';
+    renderWithProviders(h(App), matrixAuth(null));
+
+    expect(await screen.findByRole('button', { name: /HR users/ })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Open a matrix' })).toBeInTheDocument();
+    // The wizard's title for a new matrix — absent until asked for.
+    expect(screen.queryByText('Create matrix')).not.toBeInTheDocument();
+
+    await userEvent.setup().click(screen.getByRole('button', { name: 'New matrix' }));
+    expect(await screen.findByText('Create matrix')).toBeInTheDocument();
+  });
+});

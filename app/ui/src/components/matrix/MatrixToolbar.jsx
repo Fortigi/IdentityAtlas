@@ -1,48 +1,59 @@
-import { useState } from 'react';
 import { useCanExportUi } from '@ui/auth/usePermissions';
 import { useIsSharedView } from '@ui/contexts/SharedViewContext';
-import ShareMatrixButton from './ShareMatrixButton';
+import { usePopover } from './usePopover';
 
-// Simplified Matrix toolbar (post-wizard redesign).
+// The toolbar row above the matrix grid ("a matrix is a document", #1202).
 //
-//   - Row selection / filtering happens in MatrixFilterWizard.
-//   - The toolbar keeps only "view-time" controls: Governed/Non-governed/Gaps
-//     toggle (formerly SOLL/IST), Excel export, Share link.
-//   - "Adjust filter" re-opens the wizard.
-//   - Search, user-limit slider, attribute/context FilterBars are gone.
+// It carries only what changes the view of the whole document: the lens —
+// All / Governed / Non-governed / Gaps — and Export. Controls that act on one
+// axis of the grid (fold columns, expand/fold rows, reset row order, the
+// legend) live in the grid's own header corner (GridCornerControls). Saving,
+// loading and sharing live in the Load / Save / Share bar above. There is no
+// "Copy link": sharing replaced it, and the URL still carries the matrix.
 
-export default function MatrixToolbar({
-  managedFilter,
-  setManagedFilter,
-  filter,
-  onExportExcel,
-  onShare,
-  onShareView,
-  onResetRowOrder,
-  hasCustomRowOrder,
-  hasExpandableGroups,
-  hasExpandedGroups,
-  onExpandAll,
-  onCollapseAll,
-  canFoldColumns = false,
-  isFolded = false,
-  onFoldAllColumns,
-  onUnfoldAllColumns,
-  canFoldRoles = false,
-  hasFoldedRoles = false,
-  onFoldAllRoles,
-  onUnfoldAllRoles,
-  hideGaps = false,
-}) {
-  const [copied, setCopied] = useState(false);
-  // A recipient of a share link gets the matrix, not the analyst's tooling:
-  // no Excel export and no link-sharing controls (#1166).
+// Export ▾ — a small menu, so further formats have somewhere to go.
+function ExportMenu({ onExportExcel }) {
+  const { open, toggle, close, triggerRef, panelRef } = usePopover();
+  return (
+    <div className="relative">
+      <button
+        ref={triggerRef}
+        type="button"
+        onClick={toggle}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        className="rounded border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700 dark:focus-visible:ring-blue-400"
+      >
+        Export <span aria-hidden="true">▾</span>
+      </button>
+      {open && (
+        <div ref={panelRef} role="menu" aria-label="Export"
+          className="absolute right-0 top-full z-50 mt-1 min-w-[10rem] rounded border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-600 dark:bg-gray-800">
+          <button
+            type="button"
+            role="menuitem"
+            data-autofocus
+            onClick={() => { close(); onExportExcel(); }}
+            title="Export matrix to Excel (.xlsx)"
+            className="block w-full px-3 py-1.5 text-left text-xs text-gray-800 hover:bg-gray-100 focus:bg-gray-100 focus:outline-none dark:text-gray-200 dark:hover:bg-gray-700 dark:focus:bg-gray-700"
+          >
+            Export Excel
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function MatrixToolbar({ managedFilter, setManagedFilter, onExportExcel, hideGaps = false }) {
+  // A recipient of a share link gets the matrix, not the analyst's tooling: no
+  // export (#1166).
   const isSharedView = useIsSharedView();
   const canExport = useCanExportUi() && !isSharedView;
 
   return (
-    <div className="flex flex-wrap items-center gap-2 text-sm">
-      {/* Governed / Non-governed / Gaps */}
+    <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+      {/* The lens: All / Governed / Non-governed / Gaps */}
       <div className="inline-flex rounded border border-gray-300 dark:border-gray-600 overflow-hidden">
         {[
           { key: 'all',       label: 'All' },
@@ -64,124 +75,7 @@ export default function MatrixToolbar({
         ))}
       </div>
 
-      <div className="border-l border-gray-300 dark:border-gray-600 h-5 mx-1" />
-
-      {canExport && (
-        <button
-          onClick={onExportExcel}
-          className="px-2 py-1 rounded text-xs text-white bg-green-700 hover:bg-green-800 border border-green-800 font-medium"
-          title="Export matrix to Excel (.xlsx)"
-        >
-          Export Excel
-        </button>
-      )}
-
-      {/* Two different "share" actions, deliberately named apart: "Copy link" hands
-          the current URL to another analyst, "Share view…" mints a read-only link
-          for a colleague who has no Identity Atlas role at all (#1166). */}
-      {!isSharedView && (
-        <button
-          onClick={async () => {
-            const ok = await onShare();
-            if (ok) {
-              setCopied(true);
-              setTimeout(() => setCopied(false), 2000);
-            }
-          }}
-          className={`px-2 py-1 rounded text-xs font-medium border transition-colors ${
-            copied
-              ? 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 border-green-300 dark:border-green-700'
-              : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 border-gray-200 dark:border-gray-600'
-          }`}
-          title="Copy this matrix's URL — it only opens for colleagues who already have Identity Atlas access"
-        >
-          {copied ? 'Copied!' : 'Copy link'}
-        </button>
-      )}
-
-      {!isSharedView && <ShareMatrixButton filter={filter} onShareView={onShareView} />}
-
-      {hasCustomRowOrder && (
-        <>
-          <div className="border-l border-gray-300 dark:border-gray-600 h-5 mx-1" />
-          <button
-            onClick={onResetRowOrder}
-            className="px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-600"
-            title="Reset row order to default"
-          >
-            Reset Rows
-          </button>
-        </>
-      )}
-
-      {hasExpandableGroups && (
-        <>
-          <div className="border-l border-gray-300 dark:border-gray-600 h-5 mx-1" />
-          <button
-            onClick={onExpandAll}
-            className="px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-600"
-            title="Expand all nested groups (up to 4 levels)"
-          >
-            Expand All
-          </button>
-          {hasExpandedGroups && (
-            <button
-              onClick={onCollapseAll}
-              className="px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-600"
-              title="Collapse all nested groups"
-            >
-              Collapse All
-            </button>
-          )}
-        </>
-      )}
-
-      {/* Fold/unfold the sort-attribute columns into aggregate count columns */}
-      {canFoldColumns && (
-        <>
-          <div className="border-l border-gray-300 dark:border-gray-600 h-5 mx-1" />
-          <button
-            onClick={onFoldAllColumns}
-            className="px-2 py-1 rounded text-xs text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-700"
-            title="Fold every top-level group into a single count column"
-          >
-            Fold columns
-          </button>
-          {isFolded && (
-            <button
-              onClick={onUnfoldAllColumns}
-              className="px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-600"
-              title="Unfold all columns back to individual subjects"
-            >
-              Unfold columns
-            </button>
-          )}
-        </>
-      )}
-
-      {/* Fold the resources a business role grants into the role's own row */}
-      {canFoldRoles && (
-        <>
-          <div className="border-l border-gray-300 dark:border-gray-600 h-5 mx-1" />
-          <button
-            onClick={onFoldAllRoles}
-            className="px-2 py-1 rounded text-xs text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-700"
-            title="Fold every business role — leaves only business roles and resources no role grants"
-          >
-            Fold roles
-          </button>
-          {hasFoldedRoles && (
-            <button
-              onClick={onUnfoldAllRoles}
-              className="px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-600"
-              title="Unfold all business roles and show their resources again"
-            >
-              Unfold roles
-            </button>
-          )}
-        </>
-      )}
-
+      {canExport && <ExportMenu onExportExcel={onExportExcel} />}
     </div>
   );
 }

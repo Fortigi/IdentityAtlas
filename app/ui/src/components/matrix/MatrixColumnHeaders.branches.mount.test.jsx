@@ -7,12 +7,15 @@ import { renderWithProviders, screen, fireEvent } from '@ui/test-utils/renderWit
 // Each subject gets a distinct sortKeys pair, so every span is a single column
 // whose lead cell we control — letting us exercise the aggregate, member-explode
 // and plain-group branches of a grouping cell independently.
+const alice = { id: 'id1', displayName: 'Alice', memberType: 'Identity', sortKeys: ['HR', 'Recruiting'] };
+
 function makeUsers() {
   return [
     { id: 'agg1', value: 'Finance', userCount: 3, isAggregateCol: true, level: 0, sortKeys: ['Finance', 'Payroll'], childCounts: [0, 2] },
     { id: 'mem1', value: 'Ops', isMemberCol: true, memberLevel: 0, sortKeys: ['Ops', 'Logistics'] },
-    { id: 'id1', displayName: 'Alice', memberType: 'Identity', sortKeys: ['HR', 'Recruiting'] },
-    { id: 'acc1', displayName: 'Bob', isAccountCol: true, accountType: 'AAD', sortKeys: ['IT', 'Support'] },
+    // The only column of the expanded identity id1: makeAccountCol() takes its
+    // parent's place, stamps parentId/parent and copies the sortKeys.
+    { id: 'acc1', displayName: 'Bob', isAccountCol: true, parentId: 'id1', parent: alice, accountType: 'AAD', sortKeys: ['HR', 'Recruiting'] },
     { id: 'u5', displayName: 'Carl', jobTitle: 'Rep', department: 'Sales', sortKeys: ['Sales', 'Field'] },
   ];
 }
@@ -60,6 +63,25 @@ describe('MatrixColumnHeaders rich columns', () => {
     // Both access-package labels render on the pinned names row.
     expect(screen.getByText('Package One')).toBeInTheDocument();
     expect(screen.getByText('Package Two')).toBeInTheDocument();
+  });
+
+  it('renders expanded-identity accounts in their own header row under the identity span', () => {
+    renderRich(); // id1 (Alice) is expanded; acc1 (Bob · AAD) is her account column
+    const identityCell = screen.getByText('Alice').closest('th');
+    const accountCell = screen.getByText('Bob · AAD').closest('th');
+    const identityRow = identityCell.closest('tr');
+    const accountRow = accountCell.closest('tr');
+
+    // The identity header spans exactly its account columns — one here — and
+    // hands the row below to them instead of spanning it itself.
+    expect(identityCell.colSpan).toBe(1);
+    expect(identityCell.rowSpan).toBe(1);
+    expect(screen.getByText('Carl').closest('th').rowSpan).toBe(2);
+    // …and the account label sits in a separate header row BELOW the names row,
+    // not spliced in as a sibling cell of the same row (the reported behavior).
+    expect(accountRow).not.toBe(identityRow);
+    const rows = [...identityRow.closest('thead').rows];
+    expect(rows.indexOf(accountRow)).toBeGreaterThan(rows.indexOf(identityRow));
   });
 
   it('fires the collapse/expand handlers from grouping cells', () => {

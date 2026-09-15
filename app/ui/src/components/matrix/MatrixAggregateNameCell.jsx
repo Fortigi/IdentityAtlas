@@ -1,8 +1,9 @@
 // Names-row cell for a collapsed aggregate column: shows the user COUNT plus two
 // explode controls — ▾ = all members (direct + indirect), ↳ = direct only.
-export default function MatrixAggregateNameCell({ user, onToggleMembers }) {
+export default function MatrixAggregateNameCell({ user, rowSpan, onToggleMembers }) {
   return (
     <th
+      rowSpan={rowSpan}
       className="sticky top-0 z-20 border-b border-r border-gray-200 dark:border-gray-600 px-0 py-0 text-center bg-indigo-50 dark:bg-indigo-900/20"
       style={{ height: '100px', width: '24px', minWidth: '24px', verticalAlign: 'bottom' }}
       title={`${user.userCount} ${user.userCount === 1 ? 'user' : 'users'} in ${user.value || '(none)'}`}

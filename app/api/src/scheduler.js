@@ -28,6 +28,7 @@
 import * as db from './db/connection.js';
 import { storeJobCredentials, OTHER_SECRET_FIELDS } from './secrets/crawlerSecrets.js';
 import { VALID_JOB_TYPES } from './routes/jobs.js';
+import { stampConfigName } from './lib/jobConfig.js';
 import { validateStoredCrawlerConfig } from './crawlerManifests.js';
 import { parseJsonbColumn } from './lib/jsonb.js';
 
@@ -114,6 +115,9 @@ export async function queueScheduledJob(configRow, scheduleIndex) {
     _scheduleIndex: scheduleIndex,
     _syncMode: effectiveSyncMode,
   };
+  // Same stamp the Run Now path applies, so a scheduled run names the system it
+  // registers identically to a manual one.
+  stampConfigName(jobConfig, configRow.displayName);
   // The clientSecret lives in the vault (keyed by config id) and is injected at
   // claim time — never persisted in the job config.
   delete jobConfig.clientSecret;

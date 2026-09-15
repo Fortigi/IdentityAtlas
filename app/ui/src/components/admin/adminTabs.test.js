@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { ADMIN_TABS, visibleAdminTabs } from './adminTabs.js';
+import { ADMIN_TABS, visibleAdminTabs, shouldLeaveTab } from './adminTabs.js';
 
 describe('adminTabs', () => {
   it('keeps the Authentication tab, gated on admin.auth', () => {
@@ -70,5 +70,32 @@ describe('adminTabs', () => {
   it('always shows tabs with no `requires` (Performance, About)', () => {
     const tabs = visibleAdminTabs(new Set(), false);
     expect(tabs.map(t => t.key)).toEqual(expect.arrayContaining(['performance', 'about']));
+  });
+});
+
+describe('shouldLeaveTab', () => {
+  const visible = (features) => visibleAdminTabs(new Set(['data.share', 'admin.crawlers']), false, ADMIN_TABS, features);
+
+  it('waits on a flag /api/features has not reported yet, instead of bouncing', () => {
+    // The app's placeholder flags before /api/features answers: matrixSharing absent.
+    const early = { riskScoring: true, accountLinking: true };
+    expect(visible(early).map(t => t.key)).not.toContain('shares');
+    expect(shouldLeaveTab('shares', visible(early), early)).toBe(false);
+  });
+
+  it('leaves once the flag is reported off, and stays once it is reported on', () => {
+    expect(shouldLeaveTab('shares', visible({ matrixSharing: false }), { matrixSharing: false })).toBe(true);
+    expect(shouldLeaveTab('shares', visible({ matrixSharing: true }), { matrixSharing: true })).toBe(false);
+  });
+
+  it('leaves a permission-hidden tab straight away — only flags are waited on', () => {
+    const tabs = visibleAdminTabs(new Set(['data.share']), false, ADMIN_TABS, {});
+    expect(shouldLeaveTab('crawlers', tabs, {})).toBe(true);
+  });
+
+  it('never leaves when nothing is visible yet or the tab is visible', () => {
+    expect(shouldLeaveTab('crawlers', [], {})).toBe(false);
+    expect(shouldLeaveTab('about', visible({}), {})).toBe(false);
+    expect(shouldLeaveTab('about', visible({}), null)).toBe(false);
   });
 });

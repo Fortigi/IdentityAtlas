@@ -65,7 +65,6 @@ export function buildScimConfig({ baseUrl, authMethod, systemName, pageSize, sel
     // Connector-URL opt-ins — always written, so turning one off on edit sticks.
     allowPrivateNetwork: network?.allowPrivateNetwork === true,
     allowInsecureHttp: network?.allowInsecureHttp === true,
-    systemName: (systemName || '').trim() || 'SCIM',
     pageSize: parseInt(pageSize, 10) || 100,
     selectedObjects: {
       users: !!selectedObjects?.users,
@@ -81,6 +80,9 @@ export function buildScimConfig({ baseUrl, authMethod, systemName, pageSize, sel
       principalType: m.principalType || 'User',
     })),
   };
+  // System name is an OVERRIDE, so a blank field omits the key entirely rather
+  // than baking a default in: the run then names the system after the crawler.
+  if (systemName && systemName.trim()) config.systemName = systemName.trim();
   if (scope && scope.trim()) config.scope = scope.trim();
   if (schedules && schedules.length) config.schedules = schedules;
   return config;
@@ -206,7 +208,7 @@ export default function ScimConfigWizard({ onComplete, onCancel, initialConfig, 
           <NetworkAccessOptions value={network} onChange={setNetworkFlag} />
           <CrawlerField
             label="System name" optional value={systemName} onChange={setSystemName} placeholder="SAP CIS"
-            hint="How this source is labelled in Identity Atlas. Defaults to “SCIM”."
+            hint="How this source is labelled in Identity Atlas. Leave blank to use the crawler name above."
           />
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Authentication Method</label>
