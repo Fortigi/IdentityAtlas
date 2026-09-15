@@ -4,10 +4,13 @@ import { createElement as h } from 'react';
 import MatrixScopePanel from './MatrixScopePanel';
 import { renderWithProviders, makeAuthFetch, screen, userEvent } from '@ui/test-utils/renderWithProviders';
 
+// A matrix that asked for the panel. `showTrends` is what switches it on at
+// all (#1202) — the same filter without it is the "off" case below.
 const filter = {
   rowType: 'principal',
   subject: { include: [], exclude: [] },
   resource: { include: [], exclude: [] },
+  showTrends: true,
 };
 
 const statsBody = {
@@ -41,6 +44,27 @@ describe('MatrixScopePanel (mounted)', () => {
   it('renders nothing without a filter', () => {
     const { container } = renderWithProviders(h(MatrixScopePanel, { filter: null }), { auth: { authFetch: routes() } });
     expect(container).toBeEmptyDOMElement();
+  });
+
+  // #1202: the panel is opt-in per matrix. Same filter as every test below,
+  // minus the flag — so a panel that ignored it would fail here while the rest
+  // of the suite stayed green.
+  it('renders nothing, and fetches nothing, for a matrix that did not ask for it', async () => {
+    const authFetch = routes();
+    const { showTrends: _off, ...withoutFlag } = filter;
+    const { container } = renderWithProviders(h(MatrixScopePanel, { filter: withoutFlag }), { auth: { authFetch } });
+
+    expect(container).toBeEmptyDOMElement();
+    // The stats POST is debounced by 400ms; give it more than that to prove it
+    // never goes out, rather than just observing it hasn't yet.
+    await new Promise(r => setTimeout(r, 600));
+    expect(authFetch).not.toHaveBeenCalled();
+    expect(screen.queryByText('Trends & breakdown')).not.toBeInTheDocument();
+  });
+
+  it('renders the panel when the matrix asks for it', async () => {
+    renderWithProviders(h(MatrixScopePanel, { filter }), { auth: { authFetch: routes() } });
+    expect(await screen.findByText('Trends & breakdown')).toBeInTheDocument();
   });
 
   it('loads and shows the live scope stats for the filter', async () => {

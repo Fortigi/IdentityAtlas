@@ -3,7 +3,7 @@ import { useState, useEffect, lazy, Suspense, createElement } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
 import { hasPermission } from '@ui/auth/usePermissions';
 
-import { ADMIN_TABS, visibleAdminTabs } from './admin/adminTabs';
+import { ADMIN_TABS, visibleAdminTabs, shouldLeaveTab } from './admin/adminTabs';
 
 // Lazy-load the heavy sub-tab pages so they don't bloat the initial Admin bundle
 const CrawlersPage = lazy(() => import('./CrawlersPage'));
@@ -87,8 +87,9 @@ export default function AdminPage({ onNavigate, onRefresh, onRiskScoresRefresh, 
 
   // If the user was on a now-hidden tab, bounce them to the first visible one.
   // Done during render — setting to a guaranteed-visible tab converges on the
-  // next render, so it doesn't trip react-hooks/set-state-in-effect.
-  if (visibleTabs.length && !visibleTabs.some(t => t.key === activeTab)) {
+  // next render, so it doesn't trip react-hooks/set-state-in-effect. A tab whose
+  // feature flag hasn't been reported yet is waited on, not bounced from.
+  if (shouldLeaveTab(activeTab, visibleTabs, features)) {
     setActiveTab(visibleTabs[0]?.key || 'crawlers');
   }
 

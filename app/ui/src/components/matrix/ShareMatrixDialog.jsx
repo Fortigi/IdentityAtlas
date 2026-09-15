@@ -1,27 +1,31 @@
-// Create-a-share dialog (#1166) — the toolbar's entry point.
+// The matrix's sharing dialog (#1166, reworked by #1202) — the chrome around
+// SharePanel.
 //
-// Chrome only: the modal frame plus a Cancel/Done footer. Everything about
-// what a share IS (name, recipients, the shown-once link) lives in
-// ShareMatrixForm, which the wizard's final step renders inline instead.
+// Opened from the Load / Save / Share bar, but owned by AppMain rather than by
+// anything inside the matrix: a matrix refetch swaps the whole body for the
+// loading pane, and MatrixArea picks a different view component once it knows
+// whether the payload is a roll-up. With the dialog anywhere below, an analyst
+// mid-way through naming recipients on a slow tenant watched it vanish. This is
+// the shallowest level that survives all of it.
 
-import { useState } from 'react';
-import { Modal, SecondaryButton } from '@ui/components/contexts/ModalPrimitives';
-import ShareMatrixForm from './ShareMatrixForm';
+import { Modal } from '@ui/components/contexts/ModalPrimitives';
+import SharePanel from './SharePanel';
 
-export default function ShareMatrixDialog({ filter, managed, onClose }) {
-  const [done, setDone] = useState(false);
-
+export default function ShareMatrixDialog({ filter, managed, savedFilterId = null, savedName = null, onClose }) {
   return (
     <Modal
-      title={done ? 'Share link created' : 'Share this matrix'}
+      title={savedName ? `Sharing “${savedName}”` : 'Share this matrix'}
       onClose={onClose}
       width={560}
       dismissOnBackdrop={false}
     >
-      <ShareMatrixForm filter={filter} managed={managed} onCreated={() => setDone(true)} />
-      <div className="mt-4 flex justify-end">
-        <SecondaryButton onClick={onClose}>{done ? 'Done' : 'Cancel'}</SecondaryButton>
-      </div>
+      <SharePanel
+        savedFilterId={savedFilterId}
+        savedName={savedName}
+        filter={filter}
+        managed={managed}
+        onClose={onClose}
+      />
     </Modal>
   );
 }

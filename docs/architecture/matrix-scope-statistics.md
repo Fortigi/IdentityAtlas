@@ -14,7 +14,7 @@ outcome: You can read the numbers a scope reports without mistaking one for anot
 
 ## What it does
 
-Whenever you build a matrix (a subject/resource filter), the **Scope Statistics** panel at the top summarises that selection:
+The **Scope Statistics** panel sits above the matrix and summarises the selection it is built from:
 
 - **Principals / Identities** in scope
 - **Resources** in scope
@@ -26,6 +26,14 @@ Expand **Trends & breakdown** for:
 - A **department-by-department** (or any principal attribute) breakdown of governed vs non-governed, where each row drills into that department's own governed-% trend.
 
 It was built for reporting role-mining progress: "what share of access is governed, by department, and is it improving?"
+
+## Switching it on
+
+The panel is **off by default** — it is reporting tooling, and most sittings with the matrix are not reporting sittings. Tick **Show trends & breakdown above the matrix** on **Adjust matrix → Sort** to add it, then **Apply**.
+
+The choice is `showTrends` on the matrix filter, so it behaves like every other property of a matrix: it is saved with a saved matrix, travels in a `#matrix?filter=…` URL, and a matrix saved before the flag existed opens without the panel. It is *not* a per-user preference — the same saved matrix opens the same way for everyone. Share recipients never get the panel regardless ([Sharing a matrix](../ui/sharing-a-matrix.md)).
+
+A roll-up has no Sort step, so switch the panel on before rolling up; the flag then rides along with the roll-up.
 
 ## What counts as "governed"
 

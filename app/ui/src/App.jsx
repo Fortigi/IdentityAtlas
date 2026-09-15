@@ -15,7 +15,7 @@ import { FeaturesContext } from './contexts/FeaturesContext';
 import { computeNavTabs, availableOptionalTabs } from './utils/navTabs';
 import ErrorBoundary from './components/ErrorBoundary';
 import { resolvePageRoute } from './pageRegistry';
-import { isDetailPage, parseDetailRoute, pickDisplayName, closeFallbackPage } from './App.helpers';
+import { isDetailPage, parseDetailRoute, pickDisplayName, closeFallbackPage, wizardOpening } from './App.helpers';
 import AppHeader from './components/app/AppHeader';
 import AppMain from './components/app/AppMain';
 import AppFooter from './components/app/AppFooter';
@@ -79,6 +79,8 @@ export default function App() {
   const [matrixFilter, setMatrixFilter] = useReducer(setStateReducer, initial.filter);
   const [managedFilter, setManagedFilter] = useReducer(setStateReducer, initial.managed);
   const [wizardOpen, setWizardOpen] = useReducer(setStateReducer, false);
+  // How it opens this time: on which step, and whether as a fresh matrix (#1202).
+  const [wizardMode, setWizardMode] = useReducer(setStateReducer, wizardOpening());
 
   const { data, rollup, counts, accessPackageGroups, managedByPackages, resourceContexts, groupTagMap, loading, refreshing, error, forceRefresh, hasData, defaultFilter, refetchPreChecks } = useMatrix(matrixFilter);
   const { account, logout, authFetch } = useAuth();
@@ -236,8 +238,10 @@ export default function App() {
 
   // When the user lands on the matrix tab without an applied filter:
   //  - If a default filter is seeded (e.g. demo data): auto-apply it, no wizard.
-  //  - If there IS data but no default filter: open the wizard.
-  //  - If the DB is empty: do nothing (EmptyFilterState shows "no data" message).
+  //  - If there IS data but no default filter: do nothing — the empty state is
+  //    the "Open a matrix" list (saved matrices + New matrix), not a wizard
+  //    thrown open on arrival (#1202).
+  //  - If the DB is empty: do nothing (OpenMatrixList shows the "no data" message).
   // We wait until both hasData and defaultFilter have resolved (neither null/undefined
   // as "still loading") before acting. autoOpenFiredRef prevents re-firing after the
   // user closes the wizard or navigates away and back.
@@ -260,13 +264,13 @@ export default function App() {
     if (hasData === null || defaultFilter === undefined) return;
     if (hasData === false) return; // don't lock out — DB may get data after import
     autoOpenFiredRef.current = true;
-    if (defaultFilter !== null) {
+    if (defaultFilter) {
       // skip wizard, apply saved default — restore its managed-state toggle too
       const { managed: savedManaged, ...f } = defaultFilter.filter || {};
-      setMatrixFilter(f);
+      // Tagged with its id so a twin with identical content (a share made off
+      // the default) can't take over its name on the save bar.
+      setMatrixFilter({ ...f, savedFilterId: defaultFilter.id });
       if (savedManaged) setManagedFilter(savedManaged);
-    } else {
-      setWizardOpen(true); // no default — let user configure
     }
   }, [page, matrixFilter, wizardOpen, hasData, defaultFilter, refetchPreChecks]);
 
@@ -322,7 +326,8 @@ export default function App() {
     shareUrl, refreshing, onOpenDetail: openDetailTab, setMatrixFilter,
     accessPackageGroups, managedByPackages, resourceContexts, groupTagMap, hasData,
     wizardOpen,
-    onAdjustFilter: () => setWizardOpen(true),
+    wizardMode,
+    onAdjustFilter: (options) => { setWizardMode(wizardOpening(options)); setWizardOpen(true); },
     onWizardApply: (f, m) => { setMatrixFilter(f); if (m) setManagedFilter(m); setWizardOpen(false); },
     onWizardClose: () => setWizardOpen(false),
   };
