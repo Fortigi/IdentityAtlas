@@ -89,3 +89,43 @@ describe('midpoint discover.js handler — URL guard', () => {
     expect(opts.redirect).toBe('manual');
   });
 });
+
+// SEC-2026-09 M-10: stored configs no longer carry password / apiToken /
+// clientSecret (vaulted per config), so edit mode pulls them from the vault
+// through the injected getConfigCredentials.
+describe('midpoint discover.js handler — edit mode credentials', () => {
+  afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
+
+  const authHeaderSent = () => fetch.mock.calls.find(([u]) => String(u).includes('/archetypes/search'))[1].headers.Authorization;
+
+  it('merges vaulted credentials into the stored config (BasicAuth password)', async () => {
+    stubFetch(HAPPY_ROUTES);
+    const db = { queryOne: vi.fn().mockResolvedValue({ config: { baseUrl: BASE, authMethod: 'BasicAuth', username: 'administrator' } }) };
+    const getConfigCredentials = vi.fn().mockResolvedValue({ password: 'vaulted-pw' });
+    const { req, res } = makeReqRes({ configId: 4 });
+
+    await handler(req, res, deps({ db, getConfigCredentials }));
+
+    expect(getConfigCredentials).toHaveBeenCalledWith(4);
+    expect(res.statusCode).toBe(200);
+    expect(authHeaderSent()).toBe('Basic ' + Buffer.from('administrator:vaulted-pw').toString('base64'));
+  });
+
+  it('without getConfigCredentials, still resolves an OAuth2 clientSecret via getConfigSecret', async () => {
+    const TOKEN_URL = 'https://idp.example.com/token';
+    stubFetch([['/token', ok({ access_token: 'at' })], ...HAPPY_ROUTES]);
+    const db = { queryOne: vi.fn().mockResolvedValue({ config: { baseUrl: BASE, authMethod: 'OAuth2CC', tokenEndpoint: TOKEN_URL, clientId: 'c' } }) };
+    const getConfigSecret = vi.fn().mockResolvedValue('vaulted-secret');
+    const { req, res } = makeReqRes({ configId: 5 });
+
+    await handler(req, res, deps({ db, getConfigSecret }));
+
+    expect(getConfigSecret).toHaveBeenCalledWith(5);
+    // Exact match: the token request must go to the configured endpoint itself.
+    const tokenCall = fetch.mock.calls.find(([u]) => String(u) === TOKEN_URL);
+    expect(tokenCall).toBeDefined();
+    const [, tokenOpts] = tokenCall;
+    expect(String(tokenOpts.body)).toContain('client_secret=vaulted-secret');
+    expect(authHeaderSent()).toBe('Bearer at');
+  });
+});

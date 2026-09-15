@@ -29,7 +29,7 @@ const gate = requirePermission('admin.llm');
 router.get('/admin/llm/config', gate, async (_req, res) => {
   try {
     const cfg = await getLLMConfig();
-    const apiKeySet = await hasSecret('llm.apikey');
+    const apiKeySet = await hasSecret('llm.apikey', 'llm');
     res.json({
       providers: SUPPORTED_PROVIDERS,
       defaultModels: DEFAULT_MODELS,
@@ -90,7 +90,7 @@ router.post('/admin/llm/test', gate, async (req, res) => {
       const saved = await getLLMConfig();
       if (!saved) return res.status(400).json({ ok: false, error: 'No saved config and no apiKey provided' });
       const { getSecret } = await import('../secrets/vault.js');
-      apiKey = await getSecret('llm.apikey');
+      apiKey = await getSecret('llm.apikey', 'llm');
       if (!apiKey) return res.status(400).json({ ok: false, error: 'API key not in vault — re-save the config' });
       provider   = provider   || saved.provider;
       model      = model      || saved.model;
