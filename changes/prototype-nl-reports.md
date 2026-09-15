@@ -1,0 +1,1 @@
+- Prototype: "Ask for a report" on the Reports page — describe a report in your own words and a model running locally on the server turns it into criteria you can check, edit and run. The model never sees your data.

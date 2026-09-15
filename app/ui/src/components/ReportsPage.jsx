@@ -12,6 +12,7 @@ import { useAuth } from '@ui/auth/AuthGate';
 import { useFetch } from '@ui/hooks/useFetch';
 import EmptyState from '@ui/components/EmptyState';
 import ReportError from './reports/ReportError';
+import AskReportPanel from './reports/ask/AskReportPanel';
 
 export default function ReportsPage({ onOpenDetail }) {
   const { authFetch } = useAuth();
@@ -34,6 +35,8 @@ export default function ReportsPage({ onOpenDetail }) {
         Open a report to run it against the latest data in its own tab, where it can be refreshed
         and downloaded.
       </p>
+
+      <AskReportPanel onOpenDetail={onOpenDetail} />
 
       {reports.length === 0 ? (
         <EmptyState title="No reports available" hint="This deployment has no report templates registered." />
