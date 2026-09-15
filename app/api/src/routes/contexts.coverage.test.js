@@ -187,6 +187,18 @@ describe('GET /contexts/:id/members', () => {
     expect(query.mock.calls[0][1]).toContain('%foo%');
   });
 
+  it('treats LIKE wildcards in search as literal characters (SEC-2026-09 L-14)', async () => {
+    queryOne.mockResolvedValueOnce({ targetType: 'Identity' });
+    query.mockResolvedValueOnce({ rows: [] });
+    queryOne.mockResolvedValueOnce({ total: 0 });
+    const res = await request(app).get(`/api/contexts/${ID}/members?search=${encodeURIComponent('j_doe%')}`);
+    expect(res.status).toBe(200);
+    const [sql, params] = query.mock.calls[0];
+    expect(params).toContain('%j\\_doe\\%%');
+    expect(params).not.toContain('%j_doe%%');
+    expect(sql).toContain(`m."displayName" ILIKE $${params.indexOf('%j\\_doe\\%%') + 1} ESCAPE '\\'`);
+  });
+
   it('500 when the data query rejects', async () => {
     queryOne.mockResolvedValueOnce({ targetType: 'Principal' });
     query.mockRejectedValueOnce(new Error('boom'));

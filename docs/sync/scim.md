@@ -54,6 +54,23 @@ Nothing beyond the core mapping is synced unless you pick it. The wizard's
 nothing selected and a **Select all** action per object type. Selected attributes
 land in the record's `extendedAttributes` JSON.
 
+Attributes that come from a **schema extension** are offered — and stored — under
+their plain name, not the extension URN. In the resource JSON a compliant provider
+nests them under the extension's URN (RFC 7643 §3.3):
+
+```json
+{ "schemas": ["urn:ietf:params:scim:schemas:core:2.0:Group",
+              "urn:example:params:scim:schemas:extension:acme:2.0:Group"],
+  "id": "g-1", "displayName": "Admins",
+  "urn:example:params:scim:schemas:extension:acme:2.0:Group": { "type": "security" } }
+```
+
+Selecting `type` there stores `type: "security"` — the crawler looks inside every
+extension the resource carries. This matters most for groups: the core Group schema
+declares only `displayName` and `members`, so every attribute in the group picker
+comes from an extension. If two schemas declare the same attribute name, the base
+schema's value wins, then extensions in the order the provider lists them.
+
 ---
 
 ## Prerequisites
@@ -99,7 +116,9 @@ credential check: a failure is reported inline with the reason.
 | `apiToken` | ApiToken | Static bearer token |
 | `tokenEndpoint` / `clientId` / `clientSecret` | OAuth2CC | OAuth2 client-credentials grant |
 | `scope` | No | Optional OAuth2 scope requested with the client-credentials grant |
-| `systemName` | No (default `SCIM`) | How this source is labelled in Identity Atlas |
+| `allowPrivateNetwork` | No (default `false`) | Allow `baseUrl` / `tokenEndpoint` to resolve to a private or loopback address — set this for a server on your own network. See [Network access](#network-access) |
+| `allowInsecureHttp` | No (default `false`) | Allow plain `http` for `baseUrl` / `tokenEndpoint`. Credentials are then sent unencrypted. See [Network access](#network-access) |
+| `systemName` | No | Overrides how this source is labelled in Identity Atlas. Omit it and the system is named after the crawler itself (`SCIM` only when the crawler has no name) — see [System naming](#system-naming) |
 | `pageSize` | No (default 100) | The SCIM `count` parameter |
 | `selectedObjects` | No | `{ users, groups, groupMembers }` booleans — all default to `true` |
 | `selectedAttributes` | No | `{ user: [...], group: [...] }` — the opt-in extras, empty by default |
@@ -107,6 +126,25 @@ credential check: a failure is reported inline with the reason.
 
 Secrets (`password`, `apiToken`, `clientSecret`) are never stored in the config blob
 — they go to the secrets vault and are injected into the job at dispatch time.
+
+### System naming
+
+The Identity Atlas **system** this crawler registers is named after the crawler itself. Name the
+crawler *SAP CIS* and the Systems list shows *SAP CIS* — so several SCIM crawlers side by side stay
+distinguishable. Rename the crawler and the system follows on its next run (the system is keyed on
+its base URL, so the row is updated, not duplicated).
+
+Fill in the wizard's optional **System name** field only to label the system as something other
+than the crawler — it is an override and always wins. Leaving it blank is not a choice of the
+literal `SCIM`: that name is used only when the crawler has no name at all.
+
+### Network access
+
+A SaaS SCIM endpoint on public https needs no extra setting. For a SCIM service provider inside
+your network, tick **Allow private network** in the wizard (`allowPrivateNetwork: true`); for
+one without TLS, **Allow insecure HTTP** (`allowInsecureHttp: true`). Both also cover the OAuth2
+`tokenEndpoint`. See [Crawler URL rejected](../reference/troubleshooting.md#crawler-url-rejected)
+for exactly what is checked and when.
 
 ### Example
 
@@ -178,7 +216,9 @@ touch another connector's data, and a `ServicePrincipal` batch can never delete 
 | Symptom | Cause / fix |
 |---|---|
 | Discovery says *Could not reach the SCIM endpoint: /ResourceTypes returned HTTP 401* | Wrong credentials, or the endpoint expects a different auth scheme than the one selected. |
-| Discovery says *baseUrl rejected* | The base URL resolves to a private, loopback or cloud-metadata address. The API refuses to fetch those with a stored credential. |
+| Save, discovery or the job says *baseUrl rejected* / *tokenEndpoint rejected* | The URL uses `http` or resolves to a private, loopback or cloud-metadata address. Enable **Allow private network** / **Allow insecure HTTP** for an on-premises endpoint — see [Network access](#network-access). Metadata and link-local addresses cannot be enabled. |
+| Discovery says *endpoint answered with a redirect* | The wizard does not follow redirects. Enter the URL the endpoint redirects to. |
 | The attribute picker is empty | The endpoint does not serve `/Schemas`, or its schemas declare no simple attributes beyond the core mapping. The sync still works — only the opt-in extras are unavailable. |
+| A selected attribute is discovered but never gets a value | Check the raw resource JSON from `GET /Users` or `GET /Groups`. If the attribute only appears on `GET /<collection>/{id}` it is declared `returned: "request"` and the list response omits it — this crawler reads the list endpoints only. An attribute nested under a schema-extension URN *is* read (see [Extra attributes are opt-in](#extra-attributes-are-opt-in)); one served only per-resource is not yet. |
 | Group members are missing | Members whose id matches neither a synced user nor a synced group are skipped and counted; the job log reports how many. That usually means the group contains a resource type this crawler does not sync yet. |
 | Users appear but no memberships | Check that **Group members** is enabled in the wizard's Objects step, and that the endpoint returns `members` on `/Groups` (some providers require an explicit attribute request). |

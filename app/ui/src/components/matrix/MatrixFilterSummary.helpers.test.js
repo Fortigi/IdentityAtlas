@@ -1,75 +1,33 @@
 import { describe, it, expect } from 'vitest';
-import { collectChips, collectContextIds } from './MatrixFilterSummary.helpers';
+import { stripCountsLabel } from './MatrixFilterSummary.helpers';
 
-describe('collectChips', () => {
-  it('returns [] for a missing block', () => {
-    expect(collectChips(null, new Map())).toEqual([]);
-    expect(collectChips(undefined, new Map())).toEqual([]);
+describe('stripCountsLabel', () => {
+  it('renders nothing before the counts are known', () => {
+    expect(stripCountsLabel(null, 'principal')).toBe('');
+    expect(stripCountsLabel(undefined, 'identity')).toBe('');
   });
 
-  it('builds attribute chips for include and exclude sides', () => {
-    const chips = collectChips(
-      {
-        include: [{ kind: 'attribute', field: 'department', values: ['HR', 'Finance'] }],
-        exclude: [{ kind: 'attribute', field: 'accountEnabled', values: ['false'] }],
-      },
-      new Map(),
-    );
-    expect(chips).toEqual([
-      { side: 'include', label: 'department: HR, Finance', title: 'department in HR, Finance' },
-      { side: 'exclude', label: 'accountEnabled: false', title: 'NOT accountEnabled in false' },
-    ]);
+  it('spells the three live numbers, counting users for account matrices', () => {
+    // Three different numbers, so a label that swapped two of them fails.
+    expect(stripCountsLabel({ subjectCount: 45, resourceCount: 39, assignmentCount: 127 }, 'principal'))
+      .toBe('45 users × 39 resources · 127 assignments');
   });
 
-  it('tolerates an attribute with no values array', () => {
-    const chips = collectChips({ include: [{ kind: 'attribute', field: 'city' }] }, new Map());
-    expect(chips).toEqual([{ side: 'include', label: 'city: ', title: 'city in ' }]);
+  it('counts identities as identities', () => {
+    expect(stripCountsLabel({ subjectCount: 12, resourceCount: 3, assignmentCount: 30 }, 'identity'))
+      .toBe('12 identities × 3 resources · 30 assignments');
   });
 
-  it('resolves context names and marks descendant inclusion', () => {
-    const names = new Map([['ctx-1', 'Engineering']]);
-    const chips = collectChips(
-      { include: [{ kind: 'context', contextId: 'ctx-1', includeChildren: true }], exclude: [] },
-      names,
-    );
-    expect(chips).toEqual([
-      { side: 'include', label: 'Engineering +sub', title: 'In context "Engineering" (incl. descendants)' },
-    ]);
+  it('uses the singular for exactly one — and only for one', () => {
+    expect(stripCountsLabel({ subjectCount: 1, resourceCount: 1, assignmentCount: 1 }, 'principal'))
+      .toBe('1 user × 1 resource · 1 assignment');
+    expect(stripCountsLabel({ subjectCount: 1, resourceCount: 0, assignmentCount: 0 }, 'identity'))
+      .toBe('1 identity × 0 resources · 0 assignments');
   });
 
-  it('falls back to a truncated id and omits +sub when children are excluded', () => {
-    const chips = collectChips(
-      { exclude: [{ kind: 'context', contextId: '0123456789abcdef', includeChildren: false }] },
-      new Map(),
-    );
-    expect(chips).toEqual([
-      { side: 'exclude', label: '01234567', title: 'NOT in context "01234567"' },
-    ]);
-  });
-
-  it('skips conditions of an unknown kind', () => {
-    const chips = collectChips({ include: [{ kind: 'mystery' }, null, undefined] }, new Map());
-    expect(chips).toEqual([]);
-  });
-});
-
-describe('collectContextIds', () => {
-  it('returns [] for an empty or missing filter', () => {
-    expect(collectContextIds(undefined)).toEqual([]);
-    expect(collectContextIds({})).toEqual([]);
-  });
-
-  it('collects distinct context ids across subject and resource blocks', () => {
-    const ids = collectContextIds({
-      subject: {
-        include: [{ kind: 'context', contextId: 'a' }, { kind: 'attribute', field: 'x', values: [] }],
-        exclude: [{ kind: 'context', contextId: 'b' }],
-      },
-      resource: {
-        include: [{ kind: 'context', contextId: 'a' }],
-        exclude: [{ kind: 'context', contextId: 123 }, null],
-      },
-    });
-    expect(ids).toEqual(['a', 'b']);
+  it('groups thousands and treats missing counts as zero', () => {
+    expect(stripCountsLabel({ subjectCount: 12500, resourceCount: 2, assignmentCount: 1001 }, 'principal'))
+      .toBe(`${(12500).toLocaleString()} users × 2 resources · ${(1001).toLocaleString()} assignments`);
+    expect(stripCountsLabel({}, 'principal')).toBe('0 users × 0 resources · 0 assignments');
   });
 });

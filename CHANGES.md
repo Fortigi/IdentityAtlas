@@ -1,5 +1,103 @@
 ## Changes in this PR
 
+- Fixed issues keeping their workflow labels (such as "awaiting approval" or "build done") after their pull request was merged or closed; the cleanup silently did nothing whenever one of the labels it clears did not exist yet
+
+## Changes in this PR
+
+- Expanding an identity in the matrix now drills into its linked accounts: the identity's column is replaced by one column per account, shown in a second header row beneath the identity, which spans them. It reads like an organizational expand — collapsing the identity again brings back its combined all-accounts column.
+- The new accounts row stays pinned with the column names while you scroll the grid, and disappears again as soon as the last expanded identity is collapsed.
+- Identity column headers in the matrix now show how many accounts are linked to that identity, so you can see which identities are worth expanding before you expand them. The count sits next to the name as a small grey number, with the full wording in the header tooltip, and stays visible while the identity is expanded. Identities without linked accounts, and plain account columns, show no count.
+- Fixed the account count staying blank on identities that do have several accounts. It is now counted from the identity's actual linked accounts, so it always matches the number of columns you get when you expand — previously it was read from a stored total that is only filled in for identities the account-linking job has processed, leaving it empty for identities loaded by a crawler or a CSV import.
+
+## Changes in this PR
+
+- Saving and sharing a matrix are now one experience: a matrix always has a name on screen, sharing an unsaved matrix saves it under one name in the same step, and sharing an already-saved matrix never asks for a name again.
+- The matrix has a single strip above it: the matrix's name (or "Unsaved matrix"), "Unsaved changes" when you changed a saved matrix, "Shared with N" when it is shared, the live users × resources · assignments counts (the assignment count used to read 0), and **Adjust**.
+- The matrix's name is a menu: open any saved matrix, start a **New matrix…**, or **Rename…**, **Duplicate…** or **Delete…** the one on screen. Renaming or deleting a shared matrix warns that its recipients are affected, and a name that is already taken is shown right away. Clicking "Unsaved changes" takes you straight to saving them.
+- Opening the Matrix tab without a matrix no longer throws the wizard at you: it shows **Open a matrix** — every saved matrix, marked when it is the org default or shared, with when it last changed — and a **New matrix** button. The org default still opens automatically when there is one.
+- The matrix wizard now has four steps, each answering one question: **Subjects** (user accounts or identities, and which ones), **Resources** (resources alone or with business roles, and which ones), **Layout** (grouping and sorting, roll-up, and what the matrix opens with) and **Save & share**. Click any step to jump to it; the live counts stay visible on every step.
+- Roll-up now has a home in the wizard: on the Layout step choose Off, By attribute or By context, and what the roll-up shows. Grouping and sorting stay visible but disabled while a roll-up is on, with the reason next to them.
+- On the Layout step you can pick the lens a matrix opens with — All, Governed, Non-governed or Gaps — and whether it shows **trends & breakdown** above the grid. Trends & breakdown is now off by default, so the matrix starts at the top of the page. Both choices are saved and shared with the matrix.
+- Saving happens in the wizard's last step: give the matrix a name to save it, or leave the name empty to just show it. One button says what will happen — **Show matrix**, **Save & show**, **Save changes & show** (with **Save as a copy instead**), or **Share & show** when you only add people. A saved matrix can also carry a description.
+- "Include inherited access" moved under **More options** on the Resources step, and is now kept when you adjust a matrix that has it switched on (it used to be silently switched off).
+- The toolbar above the grid is now just the view lens and an **Export** menu. The **Copy link** button is gone — sharing replaces it, and the page address still opens the same matrix.
+- Grid controls now sit in the grid's own header corner, next to what they act on: one **Fold / Unfold all columns** toggle above the column groups, and **Expand / collapse nested groups**, **Fold / unfold business roles** and **Reset row order** above the row labels. Each toggle shows the state the grid is actually in.
+- "How to read this matrix" is now a **?** button in the grid's corner that opens the legend as a popover, instead of a full-width bar above the grid.
+- You can add or remove recipients, copy the share link again, or stop sharing from the matrix itself, from the wizard's Save & share step, and from Admin → Shared Matrices. Changing who a matrix is shared with keeps the same link, and somebody you remove loses access immediately.
+- Recipients now always see the current saved matrix rather than a frozen copy; saving a change to a shared matrix tells you how many people will see it. Stopping sharing revokes the link but keeps the saved matrix, and sharing it again later issues a new link.
+- Saved-matrix names stay unique across the organisation: a name that is already taken comes back as an error instead of being silently accepted.
+- Existing share links, their recipients and their usage history keep working — every active share becomes a saved matrix, with a numbered suffix if its name was already taken.
+- When two saved matrices have exactly the same filter, the matrix now shows the one you actually opened, with its own name and sharing.
+- Adjusting a matrix while it is still loading no longer throws away your changes in the wizard and sends you back to the first step.
+- Fixed a direct link to Admin → Shared Matrices (including old shared-matrices links) sometimes opening the Crawlers tab instead.
+
+## Changes in this PR
+
+- Fixed the SCIM 2.0 crawler not storing extra attributes that a provider serves under a schema-extension URN. Attributes picked in the wizard — including every group attribute, since the standard group schema offers none of its own — now sync their values instead of arriving empty.
+- Documented how extension attributes are matched (plain name in the picker, extension URN in the data, base schema wins a name clash) and added a troubleshooting entry for an attribute a provider only returns on a single-resource request.
+
+## Changes in this PR
+
+- The Identity Atlas system a crawler registers is now named after the crawler itself instead of the crawler type, so several crawlers of the same type no longer collapse into one identically-named system. Renaming a crawler renames its system on the next run.
+- The SCIM wizard's "System name" field is now a genuine override: leave it blank to use the crawler's name, or fill it in to label the system something else.
+
+## Changes in this PR
+
+- Added a **System** filter to the Principals and Resources pages, so you can see and list only the users or resources that came from one connected system.
+- Every connected system is offered as a filter value by its display name — including a system that has no principals or resources yet.
+- Added two context plugins, **Principals by System** and **Resources by System**, that generate one context per connected system, named after the system. Use them to scope the matrix to a single system's users and/or resources.
+- Re-running either plugin keeps the contexts in step with the connected systems: a new system gets its own context, a removed system's context disappears, and renaming a system renames its context without losing your edits.
+
+## Changes in this PR
+
+- Published the September 2026 security re-assessment in the documentation: scope, method, all findings by severity with their remediation pull requests, a regression check against June 2026, and confirmed strengths
+
+## Changes in this PR
+
+- Hardened the outbound-URL safety check so every spelling of an internal, loopback, or cloud-metadata address (including IPv6 forms that embed an IPv4 address) is refused (SEC-2026-09 H-03)
+- Hardened the Risky Consent context plugin's threat-feed download: the feed URL must be https on a public host, redirects are not followed, and oversized responses are refused (SEC-2026-09 M-12)
+- Crawler base URLs and OAuth2 token endpoints are now checked when a crawler is saved, run, or used for live discovery: they must use https and point at a public address. On-premises systems can be reached by enabling the new "Allow private network" option, and plain http by enabling "Allow insecure HTTP"; cloud-metadata and link-local addresses are always refused (SEC-2026-09 M-02, M-03)
+- Live discovery in the crawler wizards no longer follows HTTP redirects, and the Omada wizard no longer shows internal error details when the server cannot be reached (SEC-2026-09 M-02, I-05)
+- Added "Allow private network" and "Allow insecure HTTP" options to the Omada, midPoint and SCIM crawler wizards, and documented them on each crawler's page
+- The worker now also refuses a crawler base URL or token endpoint that uses http or points at an internal address (unless the matching option is enabled), and stops paging if an OData server returns a next-page link on a different host (SEC-2026-09 M-03)
+- Fixed live discovery in the Omada wizard when adding a new crawler, which always reported that metadata could not be fetched
+
+## Changes in this PR
+
+- Hardened the SCIM crawler: when reading users or groups from the SCIM endpoint fails, the run no longer reconciles group memberships and nesting, so existing assignments are kept instead of being removed before the job is marked failed.
+- Hardened the midPoint crawler: phases that depend on an earlier read (resources, accounts and entitlements, role assignments, role nesting) are skipped, and the job fails, when that read failed, instead of reconciling over incomplete data.
+- Fixed the OData library (used by the Omada crawler) treating an empty response body as the end of the data; the read now fails instead of returning a silently truncated result.
+- Fixed the CSV, Azure RM and Entra ID crawlers continuing with a guessed system id when system registration returned none; the run now stops instead of syncing into another system.
+- Hardened the Entra ID crawler so the client secret is no longer written to a temporary file (a failed run used to leave it behind); credentials are passed in memory.
+- Hardened the worker so each crawler job runs in its own PowerShell process: credentials and tokens from one job are no longer available to the next.
+- Hardened the worker and the desktop launcher so a job's configuration (including credentials) and the worker API key are never passed on a process command line, and job logs no longer record the command line in their header.
+- Reduced the Entra ID access-review diagnostic log line to the review definition's id and name instead of the full object.
+- Removed the unused worker crontab file and its scheduler support; crawler schedules are managed in the web app. Recurring non-crawler tasks can be scheduled from the host (see the Docker setup docs).
+- Fixed the context-refresh post-sync step reading an outdated API URL setting; it now uses the same setting as the rest of the worker.
+
+## Changes in this PR
+
+- Hardened the automated issue-to-PR build pipeline: the build agent now only receives issue text written by the requestor, organisation members and the pipeline itself, and the spec records how many other comments were left out
+- Hardened the automated build pipeline so the build agent no longer has access to the pipeline's GitHub credentials, and so an automated change to CI configuration is stopped for human review instead of being pushed
+- Automated pull requests now point out changes to container images, compose files and package dependencies for the reviewer
+- Reduced the default permissions of the pull-request CI workflows and removed an unused site deployment workflow
+- Updated the `uuid` dependency used by the Excel export to a patched version and removed two unused API dependencies
+
+## Changes in this PR
+
+- Hardened access control on the API: the check that keeps read-only API keys away from admin endpoints can no longer be sidestepped by changing the letter case of the URL.
+- Dashboard statistics, run history (risk scoring, context plugins, account linking) and the update intent now require a signed-in user whose roles map to at least one permission; risk profile/classifier settings, history-retention settings, update status/history and the account-linking configuration now require the same admin permission as the screen that shows them.
+- The Performance page's request log no longer records query strings (search terms and filters), and is no longer readable with a read-only API key or by users without any mapped permission.
+- Fixed the role-mapping self-lockout guard so it also protects administrators holding the wildcard (`*`) permission; role-mapping changes are now recorded with the editor's immutable object id as well as their display name.
+- Hardened sign-in token validation against floods of tokens carrying unknown signing-key ids (rate-limited and time-bounded key lookups).
+- The update agent's reported versions are validated, and an agent's apply report can no longer make the update check believe a newer version is waiting.
+- Fixed searches treating `%` and `_` as wildcards; they now match literally.
+- Fixed a server error when a sort column, entity type or feature name matched a built-in JavaScript property name such as `constructor`.
+- Fixed "include child contexts" filters so a corrupt, circular context hierarchy can no longer make matrix and scope queries run until they time out.
+- Replaced example tenant and client ids in the `auth-config` CLI help with placeholders.
+
+## Changes in this PR
+
 - The matrix wizard now ends with a **Share** step: name the view, pick the colleagues it is for, and copy the link without leaving the wizard. The step is optional — **Apply** still commits the matrix from it.
 - A matrix is shared with **specific people**. Search the directory by name or e-mail and add one or more recipients; only they (and you) can open the link, so forwarding it to anybody else gets them nowhere. A share with no recipients cannot be created.
 - Added **Share view…** to the matrix toolbar for the same form, for when you are already looking at the matrix you want to send. The link captures the matrix exactly as it looks at that moment — the filter, the Governed/Non-governed/Gaps toggle and the display mode — while the access data behind it stays up to date.

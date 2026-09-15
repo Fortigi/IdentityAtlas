@@ -37,6 +37,9 @@ Unit tests: `test/unit/ScimCrawlerTransform.Tests.ps1`, `ScimCrawlerFunctions.Te
    The `members` arrays are retained.
 4. **Group members** — user members → `Direct` assignments; nested groups →
    `Contains` relationships **and** expanded per-user `Indirect` assignments.
+   Skipped (and the job failed) when the Users or Groups read failed: its batches
+   are full syncs over every Group assignment and `Contains` edge of the system,
+   so a partial id-set would delete live rows. `Invoke-ScimSyncPhases` owns that gate.
 
 ## Things that will bite you
 
@@ -73,6 +76,19 @@ filters nulls out explicitly — the same trap applies to any config list here.
 **A single-element array unwraps on return.** `ConvertTo-ScimNestedGroupIndirectAssignments`
 returns `,@($out)` (leading comma). Without it, a one-row result comes back as the
 bare hashtable and every `.Count` / `[0]` on it reads the record's *key count*.
+
+**Selected attribute names are bare; their values usually are not.**
+`attributesForResourceType` in `discover.js` flattens the base schema and every
+`schemaExtensions` entry into one list of bare names, but RFC 7643 §3.3 nests an
+extension attribute's *value* under the extension URN key in the resource JSON.
+`Get-ScimAttribute` therefore tries the plain/dotted path first and then the same
+path inside each URN-keyed property (`Get-ScimExtensionObject`), base schema first
+and extensions in document order. Without that fallback every group attribute
+silently synced as empty — the core Group schema has only `displayName` and
+`members`, so the whole group picker is extension attributes (#1209). The mock
+server's default fixtures nest `department`/`costCenter` and `type`/`description`
+under extension URNs for exactly this reason; don't "simplify" them back to the
+top level, that is what let the bug ship green.
 
 **`type` on a group member is optional.** RFC 7643 §4.2 makes the `type`/`$ref`
 hints optional and providers get them wrong, so `Resolve-ScimMemberKind` classifies

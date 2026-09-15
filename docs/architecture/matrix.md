@@ -167,7 +167,36 @@ The matrix can run with **identities** as subjects instead of individual princip
 - **User accounts** (`principal`) — each subject is one Principal (a single account). Best for clean-up sweeps and per-account audits.
 - **Identities** (`identity`) — each subject is one correlated person, unioning across their linked accounts. A cell is filled if *any* underlying account has the assignment. Best for role-mining and birthright analysis.
 
-When the orientation puts subjects on the column axis, an **identity column can be expanded into per-account sub-columns**. Clicking the chevron on an identity header (`MatrixColumnHeaders.jsx`) loads `GET /api/identities/:id/account-matrix`, which returns the identity's linked accounts plus each account's `(resourceId, membershipType)` rows drawn from the *same* `vw_ResourceUserPermissionAssignments` view the principal matrix uses — so the account sub-columns render cells identical to a principal-scoped matrix. The account sub-columns are visually tinted (blue) and labelled `displayName · accountType` to distinguish them from the rolled-up identity column.
+When the orientation puts subjects on the column axis, an **identity column can be expanded into per-account sub-columns**. Clicking the chevron on an identity header (`MatrixColumnHeaders.jsx`) loads `GET /api/identities/:id/account-matrix`, which returns the identity's linked accounts plus each account's `(resourceId, membershipType)` rows drawn from the *same* `vw_ResourceUserPermissionAssignments` view the principal matrix uses — so the account sub-columns render cells identical to a principal-scoped matrix. The account sub-columns are visually tinted (blue) and labelled `displayName · accountType` to distinguish them from the identity columns around them.
+
+#### Expanding is a drill-down, not an extra column
+
+Expanding **replaces** the identity's column with one column per linked account, the way an org grouping expands into the columns it contains (#1212). The identity's combined ("all accounts") column is what collapsing gives back — it is never shown next to the accounts it rolls up, which would be the same access counted twice on screen.
+
+`columnModel.js` owns this: `buildColumns()` emits the account columns *instead of* the identity, and each one carries its parent on `parent` (an identity whose account list comes back empty keeps its own column, so a subject can never vanish from the grid).
+
+#### The accounts header row
+
+The accounts hang **under** their identity rather than beside it. The header is where the parent reappears, and `MatrixColumnHeaders.helpers.js`'s `splitAccountColumns()` is what puts it there:
+
+- The identity re-enters the names row at the position of its first account column, and its `<th>` spans exactly `accounts` columns.
+- A second header row (`MatrixAccountsRow.jsx`) sits directly under the names row and fills that span with one blue cell per account.
+- Every other header cell on the names row — the corner/Resource Name/Contexts cells, non-expanded subjects, aggregates, access-package labels and the # / Type / Description block — carries `rowSpan=2` while the accounts row exists, so no blank band appears beside them. The row only exists while at least one identity is expanded; otherwise the header renders exactly as before.
+- The accounts row sits *after* the names row, so the sticky `<thead>` pins it along with the names row for free. Its height must **not** be added to the grouping offset below — that would push the header out of view and bring back the grey-band-on-scroll bug.
+
+An account column that carries no parent stays on the names row: it still owns a body column, and every header row has to keep adding up to the body's width.
+
+#### The linked-account count on an identity header
+
+An identity header shows the number of accounts it expands into, as a small grey count above the rotated name (the same treatment the roll-up matrix gives its group headers), with the number spelled out in the header tooltip. Only identity columns that have linked accounts get one — a plain account column expands into nothing, and neither does an identity with no accounts.
+
+**The count must be readable before expanding** — it is what tells an analyst which identities are worth a click — so it cannot come from `/api/identities/:id/account-matrix`, which is only fetched *on* expand. `/api/matrix/data` therefore ships an `accountCount` with every identity row (`accountCountJoin` / `accountCountSelect` in `routes/matrix/data.js`). Principal-row matrices get no such column: there, a subject already *is* an account.
+
+It is counted **live from `IdentityMembers`**, the same table `/api/identities/:id/account-matrix` reads, so the badge always states the exact number of columns that expanding will produce. Do **not** read the denormalised `Identities.accountCount` here, tempting as it looks: only the account-linking engine writes that column, and only for the identities a given run newly *linked*. Every identity whose accounts arrived from a crawler, a CSV import or an analyst decision still carries `NULL` — which is most real data, the demo dataset included — and reading it made the count render as nothing at all on exactly the multi-account identities it exists to flag ([#1212](https://github.com/Fortigi/IdentityAtlas/issues/1212)). The identities list, identity detail page and risk-score list still display the stored column and remain subject to that staleness; they are not fed by this query.
+
+The aggregate is grouped once and `LEFT JOIN`ed rather than correlated per row — the flat grid emits one row per (subject, resource) assignment, so a scalar subquery would re-count the same identity thousands of times per request.
+
+Nothing is counted client-side: `matrixModel.js` carries the value from the row onto the subject, and `subjectAccountCount()` in `MatrixColumnHeaders.helpers.js` decides whether it is worth showing. The count stays up while the identity is expanded, where it describes the span below it.
 
 ### Context picker filtered by row type
 
@@ -267,11 +296,51 @@ grid-side consumers (`MatrixView`, `sortUsers`, the Excel export) already fall
 back to `DEFAULT_SORT` on their own, so a partial filter renders — it was only
 the wizard that assumed the full shape.
 
+### The strip above the grid
+
+Everything between the tab bar and the matrix is **one row**
+(`MatrixFilterSummary`) — "a matrix is a document":
+
+```
+[<Matrix name> ▾]  [Unsaved changes]  [Shared with N ▾]  ·····  45 users × 39 resources · 127 cells  [Adjust]
+```
+
+* **The name menu** (`MatrixNameBar` → `SavedMatrixMenu`) — the saved matrix on
+  screen, or "Unsaved matrix". It lists every saved matrix (current one marked)
+  and holds the document verbs: New matrix…, and for the current saved matrix
+  Rename…, Duplicate… and Delete….
+* **Unsaved changes** — only for a matrix loaded from a saved one that has since
+  diverged from it (`currentSavedMatrix` in `shareState.js`); it opens the wizard
+  on its last (save/share) step. A never-saved matrix has no chip.
+* **Shared with N** — only for a shared saved matrix, for someone who may share;
+  it opens the recipients panel. Creating a share is the wizard's last step.
+* The three live counts, and **Adjust** (accessible name "Adjust matrix").
+
+The wizard is opened through `onAdjustFilter(options?)`: no options = the matrix
+on screen, first step; `{ step }` = that step; `{ fresh: true }` = a new, empty
+matrix (`wizardOpening` in `App.helpers.js`, `initialStep` on the wizard).
+
+With no matrix on screen the tab shows **Open a matrix** (`OpenMatrixList`):
+every saved matrix, one click to open, plus New matrix. The org default still
+auto-applies; the wizard is no longer thrown open on arrival.
+
+It was two stacked bars, with the scope-statistics panel under them, which put
+three bars and ~240px between the tab bar and the first row of data — the
+feedback that reopened #1202 called the result "quite a mess".
+
+The scope-statistics panel (`MatrixScopePanel`) is now **opt-in per matrix**:
+it renders only for a filter carrying `showTrends: true`, ticked on the wizard's
+Sort step. See [Scope Statistics](matrix-scope-statistics.md#switching-it-on).
+The flag is part of the filter — saved, shared and URL-carried with it — not a
+viewer preference, so one saved matrix opens the same way for everyone.
+
 ### Matrix identity — comparing two filters
 
-"Is this the matrix I saved?" is asked by the summary bar
-(`MatrixFilterSummary`), which labels the applied matrix with its saved name or
-"Not saved". Filters are compared with `matrixFilterFingerprint()` — canonical
+"Is this the matrix I saved?" is asked by the strip's name menu
+(`MatrixNameBar`, via `matchSavedMatrix` / `currentSavedMatrix` in
+`components/matrix/shareState.js`), which labels the applied matrix with its
+saved name — and, when it is shared, with how many people see it — or "Unsaved
+matrix", and marks a loaded matrix that has since changed "Unsaved changes". Filters are compared with `matrixFilterFingerprint()` — canonical
 (key-order-independent) JSON of the **normalised** filter, minus the view-state
 keys `rollupExpanded` / `rollupCollapsed` / `rollupPath` / `foldAttributes`.
 Never compare filters with raw `JSON.stringify`:
@@ -335,8 +404,9 @@ The column fold above collapses *columns*; the **business-role fold** collapses
 ordinary expand triangle (`▼`/`▶` — the same control, and the same indent + `└`
 elbow on the rows below it, as the nested-group expand): collapsing it hides the
 rows of the resources that role grants — its `Contains` children — leaving the
-role row with an "*N* resources folded" chip. A **Fold roles / Unfold roles**
-toolbar pair does it for every role at once, which reduces the grid to exactly
+role row with an "*N* resources folded" chip. A **Fold business roles** toggle in
+the grid's header corner (above the row labels; it flips to **Unfold business
+roles** once folded) does it for every role at once, which reduces the grid to exactly
 "business roles + resources no role grants" — the role-mining view without the
 duplication between a role and its contents.
 
@@ -583,8 +653,8 @@ whatever is laid out under the grid, including the resize grip), so exactly one
 of the grid and the page ever scrolls.
 
 That measurement is a **default, not a verdict**: how much of the window the
-grid deserves next to the scope-statistics and legend panels above it is a
-judgement call. The grip under the grid
+grid deserves next to the legend — and the scope-statistics panel, when the
+matrix asks for it — is a judgement call. The grip under the grid
 ([`matrix/GridResizeHandle.jsx`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/ui/src/components/matrix/GridResizeHandle.jsx))
 resizes it by drag or arrow keys; the chosen height overrides the fit, is
 remembered in `localStorage` under `fgraph-matrix-height`, and is handed back to

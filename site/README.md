@@ -33,13 +33,11 @@ ssh sidekick-2 'docker rm -f ia-site 2>/dev/null; \
 # → http://10.12.0.166:8080
 ```
 
-## Deploy — production (Azure Static Web Apps)
+## Deploy — production
 
-Final home is **Azure Static Web Apps** (free tier, custom domain). `staticwebapp.config.json`
-sets the security headers and asset caching. Deploy via the
-`Azure/static-web-apps-deploy` GitHub Action (`.github/workflows/deploy-site.yml`)
-using an `AZURE_STATIC_WEB_APPS_API_TOKEN` secret, with `app_location: "site"`.
-
-Custom domain: point **identityatlas.io** at the SWA default hostname (CNAME, or
-A/ALIAS for the apex) in the Azure portal → Custom domains, then validate. Add
-**identityatlas.ai** as a second custom domain that redirects to `.io`.
+The public site is served the same way as the build above: static files behind nginx.
+There is no GitHub Actions deploy workflow. An Azure Static Web Apps workflow
+(`deploy-site.yml`) was drafted early on, never enabled, and has been removed.
+`staticwebapp.config.json` stays in the folder: it holds the security headers and
+asset-caching rules, should the site ever move to Azure Static Web Apps. If it does,
+add a new workflow with SHA-pinned actions and an explicit `permissions:` block.

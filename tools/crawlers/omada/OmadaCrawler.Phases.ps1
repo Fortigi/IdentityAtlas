@@ -922,7 +922,7 @@ function Connect-OmadaSession {
         AuthMethod            = $Cfg.authMethod
         ApiVersion            = $ApiVersion
         SessionTimeoutMinutes = $SessionTimeoutMinutes
-    }
+    } + (Get-FGUrlPolicyParam -Cfg $Cfg)
     if ($Cfg.username)      { $AuthParams['Username']      = $Cfg.username }
     if ($Cfg.password)      { $AuthParams['Password']      = $Cfg.password }
     if ($Cfg.clientId)      { $AuthParams['ClientId']      = $Cfg.clientId }

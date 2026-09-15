@@ -205,10 +205,30 @@ describe('scopeCounts', () => {
 
     const built = await buildSubqueries(parseFilter({ filter: {} }));
     const out = await scopeCounts({}, {}, 'principal', built);
-    expect(out).toEqual({ subjectCount: 4, subjectTotal: 4, resourceCount: 4, resourceTotal: 4 });
+    expect(out).toEqual({ subjectCount: 4, subjectTotal: 4, resourceCount: 4, resourceTotal: 4, assignmentCount: 4 });
     // The resource-count query has no IN clause when the resource fragment is null.
     const resourceCountSql = timedQ.mock.calls.find(c => c[1] === 'matrix-data-resource-count')[3];
     expect(resourceCountSql).not.toContain('WHERE id IN');
+  });
+
+  // The strip above the matrix read "0 cells" because /matrix/data never counted
+  // assignments (#1202). Each count comes back distinct so a swapped slot fails.
+  it('counts distinct subject×resource assignments, scoped like the wizard preview', async () => {
+    buildEntity.mockImplementation(({ entity }) =>
+      entity === 'Resource' ? { sql: '(SELECT id FROM "Resources" WHERE x = $1)', warnings: [] } : { sql: null, warnings: [] });
+    const byLabel = {
+      'matrix-data-subject-count': 45, 'matrix-data-subject-total': 50,
+      'matrix-data-resource-count': 39, 'matrix-data-resource-total': 41, 'matrix-data-assignments': 127,
+    };
+    timedQ.mockImplementation(async (_p, label) => ({ rows: [{ c: byLabel[label] }] }));
+
+    const out = await scopeCounts({}, {}, 'identity', await buildSubqueries(parseFilter({ filter: {} })));
+    expect(out).toEqual({ subjectCount: 45, subjectTotal: 50, resourceCount: 39, resourceTotal: 41, assignmentCount: 127 });
+
+    const assignmentsSql = timedQ.mock.calls.find(c => c[1] === 'matrix-data-assignments')[3];
+    expect(assignmentsSql).toContain('SELECT DISTINCT im."identityId" AS sid, p."resourceId" AS rid');
+    expect(assignmentsSql).toContain('INNER JOIN "IdentityMembers" im');
+    expect(assignmentsSql).toContain('p."resourceId" IN');
   });
 
   const totalSql = () => timedQ.mock.calls.find(c => c[1] === 'matrix-data-resource-total')[3];

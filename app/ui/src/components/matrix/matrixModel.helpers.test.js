@@ -53,6 +53,25 @@ describe('buildMatrixModel', () => {
     expect(groups[0].id).toBe('r1'); // r1 has a Direct member, so it sorts first
   });
 
+  // #1212: the header badges how many accounts an identity expands into, and the
+  // number has to survive the row → subject transform to get there. It comes off
+  // the matrix rows (the API ships it) — nothing counts it client-side.
+  it('carries the linked-account count from the row onto the identity subject', () => {
+    const { users } = buildMatrixModel([
+      { memberId: 'i1', memberDisplayName: 'Alice', memberType: 'Identity', accountCount: 3, resourceId: 'r1', membershipType: 'Direct' },
+      { memberId: 'i2', memberDisplayName: 'Bob', memberType: 'Identity', accountCount: 0, resourceId: 'r1', membershipType: 'Direct' },
+    ], opts());
+    expect(users.map(u => u.accountCount)).toEqual([3, 0]);
+  });
+
+  it('leaves the account count null on a principal matrix, where a subject IS an account', () => {
+    const { users } = buildMatrixModel(
+      [{ memberId: 'u1', memberDisplayName: 'Alice', memberType: 'User', resourceId: 'r1', membershipType: 'Direct' }],
+      opts(),
+    );
+    expect(users[0].accountCount).toBeNull();
+  });
+
   it('uses hierarchy paths as sort keys when hierActive', () => {
     const { users } = buildMatrixModel(
       [{ memberId: 'u1', resourceId: 'r1', membershipType: 'Direct' }],

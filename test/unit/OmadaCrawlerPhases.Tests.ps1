@@ -25,6 +25,8 @@ BeforeAll {
     . (Join-Path $script:omadaRoot 'OmadaCrawler.Functions.ps1')
     . (Join-Path $script:omadaRoot 'OmadaCrawler.Transform.ps1')
     . (Join-Path $script:omadaRoot 'OmadaCrawler.Phases.ps1')
+    # Get-FGUrlPolicyParam — in the worker it arrives with the odata dependency layer.
+    . (Join-Path $script:repoRoot 'tools' 'crawlers' 'shared' 'Assert-FGPublicUrl.ps1')
 
     # Script-scope state the phases + shared helpers + shapers read at call time.
     $script:ApiKey     = 'fgc_test'
@@ -814,6 +816,21 @@ Describe 'Omada setup helpers' {
         Mock Connect-ODataAPI -MockWith { }
         Connect-OmadaSession -Cfg ([pscustomobject]@{ authMethod = 'ApiToken'; apiToken = 'tok' }) -BaseUrl 'http://x' -ApiVersion 'v14' -SessionTimeoutMinutes 30
         Should -Invoke Connect-ODataAPI -Exactly 1
+    }
+
+    It 'Connect-OmadaSession forwards the URL opt-ins only when the config sets them to a real boolean true' {
+        # The file-level Connect-ODataAPI stub takes no parameters, so a Mock of it
+        # cannot see what was bound. Shadow it here with the real parameter names.
+        function Connect-ODataAPI {
+            param([string]$BaseUrl, [string]$AuthMethod, [string]$ApiVersion, [int]$SessionTimeoutMinutes,
+                [string]$ApiToken, [switch]$AllowPrivateNetwork, [switch]$AllowInsecureHttp)
+            $script:odataBound = @{ BaseUrl = $BaseUrl; Private = [bool]$AllowPrivateNetwork; Insecure = [bool]$AllowInsecureHttp }
+        }
+        $script:odataBound = $null
+        Connect-OmadaSession -Cfg ([pscustomobject]@{ authMethod = 'ApiToken'; apiToken = 'tok'; allowPrivateNetwork = $true; allowInsecureHttp = 'true' }) -BaseUrl 'http://x' -ApiVersion 'v14' -SessionTimeoutMinutes 30
+        $script:odataBound.BaseUrl | Should -Be 'http://x'
+        $script:odataBound.Private | Should -BeTrue
+        $script:odataBound.Insecure | Should -BeFalse   # the string 'true' is not an opt-in
     }
 
     It 'Connect-OmadaSession forwards username/password + OAuth client + cookie fields' {

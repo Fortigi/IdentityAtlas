@@ -18,7 +18,7 @@ const {
   parseArgs, buildPgConfig, readSettings, upsert, printStatus, usage, main,
 } = await import('./auth-config.js');
 
-const GUID = '10b6a2c8-41f9-400d-8020-4ca96606899f';
+const GUID = '11111111-2222-3333-4444-555555555555';
 
 class Exit extends Error { constructor(code) { super('exit'); this.code = code; } }
 let exitSpy, logSpy, errSpy, argv, env;
@@ -95,6 +95,14 @@ describe('printStatus / usage', () => {
   it('usage prints help text', () => {
     usage();
     expect(logSpy.mock.calls.join('\n')).toContain('Auth Config CLI');
+  });
+  it('usage examples use placeholder GUIDs, never real tenant/app ids (SEC-2026-09 I-10)', () => {
+    usage();
+    const out = logSpy.mock.calls.join('\n');
+    expect(out).toContain('--tenant 00000000-0000-0000-0000-000000000000');
+    expect(out).toContain('--client 00000000-0000-0000-0000-000000000000');
+    const guids = out.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi) || [];
+    expect(guids.filter((g) => g !== '00000000-0000-0000-0000-000000000000')).toEqual([]);
   });
 });
 

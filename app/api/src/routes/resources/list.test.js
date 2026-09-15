@@ -31,6 +31,11 @@ describe('parseResourceListParams', () => {
   it('ignores malformed filters JSON', () => {
     expect(parseResourceListParams({ query: { filters: '{bad' } }).attrFilters).toEqual({});
   });
+  it('pulls __system out of the attribute filters', () => {
+    const p = parseResourceListParams({ query: { filters: '{"dept":"HR","__system":"Contoso HR"}' } });
+    expect(p.systemFilter).toBe('Contoso HR');
+    expect(p.attrFilters).toEqual({ dept: 'HR' });
+  });
 });
 
 describe('buildResourceListWhere', () => {
@@ -53,6 +58,17 @@ describe('buildResourceListWhere', () => {
     // Through the shared deny-list helper — NULL-safe, so a type-less resource
     // still lists (lib/resourceVisibility.js).
     expect(where).toContain(`(r."resourceType" IS NULL OR r."resourceType" NOT IN ('BusinessRole'))`);
+  });
+  it('narrows to one system by display name when __system is set', () => {
+    const req = { query: { filters: '{"__system":"Contoso HR"}' } };
+    const { where } = buildResourceListWhere(req, parseResourceListParams(req), new Set(), binder());
+    expect(where).toContain('EXISTS (SELECT 1 FROM "Systems" _sys WHERE _sys.id = r."systemId"');
+    expect(where).toContain('_sys."displayName" = $1');
+  });
+  it('emits no system predicate when __system is absent', () => {
+    const req = { query: {} };
+    const { where } = buildResourceListWhere(req, parseResourceListParams(req), new Set(), binder());
+    expect(where).not.toContain('"Systems" _sys');
   });
   it('emits a tag-filter JOIN when __resourceTag is set', () => {
     const req = { query: { filters: '{"__resourceTag":"vip"}' } };

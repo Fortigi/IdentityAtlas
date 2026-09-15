@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { requirePermission } from '../middleware/auth.js';
-import { createParams } from '../db/sqlParams.js';
+import { createParams, likeContains } from '../db/sqlParams.js';
 
 const router = Router();
 const useSql = process.env.USE_SQL === 'true';
@@ -207,7 +207,8 @@ router.get('/access-packages', async (req, res) => {
       category:         'categoryName',
       catalog:          'catalogName',
     };
-    const sortExpr = SORT_COL_MAP[req.query.sortCol] || 'ap."displayName"';
+    // Own keys only — an inherited name is not a sort column (SEC-2026-09 L-15).
+    const sortExpr = Object.hasOwn(SORT_COL_MAP, req.query.sortCol) ? SORT_COL_MAP[req.query.sortCol] : 'ap."displayName"';
     const sortDir = req.query.sortDir === 'desc' ? 'DESC' : 'ASC';
 
     const p = await db.getPool();
@@ -216,8 +217,8 @@ router.get('/access-packages', async (req, res) => {
     const params = [];
     const where = [`ap."resourceType" = 'BusinessRole'`];
     if (search) {
-      params.push(`%${search}%`);
-      where.push(`(ap."displayName" ILIKE $${params.length} OR c."displayName" ILIKE $${params.length})`);
+      params.push(likeContains(search));
+      where.push(`(ap."displayName" ILIKE $${params.length} ESCAPE '\\' OR c."displayName" ILIKE $${params.length} ESCAPE '\\')`);
     }
     if (categoryFilter) {
       params.push(categoryFilter);

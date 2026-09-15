@@ -77,7 +77,7 @@ const REGISTRY = {
  * @param {string} name
  */
 export function getPolicy(name) {
-  const policy = REGISTRY[name];
+  const policy = Object.hasOwn(REGISTRY, name) ? REGISTRY[name] : null;
   if (!policy) {
     throw new Error(`Unknown resolution policy '${name}'. Known: ${Object.keys(REGISTRY).join(', ')}`);
   }

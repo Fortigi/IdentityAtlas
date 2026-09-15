@@ -77,6 +77,19 @@ describe('POST /tags', () => {
   });
 });
 
+describe('POST /tags — inherited property names are not entity types (SEC-2026-09 L-15)', () => {
+  for (const entityType of ['constructor', 'toString', '__proto__']) {
+    it(`400 for entityType=${entityType}, nothing queried`, async () => {
+      queryOne.mockReset();
+      query.mockReset();
+      const res = await request(app).post('/api/tags').send({ name: 'PII', entityType });
+      expect(res.status).toBe(400);
+      expect(queryOne).not.toHaveBeenCalled();
+      expect(query).not.toHaveBeenCalled();
+    });
+  }
+});
+
 describe('PATCH /tags/:id', () => {
   it('200 updates name + color', async () => {
     queryOne.mockResolvedValueOnce({ id: VALID, extendedAttributes: { tagColor: '#3b82f6' } });
@@ -244,6 +257,28 @@ describe('POST /tags/:id/assign-by-filter', () => {
     expect(res.body).toEqual({ ok: true, inserted: 0 });
   });
 
+  it('applies the __system filter so bulk-tag cannot over-tag other systems', async () => {
+    queryOne.mockResolvedValueOnce({ id: VALID, targetType: 'Principal' });
+    query.mockResolvedValueOnce({ rowCount: 2 });
+    const res = await request(app)
+      .post(`/api/tags/${VALID}/assign-by-filter`)
+      .send({ entityType: 'user', filters: { __system: 'Contoso HR' } });
+    expect(res.status).toBe(200);
+    const [sql, params] = query.mock.calls[0];
+    expect(String(sql)).toMatch(/EXISTS \(SELECT 1 FROM "Systems" _sys WHERE _sys\.id = e\."systemId"/);
+    expect(params).toContain('Contoso HR');
+  });
+
+  it('drops the __system filter for identities, which have no systemId column', async () => {
+    queryOne.mockResolvedValueOnce({ id: VALID, targetType: 'Identity' });
+    query.mockResolvedValueOnce({ rowCount: 0 });
+    const res = await request(app)
+      .post(`/api/tags/${VALID}/assign-by-filter`)
+      .send({ entityType: 'identity', filters: { __system: 'Contoso HR' } });
+    expect(res.status).toBe(200);
+    expect(String(query.mock.calls[0][0])).not.toContain('"Systems" _sys');
+  });
+
   it('500 when the lookup rejects', async () => {
     queryOne.mockRejectedValueOnce(new Error('boom'));
     const res = await request(app)
@@ -254,22 +289,26 @@ describe('POST /tags/:id/assign-by-filter', () => {
 });
 
 describe('GET /user-columns-page', () => {
-  it('200 returns columns with a __userTag virtual column', async () => {
-    query.mockResolvedValueOnce({ rows: [{ name: 'Confidential' }] });
+  it('200 returns columns with the __userTag and __system virtual columns', async () => {
+    query
+      .mockResolvedValueOnce({ rows: [{ name: 'Confidential' }] })      // tag names
+      .mockResolvedValueOnce({ rows: [{ displayName: 'Contoso HR' }] }); // system names
     const res = await request(app).get('/api/user-columns-page');
     expect(res.status).toBe(200);
-    expect(Array.isArray(res.body)).toBe(true);
+    expect(res.body.find(c => c.column === '__userTag').values).toEqual(['Confidential']);
+    expect(res.body.find(c => c.column === '__system').values).toEqual(['Contoso HR']);
   });
 });
 
 describe('GET /group-columns', () => {
-  it('200 returns columns (Resources path)', async () => {
-    // Column values come from the mocked columnCache; the only db query here is
-    // the __groupTag tag-name lookup (the v4 GraphGroups existence probe is gone).
-    query.mockResolvedValue({ rows: [] });
+  it('200 returns columns (Resources path) incl. the __system virtual column', async () => {
+    // Column values come from the mocked columnCache; the db queries here are
+    // the __groupTag tag-name lookup (the v4 GraphGroups existence probe is
+    // gone) and the __system display-name lookup.
+    query.mockResolvedValue({ rows: [{ displayName: 'Contoso HR' }] });
     const res = await request(app).get('/api/group-columns');
     expect(res.status).toBe(200);
-    expect(Array.isArray(res.body)).toBe(true);
+    expect(res.body.find(c => c.column === '__system').values).toEqual(['Contoso HR']);
     // Regression guard (#662): the removed existence probe was
     // `SELECT TOP 0 * FROM Resources` — T-SQL that always threw on Postgres and
     // wasted a round-trip on every request. The handler must not emit it.
@@ -277,10 +316,13 @@ describe('GET /group-columns', () => {
     expect(sqls.some(s => /\bTOP\s+0\b/i.test(s))).toBe(false);
   });
 
-  it('200 schema=true fast path', async () => {
+  it('200 schema=true fast path — virtual columns present, no values fetched', async () => {
     query.mockResolvedValue({ rows: [] });
     const res = await request(app).get('/api/resource-columns-page?schema=true');
     expect(res.status).toBe(200);
+    expect(res.body.find(c => c.column === '__system').values).toEqual([]);
+    // The values lookup is skipped on this path, so only the tag query ran.
+    expect(query.mock.calls.some(c => /FROM "Systems"/.test(String(c[0])))).toBe(false);
   });
 });
 
@@ -303,6 +345,20 @@ describe('GET /users', () => {
     const res = await request(app).get(`/api/users?filters=${filters}`);
     expect(res.status).toBe(200);
     expect(res.body.data[0].extendedAttributes).toEqual({ x: 2 });
+  });
+
+  it('200 translates a __system filter into a bound Systems predicate', async () => {
+    query
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ total: 0 }] });
+    const filters = encodeURIComponent(JSON.stringify({ __system: 'Contoso HR' }));
+    const res = await request(app).get(`/api/users?filters=${filters}`);
+    expect(res.status).toBe(200);
+    const [sql, params] = query.mock.calls[0];
+    expect(String(sql)).toMatch(/EXISTS \(SELECT 1 FROM "Systems" _sys WHERE _sys\.id = u\."systemId"/);
+    expect(params).toContain('Contoso HR');
+    // Never emitted as a raw column match — `__system` is not a Principals column.
+    expect(String(sql)).not.toMatch(/u\."__system"/);
   });
 
   it('500 when the query rejects', async () => {
@@ -330,6 +386,18 @@ describe('GET /groups', () => {
     const filters = encodeURIComponent(JSON.stringify({ __resourceTag: 'Sensitive' }));
     const res = await request(app).get(`/api/groups?filters=${filters}`);
     expect(res.status).toBe(200);
+  });
+
+  it('200 translates a __system filter into a bound Systems predicate', async () => {
+    query
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ total: 0 }] });
+    const filters = encodeURIComponent(JSON.stringify({ __system: 'Contoso HR' }));
+    const res = await request(app).get(`/api/groups?filters=${filters}`);
+    expect(res.status).toBe(200);
+    const [sql, params] = query.mock.calls[0];
+    expect(String(sql)).toMatch(/EXISTS \(SELECT 1 FROM "Systems" _sys WHERE _sys\.id = r\."systemId"/);
+    expect(params).toContain('Contoso HR');
   });
 
   it('500 when the query rejects', async () => {

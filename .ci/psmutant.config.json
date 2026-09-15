@@ -15,6 +15,7 @@
     "tools/crawlers/shared/Get-NestedGroupUserSet.ps1",
     "tools/crawlers/shared/Get-CapabilityId.ps1",
     "tools/crawlers/shared/Invoke-CrawlerIngest.ps1",
+    "tools/crawlers/shared/Assert-FGPublicUrl.ps1",
     "tools/crawlers/entra-id/EntraIDCrawler.AppRoles.ps1",
     "tools/crawlers/entra-id/EntraIDCrawler.Functions.ps1",
     "tools/crawlers/entra-id/EntraIDCrawler.AttributeLabels.ps1",
@@ -142,6 +143,9 @@
     ],
     "tools/crawlers/shared/Get-CapabilityId.ps1": [
       "test/unit/CapabilityId.Tests.ps1"
+    ],
+    "tools/crawlers/shared/Assert-FGPublicUrl.ps1": [
+      "test/unit/AssertFGPublicUrl.Tests.ps1"
     ],
     "tools/crawlers/shared/Invoke-CrawlerIngest.ps1": [
       "test/unit/CrawlerIngest.Tests.ps1",

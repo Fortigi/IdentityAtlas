@@ -18,6 +18,9 @@
 
 $script:ScimSession = $null
 
+# Assert-FGPublicUrl (SSRF guard, SEC-2026-09 M-03).
+. (Join-Path $PSScriptRoot '..' 'shared' 'Assert-FGPublicUrl.ps1')
+
 #region Connection
 
 # Normalise the configured base URL: strip trailing slashes so '<base>/Users'
@@ -34,6 +37,8 @@ function Invoke-ScimOAuth2 {
     param()
     $endpoint = $script:ScimSession._TokenEndpoint
     if (-not $endpoint) { throw "SCIM OAuth2: tokenEndpoint is required" }
+    # The client secret is posted here — vet it like the base URL.
+    Assert-FGPublicUrl -Url $endpoint -Label 'tokenEndpoint' -AllowPrivateNetwork:$script:ScimSession.AllowPrivateNetwork -AllowInsecureHttp:$script:ScimSession.AllowInsecureHttp
     $form = @{
         grant_type    = 'client_credentials'
         client_id     = $script:ScimSession._ClientId
@@ -73,8 +78,13 @@ function Connect-ScimAPI {
         [string]$ClientSecret  = '',
         [string]$TokenEndpoint = '',
         [string]$Scope         = '',
-        [int]$TimeoutSec       = 120
+        [int]$TimeoutSec       = 120,
+        # Opt-ins from the crawler config (Get-FGUrlPolicyParam): reach a private /
+        # loopback address, or use plain http. Metadata addresses are never allowed.
+        [switch]$AllowPrivateNetwork,
+        [switch]$AllowInsecureHttp
     )
+    Assert-FGPublicUrl -Url $BaseUrl -Label 'baseUrl' -AllowPrivateNetwork:$AllowPrivateNetwork -AllowInsecureHttp:$AllowInsecureHttp
     $base = Get-ScimBaseUrl -BaseUrl $BaseUrl
     $script:ScimSession = @{
         AuthMethod     = $AuthMethod
@@ -83,6 +93,8 @@ function Connect-ScimAPI {
         AuthHeader     = $null
         AccessToken    = $null
         TokenExpiresAt = $null
+        AllowPrivateNetwork = [bool]$AllowPrivateNetwork
+        AllowInsecureHttp   = [bool]$AllowInsecureHttp
         _ClientId      = $ClientId
         _ClientSecret  = $ClientSecret
         _TokenEndpoint = $TokenEndpoint
@@ -269,12 +281,21 @@ function ConvertFrom-ScimConfigMap {
     $pageSize = if ($raw['pageSize']) { [int]$raw['pageSize'] } else { 100 }
     if ($pageSize -lt 1) { $pageSize = 100 }
 
+    # The Systems row this crawler registers is named from this value. Prefer an
+    # explicit systemName override, then the crawler's own name (`_configName`,
+    # injected by the job dispatcher), and only then the bare type literal — which
+    # would otherwise give every SCIM crawler an identically-named system.
+    $nameCandidate = @($raw['systemName'], $raw['_configName'], 'SCIM') |
+        Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+        Select-Object -First 1
+    $systemName = ([string]$nameCandidate).Trim()
+
     return @{
         cfg              = $raw
         sync             = Get-ScimSyncToggles -Raw $raw
         requestedMode    = if ($raw['_syncMode']) { [string]$raw['_syncMode'] } else { 'full' }
         pageSize         = $pageSize
-        systemName       = if ($raw['systemName']) { [string]$raw['systemName'] } else { 'SCIM' }
+        systemName       = $systemName
         userAttributes   = Get-ScimAttributeList -SelectedAttributes $selected -Key 'user'
         groupAttributes  = Get-ScimAttributeList -SelectedAttributes $selected -Key 'group'
         userTypeMapping  = $mapping

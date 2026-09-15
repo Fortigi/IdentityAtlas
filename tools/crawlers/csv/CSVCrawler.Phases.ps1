@@ -310,7 +310,10 @@ function Register-CsvFallbackSystem {
     $sysResult = Invoke-IngestAPI -Endpoint 'ingest/systems' -Body @{
         syncMode = 'delta'; records = @(@{ systemType = $SystemType; displayName = $SystemName; enabled = $true; syncEnabled = $true })
     }
-    $id = if ($sysResult.systemIds) { [int]$sysResult.systemIds[0] } elseif ($sysResult.systemId) { [int]$sysResult.systemId } else { 2 }
+    $id = if ($sysResult.systemIds) { [int]$sysResult.systemIds[0] } elseif ($sysResult.systemId) { [int]$sysResult.systemId } else { 0 }
+    # Every full-sync reconcile below is scoped to this id. Guessing one would point
+    # those deletes at whichever system happens to own it. (SEC-2026-09 M-11)
+    if ($id -le 0) { throw "Could not resolve the CSV fallback system id after registration" }
     Write-Host "  Fallback system: ID $id" -ForegroundColor Gray
     return $id
 }

@@ -81,6 +81,13 @@ describe('buildScimConfig', () => {
     userTypeMapping: [{ userType: ' service ', principalType: 'ServicePrincipal' }],
   };
 
+  it('always writes both connector-URL opt-ins as booleans, so turning one off on edit sticks', () => {
+    expect(buildScimConfig(base)).toMatchObject({ allowPrivateNetwork: false, allowInsecureHttp: false });
+    const on = buildScimConfig({ ...base, network: { allowPrivateNetwork: true, allowInsecureHttp: 'yes' } });
+    expect(on.allowPrivateNetwork).toBe(true);
+    expect(on.allowInsecureHttp).toBe(false);
+  });
+
   it('trims the base URL and strips trailing slashes so /Users never doubles up', () => {
     expect(buildScimConfig(base).baseUrl).toBe('https://scim.example.com/scim/v2');
   });
@@ -91,9 +98,16 @@ describe('buildScimConfig', () => {
     expect(buildScimConfig({ ...base, pageSize: 'abc' }).pageSize).toBe(100);
   });
 
-  it('defaults the system name when left blank', () => {
+  // System name is an optional override. Baking a default into the saved config
+  // makes it indistinguishable from a deliberate choice, and the run can then
+  // never fall back to the crawler's own name — so a blank field omits the key.
+  it('keeps an explicit system name, trimmed', () => {
     expect(buildScimConfig(base).systemName).toBe('SAP CIS');
-    expect(buildScimConfig({ ...base, systemName: '   ' }).systemName).toBe('SCIM');
+  });
+
+  it('omits systemName when left blank so the run falls back to the crawler name', () => {
+    expect(buildScimConfig({ ...base, systemName: '   ' })).not.toHaveProperty('systemName');
+    expect(buildScimConfig({ ...base, systemName: undefined })).not.toHaveProperty('systemName');
   });
 
   it('writes every object toggle as an explicit boolean', () => {

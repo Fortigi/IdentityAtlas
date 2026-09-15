@@ -3,6 +3,7 @@
   "displayName": "midPoint (Evolveum)",
   "entryPoint": "Start-MidpointCrawler.ps1",
   "dependsOn": [],
+  "urlFields": ["baseUrl", "tokenEndpoint"],
   "postSyncHooks": ["buildContexts"],
   "configSchema": {
     "type": "object",
@@ -16,6 +17,8 @@
       "clientId":     { "type": "string", "description": "OAuth2 client id" },
       "clientSecret": { "type": "string", "description": "OAuth2 client secret" },
       "tokenEndpoint":{ "type": "string", "description": "OAuth2 token endpoint URL" },
+      "allowPrivateNetwork": { "type": "boolean", "default": false, "description": "Allow baseUrl / tokenEndpoint to resolve to a private or loopback address (an on-premises server). Link-local and cloud-metadata addresses stay blocked." },
+      "allowInsecureHttp":   { "type": "boolean", "default": false, "description": "Allow plain http for baseUrl / tokenEndpoint. Credentials are then sent unencrypted." },
       "pageSize":     { "type": "number", "default": 100, "description": "Search page size (maxSize per request)" },
       "syncShadows":  { "type": "boolean", "default": true, "description": "Sync ShadowType accounts on connected resources as Principals" },
       "selectedObjects": {

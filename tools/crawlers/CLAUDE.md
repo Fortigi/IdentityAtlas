@@ -205,6 +205,8 @@ Core API code must never branch on a crawler-type string (`if (jobType === 'demo
 
 | `"experimental": true` | `isExperimentalType(type)` | The type is built and tested but has had little real-world exposure. It is hidden from the Add Crawler picker and `POST /admin/crawler-configs` refuses it with 403, unless the `experimentalCrawlers` feature flag is on (Admin → Experimental). Nothing else is gated: an already-configured instance keeps its schedule, keeps running, and can still be edited and deleted with the flag off. Set the SAME flag in `CrawlerMeta.js` (`experimental: true`) — `crawler.json` is the server-side gate, `CrawlerMeta.js` drives the picker filter and the badge. Used by SCIM 2.0. |
 
+| `"urlFields": ["baseUrl", "tokenEndpoint"]` | `getUrlFields(type)` | Config fields holding a URL the crawler sends a credential to. `routes/jobs/urlPolicy.js` runs the SSRF guard over them on config save/patch and job creation: https + public address only, unless the config sets `allowPrivateNetwork` / `allowInsecureHttp` (link-local / cloud-metadata always refused). The worker re-checks with `shared/Assert-FGPublicUrl.ps1`. Used by omada, odata, midPoint, SCIM (SEC-2026-09 M-03). |
+
 To add a new type-specific behaviour, add a flag + a helper here — never a `=== '<type>'` check in a route.
 
 ## Rules
@@ -212,7 +214,7 @@ To add a new type-specific behaviour, add a flag + a helper here — never a `==
 - Every `.ps1` file must have `[CmdletBinding()]` — the Pester quality gate enforces this.
 - Entry point filenames must be `Start-<Something>.ps1` — the dependency loader excludes `Start-*` when dot-sourcing library files.
 - Never run the `odata` type as a job — its entry point throws by design. Use it only as a `dependsOn` dependency.
-- `_syncMode` is the only reserved config key injected by the dispatcher. Don't use keys starting with `_` for your own config.
+- Keys starting with `_` are reserved for the dispatcher — don't use them for your own config. Injected today: `_syncMode` (`delta` / `full`), `_scheduledByConfigId` (the `CrawlerConfigs` row a scheduled run came from), `_scheduleIndex`, and `_configName` (the crawler's own `displayName`, absent when the crawler has no name or the job was queued with an inline config). A crawler that registers an Identity Atlas system should name it after `_configName` rather than its own type literal, so two crawlers of one type don't produce two identically-named systems (#1207).
 - **Nothing specific to one crawler type belongs outside its `tools/crawlers/<type>/` folder** — not just `ConfigWizard.jsx`/`discover.js`/`Summary.jsx`/`CrawlerMeta.js`, but also that crawler's tests (unit, render-smoke, e2e, *and* the `discover.js` handler test or a test of that crawler's `configSchema` — see JS/UI Testing below) and any helper file. If a file's name or content only makes sense for one crawler type, it goes in that crawler's folder, full stop — including when the natural-feeling place would be a shared `app/ui/e2e/`, `app/ui/src/`, or **`app/api/src/routes/`** test/helper (a `discover.js` handler test, or a detailed "which fields does auth method X require" schema test, are the ones that are tempting to leave in `app/api/src/routes/` next to `jobs.js`, since that's where they're *invoked* from — they still belong in the crawler's own folder; only generic, type-agnostic engine tests — the dispatch route itself (`jobs.discover.test.js`), or `maskConfig`/manifest discovery (`jobs.configValidation.test.js`) — stay in `app/api/src/routes/`). The `crawler-manifest` CI job enforces this across **both** `app/ui/` and `app/api/src/` (it fails on a stray filename containing the type name, or a hardcoded type-string literal in either tree; the gitignored generated `app-bundle.mjs` and `*.test.js` files are excluded). Core must never branch on a crawler-type string — read a manifest capability flag instead (see "Manifest capability flags" below). Still: get it right the first time rather than leaning on CI.
 
 ## Integration Tests
@@ -411,6 +413,7 @@ The worker container loads `setup/IdentityAtlas.psm1` before running any crawler
 | `setup/docker/Invoke-CrawlerJob.ps1` | Manifest-driven dispatcher; reads registry, resolves deps via DFS, runs entry point |
 | `app/api/src/routes/jobs.js` | Node.js side; reads same manifests for `VALID_JOB_TYPES` and `configSchema` validation |
 | `tools/crawlers/shared/Start-MockODataServer.ps1` | Reusable mock HTTP server for integration tests |
+| `tools/crawlers/shared/Assert-FGPublicUrl.ps1` | Worker-side SSRF guard (`Test-FGPublicUrl`, `Assert-FGPublicUrl`, `Assert-FGSameHostLink`, `Get-FGUrlPolicyParam`) — PowerShell twin of `app/api/src/lib/ssrfGuard.js`. Call from every `Connect-*`, before posting to a token endpoint, and on server-supplied pagination links |
 | `tools/crawlers/shared/Invoke-CrawlerIngest.ps1` | Shared ingest helpers (`Invoke-IngestAPI`, `Update-CrawlerProgress`, `ConvertTo-JsonArray`) — dot-source from each crawler entry point |
 
 ## Shared ingest helpers
