@@ -164,6 +164,14 @@ prove_red_against_main() {  # $1 = git range
   esac
 }
 
+# Paths on stdin (one per line) -> a PowerShell array literal: 'a.Tests.ps1','b.Tests.ps1'.
+# Invoke-Pester's -Path takes ONE value; space-separated paths leave every path after the first as a
+# stray positional, and Pester refuses the whole call before running a single test. #1216 went to
+# Exceptions that way: its fix was correct, but it touched two .Tests.ps1 files.
+pester_path_list() {
+  grep -v '^$' | sed -e "s/'/''/g" -e "s/.*/'&'/" | paste -sd, - || true
+}
+
 # Run the unit tests a range touched, each in its own suite. Output -> /tmp/unit.log
 #   0 = all passed   1 = something failed   3 = the range contains no unit test
 #   4 = there are tests but this box cannot run them (Pester-only change; the pool has no pwsh)
@@ -173,7 +181,7 @@ run_touched_tests() {  # $1 = git range
   [ -n "$files" ] || return 3
   ui="$(printf '%s\n' "$files"  | grep '^app/ui/'  | sed 's#^app/ui/##'  | tr '\n' ' ')"
   api="$(printf '%s\n' "$files" | grep '^app/api/' | sed 's#^app/api/##' | tr '\n' ' ')"
-  ps="$(printf '%s\n' "$files"  | grep -E '\.Tests\.ps1$' | tr '\n' ' ')"
+  ps="$(printf '%s\n' "$files"  | grep -E '\.Tests\.ps1$' | pester_path_list)"
   : > /tmp/unit.log
   if [ -n "${ps// }" ] && [ -z "${ui// }" ] && [ -z "${api// }" ] && ! command -v pwsh >/dev/null 2>&1; then
     echo "The only tests in this change are PowerShell (Pester), and this sidekick has no pwsh installed." >> /tmp/unit.log
@@ -187,7 +195,6 @@ run_touched_tests() {  # $1 = git range
   if [ -n "${api// }" ]; then
     ( cd "$WORK/app/api" && { [ -d node_modules ] || npm ci >/dev/null 2>&1; }; npx vitest run $api ) >>/tmp/unit.log 2>&1 || rc=1
   fi
-  # shellcheck disable=SC2086
   if [ -n "${ps// }" ] && command -v pwsh >/dev/null 2>&1; then
     ( cd "$WORK" && pwsh -NoProfile -Command "Invoke-Pester -Path $ps -CI" ) >>/tmp/unit.log 2>&1 || rc=1
   fi

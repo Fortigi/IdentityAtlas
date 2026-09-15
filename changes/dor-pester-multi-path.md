@@ -1,0 +1,1 @@
+- Fixed automated bug builds being sent to Exceptions when a fix touched more than one PowerShell test file; the test run was refused before any test ran, so a correct fix was reported as not passing its regression test
