@@ -11,9 +11,9 @@
 //   within       everything the row has, the reference has too (subset, not empty)
 //   similar      Jaccard overlap ≥ minSimilarity %
 //
-// The reference is named by the model ("Fortigi - Algemeen - Maten"); the service
-// resolves it to exactly one record id before anything runs (resolveReferences),
-// and asks the analyst when the name is ambiguous. SQL compares ids only.
+// The reference is named by the model ("Fortigi - Algemeen - Maten"); references.js
+// resolves it to exactly one record id before anything runs, asking the analyst to
+// confirm a fuzzy match. SQL compares ids only.
 
 import { ENTITIES } from './catalog.js';
 
@@ -170,7 +170,7 @@ export function compareColumnSql(entityName, c, sub, alias, ctx) {
 
 // ── Plain language ───────────────────────────────────────────────────────────
 
-function humanType(type, fallback) {
+export function humanType(type, fallback) {
   if (!type) return fallback;
   return type.replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase();
 }
@@ -191,74 +191,4 @@ export function compareColumnLabel(sub, c) {
   if (sub === 'onlyReference') return `Only in "${c.reference.name}"`;
   if (sub === 'onlyReferenceNames') return `Missing vs "${c.reference.name}"`;
   return COMPARE_COLUMNS[sub].label;
-}
-
-// ── Reference resolution (needs the database) ────────────────────────────────
-
-const typeColumn = (table) => (table === 'Resources' ? 'resourceType' : 'principalType');
-
-async function findByName(query, entityName, name, exact, limit = 6) {
-  const entity = ENTITIES[entityName];
-  const t = 'r0';
-  const { rows } = await query(
-    `SELECT ${t}."id", ${t}."displayName", ${t}."${typeColumn(entity.table)}" AS type FROM "${entity.table}" ${t}
-     WHERE ${entity.where(t)} AND ${exact ? `lower(${t}."displayName") = lower($1)` : `${t}."displayName" ILIKE $1`}
-     ORDER BY ${t}."displayName" LIMIT ${Number(limit)}`,
-    [exact ? name : `%${name.replace(/[\\%_]/g, (m) => `\\${m}`)}%`],
-  );
-  return rows;
-}
-
-/**
- * Resolve every compare reference in a validated spec to one record id, in place.
- * Tries the named entity first, then its base entity (a business role named as a
- * "group" is still found); exact names win over partial ones.
- * @param {Function} query  db query function
- * @returns {Promise<{ problems: { kind: 'ambiguous'|'notFound'|'gone', name: string, label: string, options: string[] }[] }>}
- */
-export async function resolveReferences(spec, query) {
-  const problems = [];
-  for (const c of compareConditions(spec)) {
-    const ref = c.reference;
-    const label = ENTITIES[ref.entity].label.toLowerCase();
-    const candidates = [...new Set([ref.entity, baseEntityOf(ref.entity)])];
-
-    if (ref.id) {
-      const table = ENTITIES[ref.entity].table;
-      const { rows } = await query(
-        `SELECT "id", "displayName", "${typeColumn(table)}" AS type FROM "${table}" WHERE "id" = $1 AND "deletedAt" IS NULL`, [ref.id]);
-      if (rows.length === 1) { ref.name = rows[0].displayName; ref.type = rows[0].type; continue; }
-      delete ref.id;
-    }
-
-    let resolved = false;
-    for (const exact of [true, false]) {
-      for (const entityName of candidates) {
-        const rows = await findByName(query, entityName, ref.name, exact);
-        if (rows.length === 1) {
-          Object.assign(ref, { entity: entityName, id: rows[0].id, name: rows[0].displayName, type: rows[0].type });
-          resolved = true;
-        } else if (rows.length > 1) {
-          problems.push({ kind: 'ambiguous', name: ref.name, label, options: rows.map(r => r.displayName) });
-          resolved = true;
-        }
-        if (resolved) break;
-      }
-      if (resolved) break;
-    }
-    if (!resolved) problems.push({ kind: 'notFound', name: ref.name, label, options: [] });
-  }
-  return { problems };
-}
-
-/** Names containing `text` for the reference picker (base entity, so a business role is found as a resource). */
-export async function searchReferences(query, entityName, text) {
-  const rows = await findByName(query, entityName, text, false, 10);
-  return rows.map(r => ({ id: r.id, name: r.displayName, type: r.type }));
-}
-
-export function referenceProblemText(p) {
-  return p.kind === 'ambiguous'
-    ? `Which ${p.label} do you mean by "${p.name}"?`
-    : `I could not find a ${p.label} named "${p.name}". What is its exact name?`;
 }

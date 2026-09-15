@@ -24,7 +24,10 @@ import { interpret, loadValues, runSpec } from '../nlreports/service.js';
 import { listModels, warm } from '../nlreports/ollama.js';
 import { buildSystemPrompt } from '../nlreports/prompt.js';
 import { getReportModel, setReportModel } from '../nlreports/settings.js';
-import { MEASURES, manyRelationsOf, searchReferences } from '../nlreports/compare.js';
+import { MEASURES, manyRelationsOf } from '../nlreports/compare.js';
+import { applyChoice, resolveNamedObjects, searchNames } from '../nlreports/references.js';
+import { validateSpec } from '../nlreports/spec.js';
+import { explainSpec } from '../nlreports/explain.js';
 import { query } from '../db/connection.js';
 import {
   createSavedReport, deleteSavedReport, getSavedReport, prepareSavedReport, updateSavedReport,
@@ -75,7 +78,7 @@ router.get('/nl-reports/lookup', async (req, res) => {
   if (!Object.hasOwn(ENTITIES, entity)) return res.status(400).json({ error: 'Unknown entity' });
   if (text.length < 2 || text.length > 100) return res.json({ data: [] });
   try {
-    res.json({ data: await searchReferences(query, entity, text) });
+    res.json({ data: await searchNames(query, entity, text) });
   } catch (err) {
     fail(res, 'lookup', err);
   }
@@ -125,11 +128,28 @@ router.post('/nl-reports/interpret', async (req, res) => {
   }
 });
 
+// POST /api/nl-reports/resolve { spec, choice? } — apply the answer to a "did you mean"
+// confirmation and look the named objects up again. No model involved.
+router.post('/nl-reports/resolve', async (req, res) => {
+  if (!req.body?.spec || typeof req.body.spec !== 'object') return res.status(400).json({ error: 'spec is required' });
+  try {
+    const { ok, spec, errors } = validateSpec(req.body.spec, await loadValues());
+    if (!ok) return res.status(400).json({ error: 'Invalid report definition', errors });
+    if (req.body.choice && !applyChoice(spec, req.body.choice)) {
+      return res.status(400).json({ error: 'That choice does not match anything in the report' });
+    }
+    const { confirm } = await resolveNamedObjects(spec, query);
+    res.json({ spec, confirm, explanation: explainSpec(spec) });
+  } catch (err) {
+    fail(res, 'resolve', err);
+  }
+});
+
 router.post('/nl-reports/run', async (req, res) => {
   if (!req.body?.spec || typeof req.body.spec !== 'object') return res.status(400).json({ error: 'spec is required' });
   try {
     const result = await runSpec(req.body.spec);
-    if (!result.ok) return res.status(400).json({ error: 'Invalid report definition', errors: result.errors });
+    if (!result.ok) return res.status(400).json({ error: 'Invalid report definition', errors: result.errors, confirm: result.confirm, spec: result.spec });
     res.json(result);
   } catch (err) {
     fail(res, 'run', err);

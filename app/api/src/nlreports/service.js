@@ -12,7 +12,7 @@ import { compileSpec } from './compile.js';
 import { explainSpec } from './explain.js';
 import { buildSystemPrompt, RESPONSE_SCHEMA, REPORT_ONLY_SCHEMA } from './prompt.js';
 import { chat, DEFAULT_MODEL } from './ollama.js';
-import { referenceProblemText, resolveReferences } from './compare.js';
+import { resolveNamedObjects } from './references.js';
 
 const VALUES_TTL_MS = 5 * 60 * 1000;
 const MAX_CLARIFY_ROUNDS = 2;
@@ -130,17 +130,17 @@ export async function interpret({ question, history = [], model = DEFAULT_MODEL 
     if (!result.spec) {
       return { kind: 'error', message: 'The model produced a report definition that could not be used.', errors, raw, timing, model, repaired };
     }
-    // A comparison names a record ("business role X"): pin it to exactly one, or ask.
-    const { problems } = await resolveReferences(result.spec, query);
-    if (problems.length) {
-      const p = problems[0];
-      return { kind: 'clarify', question: referenceProblemText(p), options: p.options, raw, timing, model, repaired };
+    const assumptions = Array.isArray(reply.assumptions) ? reply.assumptions.map(String) : [];
+    // Named objects ("business role X", "the Sales group") are looked up; a fuzzy match is confirmed by the analyst.
+    const { confirm } = await resolveNamedObjects(result.spec, query);
+    if (confirm) {
+      return { kind: 'confirm', spec: result.spec, confirm, assumptions, raw, timing, model, repaired };
     }
     const compiled = compileSpec(result.spec);
     return {
       kind: 'report',
       spec: result.spec,
-      assumptions: Array.isArray(reply.assumptions) ? reply.assumptions.map(String) : [],
+      assumptions,
       explanation: explainSpec(result.spec),
       warnings: errors,
       sql: compiled.text,
@@ -176,8 +176,8 @@ export async function runSpec(rawSpec) {
   const values = await loadValues();
   const { ok, spec, errors } = validateSpec(rawSpec, values);
   if (!ok) return { ok: false, errors, spec };
-  const { problems } = await resolveReferences(spec, query);
-  if (problems.length) return { ok: false, errors: problems.map(referenceProblemText), spec };
+  const { confirm } = await resolveNamedObjects(spec, query);
+  if (confirm) return { ok: false, errors: [confirm.message], confirm, spec };
 
   const compiled = compileSpec(spec);
   const started = Date.now();

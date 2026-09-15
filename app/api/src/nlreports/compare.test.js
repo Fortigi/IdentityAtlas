@@ -1,8 +1,7 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { validateSpec } from './spec.js';
 import { compileSpec } from './compile.js';
 import { explainSpec } from './explain.js';
-import { resolveReferences, referenceProblemText, baseEntityOf } from './compare.js';
 
 const BR_ID = 'd2d71e57-329f-4ce0-9836-43c622ed41b1';
 const ROLE_MINING = {
@@ -108,45 +107,5 @@ describe('compare — plain language', () => {
     spec.conditions[0].measure = 'similar';
     spec.conditions[0].minSimilarity = 80;
     expect(explainSpec(spec).lines[0].text).toBe('shares at least 80% of its members with business role "Fortigi - Algemeen - Maten"');
-  });
-});
-
-describe('compare — reference resolution', () => {
-  const specFor = (name, entity = 'group') => valid({ entity: 'group', conditions: [{ type: 'compare', relation: 'members', measure: 'identical', reference: { entity, name } }] });
-
-  it('falls back from "group" to any resource, and prefers an exact name', async () => {
-    const query = vi.fn()
-      .mockResolvedValueOnce({ rows: [] }) // exact, as a group
-      .mockResolvedValueOnce({ rows: [{ id: BR_ID, displayName: 'Fortigi - Algemeen - Maten', type: 'BusinessRole' }] }); // exact, any resource
-    const spec = specFor('fortigi - algemeen - maten');
-    expect(await resolveReferences(spec, query)).toEqual({ problems: [] });
-    expect(spec.conditions[0].reference).toEqual({ entity: 'resource', name: 'Fortigi - Algemeen - Maten', id: BR_ID, type: 'BusinessRole' });
-    expect(query.mock.calls[0][1]).toEqual(['fortigi - algemeen - maten']);
-    expect(baseEntityOf('group')).toBe('resource');
-  });
-
-  it('asks which one when a partial name matches several records', async () => {
-    const query = vi.fn()
-      .mockResolvedValueOnce({ rows: [] }).mockResolvedValueOnce({ rows: [] }) // no exact match anywhere
-      .mockResolvedValueOnce({ rows: [{ id: 'a', displayName: 'Fortigi - Algemeen - Maten' }, { id: 'b', displayName: 'Fortigi - Algemeen - Maten en Associates' }] });
-    const { problems } = await resolveReferences(specFor('Maten'), query);
-    expect(problems).toEqual([{ kind: 'ambiguous', name: 'Maten', label: 'group', options: ['Fortigi - Algemeen - Maten', 'Fortigi - Algemeen - Maten en Associates'] }]);
-    expect(query.mock.calls[2][1]).toEqual(['%Maten%']);
-    expect(referenceProblemText(problems[0])).toBe('Which group do you mean by "Maten"?');
-  });
-
-  it('reports a name that matches nothing', async () => {
-    const query = vi.fn().mockResolvedValue({ rows: [] });
-    const { problems } = await resolveReferences(specFor('Nope'), query);
-    expect(referenceProblemText(problems[0])).toBe('I could not find a group named "Nope". What is its exact name?');
-  });
-
-  it('keeps a stored id and refreshes the name after a rename', async () => {
-    const spec = specFor('Old name', 'resource');
-    spec.conditions[0].reference.id = BR_ID;
-    const query = vi.fn().mockResolvedValueOnce({ rows: [{ id: BR_ID, displayName: 'New name', type: 'BusinessRole' }] });
-    await resolveReferences(spec, query);
-    expect(spec.conditions[0].reference).toMatchObject({ id: BR_ID, name: 'New name' });
-    expect(query).toHaveBeenCalledTimes(1);
   });
 });

@@ -10,7 +10,7 @@ import { registerReportSource } from '../reports/registry.js';
 import { compileSpec } from './compile.js';
 import { validateSpec } from './spec.js';
 import { loadValues, runSpec } from './service.js';
-import { referenceProblemText, resolveReferences } from './compare.js';
+import { resolveNamedObjects } from './references.js';
 
 export const SAVED_PREFIX = 'custom-';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -39,7 +39,10 @@ export async function prepareSavedReport(body) {
   const result = validateSpec(body?.definition, await loadValues());
   if (!result.ok) errors.push(...result.errors);
   // Store the resolved record id, so a saved comparison survives a rename.
-  if (result.ok) errors.push(...(await resolveReferences(result.spec, query)).problems.map(referenceProblemText));
+  if (result.ok) {
+    const { confirm } = await resolveNamedObjects(result.spec, query);
+    if (confirm) errors.push(confirm.message);
+  }
   if (errors.length) return { errors };
   return { value: { name, description: description || null, question: question || null, definition: result.spec } };
 }

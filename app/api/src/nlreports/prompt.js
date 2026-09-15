@@ -9,7 +9,7 @@
 // server compiles into a decoding grammar: the model physically cannot emit
 // anything that is not a well-formed reply with known field/relation names.
 
-import { ENTITIES, OPERATORS_BY_TYPE, OPERATORS } from './catalog.js';
+import { ENTITIES, GLOSSARY, OPERATORS_BY_TYPE, OPERATORS } from './catalog.js';
 import { MEASURES } from './compare.js';
 
 const allFieldNames = [...new Set(Object.values(ENTITIES).flatMap(e => Object.keys(e.fields)))];
@@ -147,7 +147,7 @@ const EXAMPLES = [
     ], columns: [] } },
   },
   {
-    q: 'people with the Exchange Administrator role',
+    q: 'users with the Exchange Administrator role',
     a: { kind: 'report', assumptions: ['A role is an Entra directory role, held via access.'], spec: { entity: 'user', match: 'all', conditions: [
       { type: 'relation', relation: 'access', quantifier: 'some', match: 'all', conditions: [
         { type: 'field', field: 'resourceType', op: 'eq', value: 'EntraDirectoryRole' },
@@ -181,7 +181,7 @@ const EXAMPLES = [
     ] },
   },
   {
-    q: 'people with exactly the same group memberships as Jan de Vries',
+    q: 'users with exactly the same group memberships as Jan de Vries',
     a: { kind: 'report', assumptions: ['"Jan de Vries" is a user.'], spec: { entity: 'user', match: 'all', conditions: [
       { type: 'compare', relation: 'memberOf', measure: 'identical', minSimilarity: 100, reference: { entity: 'user', name: 'Jan de Vries' } },
     ], columns: [] } },
@@ -210,6 +210,9 @@ export function buildSystemPrompt(values) {
 # Entities
 ${Object.entries(ENTITIES).map(([n, e]) => describeEntity(n, e, values)).join('\n\n')}
 
+# Glossary — these words mean the same thing
+${GLOSSARY.map(g => `- ${g.terms.map(t => `"${t}"`).join(', ')} → ${g.means}`).join('\n')}
+
 # Operators per field type
 ${ops}
 Boolean values are true/false. withinLastDays / olderThanDays take a number of days. isEmpty / isNotEmpty take value null.
@@ -228,7 +231,7 @@ Boolean values are true/false. withinLastDays / olderThanDays take a number of d
 Field names of the entity; "manager.displayName" style for the manager; "<relation>.names" or "<relation>.count" for the other relations. Use [] when the user did not ask for specific columns; always include displayName when you do list columns.
 
 # Rules
-1. Pick the entity from the noun: users / people / employees / guests → user. groups → group. Accounts in general, or service principals, managed identities, AI agents → account with a principalType condition. Roles, applications, permissions, business roles, Azure resources → resource with a resourceType condition.
+1. Pick the entity from the noun, using the glossary: persons → identity; users / accounts / guests → user; groups → group. Service principals, managed identities, AI agents, or accounts of every kind → account with a principalType condition. Roles, applications, permissions, business roles, Azure resources → resource with a resourceType condition. When a question about persons is really about their group memberships, access or ownership, use user.
 2. "guests" / "external users" = userType Guest. "disabled" = accountEnabled false; "active"/"enabled" = accountEnabled true. "roles" = resourceType EntraDirectoryRole unless the user means business roles; holding a role = the access relation, never memberOf.
 2b. When the request joins conditions with "or" ("either ... or"), put exactly those conditions in a group with match "any"; everything else stays outside that group.
 3. A name fragment the user mentions (like "HAMIS" or "LIC") is a displayName contains filter, unless they say it must match exactly.

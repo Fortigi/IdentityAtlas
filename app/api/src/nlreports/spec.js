@@ -28,7 +28,8 @@ export const DEFAULT_LIMIT = 1000;
 export const MAX_LIMIT = 5000;
 
 const ENTITY_ALIASES = {
-  user: 'user', users: 'user', people: 'user',
+  user: 'user', users: 'user',
+  identity: 'identity', identities: 'identity', person: 'identity', persons: 'identity', people: 'identity',
   group: 'group', groups: 'group',
   account: 'account', accounts: 'account', principal: 'account', principals: 'account',
   resource: 'resource', resources: 'resource',
@@ -128,6 +129,7 @@ function validateFieldCondition(entityName, c, values, err) {
     return null;
   }
   const out = { type: 'field', field: c.field, op: c.op };
+  if (c.checked === true) out.checked = true; // the analyst chose to keep a name that was not found
   const value = coerceValue(c.field, field, c.op, c.value, values, err);
   if (value !== undefined) out.value = value;
   return out;

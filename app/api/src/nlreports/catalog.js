@@ -154,6 +154,74 @@ const BASE = {
           };
         },
       },
+      identity: {
+        label: 'Person', target: 'identity', cardinality: 'one',
+        some: 'is linked to a person', none: 'is not linked to any person',
+        description: 'the person (identity) this account belongs to, after account linking',
+        from: (outer, inner, u) => {
+          const im = u();
+          return {
+            from: `"IdentityMembers" ${im} JOIN "Identities" ${inner} ON ${inner}."id" = ${im}."identityId"`,
+            where: `${im}."principalId" = ${outer}."id"`,
+          };
+        },
+      },
+    },
+  },
+
+  identity: {
+    label: 'Identity',
+    table: 'Identities',
+    detailKind: 'identity',
+    description:
+      'A real person, linked to one or more accounts in different systems. Group memberships, access and ownership ' +
+      'belong to the ACCOUNTS — a question about what persons have or are member of uses the user entity instead.',
+    defaultColumns: ['displayName', 'email', 'department', 'jobTitle', 'accountCount'],
+    where: () => 'TRUE',
+    fields: {
+      id: { label: 'ID', type: 'text', sql: col('id'), description: 'unique identity id' },
+      displayName: { label: 'Name', type: 'text', sql: col('displayName') },
+      email: { label: 'Email', type: 'text', sql: col('email') },
+      givenName: { label: 'First name', type: 'text', sql: col('givenName') },
+      surname: { label: 'Last name', type: 'text', sql: col('surname') },
+      employeeId: { label: 'Employee ID', type: 'text', sql: col('employeeId') },
+      department: { label: 'Department', type: 'text', sql: col('department') },
+      jobTitle: { label: 'Job title', type: 'text', sql: col('jobTitle') },
+      companyName: { label: 'Company', type: 'text', sql: col('companyName') },
+      city: { label: 'City', type: 'text', sql: col('city') },
+      country: { label: 'Country', type: 'text', sql: col('country') },
+      officeLocation: { label: 'Office', type: 'text', sql: col('officeLocation') },
+      analystVerified: { label: 'Verified by analyst', type: 'boolean', sql: col('analystVerified') },
+      linkConfidence: { label: 'Link confidence', type: 'number', sql: col('linkConfidence'), description: 'how sure the account linking is, 0–100' },
+      accountCount: {
+        label: 'Account count', type: 'number', description: 'number of accounts linked to this person',
+        sql: (t) => `(SELECT count(*) FROM "IdentityMembers" im JOIN "Principals" p ON p."id" = im."principalId"
+          WHERE im."identityId" = ${t}."id" AND p."deletedAt" IS NULL)`,
+      },
+    },
+    relations: {
+      accounts: {
+        label: 'Accounts', target: 'account', cardinality: 'many',
+        compareNoun: 'accounts',
+        some: 'has an account', none: 'has no accounts',
+        description: 'the accounts (in any system) linked to this person',
+        from: (outer, inner, u) => {
+          const im = u();
+          return {
+            from: `"IdentityMembers" ${im} JOIN "Principals" ${inner} ON ${inner}."id" = ${im}."principalId"`,
+            where: `${im}."identityId" = ${outer}."id" AND ${notDeleted(inner)}`,
+          };
+        },
+      },
+      manager: {
+        label: 'Manager', target: 'identity', cardinality: 'one',
+        some: 'has a manager', none: 'has no manager',
+        description: 'the person this person reports to',
+        from: (outer, inner) => ({
+          from: `"Identities" ${inner}`,
+          where: `${inner}."id" = ${outer}."managerIdentityId"`,
+        }),
+      },
     },
   },
 
@@ -265,7 +333,7 @@ function derive(base, { label, description, typeField, typeValue, defaultColumns
 export const ENTITIES = {
   user: derive(BASE.account, {
     label: 'User', typeField: 'principalType', typeValue: 'User',
-    description: 'A person\x27s user account (members and guests). Use for "users", "people", "employees", "guests".',
+    description: 'A user account of a person (members and guests). Use for "users", "accounts", "guests" — and for what people are member of or have access to.',
     defaultColumns: ['displayName', 'email', 'userType', 'accountEnabled'],
   }),
   group: derive(BASE.resource, {
@@ -273,9 +341,26 @@ export const ENTITIES = {
     description: 'A security or Microsoft 365 group. Use for "groups".',
     defaultColumns: ['displayName', 'description', 'memberCount'],
   }),
+  identity: BASE.identity,
   account: BASE.account,
   resource: BASE.resource,
 };
+
+// Words analysts use interchangeably. Rendered into the prompt, so the model maps
+// every synonym to the same entity or filter. Dutch terms included: questions
+// arrive in both languages.
+export const GLOSSARY = [
+  { terms: ['person', 'people', 'identity', 'human', 'persoon', 'personen', 'medewerker'], means: 'the identity entity (a real person). For what a person is member of, has access to or owns, use the user entity.' },
+  { terms: ['account', 'user', 'user account', 'principal', 'login', 'gebruiker', 'gebruikersaccount'], means: 'the user entity; the account entity when non-human accounts (service principals, managed identities, AI agents) are included' },
+  { terms: ['business role', 'access package', 'role package', 'bedrijfsrol', 'toegangspakket'], means: 'a resource with resourceType BusinessRole; "part of / in business role X" is the businessRoles relation' },
+  { terms: ['group', 'security group', 'Microsoft 365 group', 'team', 'groep'], means: 'the group entity' },
+  { terms: ['directory role', 'admin role', 'Entra role', 'administrator role', 'beheerrol'], means: 'a resource with resourceType EntraDirectoryRole' },
+  { terms: ['application', 'enterprise application', 'app', 'applicatie'], means: 'a resource with resourceType Application' },
+  { terms: ['service principal', 'app identity', 'service account'], means: 'an account with principalType ServicePrincipal' },
+  { terms: ['guest', 'external user', 'B2B user', 'gast', 'externe gebruiker'], means: 'userType Guest' },
+  { terms: ['disabled', 'inactive', 'blocked', 'uitgeschakeld'], means: 'accountEnabled false' },
+  { terms: ['owner', 'eigenaar'], means: 'the owners / owns relation — never membership' },
+];
 
 // Distinct-value lookups for enum fields — metadata only (a handful of type
 // names), used to ground the prompt and to normalise model output.
