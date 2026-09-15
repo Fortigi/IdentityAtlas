@@ -11,6 +11,7 @@ import { ENTITIES, OPERATORS, OPERATORS_BY_TYPE } from '../nlreports/catalog.js'
 import { availableColumns } from '../nlreports/spec.js';
 import { interpret, loadValues, runSpec } from '../nlreports/service.js';
 import { DEFAULT_MODEL, listModels, warm } from '../nlreports/ollama.js';
+import { buildSystemPrompt } from '../nlreports/prompt.js';
 
 const router = Router();
 
@@ -56,7 +57,7 @@ router.post('/nl-reports/warm', async (req, res) => {
   const model = String(req.body?.model || DEFAULT_MODEL);
   if (!MODEL_NAME.test(model)) return res.status(400).json({ error: 'Invalid model name' });
   try {
-    res.json(await warm(model));
+    res.json(await warm(model, buildSystemPrompt(await loadValues())));
   } catch (err) {
     fail(res, 'warm', err, 502);
   }

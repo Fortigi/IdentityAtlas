@@ -1,0 +1,191 @@
+[
+  { "id": "guests", "question": "all guest accounts",
+    "expected": { "entity": "account", "conditions": [{ "field": "userType", "op": "eq", "value": "Guest" }] } },
+
+  { "id": "guest-manager-or", "question": "I want to get a report of all guest accounts that don't have manager or where the manager is disabled",
+    "expected": { "entity": "account", "conditions": [
+      { "field": "userType", "op": "eq", "value": "Guest" },
+      { "type": "group", "match": "any", "conditions": [
+        { "relation": "manager", "quantifier": "none", "conditions": [] },
+        { "relation": "manager", "quantifier": "some", "conditions": [{ "field": "accountEnabled", "op": "eq", "value": false }] }
+      ] }
+    ] }, "note": "result set equals 'all guests' on this data — the model can get the logic wrong and still pass; check the spec" },
+
+  { "id": "disabled-in-lic", "question": "I want a list of all users that are disabled that are still member of a group that contains LIC",
+    "expected": { "entity": "account", "conditions": [
+      { "field": "principalType", "op": "eq", "value": "User" },
+      { "field": "accountEnabled", "op": "eq", "value": false },
+      { "relation": "memberOf", "conditions": [{ "field": "displayName", "op": "contains", "value": "LIC" }] }
+    ] } },
+
+  { "id": "enabled-in-license", "question": "enabled users that are in a group with License in the name, show their name, email and which groups",
+    "expected": { "entity": "account", "conditions": [
+      { "field": "principalType", "op": "eq", "value": "User" },
+      { "field": "accountEnabled", "op": "eq", "value": true },
+      { "relation": "memberOf", "conditions": [{ "field": "displayName", "op": "contains", "value": "License" }] }
+    ] }, "expectColumns": ["displayName", "email", "memberOf.names"] },
+
+  { "id": "users-no-manager", "question": "Which users have no manager?",
+    "expected": { "entity": "account", "conditions": [
+      { "field": "principalType", "op": "eq", "value": "User" },
+      { "relation": "manager", "quantifier": "none", "conditions": [] }
+    ] } },
+
+  { "id": "managed-identities", "question": "list our managed identities",
+    "expected": { "entity": "account", "conditions": [{ "field": "principalType", "op": "eq", "value": "ManagedIdentity" }] } },
+
+  { "id": "pending-guests", "question": "guests that have not accepted their invitation yet",
+    "expected": { "entity": "account", "conditions": [
+      { "field": "userType", "op": "eq", "value": "Guest" },
+      { "field": "externalUserState", "op": "eq", "value": "PendingAcceptance" }
+    ] } },
+
+  { "id": "many-groups", "question": "users that are member of more than 30 groups",
+    "expected": { "entity": "account", "conditions": [
+      { "field": "principalType", "op": "eq", "value": "User" },
+      { "field": "groupCount", "op": "gt", "value": 30 }
+    ] } },
+
+  { "id": "few-groups", "question": "people who are in fewer than 5 groups",
+    "expected": { "entity": "account", "conditions": [
+      { "field": "principalType", "op": "eq", "value": "User" },
+      { "field": "groupCount", "op": "lt", "value": 5 }
+    ] } },
+
+  { "id": "new-users", "question": "users created in the last 90 days",
+    "expected": { "entity": "account", "conditions": [
+      { "field": "principalType", "op": "eq", "value": "User" },
+      { "field": "createdDateTime", "op": "withinLastDays", "value": 90 }
+    ] } },
+
+  { "id": "managers", "question": "who are the managers? I mean people that have direct reports",
+    "expected": { "entity": "account", "conditions": [{ "relation": "directReports", "quantifier": "some", "conditions": [] }] } },
+
+  { "id": "guests-dirrole", "question": "guest users that hold a directory role",
+    "expected": { "entity": "account", "conditions": [
+      { "field": "userType", "op": "eq", "value": "Guest" },
+      { "relation": "access", "conditions": [{ "field": "resourceType", "op": "eq", "value": "EntraDirectoryRole" }] }
+    ] } },
+
+  { "id": "group-owners", "question": "users who own one or more groups",
+    "expected": { "entity": "account", "conditions": [
+      { "field": "principalType", "op": "eq", "value": "User" },
+      { "relation": "owns", "conditions": [{ "field": "resourceType", "op": "eq", "value": "Group" }] }
+    ] } },
+
+  { "id": "global-admins", "question": "Show the members of the Global Administrator role",
+    "expected": { "entity": "account", "conditions": [
+      { "relation": "access", "conditions": [
+        { "field": "resourceType", "op": "eq", "value": "EntraDirectoryRole" },
+        { "field": "displayName", "op": "contains", "value": "Global Administrator" }
+      ] }
+    ] } },
+
+  { "id": "azure-users", "question": "list the user accounts that come from Azure RM",
+    "expected": { "entity": "account", "conditions": [
+      { "field": "principalType", "op": "eq", "value": "User" },
+      { "field": "system", "op": "eq", "value": "Azure RM (3c4f204d-3261-477e-9b91-17a5adba4e9c)" }
+    ] } },
+
+  { "id": "sp-no-groups-enabled", "question": "enabled service principals that are not in any group",
+    "expected": { "entity": "account", "conditions": [
+      { "field": "principalType", "op": "eq", "value": "ServicePrincipal" },
+      { "field": "accountEnabled", "op": "eq", "value": true },
+      { "relation": "memberOf", "quantifier": "none", "conditions": [] }
+    ] } },
+
+  { "id": "hamis", "question": "I want a list of all groups that have HAMIS in the name",
+    "expected": { "entity": "resource", "conditions": [
+      { "field": "resourceType", "op": "eq", "value": "Group" },
+      { "field": "displayName", "op": "contains", "value": "HAMIS" }
+    ] }, "note": "no such group in this tenant: empty result, pass is weak" },
+
+  { "id": "license-groups", "question": "groups with License in the name",
+    "expected": { "entity": "resource", "conditions": [
+      { "field": "resourceType", "op": "eq", "value": "Group" },
+      { "field": "displayName", "op": "contains", "value": "License" }
+    ] } },
+
+  { "id": "empty-groups", "question": "groups without any members",
+    "expected": { "entity": "resource", "conditions": [
+      { "field": "resourceType", "op": "eq", "value": "Group" },
+      { "relation": "members", "quantifier": "none", "conditions": [] }
+    ] } },
+
+  { "id": "guest-owned-groups", "question": "groups that have a guest as owner",
+    "expected": { "entity": "resource", "conditions": [
+      { "field": "resourceType", "op": "eq", "value": "Group" },
+      { "relation": "owners", "conditions": [{ "field": "userType", "op": "eq", "value": "Guest" }] }
+    ] } },
+
+  { "id": "dynamic-groups", "question": "show me the dynamic groups",
+    "expected": { "entity": "resource", "conditions": [
+      { "field": "resourceType", "op": "eq", "value": "Group" },
+      { "field": "dynamicMembership", "op": "eq", "value": true }
+    ] } },
+
+  { "id": "sec-not-mail", "question": "security groups that are not mail enabled",
+    "expected": { "entity": "resource", "conditions": [
+      { "field": "resourceType", "op": "eq", "value": "Group" },
+      { "field": "securityEnabled", "op": "eq", "value": true },
+      { "field": "mailEnabled", "op": "eq", "value": false }
+    ] } },
+
+  { "id": "big-groups", "question": "groups with more than 10 members, biggest first",
+    "expected": { "entity": "resource", "conditions": [
+      { "field": "resourceType", "op": "eq", "value": "Group" },
+      { "field": "memberCount", "op": "gt", "value": 10 }
+    ] } },
+
+  { "id": "apps-no-owner", "question": "applications that nobody owns",
+    "expected": { "entity": "resource", "conditions": [
+      { "field": "resourceType", "op": "eq", "value": "Application" },
+      { "relation": "owners", "quantifier": "none", "conditions": [] }
+    ] } },
+
+  { "id": "business-roles", "question": "which business roles do we have",
+    "expected": { "entity": "resource", "conditions": [{ "field": "resourceType", "op": "eq", "value": "BusinessRole" }] } },
+
+  { "id": "groups-in-br", "question": "groups that are part of a business role",
+    "expected": { "entity": "resource", "conditions": [
+      { "field": "resourceType", "op": "eq", "value": "Group" },
+      { "relation": "businessRoles", "conditions": [] }
+    ] } },
+
+  { "id": "used-dir-roles", "question": "directory roles that are assigned to at least one account",
+    "expected": { "entity": "resource", "conditions": [
+      { "field": "resourceType", "op": "eq", "value": "EntraDirectoryRole" },
+      { "relation": "members", "conditions": [] }
+    ] } },
+
+  { "id": "groups-disabled-member", "question": "groups that still contain a disabled user",
+    "expected": { "entity": "resource", "conditions": [
+      { "field": "resourceType", "op": "eq", "value": "Group" },
+      { "relation": "members", "conditions": [
+        { "field": "principalType", "op": "eq", "value": "User" },
+        { "field": "accountEnabled", "op": "eq", "value": false }
+      ] }
+    ] } },
+
+  { "id": "azure-rgs", "question": "all Azure resource groups",
+    "expected": { "entity": "resource", "conditions": [{ "field": "resourceType", "op": "eq", "value": "AzureResourceGroup" }] } },
+
+  { "id": "sp-owner-apps", "question": "applications owned by a service principal instead of a person",
+    "expected": { "entity": "resource", "conditions": [
+      { "field": "resourceType", "op": "eq", "value": "Application" },
+      { "relation": "owners", "conditions": [{ "field": "principalType", "op": "eq", "value": "ServicePrincipal" }] }
+    ] } },
+
+  { "id": "admins-ambiguous", "question": "Show everyone with admin rights", "ambiguous": true,
+    "answer": "Accounts that hold any Entra directory role",
+    "expected": { "entity": "account", "conditions": [
+      { "relation": "access", "conditions": [{ "field": "resourceType", "op": "eq", "value": "EntraDirectoryRole" }] }
+    ] } },
+
+  { "id": "fabric-ambiguous", "question": "Show me all users of Fabric", "ambiguous": true,
+    "answer": "Members of groups with Fabric in the name",
+    "expected": { "entity": "account", "conditions": [
+      { "field": "principalType", "op": "eq", "value": "User" },
+      { "relation": "memberOf", "conditions": [{ "field": "displayName", "op": "contains", "value": "Fabric" }] }
+    ] } }
+]

@@ -72,9 +72,21 @@ export async function listModels() {
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
-/** Load a model into memory without generating anything. */
-export async function warm(model) {
+/**
+ * Load a model and pre-process the system prompt, so the first real question
+ * only pays for its own tokens. On CPU, reading a ~2k-token prompt is the slow
+ * part (minutes on a small shared VM); the server keeps it in its prompt cache.
+ */
+export async function warm(model, systemPrompt) {
   const started = Date.now();
-  await call('/api/generate', { model, prompt: '', keep_alive: KEEP_ALIVE });
+  const body = {
+    model,
+    stream: false,
+    keep_alive: KEEP_ALIVE,
+    messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: 'ready?' }],
+    options: { temperature: 0, num_ctx: 8192, num_predict: 1 },
+  };
+  if (THINKING_MODEL.test(model)) body.think = false;
+  await call('/api/chat', body);
   return { model, ms: Date.now() - started };
 }
