@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 //
 // Mount tests for the Shared matrices management page (#1166, AC12) — now an
-// Admin sub-tab, and now showing WHO each share was addressed to alongside who
-// actually opened it.
+// Admin sub-tab, showing WHO each share was addressed to alongside who actually
+// opened it, and (since #1202) able to adjust that list and copy the link from
+// here without re-minting anything.
 
 import { describe, it, expect, vi } from 'vitest';
 import SharedMatricesPage from './SharedMatricesPage';
@@ -145,6 +146,39 @@ describe('SharedMatricesPage', () => {
     await user.click(within(rowFor('Payroll app owners')).getByRole('button', { name: 'Revoke' }));
     await user.click(await screen.findByRole('button', { name: /Cancel/i }));
     expect(revoke).not.toHaveBeenCalled();
+  });
+
+  // #1202: Admin is a third window onto one share, not a second mechanism —
+  // the row expands the same panel the matrix bar and the wizard host.
+  it('manages recipients in place, keeping the same link', async () => {
+    const user = userEvent.setup();
+    const put = vi.fn(async () => jsonResponse({ id: 'share-unused', recipients: [] }));
+    const authFetch = makeAuthFetch((url, opts) => {
+      if (String(url).endsWith('/recipients')) return put(url, opts);
+      if (String(url).startsWith('/api/users')) return { data: [] };
+      return SHARES;
+    });
+    renderWithProviders(<SharedMatricesPage />, { auth: { ...sharer, authFetch }, features: SHARING_ON });
+    await screen.findByText('Payroll app owners');
+
+    await user.click(within(rowFor('Payroll app owners')).getByRole('button', { name: 'Manage' }));
+    expect(await screen.findByText(/Shared with 1 person/)).toBeInTheDocument();
+    // The link is shown again — copyable long after it was minted.
+    expect(screen.getByText(/#shared:share-unused$/)).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Save recipients' }));
+    await waitFor(() => expect(put).toHaveBeenCalledTimes(1));
+    expect(put.mock.calls[0][0]).toBe('/api/matrix/shares/share-unused/recipients');
+    expect(put.mock.calls[0][1].method).toBe('PUT');
+    expect(JSON.parse(put.mock.calls[0][1].body).recipients)
+      .toEqual([{ principalId: null, userKey: 'payroll.owner@example.com', displayName: 'Pat Payroll' }]);
+  });
+
+  it('offers no Manage on a revoked share — there is nothing live to adjust', async () => {
+    const authFetch = makeAuthFetch({ '/api/matrix/shares': SHARES });
+    renderWithProviders(<SharedMatricesPage />, { auth: { ...sharer, authFetch }, features: SHARING_ON });
+    await screen.findByText('Old contractor view');
+    expect(within(rowFor('Old contractor view')).queryByRole('button', { name: 'Manage' })).not.toBeInTheDocument();
   });
 
   it('shows an empty state when nothing has been shared', async () => {

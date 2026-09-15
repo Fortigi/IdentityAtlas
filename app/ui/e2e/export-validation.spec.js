@@ -187,9 +187,11 @@ test.describe('Matrix Excel export — access-package columns match the grid', (
     const gridCellCount = gridRows.reduce((n, row) => n + row.cells.length, 0);
     test.skip(gridCellCount === 0, 'this dataset has no governed access-package columns in the matrix');
 
+    // Export is a menu in the toolbar (#1202): open it, then pick Excel.
+    await page.getByRole('button', { name: /^Export/ }).first().click();
     const [download] = await Promise.all([
       page.waitForEvent('download', { timeout: 60000 }),
-      page.getByRole('button', { name: /Export Excel/i }).first().click(),
+      page.getByRole('menuitem', { name: 'Export Excel' }).click(),
     ]);
     const filePath = await download.path();
     expect(filePath).toBeTruthy();

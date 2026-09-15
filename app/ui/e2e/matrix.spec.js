@@ -21,16 +21,16 @@ test.describe('Matrix View', () => {
 
   test('matrix renders with rows and columns', async ({ page }) => {
     test.slow(); // Triple timeout — permissions API cold start takes 20-30s on CI
-    // Matrix tab now opens to the wizard empty state when no filter is
-    // saved. The "matrix page renders" assertion needs to accept either:
-    //   (a) the rendered grid (a saved filter is available), OR
-    //   (b) the empty-state heading + "Create matrix" button (no filter yet).
+    // With no org-default matrix the Matrix tab opens on the "Open a matrix"
+    // list (#1202). The "matrix page renders" assertion needs to accept either:
+    //   (a) the rendered grid (a default matrix is available), OR
+    //   (b) the "Open a matrix" heading (no matrix on screen yet).
     // Both prove the page rendered without crashing, which is the spirit of
     // this smoke test. Walking the wizard from inside Playwright is brittle
     // (race against the modal's transition / data prefetch in CI), so we
     // leave that to per-wizard tests.
     const table = page.locator('table').first();
-    const emptyHeading = page.getByRole('heading', { name: /Pick a slice to inspect/i });
+    const emptyHeading = page.getByRole('heading', { name: 'Open a matrix' });
     await expect(table.or(emptyHeading)).toBeVisible({ timeout: 60000 });
   });
 
@@ -58,29 +58,42 @@ test.describe('Matrix View', () => {
     await expect(dBadges).toBeVisible({ timeout: 10000 });
   });
 
-  test('"How to read this matrix" legend is available when a matrix is applied', async ({ page }) => {
+  test('"How to read this matrix" legend opens from the grid corner when a matrix is applied', async ({ page }) => {
     test.slow(); // permissions API cold start
     const table = page.locator('table').first();
-    const emptyHeading = page.getByRole('heading', { name: /Pick a slice to inspect/i });
+    const emptyHeading = page.getByRole('heading', { name: 'Open a matrix' });
     // Either the grid or the empty state renders; the legend only accompanies
     // the grid (it shows once a matrix filter is applied).
     await expect(table.or(emptyHeading)).toBeVisible({ timeout: 60000 });
     if (await table.isVisible()) {
-      await expect(
-        page.getByRole('button', { name: /How to read this matrix/i })
-      ).toBeVisible({ timeout: 10000 });
+      // A "?" button in the grid's header corner (#1202), not a bar above it.
+      const legend = page.locator('thead').getByRole('button', { name: 'How to read this matrix' }).first();
+      await expect(legend).toBeVisible({ timeout: 10000 });
+      await expect(legend).toHaveAttribute('aria-expanded', 'false');
+      await legend.click();
+      const dialog = page.getByRole('dialog', { name: 'How to read this matrix' });
+      await expect(dialog).toBeVisible();
+      await expect(dialog.getByText('Cell badges — how the access is held')).toBeVisible();
+      await page.keyboard.press('Escape');
+      await expect(dialog).toHaveCount(0);
+      await expect(legend).toHaveAttribute('aria-expanded', 'false');
     }
   });
 
-  // Two different sharing controls live here and must stay distinguishable:
-  // "Copy link" copies the current URL for another analyst, "Share view…" mints
-  // a read-only link for a colleague with no Identity Atlas role (#1166). A
-  // loose /Share/i once matched both and the ambiguity was real, not just a
-  // locator problem.
-  test('the two sharing buttons are named apart', async ({ page }) => {
-    await expect(page.getByRole('button', { name: 'Copy link' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Share view…' })).toBeVisible();
-    await expect(page.getByRole('button', { name: /share/i })).toHaveCount(1);
+  // Sharing WITH a colleague who has no role is created in the wizard's last
+  // step and managed from the strip's "Shared with N" chip (#1202). That made
+  // "Copy link" obsolete (the URL still carries the matrix), so the toolbar row
+  // keeps only the lens and Export, and the strip's old Load / Save / Share
+  // buttons are gone too.
+  test('the toolbar has no Copy link, and the strip no longer carries Load / Save / Share', async ({ page }) => {
+    await expect(page.getByRole('button', { name: 'All', exact: true }).first()).toBeVisible({ timeout: 60000 });
+    await expect(page.getByRole('button', { name: /^Export/ })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Copy link' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Share view…' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Adjust matrix' })).toBeVisible();
+    await expect(page.getByRole('button', { name: /Load matrix/ })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /^Save matrix/ })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Share…', exact: true })).toHaveCount(0);
   });
 
   test('export button exists', async ({ page }) => {
@@ -127,7 +140,7 @@ test.describe('Matrix — fold business-role resources', () => {
   test.setTimeout(90000);
 
   // `includeBusinessRoles` is what puts business roles on the resource axis at
-  // all — the wizard's "Show business roles as foldable rows" (#937). Without it
+  // all — the wizard's "Resources and business roles" choice (#937). Without it
   // the grid holds no role rows and nothing below could exist; the default
   // matrix is covered by matrix-business-role-rows.spec.js instead.
   const ALL_DATA_FILTER = {
@@ -151,8 +164,10 @@ test.describe('Matrix — fold business-role resources', () => {
   }
 
   // Open the all-data matrix. Returns false when no grid renders (no data here).
-  async function openGrid(page) {
-    await gotoSlice(page, ALL_DATA_FILTER);
+  // `extra` overlays the filter — the scope-statistics test needs a matrix that
+  // asked for that panel (`showTrends`, #1202); it is off by default.
+  async function openGrid(page, extra = {}) {
+    await gotoSlice(page, { ...ALL_DATA_FILTER, ...extra });
     try {
       await expect(page.locator('table').first()).toBeVisible({ timeout: 40000 });
     } catch {
@@ -162,8 +177,8 @@ test.describe('Matrix — fold business-role resources', () => {
     return true;
   }
 
-  const foldAll = (page) => page.getByRole('button', { name: 'Fold roles', exact: true });
-  const unfoldAll = (page) => page.getByRole('button', { name: 'Unfold roles', exact: true });
+  const foldAll = (page) => page.getByRole('button', { name: 'Fold business roles', exact: true });
+  const unfoldAll = (page) => page.getByRole('button', { name: 'Unfold business roles', exact: true });
 
   // Total height of the (virtualised) row list — it shrinks when rows fold away.
   const rowsHeight = (page) => page.evaluate(() => {
@@ -180,14 +195,14 @@ test.describe('Matrix — fold business-role resources', () => {
     return value.innerText();
   }
 
-  async function openFoldableGrid(page) {
-    const rendered = await openGrid(page);
+  async function openFoldableGrid(page, extra = {}) {
+    const rendered = await openGrid(page, extra);
     test.skip(!rendered, 'matrix grid did not render (no data) — cannot exercise the fold');
     const foldable = await foldAll(page).count();
     test.skip(foldable === 0, 'no business role grants a visible resource in this dataset');
   }
 
-  test('"Fold roles" hides the resources roles grant, "Unfold roles" restores them', async ({ page }) => {
+  test('"Fold business roles" hides the resources roles grant, "Unfold business roles" restores them', async ({ page }) => {
     await openFoldableGrid(page);
 
     const before = await rowsHeight(page);
@@ -200,6 +215,36 @@ test.describe('Matrix — fold business-role resources', () => {
     await unfoldAll(page).click();
     await expect.poll(() => rowsHeight(page)).toBe(before);
     await expect(unfoldAll(page)).toHaveCount(0);
+  });
+
+  // #1202: the fold controls sit in the grid's header corner, one toggle per
+  // axis, following the real state — never a Fold button left on screen for
+  // something already folded (the bug the old toolbar pair had).
+  test('the grid corner has one column-fold toggle that follows the fold state', async ({ page }) => {
+    const rendered = await openGrid(page);
+    test.skip(!rendered, 'matrix grid did not render (no data)');
+    const head = page.locator('thead');
+    const fold = head.getByRole('button', { name: 'Fold all columns', exact: true });
+    const unfold = head.getByRole('button', { name: 'Unfold all columns', exact: true });
+    test.skip(await fold.count() + await unfold.count() === 0, 'only one top-level column group in this dataset');
+
+    // A large matrix opens folded; start from unfolded either way.
+    if (await unfold.count()) await unfold.click();
+    await expect(fold).toHaveAttribute('aria-pressed', 'false');
+    await expect(unfold).toHaveCount(0);
+
+    await fold.click();
+    await expect(unfold).toHaveAttribute('aria-pressed', 'true');
+    await expect(fold).toHaveCount(0);
+
+    await unfold.click();
+    await expect(fold).toHaveAttribute('aria-pressed', 'false');
+    await expect(unfold).toHaveCount(0);
+  });
+
+  test('the business-role fold toggle sits in the grid corner, not in the toolbar', async ({ page }) => {
+    await openFoldableGrid(page);
+    await expect(page.locator('thead').getByRole('button', { name: 'Fold business roles', exact: true })).toBeVisible();
   });
 
   test('a per-role chevron folds only that role, and is labelled for screen readers', async ({ page }) => {
@@ -219,7 +264,8 @@ test.describe('Matrix — fold business-role resources', () => {
   });
 
   test('folding changes no number in the scope-statistics panel', async ({ page }) => {
-    await openFoldableGrid(page);
+    // The panel only exists for a matrix that asked for it (#1202).
+    await openFoldableGrid(page, { showTrends: true });
 
     const before = {
       resources: await statValue(page, 'Resources'),
@@ -583,8 +629,8 @@ test.describe('Matrix — resizing the grid height', () => {
     } catch {
       return false;
     }
-    // Collapse "How to read this matrix" so the chrome leaves the grid a
-    // measurable cap to start from (the same setup the scrollbar spec uses).
+    // The legend is a closed popover in the grid corner now (#1202); close it
+    // if it happens to be open so the grid has a measurable cap to start from.
     const legend = page.getByRole('button', { name: /How to read this matrix/i }).first();
     await expect(legend).toBeVisible({ timeout: 20000 });
     if (await legend.getAttribute('aria-expanded') === 'true') await legend.click();
@@ -771,14 +817,25 @@ test.describe('Matrix — Contexts column', () => {
 // The steps the wizard can show, and a marker that only renders once that
 // step's body is on screen. Keyed by the label in the step indicator.
 const STEP_MARKERS = {
-  Setup:     'Subject type',
-  Content:   'Roll-up content',
-  Subjects:  /Narrow down the (users|identities) that appear as rows/,
-  Resources: 'Narrow down the resources that appear as columns',
-  Sort:      'Sort columns',
-  // The wizard's optional last step, offered to anyone with `data.share` (#1166).
-  Share:     'Share this matrix (optional)',
+  Subjects:       /Narrow down the (users|identities) in the matrix/,
+  Resources:      'Narrow down the resources in the matrix',
+  Layout:         'Group & sort columns',
+  // The last step, always present (#1202): saving needs no share permission.
+  'Save & share': 'Leave empty to show it without saving. Saved matrices are visible to everyone in the org.',
 };
+
+// The wizard's one primary button on its last step shows the matrix. Adjusting a
+// saved matrix prefills its name, and an unchanged one reads "Show matrix"; any
+// real change turns it into "Save changes & show" — which would write to a
+// matrix everyone sees. These specs never mean to save, so they empty the name
+// first whenever the button offers anything but showing.
+async function showWithoutSaving(page) {
+  const show = page.getByRole('button', { name: 'Show matrix', exact: true });
+  if (!await show.isVisible()) {
+    await page.getByLabel('Name', { exact: true }).fill('');
+  }
+  await show.click();
+}
 
 // Records the counts of every matrix payload the page loads, newest last, so a
 // test can assert the matrix before and after an adjust is the same one.
@@ -799,16 +856,20 @@ function trackMatrixLoads(page) {
   return loads;
 }
 
-// The name the summary bar gives the applied matrix: the saved matrix it came
-// from, or "Not saved". It's the bar's leading badge — the bar itself being the
-// innermost element that holds the "Adjust matrix" button. Waits out the "…"
-// the badge shows while the saved-matrix list is still loading.
+// The name the strip gives the applied matrix (#1202): the name menu's trigger
+// — the saved matrix it is, or "Unsaved matrix" — suffixed with " (Unsaved
+// changes)" when that chip is showing. The strip is the innermost element that
+// holds the "Adjust matrix" button; the name menu is its first expandable
+// button. Waits out the "Loading matrix…" it shows while the saved-matrix list
+// is still loading.
 async function savedBadgeText(page) {
   const bar = page.locator('div')
     .filter({ has: page.getByRole('button', { name: 'Adjust matrix' }) }).last();
-  const badge = bar.locator('> span').first();
-  await expect(badge).not.toHaveText('…', { timeout: 20000 });
-  return (await badge.innerText()).trim();
+  const nameMenu = bar.locator('button[aria-expanded]').first();
+  await expect(nameMenu).not.toHaveText(/Loading matrix…/, { timeout: 20000 });
+  const name = (await nameMenu.innerText()).replace('▾', '').trim();
+  const changed = await bar.getByRole('button', { name: 'Unsaved changes' }).count();
+  return changed ? `${name} (Unsaved changes)` : name;
 }
 
 // The resource names currently rendered in the grid's pinned name column.
@@ -823,9 +884,9 @@ function visibleRowNames(page) {
 // nothing, and apply. Returns the labels of the steps that were visited.
 async function adjustWithoutChanges(page) {
   await page.getByRole('button', { name: 'Adjust matrix' }).click();
-  await expect(page.getByText(STEP_MARKERS.Setup)).toBeVisible({ timeout: 20000 });
+  await expect(page.getByText(STEP_MARKERS.Subjects)).toBeVisible({ timeout: 20000 });
 
-  // The step list is dynamic (a roll-up adds Content and drops Sort), so read it
+  // The step list is dynamic (a roles-only roll-up drops Resources), so read it
   // off the indicator rather than assuming a fixed sequence.
   const stepButtons = page.getByRole('button', { name: /^Go to step \d+: / });
   const labels = (await stepButtons.allTextContents()).map(t => t.replace(/^\d+|✓/, '').trim());
@@ -838,8 +899,9 @@ async function adjustWithoutChanges(page) {
     await expect(page.getByText(marker).first()).toBeVisible({ timeout: 10000 });
   }
 
-  // Apply is only offered on the last step, which is where the walk ended.
-  await page.getByRole('button', { name: 'Apply', exact: true }).click();
+  // The walk ended on the last step. Nothing changed, so its one primary button
+  // must offer to SHOW the matrix — never to save changes that were not made.
+  await page.getByRole('button', { name: 'Show matrix', exact: true }).click();
   await expect(page.getByText(STEP_MARKERS[labels[labels.length - 1]]).first())
     .toBeHidden({ timeout: 10000 });
   return labels;
@@ -886,10 +948,9 @@ test.describe('Matrix — adjust without changing anything', () => {
     expect(rowsBefore.length, 'the grid rendered no resource rows').toBeGreaterThan(0);
 
     const steps = await adjustWithoutChanges(page);
-    // 'Share' is the wizard's optional last step, offered to anyone holding
-    // `data.share` (#1166) — which, on an auth-off deployment like the one under
-    // test, is everyone.
-    expect(steps).toEqual(['Setup', 'Subjects', 'Resources', 'Sort', 'Share']);
+    // Four steps, each answering one question (#1202). Save & share is always
+    // the last one — saving needs no share permission.
+    expect(steps).toEqual(['Subjects', 'Resources', 'Layout', 'Save & share']);
 
     // The page is still the matrix, not the error boundary.
     await expect(page.getByText('Something went wrong')).toBeHidden();
@@ -900,9 +961,10 @@ test.describe('Matrix — adjust without changing anything', () => {
     await expect.poll(() => loads[loads.length - 1], { timeout: 20000 }).toEqual(before);
     expect(await visibleRowNames(page)).toEqual(rowsBefore);
     // Including its identity: it's still the saved matrix it was loaded from,
-    // not a look-alike relabelled "Not saved".
+    // not a look-alike relabelled as unsaved.
     await expect.poll(() => savedBadgeText(page), { timeout: 20000 }).toBe(savedNameBefore);
-    expect(savedNameBefore).not.toBe('Not saved');
+    expect(savedNameBefore, 'the matrix read as unsaved before the adjust too — the check above proves nothing')
+      .not.toMatch(/^Unsaved matrix$|\(Unsaved changes\)$/);
   });
 
   test('a matrix shared as a link survives an adjust that changes nothing', async ({ page }) => {
@@ -919,7 +981,7 @@ test.describe('Matrix — adjust without changing anything', () => {
 
   test('an identity matrix survives an adjust that changes nothing', async ({ page }) => {
     // rowType=identity makes the wizard lazy-load a different column set for the
-    // Subjects and Sort steps — those must render before the columns arrive too.
+    // Subjects and Layout steps — those must render before the columns arrive too.
     const crashes = [];
     page.on('pageerror', (err) => crashes.push(err.message));
 
@@ -1001,8 +1063,8 @@ test.describe('Matrix — no double scrollbar', () => {
   }
 
   test('the grid and the page never scroll at the same time', async ({ page }) => {
-    // Short viewport + the "How to read this matrix" panel open: the chrome eats
-    // most of the window, which is exactly the case the old fixed cap got wrong.
+    // Short viewport: the chrome eats most of the window, which is exactly the
+    // case the old fixed cap got wrong.
     await page.setViewportSize({ width: 1280, height: 800 });
     test.skip(!await openFullMatrix(page), 'matrix grid did not render (no data)');
 
@@ -1017,8 +1079,8 @@ test.describe('Matrix — no double scrollbar', () => {
     await page.setViewportSize({ width: 1280, height: 800 });
     test.skip(!await openFullMatrix(page), 'matrix grid did not render (no data)');
 
-    // Collapse the legend to free the ~270px that keeps the grid from getting a
-    // usable height. The measuring hook re-measures and caps the grid.
+    // Make sure the legend popover is closed (it no longer takes height above
+    // the grid, #1202). The measuring hook re-measures and caps the grid.
     const legend = page.getByRole('button', { name: /How to read this matrix/i }).first();
     await expect(legend).toBeVisible({ timeout: 20000 });
     if (await legend.getAttribute('aria-expanded') === 'true') await legend.click();
@@ -1027,5 +1089,87 @@ test.describe('Matrix — no double scrollbar', () => {
     const m = await readScrollState(page);
     expect(m.gridScrolls, 'the grid should scroll internally').toBe(true);
     expect(m.pageScrolls, 'the page should not scroll when the grid does').toBe(false);
+  });
+});
+
+// ─── The strip above the grid (#1202) ─────────────────────────────────────────
+//
+// Functional acceptance on #1202 called the top of the matrix "quite a mess":
+// three stacked bars (save, filter summary, scope statistics) before the grid
+// even starts. Two changes answer it, and both are structural, so both are
+// asserted here rather than by eye:
+//
+//   * the save controls and the filter summary are ONE row;
+//   * the scope-statistics panel (trends & breakdown) is off unless the matrix
+//     asked for it, and the wizard's Layout step is where you ask.
+test.describe('Matrix — the strip above the grid', () => {
+  test.setTimeout(90000);
+
+  const ALL_DATA = {
+    rowType: 'principal',
+    orientation: 'rows-as-resources',
+    subject: { include: [], exclude: [] },
+    resource: { include: [], exclude: [] },
+  };
+
+  // The innermost element holding "Adjust matrix" — the strip itself.
+  const strip = (page) => page.locator('div')
+    .filter({ has: page.getByRole('button', { name: 'Adjust matrix' }) }).last();
+
+  async function openMatrix(page, filter = ALL_DATA) {
+    await page.goto('about:blank');
+    await page.goto('/#matrix?filter=' + encodeURIComponent(JSON.stringify(filter)));
+    await page.waitForLoadState('networkidle');
+    try {
+      await expect(page.locator('table').first()).toBeVisible({ timeout: 40000 });
+    } catch {
+      return false;
+    }
+    await expect(page.getByRole('button', { name: 'Adjust matrix' })).toBeVisible({ timeout: 20000 });
+    return true;
+  }
+
+  test('the name, the counts and Adjust share one row', async ({ page }) => {
+    test.skip(!await openMatrix(page), 'matrix grid did not render (no data)');
+
+    // All three inside the SAME element: which matrix this is (the name menu),
+    // what it selects (the live counts), and how to change it (Adjust). Two
+    // stacked bars would put the name outside the element that holds Adjust.
+    const bar = strip(page);
+    await expect(bar.locator('button[aria-expanded]').first()).toBeVisible({ timeout: 20000 });
+    // The assignment count is real, not a placeholder 0 (#1202: /matrix/data never sent it).
+    const counts = bar.getByText(/^[\d,.]+ users × [\d,.]+ resources · [\d,.]+ assignments?$/);
+    await expect(counts).toBeVisible();
+    await expect(counts).not.toHaveText(/· 0 assignments$/);
+    await expect(bar.getByRole('button', { name: 'Adjust matrix' })).toBeVisible();
+    await expect(bar.getByText('User × Resource')).toHaveCount(0);
+  });
+
+  test('trends & breakdown is off by default and the Layout step switches it on', async ({ page }) => {
+    test.skip(!await openMatrix(page), 'matrix grid did not render (no data)');
+
+    // Off: no panel, and none of its numbers, above the grid.
+    await expect(page.getByRole('button', { name: /Trends & breakdown/i })).toHaveCount(0);
+    await expect(page.getByRole('group', { name: 'Assignments' })).toHaveCount(0);
+
+    await page.getByRole('button', { name: 'Adjust matrix' }).click();
+    const steps = page.getByRole('button', { name: /^Go to step \d+: / });
+    await steps.filter({ hasText: 'Layout' }).click();
+
+    const box = page.getByRole('checkbox', { name: /Show trends & breakdown/ });
+    await expect(box).toBeVisible({ timeout: 20000 });
+    await expect(box).not.toBeChecked();
+    await box.check();
+
+    // Show it from the last step — without saving the change into whichever
+    // saved matrix this filter happens to be.
+    await steps.last().click();
+    await showWithoutSaving(page);
+
+    // On: the panel is there, with its live numbers.
+    await expect(page.getByRole('button', { name: /Trends & breakdown/i })).toBeVisible({ timeout: 30000 });
+    const assignments = page.getByRole('group', { name: 'Assignments' });
+    await expect(assignments).toBeVisible();
+    await expect(assignments).not.toHaveText(/—/, { timeout: 30000 });
   });
 });

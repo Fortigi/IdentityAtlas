@@ -4,7 +4,7 @@
 //
 // Every wizard spec opens the same way: read a value out of the deployment
 // under test (so the spec is dataset-independent and runs against the demo
-// dataset or a real tenant alike), then drive Matrix → Adjust matrix → Next…
+// dataset or a real tenant alike), then drive Matrix → Adjust matrix → (Next)
 // → "+ Attribute" to reach the attribute picker. Keeping that here means a
 // change to the wizard's chrome is a one-line edit instead of a sweep across
 // every spec that reaches the picker.
@@ -16,8 +16,9 @@ import { expect } from '@playwright/test';
 export const BASE = process.env.E2E_BASE_URL || 'http://localhost:3001';
 export const API = `${BASE}/api`;
 
-// "Next" clicks needed to reach a wizard step from the opening Setup step.
-const STEP_CLICKS = { subjects: 1, resources: 2 };
+// "Next" clicks needed to reach a wizard step from the opening Subjects step.
+// (#1202 folded the old Setup step's choice into Subjects, so it opens there.)
+const STEP_CLICKS = { subjects: 0, resources: 1 };
 
 // The entity whose column metadata backs each step's Include list.
 const STEP_ENTITY = { subjects: 'Principal', resources: 'Resource' };
@@ -67,8 +68,9 @@ export async function openWizard(page, { beforeOpen } = {}) {
   await page.goto(`${BASE}/#matrix`);
   await page.waitForLoadState('networkidle');
 
-  // "Create matrix" on the empty state, "Adjust matrix" once a matrix is loaded.
-  const open = page.getByRole('button', { name: /Create matrix|Adjust matrix/ }).first();
+  // "New matrix" on the "Open a matrix" empty state, "Adjust matrix" (the
+  // strip's Adjust button) once a matrix is loaded (#1202).
+  const open = page.getByRole('button', { name: /^(New matrix|Adjust matrix)$/ }).first();
   await expect(open).toBeVisible({ timeout: 60000 });
   const armed = beforeOpen?.();
   await open.click();
@@ -78,9 +80,9 @@ export async function openWizard(page, { beforeOpen } = {}) {
 
 /**
  * Jump straight to a named wizard step via the step indicator, rather than
- * counting "Next" clicks — the step list is dynamic (a roll-up inserts Content
- * and drops Sort; Share needs a permission), so a count is only right for one
- * configuration.
+ * counting "Next" clicks — the step list is dynamic (a roll-up showing business
+ * roles only drops Resources), so a count is only right for one configuration.
+ * The labels are Subjects, Resources, Layout and Save & share.
  *
  * @param {import('@playwright/test').Page} page
  * @param {string} label
@@ -120,7 +122,7 @@ export async function openAttributePicker(page, step) {
     }, { timeout: 60000 }),
   });
 
-  // Setup → Subjects → Resources (the reporter's "Next, Next").
+  // Subjects (where the wizard opens) → Resources.
   const next = page.getByRole('button', { name: 'Next' });
   for (let i = 0; i < STEP_CLICKS[step]; i++) await next.click();
 
