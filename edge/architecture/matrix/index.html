@@ -1471,6 +1471,39 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#expanding-is-a-drill-down-not-an-extra-column" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Expanding is a drill-down, not an extra column
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-accounts-header-row" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The accounts header row
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-linked-account-count-on-an-identity-header" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The linked-account count on an identity header
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#context-picker-filtered-by-row-type" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5404,6 +5437,39 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#expanding-is-a-drill-down-not-an-extra-column" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Expanding is a drill-down, not an extra column
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-accounts-header-row" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The accounts header row
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-linked-account-count-on-an-identity-header" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The linked-account count on an identity header
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#context-picker-filtered-by-row-type" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5990,7 +6056,25 @@ attribute-fold views aggregate resources and have no per-resource row.</p>
 <li><strong>User accounts</strong> (<code>principal</code>) — each subject is one Principal (a single account). Best for clean-up sweeps and per-account audits.</li>
 <li><strong>Identities</strong> (<code>identity</code>) — each subject is one correlated person, unioning across their linked accounts. A cell is filled if <em>any</em> underlying account has the assignment. Best for role-mining and birthright analysis.</li>
 </ul>
-<p>When the orientation puts subjects on the column axis, an <strong>identity column can be expanded into per-account sub-columns</strong>. Clicking the chevron on an identity header (<code>MatrixColumnHeaders.jsx</code>) loads <code>GET /api/identities/:id/account-matrix</code>, which returns the identity's linked accounts plus each account's <code>(resourceId, membershipType)</code> rows drawn from the <em>same</em> <code>vw_ResourceUserPermissionAssignments</code> view the principal matrix uses — so the account sub-columns render cells identical to a principal-scoped matrix. The account sub-columns are visually tinted (blue) and labelled <code>displayName · accountType</code> to distinguish them from the rolled-up identity column.</p>
+<p>When the orientation puts subjects on the column axis, an <strong>identity column can be expanded into per-account sub-columns</strong>. Clicking the chevron on an identity header (<code>MatrixColumnHeaders.jsx</code>) loads <code>GET /api/identities/:id/account-matrix</code>, which returns the identity's linked accounts plus each account's <code>(resourceId, membershipType)</code> rows drawn from the <em>same</em> <code>vw_ResourceUserPermissionAssignments</code> view the principal matrix uses — so the account sub-columns render cells identical to a principal-scoped matrix. The account sub-columns are visually tinted (blue) and labelled <code>displayName · accountType</code> to distinguish them from the identity columns around them.</p>
+<h4 id="expanding-is-a-drill-down-not-an-extra-column">Expanding is a drill-down, not an extra column<a class="headerlink" href="#expanding-is-a-drill-down-not-an-extra-column" title="Permanent link">&para;</a></h4>
+<p>Expanding <strong>replaces</strong> the identity's column with one column per linked account, the way an org grouping expands into the columns it contains (#1212). The identity's combined ("all accounts") column is what collapsing gives back — it is never shown next to the accounts it rolls up, which would be the same access counted twice on screen.</p>
+<p><code>columnModel.js</code> owns this: <code>buildColumns()</code> emits the account columns <em>instead of</em> the identity, and each one carries its parent on <code>parent</code> (an identity whose account list comes back empty keeps its own column, so a subject can never vanish from the grid).</p>
+<h4 id="the-accounts-header-row">The accounts header row<a class="headerlink" href="#the-accounts-header-row" title="Permanent link">&para;</a></h4>
+<p>The accounts hang <strong>under</strong> their identity rather than beside it. The header is where the parent reappears, and <code>MatrixColumnHeaders.helpers.js</code>'s <code>splitAccountColumns()</code> is what puts it there:</p>
+<ul>
+<li>The identity re-enters the names row at the position of its first account column, and its <code>&lt;th&gt;</code> spans exactly <code>accounts</code> columns.</li>
+<li>A second header row (<code>MatrixAccountsRow.jsx</code>) sits directly under the names row and fills that span with one blue cell per account.</li>
+<li>Every other header cell on the names row — the corner/Resource Name/Contexts cells, non-expanded subjects, aggregates, access-package labels and the # / Type / Description block — carries <code>rowSpan=2</code> while the accounts row exists, so no blank band appears beside them. The row only exists while at least one identity is expanded; otherwise the header renders exactly as before.</li>
+<li>The accounts row sits <em>after</em> the names row, so the sticky <code>&lt;thead&gt;</code> pins it along with the names row for free. Its height must <strong>not</strong> be added to the grouping offset below — that would push the header out of view and bring back the grey-band-on-scroll bug.</li>
+</ul>
+<p>An account column that carries no parent stays on the names row: it still owns a body column, and every header row has to keep adding up to the body's width.</p>
+<h4 id="the-linked-account-count-on-an-identity-header">The linked-account count on an identity header<a class="headerlink" href="#the-linked-account-count-on-an-identity-header" title="Permanent link">&para;</a></h4>
+<p>An identity header shows the number of accounts it expands into, as a small grey count above the rotated name (the same treatment the roll-up matrix gives its group headers), with the number spelled out in the header tooltip. Only identity columns that have linked accounts get one — a plain account column expands into nothing, and neither does an identity with no accounts.</p>
+<p><strong>The count must be readable before expanding</strong> — it is what tells an analyst which identities are worth a click — so it cannot come from <code>/api/identities/:id/account-matrix</code>, which is only fetched <em>on</em> expand. <code>/api/matrix/data</code> therefore ships an <code>accountCount</code> with every identity row (<code>accountCountJoin</code> / <code>accountCountSelect</code> in <code>routes/matrix/data.js</code>). Principal-row matrices get no such column: there, a subject already <em>is</em> an account.</p>
+<p>It is counted <strong>live from <code>IdentityMembers</code></strong>, the same table <code>/api/identities/:id/account-matrix</code> reads, so the badge always states the exact number of columns that expanding will produce. Do <strong>not</strong> read the denormalised <code>Identities.accountCount</code> here, tempting as it looks: only the account-linking engine writes that column, and only for the identities a given run newly <em>linked</em>. Every identity whose accounts arrived from a crawler, a CSV import or an analyst decision still carries <code>NULL</code> — which is most real data, the demo dataset included — and reading it made the count render as nothing at all on exactly the multi-account identities it exists to flag (<a href="https://github.com/Fortigi/IdentityAtlas/issues/1212">#1212</a>). The identities list, identity detail page and risk-score list still display the stored column and remain subject to that staleness; they are not fed by this query.</p>
+<p>The aggregate is grouped once and <code>LEFT JOIN</code>ed rather than correlated per row — the flat grid emits one row per (subject, resource) assignment, so a scalar subquery would re-count the same identity thousands of times per request.</p>
+<p>Nothing is counted client-side: <code>matrixModel.js</code> carries the value from the row onto the subject, and <code>subjectAccountCount()</code> in <code>MatrixColumnHeaders.helpers.js</code> decides whether it is worth showing. The count stays up while the identity is expanded, where it describes the span below it.</p>
 <h3 id="context-picker-filtered-by-row-type">Context picker filtered by row type<a class="headerlink" href="#context-picker-filtered-by-row-type" title="Permanent link">&para;</a></h3>
 <p>The wizard's "+ Context" picker is filtered by the subject row type so an analyst can only pick contexts that actually apply to the rows:</p>
 <table>
