@@ -22,6 +22,9 @@
 #                                             (how the workflows call this; see dor_agent_sandbox.sh)
 #        WORK                              — the runner checkout dir ($GITHUB_WORKSPACE)
 #        DOR_BUILD_MODEL (opt)              — model (default claude-opus-5; Fable is reserved for the spec side)
+#        DOR_FLOW_MODE (opt)                — `continue`: resume from the checkpoint a previous step left when
+#                                             its BOT token neared expiry (dor_token_checkpoint.sh)
+#        DOR_TOKEN_REFRESHES_LEFT (opt)     — token-refresh steps the workflow still has after this one
 set -uo pipefail
 FLOW_NOUN="build"
 source "$(dirname "${BASH_SOURCE[0]}")/dor_build_lib.sh"
@@ -33,26 +36,42 @@ use_bot_remote   # push as the BOT app so the PR's CI actually runs (GITHUB_TOKE
 grep -qxF '.dor/' .git/info/exclude 2>/dev/null || echo '.dor/' >> .git/info/exclude
 grep -qxF 'dor-tls.override.yml' .git/info/exclude 2>/dev/null || echo 'dor-tls.override.yml' >> .git/info/exclude
 # Before anything else touches the box or the issue: never build over another issue's live env.
+# A continuation passes too — a box held by this same issue counts as free.
 require_free_sidekick
-# Consume the trigger label now so dor-resume.yml can re-apply it to re-dispatch a paused build.
-gh issue edit "$ISSUE" --repo "$REPO" --remove-label ready-to-build >/dev/null 2>&1 || true
-# Flip the board to Building the moment the build starts (i.e. right after the Product Board approved
-# the gate) — not only after the PR is created ~15-20 min later, which would leave it wrongly reading
-# "Awaiting approval" for the whole implement phase.
-GH_TOKEN="$BOARD_TOKEN" bash "$SCRIPTS/dor_set_status.sh" "$ISSUE" building 2>/dev/null || true
-# Say so on the issue NOW, not after the PR exists. For a bug the PR is opened only after the whole
-# red/green proof has run, so the first comment used to arrive 30-45 minutes in — the thread just sat
-# silent while the machine worked, which is indistinguishable from the machine being dead. That
-# ambiguity is the exact failure that left #370's requestor waiting 19 hours on a loop that had died.
-comment_issue "$(printf '🔨 Started — building a fix.%s%s' \
-  "$(is_bug && printf ' I reproduce the bug with a failing test first, fix it, then replay it on a live environment; expect ~30 min.' || printf '')" \
-  "${RUN_URL:+ · 👀 [follow progress]($RUN_URL)}")"
+pr=""; START_ATTEMPT=0
+if ! continue_mode; then
+  rm -f "$(dor_checkpoint_file)"   # a stale checkpoint must never steer a later continuation
+  # Consume the trigger label now so dor-resume.yml can re-apply it to re-dispatch a paused build.
+  gh issue edit "$ISSUE" --repo "$REPO" --remove-label ready-to-build >/dev/null 2>&1 || true
+  # Flip the board to Building the moment the build starts (i.e. right after the Product Board approved
+  # the gate) — not only after the PR is created ~15-20 min later, which would leave it wrongly reading
+  # "Awaiting approval" for the whole implement phase.
+  GH_TOKEN="$BOARD_TOKEN" bash "$SCRIPTS/dor_set_status.sh" "$ISSUE" building 2>/dev/null || true
+  # Say so on the issue NOW, not after the PR exists. For a bug the PR is opened only after the whole
+  # red/green proof has run, so the first comment used to arrive 30-45 minutes in — the thread just sat
+  # silent while the machine worked, which is indistinguishable from the machine being dead. That
+  # ambiguity is the exact failure that left #370's requestor waiting 19 hours on a loop that had died.
+  comment_issue "$(printf '🔨 Started — building a fix.%s%s' \
+    "$(is_bug && printf ' I reproduce the bug with a failing test first, fix it, then replay it on a live environment; expect ~30 min.' || printf '')" \
+    "${RUN_URL:+ · 👀 [follow progress]($RUN_URL)}")"
+  git fetch origin "$BRANCH" -q 2>/dev/null || true
+fi
 
+if continue_mode; then
+  # A later workflow step with a freshly minted BOT token: the run before it checkpointed because its
+  # token was about to expire (dor_token_checkpoint.sh). Push what it left pending and pick up at the
+  # recorded phase — no start-of-build notices, and never implement again. The branch and its pending
+  # commit are already checked out: continuation steps run in the same workspace.
+  resume_from_checkpoint
+  pr="$CKPT_PR"; START_ATTEMPT="$CKPT_ATTEMPT"
+  CONTRACT=""
+  if is_bug && read_contract > /tmp/contract.json 2>/dev/null && jq -e . /tmp/contract.json >/dev/null 2>&1; then
+    CONTRACT=/tmp/contract.json
+  fi
 # Resume-aware: if a branch with real work already exists (a previous run paused on a usage limit),
 # continue from it instead of re-implementing from scratch — that is the expensive part we must not
 # repeat (and re-running implement would just re-hit the limit).
-git fetch origin "$BRANCH" -q 2>/dev/null || true
-if git rev-parse --verify -q "origin/$BRANCH" >/dev/null && [ -n "$(git log --oneline "origin/main..origin/$BRANCH" 2>/dev/null)" ]; then
+elif git rev-parse --verify -q "origin/$BRANCH" >/dev/null && [ -n "$(git log --oneline "origin/main..origin/$BRANCH" 2>/dev/null)" ]; then
   echo "::notice::resuming from existing branch $BRANCH — skipping implement"
   git checkout -B "$BRANCH" "origin/$BRANCH" || bail "could not check out $BRANCH to resume"
 else
@@ -196,7 +215,8 @@ Leave your changes in the working tree — do NOT commit, push or open a PR.%s' 
     git commit -q -m "$title (#${ISSUE})" || bail "git commit failed"
   fi
   guard_protected_paths
-  push_as_app --force-with-lease "HEAD:refs/heads/$BRANCH" || bail "could not push $BRANCH"
+  # Implement alone can outlast the BOT token; past its safe age this checkpoints instead of pushing.
+  push_or_checkpoint push "" 0 || bail "could not push $BRANCH"
 fi
 
 # 2. Open the PR (BOT token — GITHUB_TOKEN can't create PRs here).
@@ -207,22 +227,30 @@ fi
 # requestor rejecting the design. dor-acceptance.yml marks it ready the moment they reply `approve`.
 # CI runs on drafts exactly as on any PR (no workflow here filters on draft), so verify_loop below
 # is unaffected — the only thing a draft cannot do is merge.
-pr=$(gh pr list --repo "$REPO" --head "$BRANCH" --state open --json number --jq '.[0].number // empty')
-# Container, compose and dependency changes are called out in the PR for the merge review.
-supply_flags="$(supply_chain_section)"
-if [ -z "$pr" ]; then
-  pr=$(GH_TOKEN="$BOARD_TOKEN" gh pr create --repo "$REPO" --base main --head "$BRANCH" --draft \
-        --title "$(gh issue view "$ISSUE" --repo "$REPO" --json title --jq '.title')" \
-        --body "$(printf 'Closes #%s\n\n> **Requestor acceptance: not yet.** This PR is a draft until the requestor replies `approve` on #%s. It becomes ready for review then, and not before.\n\nBuilt autonomously by the DoR build agent from the certified spec. Functional-test env: %s\n\nGreen checks here mean the agent'\''s own tests pass — they say nothing about whether the solution is the one that was asked for.%s' "$ISSUE" "$ISSUE" "$URL" "$supply_flags")" \
-      | grep -oE '[0-9]+$') || bail "could not open the PR"
+if [ -n "$pr" ]; then
+  # Resuming verify_loop after a token refresh: the PR, its claim and its comment already exist.
+  supply_flags="$(cat "$(dor_supply_flags_file)" 2>/dev/null)"
+else
+  pr=$(gh pr list --repo "$REPO" --head "$BRANCH" --state open --json number --jq '.[0].number // empty')
+  # Container, compose and dependency changes are called out in the PR for the merge review.
+  supply_flags="$(supply_chain_section)"
+  printf '%s' "$supply_flags" > "$(dor_supply_flags_file)"   # what the PR body says, for a continuation
+  if [ -z "$pr" ]; then
+    pr=$(GH_TOKEN="$BOARD_TOKEN" gh pr create --repo "$REPO" --base main --head "$BRANCH" --draft \
+          --title "$(gh issue view "$ISSUE" --repo "$REPO" --json title --jq '.title')" \
+          --body "$(printf 'Closes #%s\n\n> **Requestor acceptance: not yet.** This PR is a draft until the requestor replies `approve` on #%s. It becomes ready for review then, and not before.\n\nBuilt autonomously by the DoR build agent from the certified spec. Functional-test env: %s\n\nGreen checks here mean the agent'\''s own tests pass — they say nothing about whether the solution is the one that was asked for.%s' "$ISSUE" "$ISSUE" "$URL" "$supply_flags")" \
+        | grep -oE '[0-9]+$') || bail "could not open the PR"
+  fi
+  # ~/.dor-reservation + the sk:<label> that reset/feedback dispatch off
+  claim_sidekick "$pr" \
+    || bail "this sidekick was claimed by another issue while the build ran — its env was left untouched"
+  # (board was already moved to Building at the start of the run) — now post the PR + follow link.
+  comment_issue "$(printf '🔨 Building (PR #%s) — I'\''ll comment when it'\''s ready to test.%s' "$pr" "${RUN_URL:+ · 👀 [follow progress]($RUN_URL)}")"
 fi
-claim_sidekick "$pr" \
-  || bail "this sidekick was claimed by another issue while the build ran — its env was left untouched"
-# (board was already moved to Building at the start of the run) — now post the PR + follow link.
-comment_issue "$(printf '🔨 Building (PR #%s) — I'\''ll comment when it'\''s ready to test.%s' "$pr" "${RUN_URL:+ · 👀 [follow progress]($RUN_URL)}")"
 
 # 3-5. Verify: deploy+seed → e2e on live env → CI green. Fix + retry up to MAX_ATTEMPTS (else Exceptions).
-verify_loop "$pr"
+# A continuation resumes at the attempts already spent, so MAX_ATTEMPTS still bounds the whole build.
+verify_loop "$pr" "$START_ATTEMPT"
 
 # The fix loop may have changed the picture since the PR body was written.
 note_supply_chain_changes "$pr" "$supply_flags"
