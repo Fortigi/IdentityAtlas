@@ -21,7 +21,7 @@ import { requirePermission } from '../middleware/auth.js';
 import { ENTITIES, OPERATORS, OPERATORS_BY_TYPE } from '../nlreports/catalog.js';
 import { availableColumns } from '../nlreports/spec.js';
 import { interpret, loadValues, runSpec } from '../nlreports/service.js';
-import { listModels, warm } from '../nlreports/ollama.js';
+import { MODEL_IS_FIXED, listModels, warm } from '../nlreports/llm.js';
 import { buildSystemPrompt } from '../nlreports/prompt.js';
 import { getReportModel, setReportModel } from '../nlreports/settings.js';
 import { MEASURES, manyRelationsOf } from '../nlreports/compare.js';
@@ -197,17 +197,18 @@ router.delete('/nl-reports/saved/:id', async (req, res) => {
 
 router.get('/admin/nl-reports/config', adminGate, async (req, res) => {
   try {
-    const model = await getReportModel();
+    const model = await getReportModel().catch(() => null);
     let models = [];
     let reachable = true;
     try { models = await listModels(); } catch { reachable = false; }
-    res.json({ model, models, reachable });
+    res.json({ model, models, reachable, fixed: MODEL_IS_FIXED });
   } catch (err) {
     fail(res, 'admin config', err);
   }
 });
 
 router.put('/admin/nl-reports/config', adminGate, async (req, res) => {
+  if (MODEL_IS_FIXED) return res.status(409).json({ error: 'The report generator model is fixed by this release' });
   const model = String(req.body?.model || '');
   if (!MODEL_NAME.test(model)) return res.status(400).json({ error: 'Invalid model name' });
   try {

@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../db/connection.js');
-vi.mock('./ollama.js', () => ({ chat: vi.fn(), DEFAULT_MODEL: 'test-model' }));
+vi.mock('./llm.js', () => ({ chat: vi.fn(), DEFAULT_MODEL: 'test-model' }));
 
 import { query } from '../db/connection.js';
-import { chat } from './ollama.js';
+import { chat } from './llm.js';
 import { hasAnyMatch, needsOrRepair, interpret } from './service.js';
 
 const AND_SPEC = { entity: 'user', match: 'all', conditions: [

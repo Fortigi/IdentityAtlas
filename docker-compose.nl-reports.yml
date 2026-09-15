@@ -3,32 +3,51 @@
 # Overlay on the dev compose file:
 #   docker compose -f docker-compose.yml -f docker-compose.nl-reports.yml up -d --build
 #
-# The model server sits on its own internal network that only the web container
-# joins: no published port, no route to postgres or the worker, no internet
-# egress. Models are pulled once into the `nlproto_llm_models` volume beforehand
-# (the container itself cannot download anything). The model is unloaded after
-# NL_REPORTS_KEEP_ALIVE of inactivity, so the idle footprint is the bare server.
+# The model server is llama.cpp's llama-server (CPU build) running ONE model, chosen
+# per release. It sits on an internal network that only the web container joins: no
+# published port, no route to postgres or the worker, no internet egress.
+#
+# Cold start: the API restores the processed system prompt from the slot cache
+# volume (well under a second) instead of re-reading it (minutes on a small box).
+#
+# Prototype shortcut: the model file is read from the Ollama volume the earlier
+# prototype downloaded into. A release image bakes the GGUF in instead.
 
 services:
   web:
     environment:
-      NL_REPORTS_LLM_URL: "http://llm:11434"
-      NL_REPORTS_DEFAULT_MODEL: "${NL_REPORTS_DEFAULT_MODEL:-qwen2.5-coder:7b}"
-      NL_REPORTS_KEEP_ALIVE: "${NL_REPORTS_KEEP_ALIVE:-10m}"
-      # A cold start on a small CPU box reads the whole prompt first — minutes, not seconds.
+      NL_REPORTS_LLM_BACKEND: "llamacpp"
+      NL_REPORTS_LLM_URL: "http://llm:8080"
+      # A cold start without a saved prompt cache reads the whole prompt first — minutes, not seconds.
       NL_REPORTS_LLM_TIMEOUT_MS: "${NL_REPORTS_LLM_TIMEOUT_MS:-900000}"
       BEHIND_TLS: "${BEHIND_TLS:-false}"
       PUBLIC_BASE_URL: "${PUBLIC_BASE_URL:-}"
     networks: [default, llm]
 
   llm:
-    image: ollama/ollama:0.12.3
+    # llama.cpp server, CPU build (build 10975), pinned by digest.
+    image: ghcr.io/ggml-org/llama.cpp@sha256:b15cd87030b2eb8a284d398c095e03c6ba8baf386b68e1b83ab8b46e9555ffe8
     restart: unless-stopped
-    environment:
-      OLLAMA_MAX_LOADED_MODELS: "1"
-      OLLAMA_NUM_PARALLEL: "1"
+    command:
+      - -m
+      - /models/models/blobs/sha256-85e4a5b7b8ef0e48af0e8658f5aaab9c2324c76c1641493f4d1e25fce54b18b9
+      - --alias
+      - qwen3:4b-instruct-2507-q4_K_M
+      - -c
+      - "8192"
+      - -np
+      - "1"
+      - -t
+      - "${NL_REPORTS_LLM_CPUS:-2}"
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8080"
+      - --slot-save-path
+      - /slots
     volumes:
-      - llm_models:/root/.ollama
+      - llm_models:/models:ro
+      - llm_slots:/slots
     networks: [llm]
     mem_limit: "${NL_REPORTS_LLM_MEMORY:-5g}"
     cpus: "${NL_REPORTS_LLM_CPUS:-2}"
@@ -42,3 +61,6 @@ volumes:
   llm_models:
     external: true
     name: nlproto_llm_models
+  llm_slots:
+    external: true
+    name: nlproto_slot_cache

@@ -11,7 +11,7 @@ import { validateSpec } from './spec.js';
 import { compileSpec } from './compile.js';
 import { explainSpec } from './explain.js';
 import { buildSystemPrompt, RESPONSE_SCHEMA, REPORT_ONLY_SCHEMA } from './prompt.js';
-import { chat, DEFAULT_MODEL } from './ollama.js';
+import { chat, DEFAULT_MODEL } from './llm.js';
 import { resolveNamedObjects } from './references.js';
 
 const VALUES_TTL_MS = 5 * 60 * 1000;
