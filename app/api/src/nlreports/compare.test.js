@@ -83,7 +83,9 @@ describe('compare — SQL', () => {
     };
     expect(sqlFor('identical')).toMatch(/> 0 AND \(SELECT count\(\*\) FROM \(SELECT DISTINCT[\s\S]*\) c\) = \(SELECT count\(\*\) FROM ref0\) AND/);
     expect(sqlFor('containsAll')).toMatch(/\(SELECT count\(\*\) FROM ref0\) > 0 AND \(SELECT count\(\*\) FROM \([\s\S]*WHERE c\.id IN \(SELECT id FROM ref0\)\) = \(SELECT count\(\*\) FROM ref0\)\)/);
-    expect(sqlFor('within')).toMatch(/\(SELECT count\(\*\) FROM \(SELECT DISTINCT[^)]*\) c\) > 0 AND/);
+    // "within" guards on the row's own set being non-empty, not on the reference's.
+    expect(sqlFor('within')).toMatch(/\) c\) > 0 AND/);
+    expect(sqlFor('within')).not.toMatch(/FROM ref0\) > 0/);
     expect(sqlFor('similar')).toMatch(/\* 100 >= \$\d+::int \*/);
   });
 
