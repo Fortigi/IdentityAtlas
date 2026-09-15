@@ -98,6 +98,21 @@ describe('omada discover.js handler', () => {
     expect(res.body.entitySets).toEqual(['Roles', 'Users']);
   });
 
+  // SEC-2026-09 M-10: stored configs no longer carry the credential fields.
+  it('edit mode merges vaulted credentials into the stored config before fetching $metadata', async () => {
+    const queryOne = vi.fn().mockResolvedValue({ config: { baseUrl: 'https://omada.example.com/odata/dataobjects', authMethod: 'ApiToken' } });
+    const getConfigCredentials = vi.fn().mockResolvedValue({ apiToken: 'vaulted-token' });
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200, text: async () => SAMPLE_XML });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { req, res } = makeReqRes({ configId: 3 });
+    await handler(req, res, { db: { queryOne }, getConfigCredentials, assertConnectorUrl: allowUrl });
+
+    expect(getConfigCredentials).toHaveBeenCalledWith(3);
+    expect(res.statusCode).toBe(200);
+    expect(fetchMock.mock.calls[0][1].headers).toEqual({ Authorization: 'Bearer vaulted-token' });
+  });
+
   it('returns 400 when config has no baseUrl', async () => {
     const queryOne = vi.fn().mockResolvedValue({ config: { authMethod: 'FormCookie' } });
     const { req, res } = makeReqRes({ configId: 1 });

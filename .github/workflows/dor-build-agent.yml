@@ -233,16 +233,53 @@ jobs:
           fi
           gh issue comment "$ISSUE" --repo "$REPO" --body "$line" >/dev/null 2>&1 || true
 
-  build:
+  # Which sidekick? A box that is idle can still be parking another issue's functional-test env for
+  # weeks, so scheduling on the `dor-build` pool label alone handed held boxes new builds (#1049's env
+  # on sk5 was overwritten that way). Route to a box in DOR_POOL that no open issue claims, or back to
+  # the one this issue already holds. Never fails: an empty answer falls back to the pool, where the
+  # flow's require_free_sidekick is the backstop. See dor_sidekick_claim.sh.
+  pick:
     needs: [authorize, policy, gate]
     # `always()` is load-bearing: on the autonomous path `gate` is SKIPPED, and a skipped dependency
     # would otherwise skip this job too. Either policy cleared it, or a human did.
     if: >-
       always() && needs.authorize.outputs.is-member == 'true' &&
       (needs.policy.outputs.auto == 'true' || needs.gate.result == 'success')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: read
+    outputs:
+      sk: ${{ steps.pick.outputs.sk }}
+    steps:
+      - name: Checkout the sidekick-claim helpers
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: .github/scripts/dor_sidekick_claim.sh
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+      - name: Pick a free sidekick
+        id: pick
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          ISSUE: ${{ github.event.issue.number }}
+          DOR_POOL: ${{ vars.DOR_POOL }}
+        run: |
+          set -uo pipefail
+          source .github/scripts/dor_sidekick_claim.sh
+          sk="$(pick_sidekick || true)"
+          echo "sk=$sk" >> "$GITHUB_OUTPUT"
+          if [ -n "$sk" ]; then echo "::notice::#$ISSUE builds on $sk"
+          else echo "::warning::no free sidekick in DOR_POOL ('${DOR_POOL:-unset}') — scheduling on the whole pool"; fi
+
+  build:
+    needs: [authorize, policy, gate, pick]
+    if: >-
+      always() && needs.pick.result == 'success'
     runs-on:
       - self-hosted
-      - dor-build
+      - ${{ needs.pick.outputs.sk || 'dor-build' }}
     timeout-minutes: 350   # the deploy+e2e+CI(8×) loop can run long; a timeout trips the Exceptions backstop
     permissions:
       contents: write        # github.token reads the repo; the implementation branch is pushed with

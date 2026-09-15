@@ -35,6 +35,9 @@ use_bot_remote   # push as the BOT app so the PR's CI actually runs (GITHUB_TOKE
 # Never let the agent's scratch (.dor/in/*) or the deploy override get committed into the PR.
 grep -qxF '.dor/' .git/info/exclude 2>/dev/null || echo '.dor/' >> .git/info/exclude
 grep -qxF 'dor-tls.override.yml' .git/info/exclude 2>/dev/null || echo 'dor-tls.override.yml' >> .git/info/exclude
+# Before anything else touches the box or the issue: never build over another issue's live env.
+# A continuation passes too — a box held by this same issue counts as free.
+require_free_sidekick
 pr=""; START_ATTEMPT=0
 if ! continue_mode; then
   rm -f "$(dor_checkpoint_file)"   # a stale checkpoint must never steer a later continuation
@@ -238,7 +241,9 @@ else
           --body "$(printf 'Closes #%s\n\n> **Requestor acceptance: not yet.** This PR is a draft until the requestor replies `approve` on #%s. It becomes ready for review then, and not before.\n\nBuilt autonomously by the DoR build agent from the certified spec. Functional-test env: %s\n\nGreen checks here mean the agent'\''s own tests pass — they say nothing about whether the solution is the one that was asked for.%s' "$ISSUE" "$ISSUE" "$URL" "$supply_flags")" \
         | grep -oE '[0-9]+$') || bail "could not open the PR"
   fi
-  claim_sidekick "$pr"   # ~/.dor-reservation + the sk:<label> that reset/feedback dispatch off
+  # ~/.dor-reservation + the sk:<label> that reset/feedback dispatch off
+  claim_sidekick "$pr" \
+    || bail "this sidekick was claimed by another issue while the build ran — its env was left untouched"
   # (board was already moved to Building at the start of the run) — now post the PR + follow link.
   comment_issue "$(printf '🔨 Building (PR #%s) — I'\''ll comment when it'\''s ready to test.%s' "$pr" "${RUN_URL:+ · 👀 [follow progress]($RUN_URL)}")"
 fi
