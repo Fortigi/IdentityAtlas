@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { PublicClientApplication } from '@azure/msal-browser';
 import { AuthContext } from './AuthGate';
+import { buildAuthHeaders } from './authFetchHeaders';
 
 export default function AuthGate({ children }) {
   const [state, setState] = useState({ phase: 'loading', error: null });
@@ -109,8 +110,7 @@ export default function AuthGate({ children }) {
 
   const authFetch = useCallback(async (url, options = {}) => {
     const token = await getToken();
-    const headers = { ...options.headers };
-    if (token) headers.Authorization = `Bearer ${token}`;
+    const headers = buildAuthHeaders(options.headers, token);
     return fetch(url, { ...options, headers });
   }, [getToken]);
 

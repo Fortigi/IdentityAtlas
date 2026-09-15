@@ -5,7 +5,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import request from 'supertest';
-import { mountRouter } from '../../test-utils/routeTestKit.js';
+import { mountRouterAs } from '../../test-utils/routeTestKit.js';
 
 process.env.USE_SQL = 'true';
 
@@ -50,7 +50,10 @@ vi.mock('../secrets/vault.js', () => ({
 }));
 
 const { default: router } = await import('./riskProfiles.js');
-const app = mountRouter(router);
+// A fresh caller per request, so the per-caller LLM generation limiter never
+// couples these cases; the limiter itself is exercised below with one caller.
+let callerSeq = 0;
+const app = mountRouterAs(router, () => ({ oid: `caller-${++callerSeq}` }));
 
 beforeEach(() => {
   query.mockReset();
@@ -510,5 +513,21 @@ describe('risk-classifiers read/activate/delete', () => {
   it('delete 500 on reject', async () => {
     query.mockRejectedValueOnce(new Error('x'));
     expect((await request(app).delete('/api/risk-classifiers/5')).status).toBe(500);
+  });
+});
+
+describe('LLM generation rate limit (SEC-2026-09 L-11)', () => {
+  it('allows 10 generations per caller per minute, then 429s that caller only', async () => {
+    const oneCaller = mountRouterAs(router, (req) => ({ oid: req.get('x-test-caller') }));
+    isLLMConfigured.mockResolvedValue(false); // cheap 412 path; the limiter runs first
+    for (let i = 0; i < 10; i++) {
+      const r = await request(oneCaller).post('/api/risk-classifiers/generate').set('x-test-caller', 'heavy').send({});
+      expect(r.status).toBe(412);
+    }
+    const blocked = await request(oneCaller).post('/api/risk-profiles/refine').set('x-test-caller', 'heavy').send({});
+    expect(blocked.status).toBe(429);
+    expect(isLLMConfigured).toHaveBeenCalledTimes(10);
+    const other = await request(oneCaller).post('/api/risk-profiles/generate').set('x-test-caller', 'light').send({});
+    expect(other.status).toBe(412);
   });
 });

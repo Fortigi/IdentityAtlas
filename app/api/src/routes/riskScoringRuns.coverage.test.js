@@ -33,6 +33,20 @@ describe('POST /risk-scoring/runs', () => {
     expect(runScoring).toHaveBeenCalledWith(99, 11);
   });
 
+  it('409 without starting the engine when a run is already in progress (SEC-2026-09 L-11)', async () => {
+    queryOne
+      .mockResolvedValueOnce({ id: 5 })  // active classifier
+      .mockResolvedValueOnce(null);      // conditional insert found an active run
+    const res = await request(app).post('/api/risk-scoring/runs').send({});
+    expect(res.status).toBe(409);
+    expect(res.body.error).toMatch(/already in progress/);
+    expect(runScoring).not.toHaveBeenCalled();
+    const [sql, params] = queryOne.mock.calls[1];
+    expect(sql).toMatch(/WHERE NOT EXISTS/);
+    expect(sql).toContain("status IN ('pending', 'running')");
+    expect(params).toEqual([5, 'system', 360]);
+  });
+
   it('404 when supplied classifier not found', async () => {
     queryOne.mockResolvedValueOnce(null);
     const res = await request(app).post('/api/risk-scoring/runs').send({ classifierId: 7 });

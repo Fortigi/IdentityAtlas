@@ -25,6 +25,7 @@ import { seedContextAlgorithms } from './contexts/seedAlgorithms.js';
 import { migrateCrawlerSecretsToVault } from './secrets/migrateCrawlerSecrets.js';
 import { purgeExpiredTombstones } from './ingest/tombstonePurge.js';
 import { revokeIdleTokens } from './auth/readTokens.js';
+import { capCrawlerAuditLog, resolveAuditLogCap } from './lib/crawlerAuditLogCap.js';
 import { startUpdateCheckJob } from './updates/job.js';
 
 const WORKER_KEY_FILE = process.env.WORKER_KEY_FILE || '/data/uploads/.builtin-worker-key';
@@ -157,6 +158,14 @@ function startHistoryPruneJob() {
       }
     } catch (err) {
       console.error('Read-token idle revoke failed (will retry next interval):', err.message);
+    }
+
+    // Keep CrawlerAuditLog bounded per crawler (independent of history retention).
+    try {
+      const trimmed = await capCrawlerAuditLog(db, resolveAuditLogCap());
+      if (trimmed > 0) console.log(`Crawler audit log: trimmed ${trimmed} row(s) beyond the per-crawler cap`);
+    } catch (err) {
+      console.error('Crawler audit log trim failed (will retry next interval):', err.message);
     }
 
     try {

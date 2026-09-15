@@ -4,6 +4,7 @@
 // directly unit-testable.
 
 import { friendlyLabel } from '@ui/utils/formatters';
+import { safeCell } from '@ui/utils/excelHelpers';
 
 // Counterparty entity-kind labels — the fallback type label when a row has no
 // resourceType (e.g. a principal on a resource's member list).
@@ -37,8 +38,11 @@ export function sortItems(items, key, dir) {
 }
 
 // Build a CSV (Name, Type, Via) from the items. RFC-4180 quoting. Pure.
+// Quoting alone does not stop a spreadsheet from evaluating a cell that starts
+// with = + - @ or a tab, and names come from synced tenant data — so every cell
+// goes through the shared formula-injection guard first (SEC-2026-09 M-13).
 export function itemsToCsv(items) {
-  const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  const esc = (v) => `"${safeCell(String(v ?? '')).replace(/"/g, '""')}"`;
   const lines = ['Name,Type,Via'];
   for (const it of items || []) {
     lines.push([it.label || '', rowType(it), it.via || ''].map(esc).join(','));
