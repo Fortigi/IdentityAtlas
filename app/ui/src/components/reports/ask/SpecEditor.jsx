@@ -5,6 +5,8 @@
 // all/any, remove a condition, add one, pick columns. Everything is driven by
 // the catalog from GET /api/nl-reports/catalog — no field list lives here.
 
+import CompareCondition, { newCompareCondition } from './CompareCondition';
+
 const INPUT = 'rounded border border-gray-300 bg-white px-2 py-1 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200';
 const LINK_BUTTON = 'text-sm text-blue-700 hover:underline dark:text-blue-300';
 
@@ -103,6 +105,9 @@ function ConditionList({ entity, conditions, onChange, catalog, depth }) {
 }
 
 function Condition({ entity, condition, onChange, onRemove, catalog, depth }) {
+  if (condition.type === 'compare') {
+    return <CompareCondition entity={entity} condition={condition} catalog={catalog} onChange={onChange} onRemove={onRemove} RemoveButton={RemoveButton} />;
+  }
   if (condition.type === 'field') {
     return <FieldCondition entity={entity} condition={condition} onChange={onChange} onRemove={onRemove} catalog={catalog} />;
   }
@@ -152,7 +157,7 @@ function Condition({ entity, condition, onChange, onRemove, catalog, depth }) {
 
 // "+ condition", "+ related condition" and "+ any/all group" — enough to build
 // every definition the model can produce, by hand.
-function AddButtons({ entity, catalog, onAdd, allowRelation = true, allowGroup = false }) {
+function AddButtons({ entity, catalog, onAdd, allowRelation = true, allowGroup = false, allowCompare = true }) {
   const relations = catalog.entities[entity].relations;
   return (
     <div className="mt-2 flex flex-wrap items-center gap-3">
@@ -163,6 +168,11 @@ function AddButtons({ entity, catalog, onAdd, allowRelation = true, allowGroup =
           <option value="">+ related condition…</option>
           {relations.map(r => <option key={r.name} value={r.name}>{r.label}</option>)}
         </select>
+      )}
+      {allowCompare && catalog.entities[entity].compareRelations?.length > 0 && (
+        <button type="button" className={LINK_BUTTON} onClick={() => onAdd(newCompareCondition(catalog, entity))}>
+          + compare with…
+        </button>
       )}
       {allowGroup && (
         <button type="button" className={LINK_BUTTON}
@@ -180,6 +190,7 @@ export default function SpecEditor({ spec, catalog, onChange }) {
     const has = spec.columns.includes(key);
     onChange({ ...spec, columns: has ? spec.columns.filter(c => c !== key) : [...spec.columns, key] });
   };
+  const hasCompare = spec.conditions.some(c => c.type === 'compare' || (c.type === 'group' && c.conditions.some(ic => ic.type === 'compare')));
   const changeEntity = (name) => {
     onChange({ entity: name, match: 'all', conditions: [], columns: [...catalog.entities[name].defaultColumns] });
   };
@@ -207,7 +218,7 @@ export default function SpecEditor({ spec, catalog, onChange }) {
       <fieldset>
         <legend className="mb-1 text-sm font-semibold text-gray-800 dark:text-gray-200">Columns</legend>
         <div className="flex flex-wrap gap-1.5">
-          {entity.columns.map(c => {
+          {entity.columns.filter(c => !c.key.startsWith('compare.') || hasCompare).map(c => {
             const on = spec.columns.includes(c.key);
             return (
               <button key={c.key} type="button" aria-pressed={on} onClick={() => toggleColumn(c.key)}

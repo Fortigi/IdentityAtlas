@@ -197,13 +197,13 @@ export function compareColumnLabel(sub, c) {
 
 const typeColumn = (table) => (table === 'Resources' ? 'resourceType' : 'principalType');
 
-async function findByName(query, entityName, name, exact) {
+async function findByName(query, entityName, name, exact, limit = 6) {
   const entity = ENTITIES[entityName];
   const t = 'r0';
   const { rows } = await query(
     `SELECT ${t}."id", ${t}."displayName", ${t}."${typeColumn(entity.table)}" AS type FROM "${entity.table}" ${t}
      WHERE ${entity.where(t)} AND ${exact ? `lower(${t}."displayName") = lower($1)` : `${t}."displayName" ILIKE $1`}
-     ORDER BY ${t}."displayName" LIMIT 6`,
+     ORDER BY ${t}."displayName" LIMIT ${Number(limit)}`,
     [exact ? name : `%${name.replace(/[\\%_]/g, (m) => `\\${m}`)}%`],
   );
   return rows;
@@ -249,6 +249,12 @@ export async function resolveReferences(spec, query) {
     if (!resolved) problems.push({ kind: 'notFound', name: ref.name, label, options: [] });
   }
   return { problems };
+}
+
+/** Names containing `text` for the reference picker (base entity, so a business role is found as a resource). */
+export async function searchReferences(query, entityName, text) {
+  const rows = await findByName(query, entityName, text, false, 10);
+  return rows.map(r => ({ id: r.id, name: r.displayName, type: r.type }));
 }
 
 export function referenceProblemText(p) {

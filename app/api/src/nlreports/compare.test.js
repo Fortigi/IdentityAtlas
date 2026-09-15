@@ -89,7 +89,7 @@ describe('compare — SQL', () => {
     expect(sqlFor('similar')).toMatch(/\* 100 >= \$\d+::int \*/);
   });
 
-  it('does not exclude "itself" when the reference lives in another table', () => {
+  it('excludes the reference record itself when it is in the same table as the rows', () => {
     const spec = valid({ entity: 'user', conditions: [{ type: 'compare', relation: 'memberOf', measure: 'identical', reference: { entity: 'user', name: 'Jan' } }] });
     spec.conditions[0].reference.id = BR_ID;
     expect(compileSpec(spec).text).toMatch(/t0\."id" <> /); // same table (Principals) → excluded

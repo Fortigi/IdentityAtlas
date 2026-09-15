@@ -24,6 +24,8 @@ import { interpret, loadValues, runSpec } from '../nlreports/service.js';
 import { listModels, warm } from '../nlreports/ollama.js';
 import { buildSystemPrompt } from '../nlreports/prompt.js';
 import { getReportModel, setReportModel } from '../nlreports/settings.js';
+import { MEASURES, manyRelationsOf, searchReferences } from '../nlreports/compare.js';
+import { query } from '../db/connection.js';
 import {
   createSavedReport, deleteSavedReport, getSavedReport, prepareSavedReport, updateSavedReport,
 } from '../nlreports/savedReports.js';
@@ -47,7 +49,9 @@ router.get('/nl-reports/catalog', async (req, res) => {
     const values = await loadValues();
     const entities = Object.fromEntries(Object.entries(ENTITIES).map(([name, e]) => [name, {
       label: e.label,
+      table: e.table,
       description: e.description,
+      compareRelations: manyRelationsOf(name),
       defaultColumns: e.defaultColumns,
       fields: Object.entries(e.fields).map(([fname, f]) => ({
         name: fname, label: f.label, type: f.type,
@@ -57,9 +61,23 @@ router.get('/nl-reports/catalog', async (req, res) => {
       columns: availableColumns(name).map(({ key, label }) => ({ key, label })),
     }]));
     const operators = Object.fromEntries(Object.entries(OPERATORS).map(([k, o]) => [k, { label: o.label, needsValue: o.needsValue }]));
-    res.json({ entities, operators, operatorsByType: OPERATORS_BY_TYPE });
+    const compareMeasures = Object.fromEntries(Object.entries(MEASURES).map(([k, m]) => [k, m.label]));
+    res.json({ entities, operators, operatorsByType: OPERATORS_BY_TYPE, compareMeasures });
   } catch (err) {
     fail(res, 'catalog', err);
+  }
+});
+
+// GET /api/nl-reports/lookup?entity=resource&q=mat — names for the compare reference picker
+router.get('/nl-reports/lookup', async (req, res) => {
+  const entity = String(req.query.entity || '');
+  const text = String(req.query.q || '').trim();
+  if (!Object.hasOwn(ENTITIES, entity)) return res.status(400).json({ error: 'Unknown entity' });
+  if (text.length < 2 || text.length > 100) return res.json({ data: [] });
+  try {
+    res.json({ data: await searchReferences(query, entity, text) });
+  } catch (err) {
+    fail(res, 'lookup', err);
   }
 });
 
