@@ -51,7 +51,7 @@ vi.mock('../../perf/sqlTimer.js', () => ({
 // ── Mock shared.js: full control over filter + built + counts ──
 let parseFilterImpl = () => baseFilter();
 let buildSubqueriesImpl = async () => baseBuilt();
-let scopeCountsImpl = async () => ({ subjectCount: 5, subjectTotal: 10, resourceCount: 3, resourceTotal: 8 });
+let scopeCountsImpl = async () => ({ subjectCount: 5, subjectTotal: 10, resourceCount: 3, resourceTotal: 8, assignmentCount: 7 });
 // Spread the real module so runBound/collectResources (pure helpers over the
 // mocked timedQuery + built) are exercised for real; override only the three
 // entry points the tests drive.
@@ -122,7 +122,7 @@ beforeEach(() => {
   poolQuery.mockResolvedValue({ rows: [] });
   parseFilterImpl = () => baseFilter();
   buildSubqueriesImpl = async () => baseBuilt();
-  scopeCountsImpl = async () => ({ subjectCount: 5, subjectTotal: 10, resourceCount: 3, resourceTotal: 8 });
+  scopeCountsImpl = async () => ({ subjectCount: 5, subjectTotal: 10, resourceCount: 3, resourceTotal: 8, assignmentCount: 7 });
   inhFlat = async () => [];
   inhRollup = async () => null;
   inhContext = async () => null;
@@ -170,6 +170,8 @@ describe('matrix/data — flat per-subject grid', () => {
     expect(res.body.subjectCount).toBe(5);
     expect(res.body.subjectTotal).toBe(10);
     expect(res.body.totalUsers).toBe(10);
+    // The strip's assignment count (#1202) travels with the flat grid too.
+    expect(res.body.assignmentCount).toBe(7);
     expect(res.body.managedByPackages).toEqual([
       { memberId: 'm1', resourceId: 'r1', groupId: 'r1', accessPackageIds: ['ap1', 'ap2'] },
     ]);

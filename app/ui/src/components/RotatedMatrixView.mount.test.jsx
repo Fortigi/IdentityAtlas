@@ -58,9 +58,9 @@ function renderView(props = {}, authFetch = makeFetch()) {
       managedFilter: props.managedFilter || 'all',
       setManagedFilter,
       refreshing: props.refreshing || false,
-      shareUrl: 'https://example.test/matrix',
       onOpenDetail,
       onAdjustFilter,
+      onLoadSaved: props.onLoadSaved,
       hasData: props.hasData,
     }),
     { auth: { authFetch } },
@@ -126,19 +126,19 @@ describe('RotatedMatrixView (mounted)', () => {
   it('shows an Excel-not-supported tip when export is clicked', async () => {
     renderView();
     const user = userEvent.setup();
-    await user.click(screen.getByText('Export Excel'));
+    await user.click(screen.getByRole('button', { name: /^Export/ }));
+    await user.click(screen.getByRole('menuitem', { name: 'Export Excel' }));
     expect(await screen.findByText(/Excel export is not yet supported/i)).toBeInTheDocument();
   });
 
-  it('copies the share URL to the clipboard when Copy link is clicked', async () => {
-    const writeText = vi.fn().mockResolvedValue(undefined);
-    // Define our own clipboard stub and drive the click with fireEvent so
-    // userEvent's own clipboard shim doesn't intercept the write.
-    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+  // Rotated has no row/column fold, nested groups, row reorder or legend — and
+  // no Copy link any more — so the toolbar is the lens and Export, nothing else.
+  it('renders only the lens and Export, and no grid corner controls', () => {
     renderView();
-    fireEventClick(screen.getByText('Copy link'));
-    expect(await screen.findByText('Copied!')).toBeInTheDocument();
-    expect(writeText).toHaveBeenCalledWith('https://example.test/matrix');
+    expect(screen.queryByRole('button', { name: /Copy link/i })).not.toBeInTheDocument();
+    for (const name of [/all columns/, /nested groups/, /business roles/, 'Reset row order']) {
+      expect(screen.queryByRole('button', { name })).not.toBeInTheDocument();
+    }
   });
 
   it('shows the refreshing overlay when refreshing', () => {
@@ -154,12 +154,27 @@ describe('RotatedMatrixView (mounted)', () => {
     expect(screen.getByText('Finance App')).toBeInTheDocument();
   });
 
-  it('renders the "pick a slice" empty state when no filter is applied', () => {
+  it('renders the "Open a matrix" list when no filter is applied, with New matrix opening a fresh wizard', () => {
     const { onAdjustFilter } = renderView({ filter: null, hasData: true });
-    expect(screen.getByText(/Pick a slice to inspect/i)).toBeInTheDocument();
-    const btn = screen.getByText('Create matrix');
-    fireEventClick(btn);
-    expect(onAdjustFilter).toHaveBeenCalled();
+    expect(screen.getByRole('heading', { name: 'Open a matrix' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Governed' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Export/ })).not.toBeInTheDocument();
+    fireEventClick(screen.getByRole('button', { name: 'New matrix' }));
+    expect(onAdjustFilter).toHaveBeenCalledWith({ fresh: true });
+  });
+
+  it('opens a saved matrix from the empty state, tagged with its id', async () => {
+    const onLoadSaved = vi.fn();
+    const authFetch = makeFetch({ '/api/matrix/saved-filters': [{ id: 'sf-7', name: 'Rotated HR', filter: { rowType: 'principal', orientation: 'rows-as-subjects' } }] });
+    renderView({ filter: null, hasData: true, onLoadSaved }, authFetch);
+    fireEventClick(await screen.findByRole('button', { name: /Rotated HR/ }));
+    expect(onLoadSaved).toHaveBeenCalledWith({ rowType: 'principal', orientation: 'rows-as-subjects', savedFilterId: 'sf-7' }, 'all');
+  });
+
+  it('shows the strip with its counts when a filter is applied', async () => {
+    renderView({ counts: { subjectCount: 2, resourceCount: 3, assignmentCount: 3 } });
+    expect(screen.getByText('2 users × 3 resources · 3 assignments')).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Unsaved matrix' })).toBeInTheDocument();
   });
 
   it('renders the "no data available" empty state when hasData is false', () => {

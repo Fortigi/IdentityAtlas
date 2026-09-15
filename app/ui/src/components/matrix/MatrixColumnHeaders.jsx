@@ -20,6 +20,8 @@ export default function MatrixColumnHeaders({
   onToggleCollapse,
   onToggleMembers,
   maxHeaderDepth,
+  columnCorner = null,
+  rowCorner = null,
 }) {
   const isDark = useIsDark();
 
@@ -71,6 +73,7 @@ export default function MatrixColumnHeaders({
           isDark={isDark}
           onToggleCollapse={onToggleCollapse}
           onToggleMembers={onToggleMembers}
+          corner={rowIdx === 0 ? columnCorner : null}
         />
       ))}
 
@@ -87,6 +90,7 @@ export default function MatrixColumnHeaders({
         onToggleIdentity={onToggleIdentity}
         loadingIdentityCols={loadingIdentityCols}
         onToggleMembers={onToggleMembers}
+        corner={rowCorner}
       />
 
       {/* The accounts of every expanded identity, under their identity. It sits

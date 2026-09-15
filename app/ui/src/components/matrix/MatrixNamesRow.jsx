@@ -12,7 +12,7 @@ import MatrixApLabelCell from './MatrixApLabelCell';
 export default function MatrixNamesRow({
   columns, accountsByParent, hasAccountsRow,
   accessPackages, isDark, onSortByCount, onOpenDetail,
-  expandedIdentities, onToggleIdentity, loadingIdentityCols, onToggleMembers,
+  expandedIdentities, onToggleIdentity, loadingIdentityCols, onToggleMembers, corner = null,
 }) {
   const rowSpan = hasAccountsRow ? 2 : undefined;
   return (
@@ -25,7 +25,10 @@ export default function MatrixNamesRow({
       <th rowSpan={rowSpan}
           className="sticky top-0 z-40 bg-gray-100 dark:bg-gray-800 border-b border-r border-gray-300 dark:border-gray-600 px-2 py-1 text-xs text-gray-600 dark:text-gray-400 text-left font-medium"
           style={{ left: '24px', minWidth: '275px' }}>
-        Resource Name
+        <div className="flex items-center justify-between gap-2">
+          <span>Resource Name</span>
+          {corner}
+        </div>
       </th>
       <th rowSpan={rowSpan}
           className="sticky top-0 z-40 border-b border-r border-gray-300 dark:border-gray-600 px-2 py-1 text-xs text-left font-medium bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400"

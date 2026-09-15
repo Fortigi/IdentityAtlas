@@ -2,8 +2,8 @@
 //
 // Two conditions, both required: the install has the `matrixSharing` feature
 // flag on (Admin → Experimental), and the user holds `data.share`. Every place
-// that offers sharing — the wizard's Share step, the toolbar's Share view…, the
-// Admin → Shared Matrices tab — asks this one hook, so the flag cannot be
+// that offers sharing — the wizard's Share step, the matrix bar's share control,
+// the Admin → Shared Matrices tab — asks this one hook, so the flag cannot be
 // honoured in one place and forgotten in another.
 
 import { useHasPermission } from '@ui/auth/usePermissions';
