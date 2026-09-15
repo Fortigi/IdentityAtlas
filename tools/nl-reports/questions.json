@@ -772,13 +772,68 @@
   {
     "id": "rolemining-same-members-as-br",
     "question": "Show me all groups that have the same members as business role \"Fortigi - Algemeen - Maten\" but which are not part of the business role",
-    "pending": "needs a membership-comparison capability; not expressible in the current report definition",
-    "expectedGroups": {
-      "identical": [
-        "Fortigi Members",
-        "Fortigi.Maten"
-      ],
-      "note": "business role has 9 members and contains 81 groups; ~13 more groups hold the same 9 plus 2 others (e.g. Fortigi.All, Iedereen) — a good answer shows those as near matches"
+    "expected": {
+      "entity": "group",
+      "conditions": [
+        {
+          "type": "compare",
+          "relation": "members",
+          "measure": "identical",
+          "reference": {
+            "entity": "resource",
+            "name": "Fortigi - Algemeen - Maten"
+          }
+        },
+        {
+          "relation": "businessRoles",
+          "quantifier": "none",
+          "conditions": [
+            {
+              "field": "displayName",
+              "op": "eq",
+              "value": "Fortigi - Algemeen - Maten"
+            }
+          ]
+        }
+      ]
+    },
+    "note": "ground truth: Fortigi Members, Fortigi.Maten"
+  },
+  {
+    "id": "rm-contains-all-br",
+    "question": "groups that contain all members of business role Fortigi - Algemeen - Maten",
+    "expected": {
+      "entity": "group",
+      "conditions": [
+        {
+          "type": "compare",
+          "relation": "members",
+          "measure": "containsAll",
+          "reference": {
+            "entity": "resource",
+            "name": "Fortigi - Algemeen - Maten"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "rm-similar-group",
+    "question": "groups whose members overlap at least 80% with the group Fortigi.All",
+    "expected": {
+      "entity": "group",
+      "conditions": [
+        {
+          "type": "compare",
+          "relation": "members",
+          "measure": "similar",
+          "minSimilarity": 80,
+          "reference": {
+            "entity": "group",
+            "name": "Fortigi.All"
+          }
+        }
+      ]
     }
   }
 ]
