@@ -1,0 +1,42 @@
+# PROTOTYPE — natural-language reports with a local LLM.
+#
+# Overlay on the dev compose file:
+#   docker compose -f docker-compose.yml -f docker-compose.nl-reports.yml up -d --build
+#
+# The model server sits on its own internal network that only the web container
+# joins: no published port, no route to postgres or the worker, no internet
+# egress. Models are pulled once into the `nlproto_llm_models` volume beforehand
+# (the container itself cannot download anything). The model is unloaded after
+# NL_REPORTS_KEEP_ALIVE of inactivity, so the idle footprint is the bare server.
+
+services:
+  web:
+    environment:
+      NL_REPORTS_LLM_URL: "http://llm:11434"
+      NL_REPORTS_DEFAULT_MODEL: "${NL_REPORTS_DEFAULT_MODEL:-qwen2.5-coder:7b}"
+      NL_REPORTS_KEEP_ALIVE: "${NL_REPORTS_KEEP_ALIVE:-10m}"
+      BEHIND_TLS: "${BEHIND_TLS:-false}"
+      PUBLIC_BASE_URL: "${PUBLIC_BASE_URL:-}"
+    networks: [default, llm]
+
+  llm:
+    image: ollama/ollama:0.12.3
+    restart: unless-stopped
+    environment:
+      OLLAMA_MAX_LOADED_MODELS: "1"
+      OLLAMA_NUM_PARALLEL: "1"
+    volumes:
+      - llm_models:/root/.ollama
+    networks: [llm]
+    mem_limit: "${NL_REPORTS_LLM_MEMORY:-8g}"
+    cpus: "${NL_REPORTS_LLM_CPUS:-4}"
+    cpu_shares: 512
+
+networks:
+  llm:
+    internal: true
+
+volumes:
+  llm_models:
+    external: true
+    name: nlproto_llm_models
