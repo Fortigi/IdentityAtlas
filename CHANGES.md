@@ -1,5 +1,12 @@
 ## Changes in this PR
 
+- Expanding an identity in the matrix now drills into its linked accounts: the identity's column is replaced by one column per account, shown in a second header row beneath the identity, which spans them. It reads like an organizational expand — collapsing the identity again brings back its combined all-accounts column.
+- The new accounts row stays pinned with the column names while you scroll the grid, and disappears again as soon as the last expanded identity is collapsed.
+- Identity column headers in the matrix now show how many accounts are linked to that identity, so you can see which identities are worth expanding before you expand them. The count sits next to the name as a small grey number, with the full wording in the header tooltip, and stays visible while the identity is expanded. Identities without linked accounts, and plain account columns, show no count.
+- Fixed the account count staying blank on identities that do have several accounts. It is now counted from the identity's actual linked accounts, so it always matches the number of columns you get when you expand — previously it was read from a stored total that is only filled in for identities the account-linking job has processed, leaving it empty for identities loaded by a crawler or a CSV import.
+
+## Changes in this PR
+
 - Saving and sharing a matrix are now one experience: a matrix always has a name on screen, sharing an unsaved matrix saves it under one name in the same step, and sharing an already-saved matrix never asks for a name again.
 - The matrix has a single strip above it: the matrix's name (or "Unsaved matrix"), "Unsaved changes" when you changed a saved matrix, "Shared with N" when it is shared, the live users × resources · assignments counts (the assignment count used to read 0), and **Adjust**.
 - The matrix's name is a menu: open any saved matrix, start a **New matrix…**, or **Rename…**, **Duplicate…** or **Delete…** the one on screen. Renaming or deleting a shared matrix warns that its recipients are affected, and a name that is already taken is shown right away. Clicking "Unsaved changes" takes you straight to saving them.
