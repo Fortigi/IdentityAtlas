@@ -142,7 +142,10 @@ export function isCrossSiteWrite(req, policy) {
 // A client-supplied host name, cut to 100 characters with anything outside
 // printable ASCII (line breaks included) replaced, so it cannot forge log lines.
 export function printableForLog(value) {
-  return value.slice(0, 100).replace(/[^\x21-\x7e]/g, '?');
+  return String(value ?? '')
+    .replace(/[\r\n]+/g, ' ')
+    .slice(0, 100)
+    .replace(/[^\x21-\x7e]/g, '?');
 }
 
 function isHostExemptPath(path) {
