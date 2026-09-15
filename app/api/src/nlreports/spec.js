@@ -23,9 +23,18 @@ export const DEFAULT_LIMIT = 1000;
 export const MAX_LIMIT = 5000;
 
 const ENTITY_ALIASES = {
-  account: 'account', accounts: 'account', user: 'account', users: 'account', principal: 'account', principals: 'account',
-  resource: 'resource', resources: 'resource', group: 'resource', groups: 'resource',
+  user: 'user', users: 'user', people: 'user',
+  group: 'group', groups: 'group',
+  account: 'account', accounts: 'account', principal: 'account', principals: 'account',
+  resource: 'resource', resources: 'resource',
 };
+
+// A derived entity (user, group) already implies its type. Restating it is
+// harmless and dropped; asking for a different type is a real mistake.
+function isImpliedType(entity, c) {
+  const imp = entity.implicit;
+  return imp && c.field === imp.field;
+}
 
 const has = (obj, key) => obj != null && Object.hasOwn(obj, key);
 
@@ -85,6 +94,11 @@ function coerceValue(fieldName, field, op, value, values, err) {
 function validateFieldCondition(entityName, c, values, err) {
   const entity = ENTITIES[entityName];
   const field = has(entity.fields, c.field) ? entity.fields[c.field] : null;
+  if (!field && isImpliedType(entity, c)) {
+    if (c.op === 'eq' && String(c.value).toLowerCase() === entity.implicit.value.toLowerCase()) return null;
+    err(`the ${entityName} entity only contains ${entity.implicit.field} ${entity.implicit.value}; use the ${entityName === 'user' ? 'account' : 'resource'} entity for other types`);
+    return null;
+  }
   if (!field) {
     err(`"${c.field}" is not a field of ${entityName}. Fields: ${Object.keys(entity.fields).join(', ')}`);
     return null;
@@ -211,6 +225,7 @@ export function validateSpec(raw, values = {}) {
   let columns = [];
   const seen = new Set();
   for (const ref of Array.isArray(raw.columns) ? raw.columns : []) {
+    if (entity.implicit && ref === entity.implicit.field) continue;
     const colDef = resolveColumn(entityName, ref);
     if (!colDef) { err(`"${ref}" is not a valid column for ${entityName}`); continue; }
     if (!seen.has(colDef.key)) { seen.add(colDef.key); columns.push(colDef.key); }

@@ -42,14 +42,14 @@ export const OPERATORS_BY_TYPE = {
   date: ['withinLastDays', 'olderThanDays', 'isEmpty', 'isNotEmpty'],
 };
 
-export const ENTITIES = {
+const BASE = {
   account: {
     label: 'Account',
     table: 'Principals',
     detailKind: 'user',
     description:
       'An account in a connected system: a person\'s user account (member or guest), a service principal, ' +
-      'a managed identity or an AI agent. "Users" normally means accounts with type User.',
+      'a managed identity or an AI agent. Use this entity only when non-human accounts matter or the request says "accounts" in general.',
     defaultColumns: ['displayName', 'email', 'principalType', 'accountEnabled'],
     where: notDeleted,
     fields: {
@@ -93,7 +93,7 @@ export const ENTITIES = {
     },
     relations: {
       manager: {
-        label: 'Manager', target: 'account', cardinality: 'one',
+        label: 'Manager', target: 'user', cardinality: 'one',
         some: 'has a manager', none: 'has no manager',
         description: 'the account\'s manager (another account)',
         from: (outer, inner) => ({
@@ -102,7 +102,7 @@ export const ENTITIES = {
         }),
       },
       directReports: {
-        label: 'Direct reports', target: 'account', cardinality: 'many',
+        label: 'Direct reports', target: 'user', cardinality: 'many',
         some: 'has a direct report', none: 'has no direct reports',
         description: 'accounts that have this account as their manager',
         from: (outer, inner) => ({
@@ -111,9 +111,9 @@ export const ENTITIES = {
         }),
       },
       memberOf: {
-        label: 'Member of groups', target: 'resource', cardinality: 'many',
+        label: 'Member of groups', target: 'group', cardinality: 'many',
         some: 'is a member of a group', none: 'is not a member of any group',
-        description: 'groups the account is a member of (direct or indirect/nested)',
+        description: 'groups the account is a member of (direct or nested). ONLY groups — for roles, applications or permissions use access',
         from: (outer, inner, u) => {
           const ra = u();
           return {
@@ -126,7 +126,7 @@ export const ENTITIES = {
       access: {
         label: 'Has access to', target: 'resource', cardinality: 'many',
         some: 'has access to a resource', none: 'has no access to any resource',
-        description: 'any resource the account holds: groups, directory roles, app roles, permissions, business roles, Azure roles',
+        description: 'any resource the account holds: directory roles, groups, app roles, permissions, business roles, Azure roles. Use this for "has the X role"',
         from: (outer, inner, u) => {
           const ra = u();
           return {
@@ -139,7 +139,7 @@ export const ENTITIES = {
       owns: {
         label: 'Owner of', target: 'resource', cardinality: 'many',
         some: 'owns a resource', none: 'owns no resource',
-        description: 'groups and applications this account is an owner of',
+        description: 'groups and applications this account is an OWNER of (not membership)',
         from: (outer, inner, u) => {
           const ra = u(); const rr = u();
           return {
@@ -159,7 +159,7 @@ export const ENTITIES = {
     detailKind: 'resource',
     description:
       'Anything that grants access: a group, a directory role, an application, an app role, a permission, ' +
-      'a business role (access package) or an Azure resource. "Groups" means resources with type Group.',
+      'a business role (access package) or an Azure resource. For groups use the group entity.',
     defaultColumns: ['displayName', 'resourceType', 'description'],
     where: (t) => `${notDeleted(t)} AND ${t}."resourceType" NOT IN ${OWNERSHIP_TYPES}`,
     fields: {
@@ -199,7 +199,7 @@ export const ENTITIES = {
       members: {
         label: 'Members', target: 'account', cardinality: 'many',
         some: 'has a member', none: 'has no members',
-        description: 'accounts that are members of / assigned to this resource (direct or indirect)',
+        description: 'accounts that are members of / assigned to this resource (NOT owners)',
         from: (outer, inner, u) => {
           const ra = u();
           return {
@@ -212,7 +212,7 @@ export const ENTITIES = {
       owners: {
         label: 'Owners', target: 'account', cardinality: 'many',
         some: 'has an owner', none: 'has no owner',
-        description: 'accounts that own this group or application',
+        description: 'accounts that OWN this group or application (NOT members). "nobody owns" = owners none',
         from: (outer, inner, u) => {
           const ra = u(); const rr = u();
           return {
@@ -238,6 +238,36 @@ export const ENTITIES = {
       },
     },
   },
+};
+
+// Analysts think in "users" and "groups", and small models reliably forget the
+// "principalType = User" / "resourceType = Group" filter when those are only a
+// field. So they are entities of their own: the base entity with the type
+// filter built in and the type field removed. A spec that still states the
+// implied type (e.g. group + resourceType = Group) is accepted — see spec.js.
+function derive(base, { label, description, typeField, typeValue, defaultColumns }) {
+  const fields = { ...base.fields };
+  delete fields[typeField];
+  return {
+    ...base, label, description, defaultColumns, fields,
+    implicit: { field: typeField, value: typeValue },
+    where: (t) => `${base.where(t)} AND ${t}."${typeField}" = '${typeValue}'`,
+  };
+}
+
+export const ENTITIES = {
+  user: derive(BASE.account, {
+    label: 'User', typeField: 'principalType', typeValue: 'User',
+    description: 'A person\x27s user account (members and guests). Use for "users", "people", "employees", "guests".',
+    defaultColumns: ['displayName', 'email', 'userType', 'accountEnabled'],
+  }),
+  group: derive(BASE.resource, {
+    label: 'Group', typeField: 'resourceType', typeValue: 'Group',
+    description: 'A security or Microsoft 365 group. Use for "groups".',
+    defaultColumns: ['displayName', 'description', 'memberCount'],
+  }),
+  account: BASE.account,
+  resource: BASE.resource,
 };
 
 // Distinct-value lookups for enum fields — metadata only (a handful of type

@@ -105,15 +105,13 @@ const EXAMPLES = [
   },
   {
     q: 'Which groups have no owner?',
-    a: { kind: 'report', assumptions: [], spec: { entity: 'resource', match: 'all', conditions: [
-      { type: 'field', field: 'resourceType', op: 'eq', value: 'Group' },
+    a: { kind: 'report', assumptions: [], spec: { entity: 'group', match: 'all', conditions: [
       { type: 'relation', relation: 'owners', quantifier: 'none', match: 'all', conditions: [] },
     ], columns: [] } },
   },
   {
     q: 'Users in Finance that are in a group with Admin in the name. Show name, email and which groups.',
-    a: { kind: 'report', assumptions: ['"in Finance" means the department contains Finance.'], spec: { entity: 'account', match: 'all', conditions: [
-      { type: 'field', field: 'principalType', op: 'eq', value: 'User' },
+    a: { kind: 'report', assumptions: ['"in Finance" means the department contains Finance.'], spec: { entity: 'user', match: 'all', conditions: [
       { type: 'field', field: 'department', op: 'contains', value: 'Finance' },
       { type: 'relation', relation: 'memberOf', quantifier: 'some', match: 'all', conditions: [
         { type: 'field', field: 'displayName', op: 'contains', value: 'Admin' },
@@ -122,16 +120,25 @@ const EXAMPLES = [
   },
   {
     q: 'guests created more than half a year ago that never accepted the invite',
-    a: { kind: 'report', assumptions: ['Half a year = 180 days.'], spec: { entity: 'account', match: 'all', conditions: [
+    a: { kind: 'report', assumptions: ['Half a year = 180 days.'], spec: { entity: 'user', match: 'all', conditions: [
       { type: 'field', field: 'userType', op: 'eq', value: 'Guest' },
       { type: 'field', field: 'createdDateTime', op: 'olderThanDays', value: 180 },
       { type: 'field', field: 'externalUserState', op: 'eq', value: 'PendingAcceptance' },
     ], columns: [] } },
   },
   {
-    q: 'groups that have more than 20 members or that can be assigned to roles',
-    a: { kind: 'report', assumptions: [], spec: { entity: 'resource', match: 'all', conditions: [
-      { type: 'field', field: 'resourceType', op: 'eq', value: 'Group' },
+    q: 'people with the Exchange Administrator role',
+    a: { kind: 'report', assumptions: ['A role is an Entra directory role, held via access.'], spec: { entity: 'user', match: 'all', conditions: [
+      { type: 'relation', relation: 'access', quantifier: 'some', match: 'all', conditions: [
+        { type: 'field', field: 'resourceType', op: 'eq', value: 'EntraDirectoryRole' },
+        { type: 'field', field: 'displayName', op: 'contains', value: 'Exchange Administrator' },
+      ] },
+    ], columns: [] } },
+  },
+  {
+    q: 'security groups that have more than 20 members or that can be assigned to roles',
+    a: { kind: 'report', assumptions: ['The "or" applies to the member count and role-assignable conditions.'], spec: { entity: 'group', match: 'all', conditions: [
+      { type: 'field', field: 'securityEnabled', op: 'eq', value: true },
       { type: 'group', match: 'any', conditions: [
         { type: 'field', field: 'memberCount', op: 'gt', value: 20 },
         { type: 'field', field: 'roleAssignable', op: 'eq', value: true },
@@ -178,8 +185,9 @@ Boolean values are true/false. withinLastDays / olderThanDays take a number of d
 Field names of the entity; "manager.displayName" style for the manager; "<relation>.names" or "<relation>.count" for the other relations. Use [] when the user did not ask for specific columns; always include displayName when you do list columns.
 
 # Rules
-1. "users", "people", "employees", "persons" = accounts with principalType User. "guests" / "external users" = userType Guest. "disabled" = accountEnabled false; "active"/"enabled" = accountEnabled true.
-2. "groups" = resources with resourceType Group. "roles" = resourceType EntraDirectoryRole unless the user means business roles.
+1. Pick the entity from the noun: users / people / employees / guests → user. groups → group. Accounts in general, or service principals, managed identities, AI agents → account with a principalType condition. Roles, applications, permissions, business roles, Azure resources → resource with a resourceType condition.
+2. "guests" / "external users" = userType Guest. "disabled" = accountEnabled false; "active"/"enabled" = accountEnabled true. "roles" = resourceType EntraDirectoryRole unless the user means business roles; holding a role = the access relation, never memberOf.
+2b. When the request joins conditions with "or" ("either ... or"), put exactly those conditions in a group with match "any"; everything else stays outside that group.
 3. A name fragment the user mentions (like "HAMIS" or "LIC") is a displayName contains filter, unless they say it must match exactly.
 4. Reply with {"kind":"clarify"} ONLY when the request is genuinely ambiguous in a way that changes which rows are returned. Give 2-3 short options. Never ask about columns, sorting or formatting. When the user has answered a question or says to use your judgement, reply with a report.
 5. Record every interpretation choice you made as a short sentence in "assumptions".

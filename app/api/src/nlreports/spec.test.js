@@ -18,7 +18,7 @@ describe('validateSpec', () => {
     }, values);
     expect(errors).toEqual([]);
     expect(ok).toBe(true);
-    expect(spec.entity).toBe('account');
+    expect(spec.entity).toBe('user');
     expect(spec.conditions[0].value).toBe('Guest'); // snapped to the real enum value
     expect(spec.conditions[1].conditions[1]).toEqual({
       type: 'relation', relation: 'manager', quantifier: 'some', match: 'all',
@@ -42,6 +42,20 @@ describe('validateSpec', () => {
     expect(errors[0]).toMatch(/"password" is not a field of account/);
     expect(errors[1]).toMatch(/operator "contains" is not allowed on "accountEnabled"/);
     expect(errors[2]).toMatch(/Known values: Guest, Member/);
+  });
+
+  it('drops a restated implied type on user/group, but rejects a different type', () => {
+    const ok = validateSpec({
+      entity: 'group',
+      conditions: [{ field: 'resourceType', op: 'eq', value: 'group' }, { field: 'displayName', op: 'contains', value: 'LIC' }],
+      columns: ['displayName', 'resourceType'],
+    }, values);
+    expect(ok.errors).toEqual([]);
+    expect(ok.spec.conditions).toEqual([{ type: 'field', field: 'displayName', op: 'contains', value: 'LIC' }]);
+    expect(ok.spec.columns).toEqual(['displayName']);
+
+    const bad = validateSpec({ entity: 'user', conditions: [{ field: 'principalType', op: 'eq', value: 'ServicePrincipal' }] }, values);
+    expect(bad.errors[0]).toMatch(/use the account entity/);
   });
 
   it('refuses nested relations and nested groups', () => {

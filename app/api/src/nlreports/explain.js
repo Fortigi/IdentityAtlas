@@ -6,8 +6,6 @@
 
 import { ENTITIES, OPERATORS } from './catalog.js';
 
-const PLURAL = { account: 'Accounts', resource: 'Resources' };
-
 function formatValue(field, value) {
   if (field.type === 'boolean') return value ? 'Yes' : 'No';
   if (typeof value === 'string') return `"${value}"`;
@@ -58,7 +56,7 @@ function conditionLines(entityName, c, depth, out) {
 export function explainSpec(spec) {
   const lines = [];
   for (const c of spec.conditions) conditionLines(spec.entity, c, 0, lines);
-  const noun = PLURAL[spec.entity];
+  const noun = `${ENTITIES[spec.entity].label}s`;
   let title;
   if (spec.conditions.length === 0) title = `All ${noun.toLowerCase()}`;
   else if (spec.conditions.length === 1) title = `${noun} where`;
