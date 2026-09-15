@@ -5737,7 +5737,7 @@ seven-day-old tree. If the run is stale, discard it and re-dispatch, in this ord
 <tr>
 <td><strong><code>sk:</code> label with no open PR</strong></td>
 <td>A sidekick is reserved by nothing</td>
-<td>Release the box: <code>~/.dor-reservation</code> + <code>~/stacks/dor-N</code>, then drop the label</td>
+<td>The hourly sidekick sweep (<code>dor-reconcile.yml</code> → <code>sweep-sidekick</code>) releases a closed or moved claim on every <code>DOR_POOL</code> box. If it persists, the box is offline or not in <code>DOR_POOL</code>: release it by hand (<code>~/.dor-reservation</code> + <code>~/stacks/dor-N</code>), then drop the label</td>
 </tr>
 </tbody>
 </table>
