@@ -10,7 +10,11 @@
 # node_modules is installed at /build (not app/ui/node_modules) so Node's
 # ancestor-walk module resolution can find "react" etc. from files under
 # tools/crawlers/ too — they aren't descendants of app/ui.
-FROM node:24-slim AS frontend-build
+# Base images are pinned by digest (SEC-2026-09 M-14) so a rebuild can't silently
+# pick up a different image behind the same tag. The tag is kept in the comment
+# for readability; refresh both together when bumping.
+# node:24-slim
+FROM node:24-slim@sha256:2fe369e969550cde8e867afc3fe370b260140cab4a23d467074295b42163d553 AS frontend-build
 WORKDIR /build
 COPY app/ui/package*.json ./
 RUN npm ci
@@ -19,7 +23,8 @@ COPY tools/crawlers ./tools/crawlers
 RUN npm --prefix app/ui run build
 
 # ── Stage 2: Backend runtime ──────────────────────────────────────────────────
-FROM node:24-slim AS runtime
+# node:24-slim (same digest as the build stage)
+FROM node:24-slim@sha256:2fe369e969550cde8e867afc3fe370b260140cab4a23d467074295b42163d553 AS runtime
 
 # Bake the module version into the image so /api/version returns the full
 # version string (e.g. 5.0.20260414.0900) without needing the .psd1 file.
@@ -41,10 +46,13 @@ ENV CRAWLER_MANIFESTS_DIR=/app/crawlers
 COPY --from=frontend-build /build/app/ui/dist ../frontend/dist
 
 EXPOSE 3001
-# Create the uploads directory with node ownership BEFORE switching user.
-# The job_data volume mounts here; Docker creates the mount-point as root
-# if it doesn't exist, and the node user can't write to it.
-RUN mkdir -p /data/uploads && chown -R node:node /data
+# Create the uploads and key directories with node ownership BEFORE switching
+# user. The job_data volume mounts on /data/uploads (shared with the worker);
+# the web-only key volume mounts on /data/keys and holds the vault master key
+# (IDENTITY_ATLAS_KEY_DIR, see secrets/masterKeyStore.js). Docker initialises an
+# empty named volume from the image's mount-point, so the ownership and the 0700
+# mode set here carry over to a freshly created volume.
+RUN mkdir -p /data/uploads /data/keys && chown -R node:node /data && chmod 0700 /data/keys
 USER node
 
 # Container health: the API is up once /api/version (public, unauthenticated)

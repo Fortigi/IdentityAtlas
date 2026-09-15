@@ -14,12 +14,12 @@
 // worker would have read from WorkerConfig in v4.
 
 import crypto from 'crypto';
-import { writeFileSync, mkdirSync } from 'fs';
+import { readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { dirname } from 'path';
 import * as db from './db/connection.js';
 import { runMigrations } from './db/migrate.js';
 import { stampSchemaVersion } from './updates/componentVersions.js';
-import { selfTest as vaultSelfTest } from './secrets/vault.js';
+import { ensureMasterKey } from './secrets/masterKeyStore.js';
 import { startScheduler } from './scheduler.js';
 import { seedContextAlgorithms } from './contexts/seedAlgorithms.js';
 import { migrateCrawlerSecretsToVault } from './secrets/migrateCrawlerSecrets.js';
@@ -190,70 +190,6 @@ function startHistoryPruneJob() {
   setInterval(prune, PRUNE_INTERVAL_MS);
 }
 
-// Verify the secrets vault has a usable master key. Resolution order:
-//   1. IDENTITY_ATLAS_MASTER_KEY env var (preferred — user controls it)
-//   2. /data/uploads/.master-key file (auto-generated on first boot, persisted
-//      across restarts in the same docker volume as the worker key)
-//
-// The file fallback exists so the docker-compose stack works out of the box
-// without requiring the operator to set an env var before first start. The file
-// has 0600 perms and lives inside the same volume that already holds other
-// secrets-equivalent data (the built-in worker API key). For real production
-// deployments, setting IDENTITY_ATLAS_MASTER_KEY explicitly is still preferred
-// (so it can be sourced from a real secret store) and the file fallback never
-// kicks in.
-import { readFileSync } from 'fs';
-const MASTER_KEY_FILE = process.env.MASTER_KEY_FILE || '/data/uploads/.master-key';
-
-function ensureVaultKey() {
-  if (process.env.IDENTITY_ATLAS_MASTER_KEY) {
-    if (!vaultSelfTest()) throw new Error('Secrets vault self-test failed — check IDENTITY_ATLAS_MASTER_KEY');
-    return;
-  }
-  // Try to read the key file directly — avoids TOCTOU between existsSync and readFileSync.
-  let key;
-  try {
-    key = readFileSync(MASTER_KEY_FILE, 'utf8').trim();
-  } catch (err) {
-    if (err.code !== 'ENOENT') {
-      // File exists but is unreadable (permissions, ownership mismatch, etc.)
-      throw new Error(
-        `Master key file exists at ${MASTER_KEY_FILE} but could not be read: ${err.message}. ` +
-        `This usually means the file is owned by a different user than the web container. ` +
-        `Fix with: docker compose exec -u 0 web chown -R node:node /data`
-      );
-    }
-    // ENOENT → first boot — fall through to generate a new key
-    key = null;
-  }
-  if (key !== null) {
-    if (!key) {
-      throw new Error(`Master key file ${MASTER_KEY_FILE} is empty. Delete it and restart the web container to regenerate.`);
-    }
-    process.env.IDENTITY_ATLAS_MASTER_KEY = key;
-    if (!vaultSelfTest()) throw new Error('Secrets vault self-test failed — master key file is corrupt');
-    console.log(`Master key loaded from ${MASTER_KEY_FILE}`);
-    return;
-  }
-  // First boot — generate a key and persist it
-  key = crypto.randomBytes(32).toString('base64');
-  process.env.IDENTITY_ATLAS_MASTER_KEY = key;
-  try {
-    mkdirSync(dirname(MASTER_KEY_FILE), { recursive: true });
-    writeFileSync(MASTER_KEY_FILE, key, { mode: 0o600, encoding: 'utf8' });
-    console.log(`Master key generated and persisted to ${MASTER_KEY_FILE}`);
-    console.log('For production, prefer setting IDENTITY_ATLAS_MASTER_KEY explicitly so the key can be backed up.');
-  } catch (err) {
-    // Can't persist → refuse to continue. Running with an ephemeral key would
-    // silently lose all secrets on the next container restart.
-    throw new Error(
-      `Could not persist master key to ${MASTER_KEY_FILE}: ${err.message}. ` +
-      `Set IDENTITY_ATLAS_MASTER_KEY explicitly in the compose env, or fix the volume permissions.`
-    );
-  }
-  if (!vaultSelfTest()) throw new Error('Secrets vault self-test failed after key generation');
-}
-
 // ─── Tag-root bootstrap ─────────────────────────────────────────────────────
 // Tags are stored as Contexts (contextType='Tag', variant='manual'). Without
 // a parent they all sit at the top of the tree selector — one root per tag
@@ -350,7 +286,7 @@ export async function migrateDatabase() {
 export async function bootstrapWorker() {
   if (process.env.USE_SQL !== 'true') return;
   try {
-    ensureVaultKey();
+    await ensureMasterKey();
     await ensureBuiltinCrawler();
     // Move any legacy plaintext crawler clientSecrets into the encrypted vault.
     try {
