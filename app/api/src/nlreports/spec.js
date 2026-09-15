@@ -53,6 +53,16 @@ function coerceBoolean(v) {
   return undefined;
 }
 
+// Small models abbreviate enum values ("Azure RM" for "Azure RM (tenant-id)",
+// "DirectoryRole" for "EntraDirectoryRole"). Accept a fragment only when it
+// points at exactly one known value — an ambiguous fragment is still an error.
+function uniquePartialMatch(known, s) {
+  const needle = s.trim().toLowerCase();
+  if (needle.length < 3) return undefined;
+  const hits = known.filter(k => k.toLowerCase().includes(needle));
+  return hits.length === 1 ? hits[0] : undefined;
+}
+
 function coerceValue(fieldName, field, op, value, values, err) {
   if (!OPERATORS[op].needsValue) return undefined;
   if (value === undefined || value === null || value === '') {
@@ -79,7 +89,7 @@ function coerceValue(fieldName, field, op, value, values, err) {
       const s = String(value);
       const known = field.valuesFrom ? values?.[field.valuesFrom] : null;
       if (!known || known.length === 0) return s;
-      const match = known.find(k => k.toLowerCase() === s.toLowerCase());
+      const match = known.find(k => k.toLowerCase() === s.toLowerCase()) ?? uniquePartialMatch(known, s);
       if (!match) err(`"${s}" is not a known value of "${fieldName}". Known values: ${known.join(', ')}`);
       return match ?? s;
     }

@@ -58,6 +58,21 @@ describe('validateSpec', () => {
     expect(bad.errors[0]).toMatch(/use the account entity/);
   });
 
+  it('snaps an abbreviated enum value only when exactly one known value contains it', () => {
+    const vals = { resourceType: ['EntraDirectoryRole', 'Group', 'AppRole', 'AzureRoleAssignment'], systemName: ['Azure RM (3c4f)', 'Entra ID (3c4f)'] };
+    const one = validateSpec({ entity: 'resource', conditions: [
+      { field: 'resourceType', op: 'eq', value: 'DirectoryRole' },
+      { field: 'system', op: 'eq', value: 'azure rm' },
+    ] }, vals);
+    expect(one.errors).toEqual([]);
+    expect(one.spec.conditions.map(c => c.value)).toEqual(['EntraDirectoryRole', 'Azure RM (3c4f)']);
+
+    expect(validateSpec({ entity: 'resource', conditions: [{ field: 'resourceType', op: 'eq', value: 'Role' }] }, vals).errors[0])
+      .toMatch(/"Role" is not a known value/); // AppRole, EntraDirectoryRole, AzureRoleAssignment — ambiguous
+    expect(validateSpec({ entity: 'resource', conditions: [{ field: 'resourceType', op: 'eq', value: 'Gr' }] }, vals).errors[0])
+      .toMatch(/is not a known value/); // too short to trust
+  });
+
   it('refuses nested relations and nested groups', () => {
     const { errors } = validateSpec({
       entity: 'account',
