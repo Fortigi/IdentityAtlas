@@ -91,3 +91,44 @@ describe('ensureBuiltinCrawler — never stores the key in plaintext (H-02)', ()
     expect(workerConfigPlaintextWrites()).toEqual([]);
   });
 });
+
+// SEC-2026-09 M-06: the worker row is found by the bootstrap-owned isBuiltIn
+// flag, created with it, and restored if an older version let it be disabled or
+// stripped of the worker permission.
+describe('ensureBuiltinCrawler — isBuiltIn identity (M-06)', () => {
+  const validRow = (over = {}) => {
+    const key = 'fgc_' + 'b'.repeat(64);
+    const salt = crypto.randomBytes(32);
+    writeFileSync(KEY_FILE, key);
+    return { id: 3, apiKeyHash: scrypt(key, salt), apiKeySalt: salt, ...over };
+  };
+
+  it('looks the worker up by isBuiltIn, not by display name', async () => {
+    queryOneMock.mockResolvedValue(validRow({ enabled: true, permissions: ['ingest', 'refreshViews', 'admin'] }));
+    await ensureBuiltinCrawler();
+    const [sql, params] = queryOneMock.mock.calls[0];
+    expect(sql).toContain('"isBuiltIn" = TRUE');
+    expect(sql).not.toContain('displayName');
+    expect(params).toBeUndefined();
+    expect(sqlCalls(/UPDATE\s+"Crawlers"/i)).toEqual([]);
+  });
+
+  it('creates the worker row with isBuiltIn = TRUE and the worker permissions', async () => {
+    queryOneMock.mockResolvedValue(null);
+    await ensureBuiltinCrawler();
+    const [[sql, params]] = sqlCalls(/INSERT\s+INTO\s+"Crawlers"/i);
+    expect(sql).toMatch(/"isBuiltIn"\)\s+VALUES \(.*TRUE\)/s);
+    expect(JSON.parse(params[5])).toEqual(['ingest', 'refreshViews', 'admin']);
+  });
+
+  it.each([
+    ['disabled', { enabled: false, permissions: ['ingest', 'refreshViews', 'admin'] }],
+    ['stripped of admin', { enabled: true, permissions: ['ingest'] }],
+  ])('re-enables and restores a worker row that was %s', async (_label, over) => {
+    queryOneMock.mockResolvedValue(validRow(over));
+    await ensureBuiltinCrawler();
+    const restores = sqlCalls(/UPDATE\s+"Crawlers"\s+SET enabled = TRUE/i);
+    expect(restores.length).toBe(1);
+    expect(restores[0][1]).toEqual(['["ingest","refreshViews","admin"]', 3]);
+  });
+});
