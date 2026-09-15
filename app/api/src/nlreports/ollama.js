@@ -6,33 +6,52 @@
 // measuring whether a CPU-only model is fast enough, and model listing/warm-up.
 // A production version would sit behind the shared provider abstraction.
 
+import http from 'node:http';
+import https from 'node:https';
+
 const BASE_URL = (process.env.NL_REPORTS_LLM_URL || 'http://llm:11434').replace(/\/$/, '');
-const TIMEOUT_MS = Number(process.env.NL_REPORTS_LLM_TIMEOUT_MS) || 300_000;
+const TIMEOUT_MS = Number(process.env.NL_REPORTS_LLM_TIMEOUT_MS) || 900_000;
+const MAX_RESPONSE_BYTES = 16 * 1024 * 1024;
 export const DEFAULT_MODEL = process.env.NL_REPORTS_DEFAULT_MODEL || 'qwen2.5-coder:7b';
 const KEEP_ALIVE = process.env.NL_REPORTS_KEEP_ALIVE || '10m';
 
 const THINKING_MODEL = /^(qwen3|deepseek-r1|gpt-oss)/i;
 
-async function call(path, body, method = 'POST') {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
-  try {
-    const resp = await fetch(`${BASE_URL}${path}`, {
+// node:http rather than fetch(): fetch gives up when response headers take longer
+// than 5 minutes, and a non-streaming model call only answers once it has read the
+// whole prompt — which on a cold 2-CPU start takes longer than that. Our own
+// timeout (TIMEOUT_MS) is the only limit. Redirects are never followed.
+function call(path, body, method = 'POST') {
+  const url = new URL(`${BASE_URL}${path}`);
+  const payload = body ? JSON.stringify(body) : null;
+  const client = url.protocol === 'https:' ? https : http;
+  return new Promise((resolve, reject) => {
+    const req = client.request(url, {
       method,
-      headers: body ? { 'Content-Type': 'application/json' } : undefined,
-      body: body ? JSON.stringify(body) : undefined,
-      signal: controller.signal,
-      redirect: 'manual',
+      headers: payload ? { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) } : {},
+    }, (res) => {
+      const chunks = [];
+      let size = 0;
+      res.on('data', (chunk) => {
+        size += chunk.length;
+        if (size > MAX_RESPONSE_BYTES) { req.destroy(new Error('LLM response too large')); return; }
+        chunks.push(chunk);
+      });
+      res.on('end', () => {
+        const text = Buffer.concat(chunks).toString('utf8');
+        if (res.statusCode < 200 || res.statusCode >= 300) {
+          reject(new Error(`LLM server returned ${res.statusCode}: ${text.slice(0, 300)}`));
+          return;
+        }
+        try { resolve(JSON.parse(text)); } catch { reject(new Error('LLM server returned invalid JSON')); }
+      });
+      res.on('error', reject);
     });
-    const text = await resp.text();
-    if (!resp.ok) throw new Error(`LLM server returned ${resp.status}: ${text.slice(0, 300)}`);
-    return JSON.parse(text);
-  } catch (e) {
-    if (e.name === 'AbortError') throw new Error(`LLM request timed out after ${TIMEOUT_MS / 1000}s`);
-    throw e;
-  } finally {
-    clearTimeout(timer);
-  }
+    req.setTimeout(TIMEOUT_MS, () => req.destroy(new Error(`LLM request timed out after ${TIMEOUT_MS / 1000}s`)));
+    req.on('error', reject);
+    if (payload) req.write(payload);
+    req.end();
+  });
 }
 
 const ms = (ns) => Math.round((ns || 0) / 1e6);
