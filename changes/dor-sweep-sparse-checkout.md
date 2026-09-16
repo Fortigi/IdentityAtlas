@@ -1,0 +1,2 @@
+- Fixed every automated build failing within seconds of approval ("dor_trusted_spec.sh: No such file or directory"): the hourly sidekick sweep left the build box's workspace holding a single script, so the build started without the rest of the repository
+- Automated builds now clear any leftover partial checkout on their sidekick before they start, so a workspace left in that state can no longer break a build
