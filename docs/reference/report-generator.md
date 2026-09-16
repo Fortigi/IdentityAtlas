@@ -191,6 +191,7 @@ Custom reports arrive with a normal update; **the generator does not install its
 | **Docker** | Re-download `docker-compose.prod.yml` (it gained the service, the internal network and the new env vars), then set `COMPOSE_PROFILES=report-generator` and pull. Without the new compose file the app updates as usual and the generator is simply absent. |
 | **Docker, auto-update** | The [auto-update agent](../admin/auto-updates.md) updates the services in `IA_SERVICES` (`web worker` by default). Add `report-generator` there so the model image follows the channel too. |
 | **Azure** | Re-run the deployment with `deployReportGenerator=true`. Existing resources are updated in place. |
+| **Azure, auto-update** | Set `IA_REPORT_GENERATOR_APP=<prefix>-report-generator` for the Azure update agent, next to `IA_WORKER_APP`, so the model image follows the channel. Without it the generator keeps the previous release's model — it still works, but it is no longer the combination that was measured. |
 | **Desktop (portable)** | Not supported — the portable launcher runs no extra containers. The definition editor works. |
 
 In all cases the feature stays **off** until someone enables it in Admin → Experimental, and the first
