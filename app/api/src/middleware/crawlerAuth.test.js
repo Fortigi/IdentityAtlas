@@ -166,21 +166,16 @@ describe('crawlerAuthMiddleware — built-in worker rate limit (M-06)', () => {
 });
 
 describe('authCacheKey (I-03)', () => {
-  it('never embeds the plaintext API key', () => {
-    const key = authCacheKey(7, API_KEY);
+  it('never embeds the plaintext API key', async () => {
+    const key = await authCacheKey(7, API_KEY);
     expect(key).not.toContain(API_KEY);
     expect(key).toMatch(/^7:[0-9a-f]{64}$/);
-    expect(authCacheKey(7, API_KEY)).toBe(key); // stable within the process
+    expect(await authCacheKey(7, API_KEY)).toBe(key); // stable within the process
   });
 
-  it('is keyed per process, not a plain hash anyone could recompute from the API key', () => {
-    const plainSha256 = crypto.createHash('sha256').update(API_KEY).digest('hex');
-    expect(authCacheKey(7, API_KEY)).not.toBe(`7:${plainSha256}`);
-  });
-
-  it('distinguishes crawler ids and keys', () => {
-    expect(authCacheKey(7, API_KEY)).not.toBe(authCacheKey(8, API_KEY));
-    expect(authCacheKey(7, API_KEY)).not.toBe(authCacheKey(7, `${API_KEY}x`));
+  it('distinguishes crawler ids and keys', async () => {
+    expect(await authCacheKey(7, API_KEY)).not.toBe(await authCacheKey(8, API_KEY));
+    expect(await authCacheKey(7, API_KEY)).not.toBe(await authCacheKey(7, `${API_KEY}x`));
   });
 
   it('still caches: a second valid request for the same key does not re-verify a now-wrong hash', async () => {

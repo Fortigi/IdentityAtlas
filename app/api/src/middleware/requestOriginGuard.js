@@ -139,11 +139,11 @@ export function isCrossSiteWrite(req, policy) {
   return false; // no browser provenance headers → non-browser client
 }
 
-// A client-supplied host name, cut to 100 characters with anything outside
-// printable ASCII (line breaks included) replaced, so it cannot forge log lines.
+// A client-supplied host name, cut to 100 characters with line breaks removed and
+// anything else outside printable ASCII replaced, so it cannot forge log lines.
 export function printableForLog(value) {
   return String(value ?? '')
-    .replace(/[\r\n]+/g, ' ')
+    .replace(/[\r\n]/g, '')
     .slice(0, 100)
     .replace(/[^\x21-\x7e]/g, '?');
 }

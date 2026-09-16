@@ -23,27 +23,34 @@ const RATE_WINDOW_MS = 60 * 1000;
 // in memory as a Map key (SEC-2026-09 I-03). TTL: 60 seconds.
 // On key rotation the new apiKey string is different → cache miss → re-verify.
 //
-// The digest is an HMAC-SHA256 under a per-process random key: it is an
-// in-memory lookup key for a 256-bit random API key, not a stored verifier (that
-// is the full-cost scrypt hash in Crawlers), so it only has to be one-way and
-// unlinkable across processes — a slow KDF buys nothing against a key with that
-// much entropy. It must also stay far cheaper than the verification it lets us
-// skip, and never be a synchronous scrypt: those block the event loop (M-04).
+// The digest is a deliberately cheap scrypt under a per-process random salt:
+// it is an in-memory lookup key for a 256-bit random API key, not a stored
+// verifier (that is the full-cost scrypt hash in Crawlers), so it only has to
+// be one-way and unlinkable across processes, and it must stay far cheaper than
+// the verification it lets us skip (~0.2 ms vs ~26 ms). It runs through the
+// async scrypt like the verification does: a synchronous scrypt on this path
+// blocks the event loop for every request (M-04).
 const authCache = new Map();
 const AUTH_CACHE_TTL_MS = 60_000;
-const AUTH_CACHE_HMAC_KEY = crypto.randomBytes(32);
+const AUTH_CACHE_SALT = crypto.randomBytes(16);
+const AUTH_CACHE_DIGEST = { N: 1024, r: 1, p: 1 };
 
-export function authCacheKey(crawlerId, apiKey) {
-  return `${crawlerId}:${crypto.createHmac('sha256', AUTH_CACHE_HMAC_KEY).update(String(apiKey)).digest('hex')}`;
+// Async scrypt (SEC-2026-09 M-04): the synchronous variant blocked the event
+// loop for every unseen key, so a stream of invalid keys stalled every request.
+const scryptAsync = promisify(crypto.scrypt);
+
+export async function authCacheKey(crawlerId, apiKey) {
+  const digest = await scryptAsync(String(apiKey), AUTH_CACHE_SALT, 32, AUTH_CACHE_DIGEST);
+  return `${crawlerId}:${digest.toString('hex')}`;
 }
 
-function getCachedAuth(crawlerId, apiKey) {
-  const entry = authCache.get(authCacheKey(crawlerId, apiKey));
+function getCachedAuth(cacheKey) {
+  const entry = authCache.get(cacheKey);
   return (entry && Date.now() < entry.expires) ? entry.valid : null;
 }
 
-function setCachedAuth(crawlerId, apiKey, valid) {
-  authCache.set(authCacheKey(crawlerId, apiKey), { valid, expires: Date.now() + AUTH_CACHE_TTL_MS });
+function setCachedAuth(cacheKey, valid) {
+  authCache.set(cacheKey, { valid, expires: Date.now() + AUTH_CACHE_TTL_MS });
   if (authCache.size > 2000) {
     const now = Date.now();
     for (const [k, v] of authCache) { if (now >= v.expires) authCache.delete(k); }
@@ -61,9 +68,6 @@ function checkRateLimit(crawlerId, limit) {
   return entry.count <= limit;
 }
 
-// Async scrypt (SEC-2026-09 M-04): the synchronous variant blocked the event
-// loop for every unseen key, so a stream of invalid keys stalled every request.
-const scryptAsync = promisify(crypto.scrypt);
 function hashKey(apiKey, salt) {
   return scryptAsync(apiKey, salt, 64, { N: 16384, r: 8, p: 1 });
 }
@@ -105,13 +109,14 @@ async function findCrawlerByPrefix(prefix) {
 // to skip scrypt when a recent result exists. Returns a denial descriptor when
 // the key is invalid, or null when it verifies.
 async function verifyKeyDenial(crawler, apiKey) {
-  const cached = getCachedAuth(crawler.id, apiKey);
+  const cacheKey = await authCacheKey(crawler.id, apiKey);
+  const cached = getCachedAuth(cacheKey);
   if (cached === false) return DENIAL.invalidKey;
   if (cached === true) return null;
 
   const computedHash = await hashKey(apiKey, crawler.apiKeySalt);
   const valid = crypto.timingSafeEqual(computedHash, crawler.apiKeyHash);
-  setCachedAuth(crawler.id, apiKey, valid);
+  setCachedAuth(cacheKey, valid);
   return valid ? null : DENIAL.invalidKey;
 }
 

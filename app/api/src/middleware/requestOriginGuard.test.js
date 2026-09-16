@@ -111,11 +111,11 @@ describe('isSameHostOrigin', () => {
 });
 
 describe('printableForLog', () => {
-  it('replaces line breaks, spaces and non-ASCII so a host cannot forge a log line', () => {
-    // A run of line breaks collapses to a single mark before the printable-ASCII
-    // pass, so "\r\n" reads as one "?" rather than two.
-    expect(printableForLog('evil\r\nFAKE entry é')).toBe('evil?FAKE?entry??');
-    expect(printableForLog('a\n\n\r\nb')).toBe('a?b');
+  it('removes line breaks and replaces spaces and non-ASCII so a host cannot forge a log line', () => {
+    // Line breaks are dropped outright before the printable-ASCII pass, so no
+    // run of them can start a new log line.
+    expect(printableForLog('evil\r\nFAKE entry é')).toBe('evilFAKE?entry??');
+    expect(printableForLog('a\n\n\r\nb')).toBe('ab');
     expect(printableForLog('atlas.example.com:3001')).toBe('atlas.example.com:3001');
   });
   it('turns a missing or non-string host into text instead of throwing', () => {
