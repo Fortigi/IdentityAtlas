@@ -46,6 +46,10 @@ jobs:
     permissions:
       contents: read
       packages: write
+      # Build provenance + SBOM attestations (SEC-2026-09 M-14): id-token signs
+      # them via Sigstore, attestations stores them on GitHub.
+      id-token: write
+      attestations: write
 
     steps:
       - name: Determine ref and channel
@@ -227,6 +231,7 @@ jobs:
           echo "float=$FLOAT" >> "$GITHUB_OUTPUT"
 
       - name: Push web image (tested artifact)
+        id: push_web
         run: |
           FLOAT="${{ steps.tags.outputs.float }}"
           VERSION="${{ steps.version.outputs.version }}"
@@ -235,8 +240,14 @@ jobs:
           docker tag identity-atlas-web:qa "$REPO:$VERSION"
           docker push "$REPO:$FLOAT"
           docker push "$REPO:$VERSION"
+          # Registry digest of what was just pushed — the subject of the
+          # provenance and SBOM attestations below.
+          DIGEST=$(docker inspect --format '{{index .RepoDigests 0}}' "$REPO:$VERSION" | cut -d@ -f2)
+          echo "name=$REPO" >> "$GITHUB_OUTPUT"
+          echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
 
       - name: Push worker image (tested artifact)
+        id: push_worker
         run: |
           FLOAT="${{ steps.tags.outputs.float }}"
           VERSION="${{ steps.version.outputs.version }}"
@@ -245,3 +256,60 @@ jobs:
           docker tag identity-atlas-worker:qa "$REPO:$VERSION"
           docker push "$REPO:$FLOAT"
           docker push "$REPO:$VERSION"
+          # Registry digest of what was just pushed — the subject of the
+          # provenance and SBOM attestations below.
+          DIGEST=$(docker inspect --format '{{index .RepoDigests 0}}' "$REPO:$VERSION" | cut -d@ -f2)
+          echo "name=$REPO" >> "$GITHUB_OUTPUT"
+          echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
+
+      # ── Supply-chain attestations (SEC-2026-09 M-14) ─────────────────
+      # Signed build provenance and an SPDX SBOM for each pushed image digest,
+      # stored in the registry next to the image. Verify with:
+      #   gh attestation verify oci://ghcr.io/fortigi/identity-atlas:<tag> --owner Fortigi
+      # The images are pushed by retagging the smoke-tested local build (see
+      # above), so provenance is attached here rather than by build-push-action.
+      - name: Generate web SBOM
+        uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
+        with:
+          image: ${{ steps.push_web.outputs.name }}@${{ steps.push_web.outputs.digest }}
+          format: spdx-json
+          output-file: sbom-web.spdx.json
+          upload-artifact: false
+
+      - name: Generate worker SBOM
+        uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
+        with:
+          image: ${{ steps.push_worker.outputs.name }}@${{ steps.push_worker.outputs.digest }}
+          format: spdx-json
+          output-file: sbom-worker.spdx.json
+          upload-artifact: false
+
+      - name: Attest web build provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-name: ${{ steps.push_web.outputs.name }}
+          subject-digest: ${{ steps.push_web.outputs.digest }}
+          push-to-registry: true
+
+      - name: Attest worker build provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-name: ${{ steps.push_worker.outputs.name }}
+          subject-digest: ${{ steps.push_worker.outputs.digest }}
+          push-to-registry: true
+
+      - name: Attest web SBOM
+        uses: actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e # v4.1.0
+        with:
+          subject-name: ${{ steps.push_web.outputs.name }}
+          subject-digest: ${{ steps.push_web.outputs.digest }}
+          sbom-path: sbom-web.spdx.json
+          push-to-registry: true
+
+      - name: Attest worker SBOM
+        uses: actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e # v4.1.0
+        with:
+          subject-name: ${{ steps.push_worker.outputs.name }}
+          subject-digest: ${{ steps.push_worker.outputs.digest }}
+          sbom-path: sbom-worker.spdx.json
+          push-to-registry: true

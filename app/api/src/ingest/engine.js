@@ -18,6 +18,7 @@
 import crypto from 'crypto';
 import * as db from '../db/connection.js';
 import { createTempTable, bulkInsertIntoTemp } from './tempTableHelpers.js';
+import { NO_SYSTEM_COLUMN_TABLES, ownedRowPredicate } from './systemBoundary.js';
 
 // Cache the schema per table for the lifetime of the process. v5 schema is
 // only changed by migrations at startup, so the cache is safe.
@@ -83,6 +84,7 @@ export async function ingest(_pool, tableName, keyColumns, records, options = {}
     tempTable: existingTempTable = null,
     scopeDeleteFilter = null,
     conflictFilter = null,
+    restrictSystemIds = null,
   } = options;
 
   if (!records || records.length === 0) {
@@ -103,7 +105,7 @@ export async function ingest(_pool, tableName, keyColumns, records, options = {}
     const scoped = scope && Object.keys(scope).length > 0;
     if (syncMode !== 'full' || !scoped) return { inserted: 0, updated: 0, deleted: 0 };
     const deleted = await db.tx(client =>
-      deleteEntireScope(client, tableName, keyColumns, systemId, scope, systemIdColumn, scopeDeleteFilter));
+      deleteEntireScope(client, tableName, keyColumns, systemId, scope, systemIdColumn, scopeDeleteFilter, null, restrictSystemIds));
     return { inserted: 0, updated: 0, deleted };
   }
 
@@ -198,7 +200,7 @@ export async function ingest(_pool, tableName, keyColumns, records, options = {}
       // the cached schema rather than reusing activeColumns.
       const allColumns = await discoverColumns(null, tableName);
       const tableColumnNames = new Set(allColumns.map(c => c.name));
-      deleted = await scopedDelete(client, tableName, keyColumns, tempName, systemId, scope, systemIdColumn, tableColumnNames, scopeDeleteFilter);
+      deleted = await scopedDelete(client, tableName, keyColumns, tempName, systemId, scope, systemIdColumn, tableColumnNames, scopeDeleteFilter, restrictSystemIds);
     }
 
     return { inserted, updated, deleted };
@@ -216,6 +218,7 @@ export async function ingest(_pool, tableName, keyColumns, records, options = {}
 // the function testable against a contract-test pool the way scopedDelete is.
 export async function deleteEntireScope(
   client, tableName, keyColumns, systemId, scope, systemIdColumn, scopeDeleteFilter, tableColumnNames = null,
+  restrictSystemIds = null,
 ) {
   const tempName = `_tmp_wipe_${crypto.randomBytes(6).toString('hex')}`;
   const keyCols = keyColumns.map(k => `"${k}"`).join(', ');
@@ -231,10 +234,51 @@ export async function deleteEntireScope(
     columnNames = new Set(allColumns.map(c => c.name));
   }
   return await scopedDelete(
-    client, tableName, keyColumns, tempName, systemId, scope, systemIdColumn, columnNames, scopeDeleteFilter);
+    client, tableName, keyColumns, tempName, systemId, scope, systemIdColumn, columnNames, scopeDeleteFilter, restrictSystemIds);
 }
 
-export async function scopedDelete(client, tableName, keyColumns, tempName, systemId, scope, systemIdColumn, tableColumnNames, scopeDeleteFilter = null) {
+// The predicates that bound a reconcile delete to one partition: the system, the
+// caller-declared scope, and — for a key restricted to specific systems — the
+// ownership predicate from systemBoundary.js. Pure. Exported for unit tests.
+export function reconcileBounds(tableName, systemId, scope, systemIdColumn, tableColumnNames, restrictSystemIds = null) {
+  const params = [];
+  const clauses = [];
+  if (systemId !== null && systemId !== undefined && tableColumnNames.has(systemIdColumn)) {
+    params.push(systemId);
+    clauses.push(`t."${systemIdColumn}" = $${params.length}`);
+  }
+  for (const [key, value] of Object.entries(scope || {})) {
+    if (value === undefined || value === null) continue;
+    if (!tableColumnNames.has(key)) continue;
+    params.push(value);
+    clauses.push(`t."${key}" = $${params.length}`);
+  }
+  if (Array.isArray(restrictSystemIds)) {
+    params.push(restrictSystemIds);
+    clauses.push(`COALESCE((${ownedRowPredicate(tableName, 't', `$${params.length}`) || 'false'}), false)`);
+  }
+  return { params, clauses };
+}
+
+// May this reconcile run with the bounds it has? A delete with no system, scope or
+// ownership predicate would reconcile the ENTIRE table against one batch — for
+// "Systems" that removes every other system and cascades through the whole
+// dataset (SEC-2026-09 C-01). The single exception is a table that has no systemId
+// column at all (Identities, IdentityMembers, Contexts, ContextMembers,
+// PrincipalActivity) reconciled by an unrestricted key: the built-in worker's
+// crawlers reconcile those tables whole, and that behaviour is kept. Pure.
+export function reconcileAllowed(tableName, clauses, restrictSystemIds) {
+  if (clauses.length > 0) return true;
+  return restrictSystemIds === null && NO_SYSTEM_COLUMN_TABLES.has(tableName);
+}
+
+export async function scopedDelete(client, tableName, keyColumns, tempName, systemId, scope, systemIdColumn, tableColumnNames, scopeDeleteFilter = null, restrictSystemIds = null) {
+  const { params, clauses } = reconcileBounds(tableName, systemId, scope, systemIdColumn, tableColumnNames, restrictSystemIds);
+  if (!reconcileAllowed(tableName, clauses, restrictSystemIds)) {
+    console.warn(`scopedDelete: refusing an unbounded reconcile of ${tableName} (no system, scope or ownership predicate)`);
+    return 0;
+  }
+
   // Before the DELETE: create a unique index on the temp table over the
   // same key columns the NOT EXISTS uses, then ANALYZE so the planner has
   // accurate row counts. Without these the planner does a sequential scan
@@ -249,20 +293,7 @@ export async function scopedDelete(client, tableName, keyColumns, tempName, syst
     console.warn(`scopedDelete: temp index/analyze failed (continuing): ${err.message}`);
   }
 
-  const params = [];
-  let where = '1=1';
-
-  if (systemId !== null && systemId !== undefined && tableColumnNames.has(systemIdColumn)) {
-    params.push(systemId);
-    where += ` AND t."${systemIdColumn}" = $${params.length}`;
-  }
-
-  for (const [key, value] of Object.entries(scope || {})) {
-    if (value === undefined || value === null) continue;
-    if (!tableColumnNames.has(key)) continue;
-    params.push(value);
-    where += ` AND t."${key}" = $${params.length}`;
-  }
+  let where = ['1=1', ...clauses].join(' AND ');
 
   // A crawler full-sync only owns the links IT created. Account linking and
   // analyst decisions own a separate set of IdentityMembers, distinguished by a

@@ -48,8 +48,25 @@ param uploadsShareName string
 @description('Optional: existing Log Analytics workspace ID to forward diagnostic logs to. Empty = no diagnostic settings (still see stdout via the App Service Log Stream).')
 param logAnalyticsWorkspaceId string = ''
 
-@description('Allowed IP CIDR list for ingress. Empty array = open to the internet (default; rely on Entra auth).')
+@description('Allowed IP CIDR list for ingress. Empty array = no IP rules.')
 param allowedIpCidrs array = []
+
+// SEC-2026-09 L-19. 'Allow' stays the default so an upgrade cannot lock an
+// operator (or the worker, which calls this app's public URL) out. With 'Deny'
+// only allowedIpCidrs — and, in the private network mode, the worker subnet —
+// can reach the app. Supplying allowedIpCidrs also implies 'Deny', as before.
+@description('Access-restriction default action for requests that match no rule.')
+@allowed(['Allow', 'Deny'])
+param ipSecurityRestrictionsDefaultAction string = 'Allow'
+
+@description('Private network mode: subnet for regional VNet integration. Empty = no VNet integration (public mode).')
+param vnetIntegrationSubnetId string = ''
+
+@description('Private network mode: the Container Apps subnet of the worker, allowed through the access restrictions.')
+param workerSubnetId string = ''
+
+@description('Versioned Key Vault secret URI of the Postgres admin password (from the bootstrap script).')
+param pgPasswordSecretUri string
 
 // Entra ID auth is intentionally NOT a parameter of this module. Step 1
 // (main.bicep) always deploys in OPEN mode with AUTH_ENABLED=false. To turn
@@ -60,6 +77,21 @@ param allowedIpCidrs array = []
 // expects the full image path. We pass the full image including tag, so no
 // stripping needed — variable kept for clarity.
 var linuxFxVersion = 'DOCKER|${image}'
+
+var privateNetworking = !empty(vnetIntegrationSubnetId)
+var ipRules = [for (cidr, i) in allowedIpCidrs: {
+  name: 'allow-${i}'
+  action: 'Allow'
+  priority: 100 + i
+  ipAddress: cidr
+}]
+var workerRule = empty(workerSubnetId) ? [] : [{
+  name: 'allow-worker-subnet'
+  action: 'Allow'
+  priority: 90
+  vnetSubnetResourceId: workerSubnetId
+}]
+var restrictionsDefaultAction = (ipSecurityRestrictionsDefaultAction == 'Deny' || !empty(allowedIpCidrs)) ? 'Deny' : 'Allow'
 
 // Reference the storage account (created in this RG by the storage module) so we
 // can read its key locally via listKeys(), instead of receiving the key as a
@@ -92,7 +124,12 @@ resource web 'Microsoft.Web/sites@2024-04-01' = {
     serverFarmId: plan.id
     httpsOnly: true
     keyVaultReferenceIdentity: identityId
+    // Private network mode: regional VNet integration, with all outbound traffic
+    // routed through the VNet so Key Vault references, the Azure Files mount and
+    // the Postgres connection use the private endpoints. Public mode: no VNet.
+    virtualNetworkSubnetId: privateNetworking ? vnetIntegrationSubnetId : null
     siteConfig: {
+      vnetRouteAllEnabled: privateNetworking
       linuxFxVersion: linuxFxVersion
       alwaysOn: true
       ftpsState: 'Disabled'
@@ -100,13 +137,8 @@ resource web 'Microsoft.Web/sites@2024-04-01' = {
       minTlsVersion: '1.2'
       healthCheckPath: '/api/health'
       acrUseManagedIdentityCreds: false  // we pull from public ghcr.io, no creds
-      ipSecurityRestrictionsDefaultAction: empty(allowedIpCidrs) ? 'Allow' : 'Deny'
-      ipSecurityRestrictions: [for (cidr, i) in allowedIpCidrs: {
-        name: 'allow-${i}'
-        action: 'Allow'
-        priority: 100 + i
-        ipAddress: cidr
-      }]
+      ipSecurityRestrictionsDefaultAction: restrictionsDefaultAction
+      ipSecurityRestrictions: concat(workerRule, ipRules)
       appSettings: [
         // Container source
         { name: 'DOCKER_REGISTRY_SERVER_URL', value: 'https://ghcr.io' }
@@ -146,14 +178,18 @@ resource web 'Microsoft.Web/sites@2024-04-01' = {
         // reference at startup via the managed identity.
         {
           name: 'POSTGRES_PASSWORD'
-          value: '@Microsoft.KeyVault(SecretUri=${keyVaultUri}secrets/postgres-admin-password/)'
+          // Versioned URI: a password rotation (bootstrap rotatePostgresPassword)
+          // changes this value, which restarts the app onto the new password.
+          value: '@Microsoft.KeyVault(SecretUri=${pgPasswordSecretUri})'
         }
         { name: 'POSTGRES_HOST', value: pgFqdn }
         { name: 'POSTGRES_PORT', value: '5432' }
         { name: 'POSTGRES_DB', value: pgDatabaseName }
         { name: 'POSTGRES_USER', value: pgUsername }
         // Postgres needs SSL. The Node pg library auto-detects via the
-        // PGSSLMODE env var.
+        // PGSSLMODE env var. With node-postgres, sslmode=require verifies the
+        // server certificate chain and hostname (it maps to ssl: true), unlike
+        // libpq's require, so no separate verify-full setting is needed.
         { name: 'PGSSLMODE', value: 'require' }
         // Azure-specific
         { name: 'AZURE_KEY_VAULT_URI', value: keyVaultUri }
@@ -192,3 +228,5 @@ output appId string = web.id
 output appName string = web.name
 output appHostname string = web.properties.defaultHostName
 output appUrl string = 'https://${web.properties.defaultHostName}'
+@description('Every outbound IPv4 address the app can use (comma-separated) — the Postgres firewall allows exactly these in the public network mode.')
+output possibleOutboundIpAddresses string = web.properties.possibleOutboundIpAddresses

@@ -8,7 +8,8 @@
 
 import * as db from '../../db/connection.js';
 import { SOFT_DELETE_TABLES } from '../../ingest/engine.js';
-import { startSession, continueSession, endSession, hasSession } from '../../ingest/sessions.js';
+import { startSession, continueSession, endSession, hasSession, SessionLimitError } from '../../ingest/sessions.js';
+import { ownedRowPredicate } from '../../ingest/systemBoundary.js';
 
 export function applyIngestDefaults(entityType, body) {
   if (!Array.isArray(body.records)) body.records = [];
@@ -20,6 +21,19 @@ export function applyIngestDefaults(entityType, body) {
       if (r && r.governanceResource === undefined) r.governanceResource = (r.resourceType === 'BusinessRole');
     }
   }
+}
+
+// Systems are registered, never reconciled. A full sync to ingest/systems would
+// treat its batch as the complete set of systems and remove every other one,
+// cascading through all of their data (SEC-2026-09 C-01). It is run as a delta
+// instead of being rejected, so a crawler that still sends 'full' (an older worker
+// image during an upgrade, or an external connector) keeps working. Applied after
+// record validation so a new system still has its required fields checked.
+export function coerceSystemsSyncMode(entityType, body) {
+  if (entityType !== 'systems' || body.syncMode !== 'full') return false;
+  body.syncMode = 'delta';
+  console.warn('ingest/systems: syncMode "full" is not supported for systems; running the batch as a delta');
+  return true;
 }
 
 // Recover the system-only prefix used to namespace deterministic GUIDs.
@@ -80,6 +94,7 @@ export async function handleSessionPath(body, ctx) {
     const result = await startSession(null, tableName, keyColumns, normalized, {
       systemId: body.systemId, scope, syncMode: body.syncMode || 'full',
       scopeDeleteFilter, conflictFilter,
+      crawlerId: ctx.crawlerId, isWorker: ctx.isWorker, restrictSystemIds: ctx.restrictSystemIds ?? null,
     });
     return { status: 201, body: {
       syncId: result.syncId, table: tableName,
@@ -87,7 +102,7 @@ export async function handleSessionPath(body, ctx) {
     } };
   }
   if (body.syncSession === 'continue') {
-    if (!body.syncId || !hasSession(body.syncId)) return { status: 400, body: { error: 'Invalid or expired syncId' } };
+    if (!body.syncId || !hasSession(body.syncId, ctx.crawlerId)) return { status: 400, body: { error: 'Invalid or expired syncId' } };
     const result = await continueSession(body.syncId, null, normalized, keyColumns);
     return { status: 200, body: {
       syncId: result.syncId, table: tableName,
@@ -95,7 +110,7 @@ export async function handleSessionPath(body, ctx) {
     } };
   }
   if (body.syncSession === 'end') {
-    if (!body.syncId || !hasSession(body.syncId)) return { status: 400, body: { error: 'Invalid or expired syncId' } };
+    if (!body.syncId || !hasSession(body.syncId, ctx.crawlerId)) return { status: 400, body: { error: 'Invalid or expired syncId' } };
     const result = await endSession(body.syncId, null, normalized, keyColumns, { syncMode: body.syncMode || 'full' });
     return { status: 200, body: {
       syncId: result.syncId, table: tableName,
@@ -109,8 +124,10 @@ export async function handleSessionPath(body, ctx) {
 // Explicit delete-by-id path (Graph /delta @removed rows). Validates the ids are
 // UUIDs, soft- or hard-deletes them, and adds the count to `result.deleted`.
 // Returns a { status, body } error response, or null on success / no-op.
+// For a key restricted to specific systems, only rows those systems own are
+// deleted (SEC-2026-09 H-04); ids of anyone else's rows are ignored.
 // Exported for unit tests.
-export async function applyDeleteByIds(body, tableName, result) {
+export async function applyDeleteByIds(body, tableName, result, restrictSystemIds = null) {
   if (!Array.isArray(body.deletedIds) || body.deletedIds.length === 0) return null;
   // Reject the whole batch if any entry isn't a UUID to avoid ambiguous deletes.
   const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -118,15 +135,23 @@ export async function applyDeleteByIds(body, tableName, result) {
   if (bad) return { status: 400, body: { error: `deletedIds must be UUIDs (got '${String(bad).slice(0, 50)}')` } };
   try {
     // Soft-delete tables stamp deletedAt (kept for audit); others hard-delete.
+    const { clause, params } = deleteOwnershipClause(tableName, restrictSystemIds, body.deletedIds);
     const delRes = SOFT_DELETE_TABLES.has(tableName)
-      ? await db.query(`UPDATE "${tableName}" SET "deletedAt" = now() WHERE id = ANY($1::uuid[]) AND "deletedAt" IS NULL`, [body.deletedIds])
-      : await db.query(`DELETE FROM "${tableName}" WHERE id = ANY($1::uuid[])`, [body.deletedIds]);
+      ? await db.query(`UPDATE "${tableName}" t SET "deletedAt" = now() WHERE t.id = ANY($1::uuid[]) AND t."deletedAt" IS NULL${clause}`, params)
+      : await db.query(`DELETE FROM "${tableName}" t WHERE t.id = ANY($1::uuid[])${clause}`, params);
     result.deleted += delRes.rowCount || 0;
     return null;
   } catch (delErr) {
     console.error(`Delete-by-id failed on ${tableName}:`, delErr.message);
     return { status: 500, body: { error: 'Delete-by-id failed', message: delErr.message } };
   }
+}
+
+// The ownership filter applyDeleteByIds appends for a restricted key. Pure.
+export function deleteOwnershipClause(tableName, restrictSystemIds, deletedIds) {
+  if (!Array.isArray(restrictSystemIds)) return { clause: '', params: [deletedIds] };
+  const owned = ownedRowPredicate(tableName, 't', '$2') || 'false';
+  return { clause: ` AND COALESCE((${owned}), false)`, params: [deletedIds, restrictSystemIds] };
 }
 
 // Systems endpoint only: resolve the resulting system IDs so crawlers can use
@@ -173,6 +198,9 @@ export function writeAuditLog(req, body) {
 // 500. Extracted from the handler's catch so the handler stays under the cognitive
 // complexity ceiling.
 export function ingestErrorResponse(err) {
+  if (err instanceof SessionLimitError) {
+    return { status: 429, body: { error: err.message } };
+  }
   if (err.code === '23514' && /parentContextId cycle/i.test(err.message || '')) {
     return { status: 422, body: { error: 'Context hierarchy would create a cycle', message: err.message } };
   }

@@ -969,8 +969,10 @@ function Register-OmadaSystems {
             [PSCustomObject]@{ systemType = 'Omada'; displayName = $_.DisplayName; tenantId = [string]$_.UId; enabled = $True; syncEnabled = $True }
         })
 
+        # Delta, not full: systems are registered, never reconciled (SEC-2026-09 C-01).
+        # An empty delta says nothing, so zero systems skips the call entirely.
         Write-Step "Registering $($SysRecords.Count) systems in Identity Atlas..."
-        Invoke-IngestAPI -Endpoint 'ingest/systems' -Body @{ syncMode = 'full'; records = ConvertTo-JsonArray $SysRecords } | Out-Null
+        if ($SysRecords.Count -gt 0) { Invoke-IngestAPI -Endpoint 'ingest/systems' -Body @{ syncMode = 'delta'; records = ConvertTo-JsonArray $SysRecords } | Out-Null }
 
         $AtlasSystems = Invoke-RestMethod -Uri "$ApiBaseUrl/systems" -Headers @{ Authorization = "Bearer $ApiKey" } -TimeoutSec 30
         foreach ($S in $AtlasSystems) {

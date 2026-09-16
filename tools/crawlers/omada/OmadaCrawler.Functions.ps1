@@ -168,8 +168,10 @@ function Send-OmadaGovernanceAssignmentForSystem {
 function Register-OmadaEndpointSystem {
     [CmdletBinding()]
     param([Parameter(Mandatory)][string]$BaseUrl)
+    # Systems are registered, never reconciled — a full sync would ask the API to
+    # treat this one record as the complete set of systems (SEC-2026-09 C-01).
     $result = Invoke-IngestAPI -Endpoint 'ingest/systems' -Body @{
-        syncMode = 'full'
+        syncMode = 'delta'
         records  = @(@{ systemType = 'Omada'; displayName = "Omada ($BaseUrl)"; tenantId = $BaseUrl; enabled = $True; syncEnabled = $True })
     }
     $id = [int]($result.systemIds[0])

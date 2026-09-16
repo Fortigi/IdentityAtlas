@@ -100,3 +100,11 @@ describe('SEC-NEW-3: delta-token endpoints are scoped to the crawler\'s systems'
     expect(res.status).toBe(403);
   });
 });
+
+describe('SEC-2026-09 M-05: job-progress is part of the worker protocol', () => {
+  it('rejects an ingest-only key (403) before reading any job', async () => {
+    const res = await request(appAs(ingestOnly)).post('/api/crawlers/job-progress').send({ jobId: 5, step: 'x' });
+    expect(res.status).toBe(403);
+    expect(mockDbQuery).not.toHaveBeenCalled();
+  });
+});

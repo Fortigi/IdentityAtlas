@@ -18,6 +18,9 @@ export function register(test, expect) {
     // Reload demo data after this describe block so the rest of the suite
     // still sees a populated DB (this block wipes the DB as part of the test).
     test.afterAll(async ({ request }) => {
+      // The reload below polls for up to 2 minutes; without this the hook runs under
+      // the default 30 s timeout and fails whenever the demo import takes longer.
+      test.setTimeout(150000);
       const cleanRes = await request.post(`${API}/admin/clean-database`, { data: CLEAN_DATABASE_CONFIRM });
       if (!cleanRes.ok()) return; // mock mode — nothing to restore
       const jobRes = await request.post(`${API}/admin/crawler-jobs`, { data: { jobType: 'demo' } });

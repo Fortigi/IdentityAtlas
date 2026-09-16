@@ -1,6 +1,6 @@
 {
   "summary": {
-    "generatedon": "2026-09-15T12:43:51Z",
+    "generatedon": "2026-09-16T09:42:14Z",
     "parser": "JaCoCo",
     "assemblies": 13,
     "classes": 147,
@@ -8,7 +8,7 @@
     "coveredlines": 6164,
     "uncoveredlines": 538,
     "coverablelines": 6702,
-    "totallines": 18304,
+    "totallines": 18308,
     "linecoverage": 91.9,
     "coveredbranches": 0,
     "totalbranches": 0,
@@ -58,10 +58,10 @@
         { "name": "tools/crawlers/odata/Invoke-ODataGetRequest", "coverage": 88.6, "coveredlines": 70, "coverablelines": 79, "totallines": 305, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 72.7, "coveredmethods": 11, "fullcoveredmethods": 8, "totalmethods": 11 },
         { "name": "tools/crawlers/odata/Invoke-ODataPagedRequest", "coverage": 100, "coveredlines": 9, "coverablelines": 9, "totallines": 53, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 1, "fullcoveredmethods": 1, "totalmethods": 1 },
         { "name": "tools/crawlers/odata/Start-ODataCrawler", "coverage": 0, "coveredlines": 0, "coverablelines": 3, "totallines": 38, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 0, "fullmethodcoverage": 0, "coveredmethods": 0, "fullcoveredmethods": 0, "totalmethods": 1 } ] },
-      { "name": "tools/crawlers/omada", "classes": 5, "coverage": 88.4, "coveredlines": 761, "coverablelines": 860, "totallines": 1974, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 96.9, "fullmethodcoverage": 89.3, "coveredmethods": 64, "fullcoveredmethods": 59, "totalmethods": 66, "classesinassembly": [
+      { "name": "tools/crawlers/omada", "classes": 5, "coverage": 88.4, "coveredlines": 761, "coverablelines": 860, "totallines": 1978, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 96.9, "fullmethodcoverage": 89.3, "coveredmethods": 64, "fullcoveredmethods": 59, "totalmethods": 66, "classesinassembly": [
         { "name": "tools/crawlers/omada/Get-OmadaHelpers", "coverage": 100, "coveredlines": 18, "coverablelines": 18, "totallines": 70, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 5, "fullcoveredmethods": 5, "totalmethods": 5 },
-        { "name": "tools/crawlers/omada/OmadaCrawler.Functions", "coverage": 94.9, "coveredlines": 56, "coverablelines": 59, "totallines": 178, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 91.6, "coveredmethods": 12, "fullcoveredmethods": 11, "totalmethods": 12 },
-        { "name": "tools/crawlers/omada/OmadaCrawler.Phases", "coverage": 99.2, "coveredlines": 499, "coverablelines": 503, "totallines": 1072, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 88.2, "coveredmethods": 34, "fullcoveredmethods": 30, "totalmethods": 34 },
+        { "name": "tools/crawlers/omada/OmadaCrawler.Functions", "coverage": 94.9, "coveredlines": 56, "coverablelines": 59, "totallines": 180, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 91.6, "coveredmethods": 12, "fullcoveredmethods": 11, "totalmethods": 12 },
+        { "name": "tools/crawlers/omada/OmadaCrawler.Phases", "coverage": 99.2, "coveredlines": 499, "coverablelines": 503, "totallines": 1074, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 88.2, "coveredmethods": 34, "fullcoveredmethods": 30, "totalmethods": 34 },
         { "name": "tools/crawlers/omada/OmadaCrawler.Transform", "coverage": 100, "coveredlines": 188, "coverablelines": 188, "totallines": 372, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 13, "fullcoveredmethods": 13, "totalmethods": 13 },
         { "name": "tools/crawlers/omada/Start-OmadaCrawler", "coverage": 0, "coveredlines": 0, "coverablelines": 92, "totallines": 282, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 0, "fullmethodcoverage": 0, "coveredmethods": 0, "fullcoveredmethods": 0, "totalmethods": 2 } ] },
       { "name": "tools/crawlers/scim", "classes": 4, "coverage": 94.6, "coveredlines": 425, "coverablelines": 449, "totallines": 1121, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 97.8, "fullmethodcoverage": 95.6, "coveredmethods": 45, "fullcoveredmethods": 44, "totalmethods": 46, "classesinassembly": [
