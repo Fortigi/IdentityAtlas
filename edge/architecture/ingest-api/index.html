@@ -2870,6 +2870,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#keys-restricted-to-specific-systems" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Keys restricted to specific systems
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#validation-rules" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5334,6 +5345,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#keys-restricted-to-specific-systems" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Keys restricted to specific systems
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#validation-rules" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5721,6 +5743,7 @@
 </tr>
 </tbody>
 </table>
+<p><code>POST /api/ingest/systems</code> is never reconciled: systems are registered, not synced, so a <code>full</code> batch there is run as a <code>delta</code>. A reconcile delete that would have no system, scope or ownership bound at all is refused and reports <code>deleted: 0</code>.</p>
 <h3 id="deterministic-guid-generation">Deterministic GUID Generation<a class="headerlink" href="#deterministic-guid-generation" title="Permanent link">&para;</a></h3>
 <p>For source systems that don't use GUIDs (e.g., Omada uses integer IDs):</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="p">{</span>
@@ -5894,6 +5917,15 @@
 <li><strong>Current-state scoped:</strong> operates on the current table rows (no temporal filtering needed in v5)</li>
 <li><strong>Batch-scoped:</strong> <code>AND NOT EXISTS (SELECT 1 FROM #temp WHERE ...)</code></li>
 </ul>
+<h3 id="keys-restricted-to-specific-systems">Keys restricted to specific systems<a class="headerlink" href="#keys-restricted-to-specific-systems" title="Permanent link">&para;</a></h3>
+<p>A crawler key with <code>systemIds</code> set can only read and write data of those systems. On top of the envelope <code>systemId</code> check, every batch from such a key is refused (<code>403</code>) when:</p>
+<ul>
+<li>a record carries a <code>systemId</code> (or a context's <code>scopeSystemId</code>) outside the key's systems;</li>
+<li>the batch would update an existing row owned by another system — ownership is the row's <code>systemId</code>; for tables without one it is derived: a synced context's <code>scopeSystemId</code>, a context member's context, an identity member's or activity row's principal, and an identity's linked principals;</li>
+<li>it is a <code>full</code> sync of <code>identities</code>, <code>identity-members</code>, <code>contexts</code>, <code>context-members</code> or <code>principal-activity</code> without a <code>scope</code>.</li>
+</ul>
+<p><code>deletedIds</code> and the full-sync reconcile only reach rows the key's systems own. Unrestricted keys (<code>systemIds</code> null, such as the built-in worker) are not subject to these checks. Columns the server or analysts own (<code>deletedAt</code>, <code>riskScore</code>, <code>riskTier</code>, <code>linkConfidence</code>, <code>analystOverride</code>, <code>createdAt</code>, <code>updatedAt</code> and similar) are never written from a crawler record; a field with such a name is kept in <code>extendedAttributes</code> like any other attribute.</p>
+<p>A key can hold at most 3 multi-batch sessions open at once, and the API at most 7 in total (<code>INGEST_MAX_SESSIONS_PER_CRAWLER</code>, <code>INGEST_MAX_SESSIONS_GLOBAL</code>); a <code>start</code> beyond that returns <code>429</code>. The built-in worker is only subject to the global limit. A record's <code>extendedAttributes</code> may hold at most 500 keys and 512 KB.</p>
 <h3 id="validation-rules">Validation Rules<a class="headerlink" href="#validation-rules" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
