@@ -54,6 +54,22 @@ export const manyRelationsOf = (entityName) =>
  * @param {Function} aliasOf  maps an entity word ("groups", "resource") to an entity name, or undefined
  */
 export function validateCompare(entityName, c, err, aliasOf) {
+  const rel = compareRelation(entityName, c, err);
+  if (!rel) return null;
+  const reference = compareReference(rel, c, err, aliasOf);
+  if (!reference) return null;
+
+  const out = { type: 'compare', relation: c.relation, measure: c.measure, reference };
+  if (c.measure === 'similar') {
+    const n = Number(c.minSimilarity ?? DEFAULT_MIN_SIMILARITY);
+    if (!Number.isFinite(n) || n < 1 || n > 100) { err('minSimilarity must be a percentage between 1 and 100'); return null; }
+    out.minSimilarity = Math.round(n);
+  }
+  return out;
+}
+
+/** The many-relation a compare reaches over (with a known measure), or null. */
+function compareRelation(entityName, c, err) {
   const entity = ENTITIES[entityName];
   const rel = has(entity.relations, c.relation) ? entity.relations[c.relation] : null;
   if (!rel || rel.cardinality !== 'many') {
@@ -64,6 +80,11 @@ export function validateCompare(entityName, c, err, aliasOf) {
     err(`compare measure must be one of: ${Object.keys(MEASURES).join(', ')}`);
     return null;
   }
+  return rel;
+}
+
+/** The normalised reference { entity, name, id?, type? }, or null. */
+function compareReference(rel, c, err, aliasOf) {
   const refEntityName = aliasOf(c.reference?.entity);
   if (!refEntityName) {
     err(`compare reference needs an entity (${Object.keys(ENTITIES).join(', ')})`);
@@ -78,15 +99,10 @@ export function validateCompare(entityName, c, err, aliasOf) {
   if (!name) { err('compare reference needs the name of the record to compare with'); return null; }
   if (name.length > 200) { err('compare reference name is too long'); return null; }
 
-  const out = { type: 'compare', relation: c.relation, measure: c.measure, reference: { entity: refEntityName, name } };
-  if (typeof c.reference.id === 'string' && UUID.test(c.reference.id)) out.reference.id = c.reference.id;
-  if (typeof c.reference.type === 'string' && c.reference.type.length <= 100) out.reference.type = c.reference.type;
-  if (c.measure === 'similar') {
-    const n = Number(c.minSimilarity ?? DEFAULT_MIN_SIMILARITY);
-    if (!Number.isFinite(n) || n < 1 || n > 100) { err('minSimilarity must be a percentage between 1 and 100'); return null; }
-    out.minSimilarity = Math.round(n);
-  }
-  return out;
+  const reference = { entity: refEntityName, name };
+  if (typeof c.reference.id === 'string' && UUID.test(c.reference.id)) reference.id = c.reference.id;
+  if (typeof c.reference.type === 'string' && c.reference.type.length <= 100) reference.type = c.reference.type;
+  return reference;
 }
 
 /** Every compare condition in a spec, top-level first, then inside groups. */

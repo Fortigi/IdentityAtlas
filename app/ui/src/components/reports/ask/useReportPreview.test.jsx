@@ -1,0 +1,59 @@
+// @vitest-environment jsdom
+//
+// The builder's working definition and preview run — the paths the page mount test
+// does not reach: a hand edit marking the preview stale, a resolve that asks again,
+// and a resolve that fails.
+import { describe, it, expect } from 'vitest';
+import { makeAuthFetch, jsonResponse, renderHook, act } from '@ui/test-utils/renderWithProviders';
+import { useReportPreview } from './useReportPreview';
+
+const SENT = { entity: 'user', conditions: [] };
+const NORMALISED = { entity: 'user', conditions: [], limit: 500 };
+const ASK = (name) => ({ kind: 'reference', path: [0], name, message: `Did you mean ${name}?`, choices: [] });
+
+function setup(handler) {
+  const authFetch = makeAuthFetch(handler);
+  return { hook: renderHook(() => useReportPreview(authFetch)), authFetch };
+}
+
+describe('useReportPreview', () => {
+  it('marks a hand edit as out of date, and a run adopts the definition the server ran', async () => {
+    const { hook } = setup({ '/run': { spec: NORMALISED, total: 0 } });
+
+    act(() => hook.result.current.editSpec(SENT));
+    expect(hook.result.current).toMatchObject({ spec: SENT, dirty: true, result: null });
+
+    await act(() => hook.result.current.run(SENT));
+    expect(hook.result.current).toMatchObject({ spec: NORMALISED, dirty: false, running: false, runError: null });
+    expect(hook.result.current.result.total).toBe(0);
+  });
+
+  it('asks again when the resolved definition still names something ambiguous, without running it', async () => {
+    const half = { entity: 'user', conditions: [{ value: 'half' }] };
+    const { hook, authFetch } = setup({
+      '/run': jsonResponse({ error: 'Invalid', confirm: ASK('first'), spec: SENT }, { ok: false, status: 400 }),
+      '/resolve': { spec: half, confirm: ASK('second') },
+    });
+
+    await act(() => hook.result.current.run(SENT));
+    expect(hook.result.current.confirm).toEqual({ spec: SENT, confirm: ASK('first') });
+
+    await act(() => hook.result.current.confirmChoice({ path: [0], name: 'x' }));
+
+    expect(hook.result.current.confirm).toEqual({ spec: half, confirm: ASK('second') });
+    expect(hook.result.current.spec).toEqual(half);
+    expect(authFetch.mock.calls.filter(([u]) => u.endsWith('/run'))).toHaveLength(1);
+  });
+
+  it('shows why a resolve failed and stops running', async () => {
+    const { hook } = setup({
+      '/run': jsonResponse({ error: 'Invalid', confirm: ASK('first'), spec: SENT }, { ok: false, status: 400 }),
+      '/resolve': jsonResponse({ error: 'Lookup unavailable' }, { ok: false, status: 503 }),
+    });
+
+    await act(() => hook.result.current.run(SENT));
+    await act(() => hook.result.current.confirmChoice({ path: [0], name: 'x' }));
+
+    expect(hook.result.current).toMatchObject({ runError: 'Lookup unavailable', running: false });
+  });
+});

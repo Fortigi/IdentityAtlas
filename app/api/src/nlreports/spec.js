@@ -79,42 +79,53 @@ function uniquePartialMatch(known, s) {
   return hits.length === 1 ? hits[0] : undefined;
 }
 
+const DAY_OPERATORS = new Set(['withinLastDays', 'olderThanDays']);
+
+function coerceDays(fieldName, op, value, err) {
+  const n = Number(value);
+  if (!Number.isInteger(n) || n < 0 || n > 36500) err(`"${fieldName}" ${op} needs a whole number of days`);
+  return n;
+}
+
+function coerceEnum(fieldName, field, value, values, err) {
+  const s = String(value);
+  const known = field.valuesFrom ? values?.[field.valuesFrom] : null;
+  if (!known || known.length === 0) return s;
+  const match = known.find(k => k.toLowerCase() === s.toLowerCase()) ?? uniquePartialMatch(known, s);
+  if (!match) err(`"${s}" is not a known value of "${fieldName}". Known values: ${known.join(', ')}`);
+  return match ?? s;
+}
+
+function coerceText(fieldName, field, value, values, err) {
+  const s = String(value);
+  if (s.length > 200) err(`value for "${fieldName}" is too long`);
+  return s;
+}
+
+// One coercer per field type; any other type (text, date, …) is kept as a string.
+const COERCERS_BY_TYPE = {
+  boolean: (fieldName, field, value, values, err) => {
+    const b = coerceBoolean(value);
+    if (b === undefined) err(`"${fieldName}" is true/false, got "${value}"`);
+    return b;
+  },
+  number: (fieldName, field, value, values, err) => {
+    const n = Number(value);
+    if (!Number.isFinite(n)) err(`"${fieldName}" is a number, got "${value}"`);
+    return n;
+  },
+  enum: coerceEnum,
+};
+
 function coerceValue(fieldName, field, op, value, values, err) {
   if (!OPERATORS[op].needsValue) return undefined;
   if (value === undefined || value === null || value === '') {
     err(`condition on "${fieldName}" with operator "${op}" needs a value`);
     return undefined;
   }
-  if (op === 'withinLastDays' || op === 'olderThanDays') {
-    const n = Number(value);
-    if (!Number.isInteger(n) || n < 0 || n > 36500) err(`"${fieldName}" ${op} needs a whole number of days`);
-    return n;
-  }
-  switch (field.type) {
-    case 'boolean': {
-      const b = coerceBoolean(value);
-      if (b === undefined) err(`"${fieldName}" is true/false, got "${value}"`);
-      return b;
-    }
-    case 'number': {
-      const n = Number(value);
-      if (!Number.isFinite(n)) err(`"${fieldName}" is a number, got "${value}"`);
-      return n;
-    }
-    case 'enum': {
-      const s = String(value);
-      const known = field.valuesFrom ? values?.[field.valuesFrom] : null;
-      if (!known || known.length === 0) return s;
-      const match = known.find(k => k.toLowerCase() === s.toLowerCase()) ?? uniquePartialMatch(known, s);
-      if (!match) err(`"${s}" is not a known value of "${fieldName}". Known values: ${known.join(', ')}`);
-      return match ?? s;
-    }
-    default: {
-      const s = String(value);
-      if (s.length > 200) err(`value for "${fieldName}" is too long`);
-      return s;
-    }
-  }
+  if (DAY_OPERATORS.has(op)) return coerceDays(fieldName, op, value, err);
+  const coerce = has(COERCERS_BY_TYPE, field.type) ? COERCERS_BY_TYPE[field.type] : coerceText;
+  return coerce(fieldName, field, value, values, err);
 }
 
 function validateFieldCondition(entityName, c, values, err) {
@@ -151,51 +162,59 @@ function validateConditionList(entityName, list, values, err, depth) {
   return list.map(c => validateCondition(entityName, c, values, err, depth)).filter(Boolean);
 }
 
+function validateRelationCondition(entityName, c, values, err, depth) {
+  const entity = ENTITIES[entityName];
+  const rel = has(entity.relations, c.relation) ? entity.relations[c.relation] : null;
+  if (!rel) {
+    err(`"${c.relation}" is not a relation of ${entityName}. Relations: ${Object.keys(entity.relations).join(', ')}`);
+    return null;
+  }
+  if (depth > 0) { err('a relation condition cannot be nested inside another relation'); return null; }
+  const inner = validateConditionList(rel.target, c.conditions, values, err, depth + 1)
+    .filter(ic => {
+      if (ic.type === 'field') return true;
+      err(`conditions inside relation "${c.relation}" must be plain field conditions`);
+      return false;
+    });
+  return {
+    type: 'relation', relation: c.relation,
+    quantifier: c.quantifier === 'none' ? 'none' : 'some',
+    match: normalizeMatch(c.match), conditions: inner,
+  };
+}
+
+function validateCompareCondition(entityName, c, values, err, depth) {
+  if (depth > 0) { err('a compare condition cannot be nested inside a relation'); return null; }
+  return validateCompare(entityName, c, err, aliasOf);
+}
+
+function validateGroupCondition(entityName, c, values, err, depth) {
+  if (depth > 0) { err('groups cannot be nested'); return null; }
+  const inner = (Array.isArray(c.conditions) ? c.conditions : [])
+    .map(ic => {
+      if (inferType(ic) === 'group') { err('groups cannot be nested'); return null; }
+      return validateCondition(entityName, ic, values, err, 0);
+    })
+    .filter(Boolean);
+  if (inner.length === 0) return null;
+  return { type: 'group', match: normalizeMatch(c.match), conditions: inner };
+}
+
+const CONDITION_VALIDATORS = {
+  field: validateFieldCondition,
+  relation: validateRelationCondition,
+  compare: validateCompareCondition,
+  group: validateGroupCondition,
+};
+
 function validateCondition(entityName, c, values, err, depth) {
   if (!c || typeof c !== 'object') { err('each condition must be an object'); return null; }
   const type = inferType(c);
-  if (type === 'field') return validateFieldCondition(entityName, c, values, err);
-
-  if (type === 'relation') {
-    const entity = ENTITIES[entityName];
-    const rel = has(entity.relations, c.relation) ? entity.relations[c.relation] : null;
-    if (!rel) {
-      err(`"${c.relation}" is not a relation of ${entityName}. Relations: ${Object.keys(entity.relations).join(', ')}`);
-      return null;
-    }
-    if (depth > 0) { err('a relation condition cannot be nested inside another relation'); return null; }
-    const inner = validateConditionList(rel.target, c.conditions, values, err, depth + 1)
-      .filter(ic => {
-        if (ic.type === 'field') return true;
-        err(`conditions inside relation "${c.relation}" must be plain field conditions`);
-        return false;
-      });
-    return {
-      type: 'relation', relation: c.relation,
-      quantifier: c.quantifier === 'none' ? 'none' : 'some',
-      match: normalizeMatch(c.match), conditions: inner,
-    };
+  if (!has(CONDITION_VALIDATORS, type)) {
+    err(`unknown condition type "${type}"`);
+    return null;
   }
-
-  if (type === 'compare') {
-    if (depth > 0) { err('a compare condition cannot be nested inside a relation'); return null; }
-    return validateCompare(entityName, c, err, aliasOf);
-  }
-
-  if (type === 'group') {
-    if (depth > 0) { err('groups cannot be nested'); return null; }
-    const inner = (Array.isArray(c.conditions) ? c.conditions : [])
-      .map(ic => {
-        if (inferType(ic) === 'group') { err('groups cannot be nested'); return null; }
-        return validateCondition(entityName, ic, values, err, 0);
-      })
-      .filter(Boolean);
-    if (inner.length === 0) return null;
-    return { type: 'group', match: normalizeMatch(c.match), conditions: inner };
-  }
-
-  err(`unknown condition type "${type}"`);
-  return null;
+  return CONDITION_VALIDATORS[type](entityName, c, values, err, depth);
 }
 
 /** Resolve a column reference to { key, label, kind, ... } or null. */
@@ -238,6 +257,45 @@ export function availableColumns(entityName) {
   return refs.map(r => resolveColumn(entityName, r));
 }
 
+// The requested columns, deduplicated; falls back to the entity's defaults and
+// adds the comparison columns when the report compares but asked for none.
+function isSkippedColumn(entity, ref, comparing) {
+  if (entity.implicit && ref === entity.implicit.field) return true;
+  // Comparison columns only mean something when the report compares.
+  return typeof ref === 'string' && ref.startsWith('compare.') && !comparing;
+}
+
+function validateColumns(entityName, rawColumns, comparing, err) {
+  const entity = ENTITIES[entityName];
+  let columns = [];
+  const seen = new Set();
+  for (const ref of Array.isArray(rawColumns) ? rawColumns : []) {
+    if (isSkippedColumn(entity, ref, comparing)) continue;
+    const colDef = resolveColumn(entityName, ref);
+    if (!colDef) { err(`"${ref}" is not a valid column for ${entityName}`); continue; }
+    if (!seen.has(colDef.key)) { seen.add(colDef.key); columns.push(colDef.key); }
+  }
+  if (columns.length === 0) columns = [...entity.defaultColumns];
+  if (comparing && !columns.some(c => c.startsWith('compare.'))) columns.push(...DEFAULT_COMPARE_COLUMNS);
+  if (columns.length > MAX_COLUMNS) { err(`at most ${MAX_COLUMNS} columns`); columns = columns.slice(0, MAX_COLUMNS); }
+  return columns;
+}
+
+function validateSort(entityName, rawSort, err) {
+  if (!rawSort || !rawSort.field) return undefined;
+  if (!has(ENTITIES[entityName].fields, rawSort.field)) {
+    err(`cannot sort on "${rawSort.field}"`);
+    return undefined;
+  }
+  return { field: rawSort.field, direction: rawSort.direction === 'desc' ? 'desc' : 'asc' };
+}
+
+function normalizeLimit(rawLimit) {
+  if (rawLimit === undefined || rawLimit === null) return DEFAULT_LIMIT;
+  const n = Number(rawLimit);
+  return Number.isInteger(n) && n > 0 ? Math.min(n, MAX_LIMIT) : DEFAULT_LIMIT;
+}
+
 /**
  * Validate and normalise a spec.
  * @param {object} raw     the spec as produced by the model (or edited in the UI)
@@ -253,41 +311,14 @@ export function validateSpec(raw, values = {}) {
   if (!entityName) {
     return { ok: false, spec: null, errors: [`unknown entity "${raw.entity}". Use one of: ${Object.keys(ENTITIES).join(', ')}`] };
   }
-  const entity = ENTITIES[entityName];
-
   const conditions = validateConditionList(entityName, raw.conditions, values, err, 0);
   if (conditions.length > MAX_CONDITIONS) err(`at most ${MAX_CONDITIONS} conditions`);
   const compares = compareConditions({ conditions });
   if (compares.length > MAX_COMPARES) err(`at most ${MAX_COMPARES} compare conditions`);
 
-  let columns = [];
-  const seen = new Set();
-  for (const ref of Array.isArray(raw.columns) ? raw.columns : []) {
-    if (entity.implicit && ref === entity.implicit.field) continue;
-    // Comparison columns only mean something when the report compares.
-    if (typeof ref === 'string' && ref.startsWith('compare.') && compares.length === 0) continue;
-    const colDef = resolveColumn(entityName, ref);
-    if (!colDef) { err(`"${ref}" is not a valid column for ${entityName}`); continue; }
-    if (!seen.has(colDef.key)) { seen.add(colDef.key); columns.push(colDef.key); }
-  }
-  if (columns.length === 0) columns = [...entity.defaultColumns];
-  if (compares.length && !columns.some(c => c.startsWith('compare.'))) columns.push(...DEFAULT_COMPARE_COLUMNS);
-  if (columns.length > MAX_COLUMNS) { err(`at most ${MAX_COLUMNS} columns`); columns = columns.slice(0, MAX_COLUMNS); }
-
-  let sort;
-  if (raw.sort && raw.sort.field) {
-    if (has(entity.fields, raw.sort.field)) {
-      sort = { field: raw.sort.field, direction: raw.sort.direction === 'desc' ? 'desc' : 'asc' };
-    } else {
-      err(`cannot sort on "${raw.sort.field}"`);
-    }
-  }
-
-  let limit = DEFAULT_LIMIT;
-  if (raw.limit !== undefined && raw.limit !== null) {
-    const n = Number(raw.limit);
-    if (Number.isInteger(n) && n > 0) limit = Math.min(n, MAX_LIMIT);
-  }
+  const columns = validateColumns(entityName, raw.columns, compares.length > 0, err);
+  const sort = validateSort(entityName, raw.sort, err);
+  const limit = normalizeLimit(raw.limit);
 
   const spec = { entity: entityName, match: normalizeMatch(raw.match), conditions, columns, limit };
   if (sort) spec.sort = sort;

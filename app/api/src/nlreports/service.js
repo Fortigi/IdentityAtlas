@@ -132,6 +132,112 @@ function parseReply(content) {
 }
 
 /**
+ * The conversation sent to the model: system prompt, earlier turns, then the
+ * question with the deployment's values in front of it (when there are any).
+ */
+function buildMessages(question, history, values) {
+  const valuesBlock = buildValuesBlock(values);
+  return [
+    { role: 'system', content: buildSystemPrompt() },
+    ...history,
+    { role: 'user', content: valuesBlock ? `${valuesBlock}\n\nRequest: ${question}` : question },
+  ];
+}
+
+/** After MAX_CLARIFY_ROUNDS clarifying questions the model must produce a report. */
+export function schemaFor(history) {
+  const clarifyRounds = history.filter(h => h.role === 'assistant' && parseReply(h.content)?.kind === 'clarify').length;
+  return clarifyRounds >= MAX_CLARIFY_ROUNDS ? REPORT_ONLY_SCHEMA : RESPONSE_SCHEMA;
+}
+
+// A turn is the state of one interpret() call as the repair rounds move it along:
+// { raw, reply, timing, repaired }. The context `ctx` is { question, model, messages, values }.
+
+/** The fields every interpret() reply ends with. */
+function replyMeta(ctx, turn) {
+  return { raw: turn.raw, timing: turn.timing, model: ctx.model, repaired: turn.repaired };
+}
+
+/** Ask again after the model's last answer, with a correction. Counts as a repair. */
+async function askForCorrection(ctx, turn, correction) {
+  turn.repaired = true;
+  const retry = await chat({
+    model: ctx.model,
+    schema: REPORT_ONLY_SCHEMA,
+    messages: [
+      ...ctx.messages,
+      { role: 'assistant', content: turn.raw },
+      { role: 'user', content: correction },
+    ],
+  });
+  turn.timing = addTiming(turn.timing, retry.timing);
+  return { content: retry.content, reply: parseReply(retry.content) };
+}
+
+/** One repair round: show the model exactly what the validator rejected. */
+async function repairInvalidSpec(ctx, turn, result) {
+  if (result.ok) return result;
+  const retry = await askForCorrection(ctx, turn,
+    `That definition has problems:\n- ${result.errors.join('\n- ')}\nReply with the corrected complete JSON.`);
+  if (retry.reply?.kind !== 'report') return result;
+  turn.raw = retry.content;
+  turn.reply = retry.reply;
+  return validateSpec(turn.reply.spec, ctx.values);
+}
+
+/** The most common small-model mistake: "X or Y" compiled as X AND Y. */
+async function repairMissingOr(ctx, turn, result) {
+  if (!result.ok || !needsOrRepair(ctx.question, result.spec)) return result;
+  const retry = await askForCorrection(ctx, turn, OR_REPAIR_MESSAGE);
+  const retriedResult = retry.reply?.kind === 'report' ? validateSpec(retry.reply.spec, ctx.values) : null;
+  // Only take the correction when it is valid and actually contains an "any".
+  if (!retriedResult?.ok || !hasAnyMatch(retriedResult.spec)) return result;
+  turn.raw = retry.content;
+  turn.reply = retry.reply;
+  return retriedResult;
+}
+
+/** A report reply: repair it if needed, look named objects up, and shape the answer. */
+async function answerReport(ctx, turn) {
+  let result = validateSpec(turn.reply.spec, ctx.values);
+  result = await repairInvalidSpec(ctx, turn, result);
+  result = await repairMissingOr(ctx, turn, result);
+  const errors = result.errors;
+  // Still invalid after the repair round: say so. Validation drops what it rejects
+  // and still hands back a spec, so returning that as a report would quietly answer
+  // a smaller question than the one asked ("groups with X and <unknown>" → "groups
+  // with X") with nothing on screen to show the difference.
+  if (!result.ok || !result.spec) {
+    return { kind: 'error', message: 'The model produced a report definition that could not be used.', errors, ...replyMeta(ctx, turn) };
+  }
+  const assumptions = Array.isArray(turn.reply.assumptions) ? turn.reply.assumptions.map(String) : [];
+  // Named objects ("business role X", "the Sales group") are looked up; a fuzzy match is confirmed by the analyst.
+  const { confirm } = await resolveNamedObjects(result.spec, query);
+  if (confirm) {
+    return { kind: 'confirm', spec: result.spec, confirm, assumptions, ...replyMeta(ctx, turn) };
+  }
+  const compiled = compileSpec(result.spec);
+  return {
+    kind: 'report',
+    spec: result.spec,
+    assumptions,
+    explanation: explainSpec(result.spec),
+    warnings: errors,
+    sql: compiled.text,
+    ...replyMeta(ctx, turn),
+  };
+}
+
+function answerClarify(ctx, turn) {
+  return {
+    kind: 'clarify',
+    question: String(turn.reply.question || ''),
+    options: Array.isArray(turn.reply.options) ? turn.reply.options.map(String).slice(0, 4) : [],
+    ...replyMeta(ctx, turn),
+  };
+}
+
+/**
  * @param {object} args
  * @param {string} args.question  the newest user message
  * @param {{role:'user'|'assistant', content:string}[]} [args.history]  earlier turns
@@ -144,103 +250,15 @@ export async function interpret({ question, history = [], model = DEFAULT_MODEL 
   // Never let this sink the question itself — the model answers either way.
   await ensureWarm().promise.catch(() => {});
   const values = await loadValues();
-  const clarifyRounds = history.filter(h => h.role === 'assistant' && parseReply(h.content)?.kind === 'clarify').length;
-  const schema = clarifyRounds >= MAX_CLARIFY_ROUNDS ? REPORT_ONLY_SCHEMA : RESPONSE_SCHEMA;
+  const schema = schemaFor(history);
+  const ctx = { question, model, values, messages: buildMessages(question, history, values) };
 
-  const valuesBlock = buildValuesBlock(values);
-  const messages = [
-    { role: 'system', content: buildSystemPrompt() },
-    ...history,
-    { role: 'user', content: valuesBlock ? `${valuesBlock}\n\nRequest: ${question}` : question },
-  ];
+  const first = await chat({ model, messages: ctx.messages, schema });
+  const turn = { raw: first.content, reply: parseReply(first.content), timing: first.timing, repaired: false };
 
-  const first = await chat({ model, messages, schema });
-  let timing = first.timing;
-  let raw = first.content;
-  let reply = parseReply(raw);
-  let repaired = false;
-  let errors = [];
-
-  if (reply?.kind === 'report') {
-    let result = validateSpec(reply.spec, values);
-    if (!result.ok) {
-      // One repair round: show the model exactly what the validator rejected.
-      repaired = true;
-      const retry = await chat({
-        model,
-        schema: REPORT_ONLY_SCHEMA,
-        messages: [
-          ...messages,
-          { role: 'assistant', content: raw },
-          { role: 'user', content: `That definition has problems:\n- ${result.errors.join('\n- ')}\nReply with the corrected complete JSON.` },
-        ],
-      });
-      timing = addTiming(timing, retry.timing);
-      const retried = parseReply(retry.content);
-      if (retried?.kind === 'report') {
-        raw = retry.content;
-        reply = retried;
-        result = validateSpec(reply.spec, values);
-      }
-    }
-    if (result.ok && needsOrRepair(question, result.spec)) {
-      // The most common small-model mistake: "X or Y" compiled as X AND Y.
-      repaired = true;
-      const retry = await chat({
-        model,
-        schema: REPORT_ONLY_SCHEMA,
-        messages: [
-          ...messages,
-          { role: 'assistant', content: raw },
-          { role: 'user', content: OR_REPAIR_MESSAGE },
-        ],
-      });
-      timing = addTiming(timing, retry.timing);
-      const retried = parseReply(retry.content);
-      const retriedResult = retried?.kind === 'report' ? validateSpec(retried.spec, values) : null;
-      // Only take the correction when it is valid and actually contains an "any".
-      if (retriedResult?.ok && hasAnyMatch(retriedResult.spec)) {
-        raw = retry.content;
-        reply = retried;
-        result = retriedResult;
-      }
-    }
-    errors = result.errors;
-    // Still invalid after the repair round: say so. Validation drops what it rejects
-    // and still hands back a spec, so returning that as a report would quietly answer
-    // a smaller question than the one asked ("groups with X and <unknown>" → "groups
-    // with X") with nothing on screen to show the difference.
-    if (!result.ok || !result.spec) {
-      return { kind: 'error', message: 'The model produced a report definition that could not be used.', errors, raw, timing, model, repaired };
-    }
-    const assumptions = Array.isArray(reply.assumptions) ? reply.assumptions.map(String) : [];
-    // Named objects ("business role X", "the Sales group") are looked up; a fuzzy match is confirmed by the analyst.
-    const { confirm } = await resolveNamedObjects(result.spec, query);
-    if (confirm) {
-      return { kind: 'confirm', spec: result.spec, confirm, assumptions, raw, timing, model, repaired };
-    }
-    const compiled = compileSpec(result.spec);
-    return {
-      kind: 'report',
-      spec: result.spec,
-      assumptions,
-      explanation: explainSpec(result.spec),
-      warnings: errors,
-      sql: compiled.text,
-      raw, timing, model, repaired,
-    };
-  }
-
-  if (reply?.kind === 'clarify') {
-    return {
-      kind: 'clarify',
-      question: String(reply.question || ''),
-      options: Array.isArray(reply.options) ? reply.options.map(String).slice(0, 4) : [],
-      raw, timing, model, repaired,
-    };
-  }
-
-  return { kind: 'error', message: 'The model reply was not valid JSON.', raw, timing, model, repaired };
+  if (turn.reply?.kind === 'report') return answerReport(ctx, turn);
+  if (turn.reply?.kind === 'clarify') return answerClarify(ctx, turn);
+  return { kind: 'error', message: 'The model reply was not valid JSON.', ...replyMeta(ctx, turn) };
 }
 
 function formatCell(type, v) {

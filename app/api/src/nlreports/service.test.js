@@ -6,8 +6,8 @@ vi.mock('./llm.js', () => ({ chat: vi.fn(), warm: vi.fn(), DEFAULT_MODEL: 'test-
 
 import { query } from '../db/connection.js';
 import { chat, warm } from './llm.js';
-import { buildSystemPrompt } from './prompt.js';
-import { ensureWarm, hasAnyMatch, interpret, needsOrRepair, warmAtStartup, warmupState } from './service.js';
+import { buildSystemPrompt, REPORT_ONLY_SCHEMA, RESPONSE_SCHEMA } from './prompt.js';
+import { ensureWarm, hasAnyMatch, interpret, needsOrRepair, schemaFor, warmAtStartup, warmupState } from './service.js';
 
 describe('warm-up at API start', () => {
   const env = { ...process.env };
@@ -78,6 +78,25 @@ describe('OR detection', () => {
     expect(needsOrRepair("guests that don't have a manager, or whose manager is disabled", OR_SPEC)).toBe(false);
     expect(needsOrRepair('guests without a manager whose manager is disabled', AND_SPEC)).toBe(false);
     expect(needsOrRepair('groups with Orion or Order in the name', { entity: 'group', match: 'all', conditions: [AND_SPEC.conditions[0]] })).toBe(false);
+  });
+});
+
+describe('schemaFor', () => {
+  const clarify = { role: 'assistant', content: JSON.stringify({ kind: 'clarify', question: '?' }) };
+
+  it('allows clarifying questions until two have been asked, then demands a report', () => {
+    expect(schemaFor([])).toBe(RESPONSE_SCHEMA);
+    expect(schemaFor([clarify])).toBe(RESPONSE_SCHEMA);
+    expect(schemaFor([clarify, { role: 'user', content: 'x' }, clarify])).toBe(REPORT_ONLY_SCHEMA);
+  });
+
+  it('counts only assistant turns that parse as a clarification', () => {
+    const notClarify = [
+      { role: 'user', content: clarify.content },
+      { role: 'assistant', content: 'not json' },
+      { role: 'assistant', content: JSON.stringify({ kind: 'report' }) },
+    ];
+    expect(schemaFor([clarify, ...notClarify])).toBe(RESPONSE_SCHEMA);
   });
 });
 

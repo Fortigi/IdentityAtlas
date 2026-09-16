@@ -151,23 +151,31 @@ router.post('/nl-reports/warm', analystGate, async (req, res) => {
   }
 });
 
-router.post('/nl-reports/interpret', analystGate, async (req, res) => {
-  const question = typeof req.body?.question === 'string' ? req.body.question.trim() : '';
-  const history = Array.isArray(req.body?.history) ? req.body.history : [];
-  if (!question || question.length > MAX_QUESTION) return res.status(400).json({ error: `Question is required (max ${MAX_QUESTION} characters)` });
-  if (history.length > MAX_HISTORY) return res.status(400).json({ error: 'Conversation is too long — start a new question' });
+const isHistoryTurn = (h) => !!h && ['user', 'assistant'].includes(h.role) && typeof h.content === 'string' && h.content.length <= 20000;
+
+/**
+ * Check an interpret request body.
+ * @returns {{ error: string } | { question: string, history: {role:string, content:string}[] }}
+ */
+export function parseInterpretRequest(body) {
+  const question = typeof body?.question === 'string' ? body.question.trim() : '';
+  const history = Array.isArray(body?.history) ? body.history : [];
+  if (!question || question.length > MAX_QUESTION) return { error: `Question is required (max ${MAX_QUESTION} characters)` };
+  if (history.length > MAX_HISTORY) return { error: 'Conversation is too long — start a new question' };
   // `model` in the body is an evaluation override (tools/nl-reports/eval.mjs); the UI never sends it.
-  if (req.body?.model !== undefined && !MODEL_NAME.test(String(req.body.model))) return res.status(400).json({ error: 'Invalid model name' });
-  const cleanHistory = [];
-  for (const h of history) {
-    if (!h || !['user', 'assistant'].includes(h.role) || typeof h.content !== 'string' || h.content.length > 20000) {
-      return res.status(400).json({ error: 'Invalid conversation history' });
-    }
-    cleanHistory.push({ role: h.role, content: h.content });
-  }
+  if (body?.model !== undefined && !MODEL_NAME.test(String(body.model))) return { error: 'Invalid model name' };
+  if (!history.every(isHistoryTurn)) return { error: 'Invalid conversation history' };
+  const cleanHistory = history.map(h => ({ role: h.role, content: h.content }));
   if (cleanHistory.reduce((n, h) => n + h.content.length, 0) > MAX_HISTORY_CHARS) {
-    return res.status(400).json({ error: 'Conversation is too long — start a new question' });
+    return { error: 'Conversation is too long — start a new question' };
   }
+  return { question, history: cleanHistory };
+}
+
+router.post('/nl-reports/interpret', analystGate, async (req, res) => {
+  const parsed = parseInterpretRequest(req.body);
+  if (parsed.error) return res.status(400).json({ error: parsed.error });
+  const { question, history: cleanHistory } = parsed;
   const started = Date.now();
   const who = `user=${forLog(userOf(req), 200)}`;
   // One question at a time per analyst. The model server has a single slot, so a

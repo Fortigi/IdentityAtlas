@@ -36,7 +36,7 @@ import { interpret, runSpec, ensureWarm } from '../nlreports/service.js';
 import { modelState } from '../nlreports/llm.js';
 import { applyChoice, resolveNamedObjects } from '../nlreports/references.js';
 import { createSavedReport, deleteSavedReport, prepareSavedReport } from '../nlreports/savedReports.js';
-import router from './nlReports.js';
+import router, { parseInterpretRequest } from './nlReports.js';
 
 const app = mountRouter(router);
 const api = () => request(app);
@@ -64,6 +64,30 @@ describe('the experimental feature gate', () => {
     expect(interpret).not.toHaveBeenCalled();
     expect(createSavedReport).not.toHaveBeenCalled();
     expect(deleteSavedReport).not.toHaveBeenCalled();
+  });
+});
+
+describe('parseInterpretRequest', () => {
+  it('returns the trimmed question and a history stripped to role and content', () => {
+    expect(parseInterpretRequest({ question: '  all guests ', history: [{ role: 'user', content: 'a', extra: 1 }], model: 'qwen2.5:3b' }))
+      .toEqual({ question: 'all guests', history: [{ role: 'user', content: 'a' }] });
+  });
+
+  it('treats a missing body, a non-string question and a non-array history as empty', () => {
+    expect(parseInterpretRequest(undefined)).toEqual({ error: 'Question is required (max 2000 characters)' });
+    expect(parseInterpretRequest({ question: 42 })).toEqual({ error: 'Question is required (max 2000 characters)' });
+    expect(parseInterpretRequest({ question: 'ok', history: 'not a list' })).toEqual({ question: 'ok', history: [] });
+  });
+
+  it('rejects a null turn, a non-string content and a turn one character over the limit', () => {
+    for (const turn of [null, { role: 'user', content: 5 }, { role: 'user', content: 'x'.repeat(20001) }]) {
+      expect(parseInterpretRequest({ question: 'ok', history: [turn] })).toEqual({ error: 'Invalid conversation history' });
+    }
+    expect(parseInterpretRequest({ question: 'ok', history: [{ role: 'user', content: 'x'.repeat(10000) }] }).error).toBeUndefined();
+  });
+
+  it('checks the model name before the history', () => {
+    expect(parseInterpretRequest({ question: 'ok', model: 'bad name', history: [null] })).toEqual({ error: 'Invalid model name' });
   });
 });
 
