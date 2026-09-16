@@ -9,10 +9,9 @@
 
 import * as db from '../../db/connection.js';
 import { toDateOnly } from '../../lib/dateOnly.js';
-import { aggregateActivityLateral } from '../../lib/principalActivity.js';
 import {
-  activityNotices, daysBetween, fetchMeasurementMoments, measurementCte,
-  parseDays, daysParameterSchema,
+  activityNotices, daysBetween, enabledUserActivityRow, enabledUserActivitySql,
+  fetchMeasurementMoments, parseDays, daysParameterSchema,
 } from '../activityWindow.js';
 
 const DEFAULT_DAYS = 30;
@@ -40,33 +39,18 @@ export default {
   async run(params, ctx) {
     const days = parseDays(params?.days, DEFAULT_DAYS);
 
-    const r = await db.query(`
-      WITH measurement AS (${measurementCte()})
-      SELECT p.id, p."displayName", p.email, p."createdDateTime",
-             s."displayName" AS "systemName", m."measuredAt",
-             (SELECT COUNT(*) FROM "ResourceAssignments" ra
-               WHERE ra."principalId" = p.id AND ra."deletedAt" IS NULL)::int AS "assignmentCount"
-        FROM "Principals" p
-        JOIN measurement m ON m."systemId" = p."systemId"
-        LEFT JOIN "Systems" s ON s.id = p."systemId"
-        ${aggregateActivityLateral('p')}
-       WHERE p."deletedAt" IS NULL
-         AND p."principalType" = 'User'
-         AND p."accountEnabled" IS TRUE
-         AND act."lastSignIn" IS NULL
+    const r = await db.query(enabledUserActivitySql({
+      columns: 'p."createdDateTime"',
+      condition: `act."lastSignIn" IS NULL
          AND p."createdDateTime" IS NOT NULL
-         AND p."createdDateTime" < m."measuredAt" - make_interval(days => $1)
-       ORDER BY p."createdDateTime"`, [days]);
+         AND p."createdDateTime" < m."measuredAt" - make_interval(days => $1)`,
+      orderBy: 'p."createdDateTime"',
+    }), [days]);
 
     const rows = r.rows.map(row => ({
-      displayName: row.displayName,
-      email: row.email,
-      systemName: row.systemName,
+      ...enabledUserActivityRow(row),
       createdOn: toDateOnly(row.createdDateTime),
       daysSinceCreated: daysBetween(new Date(row.createdDateTime), new Date(row.measuredAt)),
-      assignmentCount: row.assignmentCount,
-      measuredOn: toDateOnly(row.measuredAt),
-      _entity: { kind: 'user', id: row.id },
     }));
 
     ctx?.log?.(`never-signed-in report: ${rows.length} unused account(s) older than ${days} day(s)`);

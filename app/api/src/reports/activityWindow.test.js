@@ -10,7 +10,7 @@ vi.mock('../db/connection.js');
 import { query } from '../db/connection.js';
 import {
   MEASUREMENT_WARNING_DAYS, activityNotices, daysBetween, fetchMeasurementMoments,
-  measurementCte, parseDays, daysParameterSchema,
+  enabledUserActivityRow, enabledUserActivitySql, measurementCte, parseDays, daysParameterSchema,
 } from './activityWindow.js';
 
 const at = (iso) => new Date(iso);
@@ -187,6 +187,40 @@ describe('daysParameterSchema', () => {
       properties: {
         days: { type: 'integer', title: 'Days', description: 'How long.', default: 30 },
       },
+    });
+  });
+});
+
+describe('enabledUserActivitySql', () => {
+  const finding = { condition: 'act."lastSignIn" IS NULL', orderBy: 'p."displayName"' };
+
+  it('scopes to enabled, live user accounts before the finding', () => {
+    const sql = enabledUserActivitySql(finding);
+    expect(sql).toContain('p."deletedAt" IS NULL');
+    expect(sql).toContain(`p."principalType" = 'User'`);
+    expect(sql).toMatch(/p\."accountEnabled" IS TRUE\s+AND act\."lastSignIn" IS NULL\s+ORDER BY p\."displayName"$/);
+  });
+
+  it('inner-joins the measurement, so a system with no activity data drops out', () => {
+    expect(enabledUserActivitySql(finding)).toMatch(/\n\s*JOIN measurement m ON m\."systemId" = p\."systemId"/);
+    expect(enabledUserActivitySql(finding)).not.toContain('LEFT JOIN measurement');
+  });
+
+  it('selects extra columns only when a report asks for them', () => {
+    expect(enabledUserActivitySql(finding)).toMatch(/p\.email,\s+s\."displayName" AS "systemName"/);
+    expect(enabledUserActivitySql({ ...finding, columns: 'p."createdDateTime"' }))
+      .toMatch(/p\.email,\s+p\."createdDateTime",\s+s\."displayName" AS "systemName"/);
+  });
+});
+
+describe('enabledUserActivityRow', () => {
+  it('maps the shared fields, dates the measurement and links the account', () => {
+    expect(enabledUserActivityRow({
+      id: 'u1', displayName: 'Ann', email: 'ann@x', systemName: 'Entra',
+      assignmentCount: 3, measuredAt: at('2026-09-15T23:30:00.000Z'), lastSignIn: 'ignored',
+    })).toEqual({
+      displayName: 'Ann', email: 'ann@x', systemName: 'Entra', assignmentCount: 3,
+      measuredOn: '2026-09-15', _entity: { kind: 'user', id: 'u1' },
     });
   });
 });

@@ -15,7 +15,7 @@
 
 import * as db from '../db/connection.js';
 import { toDateOnly } from '../lib/dateOnly.js';
-import { AGG_RESOURCE_ID, AGGREGATE_ACTIVITY_TYPES } from '../lib/principalActivity.js';
+import { AGG_RESOURCE_ID, AGGREGATE_ACTIVITY_TYPES, aggregateActivityLateral } from '../lib/principalActivity.js';
 
 /** Older than this and the measurement itself is the finding. */
 export const MEASUREMENT_WARNING_DAYS = 2;
@@ -133,6 +133,52 @@ export function activityNotices(moments, now = new Date()) {
 export function parseDays(value, fallback) {
   const n = Number(value);
   return Number.isInteger(n) && n > 0 && n <= 36500 ? n : fallback;
+}
+
+/**
+ * The query both member-account activity reports stand on: enabled user
+ * accounts in a system that HAS activity data, each with its system, aggregate
+ * last sign-in, the system's measurement moment and how many assignments it
+ * holds. A report adds only its own finding — extra select columns, the
+ * condition that makes a row a finding, and the order.
+ *
+ * The inner JOIN on the measurement is load-bearing: a system with no activity
+ * data drops out instead of having every account declared stale or unused.
+ *
+ * @param {{columns?: string, condition: string, orderBy: string}} finding
+ *   plain SQL using the aliases `p` (principal), `act` (activity) and `m`
+ *   (measurement); `columns` is extra select expressions, comma-separated.
+ */
+export function enabledUserActivitySql({ columns = '', condition, orderBy }) {
+  const extra = columns ? `${columns},\n             ` : '';
+  return `
+      WITH measurement AS (${measurementCte()})
+      SELECT p.id, p."displayName", p.email,
+             ${extra}s."displayName" AS "systemName",
+             act."lastSignIn", m."measuredAt",
+             (SELECT COUNT(*) FROM "ResourceAssignments" ra
+               WHERE ra."principalId" = p.id AND ra."deletedAt" IS NULL)::int AS "assignmentCount"
+        FROM "Principals" p
+        JOIN measurement m ON m."systemId" = p."systemId"
+        LEFT JOIN "Systems" s ON s.id = p."systemId"
+        ${aggregateActivityLateral('p')}
+       WHERE p."deletedAt" IS NULL
+         AND p."principalType" = 'User'
+         AND p."accountEnabled" IS TRUE
+         AND ${condition}
+       ORDER BY ${orderBy}`;
+}
+
+/** The row fields every `enabledUserActivitySql` report shows, with its detail-page link. */
+export function enabledUserActivityRow(row) {
+  return {
+    displayName: row.displayName,
+    email: row.email,
+    systemName: row.systemName,
+    assignmentCount: row.assignmentCount,
+    measuredOn: toDateOnly(row.measuredAt),
+    _entity: { kind: 'user', id: row.id },
+  };
 }
 
 /** The threshold schema shared by the activity reports' `parametersSchema`. */

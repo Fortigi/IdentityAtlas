@@ -24,10 +24,15 @@ const CORE_TIMESTAMPS = [
   ['lastFailedSignInDateTime', 'Last failed sign-in'],
 ];
 
-// A value in extendedAttributes is shown as a timestamp when it parses as one;
-// anything else (a status count, a flag) is shown verbatim.
+// A value in extendedAttributes is shown as a timestamp when it is an ISO date;
+// anything else (a status count, a flag) is shown verbatim. The ISO check comes
+// first because Date.parse alone also accepts strings like "3" or "Enabled 1".
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}/;
+
 function renderExtendedValue(value) {
-  if (typeof value === 'string' && !Number.isNaN(Date.parse(value))) return formatDate(value);
+  if (typeof value === 'string' && ISO_DATE_RE.test(value) && !Number.isNaN(Date.parse(value))) {
+    return formatDate(value);
+  }
   if (value === null || value === undefined || value === '') return '—';
   return typeof value === 'object' ? JSON.stringify(value) : String(value);
 }

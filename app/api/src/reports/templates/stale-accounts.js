@@ -7,10 +7,9 @@
 
 import * as db from '../../db/connection.js';
 import { toDateOnly } from '../../lib/dateOnly.js';
-import { aggregateActivityLateral } from '../../lib/principalActivity.js';
 import {
-  activityNotices, daysBetween, fetchMeasurementMoments, measurementCte,
-  parseDays, daysParameterSchema,
+  activityNotices, daysBetween, enabledUserActivityRow, enabledUserActivitySql,
+  fetchMeasurementMoments, parseDays, daysParameterSchema,
 } from '../activityWindow.js';
 
 const DEFAULT_DAYS = 90;
@@ -39,35 +38,18 @@ export default {
   async run(params, ctx) {
     const days = parseDays(params?.days, DEFAULT_DAYS);
 
-    const r = await db.query(`
-      WITH measurement AS (${measurementCte()})
-      SELECT p.id, p."displayName", p.email,
-             s."displayName" AS "systemName",
-             act."lastSignIn", m."measuredAt",
-             (SELECT COUNT(*) FROM "ResourceAssignments" ra
-               WHERE ra."principalId" = p.id AND ra."deletedAt" IS NULL)::int AS "assignmentCount"
-        FROM "Principals" p
-        JOIN measurement m ON m."systemId" = p."systemId"
-        LEFT JOIN "Systems" s ON s.id = p."systemId"
-        ${aggregateActivityLateral('p')}
-       WHERE p."deletedAt" IS NULL
-         AND p."principalType" = 'User'
-         AND p."accountEnabled" IS TRUE
-         AND act."lastSignIn" IS NOT NULL
+    const r = await db.query(enabledUserActivitySql({
+      condition: `act."lastSignIn" IS NOT NULL
          AND act."lastSignIn" < m."measuredAt" - make_interval(days => $1)
          AND EXISTS (SELECT 1 FROM "ResourceAssignments" ra
-                      WHERE ra."principalId" = p.id AND ra."deletedAt" IS NULL)
-       ORDER BY act."lastSignIn"`, [days]);
+                      WHERE ra."principalId" = p.id AND ra."deletedAt" IS NULL)`,
+      orderBy: 'act."lastSignIn"',
+    }), [days]);
 
     const rows = r.rows.map(row => ({
-      displayName: row.displayName,
-      email: row.email,
-      systemName: row.systemName,
+      ...enabledUserActivityRow(row),
       lastSignIn: toDateOnly(row.lastSignIn),
       daysInactive: daysBetween(new Date(row.lastSignIn), new Date(row.measuredAt)),
-      assignmentCount: row.assignmentCount,
-      measuredOn: toDateOnly(row.measuredAt),
-      _entity: { kind: 'user', id: row.id },
     }));
 
     ctx?.log?.(`stale-accounts report: ${rows.length} account(s) idle for over ${days} day(s)`);
