@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
+import ModalBackdrop from '@ui/components/ModalBackdrop';
 import {
   fmtMs,
   fmtBytes,
@@ -229,8 +230,11 @@ export function JobPhasesModal({ job, onClose }) {
   if (!job) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 dark:bg-opacity-70 flex items-center justify-center z-50" onClick={onClose}>
-      <div className="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-lg shadow-xl w-full max-w-4xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+    <ModalBackdrop
+      className="fixed inset-0 bg-black bg-opacity-50 dark:bg-opacity-70 flex items-center justify-center z-50"
+      onDismiss={onClose}
+      panelClassName="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-lg shadow-xl w-full max-w-4xl max-h-[85vh] flex flex-col"
+    >
         <ModalHeader job={job} phases={phases} onClose={onClose} />
         <ModalTabs activeTab={activeTab} onSelect={setActiveTab} trace={trace} isRunning={isRunning} />
         <div className="overflow-auto p-6 flex-1">
@@ -239,7 +243,6 @@ export function JobPhasesModal({ job, onClose }) {
             <TracePanel trace={trace} isRunning={isRunning} traceError={traceError} traceRef={traceRef} />
           )}
         </div>
-      </div>
-    </div>
+    </ModalBackdrop>
   );
 }

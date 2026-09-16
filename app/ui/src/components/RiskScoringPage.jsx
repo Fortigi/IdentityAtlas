@@ -3,6 +3,7 @@ import { useAuth } from '@ui/auth/AuthGate';
 import { useCanManageCrawlers } from '@ui/auth/usePermissions';
 import { useDialog } from '@ui/components/dialogContext';
 import { TIER_STYLES } from '@ui/utils/tierStyles';
+import { FOCUS_RING } from '@ui/utils/keyActivate';
 
 // Human-readable noun for the current risk-scoring view, used in the search
 // field's placeholder and its accessible label.
@@ -142,8 +143,16 @@ function EntityTable({ entities, entityType, onOpenDetail }) {
                 onClick={() => openDetail(entity)}
                 title="Open detail page"
               >
+                {/* The name is the keyboard-reachable control; the row click is
+                    a redundant pointer shortcut over the rest of the row. */}
                 <td className="py-2 px-3">
-                  <span className="text-blue-600 dark:text-blue-400 hover:underline font-medium">{entity.displayName}</span>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); openDetail(entity); }}
+                    className={`text-left text-blue-600 dark:text-blue-400 hover:underline font-medium rounded ${FOCUS_RING}`}
+                  >
+                    {entity.displayName}
+                  </button>
                   {(entityType === 'group' || entityType === 'business-role') && entity.description && (
                     <p className="text-xs text-gray-600 dark:text-gray-500 truncate max-w-xs">{entity.description}</p>
                   )}

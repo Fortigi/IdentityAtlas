@@ -3,17 +3,16 @@
 // clicks an I badge; extracted so the orchestrator stays focused on the grid.
 // Renders nothing until there is a `pathExplain` payload to show.
 
+import ModalBackdrop from '@ui/components/ModalBackdrop';
+
 export default function InheritancePathModal({ pathExplain, onClose }) {
   if (!pathExplain) return null;
   return (
-    <div
+    <ModalBackdrop
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/30"
-      onClick={onClose}
+      onDismiss={onClose}
+      panelClassName="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-lg w-full mx-4 p-5"
     >
-      <div
-        className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-lg w-full mx-4 p-5"
-        onClick={(e) => e.stopPropagation()}
-      >
         <div className="flex items-start justify-between mb-3">
           <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
             How this inherited access arose
@@ -53,7 +52,6 @@ export default function InheritancePathModal({ pathExplain, onClose }) {
         {!pathExplain.loading && !pathExplain.error && !(pathExplain.sources?.length) && (
           <p className="text-sm text-gray-500">No scope-inheritance path found — this may be a directly-declared indirect grant.</p>
         )}
-      </div>
-    </div>
+    </ModalBackdrop>
   );
 }

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useId, useState, useRef, useEffect } from 'react';
 import ChevronDown from './ChevronDown';
 
 // A free-text input with a clickable dropdown of live suggestions, sharing the same
@@ -29,6 +29,7 @@ export default function Combobox({
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
   const ref = useRef(null);
+  const listboxId = `${useId()}-listbox`;
 
   useEffect(() => {
     if (!open) return undefined;
@@ -67,6 +68,8 @@ export default function Combobox({
         autoComplete="off"
         role="combobox"
         aria-expanded={open}
+        aria-controls={open ? listboxId : undefined}
+        aria-activedescendant={open && active >= 0 && active < rows.length ? `${listboxId}-${active}` : undefined}
         onChange={(e) => { onChange(e.target.value); setOpen(true); }}
         onFocus={() => setOpen(true)}
         onKeyDown={onKeyDown}
@@ -82,10 +85,20 @@ export default function Combobox({
         <ChevronDown />
       </button>
       {open && (
-        <ul className="absolute z-20 mt-1 max-h-48 w-full overflow-auto rounded border border-gray-200 bg-white py-1 text-sm shadow-lg dark:border-gray-600 dark:bg-gray-700">
+        // A listbox of options, not a plain list: the keyboard path is the
+        // input's ArrowUp/Down/Enter (aria-activedescendant tracks the highlight),
+        // so the rows are `option`s rather than tab stops of their own.
+        <ul
+          id={listboxId}
+          role="listbox"
+          className="absolute z-20 mt-1 max-h-48 w-full overflow-auto rounded border border-gray-200 bg-white py-1 text-sm shadow-lg dark:border-gray-600 dark:bg-gray-700"
+        >
           {rows.map((r, idx) => (
             <li
               key={`${r.value}-${idx}`}
+              id={`${listboxId}-${idx}`}
+              role="option"
+              aria-selected={idx === active}
               onMouseDown={(e) => { e.preventDefault(); choose(r.value); }}
               onMouseEnter={() => setActive(idx)}
               className={`cursor-pointer px-2 py-1 ${idx === active ? 'bg-blue-50 dark:bg-blue-900/30' : ''} ${

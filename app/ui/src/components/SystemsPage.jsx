@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
 import { useFetch } from '@ui/hooks/useFetch';
+import { clickableRowProps, FOCUS_RING } from '@ui/utils/keyActivate';
 import EmptyState from './EmptyState';
 
 function formatRelativeTime(dateStr) {
@@ -36,9 +37,18 @@ function SystemStatusBadge({ enabled }) {
   );
 }
 
-function SystemCardHeader({ sys, enabled, resourceTypes, owners, onToggle }) {
+// The header is the card's expand/collapse control. It wraps an <h3> and other
+// flow content, so it can't be a <button> (that would be invalid HTML) — it gets
+// the button role plus the shared Enter/Space handler instead.
+function SystemCardHeader({ sys, enabled, resourceTypes, owners, isExpanded, onToggle }) {
   return (
-    <div className="px-5 py-4 cursor-pointer" onClick={onToggle}>
+    <div
+      className={`px-5 py-4 cursor-pointer ${FOCUS_RING}`}
+      {...clickableRowProps(onToggle, {
+        label: `${isExpanded ? 'Hide' : 'Show'} details for ${sys.displayName || sys.id}`,
+        expanded: !!isExpanded,
+      })}
+    >
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 flex items-center justify-center text-sm font-bold flex-shrink-0">
@@ -162,6 +172,7 @@ function SystemCard({ sys, isExpanded, onToggle }) {
         enabled={enabled}
         resourceTypes={resourceTypes}
         owners={owners}
+        isExpanded={isExpanded}
         onToggle={onToggle}
       />
 

@@ -3,6 +3,8 @@ import { useAuth } from '@ui/auth/AuthGate';
 import useEntityPage from '@ui/hooks/useEntityPage';
 import FilterBar from './FilterBar';
 import EmptyState from './EmptyState';
+import SortableTh from './SortableTh';
+import FilterPill from './FilterPill';
 import { TAG_COLORS, tagPillStyle } from '@ui/utils/colors';
 import { useIsDark } from '@ui/contexts/ThemeContext';
 
@@ -72,15 +74,11 @@ export default function EntityListPage({
       <div className="flex flex-wrap items-center gap-2 mb-3 text-sm">
         <span className="font-medium text-gray-600 dark:text-gray-400">Tags:</span>
         {ep.tags.map(t => (
-          <span
+          <FilterPill
             key={t.id}
-            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium cursor-pointer border ${
-              ep.activeTagFilter === t.name
-                ? 'ring-2 ring-offset-1 ring-blue-400'
-                : 'hover:opacity-80'
-            }`}
+            active={ep.activeTagFilter === t.name}
             style={tagPillStyle(t.color, isDark)}
-            onClick={() => {
+            onToggle={() => {
               if (ep.activeTagFilter === t.name) {
                 ep.removeFilter(tagFilterKey);
               } else {
@@ -88,17 +86,12 @@ export default function EntityListPage({
               }
             }}
             title={`${t.assignmentCount} ${label} tagged — click to filter`}
+            onDelete={() => ep.deleteTag(t.id)}
+            deleteLabel={`Delete tag ${t.name}`}
           >
             {t.name}
             <span className="text-[10px] opacity-70">({t.assignmentCount})</span>
-            <button
-              onClick={(e) => { e.stopPropagation(); ep.deleteTag(t.id); }}
-              className="ml-0.5 hover:opacity-100 opacity-50"
-              title="Delete tag"
-            >
-              &times;
-            </button>
-          </span>
+          </FilterPill>
         ))}
         <button
           onClick={() => ep.setShowCreateTag(!ep.showCreateTag)}
@@ -333,25 +326,23 @@ function EntityListTable({ ep, label, tableColumns, renderEntityCell, renderData
                   />
                 </th>
                 {tableColumns.map(col => (
-                  <th
+                  <SortableTh
                     key={col.key}
-                    onClick={() => ep.toggleSort(col.key)}
-                    className="text-left px-3 py-2 font-medium text-gray-700 dark:text-gray-300 cursor-pointer select-none hover:bg-gray-100 dark:hover:bg-gray-700"
-                  >
-                    <span className="inline-flex items-center gap-1">
-                      {col.label}
-                      {ep.sortCol === col.key ? (
-                        <span className="text-blue-600 text-[10px]">{ep.sortDir === 'asc' ? '▲' : '▼'}</span>
-                      ) : (
-                        <span className="text-gray-500 dark:text-gray-500 text-[10px]">{'▴'}</span>
-                      )}
-                    </span>
-                  </th>
+                    label={col.label}
+                    active={ep.sortCol === col.key}
+                    dir={ep.sortDir}
+                    onSort={() => ep.toggleSort(col.key)}
+                  />
                 ))}
                 <th className="text-left px-3 py-2 font-medium text-gray-700 dark:text-gray-300">Tags</th>
               </tr>
             </thead>
             <tbody>
+              {/* Row click is a redundant pointer shortcut for the row's own
+                  checkbox — deliberately NOT a role="button" + tabIndex row.
+                  Every row already exposes a labelled checkbox, so the keyboard
+                  path exists; adding a second stop per row would put 50 extra
+                  tab stops on every page. */}
               {ep.sortedItems.map(item => (
                 <tr
                   key={item.id}

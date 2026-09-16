@@ -7,6 +7,7 @@
 // single-responsibility units.
 
 import { formatCompactNumber as formatNumber, formatRelativeTime } from '@ui/utils/formatters';
+import { FOCUS_RING } from '@ui/utils/keyActivate';
 
 export default function StatsPanel({ stats, loading, error, hasData, reload, onNavigate }) {
   return (
@@ -81,28 +82,30 @@ function StatsGrid({ stats, onNavigate }) {
 }
 
 // ─── StatCard ─────────────────────────────────────────────────────────
+// A card with a navigation target becomes a real <button>; a card with none (or
+// an empty bucket) stays an inert <div> so it never lands in the tab order.
 function StatCard({ label, value, onClick }) {
   const clickable = typeof onClick === 'function' && value > 0;
   const empty = !value;
-  return (
-    <div
-      onClick={clickable ? onClick : undefined}
-      className={`p-3 rounded-xl transition-all ${
-        clickable
-          ? 'cursor-pointer bg-white dark:bg-gray-800 ring-1 ring-lime-200 dark:ring-lime-700/50 hover:ring-lime-500 dark:hover:ring-lime-600 hover:shadow-md hover:-translate-y-0.5'
-          : empty
-            ? 'bg-gray-50 dark:bg-gray-700/50 ring-1 ring-gray-100 dark:ring-gray-600'
-            : 'bg-white dark:bg-gray-800 ring-1 ring-lime-200 dark:ring-lime-700/50'
-      }`}
-    >
+  const className = `w-full text-left p-3 rounded-xl transition-all ${
+    clickable
+      ? `cursor-pointer bg-white dark:bg-gray-800 ring-1 ring-lime-200 dark:ring-lime-700/50 hover:ring-lime-500 dark:hover:ring-lime-600 hover:shadow-md hover:-translate-y-0.5 ${FOCUS_RING}`
+      : empty
+        ? 'bg-gray-50 dark:bg-gray-700/50 ring-1 ring-gray-100 dark:ring-gray-600'
+        : 'bg-white dark:bg-gray-800 ring-1 ring-lime-200 dark:ring-lime-700/50'
+  }`;
+  const body = (
+    <>
       <div className={`text-2xl font-bold tabular-nums ${empty ? 'text-gray-600 dark:text-gray-500' : 'text-gray-900 dark:text-white'}`}>
         {formatNumber(value)}
       </div>
       <div className={`text-xs mt-0.5 font-medium ${empty ? 'text-gray-600 dark:text-gray-500' : 'text-lime-700'}`}>
         {label}
       </div>
-    </div>
+    </>
   );
+  if (!clickable) return <div className={className}>{body}</div>;
+  return <button type="button" onClick={onClick} className={className}>{body}</button>;
 }
 
 // ─── NoDataState ──────────────────────────────────────────────────────

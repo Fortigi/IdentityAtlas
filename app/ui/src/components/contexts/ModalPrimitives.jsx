@@ -6,17 +6,16 @@
 // dismissOnBackdrop — when false, clicking the dark overlay does NOT close the
 // modal (only the ✕ / explicit Cancel do). Use it for multi-step forms where an
 // accidental outside click would discard half-entered input.
+import ModalBackdrop from '@ui/components/ModalBackdrop';
+
 export function Modal({ title, subtitle, onClose, children, width = 480, dismissOnBackdrop = true }) {
   return (
-    <div
+    <ModalBackdrop
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 dark:bg-black/70"
-      onClick={dismissOnBackdrop ? onClose : undefined}
+      onDismiss={dismissOnBackdrop ? onClose : undefined}
+      panelClassName="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl p-5 max-w-full max-h-[90vh] overflow-auto"
+      panelStyle={{ width }}
     >
-      <div
-        className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl p-5 max-w-full max-h-[90vh] overflow-auto"
-        style={{ width }}
-        onClick={e => e.stopPropagation()}
-      >
         <div className="flex items-start justify-between mb-3">
           <div className="min-w-0">
             <h3 className="text-sm font-semibold text-gray-900 dark:text-white truncate">{title}</h3>
@@ -25,8 +24,7 @@ export function Modal({ title, subtitle, onClose, children, width = 480, dismiss
           <button onClick={onClose} className="text-gray-600 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-400 ml-4" aria-label="Close">✕</button>
         </div>
         {children}
-      </div>
-    </div>
+    </ModalBackdrop>
   );
 }
 

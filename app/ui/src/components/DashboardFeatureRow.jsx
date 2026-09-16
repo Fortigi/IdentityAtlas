@@ -7,6 +7,7 @@
 // status — gets its own small component to keep each unit trivial.
 
 import { formatCompactNumber as formatNumber } from '@ui/utils/formatters';
+import { FOCUS_RING } from '@ui/utils/keyActivate';
 
 export default function FeatureStatusRow({ stats, onNavigate }) {
   return (
@@ -55,21 +56,21 @@ function FeatureCard({ label, status, detail, ok, warn, onClick }) {
   const dot = ok ? 'bg-lime-500 shadow-[0_0_8px_rgba(132,204,22,0.6)]'
             : warn ? 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]'
             : 'bg-gray-300 dark:bg-gray-600';
-  return (
-    <div
-      onClick={clickable ? onClick : undefined}
-      className={`bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-sm ring-1 transition-all ${
-        ok ? 'ring-lime-200 dark:ring-lime-700/50' : 'ring-gray-200 dark:ring-gray-700'
-      } ${clickable ? 'cursor-pointer hover:ring-lime-400 hover:shadow-md hover:-translate-y-0.5' : ''}`}
-    >
-      <div className="flex items-start gap-3">
-        <span className={`inline-block w-2.5 h-2.5 rounded-full mt-1.5 ${dot}`} />
-        <div className="flex-1 min-w-0">
-          <div className="text-xs uppercase tracking-widest text-gray-500 dark:text-gray-400 font-semibold">{label}</div>
-          <div className={`text-base font-bold mt-1 ${color}`}>{status}</div>
-          <div className="text-xs text-gray-500 dark:text-gray-400 mt-1.5 truncate">{detail}</div>
-        </div>
+  // Cards that navigate become real buttons; the two purely informational ones
+  // stay inert <div>s and out of the tab order.
+  const className = `w-full text-left bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-sm ring-1 transition-all ${
+    ok ? 'ring-lime-200 dark:ring-lime-700/50' : 'ring-gray-200 dark:ring-gray-700'
+  } ${clickable ? `cursor-pointer hover:ring-lime-400 hover:shadow-md hover:-translate-y-0.5 ${FOCUS_RING}` : ''}`;
+  const body = (
+    <div className="flex items-start gap-3">
+      <span className={`inline-block w-2.5 h-2.5 rounded-full mt-1.5 ${dot}`} />
+      <div className="flex-1 min-w-0">
+        <div className="text-xs uppercase tracking-widest text-gray-500 dark:text-gray-400 font-semibold">{label}</div>
+        <div className={`text-base font-bold mt-1 ${color}`}>{status}</div>
+        <div className="text-xs text-gray-500 dark:text-gray-400 mt-1.5 truncate">{detail}</div>
       </div>
     </div>
   );
+  if (!clickable) return <div className={className}>{body}</div>;
+  return <button type="button" onClick={onClick} className={className}>{body}</button>;
 }

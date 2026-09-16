@@ -2,6 +2,7 @@ import {
   subjectTitle, subjectLabel, identityGlyph, subjectAccountCount,
   subjectLabelMaxHeight, ACCOUNT_ROW_H,
 } from './MatrixColumnHeaders.helpers';
+import RotatedLabelButton from './RotatedLabelButton';
 
 // Header cell for a single subject. Identity columns get an expand control (into
 // their linked accounts) and, when they have any, a count of them; account
@@ -48,23 +49,15 @@ export default function MatrixSubjectNameCell({
             {accountCount}
           </span>
         )}
-        <div
-          className={`text-[10px] font-medium cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 ${
+        <RotatedLabelButton
+          className={`text-[10px] font-medium hover:text-blue-600 dark:hover:text-blue-400 ${
             isAcct ? 'text-blue-700 dark:text-blue-300' : 'text-gray-700 dark:text-gray-300'
           }`}
-          style={{
-            writingMode: 'vertical-lr',
-            textOrientation: 'mixed',
-            transform: 'rotate(180deg)',
-            maxHeight: `${subjectLabelMaxHeight({ inAccountsRow, isIdentity, hasCount: accountCount !== null })}px`,
-            overflow: 'hidden',
-            whiteSpace: 'nowrap',
-            margin: '0 auto',
-          }}
+          style={{ maxHeight: `${subjectLabelMaxHeight({ inAccountsRow, isIdentity, hasCount: accountCount !== null })}px` }}
           onClick={() => onOpenDetail?.(isIdentity ? 'identity' : 'user', user.id, user.displayName)}
         >
           {subjectLabel(user)}
-        </div>
+        </RotatedLabelButton>
       </div>
     </th>
   );

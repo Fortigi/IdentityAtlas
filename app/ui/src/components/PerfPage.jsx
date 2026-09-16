@@ -1,5 +1,6 @@
 ﻿import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
+import { clickableRowProps, FOCUS_RING } from '@ui/utils/keyActivate';
 
 function formatMs(ms) {
   if (ms == null) return '—';
@@ -233,8 +234,11 @@ function EndpointSummary({ endpoints }) {
             return [
               <tr
                 key={key}
-                className={`border-b border-gray-100 dark:border-gray-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 ${durationBg(ep.p95)}`}
-                onClick={() => hasSql && toggle(key)}
+                className={`border-b border-gray-100 dark:border-gray-700 ${hasSql ? `cursor-pointer ${FOCUS_RING}` : ''} hover:bg-gray-50 dark:hover:bg-gray-700/50 ${durationBg(ep.p95)}`}
+                {...clickableRowProps(hasSql ? () => toggle(key) : undefined, {
+                  label: `${isOpen ? 'Hide' : 'Show'} SQL breakdown for ${key}`,
+                  expanded: isOpen,
+                })}
               >
                 <td className="px-3 py-2 w-6 text-gray-600 dark:text-gray-500 text-xs">
                   {hasSql ? (isOpen ? '▼' : '▶') : ''}
@@ -311,8 +315,11 @@ function RequestList({ entries }) {
             return [
               <tr
                 key={idx}
-                className={`border-b border-gray-100 dark:border-gray-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 ${durationBg(entry.totalMs)}`}
-                onClick={() => hasSql && toggle(idx)}
+                className={`border-b border-gray-100 dark:border-gray-700 ${hasSql ? `cursor-pointer ${FOCUS_RING}` : ''} hover:bg-gray-50 dark:hover:bg-gray-700/50 ${durationBg(entry.totalMs)}`}
+                {...clickableRowProps(hasSql ? () => toggle(idx) : undefined, {
+                  label: `${isOpen ? 'Hide' : 'Show'} SQL queries for ${entry.method} ${entry.url || entry.route}`,
+                  expanded: isOpen,
+                })}
               >
                 <td className="px-3 py-2 w-6 text-gray-600 dark:text-gray-500 text-xs">
                   {hasSql ? (isOpen ? '▼' : '▶') : ''}

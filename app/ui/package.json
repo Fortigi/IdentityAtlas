@@ -52,6 +52,7 @@
     "@vitejs/plugin-react": "^6.1.1",
     "@vitest/coverage-v8": "^5.0.0",
     "eslint": "^10.10.0",
+    "eslint-plugin-jsx-a11y": "^6.10.2",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.6",
     "eslint-plugin-sonarjs": "4.2.0",
@@ -62,6 +63,9 @@
   },
   "overrides": {
     "brace-expansion": "^5.0.8",
+    "eslint-plugin-jsx-a11y": {
+      "eslint": "$eslint"
+    },
     "uuid": "^11.1.1"
   }
 }

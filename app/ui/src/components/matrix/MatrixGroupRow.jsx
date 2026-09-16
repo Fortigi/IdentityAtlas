@@ -8,6 +8,7 @@ import {
 import { getAccessPackageColor } from '@ui/utils/colors';
 import { getApRoleBadge } from '@ui/utils/accessPackageStyles';
 import { useIsDark } from '@ui/contexts/ThemeContext';
+import { FOCUS_RING } from '@ui/utils/keyActivate';
 
 // Fold affordance state for this row, or null when the row is not a foldable
 // business role (only roles that are present in the grid AND grant at least one
@@ -183,10 +184,14 @@ function ResourceNameCell({
         {/* The bare display name, on an element of its own: the name cell also
             carries fold/expand toggles, the nesting elbow and the BR chips, so
             scraping the cell's text no longer yields the name. */}
-        <div data-row-name className="truncate cursor-pointer hover:text-blue-600 dark:hover:text-blue-400"
-          onClick={() => onOpenDetail?.('resource', group.realGroupId || group.id, group.displayName)}>
+        <button
+          type="button"
+          data-row-name
+          className={`truncate text-left cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 rounded ${FOCUS_RING}`}
+          onClick={() => onOpenDetail?.('resource', group.realGroupId || group.id, group.displayName)}
+        >
           {group.displayName}
-        </div>
+        </button>
         <RoleOwnerChip owners={group.roleOwners} onOpenDetail={onOpenDetail} />
         <RoleFoldChip fold={roleFold} />
       </div>
