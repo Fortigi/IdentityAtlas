@@ -5,6 +5,7 @@ import EntityDetailPage from './EntityDetailPage';
 import RiskScoreSection from './RiskScoreSection';
 import { RISK_FIELDS } from './RiskScoreSection.constants.js';
 import DeletedBadge from './DeletedBadge';
+import UserActivitySection from './UserActivitySection';
 import { buildAttributeEntries } from '@ui/utils/attributeEntries';
 import { formatDate } from '@ui/utils/formatters';
 import { useIsDark } from '@ui/contexts/ThemeContext';
@@ -146,6 +147,9 @@ export default function UserDetailPage({ userId, cachedData, onCacheData, onClos
       getTabs={getTabs}
       getAttributeEntries={getUserAttributeEntries}
       renderHeader={(data) => <UserHeader data={data} />}
+      renderAttributesExtra={() => (
+        <UserActivitySection userId={userId} authFetch={authFetch} onOpenDetail={onOpenDetail} />
+      )}
       renderRisk={(data) => (
         <RiskScoreSection attributes={data.attributes} entityType="user" entityId={userId} authFetch={authFetch} />
       )}

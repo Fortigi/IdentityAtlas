@@ -83,12 +83,12 @@ function Invoke-RowCountChecks {
     # the new number is intended, and update it here in the same PR.
     $counts = @{
         'Systems'                = @{ Min = 5;  Max = 5 }   # EntraID + HR + IGA + SAP + AzureRM (#705)
-        'Principals'             = @{ Min = 45; Max = 45 }  # 26 employees + 5 edge cases + IGA acct + 10 SAP + 3 app SPs
-        'Resources'              = @{ Min = 46; Max = 46 }  # Entra 10 + ownership 3 + business roles 7 + Sales 4 + role drift 3 + shared grants 2 + consent 4 + SAP 4 + Azure 9
-        'ResourceAssignments'    = @{ Min = 176; Max = 176 }
+        'Principals'             = @{ Min = 49; Max = 49 }  # 26 employees + 5 edge cases + IGA acct + 10 SAP + 3 app SPs + 4 audit cast (2 guests, 1 disabled admin, 1 second admin account)
+        'Resources'              = @{ Min = 47; Max = 47 }  # Entra 10 + ownership 3 + business roles 7 + Sales 4 + role drift 3 + shared grants 2 + consent 4 + SAP 4 + Azure 9 + 1 empty group
+        'ResourceAssignments'    = @{ Min = 181; Max = 181 }
         'ResourceRelationships'  = @{ Min = 27; Max = 27 }  # 21 Contains + 1 GrantsAccessTo + 3 HasOwnership + 2 DelegatesScope
         'Identities'             = @{ Min = 27; Max = 27 }  # 26 employees + the leaver
-        'IdentityMembers'        = @{ Min = 38; Max = 38 }  # 27 Entra + 1 IGA + 10 SAP
+        'IdentityMembers'        = @{ Min = 39; Max = 39 }  # 27 Entra + 1 IGA + 10 SAP + the CTO's second admin account
         'GovernanceCatalogs'     = @{ Min = 2;  Max = 2 }
         'AssignmentPolicies'     = @{ Min = 4;  Max = 4 }
         'CertificationDecisions' = @{ Min = 3;  Max = 3 }
@@ -242,6 +242,105 @@ SELECT COUNT(*) FROM "CertificationDecisions" WHERE "decision" = 'Deny'
 SELECT COUNT(*) FROM (
   SELECT "identityId" FROM "IdentityMembers" GROUP BY "identityId" HAVING COUNT(*) > 1
 ) multi
+'@
+}
+
+# Every standard governance audit report must have something to find on the demo
+# data. A report that comes back empty here is a broken report, not a clean
+# tenant — so each of the account states the reports look for is asserted to
+# exist, at the row level rather than through the report itself.
+function Invoke-AuditReportCastChecks {
+    Write-Host "`n--- Audit report cast ---" -ForegroundColor Yellow
+
+    Assert-Count 'Activity-AggregateRows' -Min 10 -Query @'
+SELECT COUNT(*) FROM "PrincipalActivity"
+WHERE "resourceId" = '00000000-0000-0000-0000-000000000000'
+  AND "activityType" IN ('SignIn', 'ServicePrincipalSignIn')
+'@
+
+    Assert-Count 'Activity-PerAppRows' -Min 3 -Query @'
+SELECT COUNT(*) FROM "PrincipalActivity" WHERE "activityType" = 'SignInPerApp'
+'@
+
+    # The SP report's extra timestamp flavours have no column of their own; the
+    # detail page reads them out of extendedAttributes.
+    Assert-Count 'Activity-ServicePrincipalVariants' -Min 1 -Query @'
+SELECT COUNT(*) FROM "PrincipalActivity"
+WHERE "activityType" = 'ServicePrincipalSignIn'
+  AND "extendedAttributes" ? 'lastSignInDateTime_applicationAuthentication'
+'@
+
+    # Stale: enabled, holds access, quiet for over 90 days.
+    Assert-Count 'Report-StaleAccounts' -Min 3 -Query @'
+SELECT COUNT(*) FROM "Principals" p
+JOIN "PrincipalActivity" a ON a."principalId" = p."id"
+ AND a."resourceId" = '00000000-0000-0000-0000-000000000000' AND a."activityType" = 'SignIn'
+WHERE p."accountEnabled" = true AND p."deletedAt" IS NULL
+  AND a."lastSignInDateTime" < now() - interval '90 days'
+  AND EXISTS (SELECT 1 FROM "ResourceAssignments" ra
+               WHERE ra."principalId" = p."id" AND ra."deletedAt" IS NULL)
+'@
+
+    # Never signed in: the row exists, every timestamp is absent.
+    Assert-Count 'Report-NeverSignedIn' -Min 1 -Query @'
+SELECT COUNT(*) FROM "PrincipalActivity"
+WHERE "resourceId" = '00000000-0000-0000-0000-000000000000' AND "activityType" = 'SignIn'
+  AND "lastSignInDateTime" IS NULL
+  AND "lastNonInteractiveSignInDateTime" IS NULL
+  AND "lastSuccessfulSignInDateTime" IS NULL
+'@
+
+    Assert-Count 'Report-GuestsExist' -Min 2 -Query @'
+SELECT COUNT(*) FROM "Principals"
+WHERE "extendedAttributes"->>'userType' = 'Guest' AND "deletedAt" IS NULL
+'@
+
+    Assert-Count 'Report-PendingInvitation' -Min 1 -Query @'
+SELECT COUNT(*) FROM "Principals"
+WHERE "extendedAttributes"->>'externalUserState' = 'PendingAcceptance' AND "deletedAt" IS NULL
+'@
+
+    Assert-Count 'Report-DisabledWithAccess' -Min 2 -Label '2+ disabled accounts still holding access' -Query @'
+SELECT COUNT(DISTINCT p."id") FROM "Principals" p
+JOIN "ResourceAssignments" ra ON ra."principalId" = p."id" AND ra."deletedAt" IS NULL
+WHERE p."accountEnabled" = false AND p."deletedAt" IS NULL
+'@
+
+    Assert-Count 'Report-MissingManagerAccount' -Min 1 -Query @'
+SELECT COUNT(*) FROM "Principals"
+WHERE "principalType" = 'User' AND "accountEnabled" = true AND "managerId" IS NULL
+  AND COALESCE("extendedAttributes"->>'userType', 'Member') <> 'Guest' AND "deletedAt" IS NULL
+'@
+
+    # One identity, two directory-role accounts — the privileged report's
+    # cross-check, and the reason it exists.
+    Assert-Count 'Report-IdentityWithTwoAdminAccounts' -Min 1 -Query @'
+SELECT COUNT(*) FROM (
+  SELECT im."identityId" FROM "IdentityMembers" im
+  WHERE EXISTS (
+    SELECT 1 FROM "ResourceAssignments" ra
+    JOIN "Resources" r ON r."id" = ra."resourceId" AND r."resourceType" = 'EntraDirectoryRole'
+    WHERE ra."principalId" = im."principalId" AND ra."deletedAt" IS NULL
+      AND ra."assignmentType" IN ('Direct', 'Eligible'))
+  GROUP BY im."identityId" HAVING COUNT(DISTINCT im."principalId") > 1
+) multi_admin
+'@
+
+    # Access outside roles: ungoverned Direct grant on a resource a business
+    # role also grants (Lars Muller on SG-Servicedesk-Tools).
+    Assert-Count 'Report-AccessOutsideRoles' -Min 1 -Query @'
+SELECT COUNT(*) FROM "ResourceAssignments" ra
+JOIN "Resources" r ON r."id" = ra."resourceId" AND r."deletedAt" IS NULL
+JOIN "ResourceRelationships" rr ON rr."childResourceId" = r."id" AND rr."relationshipType" = 'Contains'
+JOIN "Resources" br ON br."id" = rr."parentResourceId" AND br."resourceType" = 'BusinessRole'
+WHERE ra."deletedAt" IS NULL AND ra."assignmentType" = 'Direct' AND ra."governed" IS NOT TRUE
+'@
+
+    Assert-Count 'Report-EmptyGroups' -Min 1 -Query @'
+SELECT COUNT(*) FROM "Resources" r
+WHERE r."resourceType" = 'Group' AND r."deletedAt" IS NULL
+  AND NOT EXISTS (SELECT 1 FROM "ResourceAssignments" ra
+                   WHERE ra."resourceId" = r."id" AND ra."deletedAt" IS NULL)
 '@
 }
 
@@ -593,6 +692,7 @@ function Invoke-DemoDatasetVerification {
     Invoke-ReferentialIntegrityChecks
     Invoke-BusinessLogicChecks
     Invoke-BusinessRoleRowChecks
+    Invoke-AuditReportCastChecks
     Invoke-CaptureTheFlagChecks
     Invoke-ApiChecks
     Write-VerificationSummary

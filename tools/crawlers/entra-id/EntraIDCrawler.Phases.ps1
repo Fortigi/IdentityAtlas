@@ -807,7 +807,7 @@ function Get-EntraServicePrincipalData {
         $sps = Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/servicePrincipals?`$select=$spSelect&`$top=999"
         try {
             Write-Host "  Priming SP delta token (walks full /servicePrincipals/delta once)..." -ForegroundColor DarkGray
-            $primeResp = Invoke-FGGetDeltaRequest -URI "https://graph.microsoft.com/beta/servicePrincipals/delta?`$select=id"
+            $primeResp = Invoke-FGGetDeltaRequest -URI "https://graph.microsoft.com/beta/servicePrincipals/delta?`$select=$(Get-EntraDeltaSelect -Select $spSelect -Unsupported @())"
             $newSpsToken = $primeResp.deltaToken
             if ($newSpsToken) { Write-Host "  Primed SP delta token for next run" -ForegroundColor DarkGray }
         } catch {
@@ -1469,7 +1469,7 @@ function Get-EntraUserData {
         $users = Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/users?`$select=$UserSelect&`$expand=manager(`$select=id)&`$top=999"
         try {
             Write-Host "  Priming delta token (walks full /users/delta once)..." -ForegroundColor DarkGray
-            $primeResp = Invoke-FGGetDeltaRequest -URI "https://graph.microsoft.com/beta/users/delta?`$select=id"
+            $primeResp = Invoke-FGGetDeltaRequest -URI "https://graph.microsoft.com/beta/users/delta?`$select=$(Get-EntraDeltaSelect -Select $UserSelect)"
             $newUsersToken = $primeResp.deltaToken
             if ($newUsersToken) {
                 Write-Host "  Primed delta token for next run" -ForegroundColor DarkGray

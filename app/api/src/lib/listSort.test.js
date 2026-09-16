@@ -46,3 +46,36 @@ describe('buildOrderBy — inherited property names are not columns (SEC-2026-09
     });
   }
 });
+
+describe('buildOrderBy — the {dir} placeholder', () => {
+  // A nullable column needs the direction in the middle: `"x" DESC NULLS LAST`
+  // is valid SQL, `"x" NULLS LAST DESC` is a syntax error. Appending would
+  // therefore have made "sort by last sign-in, newest first" a 500.
+  const NULLABLE = { lastSignIn: '"lastSignIn" {dir} NULLS LAST' };
+
+  it('substitutes the direction in place instead of appending it', () => {
+    expect(buildOrderBy('lastSignIn', 'desc', NULLABLE)).toBe('"lastSignIn" DESC NULLS LAST');
+    expect(buildOrderBy('lastSignIn', 'asc', NULLABLE)).toBe('"lastSignIn" ASC NULLS LAST');
+  });
+
+  it('keeps nulls last in BOTH directions — "never" is an absence, not the oldest', () => {
+    for (const dir of ['asc', 'desc']) {
+      expect(buildOrderBy('lastSignIn', dir, NULLABLE)).toMatch(/NULLS LAST$/);
+    }
+  });
+
+  it('still appends for a plain expression, so existing allowlists are unchanged', () => {
+    expect(buildOrderBy('displayName', 'desc', { displayName: '"displayName"' }))
+      .toBe('"displayName" DESC');
+  });
+
+  it('expands every occurrence, so a two-key expression stays consistent', () => {
+    expect(buildOrderBy('k', 'desc', { k: '"a" {dir}, "b" {dir}' })).toBe('"a" DESC, "b" DESC');
+  });
+
+  it('never expands a placeholder coming from the query string', () => {
+    // The placeholder only has meaning inside an allowlisted value; a sort key
+    // that looks like one is still just an unknown key.
+    expect(buildOrderBy('{dir}', 'desc', NULLABLE)).toBe('"displayName" ASC');
+  });
+});
