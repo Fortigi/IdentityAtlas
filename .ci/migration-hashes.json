@@ -67,6 +67,8 @@
     "061_business_role_covers_itself.sql": "0dc53ad1e6691691d43a80d929b5f55a207b267831465ba8abb67569eb10e6f6",
     "062_matrix_shares.sql": "f28e33bfa6488c70875903e3025256b42f8eb6e97988d2e16763713fc940ce28",
     "063_matrix_share_recipients.sql": "7549731e93f6eede031c9b98189da6b6d5d1713042c700f4a662237e95199feb",
+    "064_sync_log_source.sql": "b10615b55dd51ae7b9154cee44ee9504c72666ba71ca11610fdb2e0ee99279cb",
+    "065_crawler_credential_custody.sql": "4bb031482507ab9c95253c19e4f71ece16572da64cba9f15cdc2082ed295e16e",
     "066_auth_role_change_log_oid.sql": "4b548f517532bdf3b0f3fc789ba5b96a772648115069a049df88950855f4d2ec",
     "067_share_is_a_saved_matrix.sql": "8049d31fde744843e5cadd3d12cb555f032ca078eeea191f68c477069290d182"
   }

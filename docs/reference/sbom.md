@@ -9,7 +9,7 @@ This document lists all major software components, dependencies, and infrastruct
 | Component | Version | Purpose | License |
 |-----------|---------|---------|---------|
 | PostgreSQL | 16-alpine | Database server | PostgreSQL License |
-| PowerShell | 7.5 (ubuntu-24.04) | Crawler runtime and scripting engine | MIT |
+| PowerShell | 7.5 (ubuntu-24.04@sha256:042240d57ec9e47e511033b92625a8d95875ee5860af3015992c248b58a8be81) | Crawler runtime and scripting engine | MIT |
 | Node.js | 24-slim | API server runtime | MIT |
 | Docker | 20.10+ (required) | Container orchestration | Apache 2.0 |
 
@@ -181,7 +181,7 @@ Identity Atlas distributes pre-built Docker images via GitHub Container Registry
 | Image | Base | Size (approx) | Purpose |
 |-------|------|---------------|---------|
 | `ghcr.io/fortigi/identity-atlas:latest` | node:24-slim | ~500 MB | Web server (API + frontend) |
-| `ghcr.io/fortigi/identity-atlas-worker:latest` | mcr.microsoft.com/powershell:7.5-ubuntu-24.04 | ~350 MB | PowerShell crawler worker |
+| `ghcr.io/fortigi/identity-atlas-worker:latest` | mcr.microsoft.com/powershell:7.5-ubuntu-24.04@sha256:042240d57ec9e47e511033b92625a8d95875ee5860af3015992c248b58a8be81 | ~350 MB | PowerShell crawler worker |
 
 ---
 
@@ -190,7 +190,7 @@ Identity Atlas distributes pre-built Docker images via GitHub Container Registry
 ### Credential Storage
 
 - **Secrets vault**: All sensitive credentials (LLM API keys, scraper credentials) are stored encrypted in the PostgreSQL `Secrets` table using AES-256-GCM with envelope encryption
-- **Master key**: The `IDENTITY_ATLAS_MASTER_KEY` environment variable controls the root encryption key; if unset, a key is auto-generated and persisted to the `job_data` volume
+- **Master key**: The `IDENTITY_ATLAS_MASTER_KEY` environment variable controls the root encryption key; if unset, a key is auto-generated and persisted to the web-only `web_keys` volume
 - **PostgreSQL password**: Default password is for local evaluation only; production deployments must set `POSTGRES_PASSWORD` explicitly
 
 ### Network Exposure

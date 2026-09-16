@@ -131,7 +131,9 @@ if ($DeployReportGenerator) {
         $outboundIps = az webapp show -g $ResourceGroup -n $webAppName --query possibleOutboundIpAddresses -o tsv 2>$null
         if ($outboundIps) {
             $cidrs = @($outboundIps -split ',' | Where-Object { $_ } | ForEach-Object { "$($_.Trim())/32" })
-            $deployArgs += @('--parameters', "reportGeneratorAllowedCallerIps=$($cidrs | ConvertTo-Json -Compress)")
+            # -InputObject, not the pipeline: piped, a one-element array serialises
+            # as a bare string and the template rejects it as not an array.
+            $deployArgs += @('--parameters', "reportGeneratorAllowedCallerIps=$(ConvertTo-Json -InputObject $cidrs -Compress)")
             Write-Host "  ReportGen ingress    : limited to $($cidrs.Count) web-app address(es)" -ForegroundColor DarkGray
         }
     }

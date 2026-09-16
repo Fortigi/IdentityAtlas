@@ -937,8 +937,13 @@ jobs:
           bash test/ci-scripts/test-dor-reconcile-liveness.sh
           bash test/ci-scripts/test-dor-reconcile-selfheal.sh
           bash test/ci-scripts/test-dor-push-lease.sh
+          bash test/ci-scripts/test-dor-finalize-merged-pr.sh
+          bash test/ci-scripts/test-dor-sidekick-claim.sh
+          bash test/ci-scripts/test-dor-run-touched-tests.sh
+          bash test/ci-scripts/test-dor-drop-workflow-labels.sh
           bash test/ci-scripts/test-dor-trusted-spec.sh
           bash test/ci-scripts/test-dor-agent-sandbox.sh
+          bash test/ci-scripts/test-dor-token-checkpoint.sh
           bash test/ci-scripts/test-gate-wiring.sh
 
       # The two Python tools that render and feed the Test Coverage docs page.

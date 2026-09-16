@@ -197,6 +197,19 @@ describe('scim discover.js handler', () => {
     expect(res.statusCode).toBe(200);
   });
 
+  // SEC-2026-09 M-10: an ApiToken stored config gets its token from the vault.
+  it('edit mode merges vaulted credentials (apiToken) into the stored config', async () => {
+    stubFetch(HAPPY_ROUTES);
+    const db = { queryOne: vi.fn().mockResolvedValue({ config: { baseUrl: BASE, authMethod: 'ApiToken' } }) };
+    const getConfigCredentials = vi.fn().mockResolvedValue({ apiToken: 'vaulted-token' });
+    const { req, res } = makeReqRes({ configId: 8 });
+    await handler(req, res, { ...deps, db, getConfigCredentials });
+    expect(getConfigCredentials).toHaveBeenCalledWith(8);
+    expect(res.statusCode).toBe(200);
+    const [, opts] = fetch.mock.calls.find(([u]) => String(u).includes('/Schemas'));
+    expect(opts.headers.Authorization).toBe('Bearer vaulted-token');
+  });
+
   it('returns 404 for an unknown configId', async () => {
     const db = { queryOne: vi.fn().mockResolvedValue(null) };
     const { req, res } = makeReqRes({ configId: 99 });

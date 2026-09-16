@@ -191,26 +191,53 @@ jobs:
           set -uo pipefail
           issue="${HEAD_REF##*dor/issue-}"
           case "$issue" in ''|*[!0-9]*) echo "::notice::head ref '$HEAD_REF' has no issue number — skip."; exit 0 ;; esac
-          # Every in-flight label is now false. `build-done` is the one that matters: dor-acceptance
-          # GATES on it, so a shipped issue keeps advertising itself as awaiting functional acceptance
-          # and a stray comment can still wake the feedback loop. `needs-triage` left over from an
-          # Exceptions bail that was later resolved makes finished work show up in triage sweeps —
-          # #927 and #928 both shipped carrying it.
-          drop_workflow_labels() {
-            gh issue edit "$1" --repo "$REPO" --remove-label \
-              "build-done,needs-triage,ready-to-build,dor-stuck,dor-retry,state:awaiting-approval,state:awaiting-requestor,state:awaiting-design,state:ready-to-probe,state:decompose,state:blocked-external" \
-              >/dev/null 2>&1 || true
-          }
+          # Every in-flight label is now false — see the script for why each one is removed on its own.
           if [ "$MERGED" = "true" ]; then
             GH_TOKEN="$BOARD_TOKEN" bash .github/scripts/dor_set_status.sh "$issue" done || true
-            drop_workflow_labels "$issue"
+            bash .github/scripts/dor_drop_workflow_labels.sh "$issue"
             gh issue close "$issue" --repo "$REPO" --reason completed \
               --comment "🎉 Shipped — PR #${PR} merged. Closing." >/dev/null 2>&1 || true
             echo "::notice::issue #${issue} → Done + closed (PR #${PR} merged)."
           else
             GH_TOKEN="$BOARD_TOKEN" bash .github/scripts/dor_set_status.sh "$issue" state:out-of-pipeline || true
-            drop_workflow_labels "$issue"
+            bash .github/scripts/dor_drop_workflow_labels.sh "$issue"
             gh issue comment "$issue" --repo "$REPO" \
               --body "PR #${PR} was closed without merging — moved to **Out of pipeline**. Re-open or file a new request to restart." >/dev/null 2>&1 || true
             echo "::notice::issue #${issue} → Out of pipeline (PR #${PR} closed unmerged)."
           fi
+
+  # Any OTHER merged PR that closes a pipeline issue ("Closes #N" from a bugfixes/* branch, say) must
+  # still move that issue to Done — finalize above only knows the dor/issue-N head. Without this,
+  # #1046, #1047 and #1162 closed with their cards left at "Awaiting merge". Merged only: a hand-made
+  # PR closed unmerged says nothing about the issue, so it is not sent to Out of pipeline.
+  finalize-linked:
+    if: >-
+      vars.DOR_ENABLED == 'true' &&
+      github.event.pull_request.merged == true &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      !startsWith(github.event.pull_request.head.ref, 'dor/issue-')
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - name: Checkout the board scripts only
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: .github/scripts
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+      - name: Mint BOT token (board read + move)
+        id: bot
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ secrets.BOT_APP_ID }}
+          private-key: ${{ secrets.BOT_PRIVATE_KEY }}
+          owner: Fortigi
+          permission-organization-projects: write
+          permission-issues: read
+          permission-pull-requests: read
+      - name: Move the issues this PR closes to Done
+        env:
+          GH_TOKEN: ${{ steps.bot.outputs.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: bash .github/scripts/dor_finalize_merged_pr.sh "$PR"

@@ -17,6 +17,16 @@ param location string
 @maxValue(1024)
 param shareQuotaGb int = 10
 
+// Network ACL default action (SEC-2026-09 L-19). 'Allow' in the public network
+// mode: App Service and a Container Apps environment without a VNet can only
+// mount Azure Files over the public endpoint. The private network mode calls
+// this module a second time with 'Deny' after the web app (VNet integration)
+// and the worker environment (VNet) are in place and mount the share through
+// its private endpoint.
+@description('Network ACL default action for the storage account.')
+@allowed(['Allow', 'Deny'])
+param networkDefaultAction string = 'Allow'
+
 // Storage account names: 3-24 chars, lowercase alphanumeric, globally unique.
 var stName = take(toLower(replace('${namePrefix}st${uniqueString(resourceGroup().id)}', '-', '')), 24)
 
@@ -32,9 +42,11 @@ resource st 'Microsoft.Storage/storageAccounts@2024-01-01' = {
     minimumTlsVersion: 'TLS1_2'
     allowBlobPublicAccess: false
     supportsHttpsTrafficOnly: true
-    // Public network access allowed (App Service + ACA mount Azure Files via
-    // Microsoft's service-to-service path). Tighten with `networkAcls` per
-    // tenant policy if required.
+    publicNetworkAccess: 'Enabled'
+    networkAcls: {
+      defaultAction: networkDefaultAction
+      bypass: 'AzureServices'
+    }
   }
 }
 

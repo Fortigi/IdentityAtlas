@@ -10,23 +10,35 @@
 #
 # Configuration:
 #   Copy .env.example to .env and set your values, or pass them inline:
-#   GRAPH_TENANT_ID=... GRAPH_CLIENT_ID=... GRAPH_CLIENT_SECRET=... docker compose -f docker-compose.prod.yml up
+#   POSTGRES_PASSWORD=... docker compose -f docker-compose.prod.yml up
 #
 # Image channel (IMAGE_TAG):
 #   latest  — stable customer release (default, omit IMAGE_TAG or leave blank)
 #   edge    — latest merged commit on main; may be unstable (set IMAGE_TAG=edge)
-#   5.2.1.0 — pin to a specific release version
+#   5.2.1.0 — pin to a specific release version. When you pin an OLDER release,
+#             use the docker-compose.prod.yml from that release too: this file
+#             relies on features of the current images (see COMPOSE_FILE_VERSION).
 #
 # SECURITY:
 #   - POSTGRES_PASSWORD is REQUIRED — this file refuses to start without it (no
-#     default password is shipped). Set a strong, unique value.
+#     default password is shipped). Set a strong, unique value. It reaches the
+#     containers as a Compose secret (a file under /run/secrets), not as a plain
+#     container environment variable, so it does not show up in `docker inspect`.
 #   - Postgres is bound to loopback (127.0.0.1) only and is NOT reachable from
 #     other hosts; the web container reaches it over the internal compose network.
 #     Set POSTGRES_BIND_HOST=0.0.0.0 only if you deliberately need off-host access.
-#   - Set an explicit IDENTITY_ATLAS_MASTER_KEY for the secrets vault so it can be
-#     backed up; otherwise the bootstrap auto-generates one.
-#     POSTGRES_PASSWORD=... IDENTITY_ATLAS_MASTER_KEY=... docker compose -f docker-compose.prod.yml up
+#   - The secrets-vault master key is auto-generated on first start into the
+#     web-only `web_keys` volume — the worker container cannot read it. Back that
+#     volume up, or set IDENTITY_ATLAS_MASTER_KEY explicitly (see below).
+#   - Every container runs with no-new-privileges, a dropped capability set and
+#     process / memory limits. Raise the limits for very large tenants with
+#     POSTGRES_MEM_LIMIT / WEB_MEM_LIMIT / WORKER_MEM_LIMIT (e.g. 16g).
 # ─────────────────────────────────────────────────────────────────────────────
+
+# Fail fast when POSTGRES_PASSWORD is unset or empty. Kept in an extension field
+# so the value is only used for this check; the containers get it as a secret.
+x-required-settings:
+  postgres-password: "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set — copy setup/config/.env.example to .env and set a strong value}"
 
 services:
 
@@ -36,11 +48,13 @@ services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_DB:       "${POSTGRES_DB:-identity_atlas}"
-      POSTGRES_USER:     "${POSTGRES_USER:-identity_atlas}"
-      # Required — no default. `:?` makes `docker compose up` fail fast if unset
-      # or empty, so a networked DB can never run under a shipped default password.
-      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set — copy setup/config/.env.example to .env and set a strong value}"
+      POSTGRES_DB:            "${POSTGRES_DB:-identity_atlas}"
+      POSTGRES_USER:          "${POSTGRES_USER:-identity_atlas}"
+      # Read by the official image's entrypoint when it initialises a new data
+      # directory. An existing database keeps the password it was created with.
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    secrets:
+      - postgres_password
     # Bind to loopback by default — the web container reaches Postgres over the
     # internal compose network (hostname `postgres`), so it never needs to be on
     # the host's external interfaces. Override POSTGRES_BIND_HOST=0.0.0.0 only if
@@ -55,6 +69,15 @@ services:
       timeout: 5s
       retries: 30
       start_period: 30s
+    # Container hardening. The official image starts as root to fix ownership of
+    # the data directory and then drops to the `postgres` user, which needs
+    # exactly these capabilities; everything else is dropped.
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, SETGID, SETUID]
+    pids_limit: 2048
+    mem_limit: "${POSTGRES_MEM_LIMIT:-8g}"
     restart: unless-stopped
 
   # ── Web (serves built frontend + API) ────────────────────────────────────────
@@ -63,7 +86,13 @@ services:
     environment:
       NODE_ENV:    production
       USE_SQL:     "true"  # legacy flag — still used by routes to enable DB-backed mode
-      DATABASE_URL: "postgres://${POSTGRES_USER:-identity_atlas}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-identity_atlas}"
+      # Database connection. The password is read from the Compose secret file
+      # (POSTGRES_PASSWORD_FILE); it is not part of the container environment.
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB:   "${POSTGRES_DB:-identity_atlas}"
+      POSTGRES_USER: "${POSTGRES_USER:-identity_atlas}"
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
       AUTH_ENABLED: "${AUTH_ENABLED:-false}"
       PORT:         "3001"
       # Release channel this deployment tracks (edge|beta|latest, or a pinned
@@ -75,12 +104,17 @@ services:
       # local docker-compose.prod.yml is outdated. Bump this number whenever
       # the compose file changes in a way that affects runtime behavior
       # (new env vars, volume mounts, group_add, etc.).
-      COMPOSE_FILE_VERSION: "3"
-      # Master key for the secrets vault (LLM API keys, scraper credentials).
-      # If unset, the bootstrap auto-generates one and persists it to
-      # /data/uploads/.master-key inside the job_data volume. For real production
-      # deployments, set this explicitly so the key can be backed up alongside
-      # other root secrets.
+      COMPOSE_FILE_VERSION: "4"
+      # Where the web container keeps the secrets-vault master key when it
+      # auto-generates one: the web-only `web_keys` volume below, which the
+      # worker does not mount. An existing key in the shared job_data volume
+      # (/data/uploads/.master-key) is moved here on first start.
+      IDENTITY_ATLAS_KEY_DIR: /data/keys
+      # Optional explicit master key for the secrets vault (LLM API keys,
+      # scraper credentials). Takes precedence over the key file. Set it so the
+      # key can be backed up alongside other root secrets. To keep it out of the
+      # container environment as well, mount it as a secret file and set
+      # IDENTITY_ATLAS_MASTER_KEY_FILE instead.
       IDENTITY_ATLAS_MASTER_KEY: "${IDENTITY_ATLAS_MASTER_KEY:-}"
       # Optional Entra ID auth for the UI. AUTH_ENABLED=true alone is NOT
       # enough — the SPA also needs the tenant + client IDs. Both vars
@@ -98,37 +132,49 @@ services:
       # report-generator profile is started; the feature is off until enabled.
       FEATURE_CUSTOM_REPORTS: "${FEATURE_CUSTOM_REPORTS:-}"
       NL_REPORTS_LLM_URL: "http://report-generator:8080"
+    secrets:
+      - postgres_password
     ports:
       - "${PORT:-3001}:3001"
     volumes:
       - job_data:/data/uploads
+      - web_keys:/data/keys
     networks: [default, report-generator]
     depends_on:
       postgres:
         condition: service_healthy
+    # Runs as the unprivileged `node` user and needs no capabilities.
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    pids_limit: 2048
+    mem_limit: "${WEB_MEM_LIMIT:-8g}"
     restart: unless-stopped
 
   # ── Worker (PowerShell — crawlers, risk scoring, account correlation) ───────
   # In v5 the worker container has NO database driver. It talks to the API
-  # for everything (job pickup, ingest, progress reporting).
+  # for everything (job pickup, ingest, progress reporting). It reads its own
+  # API key from the shared job_data volume; it never sees the database
+  # password or the vault master key. Crawler credentials reach it per job.
   worker:
     image: ghcr.io/fortigi/identity-atlas-worker:${IMAGE_TAG:-latest}
     environment:
       WEB_API_URL: "http://web:3001/api"
-      # Optional global crawler API key — overridden per-job via WorkerConfig.
+      # Optional fixed crawler API key. Leave empty (the default) and the worker
+      # uses the key the web container writes to the shared volume.
       CRAWLER_API_KEY:     "${CRAWLER_API_KEY:-}"
-      # Entra ID Graph API credentials (optional — configure via UI or set here)
-      GRAPH_TENANT_ID:     "${GRAPH_TENANT_ID:-}"
-      GRAPH_CLIENT_ID:     "${GRAPH_CLIENT_ID:-}"
-      GRAPH_CLIENT_SECRET: "${GRAPH_CLIENT_SECRET:-}"
-      # LLM for risk scoring (optional — also configurable via Admin → LLM Settings)
-      LLM_PROVIDER:        "${LLM_PROVIDER:-}"
-      LLM_API_KEY:         "${LLM_API_KEY:-}"
     volumes:
       - job_data:/data/uploads
     depends_on:
       web:
         condition: service_started
+    # Runs as uid 1000 and needs no capabilities. ForEach-Object -Parallel
+    # crawlers use many threads, which count towards pids_limit.
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    pids_limit: 4096
+    mem_limit: "${WORKER_MEM_LIMIT:-8g}"
     restart: unless-stopped
 
   # ── Report generator (EXPERIMENTAL, opt-in) ─────────────────────────────────
@@ -152,6 +198,11 @@ services:
       # re-reading the prompt for minutes.
       - report_generator_slots:/slots
     networks: [report-generator]
+    # Runs as uid 1000 on an unprivileged port and needs no capabilities.
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    pids_limit: 512
     mem_limit: "${REPORT_GENERATOR_MEMORY:-5g}"
     cpus: "${REPORT_GENERATOR_CPUS:-2}"
     restart: unless-stopped
@@ -162,7 +213,17 @@ networks:
   report-generator:
     internal: true
 
+secrets:
+  # Created from the POSTGRES_PASSWORD variable (.env or shell) and mounted
+  # read-only at /run/secrets/postgres_password in the containers that list it.
+  postgres_password:
+    environment: POSTGRES_PASSWORD
+
 volumes:
   postgres_data:
   job_data:
+  # Web-only: holds the auto-generated vault master key. Include it in backups.
+  web_keys:
+  # The report generator's processed system prompt. Disposable: it is rebuilt
+  # (a few minutes, once) if lost. No need to back it up.
   report_generator_slots:

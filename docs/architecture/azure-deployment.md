@@ -2,7 +2,7 @@
 
 > Companion to the Bicep in [`/azure`](https://github.com/Fortigi/IdentityAtlas/tree/main/azure).
 > One-click install: see the [README's Deploy to Azure button](https://github.com/Fortigi/IdentityAtlas/blob/main/README.md#deploy-to-azure).
-> **Target:** customers whose networking is owned by a central CCoE. No VNet, no private endpoints, no public IP that you provision.
+> **Target:** customers whose networking is owned by a central CCoE. The default public network mode needs no VNet, private endpoints or public IP that you provision; an opt-in private mode adds them for new deployments (see [Network modes](#network-modes)).
 
 ## What you get
 
@@ -28,9 +28,9 @@
    ┌──────────────────┐     ┌────────────────────┐        ┌──────────────────┐
    │ Postgres Flex    │     │ Azure Files share  │        │ Key Vault         │
    │ Public endpoint, │     │ (Storage Account)  │        │ Public endpoint,  │
-   │ "Allow Azure     │     │ /data/uploads      │        │ RBAC-only.        │
-   │  services"       │     │ shared with worker │        │ master key +      │
-   │ firewall rule    │     └────────────────────┘        │ DB password.      │
+   │ firewall: web    │     │ /data/uploads      │        │ access policies.  │
+   │ app outbound IPs │     │ shared with worker │        │ master key +      │
+   │ only             │     └────────────────────┘        │ DB password.      │
    └──────────────────┘                                   └──────────────────┘
 
                 ─── Container Apps Environment (Consumption, no VNet) ───
@@ -100,7 +100,7 @@ The deployment's outputs include `logAnalyticsCreated: true|false` so you can te
 ## How it deploys (timing)
 
 1. **Storage, Log Analytics (or lookup), Managed Identities, Key Vault** — all parallel, < 1 min.
-2. **Bootstrap deployment script** — runs as the deployScript managed identity. Generates the master key + Postgres admin password, writes both to KV. ~30 s.
+2. **Bootstrap deployment script** — runs as the deployScript managed identity. Generates the master key + a random Postgres admin password into KV when they do not exist yet (existing values are kept). ~30 s.
 3. **Postgres Flexible Server** — slowest single step, ~3-4 min.
 4. **App Service Plan + App Service** — App Service starts the container image (first pull from ghcr.io, ~1-2 min).
 5. **Container Apps Environment + Worker App** — ~2 min.
@@ -168,9 +168,46 @@ AppServiceConsoleLogs | where _ResourceId endswith "<namePrefix>-web"
 ContainerAppConsoleLogs_CL | where ContainerAppName_s == "<namePrefix>-worker"
 ```
 
+### Network modes
+
+The `networkMode` parameter picks the network shape.
+
+| | **public** (default) | **private** (new deployments only) |
+|---|---|---|
+| Postgres | Public endpoint. Firewall allows only the web app's possible outbound IP addresses (one rule each). | Public network access disabled; private endpoint. |
+| Key Vault | Public endpoint, default action Allow. Access still requires the managed identity's access policy. | Private endpoint. Default action Deny after the deployment finishes (trusted Azure services bypass). |
+| Storage (Azure Files) | Public endpoint, default action Allow (App Service and a VNet-less Container Apps environment can only mount it that way). | Private endpoint. Default action Deny after the deployment finishes. |
+| Web app | Public. | Public, with regional VNet integration and all outbound traffic routed through the VNet. |
+| Worker | Container Apps environment without a VNet. | Container Apps environment in a /23 subnet. |
+| Extra cost | — | Private endpoints and DNS zones, roughly €25/mo. |
+
+**Why private is for new deployments only:** the VNet of an existing Container Apps environment cannot be changed, so switching an existing deployment fails at the worker environment step. The Key Vault and Storage lock-down steps run last and only after everything else succeeded, so such a failed attempt does not close access that is still in use, but the deployment does not complete. Create a new resource group for a private deployment.
+
+During a private-mode redeploy, Key Vault and Storage are opened (default action Allow) while the bootstrap script runs and closed again at the end.
+
+**Postgres firewall (public mode).** Earlier templates allowed "all Azure services" (`0.0.0.0`), which admits resources from every Azure tenant. Redeploying with the current template narrows the existing rule, keeping its name `AllowAllAzureServicesAndResourcesWithinAzureIps`, to one of the web app's outbound addresses and adds `web-app-outbound-N` rules for the rest. The outbound list changes only when the App Service Plan moves to another pricing tier; a redeploy refreshes the rules. If you need the old behaviour, set `postgresAllowAllAzureServices=true` (not recommended).
+
+**Web app access restrictions.** `webAccessDefaultAction` (default `Allow`) and `webAllowedIpCidrs` control who can reach the web app. With `Deny`, only the listed CIDRs can — plus, in private mode, the worker subnet. In public mode the worker calls the web app's public URL from the Container Apps environment's outbound address, so add that address to `webAllowedIpCidrs` before you choose `Deny`.
+
+**TLS to Postgres.** The web app sets `PGSSLMODE=require`. With node-postgres this already verifies the server certificate chain and hostname (it is treated as `ssl: true`, unlike libpq's `require`), so no separate `verify-full` setting is needed.
+
+### Postgres admin password
+
+The admin password is random, generated once by the bootstrap script and stored in Key Vault as `postgres-admin-password`; the template passes it to the server with `getSecret()` and the web app references the exact secret version. Nothing about it is derived from resource names.
+
+**Deployments created before this change** used a password derived from the subscription ID and resource group name, which anyone who learns both can compute. Redeploying keeps that password (nothing rotates silently). Rotate it once, deliberately:
+
+```powershell
+az deployment group create -g <rg> --template-file azure/main.bicep --parameters rotatePostgresPassword=true
+```
+
+The bootstrap script writes a new random password to Key Vault, the Postgres server is updated, and the web app restarts onto the new secret version in the same deployment (expect a short interruption). Redeploy later without the parameter (it defaults to `false`); passing it again rotates again. In the portal, set **Rotate Postgres Password** to `true` on the Deploy to Azure form.
+
+**Entra ID authentication for Postgres** (a managed-identity token instead of a password) is not enabled yet. It needs an Entra administrator on the server, a database role for the web app's managed identity, and token acquisition in the API; the schema is currently owned by the password-based admin role. Tracked as a follow-up.
+
 ### Postgres access
 
-Postgres has a public endpoint with a firewall rule allowing Azure services. To run psql from a workstation:
+In public mode Postgres accepts only the web app's outbound addresses. To run psql from a workstation:
 1. Add a temporary firewall rule for your IP: `az postgres flexible-server firewall-rule create --resource-group <rg> --name <pgname> --rule-name temp-yourip --start-ip-address <ip> --end-ip-address <ip>`.
 2. Fetch the admin password from Key Vault: `az keyvault secret show --vault-name <kv> --name postgres-admin-password --query value -o tsv`.
 3. `psql "postgres://identityatlas:<pw>@<pgFqdn>:5432/identity_atlas?sslmode=require"`.
@@ -189,15 +226,15 @@ Key Vault has soft delete + purge protection (7-day retention). To redeploy with
 | Decision | Choice | Why |
 |---|---|---|
 | **Architecture** | App Service + Postgres Flex + ACA worker | Matches the customer's CCoE pattern — no networking provisioning. |
-| **Postgres endpoint** | Public + "Allow Azure services" firewall | App Service outbound IPs come from a Microsoft-owned pool; this rule covers them without enumeration. |
-| **Key Vault endpoint** | Public, RBAC-only | Access is gated by `Key Vault Secrets User` role, not network. Anonymous access returns 403. |
+| **Postgres endpoint** | Public + firewall limited to the web app's outbound IPs (default), or private endpoint (`networkMode=private`) | "Allow Azure services" admitted every Azure tenant. The App Service publishes every outbound address it can use, so the rules are exact without a VNet. |
+| **Key Vault endpoint** | Public, access policies (default); private endpoint + Deny (`networkMode=private`) | The bootstrap script and App Service Key Vault references need network access; without a VNet that means the public endpoint. Access is gated by access policies either way. |
 | **App Service image source** | Direct pull from public `ghcr.io` | No ACR needed (~€5/mo saved + simpler deploy). Add ACR later if a tenant demands a private registry. |
 | **Worker model** | ACA App (always-on), not ACA Job | "Sync now" should respond in <2 s. Job would have a 60-300 s schedule lag. |
-| **Master key + DB password** | Generated by deployment script, stored in KV, exposed to the app via KV references | Zero secrets in the template, the deployment history, or ARM. App reads them via managed identity at startup. |
+| **Master key + DB password** | Random, generated by deployment script, stored in KV, exposed to the app via KV references | Zero secrets in the template, the deployment history, or ARM, and nothing derivable from resource names. App reads them via managed identity at startup. |
 | **Auth** | `AUTH_ENABLED=false` by default | Avoids requiring an App Registration before first login. Configurable post-deploy via Admin → Authentication. |
 | **HA** | Off | Single-replica everywhere. Keeps cost predictable. |
 | **Application Insights** | Skipped | Log Analytics covers stdout + system metrics. AI is for distributed tracing, not needed at this scale. |
-| **VNet integration** | Not in the Simple shape | If a customer demands private Postgres / KV later, a separate "Isolated" template will add it with the customer's CCoE-provided subnet IDs. |
+| **VNet integration** | Opt-in `networkMode=private` for new deployments | Keeps the default shape free of networking prerequisites while offering private endpoints when required. The template creates its own VNet; bringing a CCoE-provided subnet is not supported yet. |
 
 ## Limitations
 
@@ -206,7 +243,8 @@ Key Vault has soft delete + purge protection (7-day retention). To redeploy with
 - **No GitHub Actions deploy workflow.** Use Deploy-to-Azure button + `deploy.ps1` for now.
 - **No Entra App Registration auto-creation.** Done manually if/when enabling Entra auth.
 - **No platform-level App Service authentication (Easy Auth).** Entra sign-in is enforced inside the application, not by the App Service `authSettingsV2` config. Microsoft Defender for Cloud therefore flags the web app with *"App Service apps should have authentication enabled"* on every deployment — expected, and cleared with a Defender exemption. See [azure-deployment-walkthrough.md](./azure-deployment-walkthrough.md#microsoft-defender-for-cloud-app-service-apps-should-have-authentication-enabled).
-- **Public Postgres / KV endpoints.** A future "Isolated" template will add private endpoints when a customer wants them.
+- **Public Key Vault / Storage endpoints in the default mode.** Use `networkMode=private` on a new deployment for private endpoints. An existing public deployment cannot be switched in place.
+- **Postgres uses password authentication.** Entra ID authentication with the web app's managed identity is a follow-up.
 
 ## File index
 
@@ -219,9 +257,12 @@ Key Vault has soft delete + purge protection (7-day retention). To redeploy with
 | `azure/modules/log-analytics.bicep` | New workspace OR BYO lookup OR pass-through |
 | `azure/modules/storage.bicep` | Storage Account + Azure Files share |
 | `azure/modules/identities.bicep` | 2 user-assigned managed identities |
-| `azure/modules/key-vault.bicep` | Key Vault + RBAC (public endpoint) |
+| `azure/modules/key-vault.bicep` | Key Vault + access policies + network ACL |
+| `azure/modules/network.bicep` | Private mode: VNet, subnets, private DNS zones |
+| `azure/modules/private-endpoints.bicep` | Private mode: private endpoints for Key Vault, Storage, Postgres |
+| `azure/modules/postgres-firewall.bicep` | Public mode: Postgres firewall rules for the web app's outbound IPs |
 | `azure/modules/bootstrap.bicep` | One-shot deployment script for secrets |
-| `azure/modules/postgres.bicep` | Postgres Flex + firewall |
+| `azure/modules/postgres.bicep` | Postgres Flex |
 | `azure/modules/app-service.bicep` | App Service Plan + App Service for Containers |
 | `azure/modules/aca-env.bicep` | Container Apps Environment (Consumption) |
 | `azure/modules/aca-app-worker.bicep` | Worker Container App (always-on) |

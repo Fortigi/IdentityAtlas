@@ -9,7 +9,7 @@
 import { Router } from 'express';
 import crypto from 'crypto';
 import * as db from '../../db/connection.js';
-import { injectJobSecret, deleteJobSecret } from '../../secrets/crawlerSecrets.js';
+import { injectJobSecret, deleteJobSecrets } from '../../secrets/crawlerSecrets.js';
 import { runPostCrawlJobs } from '../../postCrawlJobs.js';
 import { crawlerHasPermission, crawlerHasSystemAccess } from '../../middleware/crawlerAuth.js';
 import { recordComponentVersion } from '../../updates/componentVersions.js';
@@ -89,7 +89,10 @@ function mergeJobProgress(existingProgress, safe) {
   return merged;
 }
 
-selfServiceCrawlersRouter.post('/crawlers/job-progress', async (req, res) => {
+// Worker-class keys only: jobs are claimed and run by the worker, and a job row
+// carries no owning crawler, so any other key could otherwise rewrite the
+// progress of any job (SEC-2026-09 M-05).
+selfServiceCrawlersRouter.post('/crawlers/job-progress', requireWorkerCrawler, async (req, res) => {
   if (!req.crawler) return res.status(401).json({ error: 'Not authenticated' });
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
 
@@ -167,15 +170,17 @@ selfServiceCrawlersRouter.post('/crawlers/jobs/claim', requireWorkerCrawler, asy
          SET "status" = 'running', "startedAt" = (now() AT TIME ZONE 'utc')
         FROM next_job
        WHERE cj.id = next_job.id
-       RETURNING cj.id, cj."jobType", cj."config"
+       RETURNING cj.id, cj."jobType", cj."config", cj."configId"
     `);
     if (r.rows.length === 0) {
       return res.json({ job: null });
     }
     // Inject the Graph clientSecret (from the vault) into the config handed to
     // the authenticated worker — it is never stored in plaintext in the job row.
-    const job = r.rows[0];
-    job.config = await injectJobSecret(job);
+    // The source config comes from the server-owned "configId" column
+    // (SEC-2026-09 H-02); the column itself is not part of the worker protocol.
+    const { configId: _configId, ...job } = r.rows[0];
+    job.config = await injectJobSecret(r.rows[0]);
     res.json({ job });
   } catch (err) {
     console.error('Job claim failed:', err.message);
@@ -358,7 +363,7 @@ selfServiceCrawlersRouter.post('/crawlers/jobs/:id/complete', requireWorkerCrawl
         WHERE id = $1`,
       [id, result ? JSON.stringify(result) : null]
     );
-    deleteJobSecret(id).catch(() => {}); // best-effort cleanup of any inline-job secret
+    deleteJobSecrets(id).catch(() => {}); // best-effort cleanup of any inline-job credentials
     // Run the post-crawl derived-data jobs (account linking → context plugins → risk
     // scoring) in order, each to completion before the next — see postCrawlJobs.js.
     // Fire-and-forget so /complete returns immediately; the pipeline is ordered.
@@ -386,7 +391,7 @@ selfServiceCrawlersRouter.post('/crawlers/jobs/:id/fail', requireWorkerCrawler, 
         WHERE id = $1`,
       [id, errorMessage]
     );
-    deleteJobSecret(id).catch(() => {}); // best-effort cleanup of any inline-job secret
+    deleteJobSecrets(id).catch(() => {}); // best-effort cleanup of any inline-job credentials
     res.json({ ok: true });
   } catch (err) {
     console.error('Job fail failed:', err.message);

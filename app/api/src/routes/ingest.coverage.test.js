@@ -47,6 +47,7 @@ vi.mock('../ingest/sessions.js', () => ({
   continueSession: mockContinue,
   endSession: mockEnd,
   hasSession: mockHasSession,
+  SessionLimitError: class SessionLimitError extends Error {},
 }));
 
 vi.mock('../middleware/crawlerAuth.js', () => ({
@@ -384,5 +385,191 @@ describe('POST /ingest/refresh-views', () => {
     const res = await request(app).post('/ingest/refresh-views').send({});
     expect(res.status).toBe(200);
     expect(res.body.message).toMatch(/refreshed/i);
+  });
+});
+
+// ── SEC-2026-09: the per-system boundary, driven through the handler ─────────
+//
+// These requests carry a crawler identity (set by crawlerAuthMiddleware in
+// production). crawlerHasPermission answers from that identity's permissions;
+// systemBoundary.js runs for real against the SQL-blind query mock.
+
+const RESTRICTED = { id: 21, systemIds: [7], permissions: ['ingest'] };
+const WORKER = { id: 1, systemIds: null, permissions: ['ingest', 'refreshViews', 'admin'] };
+
+function appAs(crawler) {
+  return express().use(express.json())
+    .use((req, _res, next) => { req.crawler = crawler; next(); })
+    .use(router);
+}
+
+// Principals' real columns (snake_case, as information_schema returns them).
+function stagePrincipalColumns() {
+  const cols = ['id', 'system_id', 'display_name', 'extended_attributes', 'risk_score', 'deleted_at'];
+  mockQuery.mockImplementation(async (sql) => (/information_schema\.columns/.test(String(sql))
+    ? { rows: cols.map(column_name => ({ column_name })) } : { rows: [], rowCount: 0 }));
+}
+
+function usePermissionsOfCaller() {
+  crawlerAuth.crawlerHasPermission.mockImplementation((req, p) => !!req.crawler?.permissions.includes(p));
+}
+
+describe('ingest handler — per-system boundary (H-04)', () => {
+  beforeEach(usePermissionsOfCaller);
+
+  it('403 for a record that names another system, and nothing is written', async () => {
+    stagePrincipalColumns();
+    const res = await request(appAs(RESTRICTED)).post('/ingest/principals').send({
+      systemId: 7, syncMode: 'delta', records: [{ displayName: 'x', systemId: 1 }],
+    });
+    expect(res.status).toBe(403);
+    expect(res.body.error).toMatch(/Record 0: systemId 1 is outside this crawler's systems/);
+    expect(mockIngest).not.toHaveBeenCalled();
+  });
+
+  it('403 when the batch would overwrite a row another system owns', async () => {
+    mockQuery.mockImplementation(async (sql) => (/jsonb_populate_recordset/.test(String(sql))
+      ? { rows: [{ '?column?': 1 }], rowCount: 1 } : { rows: [], rowCount: 0 }));
+    const res = await request(appAs(RESTRICTED)).post('/ingest/principals').send({
+      systemId: 7, syncMode: 'delta', records: [{ id: UUID, displayName: 'x' }],
+    });
+    expect(res.status).toBe(403);
+    expect(res.body.error).toMatch(/would modify a Principals row owned by a system outside/);
+    expect(mockIngest).not.toHaveBeenCalled();
+  });
+
+  it('403 for an unscoped full sync of a table without a systemId column', async () => {
+    const res = await request(appAs(RESTRICTED)).post('/ingest/identities').send({
+      systemId: 7, syncMode: 'full', records: [{ id: UUID, displayName: 'x' }],
+    });
+    expect(res.status).toBe(403);
+    expect(res.body.error).toMatch(/needs a scope/);
+  });
+
+  it('an in-bounds batch reaches the engine with the allow-list for the reconcile and deletedIds', async () => {
+    const res = await request(appAs(RESTRICTED)).post('/ingest/principals').send({
+      systemId: 7, syncMode: 'full', records: [{ id: UUID, displayName: 'x' }], deletedIds: [UUID],
+    });
+    expect(res.status).toBe(201);
+    expect(mockIngest.mock.calls[0][4].restrictSystemIds).toEqual([7]);
+    const del = mockQuery.mock.calls.find(([sql]) => /DELETE FROM|SET "deletedAt" = now\(\)/.test(String(sql)));
+    expect(del[1]).toEqual([[UUID], [7]]);
+  });
+
+  it('the built-in worker is not boundary-checked: no lookup, and no allow-list reaches the engine', async () => {
+    const res = await request(appAs(WORKER)).post('/ingest/principals').send({
+      systemId: 7, syncMode: 'full', records: [{ id: UUID, displayName: 'x', systemId: 1 }],
+    });
+    expect(res.status).toBe(201);
+    expect(mockQuery.mock.calls.some(([sql]) => /jsonb_populate_recordset/.test(String(sql)))).toBe(false);
+    expect(mockIngest.mock.calls[0][4].restrictSystemIds).toBeNull();
+  });
+
+  it('a session is opened with the caller identity (per-crawler cap + ownership)', async () => {
+    await request(appAs(RESTRICTED)).post('/ingest/principals')
+      .send({ systemId: 7, syncMode: 'full', syncSession: 'start', scope: { principalType: 'User' }, records: [{ displayName: 'x' }] });
+    expect(mockStart.mock.calls[0][4]).toMatchObject({ crawlerId: 21, isWorker: false, restrictSystemIds: [7] });
+  });
+
+  it('429 when the session cap is reached', async () => {
+    const { SessionLimitError } = await import('../ingest/sessions.js');
+    mockStart.mockRejectedValueOnce(new SessionLimitError('Too many open ingest sessions for this crawler (limit 3)'));
+    const res = await request(appAs(RESTRICTED)).post('/ingest/principals')
+      .send({ systemId: 7, syncMode: 'full', syncSession: 'start', records: [{ displayName: 'x' }] });
+    expect(res.status).toBe(429);
+    expect(res.body.error).toMatch(/limit 3/);
+  });
+});
+
+describe('ingest handler — server-managed columns are not writable (H-04)', () => {
+  it('a record field named after a server-managed column is kept as an attribute, never written to the column', async () => {
+    mockQuery.mockImplementation(async (sql) => (/information_schema\.columns/.test(String(sql))
+      ? { rows: ['id', 'system_id', 'display_name', 'risk_score', 'deleted_at'].map(column_name => ({ column_name })) }
+      : { rows: [], rowCount: 0 }));
+    const res = await request(app).post('/ingest/principals').send({
+      systemId: 1, syncMode: 'delta', records: [{ displayName: 'x', riskScore: 0, deletedAt: '2020-01-01' }],
+    });
+    expect(res.status).toBe(201);
+    const rec = mockIngest.mock.calls[0][3][0];
+    expect(rec).not.toHaveProperty('riskScore');
+    expect(rec).not.toHaveProperty('deletedAt');
+    expect(JSON.parse(rec.extendedAttributes)).toEqual({ riskScore: 0, deletedAt: '2020-01-01' });
+  });
+});
+
+describe('ingest/systems — never reconciled (C-01)', () => {
+  it('runs a full sync of systems as a delta', async () => {
+    mockQueryOne.mockResolvedValue({ id: 42 });
+    const res = await request(app).post('/ingest/systems')
+      .send({ records: [{ displayName: 'X', systemType: 'X', tenantId: 'y' }], syncMode: 'full' });
+    expect(res.status).toBe(201);
+    expect(mockIngest.mock.calls[0][4].syncMode).toBe('delta');
+  });
+
+  it('still validates the required fields of a full batch before running it as a delta', async () => {
+    const res = await request(app).post('/ingest/systems')
+      .send({ records: [{ tenantId: 'y' }], syncMode: 'full' });
+    expect(res.status).toBe(400);
+    expect(mockIngest).not.toHaveBeenCalled();
+  });
+});
+
+describe('ingest handler — extendedAttributes bounds (L-16)', () => {
+  it('400 for a record with more extendedAttributes keys than the limit', async () => {
+    stagePrincipalColumns();
+    const extendedAttributes = Object.fromEntries(Array.from({ length: 501 }, (_, i) => [`k${i}`, 'v']));
+    const res = await request(app).post('/ingest/principals')
+      .send({ systemId: 1, syncMode: 'delta', records: [{ displayName: 'x', extendedAttributes }] });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/Record 0: extendedAttributes has more than 500 keys/);
+    expect(mockIngest).not.toHaveBeenCalled();
+  });
+});
+
+describe('data-plane endpoints (M-05)', () => {
+  beforeEach(usePermissionsOfCaller);
+
+  it('sync-log stamps the calling crawler and a system it may access', async () => {
+    const res = await request(appAs(RESTRICTED)).post('/ingest/sync-log')
+      .send({ syncType: 'X', startTime: '2026-01-01T00:00:00Z', endTime: '2026-01-01T00:00:10Z', systemId: 7 });
+    expect(res.status).toBe(201);
+    const [sql, params] = mockQuery.mock.calls.find(([s]) => /INSERT INTO "GraphSyncLog"/.test(String(s)));
+    expect(sql).toContain('"crawlerId", "systemId"');
+    expect(params.slice(-2)).toEqual([21, 7]);
+  });
+
+  it('sync-log refuses a system the crawler cannot access', async () => {
+    const res = await request(appAs(RESTRICTED)).post('/ingest/sync-log')
+      .send({ syncType: 'X', startTime: '2026-01-01T00:00:00Z', systemId: 1 });
+    expect(res.status).toBe(403);
+  });
+
+  it('classify needs refreshViews — an ingest-only key is refused before any UPDATE', async () => {
+    const res = await request(appAs(RESTRICTED)).post('/ingest/classify-business-role-assignments').send({});
+    expect(res.status).toBe(403);
+    expect(mockQuery).not.toHaveBeenCalled();
+  });
+
+  it('classify from a restricted refreshViews key only flags its own systems', async () => {
+    const caller = { ...RESTRICTED, permissions: ['ingest', 'refreshViews'] };
+    const res = await request(appAs(caller)).post('/ingest/classify-business-role-assignments').send({});
+    expect(res.status).toBe(200);
+    const [sql, params] = mockQuery.mock.calls.find(([s]) => /UPDATE "ResourceAssignments"/.test(String(s)));
+    expect(sql).toContain('AND ra."systemId" = ANY($1::int[])');
+    expect(params).toEqual([[7]]);
+  });
+
+  it('principals-presence passes a restricted key its own systems, and the worker none', async () => {
+    const presence = await import('../ingest/crawlerPresence.js');
+    await request(appAs(RESTRICTED)).post('/ingest/principals-presence').send({ tenantId: 't1', ids: [UUID] });
+    expect(presence.lookupCrawlerPresence.mock.calls.at(-1)[3]).toEqual([7]);
+    await request(appAs(WORKER)).post('/ingest/principals-presence').send({ tenantId: 't1', ids: [UUID] });
+    expect(presence.lookupCrawlerPresence.mock.calls.at(-1)[3]).toBeNull();
+  });
+
+  it('matrix-default-filter is worker-only: an ingest key is refused, the worker is not', async () => {
+    const body = { name: 'Default', filter: { rowType: 'user' } };
+    expect((await request(appAs(RESTRICTED)).post('/ingest/matrix-default-filter').send(body)).status).toBe(403);
+    expect((await request(appAs(WORKER)).post('/ingest/matrix-default-filter').send(body)).status).toBe(201);
   });
 });

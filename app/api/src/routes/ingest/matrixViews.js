@@ -12,6 +12,7 @@ import * as db from '../../db/connection.js';
 import { crawlerHasPermission } from '../../middleware/crawlerAuth.js';
 import { bumpSyncVersion } from '../../lib/syncVersion.js';
 import { breakCycles } from '../../contexts/cycleGuard.js';
+import { createSerializedRunner } from '../../lib/serializedRunner.js';
 
 const router = Router();
 const useSql = process.env.USE_SQL === 'true';
@@ -24,7 +25,7 @@ router.post('/ingest/refresh-views', async (req, res) => {
     return res.json({ message: 'SQL disabled — nothing to refresh' });
   }
   try {
-    await refreshMatrixViews();
+    await refreshMatrixViewsSerialized();
 
     // Mark every system that has synced data with the current timestamp so the
     // Systems page shows "Last sync: <date>" instead of "Never".
@@ -121,6 +122,17 @@ export function refreshKeyword(viewName, populatedSet, isDesktop) {
   return !isDesktop && populatedSet.has(viewName) ? 'CONCURRENTLY' : '';
 }
 
+// Crawler-triggered refreshes go through this: one refresh at a time, callers
+// that arrive mid-refresh share one follow-up, and back-to-back refreshes are
+// spaced out (SEC-2026-09 M-05). bootstrap.js calls refreshMatrixViews directly.
+// MATRIX_REFRESH_MIN_INTERVAL_MS overrides the spacing (tests set it to 0).
+export function matrixRefreshMinIntervalMs(env = process.env) {
+  const n = Number.parseInt(env.MATRIX_REFRESH_MIN_INTERVAL_MS ?? '', 10);
+  return Number.isInteger(n) && n >= 0 ? n : 5000;
+}
+export const refreshMatrixViewsSerialized = createSerializedRunner(
+  () => refreshMatrixViews(), { minIntervalMs: matrixRefreshMinIntervalMs() });
+
 export async function refreshMatrixViews() {
   const views = [
     '"vw_ResourceUserPermissionAssignments"',
@@ -171,8 +183,11 @@ export async function refreshMatrixViews() {
 // Called by Ingest-DemoDataset.ps1 to pre-configure the Matrix tab so new
 // installs with demo data don't require the wizard on first visit.
 
+// Worker-class keys only: this replaces the org-wide default filter and can
+// overwrite an analyst's saved filter of the same name (SEC-2026-09 M-05). The
+// only caller is the demo dataset loader, run by the built-in worker.
 router.post('/ingest/matrix-default-filter', async (req, res) => {
-  if (!crawlerHasPermission(req, 'admin') && !crawlerHasPermission(req, 'ingest')) {
+  if (!crawlerHasPermission(req, 'admin')) {
     return res.status(403).json({ error: 'Insufficient permissions' });
   }
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });

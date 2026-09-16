@@ -224,6 +224,10 @@ Two details are worth knowing, because getting them wrong is silent:
   so the *first* deployment is protected by the key alone. Re-run the script (or pass
   `reportGeneratorAllowedCallerIps`) to add the allow-list. Those are shared Azure addresses, so treat
   it as defence in depth rather than a boundary.
+- **In the private network mode the allow-list is not applied.** There the web app sends all outbound
+  traffic through the VNet, so its calls do not come from the addresses on the list and the list would
+  lock it out. The generator is protected by its API key alone. It still has public ingress in that
+  mode — making it reachable only from inside the VNet is not done yet.
 
 ## Measuring it yourself
 

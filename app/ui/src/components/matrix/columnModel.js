@@ -17,8 +17,10 @@ export function collapseKey(sortKeys, level) {
   return `${level}|${seg}`;
 }
 
-// A per-account sub-column spliced in under an expanded identity (or member),
-// inheriting the parent's sort-keys so the merged attribute headers stay contiguous.
+// A per-account sub-column of an expanded identity (or member), inheriting the
+// parent's sort-keys so the merged attribute headers stay contiguous. The parent
+// rides along on `parent`: while expanded it has no column of its own, and the
+// header uses this to draw it as the cell spanning its accounts.
 export function makeAccountCol(parent, acc, sortKeys) {
   return {
     id: acc.id,
@@ -29,6 +31,7 @@ export function makeAccountCol(parent, acc, sortKeys) {
     memberType: 'Principal',
     isAccountCol: true,
     parentId: parent.id,
+    parent,
     accountType: acc.accountType || null,
     isPrimary: !!acc.isPrimary,
     sortKeys: [...(sortKeys || [])],
@@ -68,17 +71,21 @@ function childCountsBelow(members, lvl, nAttr) {
   return childCounts;
 }
 
-// Push a subject's account sub-columns, when it's an expanded identity.
-function appendAccountCols(out, parent, sortKeys, ctx) {
-  if (parent.memberType !== 'Identity' || !ctx.expandedIdentities.has(parent.id)) return;
+// The account sub-columns of an expanded identity — empty for anything else.
+function accountColsFor(parent, sortKeys, ctx) {
+  if (parent.memberType !== 'Identity' || !ctx.expandedIdentities.has(parent.id)) return [];
   const cache = ctx.accountMatrixCache.get(parent.id);
-  for (const acc of (cache?.accounts || [])) out.push(makeAccountCol(parent, acc, sortKeys));
+  return (cache?.accounts || []).map(acc => makeAccountCol(parent, acc, sortKeys));
 }
 
-// Push a real subject column followed by its account sub-columns.
+// Push a subject's column(s). An expanded identity is REPLACED by one column per
+// linked account: expanding drills into the accounts, and collapsing is what
+// brings the identity's combined ("all accounts") column back. An identity with
+// no linked accounts keeps its own column, so it can never vanish from the grid.
 function pushSubjectWithAccounts(out, col, accountSortKeys, ctx) {
-  out.push(col);
-  appendAccountCols(out, col, accountSortKeys, ctx);
+  const accounts = accountColsFor(col, accountSortKeys, ctx);
+  if (accounts.length) out.push(...accounts);
+  else out.push(col);
 }
 
 // Member-expanded: show the individual subjects at this level instead of one

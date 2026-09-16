@@ -23,12 +23,13 @@ const mockPool = {
 const query = vi.fn();
 vi.mock('../db/connection.js', () => ({ getPool: async () => mockPool, query: (...a) => query(...a), queryOne: vi.fn() }));
 vi.mock('../middleware/auth.js', () => ({ requirePermission: () => (_q, _s, next) => next() }));
-vi.mock('../secrets/crawlerSecrets.js', () => ({ injectJobSecret: vi.fn(async (j) => j.config), deleteJobSecret: vi.fn(async () => {}) }));
+vi.mock('../secrets/crawlerSecrets.js', () => ({ injectJobSecret: vi.fn(async (j) => j.config), deleteJobSecrets: vi.fn(async () => {}) }));
 vi.mock('../crawlerManifests.js', () => ({ getPushModeType: vi.fn(() => null) }));
 vi.mock('../postCrawlJobs.js', () => ({ runPostCrawlJobs: vi.fn(async () => {}) }));
 vi.mock('../middleware/crawlerAuth.js', () => ({ crawlerHasPermission: vi.fn(() => true), crawlerHasSystemAccess: vi.fn(() => true) }));
 
 const { adminCrawlersRouter, selfServiceCrawlersRouter } = await import('./crawlers.js');
+const crawlerSecrets = await import('../secrets/crawlerSecrets.js');
 const adminApp = mountRouter(adminCrawlersRouter);
 
 // Self-service requests carry a crawler identity (set by the API-key middleware
@@ -144,6 +145,22 @@ describe('self-service crawlers — happy paths (worker key)', () => {
     const res = await asWorker().post('/api/crawlers/jobs/claim');
     expect(res.status).toBe(200);
     expect(res.body.job.id).toBe(9);
+  });
+  // SEC-2026-09 H-02: credentials are resolved from the server-owned column.
+  it('claim reads the configId column, hands it to injectJobSecret, and keeps it out of the response', async () => {
+    crawlerSecrets.injectJobSecret.mockClear();
+    query.mockResolvedValue({ rows: [{ id: 9, jobType: 'demo', config: { a: 1 }, configId: 4 }] });
+    const res = await asWorker().post('/api/crawlers/jobs/claim');
+    expect(query.mock.calls[0][0]).toContain('cj."configId"');
+    expect(crawlerSecrets.injectJobSecret).toHaveBeenCalledWith(expect.objectContaining({ id: 9, configId: 4 }));
+    expect(res.body.job).toEqual({ id: 9, jobType: 'demo', config: { a: 1 } });
+  });
+  it('complete and fail remove every per-job credential', async () => {
+    crawlerSecrets.deleteJobSecrets.mockClear();
+    query.mockResolvedValue({ rowCount: 1 });
+    await asWorker().post('/api/crawlers/jobs/12/complete').send({});
+    await asWorker().post('/api/crawlers/jobs/13/fail').send({});
+    expect(crawlerSecrets.deleteJobSecrets.mock.calls).toEqual([[12], [13]]);
   });
   it('mark-delta-mode flips the config', async () => {
     query.mockResolvedValue({ rowCount: 1 });

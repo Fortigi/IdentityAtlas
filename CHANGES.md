@@ -1,5 +1,69 @@
 ## Changes in this PR
 
+- Fixed a full sync sent to the systems ingest endpoint being able to remove other registered systems and all of their data; systems are now always registered as a delta, and the Omada crawler no longer requests a full sync for them.
+- Hardened crawler API keys that are restricted to specific systems: they can no longer create, overwrite, tombstone or delete data belonging to other systems, and cannot write server-managed fields such as risk scores, deletion stamps or analyst decisions.
+- Hardened the crawler data-plane endpoints: business-role classification now needs the refresh-views permission and only touches the caller's systems, matrix view refreshes run one at a time, the default matrix filter can only be set by the built-in worker, sync-log entries record which crawler wrote them, principal presence lookups are limited to the caller's systems, and job progress can only be reported by the worker.
+- Hardened the API against a crawler key holding database connections: open multi-batch ingest sessions are now capped per crawler and in total, and connections left idle inside a transaction are closed.
+- Hardened ingest against very large attribute sets: a record's extended attributes are limited in key count and size, and filter-column discovery only surfaces the most common attribute keys.
+
+## Changes in this PR
+
+- Hardened Azure deployments: the Postgres admin password is now random and kept in Key Vault instead of being derived from resource names. Existing deployments keep their current password until you rotate it with the new `rotatePostgresPassword` deployment parameter.
+- Hardened Azure deployments: Postgres now only accepts connections from the web app's own outbound IP addresses instead of from every Azure service.
+- Added an opt-in private network mode for new Azure deployments (`networkMode=private`): a virtual network with private endpoints for Key Vault, Storage and Postgres.
+- Added Azure deployment parameters to restrict who can reach the web app (`webAccessDefaultAction`, `webAllowedIpCidrs`).
+- Hardened Docker Compose installs: the auto-generated secrets-vault master key now lives on a web-only volume that the worker container cannot read; an existing key is moved there automatically after it is verified.
+- The web app no longer generates a new vault master key while encrypted secrets exist, so a lost or misplaced key can be restored instead of silently making stored credentials unreadable.
+- Secrets can now be supplied as files (`POSTGRES_PASSWORD_FILE`, `DATABASE_URL_FILE`, `IDENTITY_ATLAS_MASTER_KEY_FILE`); the production compose file passes the database password as a Compose secret instead of a plain environment variable.
+- Hardened the containers: the worker now runs as a non-root user, and every service runs with no-new-privileges, a minimal capability set, and process and memory limits (configurable with `POSTGRES_MEM_LIMIT`, `WEB_MEM_LIMIT`, `WORKER_MEM_LIMIT`).
+- The worker container no longer receives unused Microsoft Graph and LLM credential environment variables, and its image no longer ships repository tooling.
+- Published images are now built from digest-pinned base images and carry signed build provenance and an SBOM attestation.
+
+## Changes in this PR
+
+- Fixed autonomous builds failing with an authentication error ("Invalid username or token") and landing in Exceptions when the build ran longer than one hour; long builds now pick up a fresh bot credential and continue where they stopped, without extra fix attempts
+- Fixed a usage-limit pause on a long build silently losing its saved work-in-progress when the bot credential had already expired
+
+## Changes in this PR
+
+- Fixed pipeline board cards staying at "Awaiting merge" after their fix was merged. When a pull request from any branch closes a Feature or Bug Pipeline issue, that issue now moves to Done automatically — previously only the pipeline's own build branches did this.
+
+## Changes in this PR
+
+- Fixed automated builds overwriting another request's test environment: a new build could be sent to a sidekick that was still holding a feature in functional acceptance, which wiped that environment and silently disconnected the feature from its sidekick
+- Automated builds now go to a sidekick that no open request holds (set by the `DOR_POOL` repository variable), and a request that is rebuilt goes back to its own sidekick
+- A build that still lands on a sidekick in use now waits and retries automatically instead of taking it over, and puts back the holder's sidekick label if it was missing
+- Sidekicks left holding the test environment of a closed request, or of a request that has since moved to another sidekick, are now released automatically every hour and returned to the build pool
+- Leftover test environments of closed requests and merged pull requests are removed from the sidekicks during the same hourly check, freeing their disk space
+
+## Changes in this PR
+
+- Hardened the credential vault: every secret is now read and deleted only through the feature it belongs to, so risk-profile scraper credentials can no longer be used to reach any other stored secret.
+- Hardened crawler jobs: a job now only receives the stored credentials of the crawler configuration it was actually created from.
+- Hardened crawler configurations: changing a crawler's base URL, token endpoint or other endpoint host now asks you to re-enter its stored credentials before the change is saved.
+- Crawler passwords, API tokens and cookie strings are now stored encrypted in the vault like client secrets; existing plaintext values are moved into the vault automatically on upgrade.
+- Hardened crawler API keys: admin-created crawlers can only be granted the `ingest` and `refreshViews` permissions, and the Built-in Worker can no longer be renamed, disabled, deleted or given different permissions (it is identified by a dedicated flag, not its name, and is re-enabled on startup if an earlier version disabled it).
+- Stored secrets are now cryptographically bound to their own vault entry, so a secret copied onto another entry no longer decrypts; existing secrets are re-bound automatically on startup.
+- Added a `rotate-master-key` command for rotating the vault master key without ever printing a stored secret (see the LLM & risk scoring architecture docs).
+- Crawler API keys are no longer kept in memory in plaintext by the authentication cache.
+
+## Changes in this PR
+
+- Fixed automated bug builds being sent to Exceptions when a fix touched more than one PowerShell test file; the test run was refused before any test ran, so a correct fix was reported as not passing its regression test
+
+## Changes in this PR
+
+- Fixed issues keeping their workflow labels (such as "awaiting approval" or "build done") after their pull request was merged or closed; the cleanup silently did nothing whenever one of the labels it clears did not exist yet
+
+## Changes in this PR
+
+- Expanding an identity in the matrix now drills into its linked accounts: the identity's column is replaced by one column per account, shown in a second header row beneath the identity, which spans them. It reads like an organizational expand — collapsing the identity again brings back its combined all-accounts column.
+- The new accounts row stays pinned with the column names while you scroll the grid, and disappears again as soon as the last expanded identity is collapsed.
+- Identity column headers in the matrix now show how many accounts are linked to that identity, so you can see which identities are worth expanding before you expand them. The count sits next to the name as a small grey number, with the full wording in the header tooltip, and stays visible while the identity is expanded. Identities without linked accounts, and plain account columns, show no count.
+- Fixed the account count staying blank on identities that do have several accounts. It is now counted from the identity's actual linked accounts, so it always matches the number of columns you get when you expand — previously it was read from a stored total that is only filled in for identities the account-linking job has processed, leaving it empty for identities loaded by a crawler or a CSV import.
+
+## Changes in this PR
+
 - Saving and sharing a matrix are now one experience: a matrix always has a name on screen, sharing an unsaved matrix saves it under one name in the same step, and sharing an already-saved matrix never asks for a name again.
 - The matrix has a single strip above it: the matrix's name (or "Unsaved matrix"), "Unsaved changes" when you changed a saved matrix, "Shared with N" when it is shared, the live users × resources · assignments counts (the assignment count used to read 0), and **Adjust**.
 - The matrix's name is a menu: open any saved matrix, start a **New matrix…**, or **Rename…**, **Duplicate…** or **Delete…** the one on screen. Renaming or deleting a shared matrix warns that its recipients are affected, and a name that is already taken is shown right away. Clicking "Unsaved changes" takes you straight to saving them.

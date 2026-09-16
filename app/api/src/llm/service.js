@@ -35,7 +35,7 @@ export async function getLLMConfig() {
 export async function isLLMConfigured() {
   const cfg = await getLLMConfig();
   if (!cfg || !cfg.provider) return false;
-  return await hasSecret(SECRET_ID);
+  return await hasSecret(SECRET_ID, SECRET_SCOPE);
 }
 
 // Save the config. apiKey is encrypted into the secrets vault, the rest goes
@@ -73,7 +73,7 @@ export async function saveLLMConfig({ provider, model, endpoint, deployment, api
 
 export async function clearLLMConfig() {
   await db.query(`DELETE FROM "WorkerConfig" WHERE "configKey" = $1`, [CONFIG_KEY]);
-  await deleteSecret(SECRET_ID);
+  await deleteSecret(SECRET_ID, SECRET_SCOPE);
 }
 
 // Return a config object ready to pass to providers.js `chat()`. Throws when
@@ -81,7 +81,7 @@ export async function clearLLMConfig() {
 async function loadFullConfig() {
   const cfg = await getLLMConfig();
   if (!cfg) throw new Error('No LLM provider configured. Set one in Admin → LLM Settings.');
-  const apiKey = await getSecret(SECRET_ID);
+  const apiKey = await getSecret(SECRET_ID, SECRET_SCOPE);
   if (!apiKey) throw new Error('LLM API key missing from secrets vault. Re-save the config.');
   return { ...cfg, apiKey };
 }
@@ -143,7 +143,7 @@ export async function listModelsForConfig({ provider, apiKey, endpoint, apiVersi
       // Load from the saved config
       const saved = await getLLMConfig();
       if (!saved) return { ok: false, error: 'No saved config and no apiKey provided' };
-      resolvedKey = await getSecret(SECRET_ID);
+      resolvedKey = await getSecret(SECRET_ID, SECRET_SCOPE);
       if (!resolvedKey) return { ok: false, error: 'API key not in vault — re-save the config' };
       resolvedProvider = resolvedProvider || saved.provider;
       resolvedEndpoint = resolvedEndpoint || saved.endpoint;

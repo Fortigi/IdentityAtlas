@@ -47,9 +47,10 @@ here).
 - **Schema**: [`Secrets`](https://github.com/Fortigi/IdentityAtlas/blob/main/) — id, scope, label, ciphertext, iv, authTag + per-row encryptedKey/keyIv/keyAuthTag.
 - **Encryption**: AES-256-GCM. Per-row 32-byte data key. The data key is wrapped by a master key from `IDENTITY_ATLAS_MASTER_KEY` (32 bytes, base64).
 - **Master key bootstrap**:
-  1. `IDENTITY_ATLAS_MASTER_KEY` env var (preferred — back this up like any other root secret)
-  2. `/data/uploads/.master-key` file (auto-generated on first boot, persisted in the same docker volume as the worker key)
-- **Public API**: `putSecret`, `getSecret`, `hasSecret`, `deleteSecret`, `listSecrets(scope)`, `selfTest()`.
+  1. `IDENTITY_ATLAS_MASTER_KEY` env var, or `IDENTITY_ATLAS_MASTER_KEY_FILE` (preferred — back this up like any other root secret)
+  2. A key file, auto-generated on first boot: `$IDENTITY_ATLAS_KEY_DIR/.master-key` (the web-only `web_keys` volume in the compose files), or `/data/uploads/.master-key` when `IDENTITY_ATLAS_KEY_DIR` is unset (older compose files). A key found at the old location is moved to the key directory after it is verified. See `app/api/src/secrets/masterKeyStore.js`.
+  3. No new key is generated while the vault already holds encrypted secrets — restore the key instead (or set `IDENTITY_ATLAS_ALLOW_NEW_MASTER_KEY=true` to start over).
+- **Public API**: `putSecret(id, scope, value, label)`, `getSecret(id, scope)`, `hasSecret(id, scope)`, `deleteSecret(id, scope)`, `listSecrets(scope)`, `selfTest()`. Every read, existence check and delete names the scope it may touch — a row in another scope is treated as absent.
 - **Why envelope encryption**: per-row keys mean a single compromised secret doesn't expose the others; rotating the master key only re-encrypts the small data keys, not the (potentially large) ciphertexts; the same shape works for an HSM/KMS later by swapping the wrapping function.
 
 For development, the bootstrap auto-generates and persists a master key on first
@@ -196,30 +197,52 @@ postgres in the docker stack).
 
 ### Master key rotation
 
-Currently a manual operation:
+Use the `rotate-master-key` CLI. It re-wraps only each row's `encryptedKey`
+(the per-row data key) from the previous master key to the new one, in a single
+transaction. Secret values are never decrypted by the CLI and nothing secret is
+printed — the output is row counts, plus the ids of any rows neither key opens
+(in which case nothing is written).
+
+Both keys are read from environment variables, never from command-line
+arguments:
+
+| Variable | Value |
+|---|---|
+| `IDENTITY_ATLAS_MASTER_KEY_PREVIOUS` | the key the vault is encrypted with today (the current env value, or the contents of `/data/uploads/.master-key`) |
+| `IDENTITY_ATLAS_MASTER_KEY` | the new key — `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"` |
 
 ```bash
-# 1. Decrypt all secrets with the old key
-docker compose exec web node -e "
-  const v = require('./src/secrets/vault.js');
-  v.listSecrets('llm').then(async ss => {
-    for (const s of ss) console.log(s.id, await v.getSecret(s.id));
-  });
-"
+# 1. Stop the containers that use the vault, so nothing writes with the old key
+docker compose stop web worker
 
-# 2. Set the new IDENTITY_ATLAS_MASTER_KEY in compose
-# 3. Restart web
-# 4. Re-save each secret (the wizard's "Save" button does this end-to-end)
+# 2. Put both keys in your shell environment without echoing them
+#    (read -s keeps them out of shell history)
+read -rs IDENTITY_ATLAS_MASTER_KEY_PREVIOUS && export IDENTITY_ATLAS_MASTER_KEY_PREVIOUS
+read -rs IDENTITY_ATLAS_MASTER_KEY && export IDENTITY_ATLAS_MASTER_KEY
+
+# 3. Dry run, then the real rotation. `-e NAME` without a value passes the
+#    variable through from your shell.
+docker compose run --rm --no-deps   -e IDENTITY_ATLAS_MASTER_KEY_PREVIOUS -e IDENTITY_ATLAS_MASTER_KEY   web node /app/backend/src/cli/rotate-master-key.js --dry-run
+docker compose run --rm --no-deps   -e IDENTITY_ATLAS_MASTER_KEY_PREVIOUS -e IDENTITY_ATLAS_MASTER_KEY   web node /app/backend/src/cli/rotate-master-key.js
+
+# 4. Point the web container at the new key: set IDENTITY_ATLAS_MASTER_KEY in
+#    your compose env / secret store, or (auto-generated key) replace the
+#    contents of /data/uploads/.master-key. Then start the stack again.
+docker compose up -d
 ```
 
-A `POST /api/admin/secrets/rotate-master-key` endpoint is a planned future
-addition. It would rewrap each row's `encryptedKey` rather than re-encrypt the
-ciphertexts.
+The rotation is idempotent: rows already wrapped by the new key are skipped, so
+an interrupted run can simply be repeated. Keep the previous key until the web
+container has started cleanly on the new one.
+
+Vault rows are also bound to their own id and scope (AES-GCM additional data),
+so a ciphertext copied onto a different row does not decrypt. Rows written by
+older versions are re-bound automatically at startup.
 
 ### Backups
 
-Back up the postgres database **and** `/data/uploads/.master-key` (if you used
-the auto-generated key) **and** the `IDENTITY_ATLAS_MASTER_KEY` env var (if you
+Back up the postgres database **and** the auto-generated key file (`/data/keys/.master-key`
+in the `web_keys` volume, or `/data/uploads/.master-key` with an older compose file) **and** the `IDENTITY_ATLAS_MASTER_KEY` env var (if you
 set it explicitly). Without the master key, every secret in the vault is
 unrecoverable.
 

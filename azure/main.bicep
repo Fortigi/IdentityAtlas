@@ -8,16 +8,19 @@
 //
 // What this deploys:
 //   - App Service Plan (Linux) + App Service for Containers (web)
-//   - Postgres Flexible Server (public endpoint + firewall rule)
-//   - Key Vault (public endpoint, access policies; holds master key + DB password)
+//   - Postgres Flexible Server (firewall limited to the web app's outbound IPs)
+//   - Key Vault (access policies; holds master key + DB password)
 //   - Storage Account + Azure Files share (for /data/uploads)
 //   - 2 user-assigned managed identities (web, deployment-script)
 //   - One-shot deployment script: generates master key + DB password into KV
-//   - Container Apps Environment (Consumption profile, no VNet)
+//   - Container Apps Environment (Consumption profile)
 //   - Container App: worker (always-on, no ingress)
 //   - Optional: Log Analytics workspace (or BYO via parameter)
 //
-// No VNet. No private endpoints. No public IP we provision.
+// networkMode = 'public' (default): no VNet, no private endpoints.
+// networkMode = 'private' (NEW deployments only): a VNet with private endpoints
+// for Key Vault, Storage and Postgres; the web app uses VNet integration and the
+// worker environment runs in the VNet. See docs/architecture/azure-deployment.md.
 
 targetScope = 'resourceGroup'
 
@@ -55,6 +58,23 @@ param reportGeneratorAllowedCallerIps array = []
 
 @description('Optional: FULL ARM resource ID of an existing Log Analytics workspace to forward logs to. Leave empty to create a new workspace (~€3/mo). Must look like /subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.OperationalInsights/workspaces/<name> — copy it from the workspace\'s Overview → JSON View, NOT the parent resource group. The deployer needs Log Analytics Reader on the workspace.')
 param existingLogAnalyticsWorkspaceId string = ''
+
+@description('Network shape. **public** (default) = public endpoints; Postgres accepts only the web app\'s outbound IPs. **private** = VNet + private endpoints for Key Vault, Storage and Postgres (about EUR 25/mo extra). Choose private only when creating a NEW deployment: an existing Container Apps environment cannot be moved into a VNet.')
+@allowed(['public', 'private'])
+param networkMode string = 'public'
+
+@description('Web app access restriction for requests that match no allow rule. **Allow** (default) = reachable from the internet (sign-in is enforced by the app). **Deny** = only webAllowedIpCidrs (and, in private mode, the worker subnet). In public mode the worker calls the web app\'s public URL, so add its outbound IP to webAllowedIpCidrs before choosing Deny.')
+@allowed(['Allow', 'Deny'])
+param webAccessDefaultAction string = 'Allow'
+
+@description('Optional: IPv4 CIDRs allowed to reach the web app, e.g. ["203.0.113.0/24"]. A non-empty list implies Deny for everything else.')
+param webAllowedIpCidrs array = []
+
+@description('Replace the Postgres admin password with a new random value during this deployment. Leave false for normal redeploys. Set true once on deployments created before random passwords were introduced; the web app restarts onto the new password.')
+param rotatePostgresPassword bool = false
+
+@description('Restore the legacy Postgres firewall rule that admits all Azure services (any tenant). Not recommended; public network mode only.')
+param postgresAllowAllAzureServices bool = false
 
 // Entra ID auth is NOT configured by this template. It deploys the app in
 // OPEN mode (anyone with the URL can reach it). To turn auth on, run
@@ -128,15 +148,13 @@ var webImage = 'ghcr.io/fortigi/identity-atlas:${_imageTag}'
 var workerImage = 'ghcr.io/fortigi/identity-atlas-worker:${_imageTag}'
 var reportGeneratorImage = 'ghcr.io/fortigi/identity-atlas-report-generator:${_imageTag}'
 
-// Postgres admin password. Deterministic — same RG + name prefix always
-// produces the same value, so re-deploys don't rotate the password. Meets
-// Postgres complexity rules (upper + lower + digit + special).
-//
-// Security model: anyone with RG read access can derive this, but they also
-// have admin rights to KV and Postgres firewall, so password unpredictability
-// isn't the boundary. Real security = managed identity + KV access policies +
-// firewall.
-var pgPassword = '${uniqueString(resourceGroup().id, namePrefix, 'pg-base')}!Aa1${take(uniqueString(resourceGroup().id, namePrefix, 'pg-x'), 4)}'
+// Postgres admin password: generated randomly by the bootstrap script and kept
+// in Key Vault (SEC-2026-09 H-06). It used to be derived here with
+// uniqueString(), a deterministic hash of the subscription ID and resource group
+// name. Existing deployments keep their current password until an operator sets
+// rotatePostgresPassword=true (see modules/bootstrap.bicep).
+
+var privateNetworking = networkMode == 'private'
 
 // ─── Foundation ──────────────────────────────────────────────────────────
 
@@ -156,6 +174,14 @@ module logs 'modules/log-analytics.bicep' = {
 
 module storage 'modules/storage.bicep' = {
   name: 'storage'
+  params: {
+    namePrefix: namePrefix
+    location: location
+  }
+}
+
+module network 'modules/network.bicep' = if (privateNetworking) {
+  name: 'network'
   params: {
     namePrefix: namePrefix
     location: location
@@ -185,6 +211,13 @@ module kv 'modules/key-vault.bicep' = {
   }
 }
 
+// Same vault, referenced by its static name so the Postgres password can be
+// passed with getSecret(): ARM resolves it at deployment time and the value
+// never appears in the template, the parameters or the deployment history.
+resource kvRef 'Microsoft.KeyVault/vaults@2024-11-01' existing = {
+  name: kvName
+}
+
 // ─── Bootstrap: generate master key + DB password into KV ───────────────
 
 module bootstrap 'modules/bootstrap.bicep' = {
@@ -194,7 +227,7 @@ module bootstrap 'modules/bootstrap.bicep' = {
     location: location
     identityId: identities.outputs.deployScriptIdentityId
     keyVaultName: kv.outputs.kvName
-    pgPasswordToStore: pgPassword
+    rotatePostgresPassword: rotatePostgresPassword
     existingLogAnalyticsWorkspaceId: existingLogAnalyticsWorkspaceId
   }
 }
@@ -206,11 +239,14 @@ module postgres 'modules/postgres.bicep' = {
   params: {
     namePrefix: namePrefix
     location: location
-    adminPassword: pgPassword
+    adminPassword: kvRef.getSecret('postgres-admin-password')
     skuName: profile.postgresSku
     skuTier: profile.postgresTier
     storageGb: profile.postgresStorageGb
+    publicNetworkAccess: privateNetworking ? 'Disabled' : 'Enabled'
   }
+  // The secret is created (or rotated) by the bootstrap script.
+  dependsOn: [bootstrap]
 }
 
 // ─── App Service (web) ──────────────────────────────────────────────────
@@ -236,8 +272,40 @@ module web 'modules/app-service.bicep' = {
     storageAccountName: storage.outputs.storageAccountName
     uploadsShareName: storage.outputs.uploadsShareName
     logAnalyticsWorkspaceId: logs.outputs.workspaceId
+    pgPasswordSecretUri: bootstrap.outputs.pgPasswordSecretUri
+    ipSecurityRestrictionsDefaultAction: webAccessDefaultAction
+    allowedIpCidrs: webAllowedIpCidrs
+    vnetIntegrationSubnetId: privateNetworking ? network!.outputs.webSubnetId : ''
+    workerSubnetId: privateNetworking ? network!.outputs.acaSubnetId : ''
   }
-  dependsOn: [bootstrap]
+}
+
+// ─── Postgres network access ───────────────────────────────────────────────
+
+// Public mode: only the web app's outbound addresses may connect.
+module postgresFirewall 'modules/postgres-firewall.bicep' = if (!privateNetworking) {
+  name: 'postgres-firewall'
+  params: {
+    pgName: postgres.outputs.pgName
+    appOutboundIpAddresses: web.outputs.possibleOutboundIpAddresses
+    allowAllAzureServices: postgresAllowAllAzureServices
+  }
+}
+
+// Private mode: private endpoints for Key Vault, Storage and Postgres.
+module privateEndpoints 'modules/private-endpoints.bicep' = if (privateNetworking) {
+  name: 'private-endpoints'
+  params: {
+    namePrefix: namePrefix
+    location: location
+    subnetId: network!.outputs.privateEndpointSubnetId
+    keyVaultId: kv.outputs.kvId
+    storageAccountId: storage.outputs.storageAccountId
+    postgresId: postgres.outputs.pgId
+    keyVaultZoneId: network!.outputs.keyVaultZoneId
+    fileZoneId: network!.outputs.fileZoneId
+    postgresZoneId: network!.outputs.postgresZoneId
+  }
 }
 
 // ─── Container Apps Environment (for the worker) ─────────────────────────
@@ -252,6 +320,7 @@ module cae 'modules/aca-env.bicep' = {
     storageAccountName: storage.outputs.storageAccountName
     uploadsShareName: storage.outputs.uploadsShareName
     promptCacheShareName: storage.outputs.promptCacheShareName
+    infrastructureSubnetId: privateNetworking ? network!.outputs.acaSubnetId : ''
   }
 }
 
@@ -284,8 +353,45 @@ module reportGenerator 'modules/aca-app-report-generator.bicep' = if (deployRepo
     apiKey: reportGeneratorApiKey
     // Only the web app should reach it. These are shared Azure outbound addresses,
     // so this narrows the exposure without being a boundary — the API key is that.
-    allowedCallerIps: reportGeneratorAllowedCallerIps
+    // NOT in the private network mode: there the web app routes all outbound traffic
+    // through the VNet (vnetRouteAllEnabled, no NAT gateway), so its calls do not
+    // leave from the addresses on this list, and the list would lock it out.
+    allowedCallerIps: privateNetworking ? [] : reportGeneratorAllowedCallerIps
   }
+}
+
+// ─── Private mode: close the public paths ────────────────────────────────
+//
+// Key Vault and Storage stay open while the deployment runs: the bootstrap
+// script reaches the vault from a Microsoft-hosted container, and the web app
+// and worker need their private endpoints before the share is closed. Once
+// everything above has succeeded, the same modules are applied again with a
+// Deny default. A failed step (for example trying to move an existing
+// deployment's worker environment into the VNet) stops the deployment before
+// this point, so nothing still in use is closed. A redeploy re-opens both for
+// its duration and closes them again at the end.
+
+module kvLockdown 'modules/key-vault.bicep' = if (privateNetworking) {
+  name: 'key-vault-lockdown'
+  params: {
+    location: location
+    kvName: kvName
+    webIdentityPrincipalId: identities.outputs.webIdentityPrincipalId
+    deployScriptPrincipalId: identities.outputs.deployScriptIdentityPrincipalId
+    networkDefaultAction: 'Deny'
+  }
+  dependsOn: [bootstrap, postgres, web, worker, privateEndpoints]
+}
+
+module storageLockdown 'modules/storage.bicep' = if (privateNetworking) {
+  name: 'storage-lockdown'
+  params: {
+    namePrefix: namePrefix
+    location: location
+    networkDefaultAction: 'Deny'
+  }
+  // The report generator mounts its prompt cache from this account as well.
+  dependsOn: [web, cae, worker, privateEndpoints, reportGenerator]
 }
 
 // ─── Outputs ────────────────────────────────────────────────────────────
@@ -307,6 +413,9 @@ output postgresFqdn string = postgres.outputs.pgFqdn
 
 @description('Sizing profile in use.')
 output sizeProfileApplied string = sizeProfile
+
+@description('Network shape in use (public or private).')
+output networkModeApplied string = networkMode
 
 @description('True if a new Log Analytics workspace was created; false if BYO was used.')
 output logAnalyticsCreated bool = logs.outputs.createdNew

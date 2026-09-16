@@ -29,7 +29,7 @@ vi.mock('../db/connection.js', () => ({ query: (...a) => mockDbQuery(...a) }));
 // Secret vault + manifest + post-crawl pipeline are not under test here.
 vi.mock('../secrets/crawlerSecrets.js', () => ({
   injectJobSecret: async (job) => ({ ...job.config, clientSecret: 'INJECTED' }),
-  deleteJobSecret: async () => {},
+  deleteJobSecrets: async () => {},
 }));
 vi.mock('../crawlerManifests.js', () => ({ getPushModeType: () => 'custom-connector' }));
 vi.mock('../postCrawlJobs.js', () => ({ runPostCrawlJobs: async () => {} }));
@@ -98,5 +98,13 @@ describe('SEC-NEW-3: delta-token endpoints are scoped to the crawler\'s systems'
       .put('/api/crawlers/delta-tokens/users-delta')
       .send({ systemId: 9, token: 'abc' });
     expect(res.status).toBe(403);
+  });
+});
+
+describe('SEC-2026-09 M-05: job-progress is part of the worker protocol', () => {
+  it('rejects an ingest-only key (403) before reading any job', async () => {
+    const res = await request(appAs(ingestOnly)).post('/api/crawlers/job-progress').send({ jobId: 5, step: 'x' });
+    expect(res.status).toBe(403);
+    expect(mockDbQuery).not.toHaveBeenCalled();
   });
 });

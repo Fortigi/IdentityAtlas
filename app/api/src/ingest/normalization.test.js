@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { coerceValue, normalizeRecords } from './normalization.js';
+import { extendedAttributesBoundsError, EXT_ATTR_MAX_KEYS, EXT_ATTR_MAX_CHARS } from './normalization.js';
 
 describe('coerceValue', () => {
   it('passes boolean true through unchanged', () => {
@@ -332,5 +333,33 @@ describe('normalizeRecords — context parentExternalId resolution', () => {
       { idGeneration: 'deterministic', idPrefix: 'Omada-resources', systemId: 1 }
     );
     expect(r[0].parentResourceId).toBe(resource[0].id);
+  });
+});
+
+// ── extendedAttributes bounds (SEC-2026-09 L-16) ─────────────────────────────
+
+describe('extendedAttributesBoundsError', () => {
+  const packed = (n) => JSON.stringify(Object.fromEntries(Array.from({ length: n }, (_, i) => [`k${i}`, 1])));
+
+  it('ships limits far above any shipped crawler (500 keys, 512 KB)', () => {
+    expect(EXT_ATTR_MAX_KEYS).toBe(500);
+    expect(EXT_ATTR_MAX_CHARS).toBe(512 * 1024);
+  });
+
+  it('accepts exactly the key limit and refuses one more, naming the record', () => {
+    expect(extendedAttributesBoundsError([{ extendedAttributes: packed(3) }], 3)).toBeNull();
+    expect(extendedAttributesBoundsError([{}, { extendedAttributes: packed(4) }], 3))
+      .toBe('Record 1: extendedAttributes has more than 3 keys');
+  });
+
+  it('accepts exactly the size limit and refuses one character more', () => {
+    const value = JSON.stringify({ a: 'x'.repeat(10) }); // 18 characters
+    expect(extendedAttributesBoundsError([{ extendedAttributes: value }], 500, value.length)).toBeNull();
+    expect(extendedAttributesBoundsError([{ extendedAttributes: value }], 500, value.length - 1))
+      .toBe(`Record 0: extendedAttributes exceeds ${value.length - 1} characters`);
+  });
+
+  it('ignores records without packed attributes and non-object JSON', () => {
+    expect(extendedAttributesBoundsError([{ displayName: 'x' }, { extendedAttributes: '"just a string"' }], 0)).toBeNull();
   });
 });

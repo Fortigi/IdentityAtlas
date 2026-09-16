@@ -14,12 +14,13 @@
 // worker would have read from WorkerConfig in v4.
 
 import crypto from 'crypto';
-import { writeFileSync, mkdirSync } from 'fs';
+import { readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { dirname } from 'path';
 import * as db from './db/connection.js';
 import { runMigrations } from './db/migrate.js';
 import { stampSchemaVersion } from './updates/componentVersions.js';
-import { selfTest as vaultSelfTest } from './secrets/vault.js';
+import { ensureMasterKey } from './secrets/masterKeyStore.js';
+import { rebindLegacySecrets } from './secrets/vault.js';
 import { startScheduler } from './scheduler.js';
 import { seedContextAlgorithms } from './contexts/seedAlgorithms.js';
 import { migrateCrawlerSecretsToVault } from './secrets/migrateCrawlerSecrets.js';
@@ -42,6 +43,7 @@ function writeWorkerKeyFile(apiKey) {
 const KEY_PREFIX = 'fgc_';
 const KEY_RANDOM_BYTES = 32;
 const BUILTIN_CRAWLER_NAME = 'Built-in Worker';
+const BUILTIN_CRAWLER_PERMISSIONS = '["ingest","refreshViews","admin"]';
 
 function generateApiKey() {
   const random = crypto.randomBytes(KEY_RANDOM_BYTES).toString('hex');
@@ -63,6 +65,20 @@ function readWorkerKeyFile() {
   }
 }
 
+// Older versions let an admin disable the worker row or edit its permissions,
+// which silently stops every crawler. Those edits are now refused by the API;
+// re-enable / restore a row that was changed before the upgrade.
+async function restoreBuiltinCrawlerAccess(existing) {
+  const perms = Array.isArray(existing.permissions) ? existing.permissions : null;
+  const needsRestore = existing.enabled === false || (perms !== null && !perms.includes('admin'));
+  if (!needsRestore) return;
+  await db.query(
+    `UPDATE "Crawlers" SET enabled = TRUE, permissions = $1::jsonb WHERE id = $2`,
+    [BUILTIN_CRAWLER_PERMISSIONS, existing.id]
+  );
+  console.log('Built-in Worker crawler re-enabled with its standard permissions');
+}
+
 // Ensure the built-in worker crawler exists and the worker has a valid API key.
 //
 // The key is persisted ONLY in two places: the scrypt hash in Crawlers (for
@@ -74,12 +90,14 @@ export async function ensureBuiltinCrawler() {
   // WorkerConfig; it is no longer written or read, so remove it on upgrade.
   await db.query(`DELETE FROM "WorkerConfig" WHERE "configKey" = 'BUILTIN_CRAWLER_API_KEY'`).catch(() => {});
 
+  // The worker row is identified by the bootstrap-owned isBuiltIn flag, never
+  // by its display name (SEC-2026-09 M-06).
   const existing = await db.queryOne(
-    `SELECT id, "apiKeyHash", "apiKeySalt" FROM "Crawlers" WHERE "displayName" = $1 AND "enabled" = TRUE`,
-    [BUILTIN_CRAWLER_NAME]
+    `SELECT id, "apiKeyHash", "apiKeySalt", enabled, permissions FROM "Crawlers" WHERE "isBuiltIn" = TRUE`
   );
 
   if (existing) {
+    await restoreBuiltinCrawlerAccess(existing);
     // Reuse the key on the shared volume IFF it still matches the stored scrypt
     // hash. Otherwise (file missing/stale, or a legacy 32-byte SHA-256 hash),
     // rotate: generate a new key, update the hash, and re-write the file.
@@ -119,10 +137,10 @@ export async function ensureBuiltinCrawler() {
 
   await db.query(
     `INSERT INTO "Crawlers"
-       ("displayName", "description", "apiKeyHash", "apiKeySalt", "apiKeyPrefix", "createdBy", "permissions")
-     VALUES ($1, $2, $3, $4, $5, 'system-bootstrap', '["ingest","refreshViews","admin"]'::jsonb)`,
+       ("displayName", "description", "apiKeyHash", "apiKeySalt", "apiKeyPrefix", "createdBy", "permissions", "isBuiltIn")
+     VALUES ($1, $2, $3, $4, $5, 'system-bootstrap', $6::jsonb, TRUE)`,
     [BUILTIN_CRAWLER_NAME, 'Auto-created crawler for the Docker worker container. Do not delete.',
-     hash, salt, prefix]
+     hash, salt, prefix, BUILTIN_CRAWLER_PERMISSIONS]
   );
 
   writeWorkerKeyFile(apiKey);
@@ -188,70 +206,6 @@ function startHistoryPruneJob() {
 
   setTimeout(prune, FIRST_RUN_DELAY_MS);
   setInterval(prune, PRUNE_INTERVAL_MS);
-}
-
-// Verify the secrets vault has a usable master key. Resolution order:
-//   1. IDENTITY_ATLAS_MASTER_KEY env var (preferred — user controls it)
-//   2. /data/uploads/.master-key file (auto-generated on first boot, persisted
-//      across restarts in the same docker volume as the worker key)
-//
-// The file fallback exists so the docker-compose stack works out of the box
-// without requiring the operator to set an env var before first start. The file
-// has 0600 perms and lives inside the same volume that already holds other
-// secrets-equivalent data (the built-in worker API key). For real production
-// deployments, setting IDENTITY_ATLAS_MASTER_KEY explicitly is still preferred
-// (so it can be sourced from a real secret store) and the file fallback never
-// kicks in.
-import { readFileSync } from 'fs';
-const MASTER_KEY_FILE = process.env.MASTER_KEY_FILE || '/data/uploads/.master-key';
-
-function ensureVaultKey() {
-  if (process.env.IDENTITY_ATLAS_MASTER_KEY) {
-    if (!vaultSelfTest()) throw new Error('Secrets vault self-test failed — check IDENTITY_ATLAS_MASTER_KEY');
-    return;
-  }
-  // Try to read the key file directly — avoids TOCTOU between existsSync and readFileSync.
-  let key;
-  try {
-    key = readFileSync(MASTER_KEY_FILE, 'utf8').trim();
-  } catch (err) {
-    if (err.code !== 'ENOENT') {
-      // File exists but is unreadable (permissions, ownership mismatch, etc.)
-      throw new Error(
-        `Master key file exists at ${MASTER_KEY_FILE} but could not be read: ${err.message}. ` +
-        `This usually means the file is owned by a different user than the web container. ` +
-        `Fix with: docker compose exec -u 0 web chown -R node:node /data`
-      );
-    }
-    // ENOENT → first boot — fall through to generate a new key
-    key = null;
-  }
-  if (key !== null) {
-    if (!key) {
-      throw new Error(`Master key file ${MASTER_KEY_FILE} is empty. Delete it and restart the web container to regenerate.`);
-    }
-    process.env.IDENTITY_ATLAS_MASTER_KEY = key;
-    if (!vaultSelfTest()) throw new Error('Secrets vault self-test failed — master key file is corrupt');
-    console.log(`Master key loaded from ${MASTER_KEY_FILE}`);
-    return;
-  }
-  // First boot — generate a key and persist it
-  key = crypto.randomBytes(32).toString('base64');
-  process.env.IDENTITY_ATLAS_MASTER_KEY = key;
-  try {
-    mkdirSync(dirname(MASTER_KEY_FILE), { recursive: true });
-    writeFileSync(MASTER_KEY_FILE, key, { mode: 0o600, encoding: 'utf8' });
-    console.log(`Master key generated and persisted to ${MASTER_KEY_FILE}`);
-    console.log('For production, prefer setting IDENTITY_ATLAS_MASTER_KEY explicitly so the key can be backed up.');
-  } catch (err) {
-    // Can't persist → refuse to continue. Running with an ephemeral key would
-    // silently lose all secrets on the next container restart.
-    throw new Error(
-      `Could not persist master key to ${MASTER_KEY_FILE}: ${err.message}. ` +
-      `Set IDENTITY_ATLAS_MASTER_KEY explicitly in the compose env, or fix the volume permissions.`
-    );
-  }
-  if (!vaultSelfTest()) throw new Error('Secrets vault self-test failed after key generation');
 }
 
 // ─── Tag-root bootstrap ─────────────────────────────────────────────────────
@@ -350,13 +304,19 @@ export async function migrateDatabase() {
 export async function bootstrapWorker() {
   if (process.env.USE_SQL !== 'true') return;
   try {
-    ensureVaultKey();
+    await ensureMasterKey();
     await ensureBuiltinCrawler();
     // Move any legacy plaintext crawler clientSecrets into the encrypted vault.
     try {
       await migrateCrawlerSecretsToVault();
     } catch (err) {
       console.warn('Crawler secret migration skipped:', err.message);
+    }
+    // Bind any pre-AAD vault rows to their id + scope (SEC-2026-09 L-04).
+    try {
+      await rebindLegacySecrets();
+    } catch (err) {
+      console.warn('Vault re-bind skipped:', err.message);
     }
     try {
       await seedContextAlgorithms();
