@@ -50,8 +50,8 @@ FAKE_SERVER = textwrap.dedent('''
             n = int(self.headers.get("Content-Length") or 0)
             self._echo(self.rfile.read(n))
         def _echo(self, body):
-            if self.path.startswith("/slow"):
-                time.sleep(float(self.path.split("=")[1]))
+            if body.startswith(b'{"slow"'):
+                time.sleep(json.loads(body)["slow"])
             self._send(200, {"method": self.command, "path": self.path, "body": body.decode(),
                              "auth": self.headers.get("Authorization")})
     class S(http.server.ThreadingHTTPServer):
@@ -271,7 +271,8 @@ class ProxyTest(ModelTestCase):
         model, port = self.start_proxy()
         self.call(port, "GET", "/props")                 # load it first
         seen = []
-        worker = threading.Thread(target=lambda: seen.append(self.call(port, "GET", "/slow?s=1.5")))
+        worker = threading.Thread(target=lambda: seen.append(
+            self.call(port, "POST", "/v1/chat/completions", body=b'{"slow": 1.5}')))
         worker.start()
         time.sleep(0.5)
         self.assertEqual(model.in_flight, 1)
@@ -279,6 +280,23 @@ class ProxyTest(ModelTestCase):
         worker.join()
         self.assertEqual(seen[0][0], 200)
         self.assertEqual(model.in_flight, 0)
+
+    def test_only_the_endpoints_the_web_app_uses_are_passed_through(self):
+        # Anything else llama-server offers stays unreachable from outside the
+        # container, and asking for it does not wake the model.
+        model, port = self.start_proxy()
+        for method, path in [("GET", "/slots"), ("GET", "/metrics"), ("POST", "/completion"),
+                             ("GET", "/v1/chat/completions"), ("GET", "/props?x=1"),
+                             ("POST", "/slots/0?action=erase"), ("POST", "/slots/1?action=save"),
+                             ("POST", "/tokenize"), ("GET", "/../props")]:
+            status, _, _ = self.call(port, method, path, body=b"{}" if method == "POST" else None)
+            self.assertEqual(status, 404, f"{method} {path}")
+        self.assertEqual(model.popen_counter.started, 0)
+        # The allowed ones do reach it.
+        for method, path in [("GET", "/props"), ("POST", "/v1/chat/completions"),
+                             ("POST", "/slots/0?action=restore"), ("POST", "/slots/0?action=save")]:
+            status, _, body = self.call(port, method, path, body=b"{}" if method == "POST" else None)
+            self.assertEqual((status, body["path"]), (200, path))
 
     def test_no_key_configured_means_no_key_required(self):
         model, port = self.start_proxy(api_key="")

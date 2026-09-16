@@ -71,7 +71,10 @@ function fail(res, route, err, status = 500) {
 // token's name claim is not validated), so control characters — including CR/LF,
 // which would let a caller forge extra log lines — are replaced, and the length is
 // capped. The model name is already validated, but goes through the same path.
-const forLog = (value, max = 300) => String(value ?? '').slice(0, max).replace(/[\r\n\u2028\u2029\p{Cc}]/gu, ' ');
+const forLog = (value, max = 300) => String(value ?? '')
+  .slice(0, max)
+  .replace(/\n|\r/g, ' ')
+  .replace(/[\u2028\u2029\p{Cc}]/gu, ' ');
 
 const userOf = (req) => (req.user && (req.user.email || req.user.upn || req.user.preferred_username || req.user.name)) || 'unknown';
 

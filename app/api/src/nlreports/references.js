@@ -141,13 +141,18 @@ export async function resolveNamedObjects(spec, query) {
 // The path comes from the browser. Only whole, in-range array positions are followed:
 // a key like "__proto__" or "constructor" would otherwise walk into a prototype, and
 // the assignments in applyChoice() would then write onto it.
-const isIndexInto = (list, i) => Array.isArray(list) && Number.isInteger(i) && i >= 0 && i < list.length;
+const indexInto = (list, i) => {
+  if (!Array.isArray(list) || typeof i !== 'number') return -1;
+  const index = Number(i);
+  return Number.isInteger(index) && index >= 0 && index < list.length ? index : -1;
+};
 
 function conditionAt(spec, path) {
   let list = spec.conditions;
   let c = null;
   for (const i of path) {
-    c = isIndexInto(list, i) ? list[i] : undefined;
+    const index = indexInto(list, i);
+    c = index >= 0 ? list[index] : undefined;
     if (!c) return null;
     list = c.conditions;
   }

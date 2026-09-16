@@ -42,6 +42,17 @@ MAX_BODY_BYTES = 1_000_000
 # finite, so a hung model server cannot stay "in flight" and block unloading forever.
 FORWARD_TIMEOUT_SECONDS = 1800
 REAP_INTERVAL_SECONDS = 15
+# The model-server endpoints the web app uses — and the only ones passed through.
+# Keyed on method and the path exactly as requested (query included); the value is
+# what is sent upstream, so the forwarded path always comes from this table, never
+# from the request. Everything else in llama-server stays unreachable from outside
+# the container.
+UPSTREAM_ROUTES = {
+    ("GET", "/props"): "/props",
+    ("POST", "/v1/chat/completions"): "/v1/chat/completions",
+    ("POST", "/slots/0?action=restore"): "/slots/0?action=restore",
+    ("POST", "/slots/0?action=save"): "/slots/0?action=save",
+}
 # Hop-by-hop headers belong to one connection and must not be forwarded.
 HOP_BY_HOP = {"connection", "keep-alive", "transfer-encoding", "te", "trailer", "upgrade",
               "proxy-authorization", "proxy-authenticate", "host", "content-length"}
@@ -174,15 +185,20 @@ def make_handler(model, api_key, alias):
 
         def _handle(self):
             path = self.path.split("?", 1)[0]
+            upstream = UPSTREAM_ROUTES.get((self.command, self.path))
             if path == "/health":
-                return self._json(200, {"status": "ok", "model": model.current_state()})
-            if not authorised(self.headers.get("Authorization"), api_key):
-                return self._json(401, {"error": {"message": "Invalid API Key", "type": "authentication_error"}})
-            if path in ("/v1/models", "/models"):
-                return self._json(200, model_list(alias, model.current_state()))
-            body = self._read_body()
-            if body is not None:
-                self._proxy(body)
+                self._json(200, {"status": "ok", "model": model.current_state()})
+            elif not authorised(self.headers.get("Authorization"), api_key):
+                self._json(401, {"error": {"message": "Invalid API Key", "type": "authentication_error"}})
+            elif path in ("/v1/models", "/models"):
+                self._json(200, model_list(alias, model.current_state()))
+            elif upstream is None:
+                self.close_connection = True   # any body was not read
+                self._json(404, {"error": {"message": "Not found"}})
+            else:
+                body = self._read_body()
+                if body is not None:
+                    self._proxy(upstream, body)
 
         def _read_body(self):
             if "chunked" in (self.headers.get("Transfer-Encoding") or "").lower():
@@ -197,13 +213,14 @@ def make_handler(model, api_key, alias):
                 return None
             return self.rfile.read(length) if length else b""
 
-        def _proxy(self, body):
+        def _proxy(self, upstream, body):
             try:
                 model.acquire()
             except RuntimeError as err:
-                return self._json(503, {"error": {"message": str(err)}})
+                self._json(503, {"error": {"message": str(err)}})
+                return
             try:
-                status, headers, data = forward(model, self.command, self.path, self.headers, body)
+                status, headers, data = forward(model, self.command, upstream, self.headers, body)
                 self._send(status, headers, data)
             except OSError:
                 self._json(502, {"error": {"message": "the model server did not answer"}})
@@ -226,12 +243,15 @@ def make_handler(model, api_key, alias):
     return Handler
 
 
-def forward(model, method, path, request_headers, body):
-    """One request to the model server; the whole response is read (no streaming)."""
+def forward(model, method, upstream, request_headers, body):
+    """One request to the model server; the whole response is read (no streaming).
+
+    `upstream` is a value from UPSTREAM_ROUTES, never the path as the caller sent it.
+    """
     conn = http.client.HTTPConnection(model.host, model.port, timeout=FORWARD_TIMEOUT_SECONDS)
     try:
         headers = {k: v for k, v in request_headers.items() if k.lower() not in HOP_BY_HOP}
-        conn.request(method, path, body=body or None, headers=headers)
+        conn.request(method, upstream, body=body or None, headers=headers)
         resp = conn.getresponse()
         return resp.status, resp.getheaders(), resp.read()
     finally:
