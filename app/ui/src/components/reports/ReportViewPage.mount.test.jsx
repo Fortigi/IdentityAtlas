@@ -285,6 +285,22 @@ describe('ReportViewPage', () => {
   });
 });
 
+describe('ReportViewPage — a report that stopped at its row cap', () => {
+  it('says the rows are only the first ones, and that the download is cut off too', async () => {
+    renderReport({ rows: rowsBody([ROW], { truncated: true }) });
+
+    expect(await screen.findByText(/^First 1 row\b/)).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent(/stopped at 1 rows.*more than the download contains/s);
+  });
+
+  it('says nothing of the kind for a complete result', async () => {
+    renderReport({ rows: rowsBody([ROW], { truncated: false }) });
+
+    expect(await screen.findByText(/^1 row\b/)).toBeInTheDocument();
+    expect(screen.queryByRole('status')).toBeNull();
+  });
+});
+
 describe('ReportViewPage — editing a custom report from its tab', () => {
   const CUSTOM = { editable: { builderId: '3f1c2a9e' }, displayName: 'Guests without a manager' };
 

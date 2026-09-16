@@ -70,9 +70,15 @@ export default function ReportViewPage({ reportName, onClose, onOpenDetail, onCa
             <p className="mt-1 max-w-3xl text-sm text-gray-600 dark:text-gray-400">{report.description}</p>
           )}
           <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-            {report.total} {report.total === 1 ? 'row' : 'rows'}
+            {report.truncated ? 'First ' : ''}{report.total} {report.total === 1 ? 'row' : 'rows'}
             {report.generatedAt && <> · generated {formatDate(report.generatedAt)}</>}
           </p>
+          {report.truncated && (
+            <p role="status" className="mt-2 max-w-3xl rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-200">
+              This report stopped at {report.total} rows, so there are more than shown here — and more than
+              the download contains. Narrow it with another condition to see all of them.
+            </p>
+          )}
         </div>
 
         <div className="flex flex-wrap items-center gap-2">

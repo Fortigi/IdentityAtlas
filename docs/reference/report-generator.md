@@ -1,5 +1,11 @@
 # Report Generator (local LLM)
 
+!!! warning "Docker is measured; Azure is not"
+    Everything measured on this page was measured on **Docker** (one 2-vCPU VM). The Azure templates
+    compile and are wired up, but the report generator **has not yet been deployed to Azure**:
+    scale-to-zero, the prompt cache on Azure Files, the request time limits described under
+    [Azure](#azure) and both network modes are unproven there. Deploy it on Azure only to try it out.
+
 !!! note "Experimental, and optional"
     The report generator is an extra container you choose to deploy. Without it, custom reports are
     still built by hand — see [Custom Reports](../ui/custom-reports.md). The feature as a whole is off
@@ -31,7 +37,7 @@ That split is the whole design, and it is what makes the feature defensible:
 | | |
 |---|---|
 | Model | **Qwen3-4B-Instruct-2507**, 4-bit quantised (`Q4_K_M`), ~2.5 GB |
-| Licence | **Apache 2.0** — commercial use permitted. The licence text ships inside the image at `/models/MODEL-LICENSE.txt` |
+| Licence | **Apache 2.0** — commercial use permitted. The licence text ships inside the image at `/models/MODEL-LICENSE.txt`, with an attribution notice. llama.cpp (MIT) ships its licence next to it |
 | Source | Pinned URL **and SHA-256** in `setup/docker/Dockerfile.report-generator`; the build fails if the file does not match |
 | Runtime | `llama.cpp` server, CPU only. No GPU, no external API, no telemetry |
 | Chosen by | The release. There is no model picker: **Admin → LLM** shows which model this version ships and whether it is answering |
@@ -45,6 +51,11 @@ Measured against a set of real analyst questions on a real tenant (Fortigi: ~1,1
 groups, 10 business roles), plus a **held-out** set written before tuning and never used to improve
 prompts. A question counts as correct only when the generated report returns **exactly** the same rows
 as a hand-written reference definition.
+
+Only the first row was measured on the setup that ships (llama.cpp, the final prompt, the bounded
+grammar); its raw results are kept with the evaluation tools. The other rows were measured earlier, on
+a different model runtime (Ollama) and an earlier version of the prompt, so read them as the reason each
+model was dropped, not as a like-for-like ranking.
 
 | Model | Licence | Tuning set | Held-out set | Notes |
 |---|---|---|---|---|
@@ -60,7 +71,9 @@ The sets grew during development (32 → 39 tuning, 14 → 17 held-out), so the 
 comparable within a row, not exactly across rows. The shipped model's figures are the full sets,
 measured on the release image as it ships — llama.cpp, the saved prompt cache, and the bounded output
 grammar described below. (On the same setup without that grammar the tuning set scored 33/39; the one
-question it gained is the one that looped.) Re-run any time with `tools/nl-reports/eval.mjs` —
+question it gained is the one that looped.) A few questions have an empty correct answer, which a wrong
+definition can also produce; counting only questions with a non-empty answer, the shipped model scores
+32/37 and 12/15. Re-run any time with `tools/nl-reports/eval.mjs` —
 see [Measuring it yourself](#measuring-it-yourself).
 
 ### What the mistakes look like
@@ -84,7 +97,9 @@ Three failure modes are handled in code rather than left to the model:
 - **"or" read as "and"** — if the question contains *or* but the definition has no any-group, the
   generator asks the model once to correct it, and keeps the original if the correction is no better.
 - **Invented values** — a definition with an unknown field, operator or type value is rejected, the
-  validator's own message is handed back to the model, and it gets one attempt to fix it.
+  validator's own message is handed back to the model, and it gets one attempt to fix it. If the
+  corrected definition is still invalid, the analyst gets an error — never a report quietly built from
+  the conditions that did validate.
 - **Repeating itself** — at temperature 0 a small model that starts repeating does not stop. Every list
   and every piece of free text in the reply has a hard length in the output grammar, so a loop ends
   where validation would have cut it anyway. Before that limit existed, one question listed the same ten
@@ -125,16 +140,16 @@ Measured on a 2-vCPU VM (shared Proxmox host, Intel Core Ultra 5), with the ship
 
 | | Value |
 |---|---|
-| CPU | **2** (works on 1, roughly twice as slow) |
+| CPU | **2**. Only 2 CPUs were measured; answer time scales roughly with CPUs, so fewer is slower |
 | Memory | **3.2 GB** in use and not reclaimable after all 56 questions; 3.65 GB peak including file cache. Limit **5 GB** on Docker, **4 GiB** on Azure — the five heaviest questions were re-run at exactly 4 GiB with identical results and no out-of-memory kill |
-| Disk | ~2.8 GB image + ~560 MB prompt cache |
+| Disk | 2.76 GB image + 561 MB prompt cache |
 | Restart → first answer | **76 s** measured for "guest accounts without a manager, or whose manager is disabled": prompt cache restored in 0.1 s, 203 of 4,000 prompt tokens actually read, the rest is the answer being written. On Azure add the container start |
 | Question once warm | median **49 s**, p90 **107 s**, slowest **156 s** over the tuning set (held-out: median 48 s, p90 78 s). The slow ones are the questions that needed a correction round |
-| One-time preparation | ~190–220 s, in the background, after an install or update |
+| One-time preparation | 193–205 s measured, in the background, after an install or update |
 | Idle | no CPU. Memory stays reserved while the container runs |
 
 Nearly all of an answer's time is the model *writing* the definition, at about 2.5 tokens a second on
-2 CPUs; a typical definition is ~130 tokens. More CPUs is what makes answers faster — more memory does
+2 CPUs; an average reply is ~105 tokens. More CPUs is what makes answers faster — more memory does
 not.
 
 **It only costs while it is used** in the sense that matters for each platform:
@@ -143,9 +158,10 @@ not.
   either accept ~3 GB or start the profile only when you need it.
 - **Azure**: the Container App **scales to zero**. Azure bills per second of activity, so an idle
   generator costs nothing beyond its share of the file share holding the prompt cache. At list prices,
-  2 vCPU + 4 GiB is roughly **€0.20–0.25 per active hour**, and Container Apps' monthly free grant
-  covers light use. Check current pricing before quoting it. The trade-off is a slower first question
-  after idle, because the container has to start (image pull included).
+  2 vCPU + 4 GiB active costs in the order of tens of euro cents an hour, and Container Apps' monthly
+  free grant covers light use — an estimate from list prices, not a measured bill; check current
+  pricing. The trade-off is a slower first question after idle, because the container has to start
+  (a 2.76 GB image pull included).
 
 ### How the cold start was made survivable
 
@@ -156,12 +172,14 @@ tokens) — minutes on a small CPU. Three things fix that:
    (your account types, resource types and system names) is sent with the question instead of being
    baked into them.
 2. **The processed instructions are saved to disk** (llama.cpp slot cache) and restored in ~0.1 s on
-   every later start — including after a scale-to-zero on Azure.
+   every later start. That is measured on local disk; on Azure the 561 MB file lives on an Azure Files
+   share, whose restore time has not been measured.
 3. **Preparation runs in the background** at API startup, and the builder says "preparing" instead of
    blocking. `node tools/nl-reports/prepare-prompt-cache.mjs` does it on demand and verifies a restore
    actually works.
 
-Before this, a cold start was ~6 minutes; it is now 76 seconds on the same hardware.
+Measured on the same hardware: 266 seconds for the first answer without a restored cache, 76 seconds
+with one.
 
 One detail made the difference between this working and not: **the prompt cache is re-checked before
 every question, never remembered.** The model server restarts on its own — Azure scales it to zero
@@ -187,6 +205,11 @@ Optional knobs (defaults shown): `REPORT_GENERATOR_CPUS=2`, `REPORT_GENERATOR_ME
 Leave `COMPOSE_PROFILES` unset and nothing extra is pulled or started; the builder then reports the
 generator as unavailable and the definition editor still works.
 
+**Behind a reverse proxy**, raise its read timeout for `/api/nl-reports/interpret`. A question is one
+HTTP request that is answered when the model is done — a median of 49 s and up to several minutes — and
+common defaults (nginx `proxy_read_timeout` 60 s) cut half of them off. The API itself waits up to
+15 minutes (`NL_REPORTS_LLM_TIMEOUT_MS`).
+
 ### Azure
 
 The report generator is an **opt-in Container App**:
@@ -208,6 +231,20 @@ The template then:
 Everything else (App Service, Postgres, worker) is unchanged. Leaving the switch off deploys exactly
 what it does today.
 
+**Known limits on Azure, not yet measured there:**
+
+- **Request time limits.** A question is one blocking HTTP request, and Azure closes those: App Service
+  at about 230 seconds for the browser's request, Container Apps ingress at 240 seconds for the web
+  app's call to the generator. Measured on Docker, a warm question takes 49 s at the median and 165 s at
+  the slowest, so most fit; but the one-time prompt-cache preparation took 193–205 s, close to the
+  240 s limit, and Azure's vCPUs may be slower. If preparation is cut off, the cache is never saved and
+  every question stays slow. Making questions asynchronous (submit, then poll) would remove this limit
+  and is the fix if a deployment hits it.
+- **Private network mode is not supported for the generator yet.** In that mode the web app routes all
+  outbound traffic through the VNet without a NAT gateway, and whether it can then reach the
+  generator's public address at all is untested. Deploy the generator only in the default public
+  network mode until it can be made reachable from inside the VNet.
+
 ### Updating an existing installation
 
 Custom reports arrive with a normal update; **the generator does not install itself.**
@@ -221,7 +258,14 @@ Custom reports arrive with a normal update; **the generator does not install its
 | **Desktop (portable)** | Not supported — the portable launcher runs no extra containers. The definition editor works. |
 
 In all cases the feature stays **off** until someone enables it in Admin → Experimental, and the first
-warm-up after the update rebuilds the prompt cache in the background (a few minutes, once).
+warm-up after the update rebuilds the prompt cache in the background (a few minutes, once). An install
+that does nothing keeps working exactly as before: a new, empty table is added, and nothing tries to
+reach a model server while the feature is off.
+
+**Grant the permission.** The **Build custom reports** permission (`data.write.reports`) is in the
+built-in RoleMiner role, but only a deployment still on the default role mapping gets it from there. If
+you have customised your role mapping, add the permission to the roles that should build reports under
+Admin → Roles.
 
 ## Security notes
 
@@ -231,7 +275,16 @@ warm-up after the update rebuilds the prompt cache in the background (a few minu
   runs, and never interpolated into SQL.
 - Reports execute in a `READ ONLY` transaction with a statement timeout and a row cap.
 - The model server accepts no input except from the web container (Docker: internal network; Azure:
-  API key), and it can neither reach the database nor the internet.
+  API key) and cannot reach the database.
+- **Outbound internet access differs per platform.** On Docker it has none (an `internal` network). On
+  Azure it has unrestricted outbound access, like any Container App without a VNet and egress rules.
+  llama.cpp makes no outbound calls and the model is inside the image, so nothing is sent — but on
+  Azure that rests on the software, not on the network.
+- **One question at a time per analyst**, and a conversation is capped at 10,000 characters. The model
+  server works on one question at a time, so without these one person (or a script) could hold it for
+  everyone. Anyone with `data.write.reports` can still keep it busy; grant that permission accordingly.
+- **The generated SQL is shown to the analyst** in the builder, so table and column names are visible to
+  anyone who can build reports. They are the same names documented for the data model.
 - Questions are logged; report definitions are stored with their author.
 - The model server's monitoring endpoint is switched off (`--no-slots`). It would otherwise let any
   caller read the prompt currently being processed.

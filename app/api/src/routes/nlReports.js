@@ -1,10 +1,15 @@
 // Natural-language reports (PROTOTYPE) — API routes.
 //
-// Analyst surface (plain auth, like /api/reports):
+// Every route needs the `customReports` feature (404 when off) and a permission,
+// checked first (403). Documented in openapi.yaml under "Custom Reports".
+//
+// Analyst surface (data.write.reports):
 //   GET    /api/nl-reports/catalog      entities, fields, operators, pickable columns
+//   GET    /api/nl-reports/lookup       names for the compare reference picker (?entity=&q=)
 //   GET    /api/nl-reports/status       is the report generator's model server reachable, which model
 //   POST   /api/nl-reports/warm         load the configured model (call when the builder opens)
 //   POST   /api/nl-reports/interpret    question (+ conversation) → definition or clarifying question
+//   POST   /api/nl-reports/resolve      apply a "did you mean" answer, look named objects up again
 //   POST   /api/nl-reports/run          definition → rows (read-only, statement timeout)
 //   GET    /api/nl-reports/saved/:id    one saved report, for editing
 //   POST   /api/nl-reports/saved        save a new report
@@ -49,6 +54,12 @@ const adminGate = [requirePermission('admin.llm'), requireFeature('customReports
 
 const MAX_QUESTION = 2000;
 const MAX_HISTORY = 12;
+// The model's context is 8,192 tokens: ~4,000 go to the system prompt, ~1,200 are
+// kept for the reply, a question is at most ~500. That leaves ~2,500 tokens —
+// about 10,000 characters — for the conversation. Anything longer would not fit
+// anyway, and would cost minutes of prompt reading before failing.
+const MAX_HISTORY_CHARS = 10_000;
+const inFlight = new Set();
 const MODEL_NAME = /^[A-Za-z0-9._:/-]{1,100}$/;
 
 function fail(res, route, err, status = 500) {
@@ -142,8 +153,19 @@ router.post('/nl-reports/interpret', analystGate, async (req, res) => {
     }
     cleanHistory.push({ role: h.role, content: h.content });
   }
+  if (cleanHistory.reduce((n, h) => n + h.content.length, 0) > MAX_HISTORY_CHARS) {
+    return res.status(400).json({ error: 'Conversation is too long — start a new question' });
+  }
   const started = Date.now();
   const who = `user=${userOf(req)}`;
+  // One question at a time per analyst. The model server has a single slot, so a
+  // second request from the same person only queues behind the first — and a script
+  // looping on this endpoint would hold the generator for everyone.
+  if (inFlight.has(who)) {
+    return res.status(429).json({ error: 'Your previous question is still being answered — wait for it to finish' });
+  }
+  inFlight.add(who);
+  res.on('close', () => inFlight.delete(who));
   try {
     const model = req.body?.model ? String(req.body.model) : await getReportModel();
     // Audit trail: who asked what, with which model — logged on arrival, so a question

@@ -5,6 +5,7 @@
 - Reports can compare against a named record — for example "groups with exactly the same members as business role X" or "groups at least 80% like group Y" — showing similarity and the extra and missing members per row. Useful for role mining.
 - When a report names a business role, group or user that does not match exactly, the builder suggests the closest matches and asks which one you meant.
 - The plain-language box understands interchangeable terms: person and identity; account, principal and user; business role and access package.
+- A report that stops at its row limit now says so above the results, instead of presenting the first rows as the whole answer.
 - Added the "Build custom reports" permission. Anyone who can read data can open and run saved reports; only this permission can create, change or delete them.
 - The plain-language half needs an optional extra container, the report generator (2 CPU, 5 GB memory limit, no GPU). On Docker it is a compose profile on an internal network with no published port and no internet access; on Azure an opt-in Container App that scales to zero, so it only costs while in use, protected by a per-deployment API key. Existing installations get custom reports with a normal update; the generator is added only when an operator chooses to deploy it. Without it, reports are built by hand.
 - Admin → LLM shows which model this release ships for the report generator and whether it is answering.

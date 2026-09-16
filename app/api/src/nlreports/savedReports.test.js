@@ -79,7 +79,11 @@ describe('saved reports in the report registry', () => {
       columns: [{ key: 'displayName', label: 'Name' }], editable: { builderId: ID },
       source: 'custom',
     });
-    expect(await t.run()).toEqual({ rows: [{ displayName: 'Ann', _entity: { kind: 'user', id: 'u1' } }] });
+    expect(await t.run()).toEqual({ rows: [{ displayName: 'Ann', _entity: { kind: 'user', id: 'u1' } }], truncated: false });
+    // A run that stopped at the definition's row limit says so, instead of passing
+    // the first rows off as the whole answer.
+    runSpec.mockResolvedValueOnce({ ok: true, rows: [{ displayName: 'Ann' }], truncated: true });
+    expect((await t.run()).truncated).toBe(true);
     expect(runSpec).toHaveBeenCalledWith(DEFINITION);
   });
 

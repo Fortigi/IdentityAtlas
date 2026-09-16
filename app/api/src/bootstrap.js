@@ -364,27 +364,12 @@ export async function bootstrapWorker() {
     } catch (err) {
       console.warn('Matrix-view refresh skipped:', err.message);
     }
-    // PROTOTYPE (report generator): prepare the model's prompt cache in the
-    // background. The first run after an install or update reads the whole system
-    // prompt (minutes on a small CPU box) and saves it; every later start restores
-    // it in milliseconds. Never blocks startup, and is harmless without a model server.
+    // Report generator (experimental): prepare the model's prompt cache in the
+    // background — only where custom reports are on and a model server is configured.
+    // Never blocks startup.
     try {
-      const { ensureWarm } = await import('./nlreports/service.js');
-      // The model server may still be starting (or scaling up from zero on Azure),
-      // so give it a few tries before leaving the cache unprepared. Whoever opens
-      // the report builder triggers another attempt anyway.
-      void (async () => {
-        for (let attempt = 1; attempt <= 3; attempt++) {
-          try {
-            const r = await ensureWarm().promise;
-            console.log(`Report generator: prompt cache ${r.restored ? 'restored' : 'prepared'} in ${(r.ms / 1000).toFixed(1)}s`);
-            return;
-          } catch (err) {
-            console.warn(`Report generator: prompt cache attempt ${attempt}/3 failed — ${err.message}`);
-            await new Promise(resolve => setTimeout(resolve, 30_000));
-          }
-        }
-      })();
+      const { warmAtStartup } = await import('./nlreports/service.js');
+      void warmAtStartup().catch(err => console.warn('Report generator warm-up skipped:', err.message));
     } catch (err) {
       console.warn('Report generator warm-up skipped:', err.message);
     }

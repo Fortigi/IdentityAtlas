@@ -51,7 +51,7 @@ describe('published images are stamped with one release version', () => {
     // vacuously over an empty list.
     expect(steps.length).toBeGreaterThanOrEqual(2);
     expect(steps.map((s) => s.dockerfile)).toEqual(
-      expect.arrayContaining(['app/api/Dockerfile', 'setup/docker/Dockerfile.powershell']),
+      expect.arrayContaining(['app/api/Dockerfile', 'setup/docker/Dockerfile.powershell', 'setup/docker/Dockerfile.report-generator']),
     );
   });
 
@@ -78,7 +78,7 @@ describe('published images are stamped with one release version', () => {
   it('pushes the tested artifacts rather than rebuilding them untagged', () => {
     // The stamp only reaches users if the image that was built with the build-arg
     // is the image that gets pushed. A rebuild at push time would drop it.
-    for (const image of ['identity-atlas-web', 'identity-atlas-worker']) {
+    for (const image of ['identity-atlas-web', 'identity-atlas-worker', 'identity-atlas-report-generator']) {
       expect(workflow).toMatch(new RegExp(`docker tag ${image}:qa`));
     }
   });

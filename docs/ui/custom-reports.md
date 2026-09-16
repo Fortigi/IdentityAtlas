@@ -41,7 +41,8 @@ can open, run and download the result.
 5. **Preview.** The builder shows *what will run* in plain language, the number of rows, and the rows
    themselves. Read the plain-language version before you trust the result — that sentence is
    generated from the definition that actually runs.
-6. **Save.** The report appears in the list for everyone, marked **custom**.
+6. **Save.** The report appears for everyone under **Custom reports** on the Reports tab, with your
+   name as its author.
 
 Rows are clickable: a row about an account opens that account's detail tab.
 
@@ -111,9 +112,11 @@ Combine it with an ordinary condition to get the question a role-mining analyst 
 - **One step at a time** in a relation: "groups whose owner is disabled" works; "groups whose owner's
   manager is disabled" does not.
 - **Only data Identity Atlas holds.** If a crawler does not collect it, no report can show it.
-- **No chosen sort order.** "Biggest first" or "newest first" is not something a definition can say,
-  and the report tab does not sort either — download the result and sort it there. Comparisons are the
-  exception: they always come back closest match first.
+- **No chosen sort order.** Neither the editor nor the plain-language box offers "biggest first" or
+  "newest first", and the report tab does not sort — download the result and sort it there.
+  Comparisons are the exception: they always come back closest match first.
+- **At most 1,000 rows** by default (5,000 at most). A report that reaches its cap says so above the
+  results — the rows shown and the download are then only the first ones. Add a condition to narrow it.
 
 ## Editing, deleting and sharing
 

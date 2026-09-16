@@ -18,9 +18,12 @@ setup/docker/Dockerfile.report-generator; the build fails if the downloaded
 file does not match, so a given Identity Atlas release always contains the
 model it was measured against.
 
-The server that runs the model is llama.cpp (MIT), used unmodified from the
-upstream image ghcr.io/ggml-org/llama.cpp, pinned by digest:
+The server that runs the model is llama.cpp (MIT, Copyright (c) 2023-2026 The
+ggml authors), used unmodified from the upstream image
+ghcr.io/ggml-org/llama.cpp (build b10975), pinned by digest:
 https://github.com/ggml-org/llama.cpp
+Its licence text is in LLAMA-CPP-LICENSE.txt, next to this file. The upstream
+image does not carry it, so this image adds it.
 
 Identity Atlas itself is MIT licensed — see the LICENSE file in the source
 repository at https://github.com/Fortigi/IdentityAtlas.

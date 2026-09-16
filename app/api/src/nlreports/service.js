@@ -14,6 +14,7 @@ import { buildSystemPrompt, buildValuesBlock, RESPONSE_SCHEMA, REPORT_ONLY_SCHEM
 import { chat, DEFAULT_MODEL, warm } from './llm.js';
 import { getReportModel } from './settings.js';
 import { resolveNamedObjects } from './references.js';
+import { isFeatureEnabled } from '../featureFlags.js';
 
 const VALUES_TTL_MS = 5 * 60 * 1000;
 const MAX_CLARIFY_ROUNDS = 2;
@@ -62,6 +63,34 @@ export function ensureWarm() {
   })();
   warmup = entry;
   return entry;
+}
+
+/**
+ * Prepare the prompt cache when the API starts. The first run after an install or
+ * update reads the whole system prompt (minutes on a small CPU box) and saves it;
+ * later starts restore it in milliseconds.
+ *
+ * Skipped unless custom reports are switched on AND a model server is configured:
+ * an install that updated and did nothing must not log connection failures on every
+ * start, and on Azure must not wake a scaled-to-zero generator nobody uses. The
+ * server may still be starting (or scaling up from zero), so it gets a few tries;
+ * opening the report builder triggers another attempt anyway.
+ *
+ * @returns {Promise<'skipped'|'ready'|'failed'>}
+ */
+export async function warmAtStartup({ attempts = 3, delayMs = 30_000 } = {}) {
+  if (!process.env.NL_REPORTS_LLM_URL || !(await isFeatureEnabled('customReports'))) return 'skipped';
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      const r = await ensureWarm().promise;
+      console.log(`Report generator: prompt cache ${r.restored ? 'restored' : 'prepared'} in ${(r.ms / 1000).toFixed(1)}s`);
+      return 'ready';
+    } catch (err) {
+      console.warn(`Report generator: prompt cache attempt ${attempt}/${attempts} failed — ${err.message}`);
+      if (attempt < attempts) await new Promise(resolve => setTimeout(resolve, delayMs));
+    }
+  }
+  return 'failed';
 }
 
 export async function loadValues() {
@@ -177,7 +206,11 @@ export async function interpret({ question, history = [], model = DEFAULT_MODEL 
       }
     }
     errors = result.errors;
-    if (!result.spec) {
+    // Still invalid after the repair round: say so. Validation drops what it rejects
+    // and still hands back a spec, so returning that as a report would quietly answer
+    // a smaller question than the one asked ("groups with X and <unknown>" → "groups
+    // with X") with nothing on screen to show the difference.
+    if (!result.ok || !result.spec) {
       return { kind: 'error', message: 'The model produced a report definition that could not be used.', errors, raw, timing, model, repaired };
     }
     const assumptions = Array.isArray(reply.assumptions) ? reply.assumptions.map(String) : [];

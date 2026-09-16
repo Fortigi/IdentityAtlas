@@ -20,11 +20,14 @@ const router = Router();
 // One run, one payload — shared by the rows endpoint and the download, so a
 // downloaded file can never contain something the screen didn't show.
 async function runReport(report, params) {
-  const { rows } = await report.run(params, {});
+  const { rows, truncated } = await report.run(params, {});
   return {
     ...reportMetadata(report),
     rows,
     total: rows.length,
+    // A template that stops at a row cap says so; the screen and the download must
+    // not present the first N rows as the whole answer.
+    truncated: truncated === true,
     generatedAt: new Date().toISOString(),
   };
 }

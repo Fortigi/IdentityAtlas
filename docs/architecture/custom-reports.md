@@ -57,8 +57,8 @@ This is why a 4B model on a CPU is enough: the task is slot-filling, not code ge
 
 **Analysts' nouns are entities.** `user` and `group` are entities of their own (accounts of type User,
 resources of type Group) rather than "account + a type filter". Small models reliably forgot that
-filter; making it part of the entity took the shipped model from 22/32 to 28/32 on the tuning set at
-the time. `account` and `resource` remain for everything else, and a definition that restates the
+filter; making it part of the entity took the best model of that round (Qwen2.5-Coder 3B, later dropped
+for its licence) from 22/32 to 28/32 on the tuning set at the time. `account` and `resource` remain for everything else, and a definition that restates the
 implied type is accepted and normalised away.
 
 **A glossary, not synonym handling in code.** `catalog.js` exports `GLOSSARY` (person = identity,

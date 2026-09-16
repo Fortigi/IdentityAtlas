@@ -41,8 +41,9 @@ RUN set -eux; \
 # The model's licence and attribution travel WITH the model. Kept in the repo and
 # copied in rather than downloaded: Apache-2.0 requires the licence to accompany
 # the work, and the previous build-time fetch quietly 404'd and left a placeholder
-# note in its place. A guard test checks these two files are here.
-COPY setup/docker/report-generator/MODEL-LICENSE.txt setup/docker/report-generator/MODEL-NOTICE.txt /models/
+# note in its place. llama.cpp's MIT licence is added for the same reason: the
+# upstream image ships its binaries without it. A guard test checks all three.
+COPY setup/docker/report-generator/MODEL-LICENSE.txt setup/docker/report-generator/MODEL-NOTICE.txt setup/docker/report-generator/LLAMA-CPP-LICENSE.txt /models/
 
 # The processed system prompt is written here (~600 MB) so a restart is instant.
 # Mount a volume to keep it across container replacements.

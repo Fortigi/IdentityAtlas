@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 vi.mock('../db/connection.js');
 // The whole module surface: settings.js imports MODEL_IS_FIXED from here as well.
@@ -7,7 +7,45 @@ vi.mock('./llm.js', () => ({ chat: vi.fn(), warm: vi.fn(), DEFAULT_MODEL: 'test-
 import { query } from '../db/connection.js';
 import { chat, warm } from './llm.js';
 import { buildSystemPrompt } from './prompt.js';
-import { ensureWarm, hasAnyMatch, interpret, needsOrRepair, warmupState } from './service.js';
+import { ensureWarm, hasAnyMatch, interpret, needsOrRepair, warmAtStartup, warmupState } from './service.js';
+
+describe('warm-up at API start', () => {
+  const env = { ...process.env };
+  afterEach(() => { process.env = { ...env }; });
+
+  it('does nothing on an install that did not switch custom reports on, even with a server URL', async () => {
+    process.env.NL_REPORTS_LLM_URL = 'http://report-generator:8080';
+    process.env.FEATURE_CUSTOM_REPORTS = 'false';
+    expect(await warmAtStartup({ delayMs: 0 })).toBe('skipped');
+    expect(warm).not.toHaveBeenCalled();
+  });
+
+  it('does nothing when no model server is configured, even with the feature on', async () => {
+    delete process.env.NL_REPORTS_LLM_URL;
+    process.env.FEATURE_CUSTOM_REPORTS = 'true';
+    expect(await warmAtStartup({ delayMs: 0 })).toBe('skipped');
+    expect(warm).not.toHaveBeenCalled();
+  });
+
+  it('retries a server that is still starting, and stops once it answers', async () => {
+    process.env.NL_REPORTS_LLM_URL = 'http://report-generator:8080';
+    process.env.FEATURE_CUSTOM_REPORTS = 'true';
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    warm.mockRejectedValueOnce(new Error('ENOTFOUND')).mockRejectedValueOnce(new Error('ENOTFOUND'));
+    expect(await warmAtStartup({ attempts: 3, delayMs: 0 })).toBe('ready');
+    expect(warm).toHaveBeenCalledTimes(3);
+  });
+
+  it('gives up after its attempts', async () => {
+    process.env.NL_REPORTS_LLM_URL = 'http://report-generator:8080';
+    process.env.FEATURE_CUSTOM_REPORTS = 'true';
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    warm.mockRejectedValue(new Error('ENOTFOUND'));
+    expect(await warmAtStartup({ attempts: 2, delayMs: 0 })).toBe('failed');
+    expect(warm).toHaveBeenCalledTimes(2);
+  });
+});
 
 const AND_SPEC = { entity: 'user', match: 'all', conditions: [
   { type: 'field', field: 'userType', op: 'eq', value: 'Guest' },
@@ -40,6 +78,28 @@ describe('OR detection', () => {
     expect(needsOrRepair("guests that don't have a manager, or whose manager is disabled", OR_SPEC)).toBe(false);
     expect(needsOrRepair('guests without a manager whose manager is disabled', AND_SPEC)).toBe(false);
     expect(needsOrRepair('groups with Orion or Order in the name', { entity: 'group', match: 'all', conditions: [AND_SPEC.conditions[0]] })).toBe(false);
+  });
+});
+
+describe('interpret — a definition still invalid after its repair round', () => {
+  const BAD = { ...AND_SPEC, conditions: [AND_SPEC.conditions[0], { type: 'field', field: 'noSuchField', op: 'eq', value: 'x' }] };
+
+  it('is reported as an error, not quietly answered without the condition it could not use', async () => {
+    chat.mockResolvedValueOnce(reply(BAD)).mockResolvedValueOnce(reply(BAD));
+    const r = await interpret({ question: 'guests with noSuchField x', model: 'm' });
+
+    expect(chat).toHaveBeenCalledTimes(2);            // the repair round was tried
+    expect(r.kind).toBe('error');
+    expect(r.errors.join(' ')).toMatch(/noSuchField/);
+    expect(r.spec).toBeUndefined();                   // nothing runnable is handed back
+  });
+
+  it('is answered normally when the repair round fixes it', async () => {
+    chat.mockResolvedValueOnce(reply(BAD)).mockResolvedValueOnce(reply(AND_SPEC));
+    const r = await interpret({ question: 'guests without a manager whose manager is disabled', model: 'm' });
+    expect(r.kind).toBe('report');
+    expect(r.repaired).toBe(true);
+    expect(r.warnings).toEqual([]);
   });
 });
 

@@ -76,7 +76,10 @@ describe('report-generator container start-up', () => {
     const dockerfile = read(DOCKERFILE);
     // Apache-2.0 requires the licence to accompany the work. This used to be fetched
     // at build time from a URL that 404'd, leaving a placeholder note in the image.
-    expect(dockerfile).toMatch(/^COPY setup\/docker\/report-generator\/MODEL-LICENSE\.txt .*MODEL-NOTICE\.txt \/models\/$/m);
+    expect(dockerfile).toMatch(/^COPY setup\/docker\/report-generator\/MODEL-LICENSE\.txt .*MODEL-NOTICE\.txt .*LLAMA-CPP-LICENSE\.txt \/models\/$/m);
+    // llama.cpp is MIT: its notice must travel with its binaries, and the upstream
+    // image does not carry it.
+    expect(read('setup/docker/report-generator/LLAMA-CPP-LICENSE.txt')).toMatch(/MIT License[\s\S]*The ggml authors/);
     expect(dockerfile, 'a licence must not depend on the network at build time').not.toMatch(/MODEL_LICENSE_URL/);
     expect(read('setup/docker/report-generator/MODEL-LICENSE.txt')).toMatch(/Apache License\s+Version 2\.0/);
     // The notice is what tells a reader which model this is and where it came from.

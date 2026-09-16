@@ -60,7 +60,6 @@ const UNDOCUMENTED_FILES = new Set([
   'jobs.js',
   'llm.js',
   'matrix.js',
-  'nlReports.js',
   'orgChart.js',
   'perf.js',
   'permissions.js',

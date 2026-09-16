@@ -58,6 +58,20 @@ describe('GET /api/reports/:name/rows', () => {
     expect(Date.parse(res.body.generatedAt)).not.toBeNaN();
   });
 
+  it('says whether the report stopped at its row cap, and says "no" unless the template says "yes"', async () => {
+    const unregister = registerReport({
+      name: 'zz-capped', displayName: 'Capped', form: 'list', columns: [{ key: 'a', label: 'A' }],
+      async run() { return { rows: [{ a: 1 }], truncated: true }; },
+    });
+    try {
+      expect((await request(app).get('/api/reports/zz-capped/rows').expect(200)).body).toMatchObject({ total: 1, truncated: true });
+      // A built-in template that never mentions truncation is complete.
+      expect((await request(app).get('/api/reports/orphaned-accounts/rows').expect(200)).body.truncated).toBe(false);
+    } finally {
+      unregister();
+    }
+  });
+
   it('returns an empty result — not an error — when the report finds nothing', async () => {
     const res = await request(app).get('/api/reports/orphaned-accounts/rows').expect(200);
     expect(res.body.rows).toEqual([]);

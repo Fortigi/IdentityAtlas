@@ -112,7 +112,7 @@ export function toReportTemplate(row) {
     async run() {
       const result = await runSpec(row.definition);
       if (!result.ok) throw new Error(`saved report ${row.id} no longer validates: ${result.errors.join('; ')}`);
-      return { rows: result.rows };
+      return { rows: result.rows, truncated: result.truncated === true };
     },
   };
 }
