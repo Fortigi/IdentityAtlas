@@ -34,6 +34,11 @@ services:
     volumes:
       - report_generator_slots:/slots
     networks: [report-generator]
+    # Same hardening as docker-compose.prod.yml, so development runs what ships.
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    pids_limit: 512
     mem_limit: "${REPORT_GENERATOR_MEMORY:-5g}"
     cpus: "${REPORT_GENERATOR_CPUS:-2}"
 

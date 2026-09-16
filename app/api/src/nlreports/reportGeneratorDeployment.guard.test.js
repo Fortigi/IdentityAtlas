@@ -91,6 +91,18 @@ describe('report-generator container start-up', () => {
     expect(dockerfile, '/slots is root-owned from the build unless it is handed over').toMatch(/chown -R 1000:1000 \/slots/);
   });
 
+  it('runs the Docker service with no capabilities and no privilege escalation, in production and development alike', () => {
+    // Verified against the pinned image: health, completions and prompt-cache save
+    // all work with every capability dropped.
+    for (const file of ['docker-compose.prod.yml', 'docker-compose.nl-reports.yml']) {
+      const text = read(file);
+      const service = text.slice(text.indexOf('  report-generator:\n'), text.indexOf('\nnetworks:'));
+      expect(service, `${file}: report-generator must drop all capabilities`).toMatch(/cap_drop: \[ALL\]/);
+      expect(service, `${file}: report-generator must set no-new-privileges`).toMatch(/no-new-privileges:true/);
+      expect(service, `${file}: report-generator must cap its process count`).toMatch(/pids_limit: \d+/);
+    }
+  });
+
   it('keeps the model server off every network but the web container on Docker', () => {
     const compose = read('docker-compose.prod.yml');
     const service = compose.slice(compose.indexOf('  report-generator:'));
