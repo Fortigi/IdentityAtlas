@@ -16,25 +16,32 @@ export function normalizePresenceQuery(body) {
   return { tenantId, ids };
 }
 
-export async function lookupCrawlerPresence(db, tenantId, ids) {
+// `allowedSystemIds` (an integer array) limits the lookup to those Entra systems —
+// set for a crawler key restricted to specific systems, so it cannot probe a
+// tenant it has no access to (SEC-2026-09 M-05). null = every Entra system.
+export async function lookupCrawlerPresence(db, tenantId, ids, allowedSystemIds = null) {
+  const scoped = Array.isArray(allowedSystemIds);
+  const availFilter = scoped ? ' AND s.id = ANY($2::int[])' : '';
+  const idsFilter = scoped ? ' AND s.id = ANY($3::int[])' : '';
+  const extra = scoped ? [allowedSystemIds] : [];
   // crawlerDataAvailable=false means the crawler has loaded no Entra data for this
   // tenant yet, so the caller must NOT treat everything as orphaned (an
   // Azure-RM-first run, say).
   const avail = await db.queryOne(`
     SELECT (
-      EXISTS (SELECT 1 FROM "Principals" p JOIN "Systems" s ON s.id = p."systemId" WHERE s."systemType" = 'EntraID' AND s."tenantId" = $1)
-      OR EXISTS (SELECT 1 FROM "Resources" r JOIN "Systems" s ON s.id = r."systemId" WHERE s."systemType" = 'EntraID' AND s."tenantId" = $1)
-    ) AS available`, [tenantId]);
+      EXISTS (SELECT 1 FROM "Principals" p JOIN "Systems" s ON s.id = p."systemId" WHERE s."systemType" = 'EntraID' AND s."tenantId" = $1${availFilter})
+      OR EXISTS (SELECT 1 FROM "Resources" r JOIN "Systems" s ON s.id = r."systemId" WHERE s."systemType" = 'EntraID' AND s."tenantId" = $1${availFilter})
+    ) AS available`, [tenantId, ...extra]);
 
   let present = [];
   if (ids.length > 0) {
     const { rows } = await db.query(`
       SELECT p.id::text AS id FROM "Principals" p JOIN "Systems" s ON s.id = p."systemId"
-        WHERE s."systemType" = 'EntraID' AND s."tenantId" = $2 AND p.id::text = ANY($1::text[])
+        WHERE s."systemType" = 'EntraID' AND s."tenantId" = $2${idsFilter} AND p.id::text = ANY($1::text[])
       UNION
       SELECT r.id::text AS id FROM "Resources" r JOIN "Systems" s ON s.id = r."systemId"
-        WHERE s."systemType" = 'EntraID' AND s."tenantId" = $2 AND r.id::text = ANY($1::text[])
-    `, [ids, tenantId]);
+        WHERE s."systemType" = 'EntraID' AND s."tenantId" = $2${idsFilter} AND r.id::text = ANY($1::text[])
+    `, [ids, tenantId, ...extra]);
     present = rows.map((x) => x.id);
   }
 

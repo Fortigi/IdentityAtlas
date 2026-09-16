@@ -16,6 +16,7 @@
 // The pg pool is never created. Docker/Azure are completely unaffected.
 
 import pg from 'pg';
+import { applyConnectionDefaults } from './connectionDefaults.js';
 
 const { Pool } = pg;
 
@@ -70,6 +71,7 @@ function buildConfig() {
 function getPoolSync() {
   if (!pool) {
     pool = new Pool(buildConfig());
+    pool.on('connect', (client) => { applyConnectionDefaults(client); });
     pool.on('error', (err) => {
       console.error('Postgres pool error:', err.message);
       // Don't null the pool — pg auto-reconnects on next acquire

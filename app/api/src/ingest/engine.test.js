@@ -7,7 +7,7 @@
 // way, so these tests assert against `reconcileSql`.
 
 import { describe, it, expect } from 'vitest';
-import { scopedDelete } from './engine.js';
+import { scopedDelete, reconcileBounds, reconcileAllowed } from './engine.js';
 
 // A fake pg client. Records every query() call and returns an empty result.
 // The CREATE INDEX / ANALYZE preamble and the reconcile statement flow through here.
@@ -121,5 +121,77 @@ describe('scopedDelete — soft vs hard delete + link preservation', () => {
     // NOT-EXISTS reconcile rather than deleting.
     expect(sql).toContain('UPDATE "Resources"');
     expect(sql).toContain('NOT EXISTS');
+  });
+});
+
+// ── scopedDelete — never an unbounded reconcile (SEC-2026-09 C-01 / H-04) ────
+//
+// A full sync reconciles the target against the batch. Without a system, scope
+// or ownership predicate that means the WHOLE table — for Systems, every other
+// system and (through ON DELETE CASCADE) all of its data.
+
+describe('reconcileBounds / reconcileAllowed', () => {
+  it('bounds by systemId, then scope, binding each value as a parameter', () => {
+    const cols = new Set(['systemId', 'principalType']);
+    const { params, clauses } = reconcileBounds('Principals', 7, { principalType: 'User', missing: 'x' }, 'systemId', cols);
+    expect(clauses).toEqual(['t."systemId" = $1', 't."principalType" = $2']);
+    expect(params).toEqual([7, 'User']);
+  });
+
+  it('adds the ownership predicate for a restricted key, bound as an integer array', () => {
+    const cols = new Set(['id', 'variant', 'scopeSystemId']);
+    const { params, clauses } = reconcileBounds('Contexts', 7, { variant: 'synced' }, 'systemId', cols, [7, 8]);
+    // Contexts has no systemId column, so the envelope systemId adds nothing.
+    expect(params).toEqual(['synced', [7, 8]]);
+    expect(clauses[1]).toContain('t."scopeSystemId" = ANY($2::int[])');
+    expect(clauses[1]).toMatch(/^COALESCE\(\(/);
+  });
+
+  it('refuses an unbounded reconcile of Systems for every caller', () => {
+    expect(reconcileAllowed('Systems', [], null)).toBe(false);
+    expect(reconcileAllowed('Systems', [], [7])).toBe(false);
+  });
+
+  it('keeps the whole-table reconcile of a table with no systemId column for an UNRESTRICTED key only', () => {
+    // The built-in worker's crawlers full-sync Identities / IdentityMembers /
+    // ContextMembers without a scope and rely on that reconcile; a restricted key
+    // may not.
+    expect(reconcileAllowed('Identities', [], null)).toBe(true);
+    expect(reconcileAllowed('Identities', [], [7])).toBe(false);
+  });
+
+  it('refuses a table that HAS a systemId column when no systemId reached it', () => {
+    expect(reconcileAllowed('Principals', [], null)).toBe(false);
+  });
+
+  it('allows any reconcile that has at least one bound', () => {
+    expect(reconcileAllowed('Systems', ['t."x" = $1'], null)).toBe(true);
+  });
+});
+
+describe('scopedDelete — the unbounded-reconcile guard', () => {
+  const systemsCols = new Set(['id', 'systemType', 'tenantId', 'displayName']);
+
+  it('runs nothing and deletes nothing for a full sync of Systems', async () => {
+    const client = fakeClient();
+    const deleted = await scopedDelete(client, 'Systems', ['systemType', 'tenantId'], '_tmp_ingest_sys', null, {}, 'systemId', systemsCols);
+    expect(deleted).toBe(0);
+    expect(client.calls).toEqual([]);
+  });
+
+  it('appends the ownership predicate to the reconcile for a restricted key', async () => {
+    const client = fakeClient();
+    await scopedDelete(client, 'Principals', ['id'], '_tmp_ingest_p', 7, {}, 'systemId',
+      new Set(['id', 'systemId', 'deletedAt']), null, [7]);
+    const call = client.calls.find(c => /^\s*UPDATE "Principals"/.test(c.sql));
+    expect(call.sql).toContain('t."systemId" = $1 AND COALESCE((t."systemId" = ANY($2::int[])), false)');
+    expect(call.params).toEqual([7, [7]]);
+  });
+
+  it('still reconciles an unscoped IdentityMembers full sync for an unrestricted key', async () => {
+    const client = fakeClient();
+    await scopedDelete(client, 'IdentityMembers', ['identityId', 'principalId'], '_tmp_ingest_im', 7, {}, 'systemId',
+      new Set(['identityId', 'principalId', 'linkConfidence', 'analystOverride']));
+    expect(client.reconcileSql).toContain('DELETE FROM "IdentityMembers"');
   });
 });

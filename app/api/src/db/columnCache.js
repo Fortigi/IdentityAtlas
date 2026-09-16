@@ -179,18 +179,32 @@ export async function discoverColumnValues(table, columns, pageSize = valuePageS
 //
 // Object/array-valued keys (e.g. `signInActivity`, `groupTypes`) are skipped —
 // matching on a serialized object is not a useful filter.
-export async function discoverExtendedAttrValues(table, pageSize = valuePageSize()) {
+// At most this many extendedAttributes keys become filter columns — the most
+// frequent ones. Crawlers control the key set, and every discovered key adds a
+// branch to the value query below, so an unbounded set made every column-list
+// request as expensive as the number of distinct keys ever stored
+// (SEC-2026-09 L-16). Far above what any shipped crawler writes.
+export const MAX_EXTENDED_ATTR_KEYS = 300;
+
+export async function discoverExtendedAttrValues(table, pageSize = valuePageSize(), maxKeys = MAX_EXTENDED_ATTR_KEYS) {
   if (!SAFE_IDENT_RE.test(table)) throw new Error(`Invalid table name: ${table}`);
 
   // Find distinct scalar top-level keys. We use jsonb_typeof on the value so
   // we only keep keys whose typical content is something a user would filter
   // on; if a key is mixed (string in some rows, object in others) we'd lose
-  // the object rows, but the filter still matches the scalar ones.
+  // the object rows, but the filter still matches the scalar ones. Keys that are
+  // not safe identifiers are dropped in SQL, before the cap, so they cannot use
+  // up the budget; the JS filter below stays as defence in depth.
   const keysRes = await db.query(
-    `SELECT DISTINCT key
+    `SELECT key
        FROM "${table}", jsonb_object_keys("extendedAttributes") AS key
       WHERE "extendedAttributes" IS NOT NULL
-        AND jsonb_typeof("extendedAttributes"->key) IN ('string', 'number', 'boolean')`
+        AND jsonb_typeof("extendedAttributes"->key) IN ('string', 'number', 'boolean')
+        AND key ~ '^[a-zA-Z0-9_]+$'
+      GROUP BY key
+      ORDER BY COUNT(*) DESC, key
+      LIMIT $1`,
+    [maxKeys]
   );
   const keys = keysRes.rows.map(r => r.key).filter(k => SAFE_IDENT_RE.test(k));
   if (keys.length === 0) return { values: {}, truncated: {} };

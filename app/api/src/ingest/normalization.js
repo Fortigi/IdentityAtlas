@@ -187,6 +187,30 @@ export function normalizeRecords(records, coreColumns, options = {}) {
   });
 }
 
+// Per-record bounds on extendedAttributes (SEC-2026-09 L-16). Every distinct key a
+// crawler stores becomes a candidate filter column, and column discovery scans
+// them, so an unbounded key set makes every column-list request expensive. The
+// limits sit far above any shipped crawler: the widest records are Entra users
+// with a few dozen selected directory extensions and Entra directory roles whose
+// action list is tens of KB.
+export const EXT_ATTR_MAX_KEYS = 500;
+export const EXT_ATTR_MAX_CHARS = 512 * 1024;
+
+// The first record whose packed extendedAttributes exceeds the bounds, as an
+// error string, or null. Runs on NORMALIZED records (extendedAttributes is the
+// JSON string normalizeRecords produced). Pure.
+export function extendedAttributesBoundsError(normalized, maxKeys = EXT_ATTR_MAX_KEYS, maxChars = EXT_ATTR_MAX_CHARS) {
+  for (let i = 0; i < normalized.length; i++) {
+    const packed = normalized[i].extendedAttributes;
+    if (typeof packed !== 'string') continue;
+    if (packed.length > maxChars) return `Record ${i}: extendedAttributes exceeds ${maxChars} characters`;
+    const parsed = tryParseJson(packed);
+    const keyCount = parsed && typeof parsed === 'object' ? Object.keys(parsed).length : 0;
+    if (keyCount > maxKeys) return `Record ${i}: extendedAttributes has more than ${maxKeys} keys`;
+  }
+  return null;
+}
+
 export function coerceValue(value) {
   if (value === null || value === undefined) return null;
   // Empty strings → null. Postgres rejects '' for typed columns (uuid,
