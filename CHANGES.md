@@ -1,5 +1,10 @@
 ## Changes in this PR
 
+- Fixed every automated build failing within seconds of approval ("dor_trusted_spec.sh: No such file or directory"): the hourly sidekick sweep left the build box's workspace holding a single script, so the build started without the rest of the repository
+- Automated builds now clear any leftover partial checkout on their sidekick before they start, so a workspace left in that state can no longer break a build
+
+## Changes in this PR
+
 - Fixed a full sync sent to the systems ingest endpoint being able to remove other registered systems and all of their data; systems are now always registered as a delta, and the Omada crawler no longer requests a full sync for them.
 - Hardened crawler API keys that are restricted to specific systems: they can no longer create, overwrite, tombstone or delete data belonging to other systems, and cannot write server-managed fields such as risk scores, deletion stamps or analyst decisions.
 - Hardened the crawler data-plane endpoints: business-role classification now needs the refresh-views permission and only touches the caller's systems, matrix view refreshes run one at a time, the default matrix filter can only be set by the built-in worker, sync-log entries record which crawler wrote them, principal presence lookups are limited to the caller's systems, and job progress can only be reported by the worker.
