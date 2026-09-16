@@ -1,5 +1,17 @@
 ## Changes in this PR
 
+- Hardened installations running with authentication disabled: state-changing requests that a browser marks as coming from another website are now refused, and requests for a host name the server does not recognise are answered with "421 Misdirected Request". IP addresses, `localhost`, single-label intranet names and `.local` names keep working without configuration; add any other host name users type to the new `ALLOWED_HOSTS` setting (or set `PUBLIC_BASE_URL`).
+- "Clean Database" now requires an explicit confirmation in the request itself (`{"confirm": "DELETE ALL DATA"}`), in every authentication mode. The Admin → Data page sends it automatically; scripts calling the endpoint directly must add it.
+- Hardened crawler API-key authentication against request floods: invalid keys are rejected before large upload bodies are read, key verification no longer blocks the server while it runs, repeated failures from one client are throttled, and the crawler audit log is capped per crawler (`CRAWLER_AUDIT_LOG_MAX_ROWS`, default 10,000 rows).
+- Fixed rate limiting behind Azure App Service and other reverse proxies: users are now limited individually instead of sharing one organisation-wide bucket, audit logs record the real client address, and loading the app page no longer uses up the API's request budget. The number of trusted proxies can be set with `TRUST_PROXY_HOPS`.
+- Starting a risk scoring run while another one is still in progress is now refused, and AI profile/classifier generation is limited to 10 requests per minute per user.
+- Crawler file uploads are refused when they would leave less than 1 GiB free on the upload volume (`UPLOAD_MIN_FREE_BYTES`), with an optional per-configuration storage quota (`UPLOAD_CONFIG_QUOTA_BYTES`). The 1 GB per-file limit is unchanged.
+- Fixed spreadsheet formula injection in the drill-down list CSV export and in the filter legend of the matrix Excel export.
+- Removed Microsoft Graph from the browser's allowed connection targets; the app never calls Graph from the browser.
+- An attribute named `Link` is only shown as "Open in Entra ID" when it points to the Entra or Azure portal; links to any other site are shown with their real address.
+
+## Changes in this PR
+
 - Fixed every automated build failing within seconds of approval ("dor_trusted_spec.sh: No such file or directory"): the hourly sidekick sweep left the build box's workspace holding a single script, so the build started without the rest of the repository
 - Automated builds now clear any leftover partial checkout on their sidekick before they start, so a workspace left in that state can no longer break a build
 
