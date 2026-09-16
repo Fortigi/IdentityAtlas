@@ -141,6 +141,23 @@ jobs:
           cache-from: type=gha,scope=worker
           cache-to: type=gha,mode=min,scope=worker,ignore-error=true
 
+      - name: Build report-generator image (experimental, model baked in)
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
+        with:
+          context: .
+          file: ./setup/docker/Dockerfile.report-generator
+          push: false
+          load: true
+          tags: identity-atlas-report-generator:qa
+          # Stamped from the same version expression as web and worker
+          # (imageVersionStamp.guard.test.js checks that), plus the pinned model
+          # and its checksum so a release always ships the model we tested.
+          build-args: |
+            MODULE_VERSION=${{ steps.version.outputs.version }}
+            MODEL_SHA256=${{ vars.REPORT_GENERATOR_MODEL_SHA256 }}
+          cache-from: type=gha,scope=report-generator
+          cache-to: type=gha,mode=min,scope=report-generator,ignore-error=true
+
       # ── Smoke test: start the stack and verify it boots ─────────────
       - name: Start stack
         run: |
@@ -233,6 +250,16 @@ jobs:
           REPO="${{ env.REGISTRY }}/fortigi/identity-atlas"
           docker tag identity-atlas-web:qa "$REPO:$FLOAT"
           docker tag identity-atlas-web:qa "$REPO:$VERSION"
+          docker push "$REPO:$FLOAT"
+          docker push "$REPO:$VERSION"
+
+      - name: Push report-generator image (tested artifact)
+        run: |
+          FLOAT="${{ steps.tags.outputs.float }}"
+          VERSION="${{ steps.version.outputs.version }}"
+          REPO="${{ env.REGISTRY }}/fortigi/identity-atlas-report-generator"
+          docker tag identity-atlas-report-generator:qa "$REPO:$FLOAT"
+          docker tag identity-atlas-report-generator:qa "$REPO:$VERSION"
           docker push "$REPO:$FLOAT"
           docker push "$REPO:$VERSION"
 

@@ -4,8 +4,8 @@
   "metadata": {
     "_generator": {
       "name": "bicep",
-      "version": "0.43.8.12551",
-      "templateHash": "16364297160833833680"
+      "version": "0.47.16.16243",
+      "templateHash": "3429897396500066293"
     }
   },
   "parameters": {
@@ -32,6 +32,20 @@
       ],
       "metadata": {
         "description": "Release channel. **stable** = the last cut release tag (recommended for production). **edge** = the latest main-branch build — includes newer fixes and features but less testing."
+      }
+    },
+    "deployReportGenerator": {
+      "type": "bool",
+      "defaultValue": false,
+      "metadata": {
+        "description": "Deploy the EXPERIMENTAL report generator: a small language model in its own container that turns a report described in plain language into a report definition. Scales to zero, so it only costs while in use. Questions and data never leave the deployment. Leave false to keep custom reports hand-built only."
+      }
+    },
+    "reportGeneratorApiKey": {
+      "type": "securestring",
+      "defaultValue": "[newGuid()]",
+      "metadata": {
+        "description": "API key the web app uses to reach the report generator. Generated per deployment; you never need to set this."
       }
     },
     "existingLogAnalyticsWorkspaceId": {
@@ -91,6 +105,7 @@
     "_imageTag": "[if(equals(parameters('imageChannel'), 'stable'), 'latest', 'edge')]",
     "webImage": "[format('ghcr.io/fortigi/identity-atlas:{0}', variables('_imageTag'))]",
     "workerImage": "[format('ghcr.io/fortigi/identity-atlas-worker:{0}', variables('_imageTag'))]",
+    "reportGeneratorImage": "[format('ghcr.io/fortigi/identity-atlas-report-generator:{0}', variables('_imageTag'))]",
     "pgPassword": "[format('{0}!Aa1{1}', uniqueString(resourceGroup().id, variables('namePrefix'), 'pg-base'), take(uniqueString(resourceGroup().id, variables('namePrefix'), 'pg-x'), 4))]",
     "kvName": "[take(format('{0}-kv-{1}', variables('namePrefix'), uniqueString(resourceGroup().id)), 24)]"
   },
@@ -121,8 +136,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.43.8.12551",
-              "templateHash": "526043258497844453"
+              "version": "0.47.16.16243",
+              "templateHash": "12538785124691129588"
             }
           },
           "parameters": {
@@ -212,8 +227,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.43.8.12551",
-              "templateHash": "3469364046225841182"
+              "version": "0.47.16.16243",
+              "templateHash": "17974614994489791630"
             }
           },
           "parameters": {
@@ -279,6 +294,18 @@
               "dependsOn": [
                 "[resourceId('Microsoft.Storage/storageAccounts/fileServices', variables('stName'), 'default')]"
               ]
+            },
+            {
+              "type": "Microsoft.Storage/storageAccounts/fileServices/shares",
+              "apiVersion": "2024-01-01",
+              "name": "[format('{0}/{1}/{2}', variables('stName'), 'default', 'promptcache')]",
+              "properties": {
+                "shareQuota": 5,
+                "enabledProtocols": "SMB"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts/fileServices', variables('stName'), 'default')]"
+              ]
             }
           ],
           "outputs": {
@@ -293,6 +320,10 @@
             "uploadsShareName": {
               "type": "string",
               "value": "uploads"
+            },
+            "promptCacheShareName": {
+              "type": "string",
+              "value": "promptcache"
             }
           }
         }
@@ -321,8 +352,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.43.8.12551",
-              "templateHash": "14956609084503564297"
+              "version": "0.47.16.16243",
+              "templateHash": "13819158250942573331"
             }
           },
           "parameters": {
@@ -409,8 +440,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.43.8.12551",
-              "templateHash": "5519073651961053323"
+              "version": "0.47.16.16243",
+              "templateHash": "8303365323556892594"
             }
           },
           "parameters": {
@@ -541,8 +572,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.43.8.12551",
-              "templateHash": "10669901437913345982"
+              "version": "0.47.16.16243",
+              "templateHash": "5738833299814591373"
             }
           },
           "parameters": {
@@ -669,8 +700,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.43.8.12551",
-              "templateHash": "12932658018546021402"
+              "version": "0.47.16.16243",
+              "templateHash": "70643710033213736"
             }
           },
           "parameters": {
@@ -863,6 +894,8 @@
         },
         "mode": "Incremental",
         "parameters": {
+          "reportGeneratorUrl": "[if(parameters('deployReportGenerator'), createObject('value', format('https://{0}-report-generator.{1}', variables('namePrefix'), reference(resourceId('Microsoft.Resources/deployments', 'aca-env'), '2025-04-01').outputs.defaultDomain.value)), createObject('value', ''))]",
+          "reportGeneratorApiKey": "[if(parameters('deployReportGenerator'), createObject('value', parameters('reportGeneratorApiKey')), createObject('value', ''))]",
           "namePrefix": {
             "value": "[variables('namePrefix')]"
           },
@@ -906,8 +939,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.43.8.12551",
-              "templateHash": "18428901815397905413"
+              "version": "0.47.16.16243",
+              "templateHash": "3089963509082045877"
             }
           },
           "parameters": {
@@ -992,6 +1025,20 @@
               "metadata": {
                 "description": "Allowed IP CIDR list for ingress. Empty array = open to the internet (default; rely on Entra auth)."
               }
+            },
+            "reportGeneratorUrl": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "URL of the report generator (experimental). Empty = the feature is not deployed."
+              }
+            },
+            "reportGeneratorApiKey": {
+              "type": "securestring",
+              "defaultValue": "",
+              "metadata": {
+                "description": "API key the web app sends to the report generator."
+              }
             }
           },
           "variables": {
@@ -1048,84 +1095,7 @@
                   "healthCheckPath": "/api/health",
                   "acrUseManagedIdentityCreds": false,
                   "ipSecurityRestrictionsDefaultAction": "[if(empty(parameters('allowedIpCidrs')), 'Allow', 'Deny')]",
-                  "appSettings": [
-                    {
-                      "name": "DOCKER_REGISTRY_SERVER_URL",
-                      "value": "https://ghcr.io"
-                    },
-                    {
-                      "name": "WEBSITES_PORT",
-                      "value": "3001"
-                    },
-                    {
-                      "name": "WEBSITES_ENABLE_APP_SERVICE_STORAGE",
-                      "value": "false"
-                    },
-                    {
-                      "name": "WEBSITES_CONTAINER_START_TIME_LIMIT",
-                      "value": "1800"
-                    },
-                    {
-                      "name": "NODE_ENV",
-                      "value": "production"
-                    },
-                    {
-                      "name": "USE_SQL",
-                      "value": "true"
-                    },
-                    {
-                      "name": "PORT",
-                      "value": "3001"
-                    },
-                    {
-                      "name": "BEHIND_TLS",
-                      "value": "true"
-                    },
-                    {
-                      "name": "AUTH_ENABLED",
-                      "value": "true"
-                    },
-                    {
-                      "name": "AUTH_TENANT_ID",
-                      "value": ""
-                    },
-                    {
-                      "name": "AUTH_CLIENT_ID",
-                      "value": ""
-                    },
-                    {
-                      "name": "IDENTITY_ATLAS_MASTER_KEY",
-                      "value": "[format('@Microsoft.KeyVault(SecretUri={0}secrets/identityatlas-master-key/)', parameters('keyVaultUri'))]"
-                    },
-                    {
-                      "name": "POSTGRES_PASSWORD",
-                      "value": "[format('@Microsoft.KeyVault(SecretUri={0}secrets/postgres-admin-password/)', parameters('keyVaultUri'))]"
-                    },
-                    {
-                      "name": "POSTGRES_HOST",
-                      "value": "[parameters('pgFqdn')]"
-                    },
-                    {
-                      "name": "POSTGRES_PORT",
-                      "value": "5432"
-                    },
-                    {
-                      "name": "POSTGRES_DB",
-                      "value": "[parameters('pgDatabaseName')]"
-                    },
-                    {
-                      "name": "POSTGRES_USER",
-                      "value": "[parameters('pgUsername')]"
-                    },
-                    {
-                      "name": "PGSSLMODE",
-                      "value": "require"
-                    },
-                    {
-                      "name": "AZURE_KEY_VAULT_URI",
-                      "value": "[parameters('keyVaultUri')]"
-                    }
-                  ],
+                  "appSettings": "[concat(createArray(createObject('name', 'DOCKER_REGISTRY_SERVER_URL', 'value', 'https://ghcr.io'), createObject('name', 'WEBSITES_PORT', 'value', '3001'), createObject('name', 'WEBSITES_ENABLE_APP_SERVICE_STORAGE', 'value', 'false'), createObject('name', 'WEBSITES_CONTAINER_START_TIME_LIMIT', 'value', '1800'), createObject('name', 'NODE_ENV', 'value', 'production'), createObject('name', 'USE_SQL', 'value', 'true'), createObject('name', 'PORT', 'value', '3001'), createObject('name', 'BEHIND_TLS', 'value', 'true'), createObject('name', 'AUTH_ENABLED', 'value', 'true'), createObject('name', 'AUTH_TENANT_ID', 'value', ''), createObject('name', 'AUTH_CLIENT_ID', 'value', ''), createObject('name', 'IDENTITY_ATLAS_MASTER_KEY', 'value', format('@Microsoft.KeyVault(SecretUri={0}secrets/identityatlas-master-key/)', parameters('keyVaultUri'))), createObject('name', 'POSTGRES_PASSWORD', 'value', format('@Microsoft.KeyVault(SecretUri={0}secrets/postgres-admin-password/)', parameters('keyVaultUri'))), createObject('name', 'POSTGRES_HOST', 'value', parameters('pgFqdn')), createObject('name', 'POSTGRES_PORT', 'value', '5432'), createObject('name', 'POSTGRES_DB', 'value', parameters('pgDatabaseName')), createObject('name', 'POSTGRES_USER', 'value', parameters('pgUsername')), createObject('name', 'PGSSLMODE', 'value', 'require'), createObject('name', 'AZURE_KEY_VAULT_URI', 'value', parameters('keyVaultUri'))), if(empty(parameters('reportGeneratorUrl')), createArray(), createArray(createObject('name', 'FEATURE_CUSTOM_REPORTS', 'value', 'true'), createObject('name', 'NL_REPORTS_LLM_URL', 'value', parameters('reportGeneratorUrl')), createObject('name', 'NL_REPORTS_LLM_API_KEY', 'value', parameters('reportGeneratorApiKey')))))]",
                   "azureStorageAccounts": {
                     "uploads": {
                       "type": "AzureFiles",
@@ -1197,6 +1167,7 @@
       },
       "dependsOn": [
         "[resourceId('Microsoft.Resources/deployments', 'bootstrap')]",
+        "[resourceId('Microsoft.Resources/deployments', 'aca-env')]",
         "[resourceId('Microsoft.Resources/deployments', 'identities')]",
         "[resourceId('Microsoft.Resources/deployments', 'key-vault')]",
         "[resourceId('Microsoft.Resources/deployments', 'log-analytics')]",
@@ -1231,6 +1202,9 @@
           },
           "uploadsShareName": {
             "value": "[reference(resourceId('Microsoft.Resources/deployments', 'storage'), '2025-04-01').outputs.uploadsShareName.value]"
+          },
+          "promptCacheShareName": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'storage'), '2025-04-01').outputs.promptCacheShareName.value]"
           }
         },
         "template": {
@@ -1239,8 +1213,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.43.8.12551",
-              "templateHash": "1376923566476867404"
+              "version": "0.47.16.16243",
+              "templateHash": "3933294987251973430"
             }
           },
           "parameters": {
@@ -1281,6 +1255,12 @@
               "metadata": {
                 "description": "File share name"
               }
+            },
+            "promptCacheShareName": {
+              "type": "string",
+              "metadata": {
+                "description": "File share holding the report generator prompt cache"
+              }
             }
           },
           "resources": [
@@ -1314,6 +1294,22 @@
               "dependsOn": [
                 "[resourceId('Microsoft.App/managedEnvironments', format('{0}-cae', parameters('namePrefix')))]"
               ]
+            },
+            {
+              "type": "Microsoft.App/managedEnvironments/storages",
+              "apiVersion": "2024-10-02-preview",
+              "name": "[format('{0}/{1}', format('{0}-cae', parameters('namePrefix')), 'promptcache')]",
+              "properties": {
+                "azureFile": {
+                  "accountName": "[parameters('storageAccountName')]",
+                  "accountKey": "[listKeys(resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName')), '2024-01-01').keys[0].value]",
+                  "shareName": "[parameters('promptCacheShareName')]",
+                  "accessMode": "ReadWrite"
+                }
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.App/managedEnvironments', format('{0}-cae', parameters('namePrefix')))]"
+              ]
             }
           ],
           "outputs": {
@@ -1328,6 +1324,10 @@
             "uploadsStorageName": {
               "type": "string",
               "value": "uploads"
+            },
+            "promptCacheStorageName": {
+              "type": "string",
+              "value": "promptcache"
             },
             "defaultDomain": {
               "type": "string",
@@ -1382,8 +1382,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.43.8.12551",
-              "templateHash": "1125172534652634110"
+              "version": "0.47.16.16243",
+              "templateHash": "4495354783951239286"
             }
           },
           "parameters": {
@@ -1504,6 +1504,217 @@
       "dependsOn": [
         "[resourceId('Microsoft.Resources/deployments', 'aca-env')]",
         "[resourceId('Microsoft.Resources/deployments', 'app-service')]"
+      ]
+    },
+    {
+      "condition": "[parameters('deployReportGenerator')]",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "aca-app-report-generator",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "namePrefix": {
+            "value": "[variables('namePrefix')]"
+          },
+          "location": {
+            "value": "[variables('location')]"
+          },
+          "envId": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'aca-env'), '2025-04-01').outputs.envId.value]"
+          },
+          "promptCacheStorageName": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'aca-env'), '2025-04-01').outputs.promptCacheStorageName.value]"
+          },
+          "image": {
+            "value": "[variables('reportGeneratorImage')]"
+          },
+          "apiKey": {
+            "value": "[parameters('reportGeneratorApiKey')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.47.16.16243",
+              "templateHash": "372757582958838973"
+            }
+          },
+          "parameters": {
+            "namePrefix": {
+              "type": "string",
+              "minLength": 3,
+              "maxLength": 15,
+              "metadata": {
+                "description": "Resource name prefix"
+              }
+            },
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "Azure region"
+              }
+            },
+            "envId": {
+              "type": "string",
+              "metadata": {
+                "description": "Container Apps Environment ID"
+              }
+            },
+            "promptCacheStorageName": {
+              "type": "string",
+              "metadata": {
+                "description": "Storage name registered on the CAE for the prompt cache share"
+              }
+            },
+            "image": {
+              "type": "string",
+              "metadata": {
+                "description": "Container image, e.g. ghcr.io/fortigi/identity-atlas-report-generator:latest"
+              }
+            },
+            "apiKey": {
+              "type": "securestring",
+              "metadata": {
+                "description": "API key the web app must send. Generated per deployment by main.bicep."
+              }
+            },
+            "cpu": {
+              "type": "string",
+              "defaultValue": "2",
+              "metadata": {
+                "description": "CPU cores. Consumption requires memory = 2x cpu (2 -> 4Gi)."
+              }
+            },
+            "memory": {
+              "type": "string",
+              "defaultValue": "4Gi",
+              "metadata": {
+                "description": "Memory, e.g. 4Gi"
+              }
+            },
+            "scaleToZeroAfterSeconds": {
+              "type": "int",
+              "defaultValue": 300,
+              "metadata": {
+                "description": "Seconds of inactivity before the app scales back to zero."
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.App/containerApps",
+              "apiVersion": "2024-10-02-preview",
+              "name": "[format('{0}-report-generator', parameters('namePrefix'))]",
+              "location": "[parameters('location')]",
+              "properties": {
+                "managedEnvironmentId": "[parameters('envId')]",
+                "configuration": {
+                  "activeRevisionsMode": "Single",
+                  "ingress": {
+                    "external": true,
+                    "targetPort": 8080,
+                    "transport": "auto",
+                    "allowInsecure": false
+                  },
+                  "secrets": [
+                    {
+                      "name": "api-key",
+                      "value": "[parameters('apiKey')]"
+                    }
+                  ]
+                },
+                "template": {
+                  "containers": [
+                    {
+                      "name": "report-generator",
+                      "image": "[parameters('image')]",
+                      "resources": {
+                        "cpu": "[json(parameters('cpu'))]",
+                        "memory": "[parameters('memory')]"
+                      },
+                      "env": [
+                        {
+                          "name": "LLAMA_ARG_API_KEY",
+                          "secretRef": "api-key"
+                        },
+                        {
+                          "name": "LLAMA_ARG_THREADS",
+                          "value": "[parameters('cpu')]"
+                        }
+                      ],
+                      "volumeMounts": [
+                        {
+                          "volumeName": "promptcache",
+                          "mountPath": "/slots"
+                        }
+                      ],
+                      "probes": [
+                        {
+                          "type": "Readiness",
+                          "httpGet": {
+                            "path": "/health",
+                            "port": 8080
+                          },
+                          "initialDelaySeconds": 10,
+                          "periodSeconds": 10,
+                          "failureThreshold": 30
+                        }
+                      ]
+                    }
+                  ],
+                  "volumes": [
+                    {
+                      "name": "promptcache",
+                      "storageType": "AzureFile",
+                      "storageName": "[parameters('promptCacheStorageName')]"
+                    }
+                  ],
+                  "scale": {
+                    "minReplicas": 0,
+                    "maxReplicas": 1,
+                    "cooldownPeriod": "[parameters('scaleToZeroAfterSeconds')]",
+                    "rules": [
+                      {
+                        "name": "http",
+                        "http": {
+                          "metadata": {
+                            "concurrentRequests": "4"
+                          }
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ],
+          "outputs": {
+            "appHostname": {
+              "type": "string",
+              "metadata": {
+                "description": "Hostname of the report generator (no scheme)."
+              },
+              "value": "[reference(resourceId('Microsoft.App/containerApps', format('{0}-report-generator', parameters('namePrefix'))), '2024-10-02-preview').configuration.ingress.fqdn]"
+            },
+            "appUrl": {
+              "type": "string",
+              "metadata": {
+                "description": "URL the web app should call."
+              },
+              "value": "[format('https://{0}', reference(resourceId('Microsoft.App/containerApps', format('{0}-report-generator', parameters('namePrefix'))), '2024-10-02-preview').configuration.ingress.fqdn)]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Resources/deployments', 'aca-env')]"
       ]
     }
   ],

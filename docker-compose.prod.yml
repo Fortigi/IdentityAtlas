@@ -94,10 +94,15 @@ services:
       # exercise that path on a deployment with only a few hundred objects.
       # See docs/architecture/matrix.md → "Attribute values".
       MATRIX_VALUE_PAGE_SIZE: "${MATRIX_VALUE_PAGE_SIZE:-}"
+      # Report generator (experimental). Only reachable when the
+      # report-generator profile is started; the feature is off until enabled.
+      FEATURE_CUSTOM_REPORTS: "${FEATURE_CUSTOM_REPORTS:-}"
+      NL_REPORTS_LLM_URL: "http://report-generator:8080"
     ports:
       - "${PORT:-3001}:3001"
     volumes:
       - job_data:/data/uploads
+    networks: [default, report-generator]
     depends_on:
       postgres:
         condition: service_healthy
@@ -126,6 +131,38 @@ services:
         condition: service_started
     restart: unless-stopped
 
+  # ── Report generator (EXPERIMENTAL, opt-in) ─────────────────────────────────
+  # Turns a report described in plain language into a report definition. One small
+  # model, baked into this image, running on CPU. Enable with:
+  #
+  #   COMPOSE_PROFILES=report-generator      (in .env)
+  #   FEATURE_CUSTOM_REPORTS=true            (or switch it on in Admin → Experimental)
+  #
+  # Questions never leave the deployment: the container has no published port, sits
+  # on an internal network with the web container only, and cannot reach the
+  # internet, the database or the worker. See docs/reference/report-generator.md.
+  report-generator:
+    image: ghcr.io/fortigi/identity-atlas-report-generator:${IMAGE_TAG:-latest}
+    profiles: ["report-generator"]
+    environment:
+      # Threads = the CPUs this container may use. Keep the two in step.
+      LLAMA_ARG_THREADS: "${REPORT_GENERATOR_CPUS:-2}"
+    volumes:
+      # The processed system prompt (~600 MB): makes a restart instant instead of
+      # re-reading the prompt for minutes.
+      - report_generator_slots:/slots
+    networks: [report-generator]
+    mem_limit: "${REPORT_GENERATOR_MEMORY:-5g}"
+    cpus: "${REPORT_GENERATOR_CPUS:-2}"
+    restart: unless-stopped
+
+networks:
+  # Only the web container and the model server are on this one, and it has no
+  # route to the internet (internal: true).
+  report-generator:
+    internal: true
+
 volumes:
   postgres_data:
   job_data:
+  report_generator_slots:

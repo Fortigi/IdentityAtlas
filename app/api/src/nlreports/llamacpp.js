@@ -20,6 +20,9 @@ import { createHash } from 'node:crypto';
 
 const BASE_URL = (process.env.NL_REPORTS_LLM_URL || 'http://llm:8080').replace(/\/$/, '');
 const TIMEOUT_MS = Number(process.env.NL_REPORTS_LLM_TIMEOUT_MS) || 900_000;
+// Set where the model server is reachable over a network the deployment does not
+// control (Azure: no VNet, so the Container App has public ingress).
+const API_KEY = process.env.NL_REPORTS_LLM_API_KEY || '';
 const MAX_RESPONSE_BYTES = 16 * 1024 * 1024;
 const SLOT = 0;
 
@@ -30,7 +33,10 @@ function request(method, path, body) {
   return new Promise((resolve, reject) => {
     const req = client.request(url, {
       method,
-      headers: payload ? { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) } : {},
+      headers: {
+        ...(payload ? { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) } : {}),
+        ...(API_KEY ? { Authorization: `Bearer ${API_KEY}` } : {}),
+      },
     }, (res) => {
       const chunks = [];
       let size = 0;

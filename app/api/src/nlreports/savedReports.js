@@ -11,6 +11,7 @@ import { compileSpec } from './compile.js';
 import { validateSpec } from './spec.js';
 import { loadValues, runSpec } from './service.js';
 import { resolveNamedObjects } from './references.js';
+import { isFeatureEnabled } from '../featureFlags.js';
 
 export const SAVED_PREFIX = 'custom-';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -112,10 +113,12 @@ export function toReportTemplate(row) {
 
 registerReportSource({
   async list() {
+    if (!(await isFeatureEnabled('customReports'))) return [];
     return (await listSavedReports()).map(toReportTemplate);
   },
   async get(name) {
     if (!name.startsWith(SAVED_PREFIX)) return null;
+    if (!(await isFeatureEnabled('customReports'))) return null;
     const row = await getSavedReport(name.slice(SAVED_PREFIX.length));
     return row ? toReportTemplate(row) : null;
   },

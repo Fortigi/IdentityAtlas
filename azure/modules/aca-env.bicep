@@ -26,6 +26,9 @@ param storageAccountName string
 @description('File share name')
 param uploadsShareName string
 
+@description('File share holding the report generator prompt cache')
+param promptCacheShareName string
+
 // Reference the LA workspace + storage account so we can read their secrets
 // locally via listKeys(), instead of receiving them as params/outputs (outputs
 // persist in ARM deployment history — audit H-1). Same deploy principal as the
@@ -74,7 +77,21 @@ resource uploadsStorage 'Microsoft.App/managedEnvironments/storages@2024-10-02-p
   }
 }
 
+resource promptCacheStorage 'Microsoft.App/managedEnvironments/storages@2024-10-02-preview' = {
+  parent: env
+  name: 'promptcache'
+  properties: {
+    azureFile: {
+      accountName: storageAccountName
+      accountKey: stg.listKeys().keys[0].value
+      shareName: promptCacheShareName
+      accessMode: 'ReadWrite'
+    }
+  }
+}
+
 output envId string = env.id
 output envName string = env.name
 output uploadsStorageName string = uploadsStorage.name
+output promptCacheStorageName string = promptCacheStorage.name
 output defaultDomain string = env.properties.defaultDomain

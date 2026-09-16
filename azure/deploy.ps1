@@ -51,6 +51,10 @@ Param(
 
     [string]$ExistingLogAnalyticsWorkspaceId = '',
 
+    # Deploy the experimental report generator (a small local model in its own
+    # container, scaled to zero). Off by default.
+    [switch]$DeployReportGenerator,
+
     [string]$SubscriptionId,
 
     [string]$ParametersFile
@@ -68,6 +72,7 @@ Write-Host "  ResourceGroup : $ResourceGroup"
 Write-Host "  Location      : $Location"
 Write-Host "  SizeProfile   : $SizeProfile"
 Write-Host "  ImageChannel  : $ImageChannel"
+Write-Host "  ReportGen     : $(if ($DeployReportGenerator) { 'deployed (scales to zero)' } else { 'not deployed' })"
 Write-Host "  Bicep         : $bicepFile"
 
 # ── az login ────────────────────────────────────────────────────────────
@@ -104,6 +109,9 @@ $deployArgs = @(
     '--parameters', "sizeProfile=$SizeProfile", "imageChannel=$ImageChannel",
     '--output', 'json'
 )
+if ($DeployReportGenerator) {
+    $deployArgs += @('--parameters', 'deployReportGenerator=true')
+}
 if ($ExistingLogAnalyticsWorkspaceId) {
     $deployArgs += @('--parameters', "existingLogAnalyticsWorkspaceId=$ExistingLogAnalyticsWorkspaceId")
 }

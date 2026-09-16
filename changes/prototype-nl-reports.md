@@ -5,3 +5,5 @@
 - Prototype: reports can compare against a named record — for example "groups with exactly the same members as business role X", "users in the same groups as Jan", or "groups that are at least 80% the same as group Y" — with similarity, extra and missing members shown per row.
 - Prototype: when a report names a specific object (a business role, group or user) that doesn't match a name exactly, the report builder suggests the closest matches and asks you to confirm which one you meant.
 - Prototype: the report generator understands interchangeable terms — person and identity, account, principal and user, business role and access package — and reports can now be about persons (identities) and their linked accounts.
+- Prototype: custom reports and the report generator are an experimental feature, switched on under Admin → Experimental (off by default).
+- Prototype: the report generator ships as its own optional container with one model built in — a compose profile for Docker, and an opt-in Azure Container App that scales to zero so it only costs while in use.

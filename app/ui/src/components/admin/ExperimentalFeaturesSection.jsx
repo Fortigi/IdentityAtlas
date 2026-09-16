@@ -1,11 +1,13 @@
 // Admin → Experimental.
 //
 // One tab for everything that is built and tested but has not yet had much
-// exposure to real-world data. Two flags today:
+// exposure to real-world data. Three flags today:
 //   • Experimental crawlers — whether crawler types marked `experimental: true`
 //     in their CrawlerMeta.js / crawler.json are offered in Add Crawler.
 //   • Matrix sharing (#1166) — whether analysts can share a matrix with named
 //     colleagues, and whether links already sent still open.
+//   • Custom reports — whether analysts can build, save and run their own reports,
+//     and describe them in plain language to the local model (a separate container).
 //
 // Turning the flag OFF never disables a crawler that is already configured:
 // it keeps its schedule, keeps running, and keeps its Experimental badge. The
@@ -74,6 +76,35 @@ function MatrixSharingCard({ features }) {
 // both once and re-fetches features on navigation. Fetching them here instead
 // would mean two more calls against the public 30-req/min rate limiter every time
 // this tab is opened, and a 429 would render the switch as Disabled when it isn't.
+// Custom reports need an extra container (the local model server) to be deployed
+// before the "describe it" half works, and the reports themselves are new, so the
+// whole feature is off until an operator switches it on. Off hides the builder and
+// stops saved reports being listed; nothing is deleted.
+function CustomReportsCard({ features }) {
+  const { toggle, toggling, error } = useFeatureToggle('customReports');
+  const enabled = features?.customReports === true;
+  return (
+    <FeatureToggleCard
+      title="Custom reports"
+      enabled={enabled}
+      busy={toggling}
+      disabled={features == null}
+      onToggle={() => { if (features) toggle(!enabled); }}
+      toggleTitle={enabled ? 'Disable custom reports' : 'Enable custom reports'}
+    >
+      <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+        Lets analysts build their own reports on the <span className="font-medium">Reports</span> tab — by hand, or
+        by describing them in plain language to a model running on this deployment (see
+        <span className="font-medium"> Admin → LLM</span> for its status). Turning this off hides the builder and
+        stops saved reports from being listed or run; the saved reports themselves are kept.
+      </p>
+      {error && (
+        <div className="mt-3 p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded text-sm text-red-700 dark:text-red-300">{error}</div>
+      )}
+    </FeatureToggleCard>
+  );
+}
+
 export default function ExperimentalFeaturesSection({ features, version }) {
   const { toggle, toggling, error } = useFeatureToggle('experimentalCrawlers');
 
@@ -125,6 +156,7 @@ export default function ExperimentalFeaturesSection({ features, version }) {
       </FeatureToggleCard>
 
       <MatrixSharingCard features={features} />
+      <CustomReportsCard features={features} />
     </div>
   );
 }

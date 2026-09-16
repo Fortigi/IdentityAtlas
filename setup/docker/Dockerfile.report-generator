@@ -1,0 +1,57 @@
+# Report generator — the local model server for custom reports.
+#
+# llama.cpp's server (CPU build) with ONE model baked in. The model is part of the
+# release: customers never download it, and we know exactly which model answered.
+#
+# It speaks only to the Identity Atlas web container:
+#   • Docker: an internal compose network, no published port, no internet egress
+#   • Azure:  a Container App with public ingress, so an API key is required
+#             (LLAMA_ARG_API_KEY) and it scales to zero when unused
+#
+# Build (the model is downloaded at build time, verified against its checksum):
+#   docker build -f setup/docker/Dockerfile.report-generator \
+#     --build-arg MODEL_URL=... --build-arg MODEL_SHA256=... -t identity-atlas-report-generator .
+#
+# The image carries the model's licence next to the binary — see docs/reference/report-generator.md.
+
+# llama.cpp server, CPU build. Pinned by digest: the prompt cache written by one
+# build is only guaranteed to be readable by the same build.
+FROM ghcr.io/ggml-org/llama.cpp@sha256:b15cd87030b2eb8a284d398c095e03c6ba8baf386b68e1b83ab8b46e9555ffe8
+
+# Qwen3-4B-Instruct-2507, 4-bit (Q4_K_M) — Apache-2.0.
+ARG MODEL_URL=https://huggingface.co/Qwen/Qwen3-4B-Instruct-2507-GGUF/resolve/main/Qwen3-4B-Instruct-2507-Q4_K_M.gguf
+ARG MODEL_SHA256
+ARG MODEL_NAME=qwen3:4b-instruct-2507-q4_K_M
+ARG MODEL_LICENSE_URL=https://huggingface.co/Qwen/Qwen3-4B-Instruct-2507/raw/main/LICENSE
+
+USER root
+RUN set -eux; \
+    apt-get update && apt-get install -y --no-install-recommends curl ca-certificates && rm -rf /var/lib/apt/lists/*; \
+    mkdir -p /models /slots; \
+    curl -fsSL -o /models/model.gguf "$MODEL_URL"; \
+    if [ -n "${MODEL_SHA256:-}" ]; then echo "${MODEL_SHA256}  /models/model.gguf" | sha256sum -c -; \
+      else echo "WARNING: built without MODEL_SHA256 — the model file is not verified" >&2; fi; \
+    curl -fsSL -o /models/MODEL-LICENSE.txt "$MODEL_LICENSE_URL" || echo "licence not fetched at build time: see $MODEL_LICENSE_URL" > /models/MODEL-LICENSE.txt
+
+ENV MODEL_NAME=$MODEL_NAME
+# llama.cpp reads LLAMA_ARG_* as defaults for its command-line flags, so a
+# deployment can override any of them (threads, context, api key) via env.
+ENV LLAMA_ARG_MODEL=/models/model.gguf \
+    LLAMA_ARG_CTX_SIZE=8192 \
+    LLAMA_ARG_N_PARALLEL=1 \
+    LLAMA_ARG_HOST=0.0.0.0 \
+    LLAMA_ARG_PORT=8080 \
+    LLAMA_ARG_ALIAS=$MODEL_NAME \
+    LLAMA_ARG_SLOT_SAVE_PATH=/slots \
+    LLAMA_ARG_THREADS=2
+
+# The processed system prompt is written here (~600 MB) so a restart is instant.
+# Mount a volume to keep it across container replacements.
+VOLUME ["/slots"]
+
+EXPOSE 8080
+HEALTHCHECK --interval=15s --timeout=5s --start-period=60s --retries=5 \
+  CMD ["/bin/sh", "-c", "curl -fsS -o /dev/null http://127.0.0.1:${LLAMA_ARG_PORT}/health || exit 1"]
+
+USER 1000
+ENTRYPOINT ["/app/llama-server"]

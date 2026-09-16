@@ -51,6 +51,13 @@ param logAnalyticsWorkspaceId string = ''
 @description('Allowed IP CIDR list for ingress. Empty array = open to the internet (default; rely on Entra auth).')
 param allowedIpCidrs array = []
 
+@description('URL of the report generator (experimental). Empty = the feature is not deployed.')
+param reportGeneratorUrl string = ''
+
+@description('API key the web app sends to the report generator.')
+@secure()
+param reportGeneratorApiKey string = ''
+
 // Entra ID auth is intentionally NOT a parameter of this module. Step 1
 // (main.bicep) always deploys in OPEN mode with AUTH_ENABLED=false. To turn
 // auth on, run Step 2 (main-auth.bicep) — it patches the AUTH_* appsettings
@@ -107,7 +114,7 @@ resource web 'Microsoft.Web/sites@2024-04-01' = {
         priority: 100 + i
         ipAddress: cidr
       }]
-      appSettings: [
+      appSettings: concat([
         // Container source
         { name: 'DOCKER_REGISTRY_SERVER_URL', value: 'https://ghcr.io' }
         { name: 'WEBSITES_PORT', value: '3001' }
@@ -157,7 +164,14 @@ resource web 'Microsoft.Web/sites@2024-04-01' = {
         { name: 'PGSSLMODE', value: 'require' }
         // Azure-specific
         { name: 'AZURE_KEY_VAULT_URI', value: keyVaultUri }
-      ]
+      ], empty(reportGeneratorUrl) ? [] : [
+        // Report generator (experimental, deployed on request). Switching the
+        // feature on also needs FEATURE_CUSTOM_REPORTS, set here so a deployment
+        // that paid for the container gets the feature it asked for.
+        { name: 'FEATURE_CUSTOM_REPORTS', value: 'true' }
+        { name: 'NL_REPORTS_LLM_URL', value: reportGeneratorUrl }
+        { name: 'NL_REPORTS_LLM_API_KEY', value: reportGeneratorApiKey }
+      ])
       azureStorageAccounts: {
         uploads: {
           type: 'AzureFiles'

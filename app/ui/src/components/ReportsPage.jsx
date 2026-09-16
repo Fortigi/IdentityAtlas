@@ -15,6 +15,7 @@
 import { useAuth } from '@ui/auth/AuthGate';
 import { useFetch } from '@ui/hooks/useFetch';
 import { useDialog } from '@ui/components/dialogContext';
+import { useFeatureFlags } from '@ui/contexts/FeaturesContext';
 import EmptyState from '@ui/components/EmptyState';
 import ReportError from './reports/ReportError';
 
@@ -23,6 +24,7 @@ const SECONDARY = 'rounded bg-gray-200 px-3 py-1.5 text-sm font-medium text-gray
 export default function ReportsPage({ onOpenDetail }) {
   const { authFetch } = useAuth();
   const dialog = useDialog();
+  const canBuild = useFeatureFlags().customReports === true;
 
   const { data: reports, loading, error, reload } = useFetch('/api/reports', {
     authFetch,
@@ -58,10 +60,12 @@ export default function ReportsPage({ onOpenDetail }) {
             and downloaded.
           </p>
         </div>
-        <button type="button" onClick={newReport}
-          className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-600">
-          New report
-        </button>
+        {canBuild && (
+          <button type="button" onClick={newReport}
+            className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-600">
+            New report
+          </button>
+        )}
       </div>
 
       {reports.length === 0 ? (
@@ -71,7 +75,7 @@ export default function ReportsPage({ onOpenDetail }) {
           {reports.map(report => (
             <li key={report.name} className="flex items-stretch gap-2">
               <ReportListItem report={report} onOpenDetail={onOpenDetail} />
-              {report.editable && (
+              {report.editable && canBuild && (
                 <div className="flex flex-col justify-center gap-1.5">
                   <button type="button" className={SECONDARY} aria-label={`Edit ${report.displayName}`}
                     onClick={() => onOpenDetail?.('report-builder', report.editable.builderId, report.displayName)}>
