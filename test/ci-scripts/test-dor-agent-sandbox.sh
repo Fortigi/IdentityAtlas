@@ -54,6 +54,7 @@ git -C "$WORK" checkout --quiet -b dor/issue-7
 mkdir -p "$TMP/cred"
 printf 'ghs_flowtoken\n'   > "$TMP/cred/gh"
 printf 'ghs_boardtoken\n'  > "$TMP/cred/board"
+printf '1757840400\n'      > "$TMP/cred/board-minted-at"   # when the board token was minted
 
 # A `claude` that records the environment it was given and plants what an injected agent would.
 mkdir -p "$TMP/bin"
@@ -92,6 +93,7 @@ echo
 # ── 1. The staged credentials are taken into the flow, and the files are gone ──
 assert "GH_TOKEN is loaded from the staged file"    ghs_flowtoken  "${GH_TOKEN:-}"
 assert "BOARD_TOKEN is loaded from the staged file" ghs_boardtoken "${BOARD_TOKEN:-}"
+assert "the board token's mint time comes with it"  1757840400 "${BOARD_TOKEN_MINTED_AT:-}"
 assert "the staged token files are deleted"         no  "$(yesno test -e "$TMP/cred")"
 assert "DOR_CRED_DIR is not passed on"              ""  "${DOR_CRED_DIR:-}"
 assert "a child of the flow (gh) still sees GH_TOKEN" ghs_flowtoken "$(bash -c 'printf %s "$GH_TOKEN"')"

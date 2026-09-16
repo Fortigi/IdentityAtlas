@@ -1,48 +1,75 @@
-// One-time migration: move any plaintext Graph clientSecret out of
-// CrawlerConfigs / CrawlerJobs and into the encrypted vault, stripping the
-// plaintext from the JSON. Idempotent — only touches rows that still hold a
-// plaintext clientSecret. Runs at startup after the vault is initialised and
-// migrations have run (so the Secrets table and jsonb columns exist).
+// Startup migration: move any plaintext crawler credential — clientSecret,
+// password, apiToken, cookieString — out of CrawlerConfigs / CrawlerJobs and
+// into the encrypted vault, stripping the plaintext from the JSON. Idempotent:
+// only touches rows that still hold one of those keys. Runs at startup after the
+// vault is initialised and migrations have run (so the Secrets table and jsonb
+// columns exist).
+//
+// password / apiToken / cookieString were stored in plaintext at config level
+// until SEC-2026-09 M-10; this pass vaults them per config the same way
+// clientSecret has been.
 
 import * as db from '../db/connection.js';
-import { storeConfigSecret, storeJobSecret } from './crawlerSecrets.js';
+import {
+  storeConfigFields, storeJobSecret, storeJobCredentials, CONFIG_SECRET_FIELDS,
+} from './crawlerSecrets.js';
+
+// The non-empty credential values in a stored config object.
+function credentialValues(config) {
+  const out = {};
+  for (const field of CONFIG_SECRET_FIELDS) {
+    const v = config?.[field];
+    if (v !== undefined && v !== null && v !== '') out[field] = String(v);
+  }
+  return out;
+}
+
+async function migrateConfigs() {
+  let migrated = 0;
+  const configs = await db.query(
+    `SELECT id, config FROM "CrawlerConfigs" WHERE config ?| $1::text[]`,
+    [CONFIG_SECRET_FIELDS]
+  );
+  for (const row of configs.rows) {
+    await storeConfigFields(row.id, credentialValues(row.config));
+    await db.query(`UPDATE "CrawlerConfigs" SET config = config - $2::text[] WHERE id = $1`, [row.id, CONFIG_SECRET_FIELDS]);
+    migrated++;
+  }
+  return migrated;
+}
+
+// Inline jobs (no source config) keep their credentials as job-scoped vault
+// entries; config-derived jobs just drop the plaintext (the credentials live on
+// the config and are injected at claim time). Either way, strip it.
+async function migrateJobs() {
+  let migrated = 0;
+  const jobs = await db.query(
+    `SELECT id, config, "configId" FROM "CrawlerJobs" WHERE config ?| $1::text[]`,
+    [CONFIG_SECRET_FIELDS]
+  );
+  for (const row of jobs.rows) {
+    if (!row.configId) {
+      const { clientSecret, ...others } = credentialValues(row.config);
+      if (clientSecret) await storeJobSecret(row.id, clientSecret);
+      await storeJobCredentials(row.id, others);
+    }
+    await db.query(`UPDATE "CrawlerJobs" SET config = config - $2::text[] WHERE id = $1`, [row.id, CONFIG_SECRET_FIELDS]);
+    migrated++;
+  }
+  return migrated;
+}
 
 export async function migrateCrawlerSecretsToVault() {
   let migrated = 0;
-
-  // Saved configs → vault keyed by config id; strip the plaintext.
   try {
-    const configs = await db.query(
-      `SELECT id, config->>'clientSecret' AS secret
-         FROM "CrawlerConfigs"
-        WHERE config ? 'clientSecret' AND COALESCE(config->>'clientSecret', '') <> ''`
-    );
-    for (const row of configs.rows) {
-      await storeConfigSecret(row.id, row.secret);
-      await db.query(`UPDATE "CrawlerConfigs" SET config = config - 'clientSecret' WHERE id = $1`, [row.id]);
-      migrated++;
-    }
+    migrated += await migrateConfigs();
   } catch (err) {
     console.warn('Crawler-config secret migration skipped:', err.message);
   }
-
-  // Jobs → inline jobs (no source config) keep their secret as a job-scoped
-  // vault entry; config-derived jobs just drop the plaintext (the secret lives
-  // on the config now and is injected at claim time). Either way, strip it.
   try {
-    const jobs = await db.query(
-      `SELECT id, config->>'clientSecret' AS secret, config->>'_scheduledByConfigId' AS src
-         FROM "CrawlerJobs"
-        WHERE config ? 'clientSecret' AND COALESCE(config->>'clientSecret', '') <> ''`
-    );
-    for (const row of jobs.rows) {
-      if (!row.src) await storeJobSecret(row.id, row.secret);
-      await db.query(`UPDATE "CrawlerJobs" SET config = config - 'clientSecret' WHERE id = $1`, [row.id]);
-      migrated++;
-    }
+    migrated += await migrateJobs();
   } catch (err) {
     console.warn('Crawler-job secret migration skipped:', err.message);
   }
-
-  if (migrated > 0) console.log(`Migrated ${migrated} crawler secret(s) to the encrypted vault`);
+  if (migrated > 0) console.log(`Moved plaintext crawler credentials of ${migrated} row(s) into the encrypted vault`);
 }

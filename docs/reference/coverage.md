@@ -6,7 +6,7 @@ Test quality across the project's automated suites — line/branch/method covera
 
 | Suite | Line | Branch | Method | Cyclomatic | Cognitive | Mutation | Lines covered |
 |-------|------|--------|--------|------------|-----------|----------|---------------|
-| [API (Node / Vitest — unit + contract)](../coverage/api/index.html) | 90.1% | 80.8% | 89.8% | 3.8 / 20 | 2.3 / 15 | 86.0% | 8,820 / 9,785 |
+| [API (Node / Vitest — unit + contract)](../coverage/api/index.html) | 90.5% | 81.6% | 90.4% | 3.7 / 20 | 2.3 / 15 | 86.0% | 9,031 / 9,969 |
 | [UI (React / Vitest)](../coverage/ui/index.html) | 85.2% | 75.5% | 75.5% | 2.8 / 28 | 1.1 / 15 | 69.5% | 7,239 / 8,487 |
 | [PowerShell (Pester)](../coverage/powershell/index.html) | 91.9% | — | 97.3% | 3.8 / 15 | 4.0 / 15 | 100.0% | 6,164 / 6,702 |
 
@@ -18,7 +18,8 @@ Every figure above is scoped to what its tool actually measured. The notes below
 
 ### API (Node / Vitest — unit + contract)
 
-- **Mutation is scoped.** Mutation testing covers 29 file(s) of 212 — 11% of the suite's coverable lines. It describes that subset — not the suite — and is not comparable with the suite-wide line figure on the same row. **The score itself is older than that scope:** it was measured over 18 file(s), before the current list was committed. Mutation runs are regenerated on their own schedule, so the percentage catches up on the next run.
+- **Mutation is scoped.** Mutation testing covers 30 file(s) of 214 — 11% of the suite's coverable lines. It describes that subset — not the suite — and is not comparable with the suite-wide line figure on the same row. **The score itself is older than that scope:** it was measured over 18 file(s), before the current list was committed. Mutation runs are regenerated on their own schedule, so the percentage catches up on the next run.
+- **The most complex code is the least branch-covered.** `app/api/src/routes/contexts/members.js` (Async arrow function, cyclomatic 19, 81.0% branch) — below this suite's own branch average, so the aggregate percentage overstates how well the hard parts are tested.
 
 ### UI (React / Vitest)
 
@@ -39,4 +40,4 @@ Each suite links to a full per-file, line-by-line HTML report:
 - [UI (React / Vitest)](../coverage/ui/index.html)
 - [PowerShell (Pester)](../coverage/powershell/index.html)
 
-_Generated 2026-09-15 08:26 UTC from commit `9d09e628`._
+_Generated 2026-09-15 12:44 UTC from commit `aaf65184`._

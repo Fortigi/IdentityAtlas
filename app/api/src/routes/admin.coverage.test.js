@@ -114,6 +114,9 @@ describe('GET /admin/dashboard-stats', () => {
     const res = await request(app).get('/api/admin/dashboard-stats');
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ users: 10, resources: 5, llmConfigured: true, hasData: true });
+    // SEC-2026-09 M-06: the built-in worker is excluded by its flag, not its name.
+    expect(queryOne.mock.calls[0][0]).toContain('NOT "isBuiltIn"');
+    expect(queryOne.mock.calls[0][0]).not.toContain('Built-in Worker');
   });
 
   it('500 when the stats query rejects', async () => {

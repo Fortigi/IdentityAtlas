@@ -244,7 +244,7 @@ A and B are this week. C is an agenda item. D and E run with phase 1 below.
 | | | Size | Note |
 |---|---|---|---|
 | 2.3 | **Epic-level acceptance** — who accepts feature B when A's requestor did not ask for it? | — | **Discuss first.** A role question, not a technical one |
-| 2.1 | **Epic-keyed reservation** — `~/.dor-reservation` holds one `<PR> <ISSUE>`; becomes a list per epic | M | `dor_build_lib.sh:201` |
+| 2.1 | **Epic-keyed reservation** — `~/.dor-reservation` holds one `<PR> <ISSUE>`; becomes a list per epic | M | `dor_sidekick_claim.sh` (`claim_sidekick`) |
 | 2.2 | **Stacked branching within an epic** — slice 2 branches off slice 1; order from the epic's slice table | M | The build agent must know the base branch |
 | 2.4 | **Build order from the epic** rather than arrival order | S | Depends on 2.2 |
 
