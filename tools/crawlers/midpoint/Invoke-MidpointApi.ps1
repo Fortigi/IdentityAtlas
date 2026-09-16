@@ -26,6 +26,9 @@
 
 $script:MidpointSession = $null
 
+# Assert-FGPublicUrl (SSRF guard, SEC-2026-09 M-03).
+. (Join-Path $PSScriptRoot '..' 'shared' 'Assert-FGPublicUrl.ps1')
+
 #region Connection
 
 function Connect-MidpointAPI {
@@ -46,9 +49,14 @@ function Connect-MidpointAPI {
         [string]$ClientId      = '',
         [string]$ClientSecret  = '',
         [string]$TokenEndpoint = '',
-        [int]$TimeoutSec       = 120
+        [int]$TimeoutSec       = 120,
+        # Opt-ins from the crawler config (Get-FGUrlPolicyParam): reach a private /
+        # loopback address, or use plain http. Metadata addresses are never allowed.
+        [switch]$AllowPrivateNetwork,
+        [switch]$AllowInsecureHttp
     )
 
+    Assert-FGPublicUrl -Url $BaseUrl -Label 'baseUrl' -AllowPrivateNetwork:$AllowPrivateNetwork -AllowInsecureHttp:$AllowInsecureHttp
     $rest = Get-MidpointRestRoot -BaseUrl $BaseUrl
 
     $script:MidpointSession = @{
@@ -58,6 +66,8 @@ function Connect-MidpointAPI {
         AuthHeader      = $null
         AccessToken     = $null
         TokenExpiresAt  = $null
+        AllowPrivateNetwork = [bool]$AllowPrivateNetwork
+        AllowInsecureHttp   = [bool]$AllowInsecureHttp
         _Username       = $Username
         _Password       = $Password
         _ClientId       = $ClientId
@@ -103,6 +113,8 @@ function Invoke-MidpointOAuth2 {
     param([ValidateSet('client_credentials', 'password')][string]$GrantType)
     $endpoint = $script:MidpointSession._TokenEndpoint
     if (-not $endpoint) { throw "midPoint OAuth2: tokenEndpoint is required" }
+    # The client secret (and, for ROPC, the password) is posted here — vet it like the base URL.
+    Assert-FGPublicUrl -Url $endpoint -Label 'tokenEndpoint' -AllowPrivateNetwork:$script:MidpointSession.AllowPrivateNetwork -AllowInsecureHttp:$script:MidpointSession.AllowInsecureHttp
 
     $form = @{
         grant_type    = $GrantType
@@ -321,7 +333,7 @@ function Invoke-MidpointRequest {
         } catch {
             $status = $null
             try { $status = $_.Exception.Response.StatusCode.value__ } catch {}
-            $isTransient = (-not $status) -or ($status -ge 500) -or ($status -eq 429)
+            $isTransient = Test-TransientHttpStatus $status
             if ($isTransient -and $attempt -le $MaxRetries) {
                 $delay = [Math]::Pow(2, $attempt)
                 Write-Host "  midPoint transient failure ($([string]::Format('{0}', $status))) on $Method $Uri — retry $attempt/$MaxRetries in ${delay}s" -ForegroundColor Yellow
@@ -436,6 +448,34 @@ function ConvertTo-MidpointDnKey {
     return $Value.Trim().ToLowerInvariant()
 }
 
+function Get-MidpointAssociationSearchKeys {
+    <#
+    .SYNOPSIS
+        Extract the normalised DN search key(s) from one association's outbound
+        `associationTargetSearch` equal-filter(s). Returns an empty list when the
+        association has no such mapping. Split out of Get-MidpointConstructionTargets
+        so the per-association search-filter walk lives at its own nesting level.
+    .PARAMETER Association
+        A single `construction.association[]` entry.
+    #>
+    [CmdletBinding()]
+    param($Association)
+    $keys = [System.Collections.Generic.List[string]]::new()
+    # associationTargetSearch → expression on the association's outbound mapping
+    $ats = $Association.outbound.expression.associationTargetSearch
+    if (-not $ats) { return $keys }
+    foreach ($t in @($ats)) {
+        foreach ($f in @($t.filter)) {
+            $eq = $f.equal
+            if ($eq -and $null -ne $eq.value) {
+                $key = ConvertTo-MidpointDnKey ([string]$eq.value)
+                if ($key) { $keys.Add($key) }
+            }
+        }
+    }
+    return $keys
+}
+
 function Get-MidpointConstructionTargets {
     <#
     .SYNOPSIS
@@ -463,17 +503,8 @@ function Get-MidpointConstructionTargets {
     foreach ($a in @($assocs)) {
         $sref = Get-MidpointRefOid $a.shadowRef ''
         if ($sref) { $out.Add(@{ shadowOid = $sref; searchKey = '' }); continue }
-        # associationTargetSearch → expression on the association's outbound mapping
-        $ats = $a.outbound.expression.associationTargetSearch
-        if (-not $ats) { continue }
-        foreach ($t in @($ats)) {
-            foreach ($f in @($t.filter)) {
-                $eq = $f.equal
-                if ($eq -and $null -ne $eq.value) {
-                    $key = ConvertTo-MidpointDnKey ([string]$eq.value)
-                    if ($key) { $out.Add(@{ shadowOid = ''; searchKey = $key }) }
-                }
-            }
+        foreach ($key in Get-MidpointAssociationSearchKeys $a) {
+            $out.Add(@{ shadowOid = ''; searchKey = $key })
         }
     }
     return $out
@@ -618,6 +649,22 @@ function Resolve-MappedValue {
     return $Default
 }
 
+function ConvertTo-MidpointAttrScalar {
+    <#
+    .SYNOPSIS
+        Coerce one shadow-attribute property value to its trimmed scalar string, or $null.
+        Values are midPoint typed-scalars { "@value": ... }, plain strings, or arrays of
+        the same — an array takes its first element. Returns $null for empty/whitespace.
+    #>
+    [CmdletBinding()]
+    param($Value)
+    $v = $Value
+    if ($v -is [System.Array]) { $v = $v | Select-Object -First 1 }
+    $val = if ($null -ne $v.'@value') { [string]$v.'@value' } elseif ($v -is [string]) { $v } else { [string]$v }
+    if ($val -and $val.Trim()) { return $val.Trim() }
+    return $null
+}
+
 function Get-MidpointAttrValue {
     <#
     .SYNOPSIS
@@ -630,12 +677,9 @@ function Get-MidpointAttrValue {
     if (-not $attrs) { return $null }
     foreach ($k in $Keys) {
         foreach ($prop in $attrs.PSObject.Properties) {
-            if (($prop.Name -replace '^ri:', '') -ieq $k) {
-                $v = $prop.Value
-                if ($v -is [System.Array]) { $v = $v | Select-Object -First 1 }
-                $val = if ($null -ne $v.'@value') { [string]$v.'@value' } elseif ($v -is [string]) { $v } else { [string]$v }
-                if ($val -and $val.Trim()) { return $val.Trim() }
-            }
+            if (($prop.Name -replace '^ri:', '') -ine $k) { continue }
+            $val = ConvertTo-MidpointAttrScalar $prop.Value
+            if ($val) { return $val }
         }
     }
     return $null

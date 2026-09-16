@@ -147,6 +147,35 @@ describe('normalizeRecords — boolean fields', () => {
   });
 });
 
+describe('normalizeRecords — extendedAttributes packing', () => {
+  it('packs non-core fields into an extendedAttributes JSON string', () => {
+    const result = normalizeRecords(
+      [{ id: 'x', dept: 'sales', level: 3 }],
+      ['id'],
+    );
+    expect(result[0]).not.toHaveProperty('dept');
+    expect(JSON.parse(result[0].extendedAttributes)).toEqual({ dept: 'sales', level: 3 });
+  });
+
+  it('merges non-core fields over a pre-existing extendedAttributes string', () => {
+    // extendedAttributes arrives as a core column holding a JSON string; the
+    // extra non-core field must be merged into it, not clobber it.
+    const result = normalizeRecords(
+      [{ id: 'x', extendedAttributes: '{"a":1}', extra: 'b' }],
+      ['id', 'extendedAttributes'],
+    );
+    expect(JSON.parse(result[0].extendedAttributes)).toEqual({ a: 1, extra: 'b' });
+  });
+
+  it('leaves records with no non-core fields without an extendedAttributes key', () => {
+    const result = normalizeRecords(
+      [{ id: 'x', name: 'n' }],
+      ['id', 'name'],
+    );
+    expect(result[0]).not.toHaveProperty('extendedAttributes');
+  });
+});
+
 describe('normalizeRecords — context-member externalId resolution', () => {
   const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   // The CSV crawler sends context-members with idPrefix "<sys>-context-members".

@@ -66,6 +66,12 @@ concurrency:
   group: pr-integration-${{ github.ref }}
   cancel-in-progress: true
 
+# Least privilege for GITHUB_TOKEN (SEC-2026-09 L-19). Every job reads the repository; the one that
+# needs more asks for it itself. Today that is only the path filter, which lists the PR's changed
+# files through the API. Artifacts and the Actions cache use the runner's own token, not this one.
+permissions:
+  contents: read
+
 env:
   DOTNET_NOLOGO: true
   POWERSHELL_TELEMETRY_OPTOUT: 1
@@ -118,6 +124,9 @@ jobs:
     needs: [changes]
     if: needs.changes.outputs.has_product_changes == 'true'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read   # dorny/paths-filter reads the PR's changed-file list via the API
     outputs:
       integration:       ${{ steps.f.outputs.integration }}
       e2e:               ${{ steps.f.outputs.e2e }}
@@ -306,7 +315,7 @@ jobs:
           echo "_Set repository variable \`ENFORCE_TEST_SECRETS=true\` to make this a hard failure once secrets are configured._" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4
         with:
           # Current BuildKit → type=gha uses the Actions Cache Service v2 (the
           # legacy v1 service was retired). See docker-publish.yml.
@@ -736,8 +745,17 @@ jobs:
             if ($jobs.Count -eq 0) { continue }
             $jobs | Wait-Job | ForEach-Object {
               $type = $jobMeta[$_.Name]
-              $output = Receive-Job -Job $_ -Keep
+              # -ErrorAction SilentlyContinue + -ErrorVariable, NOT a bare Receive-Job.
+              # A failed test job carries a terminating error, and Receive-Job RETHROWS it;
+              # with the step's $ErrorActionPreference='Stop' that aborted this whole loop
+              # before anything was written, so the run reported "Test script exited with
+              # code 1" and never said WHICH crawler, never printed its output, and never
+              # closed the remaining groups. Capture both streams instead, so every crawler
+              # gets its log, its ::error title, and its ::endgroup.
+              $jobErrors = $null
+              $output = Receive-Job -Job $_ -Keep -ErrorAction SilentlyContinue -ErrorVariable jobErrors
               $output | ForEach-Object { Write-Host $_ }
+              $jobErrors | ForEach-Object { Write-Host $_ }
               $failed = $_.State -ne 'Completed' -or ($_.ChildJobs[0].State -ne 'Completed')
               Remove-Job $_ -Force -ErrorAction SilentlyContinue
 
@@ -809,7 +827,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4
         with:
           # Current BuildKit → type=gha uses the Actions Cache Service v2 (the
           # legacy v1 service was retired). See docker-publish.yml.
@@ -921,7 +939,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4
         with:
           # Current BuildKit → type=gha uses the Actions Cache Service v2 (the
           # legacy v1 service was retired). See docker-publish.yml.

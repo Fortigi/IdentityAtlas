@@ -117,7 +117,12 @@ jobs:
           cat release-notes.md
 
       - name: Synthesize release notes with Claude
-        uses: anthropics/claude-code-action@5ef2e550a465a721f4f45e4a7d3c340c873e1dcc # v1
+        id: polish
+        continue-on-error: true
+        # continue-on-error: this step only polishes wording — release-notes.md already has valid,
+        # ready-to-ship content from the deterministic step above. A rejected/unentitled model call
+        # (see dor-agent.yml) must never block cutting a release; worst case we ship the raw bullets.
+        uses: anthropics/claude-code-action@19dda84776b3518d98b8798e591daee763049ed3 # v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           claude_args: "--allowedTools Read,Write"
@@ -143,6 +148,10 @@ jobs:
                the implementation detail.
 
             Overwrite `release-notes.md` with the result.
+
+      - name: Warn if release notes weren't polished
+        if: steps.polish.outcome == 'failure'
+        run: echo "::warning::Release notes polishing failed (model call rejected/unavailable) — shipping the raw changelog bullets instead. Check CLAUDE_CODE_OAUTH_TOKEN entitlements/subscription status."
 
       - name: Create GitHub release with portable ZIP
         env:

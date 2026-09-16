@@ -1,3 +1,177 @@
+function Add-FGSyncQueryResult {
+    # Runs one discovery query and appends any results to the shared list.
+    Param(
+        [string]$Uri,
+        $List
+    )
+
+    $result = Invoke-FGGetRequest -URI $Uri -ErrorAction SilentlyContinue
+    if ($result) {
+        foreach ($r in $result) { $List.Add($r) }
+    }
+}
+
+function Get-FGSyncDedupById {
+    # Collapses candidate service principals to one entry per id.
+    Param($Items)
+
+    $seen = @{}
+    $deduped = [System.Collections.Generic.List[PSObject]]::new()
+    foreach ($sp in $Items) {
+        if (-not $seen[$sp.id]) {
+            $seen[$sp.id] = $true
+            $deduped.Add($sp)
+        }
+    }
+    return , $deduped.ToArray()
+}
+
+function Get-FGSyncCandidateByDiscovery {
+    # Queries only SPs likely to have provisioning configured, avoiding a full
+    # iteration over every SP in large tenants:
+    #   1. Known provisioning app IDs (Cloud Sync, Workday, SuccessFactors, ...)
+    #   2. Common HR provisioning display-name patterns
+    #   3. SPs tagged as provisioning-enabled gallery / custom SSO apps
+    $spList = [System.Collections.Generic.List[PSObject]]::new()
+
+    $knownProvisioningAppIds = @(
+        "1a4721b3-e57f-4451-ae87-ef078703ec94"  # Azure AD Connect Cloud Sync
+        "2a1600fe-e5a8-42d0-835e-5f21f8ae2ec5"  # Workday to AAD User Provisioning
+        "6402503b-7adb-415d-91b2-cf8a9e7f9948"  # SuccessFactors to AAD User Provisioning
+    )
+    foreach ($appId in $knownProvisioningAppIds) {
+        $URI = "https://graph.microsoft.com/beta/servicePrincipals?`$select=id,displayName,appId,tags&`$filter=appId eq '$appId'"
+        Add-FGSyncQueryResult -Uri $URI -List $spList
+    }
+
+    $hrNamePatterns = @("Workday", "SuccessFactors", "SAP", "Oracle HCM", "BambooHR", "Ceridian")
+    foreach ($pattern in $hrNamePatterns) {
+        $URI = "https://graph.microsoft.com/beta/servicePrincipals?`$select=id,displayName,appId,tags&`$filter=startswith(displayName,'$pattern')"
+        Add-FGSyncQueryResult -Uri $URI -List $spList
+    }
+
+    $URI = "https://graph.microsoft.com/beta/servicePrincipals?`$select=id,displayName,appId,tags&`$filter=tags/any(t:t eq 'WindowsAzureActiveDirectoryGalleryApplicationNonPrimaryV1')"
+    Add-FGSyncQueryResult -Uri $URI -List $spList
+
+    $URI = "https://graph.microsoft.com/beta/servicePrincipals?`$select=id,displayName,appId,tags&`$filter=tags/any(t:t eq 'WindowsAzureActiveDirectoryCustomSingleSignOnApplication')"
+    Add-FGSyncQueryResult -Uri $URI -List $spList
+
+    return , (Get-FGSyncDedupById -Items $spList)
+}
+
+function Get-FGSyncCandidate {
+    # Resolves the candidate service-principal set: a user-supplied filter is used
+    # as-is; otherwise fall back to the well-known provisioning discovery queries.
+    Param([string]$Filter)
+
+    if ($Filter) {
+        $spList = [System.Collections.Generic.List[PSObject]]::new()
+        $URI = "https://graph.microsoft.com/beta/servicePrincipals?`$select=id,displayName,appId,tags&`$filter=$Filter"
+        $filterResult = Invoke-FGGetRequest -URI $URI
+        if ($filterResult) {
+            foreach ($r in $filterResult) { $spList.Add($r) }
+        }
+        return , $spList.ToArray()
+    }
+
+    return , (Get-FGSyncCandidateByDiscovery)
+}
+
+function Get-FGSyncAppType {
+    # Classifies a service principal by appId, display name, and job ids.
+    Param($ServicePrincipal, $Jobs)
+
+    if ($ServicePrincipal.appId -eq "1a4721b3-e57f-4451-ae87-ef078703ec94") {
+        return "Cloud Sync"
+    }
+    if ($ServicePrincipal.displayName -like "*Workday*") {
+        return "HR Provisioning (Workday)"
+    }
+    if ($ServicePrincipal.displayName -like "*SuccessFactors*" -or $ServicePrincipal.displayName -like "*SAP*") {
+        return "HR Provisioning (SuccessFactors)"
+    }
+    if ($Jobs | Where-Object { $_.id -like "scim.*" }) {
+        return "SCIM Application"
+    }
+    if ($ServicePrincipal.displayName -like "*Azure Active Directory*" -or $ServicePrincipal.displayName -like "*Microsoft Entra*") {
+        return "Cloud Sync / AD"
+    }
+    return "Enterprise Application"
+}
+
+function Get-FGSyncJobSchema {
+    # Retrieves the synchronization schema for each job, tolerating failures.
+    Param($ServicePrincipalId, $Jobs)
+
+    $Schemas = @()
+    foreach ($job in $Jobs) {
+        try {
+            $Schema = Get-FGSynchronizationSchema -ServicePrincipalId $ServicePrincipalId -JobId $job.id -ErrorAction SilentlyContinue
+            if ($Schema) {
+                $Schemas += [PSCustomObject]@{
+                    JobId  = $job.id
+                    Schema = $Schema
+                }
+            }
+        }
+        catch {
+            Write-Verbose "Could not retrieve schema for job $($job.id): $_"
+        }
+    }
+    return , $Schemas
+}
+
+function New-FGSyncResult {
+    # Builds the result object, optionally attaching job and schema detail.
+    Param(
+        $ServicePrincipal,
+        $Jobs,
+        [string]$AppType,
+        [switch]$IncludeJobs,
+        [switch]$IncludeSchema
+    )
+
+    $ResultObject = [PSCustomObject]@{
+        DisplayName        = $ServicePrincipal.displayName
+        AppType            = $AppType
+        ServicePrincipalId = $ServicePrincipal.id
+        AppId              = $ServicePrincipal.appId
+        Tags               = $ServicePrincipal.tags
+        JobCount           = $Jobs.Count
+    }
+
+    if ($IncludeJobs) {
+        $ResultObject | Add-Member -NotePropertyName "Jobs" -NotePropertyValue $Jobs
+    }
+
+    if ($IncludeSchema) {
+        $Schemas = Get-FGSyncJobSchema -ServicePrincipalId $ServicePrincipal.id -Jobs $Jobs
+        $ResultObject | Add-Member -NotePropertyName "Schemas" -NotePropertyValue $Schemas
+    }
+
+    return $ResultObject
+}
+
+function Get-FGSyncResultForSp {
+    # Checks one candidate SP for sync jobs and returns its result object, or
+    # $null when it has no jobs or is a skipped Cloud Sync SP.
+    Param(
+        $ServicePrincipal,
+        [switch]$IncludeCloudSync,
+        [switch]$IncludeJobs,
+        [switch]$IncludeSchema
+    )
+
+    $Jobs = Get-FGSynchronizationJob -ServicePrincipalId $ServicePrincipal.id -ErrorAction SilentlyContinue
+    if (-not $Jobs) { return $null }
+    if ($Jobs -isnot [Array]) { $Jobs = @($Jobs) }
+
+    $AppType = Get-FGSyncAppType -ServicePrincipal $ServicePrincipal -Jobs $Jobs
+    if ($AppType -eq "Cloud Sync" -and -not $IncludeCloudSync) { return $null }
+
+    return New-FGSyncResult -ServicePrincipal $ServicePrincipal -Jobs $Jobs -AppType $AppType -IncludeJobs:$IncludeJobs -IncludeSchema:$IncludeSchema
+}
+
 function Get-FGServicePrincipalWithSync {
     <#
     .SYNOPSIS
@@ -71,60 +245,7 @@ function Get-FGServicePrincipalWithSync {
 
     Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Discovering service principals with synchronization..." -ForegroundColor Cyan
 
-    # Strategy: first try to get only provisioning-tagged SPs (fast), then fall back to
-    # well-known HR/sync app names. Avoids iterating over all 3000+ SPs in large tenants.
-    $spList = [System.Collections.Generic.List[PSObject]]::new()
-
-    if ($Filter) {
-        # User-specified filter — use as-is
-        $URI = "https://graph.microsoft.com/beta/servicePrincipals?`$select=id,displayName,appId,tags&`$filter=$Filter"
-        $filterResult = Invoke-FGGetRequest -URI $URI
-        if ($filterResult) { foreach ($r in $filterResult) { $spList.Add($r) } }
-    } else {
-        # Query only SPs likely to have provisioning configured:
-        # 1. Known provisioning app IDs (Cloud Sync, Workday, SuccessFactors, etc.)
-        # 2. SPs with "WindowsAzureActiveDirectoryIntegratedApp" tag (gallery apps with provisioning)
-        $knownProvisioningAppIds = @(
-            "1a4721b3-e57f-4451-ae87-ef078703ec94"  # Azure AD Connect Cloud Sync
-            "2a1600fe-e5a8-42d0-835e-5f21f8ae2ec5"  # Workday to AAD User Provisioning
-            "6402503b-7adb-415d-91b2-cf8a9e7f9948"  # SuccessFactors to AAD User Provisioning
-        )
-
-        # Query by known appIds
-        foreach ($appId in $knownProvisioningAppIds) {
-            $URI = "https://graph.microsoft.com/beta/servicePrincipals?`$select=id,displayName,appId,tags&`$filter=appId eq '$appId'"
-            $result = Invoke-FGGetRequest -URI $URI -ErrorAction SilentlyContinue
-            if ($result) { foreach ($r in $result) { $spList.Add($r) } }
-        }
-
-        # Query by common HR provisioning display name patterns
-        $hrNamePatterns = @("Workday", "SuccessFactors", "SAP", "Oracle HCM", "BambooHR", "Ceridian")
-        foreach ($pattern in $hrNamePatterns) {
-            $URI = "https://graph.microsoft.com/beta/servicePrincipals?`$select=id,displayName,appId,tags&`$filter=startswith(displayName,'$pattern')"
-            $result = Invoke-FGGetRequest -URI $URI -ErrorAction SilentlyContinue
-            if ($result) { foreach ($r in $result) { $spList.Add($r) } }
-        }
-
-        # Query SPs tagged as provisioning-enabled gallery apps
-        $URI = "https://graph.microsoft.com/beta/servicePrincipals?`$select=id,displayName,appId,tags&`$filter=tags/any(t:t eq 'WindowsAzureActiveDirectoryGalleryApplicationNonPrimaryV1')"
-        $galleryApps = Invoke-FGGetRequest -URI $URI -ErrorAction SilentlyContinue
-        if ($galleryApps) { foreach ($r in $galleryApps) { $spList.Add($r) } }
-
-        # Also check SCIM-provisioned apps (custom SCIM apps often have this tag)
-        $URI = "https://graph.microsoft.com/beta/servicePrincipals?`$select=id,displayName,appId,tags&`$filter=tags/any(t:t eq 'WindowsAzureActiveDirectoryCustomSingleSignOnApplication')"
-        $customApps = Invoke-FGGetRequest -URI $URI -ErrorAction SilentlyContinue
-        if ($customApps) { foreach ($r in $customApps) { $spList.Add($r) } }
-
-        # Deduplicate by id
-        $seen = @{}
-        $deduped = [System.Collections.Generic.List[PSObject]]::new()
-        foreach ($sp in $spList) {
-            if (-not $seen[$sp.id]) { $seen[$sp.id] = $true; $deduped.Add($sp) }
-        }
-        $spList = $deduped
-    }
-
-    $AllServicePrincipals = $spList.ToArray()
+    $AllServicePrincipals = @(Get-FGSyncCandidate -Filter $Filter)
     Write-Host "  Found $($AllServicePrincipals.Count) candidate service principal(s) to check" -ForegroundColor Cyan
 
     $ResultsList = [System.Collections.Generic.List[PSObject]]::new()
@@ -141,77 +262,8 @@ function Get-FGServicePrincipalWithSync {
         }
 
         try {
-            # Try to get synchronization jobs
-            $Jobs = Get-FGSynchronizationJob -ServicePrincipalId $sp.id -ErrorAction SilentlyContinue
-
-            if ($Jobs) {
-                # Ensure Jobs is always an array
-                if ($Jobs -isnot [Array]) {
-                    $Jobs = @($Jobs)
-                }
-
-                # Determine app type
-                $AppType = "Unknown"
-                if ($sp.appId -eq "1a4721b3-e57f-4451-ae87-ef078703ec94") {
-                    $AppType = "Cloud Sync"
-                    # Skip if not including Cloud Sync
-                    if (-not $IncludeCloudSync) {
-                        continue
-                    }
-                }
-                elseif ($sp.displayName -like "*Workday*") {
-                    $AppType = "HR Provisioning (Workday)"
-                }
-                elseif ($sp.displayName -like "*SuccessFactors*" -or $sp.displayName -like "*SAP*") {
-                    $AppType = "HR Provisioning (SuccessFactors)"
-                }
-                elseif ($Jobs | Where-Object { $_.id -like "scim.*" }) {
-                    $AppType = "SCIM Application"
-                }
-                elseif ($sp.displayName -like "*Azure Active Directory*" -or $sp.displayName -like "*Microsoft Entra*") {
-                    $AppType = "Cloud Sync / AD"
-                }
-                else {
-                    $AppType = "Enterprise Application"
-                }
-
-                # Build result object
-                $ResultObject = [PSCustomObject]@{
-                    DisplayName         = $sp.displayName
-                    AppType            = $AppType
-                    ServicePrincipalId = $sp.id
-                    AppId              = $sp.appId
-                    Tags               = $sp.tags
-                    JobCount           = $Jobs.Count
-                }
-
-                # Add job details if requested
-                if ($IncludeJobs) {
-                    $ResultObject | Add-Member -NotePropertyName "Jobs" -NotePropertyValue $Jobs
-                }
-
-                # Add schema details if requested
-                if ($IncludeSchema) {
-                    $Schemas = @()
-                    foreach ($job in $Jobs) {
-                        try {
-                            $Schema = Get-FGSynchronizationSchema -ServicePrincipalId $sp.id -JobId $job.id -ErrorAction SilentlyContinue
-                            if ($Schema) {
-                                $Schemas += [PSCustomObject]@{
-                                    JobId  = $job.id
-                                    Schema = $Schema
-                                }
-                            }
-                        }
-                        catch {
-                            Write-Verbose "Could not retrieve schema for job $($job.id): $_"
-                        }
-                    }
-                    $ResultObject | Add-Member -NotePropertyName "Schemas" -NotePropertyValue $Schemas
-                }
-
-                $ResultsList.Add($ResultObject)
-            }
+            $result = Get-FGSyncResultForSp -ServicePrincipal $sp -IncludeCloudSync:$IncludeCloudSync -IncludeJobs:$IncludeJobs -IncludeSchema:$IncludeSchema
+            if ($result) { $ResultsList.Add($result) }
         }
         catch {
             # No sync jobs or permission issue - skip silently

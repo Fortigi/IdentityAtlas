@@ -15,6 +15,9 @@ export const PERMISSIONS = Object.freeze({
   'data.export.apikey':        { label: 'Generate read-only API keys', group: 'Export',
     description: 'Mint fgr_ tokens for PowerQuery / BI tools to pull data on a schedule.' },
 
+  'data.share':                { label: 'Create matrix share links', group: 'Export',
+    description: 'Share a configured matrix with any signed-in colleague via a link, and manage/revoke existing shares.' },
+
   'data.write.tags':           { label: 'Manage tags',             group: 'Write',
     description: 'Create, edit, delete tags and apply them to entities.' },
   'data.write.categories':     { label: 'Manage categories',       group: 'Write',
@@ -53,11 +56,17 @@ export const PERMISSION_GROUPS = Object.freeze(['Read', 'Export', 'Write', 'Admi
 // silently demote the admin role.
 export const SEED_ROLE_PERMISSIONS = Object.freeze({
   Admin:       ['*'],
-  RoleMiner:   ['data.read', 'data.export.ui', 'data.export.apikey'],
+  RoleMiner:   ['data.read', 'data.export.ui', 'data.export.apikey', 'data.share'],
   Servicedesk: ['data.read'],
 });
 
-const ALL_PERMISSION_KEYS = Object.freeze(Object.keys(PERMISSIONS));
+// Every catalog permission. `requirePermission(...ALL_PERMISSION_KEYS)` is the
+// gate for read surfaces every mapped role may see (the Dashboard, run history
+// on the Logs page): holding ANY permission passes, so no mapped role — custom
+// roles without data.read included — loses access, while a signed-in user whose
+// roles map to nothing is refused (SEC-2026-09 M-01). fgr_ read tokens pass it
+// (they carry data.read) but stay barred from /api/admin/* by authMiddleware.
+export const ALL_PERMISSION_KEYS = Object.freeze(Object.keys(PERMISSIONS));
 
 export function isKnownPermission(key) {
   return key === '*' || Object.prototype.hasOwnProperty.call(PERMISSIONS, key);

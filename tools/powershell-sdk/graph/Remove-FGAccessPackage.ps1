@@ -6,11 +6,11 @@ function Remove-FGAccessPackage {
         [Parameter(Mandatory = $true)]
         [string]$AccessPackageID,
         [Parameter(Mandatory = $false)]
-        [string]$Force
+        [switch]$Force
     )
 
     #If force is used.. remove all active assignments
-    If ($Force -eq $True) {
+    If ($Force) {
         
         #Get Assignements
         $URI = 'https://graph.microsoft.com/v1.0/identityGovernance/entitlementManagement/assignments?$expand=target,accessPackage'

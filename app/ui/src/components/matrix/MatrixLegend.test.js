@@ -10,7 +10,10 @@ import MatrixLegend from './MatrixLegend';
 // AppRole, which never render as badges (ownership is its own GroupOwnership
 // resource row; governance is shown by the cell colour instead).
 describe('MatrixLegend', () => {
-  const html = renderToStaticMarkup(h(MatrixLegend));
+  // The default matrix has no business-role rows, so the legend explains only
+  // the markers such a grid can draw; `showBusinessRoles` adds the rest.
+  const html = renderToStaticMarkup(h(MatrixLegend, { showBusinessRoles: true }));
+  const plainHtml = renderToStaticMarkup(h(MatrixLegend));
 
   it('lists the three held-access badges with corrected wording', () => {
     expect(html).toContain('Direct membership');
@@ -28,5 +31,64 @@ describe('MatrixLegend', () => {
   it('still explains the governed-cell colour and provisioning gap', () => {
     expect(html).toContain('governed');
     expect(html).toContain('Provisioning gap');
+  });
+
+  it('explains the count a folded business role shows for access it does not grant', () => {
+    expect(html).toContain('folded business role');
+    expect(html).toContain('the role does not account for');
+  });
+
+  // Feedback on #370: over-granting was explained, under-granting was not, and
+  // the two can occur together on one subject.
+  it('explains fewer permissions than the role assigns, in both views', () => {
+    expect(html).toContain('More than the role assigns');
+    expect(html).toContain('the role assigns this subject but they do not have');
+    expect(html).toContain('both counts at once');
+  });
+
+  // Feedback on #370: the same finding has to read the same folded or not.
+  it('explains a membership held outside the business role that grants it', () => {
+    expect(html).toContain('held outside business-role governance');
+    expect(html).toContain('no business role assigns it to this subject');
+    expect(html).toContain('they hold it by some other route');
+    expect(html).toContain('says whether the subject holds one of them');
+  });
+
+  it('explains the chip pointing at the other business roles a resource is in', () => {
+    expect(html).toContain('also granted by another business role');
+    expect(html).toContain('it has a row under that role too');
+  });
+
+  // Feedback on #370: a resource several business roles grant is shown under
+  // every one of them.
+  it('explains a resource granted by more than one business role', () => {
+    expect(html).toContain('more than one business role');
+    expect(html).toContain('is shown under every one of them');
+    expect(html).toContain('folding one role removes only that role');
+  });
+
+  // A matrix without business-role rows can never draw the fold chips, the BR
+  // chips, the "held outside" count or the over-grant mark — a key to symbols
+  // that aren't there is noise, and reads as a promise the grid doesn't keep.
+  describe('without business roles on the rows (the default)', () => {
+    it('still explains the badges, the governed colour and the gap', () => {
+      expect(plainHtml).toContain('Direct membership');
+      expect(plainHtml).toContain('governed');
+      expect(plainHtml).toContain('Provisioning gap');
+      expect(plainHtml).toContain('covered by more than one business role');
+    });
+
+    it('leaves out every marker that needs a business-role row', () => {
+      expect(plainHtml).not.toContain('folded business role');
+      expect(plainHtml).not.toContain('More than the role assigns');
+      expect(plainHtml).not.toContain('held outside business-role governance');
+      expect(plainHtml).not.toContain('also granted by another business role');
+      expect(plainHtml).not.toContain('is shown under every one of them');
+    });
+
+    it('does not promise a right-hand marker slot the grid never fills', () => {
+      expect(html).toContain('= more than the role assigns');
+      expect(plainHtml).not.toContain('= more than the role assigns');
+    });
   });
 });

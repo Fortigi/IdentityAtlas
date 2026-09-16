@@ -16,15 +16,20 @@
 // stays no taller than the rotated stack in every reachable state.
 //
 // All helpers here are pure and operate on the precomputed `sortKeys` array each
-// subject carries (see sortUsers.js).
+// subject carries (see sortUsers.js). What a span means and does at a level
+// (aggregate / member-exploded / plain group) is shared with the rotated rows
+// through MatrixColumnHeaders.helpers.js, so the two styles cannot drift apart.
 
 import { computeAttributeSpans } from './sortUsers';
+import { GROUP_ROW_H } from './MatrixColumnHeaders.helpers';
 
-// Height (px) of a rotated grouping row and of one cross-table value row. Both
-// drive the cell height AND the sticky `top` offset of the <thead>, so the two
-// can never drift apart.
-export const GROUP_ROW_H = 120;
+// Height (px) of one cross-table value row. Drives both the cell height AND the
+// sticky `top` offset of the <thead>, so the two can never drift apart.
 export const VALUE_ROW_H = 20;
+
+// The first value row grows to this height when it carries the column-axis
+// corner controls (24 px icon buttons), so they never overflow a 20 px row.
+export const CORNER_ROW_H = 28;
 
 // Distinct values at one sort level over the given subjects.
 export function distinctValueCount(users, level) {
@@ -43,55 +48,6 @@ export function computeHeaderMode(users, levels) {
   let crossH = 0;
   for (let level = 0; level < n; level++) crossH += distinctValueCount(users, level) * VALUE_ROW_H;
   return crossH <= n * GROUP_ROW_H ? 'cross' : 'rotated';
-}
-
-// What the column a span starts on is, at this level.
-//
-// A folded aggregate column at-or-below its own fold level is an aggregate (and
-// below it, it shows its child-group count); at ANCESTOR levels the span is just
-// a normal merged group whose value is the ancestor's. A member-exploded column
-// collapses its members back at its own level and is inert below it.
-export function classifySpanColumn(col, level) {
-  const agg = !!col?.isAggregateCol;
-  const mem = !!col?.isMemberCol;
-  const foldLevel = agg ? col.level : -1;
-  const memberLevel = mem ? col.memberLevel : -1;
-  return {
-    aggHere: agg && level >= foldLevel,
-    showChildCount: agg && level > foldLevel,     // "6 departments"
-    memberOwn: mem && level === memberLevel,
-    memberDeep: mem && level > memberLevel,
-  };
-}
-
-function spanClick(col, level, flags, handlers) {
-  const { onToggleCollapse, onToggleMembers } = handlers;
-  if (flags.memberOwn && onToggleMembers) return () => onToggleMembers(col.sortKeys, col.memberLevel);
-  if (flags.collapsible) return () => onToggleCollapse(col.sortKeys, level);
-  if (flags.aggHere && onToggleCollapse) return () => onToggleCollapse(col.sortKeys, col.level);
-  return undefined;
-}
-
-function spanTitle(col, label, flags) {
-  if (flags.memberOwn) return `Collapse ${label} members back into a count`;
-  if (flags.collapsible) return `Collapse ${label} into one column`;
-  if (flags.aggHere) return `Expand ${col.value || '(none)'} back into its columns`;
-  return undefined;
-}
-
-// What a merged span at `level` means and does — the click it carries and the
-// accessible name that describes it. Shared by both header styles so their
-// interaction semantics can never drift apart.
-export function spanInteraction(users, span, level, handlers = {}) {
-  const col = users[span.start];
-  const flags = classifySpanColumn(col, level);
-  flags.collapsible = !!handlers.onToggleCollapse && !flags.aggHere && !flags.memberOwn && !flags.memberDeep;
-  return {
-    col,
-    ...flags,
-    onClick: spanClick(col, level, flags, handlers),
-    title: spanTitle(col, span.value || '(none)', flags),
-  };
 }
 
 // The cross-table shape of one sort level: the merged spans (each tagged with
@@ -125,18 +81,10 @@ export function buildCrossRows(users, level) {
   return { spans, rows };
 }
 
-// Left border of one access-package colour band: the first band opens the AP
-// block, every later band opens a new category. Shared by the grouping rows and
-// the names row so the two blocks line up.
-export function apBandBorderClass(accessPackages, idx) {
-  if (idx === 0) return 'border-l-2 border-l-indigo-300 dark:border-l-indigo-500';
-  const prevCat = accessPackages[idx - 1].categoryName || null;
-  const curCat = accessPackages[idx].categoryName || null;
-  return prevCat !== curCat ? 'border-l-2 border-l-gray-400 dark:border-l-gray-500' : '';
-}
-
 // Combined height of the cross-table rows of every shown level — the sticky
-// offset the <thead> must use so the names row comes to rest at top:0.
-export function crossGroupingHeight(levels) {
-  return (levels || []).reduce((h, lvl) => h + lvl.rows.length * VALUE_ROW_H, 0);
+// offset the <thead> must use so the names row comes to rest at top:0. With
+// `withCorner`, the first row is the taller corner row.
+export function crossGroupingHeight(levels, { withCorner = false } = {}) {
+  const h = (levels || []).reduce((sum, lvl) => sum + lvl.rows.length * VALUE_ROW_H, 0);
+  return withCorner && h > 0 ? h + CORNER_ROW_H - VALUE_ROW_H : h;
 }

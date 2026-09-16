@@ -11,16 +11,19 @@
          bootstrap routine)
       2. Poll /api/crawlers/jobs/claim every 30s to pick up queued jobs
          atomically
-      3. Dispatch the job to Invoke-CrawlerJob.ps1 (passing the API key)
+      3. Run the job in its own pwsh process (Invoke-CrawlerJobProcess.ps1 →
+         Invoke-CrawlerJob.ps1), so no credential or token outlives its job
       4. Mark complete via /api/crawlers/jobs/:id/complete (or .../fail)
 
-    Also runs a cron-style schedule from /app/setup/docker/crontab if present.
+    Scheduling lives in the API (scheduler.js); the worker only runs claimed jobs.
 
     The container stays alive for ad-hoc commands:
         docker exec -it identityatlas-worker-1 pwsh
 #>
 
 $ErrorActionPreference = 'Continue'
+
+. (Join-Path $PSScriptRoot 'Invoke-CrawlerJobProcess.ps1')
 
 $ApiBaseUrl = $env:WEB_API_URL
 if (-not $ApiBaseUrl) { $ApiBaseUrl = 'http://web:3001/api' }
@@ -77,11 +80,16 @@ function Get-BuiltinApiKey {
     return $null
 }
 
-$Global:BuiltinApiKey = $null
-if ($env:CRAWLER_API_KEY) {
-    $Global:BuiltinApiKey = $env:CRAWLER_API_KEY
-    Write-Host "  API key: from environment variable" -ForegroundColor Green
-} else {
+# Resolve the key at startup: env var wins; otherwise poll the volume file for
+# up to 5 minutes, then warn and let the main loop keep retrying. Sets the
+# $Global:BuiltinApiKey the poller reads.
+function Initialize-BuiltinApiKey {
+    if ($env:CRAWLER_API_KEY) {
+        $Global:BuiltinApiKey = $env:CRAWLER_API_KEY
+        Write-Host "  API key: from environment variable" -ForegroundColor Green
+        return
+    }
+
     Write-Host "  Discovering API key from $WorkerKeyFile..." -ForegroundColor Gray
     for ($i = 0; $i -lt 60; $i++) {
         $key = Get-BuiltinApiKey
@@ -99,29 +107,8 @@ if ($env:CRAWLER_API_KEY) {
     }
 }
 
-# ── Crontab parsing ───────────────────────────────────────────────────────────
-$crontabPath = '/app/setup/docker/crontab'
-$cronJobs = @()
-if (Test-Path $crontabPath) {
-    $lines = Get-Content $crontabPath | Where-Object { $_ -and $_ -notmatch '^\s*#' -and $_.Trim() -ne '' }
-    foreach ($line in $lines) {
-        $parts = $line.Trim() -split '\s+', 6
-        if ($parts.Count -ge 6) {
-            $cronJobs += @{
-                Minute = $parts[0]; Hour = $parts[1]; DayOfMonth = $parts[2]
-                Month = $parts[3]; DayOfWeek = $parts[4]; Command = $parts[5]
-            }
-        }
-    }
-    Write-Host "  Loaded $($cronJobs.Count) scheduled job(s) from crontab" -ForegroundColor Green
-}
-Write-Host ""
-
-function Test-CronMatch {
-    param([string]$CronValue, [int]$CurrentValue)
-    if ($CronValue -eq '*') { return $true }
-    return [int]$CronValue -eq $CurrentValue
-}
+$Global:BuiltinApiKey = $null
+Initialize-BuiltinApiKey
 
 # ── Job queue poller ──────────────────────────────────────────────────────────
 
@@ -173,13 +160,10 @@ function Invoke-PendingJob {
         }
     }
 
-    # 2. Dispatch to job runner
+    # 2. Run the job in its own process (credentials never outlive the job)
     try {
-        & /app/setup/docker/Invoke-CrawlerJob.ps1 `
-            -JobId  $jobId `
-            -JobType $jobType `
-            -Config  $config `
-            -ApiKey  $Global:BuiltinApiKey
+        Invoke-CrawlerJobProcess -JobId $jobId -JobType $jobType -Config $config `
+            -ApiKey $Global:BuiltinApiKey -DispatcherPath (Join-Path $PSScriptRoot 'Invoke-CrawlerJob.ps1')
 
         # 3. Mark complete
         try {
@@ -204,28 +188,12 @@ function Invoke-PendingJob {
 
 # ── Main loop ─────────────────────────────────────────────────────────────────
 
-$lastMinute = -1
-while ($true) {
-    $now = Get-Date
-
-    # Cron tick — once per minute
-    if ($now.Minute -ne $lastMinute) {
-        $lastMinute = $now.Minute
-        foreach ($cron in $cronJobs) {
-            if ((Test-CronMatch $cron.Minute $now.Minute) -and
-                (Test-CronMatch $cron.Hour $now.Hour) -and
-                (Test-CronMatch $cron.DayOfMonth $now.Day) -and
-                (Test-CronMatch $cron.Month $now.Month) -and
-                (Test-CronMatch $cron.DayOfWeek ([int]$now.DayOfWeek))) {
-                Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Cron: $($cron.Command)" -ForegroundColor Cyan
-                try { Invoke-Expression $cron.Command }
-                catch { Write-Host "  Cron job failed: $($_.Exception.Message)" -ForegroundColor Red }
-            }
-        }
+# The job queue is polled every 30s. Runs forever.
+function Start-SchedulerLoop {
+    while ($true) {
+        Invoke-PendingJob
+        Start-Sleep -Seconds 30
     }
-
-    # Job queue every loop
-    Invoke-PendingJob
-
-    Start-Sleep -Seconds 30
 }
+
+Start-SchedulerLoop

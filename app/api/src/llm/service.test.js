@@ -15,7 +15,9 @@ vi.mock('./providers.js', async (importOriginal) => {
   return { ...actual, chat: mockChat, listModels: mockListModels };
 });
 
-const { testLLMConfig } = await import('./service.js');
+const { testLLMConfig, isLLMConfigured, clearLLMConfig, chatWithSavedConfig } = await import('./service.js');
+const vault = await import('../secrets/vault.js');
+const dbMock = await import('../db/connection.js');
 
 beforeEach(() => {
   mockChat.mockReset();
@@ -45,5 +47,22 @@ describe('testLLMConfig — client-safe errors (M-2)', () => {
     const r = await testLLMConfig({ provider: 'anthropic', apiKey: 'k' });
     expect(r.ok).toBe(true);
     expect(r.model).toBe('claude-x');
+  });
+});
+
+// SEC-2026-09 H-01: the vault requires a scope on every read / exists / delete,
+// so the LLM key must be addressed through the 'llm' scope everywhere.
+describe('LLM API key is always addressed through the llm vault scope', () => {
+  it('isLLMConfigured, chatWithSavedConfig and clearLLMConfig pass the llm scope', async () => {
+    dbMock.queryOne.mockResolvedValue({ configValue: JSON.stringify({ provider: 'anthropic' }) });
+    vault.hasSecret.mockResolvedValueOnce(true);
+    vault.getSecret.mockResolvedValueOnce('sk-test');
+    mockChat.mockResolvedValueOnce({ text: 'hi', model: 'm', usage: null });
+    expect(await isLLMConfigured()).toBe(true);
+    await chatWithSavedConfig({ messages: [] });
+    await clearLLMConfig();
+    expect(vault.hasSecret).toHaveBeenCalledWith('llm.apikey', 'llm');
+    expect(vault.getSecret).toHaveBeenCalledWith('llm.apikey', 'llm');
+    expect(vault.deleteSecret).toHaveBeenCalledWith('llm.apikey', 'llm');
   });
 });

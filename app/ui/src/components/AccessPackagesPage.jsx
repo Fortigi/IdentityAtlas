@@ -1,23 +1,19 @@
-﻿import { useState, useEffect, useReducer, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useReducer, useCallback, useMemo, useRef } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
 import { useCanExportUi } from '@ui/auth/usePermissions';
-import { TAG_COLORS, tagPillStyle } from '@ui/utils/colors';
+import { TAG_COLORS } from '@ui/utils/colors';
 import { useIsDark } from '@ui/contexts/ThemeContext';
 import { useDebouncedValue } from '@ui/hooks/useDebouncedValue';
-import { formatDateOnly as formatDate } from '@ui/utils/formatters';
-import { ASSIGNMENT_TYPE_STYLES } from '@ui/utils/accessPackageStyles';
 import { useDialog } from '@ui/components/dialogContext';
+import AccessPackagesHeader from './accessPackages/AccessPackagesHeader';
+import CategoryManagementBar from './accessPackages/CategoryManagementBar';
+import CreateCategoryForm from './accessPackages/CreateCategoryForm';
+import AccessPackagesFilterBar from './accessPackages/AccessPackagesFilterBar';
+import SelectionActionBar from './accessPackages/SelectionActionBar';
+import AccessPackagesTable from './accessPackages/AccessPackagesTable';
+import AccessPackagesPagination from './accessPackages/AccessPackagesPagination';
 
 const PAGE_SIZE = 100;
-
-const COMPLIANCE_STYLES = {
-  'Compliant': 'bg-green-100 text-green-800 border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-700',
-  'In Progress': 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-700',
-  'Missed': 'bg-red-100 text-red-800 border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-700',
-  'Reviewed Late': 'bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-700',
-};
-
-const ASSIGNMENT_TYPES = ['Auto-assigned', 'Request-based', 'Request-based with auto-removal', 'Both'];
 
 export default function AccessPackagesPage({ onOpenDetail }) {
   const { authFetch } = useAuth();
@@ -256,177 +252,53 @@ export default function AccessPackagesPage({ onOpenDetail }) {
 
   return (
     <div className="max-w-7xl mx-auto">
-      {/* Header */}
-      <div className="flex items-center gap-4 mb-4">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Business Roles</h2>
-        <span className="text-sm text-gray-500 dark:text-gray-400">{total.toLocaleString()} total</span>
-        {canExport && (
-          <button
-            onClick={handleExportExcel}
-            disabled={!!exportStatus}
-            className="ml-auto px-3 py-1 rounded text-xs text-white bg-green-700 hover:bg-green-800 border border-green-800 font-medium disabled:opacity-50"
-            title="Export business roles to Excel (.xlsx)"
-          >
-            {exportStatus ? exportStatus : 'Export Excel'}
-          </button>
-        )}
-      </div>
+      <AccessPackagesHeader
+        total={total}
+        canExport={canExport}
+        exportStatus={exportStatus}
+        onExport={handleExportExcel}
+      />
 
-      {/* Category management bar */}
-      <div className="flex flex-wrap items-center gap-2 mb-3 text-sm">
-        <span className="font-medium text-gray-600 dark:text-gray-400">Categories:</span>
-        {categories.map(c => (
-          <span
-            key={c.id}
-            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium cursor-pointer border ${
-              categoryFilter === c.id
-                ? 'ring-2 ring-offset-1 ring-blue-400'
-                : 'hover:opacity-80'
-            }`}
-            style={tagPillStyle(c.color, isDark)}
-            onClick={() => setCategoryFilter(categoryFilter === c.id ? null : c.id)}
-            title={`${c.assignmentCount} business roles — click to filter`}
-          >
-            {c.name}
-            <span className="text-[10px]">({c.assignmentCount})</span>
-            <button
-              onClick={(e) => { e.stopPropagation(); deleteCategory(c.id); }}
-              className="ml-0.5 hover:opacity-100 opacity-50"
-              title="Delete category"
-            >
-              &times;
-            </button>
-          </span>
-        ))}
-        <span
-          className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium cursor-pointer border ${
-            categoryFilter === 'uncategorized'
-              ? 'ring-2 ring-offset-1 ring-blue-400 bg-gray-100 dark:bg-gray-700 border-gray-400 dark:border-gray-500 text-gray-600 dark:text-gray-400'
-              : 'hover:opacity-80 bg-gray-50 dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400'
-          }`}
-          onClick={() => setCategoryFilter(categoryFilter === 'uncategorized' ? null : 'uncategorized')}
-          title="Show business roles without a category"
-        >
-          Uncategorized
-        </span>
-        <button
-          onClick={() => setShowCreateCategory(!showCreateCategory)}
-          className="px-2 py-0.5 rounded text-xs text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 border border-blue-200 dark:border-blue-700 border-dashed"
-        >
-          + New Category
-        </button>
-      </div>
+      <CategoryManagementBar
+        categories={categories}
+        categoryFilter={categoryFilter}
+        setCategoryFilter={setCategoryFilter}
+        isDark={isDark}
+        onDelete={deleteCategory}
+        onToggleCreate={() => setShowCreateCategory(!showCreateCategory)}
+      />
 
-      {/* Create category form */}
       {showCreateCategory && (
-        <div className="flex items-center gap-2 mb-3 p-3 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-700 rounded-lg text-sm">
-          <input
-            type="text"
-            value={newCategoryName}
-            onChange={e => setNewCategoryName(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && createCategory()}
-            placeholder="Category name..."
-            className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-sm w-48 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-500"
-            autoFocus
-          />
-          <div className="flex items-center gap-1">
-            {TAG_COLORS.map(c => (
-              <button
-                key={c}
-                onClick={() => setNewCategoryColor(c)}
-                className={`w-5 h-5 rounded-full border-2 ${newCategoryColor === c ? 'border-gray-800 scale-110' : 'border-transparent'}`}
-                style={{ backgroundColor: c }}
-              />
-            ))}
-          </div>
-          <button
-            onClick={createCategory}
-            disabled={!newCategoryName.trim() || busy}
-            className="px-3 py-1 rounded text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50"
-          >
-            Create
-          </button>
-          <button
-            onClick={() => setShowCreateCategory(false)}
-            className="px-2 py-1 rounded text-sm text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700"
-          >
-            Cancel
-          </button>
-        </div>
-      )}
-
-      {/* Search bar + type filter */}
-      <div className="flex flex-wrap items-center gap-2 mb-3 text-sm">
-        <input
-          type="text"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          aria-label="Search business roles by name or catalog"
-          placeholder="Search by name or catalog..."
-          className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs w-56 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-500"
+        <CreateCategoryForm
+          name={newCategoryName}
+          setName={setNewCategoryName}
+          color={newCategoryColor}
+          setColor={setNewCategoryColor}
+          onCreate={createCategory}
+          onCancel={() => setShowCreateCategory(false)}
+          busy={busy}
         />
-        <select
-          aria-label="Filter by assignment type"
-          value={typeFilter || ''}
-          onChange={e => setTypeFilter(e.target.value || null)}
-          className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs dark:bg-gray-700 dark:text-gray-200"
-        >
-          <option value="">All types</option>
-          {ASSIGNMENT_TYPES.map(t => (
-            <option key={t} value={t}>{t}</option>
-          ))}
-        </select>
-        {hasAnyFilter && (
-          <>
-            <div className="border-l border-gray-300 dark:border-gray-600 h-5 mx-1" />
-            <button
-              onClick={() => { setCategoryFilter(null); setTypeFilter(null); setSearch(''); }}
-              className="px-2 py-1 rounded text-xs text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700"
-            >
-              Clear all
-            </button>
-          </>
-        )}
-      </div>
-
-      {/* Action bar (visible when items selected) */}
-      {selected.size > 0 && (
-        <div className="flex items-center gap-3 mb-3 p-2 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-lg text-sm">
-          <span className="font-medium text-blue-700 dark:text-blue-300">{selected.size} selected</span>
-          <div className="border-l border-blue-200 dark:border-blue-700 h-5" />
-          <select
-            aria-label="Assign category to selected"
-            value={actionCategory}
-            onChange={e => setActionCategory(e.target.value)}
-            className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-sm dark:bg-gray-700 dark:text-gray-200"
-          >
-            <option value="">Select category...</option>
-            {categories.map(c => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
-          <button
-            onClick={assignCategory}
-            disabled={!actionCategory || busy}
-            className="px-3 py-1 rounded text-sm font-medium text-white bg-green-600 hover:bg-green-700 disabled:opacity-50"
-          >
-            Set Category
-          </button>
-          <button
-            onClick={removeCategoryFromSelected}
-            disabled={busy}
-            className="px-3 py-1 rounded text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 border border-red-200 dark:border-red-700 disabled:opacity-50"
-          >
-            Remove Category
-          </button>
-          <button
-            onClick={() => setSelected(new Set())}
-            className="px-2 py-1 rounded text-xs text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 ml-auto"
-          >
-            Clear selection
-          </button>
-        </div>
       )}
+
+      <AccessPackagesFilterBar
+        search={search}
+        setSearch={setSearch}
+        typeFilter={typeFilter}
+        setTypeFilter={setTypeFilter}
+        hasAnyFilter={hasAnyFilter}
+        onClearAll={() => { setCategoryFilter(null); setTypeFilter(null); setSearch(''); }}
+      />
+
+      <SelectionActionBar
+        selectedCount={selected.size}
+        categories={categories}
+        actionCategory={actionCategory}
+        setActionCategory={setActionCategory}
+        onAssign={assignCategory}
+        onRemove={removeCategoryFromSelected}
+        onClear={() => setSelected(new Set())}
+        busy={busy}
+      />
 
       {/* Table */}
       {loading ? (
@@ -436,228 +308,30 @@ export default function AccessPackagesPage({ onOpenDetail }) {
           {hasAnyFilter ? 'No business roles match the current filters.' : 'No business roles found.'}
         </div>
       ) : (
-        <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-700">
-                <th className="w-10 px-3 py-2">
-                  <input
-                    type="checkbox"
-                    aria-label="Select all business roles on this page"
-                    checked={allOnPageSelected}
-                    onChange={toggleSelectAll}
-                    className="rounded"
-                  />
-                </th>
-                {[
-                  { key: 'displayName',      label: 'Name' },
-                  { key: 'assignmentType',   label: 'Type' },
-                  { key: 'complianceStatus', label: 'Review Status' },
-                  { key: 'lastReviewDate',   label: 'Review Date' },
-                  { key: 'lastReviewedBy',   label: 'Reviewed By' },
-                ].map(col => (
-                  <th
-                    key={col.key}
-                    onClick={() => toggleSort(col.key)}
-                    className="text-left px-3 py-2 font-medium text-gray-700 dark:text-gray-300 cursor-pointer select-none hover:bg-gray-100 dark:hover:bg-gray-700"
-                  >
-                    <span className="inline-flex items-center gap-1">
-                      {col.label}
-                      {sortCol === col.key ? (
-                        <span className="text-blue-600 text-[10px]">{sortDir === 'asc' ? '▲' : '▼'}</span>
-                      ) : (
-                        <span className="text-gray-500 dark:text-gray-500 text-[10px]">{'▴'}</span>
-                      )}
-                    </span>
-                  </th>
-                ))}
-                <th
-                  onClick={() => toggleSort('category')}
-                  className="text-left px-3 py-2 font-medium text-gray-700 dark:text-gray-300 cursor-pointer select-none hover:bg-gray-100 dark:hover:bg-gray-700"
-                >
-                  <span className="inline-flex items-center gap-1">
-                    Category
-                    {sortCol === 'category' ? (
-                      <span className="text-blue-600 text-[10px]">{sortDir === 'asc' ? '▲' : '▼'}</span>
-                    ) : (
-                      <span className="text-gray-500 dark:text-gray-500 text-[10px]">{'▴'}</span>
-                    )}
-                  </span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {sortedPackages.map(ap => (
-                <tr
-                  key={ap.id}
-                  className={`border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer ${
-                    selected.has(ap.id) ? 'bg-blue-50 dark:bg-blue-900/30' : ''
-                  }`}
-                  onClick={() => toggleSelect(ap.id)}
-                >
-                  <td className="px-3 py-2 text-center" onClick={e => e.stopPropagation()}>
-                    <input
-                      type="checkbox"
-                      aria-label={`Select ${ap.displayName || ap.name || ap.id}`}
-                      checked={selected.has(ap.id)}
-                      onChange={() => toggleSelect(ap.id)}
-                      className="rounded"
-                    />
-                  </td>
-                  <td className="px-3 py-2 font-medium" onClick={e => e.stopPropagation()}>
-                    <button
-                      onClick={() => onOpenDetail?.('access-package', ap.id, ap.displayName)}
-                      className="text-blue-600 hover:text-blue-800 hover:underline text-left"
-                    >
-                      {ap.displayName}
-                    </button>
-                  </td>
-                  <td className="px-3 py-2">
-                    {ap.assignmentType && (
-                      <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium border ${ASSIGNMENT_TYPE_STYLES[ap.assignmentType] || 'bg-gray-100 text-gray-600 border-gray-200'}`}>
-                        {ap.assignmentType}
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-3 py-2 text-xs">
-                    {ap.complianceStatus ? (
-                      <div>
-                        <span
-                          className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium border ${COMPLIANCE_STYLES[ap.complianceStatus] || 'bg-gray-100 text-gray-600 border-gray-200'}`}
-                          title={ap.complianceStatus === 'Missed'
-                            ? `Review deadline passed ${ap.daysOverdue} day${ap.daysOverdue !== 1 ? 's' : ''} ago (was due ${formatDate(ap.reviewDeadline)}) — will reset at the next review cycle`
-                            : ap.complianceStatus === 'Reviewed Late'
-                            ? `Reviewed after deadline (${formatDate(ap.reviewDeadline)})`
-                            : ap.complianceStatus === 'In Progress'
-                            ? `Due ${formatDate(ap.reviewDeadline)}`
-                            : ap.complianceStatus === 'Compliant'
-                            ? `Completed on time (due ${formatDate(ap.reviewDeadline)})`
-                            : ''}
-                        >
-                          {ap.complianceStatus}
-                          {ap.complianceStatus === 'Missed' && ap.daysOverdue > 0 && ` (${ap.daysOverdue}d ago)`}
-                        </span>
-                        {ap.reviewerInfo && (ap.complianceStatus === 'Missed' || ap.complianceStatus === 'In Progress') && (
-                          <div className="mt-0.5 text-gray-500 dark:text-gray-400 text-[11px] leading-tight" title={`Reviewer: ${ap.reviewerInfo}`}>
-                            <span className="text-gray-600 dark:text-gray-500">Reviewer: </span>{ap.reviewerInfo}
-                          </div>
-                        )}
-                        {ap.missedReviewsCount > 0 && (
-                          <div
-                            className="mt-0.5 text-orange-600 text-[11px] leading-tight font-medium"
-                            title={`${ap.missedReviewsCount} past review cycle${ap.missedReviewsCount !== 1 ? 's' : ''} where no reviewer completed any decisions`}
-                          >
-                            {ap.missedReviewsCount} review{ap.missedReviewsCount !== 1 ? 's' : ''} not done
-                          </div>
-                        )}
-                      </div>
-                    ) : ap.totalAssignments === 0 ? (
-                      <span
-                        className="text-gray-600 dark:text-gray-500 text-xs"
-                        title={ap.hasReviewConfigured
-                          ? 'Review is configured but there are no active assignments — nothing to review'
-                          : 'No active assignments'}
-                      >
-                        No assignments
-                      </span>
-                    ) : ap.hasReviewConfigured ? (
-                      <div>
-                        <span
-                          className="inline-block px-2 py-0.5 rounded-full text-xs font-medium border bg-yellow-50 text-yellow-700 border-yellow-300"
-                          title="Certification is configured on the assignment policy but no review instance has been created yet"
-                        >
-                          Pending first review
-                        </span>
-                        {ap.reviewerInfo && (
-                          <div className="mt-0.5 text-gray-500 dark:text-gray-400 text-[11px] leading-tight" title={`Reviewer: ${ap.reviewerInfo}`}>
-                            <span className="text-gray-600 dark:text-gray-500">Reviewer: </span>{ap.reviewerInfo}
-                          </div>
-                        )}
-                        {ap.missedReviewsCount > 0 && (
-                          <div
-                            className="mt-0.5 text-orange-600 text-[11px] leading-tight font-medium"
-                            title={`${ap.missedReviewsCount} past review cycle${ap.missedReviewsCount !== 1 ? 's' : ''} where no reviewer completed any decisions`}
-                          >
-                            {ap.missedReviewsCount} review{ap.missedReviewsCount !== 1 ? 's' : ''} not done
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <span
-                        className="text-gray-600 dark:text-gray-500 text-xs"
-                        title="No certification is configured on any assignment policy for this business role"
-                      >
-                        Not required
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-3 py-2 text-gray-600 dark:text-gray-400 text-xs whitespace-nowrap">
-                    {ap.lastReviewDate ? formatDate(ap.lastReviewDate) : <span className="text-gray-500 dark:text-gray-500">-</span>}
-                  </td>
-                  <td className="px-3 py-2 text-gray-500 dark:text-gray-400 text-xs">
-                    {ap.lastReviewedBy ? (
-                      /^AAD Access Review/i.test(ap.lastReviewedBy) ? (
-                        <span
-                          className="inline-flex items-center gap-1 text-orange-600"
-                          title="This review was auto-completed by the system (reviewer did not respond before the deadline)"
-                        >
-                          <svg className="w-3.5 h-3.5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clipRule="evenodd" /></svg>
-                          Auto
-                        </span>
-                      ) : (
-                        ap.lastReviewedBy
-                      )
-                    ) : (
-                      <span className="text-gray-500 dark:text-gray-500">-</span>
-                    )}
-                  </td>
-                  <td className="px-3 py-2" onClick={e => e.stopPropagation()}>
-                    <select
-                      aria-label={`Category for ${ap.displayName || ap.name || ap.id}`}
-                      value={ap.category?.id || ''}
-                      onChange={e => assignCategoryToOne(ap.id, e.target.value ? parseInt(e.target.value) : null)}
-                      disabled={busy}
-                      className="px-1.5 py-0.5 border border-gray-200 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-700 dark:text-gray-200"
-                      style={ap.category ? tagPillStyle(ap.category.color, isDark) : {}}
-                    >
-                      <option value="">None</option>
-                      {categories.map(c => (
-                        <option key={c.id} value={c.id}>{c.name}</option>
-                      ))}
-                    </select>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <AccessPackagesTable
+          packages={sortedPackages}
+          categories={categories}
+          selected={selected}
+          allOnPageSelected={allOnPageSelected}
+          sortCol={sortCol}
+          sortDir={sortDir}
+          busy={busy}
+          isDark={isDark}
+          onToggleSelectAll={toggleSelectAll}
+          onToggleSort={toggleSort}
+          onToggleSelect={toggleSelect}
+          onOpenDetail={onOpenDetail}
+          onAssignCategoryToOne={assignCategoryToOne}
+        />
       )}
 
-      {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between mt-3 text-sm text-gray-600 dark:text-gray-400">
-          <span>
-            Showing {page * PAGE_SIZE + 1}&ndash;{Math.min((page + 1) * PAGE_SIZE, total)} of {total.toLocaleString()}
-          </span>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setPage(p => Math.max(0, p - 1))}
-              disabled={page === 0}
-              className="px-3 py-1 rounded border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700/50 disabled:opacity-40"
-            >
-              Prev
-            </button>
-            <span>Page {page + 1} of {totalPages}</span>
-            <button
-              onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
-              disabled={page >= totalPages - 1}
-              className="px-3 py-1 rounded border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700/50 disabled:opacity-40"
-            >
-              Next
-            </button>
-          </div>
-        </div>
-      )}
+      <AccessPackagesPagination
+        page={page}
+        setPage={setPage}
+        totalPages={totalPages}
+        total={total}
+        pageSize={PAGE_SIZE}
+      />
     </div>
   );
 }

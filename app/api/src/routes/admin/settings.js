@@ -9,6 +9,7 @@ import { Router } from 'express';
 import * as db from '../../db/connection.js';
 import { requirePermission } from '../../middleware/auth.js';
 import { getAuthState } from '../../config/authConfig.js';
+import { FEATURE_FLAGS, workerConfigKey } from '../../featureFlags.js';
 
 const router = Router();
 
@@ -16,16 +17,17 @@ const writeFeatures = requirePermission('admin.feature-flags');
 const writeAuth     = requirePermission('admin.auth');
 
 // ─── Feature flag toggle (persisted in WorkerConfig) ─────────────────────────
-// POST /api/admin/features/toggle  body: { feature: 'riskScoring'|'accountLinking', enabled: boolean }
+// POST /api/admin/features/toggle  body: { feature: <name from featureFlags.js>, enabled: boolean }
 //
 // Stores the override in WorkerConfig as FEATURE_<UPPER_SNAKE>. The /api/features
 // endpoint reads this and overrides the matching env var. Survives container restarts.
+// The set of toggleable features is derived from featureFlags.js — adding a flag
+// there makes it toggleable here with no edit to this route.
 router.post('/admin/features/toggle', writeFeatures, async (req, res) => {
   if (process.env.USE_SQL !== 'true') return res.status(503).json({ error: 'SQL not configured' });
   const { feature, enabled } = req.body || {};
-  const VALID = { riskScoring: 'FEATURE_RISK_SCORING', accountLinking: 'FEATURE_ACCOUNT_LINKING' };
-  const key = VALID[feature];
-  if (!key) return res.status(400).json({ error: `feature must be one of: ${Object.keys(VALID).join(', ')}` });
+  const key = workerConfigKey(feature);
+  if (!key) return res.status(400).json({ error: `feature must be one of: ${Object.keys(FEATURE_FLAGS).join(', ')}` });
   if (typeof enabled !== 'boolean') return res.status(400).json({ error: 'enabled must be boolean' });
 
   try {

@@ -17,11 +17,21 @@
     The crawler type key (matches the "type" field in crawler.json).
 
 .PARAMETER Config
-    Hashtable parsed from the job's config JSON column, or a JSON string
-    (accepted for compatibility with the desktop worker which passes JSON directly).
+    Hashtable parsed from the job's config JSON column, or a JSON string. Only for
+    in-process callers: the config holds decrypted credentials, so a separate
+    process must never receive it on its command line — use -ConfigFromStdin.
 
 .PARAMETER ApiKey
-    The built-in crawler API key.
+    The crawler API key, for in-process callers. A separate process receives it
+    through the IA_JOB_API_KEY environment variable instead, never as an argument.
+
+.PARAMETER ConfigFromStdin
+    Read the job config JSON from standard input (the worker and the desktop
+    launcher run each job as its own pwsh process this way).
+
+.PARAMETER ResultPath
+    Optional file the failure message is written to, so the parent process can
+    report why the job failed.
 #>
 
 [CmdletBinding()]
@@ -35,22 +45,57 @@ Param(
     [Parameter(Mandatory = $false)]
     $Config = @{},
 
-    [Parameter(Mandatory)]
-    [string]$ApiKey
+    [Parameter(Mandatory = $false)]
+    [string]$ApiKey,
+
+    [switch]$ConfigFromStdin,
+
+    [string]$ResultPath
 )
 
 $ErrorActionPreference = 'Stop'
 
-# Accept Config as either a hashtable (scheduler) or a JSON string (desktop worker).
-if ($Config -is [string]) {
-    $Config = if ($Config -and $Config -ne '{}') {
-        $Config | ConvertFrom-Json -AsHashtable
-    } else { @{} }
+# The API key: an explicit -ApiKey (in-process caller) or the IA_JOB_API_KEY
+# environment variable (child process). The variable is removed once read so
+# nothing the crawler starts inherits it. (SEC-2026-09 L-06)
+function Resolve-JobApiKey {
+    param([string]$ApiKey)
+    $fromEnv = $env:IA_JOB_API_KEY
+    Remove-Item Env:IA_JOB_API_KEY -ErrorAction SilentlyContinue
+    if ($ApiKey) { return $ApiKey }
+    if ($fromEnv) { return $fromEnv }
+    throw 'No crawler API key: pass -ApiKey or set IA_JOB_API_KEY'
 }
 
-$apiBaseUrl = $env:WEB_API_URL
-if (-not $apiBaseUrl) { $apiBaseUrl = 'http://web:3001/api' }
-$apiBaseUrl = $apiBaseUrl.TrimEnd('/')
+# The job config from standard input (child process) — never from the command line.
+function Read-JobConfigInput {
+    param([System.IO.TextReader]$Reader = [Console]::In)
+    return $Reader.ReadToEnd()
+}
+
+# The job config as a hashtable: from stdin when -ConfigFromStdin, else -Config.
+function Resolve-JobConfig {
+    param($Config, [bool]$FromStdin)
+    if ($FromStdin) { $Config = Read-JobConfigInput }
+    return (ConvertTo-JobConfigHashtable -Config $Config)
+}
+
+# Hand the failure message to the parent process when it asked for one.
+function Write-JobFailureResult {
+    param([string]$ResultPath, [string]$Message)
+    if (-not $ResultPath) { return }
+    Set-Content -Path $ResultPath -Value $Message -Encoding UTF8 -ErrorAction SilentlyContinue
+}
+
+# Accept Config as either a hashtable (scheduler) or a JSON string (desktop worker).
+function ConvertTo-JobConfigHashtable {
+    param($Config)
+    if ($Config -isnot [string]) { return $Config }
+    if ($Config -and $Config -ne '{}') {
+        return ($Config | ConvertFrom-Json -AsHashtable)
+    }
+    return @{}
+}
 
 function Update-JobProgress {
     param([string]$Step, [int]$Pct = 0, [string]$Detail = '')
@@ -101,59 +146,136 @@ function Resolve-CrawlerDependencies {
     return $result
 }
 
+# ─── Per-job trace log helpers ────────────────────────────────────────────────
+function Start-JobTranscript {
+    param([string]$TraceDir, [string]$TraceFile)
+    try {
+        New-Item -ItemType Directory -Path $TraceDir -Force -ErrorAction SilentlyContinue | Out-Null
+        # Minimal header: the full header records the host command line, which must
+        # never carry job credentials into a log that the API serves. (SEC-2026-09 L-06)
+        Start-Transcript -Path $TraceFile -Force -UseMinimalHeader | Out-Null
+        return $true
+    } catch {
+        Write-Host "  (trace: failed to start transcript: $($_.Exception.Message))" -ForegroundColor Yellow
+        return $false
+    }
+}
+
+function Stop-JobTranscript {
+    param([bool]$Started)
+    if (-not $Started) { return }
+    try { Stop-Transcript | Out-Null } catch {}
+}
+
+function Remove-OldTraceLogs {
+    param([string]$TraceDir, [int]$Keep = 20)
+    try {
+        $all = Get-ChildItem -Path $TraceDir -Filter '*.log' -File -ErrorAction SilentlyContinue |
+            Sort-Object -Property LastWriteTime -Descending
+        if ($all -and $all.Count -gt $Keep) {
+            $all | Select-Object -Skip $Keep | Remove-Item -Force -ErrorAction SilentlyContinue
+        }
+    } catch {}
+}
+
+# ─── Module bootstrap ─────────────────────────────────────────────────────────
+# Both the Docker scheduler and the desktop worker start a fresh pwsh per job, so
+# the module is normally imported here; an in-process caller may have loaded it.
+function Import-IdentityAtlasModule {
+    param([string]$AppRoot)
+    if (Get-Command Get-CrawlerRegistry -ErrorAction SilentlyContinue) { return }
+    $modulePsd1 = Join-Path $AppRoot 'setup' 'IdentityAtlas.psd1'
+    if (-not (Test-Path $modulePsd1)) {
+        throw "IdentityAtlas module not found at '$modulePsd1'. Is IA_APP_ROOT set correctly?"
+    }
+    Import-Module $modulePsd1 -Force
+}
+
+# ─── Registry lookup + entry point resolution ─────────────────────────────────
+function Resolve-CrawlerEntryPoint {
+    param([hashtable]$Registry, [string]$JobType)
+    if (-not $Registry.ContainsKey($JobType)) {
+        $available = ($Registry.Keys | Sort-Object) -join ', '
+        throw "Unknown job type: '$JobType'. Available: $available"
+    }
+
+    $entry      = $Registry[$JobType]
+    $manifest   = $entry.Manifest
+    $entryPoint = $manifest['entryPoint']
+
+    if (-not $entryPoint) { throw "crawler.json for '$JobType' is missing 'entryPoint'" }
+    $entryPointPath = Join-Path $entry.Dir $entryPoint
+    if (-not (Test-Path $entryPointPath)) {
+        throw "Crawler entry point not found: $entryPointPath"
+    }
+
+    return [pscustomobject]@{
+        Manifest       = $manifest
+        EntryPointPath = $entryPointPath
+    }
+}
+
+# ─── Post-sync hooks ──────────────────────────────────────────────────────────
+function Invoke-BuildContextsHook {
+    param([string]$AppRoot)
+    Update-JobProgress -Step 'Building contexts from principal data' -Pct 80
+    try {
+        & "$AppRoot/setup/docker/Build-FGContexts.ps1"
+    } catch {
+        Write-Host "  Context build failed (non-critical): $($_.Exception.Message)" -ForegroundColor Yellow
+    }
+}
+
+function Invoke-AccountCorrelationHook {
+    Update-JobProgress -Step 'Linking accounts to identities' -Pct 90
+    try {
+        if (Get-Command Invoke-FGAccountCorrelation -ErrorAction SilentlyContinue) {
+            Invoke-FGAccountCorrelation
+        } else {
+            Write-Host "  Invoke-FGAccountCorrelation not available — skipping" -ForegroundColor Yellow
+        }
+    } catch {
+        Write-Host "  Account correlation failed (non-critical): $($_.Exception.Message)" -ForegroundColor Yellow
+    }
+}
+
+function Invoke-CrawlerPostSyncHooks {
+    param($Hooks, [string]$AppRoot)
+    if (-not $Hooks) { return }
+    foreach ($hook in $Hooks) {
+        switch ($hook) {
+            'buildContexts'      { Invoke-BuildContextsHook -AppRoot $AppRoot }
+            'accountCorrelation' { Invoke-AccountCorrelationHook }
+            default              { Write-Host "  Unknown post-sync hook: '$hook' — skipping" -ForegroundColor Yellow }
+        }
+    }
+}
+
+# ─── Job dispatch ─────────────────────────────────────────────────────────────
+$apiBaseUrl = $env:WEB_API_URL
+if (-not $apiBaseUrl) { $apiBaseUrl = 'http://web:3001/api' }
+$apiBaseUrl = $apiBaseUrl.TrimEnd('/')
+
 # ─── Per-job trace log ────────────────────────────────────────────────────────
 $traceDir  = if ($env:TRACE_DIR) { $env:TRACE_DIR } else { '/data/uploads/jobs' }
 $traceFile = Join-Path $traceDir "$JobId.log"
-$transcriptStarted = $false
-try {
-    New-Item -ItemType Directory -Path $traceDir -Force -ErrorAction SilentlyContinue | Out-Null
-    Start-Transcript -Path $traceFile -Force | Out-Null
-    $transcriptStarted = $true
-} catch {
-    Write-Host "  (trace: failed to start transcript: $($_.Exception.Message))" -ForegroundColor Yellow
-}
-
-try {
-    $keep = 20
-    $all = Get-ChildItem -Path $traceDir -Filter '*.log' -File -ErrorAction SilentlyContinue |
-        Sort-Object -Property LastWriteTime -Descending
-    if ($all -and $all.Count -gt $keep) {
-        $all | Select-Object -Skip $keep | Remove-Item -Force -ErrorAction SilentlyContinue
-    }
-} catch {}
+$transcriptStarted = Start-JobTranscript -TraceDir $traceDir -TraceFile $traceFile
+Remove-OldTraceLogs -TraceDir $traceDir -Keep 20
 
 $appRoot = if ($env:IA_APP_ROOT) { $env:IA_APP_ROOT.TrimEnd('/\') } else { '/app' }
 
 try {
+    $ApiKey = Resolve-JobApiKey -ApiKey $ApiKey
+    $Config = Resolve-JobConfig -Config $Config -FromStdin $ConfigFromStdin.IsPresent
 
     # ─── Module bootstrap ─────────────────────────────────────────────────────
-    # Desktop worker spawns a fresh pwsh with no module pre-loaded; Docker's
-    # scheduler.ps1 imports the module in the same process before calling here.
-    if (-not (Get-Command Get-CrawlerRegistry -ErrorAction SilentlyContinue)) {
-        $modulePsd1 = Join-Path $appRoot 'setup' 'IdentityAtlas.psd1'
-        if (-not (Test-Path $modulePsd1)) {
-            throw "IdentityAtlas module not found at '$modulePsd1'. Is IA_APP_ROOT set correctly?"
-        }
-        Import-Module $modulePsd1 -Force
-    }
+    Import-IdentityAtlasModule -AppRoot $appRoot
 
     # ─── Registry lookup ──────────────────────────────────────────────────────
     $registry = Get-CrawlerRegistry
-    if (-not $registry.ContainsKey($JobType)) {
-        $available = ($registry.Keys | Sort-Object) -join ', '
-        throw "Unknown job type: '$JobType'. Available: $available"
-    }
-
-    $entry      = $registry[$JobType]
-    $manifest   = $entry.Manifest
-    $crawlerDir = $entry.Dir
-    $entryPoint = $manifest['entryPoint']
-
-    if (-not $entryPoint) { throw "crawler.json for '$JobType' is missing 'entryPoint'" }
-    $entryPointPath = Join-Path $crawlerDir $entryPoint
-    if (-not (Test-Path $entryPointPath)) {
-        throw "Crawler entry point not found: $entryPointPath"
-    }
+    $entryInfo      = Resolve-CrawlerEntryPoint -Registry $registry -JobType $JobType
+    $manifest       = $entryInfo.Manifest
+    $entryPointPath = $entryInfo.EntryPointPath
 
     # ─── Load dependencies + crawler code ─────────────────────────────────────
     $resolved = Resolve-CrawlerDependencies -Type $JobType -Registry $registry
@@ -184,42 +306,14 @@ try {
     }
 
     # ─── Post-sync hooks ──────────────────────────────────────────────────────
-    $hooks = $manifest['postSyncHooks']
-    if ($hooks) {
-        foreach ($hook in $hooks) {
-            switch ($hook) {
-                'buildContexts' {
-                    Update-JobProgress -Step 'Building contexts from principal data' -Pct 80
-                    try {
-                        & "$appRoot/setup/docker/Build-FGContexts.ps1"
-                    } catch {
-                        Write-Host "  Context build failed (non-critical): $($_.Exception.Message)" -ForegroundColor Yellow
-                    }
-                }
-                'accountCorrelation' {
-                    Update-JobProgress -Step 'Linking accounts to identities' -Pct 90
-                    try {
-                        if (Get-Command Invoke-FGAccountCorrelation -ErrorAction SilentlyContinue) {
-                            Invoke-FGAccountCorrelation
-                        } else {
-                            Write-Host "  Invoke-FGAccountCorrelation not available — skipping" -ForegroundColor Yellow
-                        }
-                    } catch {
-                        Write-Host "  Account correlation failed (non-critical): $($_.Exception.Message)" -ForegroundColor Yellow
-                    }
-                }
-                default {
-                    Write-Host "  Unknown post-sync hook: '$hook' — skipping" -ForegroundColor Yellow
-                }
-            }
-        }
-    }
+    Invoke-CrawlerPostSyncHooks -Hooks $manifest['postSyncHooks'] -AppRoot $appRoot
 
     Update-JobProgress -Step 'Complete' -Pct 100
     Set-JobResult @{ status = "$displayName completed successfully" }
 
+} catch {
+    Write-JobFailureResult -ResultPath $ResultPath -Message $_.Exception.Message
+    throw
 } finally {
-    if ($transcriptStarted) {
-        try { Stop-Transcript | Out-Null } catch {}
-    }
+    Stop-JobTranscript -Started $transcriptStarted
 }

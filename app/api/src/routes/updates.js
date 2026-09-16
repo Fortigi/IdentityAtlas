@@ -16,14 +16,26 @@
 import { Router } from 'express';
 import * as db from '../db/connection.js';
 import { requirePermission } from '../middleware/auth.js';
+import { ALL_PERMISSION_KEYS } from '../auth/permissions.js';
 import { resolveChannel, getCurrentVersion } from '../updates/channel.js';
 import { runUpdateCheck, recordLog } from '../updates/checkForUpdates.js';
-import { isNewer } from '../updates/versionCompare.js';
+import { isNewer, isValidVersion } from '../updates/versionCompare.js';
 import { getComponentVersion, computeSkew } from '../updates/componentVersions.js';
 
 const router = Router();
 const writeUpdates = requirePermission('admin.systems');
+// Status + history are the Admin → Updates tab (admin.systems) (SEC-2026-09 M-01).
+const readUpdates = writeUpdates;
+// The apply agent polls intent with an fgr_ read token, which passes this gate.
+const readIntent = requirePermission(...ALL_PERMISSION_KEYS);
 const AUTO_UPDATE_KEY = 'AUTO_UPDATE_ENABLED';
+
+// "Latest version" comes from the app's own checks (scheduler / manual /
+// auto-detected), never from what an agent reported via /admin/updates/record:
+// an agent row describes an apply attempt, and letting it steer intent would
+// let one bad report trigger a redeploy (SEC-2026-09 L-12).
+const LATEST_CHECK_SQL =
+  `SELECT * FROM "UpdateLog" WHERE "source" IS DISTINCT FROM 'agent' ORDER BY "createdAt" DESC LIMIT 1`;
 
 // How long the current version can sit "available" with auto-update on and no
 // install before we flag that nothing is applying it (a best-effort honesty
@@ -39,12 +51,12 @@ async function getAutoUpdateEnabled() {
   return r ? r.configValue === 'true' : false;
 }
 
-router.get('/admin/updates/status', async (_req, res) => {
+router.get('/admin/updates/status', readUpdates, async (_req, res) => {
   try {
     const runningVersion = getCurrentVersion();
     const [enabled, last, workerRow, dbRow] = await Promise.all([
       getAutoUpdateEnabled(),
-      db.queryOne(`SELECT * FROM "UpdateLog" ORDER BY "createdAt" DESC LIMIT 1`),
+      db.queryOne(LATEST_CHECK_SQL),
       getComponentVersion('worker'),
       getComponentVersion('database'),
     ]);
@@ -120,7 +132,7 @@ router.put('/admin/updates/auto', writeUpdates, async (req, res) => {
   }
 });
 
-router.get('/admin/updates/log', async (req, res) => {
+router.get('/admin/updates/log', readUpdates, async (req, res) => {
   const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 50, 1), 500);
   try {
     const r = await db.query(`SELECT * FROM "UpdateLog" ORDER BY "createdAt" DESC LIMIT $1`, [limit]);
@@ -141,14 +153,12 @@ router.post('/admin/updates/check', writeUpdates, async (_req, res) => {
   }
 });
 
-router.get('/updates/intent', async (_req, res) => {
+router.get('/updates/intent', readIntent, async (_req, res) => {
   try {
     const runningVersion = getCurrentVersion();
     const [enabled, last] = await Promise.all([
       getAutoUpdateEnabled(),
-      db.queryOne(
-        `SELECT "latestVersion" FROM "UpdateLog" ORDER BY "createdAt" DESC LIMIT 1`
-      ),
+      db.queryOne(LATEST_CHECK_SQL),
     ]);
     const latestVersion = last?.latestVersion || null;
     // Recompute against the RUNNING version rather than trusting the last check's
@@ -170,10 +180,21 @@ router.get('/updates/intent', async (_req, res) => {
   }
 });
 
+// Name of the first supplied-but-malformed version field, or null. Both fields
+// stay optional (an agent may not know them); a present one must be a version.
+export function invalidVersionField(fields) {
+  const bad = Object.entries(fields).find(([, v]) => v != null && v !== '' && !isValidVersion(v));
+  return bad ? bad[0] : null;
+}
+
 router.post('/admin/updates/record', writeUpdates, async (req, res) => {
   const { status, fromVersion, toVersion, detail } = req.body || {};
   if (!['installed', 'failed', 'applying'].includes(status)) {
     return res.status(400).json({ error: 'status must be one of installed|failed|applying' });
+  }
+  const badField = invalidVersionField({ fromVersion, toVersion });
+  if (badField) {
+    return res.status(400).json({ error: `${badField} must be a version like 5.2.1.0 or 5.3.0-beta.1` });
   }
   try {
     await recordLog({

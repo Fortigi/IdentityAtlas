@@ -38,24 +38,43 @@ async function markJob(apiKey, jobId, outcome, errorMessage) {
   }).catch(() => {});
 }
 
-function dispatchJob(apiKey, job) {
-  const appRoot = process.env.IA_APP_ROOT || SCRIPTS_DIR;
-  const dispatchScript = join(appRoot, 'setup', 'docker', 'Invoke-CrawlerJob.ps1');
-  const psEnv = {
-    ...process.env,
-    WEB_API_URL: API_URL,
-    IA_APP_ROOT: appRoot,
-    TRACE_DIR:   join(DATA_DIR, 'jobs'),
+// Everything needed to start one job's pwsh process. The job config holds
+// decrypted credentials and the API key authenticates as the worker, so neither
+// goes on the command line (readable by every local process, and recorded in the
+// transcript header): the config is written to stdin, the key is passed in
+// IA_JOB_API_KEY, which Invoke-CrawlerJob.ps1 removes once read. (SEC-2026-09 L-06)
+function buildDispatch(apiKey, job, baseEnv = process.env) {
+  const appRoot = baseEnv.IA_APP_ROOT || SCRIPTS_DIR;
+  const env = {
+    ...baseEnv,
+    WEB_API_URL:    API_URL,
+    IA_APP_ROOT:    appRoot,
+    TRACE_DIR:      join(DATA_DIR, 'jobs'),
+    IA_JOB_API_KEY: apiKey,
   };
+  // The launcher's own copy of the key has no business in a crawler's environment.
+  delete env.WORKER_API_KEY;
+  return {
+    command: 'pwsh.exe',
+    args: [
+      '-NoProfile',
+      '-NonInteractive',
+      '-File',    join(appRoot, 'setup', 'docker', 'Invoke-CrawlerJob.ps1'),
+      '-JobId',   String(job.id),
+      '-JobType', String(job.jobType),
+      '-ConfigFromStdin',
+    ],
+    env,
+    stdin: JSON.stringify(job.config ?? {}),
+  };
+}
 
-  const ps = spawn('pwsh.exe', [
-    '-NonInteractive',
-    '-File',    dispatchScript,
-    '-JobId',   String(job.id),
-    '-JobType', job.jobType,
-    '-Config',  JSON.stringify(job.config ?? {}),
-    '-ApiKey',  apiKey,
-  ], { env: psEnv, stdio: 'inherit' });
+function dispatchJob(apiKey, job, spawnImpl = spawn) {
+  const plan = buildDispatch(apiKey, job);
+  const ps = spawnImpl(plan.command, plan.args, { env: plan.env, stdio: ['pipe', 'inherit', 'inherit'] });
+  // A process that failed to start emits 'error' below; ignore the stdin error it also raises.
+  ps.stdin?.on('error', () => {});
+  ps.stdin?.end(plan.stdin);
 
   ps.on('error', async (err) => {
     const msg = err.code === 'ENOENT'
@@ -99,4 +118,4 @@ function startWorker() {
   console.log('Desktop worker started (polls every 30s for crawler jobs)');
 }
 
-module.exports = { startWorker };
+module.exports = { startWorker, buildDispatch, dispatchJob };

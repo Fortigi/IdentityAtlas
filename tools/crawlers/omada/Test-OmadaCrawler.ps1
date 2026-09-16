@@ -40,18 +40,6 @@ function Invoke-AtlasApi {
     return Invoke-RestMethod @params
 }
 
-function Wait-JobComplete {
-    param([int]$JobId, [int]$TimeoutSec = 120)
-    $deadline = [datetime]::UtcNow.AddSeconds($TimeoutSec)
-    while ([datetime]::UtcNow -lt $deadline) {
-        Start-Sleep -Seconds 3
-        $j = Invoke-RestMethod -Uri "$ApiBaseUrl/admin/crawler-jobs/$JobId" `
-            -Headers @{ Authorization = "Bearer $ApiKey" } -ErrorAction SilentlyContinue
-        if ($j.status -in @('completed', 'failed')) { return $j }
-    }
-    return $null
-}
-
 Write-Host "`n=== Omada IGA Crawler Integration Test ===" -ForegroundColor Cyan
 
 # ── Load mock server ──────────────────────────────────────────────────────────
@@ -120,6 +108,8 @@ try {
     $runTag = [guid]::NewGuid().ToString('N').Substring(0, 8)
     $config = @{
         baseUrl    = "http://host.docker.internal:$($mock.Port)/odata/dataobjects"
+        allowPrivateNetwork = $true   # the mock is plain http on the Docker host network
+        allowInsecureHttp   = $true
         authMethod = 'BasicAuth'
         username   = 'testuser'
         password   = 'testpass'
@@ -257,6 +247,8 @@ try {
 
         $pfConfig = @{
             baseUrl    = "http://host.docker.internal:$($mock.Port)/odata/dataobjects"
+            allowPrivateNetwork = $true
+            allowInsecureHttp   = $true
             authMethod = 'BasicAuth'
             username   = 'testuser'
             password   = 'testpass'

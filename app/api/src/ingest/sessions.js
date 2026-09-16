@@ -82,6 +82,40 @@ export async function continueSession(syncId, _pool, records, _keyColumns) {
   return { syncId, inserted: 0, updated: 0, deleted: 0 };
 }
 
+// Builds the ON CONFLICT upsert SQL from a session's columns. When the table has
+// non-key columns it updates them on conflict; a key-only table does nothing.
+export function buildUpsertSql(session) {
+  const nonKeyCols = session.activeColumns.filter(c => !session.keyColumns.includes(c.name));
+  const insertCols = session.activeColumns.map(c => `"${c.name}"`).join(', ');
+  const onConflictCols = session.keyColumns.map(c => `"${c}"`).join(', ');
+  const conflictWhere = session.conflictFilter ? ` WHERE ${session.conflictFilter}` : '';
+
+  if (nonKeyCols.length > 0) {
+    const updateSet = nonKeyCols.map(c => `"${c.name}" = EXCLUDED."${c.name}"`).join(', ');
+    return `
+        INSERT INTO "${session.tableName}" (${insertCols})
+        SELECT ${insertCols} FROM "${session.tempTable}"
+        ON CONFLICT (${onConflictCols})${conflictWhere} DO UPDATE SET ${updateSet}
+        RETURNING (xmax = 0) AS "wasInsert"
+      `;
+  }
+  return `
+        INSERT INTO "${session.tableName}" (${insertCols})
+        SELECT ${insertCols} FROM "${session.tempTable}"
+        ON CONFLICT (${onConflictCols})${conflictWhere} DO NOTHING
+        RETURNING (xmax = 0) AS "wasInsert"
+      `;
+}
+
+// Tallies inserts vs. updates from the upsert's RETURNING rows (xmax = 0 ⇒ insert).
+export function countUpsertResult(rows) {
+  let inserted = 0, updated = 0;
+  for (const row of rows) {
+    if (row.wasInsert) inserted++; else updated++;
+  }
+  return { inserted, updated };
+}
+
 export async function endSession(syncId, _pool, records, _keyColumns, options = {}) {
   const session = sessions.get(syncId);
   if (!session) throw new Error(`Sync session '${syncId}' not found or expired`);
@@ -92,34 +126,8 @@ export async function endSession(syncId, _pool, records, _keyColumns, options = 
       session.recordCount += records.length;
     }
 
-    const nonKeyCols = session.activeColumns.filter(c => !session.keyColumns.includes(c.name));
-    const insertCols = session.activeColumns.map(c => `"${c.name}"`).join(', ');
-    const onConflictCols = session.keyColumns.map(c => `"${c}"`).join(', ');
-    const conflictWhere = session.conflictFilter ? ` WHERE ${session.conflictFilter}` : '';
-
-    let upsertSql;
-    if (nonKeyCols.length > 0) {
-      const updateSet = nonKeyCols.map(c => `"${c.name}" = EXCLUDED."${c.name}"`).join(', ');
-      upsertSql = `
-        INSERT INTO "${session.tableName}" (${insertCols})
-        SELECT ${insertCols} FROM "${session.tempTable}"
-        ON CONFLICT (${onConflictCols})${conflictWhere} DO UPDATE SET ${updateSet}
-        RETURNING (xmax = 0) AS "wasInsert"
-      `;
-    } else {
-      upsertSql = `
-        INSERT INTO "${session.tableName}" (${insertCols})
-        SELECT ${insertCols} FROM "${session.tempTable}"
-        ON CONFLICT (${onConflictCols})${conflictWhere} DO NOTHING
-        RETURNING (xmax = 0) AS "wasInsert"
-      `;
-    }
-
-    const upsertRes = await session.client.query(upsertSql);
-    let inserted = 0, updated = 0;
-    for (const row of upsertRes.rows) {
-      if (row.wasInsert) inserted++; else updated++;
-    }
+    const upsertRes = await session.client.query(buildUpsertSql(session));
+    const { inserted, updated } = countUpsertResult(upsertRes.rows);
 
     let deleted = 0;
     const syncMode = options.syncMode || 'full';

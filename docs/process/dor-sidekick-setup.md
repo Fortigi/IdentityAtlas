@@ -78,6 +78,10 @@ Adding a box to the pool means teaching the workflows about it. Update, on a bra
 - Create the label **`sk:skN`** in the repo (`gh label create "sk:skN" -c ededed -d "DoR: sidekick
   skN holds this issue's build env"`). A build stamps this label on the issue it is holding, and the
   reset / feedback workflows dispatch off it.
+- Add **`skN`** to the **`DOR_POOL`** repo variable (space-separated, e.g. `sk3 sk5 sk6 sk7 sk8`). New
+  builds are routed only to pool boxes no open issue claims. Take a box **out** of `DOR_POOL` while its
+  runner is offline: GitHub can't tell the workflow which runners are up without an Administration
+  credential, so a build routed to an offline box just queues.
 
 That is the whole list — there is no reset or feedback *matrix* to extend any more. Both workflows
 resolve the holder from the issue's `sk:*` label and send a single job to that box, so a new sidekick
@@ -106,6 +110,30 @@ Provided by the workflow at run time — **do not** store these on the sidekick:
 | `BOT_APP_ID` / `BOT_PRIVATE_KEY` | repo secrets | mint the BOT app token (PR open + board moves + org-member gate) |
 | `DOR_ENABLED` | repo variable | master switch — every DoR workflow is inert unless `true` |
 | `DOR_BUILD_MODEL` | repo variable | optional model override (defaults to `claude-fable-5`) |
+| `DOR_POOL` | repo variable | the sidekicks new builds may be routed to (`sk3 sk5 …`). Unset = any `dor-build` runner, with only the on-box check protecting a held env |
+
+## What isolates the build agent, and what does not
+
+The build agent is an LLM with a shell. The workflows limit what it can reach:
+
+- **Input.** Its spec contains only text by the requestor of record, Fortigi org members and the DoR
+  pipeline's own bots (`.github/scripts/dor_trusted_spec.sh`). Comments by other accounts are left
+  out, and the spec records how many were. Acceptance feedback is already gated on the commenter's
+  org membership.
+- **Tokens.** The `claude` process starts without `GH_TOKEN`, `BOARD_TOKEN` or any other credential in
+  its environment. The flow receives those tokens as files it deletes before the agent runs, so they
+  are not in the flow's process environment either, and no token is written into the checkout's git
+  config. After every agent run the flow restores the checkout's git config and clears its hooks, and
+  its own git commands ignore global/system git config (`.github/scripts/dor_agent_sandbox.sh`).
+- **Output.** A branch that changes anything under `.github/` is never pushed; the flow routes it to
+  Exceptions. Changes to Dockerfiles, compose files and `package.json` dependency or install-script
+  blocks are pointed out on the PR for the merge review.
+
+What this does **not** give you: the agent still runs as the runner's own user, in the `docker` group,
+with open egress and `CLAUDE_CODE_OAUTH_TOKEN` in its environment (the CLI needs it). A process that
+sets out to do harm can still act with that user's rights on the box. The real boundary is to run the
+agent in a disposable container, or as a separate user without `docker` access, with an egress
+allow-list. Until that exists, treat a sidekick as exposing everything its runner user can reach.
 
 ## Verify it's ready
 

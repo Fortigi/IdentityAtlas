@@ -84,8 +84,6 @@ function Invoke-Api {
     return Invoke-RestMethod @params
 }
 
-Write-Host "`n=== Detail Page Counts + Permissions totalUsers ===" -ForegroundColor Cyan
-
 # ─── Seed: create an isolated test system and a small principal set ───────────
 #
 # Layout:
@@ -99,148 +97,160 @@ Write-Host "`n=== Detail Page Counts + Permissions totalUsers ===" -ForegroundCo
 #   - totalUsers >= 3 even when only Alice+Bob appear in data rows
 #   - accessPackageCount(GroupA) = 1  (only BusinessRoleA, not OtherParent)
 #   - parentResourceCount(GroupA) = 2 (BusinessRoleA + OtherParent)
+function Initialize-DpcSeed {
+    $script:ts           = Get-Date -Format 'yyyyMMddHHmmss'
+    $script:sysExtId     = "test-dpc-sys-$ts"
+    $script:aliceExtId   = "test-dpc-alice-$ts"
+    $script:bobExtId     = "test-dpc-bob-$ts"
+    $script:charlieExtId = "test-dpc-charlie-$ts"  # no assignments — tests totalUsers > data rows
+    $script:groupAExtId  = "test-dpc-groupA-$ts"
+    $script:brExtId      = "test-dpc-br-$ts"
+    $script:otherExtId   = "test-dpc-other-$ts"
 
-$ts         = Get-Date -Format 'yyyyMMddHHmmss'
-$sysExtId   = "test-dpc-sys-$ts"
-$aliceExtId = "test-dpc-alice-$ts"
-$bobExtId   = "test-dpc-bob-$ts"
-$charlieExtId = "test-dpc-charlie-$ts"  # no assignments — tests totalUsers > data rows
-$groupAExtId  = "test-dpc-groupA-$ts"
-$brExtId      = "test-dpc-br-$ts"
-$otherExtId   = "test-dpc-other-$ts"
-
-$systemId   = $null
-$aliceId    = $null
-$groupAId   = $null
-$brId       = $null
-
-# 1. Create system
-try {
-    $r = Invoke-Api -Path '/ingest/systems' -Method Post -Body @{
-        syncMode     = 'delta'
-        idGeneration = 'deterministic'
-        idPrefix     = "dpc$ts-systems"
-        records      = @(@{ displayName = "DPC-Test-$ts"; systemType = 'Test'; enabled = $true; syncEnabled = $true })
-    }
-    $systemId = @($r.systemIds)[0]
-    Write-Result 'Setup/System' ($null -ne $systemId) "id=$systemId"
-} catch {
-    Write-Result 'Setup/System' $false $_.Exception.Message
+    $script:systemId       = $null
+    $script:aliceId        = $null
+    $script:groupAId       = $null
+    $script:brId           = $null
+    $script:otherId        = $null
+    $script:totalUsers     = $null
+    $script:principalTotal = $null
 }
 
-if (-not $systemId) {
-    Write-Host "  Skipping remaining tests — could not create test system" -ForegroundColor Yellow
-    if (-not $WriteResult) { exit 1 }
-    return
+# 1. Create system
+function New-DpcSystem {
+    try {
+        $r = Invoke-Api -Path '/ingest/systems' -Method Post -Body @{
+            syncMode     = 'delta'
+            idGeneration = 'deterministic'
+            idPrefix     = "dpc$ts-systems"
+            records      = @(@{ displayName = "DPC-Test-$ts"; systemType = 'Test'; enabled = $true; syncEnabled = $true })
+        }
+        $script:systemId = @($r.systemIds)[0]
+        Write-Result 'Setup/System' ($null -ne $systemId) "id=$systemId"
+    } catch {
+        Write-Result 'Setup/System' $false $_.Exception.Message
+    }
 }
 
 # 2. Create principals (Alice, Bob, Charlie)
-try {
-    $r = Invoke-Api -Path '/ingest/principals' -Method Post -Body @{
-        systemId     = $systemId
-        syncMode     = 'delta'
-        idGeneration = 'deterministic'
-        idPrefix     = "dpc$ts-principals"
-        records      = @(
-            @{ externalId = $aliceExtId;   displayName = 'DPC Alice';   principalType = 'User'; accountEnabled = $true }
-            @{ externalId = $bobExtId;     displayName = 'DPC Bob';     principalType = 'User'; accountEnabled = $true }
-            @{ externalId = $charlieExtId; displayName = 'DPC Charlie'; principalType = 'User'; accountEnabled = $true }
-        )
-    }
-    Write-Result 'Setup/Principals' ($r.inserted -ge 3 -or $r.upserted -ge 3) "inserted=$($r.inserted)"
-} catch {
-    Write-Result 'Setup/Principals' $false $_.Exception.Message
-}
-
-# 3. Create resources (GroupA, BusinessRoleA, OtherParent)
-try {
-    $r = Invoke-Api -Path '/ingest/resources' -Method Post -Body @{
-        systemId     = $systemId
-        syncMode     = 'delta'
-        idGeneration = 'deterministic'
-        idPrefix     = "dpc$ts-resources"
-        records      = @(
-            @{ externalId = $groupAExtId; displayName = 'DPC GroupA';        resourceType = 'Group' }
-            @{ externalId = $brExtId;     displayName = 'DPC BusinessRoleA'; resourceType = 'BusinessRole' }
-            @{ externalId = $otherExtId;  displayName = 'DPC OtherParent';   resourceType = 'Group' }
-        )
-    }
-    Write-Result 'Setup/Resources' ($r.inserted -ge 3 -or $r.upserted -ge 3) "inserted=$($r.inserted)"
-} catch {
-    Write-Result 'Setup/Resources' $false $_.Exception.Message
-}
-
-# 4. Look up database IDs for Alice, GroupA, BusinessRoleA
-#    We search by displayName (unique enough with the timestamp suffix).
-try {
-    $users = Invoke-Api -Path '/users?search=DPC+Alice'
-    $rows  = if ($users -is [array]) { $users } else { $users.data }
-    $alice = $rows | Where-Object { $_.displayName -like '*DPC Alice*' } | Select-Object -First 1
-    $aliceId = $alice.id
-    Write-Result 'Setup/LookupAlice' ($null -ne $aliceId) "id=$aliceId"
-} catch {
-    Write-Result 'Setup/LookupAlice' $false $_.Exception.Message
-}
-
-try {
-    $res    = Invoke-Api -Path '/resources?search=DPC+GroupA'
-    $rows   = if ($res -is [array]) { $res } else { $res.data }
-    $groupA = $rows | Where-Object { $_.displayName -like '*DPC GroupA*' } | Select-Object -First 1
-    $groupAId = $groupA.id
-
-    $res2 = Invoke-Api -Path "/resources?search=DPC+BusinessRoleA&resourceType=BusinessRole"
-    $rows2 = if ($res2 -is [array]) { $res2 } else { $res2.data }
-    $br    = $rows2 | Where-Object { $_.displayName -like '*DPC BusinessRoleA*' } | Select-Object -First 1
-    $brId  = $br.id
-
-    $res3   = Invoke-Api -Path '/resources?search=DPC+OtherParent'
-    $rows3  = if ($res3 -is [array]) { $res3 } else { $res3.data }
-    $other  = $rows3 | Where-Object { $_.displayName -like '*DPC OtherParent*' } | Select-Object -First 1
-    $otherId = $other.id
-
-    Write-Result 'Setup/LookupResources' ($null -ne $groupAId -and $null -ne $brId -and $null -ne $otherId) `
-        "groupA=$groupAId br=$brId other=$otherId"
-} catch {
-    Write-Result 'Setup/LookupResources' $false $_.Exception.Message
-}
-
-# 5. Assign Alice + Bob to GroupA (Charlie intentionally gets no assignment)
-if ($groupAId -and $aliceId) {
+function New-DpcPrincipals {
     try {
-        $r = Invoke-Api -Path '/ingest/resource-assignments' -Method Post -Body @{
+        $r = Invoke-Api -Path '/ingest/principals' -Method Post -Body @{
             systemId     = $systemId
             syncMode     = 'delta'
             idGeneration = 'deterministic'
-            idPrefix     = "dpc$ts-resource-assignments"
+            idPrefix     = "dpc$ts-principals"
             records      = @(
-                @{ resourceExternalId = $groupAExtId; principalExternalId = $aliceExtId; assignmentType = 'Direct' }
-                @{ resourceExternalId = $groupAExtId; principalExternalId = $bobExtId;   assignmentType = 'Direct' }
+                @{ externalId = $aliceExtId;   displayName = 'DPC Alice';   principalType = 'User'; accountEnabled = $true }
+                @{ externalId = $bobExtId;     displayName = 'DPC Bob';     principalType = 'User'; accountEnabled = $true }
+                @{ externalId = $charlieExtId; displayName = 'DPC Charlie'; principalType = 'User'; accountEnabled = $true }
             )
         }
-        Write-Result 'Setup/Assignments' $true "ok"
+        Write-Result 'Setup/Principals' ($r.inserted -ge 3 -or $r.upserted -ge 3) "inserted=$($r.inserted)"
     } catch {
-        Write-Result 'Setup/Assignments' $false $_.Exception.Message
+        Write-Result 'Setup/Principals' $false $_.Exception.Message
+    }
+}
+
+# 3. Create resources (GroupA, BusinessRoleA, OtherParent)
+function New-DpcResources {
+    try {
+        $r = Invoke-Api -Path '/ingest/resources' -Method Post -Body @{
+            systemId     = $systemId
+            syncMode     = 'delta'
+            idGeneration = 'deterministic'
+            idPrefix     = "dpc$ts-resources"
+            records      = @(
+                @{ externalId = $groupAExtId; displayName = 'DPC GroupA';        resourceType = 'Group' }
+                @{ externalId = $brExtId;     displayName = 'DPC BusinessRoleA'; resourceType = 'BusinessRole' }
+                @{ externalId = $otherExtId;  displayName = 'DPC OtherParent';   resourceType = 'Group' }
+            )
+        }
+        Write-Result 'Setup/Resources' ($r.inserted -ge 3 -or $r.upserted -ge 3) "inserted=$($r.inserted)"
+    } catch {
+        Write-Result 'Setup/Resources' $false $_.Exception.Message
+    }
+}
+
+# 4a. Look up database ID for Alice (search by displayName, unique via timestamp suffix)
+function Resolve-DpcAlice {
+    try {
+        $users = Invoke-Api -Path '/users?search=DPC+Alice'
+        $rows  = if ($users -is [array]) { $users } else { $users.data }
+        $alice = $rows | Where-Object { $_.displayName -like '*DPC Alice*' } | Select-Object -First 1
+        $script:aliceId = $alice.id
+        Write-Result 'Setup/LookupAlice' ($null -ne $aliceId) "id=$aliceId"
+    } catch {
+        Write-Result 'Setup/LookupAlice' $false $_.Exception.Message
+    }
+}
+
+# 4b. Look up database IDs for GroupA, BusinessRoleA, OtherParent
+function Resolve-DpcResources {
+    try {
+        $res    = Invoke-Api -Path '/resources?search=DPC+GroupA'
+        $rows   = if ($res -is [array]) { $res } else { $res.data }
+        $groupA = $rows | Where-Object { $_.displayName -like '*DPC GroupA*' } | Select-Object -First 1
+        $script:groupAId = $groupA.id
+
+        $res2 = Invoke-Api -Path "/resources?search=DPC+BusinessRoleA&resourceType=BusinessRole"
+        $rows2 = if ($res2 -is [array]) { $res2 } else { $res2.data }
+        $br    = $rows2 | Where-Object { $_.displayName -like '*DPC BusinessRoleA*' } | Select-Object -First 1
+        $script:brId  = $br.id
+
+        $res3   = Invoke-Api -Path '/resources?search=DPC+OtherParent'
+        $rows3  = if ($res3 -is [array]) { $res3 } else { $res3.data }
+        $other  = $rows3 | Where-Object { $_.displayName -like '*DPC OtherParent*' } | Select-Object -First 1
+        $script:otherId = $other.id
+
+        Write-Result 'Setup/LookupResources' ($null -ne $groupAId -and $null -ne $brId -and $null -ne $otherId) `
+            "groupA=$groupAId br=$brId other=$otherId"
+    } catch {
+        Write-Result 'Setup/LookupResources' $false $_.Exception.Message
+    }
+}
+
+# 5. Assign Alice + Bob to GroupA (Charlie intentionally gets no assignment)
+function New-DpcAssignments {
+    if ($groupAId -and $aliceId) {
+        try {
+            $r = Invoke-Api -Path '/ingest/resource-assignments' -Method Post -Body @{
+                systemId     = $systemId
+                syncMode     = 'delta'
+                idGeneration = 'deterministic'
+                idPrefix     = "dpc$ts-resource-assignments"
+                records      = @(
+                    @{ resourceExternalId = $groupAExtId; principalExternalId = $aliceExtId; assignmentType = 'Direct' }
+                    @{ resourceExternalId = $groupAExtId; principalExternalId = $bobExtId;   assignmentType = 'Direct' }
+                )
+            }
+            Write-Result 'Setup/Assignments' $true "ok"
+        } catch {
+            Write-Result 'Setup/Assignments' $false $_.Exception.Message
+        }
     }
 }
 
 # 6. Link GroupA into BusinessRoleA and OtherParent via ResourceRelationships
-if ($groupAId -and $brId -and $otherId) {
-    try {
-        $r = Invoke-Api -Path '/ingest/resource-relationships' -Method Post -Body @{
-            systemId     = $systemId
-            syncMode     = 'delta'
-            idGeneration = 'deterministic'
-            idPrefix     = "dpc$ts-resource-relationships"
-            records      = @(
-                # GroupA is contained in the business role
-                @{ parentExternalId = $brExtId;    childExternalId = $groupAExtId; relationshipType = 'Contains' }
-                # GroupA is also contained in a non-BR parent (should NOT count toward accessPackageCount)
-                @{ parentExternalId = $otherExtId; childExternalId = $groupAExtId; relationshipType = 'Contains' }
-            )
+function New-DpcRelationships {
+    if ($groupAId -and $brId -and $otherId) {
+        try {
+            $r = Invoke-Api -Path '/ingest/resource-relationships' -Method Post -Body @{
+                systemId     = $systemId
+                syncMode     = 'delta'
+                idGeneration = 'deterministic'
+                idPrefix     = "dpc$ts-resource-relationships"
+                records      = @(
+                    # GroupA is contained in the business role
+                    @{ parentExternalId = $brExtId;    childExternalId = $groupAExtId; relationshipType = 'Contains' }
+                    # GroupA is also contained in a non-BR parent (should NOT count toward accessPackageCount)
+                    @{ parentExternalId = $otherExtId; childExternalId = $groupAExtId; relationshipType = 'Contains' }
+                )
+            }
+            Write-Result 'Setup/Relationships' $true "ok"
+        } catch {
+            Write-Result 'Setup/Relationships' $false $_.Exception.Message
         }
-        Write-Result 'Setup/Relationships' $true "ok"
-    } catch {
-        Write-Result 'Setup/Relationships' $false $_.Exception.Message
     }
 }
 
@@ -250,76 +260,81 @@ if ($groupAId -and $brId -and $otherId) {
 # Set(memberIds in result), so Charlie (no assignments) was invisible.
 # The fix: always query COUNT(*) FROM Principals — stable regardless of limit.
 
-Write-Host "`n  -- Section 1: Permissions / totalUsers --" -ForegroundColor DarkCyan
-
 # Fetch total principal count independently so we have a ground truth
-$principalTotal = $null
-try {
-    $allUsers = Invoke-Api -Path '/users'
-    $principalTotal = if ($allUsers.total) { $allUsers.total } elseif ($allUsers -is [array]) { $allUsers.Count } else { $null }
-} catch { }
+function Get-DpcPrincipalTotal {
+    $script:principalTotal = $null
+    try {
+        $allUsers = Invoke-Api -Path '/users'
+        $script:principalTotal = if ($allUsers.total) { $allUsers.total } elseif ($allUsers -is [array]) { $allUsers.Count } else { $null }
+    } catch { }
+}
 
 # 1a. No limit: totalUsers must equal the full Principals count, not just assigned users
-try {
-    $r = Invoke-Api -Path '/permissions?userLimit=0'
-    $totalUsers = $r.totalUsers
-    $dataCount  = @($r.data).Count
+function Test-DpcPermissionsNoLimit {
+    try {
+        $r = Invoke-Api -Path '/permissions?userLimit=0'
+        $script:totalUsers = $r.totalUsers
+        $dataCount  = @($r.data).Count
 
-    # totalUsers must be a positive integer
-    Write-Result 'Permissions/NoLimit/TotalUsersIsInt' `
-        ($totalUsers -is [int] -or $totalUsers -is [long] -or ($totalUsers -match '^\d+$')) `
-        "totalUsers=$totalUsers"
+        # totalUsers must be a positive integer
+        Write-Result 'Permissions/NoLimit/TotalUsersIsInt' `
+            ($totalUsers -is [int] -or $totalUsers -is [long] -or ($totalUsers -match '^\d+$')) `
+            "totalUsers=$totalUsers"
 
-    # totalUsers counts all principals (including those with no assignments).
-    # dataRows is the number of assignment rows (one user can appear many times).
-    # In a real dataset users have multiple assignments, so dataRows > totalUsers
-    # is normal. We just verify totalUsers is a positive number.
-    Write-Result 'Permissions/NoLimit/TotalUsersGtDataRows' `
-        ([int]$totalUsers -gt 0) `
-        "totalUsers=$totalUsers dataRows=$dataCount"
+        # totalUsers counts all principals (including those with no assignments).
+        # dataRows is the number of assignment rows (one user can appear many times).
+        # In a real dataset users have multiple assignments, so dataRows > totalUsers
+        # is normal. We just verify totalUsers is a positive number.
+        Write-Result 'Permissions/NoLimit/TotalUsersGtDataRows' `
+            ([int]$totalUsers -gt 0) `
+            "totalUsers=$totalUsers dataRows=$dataCount"
 
-    # If we got a ground-truth count, verify totalUsers >= it
-    if ($null -ne $principalTotal) {
-        Write-Result 'Permissions/NoLimit/TotalUsersMatchesPrincipalCount' `
-            ([int]$totalUsers -ge [int]$principalTotal) `
-            "totalUsers=$totalUsers principalTotal=$principalTotal"
+        # If we got a ground-truth count, verify totalUsers >= it
+        if ($null -ne $principalTotal) {
+            Write-Result 'Permissions/NoLimit/TotalUsersMatchesPrincipalCount' `
+                ([int]$totalUsers -ge [int]$principalTotal) `
+                "totalUsers=$totalUsers principalTotal=$principalTotal"
+        }
+    } catch {
+        Write-Result 'Permissions/NoLimit/TotalUsersIsInt' $false $_.Exception.Message
     }
-} catch {
-    Write-Result 'Permissions/NoLimit/TotalUsersIsInt' $false $_.Exception.Message
 }
 
 # 1b. Binding limit (userLimit=1): totalUsers must be the same full count as above
 #     — NOT capped to 1 — while data has exactly 1 row.
-try {
-    $limited   = Invoke-Api -Path '/permissions?userLimit=1'
-    $totalLtd  = $limited.totalUsers
-    $dataLtd   = @($limited.data).Count
+function Test-DpcPermissionsLimit {
+    try {
+        $limited   = Invoke-Api -Path '/permissions?userLimit=1'
+        $totalLtd  = $limited.totalUsers
+        $dataLtd   = @($limited.data).Count
 
-    # userLimit=1 means "show data for up to 1 user" — but that user
-    # can have multiple assignment rows. Count distinct users instead.
-    $distinctUsers = @($limited.data | ForEach-Object { $_.memberId ?? $_.userId ?? $_.principalId } | Sort-Object -Unique).Count
-    Write-Result 'Permissions/Limit1/DataRespectsCap' `
-        ($distinctUsers -le 1) `
-        "distinctUsers=$distinctUsers dataRows=$dataLtd (expected <= 1 distinct user)"
+        # userLimit=1 means "show data for up to 1 user" — but that user
+        # can have multiple assignment rows. Count distinct users instead.
+        $distinctUsers = @($limited.data | ForEach-Object { $_.memberId ?? $_.userId ?? $_.principalId } | Sort-Object -Unique).Count
+        Write-Result 'Permissions/Limit1/DataRespectsCap' `
+            ($distinctUsers -le 1) `
+            "distinctUsers=$distinctUsers dataRows=$dataLtd (expected <= 1 distinct user)"
 
-    # totalUsers is NOT capped — must equal the no-limit totalUsers
-    if ($null -ne $totalUsers) {
-        Write-Result 'Permissions/Limit1/TotalUsersUnchanged' `
-            ([int]$totalLtd -eq [int]$totalUsers) `
-            "limited=$totalLtd noLimit=$totalUsers (must match)"
+        # totalUsers is NOT capped — must equal the no-limit totalUsers
+        if ($null -ne $totalUsers) {
+            Write-Result 'Permissions/Limit1/TotalUsersUnchanged' `
+                ([int]$totalLtd -eq [int]$totalUsers) `
+                "limited=$totalLtd noLimit=$totalUsers (must match)"
+        }
+    } catch {
+        Write-Result 'Permissions/Limit1/DataRespectsCap' $false $_.Exception.Message
     }
-} catch {
-    Write-Result 'Permissions/Limit1/DataRespectsCap' $false $_.Exception.Message
 }
 
 # ─── Section 2: User detail — historyCount shape (PR #16 regression) ──────────
 #
 # Pre-fix shape returned only hasHistory (bool). Post-fix shape adds historyCount (int).
 # For a freshly created principal the count is 0 and hasHistory must be false.
-
-Write-Host "`n  -- Section 2: User detail historyCount shape --" -ForegroundColor DarkCyan
-
-if ($aliceId) {
+function Test-DpcUserDetail {
+    if (-not $aliceId) {
+        Write-Host "    SKIP  UserDetail tests — aliceId not resolved" -ForegroundColor Yellow
+        return
+    }
     try {
         $u = Invoke-Api -Path "/user/$aliceId"
 
@@ -350,8 +365,6 @@ if ($aliceId) {
     } catch {
         Write-Result 'UserDetail/HistoryCountPresent' $false $_.Exception.Message
     }
-} else {
-    Write-Host "    SKIP  UserDetail tests — aliceId not resolved" -ForegroundColor Yellow
 }
 
 # ─── Section 3: Resource detail — parentResourceCount + accessPackageCount ────
@@ -362,10 +375,11 @@ if ($aliceId) {
 # Expectations for GroupA:
 #   parentResourceCount = 2  (BusinessRoleA + OtherParent)
 #   accessPackageCount  = 1  (only BusinessRoleA, because OtherParent is resourceType=Group)
-
-Write-Host "`n  -- Section 3: Resource detail parentResourceCount + accessPackageCount --" -ForegroundColor DarkCyan
-
-if ($groupAId) {
+function Test-DpcResourceDetail {
+    if (-not $groupAId) {
+        Write-Host "    SKIP  ResourceDetail tests — groupAId not resolved" -ForegroundColor Yellow
+        return
+    }
     try {
         $g = Invoke-Api -Path "/resources/$groupAId"
 
@@ -398,18 +412,17 @@ if ($groupAId) {
     } catch {
         Write-Result 'ResourceDetail/ParentResourceCountPresent' $false $_.Exception.Message
     }
-} else {
-    Write-Host "    SKIP  ResourceDetail tests — groupAId not resolved" -ForegroundColor Yellow
 }
 
 # ─── Section 4: Access-package detail — historyCount + pendingRequestCount ────
 #
 # Pre-fix: pendingRequestCount was hardcoded null. historyCount didn't exist.
 # Post-fix: both fields are eagerly fetched and present in the response as integers.
-
-Write-Host "`n  -- Section 4: Access-package detail historyCount + pendingRequestCount --" -ForegroundColor DarkCyan
-
-if ($brId) {
+function Test-DpcApDetail {
+    if (-not $brId) {
+        Write-Host "    SKIP  APDetail tests — brId not resolved" -ForegroundColor Yellow
+        return
+    }
     try {
         $ap = Invoke-Api -Path "/access-package/$brId"
 
@@ -442,8 +455,42 @@ if ($brId) {
     } catch {
         Write-Result 'APDetail/HistoryCountPresent' $false $_.Exception.Message
     }
-} else {
-    Write-Host "    SKIP  APDetail tests — brId not resolved" -ForegroundColor Yellow
 }
 
-if (-not $WriteResult) { exit $standaloneFailures }
+function Invoke-DetailPageCounts {
+    Write-Host "`n=== Detail Page Counts + Permissions totalUsers ===" -ForegroundColor Cyan
+
+    Initialize-DpcSeed
+    New-DpcSystem
+
+    if (-not $systemId) {
+        Write-Host "  Skipping remaining tests — could not create test system" -ForegroundColor Yellow
+        return 1
+    }
+
+    New-DpcPrincipals
+    New-DpcResources
+    Resolve-DpcAlice
+    Resolve-DpcResources
+    New-DpcAssignments
+    New-DpcRelationships
+
+    Write-Host "`n  -- Section 1: Permissions / totalUsers --" -ForegroundColor DarkCyan
+    Get-DpcPrincipalTotal
+    Test-DpcPermissionsNoLimit
+    Test-DpcPermissionsLimit
+
+    Write-Host "`n  -- Section 2: User detail historyCount shape --" -ForegroundColor DarkCyan
+    Test-DpcUserDetail
+
+    Write-Host "`n  -- Section 3: Resource detail parentResourceCount + accessPackageCount --" -ForegroundColor DarkCyan
+    Test-DpcResourceDetail
+
+    Write-Host "`n  -- Section 4: Access-package detail historyCount + pendingRequestCount --" -ForegroundColor DarkCyan
+    Test-DpcApDetail
+
+    return $script:standaloneFailures
+}
+
+$code = Invoke-DetailPageCounts
+if (-not $WriteResult) { exit $code }

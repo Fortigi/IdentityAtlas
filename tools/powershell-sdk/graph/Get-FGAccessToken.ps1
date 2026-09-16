@@ -67,36 +67,42 @@ function Get-FGAccessToken {
         $Resource = "https://graph.microsoft.com/"
     )
 
-    # If ConfigFile is specified, read credentials from config
-    if ($PSCmdlet.ParameterSetName -eq "ConfigFile") {
+    # Read + validate credentials from a JSON config file. Returns the resolved
+    # tenant/client/secret; throws (matching the original messages) on any gap.
+    function Get-FGTokenConfigCredential {
+        param([System.String]$ConfigFile)
+
         if (-not (Test-Path $ConfigFile)) {
             throw "Configuration file not found: $ConfigFile"
         }
 
-        # Load config
         $config = Get-Content -Path $ConfigFile -Raw | ConvertFrom-Json
 
-        # Read TenantId
         if (-not $config.Graph.TenantId) {
             throw "Graph.TenantId not found in configuration file"
         }
-        $TenantId = $config.Graph.TenantId
-
-        # Read ClientId
         if (-not $config.Graph.ClientId) {
             throw "Graph.ClientId not found in configuration file"
         }
-        $ClientId = $config.Graph.ClientId
 
-        # Read ClientSecret (with encryption support)
-        $ClientSecret = Get-FGSecureConfigValue -ConfigPath $ConfigFile -PropertyPath "Graph.ClientSecret" -AllowEmpty
-        if ([string]::IsNullOrWhiteSpace($ClientSecret)) {
+        # ClientSecret (with encryption support)
+        $secret = Get-FGSecureConfigValue -ConfigPath $ConfigFile -PropertyPath "Graph.ClientSecret" -AllowEmpty
+        if ([string]::IsNullOrWhiteSpace($secret)) {
             Write-Warning "No ClientSecret configured. You may need to use Get-FGAccessTokenInteractive instead."
             throw "Graph.ClientSecret not available in configuration file"
         }
+
+        [pscustomobject]@{
+            TenantId     = $config.Graph.TenantId
+            ClientId     = $config.Graph.ClientId
+            ClientSecret = $secret
+        }
     }
-    # Explicit parameter set - validate required parameters
-    elseif ($PSCmdlet.ParameterSetName -eq "Explicit") {
+
+    # Validate the explicit credential parameters; throws on the first missing one.
+    function Confirm-FGTokenExplicitCredential {
+        param([System.String]$ClientId, [System.String]$ClientSecret, [System.String]$TenantId)
+
         if ([string]::IsNullOrWhiteSpace($ClientId)) {
             throw "ClientId is required when not using -ConfigFile"
         }
@@ -108,6 +114,17 @@ function Get-FGAccessToken {
         }
     }
 
+    # If ConfigFile is specified, read credentials from config
+    if ($PSCmdlet.ParameterSetName -eq "ConfigFile") {
+        $cred = Get-FGTokenConfigCredential -ConfigFile $ConfigFile
+        $TenantId = $cred.TenantId
+        $ClientId = $cred.ClientId
+        $ClientSecret = $cred.ClientSecret
+    }
+    elseif ($PSCmdlet.ParameterSetName -eq "Explicit") {
+        Confirm-FGTokenExplicitCredential -ClientId $ClientId -ClientSecret $ClientSecret -TenantId $TenantId
+    }
+
     $Body = @{
         client_id     = $ClientID
         client_secret = $ClientSecret
@@ -116,16 +133,15 @@ function Get-FGAccessToken {
     }
     $URI = "https://login.microsoftonline.com/$TenantId/oauth2/token"
     $TokenRequest = Invoke-RestMethod -Method Post -Uri $URI -Body $Body
-   
+
     $AccessToken = $TokenRequest.access_token
-    If ($AccessToken) {
+    if ($AccessToken) {
         $global:AccessToken = $AccessToken
         $global:ClientId = $ClientId
         $global:ClientSecret = $ClientSecret
         $global:TenantId = $TenantId
-        
     }
-    If (!$AccessToken) { 
-        Throw "Error retrieving Graph Access Token. Please validate parameter input for -ClientID, -ClientSecret and -TenantId and check API permissions of the (App Registration) client in AzureAD" 
+    else {
+        throw "Error retrieving Graph Access Token. Please validate parameter input for -ClientID, -ClientSecret and -TenantId and check API permissions of the (App Registration) client in AzureAD"
     }
 } 

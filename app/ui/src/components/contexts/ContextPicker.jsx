@@ -195,42 +195,19 @@ export default function ContextPicker({
 
       {/* Body */}
       <div className="border border-gray-200 dark:border-gray-700 rounded bg-white dark:bg-gray-800 max-h-[60vh] overflow-auto p-3">
-        {loading && <div className="text-xs text-gray-500 dark:text-gray-400">Loading…</div>}
-        {error && <div className="text-xs text-red-700 dark:text-red-400">{error}</div>}
-        {!loading && !error && filteredTrees.length === 0 && (
-          <div className="text-xs text-gray-500 dark:text-gray-400">
-            {targetType
-              ? `No ${targetType}-targeted contexts available.`
-              : 'No contexts available.'}
-          </div>
-        )}
-        {!loading && !error && filteredTrees.length > 0 && view === 'tree' && (
-          <ul className="text-sm space-y-1">
-            {filteredTrees.map(n => (
-              <PickerNode
-                key={n.id}
-                node={n}
-                depth={0}
-                isLast={true}
-                expanded={expanded}
-                onToggleExpand={toggleExpand}
-                matchedSet={matchedSet}
-                value={value}
-                onPick={handlePick}
-              />
-            ))}
-          </ul>
-        )}
-        {!loading && !error && filteredTrees.length > 0 && view === 'list' && (
-          <ul className="text-sm divide-y divide-gray-100 dark:divide-gray-700">
-            {flat.map(n => (
-              <PickerListRow key={n.id} node={n} value={value} onPick={handlePick} />
-            ))}
-            {flat.length === 0 && (
-              <li className="text-xs text-gray-500 dark:text-gray-400 px-2 py-2">No matches.</li>
-            )}
-          </ul>
-        )}
+        <PickerBody
+          loading={loading}
+          error={error}
+          filteredTrees={filteredTrees}
+          view={view}
+          targetType={targetType}
+          flat={flat}
+          expanded={expanded}
+          onToggleExpand={toggleExpand}
+          matchedSet={matchedSet}
+          value={value}
+          onPick={handlePick}
+        />
       </div>
 
       <div className="mt-4 flex items-center justify-between">
@@ -240,6 +217,55 @@ export default function ContextPicker({
         <SecondaryButton onClick={onClose}>Cancel</SecondaryButton>
       </div>
     </Modal>
+  );
+}
+
+// ─── Body: loading / error / empty / tree / list ─────────────────────────────
+// The scroll container's single child. Mutually-exclusive states (loading and
+// error never overlap; view is always 'tree' or 'list') read as early returns.
+function PickerBody({
+  loading, error, filteredTrees, view, targetType, flat,
+  expanded, onToggleExpand, matchedSet, value, onPick,
+}) {
+  if (loading) return <div className="text-xs text-gray-500 dark:text-gray-400">Loading…</div>;
+  if (error) return <div className="text-xs text-red-700 dark:text-red-400">{error}</div>;
+  if (filteredTrees.length === 0) {
+    return (
+      <div className="text-xs text-gray-500 dark:text-gray-400">
+        {targetType
+          ? `No ${targetType}-targeted contexts available.`
+          : 'No contexts available.'}
+      </div>
+    );
+  }
+  if (view === 'tree') {
+    return (
+      <ul className="text-sm space-y-1">
+        {filteredTrees.map(n => (
+          <PickerNode
+            key={n.id}
+            node={n}
+            depth={0}
+            isLast={true}
+            expanded={expanded}
+            onToggleExpand={onToggleExpand}
+            matchedSet={matchedSet}
+            value={value}
+            onPick={onPick}
+          />
+        ))}
+      </ul>
+    );
+  }
+  return (
+    <ul className="text-sm divide-y divide-gray-100 dark:divide-gray-700">
+      {flat.map(n => (
+        <PickerListRow key={n.id} node={n} value={value} onPick={onPick} />
+      ))}
+      {flat.length === 0 && (
+        <li className="text-xs text-gray-500 dark:text-gray-400 px-2 py-2">No matches.</li>
+      )}
+    </ul>
   );
 }
 

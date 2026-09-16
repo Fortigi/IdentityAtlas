@@ -401,7 +401,7 @@ Describe 'Get-FGGroupMemberAllToFile' {
             $content = Get-Content $file -Raw
             $content | Should -Match 'g1'
             $content | Should -Match 'm1'
-            Should -Invoke -ModuleName IdentityAtlas Remove-FGTrailingCommaFromJsonFile -Times 1
+            Should -Invoke -ModuleName IdentityAtlas Remove-FGTrailingCommaFromJsonFile -Exactly 1
         }
         finally {
             if (Test-Path $file) { Remove-Item $file -Force }
@@ -487,7 +487,7 @@ Describe 'Get-FGGroupEligibleMemberAll' {
         $result = Get-FGGroupEligibleMemberAll
         $result.Count | Should -Be 0
         # eligibility endpoint must never be queried for a dynamic-only group
-        Should -Invoke -ModuleName IdentityAtlas Invoke-FGGetRequest -Times 0 -ParameterFilter {
+        Should -Invoke -ModuleName IdentityAtlas Invoke-FGGetRequest -Exactly 0 -ParameterFilter {
             $URI -like '*eligibilitySchedules*'
         }
     }

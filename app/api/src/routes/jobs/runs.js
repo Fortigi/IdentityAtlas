@@ -9,8 +9,8 @@ import { Router } from 'express';
 import * as db from '../../db/connection.js';
 import { promises as fs } from 'fs';
 import path from 'path';
-import { getConfigSecret, storeJobSecret, storeJobCredentials } from '../../secrets/crawlerSecrets.js';
-import { assertPublicUrl } from '../../lib/ssrfGuard.js';
+import { getConfigSecret, getConfigCredentials, storeJobSecret, storeJobCredentials } from '../../secrets/crawlerSecrets.js';
+import { assertConnectorUrl, checkCrawlerConfigUrls } from './urlPolicy.js';
 import { CRAWLER_MANIFESTS_DIR, _crawlerManifests, validateStoredCrawlerConfig } from '../../crawlerManifests.js';
 import { gate, useSql, VALID_JOB_TYPES, validateCreateJobBody, resolveJobConfig, resolveUploadFolder, prepareJobConfig, checkSingletonConflict, resolveCreatedBy } from './helpers.js';
 
@@ -48,6 +48,8 @@ router.post('/admin/crawler-jobs', gate, async (req, res) => {
     // absence for types whose schema requires it.
     const configErr = await validateStoredCrawlerConfig(jobType, resolvedConfig, configId);
     if (configErr) return res.status(400).json({ error: configErr });
+    const urlErr = await checkCrawlerConfigUrls(jobType, resolvedConfig);
+    if (urlErr) return res.status(400).json({ error: urlErr });
 
     // For crawler types that support file uploads (per their manifest), inject
     // the per-config upload folder so the worker knows where to read files from.
@@ -60,13 +62,16 @@ router.post('/admin/crawler-jobs', gate, async (req, res) => {
     // Explicit syncMode in the request body wins (the "Run Delta" / "Run Full"
     // buttons). Falls back to the stored config's nextRunMode toggle, then delta.
     const effectiveSyncMode = explicitSyncMode || cfg.configNextRunMode || 'delta';
-    const { inlineSecret, configJson, extraCreds } = prepareJobConfig(resolvedConfig, configId, effectiveSyncMode);
+    const { inlineSecret, configJson, extraCreds } = prepareJobConfig(resolvedConfig, configId, effectiveSyncMode, cfg.configName);
 
     const result = await pool.query(
-      `INSERT INTO "CrawlerJobs" ("jobType", config, "createdBy")
-              VALUES ($1, $2, $3)
+      `INSERT INTO "CrawlerJobs" ("jobType", config, "createdBy", "configId")
+              VALUES ($1, $2, $3, $4)
               RETURNING *`,
-      [jobType, configJson, createdBy]
+      // "configId" is the only thing that decides which stored config's
+      // credentials the worker receives — set here from the validated request
+      // parameter, never from the config JSON (SEC-2026-09 H-02).
+      [jobType, configJson, createdBy, configId || null]
     );
     const newJobId = result.rows[0].id;
     if (inlineSecret) await storeJobSecret(newJobId, inlineSecret);
@@ -297,10 +302,15 @@ router.post('/admin/crawlers/:type/discover', gate, async (req, res) => {
   }
   // Pass API dependencies as context — the handler must not import them directly
   // because its path in the Docker image differs from the API source tree.
-  // assertPublicUrl lets a handler reject an admin-supplied base URL that
-  // resolves to a private/loopback/metadata address before it fetches it with a
-  // credential (SSRF guard, audit L-6).
-  return handler(req, res, { db, getConfigSecret, assertPublicUrl });
+  // assertConnectorUrl(url, config, label) lets a handler reject an admin-supplied
+  // base URL or token endpoint that resolves to a private/loopback/metadata
+  // address (or uses http) before it sends a credential there, honouring the
+  // config's allowPrivateNetwork / allowInsecureHttp opt-ins (SSRF guard, audit
+  // L-6, SEC-2026-09 M-02/M-03).
+  // getConfigCredentials returns every vaulted credential field of a stored
+  // config (clientSecret, password, apiToken, cookieString) for edit-mode
+  // discovery; getConfigSecret stays for handlers that only need clientSecret.
+  return handler(req, res, { db, getConfigSecret, getConfigCredentials, assertConnectorUrl });
 });
 
 export default router;

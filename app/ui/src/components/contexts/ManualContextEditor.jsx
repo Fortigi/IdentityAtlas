@@ -1,6 +1,7 @@
-﻿import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
 import ContextPicker from './ContextPicker';
+import { isContextDirty, normalizeContextFields } from './ManualContextEditor.helpers';
 
 // ─── Manual-context inline editor ─────────────────────────────────────────────
 // Rename, edit description, set parent (picker restricted to same targetType),
@@ -14,11 +15,12 @@ import ContextPicker from './ContextPicker';
 export default function ManualContextEditor({ contextId, attrs, onUpdated, onDeleted }) {
   const { authFetch } = useAuth();
 
-  const [displayName, setDisplayName] = useState(attrs.displayName || '');
-  const [description, setDescription] = useState(attrs.description || '');
-  const [ownerUserId, setOwnerUserId] = useState(attrs.ownerUserId || '');
-  const [parentId, setParentId] = useState(attrs.parentContextId || '');
-  const [parentLabel, setParentLabel] = useState(attrs.parentDisplayName || '');
+  const seed = normalizeContextFields(attrs);
+  const [displayName, setDisplayName] = useState(seed.displayName);
+  const [description, setDescription] = useState(seed.description);
+  const [ownerUserId, setOwnerUserId] = useState(seed.ownerUserId);
+  const [parentId, setParentId] = useState(seed.parentId);
+  const [parentLabel, setParentLabel] = useState(seed.parentLabel);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [excludeIds, setExcludeIds] = useState(() => new Set([contextId]));
 
@@ -63,12 +65,7 @@ export default function ManualContextEditor({ contextId, attrs, onUpdated, onDel
 
   useEffect(() => { refreshExcludes(); }, [refreshExcludes]);
 
-  const dirty = (
-    displayName !== (attrs.displayName || '') ||
-    description !== (attrs.description || '') ||
-    ownerUserId !== (attrs.ownerUserId || '') ||
-    (parentId || null) !== (attrs.parentContextId || null)
-  );
+  const dirty = isContextDirty(attrs, { displayName, description, ownerUserId, parentId });
 
   async function save() {
     setSaving(true); setError(null); setSaved(false);
@@ -175,82 +172,35 @@ export default function ManualContextEditor({ contextId, attrs, onUpdated, onDel
           full
           help={`Any ${attrs.targetType}-targeted context (manual, synced, or generated).`}
         >
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setPickerOpen(true)}
-              className="flex-1 text-left px-2 py-1 text-sm border border-gray-200 dark:border-gray-700 rounded bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700/50 truncate"
-              title="Open picker"
-            >
-              {parentId
-                ? <span className="text-gray-900 dark:text-white">{parentLabel || parentId.slice(0, 8)}</span>
-                : <span className="text-gray-600 dark:text-gray-500">(no parent — root)</span>}
-            </button>
-            {parentId && (
-              <button
-                type="button"
-                onClick={() => { setParentId(''); setParentLabel(''); }}
-                className="text-[11px] text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
-                title="Clear — make this a root context"
-              >clear</button>
-            )}
-          </div>
+          <ParentField
+            parentId={parentId}
+            parentLabel={parentLabel}
+            onOpen={() => setPickerOpen(true)}
+            onClear={() => { setParentId(''); setParentLabel(''); }}
+          />
         </Field>
       </div>
 
-      {/* Add a manual child context directly under this node */}
-      <div className="mt-4 pt-3 border-t border-gray-100 dark:border-gray-700">
-        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Add child context</label>
-        <div className="flex items-center gap-2">
-          <input
-            value={childName}
-            onChange={e => setChildName(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter') addChild(); }}
-            placeholder="New child name…"
-            className="flex-1 border border-gray-200 dark:border-gray-700 rounded px-2 py-1 text-sm bg-white dark:bg-gray-800 dark:text-gray-200"
-          />
-          <button
-            onClick={addChild}
-            disabled={!childName.trim() || addingChild}
-            className="px-3 py-1 text-xs rounded bg-blue-600 dark:bg-blue-700 text-white disabled:opacity-50 hover:bg-blue-700 dark:hover:bg-blue-600 whitespace-nowrap"
-          >{addingChild ? 'Adding…' : 'Add child'}</button>
-        </div>
-      </div>
+      <AddChildRow
+        childName={childName}
+        addingChild={addingChild}
+        onChange={e => setChildName(e.target.value)}
+        onSubmit={addChild}
+      />
 
       {error && <div className="mt-3 text-xs text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded px-2 py-1">{error}</div>}
 
       <div className="mt-4 flex items-center justify-between gap-2">
         <div>
-          {confirmingDelete ? (
-            <div className="flex items-center gap-2">
-              <span className="text-[11px] text-red-700 dark:text-red-400">Delete this context and all its members?</span>
-              <button
-                onClick={doDelete}
-                disabled={deleting}
-                className="px-3 py-1 text-xs rounded bg-red-600 dark:bg-red-700 text-white disabled:opacity-50 hover:bg-red-700 dark:hover:bg-red-600"
-              >
-                {deleting ? 'Deleting…' : 'Yes, delete'}
-              </button>
-              <button
-                onClick={() => setConfirmingDelete(false)}
-                className="px-3 py-1 text-xs rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700/50 text-gray-700 dark:text-gray-300"
-              >Cancel</button>
-            </div>
-          ) : (
-            <button
-              onClick={() => setConfirmingDelete(true)}
-              className="text-[11px] text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-400"
-            >Delete context…</button>
-          )}
+          <DeleteControl
+            confirmingDelete={confirmingDelete}
+            deleting={deleting}
+            onStartDelete={() => setConfirmingDelete(true)}
+            onCancelDelete={() => setConfirmingDelete(false)}
+            onConfirmDelete={doDelete}
+          />
         </div>
-        <div className="flex items-center gap-2">
-          {saved && <span className="text-[11px] text-green-700">Saved</span>}
-          <button
-            onClick={save}
-            disabled={!dirty || saving}
-            className="px-3 py-1 text-xs rounded bg-blue-600 dark:bg-blue-700 text-white disabled:opacity-50 hover:bg-blue-700 dark:hover:bg-blue-600"
-          >{saving ? 'Saving…' : 'Save changes'}</button>
-        </div>
+        <SaveControl saved={saved} dirty={dirty} saving={saving} onSave={save} />
       </div>
 
       <ContextPicker
@@ -277,6 +227,99 @@ function Field({ label, help, full, children }) {
       <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">{label}</label>
       {children}
       {help && <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">{help}</p>}
+    </div>
+  );
+}
+
+// Parent picker trigger + clear button. Shows the picked label (or a truncated
+// id) when set, otherwise a "(no parent — root)" hint.
+function ParentField({ parentId, parentLabel, onOpen, onClear }) {
+  return (
+    <div className="flex items-center gap-2">
+      <button
+        type="button"
+        onClick={onOpen}
+        className="flex-1 text-left px-2 py-1 text-sm border border-gray-200 dark:border-gray-700 rounded bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700/50 truncate"
+        title="Open picker"
+      >
+        {parentId
+          ? <span className="text-gray-900 dark:text-white">{parentLabel || parentId.slice(0, 8)}</span>
+          : <span className="text-gray-600 dark:text-gray-500">(no parent — root)</span>}
+      </button>
+      {parentId && (
+        <button
+          type="button"
+          onClick={onClear}
+          className="text-[11px] text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
+          title="Clear — make this a root context"
+        >clear</button>
+      )}
+    </div>
+  );
+}
+
+// Add a manual child context directly under this node.
+function AddChildRow({ childName, addingChild, onChange, onSubmit }) {
+  return (
+    <div className="mt-4 pt-3 border-t border-gray-100 dark:border-gray-700">
+      <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Add child context</label>
+      <div className="flex items-center gap-2">
+        <input
+          value={childName}
+          onChange={onChange}
+          onKeyDown={e => { if (e.key === 'Enter') onSubmit(); }}
+          placeholder="New child name…"
+          className="flex-1 border border-gray-200 dark:border-gray-700 rounded px-2 py-1 text-sm bg-white dark:bg-gray-800 dark:text-gray-200"
+        />
+        <button
+          onClick={onSubmit}
+          disabled={!childName.trim() || addingChild}
+          className="px-3 py-1 text-xs rounded bg-blue-600 dark:bg-blue-700 text-white disabled:opacity-50 hover:bg-blue-700 dark:hover:bg-blue-600 whitespace-nowrap"
+        >{addingChild ? 'Adding…' : 'Add child'}</button>
+      </div>
+    </div>
+  );
+}
+
+// Delete affordance — a plain "Delete context…" link that expands into an
+// inline confirm/cancel row.
+function DeleteControl({ confirmingDelete, deleting, onStartDelete, onCancelDelete, onConfirmDelete }) {
+  if (!confirmingDelete) {
+    return (
+      <button
+        onClick={onStartDelete}
+        className="text-[11px] text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-400"
+      >Delete context…</button>
+    );
+  }
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-[11px] text-red-700 dark:text-red-400">Delete this context and all its members?</span>
+      <button
+        onClick={onConfirmDelete}
+        disabled={deleting}
+        className="px-3 py-1 text-xs rounded bg-red-600 dark:bg-red-700 text-white disabled:opacity-50 hover:bg-red-700 dark:hover:bg-red-600"
+      >
+        {deleting ? 'Deleting…' : 'Yes, delete'}
+      </button>
+      <button
+        onClick={onCancelDelete}
+        className="px-3 py-1 text-xs rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700/50 text-gray-700 dark:text-gray-300"
+      >Cancel</button>
+    </div>
+  );
+}
+
+// Save button plus the transient "Saved" confirmation.
+function SaveControl({ saved, dirty, saving, onSave }) {
+  return (
+    <div className="flex items-center gap-2">
+      {saved && <span className="text-[11px] text-green-700">Saved</span>}
+      <button
+        onClick={onSave}
+        disabled={!dirty || saving}
+        className="px-3 py-1 text-xs rounded bg-blue-600 dark:bg-blue-700 text-white disabled:opacity-50 hover:bg-blue-700 dark:hover:bg-blue-600"
+      >{saving ? 'Saving…' : 'Save changes'}</button>
     </div>
   );
 }

@@ -29,25 +29,21 @@ import {
   normalizeName,
   emailLocalPart,
   stripKnownPrefixes,
-  parseName,
   nameMatchLevel,
 } from './classifier.js';
+import {
+  norm,
+  fullName,
+  personName,
+  prefixesFrom,
+  suffixesFrom,
+  nameSignalNames,
+  indexIdentities,
+  collectCandidates,
+  aggregateByIdentity,
+} from './engine.helpers.js';
 
 export { classifyAccount };
-
-const norm = (v) => (v == null ? '' : String(v).trim().toLowerCase());
-const fullName = (o, suffixes = []) => normalizeName([o.givenName, o.surname].filter(Boolean).join(' '), suffixes);
-const personName = (o) => parseName(o.displayName, o.givenName, o.surname);
-
-function prefixesFrom(rules) {
-  return (rules.signals || []).find(s => s.type === 'prefix')?.stripPrefixes || [];
-}
-function suffixesFrom(rules) {
-  return (rules.signals || []).find(s => s.type === 'fuzzy')?.stripSuffixes || [];
-}
-function nameSignalNames(rules) {
-  return new Set((rules.signals || []).filter(s => s.type === 'name').map(s => s.name));
-}
 
 /**
  * Score how strongly an orphan account belongs to an identity.
@@ -92,71 +88,76 @@ export function scoreMatch(orphan, identity, rules = DEFAULT_RULES) {
  * Pure: no DB access. Returns one entry per orphan that links above threshold.
  */
 export function buildLinks(orphans, identities, rules = DEFAULT_RULES) {
-  const threshold = rules.linkThreshold ?? 70;
-  const onlyTypes = new Set(rules.onlyLinkTypes || []);
-  const compiled = { ...rules, __compiled: compileAccountTypeRules(rules) };
-  const prefixes = prefixesFrom(rules);
-  const suffixes = suffixesFrom(rules);
-  const nameSigs = nameSignalNames(rules);
-
-  // Index identities so we only score plausible candidates per orphan.
-  const byEmployeeId = new Map();
-  const byEmailLocal = new Map();
-  const byName = new Map();
-  const byNameKey = new Map();
-  const push = (map, key, v) => { if (!key) return; (map.get(key) || map.set(key, []).get(key)).push(v); };
-  for (const idy of identities) {
-    push(byEmployeeId, norm(idy.employeeId), idy);
-    push(byEmailLocal, emailLocalPart(idy.email), idy);
-    push(byName, normalizeName(idy.displayName) || fullName(idy), idy);
-    push(byNameKey, personName(idy).key, idy);
-  }
+  const ctx = {
+    rules,
+    threshold: rules.linkThreshold ?? 70,
+    onlyTypes: new Set(rules.onlyLinkTypes || []),
+    compiled: { ...rules, __compiled: compileAccountTypeRules(rules) },
+    prefixes: prefixesFrom(rules),
+    suffixes: suffixesFrom(rules),
+    nameSigs: nameSignalNames(rules),
+    indexes: indexIdentities(identities),
+  };
 
   const links = [];
   for (const orphan of orphans) {
-    const { accountType, pattern } = classifyAccount(orphan, compiled);
-    if (!onlyTypes.has(accountType)) continue;
-
-    const candidates = new Map();
-    const addAll = (arr) => { for (const idy of (arr || [])) candidates.set(idy.id, idy); };
-    addAll(byEmployeeId.get(norm(orphan.employeeId)));
-    addAll(byEmailLocal.get(emailLocalPart(orphan.email)));
-    addAll(byEmailLocal.get(stripKnownPrefixes(emailLocalPart(orphan.email), prefixes)));
-    addAll(byName.get(normalizeName(orphan.displayName, suffixes) || fullName(orphan, suffixes)));
-    addAll(byNameKey.get(personName(orphan).key));
-
-    let best = null;
-    let ties = 0;
-    for (const idy of candidates.values()) {
-      const { confidence, signals } = scoreMatch(orphan, idy, rules);
-      if (confidence < threshold) continue;
-      if (!best || confidence > best.confidence) {
-        best = { identityId: idy.id, confidence, signals };
-        ties = 1;
-      } else if (confidence === best.confidence) {
-        ties++;
-      }
-    }
-    if (!best) continue;
-
-    // Ambiguity guard: a name-only match (no strong email/employeeId signal) that
-    // ties across multiple identities is too risky to auto-pick — leave it orphan
-    // for the principals-clustering / manual review path rather than guess.
-    const nameOnly = best.signals.length > 0 && best.signals.every(s => nameSigs.has(s));
-    if (nameOnly && ties > 1) continue;
-
-    links.push({
-      principalId: orphan.id,
-      identityId: best.identityId,
-      confidence: best.confidence,
-      signals: best.signals,
-      accountType,
-      accountTypePattern: pattern,
-      displayName: orphan.displayName ?? null,
-      accountEnabled: orphan.accountEnabled ?? null,
-    });
+    const link = buildLinkForOrphan(orphan, ctx);
+    if (link) links.push(link);
   }
   return links;
+}
+
+/**
+ * Best above-threshold candidate identity for a set, plus the tie count at that
+ * confidence. Candidates are scored in insertion order; the first to reach the
+ * high-water mark wins, later equal scores only bump `ties`.
+ * @returns {{ best: object|null, ties: number }}
+ */
+function pickBest(orphan, candidates, rules, threshold) {
+  let best = null;
+  let ties = 0;
+  for (const idy of candidates.values()) {
+    const { confidence, signals } = scoreMatch(orphan, idy, rules);
+    if (confidence < threshold) continue;
+    if (!best || confidence > best.confidence) {
+      best = { identityId: idy.id, confidence, signals };
+      ties = 1;
+    } else if (confidence === best.confidence) {
+      ties++;
+    }
+  }
+  return { best, ties };
+}
+
+/**
+ * The proposed link for a single orphan, or null if it should stay orphan.
+ * Pure: no DB access.
+ */
+function buildLinkForOrphan(orphan, ctx) {
+  const { rules, threshold, onlyTypes, compiled, prefixes, suffixes, nameSigs, indexes } = ctx;
+  const { accountType, pattern } = classifyAccount(orphan, compiled);
+  if (!onlyTypes.has(accountType)) return null;
+
+  const candidates = collectCandidates(orphan, indexes, { prefixes, suffixes });
+  const { best, ties } = pickBest(orphan, candidates, rules, threshold);
+  if (!best) return null;
+
+  // Ambiguity guard: a name-only match (no strong email/employeeId signal) that
+  // ties across multiple identities is too risky to auto-pick — leave it orphan
+  // for the principals-clustering / manual review path rather than guess.
+  const nameOnly = best.signals.length > 0 && best.signals.every(s => nameSigs.has(s));
+  if (nameOnly && ties > 1) return null;
+
+  return {
+    principalId: orphan.id,
+    identityId: best.identityId,
+    confidence: best.confidence,
+    signals: best.signals,
+    accountType,
+    accountTypePattern: pattern,
+    displayName: orphan.displayName ?? null,
+    accountEnabled: orphan.accountEnabled ?? null,
+  };
 }
 
 async function loadRules(configId) {
@@ -178,6 +179,47 @@ async function countOrphans() {
        AND COALESCE(p."principalType", '') NOT IN ('ServicePrincipal', 'ManagedIdentity', 'AIAgent')
   `);
   return r?.n ?? 0;
+}
+
+/**
+ * Persist one proposed link while preserving analyst decisions.
+ * @returns {'skipped'|'created'|'updated'}
+ *   - 'skipped'  the account was rejected anywhere, or the member is analyst-touched
+ *   - 'created'  no member row existed → inserted
+ *   - 'updated'  a non-analyst member row existed → refreshed
+ */
+async function writeLink(link) {
+  // Never re-link an account the analyst rejected (from any identity).
+  const rejected = await db.queryOne(
+    `SELECT 1 FROM "IdentityMembers" WHERE "principalId" = $1 AND "analystOverride" = 'rejected' LIMIT 1`,
+    [link.principalId]
+  );
+  if (rejected) return 'skipped';
+
+  const existing = await db.queryOne(
+    `SELECT "analystOverride" FROM "IdentityMembers" WHERE "identityId" = $1 AND "principalId" = $2`,
+    [link.identityId, link.principalId]
+  );
+  if (!existing) {
+    await db.query(`
+      INSERT INTO "IdentityMembers"
+        ("identityId", "principalId", "isPrimary", "accountType", "accountTypePattern",
+         "accountEnabled", "displayName", "linkSignals", "linkConfidence")
+      VALUES ($1, $2, false, $3, $4, $5, $6, $7, $8)
+      ON CONFLICT ("identityId", "principalId") DO NOTHING
+    `, [link.identityId, link.principalId, link.accountType, link.accountTypePattern,
+        link.accountEnabled, link.displayName, JSON.stringify(link.signals.join(',')), link.confidence]);
+    return 'created';
+  }
+  if (existing.analystOverride) return 'skipped'; // analyst-touched → leave it
+  await db.query(`
+    UPDATE "IdentityMembers"
+       SET "linkConfidence" = $3, "linkSignals" = $4, "accountType" = $5,
+           "accountTypePattern" = $6, "displayName" = $7, "accountEnabled" = $8
+     WHERE "identityId" = $1 AND "principalId" = $2
+  `, [link.identityId, link.principalId, link.confidence, JSON.stringify(link.signals.join(',')),
+      link.accountType, link.accountTypePattern, link.displayName, link.accountEnabled]);
+  return 'updated';
 }
 
 /**
@@ -235,52 +277,14 @@ export async function runLinking(runId, configId = null) {
     const links = buildLinks(orphans, identities, rules);
 
     await updateRun({ step: 'Writing links', pct: 70 });
-    let created = 0, updated = 0, skipped = 0;
-    for (const link of links) {
-      // Never re-link an account the analyst rejected (from any identity).
-      const rejected = await db.queryOne(
-        `SELECT 1 FROM "IdentityMembers" WHERE "principalId" = $1 AND "analystOverride" = 'rejected' LIMIT 1`,
-        [link.principalId]
-      );
-      if (rejected) { skipped++; continue; }
-
-      const existing = await db.queryOne(
-        `SELECT "analystOverride" FROM "IdentityMembers" WHERE "identityId" = $1 AND "principalId" = $2`,
-        [link.identityId, link.principalId]
-      );
-      if (existing) {
-        if (existing.analystOverride) { skipped++; continue; } // analyst-touched → leave it
-        await db.query(`
-          UPDATE "IdentityMembers"
-             SET "linkConfidence" = $3, "linkSignals" = $4, "accountType" = $5,
-                 "accountTypePattern" = $6, "displayName" = $7, "accountEnabled" = $8
-           WHERE "identityId" = $1 AND "principalId" = $2
-        `, [link.identityId, link.principalId, link.confidence, JSON.stringify(link.signals.join(',')),
-            link.accountType, link.accountTypePattern, link.displayName, link.accountEnabled]);
-        updated++;
-      } else {
-        await db.query(`
-          INSERT INTO "IdentityMembers"
-            ("identityId", "principalId", "isPrimary", "accountType", "accountTypePattern",
-             "accountEnabled", "displayName", "linkSignals", "linkConfidence")
-          VALUES ($1, $2, false, $3, $4, $5, $6, $7, $8)
-          ON CONFLICT ("identityId", "principalId") DO NOTHING
-        `, [link.identityId, link.principalId, link.accountType, link.accountTypePattern,
-            link.accountEnabled, link.displayName, JSON.stringify(link.signals.join(',')), link.confidence]);
-        created++;
-      }
-    }
+    const counts = { created: 0, updated: 0, skipped: 0 };
+    for (const link of links) counts[await writeLink(link)] += 1;
+    const { created, updated, skipped } = counts;
 
     await updateRun({ step: 'Refreshing identity aggregates', pct: 85 });
     // Per-identity rollup: confidence = best newly-linked account, signals =
     // distinct union (stored CSV so the detail page's .split(',') keeps working).
-    const byIdentity = new Map();
-    for (const l of links) {
-      const g = byIdentity.get(l.identityId) || { conf: 0, signals: new Set() };
-      g.conf = Math.max(g.conf, l.confidence);
-      for (const s of l.signals) g.signals.add(s);
-      byIdentity.set(l.identityId, g);
-    }
+    const byIdentity = aggregateByIdentity(links);
     for (const [identityId, g] of byIdentity) {
       await db.query(`
         UPDATE "Identities"

@@ -47,35 +47,52 @@ function stripLeadingOrg(childOrg, parentOrg) {
   return childOrg.slice(i);
 }
 
+// Build one label-item per sibling: org path with the parent's prefix stripped,
+// plus the pieces needed to fall back when the org collapses to nothing.
+function buildLabelItems(list, parentOrg) {
+  return list.map(s => {
+    const { org, manager, full } = parseOrg(s.displayName);
+    return { id: s.id, org: stripLeadingOrg(org, parentOrg), manager, lastOrg: org[org.length - 1] || '', full };
+  });
+}
+
+// Length of the org prefix shared (by base) across every sibling.
+function commonSiblingPrefixLen(items) {
+  const minLen = Math.min(...items.map(it => it.org.length));
+  let common = 0;
+  while (common < minLen) {
+    const seg = items[0].org[common];
+    if (!seg || !items.every(it => segBase(it.org[common]) === segBase(seg))) break;
+    common++;
+  }
+  return common;
+}
+
+// Drop the org prefix common to all siblings in place (may collapse to
+// manager-only). Nothing to strip with fewer than two siblings.
+function dropCommonSiblingPrefix(items) {
+  if (items.length < 2) return;
+  const common = commonSiblingPrefixLen(items);
+  if (common > 0) for (const it of items) it.org = it.org.slice(common);
+}
+
+// One child's display label from its (already-stripped) label-item.
+function labelForItem(it) {
+  if (it.org.length > 0) return it.org.join(PATH_SEP) + (it.manager ? ` (${it.manager})` : '');
+  if (it.manager) return it.manager;   // org fully shared → just the delegate
+  return it.lastOrg || it.full;        // no manager to fall back on
+}
+
 // Compute each child's display label: collapse repeated segments, drop the
 // parent's org path (so the parent's name isn't echoed down the tree), then drop
 // any remaining org prefix common to all siblings. When a node's org is fully
 // shared with its parent/siblings — only the manager differs — show just the
 // manager's name. `parentOrg` is the parent's org segments ([] at the top).
 export function computeChildLabels(siblings, parentOrg = []) {
+  const items = buildLabelItems(siblings || [], parentOrg);
+  dropCommonSiblingPrefix(items);
   const map = new Map();
-  const list = siblings || [];
-  const items = list.map(s => {
-    const { org, manager, full } = parseOrg(s.displayName);
-    return { id: s.id, org: stripLeadingOrg(org, parentOrg), manager, lastOrg: org[org.length - 1] || '', full };
-  });
-  // Drop the org prefix common to all siblings (may collapse to manager-only).
-  if (items.length >= 2) {
-    const minLen = Math.min(...items.map(it => it.org.length));
-    let common = 0;
-    while (common < minLen) {
-      const seg = items[0].org[common];
-      if (seg && items.every(it => segBase(it.org[common]) === segBase(seg))) common++; else break;
-    }
-    if (common > 0) for (const it of items) it.org = it.org.slice(common);
-  }
-  for (const it of items) {
-    let label;
-    if (it.org.length > 0) label = it.org.join(PATH_SEP) + (it.manager ? ` (${it.manager})` : '');
-    else if (it.manager) label = it.manager;          // org fully shared → just the delegate
-    else label = it.lastOrg || it.full;               // no manager to fall back on
-    map.set(it.id, label);
-  }
+  for (const it of items) map.set(it.id, labelForItem(it));
   return map;
 }
 

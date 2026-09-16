@@ -719,13 +719,8 @@ function Sync-EntraPim {
 
             $batchOutput = Invoke-FGGroupPimBatchParallel -Batch @($batch) -Token $token -ThrottleLimit 16
 
-            # Group output by source group to compute pimGroupCount accurately
-            $groupSet = @{}
-            foreach ($r in $batchOutput) {
-                $pimRecordsList.Add((ConvertTo-EntraPimRecord -EligibilityRow $r))
-                $groupSet[$r.resourceId] = $true
-            }
-            $pimGroupCount += $groupSet.Count
+            # Fold the batch into $pimRecordsList and count the distinct groups it touched.
+            $pimGroupCount += Add-EntraPimBatchRecords -BatchOutput $batchOutput -RecordsList $pimRecordsList
 
             $pimChecked = [Math]::Min($i + $pimBatchSize, $pimTotal)
             $subPct = 61 + [int](([double]$pimChecked / $pimTotal) * 4)
@@ -736,12 +731,9 @@ function Sync-EntraPim {
         Write-Host "  Found $pimGroupCount PIM-enabled group(s) with $($pimRecords.Count) eligible memberships" -ForegroundColor Gray
 
         if ($pimRecords.Count -gt 0) {
-            # Dedup by (resourceId, principalId)
-            $seen = @{}
-            $pimRecords = @($pimRecords | Where-Object {
-                $k = "$($_.resourceId)|$($_.principalId)"
-                if ($seen.ContainsKey($k)) { $false } else { $seen[$k] = $true; $true }
-            })
+            # Dedup by (resourceId, principalId) — HashSet.Add returns $false for a dup.
+            $seen = [System.Collections.Generic.HashSet[string]]::new()
+            $pimRecords = @($pimRecords | Where-Object { $seen.Add("$($_.resourceId)|$($_.principalId)") })
             Send-IngestBatch -Endpoint 'ingest/resource-assignments' -SystemId $SystemId -SyncMode 'full' `
                 -Scope @{ assignmentType = 'Eligible'; resourceType = 'Group' } -Records $pimRecords
         }
@@ -793,8 +785,9 @@ function Get-EntraServicePrincipalData {
         try {
             $deltaUri = "https://graph.microsoft.com/beta/servicePrincipals/delta?`$deltatoken=$([uri]::EscapeDataString($spsToken))"
             $resp = Invoke-FGGetDeltaRequest -URI $deltaUri
-            $sps = @($resp.value | Where-Object { -not $_.'@removed' })
-            $removedSpIds = @($resp.value | Where-Object { $_.'@removed' } | ForEach-Object { $_.id })
+            $split = Split-FGDeltaResponse -Response $resp
+            $sps = $split.items
+            $removedSpIds = $split.removedIds
             $newSpsToken = $resp.deltaToken
             $spDeltaHit = $true
             Write-Host "  Delta: $($sps.Count) changed + $($removedSpIds.Count) removed" -ForegroundColor Gray
@@ -1024,11 +1017,10 @@ function Sync-EntraSignInLogs {
         $totalEvents = 0
         $sliceFailures = @()
 
-        # Per-event aggregation lives in Add-EntraSignInEventToAggregate
-        # (EntraIDCrawler.Transform.ps1): it folds one event into $agg (by
-        # reference) and returns $false when skipped. The skip counter stays in
-        # $script: scope so it survives the streaming ForEach-Object below (a
-        # plain local wouldn't propagate out of the pipeline block).
+        # Per-slice streaming lives in Invoke-EntraSignInSlice
+        # (EntraIDCrawler.Functions.ps1): it folds each event into $agg (by
+        # reference) via Add-EntraSignInEventToAggregate and returns the event and
+        # skip counts for the slice, which we accumulate here.
         $script:_signin_skipped = 0
 
         $nowUtc = (Get-Date).ToUniversalTime()
@@ -1038,20 +1030,11 @@ function Sync-EntraSignInLogs {
             $sliceFilter = [uri]::EscapeDataString("createdDateTime ge $sliceStart and createdDateTime lt $sliceEnd")
             $sliceUri = "https://graph.microsoft.com/beta/auditLogs/signIns?`$filter=$sliceFilter&`$top=999"
             Update-CrawlerProgress -Detail "Fetching day slice $($d + 1)/${SignInLogsDays}: $sliceStart..$sliceEnd"
-            $sliceCount = 0
             try {
-                # IMPORTANT: pipe directly into ForEach-Object so each Graph
-                # page can be GC'd as soon as it's aggregated. Assigning the
-                # result to a variable first would buffer the whole slice
-                # and defeat the streaming.
-                Invoke-FGGetRequestStream -URI $sliceUri | ForEach-Object {
-                    if (-not (Add-EntraSignInEventToAggregate -SignInEvent $_ -Aggregate $agg -AppIdToSpId $appIdToSpId)) {
-                        $script:_signin_skipped++
-                    }
-                    $sliceCount++
-                }
-                $totalEvents += $sliceCount
-                Write-Host "  Slice $($d + 1)/$SignInLogsDays ($sliceStart..$sliceEnd): $sliceCount events" -ForegroundColor Gray
+                $sliceResult = Invoke-EntraSignInSlice -SliceUri $sliceUri -Aggregate $agg -AppIdToSpId $appIdToSpId
+                $script:_signin_skipped += $sliceResult.skipped
+                $totalEvents += $sliceResult.count
+                Write-Host "  Slice $($d + 1)/$SignInLogsDays ($sliceStart..$sliceEnd): $($sliceResult.count) events" -ForegroundColor Gray
             } catch {
                 # One bad slice (typically an expired skiptoken 400 deep in
                 # pagination) doesn't abort the whole phase — we record it
@@ -1350,7 +1333,7 @@ function Get-EntraReviewDefApId {
     if ($resolved.reason -eq 'noscope') {
         $State.noScope++
         if ($State.sampleLogged -lt 2) {
-            Write-Host "    (sample skip, no scope/resourceScope.query on def $($Def.id): $($Def | ConvertTo-Json -Depth 3 -Compress))" -ForegroundColor DarkGray
+            Write-Host "    (sample skip, no scope/resourceScope.query on def $($Def.id) '$($Def.displayName)')" -ForegroundColor DarkGray
             $State.sampleLogged++
         }
     } else {
@@ -1462,8 +1445,9 @@ function Get-EntraUserData {
         try {
             $deltaUri = "https://graph.microsoft.com/beta/users/delta?`$deltatoken=$([uri]::EscapeDataString($usersToken))"
             $resp = Invoke-FGGetDeltaRequest -URI $deltaUri
-            $users = @($resp.value | Where-Object { -not $_.'@removed' })
-            $removedUserIds = @($resp.value | Where-Object { $_.'@removed' } | ForEach-Object { $_.id })
+            $split = Split-FGDeltaResponse -Response $resp
+            $users = $split.items
+            $removedUserIds = $split.removedIds
             $newUsersToken = $resp.deltaToken
             $deltaHit = $true
             Write-Host "  Delta: $($users.Count) changed + $($removedUserIds.Count) removed" -ForegroundColor Gray
@@ -1709,14 +1693,14 @@ function Set-EntraConfigExtras {
 
 # ─── Run initialization ──────────────────────────────────────────
 # Verify Ingest API connectivity, authenticate to Graph, and register/get the
-# EntraID system. Returns the resolved systemId (falls back to 1). Calls exit 1
+# EntraID system. Returns the resolved systemId (throws if none). Calls exit 1
 # if the API is unreachable — same as the original inline setup.
 function Initialize-EntraCrawlerRun {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)] [string]$ApiBaseUrl,
         [Parameter(Mandatory)] [string]$ApiKey,
-        [Parameter(Mandatory)] [string]$ConfigFile
+        [string]$TenantId, [string]$ClientId, [string]$ClientSecret
     )
     Write-Host "`n=== FortigiGraph EntraID Crawler ===" -ForegroundColor Cyan
     Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Starting EntraID sync via Ingest API" -ForegroundColor Cyan
@@ -1733,7 +1717,8 @@ function Initialize-EntraCrawlerRun {
     }
 
     Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Authenticating to Microsoft Graph..." -ForegroundColor Cyan
-    Get-FGAccessToken -ConfigFile $ConfigFile | Out-Null
+    # In memory only — never via a credentials file (SEC-2026-09 L-07).
+    Get-FGAccessToken -TenantId $TenantId -ClientId $ClientId -ClientSecret $ClientSecret | Out-Null
 
     Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Registering system..." -ForegroundColor Cyan
     $systemResult = Invoke-IngestAPI -Endpoint 'ingest/systems' -Body @{
@@ -1748,14 +1733,9 @@ function Initialize-EntraCrawlerRun {
     }
 
     # ingest/systems returns systemIds[] after merging the record(s).
-    $systemId = $null
-    if ($systemResult.systemIds -and $systemResult.systemIds.Count -gt 0) {
-        $systemId = [int]$systemResult.systemIds[0]
-    }
-    if (-not $systemId) {
-        Write-Host "  WARNING: ingest/systems did not return a systemId — falling back to 1" -ForegroundColor Yellow
-        $systemId = 1
-    }
+    # Every scoped full-sync reconcile is keyed on this id: never guess one (SEC-2026-09 M-11).
+    $systemId = if ($systemResult.systemIds -and $systemResult.systemIds.Count -gt 0) { [int]$systemResult.systemIds[0] } else { 0 }
+    if ($systemId -le 0) { throw "Could not resolve the Entra ID system id after registration" }
     Write-Host "  System ID: $systemId" -ForegroundColor Green
     return $systemId
 }

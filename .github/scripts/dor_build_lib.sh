@@ -4,11 +4,21 @@
 #   dor_feedback_flow.sh  — a requestor-feedback adjustment on an already-built feature
 #
 # Source this ("source dor_build_lib.sh"); do NOT execute it. The caller must export at least
-# ISSUE REPO URL HOST WORK GH_TOKEN BOARD_TOKEN before sourcing; everything else is derived here so
-# both flows stay in lock-step. Set FLOW_NOUN (e.g. "build" / "adjustment") before sourcing to tune
+# ISSUE REPO URL HOST WORK before sourcing, plus GH_TOKEN BOARD_TOKEN — either directly, or staged as
+# files in DOR_CRED_DIR, which is how the workflows hand them over (see dor_agent_sandbox.sh).
+# Everything else is derived here so both flows stay in lock-step. Set FLOW_NOUN (e.g. "build" / "adjustment") before sourcing to tune
 # the human-facing wording of bail()/pause().
 
 export PATH="$HOME/.local/bin:$PATH"
+
+# The agent-isolation helpers (credential hand-off, scrubbed agent env, git-state restore, output
+# guards). Sourced first: load_flow_credentials must run before anything below needs a token.
+# shellcheck source=dor_agent_sandbox.sh
+source "$(dirname "${BASH_SOURCE[0]}")/dor_agent_sandbox.sh"
+load_flow_credentials
+# Checkpoint + continue across workflow steps when BOARD_TOKEN nears its 1h expiry.
+# shellcheck source=dor_token_checkpoint.sh
+source "$(dirname "${BASH_SOURCE[0]}")/dor_token_checkpoint.sh"
 
 # ── Derived config (identical across both flows) ──────────────────────────────────────────────────
 BRANCH="dor/issue-${ISSUE}"
@@ -157,6 +167,14 @@ prove_red_against_main() {  # $1 = git range
   esac
 }
 
+# Paths on stdin (one per line) -> a PowerShell array literal: 'a.Tests.ps1','b.Tests.ps1'.
+# Invoke-Pester's -Path takes ONE value; space-separated paths leave every path after the first as a
+# stray positional, and Pester refuses the whole call before running a single test. #1216 went to
+# Exceptions that way: its fix was correct, but it touched two .Tests.ps1 files.
+pester_path_list() {
+  grep -v '^$' | sed -e "s/'/''/g" -e "s/.*/'&'/" | paste -sd, - || true
+}
+
 # Run the unit tests a range touched, each in its own suite. Output -> /tmp/unit.log
 #   0 = all passed   1 = something failed   3 = the range contains no unit test
 #   4 = there are tests but this box cannot run them (Pester-only change; the pool has no pwsh)
@@ -166,7 +184,7 @@ run_touched_tests() {  # $1 = git range
   [ -n "$files" ] || return 3
   ui="$(printf '%s\n' "$files"  | grep '^app/ui/'  | sed 's#^app/ui/##'  | tr '\n' ' ')"
   api="$(printf '%s\n' "$files" | grep '^app/api/' | sed 's#^app/api/##' | tr '\n' ' ')"
-  ps="$(printf '%s\n' "$files"  | grep -E '\.Tests\.ps1$' | tr '\n' ' ')"
+  ps="$(printf '%s\n' "$files"  | grep -E '\.Tests\.ps1$' | pester_path_list)"
   : > /tmp/unit.log
   if [ -n "${ps// }" ] && [ -z "${ui// }" ] && [ -z "${api// }" ] && ! command -v pwsh >/dev/null 2>&1; then
     echo "The only tests in this change are PowerShell (Pester), and this sidekick has no pwsh installed." >> /tmp/unit.log
@@ -180,49 +198,16 @@ run_touched_tests() {  # $1 = git range
   if [ -n "${api// }" ]; then
     ( cd "$WORK/app/api" && { [ -d node_modules ] || npm ci >/dev/null 2>&1; }; npx vitest run $api ) >>/tmp/unit.log 2>&1 || rc=1
   fi
-  # shellcheck disable=SC2086
   if [ -n "${ps// }" ] && command -v pwsh >/dev/null 2>&1; then
     ( cd "$WORK" && pwsh -NoProfile -Command "Invoke-Pester -Path $ps -CI" ) >>/tmp/unit.log 2>&1 || rc=1
   fi
   return $rc
 }
 
-# This sidekick's stable runner label, derived from its hostname: dev-docker-08 -> sk8 (10# strips
-# the leading zero, so 03 -> sk3 and 10 -> sk10 both work).
-sk_label() { local n; n="$(hostname)"; n="${n##*-}"; printf 'sk%d' "$((10#$n))"; }
-
-# Claim this box for the issue, recording the holder in BOTH places that need to know:
-#   ~/.dor-reservation   the box's own authority ("<PR> <ISSUE>"), read once a job is ON the box;
-#   sk:<label> on the ISSUE   the GitHub-readable mirror, so reset/feedback can dispatch STRAIGHT
-#                             to the holder instead of fanning a job out to every sidekick.
-# The label is a routing hint and never the authority — the job that lands still verifies against
-# the file, so a stale label costs one no-op rather than the wrong box being wiped. $1 = PR number.
-claim_sidekick() {
-  echo "$1 $ISSUE" > "$HOME/.dor-reservation"
-  local mine="sk:$(sk_label)" stale
-  # The claim is EXCLUSIVE. A re-dispatched build (infra death, usage-limit resume) is scheduled by
-  # POOL label, so it can land on a different box than the attempt before it — and two sk:* labels on
-  # one issue would leave the resolver picking whichever the API returned first. Drop any other claim
-  # as we take ours.
-  stale="$(gh issue view "$ISSUE" --repo "$REPO" --json labels \
-           --jq "[.labels[].name | select(startswith(\"sk:\")) | select(. != \"$mine\")] | join(\",\")" 2>/dev/null || true)"
-  # shellcheck disable=SC2086  # label names never contain spaces; this expansion must stay unquoted
-  gh issue edit "$ISSUE" --repo "$REPO" --add-label "$mine" ${stale:+--remove-label "$stale"} >/dev/null 2>&1 \
-    || echo "::warning::could not label #$ISSUE with $mine — its sidekick will need releasing by hand"
-  [ -n "$stale" ] && echo "::notice::claim moved to $mine (dropped $stale) — the old box may still hold a stale stack"
-  # Exclusive to the BOX, not just to this issue. The line above only clears OTHER boxes claimed by
-  # THIS issue; a previous holder of this box keeps its label, and two open issues then name one
-  # sidekick. That is silent, not loud: dor-acceptance dispatches the stale claimant's next
-  # `/rework` here, this box answers "not my issue", and the job exits without a word to the
-  # requestor. We hold the reservation now, so any other claim on it is stale by construction (#1011).
-  local other
-  for other in $(gh issue list --repo "$REPO" --state open --label "$mine" --json number \
-                 --jq ".[].number | select(. != $ISSUE)" 2>/dev/null || true); do
-    gh issue edit "$other" --repo "$REPO" --remove-label "$mine" >/dev/null 2>&1 \
-      && echo "::notice::dropped the stale $mine claim from #$other — this box now holds #$ISSUE"
-  done
-  return 0
-}
+# sk_label / sidekick_holder / require_free_sidekick / claim_sidekick: which box a build may take,
+# and how it takes one without wiping another issue's env.
+# shellcheck source=dor_sidekick_claim.sh
+source "$(dirname "${BASH_SOURCE[0]}")/dor_sidekick_claim.sh"
 
 # The config key actions/checkout stores its token in. An HTTP Authorization header set here BEATS
 # the userinfo in a push URL, so while it is live nothing the flow does can choose its own identity.
@@ -248,13 +233,18 @@ drop_checkout_credentials() {
   return 0
 }
 
-# Make git push/fetch on THIS checkout authenticate as the BOT app instead of the job's GITHUB_TOKEN.
+# Prepare THIS checkout so the only identity a push can use is the BOT app's, supplied per push.
 # GitHub suppresses workflow runs for commits pushed with GITHUB_TOKEN (anti-recursion) — which is why
 # the bot PR got ZERO CI checks. Pushing as the app makes the PR's CI actually run. Call once, after
 # checkout, before any push. (BOARD_TOKEN must carry contents:write.)
+#
+# origin itself stays ANONYMOUS. This used to write the app token into the origin URL, which left a
+# push-capable credential in .git/config for the whole run, readable by the agent working in the same
+# checkout (SEC-2026-09 H-05). The repository is public, so fetches need no credential, and every push
+# goes through push_as_app, which hands the token to that one command only.
 use_bot_remote() {
   drop_checkout_credentials
-  git -C "$WORK" remote set-url origin "$(app_remote_url)"
+  git -C "$WORK" remote set-url origin "https://github.com/${REPO}.git"
 }
 
 # The app-authenticated remote URL. Factored out so use_bot_remote, push_as_app's lease resolution
@@ -289,8 +279,16 @@ app_remote_url() { printf '%s' "https://x-access-token:${BOARD_TOKEN}@github.com
 # pushing to a URL, and these branches are held by one reserved sidekick at a time anyway. An
 # explicit `--force-with-lease=<ref>:<sha>` from a caller is passed through untouched.
 push_as_app() {  # $@ = refspec + flags
-  local url dst="" a sha hdr
+  local url dst="" a sha hdr blocked
   url="$(app_remote_url)"
+
+  # Nothing that changes .github/ leaves this box, whoever calls. The flows check first so they can
+  # say why (guard_protected_paths); this is the backstop for a push that did not.
+  blocked="$(protected_path_changes)"
+  if [ -n "$blocked" ]; then
+    echo "::error::refusing to push: the branch changes protected CI paths: $(printf '%s' "$blocked" | tr '\n' ' ')"
+    return 1
+  fi
   for a in "$@"; do case "$a" in *:refs/heads/*) dst="${a#*:}" ;; esac; done
 
   # Reset the Authorization header for github.com on the command line, which outranks every config
@@ -331,13 +329,18 @@ push_as_app() {  # $@ = refspec + flags
 
 # Run the AI once. $1=prompt $2=outfile $3=max-turns. Returns: 0 ok · 2 usage/spend LIMIT (429, → pause)
 # · 1 any other error (→ bail). Centralises model, turn cap, terse output, and limit detection.
+#
+# The CLI runs through agent_exec, so it starts without GH_TOKEN, BOARD_TOKEN or any other credential
+# in its environment, and the checkout's git config and hooks are put back the moment it returns.
 run_claude() {
-  claude -p "$1${TERSE}" \
+  snapshot_git_state
+  agent_exec claude -p "$1${TERSE}" \
     --allowedTools "Read,Edit,Write,Bash,Grep,Glob" \
     --model "$MODEL" --fallback-model "$FALLBACK_MODEL" \
     --max-turns "${3:-$FIX_TURNS}" \
     --output-format json >"$2" 2>&1
   local rc=$?
+  restore_git_state
   # A usage/spend limit is NOT a code failure — the caller should PAUSE, not route to Exceptions.
   if grep -qE '"api_error_status"[[:space:]]*:[[:space:]]*429' "$2" 2>/dev/null \
      || grep -qiE 'spend limit|usage limit|reached your.*limit|hit your (org|plan|weekly)' "$2" 2>/dev/null; then
@@ -347,6 +350,22 @@ run_claude() {
   grep -qE '"subtype"[[:space:]]*:[[:space:]]*"error_max_turns"' "$2" 2>/dev/null && return 3
   grep -qE '"is_error"[[:space:]]*:[[:space:]]*true' "$2" 2>/dev/null && return 1
   return "$rc"
+}
+
+# Stop the flow if the branch changes .github/ (see protected_path_changes). Call before every push.
+guard_protected_paths() {
+  local hit; hit="$(protected_path_changes)"
+  [ -z "$hit" ] && return 0
+  bail "the change modifies protected CI paths ($(printf '%s' "$hit" | tr '\n' ' ')). An automated build may never change workflows or pipeline scripts, which run with repository secrets — a maintainer must review this by hand."
+}
+
+# Tell the PR reviewer when the branch touches container, compose or dependency definitions. Never
+# blocking. $1 = PR number, $2 = what was already reported (the PR body, or the state before this
+# run), so an unchanged list is not posted again on every adjustment.
+note_supply_chain_changes() {
+  local section; section="$(supply_chain_section)"
+  { [ -n "$section" ] && [ "$section" != "${2:-}" ]; } || return 0
+  gh pr comment "$1" --repo "$REPO" --body "$(printf '🔎 **For the merge review**%s' "$section")" >/dev/null 2>&1 || true
 }
 
 # Route to the Exceptions column + notify maintainers, then stop. Called on any unrecoverable failure.
@@ -367,11 +386,18 @@ bail() {
 pause_and_exit() {
   local reason="$1"
   echo "::warning::PAUSING (${FLOW_NOUN}): ${reason}"
-  touch "${RUNNER_TEMP:-/tmp}/dor-paused"   # tell the workflow's failure backstop this is a pause
+  # A paused branch is resumed from later, so it gets the same guard as every other push. Checked
+  # BEFORE the pause marker: a refusal here is an Exception, not a pause.
+  guard_protected_paths
   git -C "$WORK" restore --source=HEAD --staged --worktree -- .github 2>/dev/null || true
   git -C "$WORK" add -A 2>/dev/null || true
   git -C "$WORK" diff --cached --quiet 2>/dev/null || git -C "$WORK" commit -q -m "wip: paused on usage limit (#${ISSUE})" 2>/dev/null || true
-  git -C "$WORK" push --force-with-lease origin "$BRANCH" 2>/dev/null || true
+  # An expired token would silently lose the WIP push; hand over to a fresh-token step instead, which
+  # comes back here. Before the pause marker, so a run that ends up bailing is not reconciled as paused.
+  board_token_stale && checkpoint_and_exit pause "" 0 "$reason"
+  touch "${RUNNER_TEMP:-/tmp}/dor-paused"   # tell the workflow's failure backstop this is a pause
+  # origin is anonymous, so the WIP goes out as the app like every other push.
+  push_as_app --force-with-lease "HEAD:refs/heads/$BRANCH" >/dev/null 2>&1 || true
   GH_TOKEN="$BOARD_TOKEN" bash "$SCRIPTS/dor_set_status.sh" "$ISSUE" paused 2>/dev/null || true
   gh issue edit "$ISSUE" --repo "$REPO" --add-label dor-paused --remove-label ready-to-build >/dev/null 2>&1 || true
   comment_issue "$(printf '⏸️ **Paused** — hit a Claude usage limit. Work is saved on `%s`; will **auto-resume** when capacity returns (no action needed).' "$BRANCH")"
@@ -505,8 +531,10 @@ ci_state() {
 # The verify loop shared by both flows: deploy+seed → e2e on live env → CI. The AI fixer is invoked
 # ONLY on a REAL failure (e2e failed, or a required check is red) — never merely because CI hasn't
 # reported yet (that spin is what burned a week of budget). $1 = the open PR number.
+# $2 = fix attempts already spent — non-zero only when resuming after a token refresh, so a
+# continuation never gets fresh attempts on top of MAX_ATTEMPTS.
 verify_loop() {
-  local pr="$1" attempt=0 e2e_rc ci ctx infra_waits=0
+  local pr="$1" attempt="${2:-0}" e2e_rc ci ctx infra_waits=0
   while : ; do
     deploy_and_seed || bail "deploy/seed of the live env failed on $HOST (infra)"
     run_feature_e2e; e2e_rc=$?
@@ -556,6 +584,7 @@ verify_loop() {
     if ! git diff --cached --quiet; then
       git commit -q -m "fix: address e2e/CI failures (attempt ${attempt}, #${ISSUE})" || bail "git commit failed during fix (attempt ${attempt})"
     fi
-    push_as_app --force-with-lease "HEAD:refs/heads/$BRANCH" || bail "could not push fix on attempt ${attempt}"
+    guard_protected_paths
+    push_or_checkpoint verify "$pr" "$attempt" || bail "could not push fix on attempt ${attempt}"
   done
 }

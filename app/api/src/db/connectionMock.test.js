@@ -32,7 +32,7 @@ const CONVERTED = [
 // Committed floor — the inline `vi.mock('../db/connection.js', () => ({...}))`
 // factories still present after the #665 conversion. Lower it when you convert
 // more files; never raise it.
-const INLINE_FACTORY_BASELINE = 61;
+const INLINE_FACTORY_BASELINE = 60;
 const INLINE_FACTORY = /vi\.mock\(\s*['"][^'"]*db\/connection\.js['"]\s*,/;
 
 function walk(dir) {

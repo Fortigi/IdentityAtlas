@@ -123,7 +123,7 @@ try {
     Write-Host "  Mock midPoint server started on port $($mock.Port)" -ForegroundColor Gray
 
     $runTag  = [guid]::NewGuid().ToString('N').Substring(0, 8)
-    $config  = @{ baseUrl = "http://host.docker.internal:$($mock.Port)/midpoint"; authMethod = 'BasicAuth'; username = 'administrator'; password = 'test'; pageSize = 100 }
+    $config  = @{ baseUrl = "http://host.docker.internal:$($mock.Port)/midpoint"; authMethod = 'BasicAuth'; username = 'administrator'; password = 'test'; pageSize = 100; allowPrivateNetwork = $true; allowInsecureHttp = $true }
     try {
         $cfg = Invoke-AtlasApi -Method POST -Path '/admin/crawler-configs' -Body @{ crawlerType = 'midpoint'; displayName = "midpoint-it-$runTag"; config = $config }
         $configId = $cfg.id

@@ -57,6 +57,12 @@ concurrency:
   group: pr-checks-${{ github.ref }}
   cancel-in-progress: true
 
+# Least privilege for GITHUB_TOKEN (SEC-2026-09 L-19). Every job reads the repository; the one that
+# needs more asks for it itself. Today that is only the path filter, which lists the PR's changed
+# files through the API. Artifacts and the Actions cache use the runner's own token, not this one.
+permissions:
+  contents: read
+
 env:
   DOTNET_NOLOGO: true
   POWERSHELL_TELEMETRY_OPTOUT: 1
@@ -117,6 +123,9 @@ jobs:
     needs: [changes]
     if: needs.changes.outputs.has_product_changes == 'true'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read   # dorny/paths-filter reads the PR's changed-file list via the API
     outputs:
       ps:      ${{ steps.f.outputs.ps }}
       pester:  ${{ steps.f.outputs.pester }}
@@ -144,8 +153,16 @@ jobs:
               - 'tools/powershell-sdk/**'
               - 'tools/crawlers/shared/**'
               - 'setup/docker/Invoke-CrawlerJob.ps1'
+              - 'setup/docker/Invoke-CrawlerJobProcess.ps1'
+              - 'setup/docker/Build-FGContexts.ps1'
               - 'setup/IdentityAtlas.psm1'
               - 'test/unit/**'
+              - 'azure/**'
+              # Self-referencing, as coverage.yml does: editing the scope config or this job's
+              # own definition must run the job it configures, not silently skip it (#1088).
+              - '.ci/psmutant.config.json'
+              - '.ci/psmutant-scope-baseline.json'
+              - '.github/workflows/pr.yml'
             api:
               - 'app/api/src/**'
               - 'app/api/contract-tests/**'
@@ -160,6 +177,9 @@ jobs:
               - 'app/api/vitest.config.js'
               - 'app/api/vitest.contract.config.js'
               - 'app/api/eslint.config.js'
+              # The desktop job worker's tests run in the API Vitest suite.
+              - 'app/desktop/*.cjs'
+              - 'app/desktop/*.test.js'
             ui:
               - 'app/ui/src/**'
               - 'app/ui/package.json'
@@ -249,7 +269,6 @@ jobs:
             'PSUseProcessBlockForPipelineCommand'      # these functions are not designed for pipeline use
             'PSAvoidUsingEmptyCatchBlock'              # empty catches are intentional for non-critical operations
             'PSUseDeclaredVarsMoreThanAssignments'     # investigate separately; too noisy for CI gate
-            'PSAvoidUsingInvokeExpression'             # scheduler crontab is image-baked, not dynamic user input
             'PSReviewUnusedParameter'                  # some parameters are kept for dispatcher API compatibility
           )
           $results = @()
@@ -334,9 +353,12 @@ jobs:
           $cfg.Run.Path = 'test/unit'
           $cfg.Run.PassThru = $true
           $cfg.Output.Verbosity = 'Detailed'
-          $cfg.TestResult.Enabled = $true
-          $cfg.TestResult.OutputPath = 'pester-results.xml'
-          $cfg.TestResult.OutputFormat = 'JUnitXml'
+          # TestResult (JUnit/NUnit) export is deliberately OFF. Pester's XML writers don't sanitize
+          # FailureMessage, so the ESC byte its own assertion diff embeds throws out of Invoke-Pester
+          # and $result never gets assigned — the failure gate below then reads $null and passes, and
+          # the job dies on the coverage floor at 0% instead. pester/Pester#2511 fixed this for
+          # captured test output only; both formats and both 5.7.1/5.9.0 crash the same way. Nothing
+          # consumed pester-results.xml, and Output.Verbosity already logs every test's outcome.
           $cfg.CodeCoverage.Enabled = $true
           # Measure PRODUCT code only. Enumerate the .ps1 files and drop tooling
           # that lives inside these dirs but isn't the crawler/SDK itself —
@@ -356,6 +378,12 @@ jobs:
           $cfg.CodeCoverage.OutputPath = 'pester-coverage.xml'
           $cfg.CodeCoverage.OutputFormat = 'JaCoCo'
           $result = Invoke-Pester -Configuration $cfg
+          # Anything Invoke-Pester throws leaves $result unassigned, and every check below then reads
+          # properties off $null and passes. Fail on the missing object before interpreting it.
+          if (-not $result) {
+            Write-Host '::error::Invoke-Pester returned no result object — it threw before returning (see the error above). The test outcome is UNKNOWN, not a pass.'
+            exit 1
+          }
           $pct = [Math]::Round($result.CodeCoverage.CoveragePercent, 1)
           Write-Host "Coverage: $pct%"
           if ($result.FailedCount -gt 0) { exit 1 }
@@ -374,9 +402,7 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: pester-results
-          path: |
-            pester-results.xml
-            pester-coverage.xml
+          path: pester-coverage.xml
           retention-days: 14
 
   # ── Stage 4: API unit tests (Vitest) ────────────────────────────────────
@@ -874,7 +900,7 @@ jobs:
       # The PowerShell measurer is the published PSComplexity module.
       - name: Install PSComplexity (PowerShell complexity measurer)
         shell: pwsh
-        run: Install-Module PSComplexity -RequiredVersion 0.1.0 -Force -Scope CurrentUser
+        run: Install-Module PSComplexity -RequiredVersion 0.5.1 -Force -Scope CurrentUser
 
       # Validate the ratchet gate logic (Python) before it gates anything.
       - name: Test the ratchet gate logic
@@ -909,8 +935,28 @@ jobs:
           bash test/ci-scripts/test-commit-range.sh
           bash test/ci-scripts/test-dor-gate-notice.sh
           bash test/ci-scripts/test-dor-reconcile-liveness.sh
+          bash test/ci-scripts/test-dor-reconcile-selfheal.sh
           bash test/ci-scripts/test-dor-push-lease.sh
+          bash test/ci-scripts/test-dor-finalize-merged-pr.sh
+          bash test/ci-scripts/test-dor-sidekick-claim.sh
+          bash test/ci-scripts/test-dor-run-touched-tests.sh
+          bash test/ci-scripts/test-dor-drop-workflow-labels.sh
+          bash test/ci-scripts/test-dor-trusted-spec.sh
+          bash test/ci-scripts/test-dor-agent-sandbox.sh
+          bash test/ci-scripts/test-dor-token-checkpoint.sh
           bash test/ci-scripts/test-gate-wiring.sh
+
+      # The two Python tools that render and feed the Test Coverage docs page.
+      # Both are run only by post-merge workflows (coverage.yml, js-mutation.yml),
+      # so without this step a PR could break the page and nothing would say so
+      # until it had already landed on main — which is how these tests came to
+      # exist and never run. The ratchet gates test their own logic in their own
+      # jobs; these have no gate job to live in, so they live here.
+      - name: Test the coverage-docs tooling
+        run: |
+          python3 -m pip install --quiet pytest
+          python3 -m pytest tools/test_generate_coverage_doc.py \
+                            tools/mutation/test_stryker_to_mutation_json.py -q
 
   # ── Stage 15: Docs site build (strict) ────────────────────────────────────
   # `docs.yml` publishes the site, but it only runs on push to main — so until

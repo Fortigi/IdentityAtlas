@@ -105,184 +105,221 @@ function Get-DisplayNameField($row) {
     return $null
 }
 
-Write-Host "`n=== Entity Detail Graph Node Clickthrough ===" -ForegroundColor Cyan
-Write-Host ("  API base: {0}" -f $ApiBaseUrl)
-
-# ── Collect sample entities ──────────────────────────────────────────
-Write-Host "`n  Sampling entities from the running stack..." -ForegroundColor Gray
-
-$usersResp = Get-Json "/permissions/users?limit=$SampleSize"
-$userIds = @()
-if (-not (Test-IsError $usersResp) -and $usersResp.users) {
-    $userIds = @(($usersResp.users | Where-Object { $_.id }) | Select-Object -First $SampleSize -ExpandProperty id)
+# Normalise a list/scalar/null response into a row count without
+# unrolling surprises: array -> element count, single object -> 1, else 0.
+function Get-RowCount($Rows) {
+    if ($Rows -is [array]) { return $Rows.Count }
+    if ($Rows) { return 1 }
+    return 0
 }
-# Permissions endpoint requires auth in some configurations. Fall back to
-# pulling member principalIds out of the identity detail responses —
-# every identity has at least one linked account even when the summary
-# row doesn't expose the primary account directly.
-if ($userIds.Count -eq 0) {
+
+# ── Sampling ─────────────────────────────────────────────────────────
+# Pull member principalIds out of an identity's detail response, stopping
+# once we have enough. Returns the (possibly grown) accumulator.
+function Add-MemberPrincipalIds([array]$Acc, $Detail) {
+    foreach ($m in $Detail.members) {
+        if ($Acc.Count -ge $SampleSize) { break }
+        if ($m.principalId) { $Acc += $m.principalId }
+    }
+    return ,$Acc
+}
+
+# Fallback user sampling: the permissions endpoint requires auth in some
+# configurations. Pull member principalIds out of the identity detail
+# responses — every identity has at least one linked account even when the
+# summary row doesn't expose the primary account directly.
+function Get-SampleUserIdsFromIdentities {
+    $userIds = @()
     $idents = Get-Json "/identities?limit=10"
-    if (-not (Test-IsError $idents) -and $idents.data) {
-        foreach ($row in $idents.data) {
-            if ($userIds.Count -ge $SampleSize) { break }
-            $detail = Get-Json "/identities/$($row.id)"
-            if (Test-IsError $detail) { continue }
-            foreach ($m in $detail.members) {
-                if ($userIds.Count -ge $SampleSize) { break }
-                if ($m.principalId) { $userIds += $m.principalId }
-            }
-        }
+    if ((Test-IsError $idents) -or -not $idents.data) { return ,$userIds }
+    foreach ($row in $idents.data) {
+        if ($userIds.Count -ge $SampleSize) { break }
+        $detail = Get-Json "/identities/$($row.id)"
+        if (Test-IsError $detail) { continue }
+        $userIds = Add-MemberPrincipalIds $userIds $detail
+    }
+    return ,$userIds
+}
+
+function Get-SampleUserIds {
+    $usersResp = Get-Json "/permissions/users?limit=$SampleSize"
+    $userIds = @()
+    if (-not (Test-IsError $usersResp) -and $usersResp.users) {
+        $userIds = @(($usersResp.users | Where-Object { $_.id }) | Select-Object -First $SampleSize -ExpandProperty id)
+    }
+    if ($userIds.Count -eq 0) {
+        $userIds = Get-SampleUserIdsFromIdentities
+    }
+    return ,$userIds
+}
+
+# Sample up to SampleSize entities of each kind from the running stack.
+function Get-EntitySamples {
+    $userIds = Get-SampleUserIds
+
+    $resourcesResp = Get-Json "/resources?limit=$SampleSize"
+    $resourceIds   = @(($resourcesResp.data  | Where-Object { $_.id }) | Select-Object -First $SampleSize -ExpandProperty id)
+
+    $identitiesResp = Get-Json "/identities?limit=$SampleSize"
+    $identityIds    = @(($identitiesResp.data | Where-Object { $_.id }) | Select-Object -First $SampleSize -ExpandProperty id)
+
+    # Business roles: sample from /resources?resourceType=BusinessRole (first few)
+    $brResp = Get-Json "/resources?limit=$SampleSize&resourceType=BusinessRole"
+    $brIds  = @(($brResp.data | Where-Object { $_.id }) | Select-Object -First $SampleSize -ExpandProperty id)
+
+    return @{
+        UserIds     = @($userIds)
+        ResourceIds = @($resourceIds)
+        IdentityIds = @($identityIds)
+        BrIds       = @($brIds)
     }
 }
 
-$resourcesResp = Get-Json "/resources?limit=$SampleSize"
-$resourceIds   = @(($resourcesResp.data  | Where-Object { $_.id }) | Select-Object -First $SampleSize -ExpandProperty id)
+# ── User graph nodes ─────────────────────────────────────────────────
+function Invoke-UserNodeSpec([string]$UserName, $Spec) {
+    if ([int]$Spec.count -le 0) { return }  # only test active nodes — dimmed ones stay dim
 
-$identitiesResp = Get-Json "/identities?limit=$SampleSize"
-$identityIds    = @(($identitiesResp.data | Where-Object { $_.id }) | Select-Object -First $SampleSize -ExpandProperty id)
+    $resp = Get-Json $Spec.url
+    if (Test-IsError $resp) { Record "User/$UserName/$($Spec.node)/Http" $false "HTTP $($resp.__statusCode) $($resp.__error)"; return }
 
-# Business roles: sample from /resources?resourceType=BusinessRole (first few)
-$brResp = Get-Json "/resources?limit=$SampleSize&resourceType=BusinessRole"
-$brIds  = @(($brResp.data | Where-Object { $_.id }) | Select-Object -First $SampleSize -ExpandProperty id)
+    $rows = $resp
+    if ($Spec.unwrap)    { $rows = $resp.$($Spec.unwrap) }
+    elseif ($Spec.unwrapObj) { $rows = if ($resp) { @($resp) } else { @() } }
+    if ($Spec.filter)    { $rows = @($rows | Where-Object { $_.membershipType -eq $Spec.filter }) }
 
-Write-Host ("    users:         {0}" -f $userIds.Count)
-Write-Host ("    resources:     {0}" -f $resourceIds.Count)
-Write-Host ("    identities:    {0}" -f $identityIds.Count)
-Write-Host ("    businessRoles: {0}" -f $brIds.Count)
+    $rowCount = Get-RowCount $rows
+    Record "User/$UserName/$($Spec.node)/Clickable" ($rowCount -gt 0) "count=$($Spec.count) rows=$rowCount"
 
-if ($userIds.Count -eq 0 -and $resourceIds.Count -eq 0 -and $identityIds.Count -eq 0) {
-    Record 'EntityGraphNodes/HasData' $false 'no sample entities returned by the API — load demo or run the crawler first'
-    exit 1
+    if ($rowCount -gt 0) {
+        $name = Get-DisplayNameField (@($rows)[0])
+        Record "User/$UserName/$($Spec.node)/RowHasName" ([bool]$name) "first row name='$name'"
+    }
 }
 
-# ── User graph nodes ─────────────────────────────────────────────────
-Write-Host "`n  -- User graph nodes --" -ForegroundColor Gray
-foreach ($uid in $userIds) {
-    $core = Get-Json "/user/$uid"
-    if (Test-IsError $core) { Record "User/$uid/Core" $false "HTTP $($core.__statusCode): $($core.__error)"; continue }
-    $userName = $core.attributes.displayName
+function Test-UserGraphNodes([array]$UserIds) {
+    Write-Host "`n  -- User graph nodes --" -ForegroundColor Gray
+    foreach ($uid in $UserIds) {
+        $core = Get-Json "/user/$uid"
+        if (Test-IsError $core) { Record "User/$uid/Core" $false "HTTP $($core.__statusCode): $($core.__error)"; continue }
+        $userName = $core.attributes.displayName
 
-    # Node → (expected count source, list endpoint, filter in list)
-    $specs = @(
-        @{ node='manager';           count = $(if ($core.attributes.managerId) { 1 } else { 0 });                       url = "/org-chart/user/$uid/manager";     unwrap = 'manager' }
-        @{ node='reports';           count = $core.directReportCount;                                                    url = "/org-chart/user/$uid/reports";      unwrap = 'reports' }
-        @{ node='context';           count = $(if ($core.attributes.contextId) { 1 } else { 0 });                        url = "/contexts/$($core.attributes.contextId)"; unwrap = 'attributes' }
-        @{ node='groups-direct';     count = $core.membershipByType.Direct;                                              url = "/user/$uid/memberships";            filter = 'Direct' }
-        @{ node='groups-indirect';   count = $core.membershipByType.Indirect;                                            url = "/user/$uid/memberships";            filter = 'Indirect' }
-        @{ node='groups-owner';      count = $core.membershipByType.Owner;                                               url = "/user/$uid/memberships";            filter = 'Owner' }
-        @{ node='groups-eligible';   count = $core.membershipByType.Eligible;                                            url = "/user/$uid/memberships";            filter = 'Eligible' }
-        @{ node='access-packages';   count = $core.accessPackageCount;                                                   url = "/user/$uid/access-packages" }
-        @{ node='oauth2-grants';     count = $core.oauth2GrantCount;                                                     url = "/user/$uid/oauth2-grants" }
-    )
+        # Node → (expected count source, list endpoint, filter in list)
+        $specs = @(
+            @{ node='manager';           count = $(if ($core.attributes.managerId) { 1 } else { 0 });                       url = "/org-chart/user/$uid/manager";     unwrap = 'manager' }
+            @{ node='reports';           count = $core.directReportCount;                                                    url = "/org-chart/user/$uid/reports";      unwrap = 'reports' }
+            @{ node='context';           count = $(if ($core.attributes.contextId) { 1 } else { 0 });                        url = "/contexts/$($core.attributes.contextId)"; unwrap = 'attributes' }
+            @{ node='groups-direct';     count = $core.membershipByType.Direct;                                              url = "/user/$uid/memberships";            filter = 'Direct' }
+            @{ node='groups-indirect';   count = $core.membershipByType.Indirect;                                            url = "/user/$uid/memberships";            filter = 'Indirect' }
+            @{ node='groups-owner';      count = $core.membershipByType.Owner;                                               url = "/user/$uid/memberships";            filter = 'Owner' }
+            @{ node='groups-eligible';   count = $core.membershipByType.Eligible;                                            url = "/user/$uid/memberships";            filter = 'Eligible' }
+            @{ node='access-packages';   count = $core.accessPackageCount;                                                   url = "/user/$uid/access-packages" }
+            @{ node='oauth2-grants';     count = $core.oauth2GrantCount;                                                     url = "/user/$uid/oauth2-grants" }
+        )
 
-    foreach ($spec in $specs) {
-        if ([int]$spec.count -le 0) { continue }  # only test active nodes — dimmed ones stay dim
-
-        $resp = Get-Json $spec.url
-        if (Test-IsError $resp) { Record "User/$userName/$($spec.node)/Http" $false "HTTP $($resp.__statusCode) $($resp.__error)"; continue }
-
-        $rows = $resp
-        if ($spec.unwrap)    { $rows = $resp.$($spec.unwrap) }
-        elseif ($spec.unwrapObj) { $rows = if ($resp) { @($resp) } else { @() } }
-        if ($spec.filter)    { $rows = @($rows | Where-Object { $_.membershipType -eq $spec.filter }) }
-
-        $rowCount = if ($rows -is [array]) { $rows.Count } elseif ($rows) { 1 } else { 0 }
-        Record "User/$userName/$($spec.node)/Clickable" ($rowCount -gt 0) "count=$($spec.count) rows=$rowCount"
-
-        if ($rowCount -gt 0) {
-            $firstRow = if ($rows -is [array]) { $rows[0] } else { $rows }
-            $name = Get-DisplayNameField $firstRow
-            Record "User/$userName/$($spec.node)/RowHasName" ([bool]$name) "first row name='$name'"
-        }
+        foreach ($spec in $specs) { Invoke-UserNodeSpec $userName $spec }
     }
 }
 
 # ── Resource graph nodes ─────────────────────────────────────────────
-Write-Host "`n  -- Resource graph nodes --" -ForegroundColor Gray
-foreach ($rid in $resourceIds) {
-    $core = Get-Json "/resources/$rid"
-    if (Test-IsError $core) { Record "Resource/$rid/Core" $false "HTTP $($core.__statusCode)"; continue }
-    $resName = $core.attributes.displayName
+function Invoke-ResourceNodeSpec([string]$ResName, $Spec) {
+    if ([int]$Spec.count -le 0) { return }
+    $resp = Get-Json $Spec.url
+    if (Test-IsError $resp) { Record "Resource/$ResName/$($Spec.node)/Http" $false "HTTP $($resp.__statusCode) $($resp.__error)"; return }
 
-    $specs = @(
-        @{ node='members-direct';    count = $core.assignmentByType.Direct;    url = "/resources/$rid/assignments"; filter = 'Direct' }
-        @{ node='members-governed';  count = $core.assignmentByType.Governed;  url = "/resources/$rid/assignments"; filter = 'Governed' }
-        @{ node='members-owner';     count = $core.assignmentByType.Owner;     url = "/resources/$rid/assignments"; filter = 'Owner' }
-        @{ node='members-eligible';  count = $core.assignmentByType.Eligible;  url = "/resources/$rid/assignments"; filter = 'Eligible' }
-        @{ node='business-roles';    count = $core.accessPackageCount;         url = "/resources/$rid/business-roles" }
-        @{ node='parents';           count = $core.parentResourceCount;        url = "/resources/$rid/parent-resources" }
-    )
+    $rows = if ($Spec.filter) { @($resp | Where-Object { $_.assignmentType -eq $Spec.filter }) } else { $resp }
+    $rowCount = Get-RowCount $rows
 
-    foreach ($spec in $specs) {
-        if ([int]$spec.count -le 0) { continue }
-        $resp = Get-Json $spec.url
-        if (Test-IsError $resp) { Record "Resource/$resName/$($spec.node)/Http" $false "HTTP $($resp.__statusCode) $($resp.__error)"; continue }
+    Record "Resource/$ResName/$($Spec.node)/Clickable" ($rowCount -gt 0) "count=$($Spec.count) rows=$rowCount"
+    if ($rowCount -gt 0) {
+        $name = Get-DisplayNameField (($rows | Select-Object -First 1))
+        Record "Resource/$ResName/$($Spec.node)/RowHasName" ([bool]$name) "first row name='$name'"
+    }
+}
 
-        $rows = if ($spec.filter) { @($resp | Where-Object { $_.assignmentType -eq $spec.filter }) } else { $resp }
-        $rowCount = if ($rows -is [array]) { $rows.Count } else { if ($rows) { 1 } else { 0 } }
+function Test-ResourceGraphNodes([array]$ResourceIds) {
+    Write-Host "`n  -- Resource graph nodes --" -ForegroundColor Gray
+    foreach ($rid in $ResourceIds) {
+        $core = Get-Json "/resources/$rid"
+        if (Test-IsError $core) { Record "Resource/$rid/Core" $false "HTTP $($core.__statusCode)"; continue }
+        $resName = $core.attributes.displayName
 
-        Record "Resource/$resName/$($spec.node)/Clickable" ($rowCount -gt 0) "count=$($spec.count) rows=$rowCount"
-        if ($rowCount -gt 0) {
-            $name = Get-DisplayNameField (($rows | Select-Object -First 1))
-            Record "Resource/$resName/$($spec.node)/RowHasName" ([bool]$name) "first row name='$name'"
-        }
+        $specs = @(
+            @{ node='members-direct';    count = $core.assignmentByType.Direct;    url = "/resources/$rid/assignments"; filter = 'Direct' }
+            @{ node='members-governed';  count = $core.assignmentByType.Governed;  url = "/resources/$rid/assignments"; filter = 'Governed' }
+            @{ node='members-owner';     count = $core.assignmentByType.Owner;     url = "/resources/$rid/assignments"; filter = 'Owner' }
+            @{ node='members-eligible';  count = $core.assignmentByType.Eligible;  url = "/resources/$rid/assignments"; filter = 'Eligible' }
+            @{ node='business-roles';    count = $core.accessPackageCount;         url = "/resources/$rid/business-roles" }
+            @{ node='parents';           count = $core.parentResourceCount;        url = "/resources/$rid/parent-resources" }
+        )
+
+        foreach ($spec in $specs) { Invoke-ResourceNodeSpec $resName $spec }
     }
 }
 
 # ── Identity graph nodes ─────────────────────────────────────────────
-Write-Host "`n  -- Identity graph nodes --" -ForegroundColor Gray
-foreach ($iid in $identityIds) {
-    $core = Get-Json "/identities/$iid"
-    if (Test-IsError $core) { Record "Identity/$iid/Core" $false "HTTP $($core.__statusCode)"; continue }
-    $idName = $core.identity.displayName
-
-    Record "Identity/$idName/accounts/Clickable" ($core.members.Count -gt 0) "accounts=$($core.members.Count)"
-    if ($core.members.Count -gt 0) {
-        $m0 = $core.members[0]
-        Record "Identity/$idName/accounts/RowHasName" ([bool]$m0.displayName) "first='$($m0.displayName)'"
-        Record "Identity/$idName/accounts/RowHasUPN"  ([bool]$m0.userPrincipalName) "upn='$($m0.userPrincipalName)'"
+function Invoke-IdentityTypeNode([string]$Iid, [string]$IdName, $Agg, [string]$Type) {
+    $count = [int]($Agg.$Type)
+    if ($count -le 0) { return }
+    $resp = Get-Json "/identities/$Iid/assignments?type=$Type"
+    if (Test-IsError $resp) { Record "Identity/$IdName/$Type/Http" $false "HTTP $($resp.__statusCode) $($resp.__error)"; return }
+    $rowCount = Get-RowCount $resp
+    Record "Identity/$IdName/$Type/Clickable" ($rowCount -gt 0) "count=$count rows=$rowCount"
+    if ($rowCount -gt 0) {
+        $name = Get-DisplayNameField $resp[0]
+        Record "Identity/$IdName/$Type/RowHasName" ([bool]$name) "first='$name'"
     }
+}
 
-    $agg = $core.aggregateAssignments
-    foreach ($type in 'Direct','Governed','Owner','Eligible','OAuth2Grant') {
-        $count = [int]($agg.$type)
-        if ($count -le 0) { continue }
-        $resp = Get-Json "/identities/$iid/assignments?type=$type"
-        if (Test-IsError $resp) { Record "Identity/$idName/$type/Http" $false "HTTP $($resp.__statusCode) $($resp.__error)"; continue }
-        $rowCount = if ($resp -is [array]) { $resp.Count } else { if ($resp) { 1 } else { 0 } }
-        Record "Identity/$idName/$type/Clickable" ($rowCount -gt 0) "count=$count rows=$rowCount"
-        if ($rowCount -gt 0) {
-            $name = Get-DisplayNameField $resp[0]
-            Record "Identity/$idName/$type/RowHasName" ([bool]$name) "first='$name'"
+function Test-IdentityGraphNodes([array]$IdentityIds) {
+    Write-Host "`n  -- Identity graph nodes --" -ForegroundColor Gray
+    foreach ($iid in $IdentityIds) {
+        $core = Get-Json "/identities/$iid"
+        if (Test-IsError $core) { Record "Identity/$iid/Core" $false "HTTP $($core.__statusCode)"; continue }
+        $idName = $core.identity.displayName
+
+        Record "Identity/$idName/accounts/Clickable" ($core.members.Count -gt 0) "accounts=$($core.members.Count)"
+        if ($core.members.Count -gt 0) {
+            $m0 = $core.members[0]
+            Record "Identity/$idName/accounts/RowHasName" ([bool]$m0.displayName) "first='$($m0.displayName)'"
+            Record "Identity/$idName/accounts/RowHasUPN"  ([bool]$m0.userPrincipalName) "upn='$($m0.userPrincipalName)'"
+        }
+
+        $agg = $core.aggregateAssignments
+        foreach ($type in 'Direct','Governed','Owner','Eligible','OAuth2Grant') {
+            Invoke-IdentityTypeNode $iid $idName $agg $type
         }
     }
 }
 
 # ── Business Role (Access Package) graph nodes ────────────────────────
-Write-Host "`n  -- Business Role graph nodes --" -ForegroundColor Gray
-foreach ($bid in $brIds) {
-    $core = Get-Json "/access-package/$bid"
-    if (Test-IsError $core) { Record "BR/$bid/Core" $false "HTTP $($core.__statusCode)"; continue }
-    $brName = $core.attributes.displayName
+function Invoke-BusinessRoleNodeSpec([string]$BrName, $Spec) {
+    if ([int]$Spec.count -le 0) { return }
+    $resp = Get-Json $Spec.url
+    if (Test-IsError $resp) { Record "BR/$BrName/$($Spec.node)/Http" $false "HTTP $($resp.__statusCode) $($resp.__error)"; return }
+    $rowCount = Get-RowCount $resp
+    Record "BR/$BrName/$($Spec.node)/Clickable" ($rowCount -gt 0) "count=$($Spec.count) rows=$rowCount"
+    if ($rowCount -gt 0) {
+        $name = Get-DisplayNameField $resp[0]
+        Record "BR/$BrName/$($Spec.node)/RowHasName" ([bool]$name) "first='$name'"
+    }
+}
 
-    $specs = @(
-        @{ node='assignments'; count = $core.assignmentCount;     url = "/access-package/$bid/assignments" }
-        @{ node='resources';   count = $core.groupCount;          url = "/access-package/$bid/resource-roles" }
-        @{ node='policies';    count = $core.policyCount;         url = "/access-package/$bid/policies" }
-        @{ node='reviews';     count = $core.reviewCount;         url = "/access-package/$bid/reviews" }
-        @{ node='requests';    count = $core.pendingRequestCount; url = "/access-package/$bid/requests" }
-    )
+function Test-BusinessRoleGraphNodes([array]$BrIds) {
+    Write-Host "`n  -- Business Role graph nodes --" -ForegroundColor Gray
+    foreach ($bid in $BrIds) {
+        $core = Get-Json "/access-package/$bid"
+        if (Test-IsError $core) { Record "BR/$bid/Core" $false "HTTP $($core.__statusCode)"; continue }
+        $brName = $core.attributes.displayName
 
-    foreach ($spec in $specs) {
-        if ([int]$spec.count -le 0) { continue }
-        $resp = Get-Json $spec.url
-        if (Test-IsError $resp) { Record "BR/$brName/$($spec.node)/Http" $false "HTTP $($resp.__statusCode) $($resp.__error)"; continue }
-        $rowCount = if ($resp -is [array]) { $resp.Count } else { if ($resp) { 1 } else { 0 } }
-        Record "BR/$brName/$($spec.node)/Clickable" ($rowCount -gt 0) "count=$($spec.count) rows=$rowCount"
-        if ($rowCount -gt 0) {
-            $name = Get-DisplayNameField $resp[0]
-            Record "BR/$brName/$($spec.node)/RowHasName" ([bool]$name) "first='$name'"
-        }
+        $specs = @(
+            @{ node='assignments'; count = $core.assignmentCount;     url = "/access-package/$bid/assignments" }
+            @{ node='resources';   count = $core.groupCount;          url = "/access-package/$bid/resource-roles" }
+            @{ node='policies';    count = $core.policyCount;         url = "/access-package/$bid/policies" }
+            @{ node='reviews';     count = $core.reviewCount;         url = "/access-package/$bid/reviews" }
+            @{ node='requests';    count = $core.pendingRequestCount; url = "/access-package/$bid/requests" }
+        )
+
+        foreach ($spec in $specs) { Invoke-BusinessRoleNodeSpec $brName $spec }
     }
 }
 
@@ -291,24 +328,60 @@ foreach ($bid in $brIds) {
 # this probe makes sure the endpoint shape is correct for each kind
 # even if the instance has no actual changes yet (empty events array
 # is still a valid 200 response).
-Write-Host "`n  -- Recent-changes endpoints --" -ForegroundColor Gray
-
-$recentProbes = @()
-if ($userIds.Count -gt 0)     { $recentProbes += @{ kind = 'User';     url = "/user/$($userIds[0])/recent-changes" } }
-if ($resourceIds.Count -gt 0) { $recentProbes += @{ kind = 'Resource'; url = "/resources/$($resourceIds[0])/recent-changes" } }
-if ($identityIds.Count -gt 0) { $recentProbes += @{ kind = 'Identity'; url = "/identities/$($identityIds[0])/recent-changes" } }
-if ($brIds.Count -gt 0)       { $recentProbes += @{ kind = 'BR';       url = "/access-package/$($brIds[0])/recent-changes" } }
-
-foreach ($p in $recentProbes) {
-    $resp = Get-Json $p.url
+function Invoke-RecentChangeProbe($Probe) {
+    $resp = Get-Json $Probe.url
     if (Test-IsError $resp) {
-        Record "RecentChanges/$($p.kind)/Http" $false "HTTP $($resp.__statusCode) $($resp.__error)"
-        continue
+        Record "RecentChanges/$($Probe.kind)/Http" $false "HTTP $($resp.__statusCode) $($resp.__error)"
+        return
     }
-    Record "RecentChanges/$($p.kind)/ShapeOk"     ([bool]($resp.PSObject.Properties['events'] -and $resp.PSObject.Properties['addedCount'] -and $resp.PSObject.Properties['removedCount'])) "fields present"
-    Record "RecentChanges/$($p.kind)/ArrayEvents" ($resp.events -is [array] -or $null -eq $resp.events) "events is array"
-    Record "RecentChanges/$($p.kind)/SinceDays"   ([int]$resp.sinceDays -gt 0) "sinceDays=$($resp.sinceDays)"
+    Record "RecentChanges/$($Probe.kind)/ShapeOk"     ([bool]($resp.PSObject.Properties['events'] -and $resp.PSObject.Properties['addedCount'] -and $resp.PSObject.Properties['removedCount'])) "fields present"
+    Record "RecentChanges/$($Probe.kind)/ArrayEvents" ($resp.events -is [array] -or $null -eq $resp.events) "events is array"
+    Record "RecentChanges/$($Probe.kind)/SinceDays"   ([int]$resp.sinceDays -gt 0) "sinceDays=$($resp.sinceDays)"
 }
 
-Write-Host ("`n  Results: {0} pass / {1} fail" -f $passes, $failures) -ForegroundColor $(if ($failures -eq 0) { 'Green' } else { 'Red' })
-exit $failures
+function Test-RecentChangesEndpoints([array]$UserIds, [array]$ResourceIds, [array]$IdentityIds, [array]$BrIds) {
+    Write-Host "`n  -- Recent-changes endpoints --" -ForegroundColor Gray
+
+    $recentProbes = @()
+    if ($UserIds.Count -gt 0)     { $recentProbes += @{ kind = 'User';     url = "/user/$($UserIds[0])/recent-changes" } }
+    if ($ResourceIds.Count -gt 0) { $recentProbes += @{ kind = 'Resource'; url = "/resources/$($ResourceIds[0])/recent-changes" } }
+    if ($IdentityIds.Count -gt 0) { $recentProbes += @{ kind = 'Identity'; url = "/identities/$($IdentityIds[0])/recent-changes" } }
+    if ($BrIds.Count -gt 0)       { $recentProbes += @{ kind = 'BR';       url = "/access-package/$($BrIds[0])/recent-changes" } }
+
+    foreach ($p in $recentProbes) { Invoke-RecentChangeProbe $p }
+}
+
+# ── Orchestrator ─────────────────────────────────────────────────────
+function Invoke-EntityGraphNodeChecks {
+    Write-Host "`n=== Entity Detail Graph Node Clickthrough ===" -ForegroundColor Cyan
+    Write-Host ("  API base: {0}" -f $ApiBaseUrl)
+
+    Write-Host "`n  Sampling entities from the running stack..." -ForegroundColor Gray
+    $samples     = Get-EntitySamples
+    $userIds     = @($samples.UserIds)
+    $resourceIds = @($samples.ResourceIds)
+    $identityIds = @($samples.IdentityIds)
+    $brIds       = @($samples.BrIds)
+
+    Write-Host ("    users:         {0}" -f $userIds.Count)
+    Write-Host ("    resources:     {0}" -f $resourceIds.Count)
+    Write-Host ("    identities:    {0}" -f $identityIds.Count)
+    Write-Host ("    businessRoles: {0}" -f $brIds.Count)
+
+    if ($userIds.Count -eq 0 -and $resourceIds.Count -eq 0 -and $identityIds.Count -eq 0) {
+        Record 'EntityGraphNodes/HasData' $false 'no sample entities returned by the API — load demo or run the crawler first'
+        return 1
+    }
+
+    Test-UserGraphNodes $userIds
+    Test-ResourceGraphNodes $resourceIds
+    Test-IdentityGraphNodes $identityIds
+    Test-BusinessRoleGraphNodes $brIds
+    Test-RecentChangesEndpoints $userIds $resourceIds $identityIds $brIds
+
+    Write-Host ("`n  Results: {0} pass / {1} fail" -f $passes, $failures) -ForegroundColor $(if ($failures -eq 0) { 'Green' } else { 'Red' })
+    return $failures
+}
+
+$code = Invoke-EntityGraphNodeChecks
+exit $code

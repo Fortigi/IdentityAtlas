@@ -15,8 +15,11 @@ import { useState, useRef, useCallback, lazy, Suspense } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
 import { useFetch } from '@ui/hooks/useFetch';
 import { useIsDark } from '@ui/contexts/ThemeContext';
-import { formatCompactNumber as formatNumber, formatRelativeTime } from '@ui/utils/formatters';
+import { formatCompactNumber as formatNumber } from '@ui/utils/formatters';
 import { docsUrl } from '@ui/utils/docsUrl';
+import StatsPanel from './DashboardStatsPanel';
+import FeatureStatusRow from './DashboardFeatureRow';
+import ComposeFileWarning from './DashboardComposeWarning';
 
 // Lazy-load Trends — keeps the dashboard's first paint cheap (chart code +
 // data hook are only needed when the user clicks the tab).
@@ -109,18 +112,7 @@ export default function DashboardPage({ onNavigate }) {
       {tab === 'overview' && (<>
 
       {/* Compose file outdated warning */}
-      {version?.composeFileOutdated && (
-        <div className="mb-6 rounded-xl border border-amber-200 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/30 p-4 text-sm">
-          <div className="font-semibold text-amber-800 dark:text-amber-300 mb-1">Your docker-compose file is outdated</div>
-          <p className="text-amber-700 dark:text-amber-400">
-            The running image expects compose file version {version.minComposeFileVersion} but your file is version {version.composeFileVersion || 'unknown'}.
-            Re-download the latest version to get new settings (volume mounts, security fixes, etc.):
-          </p>
-          <code className="block mt-2 px-3 py-2 bg-amber-100 dark:bg-amber-900/50 rounded text-xs font-mono text-amber-900 dark:text-amber-200">
-            curl -O https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/docker-compose.prod.yml
-          </code>
-        </div>
-      )}
+      <ComposeFileWarning version={version} />
 
       {/* Main 2-column layout: brain graph + stats */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
@@ -137,86 +129,18 @@ export default function DashboardPage({ onNavigate }) {
         </div>
 
         {/* Stats grid */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg ring-1 ring-gray-200 dark:ring-gray-700">
-          <div className="flex items-center justify-between mb-5">
-            <h2 className="text-xs font-bold text-lime-700 uppercase tracking-widest">Loaded data</h2>
-            {hasData && (
-              <span className="text-xs text-gray-600 dark:text-gray-500">
-                Last sync <span className="text-gray-700 dark:text-gray-300">{formatRelativeTime(stats.lastSyncAt)}</span>
-              </span>
-            )}
-          </div>
-
-          {loading ? (
-            <div className="text-sm text-gray-500 dark:text-gray-400">Loading…</div>
-          ) : error ? (
-            <div className="rounded-lg border border-red-200 dark:border-red-700 bg-red-50 dark:bg-red-900/20 p-6 text-center">
-              <h3 className="mb-1 text-base font-semibold text-red-800 dark:text-red-300">Couldn&apos;t load the dashboard</h3>
-              <p className="mx-auto mb-4 max-w-md text-sm text-red-700 dark:text-red-400">
-                There was a problem reaching the server. This is a load error — not an empty database, so your data is safe.
-              </p>
-              <button
-                type="button"
-                onClick={reload}
-                className="rounded bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 dark:bg-red-700 dark:hover:bg-red-600"
-              >
-                Retry
-              </button>
-            </div>
-          ) : !hasData ? (
-            <NoDataState onNavigate={onNavigate} />
-          ) : (
-            <>
-              <div className="grid grid-cols-2 gap-3">
-                <StatCard label="Systems"        value={stats.systems}       onClick={() => onNavigate?.('systems')} />
-                <StatCard label="Principals"     value={stats.principals}    onClick={() => onNavigate?.('principals')} />
-                <StatCard label="Resources"      value={stats.resources}     onClick={() => onNavigate?.('resources')} />
-                <StatCard label="Business Roles" value={stats.businessRoles} onClick={() => onNavigate?.('access-packages')} />
-                <StatCard label="Identities"     value={stats.identities}    onClick={() => onNavigate?.('identities')} />
-                <StatCard label="Contexts"       value={stats.contexts}      onClick={() => onNavigate?.('contexts')} />
-                <StatCard label="Assignments"      value={stats.assignments}     />
-                <StatCard label="Relationships"    value={stats.relationships}  />
-                <StatCard label="Identity Members" value={stats.identityMembers} onClick={() => onNavigate?.('identities')} />
-              </div>
-              <div className="mt-5 pt-4 border-t border-gray-100 dark:border-gray-700 text-xs text-gray-600 dark:text-gray-500 text-right">
-                <button
-                  onClick={() => onNavigate?.('sync-log')}
-                  className="hover:text-lime-700 hover:underline transition-colors"
-                >
-                  {stats.syncLogEntries || 0} sync log entries
-                </button>
-              </div>
-            </>
-          )}
-        </div>
+        <StatsPanel
+          stats={stats}
+          loading={loading}
+          error={error}
+          hasData={hasData}
+          reload={reload}
+          onNavigate={onNavigate}
+        />
       </div>
 
       {/* Feature status row */}
-      {hasData && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-          <FeatureCard
-            label="Risk Scoring"
-            status={stats.activeClassifiers > 0 ? 'Active' : stats.llmConfigured ? 'Ready' : 'Not configured'}
-            detail={stats.riskScores > 0 ? `${formatNumber(stats.riskScores)} entities scored` : stats.llmConfigured ? 'LLM configured, no profile yet' : 'Configure in Admin → LLM Settings'}
-            ok={stats.activeClassifiers > 0}
-            warn={stats.llmConfigured && stats.activeClassifiers === 0}
-            onClick={() => onNavigate?.('admin?sub=risk-scoring')}
-          />
-          <FeatureCard
-            label="Certifications"
-            status={stats.certifications > 0 ? `${formatNumber(stats.certifications)} decisions` : 'None'}
-            detail={stats.certifications > 0 ? 'Access reviews imported' : 'No access review data'}
-            ok={stats.certifications > 0}
-          />
-          <FeatureCard
-            label="Crawlers"
-            status={stats.enabledCrawlers > 0 ? `${stats.enabledCrawlers} configured` : 'None'}
-            detail={stats.runningJobs > 0 ? `${stats.runningJobs} job(s) running now` : 'Configure in Admin → Crawlers'}
-            ok={stats.enabledCrawlers > 0}
-            onClick={() => onNavigate?.('admin')}
-          />
-        </div>
-      )}
+      {hasData && <FeatureStatusRow stats={stats} onNavigate={onNavigate} />}
 
       {/* Links + version + support */}
       <FooterCards version={version} />
@@ -298,80 +222,6 @@ function FooterCards({ version }) {
         <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
           Bugs and feature requests go on the public tracker so others can follow along. Community support is best effort — the guide explains how, and how to get an SLA or priority work if you need it.
         </p>
-      </div>
-    </div>
-  );
-}
-
-// ─── StatCard ─────────────────────────────────────────────────────────
-function StatCard({ label, value, onClick }) {
-  const clickable = typeof onClick === 'function' && value > 0;
-  const empty = !value;
-  return (
-    <div
-      onClick={clickable ? onClick : undefined}
-      className={`p-3 rounded-xl transition-all ${
-        clickable
-          ? 'cursor-pointer bg-white dark:bg-gray-800 ring-1 ring-lime-200 dark:ring-lime-700/50 hover:ring-lime-500 dark:hover:ring-lime-600 hover:shadow-md hover:-translate-y-0.5'
-          : empty
-            ? 'bg-gray-50 dark:bg-gray-700/50 ring-1 ring-gray-100 dark:ring-gray-600'
-            : 'bg-white dark:bg-gray-800 ring-1 ring-lime-200 dark:ring-lime-700/50'
-      }`}
-    >
-      <div className={`text-2xl font-bold tabular-nums ${empty ? 'text-gray-600 dark:text-gray-500' : 'text-gray-900 dark:text-white'}`}>
-        {formatNumber(value)}
-      </div>
-      <div className={`text-xs mt-0.5 font-medium ${empty ? 'text-gray-600 dark:text-gray-500' : 'text-lime-700'}`}>
-        {label}
-      </div>
-    </div>
-  );
-}
-
-// ─── FeatureCard ──────────────────────────────────────────────────────
-function FeatureCard({ label, status, detail, ok, warn, onClick }) {
-  const clickable = typeof onClick === 'function';
-  const color = ok ? 'text-lime-700'
-              : warn ? 'text-amber-700 dark:text-amber-400'
-              : 'text-gray-500 dark:text-gray-400';
-  const dot = ok ? 'bg-lime-500 shadow-[0_0_8px_rgba(132,204,22,0.6)]'
-            : warn ? 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]'
-            : 'bg-gray-300 dark:bg-gray-600';
-  return (
-    <div
-      onClick={clickable ? onClick : undefined}
-      className={`bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-sm ring-1 transition-all ${
-        ok ? 'ring-lime-200 dark:ring-lime-700/50' : 'ring-gray-200 dark:ring-gray-700'
-      } ${clickable ? 'cursor-pointer hover:ring-lime-400 hover:shadow-md hover:-translate-y-0.5' : ''}`}
-    >
-      <div className="flex items-start gap-3">
-        <span className={`inline-block w-2.5 h-2.5 rounded-full mt-1.5 ${dot}`} />
-        <div className="flex-1 min-w-0">
-          <div className="text-xs uppercase tracking-widest text-gray-500 dark:text-gray-400 font-semibold">{label}</div>
-          <div className={`text-base font-bold mt-1 ${color}`}>{status}</div>
-          <div className="text-xs text-gray-500 dark:text-gray-400 mt-1.5 truncate">{detail}</div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── NoDataState ──────────────────────────────────────────────────────
-function NoDataState({ onNavigate }) {
-  return (
-    <div className="text-center py-8">
-      <div className="text-5xl mb-3">📦</div>
-      <div className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-        No data loaded yet.
-      </div>
-      <button
-        onClick={() => onNavigate?.('admin')}
-        className="px-4 py-2 bg-indigo-600 text-white rounded text-sm hover:bg-indigo-700"
-      >
-        Configure a crawler →
-      </button>
-      <div className="mt-3 text-xs text-gray-600 dark:text-gray-500">
-        Connect Entra ID, upload CSV exports, or click "Load Demo Data" in Admin → Crawlers.
       </div>
     </div>
   );

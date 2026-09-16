@@ -103,6 +103,22 @@ function ConvertTo-MidpointOrgContextRecord {
 # Topologically sorts context records so a parent precedes its children. A parent
 # OID outside the synced set is treated as a root (its parentContextId is nulled
 # out to avoid an FK violation). Verbatim from the inline Orgs-phase sort.
+# Place one record into $Sorted if it is ready (a root, or its parent is already
+# inserted, or its parent is outside the synced set — in which case it is nulled to
+# a root). Returns $true when placed, $false when it must wait another pass.
+function Add-MidpointReadyContext {
+    [CmdletBinding()]
+    param($Rec, $Present, $Inserted, $Sorted)
+    $p = $Rec.parentContextId
+    if (-not $p -or -not $Present.Contains($p) -or $Inserted.Contains($p)) {
+        # A parent outside the synced set is treated as a root (null it out)
+        if ($p -and -not $Present.Contains($p)) { $Rec.parentContextId = $null }
+        $Sorted.Add($Rec); [void]$Inserted.Add($Rec.id)
+        return $true
+    }
+    return $false
+}
+
 function Get-MidpointContextsInTopologicalOrder {
     [CmdletBinding()]
     param($Records)
@@ -115,12 +131,9 @@ function Get-MidpointContextsInTopologicalOrder {
     while ($remaining.Count -gt 0 -and $pass -lt $maxPass) {
         $pass++; $next = [System.Collections.Generic.List[object]]::new()
         foreach ($rec in $remaining) {
-            $p = $rec.parentContextId
-            # A parent outside the synced set is treated as a root (null it out)
-            if (-not $p -or -not $present.Contains($p) -or $inserted.Contains($p)) {
-                if ($p -and -not $present.Contains($p)) { $rec.parentContextId = $null }
-                $sorted.Add($rec); [void]$inserted.Add($rec.id)
-            } else { $next.Add($rec) }
+            if (-not (Add-MidpointReadyContext -Rec $rec -Present $present -Inserted $inserted -Sorted $sorted)) {
+                $next.Add($rec)
+            }
         }
         $remaining = $next
     }

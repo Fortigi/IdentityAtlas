@@ -207,17 +207,7 @@ function Sync-OmadaContexts {
                 -QueryParams @{ '$filter' = 'Deleted eq false' } -PageSize $PageSize -MaxRetries $MaxRetries
             Write-Host "  $($Items.Count) $EntitySet records from Omada" -ForegroundColor Gray
 
-            if ($EntitySet -eq 'Orgunit') {
-                # Orgunit has a parent hierarchy — topological sort required.
-                $RawRecords = @($Items | ForEach-Object {
-                    ConvertTo-OmadaOrgUnitContextRecord -OrgUnit $_ -DefaultContextType $ContextType
-                } | Where-Object { $_.externalId -and $_.displayName })
-                $Records = Get-OmadaContextsInTopologicalOrder -Records $RawRecords
-            } else {
-                $Records = @($Items | ForEach-Object {
-                    ConvertTo-OmadaFlatContextRecord -Item $_ -ContextType $ContextType
-                } | Where-Object { $_.externalId -and $_.displayName })
-            }
+            $Records = @(Build-OmadaContextRecords -Items $Items -EntitySet $EntitySet -ContextType $ContextType)
 
             Write-Step "Ingesting $($Records.Count) $ContextType contexts..."
             $R = Send-IngestBatch -Endpoint 'ingest/contexts' -SystemId $SystemId -SyncMode 'full' `
@@ -759,20 +749,10 @@ function Send-OmadaGovernanceAssignments {
     [CmdletBinding()]
     param([hashtable]$RaBySys = @{}, [hashtable]$AssignmentsBySys = @{}, [hashtable]$OmadaSystemMap = @{}, [int]$SystemId)
     $TotalGovIns = 0
-    $AllSysKeys = [System.Collections.Generic.HashSet[string]]::new()
-    foreach ($k in $RaBySys.Keys)           { [void]$AllSysKeys.Add($k) }
-    foreach ($k in $AssignmentsBySys.Keys)  { [void]$AllSysKeys.Add($k) }
+    $AllSysKeys = [System.Collections.Generic.HashSet[string]]::new([string[]](@($RaBySys.Keys) + @($AssignmentsBySys.Keys)))
     foreach ($Key in $AllSysKeys) {
-        $SysId = if ($Key -eq '__main__') { $SystemId } else { $OmadaSystemMap[$Key] }
-        $Combined = [System.Collections.Generic.List[object]]::new()
-        if ($RaBySys.ContainsKey($Key))          { $Combined.AddRange($RaBySys[$Key]) }
-        if ($AssignmentsBySys.ContainsKey($Key)) { $Combined.AddRange($AssignmentsBySys[$Key]) }
-        $Seen  = [System.Collections.Generic.HashSet[string]]::new()
-        $Dedup = @($Combined | Where-Object { $Seen.Add("$($_.principalId)|$($_.resourceId)") })
-        if ($Dedup.Count -eq 0) { continue }
-        $R = Send-IngestBatch -Endpoint 'ingest/resource-assignments' -SystemId $SysId `
-            -SyncMode 'full' -Scope @{ assignmentType = 'Direct'; governed = $true } -Records $Dedup
-        $TotalGovIns += ($R.inserted ?? 0)
+        $TotalGovIns += Send-OmadaGovernanceAssignmentForSystem -Key $Key -RaBySys $RaBySys `
+            -AssignmentsBySys $AssignmentsBySys -OmadaSystemMap $OmadaSystemMap -SystemId $SystemId
     }
     Write-Host "  Governance assignments (Direct, governed): +$TotalGovIns" -ForegroundColor Green
 }
@@ -942,7 +922,7 @@ function Connect-OmadaSession {
         AuthMethod            = $Cfg.authMethod
         ApiVersion            = $ApiVersion
         SessionTimeoutMinutes = $SessionTimeoutMinutes
-    }
+    } + (Get-FGUrlPolicyParam -Cfg $Cfg)
     if ($Cfg.username)      { $AuthParams['Username']      = $Cfg.username }
     if ($Cfg.password)      { $AuthParams['Password']      = $Cfg.password }
     if ($Cfg.clientId)      { $AuthParams['ClientId']      = $Cfg.clientId }
@@ -1011,12 +991,23 @@ function Register-OmadaSystems {
         Write-Host "  Main Omada IGA system ID: $SystemId (UId: $MainSysUId)" -ForegroundColor Gray
     } catch {
         Write-Host "  Warning: could not register Omada systems — $($_.Exception.Message)" -ForegroundColor Yellow
-        $FbResult = Invoke-IngestAPI -Endpoint 'ingest/systems' -Body @{
-            syncMode = 'full'
-            records  = @(@{ systemType = 'Omada'; displayName = "Omada ($BaseUrl)"; tenantId = $BaseUrl; enabled = $True; syncEnabled = $True })
-        }
-        $SystemId = [int]($FbResult.systemIds[0])
-        Write-Host "  Fallback system ID: $SystemId" -ForegroundColor Gray
+        $SystemId = Register-OmadaEndpointSystem -BaseUrl $BaseUrl
+    }
+
+    # An Omada that reports NO connected systems is not an error — a fresh or
+    # filtered tenant does exactly that — but it leaves nothing to attach accounts
+    # to. Register the endpoint itself as one system so the later phases have a
+    # systemId.
+    #
+    # This used to happen only by accident: zero systems meant an EMPTY ingest
+    # batch, the API rejected it with 400, and the exception fell into the catch
+    # above where the fallback ran. Once the API accepted an empty full sync that
+    # exception stopped happening, $SystemId was left 0, and every later ingest
+    # failed with a foreign-key violation on Principals_systemId_fkey. Depending
+    # on an error to reach a normal path is the actual bug; this makes it a step.
+    if (-not $SystemId) {
+        Write-Host "  Omada reported no connected systems — registering the endpoint itself" -ForegroundColor Yellow
+        $SystemId = Register-OmadaEndpointSystem -BaseUrl $BaseUrl
     }
     return @{ systemId = $SystemId; omadaSystemMap = $OmadaSystemMap; allOmadaSystems = $AllOmadaSystems; omadaIdentitySystemUId = $OmadaIdentitySystemUId }
 }

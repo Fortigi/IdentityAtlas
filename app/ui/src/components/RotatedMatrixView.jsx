@@ -10,42 +10,17 @@
 //  - The IST/SOLL/Gaps toggle in the toolbar collapses to All/IST/SOLL —
 //    "Gaps" requires AP data and is hidden.
 //
-// Everything else (filter chip, share link, Excel export hook, basic
+// Everything else (filter chip, Excel export hook, basic
 // per-cell membership-type badges) works the same as the default view.
 
-import { useMemo, useCallback, useState, useLayoutEffect, useRef } from 'react';
+import { useMemo, useCallback, useState, useRef } from 'react';
+import useResizableGridHeight from '@ui/hooks/useResizableGridHeight';
+import GridResizeHandle from './matrix/GridResizeHandle';
 import MatrixToolbar from './matrix/MatrixToolbar';
 import MatrixFilterSummary from './matrix/MatrixFilterSummary';
 import MatrixCell from './matrix/MatrixCell';
-
-function EmptyState({ onAdjustFilter, hasData }) {
-  if (hasData === false) {
-    return (
-      <div className="border border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-10 text-center bg-white dark:bg-gray-800">
-        <h2 className="text-base font-semibold text-gray-800 dark:text-gray-200 mb-1">No data available yet</h2>
-        <p className="text-sm text-gray-600 dark:text-gray-400 max-w-xl mx-auto">
-          Run a crawler first to import users and resources. Once data is loaded you can build a matrix here.
-        </p>
-      </div>
-    );
-  }
-  if (hasData === null) return null;
-  return (
-    <div className="border border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-10 text-center bg-white dark:bg-gray-800">
-      <h2 className="text-base font-semibold text-gray-800 dark:text-gray-200 mb-1">Pick a slice to inspect</h2>
-      <p className="text-sm text-gray-600 dark:text-gray-400 max-w-xl mx-auto mb-4">
-        The Matrix tab always operates on a defined sub-selection of subjects (users or
-        identities) and resources. Open the wizard to set up which slice to compare.
-      </p>
-      <button
-        onClick={onAdjustFilter}
-        className="px-4 py-2 rounded text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-600"
-      >
-        Create matrix
-      </button>
-    </div>
-  );
-}
+import OpenMatrixList from './matrix/OpenMatrixList';
+import { buildMatrixIndexes, buildTypeSpans } from './RotatedMatrixView.helpers';
 
 export default function RotatedMatrixView({
   data,
@@ -53,39 +28,21 @@ export default function RotatedMatrixView({
   counts,
   managedFilter, setManagedFilter,
   refreshing,
-  shareUrl,
   onOpenDetail,
   onAdjustFilter,
+  onLoadSaved,
   hasData,
+  onShareView,
 }) {
   const filterIsApplied = filter !== null && filter !== undefined;
 
   // Cap the grid to the remaining viewport so only the grid scrolls, not the
-  // page too (mirrors MatrixView). Measure the grid's real document-top rather
-  // than guessing the chrome height with a fixed max-h.
+  // page too — and let the analyst drag it to a height of their own (mirrors
+  // MatrixView).
   const rootRef = useRef(null);
   const gridRef = useRef(null);
-  const [gridMaxH, setGridMaxH] = useState(null);
-  useLayoutEffect(() => {
-    const measure = () => {
-      const el = gridRef.current;
-      if (!el) return;
-      const footer = document.querySelector('footer');
-      const below = (footer ? footer.getBoundingClientRect().height : 0) + 28;
-      const vh = document.documentElement.clientHeight;
-      const gridTop = el.getBoundingClientRect().top + window.scrollY;
-      setGridMaxH(Math.max(240, vh - gridTop - below));
-    };
-    measure();
-    const raf = requestAnimationFrame(measure);
-    window.addEventListener('resize', measure);
-    let ro;
-    if (typeof ResizeObserver !== 'undefined') {
-      ro = new ResizeObserver(measure);
-      ro.observe(document.body);
-    }
-    return () => { cancelAnimationFrame(raf); window.removeEventListener('resize', measure); if (ro) ro.disconnect(); };
-  }, [filterIsApplied]);
+  const gridHeight = useResizableGridHeight(gridRef, [filterIsApplied]);
+  const gridMaxH = gridHeight.height;
 
   // Same client-side managed-state toggle as MatrixView.
   const filteredData = useMemo(() => {
@@ -96,71 +53,15 @@ export default function RotatedMatrixView({
   }, [data, managedFilter]);
 
   // Build per-user and per-resource indexes + a cell map.
-  const { users, resources, cellMap } = useMemo(() => {
-    const userMap = new Map();
-    const resourceMap = new Map();
-    const cells = new Map(); // "userId|resourceId" -> Set of membership types
-
-    for (const d of filteredData) {
-      if (d.memberId && !userMap.has(d.memberId)) {
-        userMap.set(d.memberId, {
-          id: d.memberId,
-          displayName: d.memberDisplayName || d.memberId,
-          department: d.department || '',
-          jobTitle: d.jobTitle || '',
-          upn: d.memberUPN || '',
-        });
-      }
-      const rid = d.resourceId || d.groupId;
-      if (rid && !resourceMap.has(rid)) {
-        resourceMap.set(rid, {
-          id: rid,
-          displayName: d.resourceDisplayName || d.groupDisplayName || rid,
-          resourceType: d.resourceType || d.groupTypeCalculated || '',
-          systemName: d.systemName || '',
-        });
-      }
-      if (d.memberId && rid) {
-        const key = `${d.memberId}|${rid}`;
-        if (!cells.has(key)) cells.set(key, { types: new Set(), managed: false });
-        cells.get(key).types.add(d.membershipType);
-        if (d.managedByAccessPackage) cells.get(key).managed = true;
-      }
-    }
-
-    // Sort users by displayName, resources by displayName (simple — no APs to staircase against).
-    const users = [...userMap.values()].sort((a, b) =>
-      (a.displayName || '').localeCompare(b.displayName || '')
-    );
-    const resources = [...resourceMap.values()].sort((a, b) =>
-      (a.displayName || '').localeCompare(b.displayName || '')
-    );
-
-    return { users, resources, cellMap: cells };
-  }, [filteredData]);
+  const { users, resources, cellMap } = useMemo(
+    () => buildMatrixIndexes(filteredData),
+    [filteredData],
+  );
 
   // Group consecutive resources by resourceType for merged top header.
-  const typeSpans = useMemo(() => {
-    const spans = [];
-    let i = 0;
-    while (i < resources.length) {
-      const t = resources[i].resourceType || '';
-      let span = 1;
-      while (i + span < resources.length && (resources[i + span].resourceType || '') === t) span++;
-      spans.push({ type: t, span });
-      i += span;
-    }
-    return spans;
-  }, [resources]);
+  const typeSpans = useMemo(() => buildTypeSpans(resources), [resources]);
 
-  // Share + export handlers (export not yet supported in rotated mode).
-  const handleShare = useCallback(async () => {
-    try {
-      await navigator.clipboard.writeText(shareUrl);
-      return true;
-    } catch { return false; }
-  }, [shareUrl]);
-
+  // Export is not yet supported in rotated mode — say so instead.
   const [exportTip, setExportTip] = useState(false);
   const handleExportExcel = useCallback(() => {
     setExportTip(true);
@@ -172,23 +73,20 @@ export default function RotatedMatrixView({
       {filterIsApplied && (
         <MatrixFilterSummary
           filter={filter}
+          managed={managedFilter}
           preview={counts}
           onAdjust={onAdjustFilter}
+          onLoadSaved={onLoadSaved}
+          onShareView={onShareView}
         />
       )}
 
-      <MatrixToolbar
+      {/* No matrix, no lens and nothing to export: the tab is the "Open a matrix" list. */}
+      {filterIsApplied && <MatrixToolbar
         managedFilter={managedFilter === 'gaps' ? 'all' : managedFilter}
         setManagedFilter={setManagedFilter}
         onExportExcel={handleExportExcel}
-        onShare={handleShare}
-        onResetRowOrder={() => {}}
-        hasCustomRowOrder={false}
-        hasExpandableGroups={false}
-        hasExpandedGroups={false}
-        onExpandAll={() => {}}
-        onCollapseAll={() => {}}
-      />
+      />}
 
       {exportTip && (
         <div className="text-xs text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded px-3 py-1">
@@ -197,12 +95,13 @@ export default function RotatedMatrixView({
       )}
 
       {!filterIsApplied ? (
-        <EmptyState onAdjustFilter={onAdjustFilter} hasData={hasData} />
+        <OpenMatrixList hasData={hasData} onLoad={onLoadSaved} onNew={() => onAdjustFilter?.({ fresh: true })} />
       ) : users.length === 0 || resources.length === 0 ? (
         <div className="text-center text-gray-500 dark:text-gray-400 py-12">
           No assignments match the current matrix. Adjust the subjects or resources to widen the view.
         </div>
       ) : (
+        <>
         <div ref={gridRef} className="relative border border-gray-200 dark:border-gray-700 rounded-lg overflow-auto" style={{ maxHeight: gridMaxH ? `${gridMaxH}px` : undefined }}>
           {refreshing && (
             <div className="absolute inset-0 bg-white/60 dark:bg-gray-900/60 z-10 flex items-center justify-center">
@@ -333,6 +232,13 @@ export default function RotatedMatrixView({
             </tbody>
           </table>
         </div>
+        <GridResizeHandle
+          isCustom={gridHeight.isCustom}
+          onStartDrag={gridHeight.startDrag}
+          onResizeBy={gridHeight.resizeBy}
+          onReset={gridHeight.reset}
+        />
+        </>
       )}
     </div>
   );

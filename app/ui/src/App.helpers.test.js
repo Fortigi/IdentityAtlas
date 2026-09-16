@@ -1,0 +1,152 @@
+import { describe, it, expect } from 'vitest';
+import {
+  DETAIL_PREFIXES,
+  isDetailPage,
+  parseDetailRoute,
+  pickDisplayName,
+  closeFallbackPage,
+  parseSharedRoute,
+  detailTabIconBg,
+  wizardOpening,
+} from './App.helpers';
+
+describe('isDetailPage', () => {
+  it('is true for every detail prefix', () => {
+    for (const prefix of DETAIL_PREFIXES) {
+      expect(isDetailPage(`${prefix}:abc`)).toBe(true);
+    }
+  });
+
+  it('is false for static page keys and bare prefixes without a colon', () => {
+    expect(isDetailPage('dashboard')).toBe(false);
+    expect(isDetailPage('principals')).toBe(false);
+    expect(isDetailPage('matrix')).toBe(false);
+    expect(isDetailPage('user')).toBe(false); // no colon
+    // The Reports list page and a report's own tab are different routes — the
+    // prefix must not swallow the page it was opened from.
+    expect(isDetailPage('reports')).toBe(false);
+    expect(isDetailPage('report:orphaned-accounts')).toBe(true);
+  });
+});
+
+describe('parseDetailRoute', () => {
+  it('splits type/id on the first colon', () => {
+    expect(parseDetailRoute('user:123')).toEqual({ type: 'user', id: '123' });
+    expect(parseDetailRoute('access-package:ap-9')).toEqual({ type: 'access-package', id: 'ap-9' });
+  });
+
+  it('reads a report tab as its report name', () => {
+    expect(parseDetailRoute('report:orphaned-accounts')).toEqual({ type: 'report', id: 'orphaned-accounts' });
+  });
+
+  it('keeps colons inside the id', () => {
+    expect(parseDetailRoute('resource:a:b:c')).toEqual({ type: 'resource', id: 'a:b:c' });
+  });
+
+  it('returns null for non-detail pages', () => {
+    expect(parseDetailRoute('dashboard')).toBeNull();
+    expect(parseDetailRoute('matrix')).toBeNull();
+  });
+});
+
+describe('parseSharedRoute', () => {
+  it('extracts the token from a #shared: hash', () => {
+    expect(parseSharedRoute('shared:fgs_abc123')).toBe('fgs_abc123');
+    // Tokens are base64url — '-' and '_' must survive intact.
+    expect(parseSharedRoute('shared:fgs_a-b_c')).toBe('fgs_a-b_c');
+    expect(parseSharedRoute('shared: fgs_padded ')).toBe('fgs_padded');
+  });
+
+  it('returns null for every other route, so the normal shell still renders', () => {
+    expect(parseSharedRoute('matrix')).toBeNull();
+    expect(parseSharedRoute('dashboard')).toBeNull();
+    expect(parseSharedRoute('user:abc')).toBeNull();
+    // A prefix that only looks like one must not open a shared view.
+    expect(parseSharedRoute('sharedreports:abc')).toBeNull();
+    expect(parseSharedRoute('x-shared:abc')).toBeNull();
+  });
+
+  it('returns null for an empty or whitespace-only token', () => {
+    expect(parseSharedRoute('shared:')).toBeNull();
+    expect(parseSharedRoute('shared:   ')).toBeNull();
+  });
+
+  it('returns null for a non-string page', () => {
+    expect(parseSharedRoute(null)).toBeNull();
+    expect(parseSharedRoute(undefined)).toBeNull();
+  });
+});
+
+describe('pickDisplayName', () => {
+  it('reads each supported payload shape', () => {
+    expect(pickDisplayName({ identity: { displayName: 'Ada' } })).toBe('Ada');
+    expect(pickDisplayName({ core: { attributes: { displayName: 'Grp' } } })).toBe('Grp');
+    expect(pickDisplayName({ core: { displayName: 'Usr' } })).toBe('Usr');
+    expect(pickDisplayName({ attributes: { displayName: 'Attr' } })).toBe('Attr');
+    expect(pickDisplayName({ displayName: 'Flat' })).toBe('Flat');
+  });
+
+  it('returns null when no shape matches or input is nullish', () => {
+    expect(pickDisplayName({})).toBeNull();
+    expect(pickDisplayName(null)).toBeNull();
+    expect(pickDisplayName(undefined)).toBeNull();
+  });
+});
+
+describe('closeFallbackPage', () => {
+  it('maps types with a dedicated landing page', () => {
+    expect(closeFallbackPage('run')).toBe('contexts');
+    expect(closeFallbackPage('department')).toBe('contexts');
+    expect(closeFallbackPage('context')).toBe('contexts');
+    expect(closeFallbackPage('identity')).toBe('identities');
+    expect(closeFallbackPage('resource')).toBe('resources');
+    // Closing a report lands back on the list it was opened from.
+    expect(closeFallbackPage('report')).toBe('reports');
+  });
+
+  it('falls back to the matrix for everything else', () => {
+    expect(closeFallbackPage('user')).toBe('matrix');
+    expect(closeFallbackPage('group')).toBe('matrix');
+    expect(closeFallbackPage('access-package')).toBe('matrix');
+  });
+});
+
+describe('detailTabIconBg', () => {
+  it('gives user/resource/group/department/context their own tint', () => {
+    expect(detailTabIconBg('user')).toContain('blue');
+    expect(detailTabIconBg('resource')).toContain('purple');
+    expect(detailTabIconBg('group')).toContain('purple');
+    expect(detailTabIconBg('department')).toContain('green');
+    expect(detailTabIconBg('context')).toContain('sky');
+    expect(detailTabIconBg('report')).toContain('amber');
+  });
+
+  it('falls back to indigo for identity / run / unknown types', () => {
+    expect(detailTabIconBg('identity')).toContain('indigo');
+    expect(detailTabIconBg('run')).toContain('indigo');
+    expect(detailTabIconBg('access-package')).toContain('indigo');
+  });
+});
+
+describe('wizardOpening', () => {
+  it('opens the matrix on screen on the first step by default', () => {
+    expect(wizardOpening()).toEqual({ step: null, fresh: false });
+    expect(wizardOpening({})).toEqual({ step: null, fresh: false });
+  });
+
+  it('opens on the step asked for', () => {
+    expect(wizardOpening({ step: 'share' })).toEqual({ step: 'share', fresh: false });
+  });
+
+  it('opens a fresh matrix only for an explicit fresh: true', () => {
+    expect(wizardOpening({ fresh: true })).toEqual({ step: null, fresh: true });
+    // Truthy is not enough — a stray value must not throw the analyst's matrix away.
+    expect(wizardOpening({ fresh: 'yes' })).toEqual({ step: null, fresh: false });
+  });
+
+  it('ignores a click event passed straight through from an onClick', () => {
+    const clickEvent = { type: 'click', target: {}, step: undefined, detail: 1 };
+    expect(wizardOpening(clickEvent)).toEqual({ step: null, fresh: false });
+    expect(wizardOpening({ step: 3 })).toEqual({ step: null, fresh: false });
+  });
+});

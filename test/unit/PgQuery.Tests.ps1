@@ -175,7 +175,7 @@ Describe 'Get-PgLiveCount' {
         }
         Get-PgLiveCount -Table 'Principals' | Out-Null
         Get-PgLiveCount -Table 'Resources' | Out-Null
-        Should -Invoke Invoke-Psql -ModuleName PgQuery -Times 1 -Exactly `
+        Should -Invoke Invoke-Psql -ModuleName PgQuery -Exactly 1 `
             -ParameterFilter { $Query -match 'information_schema' }
     }
 }

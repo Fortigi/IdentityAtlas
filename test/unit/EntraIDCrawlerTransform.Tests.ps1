@@ -28,6 +28,8 @@ BeforeAll {
     . (Join-Path $script:entraDir 'EntraIDCrawler.Functions.ps1')
     # The unit under test.
     . (Join-Path $script:entraDir 'EntraIDCrawler.Transform.ps1')
+    # App-role record shapers live here now (extracted for the file-length ratchet).
+    . (Join-Path $script:entraDir 'EntraIDCrawler.AppRoles.ps1')
     # ConvertTo-EntraAppOwnershipGraph lives here now (extracted for the file-length ratchet).
     . (Join-Path $script:entraDir 'EntraIDCrawler.AppOwners.ps1')
 

@@ -1,0 +1,4 @@
+{
+  "_comment": "Grandfathered PowerShell files outside tools/crawlers/ that are eligible for mutation testing but have not been triaged yet. This list exists so the scope guard can SEE these roots at all: before it, tools/powershell-sdk/ and tools/riskscoring/ were invisible to it, so the guard reported 'every eligible file is measured or excluded with a reason' while describing a single directory. Zero unknown files and zero files looked identical. The list may only SHRINK. A file leaves it by being added to psmutant.config.json's `mutate` (with a tests mapping) or to its `exclusions` (with a written reason). A NEW file in these roots cannot join this list silently -- the guard fails it, forcing the same conscious decision every crawler file already requires. Adding an entry here shows up in review as what it is: deferring a decision, not making one.",
+  "grandfathered": []
+}

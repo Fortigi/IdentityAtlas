@@ -12,8 +12,9 @@
 #      tools/complexity/ratchet.py --emit-complexity-json (ESLint + sonarjs) for
 #      the API/UI suites. The page surfaces it as avg/max cyclomatic + cognitive
 #      columns. (Mutation is the heavier signal, so it is NOT run here: the weekly
-#      ps-mutation.yml refreshes docs/coverage/powershell/mutation.json, which
-#      this page just reads back — see that workflow.)
+#      ps-mutation.yml refreshes docs/coverage/powershell/mutation.json and the
+#      weekly js-mutation.yml refreshes the api/ui ones, which this page just reads
+#      back — see those workflows.)
 #   4. Renders the curated docs page (docs/reference/coverage.md) from those
 #      summaries (tools/generate-coverage-doc.py).
 #   5. Commits docs/reference/coverage.md + docs/coverage/** back to main.
@@ -41,6 +42,7 @@ on:
       - 'tools/powershell-sdk/**'
       - 'tools/riskscoring/**'
       - 'test/unit/**'
+      - 'azure/**'
       - 'tools/complexity/**'
       - '.ci/psmutant.config.json'
       - 'tools/generate-coverage-doc.py'
@@ -124,11 +126,21 @@ jobs:
           # that lives inside these dirs but isn't the crawler/SDK itself —
           # self-test harnesses (Test-*Crawler.ps1), data seeders (Seed-*), and
           # dev-only scripts. Same rationale as excluding *.test.js on the JS side.
+          #
+          # tools/crawlers/shared/ is enumerated separately because it has no
+          # crawler.json — it is the library every crawler dot-sources, not a
+          # crawler. Keying the crawler sweep on crawler.json silently excluded
+          # the whole shared ingest/retry/batch layer from the reported figure,
+          # so the headline described the crawlers without the code they all run
+          # through. Its mock servers (Start-Mock*) and Test-Helpers are test
+          # scaffolding and stay excluded, same as the other harnesses above.
           $cfg.CodeCoverage.Path = @(
             Get-ChildItem 'tools/powershell-sdk','tools/riskscoring' -Recurse -Filter '*.ps1' -File
             (Get-ChildItem 'tools/crawlers' -Directory |
               Where-Object { Test-Path (Join-Path $_.FullName 'crawler.json') } |
               ForEach-Object { Get-ChildItem $_.FullName -Recurse -Filter '*.ps1' -File })
+            (Get-ChildItem 'tools/crawlers/shared' -Filter '*.ps1' -File |
+              Where-Object { $_.Name -notlike 'Start-Mock*' -and $_.Name -notlike 'Test-Helpers*' })
           ) | Where-Object {
             $_.Name -notlike '*.Tests.ps1' -and
             $_.Name -notlike 'Test-*Crawler.ps1' -and
@@ -177,14 +189,15 @@ jobs:
       # complexity.yml. Emits the per-unit {file,unit,line,cc,cog} array;
       # generate-coverage-doc.py aggregates it to avg/max per suite. Cheap (a few
       # seconds), so it refreshes every merge. Mutation is deliberately NOT run
-      # here — the weekly ps-mutation.yml owns docs/coverage/powershell/mutation.json,
-      # which the render step below reads back. continue-on-error keeps a
+      # here — the weekly ps-mutation.yml owns docs/coverage/powershell/mutation.json
+      # and js-mutation.yml owns docs/coverage/{api,ui}/mutation.json, all of which
+      # the render step below reads back. continue-on-error keeps a
       # measurement hiccup from blocking the docs commit, matching the suites above.
       - name: PowerShell complexity
         shell: pwsh
         continue-on-error: true
         run: |
-          Install-Module PSComplexity -RequiredVersion 0.1.0 -Force -Scope CurrentUser
+          Install-Module PSComplexity -RequiredVersion 0.5.1 -Force -Scope CurrentUser
           $psDir = 'docs/coverage/powershell'
           New-Item -ItemType Directory -Path $psDir -Force | Out-Null
           & tools/complexity/measure_ps.ps1 | Set-Content (Join-Path $psDir 'complexity.json') -Encoding utf8

@@ -117,11 +117,22 @@ for f in "$WF"/*.yml; do
 done
 assert "no unlisted workflow runs on pull_request" "" "${unlisted% }"
 
-# ── 3. The heavy weekly job stays off pull requests ─────────────────────────
+# ── 3. The heavy weekly jobs stay off pull requests ─────────────────────────
 # Mutation testing is far heavier than the unit suite. On PRs it could never be required (see the
-# header), so it only ever looked like a gate.
-assert "ps-mutation does not run on pull_request" "weekly-only" \
-  "$(grep -qE '^[[:space:]]+pull_request:' "$WF/ps-mutation.yml" && echo "runs-on-prs" || echo "weekly-only")"
+# header), so it only ever looked like a gate. Derived over every *-mutation.yml, not listed by
+# name: adding a mutation workflow for a third language inherits the rule instead of quietly
+# skipping it. The glob must also match something — a rename would otherwise pass vacuously.
+found=0
+onprs=""
+for f in "$WF"/*-mutation.yml; do
+  [ -e "$f" ] || continue
+  found=$((found + 1))
+  grep -qE '^[[:space:]]+pull_request:' "$f" && onprs="${onprs}$(basename "$f") "
+done
+# Both mutation workflows must be found. Without this, renaming them to something the glob misses
+# would make the check below pass over an empty list — green, and testing nothing.
+assert "both mutation workflows are matched by the glob" "2" "$found"
+assert "no mutation workflow runs on pull_request" "" "${onprs% }"
 
 # ── 4. Anything that commits back to main must survive losing the race ──────
 # Several workflows push to main off the SAME merge — bump-version and coverage both do, seconds

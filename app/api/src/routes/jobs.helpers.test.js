@@ -6,6 +6,9 @@ import {
   mergeConfigForUpdate, validateCreateJobBody, resolveJobConfig,
   resolveUploadFolder, prepareJobConfig, checkSingletonConflict, resolveCreatedBy,
 } from './jobs.js';
+import {
+  splitConfigSecrets, changedHostFields, credentialReentryError, stripServerOwnedKeys,
+} from './jobs/helpers.js';
 
 const SECRET_MASK = '••••••••';
 const mockPool = (rows) => ({ query: async () => ({ rows }) });
@@ -42,19 +45,89 @@ describe('validateCreateJobBody', () => {
 
 describe('mergeConfigForUpdate', () => {
   it('merges the patch and pulls a real clientSecret out for the vault', () => {
-    const { mergedConfig, newSecret } = mergeConfigForUpdate({ a: 1 }, { a: 2, clientSecret: 'realsecret' });
-    expect(mergedConfig).toMatchObject({ a: 2 });
-    expect(mergedConfig.clientSecret).toBeUndefined();
-    expect(newSecret).toBe('realsecret');
+    const { mergedConfig, newSecrets, keptFields } = mergeConfigForUpdate({ a: 1 }, { a: 2, clientSecret: 'realsecret' });
+    expect(mergedConfig).toEqual({ a: 2 });
+    expect(newSecrets).toEqual({ clientSecret: 'realsecret' });
+    expect(keptFields).toEqual(['password', 'apiToken', 'cookieString']);
   });
   it('does not treat the mask as a new clientSecret', () => {
-    expect(mergeConfigForUpdate({}, { clientSecret: SECRET_MASK }).newSecret).toBe(null);
+    const r = mergeConfigForUpdate({}, { clientSecret: SECRET_MASK });
+    expect(r.newSecrets).toEqual({});
+    expect(r.keptFields).toContain('clientSecret');
+    expect(r.mergedConfig).toEqual({});
   });
-  it('keeps the existing secret field when the incoming one is masked/blank', () => {
-    expect(mergeConfigForUpdate({ password: 'keepme' }, { password: SECRET_MASK }).mergedConfig.password).toBe('keepme');
+  // SEC-2026-09 M-10: password / apiToken / cookieString never stay in the JSON.
+  it('pulls password / apiToken / cookieString out of the merged config into newSecrets', () => {
+    const { mergedConfig, newSecrets, keptFields } = mergeConfigForUpdate(
+      { baseUrl: 'https://x' }, { password: 'pw', apiToken: SECRET_MASK, cookieString: '' });
+    expect(mergedConfig).toEqual({ baseUrl: 'https://x' });
+    expect(newSecrets).toEqual({ password: 'pw' });
+    expect(keptFields).toEqual(['clientSecret', 'apiToken', 'cookieString']);
+  });
+  it('moves a legacy plaintext field from the stored config into newSecrets when it is kept', () => {
+    const r = mergeConfigForUpdate({ password: 'legacy', apiToken: 'oldtok' }, { password: SECRET_MASK, apiToken: 'newtok' });
+    expect(r.mergedConfig.password).toBeUndefined();
+    expect(r.newSecrets).toEqual({ password: 'legacy', apiToken: 'newtok' });
+    expect(r.keptFields).toContain('password');
+    expect(r.keptFields).not.toContain('apiToken');
   });
   it('parses a legacy stringified existing config', () => {
     expect(mergeConfigForUpdate(JSON.stringify({ x: 1 }), { y: 2 }).mergedConfig).toEqual({ x: 1, y: 2 });
+  });
+  it('keeps the stored config when no patch config is sent', () => {
+    expect(mergeConfigForUpdate({ x: 1 }, undefined)).toEqual({ mergedConfig: { x: 1 }, newSecrets: {}, keptFields: ['clientSecret', 'password', 'apiToken', 'cookieString'] });
+  });
+});
+
+describe('splitConfigSecrets', () => {
+  it('separates real credential values from the rest, dropping masks and blanks', () => {
+    expect(splitConfigSecrets({ a: 1, clientSecret: 's', password: SECRET_MASK, apiToken: '', cookieString: 'c' }))
+      .toEqual({ rest: { a: 1 }, secrets: { clientSecret: 's', cookieString: 'c' } });
+    expect(splitConfigSecrets(null)).toEqual({ rest: {}, secrets: {} });
+  });
+});
+
+describe('changedHostFields (M-02)', () => {
+  const fields = ['baseUrl', 'tokenEndpoint'];
+  it('ignores a path-only change on the same host', () => {
+    expect(changedHostFields(fields, { baseUrl: 'https://idp.example.com/a' }, { baseUrl: 'https://IDP.example.com/b/' })).toEqual([]);
+  });
+  it('flags a host change, a port change and a scheme downgrade', () => {
+    expect(changedHostFields(fields, { baseUrl: 'https://idp.example.com' }, { baseUrl: 'https://other.example' })).toEqual(['baseUrl']);
+    expect(changedHostFields(fields, { baseUrl: 'https://idp.example.com' }, { baseUrl: 'https://idp.example.com:8443' })).toEqual(['baseUrl']);
+    expect(changedHostFields(fields, { tokenEndpoint: 'https://idp.example.com/t' }, { tokenEndpoint: 'http://idp.example.com/t' })).toEqual(['tokenEndpoint']);
+  });
+  it('flags a host-bearing field that is added or removed', () => {
+    expect(changedHostFields(fields, { baseUrl: 'https://a' }, { baseUrl: 'https://a', tokenEndpoint: 'https://t' })).toEqual(['tokenEndpoint']);
+    expect(changedHostFields(fields, JSON.stringify({ tokenEndpoint: 'https://t' }), {})).toEqual(['tokenEndpoint']);
+  });
+  it('compares unparseable values as raw strings', () => {
+    expect(changedHostFields(fields, { baseUrl: 'not a url' }, { baseUrl: ' not a url ' })).toEqual([]);
+    expect(changedHostFields(fields, { baseUrl: 'not a url' }, { baseUrl: 'still not' })).toEqual(['baseUrl']);
+  });
+});
+
+describe('credentialReentryError (M-02)', () => {
+  it('is null when no host changed or nothing stored is being kept', () => {
+    expect(credentialReentryError([], ['clientSecret'])).toBeNull();
+    expect(credentialReentryError(['baseUrl'], [])).toBeNull();
+  });
+  it('names the changed fields and the credentials to re-enter', () => {
+    const e = credentialReentryError(['tokenEndpoint'], ['clientSecret', 'password']);
+    expect(e.status).toBe(400);
+    expect(e.body.reenterFields).toEqual(['clientSecret', 'password']);
+    expect(e.body.error).toContain('tokenEndpoint');
+    expect(e.body.error).toContain('Re-enter clientSecret, password');
+  });
+});
+
+describe('stripServerOwnedKeys (H-02)', () => {
+  it('drops every _-prefixed key and keeps the rest', () => {
+    expect(stripServerOwnedKeys({ _scheduledByConfigId: 3, _syncMode: 'full', _x: 1, baseUrl: 'u', a_b: 2 })).toEqual({ baseUrl: 'u', a_b: 2 });
+  });
+  it('returns null for a non-object', () => {
+    expect(stripServerOwnedKeys(null)).toBeNull();
+    expect(stripServerOwnedKeys('x')).toBeNull();
   });
 });
 
@@ -77,6 +150,38 @@ describe('prepareJobConfig', () => {
   it('returns null configJson for a null config', () => {
     expect(prepareJobConfig(null, null, 'delta').configJson).toBe(null);
   });
+  // SEC-2026-09 H-02: a caller-supplied _scheduledByConfigId never survives on an
+  // inline job, and a stored config's stray _ keys are replaced by the server's.
+  it('drops a caller-supplied _scheduledByConfigId / _syncMode from an inline config', () => {
+    const { configToStore } = prepareJobConfig({ baseUrl: 'u', _scheduledByConfigId: 3, _syncMode: 'full' }, null, 'delta');
+    expect(configToStore).toEqual({ baseUrl: 'u', _syncMode: 'delta' });
+  });
+  it('stamps the real configId over any _scheduledByConfigId stored in the config', () => {
+    const { configToStore } = prepareJobConfig({ _scheduledByConfigId: 3, _scheduleIndex: 9 }, 7, 'full');
+    expect(configToStore).toEqual({ _scheduledByConfigId: 7, _syncMode: 'full' });
+  });
+  // A crawler can only name the system it registers after the name it was given
+  // in the UI if that name actually reaches the run. Stamped generically (like
+  // _syncMode) so every crawler type can read it, not just the one that needs it.
+  it('stamps the crawler name into the job config as _configName', () => {
+    const { configToStore } = prepareJobConfig({ baseUrl: 'https://h/scim' }, 7, 'full', 'ABC');
+    expect(configToStore._configName).toBe('ABC');
+  });
+  it('omits _configName when the crawler has no name', () => {
+    expect(prepareJobConfig({ baseUrl: 'https://h/scim' }, 7, 'full').configToStore)
+      .not.toHaveProperty('_configName');
+  });
+  // The strip and the stamp meet here: a caller must not be able to name the run
+  // (SEC-2026-09 H-02 keeps _ keys server-owned), and the server's name must still
+  // reach it (#1207). Fails if the stamp ever runs before the strip.
+  it("replaces a caller-supplied _configName with the crawler's own name", () => {
+    const { configToStore } = prepareJobConfig({ baseUrl: 'u', _configName: 'Spoofed' }, 7, 'full', 'Real name');
+    expect(configToStore._configName).toBe('Real name');
+  });
+  it('drops a caller-supplied _configName when the crawler has no name', () => {
+    const { configToStore } = prepareJobConfig({ baseUrl: 'u', _configName: 'Spoofed' }, null, 'delta');
+    expect(configToStore).not.toHaveProperty('_configName');
+  });
 });
 
 describe('resolveJobConfig', () => {
@@ -95,6 +200,18 @@ describe('resolveJobConfig', () => {
     const r = await resolveJobConfig(mockPool([{ config: '{"x":2}', nextRunMode: null }]), null, 5);
     expect(r.resolvedConfig).toEqual({ x: 2 });
     expect(r.configNextRunMode).toBe('delta');
+  });
+  it('returns the stored crawler name alongside the config', async () => {
+    const r = await resolveJobConfig(mockPool([{ config: { x: 1 }, nextRunMode: 'full', displayName: 'ABC' }]), null, 5);
+    expect(r.configName).toBe('ABC');
+  });
+  // The mock pool is SQL-blind, so the assertion above would still pass if the
+  // query never asked for the column. Pin the SELECT too.
+  it('selects displayName from CrawlerConfigs', async () => {
+    let seenSql = '';
+    const capturingPool = { query: async (sql) => { seenSql = sql; return { rows: [{ config: {}, nextRunMode: 'full', displayName: 'ABC' }] }; } };
+    await resolveJobConfig(capturingPool, null, 5);
+    expect(seenSql).toMatch(/"displayName"/);
   });
 });
 

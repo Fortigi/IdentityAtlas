@@ -7,236 +7,24 @@
 Param()
 
 $ErrorActionPreference = 'Continue'
-$startTime = Get-Date
-$repoRoot = Split-Path $PSScriptRoot -Parent
-
-$cfg = Get-Content (Join-Path $PSScriptRoot 'test.config.json') -Raw | ConvertFrom-Json
-$apiBaseUrl = $cfg.api.baseUrl
-$uiBaseUrl  = $cfg.api.uiUrl
-
-Import-Module (Join-Path $PSScriptRoot 'lib' 'PgQuery.psm1') -Force
-Set-PgConnection -Service $cfg.postgres.service -User $cfg.postgres.user `
-                 -Password $cfg.postgres.password -Database $cfg.postgres.database
-
-$results = [ordered]@{}
-$totalPassed = 0
-$totalFailed = 0
-$totalSkipped = 0
 
 function Test-Check {
     param([string]$Category, [string]$Name, [bool]$Passed, [string]$Detail = '', [switch]$Skip)
     $key = "$Category | $Name"
     if ($Skip) {
-        $results[$key] = @{ Status = 'SKIP'; Detail = $Detail }
+        $script:results[$key] = @{ Status = 'SKIP'; Detail = $Detail }
         $script:totalSkipped++
         Write-Host "  SKIP  $Name  $Detail" -ForegroundColor Yellow
     } elseif ($Passed) {
-        $results[$key] = @{ Status = 'PASS'; Detail = $Detail }
+        $script:results[$key] = @{ Status = 'PASS'; Detail = $Detail }
         $script:totalPassed++
         Write-Host "  PASS  $Name" -ForegroundColor Green
     } else {
-        $results[$key] = @{ Status = 'FAIL'; Detail = $Detail }
+        $script:results[$key] = @{ Status = 'FAIL'; Detail = $Detail }
         $script:totalFailed++
         Write-Host "  FAIL  $Name  $Detail" -ForegroundColor Red
     }
 }
-
-Write-Host "`n========================================" -ForegroundColor Cyan
-Write-Host "  Identity Atlas — Docker Test Suite" -ForegroundColor Cyan
-Write-Host "  $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')" -ForegroundColor Cyan
-Write-Host "========================================`n" -ForegroundColor Cyan
-
-# ═══════════════════════════════════════════════════════════════════
-# 1. DOCKER INFRASTRUCTURE
-# ═══════════════════════════════════════════════════════════════════
-
-Write-Host "--- 1. Docker Infrastructure ---" -ForegroundColor Yellow
-
-# Check containers
-$ps = docker compose -f (Join-Path $repoRoot 'docker-compose.yml') ps --format json 2>&1
-$containers = $ps | ConvertFrom-Json -ErrorAction SilentlyContinue
-
-$postgresRunning = $containers | Where-Object { $_.Service -eq 'postgres' -and $_.State -eq 'running' }
-Test-Check 'Infrastructure' 'PostgreSQL container running' ($null -ne $postgresRunning)
-
-$webRunning = $containers | Where-Object { $_.Service -eq 'web' -and $_.State -eq 'running' }
-Test-Check 'Infrastructure' 'Web container running' ($null -ne $webRunning)
-
-$workerRunning = $containers | Where-Object { $_.Service -eq 'worker' -and $_.State -eq 'running' }
-Test-Check 'Infrastructure' 'Worker container running' ($null -ne $workerRunning)
-
-# ═══════════════════════════════════════════════════════════════════
-# 2. API HEALTH & ENDPOINTS
-# ═══════════════════════════════════════════════════════════════════
-
-Write-Host "`n--- 2. API Health & Endpoints ---" -ForegroundColor Yellow
-
-# Health
-try {
-    $health = Invoke-RestMethod -Uri "$apiBaseUrl/health" -TimeoutSec 10
-    Test-Check 'API' 'GET /api/health returns ok' ($health.status -eq 'ok')
-} catch { Test-Check 'API' 'GET /api/health returns ok' $false $_.Exception.Message }
-
-# Version
-try {
-    $version = Invoke-RestMethod -Uri "$apiBaseUrl/version" -TimeoutSec 10
-    Test-Check 'API' 'GET /api/version responds' ($null -ne $version)
-} catch { Test-Check 'API' 'GET /api/version responds' $false $_.Exception.Message }
-
-# Features
-try {
-    $features = Invoke-RestMethod -Uri "$apiBaseUrl/features" -TimeoutSec 10
-    Test-Check 'API' 'GET /api/features responds' ($null -ne $features.riskScoring)
-} catch { Test-Check 'API' 'GET /api/features responds' $false $_.Exception.Message }
-
-# Auth config
-try {
-    $auth = Invoke-RestMethod -Uri "$apiBaseUrl/auth-config" -TimeoutSec 10
-    Test-Check 'API' 'GET /api/auth-config responds' ($auth.enabled -eq $false) "enabled=$($auth.enabled)"
-} catch { Test-Check 'API' 'GET /api/auth-config responds' $false $_.Exception.Message }
-
-# Swagger UI
-try {
-    $swagger = Invoke-WebRequest -Uri "$uiBaseUrl/api/docs/" -UseBasicParsing -TimeoutSec 10
-    Test-Check 'API' 'Swagger UI loads (200)' ($swagger.StatusCode -eq 200)
-} catch { Test-Check 'API' 'Swagger UI loads (200)' $false $_.Exception.Message }
-
-# OpenAPI spec
-try {
-    $spec = Invoke-RestMethod -Uri "$apiBaseUrl/openapi.json" -TimeoutSec 10
-    Test-Check 'API' 'OpenAPI spec valid' ($spec.openapi -eq '3.0.3') "openapi=$($spec.openapi)"
-    Test-Check 'API' 'OpenAPI title is Identity Atlas' ($spec.info.title -match 'Identity Atlas') "$($spec.info.title)"
-} catch { Test-Check 'API' 'OpenAPI spec valid' $false $_.Exception.Message }
-
-# Frontend loads
-try {
-    $ui = Invoke-WebRequest -Uri $uiBaseUrl -UseBasicParsing -TimeoutSec 10
-    Test-Check 'API' 'Frontend HTML loads (200)' ($ui.StatusCode -eq 200)
-    Test-Check 'API' 'Frontend title is Identity Atlas' ($ui.Content -match 'Identity Atlas')
-} catch { Test-Check 'API' 'Frontend HTML loads (200)' $false $_.Exception.Message }
-
-# Systems endpoint (should return empty array)
-try {
-    $systems = Invoke-RestMethod -Uri "$apiBaseUrl/systems" -TimeoutSec 10
-    Test-Check 'API' 'GET /api/systems responds' ($null -ne $systems)
-} catch { Test-Check 'API' 'GET /api/systems responds' $false $_.Exception.Message }
-
-# Resources endpoint
-try {
-    $resources = Invoke-RestMethod -Uri "$apiBaseUrl/resources" -TimeoutSec 10
-    Test-Check 'API' 'GET /api/resources responds' ($null -ne $resources)
-} catch { Test-Check 'API' 'GET /api/resources responds' $false $_.Exception.Message }
-
-# ═══════════════════════════════════════════════════════════════════
-# 3. CRAWLER AUTH LIFECYCLE
-# ═══════════════════════════════════════════════════════════════════
-
-Write-Host "`n--- 3. Crawler Auth Lifecycle ---" -ForegroundColor Yellow
-
-$crawlerKey = $null
-$crawlerName = "Test Runner $(Get-Date -Format 'HHmmss')"
-
-# Register crawler (unique name per run prevents accumulation across repeated test runs)
-try {
-    $regBody = @{ displayName = $crawlerName; permissions = @('ingest','refreshViews') } | ConvertTo-Json
-    $reg = Invoke-RestMethod -Uri "$apiBaseUrl/admin/crawlers" -Method Post -ContentType 'application/json' `
-        -Body $regBody -TimeoutSec 10
-    $crawlerKey = $reg.apiKey
-    Test-Check 'CrawlerAuth' 'Register crawler returns key' ($crawlerKey -match '^fgc_') "prefix=$($reg.apiKeyPrefix)"
-} catch { Test-Check 'CrawlerAuth' 'Register crawler returns key' $false $_.Exception.Message }
-
-# Whoami
-if ($crawlerKey) {
-    try {
-        $headers = @{ 'Authorization' = "Bearer $crawlerKey" }
-        $whoami = Invoke-RestMethod -Uri "$apiBaseUrl/crawlers/whoami" -Headers $headers -TimeoutSec 10
-        Test-Check 'CrawlerAuth' 'Whoami returns crawler name' ($whoami.displayName -eq $crawlerName)
-    } catch { Test-Check 'CrawlerAuth' 'Whoami returns crawler name' $false $_.Exception.Message }
-}
-
-# Invalid key rejected
-try {
-    $badHeaders = @{ 'Authorization' = 'Bearer fgc_invalid_key_00000000000000000000000000000000' }
-    $null = Invoke-RestMethod -Uri "$apiBaseUrl/crawlers/whoami" -Headers $badHeaders -TimeoutSec 10 -ErrorAction Stop
-    Test-Check 'CrawlerAuth' 'Invalid key returns 401' $false 'No error thrown'
-} catch {
-    $code = $_.Exception.Response.StatusCode.value__
-    Test-Check 'CrawlerAuth' 'Invalid key returns 401' ($code -eq 401) "status=$code"
-}
-
-# No auth header rejected
-try {
-    $null = Invoke-RestMethod -Uri "$apiBaseUrl/crawlers/whoami" -TimeoutSec 10 -ErrorAction Stop
-    Test-Check 'CrawlerAuth' 'No auth returns 401' $false 'No error thrown'
-} catch {
-    $code = $_.Exception.Response.StatusCode.value__
-    Test-Check 'CrawlerAuth' 'No auth returns 401' ($code -eq 401) "status=$code"
-}
-
-# Key rotation
-if ($crawlerKey) {
-    try {
-        $headers = @{ 'Authorization' = "Bearer $crawlerKey" }
-        $rotated = Invoke-RestMethod -Uri "$apiBaseUrl/crawlers/rotate" -Method Post -Headers $headers -TimeoutSec 10
-        $newKey = $rotated.apiKey
-        Test-Check 'CrawlerAuth' 'Key rotation returns new key' ($newKey -match '^fgc_' -and $newKey -ne $crawlerKey)
-
-        # Old key should fail
-        try {
-            $null = Invoke-RestMethod -Uri "$apiBaseUrl/crawlers/whoami" -Headers $headers -TimeoutSec 10 -ErrorAction Stop
-            Test-Check 'CrawlerAuth' 'Old key rejected after rotation' $false 'Old key still works'
-        } catch {
-            $code = $_.Exception.Response.StatusCode.value__
-            Test-Check 'CrawlerAuth' 'Old key rejected after rotation' ($code -eq 401)
-        }
-
-        # New key should work
-        $headers = @{ 'Authorization' = "Bearer $newKey" }
-        $whoami2 = Invoke-RestMethod -Uri "$apiBaseUrl/crawlers/whoami" -Headers $headers -TimeoutSec 10
-        Test-Check 'CrawlerAuth' 'New key works after rotation' ($whoami2.displayName -eq $crawlerName)
-        $crawlerKey = $newKey
-    } catch { Test-Check 'CrawlerAuth' 'Key rotation returns new key' $false $_.Exception.Message }
-}
-
-# List crawlers (admin)
-try {
-    $list = Invoke-RestMethod -Uri "$apiBaseUrl/admin/crawlers" -TimeoutSec 10
-    Test-Check 'CrawlerAuth' 'Admin list returns crawlers' ($list.Count -ge 1) "count=$($list.Count)"
-} catch { Test-Check 'CrawlerAuth' 'Admin list returns crawlers' $false $_.Exception.Message }
-
-# ═══════════════════════════════════════════════════════════════════
-# 4. DEMO DATASET — GENERATE, INGEST, VERIFY
-# ═══════════════════════════════════════════════════════════════════
-
-Write-Host "`n--- 4. Demo Dataset ---" -ForegroundColor Yellow
-
-# Generate
-$demoDir = Join-Path $repoRoot 'test/demo-dataset'
-try {
-    & (Join-Path $demoDir 'Generate-DemoDataset.ps1') 2>&1 | Out-Null
-    $datasetExists = Test-Path (Join-Path $demoDir 'demo-company.json')
-    Test-Check 'DemoDataset' 'Generate dataset' $datasetExists
-} catch { Test-Check 'DemoDataset' 'Generate dataset' $false $_.Exception.Message }
-
-# Ingest
-if ($crawlerKey -and $datasetExists) {
-    try {
-        & (Join-Path $demoDir 'Ingest-DemoDataset.ps1') -ApiKey $crawlerKey -ApiBaseUrl $apiBaseUrl 2>&1 | Out-Null
-        Test-Check 'DemoDataset' 'Ingest dataset via API' $true
-    } catch { Test-Check 'DemoDataset' 'Ingest dataset via API' $false $_.Exception.Message }
-}
-
-# ═══════════════════════════════════════════════════════════════════
-# 5. DATA VERIFICATION (SQL)
-# ═══════════════════════════════════════════════════════════════════
-
-Write-Host "`n--- 5. Data Verification (SQL) ---" -ForegroundColor Yellow
-
-# Postgres (v5). Identifiers are double-quoted because the migrations create them
-# as "PascalCase" — unquoted names fold to lowercase and don't resolve. There is
-# no ValidTo: v5 dropped temporal tables and hides removed entities with a
-# `deletedAt` tombstone instead, so "current rows" means `deletedAt IS NULL` on
-# the three soft-delete tables (Get-PgLiveCount applies it per table).
 
 # A query error must fail its own check, not the whole run — but it must never
 # read as a silent 0 either, which is how the v4 T-SQL here went unnoticed.
@@ -250,309 +38,577 @@ function Measure-Check {
     }
 }
 
-# Table existence
-$expectedTables = @('Systems','Resources','Principals','ResourceAssignments','ResourceRelationships',
-    'Identities','IdentityMembers','Contexts','GovernanceCatalogs','AssignmentPolicies',
-    'AssignmentRequests','CertificationDecisions','Crawlers','CrawlerAuditLog')
+function Initialize-TestRun {
+    $script:startTime = Get-Date
+    $script:repoRoot = Split-Path $PSScriptRoot -Parent
 
-foreach ($table in $expectedTables) {
+    $script:cfg = Get-Content (Join-Path $PSScriptRoot 'test.config.json') -Raw | ConvertFrom-Json
+    $script:apiBaseUrl = $script:cfg.api.baseUrl
+    $script:uiBaseUrl  = $script:cfg.api.uiUrl
+
+    Import-Module (Join-Path $PSScriptRoot 'lib' 'PgQuery.psm1') -Force
+    Set-PgConnection -Service $script:cfg.postgres.service -User $script:cfg.postgres.user `
+                     -Password $script:cfg.postgres.password -Database $script:cfg.postgres.database
+
+    $script:results = [ordered]@{}
+    $script:totalPassed = 0
+    $script:totalFailed = 0
+    $script:totalSkipped = 0
+    $script:crawlerKey = $null
+}
+
+# ═══════════════════════════════════════════════════════════════════
+# 1. DOCKER INFRASTRUCTURE
+# ═══════════════════════════════════════════════════════════════════
+function Test-DockerInfrastructure {
+    Write-Host "--- 1. Docker Infrastructure ---" -ForegroundColor Yellow
+
+    # Check containers
+    $ps = docker compose -f (Join-Path $script:repoRoot 'docker-compose.yml') ps --format json 2>&1
+    $containers = $ps | ConvertFrom-Json -ErrorAction SilentlyContinue
+
+    $postgresRunning = $containers | Where-Object { $_.Service -eq 'postgres' -and $_.State -eq 'running' }
+    Test-Check 'Infrastructure' 'PostgreSQL container running' ($null -ne $postgresRunning)
+
+    $webRunning = $containers | Where-Object { $_.Service -eq 'web' -and $_.State -eq 'running' }
+    Test-Check 'Infrastructure' 'Web container running' ($null -ne $webRunning)
+
+    $workerRunning = $containers | Where-Object { $_.Service -eq 'worker' -and $_.State -eq 'running' }
+    Test-Check 'Infrastructure' 'Worker container running' ($null -ne $workerRunning)
+}
+
+# ═══════════════════════════════════════════════════════════════════
+# 2. API HEALTH & ENDPOINTS
+# ═══════════════════════════════════════════════════════════════════
+function Test-ApiHealth {
+    Write-Host "`n--- 2. API Health & Endpoints ---" -ForegroundColor Yellow
+
+    # Health
     try {
-        $exists = Get-PgCount -Query "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = '$table' AND table_schema = 'public'"
-        Test-Check 'Schema' "Table exists: $table" ($exists -ge 1)
+        $health = Invoke-RestMethod -Uri "$script:apiBaseUrl/health" -TimeoutSec 10
+        Test-Check 'API' 'GET /api/health returns ok' ($health.status -eq 'ok')
+    } catch { Test-Check 'API' 'GET /api/health returns ok' $false $_.Exception.Message }
+
+    # Version
+    try {
+        $version = Invoke-RestMethod -Uri "$script:apiBaseUrl/version" -TimeoutSec 10
+        Test-Check 'API' 'GET /api/version responds' ($null -ne $version)
+    } catch { Test-Check 'API' 'GET /api/version responds' $false $_.Exception.Message }
+
+    # Features
+    try {
+        $features = Invoke-RestMethod -Uri "$script:apiBaseUrl/features" -TimeoutSec 10
+        Test-Check 'API' 'GET /api/features responds' ($null -ne $features.riskScoring)
+    } catch { Test-Check 'API' 'GET /api/features responds' $false $_.Exception.Message }
+
+    # Auth config
+    try {
+        $auth = Invoke-RestMethod -Uri "$script:apiBaseUrl/auth-config" -TimeoutSec 10
+        Test-Check 'API' 'GET /api/auth-config responds' ($auth.enabled -eq $false) "enabled=$($auth.enabled)"
+    } catch { Test-Check 'API' 'GET /api/auth-config responds' $false $_.Exception.Message }
+
+    # Swagger UI
+    try {
+        $swagger = Invoke-WebRequest -Uri "$script:uiBaseUrl/api/docs/" -UseBasicParsing -TimeoutSec 10
+        Test-Check 'API' 'Swagger UI loads (200)' ($swagger.StatusCode -eq 200)
+    } catch { Test-Check 'API' 'Swagger UI loads (200)' $false $_.Exception.Message }
+
+    # OpenAPI spec
+    try {
+        $spec = Invoke-RestMethod -Uri "$script:apiBaseUrl/openapi.json" -TimeoutSec 10
+        Test-Check 'API' 'OpenAPI spec valid' ($spec.openapi -eq '3.0.3') "openapi=$($spec.openapi)"
+        Test-Check 'API' 'OpenAPI title is Identity Atlas' ($spec.info.title -match 'Identity Atlas') "$($spec.info.title)"
+    } catch { Test-Check 'API' 'OpenAPI spec valid' $false $_.Exception.Message }
+
+    # Frontend loads
+    try {
+        $ui = Invoke-WebRequest -Uri $script:uiBaseUrl -UseBasicParsing -TimeoutSec 10
+        Test-Check 'API' 'Frontend HTML loads (200)' ($ui.StatusCode -eq 200)
+        Test-Check 'API' 'Frontend title is Identity Atlas' ($ui.Content -match 'Identity Atlas')
+    } catch { Test-Check 'API' 'Frontend HTML loads (200)' $false $_.Exception.Message }
+
+    # Systems endpoint (should return empty array)
+    try {
+        $systems = Invoke-RestMethod -Uri "$script:apiBaseUrl/systems" -TimeoutSec 10
+        Test-Check 'API' 'GET /api/systems responds' ($null -ne $systems)
+    } catch { Test-Check 'API' 'GET /api/systems responds' $false $_.Exception.Message }
+
+    # Resources endpoint
+    try {
+        $resources = Invoke-RestMethod -Uri "$script:apiBaseUrl/resources" -TimeoutSec 10
+        Test-Check 'API' 'GET /api/resources responds' ($null -ne $resources)
+    } catch { Test-Check 'API' 'GET /api/resources responds' $false $_.Exception.Message }
+}
+
+# ═══════════════════════════════════════════════════════════════════
+# 3. CRAWLER AUTH LIFECYCLE
+# ═══════════════════════════════════════════════════════════════════
+function Test-CrawlerKeyRotation {
+    try {
+        $headers = @{ 'Authorization' = "Bearer $script:crawlerKey" }
+        $rotated = Invoke-RestMethod -Uri "$script:apiBaseUrl/crawlers/rotate" -Method Post -Headers $headers -TimeoutSec 10
+        $newKey = $rotated.apiKey
+        Test-Check 'CrawlerAuth' 'Key rotation returns new key' ($newKey -match '^fgc_' -and $newKey -ne $script:crawlerKey)
+
+        # Old key should fail
+        try {
+            $null = Invoke-RestMethod -Uri "$script:apiBaseUrl/crawlers/whoami" -Headers $headers -TimeoutSec 10 -ErrorAction Stop
+            Test-Check 'CrawlerAuth' 'Old key rejected after rotation' $false 'Old key still works'
+        } catch {
+            $code = $_.Exception.Response.StatusCode.value__
+            Test-Check 'CrawlerAuth' 'Old key rejected after rotation' ($code -eq 401)
+        }
+
+        # New key should work
+        $headers = @{ 'Authorization' = "Bearer $newKey" }
+        $whoami2 = Invoke-RestMethod -Uri "$script:apiBaseUrl/crawlers/whoami" -Headers $headers -TimeoutSec 10
+        Test-Check 'CrawlerAuth' 'New key works after rotation' ($whoami2.displayName -eq $script:crawlerName)
+        $script:crawlerKey = $newKey
+    } catch { Test-Check 'CrawlerAuth' 'Key rotation returns new key' $false $_.Exception.Message }
+}
+
+function Test-CrawlerAuth {
+    Write-Host "`n--- 3. Crawler Auth Lifecycle ---" -ForegroundColor Yellow
+
+    $script:crawlerName = "Test Runner $(Get-Date -Format 'HHmmss')"
+
+    # Register crawler (unique name per run prevents accumulation across repeated test runs)
+    try {
+        $regBody = @{ displayName = $script:crawlerName; permissions = @('ingest','refreshViews') } | ConvertTo-Json
+        $reg = Invoke-RestMethod -Uri "$script:apiBaseUrl/admin/crawlers" -Method Post -ContentType 'application/json' `
+            -Body $regBody -TimeoutSec 10
+        $script:crawlerKey = $reg.apiKey
+        Test-Check 'CrawlerAuth' 'Register crawler returns key' ($script:crawlerKey -match '^fgc_') "prefix=$($reg.apiKeyPrefix)"
+    } catch { Test-Check 'CrawlerAuth' 'Register crawler returns key' $false $_.Exception.Message }
+
+    # Whoami
+    if ($script:crawlerKey) {
+        try {
+            $headers = @{ 'Authorization' = "Bearer $script:crawlerKey" }
+            $whoami = Invoke-RestMethod -Uri "$script:apiBaseUrl/crawlers/whoami" -Headers $headers -TimeoutSec 10
+            Test-Check 'CrawlerAuth' 'Whoami returns crawler name' ($whoami.displayName -eq $script:crawlerName)
+        } catch { Test-Check 'CrawlerAuth' 'Whoami returns crawler name' $false $_.Exception.Message }
+    }
+
+    # Invalid key rejected
+    try {
+        $badHeaders = @{ 'Authorization' = 'Bearer fgc_invalid_key_00000000000000000000000000000000' }
+        $null = Invoke-RestMethod -Uri "$script:apiBaseUrl/crawlers/whoami" -Headers $badHeaders -TimeoutSec 10 -ErrorAction Stop
+        Test-Check 'CrawlerAuth' 'Invalid key returns 401' $false 'No error thrown'
     } catch {
-        Test-Check 'Schema' "Table exists: $table" $false "query failed: $($_.Exception.Message)"
+        $code = $_.Exception.Response.StatusCode.value__
+        Test-Check 'CrawlerAuth' 'Invalid key returns 401' ($code -eq 401) "status=$code"
+    }
+
+    # No auth header rejected
+    try {
+        $null = Invoke-RestMethod -Uri "$script:apiBaseUrl/crawlers/whoami" -TimeoutSec 10 -ErrorAction Stop
+        Test-Check 'CrawlerAuth' 'No auth returns 401' $false 'No error thrown'
+    } catch {
+        $code = $_.Exception.Response.StatusCode.value__
+        Test-Check 'CrawlerAuth' 'No auth returns 401' ($code -eq 401) "status=$code"
+    }
+
+    # Key rotation
+    if ($script:crawlerKey) {
+        Test-CrawlerKeyRotation
+    }
+
+    # List crawlers (admin)
+    try {
+        $list = Invoke-RestMethod -Uri "$script:apiBaseUrl/admin/crawlers" -TimeoutSec 10
+        Test-Check 'CrawlerAuth' 'Admin list returns crawlers' ($list.Count -ge 1) "count=$($list.Count)"
+    } catch { Test-Check 'CrawlerAuth' 'Admin list returns crawlers' $false $_.Exception.Message }
+}
+
+# ═══════════════════════════════════════════════════════════════════
+# 4. DEMO DATASET — GENERATE, INGEST, VERIFY
+# ═══════════════════════════════════════════════════════════════════
+function Test-DemoDataset {
+    Write-Host "`n--- 4. Demo Dataset ---" -ForegroundColor Yellow
+
+    # Generate
+    $demoDir = Join-Path $script:repoRoot 'test/demo-dataset'
+    try {
+        & (Join-Path $demoDir 'Generate-DemoDataset.ps1') 2>&1 | Out-Null
+        $datasetExists = Test-Path (Join-Path $demoDir 'demo-company.json')
+        Test-Check 'DemoDataset' 'Generate dataset' $datasetExists
+    } catch { Test-Check 'DemoDataset' 'Generate dataset' $false $_.Exception.Message }
+
+    # Ingest
+    if ($script:crawlerKey -and $datasetExists) {
+        try {
+            & (Join-Path $demoDir 'Ingest-DemoDataset.ps1') -ApiKey $script:crawlerKey -ApiBaseUrl $script:apiBaseUrl 2>&1 | Out-Null
+            Test-Check 'DemoDataset' 'Ingest dataset via API' $true
+        } catch { Test-Check 'DemoDataset' 'Ingest dataset via API' $false $_.Exception.Message }
     }
 }
 
-# Row counts (after demo dataset ingest)
-$countChecks = @{
-    'Systems'                = 1
-    'Principals'             = 5
-    'Resources'              = 5
-    'ResourceAssignments'    = 10
-    'ResourceRelationships'  = 5
-    'Identities'             = 5
-    'Contexts'               = 3
-    'GovernanceCatalogs'     = 1
-}
+# ═══════════════════════════════════════════════════════════════════
+# 5. DATA VERIFICATION (SQL)
+# ═══════════════════════════════════════════════════════════════════
 
-foreach ($table in $countChecks.Keys | Sort-Object) {
-    $min = $countChecks[$table]
-    try {
-        $count = Get-PgLiveCount -Table $table
-        Test-Check 'DataCounts' "$table >= $min rows" ($count -ge $min) "actual=$count"
-    } catch {
-        Test-Check 'DataCounts' "$table >= $min rows" $false "query failed: $($_.Exception.Message)"
+# Postgres (v5). Identifiers are double-quoted because the migrations create them
+# as "PascalCase" — unquoted names fold to lowercase and don't resolve. There is
+# no ValidTo: v5 dropped temporal tables and hides removed entities with a
+# `deletedAt` tombstone instead, so "current rows" means `deletedAt IS NULL` on
+# the three soft-delete tables (Get-PgLiveCount applies it per table).
+function Test-DatabaseSchema {
+    Write-Host "`n--- 5. Data Verification (SQL) ---" -ForegroundColor Yellow
+
+    # Table existence
+    $expectedTables = @('Systems','Resources','Principals','ResourceAssignments','ResourceRelationships',
+        'Identities','IdentityMembers','Contexts','GovernanceCatalogs','AssignmentPolicies',
+        'AssignmentRequests','CertificationDecisions','Crawlers','CrawlerAuditLog')
+
+    foreach ($table in $expectedTables) {
+        try {
+            $exists = Get-PgCount -Query "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = '$table' AND table_schema = 'public'"
+            Test-Check 'Schema' "Table exists: $table" ($exists -ge 1)
+        } catch {
+            Test-Check 'Schema' "Table exists: $table" $false "query failed: $($_.Exception.Message)"
+        }
     }
-}
 
-# Referential integrity — a live assignment must not point at a tombstoned or
-# missing row, so both sides of the check filter deletedAt.
-try {
-    $orphanAssignRes = Get-PgCount -Query @'
+    # Row counts (after demo dataset ingest)
+    $countChecks = @{
+        'Systems'                = 1
+        'Principals'             = 5
+        'Resources'              = 5
+        'ResourceAssignments'    = 10
+        'ResourceRelationships'  = 5
+        'Identities'             = 5
+        'Contexts'               = 3
+        'GovernanceCatalogs'     = 1
+    }
+
+    foreach ($table in $countChecks.Keys | Sort-Object) {
+        $min = $countChecks[$table]
+        try {
+            $count = Get-PgLiveCount -Table $table
+            Test-Check 'DataCounts' "$table >= $min rows" ($count -ge $min) "actual=$count"
+        } catch {
+            Test-Check 'DataCounts' "$table >= $min rows" $false "query failed: $($_.Exception.Message)"
+        }
+    }
+
+    # Referential integrity — a live assignment must not point at a tombstoned or
+    # missing row, so both sides of the check filter deletedAt.
+    try {
+        $orphanAssignRes = Get-PgCount -Query @'
 SELECT COUNT(*) FROM "ResourceAssignments" ra
 WHERE ra."deletedAt" IS NULL
   AND NOT EXISTS (SELECT 1 FROM "Resources" r WHERE r."id" = ra."resourceId" AND r."deletedAt" IS NULL)
 '@
-    Test-Check 'Integrity' 'Assignments -> Resources (no orphans)' ($orphanAssignRes -eq 0) "orphans=$orphanAssignRes"
-} catch {
-    Test-Check 'Integrity' 'Assignments -> Resources (no orphans)' $false "query failed: $($_.Exception.Message)"
-}
+        Test-Check 'Integrity' 'Assignments -> Resources (no orphans)' ($orphanAssignRes -eq 0) "orphans=$orphanAssignRes"
+    } catch {
+        Test-Check 'Integrity' 'Assignments -> Resources (no orphans)' $false "query failed: $($_.Exception.Message)"
+    }
 
-try {
-    $orphanAssignPrinc = Get-PgCount -Query @'
+    try {
+        $orphanAssignPrinc = Get-PgCount -Query @'
 SELECT COUNT(*) FROM "ResourceAssignments" ra
 WHERE ra."deletedAt" IS NULL
   AND NOT EXISTS (SELECT 1 FROM "Principals" p WHERE p."id" = ra."principalId" AND p."deletedAt" IS NULL)
 '@
-    Test-Check 'Integrity' 'Assignments -> Principals (no orphans)' ($orphanAssignPrinc -eq 0) "orphans=$orphanAssignPrinc"
-} catch {
-    Test-Check 'Integrity' 'Assignments -> Principals (no orphans)' $false "query failed: $($_.Exception.Message)"
+        Test-Check 'Integrity' 'Assignments -> Principals (no orphans)' ($orphanAssignPrinc -eq 0) "orphans=$orphanAssignPrinc"
+    } catch {
+        Test-Check 'Integrity' 'Assignments -> Principals (no orphans)' $false "query failed: $($_.Exception.Message)"
+    }
 }
 
-# Principal types
-Measure-Check 'BusinessLogic' 'Has User principals' -Min 10 -Query @'
+function Test-BusinessLogicData {
+    # Principal types
+    Measure-Check 'BusinessLogic' 'Has User principals' -Min 10 -Query @'
 SELECT COUNT(*) FROM "Principals" WHERE "principalType" = 'User' AND "deletedAt" IS NULL
 '@
 
-Measure-Check 'BusinessLogic' 'Has ServicePrincipal' -Min 1 -Query @'
+    Measure-Check 'BusinessLogic' 'Has ServicePrincipal' -Min 1 -Query @'
 SELECT COUNT(*) FROM "Principals" WHERE "principalType" = 'ServicePrincipal' AND "deletedAt" IS NULL
 '@
 
-Measure-Check 'BusinessLogic' 'Has AIAgent' -Min 1 -Query @'
+    Measure-Check 'BusinessLogic' 'Has AIAgent' -Min 1 -Query @'
 SELECT COUNT(*) FROM "Principals" WHERE "principalType" = 'AIAgent' AND "deletedAt" IS NULL
 '@
 
-# Resource types
-Measure-Check 'BusinessLogic' 'Has BusinessRole resources' -Min 2 -Query @'
+    # Resource types
+    Measure-Check 'BusinessLogic' 'Has BusinessRole resources' -Min 2 -Query @'
 SELECT COUNT(*) FROM "Resources" WHERE "resourceType" = 'BusinessRole' AND "deletedAt" IS NULL
 '@
 
-Measure-Check 'BusinessLogic' 'Has Group resources' -Min 3 -Query @'
+    Measure-Check 'BusinessLogic' 'Has Group resources' -Min 3 -Query @'
 SELECT COUNT(*) FROM "Resources" WHERE "resourceType" = 'Group' AND "deletedAt" IS NULL
 '@
 
-# Governance is the `governed` flag on the assignment — never an assignmentType.
-# This asserted assignmentType = 'Governed' until #707: a retired value that
-# ingest now rejects outright, so the check could only ever have matched 0 rows.
-Measure-Check 'BusinessLogic' 'Has governed assignments' -Min 5 -Query @'
+    # Governance is the `governed` flag on the assignment — never an assignmentType.
+    # This asserted assignmentType = 'Governed' until #707: a retired value that
+    # ingest now rejects outright, so the check could only ever have matched 0 rows.
+    Measure-Check 'BusinessLogic' 'Has governed assignments' -Min 5 -Query @'
 SELECT COUNT(*) FROM "ResourceAssignments" WHERE "governed" = true AND "deletedAt" IS NULL
 '@
 
-Measure-Check 'BusinessLogic' 'Has Eligible assignments' -Min 1 -Query @'
+    Measure-Check 'BusinessLogic' 'Has Eligible assignments' -Min 1 -Query @'
 SELECT COUNT(*) FROM "ResourceAssignments" WHERE "assignmentType" = 'Eligible' AND "deletedAt" IS NULL
 '@
 
-# Ownership is a Direct assignment on a synthetic GroupOwnership resource, not the
-# retired 'Owner' assignmentType. Restored (#713) now that Generate-DemoDataset.ps1
-# emits ownership — the v5 replacement for the old 'Has Owner assignments' check.
-Measure-Check 'BusinessLogic' 'Has GroupOwnership resources' -Min 1 -Query @'
+    # Ownership is a Direct assignment on a synthetic GroupOwnership resource, not the
+    # retired 'Owner' assignmentType. Restored (#713) now that Generate-DemoDataset.ps1
+    # emits ownership — the v5 replacement for the old 'Has Owner assignments' check.
+    Measure-Check 'BusinessLogic' 'Has GroupOwnership resources' -Min 1 -Query @'
 SELECT COUNT(*) FROM "Resources" WHERE "resourceType" = 'GroupOwnership' AND "deletedAt" IS NULL
 '@
 
-Measure-Check 'BusinessLogic' 'Has owner assignments' -Min 1 -Query @'
+    Measure-Check 'BusinessLogic' 'Has owner assignments' -Min 1 -Query @'
 SELECT COUNT(*) FROM "ResourceAssignments" ra
 JOIN "Resources" r ON r."id" = ra."resourceId"
 WHERE r."resourceType" = 'GroupOwnership' AND ra."deletedAt" IS NULL
 '@
 
-# Context hierarchy (Contexts has no soft-delete column)
-Measure-Check 'BusinessLogic' 'Has root context (no parent)' -Min 1 -Query @'
+    # Context hierarchy (Contexts has no soft-delete column)
+    Measure-Check 'BusinessLogic' 'Has root context (no parent)' -Min 1 -Query @'
 SELECT COUNT(*) FROM "Contexts" WHERE "parentContextId" IS NULL
 '@
 
-Measure-Check 'BusinessLogic' 'Has child contexts (with parent)' -Min 3 -Query @'
+    Measure-Check 'BusinessLogic' 'Has child contexts (with parent)' -Min 3 -Query @'
 SELECT COUNT(*) FROM "Contexts" WHERE "parentContextId" IS NOT NULL
 '@
 
-# Governance
-Measure-Check 'BusinessLogic' 'Has governance catalogs' -Min 2 -Query 'SELECT COUNT(*) FROM "GovernanceCatalogs"'
+    # Governance
+    Measure-Check 'BusinessLogic' 'Has governance catalogs' -Min 2 -Query 'SELECT COUNT(*) FROM "GovernanceCatalogs"'
 
-Measure-Check 'BusinessLogic' 'Has assignment policies' -Min 2 -Query 'SELECT COUNT(*) FROM "AssignmentPolicies"'
+    Measure-Check 'BusinessLogic' 'Has assignment policies' -Min 2 -Query 'SELECT COUNT(*) FROM "AssignmentPolicies"'
 
-# Crawler audit log
-Measure-Check 'BusinessLogic' 'Crawler audit log has entries' -Min 1 -Query 'SELECT COUNT(*) FROM "CrawlerAuditLog"'
+    # Crawler audit log
+    Measure-Check 'BusinessLogic' 'Crawler audit log has entries' -Min 1 -Query 'SELECT COUNT(*) FROM "CrawlerAuditLog"'
+}
 
 # ═══════════════════════════════════════════════════════════════════
 # 6. API DATA VERIFICATION (read-side)
 # ═══════════════════════════════════════════════════════════════════
+function Test-ApiDataVerification {
+    Write-Host "`n--- 6. API Data Verification ---" -ForegroundColor Yellow
 
-Write-Host "`n--- 6. API Data Verification ---" -ForegroundColor Yellow
+    try {
+        $apiResources = Invoke-RestMethod -Uri "$script:apiBaseUrl/resources" -TimeoutSec 30
+        $resCount = if ($apiResources -is [array]) { $apiResources.Count } elseif ($apiResources.data) { $apiResources.data.Count } else { 0 }
+        Test-Check 'APIData' 'Resources endpoint returns data' ($resCount -ge 5) "count=$resCount"
+    } catch { Test-Check 'APIData' 'Resources endpoint returns data' $false $_.Exception.Message }
 
-try {
-    $apiResources = Invoke-RestMethod -Uri "$apiBaseUrl/resources" -TimeoutSec 30
-    $resCount = if ($apiResources -is [array]) { $apiResources.Count } elseif ($apiResources.data) { $apiResources.data.Count } else { 0 }
-    Test-Check 'APIData' 'Resources endpoint returns data' ($resCount -ge 5) "count=$resCount"
-} catch { Test-Check 'APIData' 'Resources endpoint returns data' $false $_.Exception.Message }
-
-try {
-    $apiSystems = Invoke-RestMethod -Uri "$apiBaseUrl/systems" -TimeoutSec 30
-    $sysCount = if ($apiSystems -is [array]) { $apiSystems.Count } else { 0 }
-    Test-Check 'APIData' 'Systems endpoint returns data' ($sysCount -ge 1) "count=$sysCount"
-} catch { Test-Check 'APIData' 'Systems endpoint returns data' $false $_.Exception.Message }
+    try {
+        $apiSystems = Invoke-RestMethod -Uri "$script:apiBaseUrl/systems" -TimeoutSec 30
+        $sysCount = if ($apiSystems -is [array]) { $apiSystems.Count } else { 0 }
+        Test-Check 'APIData' 'Systems endpoint returns data' ($sysCount -ge 1) "count=$sysCount"
+    } catch { Test-Check 'APIData' 'Systems endpoint returns data' $false $_.Exception.Message }
+}
 
 # ═══════════════════════════════════════════════════════════════════
 # 6b. MATRIX & TAG API
 # ═══════════════════════════════════════════════════════════════════
+function Test-MatrixAndTagApi {
+    Write-Host "`n--- 6b. Matrix & Tag API ---" -ForegroundColor Yellow
 
-Write-Host "`n--- 6b. Matrix & Tag API ---" -ForegroundColor Yellow
+    # Auth headers — empty when auth is disabled (local Docker), crawler key when enabled
+    $authHeaders = if ($script:crawlerKey) { @{ 'Authorization' = "Bearer $script:crawlerKey" } } else { @{} }
 
-# Auth headers — empty when auth is disabled (local Docker), crawler key when enabled
-$authHeaders = if ($crawlerKey) { @{ 'Authorization' = "Bearer $crawlerKey" } } else { @{} }
+    # Matrix: /api/permissions must return user rows (userLimit is the correct param name)
+    try {
+        $perm = Invoke-RestMethod -Uri "$script:apiBaseUrl/permissions?userLimit=25" -Headers $authHeaders -TimeoutSec 30
+        $userCount = if ($perm.data) { $perm.data.Count } else { 0 }
+        Test-Check 'MatrixAPI' 'Matrix returns user rows' ($userCount -ge 5) "users=$userCount"
 
-# Matrix: /api/permissions must return user rows (userLimit is the correct param name)
-try {
-    $perm = Invoke-RestMethod -Uri "$apiBaseUrl/permissions?userLimit=25" -Headers $authHeaders -TimeoutSec 30
-    $userCount = if ($perm.data) { $perm.data.Count } else { 0 }
-    Test-Check 'MatrixAPI' 'Matrix returns user rows' ($userCount -ge 5) "users=$userCount"
+        # Each user row has a memberId — check there are also resource rows (groupId)
+        $hasAssignments = $perm.data -and ($perm.data | Where-Object { $_.groupId -or $_.resourceId }) -and
+                          (@($perm.data | Where-Object { $_.groupId -or $_.resourceId }).Count -ge 1)
+        Test-Check 'MatrixAPI' 'Matrix rows have resource assignments' $hasAssignments
+    } catch { Test-Check 'MatrixAPI' 'Matrix returns user rows' $false $_.Exception.Message }
 
-    # Each user row has a memberId — check there are also resource rows (groupId)
-    $hasAssignments = $perm.data -and ($perm.data | Where-Object { $_.groupId -or $_.resourceId }) -and
-                      (@($perm.data | Where-Object { $_.groupId -or $_.resourceId }).Count -ge 1)
-    Test-Check 'MatrixAPI' 'Matrix rows have resource assignments' $hasAssignments
-} catch { Test-Check 'MatrixAPI' 'Matrix returns user rows' $false $_.Exception.Message }
+    Test-TagLifecycle -AuthHeaders $authHeaders
+}
 
-# Tags: create a tag, assign it to a resource, filter by it
-try {
-    # 1. Create a tag
-    $tagBody = @{ name = 'test-critical'; entityType = 'resource'; color = '#FF0000' } | ConvertTo-Json
-    $newTag = Invoke-RestMethod -Uri "$apiBaseUrl/tags" -Method Post -Headers $authHeaders -Body $tagBody -ContentType 'application/json' -TimeoutSec 30
-    $tagId = $newTag.id
-    Test-Check 'MatrixAPI' 'Create resource tag' ($null -ne $tagId) "tagId=$tagId"
+function Test-TagLifecycle {
+    param([hashtable]$AuthHeaders)
 
-    # 2. Get a resource to tag
-    $resources = Invoke-RestMethod -Uri "$apiBaseUrl/resources?limit=1" -Headers $authHeaders -TimeoutSec 30
-    $resourceId = if ($resources.data) { $resources.data[0].id } else { $resources[0].id }
+    $authHeaders = $AuthHeaders
 
-    # 3. Assign tag to resource
-    $assignBody = @{ entityIds = @($resourceId) } | ConvertTo-Json
-    Invoke-RestMethod -Uri "$apiBaseUrl/tags/$tagId/assign" -Method Post -Headers $authHeaders -Body $assignBody -ContentType 'application/json' -TimeoutSec 30
-    Test-Check 'MatrixAPI' 'Assign tag to resource' $true
+    # Tags: create a tag, assign it to a resource, filter by it
+    try {
+        # 1. Create a tag
+        $tagBody = @{ name = 'test-critical'; entityType = 'resource'; color = '#FF0000' } | ConvertTo-Json
+        $newTag = Invoke-RestMethod -Uri "$script:apiBaseUrl/tags" -Method Post -Headers $authHeaders -Body $tagBody -ContentType 'application/json' -TimeoutSec 30
+        $tagId = $newTag.id
+        Test-Check 'MatrixAPI' 'Create resource tag' ($null -ne $tagId) "tagId=$tagId"
 
-    # 4. Verify tag shows on resource
-    $taggedResources = Invoke-RestMethod -Uri "$apiBaseUrl/resources?tag=test-critical" -Headers $authHeaders -TimeoutSec 30
-    $taggedCount = if ($taggedResources.data) { $taggedResources.data.Count } else { 0 }
-    Test-Check 'MatrixAPI' 'Tag filter returns tagged resources' ($taggedCount -ge 1) "count=$taggedCount"
+        # 2. Get a resource to tag
+        $resources = Invoke-RestMethod -Uri "$script:apiBaseUrl/resources?limit=1" -Headers $authHeaders -TimeoutSec 30
+        $resourceId = if ($resources.data) { $resources.data[0].id } else { $resources[0].id }
 
-    # 5. Matrix filtered by group tag should only show users with that resource
-    $permFiltered = Invoke-RestMethod -Uri "$apiBaseUrl/permissions?userLimit=25&__groupTag=test-critical" -Headers $authHeaders -TimeoutSec 30
-    $filteredUsers = if ($permFiltered.data) { $permFiltered.data.Count } else { 0 }
-    Test-Check 'MatrixAPI' 'Matrix group tag filter reduces results' ($filteredUsers -ge 1) "users=$filteredUsers"
+        # 3. Assign tag to resource
+        $assignBody = @{ entityIds = @($resourceId) } | ConvertTo-Json
+        Invoke-RestMethod -Uri "$script:apiBaseUrl/tags/$tagId/assign" -Method Post -Headers $authHeaders -Body $assignBody -ContentType 'application/json' -TimeoutSec 30
+        Test-Check 'MatrixAPI' 'Assign tag to resource' $true
 
-    # 6. Cleanup: delete the tag
-    Invoke-RestMethod -Uri "$apiBaseUrl/tags/$tagId" -Method Delete -Headers $authHeaders -TimeoutSec 30
-    Test-Check 'MatrixAPI' 'Delete tag cleanup' $true
+        # 4. Verify tag shows on resource
+        $taggedResources = Invoke-RestMethod -Uri "$script:apiBaseUrl/resources?tag=test-critical" -Headers $authHeaders -TimeoutSec 30
+        $taggedCount = if ($taggedResources.data) { $taggedResources.data.Count } else { 0 }
+        Test-Check 'MatrixAPI' 'Tag filter returns tagged resources' ($taggedCount -ge 1) "count=$taggedCount"
 
-} catch { Test-Check 'MatrixAPI' 'Tag lifecycle' $false $_.Exception.Message }
+        # 5. Matrix filtered by group tag should only show users with that resource
+        $permFiltered = Invoke-RestMethod -Uri "$script:apiBaseUrl/permissions?userLimit=25&__groupTag=test-critical" -Headers $authHeaders -TimeoutSec 30
+        $filteredUsers = if ($permFiltered.data) { $permFiltered.data.Count } else { 0 }
+        Test-Check 'MatrixAPI' 'Matrix group tag filter reduces results' ($filteredUsers -ge 1) "users=$filteredUsers"
+
+        # 6. Cleanup: delete the tag
+        Invoke-RestMethod -Uri "$script:apiBaseUrl/tags/$tagId" -Method Delete -Headers $authHeaders -TimeoutSec 30
+        Test-Check 'MatrixAPI' 'Delete tag cleanup' $true
+
+    } catch { Test-Check 'MatrixAPI' 'Tag lifecycle' $false $_.Exception.Message }
+}
 
 # ═══════════════════════════════════════════════════════════════════
 # 7. WORKER CONTAINER
 # ═══════════════════════════════════════════════════════════════════
+function Test-WorkerContainer {
+    Write-Host "`n--- 7. Worker Container ---" -ForegroundColor Yellow
 
-Write-Host "`n--- 7. Worker Container ---" -ForegroundColor Yellow
-
-# Ask compose for the service's logs rather than naming the container directly:
-# the project was renamed fortigigraph -> identityatlas, so the old hardcoded
-# `fortigigraph-worker-1` resolved to nothing and both checks below always failed.
-$workerLogs = (docker compose -f (Join-Path $repoRoot 'docker-compose.yml') logs worker 2>&1) -join "`n"
-Test-Check 'Worker' 'Module loaded successfully' ($workerLogs -like '*Module loaded successfully*')
-Test-Check 'Worker' 'Shows Identity Atlas branding' ($workerLogs -like '*Identity Atlas*')
+    # Ask compose for the service's logs rather than naming the container directly:
+    # the project was renamed fortigigraph -> identityatlas, so the old hardcoded
+    # `fortigigraph-worker-1` resolved to nothing and both checks below always failed.
+    $workerLogs = (docker compose -f (Join-Path $script:repoRoot 'docker-compose.yml') logs worker 2>&1) -join "`n"
+    Test-Check 'Worker' 'Module loaded successfully' ($workerLogs -like '*Module loaded successfully*')
+    Test-Check 'Worker' 'Shows Identity Atlas branding' ($workerLogs -like '*Identity Atlas*')
+}
 
 # ═══════════════════════════════════════════════════════════════════
 # 8. POWERSHELL MODULE LOADING
 # ═══════════════════════════════════════════════════════════════════
+function Test-PowerShellModule {
+    Write-Host "`n--- 8. PowerShell Module ---" -ForegroundColor Yellow
 
-Write-Host "`n--- 8. PowerShell Module ---" -ForegroundColor Yellow
+    try {
+        Import-Module (Join-Path $script:repoRoot 'setup/IdentityAtlas.psd1') -Force
+        Test-Check 'Module' 'Module loads without errors' $true
 
-try {
-    Import-Module (Join-Path $repoRoot 'setup/IdentityAtlas.psd1') -Force
-    Test-Check 'Module' 'Module loads without errors' $true
+        $cmdCount = (Get-Command -Module IdentityAtlas -ErrorAction SilentlyContinue).Count
+        if ($cmdCount -eq 0) {
+            # Module might load under old name from psd1
+            $cmdCount = (Get-Command *-FG* -ErrorAction SilentlyContinue).Count
+        }
+        Test-Check 'Module' "Functions loaded (>50)" ($cmdCount -ge 50) "count=$cmdCount"
 
-    $cmdCount = (Get-Command -Module IdentityAtlas -ErrorAction SilentlyContinue).Count
-    if ($cmdCount -eq 0) {
-        # Module might load under old name from psd1
-        $cmdCount = (Get-Command *-FG* -ErrorAction SilentlyContinue).Count
-    }
-    Test-Check 'Module' "Functions loaded (>50)" ($cmdCount -ge 50) "count=$cmdCount"
+        # Check key functions exist (v5 — Graph SDK only, no SQL helpers)
+        $keyFunctions = @('Invoke-FGGetRequest','Get-FGAccessToken','Get-FGUser','Get-FGGroup')
+        foreach ($fn in $keyFunctions) {
+            $exists = $null -ne (Get-Command $fn -ErrorAction SilentlyContinue)
+            Test-Check 'Module' "Function exists: $fn" $exists
+        }
 
-    # Check key functions exist (v5 — Graph SDK only, no SQL helpers)
-    $keyFunctions = @('Invoke-FGGetRequest','Get-FGAccessToken','Get-FGUser','Get-FGGroup')
-    foreach ($fn in $keyFunctions) {
-        $exists = $null -ne (Get-Command $fn -ErrorAction SilentlyContinue)
-        Test-Check 'Module' "Function exists: $fn" $exists
-    }
-
-    # Check deleted functions DON'T exist (v5: SQL helpers + monolithic syncs were removed)
-    $deletedFunctions = @('Start-FGSync','Start-FGCSVSync','Sync-FGPrincipal','Sync-FGGroup',
-        'Connect-FGSQLServer','Initialize-FGSystemTables','Initialize-FGGovernanceTables',
-        'Initialize-FGCrawlerTables','Invoke-FGSQLCommand','New-FGConfig')
-    foreach ($fn in $deletedFunctions) {
-        $exists = $null -ne (Get-Command $fn -ErrorAction SilentlyContinue)
-        Test-Check 'Module' "Deleted function removed: $fn" (-not $exists) $(if ($exists) { "STILL EXISTS" })
-    }
-} catch { Test-Check 'Module' 'Module loads without errors' $false $_.Exception.Message }
+        # Check deleted functions DON'T exist (v5: SQL helpers + monolithic syncs were removed)
+        $deletedFunctions = @('Start-FGSync','Start-FGCSVSync','Sync-FGPrincipal','Sync-FGGroup',
+            'Connect-FGSQLServer','Initialize-FGSystemTables','Initialize-FGGovernanceTables',
+            'Initialize-FGCrawlerTables','Invoke-FGSQLCommand','New-FGConfig')
+        foreach ($fn in $deletedFunctions) {
+            $exists = $null -ne (Get-Command $fn -ErrorAction SilentlyContinue)
+            Test-Check 'Module' "Deleted function removed: $fn" (-not $exists) $(if ($exists) { "STILL EXISTS" })
+        }
+    } catch { Test-Check 'Module' 'Module loads without errors' $false $_.Exception.Message }
+}
 
 # ═══════════════════════════════════════════════════════════════════
 # REPORT
 # ═══════════════════════════════════════════════════════════════════
-
-$elapsed = (Get-Date) - $startTime
-$totalTests = $results.Count
-
-Write-Host "`n========================================" -ForegroundColor $(if ($totalFailed -eq 0) { 'Green' } else { 'Red' })
-Write-Host "  RESULTS: $totalPassed passed, $totalFailed failed, $totalSkipped skipped ($totalTests total)" -ForegroundColor $(if ($totalFailed -eq 0) { 'Green' } else { 'Red' })
-Write-Host "  Duration: $([Math]::Round($elapsed.TotalSeconds)) seconds" -ForegroundColor Gray
-Write-Host "========================================`n" -ForegroundColor $(if ($totalFailed -eq 0) { 'Green' } else { 'Red' })
-
-# Generate Markdown report
-$md = @()
-$md += "# Identity Atlas — Docker Test Results"
-$md += ""
-$md += "**Date:** $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
-$md += "**Duration:** $([Math]::Round($elapsed.TotalSeconds)) seconds"
-$md += "**Results:** $totalPassed passed, $totalFailed failed, $totalSkipped skipped ($totalTests total)"
-$md += ""
-$md += "---"
-$md += ""
-
-$currentCategory = ''
-foreach ($key in $results.Keys) {
-    $parts = $key -split ' \| '
-    $cat = $parts[0]
-    $name = $parts[1]
-    $r = $results[$key]
-
-    if ($cat -ne $currentCategory) {
-        if ($currentCategory -ne '') { $md += "" }
-        $md += "## $cat"
-        $md += ""
-        $md += "| Test | Status | Detail |"
-        $md += "|---|---|---|"
-        $currentCategory = $cat
-    }
-
-    $icon = switch ($r.Status) { 'PASS' { 'PASS' } 'FAIL' { 'FAIL' } 'SKIP' { 'SKIP' } }
-    $detail = if ($r.Detail) { $r.Detail } else { '' }
-    $md += "| $name | $icon | $detail |"
+function Write-TestConsoleSummary {
+    Write-Host "`n========================================" -ForegroundColor $(if ($script:totalFailed -eq 0) { 'Green' } else { 'Red' })
+    Write-Host "  RESULTS: $script:totalPassed passed, $script:totalFailed failed, $script:totalSkipped skipped ($script:totalTests total)" -ForegroundColor $(if ($script:totalFailed -eq 0) { 'Green' } else { 'Red' })
+    Write-Host "  Duration: $([Math]::Round($script:elapsed.TotalSeconds)) seconds" -ForegroundColor Gray
+    Write-Host "========================================`n" -ForegroundColor $(if ($script:totalFailed -eq 0) { 'Green' } else { 'Red' })
 }
 
-$md += ""
-$md += "---"
-$md += ""
-$md += "## Summary"
-$md += ""
-$md += "| Metric | Value |"
-$md += "|---|---|"
-$md += "| Total tests | $totalTests |"
-$md += "| Passed | $totalPassed |"
-$md += "| Failed | $totalFailed |"
-$md += "| Skipped | $totalSkipped |"
-$md += "| Duration | $([Math]::Round($elapsed.TotalSeconds))s |"
-$md += "| Docker containers | 3 (sql, web, worker) |"
-$md += "| Date | $(Get-Date -Format 'yyyy-MM-dd HH:mm') |"
+function Add-ReportCategoryHeader {
+    param([string]$Category)
+    $lines = @()
+    $lines += "## $Category"
+    $lines += ""
+    $lines += "| Test | Status | Detail |"
+    $lines += "|---|---|---|"
+    return $lines
+}
 
-$reportPath = Join-Path $repoRoot 'test/test-results.md'
-$md -join "`n" | Out-File -FilePath $reportPath -Encoding UTF8
-Write-Host "Report written to: $reportPath" -ForegroundColor Cyan
+function Write-TestReport {
+    # Generate Markdown report
+    $md = @()
+    $md += "# Identity Atlas — Docker Test Results"
+    $md += ""
+    $md += "**Date:** $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
+    $md += "**Duration:** $([Math]::Round($script:elapsed.TotalSeconds)) seconds"
+    $md += "**Results:** $script:totalPassed passed, $script:totalFailed failed, $script:totalSkipped skipped ($script:totalTests total)"
+    $md += ""
+    $md += "---"
+    $md += ""
 
-exit $totalFailed
+    $currentCategory = ''
+    foreach ($key in $script:results.Keys) {
+        $parts = $key -split ' \| '
+        $cat = $parts[0]
+        $name = $parts[1]
+        $r = $script:results[$key]
+
+        if ($cat -ne $currentCategory) {
+            if ($currentCategory -ne '') { $md += "" }
+            $md += Add-ReportCategoryHeader -Category $cat
+            $currentCategory = $cat
+        }
+
+        $icon = switch ($r.Status) { 'PASS' { 'PASS' } 'FAIL' { 'FAIL' } 'SKIP' { 'SKIP' } }
+        $detail = if ($r.Detail) { $r.Detail } else { '' }
+        $md += "| $name | $icon | $detail |"
+    }
+
+    $md += ""
+    $md += "---"
+    $md += ""
+    $md += "## Summary"
+    $md += ""
+    $md += "| Metric | Value |"
+    $md += "|---|---|"
+    $md += "| Total tests | $script:totalTests |"
+    $md += "| Passed | $script:totalPassed |"
+    $md += "| Failed | $script:totalFailed |"
+    $md += "| Skipped | $script:totalSkipped |"
+    $md += "| Duration | $([Math]::Round($script:elapsed.TotalSeconds))s |"
+    $md += "| Docker containers | 3 (sql, web, worker) |"
+    $md += "| Date | $(Get-Date -Format 'yyyy-MM-dd HH:mm') |"
+
+    $reportPath = Join-Path $script:repoRoot 'test/test-results.md'
+    $md -join "`n" | Out-File -FilePath $reportPath -Encoding UTF8
+    Write-Host "Report written to: $reportPath" -ForegroundColor Cyan
+}
+
+function Invoke-DockerTests {
+    Initialize-TestRun
+
+    Write-Host "`n========================================" -ForegroundColor Cyan
+    Write-Host "  Identity Atlas — Docker Test Suite" -ForegroundColor Cyan
+    Write-Host "  $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')" -ForegroundColor Cyan
+    Write-Host "========================================`n" -ForegroundColor Cyan
+
+    Test-DockerInfrastructure
+    Test-ApiHealth
+    Test-CrawlerAuth
+    Test-DemoDataset
+    Test-DatabaseSchema
+    Test-BusinessLogicData
+    Test-ApiDataVerification
+    Test-MatrixAndTagApi
+    Test-WorkerContainer
+    Test-PowerShellModule
+
+    $script:elapsed = (Get-Date) - $script:startTime
+    $script:totalTests = $script:results.Count
+
+    Write-TestConsoleSummary
+    Write-TestReport
+
+    exit $script:totalFailed
+}
+
+Invoke-DockerTests

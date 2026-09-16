@@ -20,6 +20,11 @@ import request from 'supertest';
 import { PERMISSIONS } from './permissions.js';
 import { GATED_ENDPOINTS, IMPLICIT_PERMISSIONS, RESERVED_PERMISSIONS } from './permissionManifest.js';
 
+// Feature-flagged routes 404 before their permission gate while the flag is off
+// (featureFlags.js requireFeature). This test is about the permission gate, so
+// the flags those representative endpoints sit behind start on.
+process.env.FEATURE_MATRIX_SHARING = 'true';
+
 const ALL_PERMS = Object.keys(PERMISSIONS);
 const roleFor = (perm) => `role-${perm}`;
 // Synthetic mapping: one role per permission, granting exactly that permission.
@@ -51,6 +56,13 @@ vi.mock('jsonwebtoken', () => ({
       cb(null, { roles, tid: 'test-tenant' });
     },
   },
+}));
+
+// A read token that the store accepts, so a request the path guard lets
+// through reaches routing instead of stopping at the token lookup.
+vi.mock('./readTokens.js', async (importOriginal) => ({
+  ...(await importOriginal()),
+  findActiveByPlaintext: async () => ({ id: 1, name: 'matrix-test' }),
 }));
 
 // Never touch a real Postgres. Deny happens before the handler; allow may query.
@@ -170,5 +182,140 @@ describe('wildcard semantics & fail-closed default (security finding C-01)', () 
       const res = await call(app, ep, bearer(ALL_PERMS));
       expect(res.status, `${ep.method} ${ep.path} should pass for an all-permissions caller`).not.toBe(403);
     }
+  });
+});
+
+// ── Route inventory: no authentication-only /admin/* route (SEC-2026-09 M-01) ──
+// Walks the real app's router tree. A route is "gated" when a permissionGate
+// (the function requirePermission returns) sits in its own handler chain, or
+// earlier in an enclosing router's stack (router.use(gate)).
+function collectRoutes(stack, inheritedGate = false, out = []) {
+  let gated = inheritedGate;
+  for (const layer of stack) {
+    if (layer.route) {
+      const own = layer.route.stack.some((h) => h.name === 'permissionGate');
+      for (const m of Object.keys(layer.route.methods)) {
+        out.push({ method: m.toUpperCase(), path: String(layer.route.path), gated: gated || own });
+      }
+    } else if (layer.handle?.stack) {
+      collectRoutes(layer.handle.stack, gated, out);
+    } else if (layer.name === 'permissionGate') {
+      gated = true;
+    }
+  }
+  return out;
+}
+
+describe('route inventory — every /admin/* route carries a permission gate', () => {
+  const routes = collectRoutes(app.router.stack);
+
+  it('finds the admin routes (the walker sees the real router tree)', () => {
+    const paths = routes.map((r) => `${r.method} ${r.path}`);
+    expect(paths).toContain('GET /admin/dashboard-stats');
+    expect(paths).toContain('GET /admin/roles');
+  });
+
+  it('no /admin/* route is authentication-only', () => {
+    const ungated = routes
+      .filter((r) => r.path.toLowerCase().startsWith('/admin/') && !r.gated)
+      .map((r) => `${r.method} ${r.path}`);
+    expect(ungated).toEqual([]);
+  });
+});
+
+// ── Read tokens and path casing (SEC-2026-09 M-01) ──────────────────────────
+const READ_TOKEN = 'Bearer fgr_matrixtestmatrixtestmatrixtest';
+
+describe('read tokens are refused on /api/admin/* whatever the path casing', () => {
+  for (const path of [
+    '/api/admin/dashboard-stats',
+    '/api/ADMIN/dashboard-stats',
+    '/api/Admin/dashboard-stats',
+    '/api/aDmIn/updates/log',
+    '/api/Admin/roles?x=1',
+  ]) {
+    it(`GET ${path} → 403 from the read-token admin guard`, async () => {
+      const res = await call(app, { method: 'GET', path }, READ_TOKEN);
+      expect(res.status).toBe(403);
+      expect(res.body.error).toBe('Read API keys cannot access admin endpoints');
+    });
+  }
+
+  it('a read token is refused on the performance request log (SEC-2026-09 L-02)', async () => {
+    for (const path of ['/api/perf', '/api/perf/recent', '/api/perf/slow', '/api/perf/export']) {
+      const res = await call(app, { method: 'GET', path }, READ_TOKEN);
+      expect(res.status, path).toBe(403);
+      expect(res.body.error, path).toBe('Read API keys cannot access this endpoint');
+    }
+  });
+
+  it('a read token still reaches a non-admin run-history read (not 401/403)', async () => {
+    const res = await call(app, { method: 'GET', path: '/api/risk-scoring/runs' }, READ_TOKEN);
+    expect(res.status).not.toBe(401);
+    expect(res.status).not.toBe(403);
+  });
+
+  it('a crawler key is still refused on an admin path in any casing', async () => {
+    const res = await call(app, { method: 'GET', path: '/api/Admin/dashboard-stats' }, 'Bearer fgc_matrixtest');
+    expect(res.status).toBe(401);
+    expect(res.body.error).toBe('Crawler API keys are not valid for this endpoint');
+  });
+
+  it('a crawler key on a crawler path in another casing is handed on to crawler auth', async () => {
+    const res = await call(app, { method: 'GET', path: '/api/Crawlers/whoami' }, 'Bearer fgc_matrixtest');
+    expect(res.body.error).not.toBe('Crawler API keys are not valid for this endpoint');
+  });
+});
+
+// Reads that used to be authentication-only. Each row: the route, a permission
+// set that must be let through (the audience of the screen that renders it),
+// and one that must be refused.
+const NEWLY_GATED_READS = [
+  { path: '/api/admin/dashboard-stats',      allow: ['admin.crawlers'],        deny: null },
+  { path: '/api/admin/dashboard-timeseries', allow: ['data.read'],             deny: null },
+  { path: '/api/admin/risk-profile',         allow: ['admin.crawlers'],        deny: ['data.read', 'admin.systems'] },
+  { path: '/api/admin/classifiers',          allow: ['admin.llm'],             deny: ['data.read', 'admin.systems'] },
+  { path: '/api/admin/history-retention',    allow: ['admin.systems'],         deny: ['data.read', 'admin.crawlers'] },
+  { path: '/api/admin/updates/status',       allow: ['admin.systems'],         deny: ['data.read', 'admin.crawlers'] },
+  { path: '/api/admin/updates/log',          allow: ['admin.systems'],         deny: ['data.read', 'admin.crawlers'] },
+  { path: '/api/updates/intent',             allow: ['data.read'],             deny: null },
+  { path: '/api/risk-scoring/runs',          allow: ['data.read'],             deny: null },
+  { path: '/api/risk-scoring/runs/1',        allow: ['admin.llm'],             deny: null },
+  { path: '/api/context-plugins/runs',       allow: ['data.read'],             deny: null },
+  { path: '/api/context-plugins/runs/00000000-0000-0000-0000-000000000000', allow: ['data.write.tags'], deny: null },
+  { path: '/api/account-linking/runs',       allow: ['data.read'],             deny: null },
+  { path: '/api/account-linking/runs/1',     allow: ['data.read'],             deny: null },
+  { path: '/api/account-linking/config',     allow: ['admin.crawlers'],        deny: ['data.read', 'admin.systems'] },
+  // SEC-2026-09 L-02 — the Performance tab's request log.
+  { path: '/api/perf',                       allow: ['data.read'],             deny: null },
+  { path: '/api/perf/recent',                allow: ['admin.llm'],             deny: null },
+  { path: '/api/perf/slow',                  allow: ['data.read'],             deny: null },
+  { path: '/api/perf/export',                allow: ['data.share'],            deny: null },
+];
+
+describe('formerly authentication-only reads now carry a permission gate', () => {
+  for (const { path, allow, deny } of NEWLY_GATED_READS) {
+    it(`GET ${path}: a signed-in user whose roles map to nothing is refused (403)`, async () => {
+      const res = await call(app, { method: 'GET', path }, 'Bearer roles:totally-unmapped-role');
+      expect(res.status).toBe(403);
+      expect(res.body.error).toBe('Insufficient permissions');
+    });
+
+    it(`GET ${path}: allowed for [${allow}]`, async () => {
+      const res = await call(app, { method: 'GET', path }, bearer(allow));
+      expect(res.status).not.toBe(403);
+    });
+
+    if (deny) {
+      it(`GET ${path}: refused for [${deny}]`, async () => {
+        const res = await call(app, { method: 'GET', path }, bearer(deny));
+        expect(res.status).toBe(403);
+      });
+    }
+  }
+
+  it('the gate follows Express\'s case-insensitive routing (zero-role on /api/ADMIN/…)', async () => {
+    const res = await call(app, { method: 'GET', path: '/api/ADMIN/updates/status' }, 'Bearer roles:totally-unmapped-role');
+    expect(res.status).toBe(403);
   });
 });

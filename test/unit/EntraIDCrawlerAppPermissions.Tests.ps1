@@ -15,6 +15,8 @@ BeforeAll {
     $script:entraDir = Join-Path $script:repoRoot 'tools' 'crawlers' 'entra-id'
     # ConvertTo-FGDeterministicUuid lives in Functions.ps1.
     . (Join-Path $script:entraDir 'EntraIDCrawler.Functions.ps1')
+    # Shared ConvertTo-EntraAppRoleApplicationResource helper lives here (extracted for the ratchets).
+    . (Join-Path $script:entraDir 'EntraIDCrawler.AppRoles.ps1')
     . (Join-Path $script:entraDir 'EntraIDCrawler.AppPermissions.ps1')
 }
 

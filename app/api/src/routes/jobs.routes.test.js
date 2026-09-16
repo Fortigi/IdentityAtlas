@@ -37,17 +37,22 @@ vi.mock('../db/connection.js', () => ({
 vi.mock('../middleware/auth.js', () => ({ requirePermission: () => (_q, _s, next) => next() }));
 vi.mock('./crawlerFiles.js', () => ({ getUploadFolderPath: vi.fn(() => '/tmp/x'), deleteConfigFolder: vi.fn(async () => {}) }));
 vi.mock('../secrets/crawlerSecrets.js', () => ({
-  storeConfigSecret: vi.fn(async () => {}), hasConfigSecret: vi.fn(async () => false),
-  deleteConfigSecret: vi.fn(async () => {}), getConfigSecret: vi.fn(async () => null),
-  storeJobSecret: vi.fn(async () => {}), storeJobCredentials: vi.fn(async () => {}), OTHER_SECRET_FIELDS: [],
+  storeConfigFields: vi.fn(async () => {}), vaultedConfigFields: vi.fn(async () => []),
+  deleteConfigSecrets: vi.fn(async () => {}), getConfigSecret: vi.fn(async () => null),
+  getConfigCredentials: vi.fn(async () => ({})),
+  storeJobSecret: vi.fn(async () => {}), storeJobCredentials: vi.fn(async () => {}),
+  CONFIG_SECRET_FIELDS: ['clientSecret', 'password', 'apiToken', 'cookieString'],
 }));
 vi.mock('../crawlerManifests.js', () => ({
-  CRAWLER_MANIFESTS_DIR: '', _crawlerManifests: {}, VALID_JOB_TYPES: ['entra-id', 'csv', 'demo'],
+  CRAWLER_MANIFESTS_DIR: '', _crawlerManifests: {}, VALID_JOB_TYPES: ['entra-id', 'csv', 'demo', 'rest-type'],
+  // A fictional type that declares URL fields, so the connector-URL guard runs.
+  getUrlFields: vi.fn(t => (t === 'rest-type' ? ['baseUrl', 'tokenEndpoint'] : [])),
   validateCrawlerConfig: vi.fn(() => null), validateStoredCrawlerConfig: vi.fn(async () => null),
-  isSingletonJob: vi.fn(() => false), isPushModeType: vi.fn(() => false),
+  isSingletonJob: vi.fn(() => false), isPushModeType: vi.fn(() => false), isExperimentalType: vi.fn(() => false),
 }));
 
 const { default: router } = await import('./jobs.js');
+const secrets = await import('../secrets/crawlerSecrets.js');
 const app = mountRouter(router);
 
 // Default routing: every handler's queries resolve to a plausible row so the
@@ -60,7 +65,7 @@ beforeEach(() => {
     if (/UPDATE "CrawlerConfigs" SET config/.test(sql)) return P({ recordset: [{ id: 1, config: {} }] });
     if (/SELECT config, "crawlerType" FROM "CrawlerConfigs"/.test(sql)) return P({ recordset: [{ config: {}, crawlerType: 'demo' }] });
     if (/SELECT "crawlerType", config FROM "CrawlerConfigs"/.test(sql)) return P({ recordset: [{ crawlerType: 'demo', config: {} }] });
-    if (/SELECT config, "nextRunMode" FROM "CrawlerConfigs"/.test(sql)) return P({ recordset: [{ config: {}, nextRunMode: 'delta' }] });
+    if (/SELECT config, "nextRunMode".* FROM "CrawlerConfigs"/.test(sql)) return P({ recordset: [{ config: {}, nextRunMode: 'delta' }] });
     if (/DELETE FROM "CrawlerConfigs"/.test(sql)) return P({ recordset: [], rowsAffected: [1] });
     if (/SELECT \* FROM "CrawlerConfigs"/.test(sql)) return P({ recordset: [{ id: 1, config: {} }] });
     if (/INSERT INTO "CrawlerJobs"/.test(sql)) return P({ recordset: [{ id: 5, jobType: 'demo' }] });
@@ -116,6 +121,180 @@ describe('crawler-configs — CRUD', () => {
   });
 });
 
+// SEC-2026-09 M-10: every credential field is vaulted per config and never
+// written into CrawlerConfigs.config.
+describe('crawler-configs — credential custody', () => {
+  const insertParams = () => poolQuery.mock.calls.find(([sql]) => /INSERT INTO "CrawlerConfigs"/.test(sql))[1];
+  const updateCall = () => poolQuery.mock.calls.find(([sql]) => /UPDATE "CrawlerConfigs" SET config/.test(sql));
+
+  beforeEach(() => {
+    secrets.storeConfigFields.mockClear();
+    secrets.vaultedConfigFields.mockReset();
+    secrets.vaultedConfigFields.mockResolvedValue([]);
+  });
+
+  it('POST vaults password / apiToken / cookieString / clientSecret and stores none of them', async () => {
+    const res = await request(app).post('/api/admin/crawler-configs').send({
+      crawlerType: 'demo', displayName: 'Omada',
+      config: { baseUrl: 'https://o', clientSecret: 's', password: 'pw', apiToken: 'tok', cookieString: '••••••••' },
+    });
+    expect(res.status).toBe(201);
+    expect(JSON.parse(insertParams()[2])).toEqual({ baseUrl: 'https://o' });
+    expect(secrets.storeConfigFields).toHaveBeenCalledWith(1, { clientSecret: 's', password: 'pw', apiToken: 'tok' });
+  });
+
+  it('GET masks every credential field that is vaulted', async () => {
+    secrets.vaultedConfigFields.mockResolvedValue(['password', 'apiToken']);
+    const res = await request(app).get('/api/admin/crawler-configs/1');
+    expect(res.body.config).toEqual({ password: '••••••••', apiToken: '••••••••' });
+  });
+
+  it('PATCH vaults a re-entered password and keeps it out of the stored JSON', async () => {
+    const res = await request(app).patch('/api/admin/crawler-configs/1').send({ config: { password: 'new-pw', pageSize: 5 } });
+    expect(res.status).toBe(200);
+    expect(JSON.parse(updateCall()[1][0])).toEqual({ pageSize: 5 });
+    expect(secrets.storeConfigFields).toHaveBeenCalledWith(1, { password: 'new-pw' });
+  });
+
+  // SEC-2026-09 M-02
+  it('PATCH that moves tokenEndpoint to another host while keeping the stored secret is refused', async () => {
+    poolQuery.mockImplementation((sql) => /SELECT config, "crawlerType"/.test(sql)
+      ? P({ rows: [{ config: { tokenEndpoint: 'https://8.8.8.8/token' }, crawlerType: 'rest-type' }] })
+      : P({ rows: [{ id: 1, config: {} }] }));
+    secrets.vaultedConfigFields.mockResolvedValue(['clientSecret']);
+    const res = await request(app).patch('/api/admin/crawler-configs/1')
+      .send({ config: { tokenEndpoint: 'https://1.1.1.1/token', clientSecret: '••••••••' } });
+    expect(res.status).toBe(400);
+    expect(res.body.reenterFields).toEqual(['clientSecret']);
+    expect(updateCall()).toBeUndefined();
+    expect(secrets.storeConfigFields).not.toHaveBeenCalled();
+  });
+
+  it('PATCH that moves the endpoint together with a re-entered secret is accepted', async () => {
+    poolQuery.mockImplementation((sql) => /SELECT config, "crawlerType"/.test(sql)
+      ? P({ rows: [{ config: { baseUrl: 'https://8.8.8.8' }, crawlerType: 'rest-type' }] })
+      : P({ rows: [{ id: 1, config: {} }] }));
+    secrets.vaultedConfigFields.mockResolvedValue(['clientSecret']);
+    const res = await request(app).patch('/api/admin/crawler-configs/1')
+      .send({ config: { baseUrl: 'https://1.1.1.1', clientSecret: 'fresh' } });
+    expect(res.status).toBe(200);
+    expect(secrets.storeConfigFields).toHaveBeenCalledWith(1, { clientSecret: 'fresh' });
+  });
+
+  it('PATCH that changes only the path of the endpoint keeps the stored secret', async () => {
+    poolQuery.mockImplementation((sql) => /SELECT config, "crawlerType"/.test(sql)
+      ? P({ rows: [{ config: { baseUrl: 'https://8.8.8.8/v1' }, crawlerType: 'rest-type' }] })
+      : P({ rows: [{ id: 1, config: {} }] }));
+    secrets.vaultedConfigFields.mockResolvedValue(['clientSecret']);
+    const res = await request(app).patch('/api/admin/crawler-configs/1')
+      .send({ config: { baseUrl: 'https://8.8.8.8/v2', clientSecret: '••••••••' } });
+    expect(res.status).toBe(200);
+  });
+
+  it('PATCH refuses a host change while a legacy plaintext password is still in the stored JSON', async () => {
+    poolQuery.mockImplementation((sql) => /SELECT config, "crawlerType"/.test(sql)
+      ? P({ rows: [{ config: { baseUrl: 'https://8.8.8.8', password: 'legacy' }, crawlerType: 'rest-type' }] })
+      : P({ rows: [{ id: 1, config: {} }] }));
+    const res = await request(app).patch('/api/admin/crawler-configs/1').send({ config: { baseUrl: 'https://1.1.1.1' } });
+    expect(res.status).toBe(400);
+    expect(res.body.reenterFields).toEqual(['password']);
+  });
+
+  it('PATCH of a type that declares no URL fields is not subject to the host-change check', async () => {
+    poolQuery.mockImplementation((sql) => /SELECT config, "crawlerType"/.test(sql)
+      ? P({ rows: [{ config: { baseUrl: 'https://8.8.8.8' }, crawlerType: 'demo' }] })
+      : P({ rows: [{ id: 1, config: {} }] }));
+    secrets.vaultedConfigFields.mockResolvedValue(['clientSecret']);
+    const res = await request(app).patch('/api/admin/crawler-configs/1').send({ config: { baseUrl: 'https://1.1.1.1' } });
+    expect(res.status).toBe(200);
+  });
+
+  it('DELETE removes every vaulted field of the config', async () => {
+    secrets.deleteConfigSecrets.mockClear();
+    await request(app).delete('/api/admin/crawler-configs/1');
+    expect(secrets.deleteConfigSecrets).toHaveBeenCalledWith(1);
+  });
+});
+
+// SEC-2026-09 M-03: connector URLs are vetted before a config is stored or a job
+// queued. Literal IPs keep these tests off real DNS.
+describe('connector-URL guard on config save and job creation', () => {
+  const inserted = (re) => poolQuery.mock.calls.some(([sql]) => re.test(sql));
+  const restExisting = (config) => poolQuery.mockImplementation((sql) => {
+    if (/SELECT config, "crawlerType" FROM "CrawlerConfigs"/.test(sql)) return P({ recordset: [{ config, crawlerType: 'rest-type' }] });
+    if (/UPDATE "CrawlerConfigs" SET config/.test(sql)) return P({ recordset: [{ id: 1, config: {} }] });
+    return P({ recordset: [], rowsAffected: [0] });
+  });
+
+  it('POST config refuses a private base URL and stores nothing', async () => {
+    const res = await request(app).post('/api/admin/crawler-configs')
+      .send({ crawlerType: 'rest-type', displayName: 'X', config: { baseUrl: 'https://10.0.0.5/scim' } });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/^baseUrl rejected: .*private.*Allow private network/);
+    expect(inserted(/INSERT INTO "CrawlerConfigs"/)).toBe(false);
+  });
+
+  it('POST config refuses an http token endpoint unless allowInsecureHttp is set', async () => {
+    const config = { baseUrl: 'https://8.8.8.8/scim', tokenEndpoint: 'http://8.8.4.4/token' };
+    const refused = await request(app).post('/api/admin/crawler-configs').send({ crawlerType: 'rest-type', displayName: 'X', config });
+    expect(refused.status).toBe(400);
+    expect(refused.body.error).toMatch(/^tokenEndpoint rejected: URL must use https .*Allow insecure HTTP/);
+    const allowed = await request(app).post('/api/admin/crawler-configs')
+      .send({ crawlerType: 'rest-type', displayName: 'X', config: { ...config, allowInsecureHttp: true } });
+    expect(allowed.status).toBe(201);
+  });
+
+  it('POST config with allowPrivateNetwork accepts a private address but never a metadata one', async () => {
+    const ok = await request(app).post('/api/admin/crawler-configs')
+      .send({ crawlerType: 'rest-type', displayName: 'X', config: { baseUrl: 'https://192.168.10.4/', allowPrivateNetwork: true } });
+    expect(ok.status).toBe(201);
+    const meta = await request(app).post('/api/admin/crawler-configs')
+      .send({ crawlerType: 'rest-type', displayName: 'X', config: { baseUrl: 'https://[::ffff:169.254.169.254]/', allowPrivateNetwork: true } });
+    expect(meta.status).toBe(400);
+    expect(meta.body.error).toMatch(/link-local, metadata, or reserved/);
+  });
+
+  it('PATCH checks the MERGED config: an edit that only changes the host is still vetted', async () => {
+    restExisting({ baseUrl: 'https://8.8.8.8/', tokenEndpoint: 'https://8.8.4.4/token' });
+    const res = await request(app).patch('/api/admin/crawler-configs/1').send({ config: { tokenEndpoint: 'https://127.0.0.1:3001/api' } });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/^tokenEndpoint rejected/);
+    expect(inserted(/UPDATE "CrawlerConfigs" SET config/)).toBe(false);
+  });
+
+  it('PATCH that turns the opt-in off re-vets the stored private URL', async () => {
+    restExisting({ baseUrl: 'https://10.1.1.1/', allowPrivateNetwork: true });
+    const res = await request(app).patch('/api/admin/crawler-configs/1').send({ config: { allowPrivateNetwork: false } });
+    expect(res.status).toBe(400);
+    restExisting({ baseUrl: 'https://10.1.1.1/', allowPrivateNetwork: true });
+    expect((await request(app).patch('/api/admin/crawler-configs/1').send({ config: { pageSize: 50 } })).status).toBe(200);
+  });
+
+  it('POST job refuses an inline config pointing at a metadata address and queues nothing', async () => {
+    const res = await request(app).post('/api/admin/crawler-jobs')
+      .send({ jobType: 'rest-type', config: { baseUrl: 'https://169.254.169.254/latest' } });
+    expect(res.status).toBe(400);
+    expect(inserted(/INSERT INTO "CrawlerJobs"/)).toBe(false);
+  });
+
+  it('POST job re-vets a stored config (saved before the guard existed)', async () => {
+    poolQuery.mockImplementation((sql) => {
+      if (/SELECT config, "nextRunMode".* FROM "CrawlerConfigs"/.test(sql)) return P({ recordset: [{ config: { baseUrl: 'http://10.0.0.9/' }, nextRunMode: 'delta' }] });
+      return P({ recordset: [{ id: 5 }] });
+    });
+    const res = await request(app).post('/api/admin/crawler-jobs').send({ jobType: 'rest-type', configId: 3 });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/^baseUrl rejected: URL must use https/);
+    expect(inserted(/INSERT INTO "CrawlerJobs"/)).toBe(false);
+  });
+
+  it('types that declare no URL fields are not affected', async () => {
+    const res = await request(app).post('/api/admin/crawler-configs')
+      .send({ crawlerType: 'demo', displayName: 'Demo', config: { baseUrl: 'http://127.0.0.1/' } });
+    expect(res.status).toBe(201);
+  });
+});
+
 describe('crawler-jobs — validation', () => {
   it('POST 400 on an unknown jobType', async () => {
     expect((await request(app).post('/api/admin/crawler-jobs').send({ jobType: 'bogus' })).status).toBe(400);
@@ -146,9 +325,22 @@ describe('crawler-jobs — lifecycle', () => {
     expect(res.status).toBe(201);
     expect(res.body.id).toBe(5);
   });
-  it('POST creates a config-sourced job (201)', async () => {
+  it('POST creates a config-sourced job (201) and records its configId in the column', async () => {
     const res = await request(app).post('/api/admin/crawler-jobs').send({ jobType: 'demo', configId: 1, syncMode: 'full' });
     expect(res.status).toBe(201);
+    const [sql, params] = poolQuery.mock.calls.find(([q]) => /INSERT INTO "CrawlerJobs"/.test(q));
+    expect(sql).toContain('"configId"');
+    expect(params[3]).toBe(1);
+    expect(JSON.parse(params[1])._scheduledByConfigId).toBe(1);
+  });
+  // SEC-2026-09 H-02
+  it('POST of an inline job carrying _scheduledByConfigId stores no configId and drops the key', async () => {
+    const res = await request(app).post('/api/admin/crawler-jobs')
+      .send({ jobType: 'demo', config: { baseUrl: 'https://x', _scheduledByConfigId: 3 } });
+    expect(res.status).toBe(201);
+    const [, params] = poolQuery.mock.calls.find(([q]) => /INSERT INTO "CrawlerJobs"/.test(q));
+    expect(params[3]).toBeNull();
+    expect(JSON.parse(params[1])).toEqual({ baseUrl: 'https://x', _syncMode: 'delta' });
   });
   it('GET/:id returns a job', async () => {
     expect((await request(app).get('/api/admin/crawler-jobs/5')).status).toBe(200);

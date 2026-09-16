@@ -72,11 +72,12 @@ function buildSnapshot(req) {
 // otherwise nobody could edit the mapping back to a sane state without DB
 // access. Returns a 409 error body to send, or null when the change is safe.
 //
-// Exception: a user who currently holds '*' via the backwards-compat "no
-// recognised roles" fallback is exempt — they aren't relying on the mapping
-// yet, and their pre-change permissions weren't from the mapping either.
+// Every signed-in editor is checked, including one who holds '*' today: a
+// wildcard comes from the mapping too (the seed Admin role is '*'), so a save
+// can remove it just as it can remove admin.auth (SEC-2026-09 L-01). The only
+// caller without a user is open mode (auth disabled), where no mapping applies.
 function checkSelfLockout(req, mapping, messages) {
-  if (!req.user || req.user.permissions?.has('*')) return null;
+  if (!req.user) return null;
   const myRoles = req.user.roles || [];
   const futurePerms = resolvePermissions(myRoles, mapping);
   if (futurePerms.has('*') || futurePerms.has('admin.auth')) return null;
@@ -93,14 +94,20 @@ function actingUser(req) {
   return req.user?.name || req.user?.preferred_username || req.user?.upn || req.user?.oid || null;
 }
 
+// The immutable Entra object id of the acting user — display names change and
+// collide, so the audit row carries the oid too (SEC-2026-09 L-01).
+function actingOid(req) {
+  return typeof req.user?.oid === 'string' ? req.user.oid : null;
+}
+
 // Record a role-mapping change (#786). Best-effort: the mapping is already
 // persisted by the time we get here, so a failed audit insert is logged but
 // never fails the admin's save/reset.
 async function logRoleChange(req, action, mapping) {
   try {
     await db.query(
-      `INSERT INTO "AuthRoleChangeLog" ("changedBy", "action", "mapping") VALUES ($1, $2, $3)`,
-      [actingUser(req), action, JSON.stringify(mapping ?? null)],
+      `INSERT INTO "AuthRoleChangeLog" ("changedBy", "changedByOid", "action", "mapping") VALUES ($1, $2, $3, $4)`,
+      [actingUser(req), actingOid(req), action, JSON.stringify(mapping ?? null)],
     );
   } catch (err) {
     console.error('Role-change audit log failed:', err.message);
@@ -116,7 +123,7 @@ router.get('/admin/roles/audit', gate, async (req, res) => {
   const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 20, 1), 100);
   try {
     const r = await db.query(
-      `SELECT "id", "changedAt", "changedBy", "action"
+      `SELECT "id", "changedAt", "changedBy", "changedByOid", "action"
          FROM "AuthRoleChangeLog"
         ORDER BY "changedAt" DESC
         LIMIT $1`,

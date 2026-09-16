@@ -1,3 +1,29 @@
+function Add-FGUserFilterClause {
+    # Append an OData $filter clause, chaining with "and" when a filter already exists.
+    param(
+        [string]$URI,
+        [string]$Clause
+    )
+
+    if ($URI.Contains('?$filter=')) {
+        return $URI + " and $Clause"
+    }
+    return $URI + '?$filter=' + $Clause
+}
+
+function Add-FGUserQueryOption {
+    # Append a query-string option ($expand / $top), using "&" when a query already exists.
+    param(
+        [string]$URI,
+        [string]$Option
+    )
+
+    if ($URI.Contains('?')) {
+        return $URI + "&$Option"
+    }
+    return $URI + "?$Option"
+}
+
 function Get-FGUser {
     [alias("Get-User")]
     [cmdletbinding()]
@@ -8,12 +34,12 @@ function Get-FGUser {
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
         [string]$userPrincipalName,
-        
+
         [Alias("ObjectId")]
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
         [string]$id,
-                
+
         [Parameter(Mandatory = $false)]
         [ValidateSet('Member', 'Guest')]
         [string]$UserType,
@@ -21,7 +47,7 @@ function Get-FGUser {
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
         [bool]$IncludeManager,
-        
+
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
         [bool]$IncludeExtensions,
@@ -34,52 +60,27 @@ function Get-FGUser {
     $URI = 'https://graph.microsoft.com/beta/users'
 
     If ($userPrincipalName) {
-        $URI = $URI + '?$filter=' + "userPrincipalName eq '$userPrincipalName'"
+        $URI = Add-FGUserFilterClause -URI $URI -Clause "userPrincipalName eq '$userPrincipalName'"
     }
-    
+
     If ($id) {
-        if ($URI.Contains('?$filter=')) {
-            $URI = $URI + " and id eq '$id'"
-        } 
-        else {
-            $URI = $URI + '?$filter=' + "id eq '$id'"
-        }
+        $URI = Add-FGUserFilterClause -URI $URI -Clause "id eq '$id'"
     }
 
     If ($UserType) {
-        if ($URI.Contains('?$filter=')) {
-            $URI = $URI + " and userType eq '$UserType'"
-        }
-        else {
-            $URI = $URI + '?$filter=' + "userType eq '$UserType'"
-        }
+        $URI = Add-FGUserFilterClause -URI $URI -Clause "userType eq '$UserType'"
     }
 
     If ($includeManager) {
-        if ($URI.Contains("?")) {
-            $URI = $URI + '&$expand=manager'
-        }
-        else {
-            $URI = $URI + '?$expand=manager'
-        }
+        $URI = Add-FGUserQueryOption -URI $URI -Option '$expand=manager'
     }
 
     If ($IncludeExtensions) {
-        if ($URI.Contains("?")) {
-            $URI = $URI + '&$expand=extensions'
-        }
-        else {
-            $URI = $URI + '?$expand=extensions'
-        }
+        $URI = Add-FGUserQueryOption -URI $URI -Option '$expand=extensions'
     }
 
     If ($Top) {
-        if ($URI.Contains("?")) {
-            $URI = $URI + "&`$top=$Top"
-        }
-        else {
-            $URI = $URI + "?`$top=$Top"
-        }
+        $URI = Add-FGUserQueryOption -URI $URI -Option "`$top=$Top"
     }
 
     $ReturnValue = Invoke-FGGetRequest -URI $URI

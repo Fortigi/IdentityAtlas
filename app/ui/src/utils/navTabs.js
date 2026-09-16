@@ -12,9 +12,9 @@
 //               always-available views that just declutter the nav (never combine
 //               with `feature`).
 //
-// Systems and Sync Log are optional: most users live in the Matrix / Principals /
-// Contexts surfaces, so these admin-leaning views are off by default and can be
-// switched on per-user when needed.
+// Systems, Reports and Sync Log are optional: most users live in the Matrix /
+// Principals / Contexts surfaces, so these admin-leaning views are off by
+// default and can be switched on per-user when needed.
 
 export const ALL_NAV_TABS = [
   { key: 'dashboard',        label: 'Dashboard' },
@@ -26,6 +26,7 @@ export const ALL_NAV_TABS = [
   { key: 'risk-scores',      label: 'Risk Scores',  feature: 'riskScoring' },
   { key: 'identities',       label: 'Identities',   feature: 'accountLinking' },
   { key: 'contexts',         label: 'Contexts' },
+  { key: 'reports',          label: 'Reports',      optional: true },
   { key: 'sync-log',         label: 'Logs',         optional: true },
   { key: 'admin',            label: 'Admin' },
 ];
@@ -36,6 +37,10 @@ export const ALL_NAV_TABS = [
 //     have loaded; while `visibleTabs` is null we don't hide them, to avoid a
 //     flash of removal before prefs arrive)
 //   - Admin drops out for users without admin permission
+//
+// Shared matrices is deliberately NOT here: managing and revoking other
+// people's share links is administration, so it lives as an Admin sub-tab
+// (see components/admin/adminTabs.js) rather than as a twelfth top-level tab.
 export function computeNavTabs({ features = {}, visibleTabs = null, canSeeAdmin = true } = {}) {
   return ALL_NAV_TABS.filter(tab => {
     if (tab.feature && !features[tab.feature]) return false;

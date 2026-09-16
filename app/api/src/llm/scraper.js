@@ -132,6 +132,46 @@ function htmlToText(html) {
     .trim();
 }
 
+// True when a response is a redirect this scraper should follow — one of the
+// known redirect status codes AND carrying a Location header.
+export function isRedirectResponse(res) {
+  return REDIRECT_CODES.has(res.statusCode) && Boolean(res.headers.location);
+}
+
+// Content types we can usefully turn into text. Anything else (images, binaries)
+// is rejected. Kept as a small predicate so the boolean chain lives in one place.
+export function isSupportedContentType(ct) {
+  return ct.startsWith('text/') || ct.includes('html') || ct.includes('xml') || ct.includes('json');
+}
+
+// Turn a raw response body into plain text: strip tags for HTML/XML, otherwise
+// just collapse whitespace.
+export function extractText(ct, raw) {
+  return (ct.includes('html') || ct.includes('xml'))
+    ? htmlToText(raw)
+    : raw.replace(/\s+/g, ' ').trim();
+}
+
+// Perform the GET, following redirects manually and re-validating every hop.
+// Auth is only sent to the original operator-supplied origin — never replayed
+// across a redirect to a different origin (credential-leak guard). Resolves to
+// { res } for a final (non-redirect) response, or { error } when a redirect is
+// blocked or the redirect limit is exceeded.
+async function fetchWithRedirects(current, baseHeaders, auth, originForAuth) {
+  for (let hop = 0; ; hop++) {
+    const headers = { ...baseHeaders };
+    if (auth && current.origin === originForAuth) headers['Authorization'] = auth;
+    const res = await httpGet(current, headers);
+
+    if (!isRedirectResponse(res)) return { res };
+
+    res.resume(); // drain so the socket can be reused/closed
+    if (hop >= MAX_REDIRECTS) return { error: 'Too many redirects' };
+    try { current = validateScrapeUrl(res.headers.location, current); }
+    catch (err) { return { error: `Blocked redirect: ${err.message}` }; }
+  }
+}
+
 // Fetch one URL. Returns { url, ok, status, bytes, text, error }.
 // Never throws — failures are reported in the result so the caller can show
 // per-URL status without aborting the whole batch.
@@ -142,39 +182,23 @@ export async function scrapeOne(url, credentials = null) {
 
   const auth = buildAuthHeader(credentials);
   const baseHeaders = { 'User-Agent': USER_AGENT, 'Accept': 'text/html,text/plain,*/*;q=0.8' };
-  // Auth is only ever sent to the original, operator-supplied origin — never
-  // replayed across a redirect to a different origin (credential-leak guard).
   const originForAuth = current.origin;
 
   try {
-    let res;
-    for (let hop = 0; ; hop++) {
-      const headers = { ...baseHeaders };
-      if (auth && current.origin === originForAuth) headers['Authorization'] = auth;
-      res = await httpGet(current, headers);
-
-      if (REDIRECT_CODES.has(res.statusCode) && res.headers.location) {
-        res.resume(); // drain so the socket can be reused/closed
-        if (hop >= MAX_REDIRECTS) return { url, ok: false, error: 'Too many redirects' };
-        try { current = validateScrapeUrl(res.headers.location, current); }
-        catch (err) { return { url, ok: false, error: `Blocked redirect: ${err.message}` }; }
-        continue;
-      }
-      break;
-    }
+    const { res, error } = await fetchWithRedirects(current, baseHeaders, auth, originForAuth);
+    if (error) return { url, ok: false, error };
 
     const status = res.statusCode;
     if (status < 200 || status >= 300) { res.resume(); return { url, ok: false, status, error: `HTTP ${status}` }; }
 
     const ct = String(res.headers['content-type'] || '').toLowerCase();
-    if (!ct.startsWith('text/') && !ct.includes('html') && !ct.includes('xml') && !ct.includes('json')) {
+    if (!isSupportedContentType(ct)) {
       res.resume();
       return { url, ok: false, status, error: `Unsupported content-type: ${ct}` };
     }
 
     const { buf, truncated } = await readCapped(res, MAX_BYTES_PER_URL);
-    const raw = buf.toString('utf8');
-    const text = (ct.includes('html') || ct.includes('xml')) ? htmlToText(raw) : raw.replace(/\s+/g, ' ').trim();
+    const text = extractText(ct, buf.toString('utf8'));
 
     return {
       url,

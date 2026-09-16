@@ -15,14 +15,16 @@ on:
 
 permissions: {}
 
-concurrency:
-  group: dor-reconcile
-  cancel-in-progress: false
+# Concurrency is per JOB, not per workflow: a sweep job waits for its sidekick's runner, and an offline
+# box would otherwise hold every later reconcile run pending behind it.
 
 jobs:
   reconcile:
     if: vars.DOR_ENABLED == 'true'
     runs-on: ubuntu-latest
+    concurrency:
+      group: dor-reconcile
+      cancel-in-progress: false
     permissions:
       contents: read
       actions: read        # the liveness check reads workflow runs; the BOT app has no Actions scope
@@ -57,3 +59,57 @@ jobs:
           STATUS_FIELD_ID=PVTSSF_lADOAhfTz84BezXozhZK4Vo \
           HEALTH_TITLE="DoR bug-pipeline health" \
             bash .github/scripts/dor_reconcile.sh
+
+  # ── Stale sidekicks ───────────────────────────────────────────────────────────────────────────────
+  # The reset on PR close reaches only the box an issue's `sk:` label names, and that label drifts, so
+  # boxes were left parked on closed or moved issues — out of the pool for nobody. Ask each DOR_POOL
+  # box directly, hourly, and release what it holds for nobody (dor_sidekick_claim.sh sweep_sidekick).
+  pool:
+    if: vars.DOR_ENABLED == 'true' && vars.DOR_POOL != ''
+    runs-on: ubuntu-latest
+    outputs:
+      boxes: ${{ steps.p.outputs.boxes }}
+    steps:
+      - name: DOR_POOL → matrix
+        id: p
+        env:
+          DOR_POOL: ${{ vars.DOR_POOL }}
+        run: |
+          set -euo pipefail
+          # Only well-formed labels reach `runs-on`.
+          echo "boxes=$(printf '%s\n' $DOR_POOL | jq -Rsc 'split("\n") | map(select(test("^sk[0-9]+$")))')" >> "$GITHUB_OUTPUT"
+
+  sweep-sidekick:
+    needs: pool
+    if: needs.pool.outputs.boxes != '[]'
+    strategy:
+      fail-fast: false
+      matrix:
+        sk: ${{ fromJSON(needs.pool.outputs.boxes) }}
+    runs-on:
+      - self-hosted
+      - ${{ matrix.sk }}
+    timeout-minutes: 15
+    # A newer sweep replaces one still queued for the same box — an offline runner never builds a backlog.
+    concurrency:
+      group: dor-sweep-${{ matrix.sk }}
+      cancel-in-progress: true
+    permissions:
+      contents: read
+      issues: write          # drop a released claim label from its closed issue
+      pull-requests: read
+    steps:
+      - name: Checkout the sidekick-claim helpers
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: .github/scripts/dor_sidekick_claim.sh
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+      - name: Release what this box holds for nobody
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -uo pipefail
+          source .github/scripts/dor_sidekick_claim.sh
+          sweep_sidekick

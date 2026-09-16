@@ -81,6 +81,73 @@ function resolveExternalRefs(rec, normalized, coreSet, sysPrefix) {
   }
 }
 
+// Copy every core column present on the record into a fresh normalized object,
+// coercing each value. Only property names from the trusted coreSet are written
+// (never user-supplied record keys) to avoid remote-property-injection.
+function pickCoreColumns(rec, coreSet) {
+  const normalized = {};
+  for (const key of coreSet) {
+    if (Object.prototype.hasOwnProperty.call(rec, key)) {
+      normalized[key] = coerceValue(rec[key]);
+    }
+  }
+  return normalized;
+}
+
+// Gather the record's non-core, non-reserved fields for the extendedAttributes JSON.
+function collectExtendedFields(rec, coreSet) {
+  const extended = new Map();
+  for (const [key, value] of Object.entries(rec)) {
+    if (!coreSet.has(key) && key !== 'externalId') {
+      extended.set(key, value);
+    }
+  }
+  return extended;
+}
+
+// Apply deterministic id + external-ref resolution. No-op unless deterministic
+// id generation is requested. Mutates `normalized`.
+function applyDeterministicIds(rec, normalized, coreSet, options) {
+  const { idGeneration, idPrefix, systemPrefix } = options;
+  if (idGeneration !== 'deterministic') return;
+
+  if (rec.externalId) {
+    normalized.id = deterministicGuid(idPrefix, String(rec.externalId));
+    normalized.externalId = String(rec.externalId);
+  }
+
+  // Resolve external-ID references (parent/child/resource/principal/identity/
+  // context/member) to deterministic UUIDs so the generated FKs match the ids
+  // the other endpoints created for the same externalId — see resolveExternalRefs.
+  // Prefer the explicit systemPrefix the route recovers by stripping the known
+  // entity suffix off idPrefix — it survives a system prefix that itself contains
+  // hyphens (splitting on the first hyphen would resolve to the wrong namespace,
+  // e.g. a ContextMembers_contextId_fkey violation).
+  const sysPrefix = systemPrefix || idPrefix.split('-')[0];
+  resolveExternalRefs(rec, normalized, coreSet, sysPrefix);
+}
+
+// Interpret an already-present extendedAttributes value as a plain object to
+// merge into: parse a legacy raw-string value, pass an object through, else {}.
+function existingExtendedObject(value) {
+  if (!value) return {};
+  if (typeof value === 'string') return tryParseJson(value);
+  return value;
+}
+
+// Serialize the collected extended fields (merged over any pre-existing
+// extendedAttributes) into the normalized record's extendedAttributes string.
+function packExtendedAttributes(normalized, extended) {
+  if (extended.size > 0) {
+    const existing = existingExtendedObject(normalized.extendedAttributes);
+    normalized.extendedAttributes = JSON.stringify({ ...existing, ...Object.fromEntries(extended) });
+    return;
+  }
+  if (normalized.extendedAttributes && typeof normalized.extendedAttributes === 'object') {
+    normalized.extendedAttributes = JSON.stringify(normalized.extendedAttributes);
+  }
+}
+
 /**
  * Normalize a batch of records for a given entity type.
  *
@@ -104,57 +171,17 @@ export function normalizeRecords(records, coreColumns, options = {}) {
   const coreSet = new Set(coreColumns);
 
   return records.map(rec => {
-    const normalized = {};
-    const extended = new Map();
+    const normalized = pickCoreColumns(rec, coreSet);
+    const extended = collectExtendedFields(rec, coreSet);
 
-    // Write only property names sourced from the trusted coreSet, not from
-    // the user-provided record keys, to avoid remote-property-injection.
-    for (const key of coreSet) {
-      if (Object.prototype.hasOwnProperty.call(rec, key)) {
-        normalized[key] = coerceValue(rec[key]);
-      }
-    }
-    // Collect non-core, non-reserved fields for extendedAttributes JSON.
-    for (const [key, value] of Object.entries(rec)) {
-      if (!coreSet.has(key) && key !== 'externalId') {
-        extended.set(key, value);
-      }
-    }
-
-    // Handle ID generation
-    if (idGeneration === 'deterministic' && rec.externalId) {
-      normalized.id = deterministicGuid(idPrefix, String(rec.externalId));
-      normalized.externalId = String(rec.externalId);
-    }
-
-    // Resolve external-ID references (parent/child/resource/principal/identity/
-    // context/member) to deterministic UUIDs so the generated FKs match the ids
-    // the other endpoints created for the same externalId — see resolveExternalRefs.
-    if (idGeneration === 'deterministic') {
-      // Prefer the explicit systemPrefix the route recovers by stripping the
-      // known entity suffix off idPrefix — it survives a system prefix that
-      // itself contains hyphens (splitting on the first hyphen would resolve to
-      // the wrong namespace, e.g. a ContextMembers_contextId_fkey violation).
-      const sysPrefix = systemPrefix || idPrefix.split('-')[0];
-      resolveExternalRefs(rec, normalized, coreSet, sysPrefix);
-    }
+    applyDeterministicIds(rec, normalized, coreSet, { idGeneration, idPrefix, systemPrefix });
 
     // Set systemId if provided, the record doesn't override it, AND the table has the column
     if (systemId !== undefined && normalized.systemId === undefined && coreSet.has('systemId')) {
       normalized.systemId = systemId;
     }
 
-    // Pack extendedAttributes
-    if (extended.size > 0) {
-      const existing = normalized.extendedAttributes
-        ? (typeof normalized.extendedAttributes === 'string'
-          ? tryParseJson(normalized.extendedAttributes)
-          : normalized.extendedAttributes)
-        : {};
-      normalized.extendedAttributes = JSON.stringify({ ...existing, ...Object.fromEntries(extended) });
-    } else if (normalized.extendedAttributes && typeof normalized.extendedAttributes === 'object') {
-      normalized.extendedAttributes = JSON.stringify(normalized.extendedAttributes);
-    }
+    packExtendedAttributes(normalized, extended);
 
     return normalized;
   });

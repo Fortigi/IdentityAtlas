@@ -3,7 +3,7 @@ import { useState, useEffect, lazy, Suspense, createElement } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
 import { hasPermission } from '@ui/auth/usePermissions';
 
-import { ADMIN_TABS, visibleAdminTabs } from './admin/adminTabs';
+import { ADMIN_TABS, visibleAdminTabs, shouldLeaveTab } from './admin/adminTabs';
 
 // Lazy-load the heavy sub-tab pages so they don't bloat the initial Admin bundle
 const CrawlersPage = lazy(() => import('./CrawlersPage'));
@@ -14,6 +14,9 @@ const PerfPage = lazy(() => import('./PerfPage'));
 const AboutPage = lazy(() => import('./AboutPage'));
 const AccountLinkingSettings = lazy(() => import('./AccountLinkingSettings'));
 const UpdatesSettings = lazy(() => import('./UpdatesSettings'));
+const SharedMatricesPage = lazy(() => import('./SharedMatricesPage'));
+// Lazy because it pulls the crawler-metadata glob that no other admin tab needs.
+const ExperimentalFeaturesSection = lazy(() => import('./admin/ExperimentalFeaturesSection'));
 
 import PowerQueryExportSection from './admin/PowerQueryExportSection';
 import CuratedDataSection from './admin/CuratedDataSection';
@@ -44,15 +47,17 @@ function AdminSubTabs({ activeTab, onTabChange, tabs }) {
   );
 }
 
-export default function AdminPage({ onNavigate, onRefresh, onRiskScoresRefresh }) {
+export default function AdminPage({ onNavigate, onRefresh, onRiskScoresRefresh, features, version }) {
   // Persist active sub-tab in URL hash like #admin?sub=crawlers so deep links work.
-  // Also handles legacy #crawlers and #performance hashes by mapping them to the
-  // corresponding sub-tab.
+  // Also handles the legacy #crawlers / #performance / #shared-matrices hashes by
+  // mapping them to the corresponding sub-tab (Shared matrices moved in here from
+  // the top navigation, #1166 — links that were already sent must keep working).
   const getInitialTab = () => {
     const hash = window.location.hash.replace('#', '');
     const page = hash.split('?')[0];
     if (page === 'crawlers') return 'crawlers';
     if (page === 'performance') return 'performance';
+    if (page === 'shared-matrices') return 'shares';
     // Parse query parameters properly using URLSearchParams (consistent with App.jsx parseHash())
     const qIndex = hash.indexOf('?');
     const params = new URLSearchParams(qIndex >= 0 ? hash.substring(qIndex + 1) : '');
@@ -67,7 +72,7 @@ export default function AdminPage({ onNavigate, onRefresh, onRiskScoresRefresh }
   // for admins on every platform. Platform-specific guidance (the Docker CLI
   // walkthrough) is hidden inside AuthSettingsPage, not by dropping the whole tab.
   const { hasWildcard, permissions } = useAuth();
-  const visibleTabs = visibleAdminTabs(permissions, hasWildcard);
+  const visibleTabs = visibleAdminTabs(permissions, hasWildcard, ADMIN_TABS, features);
 
   // Data-tab section gating. The Data tab is reachable if the user has ANY of
   // its permissions (adminTabs `requires`), but each section is a distinct
@@ -82,8 +87,9 @@ export default function AdminPage({ onNavigate, onRefresh, onRiskScoresRefresh }
 
   // If the user was on a now-hidden tab, bounce them to the first visible one.
   // Done during render — setting to a guaranteed-visible tab converges on the
-  // next render, so it doesn't trip react-hooks/set-state-in-effect.
-  if (visibleTabs.length && !visibleTabs.some(t => t.key === activeTab)) {
+  // next render, so it doesn't trip react-hooks/set-state-in-effect. A tab whose
+  // feature flag hasn't been reported yet is waited on, not bounced from.
+  if (shouldLeaveTab(activeTab, visibleTabs, features)) {
     setActiveTab(visibleTabs[0]?.key || 'crawlers');
   }
 
@@ -92,7 +98,7 @@ export default function AdminPage({ onNavigate, onRefresh, onRiskScoresRefresh }
     // Also rewrite legacy #crawlers / #performance to #admin?sub=...
     const hash = window.location.hash.replace('#', '');
     const page = hash.split('?')[0];
-    const isLegacy = page === 'crawlers' || page === 'performance';
+    const isLegacy = page === 'crawlers' || page === 'performance' || page === 'shared-matrices';
     const newHash = `#admin?sub=${activeTab}`;
     if (isLegacy || !window.location.hash.includes(`sub=${activeTab}`)) {
       window.history.replaceState(null, '', newHash);
@@ -123,9 +129,19 @@ export default function AdminPage({ onNavigate, onRefresh, onRiskScoresRefresh }
     auth: AuthSettingsPage,
     roles: RolesPermissionsSection,
     updates: UpdatesSettings,
+    shares: SharedMatricesPage,
+    experimental: ExperimentalFeaturesSection,
     about: AboutPage,
   };
-  const lazyTabProps = { crawlers: { onNavigate }, plugins: { onNavigate } };
+  // features/version come from App.jsx, which already fetches them once and
+  // re-fetches on navigation. Sub-tabs must not fetch them again: both endpoints
+  // are behind the public 30-req/min rate limiter, and a 429 would read as
+  // "feature off" — silently hiding an experimental crawler type from an admin.
+  const lazyTabProps = {
+    crawlers: { onNavigate, features },
+    plugins: { onNavigate },
+    experimental: { features, version },
+  };
   const LazyTab = lazyTabComponent[activeTab];
 
   return (

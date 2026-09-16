@@ -17,7 +17,9 @@
 // @param {string} [fallback]          full ORDER BY expression when sort is unknown
 // @returns {string} e.g. `"displayName" DESC` — safe to interpolate into ORDER BY
 export function buildOrderBy(sort, dir, allowed, fallback = '"displayName" ASC') {
-  const col = allowed[sort];
+  // Own keys only: an inherited name such as `constructor` or `toString` is not
+  // a column (SEC-2026-09 L-15).
+  const col = Object.hasOwn(allowed, sort) ? allowed[sort] : undefined;
   if (!col) return fallback;
   const direction = String(dir).toLowerCase() === 'desc' ? 'DESC' : 'ASC';
   return `${col} ${direction}`;

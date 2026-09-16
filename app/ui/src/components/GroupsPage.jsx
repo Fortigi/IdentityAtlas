@@ -16,6 +16,7 @@ const FIELD_LABELS = {
   resourceProvisioningOptions: 'Provisioning',
   __resourceTag: 'Resource Tag',
   __groupTag: 'Group Tag',
+  __system: 'System',
 };
 
 const TABLE_COLUMNS = [

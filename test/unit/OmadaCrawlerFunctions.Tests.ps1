@@ -210,7 +210,7 @@ Describe 'Send-IngestBatch' {
         Mock Invoke-IngestAPI { return @{ inserted = 0; updated = 0; deleted = 3 } }
         $r = Send-IngestBatch -Endpoint 'ingest/contexts' -SystemId 7 -SyncMode 'full' -Records @()
         $r.deleted | Should -Be 3
-        Should -Invoke Invoke-IngestAPI -Times 1 -Exactly -ParameterFilter {
+        Should -Invoke Invoke-IngestAPI -Exactly 1 -ParameterFilter {
             $Body.records.Count -eq 0 -and $Body.systemId -eq 7 -and $Body.syncMode -eq 'full'
         }
     }
@@ -220,7 +220,7 @@ Describe 'Send-IngestBatch' {
         $recs = @([PSCustomObject]@{ id = 'a' }, [PSCustomObject]@{ id = 'b' })
         $r = Send-IngestBatch -Endpoint 'ingest/principals' -SystemId 1 -Records $recs
         $r.inserted | Should -Be 2
-        Should -Invoke Invoke-IngestAPI -Times 1 -Exactly
+        Should -Invoke Invoke-IngestAPI -Exactly 1
     }
 
     It 'passes the supplied scope through to the ingest body' {
@@ -228,7 +228,7 @@ Describe 'Send-IngestBatch' {
         $recs = @([PSCustomObject]@{ id = 'x' })
         Send-IngestBatch -Endpoint 'ingest/principals' -SystemId 1 `
             -Scope @{ principalType = 'User' } -Records $recs | Out-Null
-        Should -Invoke Invoke-IngestAPI -Times 1 -Exactly -ParameterFilter {
+        Should -Invoke Invoke-IngestAPI -Exactly 1 -ParameterFilter {
             $Body.scope.principalType -eq 'User'
         }
     }
@@ -241,8 +241,8 @@ Describe 'Send-IngestBatch' {
         $recs = @([PSCustomObject]@{ id = 'keep' })
         Send-IngestBatch -Endpoint 'ingest/principals' -SystemId 1 `
             -Records $recs -DeletedIds @('gone1', 'gone2') | Out-Null
-        Should -Invoke Invoke-IngestAPI -Times 1 -Exactly
-        Should -Invoke Invoke-IngestAPI -Times 1 -Exactly -ParameterFilter {
+        Should -Invoke Invoke-IngestAPI -Exactly 1
+        Should -Invoke Invoke-IngestAPI -Exactly 1 -ParameterFilter {
             $Body.records.Count -eq 1 -and $Body.deletedIds.Count -eq 2
         }
     }
@@ -252,7 +252,7 @@ Describe 'Send-IngestBatch' {
         $recs = 1..5 | ForEach-Object { [PSCustomObject]@{ id = "r$_" } }
         $r = Send-IngestBatch -Endpoint 'ingest/resources' -SystemId 1 -Records $recs -BatchSize 2
         # 5 records / chunk size 2 = 3 chunks
-        Should -Invoke Invoke-IngestAPI -Times 3 -Exactly
+        Should -Invoke Invoke-IngestAPI -Exactly 3
         $r.inserted | Should -Be 3
     }
 
@@ -260,10 +260,10 @@ Describe 'Send-IngestBatch' {
         Mock Invoke-IngestAPI { return @{ syncId = 'sess-1'; inserted = 1 } }
         $recs = 1..5 | ForEach-Object { [PSCustomObject]@{ id = "r$_" } }
         Send-IngestBatch -Endpoint 'ingest/resources' -SystemId 1 -Records $recs -BatchSize 2 | Out-Null
-        Should -Invoke Invoke-IngestAPI -Times 1 -Exactly -ParameterFilter {
+        Should -Invoke Invoke-IngestAPI -Exactly 1 -ParameterFilter {
             $Body.syncSession -eq 'start'
         }
-        Should -Invoke Invoke-IngestAPI -Times 1 -Exactly -ParameterFilter {
+        Should -Invoke Invoke-IngestAPI -Exactly 1 -ParameterFilter {
             $Body.syncSession -eq 'end'
         }
     }

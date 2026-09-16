@@ -22,29 +22,30 @@ const grants = [
   { cap: 'Owner', target: 'sub', holder: 'u1', effect: 'allow', scope: 'self' }, // self-scope at ancestor: must NOT reach vm
 ];
 
+// The propagating-ancestor rows for a frontier (walks Contains upward).
+function ancestorRows(frontier) {
+  const parents = new Set();
+  for (const c of frontier) for (const e of contains[c] || []) if (e.propagates) parents.add(e.parent);
+  return [...parents].map((parent) => ({ parent }));
+}
+// getHolders: the group ids the frontier principals belong to.
+function holderRows(frontier) {
+  const gids = new Set();
+  for (const p of frontier) for (const g of membership[p] || []) gids.add(g);
+  return [...gids].map((gid) => ({ gid }));
+}
+// gather: capability grants at any ancestor, held by any holder.
+function grantRows([ancestorIds, holderArr]) {
+  return grants
+    .filter((g) => ancestorIds.includes(g.target) && holderArr.includes(g.holder))
+    .map((g) => ({ cap: g.cap, target: g.target, holder: g.holder, effect: g.effect, scope: g.scope }));
+}
+
 function wire() {
   db.query.mockImplementation((sql, params) => {
-    if (sql.includes('ResourceRelationships')) {
-      const frontier = params[0];
-      const parents = new Set();
-      for (const c of frontier) for (const e of contains[c] || []) if (e.propagates) parents.add(e.parent);
-      return Promise.resolve({ rows: [...parents].map((parent) => ({ parent })) });
-    }
-    if (sql.includes('resourceType')) {
-      // getHolders
-      const frontier = params[0];
-      const gids = new Set();
-      for (const p of frontier) for (const g of membership[p] || []) gids.add(g);
-      return Promise.resolve({ rows: [...gids].map((gid) => ({ gid })) });
-    }
-    if (sql.includes('targetNodeId')) {
-      // gather
-      const [ancestorIds, holderArr] = params;
-      const rows = grants
-        .filter((g) => ancestorIds.includes(g.target) && holderArr.includes(g.holder))
-        .map((g) => ({ cap: g.cap, target: g.target, holder: g.holder, effect: g.effect, scope: g.scope }));
-      return Promise.resolve({ rows });
-    }
+    if (sql.includes('ResourceRelationships')) return Promise.resolve({ rows: ancestorRows(params[0]) });
+    if (sql.includes('resourceType')) return Promise.resolve({ rows: holderRows(params[0]) });
+    if (sql.includes('targetNodeId')) return Promise.resolve({ rows: grantRows(params) });
     return Promise.resolve({ rows: [] });
   });
 }
@@ -66,6 +67,44 @@ describe('getAncestorNodes', () => {
   it('stops at an inheritance break (propagates=false)', async () => {
     const { depthByNode } = await getAncestorNodes('rgx');
     expect([...depthByNode.keys()]).toEqual(['rgx']); // never ascends to sub
+  });
+});
+
+describe('getAncestorNodes - the caps that stop the walk', () => {
+  // Truncation is how an access answer comes back INCOMPLETE, and nothing exercised either
+  // cap. Both are off-by-one sensitive and both fail quietly: a walk that stops one level
+  // early simply reports less access than the principal has, with no error anywhere. The
+  // fixture chain is vm -> rg -> sub, so depth 1 and a node budget of 2 both land exactly on
+  // the boundary -- which is the only place `>=` and `>` disagree.
+  it('stops at maxDepth, admitting exactly that many levels', async () => {
+    const { depthByNode, truncated } = await getAncestorNodes('vm', { maxDepth: 1 });
+    expect(depthByNode.get('vm')).toBe(0);
+    expect(depthByNode.get('rg')).toBe(1);
+    expect(depthByNode.has('sub')).toBe(false); // one level further would need depth 2
+    expect(truncated).toBeTruthy();
+  });
+
+  it('does not truncate when the tree fits inside maxDepth', async () => {
+    // The paired case: without it, "always truncate" passes the test above.
+    const { depthByNode, truncated } = await getAncestorNodes('vm', { maxDepth: 9 });
+    expect(depthByNode.get('sub')).toBe(2);
+    expect(truncated).toBeFalsy();
+  });
+
+  it('stops at maxNodesPerExpansion, counting the start node', async () => {
+    // The budget counts nodes already admitted, and vm is admitted before the walk begins --
+    // so a budget of 2 leaves room for exactly one more.
+    const { depthByNode, truncated } = await getAncestorNodes('vm', { maxNodesPerExpansion: 2 });
+    expect(depthByNode.has('rg')).toBe(true);
+    expect(depthByNode.has('sub')).toBe(false);
+    expect(depthByNode.size).toBe(2);
+    expect(truncated).toBeTruthy();
+  });
+
+  it('does not truncate when the tree fits inside the node budget', async () => {
+    const { depthByNode, truncated } = await getAncestorNodes('vm', { maxNodesPerExpansion: 50 });
+    expect(depthByNode.size).toBe(3);
+    expect(truncated).toBeFalsy();
   });
 });
 

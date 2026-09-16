@@ -20,6 +20,26 @@ import { parseOrg, computeChildLabels, stripSiblingPrefix } from './ContextTreeV
 
 const INDENT_PX = 22;  // horizontal offset per depth level
 const CONNECTOR = 'rgb(203 213 225)'; // slate-300 — matches the bubble ring
+const MEMBER_KIND = { Identity: 'identity', Resource: 'group', System: 'system' };
+
+// Lazy-load a node's members when its member panel is first opened; drop the
+// cache when the direct count changes. members is value-set everywhere so a
+// reducer dispatch stands in for setState, keeping the invalidate effect clear
+// of react-hooks/set-state-in-effect.
+function useNodeMembers(nodeId, directMemberCount, showMembers, onLoadMembers) {
+  const [members, setMembers] = useReducer((_, v) => v, null); // null = not loaded
+  const [memberTotal, setMemberTotal] = useState(0);
+  useEffect(() => {
+    if (!showMembers || members !== null || !onLoadMembers) return;
+    let cancelled = false;
+    onLoadMembers(nodeId)
+      .then(({ rows, total }) => { if (!cancelled) { setMembers(rows); setMemberTotal(total); } })
+      .catch(() => { if (!cancelled) { setMembers([]); setMemberTotal(0); } });
+    return () => { cancelled = true; };
+  }, [showMembers, members, onLoadMembers, nodeId]);
+  useEffect(() => { setMembers(null); }, [directMemberCount]);
+  return { members, memberTotal };
+}
 
 // Collect a node's id plus every descendant id — the set of drop targets that
 // would create a cycle for that node (you can't drop a node onto itself or
@@ -184,26 +204,9 @@ function TreeNode({ node, displayLabel, depth, isLast, onOpenDetail, onRename, o
   // Opt-in: members (the actual users) are hidden until the analyst clicks the
   // member toggle, then shown nested inside the node. Lazy-loaded on first open.
   const [showMembers, setShowMembers] = useState(false);
-  // members is value-set everywhere (rows / [] / null), so a reducer dispatch
-  // stands in for setState — keeping the cache-invalidation effect below clear
-  // of react-hooks/set-state-in-effect.
-  const [members, setMembers] = useReducer((_, v) => v, null); // null = not loaded
-  const [memberTotal, setMemberTotal] = useState(0);
+  const { members, memberTotal } = useNodeMembers(node.id, node.directMemberCount, showMembers, onLoadMembers);
   const canShowMembers = typeof onLoadMembers === 'function' && node.directMemberCount > 0;
-  const memberKind = node.targetType === 'Identity' ? 'identity'
-    : node.targetType === 'Resource' ? 'group'
-    : node.targetType === 'System' ? 'system' : 'user';
-
-  useEffect(() => {
-    if (!showMembers || members !== null || !onLoadMembers) return;
-    let cancelled = false;
-    onLoadMembers(node.id)
-      .then(({ rows, total }) => { if (!cancelled) { setMembers(rows); setMemberTotal(total); } })
-      .catch(() => { if (!cancelled) { setMembers([]); setMemberTotal(0); } });
-    return () => { cancelled = true; };
-  }, [showMembers, members, onLoadMembers, node.id]);
-  // Drop the cache if the direct count changes (e.g. a member added elsewhere).
-  useEffect(() => { setMembers(null); }, [node.directMemberCount]);
+  const memberKind = MEMBER_KIND[node.targetType] || 'user';
   // Single click opens the detail; double click renames. We delay the open so a
   // double-click can cancel it — otherwise the first click navigates away before
   // the rename can fire.
@@ -237,6 +240,12 @@ function TreeNode({ node, displayLabel, depth, isLast, onOpenDetail, onRename, o
   const isForbiddenTarget = dragging && forbidden.has(node.id);
   const isValidDropTarget = isOver && dragging && !isForbiddenTarget;
 
+  // Pass-through props the recursive child nodes inherit unchanged.
+  const shared = {
+    onOpenDetail, onRename, onAddChild, onLoadMembers, onOpenMember,
+    isExpanded, toggleExpanded, setExpanded, editable, memberDraggable, forbidden, dragging,
+  };
+
   return (
     <li className="relative">
       {depth > 0 && (
@@ -260,119 +269,30 @@ function TreeNode({ node, displayLabel, depth, isLast, onOpenDetail, onRename, o
         className="group flex items-center gap-2 rounded-full"
         style={{ paddingLeft: `${depth * INDENT_PX}px`, opacity: isDragging ? 0.4 : 1 }}
       >
-        {hasChildren ? (
-          <button
-            aria-expanded={expanded}
-            onClick={() => toggleExpanded(node.id)}
-            className="w-5 h-5 flex items-center justify-center text-gray-600 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded shrink-0"
-            title={expanded ? 'Collapse' : 'Expand'}
-          >
-            {expanded ? '▾' : '▸'}
-          </button>
-        ) : (
-          <span className="w-5 h-5 inline-block shrink-0" />
-        )}
+        <ExpandToggle hasChildren={hasChildren} expanded={expanded} onToggle={() => toggleExpanded(node.id)} />
 
-        {renaming ? (
-          <RenameInput
-            initial={node.displayName}
-            onCommit={(name) => { setRenaming(false); if (name && name !== node.displayName) onRename?.(node.id, name); }}
-            onCancel={() => setRenaming(false)}
-          />
-        ) : (
-          <button
-            ref={dragRef}
-            {...listeners}
-            {...attributes}
-            onClick={handleClick}
-            onDoubleClick={handleDoubleClick}
-            title={canDrag ? 'Click to open · double-click to rename · drag onto another node to re-parent' : undefined}
-            className={[
-              'flex items-center gap-2 min-w-0 px-3 py-1.5 rounded-full border bg-white dark:bg-gray-800 text-left shrink max-w-full transition-shadow',
-              'hover:bg-slate-50 dark:bg-gray-700/50 hover:border-slate-300 dark:border-gray-500 hover:shadow-sm',
-              canDrag ? 'cursor-grab active:cursor-grabbing' : '',
-              isValidDropTarget
-                ? 'border-blue-500 ring-2 ring-blue-400 dark:ring-blue-500 bg-blue-50 dark:bg-blue-900/30'
-                : edited
-                  ? `border-amber-300 dark:border-amber-700 ${edited.ringClass}`
-                  : 'border-slate-200 dark:border-gray-600',
-              isForbiddenTarget ? 'opacity-50' : '',
-            ].join(' ')}
-          >
-            <span
-              className={`w-2.5 h-2.5 rounded-full ${v.dotClass} ring-2 ring-white outline outline-1 outline-slate-200 shrink-0`}
-              aria-hidden="true"
-            />
-            <span className="font-medium text-gray-900 dark:text-white truncate" title={nodeLabel !== node.displayName ? node.displayName : undefined}>{nodeLabel}</span>
-            <span className={`text-[10px] px-1.5 py-0.5 rounded border ${t.badgeClass} whitespace-nowrap shrink-0`}>
-              {t.label}
-            </span>
-            {edited && (
-              <span
-                className={`text-[10px] px-1.5 py-0.5 rounded border ${edited.badgeClass} whitespace-nowrap shrink-0`}
-                title={edited.title}
-              >
-                ✎ {edited.label}
-              </span>
-            )}
-            <MemberCount direct={node.directMemberCount} total={node.totalMemberCount} />
-          </button>
-        )}
+        <NodeChip
+          node={node} nodeLabel={nodeLabel} renaming={renaming} setRenaming={setRenaming} onRename={onRename}
+          dragRef={dragRef} listeners={listeners} attributes={attributes}
+          handleClick={handleClick} handleDoubleClick={handleDoubleClick}
+          canDrag={canDrag} isValidDropTarget={isValidDropTarget} isForbiddenTarget={isForbiddenTarget}
+          edited={edited} v={v} t={t}
+        />
 
         {/* Member toggle — show/hide the actual users nested inside this node. */}
-        {canShowMembers && !dragging && (
-          <button
-            onClick={() => setShowMembers(s => !s)}
-            className={`flex items-center gap-1 h-6 px-1.5 rounded-full border text-[11px] shrink-0 ${
-              showMembers
-                ? 'border-sky-300 dark:border-sky-700 bg-sky-50 dark:bg-sky-900/20 text-sky-700 dark:text-sky-300'
-                : 'border-slate-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:border-slate-300 dark:hover:border-gray-500'
-            }`}
-            title={showMembers ? 'Hide the users in this context' : 'Show the users directly in this context'}
-          >
-            <span aria-hidden="true">{showMembers ? '▾' : '▸'}</span>
-            <span aria-hidden="true">👤</span>
-            <span>{node.directMemberCount}</span>
-          </button>
-        )}
+        <MemberToggle canShow={canShowMembers} dragging={dragging} show={showMembers} count={node.directMemberCount} onToggle={() => setShowMembers(s => !s)} />
 
         {/* Add-child affordance — appears on hover, hidden while dragging. */}
-        {editable && !renaming && !dragging && (
-          <button
-            onClick={() => { setAddingChild(true); setExpanded(node.id, true); }}
-            className="w-5 h-5 flex items-center justify-center text-gray-600 dark:text-gray-400 opacity-0 group-hover:opacity-100 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded shrink-0"
-            title="Add a child context"
-          >
-            +
-          </button>
-        )}
+        <AddChildButton editable={editable} renaming={renaming} dragging={dragging} onClick={() => { setAddingChild(true); setExpanded(node.id, true); }} />
       </div>
 
       {/* Members nested inside this context — the direct-report users as ovals. */}
       {showMembers && (
-        <div
-          className="mt-1 rounded-xl border border-sky-200 dark:border-sky-800/60 bg-sky-50/50 dark:bg-sky-900/10 px-2 py-1.5"
-          style={{ marginLeft: `${depth * INDENT_PX + 28}px` }}
-        >
-          {members === null ? (
-            <span className="text-[11px] text-gray-500 dark:text-gray-400">Loading users…</span>
-          ) : members.length === 0 ? (
-            <span className="text-[11px] text-gray-500 dark:text-gray-400">No directly-assigned users.</span>
-          ) : (
-            <div className="flex flex-wrap gap-1">
-              {members.map(m => (
-                memberDraggable
-                  ? <DraggableMemberOval key={m.id} member={m} fromContextId={node.id} onOpen={() => onOpenMember?.(m.id, m.displayName, memberKind)} />
-                  : <MemberOval key={m.id} member={m} onOpen={() => onOpenMember?.(m.id, m.displayName, memberKind)} />
-              ))}
-              {memberTotal > members.length && (
-                <span className="self-center text-[11px] text-gray-500 dark:text-gray-400">
-                  +{memberTotal - members.length} more — open this context to see all
-                </span>
-              )}
-            </div>
-          )}
-        </div>
+        <NodeMembersPanel
+          members={members} memberTotal={memberTotal} depth={depth}
+          memberDraggable={memberDraggable} nodeId={node.id} memberKind={memberKind}
+          onOpenMember={onOpenMember}
+        />
       )}
 
       {addingChild && (
@@ -386,37 +306,162 @@ function TreeNode({ node, displayLabel, depth, isLast, onOpenDetail, onRename, o
         </div>
       )}
 
-      {hasChildren && expanded && (
-        <ul className="space-y-1 mt-1">
-          {(() => {
-            // Strip this node's own org path from its children so the org name
-            // isn't repeated at every level going down.
-            const childLabels = computeChildLabels(node.children, parseOrg(node.displayName).org);
-            return node.children.map((c, i) => (
-              <TreeNode
-                key={c.id}
-                node={c}
-                displayLabel={childLabels.get(c.id)}
-                depth={depth + 1}
-                isLast={i === node.children.length - 1}
-                onOpenDetail={onOpenDetail}
-                onRename={onRename}
-                onAddChild={onAddChild}
-                onLoadMembers={onLoadMembers}
-                onOpenMember={onOpenMember}
-                isExpanded={isExpanded}
-                toggleExpanded={toggleExpanded}
-                setExpanded={setExpanded}
-                editable={editable}
-                memberDraggable={memberDraggable}
-                forbidden={forbidden}
-                dragging={dragging}
-              />
-            ));
-          })()}
-        </ul>
-      )}
+      {hasChildren && expanded && <NodeChildren node={node} depth={depth} shared={shared} />}
     </li>
+  );
+}
+
+function ExpandToggle({ hasChildren, expanded, onToggle }) {
+  if (!hasChildren) return <span className="w-5 h-5 inline-block shrink-0" />;
+  return (
+    <button
+      aria-expanded={expanded}
+      onClick={onToggle}
+      className="w-5 h-5 flex items-center justify-center text-gray-600 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded shrink-0"
+      title={expanded ? 'Collapse' : 'Expand'}
+    >
+      {expanded ? '▾' : '▸'}
+    </button>
+  );
+}
+
+function MemberToggle({ canShow, dragging, show, count, onToggle }) {
+  if (!canShow || dragging) return null;
+  return (
+    <button
+      onClick={onToggle}
+      className={`flex items-center gap-1 h-6 px-1.5 rounded-full border text-[11px] shrink-0 ${
+        show
+          ? 'border-sky-300 dark:border-sky-700 bg-sky-50 dark:bg-sky-900/20 text-sky-700 dark:text-sky-300'
+          : 'border-slate-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:border-slate-300 dark:hover:border-gray-500'
+      }`}
+      title={show ? 'Hide the users in this context' : 'Show the users directly in this context'}
+    >
+      <span aria-hidden="true">{show ? '▾' : '▸'}</span>
+      <span aria-hidden="true">👤</span>
+      <span>{count}</span>
+    </button>
+  );
+}
+
+function AddChildButton({ editable, renaming, dragging, onClick }) {
+  if (!editable || renaming || dragging) return null;
+  return (
+    <button
+      onClick={onClick}
+      className="w-5 h-5 flex items-center justify-center text-gray-600 dark:text-gray-400 opacity-0 group-hover:opacity-100 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded shrink-0"
+      title="Add a child context"
+    >
+      +
+    </button>
+  );
+}
+
+function chipClass({ canDrag, isValidDropTarget, edited, isForbiddenTarget }) {
+  const dropState = isValidDropTarget
+    ? 'border-blue-500 ring-2 ring-blue-400 dark:ring-blue-500 bg-blue-50 dark:bg-blue-900/30'
+    : edited
+      ? `border-amber-300 dark:border-amber-700 ${edited.ringClass}`
+      : 'border-slate-200 dark:border-gray-600';
+  return [
+    'flex items-center gap-2 min-w-0 px-3 py-1.5 rounded-full border bg-white dark:bg-gray-800 text-left shrink max-w-full transition-shadow',
+    'hover:bg-slate-50 dark:bg-gray-700/50 hover:border-slate-300 dark:border-gray-500 hover:shadow-sm',
+    canDrag ? 'cursor-grab active:cursor-grabbing' : '',
+    dropState,
+    isForbiddenTarget ? 'opacity-50' : '',
+  ].join(' ');
+}
+
+// The node's own pill: an inline rename field while renaming, else the draggable
+// label button with variant dot, type badge, edited badge and member count.
+function NodeChip({ node, nodeLabel, renaming, setRenaming, onRename, dragRef, listeners, attributes, handleClick, handleDoubleClick, canDrag, isValidDropTarget, isForbiddenTarget, edited, v, t }) {
+  if (renaming) {
+    return (
+      <RenameInput
+        initial={node.displayName}
+        onCommit={(name) => { setRenaming(false); if (name && name !== node.displayName) onRename?.(node.id, name); }}
+        onCancel={() => setRenaming(false)}
+      />
+    );
+  }
+  return (
+    <button
+      ref={dragRef}
+      {...listeners}
+      {...attributes}
+      onClick={handleClick}
+      onDoubleClick={handleDoubleClick}
+      title={canDrag ? 'Click to open · double-click to rename · drag onto another node to re-parent' : undefined}
+      className={chipClass({ canDrag, isValidDropTarget, edited, isForbiddenTarget })}
+    >
+      <span
+        className={`w-2.5 h-2.5 rounded-full ${v.dotClass} ring-2 ring-white outline outline-1 outline-slate-200 shrink-0`}
+        aria-hidden="true"
+      />
+      <span className="font-medium text-gray-900 dark:text-white truncate" title={nodeLabel !== node.displayName ? node.displayName : undefined}>{nodeLabel}</span>
+      <span className={`text-[10px] px-1.5 py-0.5 rounded border ${t.badgeClass} whitespace-nowrap shrink-0`}>
+        {t.label}
+      </span>
+      {edited && (
+        <span
+          className={`text-[10px] px-1.5 py-0.5 rounded border ${edited.badgeClass} whitespace-nowrap shrink-0`}
+          title={edited.title}
+        >
+          ✎ {edited.label}
+        </span>
+      )}
+      <MemberCount direct={node.directMemberCount} total={node.totalMemberCount} />
+    </button>
+  );
+}
+
+// The direct-report users of a node, shown as ovals once its member panel opens.
+function NodeMembersPanel({ members, memberTotal, depth, memberDraggable, nodeId, memberKind, onOpenMember }) {
+  const openMember = (m) => onOpenMember?.(m.id, m.displayName, memberKind);
+  return (
+    <div
+      className="mt-1 rounded-xl border border-sky-200 dark:border-sky-800/60 bg-sky-50/50 dark:bg-sky-900/10 px-2 py-1.5"
+      style={{ marginLeft: `${depth * INDENT_PX + 28}px` }}
+    >
+      {members === null ? (
+        <span className="text-[11px] text-gray-500 dark:text-gray-400">Loading users…</span>
+      ) : members.length === 0 ? (
+        <span className="text-[11px] text-gray-500 dark:text-gray-400">No directly-assigned users.</span>
+      ) : (
+        <div className="flex flex-wrap gap-1">
+          {members.map(m => (
+            memberDraggable
+              ? <DraggableMemberOval key={m.id} member={m} fromContextId={nodeId} onOpen={() => openMember(m)} />
+              : <MemberOval key={m.id} member={m} onOpen={() => openMember(m)} />
+          ))}
+          {memberTotal > members.length && (
+            <span className="self-center text-[11px] text-gray-500 dark:text-gray-400">
+              +{memberTotal - members.length} more — open this context to see all
+            </span>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// The expanded children of a node — strips the node's own org path from each
+// child label so the org name isn't repeated at every level going down.
+function NodeChildren({ node, depth, shared }) {
+  const childLabels = computeChildLabels(node.children, parseOrg(node.displayName).org);
+  return (
+    <ul className="space-y-1 mt-1">
+      {node.children.map((c, i) => (
+        <TreeNode
+          key={c.id}
+          node={c}
+          displayLabel={childLabels.get(c.id)}
+          depth={depth + 1}
+          isLast={i === node.children.length - 1}
+          {...shared}
+        />
+      ))}
+    </ul>
   );
 }
 

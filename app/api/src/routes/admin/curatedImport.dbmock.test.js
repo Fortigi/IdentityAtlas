@@ -8,7 +8,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../../db/connection.js'); // picks up src/db/__mocks__/connection.js
 import { query } from '../../db/connection.js';
-import { resolveEntity, importCuratedCategory } from './curatedImport.js';
+import { resolveEntity, importCuratedCategory, importCuratedTag } from './curatedImport.js';
 
 beforeEach(() => { query.mockReset(); });
 
@@ -84,4 +84,19 @@ describe('importCuratedCategory', () => {
     await importCuratedCategory({ name: 'Finance', assignments: [{ accessPackageId: 'nope' }] }, stats);
     expect(stats).toMatchObject({ catsInserted: 1, catAssignNotFound: 1, catAssignInserted: 0 });
   });
+});
+
+describe('importCuratedTag — inherited property names are not entity types (SEC-2026-09 L-15)', () => {
+  const deps = {
+    ENTITY_TO_TARGET: { user: 'Principal', group: 'Resource', resource: 'Resource', identity: 'Identity' },
+    recalcMemberCountsForChain: vi.fn(),
+  };
+  for (const entityType of ['constructor', 'toString', '__proto__']) {
+    it(`skips a tag with entityType=${entityType} without touching the database`, async () => {
+      const stats = { tagsSkipped: 0 };
+      await importCuratedTag({ name: 'PII', entityType }, deps, stats);
+      expect(stats.tagsSkipped).toBe(1);
+      expect(query).not.toHaveBeenCalled();
+    });
+  }
 });

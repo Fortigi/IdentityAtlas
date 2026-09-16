@@ -77,175 +77,191 @@ function Invoke-LocalApi {
     return Invoke-RestMethod @params
 }
 
-Write-Host "`n=== Ingest API ===" -ForegroundColor Cyan
-
-$systemId = $null
-
-# ─── 1. POST /ingest/systems — happy path ────────────────────────
-try {
-    $r = Invoke-LocalApi -Path '/ingest/systems' -Method Post -Body @{
-        syncMode = 'delta'
-        records  = @(
-            @{
-                displayName = 'Ingest-Test-System'
-                systemType  = 'Test'
-                enabled     = $true
-                syncEnabled = $true
-            }
-        )
-    }
-    if ($r.systemIds -and @($r.systemIds).Count -ge 1) {
-        $systemId = @($r.systemIds)[0]
-        Write-Result 'Ingest/Systems/HappyPath' $true "systemId=$systemId"
-    } else {
-        Write-Result 'Ingest/Systems/HappyPath' $false 'response missing systemIds'
-    }
-} catch {
-    Write-Result 'Ingest/Systems/HappyPath' $false $_.Exception.Message
-}
-
-# ─── 2. POST /ingest/principals — happy path ─────────────────────
-try {
-    if (-not $systemId) { throw 'skipped — no systemId from previous step' }
-    $r = Invoke-LocalApi -Path '/ingest/principals' -Method Post -Body @{
-        systemId     = $systemId
-        syncMode     = 'delta'
-        idGeneration = 'deterministic'
-        idPrefix     = 'itest-principals'
-        records      = @(
-            @{
-                externalId     = 'ingest-test-user-1'
-                displayName    = 'Ingest Test User'
-                principalType  = 'User'
-                accountEnabled = $true
-            }
-        )
-    }
-    $inserted = if ($r.PSObject.Properties.Name -contains 'inserted') { $r.inserted } else { 0 }
-    if ($inserted -ge 1) {
-        Write-Result 'Ingest/Principals/HappyPath' $true "inserted=$inserted"
-    } else {
-        Write-Result 'Ingest/Principals/HappyPath' $false "inserted=$inserted (expected >= 1)"
-    }
-} catch {
-    Write-Result 'Ingest/Principals/HappyPath' $false $_.Exception.Message
-}
-
-# ─── 3. POST /ingest/resources — happy path ──────────────────────
-try {
-    if (-not $systemId) { throw 'skipped — no systemId from previous step' }
-    $r = Invoke-LocalApi -Path '/ingest/resources' -Method Post -Body @{
-        systemId     = $systemId
-        syncMode     = 'delta'
-        idGeneration = 'deterministic'
-        idPrefix     = 'itest-resources'
-        records      = @(
-            @{
-                externalId   = 'ingest-test-res-1'
-                displayName  = 'Ingest Test Resource'
-                resourceType = 'Group'
-                enabled      = $true
-            }
-        )
-    }
-    $inserted = if ($r.PSObject.Properties.Name -contains 'inserted') { $r.inserted } else { 0 }
-    if ($inserted -ge 1) {
-        Write-Result 'Ingest/Resources/HappyPath' $true "inserted=$inserted"
-    } else {
-        Write-Result 'Ingest/Resources/HappyPath' $false "inserted=$inserted (expected >= 1)"
-    }
-} catch {
-    Write-Result 'Ingest/Resources/HappyPath' $false $_.Exception.Message
-}
-
-# ─── 4. POST /ingest/resource-assignments — happy path ───────────
-try {
-    if (-not $systemId) { throw 'skipped — no systemId from previous step' }
-    $r = Invoke-LocalApi -Path '/ingest/resource-assignments' -Method Post -Body @{
-        systemId     = $systemId
-        syncMode     = 'delta'
-        idGeneration = 'deterministic'
-        idPrefix     = 'itest-resource-assignments'
-        records      = @(
-            @{
-                resourceExternalId  = 'ingest-test-res-1'
-                principalExternalId = 'ingest-test-user-1'
-                assignmentType      = 'Direct'
-            }
-        )
-    }
-    Write-Result 'Ingest/ResourceAssignments/HappyPath' $true "ok"
-} catch {
-    Write-Result 'Ingest/ResourceAssignments/HappyPath' $false $_.Exception.Message
-}
-
-# ─── 5. POST /ingest/systems — empty body → 400 ─────────────────
-try {
-    Invoke-LocalApi -Path '/ingest/systems' -Method Post -Body @{} | Out-Null
-    Write-Result 'Ingest/Systems/EmptyBody' $false 'expected 400, got success'
-} catch {
-    $statusCode = if ($_.Exception.Response) { [int]$_.Exception.Response.StatusCode } else { 0 }
-    if ($statusCode -eq 400) {
-        Write-Result 'Ingest/Systems/EmptyBody' $true "got 400 (expected)"
-    } else {
-        Write-Result 'Ingest/Systems/EmptyBody' $false "got $statusCode (expected 400)"
+# Shared error-path assertion: run a request that must fail with a given status.
+function Assert-IngestError {
+    param(
+        [string]$Name,
+        [int]$ExpectedStatus,
+        [scriptblock]$Request
+    )
+    try {
+        & $Request | Out-Null
+        Write-Result $Name $false "expected $ExpectedStatus, got success"
+    } catch {
+        $statusCode = if ($_.Exception.Response) { [int]$_.Exception.Response.StatusCode } else { 0 }
+        if ($statusCode -eq $ExpectedStatus) {
+            Write-Result $Name $true "got $ExpectedStatus (expected)"
+        } else {
+            Write-Result $Name $false "got $statusCode (expected $ExpectedStatus)"
+        }
     }
 }
 
-# ─── 6. POST /ingest/principals — missing systemId → 400 ────────
-try {
-    Invoke-LocalApi -Path '/ingest/principals' -Method Post -Body @{
-        syncMode = 'delta'
-        records  = @(
-            @{ externalId = 'x'; displayName = 'X'; principalType = 'User' }
-        )
-    } | Out-Null
-    Write-Result 'Ingest/Principals/MissingSysId' $false 'expected 400, got success'
-} catch {
-    $statusCode = if ($_.Exception.Response) { [int]$_.Exception.Response.StatusCode } else { 0 }
-    if ($statusCode -eq 400) {
-        Write-Result 'Ingest/Principals/MissingSysId' $true "got 400 (expected)"
-    } else {
-        Write-Result 'Ingest/Principals/MissingSysId' $false "got $statusCode (expected 400)"
+# 1. POST /ingest/systems — happy path
+function Invoke-SystemsHappyPath {
+    try {
+        $r = Invoke-LocalApi -Path '/ingest/systems' -Method Post -Body @{
+            syncMode = 'delta'
+            records  = @(
+                @{
+                    displayName = 'Ingest-Test-System'
+                    systemType  = 'Test'
+                    enabled     = $true
+                    syncEnabled = $true
+                }
+            )
+        }
+        if ($r.systemIds -and @($r.systemIds).Count -ge 1) {
+            $script:systemId = @($r.systemIds)[0]
+            Write-Result 'Ingest/Systems/HappyPath' $true "systemId=$($script:systemId)"
+        } else {
+            Write-Result 'Ingest/Systems/HappyPath' $false 'response missing systemIds'
+        }
+    } catch {
+        Write-Result 'Ingest/Systems/HappyPath' $false $_.Exception.Message
     }
 }
 
-# ─── 7. POST /ingest/principals — invalid syncMode → 400 ────────
-try {
-    Invoke-LocalApi -Path '/ingest/principals' -Method Post -Body @{
-        systemId = 'does-not-matter'
-        syncMode = 'invalid'
-        records  = @(
-            @{ externalId = 'x'; displayName = 'X'; principalType = 'User' }
-        )
-    } | Out-Null
-    Write-Result 'Ingest/Principals/InvalidSyncMode' $false 'expected 400, got success'
-} catch {
-    $statusCode = if ($_.Exception.Response) { [int]$_.Exception.Response.StatusCode } else { 0 }
-    if ($statusCode -eq 400) {
-        Write-Result 'Ingest/Principals/InvalidSyncMode' $true "got 400 (expected)"
-    } else {
-        Write-Result 'Ingest/Principals/InvalidSyncMode' $false "got $statusCode (expected 400)"
+# 2. POST /ingest/principals — happy path
+function Invoke-PrincipalsHappyPath {
+    try {
+        if (-not $script:systemId) { throw 'skipped — no systemId from previous step' }
+        $r = Invoke-LocalApi -Path '/ingest/principals' -Method Post -Body @{
+            systemId     = $script:systemId
+            syncMode     = 'delta'
+            idGeneration = 'deterministic'
+            idPrefix     = 'itest-principals'
+            records      = @(
+                @{
+                    externalId     = 'ingest-test-user-1'
+                    displayName    = 'Ingest Test User'
+                    principalType  = 'User'
+                    accountEnabled = $true
+                }
+            )
+        }
+        $inserted = if ($r.PSObject.Properties.Name -contains 'inserted') { $r.inserted } else { 0 }
+        if ($inserted -ge 1) {
+            Write-Result 'Ingest/Principals/HappyPath' $true "inserted=$inserted"
+        } else {
+            Write-Result 'Ingest/Principals/HappyPath' $false "inserted=$inserted (expected >= 1)"
+        }
+    } catch {
+        Write-Result 'Ingest/Principals/HappyPath' $false $_.Exception.Message
     }
 }
 
-# ─── 8. POST /ingest/resources — no auth header → 401 ───────────
-try {
-    Invoke-LocalApi -Path '/ingest/resources' -Method Post -NoAuth -Body @{
-        systemId = 'does-not-matter'
-        syncMode = 'delta'
-        records  = @(
-            @{ externalId = 'x'; displayName = 'X'; resourceType = 'Group' }
-        )
-    } | Out-Null
-    Write-Result 'Ingest/Resources/NoAuth' $false 'expected 401, got success'
-} catch {
-    $statusCode = if ($_.Exception.Response) { [int]$_.Exception.Response.StatusCode } else { 0 }
-    if ($statusCode -eq 401) {
-        Write-Result 'Ingest/Resources/NoAuth' $true "got 401 (expected)"
-    } else {
-        Write-Result 'Ingest/Resources/NoAuth' $false "got $statusCode (expected 401)"
+# 3. POST /ingest/resources — happy path
+function Invoke-ResourcesHappyPath {
+    try {
+        if (-not $script:systemId) { throw 'skipped — no systemId from previous step' }
+        $r = Invoke-LocalApi -Path '/ingest/resources' -Method Post -Body @{
+            systemId     = $script:systemId
+            syncMode     = 'delta'
+            idGeneration = 'deterministic'
+            idPrefix     = 'itest-resources'
+            records      = @(
+                @{
+                    externalId   = 'ingest-test-res-1'
+                    displayName  = 'Ingest Test Resource'
+                    resourceType = 'Group'
+                    enabled      = $true
+                }
+            )
+        }
+        $inserted = if ($r.PSObject.Properties.Name -contains 'inserted') { $r.inserted } else { 0 }
+        if ($inserted -ge 1) {
+            Write-Result 'Ingest/Resources/HappyPath' $true "inserted=$inserted"
+        } else {
+            Write-Result 'Ingest/Resources/HappyPath' $false "inserted=$inserted (expected >= 1)"
+        }
+    } catch {
+        Write-Result 'Ingest/Resources/HappyPath' $false $_.Exception.Message
     }
 }
+
+# 4. POST /ingest/resource-assignments — happy path
+function Invoke-ResourceAssignmentsHappyPath {
+    try {
+        if (-not $script:systemId) { throw 'skipped — no systemId from previous step' }
+        $r = Invoke-LocalApi -Path '/ingest/resource-assignments' -Method Post -Body @{
+            systemId     = $script:systemId
+            syncMode     = 'delta'
+            idGeneration = 'deterministic'
+            idPrefix     = 'itest-resource-assignments'
+            records      = @(
+                @{
+                    resourceExternalId  = 'ingest-test-res-1'
+                    principalExternalId = 'ingest-test-user-1'
+                    assignmentType      = 'Direct'
+                }
+            )
+        }
+        Write-Result 'Ingest/ResourceAssignments/HappyPath' $true "ok"
+    } catch {
+        Write-Result 'Ingest/ResourceAssignments/HappyPath' $false $_.Exception.Message
+    }
+}
+
+# 5. POST /ingest/systems — empty body → 400
+function Invoke-SystemsEmptyBody {
+    Assert-IngestError 'Ingest/Systems/EmptyBody' 400 {
+        Invoke-LocalApi -Path '/ingest/systems' -Method Post -Body @{}
+    }
+}
+
+# 6. POST /ingest/principals — missing systemId → 400
+function Invoke-PrincipalsMissingSysId {
+    Assert-IngestError 'Ingest/Principals/MissingSysId' 400 {
+        Invoke-LocalApi -Path '/ingest/principals' -Method Post -Body @{
+            syncMode = 'delta'
+            records  = @(
+                @{ externalId = 'x'; displayName = 'X'; principalType = 'User' }
+            )
+        }
+    }
+}
+
+# 7. POST /ingest/principals — invalid syncMode → 400
+function Invoke-PrincipalsInvalidSyncMode {
+    Assert-IngestError 'Ingest/Principals/InvalidSyncMode' 400 {
+        Invoke-LocalApi -Path '/ingest/principals' -Method Post -Body @{
+            systemId = 'does-not-matter'
+            syncMode = 'invalid'
+            records  = @(
+                @{ externalId = 'x'; displayName = 'X'; principalType = 'User' }
+            )
+        }
+    }
+}
+
+# 8. POST /ingest/resources — no auth header → 401
+function Invoke-ResourcesNoAuth {
+    Assert-IngestError 'Ingest/Resources/NoAuth' 401 {
+        Invoke-LocalApi -Path '/ingest/resources' -Method Post -NoAuth -Body @{
+            systemId = 'does-not-matter'
+            syncMode = 'delta'
+            records  = @(
+                @{ externalId = 'x'; displayName = 'X'; resourceType = 'Group' }
+            )
+        }
+    }
+}
+
+function Invoke-IngestApiTests {
+    Write-Host "`n=== Ingest API ===" -ForegroundColor Cyan
+    $script:systemId = $null
+
+    Invoke-SystemsHappyPath
+    Invoke-PrincipalsHappyPath
+    Invoke-ResourcesHappyPath
+    Invoke-ResourceAssignmentsHappyPath
+    Invoke-SystemsEmptyBody
+    Invoke-PrincipalsMissingSysId
+    Invoke-PrincipalsInvalidSyncMode
+    Invoke-ResourcesNoAuth
+}
+
+Invoke-IngestApiTests
 
 if (-not $WriteResult) { exit $standaloneFailures }

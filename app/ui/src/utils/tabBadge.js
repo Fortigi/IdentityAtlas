@@ -12,6 +12,7 @@ export function tabBadge(type) {
     case 'context':     return 'C';
     case 'identity':    return 'ID';
     case 'run':         return 'RUN';
+    case 'report':      return 'RPT';
     case 'access-package':
     default:            return 'AP';
   }

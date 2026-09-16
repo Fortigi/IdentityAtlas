@@ -192,7 +192,9 @@ function Invoke-FGGraphDeltaPage {
         }
         catch {
             $statusCode = Get-FGHttpStatus $_
-            $isTransient = ($statusCode -in @(429, 500, 502, 503, 504)) -or
+            # Shared rule, plus a Graph-specific term: Graph sometimes reports a
+            # transient fault in the message body rather than the status line.
+            $isTransient = (Test-TransientHttpStatus $statusCode) -or
                            ($_.Exception.Message -match 'UnknownError|ServiceNotAvailable|GatewayTimeout')
             if (-not ($isTransient -and $retryCount -lt $MaxRetries)) {
                 if ($statusCode -in @(400, 410)) {
@@ -265,7 +267,7 @@ function Invoke-FGGroupChildFetch {
         catch {
             $status = Get-FGHttpStatus $_
             # Retry transient errors with backoff; skip the group after maxAttempts.
-            $isTransient = ($status -eq 429) -or ($status -ge 500 -and $status -lt 600) -or (-not $status)
+            $isTransient = Test-TransientHttpStatus $status
             if ($isTransient -and $attempt -lt $maxAttempts) {
                 Start-Sleep -Seconds ([Math]::Pow(2, $attempt))
                 continue
@@ -505,15 +507,7 @@ function New-OAuth2ScopeResourceId {
 function New-AppRoleResourceId {
     [CmdletBinding()]
     param([string]$SpId, [string]$AppRoleId)
-    $seed = "entraid-approle:${SpId}:${AppRoleId}"
-    $md5 = [System.Security.Cryptography.MD5]::Create()
-    try {
-        $bytes = [System.Text.Encoding]::UTF8.GetBytes($seed)
-        $hex = ([System.BitConverter]::ToString($md5.ComputeHash($bytes)) -replace '-','').ToLower()
-    } finally {
-        $md5.Dispose()
-    }
-    return "$($hex.Substring(0,8))-$($hex.Substring(8,4))-$($hex.Substring(12,4))-$($hex.Substring(16,4))-$($hex.Substring(20,12))"
+    return ConvertTo-FGDeterministicUuid -Seed "entraid-approle:${SpId}:${AppRoleId}"
 }
 
 # Map a directory-role member's @odata.type to a principalType.
@@ -541,4 +535,50 @@ function Format-FGDelegatedPermissionName {
     )
     if ($ClientName) { "$Scope on $TargetName (via $ClientName)" }
     else { "$Scope on $TargetName" }
+}
+
+# Split a Graph /delta response into the live records and the @removed tombstone
+# ids. Shared by the users and service-principal delta fetches, which did this
+# identical split inline. Returns @{ items; removedIds }.
+function Split-FGDeltaResponse {
+    [CmdletBinding()]
+    param($Response)
+    $items   = @($Response.value | Where-Object { -not $_.'@removed' })
+    $removed = @($Response.value | Where-Object { $_.'@removed' } | ForEach-Object { $_.id })
+    return @{ items = $items; removedIds = $removed }
+}
+
+# Fold one PIM eligibility batch into $RecordsList (by reference) and return the
+# count of distinct source groups the batch touched. Extracted from Sync-EntraPim's
+# per-batch loop so the phase stays under the complexity ceiling.
+function Add-EntraPimBatchRecords {
+    [CmdletBinding()]
+    param($BatchOutput, $RecordsList)
+    $groupSet = @{}
+    foreach ($r in $BatchOutput) {
+        $RecordsList.Add((ConvertTo-EntraPimRecord -EligibilityRow $r))
+        $groupSet[$r.resourceId] = $true
+    }
+    return $groupSet.Count
+}
+
+# Stream one sign-in-log day slice into $Aggregate (by reference), folding each
+# event via Add-EntraSignInEventToAggregate. Returns @{ count; skipped }. The
+# counters live in a hashtable so the increments survive the streaming pipeline
+# block (a plain local wouldn't propagate out of ForEach-Object).
+function Invoke-EntraSignInSlice {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] [string]$SliceUri,
+        [Parameter(Mandatory)] [hashtable]$Aggregate,
+        [Parameter(Mandatory)] [hashtable]$AppIdToSpId
+    )
+    $counters = @{ count = 0; skipped = 0 }
+    Invoke-FGGetRequestStream -URI $SliceUri | ForEach-Object {
+        if (-not (Add-EntraSignInEventToAggregate -SignInEvent $_ -Aggregate $Aggregate -AppIdToSpId $AppIdToSpId)) {
+            $counters.skipped++
+        }
+        $counters.count++
+    }
+    return $counters
 }

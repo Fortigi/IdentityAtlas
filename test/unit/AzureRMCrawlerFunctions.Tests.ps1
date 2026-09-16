@@ -57,7 +57,7 @@ Describe 'Send-IngestBatch' {
     It 'posts an empty records array when there are no records' {
         Mock Invoke-IngestAPI { @{ ok = $true } }
         Send-IngestBatch -Endpoint 'ingest/resources' -SystemId 7 -SyncMode 'full' -Records @() | Out-Null
-        Should -Invoke Invoke-IngestAPI -Times 1 -ParameterFilter {
+        Should -Invoke Invoke-IngestAPI -Exactly 1 -ParameterFilter {
             $Endpoint -eq 'ingest/resources' -and
             $Body.systemId -eq 7 -and
             $Body.syncMode -eq 'full' -and
@@ -69,7 +69,7 @@ Describe 'Send-IngestBatch' {
         Mock Invoke-IngestAPI { @{ ok = $true } }
         $records = @(@{ id = 'r1' }, @{ id = 'r2' })
         Send-IngestBatch -Endpoint 'ingest/resources' -SystemId 3 -SyncMode 'delta' -Scope @{ resourceType = 'AzureScope' } -Records $records | Out-Null
-        Should -Invoke Invoke-IngestAPI -Times 1 -ParameterFilter {
+        Should -Invoke Invoke-IngestAPI -Exactly 1 -ParameterFilter {
             $Endpoint -eq 'ingest/resources' -and
             $Body.systemId -eq 3 -and
             $Body.syncMode -eq 'delta' -and
@@ -92,7 +92,7 @@ Describe 'Write-PhaseTiming' {
         $sw = [System.Diagnostics.Stopwatch]::StartNew()
         $sw.Stop()
         Write-PhaseTiming -Name 'role definitions' -Sw $sw -CallsBefore 4
-        Should -Invoke Write-Host -Times 1 -ParameterFilter {
+        Should -Invoke Write-Host -Exactly 1 -ParameterFilter {
             $Object -like '*role definitions*' -and $Object -like '*6 Azure call(s)*'
         }
         $Global:AzCallCount = $null

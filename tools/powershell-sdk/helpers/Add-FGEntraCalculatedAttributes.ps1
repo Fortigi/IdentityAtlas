@@ -1,3 +1,44 @@
+function Add-FGOuPathField {
+    <#
+    .SYNOPSIS
+        Adds a `<Name>_OuPath` companion field to $Ext when $Value is a
+        DN-shaped string, without ever overwriting an existing companion.
+
+    .DESCRIPTION
+        Shared per-value step used by Add-FGEntraCalculatedAttributes for
+        both DN-enrichment passes (values already in $Ext and top-level
+        properties on the raw Graph object). Non-string, non-DN, and
+        already-enriched values are skipped; a null OU conversion is skipped.
+
+    .PARAMETER Ext
+        The extendedAttributes hashtable being enriched; mutated in place.
+
+    .PARAMETER Name
+        The source field name; the companion key is `${Name}_OuPath`.
+
+    .PARAMETER Value
+        The candidate value to test and convert.
+    #>
+    [CmdletBinding()]
+    Param(
+        [Parameter(Mandatory = $true)]
+        [hashtable]$Ext,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Name,
+
+        [Parameter(Mandatory = $false)]
+        $Value
+    )
+
+    if (-not ($Value -is [string])) { return }
+    if (-not (Test-FGDistinguishedName $Value)) { return }
+    $pathKey = "${Name}_OuPath"
+    if ($Ext.ContainsKey($pathKey)) { return }
+    $ou = Convert-FGDistinguishedNameToOUPath $Value
+    if ($ou) { $Ext[$pathKey] = $ou }
+}
+
 function Add-FGEntraCalculatedAttributes {
     <#
     .SYNOPSIS
@@ -67,15 +108,8 @@ function Add-FGEntraCalculatedAttributes {
     # Pass 1: DN-shaped values already collected in $Ext. Snapshot the key
     # list first so we can add new keys during iteration without tripping
     # "collection was modified".
-    $extKeys = @($Ext.Keys)
-    foreach ($key in $extKeys) {
-        $v = $Ext[$key]
-        if (-not ($v -is [string])) { continue }
-        if (-not (Test-FGDistinguishedName $v)) { continue }
-        $pathKey = "${key}_OuPath"
-        if ($Ext.ContainsKey($pathKey)) { continue }
-        $ou = Convert-FGDistinguishedNameToOUPath $v
-        if ($ou) { $Ext[$pathKey] = $ou }
+    foreach ($key in @($Ext.Keys)) {
+        Add-FGOuPathField -Ext $Ext -Name $key -Value $Ext[$key]
     }
 
     # Pass 2: top-level DN-shaped properties on the raw Graph object that
@@ -84,13 +118,7 @@ function Add-FGEntraCalculatedAttributes {
     # existing crawler blocks don't always forward it into $Ext.
     if ($Object.PSObject -and $Object.PSObject.Properties) {
         foreach ($prop in $Object.PSObject.Properties) {
-            $v = $prop.Value
-            if (-not ($v -is [string])) { continue }
-            if (-not (Test-FGDistinguishedName $v)) { continue }
-            $pathKey = "$($prop.Name)_OuPath"
-            if ($Ext.ContainsKey($pathKey)) { continue }
-            $ou = Convert-FGDistinguishedNameToOUPath $v
-            if ($ou) { $Ext[$pathKey] = $ou }
+            Add-FGOuPathField -Ext $Ext -Name $prop.Name -Value $prop.Value
         }
     }
 

@@ -41,7 +41,8 @@ describe('data-viz fills use soft tiers', () => {
   });
 
   it('DepartmentDetailPage tier bars softened (no -500 hex)', () => {
-    const src = read('DepartmentDetailPage.jsx');
+    // The tier fill palette lives in the extracted departmentTiers.js module.
+    const src = read('departmentTiers.js');
     expect(src).not.toContain('#ef4444'); // red-500
     expect(src).toContain('#f87171'); // red-400
   });

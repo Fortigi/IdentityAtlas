@@ -105,7 +105,7 @@ Describe 'Get-EntraAgentOwnerPairs' {
 
         $pairs = Get-EntraAgentOwnerPairs -ServicePrincipals $sps
         @($pairs).Count | Should -Be 0
-        Should -Invoke Get-FGGroupChildrenParallel -Times 0
+        Should -Invoke Get-FGGroupChildrenParallel -Exactly 0
     }
 }
 

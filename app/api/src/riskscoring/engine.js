@@ -54,6 +54,10 @@
 import * as db from '../db/connection.js';
 import RE2 from 're2';
 import { tierFor } from './tiers.js';
+import {
+  indexDirectReports, indexMemberships, indexOwnerships, countSubtree,
+  scoreBroadAccess, scoreHighRiskMembership, scoreHierarchySignals,
+} from './engine.helpers.js';
 
 // v4 weights (Invoke-FGRiskScoring.ps1 lines 885-888)
 const W_DIRECT      = 0.50;
@@ -325,18 +329,8 @@ export async function loadScoringData(classifierId, updateRun) {
     console.warn('PrincipalActivity not available (pre-017 DB?):', err.message);
   }
 
-  // Build manager → direct reports index for hierarchy analysis. Only used
-  // when the Entra crawler has populated managerId — if the column is empty
-  // across the board, hierarchy signals gracefully degrade to 0.
-  const directReports = new Map(); // managerId -> Set<reportPid>
-  for (const p of principals.rows) {
-    if (p.managerId) {
-      const mid = String(p.managerId);
-      if (!directReports.has(mid)) directReports.set(mid, new Set());
-      directReports.get(mid).add(String(p.id));
-    }
-  }
-  const hierarchyAvailable = directReports.size > 0;
+  // Build manager → direct reports index for hierarchy analysis.
+  const { directReports, hierarchyAvailable } = indexDirectReports(principals.rows);
   // ── Load resources ──
   await updateRun({ step: 'Loading resources', pct: 8 });
   const resources = await db.query(
@@ -391,14 +385,7 @@ export async function loadScoringData(classifierId, updateRun) {
       WHERE "assignmentType" = 'Direct'
         AND "resourceType" IS DISTINCT FROM 'GroupOwnership'`
   );
-  const principalMemberships = new Map(); // pid -> Set<rid>
-  const resourceMembers      = new Map(); // rid -> Set<pid>
-  for (const a of assignmentRows.rows) {
-    if (!principalMemberships.has(a.pid)) principalMemberships.set(a.pid, new Set());
-    principalMemberships.get(a.pid).add(a.rid);
-    if (!resourceMembers.has(a.rid)) resourceMembers.set(a.rid, new Set());
-    resourceMembers.get(a.rid).add(a.pid);
-  }
+  const { principalMemberships, resourceMembers } = indexMemberships(assignmentRows.rows);
 
   // Ownerships: principal → set of owned group ids. Traverse the GroupOwnership
   // resource back to the owned group (parentResourceId) so the "owner of N
@@ -412,11 +399,7 @@ export async function loadScoringData(classifierId, updateRun) {
       WHERE ra."assignmentType" = 'Direct'
         AND ra."resourceType"   = 'GroupOwnership'`
   );
-  const principalOwnerships = new Map();
-  for (const a of ownerRows.rows) {
-    if (!principalOwnerships.has(a.pid)) principalOwnerships.set(a.pid, new Set());
-    principalOwnerships.get(a.pid).add(a.rid);
-  }
+  const principalOwnerships = indexOwnerships(ownerRows.rows);
 
   const totalEntities = principals.rows.length + resources.rows.length;
   await updateRun({ totalEntities, scoredEntities: 0, step: 'Scoring resources (direct)', pct: 15 });
@@ -681,17 +664,8 @@ export function buildSubtreeCounts(principalState, directReports, hierarchyAvail
   const subtreeCount = new Map();
   if (!hierarchyAvailable) return subtreeCount;
   for (const [pid] of principalState) {
-    if (!directReports.has(pid)) { subtreeCount.set(pid, 0); continue; }
-    const seen = new Set();
-    const queue = [...directReports.get(pid)];
-    while (queue.length > 0) {
-      const next = queue.shift();
-      if (seen.has(next)) continue;
-      seen.add(next);
-      const reports = directReports.get(next);
-      if (reports) for (const r of reports) queue.push(r);
-    }
-    subtreeCount.set(pid, seen.size);
+    const roots = directReports.get(pid);
+    subtreeCount.set(pid, roots ? countSubtree(roots, directReports) : 0);
   }
   return subtreeCount;
 }
@@ -700,60 +674,14 @@ export function buildSubtreeCounts(principalState, directReports, hierarchyAvail
 // broad access footprint, member-of-high-risk-group, org subtree size, and
 // manager-of-high-risk-reports. Mutates `state`.
 export function analyzeMembershipForPrincipal(pid, state, ctx) {
-  const { principalMemberships, resourceState, directReports, hierarchyAvailable, principalState, subtreeCount } = ctx;
+  const { principalMemberships, resourceState, hierarchyAvailable } = ctx;
   const memSet = principalMemberships.get(pid) || new Set();
   const totalGroups = memSet.size + state.ownCount;
 
-  // Broad access footprint: in >15 groups → +3 per 3 above, capped at 15
-  if (totalGroups > 15) {
-    const points = Math.min(15, Math.floor((totalGroups - 15) / 3) * 3);
-    if (points > 0) {
-      state.membershipScore += points;
-      state.membershipReasons.push(`Member of ${totalGroups} groups (above threshold of 15) — broad access footprint [+${points}]`);
-    }
-  }
-
-  // Member of any high-risk group (direct score ≥ 70): +15, once only
-  let highRiskMembership = null;
-  let highRiskGroupScore = 0;
-  for (const rid of memSet) {
-    const rs = resourceState.get(rid);
-    if (rs && rs.directScore >= 70 && rs.directScore > highRiskGroupScore) {
-      highRiskGroupScore = rs.directScore;
-      highRiskMembership = rs;
-    }
-  }
-  if (highRiskMembership) {
-    state.membershipScore += 15;
-    state.membershipReasons.push(
-      `Member of high-risk group '${highRiskMembership.row.displayName}' ` +
-      `(direct score ${highRiskMembership.directScore}) — elevated privilege exposure [+15]`
-    );
-  }
-
-  // Hierarchy signals (only if managerId is populated in the tenant)
-  if (hierarchyAvailable) {
-    // Large org subtree: v4 ≥100→+15, ≥50→+12, ≥25→+10, ≥10→+5
-    const subtree = subtreeCount.get(pid) || 0;
-    if (subtree >= 10) {
-      const subtreePoints = subtree >= 100 ? 15 : subtree >= 50 ? 12 : subtree >= 25 ? 10 : 5;
-      state.membershipScore += subtreePoints;
-      state.membershipReasons.push(`${subtree} total reports in org subtree — large blast radius [+${subtreePoints}]`);
-    }
-
-    // Manager of high-risk direct reports: +5 per high-risk report, cap 15
-    const reports = directReports.get(pid) || new Set();
-    let highRiskReports = 0;
-    for (const reportPid of reports) {
-      const rs = principalState.get(reportPid);
-      if (rs && rs.directScore >= 70) highRiskReports++;
-    }
-    if (highRiskReports > 0) {
-      const mgrPoints = Math.min(15, highRiskReports * 5);
-      state.membershipScore += mgrPoints;
-      state.membershipReasons.push(`Manager of ${highRiskReports} high-risk direct report(s) — inherited responsibility [+${mgrPoints}]`);
-    }
-  }
+  scoreBroadAccess(state, totalGroups);
+  scoreHighRiskMembership(state, memSet, resourceState);
+  // Hierarchy signals are only meaningful when managerId is populated.
+  if (hierarchyAvailable) scoreHierarchySignals(state, pid, ctx);
 
   state.membershipScore = Math.min(CAP_MEMBERSHIP, state.membershipScore);
 }

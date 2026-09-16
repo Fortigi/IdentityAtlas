@@ -9,7 +9,8 @@ import { requirePermission } from '../../middleware/auth.js';
 import { readdirSync } from 'fs';
 import path from 'path';
 import { getUploadFolderPath } from '../crawlerFiles.js';
-import { hasConfigSecret, OTHER_SECRET_FIELDS } from '../../secrets/crawlerSecrets.js';
+import { vaultedConfigFields, CONFIG_SECRET_FIELDS } from '../../secrets/crawlerSecrets.js';
+import { stampConfigName } from '../../lib/jobConfig.js';
 import { VALID_JOB_TYPES, validateCrawlerConfig, isSingletonJob } from '../../crawlerManifests.js';
 
 // Re-exported for existing consumers (scheduler.js, jobs.*.test.js) that import
@@ -22,7 +23,7 @@ export const useSql = process.env.USE_SQL === 'true';
 // CSV uploads live under this base; configCsvFolder must stay within it.
 const CSV_BASE_DIR = path.resolve(process.env.UPLOAD_ROOT || '/data/uploads');
 export const SECRET_MASK = '••••••••';
-const SECRET_FIELDS = ['clientSecret', ...OTHER_SECRET_FIELDS];
+const SECRET_FIELDS = CONFIG_SECRET_FIELDS;
 
 export function maskConfig(config) {
   if (!config) return null;
@@ -35,38 +36,83 @@ export function maskConfig(config) {
 }
 
 
-// Like maskConfig, but also surfaces the mask when the clientSecret lives in the
-// vault (the normal case now) rather than in the stored config JSON.
+// Like maskConfig, but also surfaces the mask for every credential field that
+// lives in the vault (the normal case now) rather than in the stored JSON.
 export async function maskedConfigForResponse(id, config) {
   const masked = maskConfig(config);
-  if (await hasConfigSecret(id)) return { ...(masked || {}), clientSecret: SECRET_MASK };
-  return masked;
+  const vaulted = await vaultedConfigFields(id);
+  if (vaulted.length === 0) return masked;
+  const out = { ...(masked || {}) };
+  for (const field of vaulted) out[field] = SECRET_MASK;
+  return out;
 }
 
-// Merge an incoming config-patch onto the stored config for PATCH. clientSecret
-// (if a real value, not the mask) is pulled out for the vault; other secret
-// fields are kept from the existing config when blank/masked. Returns the merged
-// config (never carries plaintext clientSecret) + the new secret to vault (if any).
-// Pure. Exported for unit tests.
-export function mergeConfigForUpdate(existingConfig, incomingConfig) {
-  let mergedConfig = (typeof existingConfig === 'string' ? JSON.parse(existingConfig) : existingConfig) || {};
-  let newSecret = null;
-  if (incomingConfig) {
-    const incoming = { ...incomingConfig };
-    // clientSecret goes to the vault; mask or empty means "keep existing"
-    if (incoming.clientSecret && incoming.clientSecret !== SECRET_MASK) newSecret = incoming.clientSecret;
-    // Other secret fields (password, apiToken, cookieString): preserve existing if blank/masked
-    for (const field of SECRET_FIELDS.filter(f => f !== 'clientSecret')) {
-      if (!incoming[field] || incoming[field] === SECRET_MASK) {
-        if (mergedConfig[field]) incoming[field] = mergedConfig[field];
-        else delete incoming[field];
-      }
-    }
-    delete incoming.clientSecret;
-    mergedConfig = { ...mergedConfig, ...incoming };
+const isRealSecret = (v) => !!v && v !== SECRET_MASK;
+const parseStored = (config) => (typeof config === 'string' ? JSON.parse(config) : config) || {};
+
+// Split a config into its non-credential fields and the real (non-empty,
+// non-mask) credential values it carries. Pure. Exported for unit tests.
+export function splitConfigSecrets(config) {
+  const rest = { ...(config || {}) };
+  const secrets = {};
+  for (const field of SECRET_FIELDS) {
+    if (isRealSecret(rest[field])) secrets[field] = rest[field];
+    delete rest[field];
   }
-  delete mergedConfig.clientSecret; // never persist plaintext in the JSON
-  return { mergedConfig, newSecret };
+  return { rest, secrets };
+}
+
+// Merge an incoming config-patch onto the stored config for PATCH. Every
+// credential field is pulled out: a real incoming value becomes a new secret
+// to vault; a mask or blank means "keep what is stored". A plaintext value
+// still sitting in a legacy stored config is carried into newSecrets so it gets
+// vaulted now. Returns the merged config (never carries a credential field),
+// the { field: value } secrets to vault, and the credential fields the caller
+// did not re-enter. Pure. Exported for unit tests.
+export function mergeConfigForUpdate(existingConfig, incomingConfig) {
+  const { rest: existingRest, secrets: legacySecrets } = splitConfigSecrets(parseStored(existingConfig));
+  const { rest: incomingRest, secrets: incomingSecrets } = splitConfigSecrets(incomingConfig);
+  return {
+    mergedConfig: { ...existingRest, ...incomingRest },
+    newSecrets: { ...legacySecrets, ...incomingSecrets },
+    keptFields: SECRET_FIELDS.filter(f => !incomingSecrets[f]),
+  };
+}
+
+// Scheme + host of a URL-ish config value, or the trimmed raw string when it
+// does not parse (so any edit to an unparseable value still counts as a change).
+function endpointOrigin(value) {
+  if (value == null || value === '') return '';
+  const raw = String(value).trim();
+  try {
+    const u = new URL(raw);
+    return `${u.protocol}//${u.host}`.toLowerCase();
+  } catch {
+    return raw;
+  }
+}
+
+// Host-bearing fields whose scheme/host differs between the stored and merged
+// config. Pure. Exported for unit tests.
+export function changedHostFields(fields, existingConfig, mergedConfig) {
+  const existing = parseStored(existingConfig);
+  return fields.filter(f => endpointOrigin(existing[f]) !== endpointOrigin(mergedConfig[f]));
+}
+
+// SEC-2026-09 M-02: a stored credential must never follow an endpoint to a new
+// host. When a PATCH changes a host-bearing field while keeping (not
+// re-entering) a credential stored for this config, returns the 400 the route
+// should send; otherwise null. Exported for unit tests.
+export function credentialReentryError(changedFields, keptStoredFields) {
+  if (changedFields.length === 0 || keptStoredFields.length === 0) return null;
+  return {
+    status: 400,
+    body: {
+      error: `Changing ${changedFields.join(', ')} changes where this crawler sends its credentials. ` +
+        `Re-enter ${keptStoredFields.join(', ')} to save the change.`,
+      reenterFields: keptStoredFields,
+    },
+  };
 }
 
 // Validate the create-job request body. Returns { jobType, configId,
@@ -88,12 +134,13 @@ export function validateCreateJobBody(body) {
 }
 
 // Resolve the config a job should run with: inline (no configId) or the stored
-// CrawlerConfigs row. Returns { resolvedConfig, configNextRunMode } or
-// { error: { status, body } }. Exported for unit tests.
+// CrawlerConfigs row. Returns { resolvedConfig, configNextRunMode, configName }
+// or { error: { status, body } }. An inline config has no CrawlerConfigs row and
+// so carries no configName. Exported for unit tests.
 export async function resolveJobConfig(pool, inlineConfig, configId) {
   if (!configId) return { resolvedConfig: inlineConfig || null, configNextRunMode: null };
   const cfgResult = await pool.query(
-    `SELECT config, "nextRunMode" FROM "CrawlerConfigs" WHERE id = $1 AND "enabled" = TRUE`,
+    `SELECT config, "nextRunMode", "displayName" FROM "CrawlerConfigs" WHERE id = $1 AND "enabled" = TRUE`,
     [configId]
   );
   if (cfgResult.rows.length === 0) return { error: { status: 404, body: { error: 'Crawler config not found' } } };
@@ -102,6 +149,7 @@ export async function resolveJobConfig(pool, inlineConfig, configId) {
   return {
     resolvedConfig: (typeof raw === 'string') ? JSON.parse(raw) : raw,
     configNextRunMode: cfgResult.rows[0].nextRunMode || 'delta',
+    configName: cfgResult.rows[0].displayName || null,
   };
 }
 
@@ -133,19 +181,36 @@ export function resolveUploadFolder(jobType, configId, resolvedConfig) {
   return { folder };
 }
 
-// Prepare the job's stored config: pick the effective syncMode, stamp the source
-// configId, and strip every credential field (vaulted per-job, injected at claim
-// time). Returns { inlineSecret, configToStore, configJson, extraCreds }. Pure.
-// Exported for unit tests.
-export function prepareJobConfig(resolvedConfig, configId, effectiveSyncMode) {
-  const inlineSecret = (!configId && resolvedConfig?.clientSecret) ? resolvedConfig.clientSecret : null;
+// Drop every `_`-prefixed key. Those are server-owned job metadata
+// (`_scheduledByConfigId`, `_syncMode`, `_scheduleIndex`, `_configName`) and must
+// never be taken from a caller- or admin-supplied config (SEC-2026-09 H-02). Pure.
+export function stripServerOwnedKeys(config) {
+  if (!config || typeof config !== 'object') return null;
+  return Object.fromEntries(Object.entries(config).filter(([k]) => !k.startsWith('_')));
+}
+
+// Prepare the job's stored config: drop caller-supplied server-owned keys, pick
+// the effective syncMode, stamp the source configId and the crawler's own name,
+// and strip every credential field (vaulted per-job, injected at claim time).
+// Which config's credentials a job receives comes from the CrawlerJobs."configId"
+// column the caller writes; `_scheduledByConfigId` in the JSON is informational
+// only (UI + the worker's delta-mode callback). The server-owned keys are stripped
+// BEFORE the name is stamped, so a caller cannot supply `_configName` either.
+// Returns { inlineSecret, configToStore, configJson, extraCreds }. Pure. Exported
+// for unit tests.
+export function prepareJobConfig(resolvedConfig, configId, effectiveSyncMode, configName) {
+  const base = stripServerOwnedKeys(resolvedConfig);
+  const inlineSecret = (!configId && base?.clientSecret) ? base.clientSecret : null;
   const configToStore = configId
-    ? { ...(resolvedConfig || {}), _scheduledByConfigId: configId, _syncMode: effectiveSyncMode }
-    : (resolvedConfig ? { ...resolvedConfig, _syncMode: effectiveSyncMode } : null);
+    ? { ...(base || {}), _scheduledByConfigId: configId, _syncMode: effectiveSyncMode }
+    : (base ? { ...base, _syncMode: effectiveSyncMode } : null);
+  // The crawler can only name what it registers after the crawler's own name if
+  // that name reaches the run — see stampConfigName's note on the reserved key.
+  stampConfigName(configToStore, configName);
   const extraCreds = {};
   if (configToStore) {
     delete configToStore.clientSecret;
-    for (const f of OTHER_SECRET_FIELDS) {
+    for (const f of SECRET_FIELDS.filter(x => x !== 'clientSecret')) {
       if (configToStore[f]) { extraCreds[f] = configToStore[f]; delete configToStore[f]; }
     }
   }

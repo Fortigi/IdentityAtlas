@@ -13,11 +13,12 @@
 .PARAMETER Location
     Azure region. Default: westeurope.
 
-.PARAMETER NamePrefix
-    Resource name prefix. Default: identityatlas.
-
 .PARAMETER SizeProfile
     xs / s / m / l / xl. Default: s. See docs/architecture/azure-deployment.md.
+
+.PARAMETER ImageChannel
+    stable / edge. Default: stable. stable tracks :latest (the last cut release);
+    edge tracks :edge (the latest main-branch build).
 
 .PARAMETER ExistingLogAnalyticsWorkspaceId
     Optional: ARM ID of an existing Log Analytics workspace.
@@ -42,10 +43,11 @@ Param(
 
     [string]$Location = 'westeurope',
 
-    [string]$NamePrefix = 'identityatlas',
-
     [ValidateSet('xs', 's', 'm', 'l', 'xl')]
     [string]$SizeProfile = 's',
+
+    [ValidateSet('stable', 'edge')]
+    [string]$ImageChannel = 'stable',
 
     [string]$ExistingLogAnalyticsWorkspaceId = '',
 
@@ -64,8 +66,8 @@ if (-not $ParametersFile) {
 Write-Host "=== Identity Atlas Azure deploy (Simple shape) ===" -ForegroundColor Cyan
 Write-Host "  ResourceGroup : $ResourceGroup"
 Write-Host "  Location      : $Location"
-Write-Host "  NamePrefix    : $NamePrefix"
 Write-Host "  SizeProfile   : $SizeProfile"
+Write-Host "  ImageChannel  : $ImageChannel"
 Write-Host "  Bicep         : $bicepFile"
 
 # ── az login ────────────────────────────────────────────────────────────
@@ -99,7 +101,7 @@ $deployArgs = @(
     '--name', $deploymentName,
     '--template-file', $bicepFile,
     '--parameters', "@$ParametersFile",
-    '--parameters', "namePrefix=$NamePrefix", "location=$Location", "sizeProfile=$SizeProfile",
+    '--parameters', "sizeProfile=$SizeProfile", "imageChannel=$ImageChannel",
     '--output', 'json'
 )
 if ($ExistingLogAnalyticsWorkspaceId) {
@@ -119,6 +121,7 @@ Write-Host "`n=== Deployment succeeded ===" -ForegroundColor Green
 $outputs = $result.properties.outputs
 Write-Host "  App URL              : $($outputs.appUrl.value)" -ForegroundColor Cyan
 Write-Host "  App hostname         : $($outputs.appHostname.value)"
+Write-Host "  Name prefix used     : $($outputs.namePrefixUsed.value)"
 Write-Host "  Key Vault            : $($outputs.keyVaultUri.value)"
 Write-Host "  Postgres FQDN        : $($outputs.postgresFqdn.value)"
 Write-Host "  Size profile applied : $($outputs.sizeProfileApplied.value)"

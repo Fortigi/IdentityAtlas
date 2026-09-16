@@ -75,201 +75,200 @@ function Assert-Count {
     }
 }
 
-Write-Host "`n=== Demo Dataset Verification ===" -ForegroundColor Cyan
+function Invoke-RowCountChecks {
+    Write-Host "`n--- Row Counts ---" -ForegroundColor Yellow
 
-# ─── Row Counts ───────────────────────────────────────────────────
-
-Write-Host "`n--- Row Counts ---" -ForegroundColor Yellow
-
-# The generator is deterministic, so these are exact. If one of them fails after
-# a dataset change, that is the point: re-run Generate-DemoDataset.ps1, confirm
-# the new number is intended, and update it here in the same PR.
-$counts = @{
-    'Systems'                = @{ Min = 5;  Max = 5 }   # EntraID + HR + IGA + SAP + AzureRM (#705)
-    'Principals'             = @{ Min = 45; Max = 45 }  # 26 employees + 5 edge cases + IGA acct + 10 SAP + 3 app SPs
-    'Resources'              = @{ Min = 39; Max = 39 }  # Entra 10 + ownership 3 + business roles 5 + Sales 4 + consent 4 + SAP 4 + Azure 9
-    'ResourceAssignments'    = @{ Min = 143; Max = 143 }
-    'ResourceRelationships'  = @{ Min = 20; Max = 20 }  # 14 Contains + 1 GrantsAccessTo + 3 HasOwnership + 2 DelegatesScope
-    'Identities'             = @{ Min = 27; Max = 27 }  # 26 employees + the leaver
-    'IdentityMembers'        = @{ Min = 38; Max = 38 }  # 27 Entra + 1 IGA + 10 SAP
-    'GovernanceCatalogs'     = @{ Min = 2;  Max = 2 }
-    'AssignmentPolicies'     = @{ Min = 4;  Max = 4 }
-    'CertificationDecisions' = @{ Min = 3;  Max = 3 }
-    'Crawlers'               = @{ Min = 1;  Max = 10 }  # runtime state, not generated
-}
-
-foreach ($table in $counts.Keys | Sort-Object) {
-    try {
-        $count = Get-PgLiveCount -Table $table
-        $min = $counts[$table].Min
-        $max = $counts[$table].Max
-        Assert-Check "RowCount-$table" ($count -ge $min -and $count -le $max) "Got $count (expected $min-$max)"
+    # The generator is deterministic, so these are exact. If one of them fails after
+    # a dataset change, that is the point: re-run Generate-DemoDataset.ps1, confirm
+    # the new number is intended, and update it here in the same PR.
+    $counts = @{
+        'Systems'                = @{ Min = 5;  Max = 5 }   # EntraID + HR + IGA + SAP + AzureRM (#705)
+        'Principals'             = @{ Min = 45; Max = 45 }  # 26 employees + 5 edge cases + IGA acct + 10 SAP + 3 app SPs
+        'Resources'              = @{ Min = 46; Max = 46 }  # Entra 10 + ownership 3 + business roles 7 + Sales 4 + role drift 3 + shared grants 2 + consent 4 + SAP 4 + Azure 9
+        'ResourceAssignments'    = @{ Min = 176; Max = 176 }
+        'ResourceRelationships'  = @{ Min = 27; Max = 27 }  # 21 Contains + 1 GrantsAccessTo + 3 HasOwnership + 2 DelegatesScope
+        'Identities'             = @{ Min = 27; Max = 27 }  # 26 employees + the leaver
+        'IdentityMembers'        = @{ Min = 38; Max = 38 }  # 27 Entra + 1 IGA + 10 SAP
+        'GovernanceCatalogs'     = @{ Min = 2;  Max = 2 }
+        'AssignmentPolicies'     = @{ Min = 4;  Max = 4 }
+        'CertificationDecisions' = @{ Min = 3;  Max = 3 }
+        'Crawlers'               = @{ Min = 1;  Max = 10 }  # runtime state, not generated
     }
-    catch {
-        Assert-Check "RowCount-$table" $false "Query failed: $($_.Exception.Message)"
-    }
-}
 
-# Contexts are counted separately, filtered to the dataset's own. In the v6
-# model a Context carries a `variant`: the demo dataset ingests 9 'synced' ones
-# (1 root + 5 departments + 2 teams + 1 admin unit), while the API creates
-# 'manual' Tag roots at bootstrap and the context-algorithm plugins emit
-# 'generated' ones whenever the worker runs. A bare COUNT(*) therefore drifts
-# with runtime state. Filtering by variant makes this deterministic.
-Assert-Count 'RowCount-Contexts' -Min 9 -Max 9 -Query @'
+    foreach ($table in $counts.Keys | Sort-Object) {
+        try {
+            $count = Get-PgLiveCount -Table $table
+            $min = $counts[$table].Min
+            $max = $counts[$table].Max
+            Assert-Check "RowCount-$table" ($count -ge $min -and $count -le $max) "Got $count (expected $min-$max)"
+        }
+        catch {
+            Assert-Check "RowCount-$table" $false "Query failed: $($_.Exception.Message)"
+        }
+    }
+
+    # Contexts are counted separately, filtered to the dataset's own. In the v6
+    # model a Context carries a `variant`: the demo dataset ingests 9 'synced' ones
+    # (1 root + 5 departments + 2 teams + 1 admin unit), while the API creates
+    # 'manual' Tag roots at bootstrap and the context-algorithm plugins emit
+    # 'generated' ones whenever the worker runs. A bare COUNT(*) therefore drifts
+    # with runtime state. Filtering by variant makes this deterministic.
+    Assert-Count 'RowCount-Contexts' -Min 9 -Max 9 -Query @'
 SELECT COUNT(*) FROM "Contexts" WHERE "variant" = 'synced'
 '@
+}
 
-# ─── Referential Integrity ────────────────────────────────────────
+function Invoke-ReferentialIntegrityChecks {
+    Write-Host "`n--- Referential Integrity ---" -ForegroundColor Yellow
 
-Write-Host "`n--- Referential Integrity ---" -ForegroundColor Yellow
-
-# A live assignment must not point at a tombstoned or missing resource/principal.
-Assert-Count 'FK-Assignments-Resources' -Max 0 -Min 0 -Label '0 orphans' -Query @'
+    # A live assignment must not point at a tombstoned or missing resource/principal.
+    Assert-Count 'FK-Assignments-Resources' -Max 0 -Min 0 -Label '0 orphans' -Query @'
 SELECT COUNT(*) FROM "ResourceAssignments" ra
 WHERE ra."deletedAt" IS NULL
   AND NOT EXISTS (SELECT 1 FROM "Resources" r WHERE r."id" = ra."resourceId" AND r."deletedAt" IS NULL)
 '@
 
-Assert-Count 'FK-Assignments-Principals' -Max 0 -Min 0 -Label '0 orphans' -Query @'
+    Assert-Count 'FK-Assignments-Principals' -Max 0 -Min 0 -Label '0 orphans' -Query @'
 SELECT COUNT(*) FROM "ResourceAssignments" ra
 WHERE ra."deletedAt" IS NULL
   AND NOT EXISTS (SELECT 1 FROM "Principals" p WHERE p."id" = ra."principalId" AND p."deletedAt" IS NULL)
 '@
 
-Assert-Count 'FK-IdentityMembers-Identities' -Max 0 -Min 0 -Label '0 orphans' -Query @'
+    Assert-Count 'FK-IdentityMembers-Identities' -Max 0 -Min 0 -Label '0 orphans' -Query @'
 SELECT COUNT(*) FROM "IdentityMembers" im
 WHERE NOT EXISTS (SELECT 1 FROM "Identities" i WHERE i."id" = im."identityId")
 '@
 
-Assert-Count 'FK-IdentityMembers-Principals' -Max 0 -Min 0 -Label '0 orphans' -Query @'
+    Assert-Count 'FK-IdentityMembers-Principals' -Max 0 -Min 0 -Label '0 orphans' -Query @'
 SELECT COUNT(*) FROM "IdentityMembers" im
 WHERE NOT EXISTS (SELECT 1 FROM "Principals" p WHERE p."id" = im."principalId" AND p."deletedAt" IS NULL)
 '@
 
-Assert-Count 'FK-Contexts-ParentContext' -Max 0 -Min 0 -Label '0 orphans' -Query @'
+    Assert-Count 'FK-Contexts-ParentContext' -Max 0 -Min 0 -Label '0 orphans' -Query @'
 SELECT COUNT(*) FROM "Contexts" c
 WHERE c."parentContextId" IS NOT NULL
   AND NOT EXISTS (SELECT 1 FROM "Contexts" p WHERE p."id" = c."parentContextId")
 '@
+}
 
-# ─── Business Logic ───────────────────────────────────────────────
+function Invoke-BusinessLogicChecks {
+    Write-Host "`n--- Business Logic ---" -ForegroundColor Yellow
 
-Write-Host "`n--- Business Logic ---" -ForegroundColor Yellow
-
-# Principal types
-Assert-Count 'Has-ServicePrincipal' -Min 1 -Query @'
+    # Principal types
+    Assert-Count 'Has-ServicePrincipal' -Min 1 -Query @'
 SELECT COUNT(*) FROM "Principals" WHERE "principalType" = 'ServicePrincipal' AND "deletedAt" IS NULL
 '@
 
-Assert-Count 'Has-AIAgent' -Min 1 -Query @'
+    Assert-Count 'Has-AIAgent' -Min 1 -Query @'
 SELECT COUNT(*) FROM "Principals" WHERE "principalType" = 'AIAgent' AND "deletedAt" IS NULL
 '@
 
-Assert-Count 'Has-ExternalUser' -Min 1 -Query @'
+    Assert-Count 'Has-ExternalUser' -Min 1 -Query @'
 SELECT COUNT(*) FROM "Principals" WHERE "principalType" = 'ExternalUser' AND "deletedAt" IS NULL
 '@
 
-# accountEnabled is a real boolean in postgres — `= 0` is a type error, not a filter.
-Assert-Count 'Has-DisabledAccount' -Min 1 -Query @'
+    # accountEnabled is a real boolean in postgres — `= 0` is a type error, not a filter.
+    Assert-Count 'Has-DisabledAccount' -Min 1 -Query @'
 SELECT COUNT(*) FROM "Principals" WHERE "accountEnabled" = false AND "deletedAt" IS NULL
 '@
 
-# Resource types
-Assert-Count 'BusinessRole-Count' -Min 5 -Max 5 -Query @'
+    # Resource types
+    Assert-Count 'BusinessRole-Count' -Min 7 -Max 7 -Query @'
 SELECT COUNT(*) FROM "Resources" WHERE "resourceType" = 'BusinessRole' AND "deletedAt" IS NULL
 '@
 
-Assert-Count 'DirectoryRole-Count' -Min 2 -Max 2 -Query @'
+    Assert-Count 'DirectoryRole-Count' -Min 2 -Max 2 -Query @'
 SELECT COUNT(*) FROM "Resources" WHERE "resourceType" = 'EntraDirectoryRole' AND "deletedAt" IS NULL
 '@
 
-# Assignment types — governance is the `governed` flag, not a 'Governed' type.
-Assert-Count 'Has-Governed-Assignments' -Min 10 -Query @'
+    # Assignment types — governance is the `governed` flag, not a 'Governed' type.
+    Assert-Count 'Has-Governed-Assignments' -Min 10 -Query @'
 SELECT COUNT(*) FROM "ResourceAssignments" WHERE "governed" = true AND "deletedAt" IS NULL
 '@
 
-Assert-Count 'Has-Eligible-Assignments' -Min 1 -Query @'
+    Assert-Count 'Has-Eligible-Assignments' -Min 1 -Query @'
 SELECT COUNT(*) FROM "ResourceAssignments" WHERE "assignmentType" = 'Eligible' AND "deletedAt" IS NULL
 '@
 
-# Ownership: a Direct assignment on a synthetic GroupOwnership resource, not the
-# retired 'Owner' assignmentType (#713).
-Assert-Count 'Has-GroupOwnership-Resources' -Min 1 -Query @'
+    # Ownership: a Direct assignment on a synthetic GroupOwnership resource, not the
+    # retired 'Owner' assignmentType (#713).
+    Assert-Count 'Has-GroupOwnership-Resources' -Min 1 -Query @'
 SELECT COUNT(*) FROM "Resources" WHERE "resourceType" = 'GroupOwnership' AND "deletedAt" IS NULL
 '@
 
-Assert-Count 'Has-Owner-Assignments' -Min 1 -Query @'
+    Assert-Count 'Has-Owner-Assignments' -Min 1 -Query @'
 SELECT COUNT(*) FROM "ResourceAssignments" ra
 JOIN "Resources" r ON r."id" = ra."resourceId"
 WHERE r."resourceType" = 'GroupOwnership' AND ra."deletedAt" IS NULL
 '@
 
-# Relationship types (ResourceRelationships has no soft-delete column)
-Assert-Count 'Contains-Relationships' -Min 8 -Query @'
+    # Relationship types (ResourceRelationships has no soft-delete column)
+    Assert-Count 'Contains-Relationships' -Min 8 -Query @'
 SELECT COUNT(*) FROM "ResourceRelationships" WHERE "relationshipType" = 'Contains'
 '@
 
-Assert-Count 'GrantsAccessTo-Relationships' -Min 1 -Query @'
+    Assert-Count 'GrantsAccessTo-Relationships' -Min 1 -Query @'
 SELECT COUNT(*) FROM "ResourceRelationships" WHERE "relationshipType" = 'GrantsAccessTo'
 '@
 
-Assert-Count 'HasOwnership-Relationships' -Min 1 -Query @'
+    Assert-Count 'HasOwnership-Relationships' -Min 1 -Query @'
 SELECT COUNT(*) FROM "ResourceRelationships" WHERE "relationshipType" = 'HasOwnership'
 '@
 
-# Context hierarchy
-Assert-Count 'Context-RootExists' -Min 1 -Max 1 -Query @'
+    # Context hierarchy
+    Assert-Count 'Context-RootExists' -Min 1 -Max 1 -Query @'
 SELECT COUNT(*) FROM "Contexts" WHERE "displayName" = 'Fortigi Demo Corp' AND "parentContextId" IS NULL
 '@
 
-Assert-Count 'Context-EngineeringUnderRoot' -Min 1 -Max 1 -Query @'
+    Assert-Count 'Context-EngineeringUnderRoot' -Min 1 -Max 1 -Query @'
 SELECT COUNT(*) FROM "Contexts" c1
 INNER JOIN "Contexts" c2 ON c1."parentContextId" = c2."id"
 WHERE c1."displayName" = 'Engineering' AND c2."displayName" = 'Fortigi Demo Corp'
 '@
 
-# Governance
-Assert-Count 'Certification-HasApprove' -Min 1 -Query @'
+    # Governance
+    Assert-Count 'Certification-HasApprove' -Min 1 -Query @'
 SELECT COUNT(*) FROM "CertificationDecisions" WHERE "decision" = 'Approve'
 '@
 
-Assert-Count 'Certification-HasDeny' -Min 1 -Query @'
+    Assert-Count 'Certification-HasDeny' -Min 1 -Query @'
 SELECT COUNT(*) FROM "CertificationDecisions" WHERE "decision" = 'Deny'
 '@
 
-# Multi-system identity. The v4 query ran GROUP BY ... HAVING through a scalar
-# read, which returns the FIRST GROUP'S member count — not the number of
-# multi-account identities it claimed to report. Wrap it and count the groups.
-Assert-Count 'Has-MultiSystem-Identity' -Min 1 -Label 'identities with 2+ accounts' -Query @'
+    # Multi-system identity. The v4 query ran GROUP BY ... HAVING through a scalar
+    # read, which returns the FIRST GROUP'S member count — not the number of
+    # multi-account identities it claimed to report. Wrap it and count the groups.
+    Assert-Count 'Has-MultiSystem-Identity' -Min 1 -Label 'identities with 2+ accounts' -Query @'
 SELECT COUNT(*) FROM (
   SELECT "identityId" FROM "IdentityMembers" GROUP BY "identityId" HAVING COUNT(*) > 1
 ) multi
 '@
+}
 
-# ─── Capture-the-Flag scenarios (#705) ────────────────────────────
-# Each flag's answer, computed straight from the database. These are the
-# data-level regression layer: if a dataset change moves an answer, the flag
-# breaks here rather than in a participant's inbox. Update the published answer
-# in the same PR as any change that trips one of these.
+function Invoke-CaptureTheFlagChecks {
+    # ─── Capture-the-Flag scenarios (#705) ────────────────────────────
+    # Each flag's answer, computed straight from the database. These are the
+    # data-level regression layer: if a dataset change moves an answer, the flag
+    # breaks here rather than in a participant's inbox. Update the published answer
+    # in the same PR as any change that trips one of these.
 
-Write-Host "`n--- Capture-the-Flag scenarios ---" -ForegroundColor Yellow
+    Write-Host "`n--- Capture-the-Flag scenarios ---" -ForegroundColor Yellow
 
-# Flag 1 — Sales has 6 ACTIVE identities. The 7th (the disabled leaver) is the
-# distractor, so assert both numbers: a naive count must differ from the answer.
-Assert-Count 'CTF01-SalesActiveIdentities' -Min 6 -Max 6 -Query @'
+    # Flag 1 — Sales has 6 ACTIVE identities. The 7th (the disabled leaver) is the
+    # distractor, so assert both numbers: a naive count must differ from the answer.
+    Assert-Count 'CTF01-SalesActiveIdentities' -Min 6 -Max 6 -Query @'
 SELECT COUNT(DISTINCT i."id") FROM "Identities" i
 JOIN "IdentityMembers" im ON im."identityId" = i."id"
 WHERE i."department" = 'Sales' AND im."accountEnabled" = true
 '@
 
-Assert-Count 'CTF01-SalesIdentitiesIncludingLeaver' -Min 7 -Max 7 -Query @'
+    Assert-Count 'CTF01-SalesIdentitiesIncludingLeaver' -Min 7 -Max 7 -Query @'
 SELECT COUNT(DISTINCT i."id") FROM "Identities" i WHERE i."department" = 'Sales'
 '@
 
-# Flag 4 — Piet's CRM access is role-derived only. A Direct grant would make the
-# answer "because someone gave it to him", which is the wrong lesson.
-Assert-Count 'CTF04-PietCrmNotDirect' -Min 0 -Max 0 -Label '0 direct grants' -Query @'
+    # Flag 4 — Piet's CRM access is role-derived only. A Direct grant would make the
+    # answer "because someone gave it to him", which is the wrong lesson.
+    Assert-Count 'CTF04-PietCrmNotDirect' -Min 0 -Max 0 -Label '0 direct grants' -Query @'
 SELECT COUNT(*) FROM "ResourceAssignments" ra
 JOIN "Resources"  r ON r."id" = ra."resourceId"
 JOIN "Principals" p ON p."id" = ra."principalId"
@@ -277,7 +276,7 @@ WHERE p."displayName" = 'Piet Jansen' AND r."displayName" = 'SG-CRM-Users'
   AND ra."assignmentType" = 'Direct' AND ra."deletedAt" IS NULL
 '@
 
-Assert-Count 'CTF04-PietCrmViaRole' -Min 1 -Max 1 -Query @'
+    Assert-Count 'CTF04-PietCrmViaRole' -Min 1 -Max 1 -Query @'
 SELECT COUNT(*) FROM "ResourceAssignments" ra
 JOIN "Resources"  r ON r."id" = ra."resourceId"
 JOIN "Principals" p ON p."id" = ra."principalId"
@@ -285,9 +284,9 @@ WHERE p."displayName" = 'Piet Jansen' AND r."displayName" = 'SG-CRM-Users'
   AND ra."assignmentType" = 'Indirect' AND ra."deletedAt" IS NULL
 '@
 
-# Flag 6 — the role candidate must NOT already be in BR-Sales, or there is
-# nothing to recommend.
-Assert-Count 'CTF06-SharePointNotInRole' -Min 0 -Max 0 -Label '0 Contains edges' -Query @'
+    # Flag 6 — the role candidate must NOT already be in BR-Sales, or there is
+    # nothing to recommend.
+    Assert-Count 'CTF06-SharePointNotInRole' -Min 0 -Max 0 -Label '0 Contains edges' -Query @'
 SELECT COUNT(*) FROM "ResourceRelationships" rr
 JOIN "Resources" parent ON parent."id" = rr."parentResourceId"
 JOIN "Resources" child  ON child."id"  = rr."childResourceId"
@@ -295,17 +294,17 @@ WHERE parent."displayName" = 'BR-Sales' AND child."displayName" = 'SG-Sales-Shar
   AND rr."relationshipType" = 'Contains'
 '@
 
-# Flag 7 — the trap must cross the department boundary; that (plus its
-# sensitivity) is what distinguishes it from flag 6's clean candidate.
-Assert-Count 'CTF07-TrapIsCrossDepartment' -Min 2 -Query @'
+    # Flag 7 — the trap must cross the department boundary; that (plus its
+    # sensitivity) is what distinguishes it from flag 6's clean candidate.
+    Assert-Count 'CTF07-TrapIsCrossDepartment' -Min 2 -Query @'
 SELECT COUNT(DISTINCT p."department") FROM "ResourceAssignments" ra
 JOIN "Resources"  r ON r."id" = ra."resourceId"
 JOIN "Principals" p ON p."id" = ra."principalId"
 WHERE r."displayName" = 'SG-Finance-Reports' AND ra."deletedAt" IS NULL
 '@
 
-# Flag 8 — Finance has the most SAP accounts...
-Assert-Count 'CTF08-SapFinanceCount' -Min 4 -Max 4 -Query @'
+    # Flag 8 — Finance has the most SAP accounts...
+    Assert-Count 'CTF08-SapFinanceCount' -Min 4 -Max 4 -Query @'
 SELECT COUNT(*) FROM "Principals" p
 JOIN "Systems" s ON s."id" = p."systemId"
 JOIN "IdentityMembers" im ON im."principalId" = p."id"
@@ -313,46 +312,46 @@ JOIN "Identities" i ON i."id" = im."identityId"
 WHERE s."systemType" = 'SAP' AND i."department" = 'Finance' AND p."deletedAt" IS NULL
 '@
 
-# ...and the flag is only hard because SAP accounts carry no department of their
-# own. If this ever becomes non-zero the answer is readable straight off the
-# account list and the flag is worthless.
-Assert-Count 'CTF08-SapAccountsHaveNoDepartment' -Min 0 -Max 0 -Label '0 with department' -Query @'
+    # ...and the flag is only hard because SAP accounts carry no department of their
+    # own. If this ever becomes non-zero the answer is readable straight off the
+    # account list and the flag is worthless.
+    Assert-Count 'CTF08-SapAccountsHaveNoDepartment' -Min 0 -Max 0 -Label '0 with department' -Query @'
 SELECT COUNT(*) FROM "Principals" p
 JOIN "Systems" s ON s."id" = p."systemId"
 WHERE s."systemType" = 'SAP' AND p."department" IS NOT NULL AND p."deletedAt" IS NULL
 '@
 
-# Flag 9 — the never-expiring password set.
-Assert-Count 'CTF09-NeverExpiringPasswords' -Min 5 -Max 5 -Query @'
+    # Flag 9 — the never-expiring password set.
+    Assert-Count 'CTF09-NeverExpiringPasswords' -Min 5 -Max 5 -Query @'
 SELECT COUNT(*) FROM "Principals"
 WHERE "extendedAttributes"->>'passwordNeverExpires' = 'true' AND "deletedAt" IS NULL
 '@
 
-# Flag 10 — everyone holding an Azure US role. The westeurope distractor must
-# also exist, or "filter by region" isn't a real step.
-Assert-Count 'CTF10-AzureUsPrincipals' -Min 3 -Max 3 -Query @'
+    # Flag 10 — everyone holding an Azure US role. The westeurope distractor must
+    # also exist, or "filter by region" isn't a real step.
+    Assert-Count 'CTF10-AzureUsPrincipals' -Min 3 -Max 3 -Query @'
 SELECT COUNT(DISTINCT ra."principalId") FROM "ResourceAssignments" ra
 JOIN "Resources" r ON r."id" = ra."resourceId"
 WHERE r."resourceType" = 'AzureRoleAssignment'
   AND r."extendedAttributes"->>'azureLocation' = 'eastus' AND ra."deletedAt" IS NULL
 '@
 
-Assert-Count 'CTF10-AzureEuDistractorExists' -Min 1 -Query @'
+    Assert-Count 'CTF10-AzureEuDistractorExists' -Min 1 -Query @'
 SELECT COUNT(*) FROM "Resources"
 WHERE "resourceType" = 'AzureRoleAssignment'
   AND "extendedAttributes"->>'azureLocation' = 'westeurope' AND "deletedAt" IS NULL
 '@
 
-# Flag 11 — who consented to Files.ReadWrite.All.
-Assert-Count 'CTF11-FilesReadWriteConsenters' -Min 5 -Max 5 -Query @'
+    # Flag 11 — who consented to Files.ReadWrite.All.
+    Assert-Count 'CTF11-FilesReadWriteConsenters' -Min 5 -Max 5 -Query @'
 SELECT COUNT(DISTINCT ra."principalId") FROM "ResourceAssignments" ra
 JOIN "Resources" r ON r."id" = ra."resourceId"
 WHERE r."resourceType" = 'DelegatedPermission'
   AND r."extendedAttributes"->>'scope' = 'Files.ReadWrite.All' AND ra."deletedAt" IS NULL
 '@
 
-# Flag 12 — the intersection: risky consent AND a never-expiring password.
-Assert-Count 'CTF12-RiskyConsentAndNeverExpire' -Min 2 -Max 2 -Query @'
+    # Flag 12 — the intersection: risky consent AND a never-expiring password.
+    Assert-Count 'CTF12-RiskyConsentAndNeverExpire' -Min 2 -Max 2 -Query @'
 SELECT COUNT(DISTINCT ra."principalId") FROM "ResourceAssignments" ra
 JOIN "Resources"  r ON r."id" = ra."resourceId"
 JOIN "Principals" p ON p."id" = ra."principalId"
@@ -362,9 +361,9 @@ WHERE r."resourceType" = 'DelegatedPermission'
   AND ra."deletedAt" IS NULL
 '@
 
-# ...and the trap must stay bigger than the answer. If these ever match, the
-# "risky" half of the question stopped mattering.
-Assert-Count 'CTF12-TrapIsWiderThanAnswer' -Min 3 -Max 3 -Label '3 (answer is 2)' -Query @'
+    # ...and the trap must stay bigger than the answer. If these ever match, the
+    # "risky" half of the question stopped mattering.
+    Assert-Count 'CTF12-TrapIsWiderThanAnswer' -Min 3 -Max 3 -Label '3 (answer is 2)' -Query @'
 SELECT COUNT(DISTINCT ra."principalId") FROM "ResourceAssignments" ra
 JOIN "Resources"  r ON r."id" = ra."resourceId"
 JOIN "Principals" p ON p."id" = ra."principalId"
@@ -373,53 +372,232 @@ WHERE r."resourceType" = 'DelegatedPermission'
   AND ra."deletedAt" IS NULL
 '@
 
-# The risky-consent context plugin joins clientSpId -> Principals to read the
-# app's appId/publisher. A dangling clientSpId silently drops the grant from the
-# plugin's output (the shape of issue #719), taking flags 11-12 with it.
-Assert-Count 'CTF-ConsentGrantsResolveToClientSp' -Min 0 -Max 0 -Label '0 dangling clientSpId' -Query @'
+    # The risky-consent context plugin joins clientSpId -> Principals to read the
+    # app's appId/publisher. A dangling clientSpId silently drops the grant from the
+    # plugin's output (the shape of issue #719), taking flags 11-12 with it.
+    Assert-Count 'CTF-ConsentGrantsResolveToClientSp' -Min 0 -Max 0 -Label '0 dangling clientSpId' -Query @'
 SELECT COUNT(*) FROM "Resources" r
 WHERE r."resourceType" = 'DelegatedPermission' AND r."deletedAt" IS NULL
   AND NOT EXISTS (
     SELECT 1 FROM "Principals" p WHERE p."id"::text = r."extendedAttributes"->>'clientSpId'
   )
 '@
+}
 
-# ─── API Verification ─────────────────────────────────────────────
+# Business roles as rows: the scenarios the matrix only renders when a matrix
+# asks for business roles on its resource axis (the wizard's "Show business
+# roles as foldable rows"). The data has to carry them either way — the flag
+# decides what is drawn, not what is true.
+function Invoke-BusinessRoleRowChecks {
 
-Write-Host "`n--- API Verification ---" -ForegroundColor Yellow
+    # ─── Role drift: fewer / more access than the business role assigns ───
+    # The matrix shows both directions of drift against a business role, so the
+    # dataset has to contain both. These guard the scenario the grid renders
+    # (see parts/DemoRoleDrift.ps1 and docs/architecture/matrix.md).
 
-$apiChecks = @(
-    @{ Name = 'API-Resources';  Url = "$ApiBaseUrl/resources"; MinItems = 10 }
-    @{ Name = 'API-Systems';    Url = "$ApiBaseUrl/systems";   MinItems = 1 }
-)
+    Write-Host "`n--- Role drift ---" -ForegroundColor Yellow
 
-foreach ($check in $apiChecks) {
+    # BR-Service-Desk grants four resources: three groups, one of them
+    # just-in-time only, plus the app role it shares with BR-IT-Operations
+    # (DemoSharedGrants.ps1).
+    Assert-Count 'Drift-RoleGrantsFourResources' -Min 4 -Max 4 -Query @'
+SELECT COUNT(*) FROM "ResourceRelationships" rr
+JOIN "Resources" parent ON parent."id" = rr."parentResourceId"
+WHERE parent."displayName" = 'BR-Service-Desk' AND rr."relationshipType" = 'Contains'
+'@
+
+    Assert-Count 'Drift-AdminIsEligibleOnly' -Min 1 -Max 1 -Query @'
+SELECT COUNT(*) FROM "ResourceRelationships" rr
+JOIN "Resources" parent ON parent."id" = rr."parentResourceId"
+JOIN "Resources" child  ON child."id"  = rr."childResourceId"
+WHERE parent."displayName" = 'BR-Service-Desk' AND child."displayName" = 'SG-Servicedesk-Admin'
+  AND lower(rr."roleName") LIKE '%eligible%'
+'@
+
+    # FEWER — Tom Bakker holds the role but only one of the three resources.
+    Assert-Count 'Drift-HolderShortOfWhatRoleAssigns' -Min 1 -Max 1 -Label '1 of 3 resources held' -Query @'
+SELECT COUNT(*) FROM "ResourceAssignments" ra
+JOIN "Resources"  r ON r."id" = ra."resourceId"
+JOIN "Principals" p ON p."id" = ra."principalId"
+WHERE p."displayName" = 'Tom Bakker' AND ra."deletedAt" IS NULL
+  AND r."displayName" IN ('SG-Servicedesk-Tools', 'SG-Servicedesk-KB', 'SG-Servicedesk-Admin')
+'@
+
+    # BOTH AT ONCE — Wendy Xu is missing the KB the role assigns...
+    Assert-Count 'Drift-BothDirections-MissingKb' -Min 0 -Max 0 -Label '0 KB memberships' -Query @'
+SELECT COUNT(*) FROM "ResourceAssignments" ra
+JOIN "Resources"  r ON r."id" = ra."resourceId"
+JOIN "Principals" p ON p."id" = ra."principalId"
+WHERE p."displayName" = 'Wendy Xu' AND r."displayName" = 'SG-Servicedesk-KB' AND ra."deletedAt" IS NULL
+'@
+
+    # ...while holding permanently what the role only makes her eligible for.
+    Assert-Count 'Drift-BothDirections-StandingOnEligible' -Min 1 -Max 1 -Query @'
+SELECT COUNT(*) FROM "ResourceAssignments" ra
+JOIN "Resources"  r ON r."id" = ra."resourceId"
+JOIN "Principals" p ON p."id" = ra."principalId"
+WHERE p."displayName" = 'Wendy Xu' AND r."displayName" = 'SG-Servicedesk-Admin'
+  AND ra."assignmentType" = 'Direct' AND ra."deletedAt" IS NULL
+'@
+
+    # Both role holders who match their role exactly must stay clean, or the
+    # deviations above read as the norm rather than as findings.
+    Assert-Count 'Drift-CleanHoldersMatchTheRole' -Min 6 -Max 6 -Label '2 holders x 3 resources' -Query @'
+SELECT COUNT(*) FROM "ResourceAssignments" ra
+JOIN "Resources"  r ON r."id" = ra."resourceId"
+JOIN "Principals" p ON p."id" = ra."principalId"
+WHERE p."displayName" IN ('Ursula Visser', 'Victor Wang') AND ra."deletedAt" IS NULL
+  AND r."displayName" IN ('SG-Servicedesk-Tools', 'SG-Servicedesk-KB', 'SG-Servicedesk-Admin')
+'@
+
+    # ─── Shared grants: one resource, two business roles ──────────────────
+    # The matrix has to resolve a resource that more than one business role
+    # grants (requestor feedback on #370), so the dataset has to contain one of
+    # each kind — a group and an application role. See parts/DemoSharedGrants.ps1.
+
+    Write-Host "`n--- Shared grants ---" -ForegroundColor Yellow
+
+    # A GROUP granted by two roles.
+    Assert-Count 'Shared-GroupGrantedByTwoRoles' -Min 2 -Max 2 -Label '2 granting roles' -Query @'
+SELECT COUNT(*) FROM "ResourceRelationships" rr
+JOIN "Resources" child ON child."id" = rr."childResourceId"
+WHERE child."displayName" = 'SG-Servicedesk-Tools' AND rr."relationshipType" = 'Contains'
+'@
+
+    # ...and an APPLICATION ROLE granted by two roles — the case the requestor
+    # asked about by name. The resourceType matters: it is what makes this the
+    # app-role variant rather than a second group.
+    Assert-Count 'Shared-AppRoleGrantedByTwoRoles' -Min 2 -Max 2 -Label '2 granting roles' -Query @'
+SELECT COUNT(*) FROM "ResourceRelationships" rr
+JOIN "Resources" child ON child."id" = rr."childResourceId"
+WHERE child."displayName" = 'Ticketing-Agent' AND child."resourceType" = 'AppRole'
+  AND rr."relationshipType" = 'Contains'
+'@
+
+    # Each of the two roles must also grant something no other role does, or
+    # folding one of them would take no row away and the scenario would show
+    # nothing.
+    Assert-Count 'Shared-EachRoleAlsoGrantsSomethingAlone' -Min 2 -Max 2 -Label '2 exclusive resources' -Query @'
+SELECT COUNT(*) FROM "ResourceRelationships" rr
+JOIN "Resources" child ON child."id" = rr."childResourceId"
+WHERE child."displayName" IN ('SG-Monitoring-Tools', 'SG-Servicedesk-KB')
+  AND rr."relationshipType" = 'Contains'
+'@
+
+    # One holder of the new role must NOT hold the role it overlaps with, or the
+    # shared rows could still be read as belonging to the service desk alone.
+    Assert-Count 'Shared-HolderOfOneRoleOnly' -Min 1 -Max 1 -Query @'
+SELECT COUNT(*) FROM "ResourceAssignments" ra
+JOIN "Resources"  r ON r."id" = ra."resourceId"
+JOIN "Principals" p ON p."id" = ra."principalId"
+WHERE p."displayName" = 'Fatih Gunay' AND r."displayName" = 'BR-IT-Operations'
+  AND ra."deletedAt" IS NULL
+  AND NOT EXISTS (
+    SELECT 1 FROM "ResourceAssignments" ra2
+    JOIN "Resources" r2 ON r2."id" = ra2."resourceId"
+    WHERE ra2."principalId" = p."id" AND r2."displayName" = 'BR-Service-Desk'
+      AND ra2."deletedAt" IS NULL
+  )
+'@
+
+    # A membership covered by two roles is ONE assignment, not two — the overlap
+    # is in the coverage. A duplicate here would double-count every shared cell.
+    Assert-Count 'Shared-MembershipIsNotDuplicated' -Min 1 -Max 1 -Query @'
+SELECT COUNT(*) FROM "ResourceAssignments" ra
+JOIN "Resources"  r ON r."id" = ra."resourceId"
+JOIN "Principals" p ON p."id" = ra."principalId"
+WHERE p."displayName" = 'Victor Wang' AND r."displayName" = 'SG-Servicedesk-Tools'
+  AND ra."deletedAt" IS NULL
+'@
+
+    # ─── Held outside the role ────────────────────────────────────────────
+    # SG-VPN-Access carries the third statement the matrix makes about a resource
+    # a business role grants: a membership held by someone the role does not hand
+    # it to. Both halves of it are load-bearing (see parts/DemoGovernance.ps1).
+
+    Write-Host "`n--- Held outside the role ---" -ForegroundColor Yellow
+
+    # Everyone BR-Engineering-Tools grants the VPN group actually has it, so the
+    # role produces no provisioning gap on that row.
+    Assert-Count 'Outside-RoleGrantIsMaterialised' -Min 0 -Max 0 -Label '0 engineers without the VPN group' -Query @'
+SELECT COUNT(*) FROM "ResourceAssignments" role_ra
+JOIN "Resources" role_r ON role_r."id" = role_ra."resourceId"
+WHERE role_r."displayName" = 'BR-Engineering-Tools' AND role_ra."deletedAt" IS NULL
+  AND NOT EXISTS (
+    SELECT 1 FROM "ResourceAssignments" ra
+    JOIN "Resources" r ON r."id" = ra."resourceId"
+    WHERE ra."principalId" = role_ra."principalId" AND r."displayName" = 'SG-VPN-Access'
+      AND ra."deletedAt" IS NULL
+  )
+'@
+
+    # ...and exactly two people hold that same group WITHOUT the role behind it —
+    # the cells the grid marks red. Lose these and the scenario shows nothing.
+    Assert-Count 'Outside-HeldWithoutTheRole' -Min 2 -Max 2 -Label '2 memberships outside the role' -Query @'
+SELECT COUNT(*) FROM "ResourceAssignments" ra
+JOIN "Resources"  r ON r."id" = ra."resourceId"
+JOIN "Principals" p ON p."id" = ra."principalId"
+WHERE r."displayName" = 'SG-VPN-Access' AND ra."assignmentType" = 'Direct'
+  AND ra."deletedAt" IS NULL
+  AND NOT EXISTS (
+    SELECT 1 FROM "ResourceAssignments" ra2
+    JOIN "Resources" r2 ON r2."id" = ra2."resourceId"
+    WHERE ra2."principalId" = p."id" AND r2."displayName" = 'BR-Engineering-Tools'
+      AND ra2."deletedAt" IS NULL
+  )
+'@
+}
+
+function Invoke-ApiChecks {
+    Write-Host "`n--- API Verification ---" -ForegroundColor Yellow
+
+    $apiChecks = @(
+        @{ Name = 'API-Resources';  Url = "$ApiBaseUrl/resources"; MinItems = 10 }
+        @{ Name = 'API-Systems';    Url = "$ApiBaseUrl/systems";   MinItems = 1 }
+    )
+
+    foreach ($check in $apiChecks) {
+        try {
+            $data = Invoke-RestMethod -Uri $check.Url -TimeoutSec 30
+            $count = if ($data -is [array]) { $data.Count } elseif ($data.data) { $data.data.Count } else { 0 }
+            Assert-Check $check.Name ($count -ge $check.MinItems) "Got $count items (min: $($check.MinItems))"
+        }
+        catch {
+            Assert-Check $check.Name $false $_.Exception.Message
+        }
+    }
+
+    # Swagger
     try {
-        $data = Invoke-RestMethod -Uri $check.Url -TimeoutSec 30
-        $count = if ($data -is [array]) { $data.Count } elseif ($data.data) { $data.data.Count } else { 0 }
-        Assert-Check $check.Name ($count -ge $check.MinItems) "Got $count items (min: $($check.MinItems))"
+        $swagger = Invoke-WebRequest -Uri "$ApiBaseUrl/docs" -UseBasicParsing -TimeoutSec 10
+        Assert-Check 'API-Swagger-Loads' ($swagger.StatusCode -eq 200)
     }
     catch {
-        Assert-Check $check.Name $false $_.Exception.Message
+        Assert-Check 'API-Swagger-Loads' $false $_.Exception.Message
     }
 }
 
-# Swagger
-try {
-    $swagger = Invoke-WebRequest -Uri "$ApiBaseUrl/docs" -UseBasicParsing -TimeoutSec 10
-    Assert-Check 'API-Swagger-Loads' ($swagger.StatusCode -eq 200)
+function Write-VerificationSummary {
+    Write-Host "`n╔══════════════════════════════════════╗" -ForegroundColor $(if ($script:failed -eq 0) { 'Green' } else { 'Red' })
+    Write-Host "║  Verification: $script:passed passed, $script:failed failed" -ForegroundColor $(if ($script:failed -eq 0) { 'Green' } else { 'Red' })
+    Write-Host "╚══════════════════════════════════════╝" -ForegroundColor $(if ($script:failed -eq 0) { 'Green' } else { 'Red' })
+
+    # Write results JSON
+    $script:results | ConvertTo-Json -Depth 3 | Out-File -FilePath (Join-Path $PSScriptRoot 'verify-results.json') -Encoding UTF8
 }
-catch {
-    Assert-Check 'API-Swagger-Loads' $false $_.Exception.Message
+
+function Invoke-DemoDatasetVerification {
+    Write-Host "`n=== Demo Dataset Verification ===" -ForegroundColor Cyan
+
+    Invoke-RowCountChecks
+    Invoke-ReferentialIntegrityChecks
+    Invoke-BusinessLogicChecks
+    Invoke-BusinessRoleRowChecks
+    Invoke-CaptureTheFlagChecks
+    Invoke-ApiChecks
+    Write-VerificationSummary
+
+    return $script:failed
 }
 
-# ─── Summary ──────────────────────────────────────────────────────
-
-Write-Host "`n╔══════════════════════════════════════╗" -ForegroundColor $(if ($failed -eq 0) { 'Green' } else { 'Red' })
-Write-Host "║  Verification: $passed passed, $failed failed" -ForegroundColor $(if ($failed -eq 0) { 'Green' } else { 'Red' })
-Write-Host "╚══════════════════════════════════════╝" -ForegroundColor $(if ($failed -eq 0) { 'Green' } else { 'Red' })
-
-# Write results JSON
-$results | ConvertTo-Json -Depth 3 | Out-File -FilePath (Join-Path $PSScriptRoot 'verify-results.json') -Encoding UTF8
-
-exit $failed
+exit (Invoke-DemoDatasetVerification)

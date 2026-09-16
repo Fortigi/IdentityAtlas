@@ -1,8 +1,8 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import {
-  GROUP_ROW_H, VALUE_ROW_H,
-  apBandBorderClass, buildCrossRows, computeHeaderMode, crossGroupingHeight, distinctValueCount, spanInteraction,
+  CORNER_ROW_H, VALUE_ROW_H, buildCrossRows, computeHeaderMode, crossGroupingHeight, distinctValueCount,
 } from './headerMode';
+import { GROUP_ROW_H } from './MatrixColumnHeaders.helpers';
 
 // Subjects carry their sort values in `sortKeys`, already sorted on the column
 // axis — the shape MatrixView hands the header.
@@ -101,69 +101,11 @@ describe('crossGroupingHeight', () => {
     expect(crossGroupingHeight([])).toBe(0);
     expect(crossGroupingHeight(undefined)).toBe(0);
   });
-});
 
-describe('apBandBorderClass', () => {
-  it('opens the access-package block and every new category with a divider', () => {
-    const aps = [{ categoryName: 'Ops' }, { categoryName: 'Ops' }, { categoryName: 'Finance' }, {}];
-    expect(apBandBorderClass(aps, 0)).toContain('border-l-indigo-300');
-    expect(apBandBorderClass(aps, 1)).toBe('');
-    expect(apBandBorderClass(aps, 2)).toContain('border-l-gray-400');
-    expect(apBandBorderClass(aps, 3)).toContain('border-l-gray-400'); // uncategorised
-  });
-});
-
-describe('spanInteraction', () => {
-  const span = (value, start = 0, s = 1) => ({ value, start, span: s });
-
-  it('collapses a plain group at the clicked level', () => {
-    const onToggleCollapse = vi.fn();
-    const list = users([['Eng', 'Payroll']]);
-    const it0 = spanInteraction(list, span('Eng'), 0, { onToggleCollapse });
-    expect(it0.collapsible).toBe(true);
-    expect(it0.title).toBe('Collapse Eng into one column');
-    it0.onClick();
-    expect(onToggleCollapse).toHaveBeenCalledWith(['Eng', 'Payroll'], 0);
-  });
-
-  it('labels an empty value (none)', () => {
-    const list = users(['']);
-    expect(spanInteraction(list, span(''), 0, { onToggleCollapse: vi.fn() }).title)
-      .toBe('Collapse (none) into one column');
-  });
-
-  it('unfolds an aggregate at its own level and counts children below it', () => {
-    const onToggleCollapse = vi.fn();
-    const agg = { id: 'agg', isAggregateCol: true, level: 0, value: 'Eng', childCounts: { 1: 6 }, sortKeys: ['Eng', 'x'] };
-    const here = spanInteraction([agg], span('Eng'), 0, { onToggleCollapse });
-    expect(here.aggHere).toBe(true);
-    expect(here.showChildCount).toBe(false);
-    expect(here.title).toBe('Expand Eng back into its columns');
-    here.onClick();
-    expect(onToggleCollapse).toHaveBeenCalledWith(['Eng', 'x'], 0);
-
-    expect(spanInteraction([agg], span('x'), 1, { onToggleCollapse }).showChildCount).toBe(true);
-  });
-
-  it('collapses exploded members back at their own level and is inert below', () => {
-    const onToggleMembers = vi.fn();
-    const mem = { id: 'm', isMemberCol: true, memberLevel: 1, sortKeys: ['Eng', 'Payroll'] };
-    const own = spanInteraction([mem], span('Payroll'), 1, { onToggleMembers, onToggleCollapse: vi.fn() });
-    expect(own.memberOwn).toBe(true);
-    expect(own.title).toBe('Collapse Payroll members back into a count');
-    own.onClick();
-    expect(onToggleMembers).toHaveBeenCalledWith(['Eng', 'Payroll'], 1);
-
-    const deep = spanInteraction([mem], span(''), 2, { onToggleMembers, onToggleCollapse: vi.fn() });
-    expect(deep.memberDeep).toBe(true);
-    expect(deep.onClick).toBeUndefined();
-    expect(deep.title).toBeUndefined();
-  });
-
-  it('offers no click when the header is read-only', () => {
-    const list = users(['Eng']);
-    expect(spanInteraction(list, span('Eng'), 0).onClick).toBeUndefined();
-    const agg = { id: 'agg', isAggregateCol: true, level: 0, value: 'Eng', sortKeys: ['Eng'] };
-    expect(spanInteraction([agg], span('Eng'), 0).onClick).toBeUndefined();
+  it('adds the taller corner row only when the corner controls are shown and a row exists', () => {
+    const levels = [{ rows: [1, 2] }];
+    expect(crossGroupingHeight(levels, { withCorner: true })).toBe(VALUE_ROW_H + CORNER_ROW_H);
+    expect(crossGroupingHeight(levels, { withCorner: false })).toBe(2 * VALUE_ROW_H);
+    expect(crossGroupingHeight([], { withCorner: true })).toBe(0);
   });
 });

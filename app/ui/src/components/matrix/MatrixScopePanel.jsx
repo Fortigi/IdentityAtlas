@@ -1,4 +1,5 @@
-// Scope Statistics panel for the Matrix view.
+// Scope Statistics panel for the Matrix view — opt-in per matrix, off by
+// default (see the export at the bottom half of this file).
 //
 // For the current matrix selection it shows live counts (principals / resources
 // / assignments) and the governed-vs-non-governed split, and — on expand —
@@ -14,6 +15,7 @@ import { Fragment, useEffect, useMemo, useState, useReducer, useCallback } from 
 import { useAuth } from '@ui/auth/AuthGate';
 import { useDebouncedValue } from '@ui/hooks/useDebouncedValue';
 import TimeSeriesChart from '@ui/components/TimeSeriesChart';
+import { useIsSharedView } from '@ui/contexts/SharedViewContext';
 
 // Aligned with the Dashboard Trends palette (TimeSeriesChart colours):
 //   governed → emerald, principals → blue, resources → violet, assignments → amber.
@@ -29,10 +31,11 @@ const UNGOV_TEXT = 'text-amber-700 dark:text-amber-400';
 function pct(n) { return `${Math.round((n + Number.EPSILON) * 10) / 10}%`; }
 function num(n) { return (n ?? 0).toLocaleString(); }
 
-// One headline number.
+// One headline number. The tile is a named group so the number is announced
+// with the metric it belongs to ("Resources, 39") instead of as a bare figure.
 function Stat({ label, value, sub }) {
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col" role="group" aria-label={label}>
       <span className="text-2xl font-semibold text-gray-900 dark:text-white tabular-nums">{value}</span>
       <span className="text-xs text-gray-500 dark:text-gray-400">{label}</span>
       {sub && <span className="text-xs text-gray-500 dark:text-gray-400">{sub}</span>}
@@ -109,7 +112,21 @@ function trendsReducer(s, a) {
   }
 }
 
-export default function MatrixScopePanel({ filter }) {
+// Two reasons the panel renders nothing at all:
+//
+//   * it is off unless the matrix asks for it (`filter.showTrends`, ticked on
+//     the wizard's Sort step). Reporting tooling is not what most analysts open
+//     the matrix for, and four stacked bars above the grid pushed it off screen
+//     (#1202) — so it is opt-in per matrix, and travels with the saved one;
+//   * scope statistics are analysis tooling, not part of what a share recipient
+//     was sent: in a shared view the panel (and its fetches) is skipped (#1166).
+export default function MatrixScopePanel(props) {
+  if (useIsSharedView()) return null;
+  if (props.filter?.showTrends !== true) return null;
+  return <ScopePanel {...props} />;
+}
+
+function ScopePanel({ filter }) {
   const { authFetch } = useAuth();
   const debouncedFilter = useDebouncedValue(filter, 400);
   const filterKey = useMemo(() => JSON.stringify(debouncedFilter || null), [debouncedFilter]);
@@ -175,63 +192,91 @@ export default function MatrixScopePanel({ filter }) {
     trendsDispatch({ type: 'setDrill', drill: { key: groupKey, points: ts?.points || [] } });
   }, [drill, breakdown, debouncedFilter, post]);
 
-  if (!filter) return null;
-
+  // No `if (!filter)` guard — the export above only mounts this for a filter
+  // that asked for the panel.
   const s = stats || {};
   const subjectLabel = (s.rowType === 'identity') ? 'Identities' : 'Principals';
 
   return (
     <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
-      {/* Summary row */}
-      <div className="flex flex-wrap items-center gap-x-8 gap-y-4 p-4">
-        <Stat label={subjectLabel} value={statsLoading && !stats ? '—' : num(s.subjectCount)} />
-        <Stat label="Resources" value={statsLoading && !stats ? '—' : num(s.resourceCount)} />
-        <Stat label="Assignments" value={statsLoading && !stats ? '—' : num(s.assignmentCount)} />
-        <div className="flex-1 min-w-[220px]">
-          <GovernedBar
-            governed={s.governedAssignmentCount || 0}
-            ungoverned={s.ungovernedAssignmentCount || 0}
-            governedPct={s.governedPct || 0}
-          />
-        </div>
-        <button
-          onClick={() => setExpanded(e => !e)}
-          className="ml-auto px-3 py-1.5 rounded text-sm font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
-        >
-          {expanded ? 'Hide trends & breakdown' : 'Trends & breakdown'}
-        </button>
-      </div>
+      <ScopeSummaryRow
+        stats={s}
+        statsLoading={statsLoading}
+        hasStats={!!stats}
+        subjectLabel={subjectLabel}
+        expanded={expanded}
+        onToggle={() => setExpanded(e => !e)}
+      />
 
       {expanded && (
-        <div className="border-t border-gray-200 dark:border-gray-700 p-4 flex flex-col gap-6">
-          {trendsLoading && <div className="text-sm text-gray-500 dark:text-gray-400">Reconstructing history…</div>}
+        <ScopeExpandedPanel
+          trendsLoading={trendsLoading}
+          series={series}
+          subjectLabel={subjectLabel}
+          breakdown={breakdown}
+          drill={drill}
+          onDrill={toggleDrill}
+        />
+      )}
+    </div>
+  );
+}
 
-          {/* History boundary / scope-mode caveats */}
-          {series && (
-            <HistoryNote series={series} />
-          )}
+// Summary row: the always-visible headline stats, governed bar and expand toggle.
+function ScopeSummaryRow({ stats, statsLoading, hasStats, subjectLabel, expanded, onToggle }) {
+  const showPlaceholder = statsLoading && !hasStats;
+  return (
+    <div className="flex flex-wrap items-center gap-x-8 gap-y-4 p-4">
+      <Stat label={subjectLabel} value={showPlaceholder ? '—' : num(stats.subjectCount)} />
+      <Stat label="Resources" value={showPlaceholder ? '—' : num(stats.resourceCount)} />
+      <Stat label="Assignments" value={showPlaceholder ? '—' : num(stats.assignmentCount)} />
+      <div className="flex-1 min-w-[220px]">
+        <GovernedBar
+          governed={stats.governedAssignmentCount || 0}
+          ungoverned={stats.ungovernedAssignmentCount || 0}
+          governedPct={stats.governedPct || 0}
+        />
+      </div>
+      <button
+        onClick={onToggle}
+        className="ml-auto px-3 py-1.5 rounded text-sm font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
+      >
+        {expanded ? 'Hide trends & breakdown' : 'Trends & breakdown'}
+      </button>
+    </div>
+  );
+}
 
-          {/* Timeline charts */}
-          {series && series.points?.some(p => !p.beforeHistory) && (
-            <div className="flex flex-col gap-4">
-              <MetricChart title="Governed % over time" points={series.points} metric="governedPct" color={GOV_FILL} isPct />
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <MetricChart title={subjectLabel} points={series.points} metric="principals" color={PRINCIPALS_COLOR} />
-                <MetricChart title="Resources" points={series.points} metric="resources" color={RESOURCES_COLOR} />
-                <MetricChart title="Assignments" points={series.points} metric="assignments" color={ASSIGNMENTS_COLOR} />
-              </div>
-            </div>
-          )}
+// Expanded panel: history caveats, timeline charts and the department breakdown.
+function ScopeExpandedPanel({ trendsLoading, series, subjectLabel, breakdown, drill, onDrill }) {
+  return (
+    <div className="border-t border-gray-200 dark:border-gray-700 p-4 flex flex-col gap-6">
+      {trendsLoading && <div className="text-sm text-gray-500 dark:text-gray-400">Reconstructing history…</div>}
 
-          {/* Department breakdown */}
-          {breakdown && breakdown.groups?.length > 0 && (
-            <DepartmentBreakdown
-              breakdown={breakdown}
-              drill={drill}
-              onDrill={toggleDrill}
-            />
-          )}
+      {/* History boundary / scope-mode caveats */}
+      {series && (
+        <HistoryNote series={series} />
+      )}
+
+      {/* Timeline charts */}
+      {series && series.points?.some(p => !p.beforeHistory) && (
+        <div className="flex flex-col gap-4">
+          <MetricChart title="Governed % over time" points={series.points} metric="governedPct" color={GOV_FILL} isPct />
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <MetricChart title={subjectLabel} points={series.points} metric="principals" color={PRINCIPALS_COLOR} />
+            <MetricChart title="Resources" points={series.points} metric="resources" color={RESOURCES_COLOR} />
+            <MetricChart title="Assignments" points={series.points} metric="assignments" color={ASSIGNMENTS_COLOR} />
+          </div>
         </div>
+      )}
+
+      {/* Department breakdown */}
+      {breakdown && breakdown.groups?.length > 0 && (
+        <DepartmentBreakdown
+          breakdown={breakdown}
+          drill={drill}
+          onDrill={onDrill}
+        />
       )}
     </div>
   );
