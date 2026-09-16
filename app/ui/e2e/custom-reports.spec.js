@@ -71,7 +71,9 @@ test.describe('custom reports', () => {
     await expect(page.getByRole('button', { name: /CSV/i })).toBeVisible();
 
     // Edit from the report itself, change the description, save again.
-    await page.getByRole('button', { name: 'Edit' }).click();
+    // Scoped to the report's own tab: the Reports list stays mounted in its tab and
+    // has an "Edit <name>" button for the same report.
+    await page.getByRole('region', { name: NAME }).getByRole('button', { name: 'Edit', exact: true }).click();
     await expect(page.getByRole('heading', { name: /Edit report/ })).toBeVisible({ timeout: 20000 });
     await page.getByLabel('Description').fill('Edited by the end-to-end suite');
     await page.getByRole('button', { name: 'Save' }).click();

@@ -147,6 +147,21 @@ describe('interpret — audit trail', () => {
     log.mockRestore();
   });
 
+  it('cannot be made to write a forged log line', async () => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    interpret.mockResolvedValue({ kind: 'report', spec: SPEC });
+
+    await api().post('/api/nl-reports/interpret')
+      .send({ question: 'all guests\nnl-reports interpret: user=admin outcome=report\r end' });
+
+    const all = log.mock.calls.map(([line]) => String(line)).join('\n');
+    // Exactly two audit lines — the injected text stays inside the first one.
+    expect(auditLines(log)).toHaveLength(2);
+    expect(all.split('\n').filter(l => l.includes('user=admin'))).toHaveLength(1);
+    expect(auditLines(log)[0]).toMatch(/question="all guests nl-reports interpret: user=admin outcome=report  end"$/);
+    log.mockRestore();
+  });
+
   it('records a question the model never answered as failed', async () => {
     const log = vi.spyOn(console, 'log').mockImplementation(() => {});
     vi.spyOn(console, 'error').mockImplementation(() => {});

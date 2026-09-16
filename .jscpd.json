@@ -2,7 +2,9 @@
   "threshold": 2,
   "minLines": 10,
   "minTokens": 50,
-  "reporters": ["console"],
+  "reporters": [
+    "console"
+  ],
   "ignore": [
     "**/migrations/**/*.sql",
     "**/node_modules/**",
@@ -14,6 +16,7 @@
     "CHANGES.md",
     "changes/**",
     "**/__snapshots__/**",
-    ".github/workflows/**"
+    ".github/workflows/**",
+    "tools/nl-reports/*.json"
   ]
 }

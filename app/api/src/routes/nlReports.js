@@ -67,6 +67,12 @@ function fail(res, route, err, status = 500) {
   res.status(status).json({ error: status === 502 ? 'The local model server is not reachable or failed.' : 'Request failed' });
 }
 
+// Values written into a log line. The question and the user label are free text (a
+// token's name claim is not validated), so control characters — including CR/LF,
+// which would let a caller forge extra log lines — are replaced, and the length is
+// capped. The model name is already validated, but goes through the same path.
+const forLog = (value, max = 300) => String(value ?? '').slice(0, max).replace(/[\r\n\u2028\u2029\p{Cc}]/gu, ' ');
+
 const userOf = (req) => (req.user && (req.user.email || req.user.upn || req.user.preferred_username || req.user.name)) || 'unknown';
 
 router.get('/nl-reports/catalog', analystGate, async (req, res) => {
@@ -163,7 +169,7 @@ router.post('/nl-reports/interpret', analystGate, async (req, res) => {
     return res.status(400).json({ error: 'Conversation is too long — start a new question' });
   }
   const started = Date.now();
-  const who = `user=${userOf(req)}`;
+  const who = `user=${forLog(userOf(req), 200)}`;
   // One question at a time per analyst. The model server has a single slot, so a
   // second request from the same person only queues behind the first — and a script
   // looping on this endpoint would hold the generator for everyone.
@@ -177,7 +183,7 @@ router.post('/nl-reports/interpret', analystGate, async (req, res) => {
     // Audit trail: who asked what, with which model — logged on arrival, so a question
     // is on record even if the model never answers — and then what came back. The
     // question is analyst text. No rows or results are ever logged.
-    console.log(`nl-reports interpret: ${who} model=${model} question=${JSON.stringify(question.slice(0, 300))}`);
+    console.log(`nl-reports interpret: ${who} model=${forLog(model, 100)} question="${forLog(question)}"`);
     const reply = await interpret({ question, history: cleanHistory, model });
     console.log(`nl-reports interpret: ${who} outcome=${reply.kind}${reply.repaired ? ' repaired' : ''} ms=${Date.now() - started}`);
     res.json(reply);

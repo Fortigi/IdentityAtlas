@@ -69,7 +69,7 @@ export async function updateSavedReport(id, value, user) {
   try {
     return await queryOne(
       `UPDATE "SavedReports" SET "name" = $2, "description" = $3, "definition" = $4, "question" = $5,
-         "updatedBy" = $6, "updatedAt" = now() AT TIME ZONE 'utc'
+         "updatedBy" = $6, "updatedAt" = now()
        WHERE "id" = $1 RETURNING ${COLUMNS}`,
       [id, value.name, value.description, JSON.stringify(value.definition), value.question, user],
     );

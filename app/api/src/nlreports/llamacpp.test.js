@@ -14,7 +14,8 @@ beforeAll(async () => {
     req.on('end', () => {
       const parsed = body ? JSON.parse(body) : undefined;
       calls.push({ method: req.method, url: req.url, body: parsed });
-      const route = routes[`${req.method} ${req.url}`];
+      const key = `${req.method} ${req.url}`;
+      const route = Object.hasOwn(routes, key) ? routes[key] : null;
       const [status, payload] = route ? route(parsed) : [404, { error: { message: 'no route' } }];
       res.writeHead(status, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(payload));

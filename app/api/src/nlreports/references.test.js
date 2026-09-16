@@ -131,6 +131,19 @@ describe('applyChoice', () => {
     expect(applyChoice(spec, null)).toBe(false);
     expect(applyChoice(valid({ entity: 'user', conditions: [{ field: 'email', op: 'eq', value: 'a' }] }), { path: [0], name: 'b' })).toBe(false);
   });
+
+  it('follows only whole, in-range positions, so a crafted path cannot reach a prototype', () => {
+    // The path comes from the browser. "__proto__" on an array is Array.prototype,
+    // whose own entries would then be written to.
+    const spec = compareSpec('x', 'resource');
+    for (const path of [['__proto__'], ['constructor', 'prototype'], ['0'], [-1], [0.5], [1]]) {
+      expect(applyChoice(spec, { path, name: 'polluted', id: 'p' }), JSON.stringify(path)).toBe(false);
+    }
+    expect({}.name).toBeUndefined();
+    expect([].reference).toBeUndefined();
+    expect(Object.prototype).not.toHaveProperty('value');
+    expect(spec.conditions[0].reference.name).toBe('x');   // the real condition was not touched either
+  });
 });
 
 describe('identities and the glossary', () => {
