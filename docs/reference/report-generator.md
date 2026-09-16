@@ -146,7 +146,8 @@ Measured on a 2-vCPU VM (shared Proxmox host, Intel Core Ultra 5), with the ship
 | Restart → first answer | **76 s** measured for "guest accounts without a manager, or whose manager is disabled": prompt cache restored in 0.1 s, 203 of 4,000 prompt tokens actually read, the rest is the answer being written. On Azure add the container start |
 | Question once warm | median **49 s**, p90 **107 s**, slowest **156 s** over the tuning set (held-out: median 48 s, p90 78 s). The slow ones are the questions that needed a correction round |
 | One-time preparation | 193–205 s measured, in the background, after an install or update |
-| Idle | no CPU. Memory stays reserved while the container runs |
+| Idle | **10.6 MB** once the model is unloaded — after 15 minutes unused by default. While it is loaded and idle: no CPU, ~3 GB |
+| Unloaded → ready | **3.0 s** with the model file in the disk cache, **15.6 s** straight from disk. The builder shows "loading the model into memory" with a timer meanwhile, and the first question afterwards is as fast as ever (76 s measured, same prompt cache) |
 
 Nearly all of an answer's time is the model *writing* the definition, at about 2.5 tokens a second on
 2 CPUs; an average reply is ~105 tokens. More CPUs is what makes answers faster — more memory does
@@ -154,8 +155,10 @@ not.
 
 **It only costs while it is used** in the sense that matters for each platform:
 
-- **Docker**: the container idles at essentially zero CPU. Memory stays allocated, so on a small host
-  either accept ~3 GB or start the profile only when you need it.
+- **Docker**: the model is **loaded only while it is used**. Opening the report builder loads it (3–16 s);
+  after `REPORT_GENERATOR_IDLE_SECONDS` without a question (900 by default) it is unloaded and the
+  container drops to ~10 MB. A host running the generator therefore needs the 4 GB only while
+  someone is building reports. Set the idle time to `0` to keep the model loaded all the time.
 - **Azure**: the Container App **scales to zero**. Azure bills per second of activity, so an idle
   generator costs nothing beyond its share of the file share holding the prompt cache. At list prices,
   2 vCPU + 4 GiB active costs in the order of tens of euro cents an hour, and Container Apps' monthly
@@ -200,7 +203,13 @@ FEATURE_CUSTOM_REPORTS=true        # or switch it on in Admin → Experimental
 docker compose -f docker-compose.prod.yml up -d --pull always
 ```
 
-Optional knobs (defaults shown): `REPORT_GENERATOR_CPUS=2`, `REPORT_GENERATOR_MEMORY=4g`.
+Optional knobs (defaults shown): `REPORT_GENERATOR_CPUS=2`, `REPORT_GENERATOR_MEMORY=4g`,
+`REPORT_GENERATOR_IDLE_SECONDS=900` (seconds unused before the model is unloaded; `0` = always loaded).
+
+How the model is loaded on demand: a small supervisor is the container's main process. It starts the
+model server (reachable only from inside the container) when a request needs it, passes every request
+through unchanged, and stops it when idle. It needs no extra privileges — it never touches Docker — and it
+checks the API key before it starts anything.
 
 Leave `COMPOSE_PROFILES` unset and nothing extra is pulled or started; the builder then reports the
 generator as unavailable and the definition editor still works.

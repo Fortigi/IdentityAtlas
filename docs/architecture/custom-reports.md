@@ -88,6 +88,18 @@ than asking cold and leaves the cache saved. Remembering the state instead is ho
 silently did nothing in the one case it was built for: a restarted generator, an API that still said
 "ready", and a 266 s answer where 76 s was expected.
 
+**The model is loaded on demand by a supervisor inside the container, not by the web app.** The model
+server holds ~3 GB it cannot release while it runs. Having the web app start and stop the container would
+need the Docker socket — root on the host — so the container stays up and its main process,
+`setup/docker/report-generator/supervisor.py`, starts llama-server (on loopback) when a request needs it
+and stops it after `REPORT_GENERATOR_IDLE_SECONDS` unused. It passes requests through unchanged, answers
+`/health` (with `model: unloaded | starting | ready`) and the model list itself so that status checks
+never wake the model, never unloads under a request in flight, and checks the API key before starting
+anything. `/api/nl-reports/warm` reads that state to tell "loading the model" (seconds) from "preparing
+the prompt cache" (minutes). llama-swap does the same job but would have needed client path rewrites for
+the cache endpoints and brings its own log, UI and unload endpoints; ~200 lines of standard-library Python
+added none of that. Its tests use a fake model server and run in CI (`test_supervisor.py`).
+
 ## Limits (and why)
 
 - **One relation hop.** A condition can reach a related record but not that record's relations.
