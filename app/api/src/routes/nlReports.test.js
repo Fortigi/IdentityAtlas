@@ -102,6 +102,49 @@ describe('interpret', () => {
   });
 });
 
+describe('interpret — audit trail', () => {
+  const auditLines = (spy) => spy.mock.calls.map(([line]) => String(line)).filter(l => l.startsWith('nl-reports interpret:'));
+
+  it('records who asked what on arrival, then what came back — and never the report itself', async () => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    interpret.mockResolvedValue({ kind: 'report', repaired: true, spec: { ...SPEC, conditions: [{ field: 'secret-looking-value' }] } });
+
+    await api().post('/api/nl-reports/interpret').send({ question: 'guests without a manager' });
+
+    const [asked, answered, ...rest] = auditLines(log);
+    expect(rest).toEqual([]);
+    expect(asked).toMatch(/user=\S+ model=test-model question="guests without a manager"/);
+    expect(answered).toMatch(/user=\S+ outcome=report repaired ms=\d+$/);
+    // The reply is not logged: a definition can carry names, and results never are.
+    expect(auditLines(log).join('\n')).not.toMatch(/secret-looking-value/);
+    log.mockRestore();
+  });
+
+  it('records a question the model never answered as failed', async () => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    interpret.mockRejectedValue(new Error('connect ECONNREFUSED'));
+
+    await api().post('/api/nl-reports/interpret').send({ question: 'all guests' });
+
+    const lines = auditLines(log);
+    expect(lines).toHaveLength(2);
+    expect(lines[0]).toMatch(/question="all guests"/);
+    expect(lines[1]).toMatch(/outcome=failed ms=\d+$/);
+    log.mockRestore();
+  });
+
+  it('logs a clarification as its own outcome, without "repaired" when there was no repair', async () => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    interpret.mockResolvedValue({ kind: 'clarify', question: 'Which kind of admin?' });
+
+    await api().post('/api/nl-reports/interpret').send({ question: 'all admins' });
+
+    expect(auditLines(log)[1]).toMatch(/outcome=clarify ms=\d+$/);
+    log.mockRestore();
+  });
+});
+
 describe('warm-up', () => {
   it('answers "preparing" instead of blocking while the prompt cache is built', async () => {
     ensureWarm.mockReturnValue({ state: 'warming', promise: new Promise(() => {}) });

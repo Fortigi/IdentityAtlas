@@ -142,12 +142,19 @@ router.post('/nl-reports/interpret', analystGate, async (req, res) => {
     }
     cleanHistory.push({ role: h.role, content: h.content });
   }
+  const started = Date.now();
+  const who = `user=${userOf(req)}`;
   try {
     const model = req.body?.model ? String(req.body.model) : await getReportModel();
-    // Audit trail: who asked what, with which model. The question is analyst text, not data.
-    console.log(`nl-reports interpret: user=${userOf(req)} model=${model} question=${JSON.stringify(question.slice(0, 300))}`);
-    res.json(await interpret({ question, history: cleanHistory, model }));
+    // Audit trail: who asked what, with which model — logged on arrival, so a question
+    // is on record even if the model never answers — and then what came back. The
+    // question is analyst text. No rows or results are ever logged.
+    console.log(`nl-reports interpret: ${who} model=${model} question=${JSON.stringify(question.slice(0, 300))}`);
+    const reply = await interpret({ question, history: cleanHistory, model });
+    console.log(`nl-reports interpret: ${who} outcome=${reply.kind}${reply.repaired ? ' repaired' : ''} ms=${Date.now() - started}`);
+    res.json(reply);
   } catch (err) {
+    console.log(`nl-reports interpret: ${who} outcome=failed ms=${Date.now() - started}`);
     fail(res, 'interpret', err, 502);
   }
 });
