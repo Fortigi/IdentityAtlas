@@ -6,7 +6,7 @@
 // preview always shows what will actually run. Saving stores the definition;
 // saved reports appear in the Reports list and open in the normal report tab.
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
 import { useFetch } from '@ui/hooks/useFetch';
 import { useDialog } from '@ui/components/dialogContext';
@@ -83,7 +83,9 @@ export default function ReportBuilderPage({ builderId, onClose, onOpenDetail, on
     if (tabLabel) onCacheData?.(builderId, 'report-builder', { displayName: tabLabel });
   }, [tabLabel, builderId, onCacheData]);
 
-  const run = async (s) => {
+  // Stable, so the saved-report preview below fires once per definition rather than
+  // on every render.
+  const run = useCallback(async (s) => {
     setRunning(true);
     setRunError(null);
     setConfirm(null);
@@ -99,7 +101,7 @@ export default function ReportBuilderPage({ builderId, onClose, onOpenDetail, on
     } finally {
       setRunning(false);
     }
-  };
+  }, [authFetch]);
 
   const confirmChoice = async (choice) => {
     setRunning(true);
@@ -115,12 +117,15 @@ export default function ReportBuilderPage({ builderId, onClose, onOpenDetail, on
     }
   };
 
-  // Preview a saved report as soon as it is loaded.
+  // Preview a saved report as soon as it is loaded. The run is kicked off after the
+  // effect returns rather than inside it: starting it inline sets the "running" flag
+  // during the same commit, which cascades a render before the tab has painted once.
   const savedDefinition = saved?.definition;
   useEffect(() => {
-    if (savedDefinition) run(savedDefinition);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [savedDefinition]);
+    if (!savedDefinition) return undefined;
+    const id = setTimeout(() => run(savedDefinition), 0);
+    return () => clearTimeout(id);
+  }, [savedDefinition, run]);
 
   const onReport = (reply, asked) => {
     setSpec(reply.spec);
