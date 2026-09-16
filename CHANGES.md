@@ -1,5 +1,18 @@
 ## Changes in this PR
 
+- Hardened Azure deployments: the Postgres admin password is now random and kept in Key Vault instead of being derived from resource names. Existing deployments keep their current password until you rotate it with the new `rotatePostgresPassword` deployment parameter.
+- Hardened Azure deployments: Postgres now only accepts connections from the web app's own outbound IP addresses instead of from every Azure service.
+- Added an opt-in private network mode for new Azure deployments (`networkMode=private`): a virtual network with private endpoints for Key Vault, Storage and Postgres.
+- Added Azure deployment parameters to restrict who can reach the web app (`webAccessDefaultAction`, `webAllowedIpCidrs`).
+- Hardened Docker Compose installs: the auto-generated secrets-vault master key now lives on a web-only volume that the worker container cannot read; an existing key is moved there automatically after it is verified.
+- The web app no longer generates a new vault master key while encrypted secrets exist, so a lost or misplaced key can be restored instead of silently making stored credentials unreadable.
+- Secrets can now be supplied as files (`POSTGRES_PASSWORD_FILE`, `DATABASE_URL_FILE`, `IDENTITY_ATLAS_MASTER_KEY_FILE`); the production compose file passes the database password as a Compose secret instead of a plain environment variable.
+- Hardened the containers: the worker now runs as a non-root user, and every service runs with no-new-privileges, a minimal capability set, and process and memory limits (configurable with `POSTGRES_MEM_LIMIT`, `WEB_MEM_LIMIT`, `WORKER_MEM_LIMIT`).
+- The worker container no longer receives unused Microsoft Graph and LLM credential environment variables, and its image no longer ships repository tooling.
+- Published images are now built from digest-pinned base images and carry signed build provenance and an SBOM attestation.
+
+## Changes in this PR
+
 - Fixed autonomous builds failing with an authentication error ("Invalid username or token") and landing in Exceptions when the build ran longer than one hour; long builds now pick up a fresh bot credential and continue where they stopped, without extra fix attempts
 - Fixed a usage-limit pause on a long build silently losing its saved work-in-progress when the bot credential had already expired
 
