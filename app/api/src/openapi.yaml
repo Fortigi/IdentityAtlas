@@ -714,6 +714,36 @@ components:
           items:
             type: string
           example: [csv, json]
+        source:
+          type: string
+          enum: [builtin, custom]
+          description: >
+            `builtin` ships with Identity Atlas; `custom` was built by someone in this
+            deployment (the experimental custom reports feature). Clients list the two apart.
+        author:
+          type: object
+          nullable: true
+          description: Who built a custom report and who last changed it. Null for built-in reports.
+          properties:
+            createdBy:
+              type: string
+              nullable: true
+            updatedBy:
+              type: string
+              nullable: true
+            updatedAt:
+              type: string
+              format: date-time
+              nullable: true
+        editable:
+          type: object
+          nullable: true
+          description: >
+            Present on a custom report. `builderId` opens it in the report builder. Editing and
+            deleting it also require the `data.write.reports` permission.
+          properties:
+            builderId:
+              type: string
 
     IngestEnvelope:
       type: object

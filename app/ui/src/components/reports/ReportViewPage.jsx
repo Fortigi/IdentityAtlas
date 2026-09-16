@@ -11,6 +11,7 @@
 import { createElement, useEffect, useState } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
 import { useFetch } from '@ui/hooks/useFetch';
+import { useCanBuildReports } from '@ui/hooks/useCanBuildReports';
 import { formatDate } from '@ui/utils/formatters';
 import EmptyState from '@ui/components/EmptyState';
 import ReportError from './ReportError';
@@ -19,6 +20,9 @@ import { downloadReport } from './reportExport';
 
 export default function ReportViewPage({ reportName, onClose, onOpenDetail, onCacheData }) {
   const { authFetch } = useAuth();
+  // The same test the Reports list applies: a reader who opens a custom report
+  // runs and downloads it, and is not offered an editor they cannot save from.
+  const canBuild = useCanBuildReports();
   const [downloading, setDownloading] = useState(null);
   const [downloadError, setDownloadError] = useState(null);
 
@@ -72,7 +76,7 @@ export default function ReportViewPage({ reportName, onClose, onOpenDetail, onCa
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {report.editable && onOpenDetail && (
+          {report.editable && canBuild && onOpenDetail && (
             <button
               type="button"
               onClick={() => onOpenDetail('report-builder', report.editable.builderId, report.displayName)}

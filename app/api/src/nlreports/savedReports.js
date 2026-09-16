@@ -102,6 +102,12 @@ export function toReportTemplate(row) {
     form: 'list',
     parametersSchema: { type: 'object', required: [], properties: {} },
     columns: compiled.columns.map(({ key, label }) => ({ key, label })),
+    source: 'custom',
+    author: {
+      createdBy: row.createdBy || null,
+      updatedBy: row.updatedBy || null,
+      updatedAt: row.updatedAt instanceof Date ? row.updatedAt.toISOString() : row.updatedAt || null,
+    },
     editable: { builderId: row.id },
     async run() {
       const result = await runSpec(row.definition);

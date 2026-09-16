@@ -77,9 +77,21 @@ describe('saved reports in the report registry', () => {
     expect(reportMetadata(t)).toMatchObject({
       name: `custom-${ID}`, displayName: 'Guests', form: 'list',
       columns: [{ key: 'displayName', label: 'Name' }], editable: { builderId: ID },
+      source: 'custom',
     });
     expect(await t.run()).toEqual({ rows: [{ displayName: 'Ann', _entity: { kind: 'user', id: 'u1' } }] });
     expect(runSpec).toHaveBeenCalledWith(DEFINITION);
+  });
+
+  it('says who built a saved report and who changed it last, with the time as ISO text', () => {
+    // Postgres hands back a Date; the list is JSON, so it must not arrive as {}.
+    const updatedAt = new Date('2026-09-16T08:30:00Z');
+    const t = toReportTemplate({ ...ROW, createdBy: 'ann@example.com', updatedBy: 'bob@example.com', updatedAt });
+    expect(reportMetadata(t).author).toEqual({
+      createdBy: 'ann@example.com', updatedBy: 'bob@example.com', updatedAt: '2026-09-16T08:30:00.000Z',
+    });
+    // A row from before anyone was recorded still lists, with nothing invented.
+    expect(reportMetadata(toReportTemplate(ROW)).author).toEqual({ createdBy: null, updatedBy: null, updatedAt: null });
   });
 
   it('a saved report that no longer validates fails loudly when run', async () => {

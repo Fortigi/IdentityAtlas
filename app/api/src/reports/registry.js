@@ -82,6 +82,11 @@ export function reportMetadata(template) {
     parametersSchema: template.parametersSchema || { type: 'object', required: [], properties: {} },
     columns: template.columns,
     exportFormats: [...EXPORT_FORMAT_NAMES],
+    // Where the report came from: shipped with Identity Atlas, or built by someone
+    // in this deployment. The Reports page lists the two apart.
+    source: template.source || 'builtin',
+    // Who built a custom report and who changed it last. Null for built-in reports.
+    author: template.author || null,
     editable: template.editable || null,
   };
 }

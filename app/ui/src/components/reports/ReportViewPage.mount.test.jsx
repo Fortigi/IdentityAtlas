@@ -36,6 +36,8 @@ function renderReport({
     type: 'application/json', filename: 'identity-atlas-report.json',
   }),
   reportName = 'orphaned-accounts',
+  features = {},
+  auth = {},
   ...props
 } = {}) {
   const authFetch = makeAuthFetch((url) => {
@@ -46,7 +48,7 @@ function renderReport({
   });
   return renderWithProviders(
     <ReportViewPage reportName={reportName} onOpenDetail={() => {}} {...props} />,
-    { auth: { authFetch } },
+    { auth: { authFetch, ...auth }, features },
   );
 }
 
@@ -280,5 +282,42 @@ describe('ReportViewPage', () => {
 
     expect(await screen.findByText(/^1 row\b/)).toBeInTheDocument();
     expect(screen.queryByText(/generated/)).not.toBeInTheDocument();
+  });
+});
+
+describe('ReportViewPage — editing a custom report from its tab', () => {
+  const CUSTOM = { editable: { builderId: '3f1c2a9e' }, displayName: 'Guests without a manager' };
+
+  it('opens the report builder for a custom report, when the user may build reports', async () => {
+    const onOpenDetail = vi.fn();
+    renderReport({ rows: rowsBody([ROW], CUSTOM), features: { customReports: true }, onOpenDetail });
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit' }));
+    expect(onOpenDetail).toHaveBeenCalledWith('report-builder', '3f1c2a9e', 'Guests without a manager');
+  });
+
+  it('offers no Edit to a reader, who may run and download the report but not change it', async () => {
+    renderReport({
+      rows: rowsBody([ROW], CUSTOM),
+      features: { customReports: true },
+      auth: { hasWildcard: false, permissions: new Set(['data.read']) },
+    });
+
+    await screen.findByRole('heading', { name: 'Guests without a manager' });
+    expect(screen.queryByRole('button', { name: 'Edit' })).toBeNull();
+    // Still a working report for them: the downloads are there.
+    expect(screen.getAllByRole('button', { name: /json|xml/i }).length).toBeGreaterThan(0);
+  });
+
+  it('offers no Edit once the feature is switched off, even to someone with the permission', async () => {
+    renderReport({ rows: rowsBody([ROW], CUSTOM), features: { customReports: false } });
+    await screen.findByRole('heading', { name: 'Guests without a manager' });
+    expect(screen.queryByRole('button', { name: 'Edit' })).toBeNull();
+  });
+
+  it('offers no Edit on a built-in report', async () => {
+    renderReport({ features: { customReports: true } });
+    await screen.findByRole('heading', { name: 'Orphaned Accounts' });
+    expect(screen.queryByRole('button', { name: 'Edit' })).toBeNull();
   });
 });

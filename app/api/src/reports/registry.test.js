@@ -87,9 +87,19 @@ describe('report registry', () => {
       parametersSchema: { type: 'object', required: [], properties: {} },
       columns: [{ key: 'a', label: 'A' }],
       exportFormats: EXPORT_FORMAT_NAMES,
+      source: 'builtin',
+      author: null,
       editable: null,
     });
     expect(meta.run).toBeUndefined();
+  });
+
+  it('passes through where a report came from and who built it, when the template says', () => {
+    const author = { createdBy: 'ann@example.com', updatedBy: 'bob@example.com', updatedAt: '2026-09-16T08:00:00.000Z' };
+    const meta = reportMetadata(dummy({ source: 'custom', author, editable: { builderId: 'b1' } }));
+    expect(meta.source).toBe('custom');
+    expect(meta.author).toEqual(author);
+    expect(meta.editable).toEqual({ builderId: 'b1' });
   });
 
   it('advertises the download formats the server serves, as a copy', () => {

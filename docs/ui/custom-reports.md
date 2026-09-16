@@ -59,12 +59,16 @@ it before you save.
 The generator may answer with a question instead of a report:
 
 - **"Did you mean…?"** — you named something (a business role, a group, a person) whose name does not
-  match exactly. Pick the right one, type the exact name, or keep what you wrote.
-- **A clarifying question** — the request is ambiguous in a way that changes the result ("everyone
-  with admin rights" — which kind?). Answer it, or ask it to use its best guess.
+  match exactly. Pick the right one, type the exact name, or keep what you wrote. This one is reliable:
+  the database does the lookup, not the model.
 - **"I cannot build this"** — the report needs information Identity Atlas does not hold. Asking for
   users who have not signed in for 90 days gets you a note that there is no sign-in date to filter
   on, rather than a report built on the wrong field.
+- **A clarifying question** — it *can* ask when a request could mean two different reports, and you
+  can answer or tell it to use its best guess. **Do not count on it.** In testing it guessed on both
+  deliberately ambiguous requests instead of asking — "everyone with admin rights" came back as one
+  kind of admin without saying so. Be specific, and read the plain-language summary: that is where a
+  guess shows.
 
 You can keep talking to it: *"only enabled accounts, and show the department"* updates the definition
 you have, including any changes you made by hand.
