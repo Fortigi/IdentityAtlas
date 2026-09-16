@@ -98,19 +98,37 @@ describe('prompt-cache warm-up', () => {
     await expect(first.promise).resolves.toMatchObject({ restored: false });
     expect(warmupState()).toBe('ready');
 
-    expect(ensureWarm()).toBe(first);   // already prepared: the prompt is not read again
-    expect(warm).toHaveBeenCalledTimes(1);
-    const forced = ensureWarm(true);    // ... unless asked to verify the saved cache
-    await forced.promise;
+    // An earlier success is not proof the model server still holds the prompt — it
+    // restarts on its own — so the next caller checks again instead of assuming.
+    const again = ensureWarm();
+    expect(again).not.toBe(first);
+    await again.promise;
     expect(warm).toHaveBeenCalledTimes(2);
     expect(warm.mock.calls[1]).toEqual(['test-model', buildSystemPrompt()]);
   });
 
   it('retries after a failed warm-up', async () => {
     warm.mockRejectedValueOnce(new Error('connection refused'));
-    await expect(ensureWarm(true).promise).rejects.toThrow('connection refused');
+    await expect(ensureWarm().promise).rejects.toThrow('connection refused');
     expect(warmupState()).toBe('failed');
     await expect(ensureWarm().promise).resolves.toMatchObject({ restored: true });
     expect(warmupState()).toBe('ready');
+  });
+
+  it('restores the prompt cache before a question, so a restarted server is not read cold', async () => {
+    warm.mockClear();
+    chat.mockResolvedValue(reply(OR_SPEC));
+    await interpret({ question: 'all guests', model: 'm' });
+    expect(warm).toHaveBeenCalledTimes(1);
+    // The restore ran BEFORE the model was asked; the other way round it is useless.
+    expect(warm.mock.invocationCallOrder[0]).toBeLessThan(chat.mock.invocationCallOrder[0]);
+  });
+
+  it('still answers when the prompt cache cannot be restored', async () => {
+    warm.mockRejectedValueOnce(new Error('connection refused'));
+    chat.mockResolvedValue(reply(OR_SPEC));
+    const out = await interpret({ question: 'all guests', model: 'm' });
+    expect(out.kind).toBe('report');
+    expect(out.spec.entity).toBe('user');
   });
 });

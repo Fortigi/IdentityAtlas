@@ -112,7 +112,10 @@ const WARM_WAIT_MS = 3000;
 
 router.post('/nl-reports/warm', analystGate, async (req, res) => {
   try {
-    const entry = ensureWarm(req.body?.force === true);
+    // No `force`: every call re-checks the running server, so there is nothing to
+    // force. Asking twice is cheap and is how a restarted generator gets its
+    // prompt cache back.
+    const entry = ensureWarm();
     const ready = await Promise.race([
       entry.promise.then(r => r, () => null),
       new Promise(resolve => setTimeout(() => resolve(undefined), WARM_WAIT_MS)),

@@ -114,7 +114,7 @@ describe('warm-up', () => {
     ensureWarm.mockReturnValue({ state: 'ready', promise: Promise.resolve({ model: 'test-model', ms: 120, restored: true }) });
     const res = await api().post('/api/nl-reports/warm').send({ force: true });
     expect(res.body).toEqual({ model: 'test-model', ms: 120, restored: true, state: 'ready' });
-    expect(ensureWarm).toHaveBeenCalledWith(true);
+    expect(ensureWarm).toHaveBeenCalledWith();
   });
 });
 

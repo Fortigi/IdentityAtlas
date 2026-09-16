@@ -21,9 +21,23 @@ const STATEMENT_TIMEOUT = '15s';
 
 let valuesCache = { at: 0, values: null };
 
-// One warm-up at a time. The first one after an install or update reads the whole
-// system prompt (minutes on a small CPU box) and saves the cache that every later
-// start restores in milliseconds. Callers that must not block ignore the promise.
+// One warm-up at a time. Two very different costs hide behind it:
+//
+//   • PREPARING the cache file — the model reads the whole ~4k-token system prompt,
+//     which is minutes on a small CPU box. Needed once per release.
+//   • RESTORING that file into the running server — ~0.1 s. Needed again every time
+//     the model server starts.
+//
+// So a warm-up that succeeded earlier is NOT proof the server still holds the
+// prompt. The generator is a separate container with its own lifecycle: on Azure it
+// is scaled to zero between questions and comes back with an empty KV cache, and on
+// Docker it restarts with the host. Remembering "ready" across that is how the
+// prompt cache came to do nothing in exactly the case it was built for — the API
+// reported ready, never restored, and the next question paid the full prompt read.
+//
+// This therefore never short-circuits on an earlier result: every call restores
+// again, which is cheap, and only a missing cache file pays to read the prompt.
+// Concurrent callers share the attempt in flight.
 let warmup = null;
 
 export function warmupState() {
@@ -31,12 +45,10 @@ export function warmupState() {
 }
 
 /**
- * @param {boolean} [force] start again even when a warm-up already succeeded (used to verify a saved cache)
  * @returns {{ state: string, promise: Promise<object> }} the warm-up in flight, started if needed
  */
-export function ensureWarm(force = false) {
-  if (force) warmup = null;
-  if (warmup && warmup.state !== 'failed') return warmup;
+export function ensureWarm() {
+  if (warmup?.state === 'warming') return warmup;
   const entry = { state: 'warming', promise: null };
   entry.promise = (async () => {
     try {
@@ -97,6 +109,11 @@ function parseReply(content) {
  * @param {string} [args.model]
  */
 export async function interpret({ question, history = [], model = DEFAULT_MODEL }) {
+  // Put the processed system prompt back in the server before asking, in case it
+  // restarted since the last question. A hit costs ~0.1 s and saves ~3 minutes; a
+  // miss is no worse than asking cold, and leaves the cache saved for next time.
+  // Never let this sink the question itself — the model answers either way.
+  await ensureWarm().promise.catch(() => {});
   const values = await loadValues();
   const clarifyRounds = history.filter(h => h.role === 'assistant' && parseReply(h.content)?.kind === 'clarify').length;
   const schema = clarifyRounds >= MAX_CLARIFY_ROUNDS ? REPORT_ONLY_SCHEMA : RESPONSE_SCHEMA;
