@@ -1,66 +1,45 @@
-# PROTOTYPE — natural-language reports with a local LLM.
+# Custom reports — the report generator, for LOCAL DEVELOPMENT.
 #
-# Overlay on the dev compose file:
+# Overlay on the dev compose file, building the same image a release publishes:
 #   docker compose -f docker-compose.yml -f docker-compose.nl-reports.yml up -d --build
 #
-# The model server is llama.cpp's llama-server (CPU build) running ONE model, chosen
-# per release. It sits on an internal network that only the web container joins: no
-# published port, no route to postgres or the worker, no internet egress.
+# A deployment does not use this file — it enables the `report-generator` profile in
+# docker-compose.prod.yml, which pulls the published image. See
+# docs/reference/report-generator.md.
 #
-# Cold start: the API restores the processed system prompt from the slot cache
-# volume (well under a second) instead of re-reading it (minutes on a small box).
-#
-# Prototype shortcut: the model file is read from the Ollama volume the earlier
-# prototype downloaded into. A release image bakes the GGUF in instead.
+# The model server sits on an internal network that only the web container joins:
+# no published port, no route to postgres or the worker, no internet egress. The
+# model is inside the image; the processed system prompt is kept in a volume so a
+# restart is instant instead of re-reading the prompt for minutes.
 
 services:
   web:
     environment:
-      NL_REPORTS_LLM_BACKEND: "llamacpp"
-      NL_REPORTS_LLM_URL: "http://llm:8080"
-      # A cold start without a saved prompt cache reads the whole prompt first — minutes, not seconds.
+      NL_REPORTS_LLM_URL: "http://report-generator:8080"
       NL_REPORTS_LLM_TIMEOUT_MS: "${NL_REPORTS_LLM_TIMEOUT_MS:-900000}"
+      FEATURE_CUSTOM_REPORTS: "${FEATURE_CUSTOM_REPORTS:-true}"
       BEHIND_TLS: "${BEHIND_TLS:-false}"
       PUBLIC_BASE_URL: "${PUBLIC_BASE_URL:-}"
-    networks: [default, llm]
+    networks: [default, report-generator]
 
-  llm:
-    # llama.cpp server, CPU build (build 10975), pinned by digest.
-    image: ghcr.io/ggml-org/llama.cpp@sha256:b15cd87030b2eb8a284d398c095e03c6ba8baf386b68e1b83ab8b46e9555ffe8
-    restart: unless-stopped
-    command:
-      - -m
-      - /models/models/blobs/sha256-85e4a5b7b8ef0e48af0e8658f5aaab9c2324c76c1641493f4d1e25fce54b18b9
-      - --alias
-      - qwen3:4b-instruct-2507-q4_K_M
-      - -c
-      - "8192"
-      - -np
-      - "1"
-      - -t
-      - "${NL_REPORTS_LLM_CPUS:-2}"
-      - --host
-      - 0.0.0.0
-      - --port
-      - "8080"
-      - --slot-save-path
-      - /slots
+  report-generator:
+    build:
+      context: .
+      dockerfile: setup/docker/Dockerfile.report-generator
+      args:
+        MODULE_VERSION: "${MODULE_VERSION:-}"
+    environment:
+      # Threads = the CPUs this container may use. Keep the two in step.
+      LLAMA_ARG_THREADS: "${REPORT_GENERATOR_CPUS:-2}"
     volumes:
-      - llm_models:/models:ro
-      - llm_slots:/slots
-    networks: [llm]
-    mem_limit: "${NL_REPORTS_LLM_MEMORY:-5g}"
-    cpus: "${NL_REPORTS_LLM_CPUS:-2}"
-    cpu_shares: 512
+      - report_generator_slots:/slots
+    networks: [report-generator]
+    mem_limit: "${REPORT_GENERATOR_MEMORY:-5g}"
+    cpus: "${REPORT_GENERATOR_CPUS:-2}"
 
 networks:
-  llm:
+  report-generator:
     internal: true
 
 volumes:
-  llm_models:
-    external: true
-    name: nlproto_llm_models
-  llm_slots:
-    external: true
-    name: nlproto_slot_cache
+  report_generator_slots:
