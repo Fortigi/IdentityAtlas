@@ -303,6 +303,18 @@ jobs:
           esac
           { echo "host=$(hostname)"; echo "url=$url"; } >> "$GITHUB_OUTPUT"
 
+      # The workspace is reused across jobs on this box. A sparse checkout left in it by any earlier job
+      # survives actions/checkout's full checkout: its `sparse-checkout disable` writes false only to
+      # config.worktree, then it drops extensions.worktreeConfig, so the `true` in .git/config wins again
+      # and the final checkout re-applies the old pattern. Clear it here so the checkout below is whole.
+      - name: Clear any sparse checkout left in the shared workspace
+        run: |
+          set -uo pipefail
+          [ -d .git ] || exit 0
+          git config --local --unset-all core.sparseCheckout || true
+          git config --local --unset-all core.sparseCheckoutCone || true
+          rm -f .git/info/sparse-checkout
+
       - name: Checkout main (base for the implementation branch)
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
