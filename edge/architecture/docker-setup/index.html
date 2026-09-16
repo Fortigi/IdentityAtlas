@@ -1837,6 +1837,34 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#container-security" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Container Security
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Container Security">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#upgrading-from-an-older-compose-file" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Upgrading from an older compose file
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#developer-setup-from-source" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2054,21 +2082,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#crawler-credentials-optional-can-also-configure-via-the-in-browser-wizard" class="md-nav__link">
+  <a href="#crawler-credentials" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Crawler credentials (optional — can also configure via the in-browser wizard)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#llm-risk-scoring-optional" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        LLM / Risk Scoring (optional)
+        Crawler credentials
       
     </span>
   </a>
@@ -5315,6 +5332,34 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#container-security" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Container Security
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Container Security">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#upgrading-from-an-older-compose-file" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Upgrading from an older compose file
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#developer-setup-from-source" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5532,21 +5577,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#crawler-credentials-optional-can-also-configure-via-the-in-browser-wizard" class="md-nav__link">
+  <a href="#crawler-credentials" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Crawler credentials (optional — can also configure via the in-browser wizard)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#llm-risk-scoring-optional" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        LLM / Risk Scoring (optional)
+        Crawler credentials
       
     </span>
   </a>
@@ -5743,7 +5777,7 @@
 <tr>
 <td><code>IDENTITY_ATLAS_MASTER_KEY</code></td>
 <td><em>(auto-generated)</em></td>
-<td>Set an explicit value so you can back it up; if left blank the container generates one and saves it to the <code>job_data</code> volume</td>
+<td>Set an explicit value so you can back it up; if left blank the web container generates one and saves it to the web-only <code>web_keys</code> volume</td>
 </tr>
 </tbody>
 </table>
@@ -5910,6 +5944,22 @@
 <p><strong>Red flags</strong>: swap in use at all (disable swap and size RAM properly), <code>PrincipalActivity</code> &gt; 40% of total DB size (tune <code>signInLogsDays</code> down or plan a vertical scale), a single crawler run taking longer than the scheduled interval.</p>
 <h3 id="swap">Swap<a class="headerlink" href="#swap" title="Permanent link">&para;</a></h3>
 <p>Do <strong>not</strong> rely on swap to carry crawler peaks. The workloads here (Node's V8 heap, PowerShell's .NET object graph, Postgres shared buffers) all degrade sharply under paging. If the table above says 12 GB, give it 12 GB of real RAM. A small swap partition (1–2 GB) as a safety net against OOM-kills is fine; anything larger invites false confidence.</p>
+<hr />
+<h2 id="container-security">Container Security<a class="headerlink" href="#container-security" title="Permanent link">&para;</a></h2>
+<p><code>docker-compose.prod.yml</code> (compose file version 4 and later) applies these defaults:</p>
+<ul>
+<li><strong>Secrets as files, not environment variables.</strong> <code>POSTGRES_PASSWORD</code> is still read from <code>.env</code>, but Compose hands it to the <code>postgres</code> and <code>web</code> containers as a secret file under <code>/run/secrets</code> (<code>POSTGRES_PASSWORD_FILE</code>), so it no longer appears in <code>docker inspect</code>. The API accepts <code>&lt;NAME&gt;_FILE</code> for <code>POSTGRES_PASSWORD</code>, <code>DATABASE_URL</code> and <code>IDENTITY_ATLAS_MASTER_KEY</code>; a plain variable that is set still wins. Environment-sourced Compose secrets need a recent Docker Compose v2 (v2.20 or later is recommended).</li>
+<li><strong>The vault master key is not on the shared volume.</strong> The web container keeps its auto-generated key in the <code>web_keys</code> volume (<code>IDENTITY_ATLAS_KEY_DIR=/data/keys</code>), which the worker does not mount. On the first start with this compose file, an existing <code>/data/uploads/.master-key</code> is copied there, read back, checked against a stored secret, and only then removed from <code>job_data</code>. <strong>Back up the <code>web_keys</code> volume</strong> (or set <code>IDENTITY_ATLAS_MASTER_KEY</code> explicitly).</li>
+<li><strong>Fewer secrets in the worker.</strong> The worker receives neither the database password nor the master key, and no longer gets the unused <code>GRAPH_*</code> / <code>LLM_*</code> variables. Crawler and LLM credentials are configured in the UI and reach the worker per job.</li>
+<li><strong>Hardening.</strong> Every service runs with <code>no-new-privileges</code> and <code>cap_drop: [ALL]</code> (Postgres keeps the five capabilities its entrypoint needs), a <code>pids_limit</code>, and a memory limit (<code>POSTGRES_MEM_LIMIT</code>, <code>WEB_MEM_LIMIT</code>, <code>WORKER_MEM_LIMIT</code>, default <code>8g</code> each; raise them for very large tenants, see <a href="#sizing">Sizing</a>). The worker image runs as uid 1000, like the web image; on start it recreates a job-log directory left root-owned by an older worker image.</li>
+<li><strong>Supply chain.</strong> Base images are pinned by digest, and every published image carries signed build provenance and an SBOM: <code>gh attestation verify oci://ghcr.io/fortigi/identity-atlas:latest --owner Fortigi</code>.</li>
+</ul>
+<h3 id="upgrading-from-an-older-compose-file">Upgrading from an older compose file<a class="headerlink" href="#upgrading-from-an-older-compose-file" title="Permanent link">&para;</a></h3>
+<p>An older <code>docker-compose.prod.yml</code> keeps working with the new images: the master key stays at <code>/data/uploads/.master-key</code> (it is only moved when <code>IDENTITY_ATLAS_KEY_DIR</code> is set), and the database password is passed as before. Download the new file to get the protections above.</p>
+<ul>
+<li><strong>If you pin <code>IMAGE_TAG</code> to an older release</strong>, use the compose file from that release. The new file relies on <code>POSTGRES_PASSWORD_FILE</code> support in the web image.</li>
+<li><strong>Rolling back after the key has moved.</strong> If you return to an older compose file or image after the key was moved to <code>web_keys</code>, copy it out first and set it explicitly: run <code>docker compose exec web cat /data/keys/.master-key</code> and put the value in <code>IDENTITY_ATLAS_MASTER_KEY</code>. Current images refuse to generate a new key while the vault holds encrypted secrets and log how to recover instead; set <code>IDENTITY_ATLAS_ALLOW_NEW_MASTER_KEY=true</code> only if you intend to discard those secrets.</li>
+</ul>
 <hr />
 <h2 id="developer-setup-from-source">Developer Setup (From Source)<a class="headerlink" href="#developer-setup-from-source" title="Permanent link">&para;</a></h2>
 <p>For contributors who want to build and modify the code locally.</p>
@@ -6224,7 +6274,22 @@ write goes through the API.</p>
 <tr>
 <td><code>IDENTITY_ATLAS_MASTER_KEY</code></td>
 <td><em>(auto-generated)</em></td>
-<td>Master key for the AES-256-GCM secrets vault (LLM API keys, scraper credentials). If left blank, the container generates a key on first start and persists it to the <code>job_data</code> volume. <strong>Set an explicit value for production</strong> so the key can be backed up alongside other root secrets.</td>
+<td>Master key for the AES-256-GCM secrets vault (LLM API keys, scraper credentials). If left blank, the web container generates a key on first start and persists it to the web-only <code>web_keys</code> volume (<code>docker-compose.prod.yml</code> v4+; older compose files use the <code>job_data</code> volume). <strong>Set an explicit value for production</strong> so the key can be backed up alongside other root secrets.</td>
+</tr>
+<tr>
+<td><code>IDENTITY_ATLAS_MASTER_KEY_FILE</code></td>
+<td>—</td>
+<td>Path to a file holding the master key (for Docker/Compose secrets). Used when <code>IDENTITY_ATLAS_MASTER_KEY</code> is empty. <code>POSTGRES_PASSWORD_FILE</code> and <code>DATABASE_URL_FILE</code> work the same way.</td>
+</tr>
+<tr>
+<td><code>IDENTITY_ATLAS_KEY_DIR</code></td>
+<td><em>(unset)</em></td>
+<td>Directory for the auto-generated master key. The compose files set it to <code>/data/keys</code> (a web-only volume). Only set it when that path is a persistent volume.</td>
+</tr>
+<tr>
+<td><code>POSTGRES_MEM_LIMIT</code> / <code>WEB_MEM_LIMIT</code> / <code>WORKER_MEM_LIMIT</code></td>
+<td><code>8g</code></td>
+<td>Container memory limits in <code>docker-compose.prod.yml</code>.</td>
 </tr>
 </tbody>
 </table>
@@ -6261,7 +6326,7 @@ write goes through the API.</p>
 </tr>
 </tbody>
 </table>
-<h4 id="crawler-credentials-optional-can-also-configure-via-the-in-browser-wizard">Crawler credentials (optional — can also configure via the in-browser wizard)<a class="headerlink" href="#crawler-credentials-optional-can-also-configure-via-the-in-browser-wizard" title="Permanent link">&para;</a></h4>
+<h4 id="crawler-credentials">Crawler credentials<a class="headerlink" href="#crawler-credentials" title="Permanent link">&para;</a></h4>
 <table>
 <thead>
 <tr>
@@ -6276,45 +6341,9 @@ write goes through the API.</p>
 <td><em>(auto-generated)</em></td>
 <td>API key the worker uses to authenticate with the API. Auto-generated on first start; override only if you need a fixed key.</td>
 </tr>
-<tr>
-<td><code>GRAPH_TENANT_ID</code></td>
-<td>—</td>
-<td>Entra ID tenant ID for the Graph API crawler.</td>
-</tr>
-<tr>
-<td><code>GRAPH_CLIENT_ID</code></td>
-<td>—</td>
-<td>App Registration client ID.</td>
-</tr>
-<tr>
-<td><code>GRAPH_CLIENT_SECRET</code></td>
-<td>—</td>
-<td>App Registration client secret.</td>
-</tr>
 </tbody>
 </table>
-<h4 id="llm-risk-scoring-optional">LLM / Risk Scoring (optional)<a class="headerlink" href="#llm-risk-scoring-optional" title="Permanent link">&para;</a></h4>
-<table>
-<thead>
-<tr>
-<th>Variable</th>
-<th>Default</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>LLM_PROVIDER</code></td>
-<td>—</td>
-<td><code>Anthropic</code>, <code>OpenAI</code>, or <code>AzureOpenAI</code>. Can also be configured per-tenant via Admin → LLM Settings.</td>
-</tr>
-<tr>
-<td><code>LLM_API_KEY</code></td>
-<td>—</td>
-<td>API key for the selected LLM provider.</td>
-</tr>
-</tbody>
-</table>
+<p>Microsoft Graph and LLM credentials are configured in the UI (the crawler wizard and Admin → LLM Settings) and stored encrypted in the vault. The <code>GRAPH_TENANT_ID</code>, <code>GRAPH_CLIENT_ID</code>, <code>GRAPH_CLIENT_SECRET</code>, <code>LLM_PROVIDER</code> and <code>LLM_API_KEY</code> environment variables were never read by the containers and are no longer passed to them.</p>
 <hr />
 <h2 id="folder-mapping">Folder Mapping<a class="headerlink" href="#folder-mapping" title="Permanent link">&para;</a></h2>
 <table>
@@ -6344,7 +6373,12 @@ write goes through the API.</p>
 <tr>
 <td><code>job_data</code> (named volume)</td>
 <td><code>/data/uploads/</code></td>
-<td>web (writes), worker (reads) — CSV crawler uploads</td>
+<td>web (writes), worker (reads) — CSV crawler uploads, job logs, built-in worker key</td>
+</tr>
+<tr>
+<td><code>web_keys</code> (named volume)</td>
+<td><code>/data/keys/</code></td>
+<td>web only — auto-generated vault master key</td>
 </tr>
 </tbody>
 </table>

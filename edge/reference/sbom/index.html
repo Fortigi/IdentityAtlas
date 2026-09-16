@@ -6215,7 +6215,7 @@
 <h3 id="credential-storage">Credential Storage<a class="headerlink" href="#credential-storage" title="Permanent link">&para;</a></h3>
 <ul>
 <li><strong>Secrets vault</strong>: All sensitive credentials (LLM API keys, scraper credentials) are stored encrypted in the PostgreSQL <code>Secrets</code> table using AES-256-GCM with envelope encryption</li>
-<li><strong>Master key</strong>: The <code>IDENTITY_ATLAS_MASTER_KEY</code> environment variable controls the root encryption key; if unset, a key is auto-generated and persisted to the <code>job_data</code> volume</li>
+<li><strong>Master key</strong>: The <code>IDENTITY_ATLAS_MASTER_KEY</code> environment variable controls the root encryption key; if unset, a key is auto-generated and persisted to the web-only <code>web_keys</code> volume</li>
 <li><strong>PostgreSQL password</strong>: Default password is for local evaluation only; production deployments must set <code>POSTGRES_PASSWORD</code> explicitly</li>
 </ul>
 <h3 id="network-exposure">Network Exposure<a class="headerlink" href="#network-exposure" title="Permanent link">&para;</a></h3>

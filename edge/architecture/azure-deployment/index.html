@@ -1915,6 +1915,28 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#network-modes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Network modes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#postgres-admin-password" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Postgres admin password
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#postgres-access" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5148,6 +5170,28 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#network-modes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Network modes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#postgres-admin-password" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Postgres admin password
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#postgres-access" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5305,7 +5349,7 @@
 <blockquote>
 <p>Companion to the Bicep in <a href="https://github.com/Fortigi/IdentityAtlas/tree/main/azure"><code>/azure</code></a>.
 One-click install: see the <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/README.md#deploy-to-azure">README's Deploy to Azure button</a>.
-<strong>Target:</strong> customers whose networking is owned by a central CCoE. No VNet, no private endpoints, no public IP that you provision.</p>
+<strong>Target:</strong> customers whose networking is owned by a central CCoE. The default public network mode needs no VNet, private endpoints or public IP that you provision; an opt-in private mode adds them for new deployments (see <a href="#network-modes">Network modes</a>).</p>
 </blockquote>
 <h2 id="what-you-get">What you get<a class="headerlink" href="#what-you-get" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>                                    Internet
@@ -5329,9 +5373,9 @@ One-click install: see the <a href="https://github.com/Fortigi/IdentityAtlas/blo
 <a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>   ┌──────────────────┐     ┌────────────────────┐        ┌──────────────────┐
 <a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>   │ Postgres Flex    │     │ Azure Files share  │        │ Key Vault         │
 <a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a>   │ Public endpoint, │     │ (Storage Account)  │        │ Public endpoint,  │
-<a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a>   │ "Allow Azure     │     │ /data/uploads      │        │ RBAC-only.        │
-<a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a>   │  services"       │     │ shared with worker │        │ master key +      │
-<a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a>   │ firewall rule    │     └────────────────────┘        │ DB password.      │
+<a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a>   │ firewall: web    │     │ /data/uploads      │        │ access policies.  │
+<a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a>   │ app outbound IPs │     │ shared with worker │        │ master key +      │
+<a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a>   │ only             │     └────────────────────┘        │ DB password.      │
 <a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a>   └──────────────────┘                                   └──────────────────┘
 <a id="__codelineno-0-26" name="__codelineno-0-26" href="#__codelineno-0-26"></a>
 <a id="__codelineno-0-27" name="__codelineno-0-27" href="#__codelineno-0-27"></a>                ─── Container Apps Environment (Consumption, no VNet) ───
@@ -5431,7 +5475,7 @@ Use this when the deployer can't be granted Reader. The template plumbs the valu
 <h2 id="how-it-deploys-timing">How it deploys (timing)<a class="headerlink" href="#how-it-deploys-timing" title="Permanent link">&para;</a></h2>
 <ol>
 <li><strong>Storage, Log Analytics (or lookup), Managed Identities, Key Vault</strong> — all parallel, &lt; 1 min.</li>
-<li><strong>Bootstrap deployment script</strong> — runs as the deployScript managed identity. Generates the master key + Postgres admin password, writes both to KV. ~30 s.</li>
+<li><strong>Bootstrap deployment script</strong> — runs as the deployScript managed identity. Generates the master key + a random Postgres admin password into KV when they do not exist yet (existing values are kept). ~30 s.</li>
 <li><strong>Postgres Flexible Server</strong> — slowest single step, ~3-4 min.</li>
 <li><strong>App Service Plan + App Service</strong> — App Service starts the container image (first pull from ghcr.io, ~1-2 min).</li>
 <li><strong>Container Apps Environment + Worker App</strong> — ~2 min.</li>
@@ -5486,14 +5530,69 @@ channel by redeploying with <code>imageChannel=stable</code> (the default) — p
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="n">AppServiceConsoleLogs</span><span class="w"> </span><span class="p">|</span><span class="w"> </span><span class="k">where</span><span class="w"> </span><span class="n">_ResourceId</span><span class="w"> </span><span class="n">endswith</span><span class="w"> </span><span class="s">"&lt;namePrefix&gt;-web"</span>
 <a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="n">ContainerAppConsoleLogs_CL</span><span class="w"> </span><span class="p">|</span><span class="w"> </span><span class="k">where</span><span class="w"> </span><span class="n">ContainerAppName_s</span><span class="w"> </span><span class="p">==</span><span class="w"> </span><span class="s">"&lt;namePrefix&gt;-worker"</span>
 </code></pre></div></p>
+<h3 id="network-modes">Network modes<a class="headerlink" href="#network-modes" title="Permanent link">&para;</a></h3>
+<p>The <code>networkMode</code> parameter picks the network shape.</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th><strong>public</strong> (default)</th>
+<th><strong>private</strong> (new deployments only)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Postgres</td>
+<td>Public endpoint. Firewall allows only the web app's possible outbound IP addresses (one rule each).</td>
+<td>Public network access disabled; private endpoint.</td>
+</tr>
+<tr>
+<td>Key Vault</td>
+<td>Public endpoint, default action Allow. Access still requires the managed identity's access policy.</td>
+<td>Private endpoint. Default action Deny after the deployment finishes (trusted Azure services bypass).</td>
+</tr>
+<tr>
+<td>Storage (Azure Files)</td>
+<td>Public endpoint, default action Allow (App Service and a VNet-less Container Apps environment can only mount it that way).</td>
+<td>Private endpoint. Default action Deny after the deployment finishes.</td>
+</tr>
+<tr>
+<td>Web app</td>
+<td>Public.</td>
+<td>Public, with regional VNet integration and all outbound traffic routed through the VNet.</td>
+</tr>
+<tr>
+<td>Worker</td>
+<td>Container Apps environment without a VNet.</td>
+<td>Container Apps environment in a /23 subnet.</td>
+</tr>
+<tr>
+<td>Extra cost</td>
+<td>—</td>
+<td>Private endpoints and DNS zones, roughly €25/mo.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Why private is for new deployments only:</strong> the VNet of an existing Container Apps environment cannot be changed, so switching an existing deployment fails at the worker environment step. The Key Vault and Storage lock-down steps run last and only after everything else succeeded, so such a failed attempt does not close access that is still in use, but the deployment does not complete. Create a new resource group for a private deployment.</p>
+<p>During a private-mode redeploy, Key Vault and Storage are opened (default action Allow) while the bootstrap script runs and closed again at the end.</p>
+<p><strong>Postgres firewall (public mode).</strong> Earlier templates allowed "all Azure services" (<code>0.0.0.0</code>), which admits resources from every Azure tenant. Redeploying with the current template narrows the existing rule, keeping its name <code>AllowAllAzureServicesAndResourcesWithinAzureIps</code>, to one of the web app's outbound addresses and adds <code>web-app-outbound-N</code> rules for the rest. The outbound list changes only when the App Service Plan moves to another pricing tier; a redeploy refreshes the rules. If you need the old behaviour, set <code>postgresAllowAllAzureServices=true</code> (not recommended).</p>
+<p><strong>Web app access restrictions.</strong> <code>webAccessDefaultAction</code> (default <code>Allow</code>) and <code>webAllowedIpCidrs</code> control who can reach the web app. With <code>Deny</code>, only the listed CIDRs can — plus, in private mode, the worker subnet. In public mode the worker calls the web app's public URL from the Container Apps environment's outbound address, so add that address to <code>webAllowedIpCidrs</code> before you choose <code>Deny</code>.</p>
+<p><strong>TLS to Postgres.</strong> The web app sets <code>PGSSLMODE=require</code>. With node-postgres this already verifies the server certificate chain and hostname (it is treated as <code>ssl: true</code>, unlike libpq's <code>require</code>), so no separate <code>verify-full</code> setting is needed.</p>
+<h3 id="postgres-admin-password">Postgres admin password<a class="headerlink" href="#postgres-admin-password" title="Permanent link">&para;</a></h3>
+<p>The admin password is random, generated once by the bootstrap script and stored in Key Vault as <code>postgres-admin-password</code>; the template passes it to the server with <code>getSecret()</code> and the web app references the exact secret version. Nothing about it is derived from resource names.</p>
+<p><strong>Deployments created before this change</strong> used a password derived from the subscription ID and resource group name, which anyone who learns both can compute. Redeploying keeps that password (nothing rotates silently). Rotate it once, deliberately:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="n">az</span> <span class="n">deployment</span> <span class="nb">group </span><span class="n">create</span> <span class="n">-g</span> <span class="p">&lt;</span><span class="n">rg</span><span class="p">&gt;</span> <span class="p">-</span><span class="n">-template</span><span class="o">-file</span> <span class="n">azure</span><span class="p">/</span><span class="n">main</span><span class="p">.</span><span class="n">bicep</span> <span class="p">-</span><span class="n">-parameters</span> <span class="n">rotatePostgresPassword</span><span class="p">=</span><span class="n">true</span>
+</code></pre></div>
+<p>The bootstrap script writes a new random password to Key Vault, the Postgres server is updated, and the web app restarts onto the new secret version in the same deployment (expect a short interruption). Redeploy later without the parameter (it defaults to <code>false</code>); passing it again rotates again. In the portal, set <strong>Rotate Postgres Password</strong> to <code>true</code> on the Deploy to Azure form.</p>
+<p><strong>Entra ID authentication for Postgres</strong> (a managed-identity token instead of a password) is not enabled yet. It needs an Entra administrator on the server, a database role for the web app's managed identity, and token acquisition in the API; the schema is currently owned by the password-based admin role. Tracked as a follow-up.</p>
 <h3 id="postgres-access">Postgres access<a class="headerlink" href="#postgres-access" title="Permanent link">&para;</a></h3>
-<p>Postgres has a public endpoint with a firewall rule allowing Azure services. To run psql from a workstation:
+<p>In public mode Postgres accepts only the web app's outbound addresses. To run psql from a workstation:
 1. Add a temporary firewall rule for your IP: <code>az postgres flexible-server firewall-rule create --resource-group &lt;rg&gt; --name &lt;pgname&gt; --rule-name temp-yourip --start-ip-address &lt;ip&gt; --end-ip-address &lt;ip&gt;</code>.
 2. Fetch the admin password from Key Vault: <code>az keyvault secret show --vault-name &lt;kv&gt; --name postgres-admin-password --query value -o tsv</code>.
 3. <code>psql "postgres://identityatlas:&lt;pw&gt;@&lt;pgFqdn&gt;:5432/identity_atlas?sslmode=require"</code>.
 4. Delete the firewall rule when done.</p>
 <h3 id="tearing-down">Tearing down<a class="headerlink" href="#tearing-down" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>az<span class="w"> </span>group<span class="w"> </span>delete<span class="w"> </span>--name<span class="w"> </span>&lt;rg&gt;<span class="w"> </span>--yes
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>az<span class="w"> </span>group<span class="w"> </span>delete<span class="w"> </span>--name<span class="w"> </span>&lt;rg&gt;<span class="w"> </span>--yes
 </code></pre></div>
 <p>Key Vault has soft delete + purge protection (7-day retention). To redeploy with the same KV name within those 7 days, either wait or deploy into a different resource group — the name prefix is derived from the resource group ID, so it can no longer be chosen directly.</p>
 <h2 id="decisions-taken-and-why">Decisions taken (and why)<a class="headerlink" href="#decisions-taken-and-why" title="Permanent link">&para;</a></h2>
@@ -5513,13 +5612,13 @@ channel by redeploying with <code>imageChannel=stable</code> (the default) — p
 </tr>
 <tr>
 <td><strong>Postgres endpoint</strong></td>
-<td>Public + "Allow Azure services" firewall</td>
-<td>App Service outbound IPs come from a Microsoft-owned pool; this rule covers them without enumeration.</td>
+<td>Public + firewall limited to the web app's outbound IPs (default), or private endpoint (<code>networkMode=private</code>)</td>
+<td>"Allow Azure services" admitted every Azure tenant. The App Service publishes every outbound address it can use, so the rules are exact without a VNet.</td>
 </tr>
 <tr>
 <td><strong>Key Vault endpoint</strong></td>
-<td>Public, RBAC-only</td>
-<td>Access is gated by <code>Key Vault Secrets User</code> role, not network. Anonymous access returns 403.</td>
+<td>Public, access policies (default); private endpoint + Deny (<code>networkMode=private</code>)</td>
+<td>The bootstrap script and App Service Key Vault references need network access; without a VNet that means the public endpoint. Access is gated by access policies either way.</td>
 </tr>
 <tr>
 <td><strong>App Service image source</strong></td>
@@ -5533,8 +5632,8 @@ channel by redeploying with <code>imageChannel=stable</code> (the default) — p
 </tr>
 <tr>
 <td><strong>Master key + DB password</strong></td>
-<td>Generated by deployment script, stored in KV, exposed to the app via KV references</td>
-<td>Zero secrets in the template, the deployment history, or ARM. App reads them via managed identity at startup.</td>
+<td>Random, generated by deployment script, stored in KV, exposed to the app via KV references</td>
+<td>Zero secrets in the template, the deployment history, or ARM, and nothing derivable from resource names. App reads them via managed identity at startup.</td>
 </tr>
 <tr>
 <td><strong>Auth</strong></td>
@@ -5553,8 +5652,8 @@ channel by redeploying with <code>imageChannel=stable</code> (the default) — p
 </tr>
 <tr>
 <td><strong>VNet integration</strong></td>
-<td>Not in the Simple shape</td>
-<td>If a customer demands private Postgres / KV later, a separate "Isolated" template will add it with the customer's CCoE-provided subnet IDs.</td>
+<td>Opt-in <code>networkMode=private</code> for new deployments</td>
+<td>Keeps the default shape free of networking prerequisites while offering private endpoints when required. The template creates its own VNet; bringing a CCoE-provided subnet is not supported yet.</td>
 </tr>
 </tbody>
 </table>
@@ -5565,7 +5664,8 @@ channel by redeploying with <code>imageChannel=stable</code> (the default) — p
 <li><strong>No GitHub Actions deploy workflow.</strong> Use Deploy-to-Azure button + <code>deploy.ps1</code> for now.</li>
 <li><strong>No Entra App Registration auto-creation.</strong> Done manually if/when enabling Entra auth.</li>
 <li><strong>No platform-level App Service authentication (Easy Auth).</strong> Entra sign-in is enforced inside the application, not by the App Service <code>authSettingsV2</code> config. Microsoft Defender for Cloud therefore flags the web app with <em>"App Service apps should have authentication enabled"</em> on every deployment — expected, and cleared with a Defender exemption. See <a href="../azure-deployment-walkthrough/#microsoft-defender-for-cloud-app-service-apps-should-have-authentication-enabled">azure-deployment-walkthrough.md</a>.</li>
-<li><strong>Public Postgres / KV endpoints.</strong> A future "Isolated" template will add private endpoints when a customer wants them.</li>
+<li><strong>Public Key Vault / Storage endpoints in the default mode.</strong> Use <code>networkMode=private</code> on a new deployment for private endpoints. An existing public deployment cannot be switched in place.</li>
+<li><strong>Postgres uses password authentication.</strong> Entra ID authentication with the web app's managed identity is a follow-up.</li>
 </ul>
 <h2 id="file-index">File index<a class="headerlink" href="#file-index" title="Permanent link">&para;</a></h2>
 <table>
@@ -5606,7 +5706,19 @@ channel by redeploying with <code>imageChannel=stable</code> (the default) — p
 </tr>
 <tr>
 <td><code>azure/modules/key-vault.bicep</code></td>
-<td>Key Vault + RBAC (public endpoint)</td>
+<td>Key Vault + access policies + network ACL</td>
+</tr>
+<tr>
+<td><code>azure/modules/network.bicep</code></td>
+<td>Private mode: VNet, subnets, private DNS zones</td>
+</tr>
+<tr>
+<td><code>azure/modules/private-endpoints.bicep</code></td>
+<td>Private mode: private endpoints for Key Vault, Storage, Postgres</td>
+</tr>
+<tr>
+<td><code>azure/modules/postgres-firewall.bicep</code></td>
+<td>Public mode: Postgres firewall rules for the web app's outbound IPs</td>
 </tr>
 <tr>
 <td><code>azure/modules/bootstrap.bicep</code></td>
@@ -5614,7 +5726,7 @@ channel by redeploying with <code>imageChannel=stable</code> (the default) — p
 </tr>
 <tr>
 <td><code>azure/modules/postgres.bicep</code></td>
-<td>Postgres Flex + firewall</td>
+<td>Postgres Flex</td>
 </tr>
 <tr>
 <td><code>azure/modules/app-service.bicep</code></td>

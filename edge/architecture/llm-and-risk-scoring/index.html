@@ -5373,8 +5373,9 @@ here).</p>
 <li><strong>Schema</strong>: <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/"><code>Secrets</code></a> — id, scope, label, ciphertext, iv, authTag + per-row encryptedKey/keyIv/keyAuthTag.</li>
 <li><strong>Encryption</strong>: AES-256-GCM. Per-row 32-byte data key. The data key is wrapped by a master key from <code>IDENTITY_ATLAS_MASTER_KEY</code> (32 bytes, base64).</li>
 <li><strong>Master key bootstrap</strong>:</li>
-<li><code>IDENTITY_ATLAS_MASTER_KEY</code> env var (preferred — back this up like any other root secret)</li>
-<li><code>/data/uploads/.master-key</code> file (auto-generated on first boot, persisted in the same docker volume as the worker key)</li>
+<li><code>IDENTITY_ATLAS_MASTER_KEY</code> env var, or <code>IDENTITY_ATLAS_MASTER_KEY_FILE</code> (preferred — back this up like any other root secret)</li>
+<li>A key file, auto-generated on first boot: <code>$IDENTITY_ATLAS_KEY_DIR/.master-key</code> (the web-only <code>web_keys</code> volume in the compose files), or <code>/data/uploads/.master-key</code> when <code>IDENTITY_ATLAS_KEY_DIR</code> is unset (older compose files). A key found at the old location is moved to the key directory after it is verified. See <code>app/api/src/secrets/masterKeyStore.js</code>.</li>
+<li>No new key is generated while the vault already holds encrypted secrets — restore the key instead (or set <code>IDENTITY_ATLAS_ALLOW_NEW_MASTER_KEY=true</code> to start over).</li>
 <li><strong>Public API</strong>: <code>putSecret(id, scope, value, label)</code>, <code>getSecret(id, scope)</code>, <code>hasSecret(id, scope)</code>, <code>deleteSecret(id, scope)</code>, <code>listSecrets(scope)</code>, <code>selfTest()</code>. Every read, existence check and delete names the scope it may touch — a row in another scope is treated as absent.</li>
 <li><strong>Why envelope encryption</strong>: per-row keys mean a single compromised secret doesn't expose the others; rotating the master key only re-encrypts the small data keys, not the (potentially large) ciphertexts; the same shape works for an HSM/KMS later by swapping the wrapping function.</li>
 </ul>
@@ -5665,8 +5666,8 @@ container has started cleanly on the new one.</p>
 so a ciphertext copied onto a different row does not decrypt. Rows written by
 older versions are re-bound automatically at startup.</p>
 <h3 id="backups">Backups<a class="headerlink" href="#backups" title="Permanent link">&para;</a></h3>
-<p>Back up the postgres database <strong>and</strong> <code>/data/uploads/.master-key</code> (if you used
-the auto-generated key) <strong>and</strong> the <code>IDENTITY_ATLAS_MASTER_KEY</code> env var (if you
+<p>Back up the postgres database <strong>and</strong> the auto-generated key file (<code>/data/keys/.master-key</code>
+in the <code>web_keys</code> volume, or <code>/data/uploads/.master-key</code> with an older compose file) <strong>and</strong> the <code>IDENTITY_ATLAS_MASTER_KEY</code> env var (if you
 set it explicitly). Without the master key, every secret in the vault is
 unrecoverable.</p>
 <h3 id="disabling-the-feature">Disabling the feature<a class="headerlink" href="#disabling-the-feature" title="Permanent link">&para;</a></h3>

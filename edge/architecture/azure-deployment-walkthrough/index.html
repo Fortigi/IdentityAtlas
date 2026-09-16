@@ -5432,7 +5432,7 @@
 <h2 id="what-youll-get">What you'll get<a class="headerlink" href="#what-youll-get" title="Permanent link">&para;</a></h2>
 <ul>
 <li>An App Service for Linux Containers running the Identity Atlas web image</li>
-<li>A Postgres Flexible Server (private credentials, public endpoint, firewall-restricted to Azure services)</li>
+<li>A Postgres Flexible Server (random admin password kept in Key Vault; firewall limited to the web app's outbound IP addresses, or reachable only through a private endpoint with <code>networkMode=private</code>)</li>
 <li>A Container App worker that polls Microsoft Graph on a schedule</li>
 <li>Key Vault, Storage Account (for <code>/data/uploads</code>), Log Analytics</li>
 <li>Entra ID single sign-on enforced on every API endpoint — <strong>no anonymous access</strong></li>
