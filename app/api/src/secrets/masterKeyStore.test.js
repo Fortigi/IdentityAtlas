@@ -284,17 +284,18 @@ describe('ensureMasterKey — default database checks', () => {
   it('verifies relocation by decrypting a stored secret', async () => {
     env.IDENTITY_ATLAS_KEY_DIR = keyDir;
     writeFileSync(legacyFile, newKey());
-    queryOne.mockResolvedValueOnce({ id: 'llm.apikey' });
+    queryOne.mockResolvedValueOnce({ id: 'llm.apikey', scope: 'llm' });
     getSecret.mockRejectedValueOnce(new Error('Unsupported state or unable to authenticate data'));
     expect(await ensureMasterKey(baseDeps())).toBe('legacy');
-    expect(getSecret).toHaveBeenCalledWith('llm.apikey');
+    // The vault refuses a read that does not name its scope (SEC-2026-09 L-04).
+    expect(getSecret).toHaveBeenCalledWith('llm.apikey', 'llm');
     expect(existsSync(legacyFile)).toBe(true);
   });
 
   it('relocates when a stored secret decrypts, or when the vault is empty', async () => {
     env.IDENTITY_ATLAS_KEY_DIR = keyDir;
     writeFileSync(legacyFile, newKey());
-    queryOne.mockResolvedValueOnce({ id: 'llm.apikey' });
+    queryOne.mockResolvedValueOnce({ id: 'llm.apikey', scope: 'llm' });
     getSecret.mockResolvedValueOnce('plaintext');
     expect(await ensureMasterKey(baseDeps())).toBe('relocated');
 

@@ -70,10 +70,10 @@ async function countStoredSecrets() {
 
 // True when the current master key decrypts a stored secret (or none exist).
 async function verifyStoredSecret() {
-  const row = await db.queryOne(`SELECT id FROM "Secrets" ORDER BY id LIMIT 1`);
+  const row = await db.queryOne(`SELECT id, scope FROM "Secrets" ORDER BY id LIMIT 1`);
   if (!row) return true;
   try {
-    await getSecret(row.id);
+    await getSecret(row.id, row.scope);
     return true;
   } catch {
     return false;
