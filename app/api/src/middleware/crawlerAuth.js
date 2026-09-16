@@ -1,5 +1,8 @@
 import crypto from 'crypto';
+import { promisify } from 'util';
 import * as db from '../db/connection.js';
+import { createFailureLimiter } from './crawlerAuthFailureLimiter.js';
+import { stripPort } from './rateLimitKeys.js';
 import {
   DENIAL,
   parseBearerKey,
@@ -24,23 +27,30 @@ const RATE_WINDOW_MS = 60 * 1000;
 // it is an in-memory lookup key for a 256-bit random API key, not a stored
 // verifier (that is the full-cost scrypt hash in Crawlers), so it only has to
 // be one-way and unlinkable across processes, and it must stay far cheaper than
-// the verification it lets us skip (~0.2 ms vs ~26 ms).
+// the verification it lets us skip (~0.2 ms vs ~26 ms). It runs through the
+// async scrypt like the verification does: a synchronous scrypt on this path
+// blocks the event loop for every request (M-04).
 const authCache = new Map();
 const AUTH_CACHE_TTL_MS = 60_000;
 const AUTH_CACHE_SALT = crypto.randomBytes(16);
 const AUTH_CACHE_DIGEST = { N: 1024, r: 1, p: 1 };
 
-export function authCacheKey(crawlerId, apiKey) {
-  return `${crawlerId}:${crypto.scryptSync(String(apiKey), AUTH_CACHE_SALT, 32, AUTH_CACHE_DIGEST).toString('hex')}`;
+// Async scrypt (SEC-2026-09 M-04): the synchronous variant blocked the event
+// loop for every unseen key, so a stream of invalid keys stalled every request.
+const scryptAsync = promisify(crypto.scrypt);
+
+export async function authCacheKey(crawlerId, apiKey) {
+  const digest = await scryptAsync(String(apiKey), AUTH_CACHE_SALT, 32, AUTH_CACHE_DIGEST);
+  return `${crawlerId}:${digest.toString('hex')}`;
 }
 
-function getCachedAuth(crawlerId, apiKey) {
-  const entry = authCache.get(authCacheKey(crawlerId, apiKey));
+function getCachedAuth(cacheKey) {
+  const entry = authCache.get(cacheKey);
   return (entry && Date.now() < entry.expires) ? entry.valid : null;
 }
 
-function setCachedAuth(crawlerId, apiKey, valid) {
-  authCache.set(authCacheKey(crawlerId, apiKey), { valid, expires: Date.now() + AUTH_CACHE_TTL_MS });
+function setCachedAuth(cacheKey, valid) {
+  authCache.set(cacheKey, { valid, expires: Date.now() + AUTH_CACHE_TTL_MS });
   if (authCache.size > 2000) {
     const now = Date.now();
     for (const [k, v] of authCache) { if (now >= v.expires) authCache.delete(k); }
@@ -59,7 +69,15 @@ function checkRateLimit(crawlerId, limit) {
 }
 
 function hashKey(apiKey, salt) {
-  return crypto.scryptSync(apiKey, salt, 64, { N: 16384, r: 8, p: 1 });
+  return scryptAsync(apiKey, salt, 64, { N: 16384, r: 8, p: 1 });
+}
+
+// Consulted before the prefix lookup and the hash — see crawlerAuthFailureLimiter.js.
+const failureLimiter = createFailureLimiter();
+
+// Denials that do not prove possession of the key count as failed attempts.
+function isKeyFailure(denial) {
+  return denial === DENIAL.invalidKey || denial === DENIAL.legacyHash;
 }
 
 async function logAudit(crawlerId, action, endpoint, statusCode, ipAddress) {
@@ -90,14 +108,15 @@ async function findCrawlerByPrefix(prefix) {
 // Verify the presented key against the stored scrypt hash, using the auth cache
 // to skip scrypt when a recent result exists. Returns a denial descriptor when
 // the key is invalid, or null when it verifies.
-function verifyKeyDenial(crawler, apiKey) {
-  const cached = getCachedAuth(crawler.id, apiKey);
+async function verifyKeyDenial(crawler, apiKey) {
+  const cacheKey = await authCacheKey(crawler.id, apiKey);
+  const cached = getCachedAuth(cacheKey);
   if (cached === false) return DENIAL.invalidKey;
   if (cached === true) return null;
 
-  const computedHash = hashKey(apiKey, crawler.apiKeySalt);
+  const computedHash = await hashKey(apiKey, crawler.apiKeySalt);
   const valid = crypto.timingSafeEqual(computedHash, crawler.apiKeyHash);
-  setCachedAuth(crawler.id, apiKey, valid);
+  setCachedAuth(cacheKey, valid);
   return valid ? null : DENIAL.invalidKey;
 }
 
@@ -109,10 +128,10 @@ function rateLimitDenial(crawler) {
 // Run every post-lookup authorization check in order, short-circuiting on the
 // first failure so each check's side effects (scrypt/cache, rate-limit counter)
 // fire only when reached — matching the original sequential guard clauses.
-function authorizeCrawler(crawler, apiKey) {
+async function authorizeCrawler(crawler, apiKey) {
   return (
     legacyHashDenial(crawler.apiKeyHash) ||
-    verifyKeyDenial(crawler, apiKey) ||
+    (await verifyKeyDenial(crawler, apiKey)) ||
     enabledDenial(crawler.enabled) ||
     expiryDenial(crawler.expiresAt) ||
     rateLimitDenial(crawler)
@@ -121,6 +140,9 @@ function authorizeCrawler(crawler, apiKey) {
 
 // Audit (when the denial carries an action) then send the rejection response.
 async function denyRequest(req, res, crawlerId, denial) {
+  if (isKeyFailure(denial)) {
+    failureLimiter.recordFailure(stripPort(req.ip), parseBearerKey(req.headers.authorization)?.prefix);
+  }
   if (denial.action) {
     await logAudit(crawlerId, denial.action, req.originalUrl, denial.status, req.ip);
   }
@@ -148,6 +170,9 @@ function touchLastUsed(crawlerId) {
 }
 
 export async function crawlerAuthMiddleware(req, res, next) {
+  // Already authenticated earlier in this request's middleware chain (the
+  // middleware is mounted more than once) — don't look up, hash or count again.
+  if (req.crawler) return next();
   if (!useSql) {
     return res.status(503).json({ error: 'SQL not configured' });
   }
@@ -155,6 +180,9 @@ export async function crawlerAuthMiddleware(req, res, next) {
   const parsed = parseBearerKey(req.headers.authorization);
   if (!parsed) {
     return res.status(401).json({ error: 'Missing or invalid API key' });
+  }
+  if (failureLimiter.isBlocked(stripPort(req.ip), parsed.prefix)) {
+    return res.status(429).json({ error: 'Too many failed authentication attempts, please retry later' });
   }
 
   let crawler;
@@ -168,7 +196,7 @@ export async function crawlerAuthMiddleware(req, res, next) {
     return denyRequest(req, res, 0, DENIAL.invalidKey);
   }
 
-  const denial = authorizeCrawler(crawler, parsed.apiKey);
+  const denial = await authorizeCrawler(crawler, parsed.apiKey);
   if (denial) {
     return denyRequest(req, res, crawler.id, denial);
   }

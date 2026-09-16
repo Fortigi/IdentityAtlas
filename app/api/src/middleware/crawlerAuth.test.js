@@ -166,16 +166,16 @@ describe('crawlerAuthMiddleware — built-in worker rate limit (M-06)', () => {
 });
 
 describe('authCacheKey (I-03)', () => {
-  it('never embeds the plaintext API key', () => {
-    const key = authCacheKey(7, API_KEY);
+  it('never embeds the plaintext API key', async () => {
+    const key = await authCacheKey(7, API_KEY);
     expect(key).not.toContain(API_KEY);
     expect(key).toMatch(/^7:[0-9a-f]{64}$/);
-    expect(authCacheKey(7, API_KEY)).toBe(key); // stable within the process
+    expect(await authCacheKey(7, API_KEY)).toBe(key); // stable within the process
   });
 
-  it('distinguishes crawler ids and keys', () => {
-    expect(authCacheKey(7, API_KEY)).not.toBe(authCacheKey(8, API_KEY));
-    expect(authCacheKey(7, API_KEY)).not.toBe(authCacheKey(7, `${API_KEY}x`));
+  it('distinguishes crawler ids and keys', async () => {
+    expect(await authCacheKey(7, API_KEY)).not.toBe(await authCacheKey(8, API_KEY));
+    expect(await authCacheKey(7, API_KEY)).not.toBe(await authCacheKey(7, `${API_KEY}x`));
   });
 
   it('still caches: a second valid request for the same key does not re-verify a now-wrong hash', async () => {
@@ -209,6 +209,91 @@ describe('crawlerAuthMiddleware — success', () => {
     expect(nextCalled).toBe(true);
     expect(req.crawler.systemIds).toBeNull();
     expect(req.crawler.permissions).toEqual(['ingest']);
+  });
+});
+
+describe('crawlerAuthMiddleware — pre-hash failure limiter (SEC-2026-09 M-04)', () => {
+  async function runFrom(ip, apiKey) {
+    const { req, res } = makeReqRes({ authorization: `Bearer ${apiKey}` });
+    req.ip = ip;
+    let nextCalled = false;
+    await crawlerAuthMiddleware(req, res, () => { nextCalled = true; });
+    return { res, nextCalled };
+  }
+
+  it('answers 429 without a DB lookup once a client has failed 10 times on one prefix', async () => {
+    for (let i = 0; i < 10; i++) {
+      query.mockResolvedValueOnce({ rows: [] }); // unknown prefix
+      const r = await runFrom('198.51.100.1', `fgc_dead${i}xyz`);
+      expect(r.res.statusCode).toBe(401);
+    }
+    query.mockClear();
+    const blocked = await runFrom('198.51.100.1', 'fgc_deadNEW');
+    expect(blocked.res.statusCode).toBe(429);
+    expect(blocked.nextCalled).toBe(false);
+    expect(query).not.toHaveBeenCalled(); // no lookup, no audit INSERT
+  });
+
+  it('does not block the same client on a different prefix, nor another client on the same prefix', async () => {
+    for (let i = 0; i < 10; i++) {
+      query.mockResolvedValueOnce({ rows: [] });
+      await runFrom('198.51.100.2', `fgc_beef${i}`);
+    }
+    query.mockResolvedValueOnce({ rows: [] });
+    const otherPrefix = await runFrom('198.51.100.2', 'fgc_cafe0');
+    expect(otherPrefix.res.statusCode).toBe(401);
+    query.mockResolvedValueOnce({ rows: [] });
+    const otherClient = await runFrom('198.51.100.3', 'fgc_beef0');
+    expect(otherClient.res.statusCode).toBe(401);
+  });
+
+  it('counts a forwarded address with a port as the same client', async () => {
+    for (let i = 0; i < 10; i++) {
+      query.mockResolvedValueOnce({ rows: [] });
+      await runFrom(`198.51.100.4:${40000 + i}`, 'fgc_f00dkey');
+    }
+    const blocked = await runFrom('198.51.100.4:50000', 'fgc_f00dkey');
+    expect(blocked.res.statusCode).toBe(429);
+  });
+
+  it('does not count a disabled crawler (key verified) as a failed attempt', async () => {
+    const row = crawlerRow({ enabled: false });
+    for (let i = 0; i < 11; i++) {
+      query.mockResolvedValueOnce({ rows: [row] });
+      const r = await runFrom('198.51.100.5', API_KEY);
+      expect(r.res.statusCode).toBe(403);
+    }
+  });
+});
+
+describe('crawlerAuthMiddleware — event loop and repeat mounts (SEC-2026-09 M-04)', () => {
+  it('computes the hash without the synchronous scrypt', async () => {
+    const salt = Buffer.from('fresh-salt-for-async-test');
+    const apiKey = 'fgc_ASYNCkey';
+    const row = crawlerRow({ apiKeySalt: salt, apiKeyHash: crypto.scryptSync(apiKey, salt, 64, { N: 16384, r: 8, p: 1 }) });
+    const syncSpy = vi.spyOn(crypto, 'scryptSync');
+    query.mockResolvedValueOnce({ rows: [row] });
+    const { req, res } = makeReqRes({ authorization: `Bearer ${apiKey}` });
+    let nextCalled = false;
+    await crawlerAuthMiddleware(req, res, () => { nextCalled = true; });
+    const syncCalls = syncSpy.mock.calls.length;
+    syncSpy.mockRestore();
+    expect(nextCalled).toBe(true);
+    expect(req.crawler.id).toBe(row.id);
+    expect(syncCalls).toBe(0);
+  });
+
+  it('skips lookup, hashing and the rate counter when an earlier mount already authenticated the request', async () => {
+    const row = crawlerRow({ rateLimit: 1 });
+    query.mockResolvedValueOnce({ rows: [row] });
+    const { req, res } = makeReqRes(AUTH_HEADER);
+    let calls = 0;
+    await crawlerAuthMiddleware(req, res, () => { calls++; });
+    query.mockClear();
+    await crawlerAuthMiddleware(req, res, () => { calls++; });
+    expect(calls).toBe(2);
+    expect(res.statusCode).toBeNull(); // a second count would have hit rateLimit 1 → 429
+    expect(query).not.toHaveBeenCalled();
   });
 });
 

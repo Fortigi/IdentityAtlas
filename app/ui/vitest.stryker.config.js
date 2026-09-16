@@ -37,6 +37,7 @@ export default defineConfig({
   test: {
     include: [
       'src/auth/usePermissions.test.jsx',
+      'src/auth/authFetchHeaders.test.js',
       'src/utils/matrixFilter.test.js',
       'src/components/shared/sharedSnapshot.test.js',
       'src/hooks/useHashPage.test.jsx',

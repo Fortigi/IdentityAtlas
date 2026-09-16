@@ -639,7 +639,7 @@ function Invoke-Phase4e2CleanDatabase {
 
     try {
         $cleanResp = Invoke-RestMethod -Uri "$apiBaseUrl/admin/clean-database" `
-            -Method Post -ContentType 'application/json' -TimeoutSec 30
+            -Method Post -ContentType 'application/json' -Body '{"confirm":"DELETE ALL DATA"}' -TimeoutSec 30
         $wipedCount = @($cleanResp.wiped).Count
         $wipedRows  = ($cleanResp.wiped | Measure-Object -Property rowsAffected -Sum).Sum
         Write-Result 'Clean-Database-API' ($wipedCount -gt 0) "wiped $wipedCount tables, $wipedRows rows"

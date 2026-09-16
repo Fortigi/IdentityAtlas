@@ -119,6 +119,8 @@ repopulate.
 
 !!! warning "This is irreversible"
     The UI requires two confirmations — a "Yes, continue" step and typing
-    `DELETE ALL DATA` — before the wipe runs. The endpoint is also rate-limited to
-    **5 requests per minute** to guard against runaway automation. There is no undo;
-    the data comes back only by re-syncing.
+    `DELETE ALL DATA` — before the wipe runs. The API enforces the same phrase: a
+    call must send the JSON body `{"confirm": "DELETE ALL DATA"}`, otherwise it is
+    refused with `400`. The endpoint is also rate-limited to **5 requests per minute
+    per admin** to guard against runaway automation. There is no undo; the data comes
+    back only by re-syncing.

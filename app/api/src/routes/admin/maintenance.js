@@ -10,15 +10,18 @@ import rateLimit from 'express-rate-limit';
 import * as db from '../../db/connection.js';
 import { requirePermission } from '../../middleware/auth.js';
 import { purgeExpiredTombstones } from '../../ingest/tombstonePurge.js';
+import { principalRateLimitKey } from '../../middleware/rateLimitKeys.js';
 
 const router = Router();
 
 const writeSystems = requirePermission('admin.systems');
 
-// Rate limiter for destructive admin operations (5 requests per minute)
+// Rate limiter for destructive admin operations (5 requests per minute, per
+// signed-in admin rather than per proxy address — SEC-2026-09 M-09)
 const adminDestructiveLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 5,
+  keyGenerator: principalRateLimitKey,
   message: { error: 'Too many admin requests, please try again later' },
   standardHeaders: true,
   legacyHeaders: false,
@@ -52,8 +55,18 @@ async function wipeTables(tables, existingTables) {
   return { wiped, skipped };
 }
 
+// The wipe must be confirmed explicitly in the JSON body, in every auth mode, so
+// no request that merely reaches the endpoint (a form post, a stray script) can
+// trigger it (SEC-2026-09 H-07).
+export const CLEAN_DATABASE_CONFIRMATION = 'DELETE ALL DATA';
+
 router.post('/admin/clean-database', writeSystems, adminDestructiveLimiter, async (req, res) => {
   if (process.env.USE_SQL !== 'true') return res.status(503).json({ error: 'SQL not configured' });
+  if (req.body?.confirm !== CLEAN_DATABASE_CONFIRMATION) {
+    return res.status(400).json({
+      error: `Confirmation required: send {"confirm": "${CLEAN_DATABASE_CONFIRMATION}"}`,
+    });
+  }
 
   // Tables to wipe (data only — configs/profiles/audit preserved)
   // Listed in dependency order: child tables first to avoid FK issues

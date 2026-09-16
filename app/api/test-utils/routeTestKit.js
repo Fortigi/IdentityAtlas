@@ -21,3 +21,15 @@ export function mountRouter(router) {
   app.use('/api', router);
   return app;
 }
+
+// Same as mountRouter, but stamps a signed-in caller on every request before
+// the router runs. `userForRequest(req)` returns the req.user object. Per-caller
+// rate limiters (middleware/rateLimitKeys.js) key on req.user.oid, so a test can
+// act as one admin across calls or as a fresh caller per request.
+export function mountRouterAs(router, userForRequest) {
+  const app = express();
+  app.use(express.json());
+  app.use((req, _res, next) => { req.user = userForRequest(req); next(); });
+  app.use('/api', router);
+  return app;
+}
