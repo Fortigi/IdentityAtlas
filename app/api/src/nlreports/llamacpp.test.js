@@ -29,6 +29,10 @@ beforeEach(() => {
   calls = [];
   routes = {
     'GET /v1/models': () => [200, { data: [{ id: 'qwen3-4b-instruct' }] }],
+    'GET /props': () => [200, {
+      model_alias: 'qwen3-4b-instruct', model_path: '/models/model.gguf',
+      model_ftype: 'Q4_K_M', build_info: 'b10975', chat_template: '{{ jinja }}',
+    }],
     'POST /v1/chat/completions': () => [200, {
       choices: [{ message: { content: '{"kind":"report"}' } }],
       timings: { prompt_n: 15, cache_n: 4193, prompt_ms: 3900.4, predicted_n: 125, predicted_ms: 49800.6 },
@@ -61,8 +65,12 @@ describe('llama.cpp client', () => {
     const { warm, cacheFileName } = await client();
     const r = await warm('ignored', 'SYSTEM PROMPT');
     expect(r).toMatchObject({ model: 'qwen3-4b-instruct', restored: true });
-    expect(calls.map(c => `${c.method} ${c.url}`)).toEqual(['GET /v1/models', 'POST /slots/0?action=restore']);
-    expect(calls[1].body).toEqual({ filename: cacheFileName('qwen3-4b-instruct', 'SYSTEM PROMPT') });
+    expect(calls.map(c => `${c.method} ${c.url}`)).toEqual(['GET /v1/models', 'GET /props', 'POST /slots/0?action=restore']);
+    // Keyed on what the server is actually running, not just the model's name.
+    expect(calls.at(-1).body.filename).toBe(cacheFileName(
+      ['qwen3-4b-instruct', '/models/model.gguf', 'Q4_K_M', 'b10975', '{{ jinja }}'].join('\u0000'),
+      'SYSTEM PROMPT',
+    ));
   });
 
   it('warm-up reads the prompt once and saves it when there is no usable cache', async () => {
@@ -72,20 +80,29 @@ describe('llama.cpp client', () => {
     const r = await warm('ignored', 'SYSTEM PROMPT');
     expect(r.restored).toBe(false);
     expect(calls.map(c => `${c.method} ${c.url}`)).toEqual([
-      'GET /v1/models', 'POST /slots/0?action=restore', 'POST /v1/chat/completions', 'POST /slots/0?action=save',
+      'GET /v1/models', 'GET /props', 'POST /slots/0?action=restore', 'POST /v1/chat/completions', 'POST /slots/0?action=save',
     ]);
-    expect(calls[2].body).toMatchObject({ max_tokens: 1, messages: [{ role: 'system', content: 'SYSTEM PROMPT' }, { role: 'user', content: 'ready?' }] });
-    expect(calls[2].body).not.toHaveProperty('response_format');
-    expect(calls[3].body).toEqual(calls[1].body); // saved under the name the next restore will look for
+    expect(calls[3].body).toMatchObject({ max_tokens: 1, messages: [{ role: 'system', content: 'SYSTEM PROMPT' }, { role: 'user', content: 'ready?' }] });
+    expect(calls[3].body).not.toHaveProperty('response_format');
+    expect(calls[4].body).toEqual(calls[2].body); // saved under the name the next restore will look for
   });
 
-  it('gives every model + prompt combination its own cache file', async () => {
-    const { cacheFileName } = await client();
+  it('gives every server + model + prompt combination its own cache file', async () => {
+    const { cacheFileName, serverFingerprint } = await client();
     const a = cacheFileName('m1', 'prompt');
     expect(a).toMatch(/^prompt-[0-9a-f]{24}\.bin$/);
     expect(cacheFileName('m1', 'prompt')).toBe(a);
     expect(cacheFileName('m2', 'prompt')).not.toBe(a);
     expect(cacheFileName('m1', 'prompt changed')).not.toBe(a);
+
+    // A server upgrade, a different quantisation or a changed chat template all
+    // change the fingerprint, so none of them can reuse another's cache.
+    const base = await serverFingerprint();
+    routes['GET /props'] = () => [200, {
+      model_alias: 'qwen3-4b-instruct', model_path: '/models/model.gguf',
+      model_ftype: 'Q4_K_M', build_info: 'b11000', chat_template: '{{ jinja }}',
+    }];
+    expect(await serverFingerprint()).not.toBe(base);
   });
 
   it('surfaces server errors and a server without a model', async () => {
