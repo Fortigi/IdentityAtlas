@@ -18,6 +18,7 @@
 
 import { Router } from 'express';
 import { requirePermission } from '../middleware/auth.js';
+import { requireFeature } from '../featureFlags.js';
 import { ENTITIES, OPERATORS, OPERATORS_BY_TYPE } from '../nlreports/catalog.js';
 import { availableColumns } from '../nlreports/spec.js';
 import { ensureWarm, interpret, loadValues, runSpec, warmupState } from '../nlreports/service.js';
@@ -33,11 +34,18 @@ import {
 } from '../nlreports/savedReports.js';
 
 const router = Router();
-const adminGate = requirePermission('admin.llm');
-// Building a report is a write action: it saves definitions and spends the
-// model's CPU. Running an existing report is a read action and goes through
-// /api/reports, which needs only data.read.
-const buildGate = requirePermission('data.write.reports');
+
+// Gates are applied per route, never on the /api mount: a mount-level gate runs
+// for every later route too (it would 404 or 403 unrelated endpoints).
+//
+//   analyst — the caller may build reports AND the feature is on. Permission is
+//             checked first, so a caller without it gets 403 whether or not the
+//             feature is switched on (and never learns which installs have it). Building
+//             saves definitions and spends the model CPU; running an existing
+//             report is a read action served by /api/reports (data.read).
+//   admin   — the feature must be on AND the caller administers the LLM.
+const analystGate = [requirePermission('data.write.reports'), requireFeature('customReports')];
+const adminGate = [requirePermission('admin.llm'), requireFeature('customReports')];
 
 const MAX_QUESTION = 2000;
 const MAX_HISTORY = 12;
@@ -50,7 +58,7 @@ function fail(res, route, err, status = 500) {
 
 const userOf = (req) => (req.user && (req.user.email || req.user.upn || req.user.preferred_username || req.user.name)) || 'unknown';
 
-router.get('/nl-reports/catalog', buildGate, async (req, res) => {
+router.get('/nl-reports/catalog', analystGate, async (req, res) => {
   try {
     const values = await loadValues();
     const entities = Object.fromEntries(Object.entries(ENTITIES).map(([name, e]) => [name, {
@@ -75,7 +83,7 @@ router.get('/nl-reports/catalog', buildGate, async (req, res) => {
 });
 
 // GET /api/nl-reports/lookup?entity=resource&q=mat — names for the compare reference picker
-router.get('/nl-reports/lookup', buildGate, async (req, res) => {
+router.get('/nl-reports/lookup', analystGate, async (req, res) => {
   const entity = String(req.query.entity || '');
   const text = String(req.query.q || '').trim();
   if (!Object.hasOwn(ENTITIES, entity)) return res.status(400).json({ error: 'Unknown entity' });
@@ -87,7 +95,7 @@ router.get('/nl-reports/lookup', buildGate, async (req, res) => {
   }
 });
 
-router.get('/nl-reports/status', buildGate, async (req, res) => {
+router.get('/nl-reports/status', analystGate, async (req, res) => {
   const model = await getReportModel().catch(() => null);
   try {
     const models = await listModels();
@@ -102,7 +110,7 @@ router.get('/nl-reports/status', buildGate, async (req, res) => {
 // prompt cache in the background, and this answers `state: "preparing"` meanwhile.
 const WARM_WAIT_MS = 3000;
 
-router.post('/nl-reports/warm', buildGate, async (req, res) => {
+router.post('/nl-reports/warm', analystGate, async (req, res) => {
   try {
     const entry = ensureWarm(req.body?.force === true);
     const ready = await Promise.race([
@@ -117,7 +125,7 @@ router.post('/nl-reports/warm', buildGate, async (req, res) => {
   }
 });
 
-router.post('/nl-reports/interpret', buildGate, async (req, res) => {
+router.post('/nl-reports/interpret', analystGate, async (req, res) => {
   const question = typeof req.body?.question === 'string' ? req.body.question.trim() : '';
   const history = Array.isArray(req.body?.history) ? req.body.history : [];
   if (!question || question.length > MAX_QUESTION) return res.status(400).json({ error: `Question is required (max ${MAX_QUESTION} characters)` });
@@ -143,7 +151,7 @@ router.post('/nl-reports/interpret', buildGate, async (req, res) => {
 
 // POST /api/nl-reports/resolve { spec, choice? } — apply the answer to a "did you mean"
 // confirmation and look the named objects up again. No model involved.
-router.post('/nl-reports/resolve', buildGate, async (req, res) => {
+router.post('/nl-reports/resolve', analystGate, async (req, res) => {
   if (!req.body?.spec || typeof req.body.spec !== 'object') return res.status(400).json({ error: 'spec is required' });
   try {
     const { ok, spec, errors } = validateSpec(req.body.spec, await loadValues());
@@ -158,7 +166,7 @@ router.post('/nl-reports/resolve', buildGate, async (req, res) => {
   }
 });
 
-router.post('/nl-reports/run', buildGate, async (req, res) => {
+router.post('/nl-reports/run', analystGate, async (req, res) => {
   if (!req.body?.spec || typeof req.body.spec !== 'object') return res.status(400).json({ error: 'spec is required' });
   try {
     const result = await runSpec(req.body.spec);
@@ -171,7 +179,7 @@ router.post('/nl-reports/run', buildGate, async (req, res) => {
 
 // ── Saved reports ────────────────────────────────────────────────────────────
 
-router.get('/nl-reports/saved/:id', buildGate, async (req, res) => {
+router.get('/nl-reports/saved/:id', analystGate, async (req, res) => {
   try {
     const row = await getSavedReport(req.params.id);
     if (!row) return res.status(404).json({ error: 'Report not found' });
@@ -194,10 +202,10 @@ async function saveReport(req, res, id) {
   }
 }
 
-router.post('/nl-reports/saved', buildGate, (req, res) => saveReport(req, res, null));
-router.put('/nl-reports/saved/:id', buildGate, (req, res) => saveReport(req, res, req.params.id));
+router.post('/nl-reports/saved', analystGate, (req, res) => saveReport(req, res, null));
+router.put('/nl-reports/saved/:id', analystGate, (req, res) => saveReport(req, res, req.params.id));
 
-router.delete('/nl-reports/saved/:id', buildGate, async (req, res) => {
+router.delete('/nl-reports/saved/:id', analystGate, async (req, res) => {
   try {
     if (!(await deleteSavedReport(req.params.id))) return res.status(404).json({ error: 'Report not found' });
     res.json({ ok: true });

@@ -17,7 +17,7 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { authMiddleware } from './middleware/auth.js';
 import { resolveModuleVersion } from './version.js';
-import { readFeatures, requireFeature } from './featureFlags.js';
+import { readFeatures } from './featureFlags.js';
 import { perfMetrics } from './middleware/perfMetrics.js';
 import permissionsRouter from './routes/permissions.js';
 import matrixRouter from './routes/matrix.js';
@@ -330,8 +330,10 @@ export function createApp() {
   // doesn't already show), so plain auth, no admin permission gate.
   app.use('/api', authMiddleware, reportsRouter);
   // Custom reports + the local-model report generator (read-only queries).
-  // Experimental: off unless an operator switches it on.
-  app.use('/api', authMiddleware, requireFeature('customReports'), nlReportsRouter);
+  // The experimental-feature gate and the permission gate are applied PER ROUTE
+  // inside the router: a requireFeature on this shared '/api' mount would answer
+  // 404 for every later route while the feature is off.
+  app.use('/api', authMiddleware, nlReportsRouter);
   // Context plugins (Admin → Contexts) — admin-only across the board.
   // Permission gates are applied PER ROUTE inside each router (not on the /api
   // mount) — a mount-level requirePermission on the shared '/api' prefix runs
