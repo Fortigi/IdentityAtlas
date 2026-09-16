@@ -173,6 +173,11 @@ describe('authCacheKey (I-03)', () => {
     expect(authCacheKey(7, API_KEY)).toBe(key); // stable within the process
   });
 
+  it('is keyed per process, not a plain hash anyone could recompute from the API key', () => {
+    const plainSha256 = crypto.createHash('sha256').update(API_KEY).digest('hex');
+    expect(authCacheKey(7, API_KEY)).not.toBe(`7:${plainSha256}`);
+  });
+
   it('distinguishes crawler ids and keys', () => {
     expect(authCacheKey(7, API_KEY)).not.toBe(authCacheKey(8, API_KEY));
     expect(authCacheKey(7, API_KEY)).not.toBe(authCacheKey(7, `${API_KEY}x`));

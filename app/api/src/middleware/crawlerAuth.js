@@ -23,18 +23,18 @@ const RATE_WINDOW_MS = 60 * 1000;
 // in memory as a Map key (SEC-2026-09 I-03). TTL: 60 seconds.
 // On key rotation the new apiKey string is different → cache miss → re-verify.
 //
-// The digest is a deliberately cheap scrypt under a per-process random salt:
-// it is an in-memory lookup key for a 256-bit random API key, not a stored
-// verifier (that is the full-cost scrypt hash in Crawlers), so it only has to
-// be one-way and unlinkable across processes, and it must stay far cheaper than
-// the verification it lets us skip (~0.2 ms vs ~26 ms).
+// The digest is an HMAC-SHA256 under a per-process random key: it is an
+// in-memory lookup key for a 256-bit random API key, not a stored verifier (that
+// is the full-cost scrypt hash in Crawlers), so it only has to be one-way and
+// unlinkable across processes — a slow KDF buys nothing against a key with that
+// much entropy. It must also stay far cheaper than the verification it lets us
+// skip, and never be a synchronous scrypt: those block the event loop (M-04).
 const authCache = new Map();
 const AUTH_CACHE_TTL_MS = 60_000;
-const AUTH_CACHE_SALT = crypto.randomBytes(16);
-const AUTH_CACHE_DIGEST = { N: 1024, r: 1, p: 1 };
+const AUTH_CACHE_HMAC_KEY = crypto.randomBytes(32);
 
 export function authCacheKey(crawlerId, apiKey) {
-  return `${crawlerId}:${crypto.scryptSync(String(apiKey), AUTH_CACHE_SALT, 32, AUTH_CACHE_DIGEST).toString('hex')}`;
+  return `${crawlerId}:${crypto.createHmac('sha256', AUTH_CACHE_HMAC_KEY).update(String(apiKey)).digest('hex')}`;
 }
 
 function getCachedAuth(crawlerId, apiKey) {
