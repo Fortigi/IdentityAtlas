@@ -36,7 +36,13 @@ const ENTITY_ALIASES = {
   businessrole: 'resource', 'business role': 'resource', 'access package': 'resource',
 };
 
-const aliasOf = (word) => ENTITY_ALIASES[String(word || '').toLowerCase()];
+// Object.hasOwn, like every other lookup here: an entity called "constructor" or
+// "__proto__" would otherwise return an inherited value and throw further down
+// instead of being reported as an unknown entity.
+const aliasOf = (word) => {
+  const key = String(word || '').toLowerCase();
+  return Object.hasOwn(ENTITY_ALIASES, key) ? ENTITY_ALIASES[key] : undefined;
+};
 
 // A derived entity (user, group) already implies its type. Restating it is
 // harmless and dropped; asking for a different type is a real mistake.
@@ -243,7 +249,7 @@ export function validateSpec(raw, values = {}) {
   const err = (m) => errors.push(m);
   if (!raw || typeof raw !== 'object') return { ok: false, spec: null, errors: ['spec must be an object'] };
 
-  const entityName = ENTITY_ALIASES[String(raw.entity || '').toLowerCase()];
+  const entityName = aliasOf(raw.entity);
   if (!entityName) {
     return { ok: false, spec: null, errors: [`unknown entity "${raw.entity}". Use one of: ${Object.keys(ENTITIES).join(', ')}`] };
   }

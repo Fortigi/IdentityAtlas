@@ -93,6 +93,10 @@ Two failure modes are handled in code rather than left to the model:
   no data and no credentials.
 - **Audit**: every question is logged by the API with the user who asked, the model used and the
   outcome. Saved reports record who created and last changed them.
+- **The audit line contains the question as typed**, which means it can contain a name an analyst
+  typed ("groups like Jan de Vries"). That is deliberate — an audit trail of "someone asked
+  something" is not worth keeping — but it is worth knowing when deciding how long to keep container
+  logs. No query *result* is ever logged.
 
 ## Sizing and consumption
 
